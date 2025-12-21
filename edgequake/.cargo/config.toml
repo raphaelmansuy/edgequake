@@ -1,0 +1,19 @@
+[build]
+# Use sccache if available for faster builds
+# rustc-wrapper = "sccache"
+
+# Uncomment these if you have lld installed:
+# [target.x86_64-unknown-linux-gnu]
+# rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+# [target.x86_64-apple-darwin]
+# rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+# [target.aarch64-apple-darwin]
+# rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+[alias]
+xtask = "run --package xtask --"
+
+[env]
+RUST_BACKTRACE = "1"

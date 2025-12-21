@@ -1,0 +1,31 @@
+[package]
+name = "edgequake-storage"
+description = "Storage abstractions and adapters for EdgeQuake RAG system"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+postgres = ["dep:sqlx"]
+# Enable all storage backends
+full = ["postgres"]
+
+[dependencies]
+edgequake-core = { workspace = true }
+
+async-trait = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+# Optional PostgreSQL dependencies
+sqlx = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio-test = { workspace = true }

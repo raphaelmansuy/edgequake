@@ -1,0 +1,31 @@
+[package]
+name = "edgequake-api"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "REST API server for EdgeQuake"
+
+[dependencies]
+edgequake-core = { path = "../edgequake-core" }
+edgequake-storage = { path = "../edgequake-storage" }
+edgequake-llm = { path = "../edgequake-llm" }
+edgequake-pipeline = { path = "../edgequake-pipeline" }
+edgequake-query = { path = "../edgequake-query" }
+
+axum.workspace = true
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+tower = { version = "0.5", features = ["timeout", "limit"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "compression-gzip"] }
+utoipa.workspace = true
+utoipa-swagger-ui = { version = "9", features = ["axum"] }
+uuid.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }

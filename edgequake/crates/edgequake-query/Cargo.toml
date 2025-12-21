@@ -1,0 +1,24 @@
+[package]
+name = "edgequake-query"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Query engine for EdgeQuake RAG system"
+
+[dependencies]
+edgequake-core = { path = "../edgequake-core" }
+edgequake-storage = { path = "../edgequake-storage" }
+edgequake-llm = { path = "../edgequake-llm" }
+
+async-trait.workspace = true
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+futures = "0.3"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }

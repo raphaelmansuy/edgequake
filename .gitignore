@@ -1,0 +1,89 @@
+# Rust build artifacts
+target/
+Cargo.lock
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+
+# Log files
+*.log
+lightrag.log*
+
+# Python artifacts (for LightRAG reference)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+ENV/
+
+# Node.js (for webui)
+node_modules/
+.bun/
+bun.lockb
+
+# Database and storage
+*.db
+*.sqlite
+*.sqlite3
+rag_storage/
+temp/
+inputs/
+*.index
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Documentation build
+site/
+_build/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.orig
+
+# Kubernetes secrets
+k8s-deploy/secrets/
+
+# Configuration with secrets
+config.ini
+*.pem
+*.key
+
+# OS files
+Thumbs.db
+ehthumbs.db

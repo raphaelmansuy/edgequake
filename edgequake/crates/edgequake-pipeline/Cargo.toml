@@ -1,0 +1,26 @@
+[package]
+name = "edgequake-pipeline"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Document processing pipeline for EdgeQuake"
+
+[dependencies]
+edgequake-core = { path = "../edgequake-core" }
+edgequake-storage = { path = "../edgequake-storage" }
+edgequake-llm = { path = "../edgequake-llm" }
+
+async-trait.workspace = true
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+futures = "0.3"
+regex = "1.10"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }
