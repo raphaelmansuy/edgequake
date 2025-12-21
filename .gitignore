@@ -1,6 +1,8 @@
 # Rust build artifacts
 target/
 Cargo.lock
+**/*.rs.bk
+*.pdb
 
 # IDE and editor files
 .idea/
@@ -58,6 +60,8 @@ rag_storage/
 temp/
 inputs/
 *.index
+postgres_data/
+pgdata/
 
 # Test artifacts
 .pytest_cache/

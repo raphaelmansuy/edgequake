@@ -28,7 +28,7 @@ pub mod modes;
 pub mod strategies;
 
 pub use context::{QueryContext, RetrievedContext};
-pub use engine::{QueryEngine, QueryRequest, QueryResponse};
+pub use engine::{QueryEngine, QueryEngineConfig, QueryRequest, QueryResponse};
 pub use error::{QueryError, Result};
 pub use modes::QueryMode;
 pub use strategies::{

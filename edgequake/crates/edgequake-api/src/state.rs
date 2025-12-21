@@ -4,7 +4,11 @@ use std::sync::Arc;
 
 use edgequake_llm::OpenAIProvider;
 use edgequake_pipeline::Pipeline;
+use edgequake_query::{QueryEngine, QueryEngineConfig};
 use edgequake_storage::adapters::memory::{MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage};
+
+/// Type alias for the query engine with memory storage.
+pub type MemoryQueryEngine = QueryEngine<MemoryVectorStorage, MemoryGraphStorage, OpenAIProvider, OpenAIProvider>;
 
 /// Application state shared across handlers.
 #[derive(Clone)]
@@ -20,6 +24,9 @@ pub struct AppState {
 
     /// LLM provider.
     pub llm_provider: Arc<OpenAIProvider>,
+
+    /// Query engine.
+    pub query_engine: Arc<MemoryQueryEngine>,
 
     /// Processing pipeline.
     pub pipeline: Arc<Pipeline>,
@@ -60,11 +67,21 @@ impl AppState {
         let llm_provider = Arc::new(OpenAIProvider::new(llm_api_key));
         let pipeline = Arc::new(Pipeline::default_pipeline());
 
+        // Create query engine
+        let query_engine = Arc::new(QueryEngine::new(
+            QueryEngineConfig::default(),
+            Arc::clone(&vector_storage),
+            Arc::clone(&graph_storage),
+            Arc::clone(&llm_provider),
+            Arc::clone(&llm_provider),
+        ));
+
         Self {
             kv_storage,
             vector_storage,
             graph_storage,
             llm_provider,
+            query_engine,
             pipeline,
             config: AppConfig::default(),
         }

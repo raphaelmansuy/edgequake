@@ -6,6 +6,7 @@ use utoipa::ToSchema;
 
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
+use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
 
 /// Query request.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
@@ -103,26 +104,66 @@ pub async fn execute_query(
         )));
     }
 
-    let start = std::time::Instant::now();
+    // Parse query mode
+    let mode = request.mode
+        .as_ref()
+        .and_then(|m| QueryMode::from_str(m))
+        .unwrap_or(QueryMode::Hybrid);
 
-    // For now, return a placeholder response
-    // Full implementation would use the QueryEngine
-    let mode = request.mode.clone().unwrap_or_else(|| "hybrid".to_string());
+    // Build engine query request
+    let mut engine_request = EngineQueryRequest::new(&request.query)
+        .with_mode(mode);
+    
+    if request.context_only {
+        engine_request = engine_request.context_only();
+    }
+
+    // Execute query using the query engine
+    let result = state.query_engine.query(engine_request).await
+        .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?;
+
+    // Convert sources from context
+    let mut sources = Vec::new();
+    
+    for chunk in &result.context.chunks {
+        sources.push(SourceReference {
+            source_type: "chunk".to_string(),
+            id: chunk.id.clone(),
+            score: chunk.score,
+            snippet: Some(chunk.content.chars().take(200).collect()),
+        });
+    }
+
+    for entity in &result.context.entities {
+        sources.push(SourceReference {
+            source_type: "entity".to_string(),
+            id: entity.name.clone(),
+            score: entity.score,
+            snippet: Some(entity.description.chars().take(200).collect()),
+        });
+    }
+
+    for rel in &result.context.relationships {
+        sources.push(SourceReference {
+            source_type: "relationship".to_string(),
+            id: format!("{}->{}", rel.source, rel.target),
+            score: rel.score,
+            snippet: Some(format!("{} {} {}", rel.source, rel.relation_type, rel.target)),
+        });
+    }
 
     let response = QueryResponse {
-        answer: format!(
-            "This is a placeholder response for query: '{}'. \
-             Full implementation would use the QueryEngine with {} mode.",
-            request.query, mode
-        ),
-        mode,
-        sources: vec![],
+        answer: result.answer,
+        mode: result.mode.to_string(),
+        sources,
         stats: QueryStats {
-            embedding_time_ms: 0,
-            retrieval_time_ms: 0,
-            generation_time_ms: 0,
-            total_time_ms: start.elapsed().as_millis() as u64,
-            sources_retrieved: 0,
+            embedding_time_ms: result.stats.embedding_time_ms,
+            retrieval_time_ms: result.stats.retrieval_time_ms,
+            generation_time_ms: result.stats.generation_time_ms,
+            total_time_ms: result.stats.total_time_ms,
+            sources_retrieved: result.context.chunks.len() 
+                + result.context.entities.len() 
+                + result.context.relationships.len(),
         },
     };
 
