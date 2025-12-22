@@ -29,5 +29,6 @@ pub mod state;
 
 pub use error::{ApiError, ApiResult};
 pub use middleware::{AuthConfig, AuthState, RateLimitConfig};
+pub use routes::create_router;
 pub use server::{Server, ServerConfig};
 pub use state::AppState;

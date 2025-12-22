@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use edgequake_auth::{AuthConfig, JwtService, PasswordService, RbacService};
 use edgequake_llm::OpenAIProvider;
 use edgequake_pipeline::Pipeline;
 use edgequake_query::{QueryEngine, QueryEngineConfig};
@@ -42,6 +43,18 @@ pub struct AppState {
 
     /// Configuration.
     pub config: AppConfig,
+
+    /// Auth configuration.
+    pub auth_config: AuthConfig,
+
+    /// JWT service.
+    pub jwt_service: Arc<JwtService>,
+
+    /// Password service.
+    pub password_service: Arc<PasswordService>,
+
+    /// RBAC service.
+    pub rbac_service: Arc<RbacService>,
 }
 
 /// Application configuration.
@@ -80,6 +93,11 @@ impl AppState {
         task_storage: SharedTaskStorage,
         task_queue: SharedTaskQueue,
     ) -> Self {
+        let auth_config = AuthConfig::default();
+        let jwt_service = Arc::new(JwtService::new(auth_config.clone()));
+        let password_service = Arc::new(PasswordService::new(auth_config.clone()));
+        let rbac_service = Arc::new(RbacService::new());
+
         Self {
             kv_storage,
             vector_storage,
@@ -91,6 +109,10 @@ impl AppState {
             task_storage,
             task_queue,
             config: AppConfig::default(),
+            auth_config,
+            jwt_service,
+            password_service,
+            rbac_service,
         }
     }
 
@@ -115,6 +137,12 @@ impl AppState {
             Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
         ));
 
+        // Create auth services
+        let auth_config = AuthConfig::default();
+        let jwt_service = Arc::new(JwtService::new(auth_config.clone()));
+        let password_service = Arc::new(PasswordService::new(auth_config.clone()));
+        let rbac_service = Arc::new(RbacService::new());
+
         Self {
             kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
             vector_storage: Arc::clone(&vector_storage)
@@ -129,6 +157,10 @@ impl AppState {
             task_storage,
             task_queue,
             config: AppConfig::default(),
+            auth_config,
+            jwt_service,
+            password_service,
+            rbac_service,
         }
     }
 
@@ -155,6 +187,12 @@ impl AppState {
             Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
         ));
 
+        // Create auth services with test configuration
+        let auth_config = AuthConfig::default();
+        let jwt_service = Arc::new(JwtService::new(auth_config.clone()));
+        let password_service = Arc::new(PasswordService::new(auth_config.clone()));
+        let rbac_service = Arc::new(RbacService::new());
+
         Self {
             kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
             vector_storage: Arc::clone(&vector_storage)
@@ -169,6 +207,10 @@ impl AppState {
             task_storage,
             task_queue,
             config: AppConfig::default(),
+            auth_config,
+            jwt_service,
+            password_service,
+            rbac_service,
         }
     }
 }

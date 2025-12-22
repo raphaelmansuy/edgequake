@@ -14,6 +14,7 @@ edgequake-llm = { path = "../edgequake-llm" }
 edgequake-pipeline = { path = "../edgequake-pipeline" }
 edgequake-query = { path = "../edgequake-query" }
 edgequake-tasks = { path = "../edgequake-tasks", features = ["postgres"] }
+edgequake-auth = { path = "../edgequake-auth" }
 
 axum.workspace = true
 tokio = { workspace = true, features = ["full"] }
@@ -37,6 +38,7 @@ chrono = { version = "0.4", features = ["serde"] }
 # File handling
 sha2 = "0.10"
 hex = "0.4"
+rand = "0.9"
 bytes = "1.9"
 
 [dev-dependencies]
