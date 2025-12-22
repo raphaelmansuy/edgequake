@@ -166,7 +166,64 @@ CREATE INDEX IF NOT EXISTS idx_conversation_history_conversation_id
 GRANT ALL PRIVILEGES ON edgequake.tasks TO edgequake;
 GRANT ALL PRIVILEGES ON edgequake.conversation_history TO edgequake;
 
+-- ============================================================================
+-- Phase 2 Enhancements (v1.2.0) - Graph Management
+-- ============================================================================
+
+-- 1. Audit log table for tracking manual changes
+CREATE TABLE IF NOT EXISTS edgequake.audit_log (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    action_type VARCHAR(50) NOT NULL,
+    entity_type VARCHAR(50) NOT NULL,
+    entity_id VARCHAR(255) NOT NULL,
+    user_id VARCHAR(255),
+    source VARCHAR(100) DEFAULT 'api',
+    previous_value JSONB,
+    new_value JSONB,
+    changes JSONB,
+    metadata JSONB,
+    reason TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    CONSTRAINT valid_action_type CHECK (
+        action_type IN (
+            'entity_created', 'entity_updated', 'entity_deleted', 'entity_merged',
+            'relationship_created', 'relationship_updated', 'relationship_deleted',
+            'document_created', 'document_updated', 'document_deleted', 'bulk_operation'
+        )
+    ),
+    CONSTRAINT valid_entity_type CHECK (
+        entity_type IN ('entity', 'relationship', 'document', 'batch')
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_action_type ON edgequake.audit_log(action_type);
+CREATE INDEX IF NOT EXISTS idx_audit_log_entity_type ON edgequake.audit_log(entity_type);
+CREATE INDEX IF NOT EXISTS idx_audit_log_entity_id ON edgequake.audit_log(entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON edgequake.audit_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON edgequake.audit_log(created_at DESC);
+
+-- 2. Add manual tracking flags to entities and relationships
+ALTER TABLE edgequake.entities
+    ADD COLUMN IF NOT EXISTS is_manual BOOLEAN DEFAULT FALSE NOT NULL,
+    ADD COLUMN IF NOT EXISTS manual_created_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS manual_created_by VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS last_manual_edit_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS last_manual_edit_by VARCHAR(255);
+
+ALTER TABLE edgequake.relationships
+    ADD COLUMN IF NOT EXISTS is_manual BOOLEAN DEFAULT FALSE NOT NULL,
+    ADD COLUMN IF NOT EXISTS manual_created_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS manual_created_by VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS last_manual_edit_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS last_manual_edit_by VARCHAR(255);
+
+CREATE INDEX IF NOT EXISTS idx_entities_is_manual ON edgequake.entities(is_manual);
+CREATE INDEX IF NOT EXISTS idx_relationships_is_manual ON edgequake.relationships(is_manual);
+
+-- Grant permissions on new tables
+GRANT ALL PRIVILEGES ON edgequake.audit_log TO edgequake;
+
 -- Success message
 DO $$ BEGIN
-    RAISE NOTICE 'EdgeQuake database initialized successfully with Phase 1 enhancements!';
+    RAISE NOTICE 'EdgeQuake database initialized successfully with Phase 1 & 2 enhancements!';
 END $$;

@@ -1,7 +1,7 @@
 //! API routes.
 
 use axum::{
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
     Router,
 };
 
@@ -38,6 +38,18 @@ fn api_v1_routes() -> Router<AppState> {
         .route("/graph", get(handlers::get_graph))
         .route("/graph/nodes/{node_id}", get(handlers::get_node))
         .route("/graph/labels/search", get(handlers::search_labels))
+        // Entities (Phase 2)
+        .route("/graph/entities", post(handlers::create_entity))
+        .route("/graph/entities/exists", get(handlers::entity_exists))
+        .route("/graph/entities/merge", post(handlers::merge_entities))
+        .route("/graph/entities/{entity_name}", get(handlers::get_entity))
+        .route("/graph/entities/{entity_name}", put(handlers::update_entity))
+        .route("/graph/entities/{entity_name}", delete(handlers::delete_entity))
+        // Relationships (Phase 2)
+        .route("/graph/relationships", post(handlers::create_relationship))
+        .route("/graph/relationships/{relationship_id}", get(handlers::get_relationship))
+        .route("/graph/relationships/{relationship_id}", put(handlers::update_relationship))
+        .route("/graph/relationships/{relationship_id}", delete(handlers::delete_relationship))
         // Tasks
         .route("/tasks/{track_id}", get(handlers::get_task))
         .route("/tasks", get(handlers::list_tasks))
