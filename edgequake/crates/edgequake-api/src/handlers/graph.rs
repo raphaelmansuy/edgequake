@@ -195,7 +195,31 @@ pub async fn get_graph(
             }
         }
 
-        (nodes, vec![], total_nodes > params.max_nodes)
+        // Fetch edges between visible nodes
+        let all_edges = state.graph_storage.get_all_edges().await?;
+        let node_ids: std::collections::HashSet<_> = nodes.iter().map(|n| &n.id).collect();
+        let edges: Vec<GraphEdgeResponse> = all_edges
+            .into_iter()
+            .filter(|e| node_ids.contains(&e.source) && node_ids.contains(&e.target))
+            .map(|e| GraphEdgeResponse {
+                source: e.source,
+                target: e.target,
+                edge_type: e
+                    .properties
+                    .get("relation_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("RELATED_TO")
+                    .to_string(),
+                weight: e
+                    .properties
+                    .get("weight")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(1.0) as f32,
+                properties: serde_json::to_value(&e.properties).unwrap_or_default(),
+            })
+            .collect();
+
+        (nodes, edges, total_nodes > params.max_nodes)
     };
 
     Ok(Json(KnowledgeGraphResponse {

@@ -2,12 +2,12 @@
 export interface GraphNode {
   id: string;
   label: string;
-  entity_type: string;
+  node_type: string;
   description?: string;
-  source_ids: string[];
+  degree?: number;
   properties?: Record<string, unknown>;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface GraphEdge {

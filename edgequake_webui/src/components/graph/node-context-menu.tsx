@@ -64,7 +64,7 @@ export function NodeContextMenu({
       <div className="bg-popover border rounded-md shadow-md p-1 min-w-[200px]">
         <div className="px-2 py-1.5 border-b mb-1">
           <div className="font-medium truncate max-w-[180px]">{node.label}</div>
-          <div className="text-xs text-muted-foreground">{node.entity_type}</div>
+          <div className="text-xs text-muted-foreground">{node.node_type}</div>
         </div>
 
         <button

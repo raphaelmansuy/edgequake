@@ -31,7 +31,7 @@ export function NodeDetails({ node }: NodeDetailsProps) {
         <div className="flex items-start justify-between">
           <div className="space-y-1">
             <CardTitle className="text-base font-semibold">{node.label}</CardTitle>
-            <Badge variant="outline">{node.entity_type}</Badge>
+            <Badge variant="outline">{node.node_type}</Badge>
           </div>
           <Button
             variant="ghost"

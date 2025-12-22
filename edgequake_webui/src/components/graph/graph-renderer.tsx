@@ -19,7 +19,8 @@ const TYPE_COLORS: Record<string, string> = {
   DEFAULT: '#64748b',
 };
 
-function getNodeColor(entityType: string): string {
+function getNodeColor(entityType: string | undefined): string {
+  if (!entityType) return TYPE_COLORS.DEFAULT;
   return TYPE_COLORS[entityType.toUpperCase()] || TYPE_COLORS.DEFAULT;
 }
 
@@ -59,8 +60,8 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
         x: Math.cos(angle) * radius,
         y: Math.sin(angle) * radius,
         size: 10,
-        color: getNodeColor(node.entity_type),
-        entityType: node.entity_type,
+        color: getNodeColor(node.node_type),
+        entityType: node.node_type,
         description: node.description,
       });
     });

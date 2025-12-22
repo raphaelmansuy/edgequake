@@ -92,7 +92,7 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
 
   // Data actions
   setGraph: (graph) => {
-    const entityTypes = new Set(graph.nodes.map((n) => n.entity_type));
+    const entityTypes = new Set(graph.nodes.map((n) => n.node_type));
     const relationshipTypes = new Set(
       graph.edges.map((e) => e.relationship_type)
     );
@@ -224,7 +224,7 @@ export const useFilteredNodes = () => {
   const { nodes, visibleEntityTypes, searchQuery } = useGraphStore();
 
   return nodes.filter((node) => {
-    if (!visibleEntityTypes.has(node.entity_type)) return false;
+    if (!visibleEntityTypes.has(node.node_type)) return false;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       return (

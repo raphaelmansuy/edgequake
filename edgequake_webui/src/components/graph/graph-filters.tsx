@@ -32,7 +32,7 @@ export function GraphFilters() {
 
   const entityTypes = graph.metadata.entity_types || [];
   const typeCounts = graph.nodes.reduce((acc, node) => {
-    acc[node.entity_type] = (acc[node.entity_type] || 0) + 1;
+    acc[node.node_type] = (acc[node.node_type] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
