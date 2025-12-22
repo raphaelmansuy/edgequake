@@ -283,11 +283,13 @@ export function DocumentManager() {
                       {doc.title || doc.file_name || `Document ${doc.id.slice(0, 8)}`}
                     </TableCell>
                     <TableCell>
-                      <StatusBadge status={doc.status} />
+                      <StatusBadge status={doc.status || 'completed'} />
                     </TableCell>
-                    <TableCell>{doc.entity_count || '-'}</TableCell>
+                    <TableCell>{doc.entity_count ?? doc.chunk_count ?? '-'}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {formatDistanceToNow(new Date(doc.created_at), { addSuffix: true })}
+                      {doc.created_at 
+                        ? formatDistanceToNow(new Date(doc.created_at), { addSuffix: true })
+                        : '-'}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>

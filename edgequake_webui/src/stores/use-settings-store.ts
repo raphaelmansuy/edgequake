@@ -23,7 +23,7 @@ const defaultQuerySettings: QuerySettings = {
   topK: 10,
   maxTokens: 2048,
   temperature: 0.7,
-  stream: true,
+  stream: false,
 };
 
 interface SettingsState extends AppSettings {

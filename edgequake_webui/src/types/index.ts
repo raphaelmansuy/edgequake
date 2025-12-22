@@ -36,18 +36,18 @@ export interface KnowledgeGraph {
 // Document types
 export interface Document {
   id: string;
-  title: string;
+  title?: string | null;
   content?: string;
-  source_type: "file" | "text" | "url";
-  status: "pending" | "processing" | "completed" | "failed";
+  source_type?: "file" | "text" | "url";
+  status?: "pending" | "processing" | "completed" | "failed";
   error_message?: string;
   file_name?: string;
   file_size?: number;
   mime_type?: string;
   chunk_count?: number;
   entity_count?: number;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
   processed_at?: string;
 }
 

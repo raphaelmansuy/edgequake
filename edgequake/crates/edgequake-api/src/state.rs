@@ -122,7 +122,19 @@ impl AppState {
         let vector_storage = Arc::new(MemoryVectorStorage::new("default", 1536));
         let graph_storage = Arc::new(MemoryGraphStorage::new("default"));
         let llm_provider = Arc::new(OpenAIProvider::new(llm_api_key));
-        let pipeline = Arc::new(Pipeline::default_pipeline());
+
+        // Create pipeline with LLM and embedding providers configured
+        use edgequake_pipeline::LLMExtractor;
+        let extractor = Arc::new(LLMExtractor::new(
+            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>
+        ));
+        let pipeline = Arc::new(
+            Pipeline::default_pipeline()
+                .with_extractor(extractor)
+                .with_embedding_provider(
+                    Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>
+                ),
+        );
 
         // Create task infrastructure
         let task_storage = Arc::new(edgequake_tasks::memory::MemoryTaskStorage::new());

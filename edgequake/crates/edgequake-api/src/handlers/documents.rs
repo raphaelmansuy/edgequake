@@ -105,6 +105,30 @@ pub async fn upload_document(
 
     state.kv_storage.upsert(&chunks).await?;
 
+    // Store entities and relationships in graph storage
+    for extraction in &result.extractions {
+        for entity in &extraction.entities {
+            let mut properties = std::collections::HashMap::new();
+            properties.insert("entity_type".to_string(), serde_json::json!(entity.entity_type));
+            properties.insert("description".to_string(), serde_json::json!(entity.description));
+            properties.insert("importance".to_string(), serde_json::json!(entity.importance));
+            properties.insert("source_ids".to_string(), serde_json::json!(vec![&document_id]));
+            
+            state.graph_storage.upsert_node(&entity.name, properties).await?;
+        }
+
+        for relationship in &extraction.relationships {
+            let mut properties = std::collections::HashMap::new();
+            properties.insert("relation_type".to_string(), serde_json::json!(relationship.relation_type));
+            properties.insert("description".to_string(), serde_json::json!(relationship.description));
+            properties.insert("weight".to_string(), serde_json::json!(relationship.weight));
+            properties.insert("keywords".to_string(), serde_json::json!(relationship.keywords));
+            properties.insert("source_ids".to_string(), serde_json::json!(vec![&document_id]));
+            
+            state.graph_storage.upsert_edge(&relationship.source, &relationship.target, properties).await?;
+        }
+    }
+
     Ok(Json(UploadDocumentResponse {
         document_id,
         status: "processed".to_string(),

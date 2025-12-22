@@ -123,9 +123,23 @@ export async function getDocuments(
   if (params?.status) searchParams.set("status", params.status);
 
   const query = searchParams.toString();
-  return api.get<PaginatedResponse<Document>>(
-    `/documents${query ? `?${query}` : ""}`
-  );
+
+  // API returns { documents: [...], total, page, page_size }
+  // We need to transform to { items: [...], total, page, page_size, has_more }
+  const response = await api.get<{
+    documents: Document[];
+    total: number;
+    page: number;
+    page_size: number;
+  }>(`/documents${query ? `?${query}` : ""}`);
+
+  return {
+    items: response.documents || [],
+    total: response.total || 0,
+    page: response.page || 1,
+    page_size: response.page_size || 20,
+    has_more: response.page * response.page_size < response.total,
+  };
 }
 
 export async function getDocument(documentId: string): Promise<Document> {
