@@ -5,7 +5,7 @@ use axum::{
     Json,
 };
 use chrono::Utc;
-use edgequake_storage::{GraphNode};
+use edgequake_storage::GraphNode;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use utoipa::ToSchema;
@@ -384,7 +384,10 @@ pub async fn create_entity(
     properties.insert("metadata".to_string(), req.metadata.clone());
 
     // Create node using upsert_node
-    state.graph_storage.upsert_node(&entity_name, properties.clone()).await?;
+    state
+        .graph_storage
+        .upsert_node(&entity_name, properties.clone())
+        .await?;
 
     // Reconstruct node for response
     let node = GraphNode {
@@ -431,10 +434,7 @@ pub async fn get_entity(
     let entity = node_to_entity_response(node, degree);
 
     // Get relationships (outgoing and incoming)
-    let edges = state
-        .graph_storage
-        .get_node_edges(&entity_name)
-        .await?;
+    let edges = state.graph_storage.get_node_edges(&entity_name).await?;
 
     let mut outgoing = Vec::new();
     let mut incoming = Vec::new();
@@ -545,7 +545,10 @@ pub async fn update_entity(
     node.properties.insert("updated_at".to_string(), now.into());
 
     // Update node in storage using upsert_node
-    state.graph_storage.upsert_node(&entity_name, node.properties.clone()).await?;
+    state
+        .graph_storage
+        .upsert_node(&entity_name, node.properties.clone())
+        .await?;
 
     let degree = state.graph_storage.node_degree(&entity_name).await?;
     let entity = node_to_entity_response(node, degree);
@@ -602,11 +605,8 @@ pub async fn delete_entity(
     }
 
     // Get affected entities (neighbors)
-    let edges = state
-        .graph_storage
-        .get_node_edges(&entity_name)
-        .await?;
-    
+    let edges = state.graph_storage.get_node_edges(&entity_name).await?;
+
     let mut affected_entities = Vec::new();
     for edge in &edges {
         if edge.source == entity_name {
@@ -759,10 +759,7 @@ pub async fn merge_entities(
     }
 
     // Get source relationships
-    let source_edges = state
-        .graph_storage
-        .get_node_edges(&source_entity)
-        .await?;
+    let source_edges = state.graph_storage.get_node_edges(&source_entity).await?;
 
     let relationships_merged = source_edges.len();
     let duplicate_relationships_removed = 0;

@@ -229,10 +229,7 @@ fn edge_to_relationship_response(edge: GraphEdge, rel_id: &str) -> RelationshipR
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string(),
-        weight: props
-            .get("weight")
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.8),
+        weight: props.get("weight").and_then(|v| v.as_f64()).unwrap_or(0.8),
         description: props
             .get("description")
             .and_then(|v| v.as_str())
@@ -318,7 +315,10 @@ pub async fn create_relationship(
     properties.insert("metadata".to_string(), req.metadata.clone());
 
     // Create edge using upsert_edge
-    state.graph_storage.upsert_edge(&src_id, &tgt_id, properties.clone()).await?;
+    state
+        .graph_storage
+        .upsert_edge(&src_id, &tgt_id, properties.clone())
+        .await?;
 
     // Reconstruct edge for response
     let edge = GraphEdge {
@@ -365,7 +365,7 @@ pub async fn get_relationship(
 
     for node in nodes {
         let edges = state.graph_storage.get_node_edges(&node.id).await?;
-        
+
         for edge in edges {
             let edge_id = edge
                 .properties
@@ -452,7 +452,7 @@ pub async fn update_relationship(
 
     for node in nodes {
         let edges = state.graph_storage.get_node_edges(&node.id).await?;
-        
+
         for mut edge in edges {
             let edge_id = edge
                 .properties
@@ -462,15 +462,13 @@ pub async fn update_relationship(
 
             if edge_id == relationship_id {
                 // Found the relationship - update it
-                let previous_weight = edge
-                    .properties
-                    .get("weight")
-                    .and_then(|v| v.as_f64());
+                let previous_weight = edge.properties.get("weight").and_then(|v| v.as_f64());
 
                 let mut fields_updated = Vec::new();
 
                 if let Some(keywords) = req.keywords {
-                    edge.properties.insert("keywords".to_string(), keywords.into());
+                    edge.properties
+                        .insert("keywords".to_string(), keywords.into());
                     fields_updated.push("keywords".to_string());
                 }
 
@@ -497,7 +495,10 @@ pub async fn update_relationship(
                 // Update edge in storage using upsert_edge
                 let src = edge.source.clone();
                 let tgt = edge.target.clone();
-                state.graph_storage.upsert_edge(&src, &tgt, edge.properties.clone()).await?;
+                state
+                    .graph_storage
+                    .upsert_edge(&src, &tgt, edge.properties.clone())
+                    .await?;
 
                 let relationship = edge_to_relationship_response(edge, &relationship_id);
 
@@ -547,7 +548,7 @@ pub async fn delete_relationship(
 
     for node in nodes {
         let edges = state.graph_storage.get_node_edges(&node.id).await?;
-        
+
         for edge in edges {
             let edge_id = edge
                 .properties
@@ -560,10 +561,7 @@ pub async fn delete_relationship(
                 let src_id = edge.source.clone();
                 let tgt_id = edge.target.clone();
 
-                state
-                    .graph_storage
-                    .delete_edge(&src_id, &tgt_id)
-                    .await?;
+                state.graph_storage.delete_edge(&src_id, &tgt_id).await?;
 
                 return Ok(Json(DeleteRelationshipResponse {
                     status: "success".to_string(),
@@ -588,10 +586,7 @@ mod tests {
 
     #[test]
     fn test_extract_relation_type() {
-        assert_eq!(
-            extract_relation_type("works for, employed by"),
-            "WORKS_FOR"
-        );
+        assert_eq!(extract_relation_type("works for, employed by"), "WORKS_FOR");
         assert_eq!(extract_relation_type("located in"), "LOCATED_IN");
         assert_eq!(extract_relation_type(""), "RELATED_TO");
     }

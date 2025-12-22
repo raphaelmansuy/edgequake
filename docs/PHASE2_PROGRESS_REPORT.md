@@ -28,11 +28,13 @@ Phase 2 of the EdgeQuake API enhancement plan has been successfully implemented,
 #### Migration Files Created
 
 1. **`004_add_audit_log_table.sql`** - Audit trail for manual changes
+
    - 11 columns tracking operation type, entity changes, user, timestamps
    - 5 indexes for efficient querying (entity_id, user_id, created_at)
    - Constraint validation for operation types
 
 2. **`005_add_is_manual_flags.sql`** - Manual vs. auto-extracted tracking
+
    - Added to `entities` table: is_manual, manual_created_at, manual_created_by, last_manual_edit_at, last_manual_edit_by
    - Added to `relationships` table: is_manual, manual_created_at, manual_created_by, last_manual_edit_at, last_manual_edit_by
    - Indexes on is_manual fields for filtering
@@ -51,14 +53,14 @@ Phase 2 of the EdgeQuake API enhancement plan has been successfully implemented,
 
 #### Entity Operations (6 endpoints)
 
-| Endpoint | Method | Status | Lines of Code |
-|----------|--------|--------|---------------|
-| `/api/v1/graph/entities` | POST | ✅ Complete | 45 |
-| `/api/v1/graph/entities/{entity_name}` | GET | ✅ Complete | 72 |
-| `/api/v1/graph/entities/{entity_name}` | PUT | ✅ Complete | 58 |
-| `/api/v1/graph/entities/{entity_name}` | DELETE | ✅ Complete | 47 |
-| `/api/v1/graph/entities/exists` | GET | ✅ Complete | 23 |
-| `/api/v1/graph/entities/merge` | POST | ✅ Complete | 95 |
+| Endpoint                               | Method | Status      | Lines of Code |
+| -------------------------------------- | ------ | ----------- | ------------- |
+| `/api/v1/graph/entities`               | POST   | ✅ Complete | 45            |
+| `/api/v1/graph/entities/{entity_name}` | GET    | ✅ Complete | 72            |
+| `/api/v1/graph/entities/{entity_name}` | PUT    | ✅ Complete | 58            |
+| `/api/v1/graph/entities/{entity_name}` | DELETE | ✅ Complete | 47            |
+| `/api/v1/graph/entities/exists`        | GET    | ✅ Complete | 23            |
+| `/api/v1/graph/entities/merge`         | POST   | ✅ Complete | 95            |
 
 **File**: `edgequake-api/src/handlers/entities.rs`  
 **Total Lines**: 826 lines (including documentation, types, and tests)
@@ -73,12 +75,12 @@ Phase 2 of the EdgeQuake API enhancement plan has been successfully implemented,
 
 #### Relationship Operations (4 endpoints)
 
-| Endpoint | Method | Status | Lines of Code |
-|----------|--------|--------|---------------|
-| `/api/v1/graph/relationships` | POST | ✅ Complete | 48 |
-| `/api/v1/graph/relationships/{relationship_id}` | GET | ✅ Complete | 62 |
-| `/api/v1/graph/relationships/{relationship_id}` | PUT | ✅ Complete | 68 |
-| `/api/v1/graph/relationships/{relationship_id}` | DELETE | ✅ Complete | 38 |
+| Endpoint                                        | Method | Status      | Lines of Code |
+| ----------------------------------------------- | ------ | ----------- | ------------- |
+| `/api/v1/graph/relationships`                   | POST   | ✅ Complete | 48            |
+| `/api/v1/graph/relationships/{relationship_id}` | GET    | ✅ Complete | 62            |
+| `/api/v1/graph/relationships/{relationship_id}` | PUT    | ✅ Complete | 68            |
+| `/api/v1/graph/relationships/{relationship_id}` | DELETE | ✅ Complete | 38            |
 
 **File**: `edgequake-api/src/handlers/relationships.rs`  
 **Total Lines**: 605 lines (including documentation, types, and tests)
@@ -145,6 +147,7 @@ Phase 2 of the EdgeQuake API enhancement plan has been successfully implemented,
 #### Route Registration
 
 Updated `edgequake-api/src/routes.rs`:
+
 - Added 10 new routes (6 entities + 4 relationships)
 - Proper HTTP method handling (GET, POST, PUT, DELETE)
 - Consistent URL structure (`/api/v1/graph/...`)
@@ -152,6 +155,7 @@ Updated `edgequake-api/src/routes.rs`:
 #### Module Exports
 
 Updated `edgequake-api/src/handlers/mod.rs`:
+
 - Exported `entities` module
 - Exported `relationships` module
 - Made all handlers publicly accessible
@@ -159,19 +163,21 @@ Updated `edgequake-api/src/handlers/mod.rs`:
 #### Dependencies
 
 Added to `edgequake-api/Cargo.toml`:
+
 - `chrono = { version = "0.4", features = ["serde"] }` - Timestamp handling
 
 ### 6. Testing
 
 #### Unit Tests
 
-| Module | Tests | Status |
-|--------|-------|--------|
-| entities.rs | 1 test | ✅ Passing |
-| relationships.rs | 2 tests | ✅ Passing |
-| Overall API | 51 tests | ✅ All Passing |
+| Module           | Tests    | Status         |
+| ---------------- | -------- | -------------- |
+| entities.rs      | 1 test   | ✅ Passing     |
+| relationships.rs | 2 tests  | ✅ Passing     |
+| Overall API      | 51 tests | ✅ All Passing |
 
 **Test Coverage**:
+
 - Entity name normalization
 - Relation type extraction
 - Empty string handling
@@ -206,6 +212,7 @@ The implementation correctly uses the `GraphStorage` trait methods:
 ### Error Handling
 
 Proper error types returned:
+
 - `404 Not Found` - Entity/relationship doesn't exist
 - `409 Conflict` - Entity already exists (on create)
 - `400 Bad Request` - Missing required parameters (confirmation flag)
@@ -268,11 +275,11 @@ None - Core implementation complete
 
 ### Code Statistics
 
-| File | Lines | Functions | Types |
-|------|-------|-----------|-------|
-| entities.rs | 826 | 8 handlers + 2 helpers | 13 structs |
-| relationships.rs | 605 | 5 handlers + 2 helpers | 11 structs |
-| **Total** | **1,431** | **17** | **24** |
+| File             | Lines     | Functions              | Types      |
+| ---------------- | --------- | ---------------------- | ---------- |
+| entities.rs      | 826       | 8 handlers + 2 helpers | 13 structs |
+| relationships.rs | 605       | 5 handlers + 2 helpers | 11 structs |
+| **Total**        | **1,431** | **17**                 | **24**     |
 
 ### Documentation Coverage
 
@@ -306,7 +313,7 @@ None - Core implementation complete
 ### Current Implementation
 
 - **Relationship Lookup**: O(N) where N = total edges (linear search by ID)
-  - *Production Note*: Recommend adding relationship ID index
+  - _Production Note_: Recommend adding relationship ID index
 
 ### Optimization Opportunities
 
@@ -339,7 +346,7 @@ None - Core implementation complete
 ### Immediate (Week 1)
 
 1. Implement graph statistics endpoint
-2. Implement popular labels endpoint  
+2. Implement popular labels endpoint
 3. Add integration tests for entity CRUD
 4. Add integration tests for relationship CRUD
 5. Clean up unused import warnings
