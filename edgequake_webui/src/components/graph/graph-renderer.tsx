@@ -1,0 +1,163 @@
+'use client';
+
+import { useEffect, useRef, useCallback } from 'react';
+import Graph from 'graphology';
+import Sigma from 'sigma';
+import forceAtlas2 from 'graphology-layout-forceatlas2';
+import { useGraphStore } from '@/stores/use-graph-store';
+import type { GraphNode, GraphEdge } from '@/types';
+
+// Color palette for entity types
+const TYPE_COLORS: Record<string, string> = {
+  PERSON: '#3b82f6',
+  ORGANIZATION: '#10b981',
+  LOCATION: '#f59e0b',
+  EVENT: '#ef4444',
+  CONCEPT: '#8b5cf6',
+  DOCUMENT: '#6366f1',
+  DEFAULT: '#64748b',
+};
+
+function getNodeColor(entityType: string): string {
+  return TYPE_COLORS[entityType.toUpperCase()] || TYPE_COLORS.DEFAULT;
+}
+
+interface GraphRendererProps {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  onNodeClick?: (nodeId: string) => void;
+  onNodeHover?: (nodeId: string | null) => void;
+}
+
+export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover }: GraphRendererProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const sigmaRef = useRef<Sigma | null>(null);
+  const setSigmaInstance = useGraphStore((s) => s.setSigmaInstance);
+
+  const initializeGraph = useCallback(() => {
+    if (!containerRef.current || nodes.length === 0) return;
+
+    // Cleanup previous instance
+    if (sigmaRef.current) {
+      sigmaRef.current.kill();
+      sigmaRef.current = null;
+    }
+
+    // Create graphology graph
+    const graph = new Graph();
+
+    // Add nodes
+    nodes.forEach((node, index) => {
+      const angle = (2 * Math.PI * index) / nodes.length;
+      const radius = 100;
+      
+      graph.addNode(node.id, {
+        label: node.label,
+        x: Math.cos(angle) * radius,
+        y: Math.sin(angle) * radius,
+        size: 10,
+        color: getNodeColor(node.entity_type),
+        entityType: node.entity_type,
+        description: node.description,
+      });
+    });
+
+    // Add edges
+    edges.forEach((edge) => {
+      if (graph.hasNode(edge.source) && graph.hasNode(edge.target)) {
+        try {
+          graph.addEdge(edge.source, edge.target, {
+            label: edge.relationship_type,
+            size: Math.max(1, edge.weight * 2),
+            color: '#94a3b8',
+            type: 'arrow',
+          });
+        } catch {
+          // Edge already exists or invalid
+        }
+      }
+    });
+
+    // Apply force-directed layout
+    if (graph.order > 0) {
+      forceAtlas2.assign(graph, {
+        iterations: 100,
+        settings: {
+          gravity: 1,
+          scalingRatio: 2,
+          strongGravityMode: true,
+          barnesHutOptimize: graph.order > 100,
+        },
+      });
+    }
+
+    // Create Sigma instance
+    const sigma = new Sigma(graph, containerRef.current, {
+      renderLabels: true,
+      labelSize: 12,
+      labelColor: { color: '#374151' },
+      labelFont: 'Inter, sans-serif',
+      defaultNodeColor: '#64748b',
+      defaultEdgeColor: '#94a3b8',
+      minCameraRatio: 0.1,
+      maxCameraRatio: 10,
+    });
+
+    // Event handlers
+    sigma.on('clickNode', ({ node }) => {
+      onNodeClick?.(node);
+    });
+
+    sigma.on('enterNode', ({ node }) => {
+      onNodeHover?.(node);
+      // Highlight connected nodes
+      const connectedNodes = new Set<string>();
+      graph.forEachNeighbor(node, (neighbor) => connectedNodes.add(neighbor));
+      
+      graph.forEachNode((n) => {
+        if (n === node) {
+          graph.setNodeAttribute(n, 'highlighted', true);
+        } else if (connectedNodes.has(n)) {
+          graph.setNodeAttribute(n, 'highlighted', true);
+        } else {
+          graph.setNodeAttribute(n, 'hidden', true);
+        }
+      });
+      
+      sigma.refresh();
+    });
+
+    sigma.on('leaveNode', () => {
+      onNodeHover?.(null);
+      // Reset all nodes
+      graph.forEachNode((n) => {
+        graph.removeNodeAttribute(n, 'hidden');
+        graph.removeNodeAttribute(n, 'highlighted');
+      });
+      sigma.refresh();
+    });
+
+    sigmaRef.current = sigma;
+    setSigmaInstance(sigma);
+
+    return () => {
+      sigma.kill();
+      sigmaRef.current = null;
+      setSigmaInstance(null);
+    };
+  }, [nodes, edges, onNodeClick, onNodeHover, setSigmaInstance]);
+
+  useEffect(() => {
+    const cleanup = initializeGraph();
+    return () => cleanup?.();
+  }, [initializeGraph]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="w-full h-full min-h-[400px] bg-muted/20 rounded-lg"
+    />
+  );
+}
+
+export default GraphRenderer;

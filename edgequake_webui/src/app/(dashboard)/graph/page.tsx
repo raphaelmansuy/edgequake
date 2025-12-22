@@ -1,0 +1,40 @@
+'use client';
+
+import dynamic from 'next/dynamic';
+import { Skeleton } from '@/components/ui/skeleton';
+
+// Dynamic import for GraphViewer since it uses browser APIs (Sigma.js)
+const GraphViewer = dynamic(
+  () => import('@/components/graph/graph-viewer'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full">
+        <div className="flex-1 flex flex-col">
+          <div className="flex items-center justify-between border-b px-4 py-2">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-6 w-32" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+            <div className="flex items-center gap-1">
+              <Skeleton className="h-8 w-8" />
+              <Skeleton className="h-8 w-8" />
+              <Skeleton className="h-8 w-8" />
+            </div>
+          </div>
+          <div className="flex-1 flex items-center justify-center">
+            <Skeleton className="h-64 w-64 rounded-full" />
+          </div>
+        </div>
+        <div className="w-80 border-l bg-card p-4 space-y-4">
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-48 w-full" />
+        </div>
+      </div>
+    ),
+  }
+);
+
+export default function GraphPage() {
+  return <GraphViewer />;
+}
