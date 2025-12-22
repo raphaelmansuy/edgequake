@@ -1057,3 +1057,215 @@ async fn test_complete_auth_flow() {
 
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 }
+
+// ============ GET /auth/me Tests ============
+
+#[tokio::test]
+async fn test_get_me_success() {
+    let server = create_test_server();
+    
+    // 1. Create a user
+    let app = server.build_router();
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/users")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "username": "getmetest",
+                        "email": "getme@example.com",
+                        "password": "SecurePass123!"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let create_json = parse_json(response).await;
+    let _user_id = create_json["user"]["user_id"].as_str().unwrap();
+
+    // 2. Login
+    let app = server.build_router();
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/auth/login")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "username": "getmetest",
+                        "password": "SecurePass123!"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let login_json = parse_json(response).await;
+    let access_token = login_json["access_token"].as_str().unwrap();
+
+    // 3. Call GET /auth/me
+    let app = server.build_router();
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/auth/me")
+                .header(header::AUTHORIZATION, format!("Bearer {}", access_token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    
+    let me_json = parse_json(response).await;
+    assert!(me_json.get("user").is_some());
+    assert_eq!(me_json["user"]["username"], "getmetest");
+    assert_eq!(me_json["user"]["email"], "getme@example.com");
+    assert_eq!(me_json["user"]["role"], "user");
+}
+
+#[tokio::test]
+async fn test_get_me_unauthorized_missing_token() {
+    let server = create_test_server();
+    let app = server.build_router();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/auth/me")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn test_get_me_bad_token_format() {
+    let server = create_test_server();
+    let app = server.build_router();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/auth/me")
+                .header(header::AUTHORIZATION, "InvalidToken")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Bad format returns BAD_REQUEST
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_get_me_invalid_token() {
+    let server = create_test_server();
+    let app = server.build_router();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/auth/me")
+                .header(header::AUTHORIZATION, "Bearer invalid_jwt_token")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Invalid token returns BAD_REQUEST
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_get_me_response_structure() {
+    let server = create_test_server();
+    
+    // Create user and login
+    let app = server.build_router();
+    app.oneshot(
+        Request::builder()
+            .method("POST")
+            .uri("/api/v1/users")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                json!({
+                    "username": "structtest",
+                    "email": "struct@example.com",
+                    "password": "SecurePass123!"
+                })
+                .to_string(),
+            ))
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    let app = server.build_router();
+    let login_response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/auth/login")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "username": "structtest",
+                        "password": "SecurePass123!"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let login_json = parse_json(login_response).await;
+    let access_token = login_json["access_token"].as_str().unwrap();
+
+    // Get /auth/me
+    let app = server.build_router();
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/auth/me")
+                .header(header::AUTHORIZATION, format!("Bearer {}", access_token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    
+    let json = parse_json(response).await;
+    
+    // Verify response structure
+    assert!(json.get("user").is_some(), "Response should have user object");
+    let user = &json["user"];
+    assert!(user.get("user_id").is_some(), "User should have user_id");
+    assert!(user.get("username").is_some(), "User should have username");
+    assert!(user.get("email").is_some(), "User should have email");
+    assert!(user.get("role").is_some(), "User should have role");
+}

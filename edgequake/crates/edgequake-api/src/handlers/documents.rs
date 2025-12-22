@@ -1,8 +1,13 @@
 //! Document ingestion handlers.
 
-use axum::{extract::State, Json};
+use axum::{
+    extract::State,
+    Json,
+};
+use axum_extra::extract::Multipart;
 use edgequake_storage::KVStorage;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
@@ -331,6 +336,432 @@ pub async fn delete_document(
         entities_affected: 0,
         relationships_affected: 0,
     }))
+}
+
+// ============================================================================
+// File Upload (Multipart)
+// ============================================================================
+
+/// File upload response.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct FileUploadResponse {
+    /// Generated document ID.
+    pub document_id: String,
+    
+    /// Original filename.
+    pub filename: String,
+    
+    /// File size in bytes.
+    pub size: usize,
+    
+    /// Content hash (SHA-256).
+    pub content_hash: String,
+    
+    /// Processing status.
+    pub status: String,
+    
+    /// Number of chunks created.
+    pub chunk_count: usize,
+    
+    /// Number of entities extracted.
+    pub entity_count: usize,
+    
+    /// Number of relationships extracted.
+    pub relationship_count: usize,
+    
+    /// Whether this was a duplicate (already processed).
+    pub is_duplicate: bool,
+}
+
+/// Upload a file via multipart form.
+///
+/// Supports text-based files: .txt, .md, .json, .csv, .html
+#[utoipa::path(
+    post,
+    path = "/api/v1/documents/upload",
+    tag = "Documents",
+    request_body(content_type = "multipart/form-data", description = "File to upload"),
+    responses(
+        (status = 201, description = "File uploaded successfully", body = FileUploadResponse),
+        (status = 400, description = "Invalid file or request"),
+        (status = 409, description = "Duplicate file (already processed)"),
+        (status = 413, description = "File too large")
+    )
+)]
+pub async fn upload_file(
+    State(state): State<AppState>,
+    mut multipart: Multipart,
+) -> ApiResult<Json<FileUploadResponse>> {
+    let mut filename = String::new();
+    let mut content = Vec::new();
+    let mut metadata: Option<serde_json::Value> = None;
+    
+    // Process multipart fields
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        ApiError::BadRequest(format!("Failed to read multipart field: {}", e))
+    })? {
+        let field_name = field.name().unwrap_or("").to_string();
+        
+        match field_name.as_str() {
+            "file" => {
+                // Get filename
+                filename = field
+                    .file_name()
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| "unnamed.txt".to_string());
+                
+                // Read file content
+                content = field.bytes().await.map_err(|e| {
+                    ApiError::BadRequest(format!("Failed to read file content: {}", e))
+                })?.to_vec();
+            }
+            "metadata" => {
+                // Optional metadata field
+                let text = field.text().await.map_err(|e| {
+                    ApiError::BadRequest(format!("Failed to read metadata: {}", e))
+                })?;
+                
+                if !text.is_empty() {
+                    metadata = serde_json::from_str(&text).ok();
+                }
+            }
+            _ => {
+                // Ignore unknown fields
+            }
+        }
+    }
+    
+    // Validate we got a file
+    if content.is_empty() {
+        return Err(ApiError::BadRequest("No file provided".to_string()));
+    }
+    
+    // Validate file size
+    if content.len() > state.config.max_document_size {
+        return Err(ApiError::BadRequest(format!(
+            "File exceeds maximum size of {} bytes",
+            state.config.max_document_size
+        )));
+    }
+    
+    // Validate file extension
+    let extension = filename
+        .rsplit('.')
+        .next()
+        .unwrap_or("")
+        .to_lowercase();
+    
+    let allowed_extensions = ["txt", "md", "json", "csv", "html", "htm", "xml", "yaml", "yml"];
+    if !allowed_extensions.contains(&extension.as_str()) {
+        return Err(ApiError::BadRequest(format!(
+            "Unsupported file type: .{}. Allowed types: {:?}",
+            extension, allowed_extensions
+        )));
+    }
+    
+    // Convert to UTF-8 string
+    let text_content = String::from_utf8(content.clone()).map_err(|e| {
+        ApiError::BadRequest(format!("File is not valid UTF-8: {}", e))
+    })?;
+    
+    if text_content.trim().is_empty() {
+        return Err(ApiError::ValidationError(
+            "File content cannot be empty".to_string(),
+        ));
+    }
+    
+    // Calculate content hash for deduplication
+    let mut hasher = Sha256::new();
+    hasher.update(&content);
+    let content_hash = hex::encode(hasher.finalize());
+    
+    // Check for duplicate
+    let hash_key = format!("doc:hash:{}", content_hash);
+    if let Some(existing_doc_id) = state.kv_storage.get_by_id(&hash_key).await? {
+        if let Some(doc_id_str) = existing_doc_id.as_str() {
+            return Ok(Json(FileUploadResponse {
+                document_id: doc_id_str.to_string(),
+                filename,
+                size: content.len(),
+                content_hash,
+                status: "duplicate".to_string(),
+                chunk_count: 0,
+                entity_count: 0,
+                relationship_count: 0,
+                is_duplicate: true,
+            }));
+        }
+    }
+    
+    // Generate document ID
+    let document_id = Uuid::new_v4().to_string();
+    
+    // Store hash mapping for deduplication
+    state.kv_storage.upsert(&[
+        (hash_key, serde_json::json!(document_id)),
+    ]).await?;
+    
+    // Store file metadata
+    let file_meta = serde_json::json!({
+        "filename": filename,
+        "size": content.len(),
+        "content_hash": content_hash,
+        "extension": extension,
+        "metadata": metadata,
+        "uploaded_at": chrono::Utc::now().to_rfc3339(),
+    });
+    state.kv_storage.upsert(&[
+        (format!("doc:meta:{}", document_id), file_meta),
+    ]).await?;
+    
+    // Process through pipeline
+    let result = state
+        .pipeline
+        .process(&document_id, &text_content)
+        .await?;
+    
+    // Store chunks in KV storage
+    let chunks: Vec<(String, serde_json::Value)> = result
+        .chunks
+        .iter()
+        .map(|c| {
+            (
+                c.id.clone(),
+                serde_json::json!({
+                    "content": c.content,
+                    "document_id": document_id,
+                    "index": c.index,
+                    "source_file": filename,
+                }),
+            )
+        })
+        .collect();
+    
+    state.kv_storage.upsert(&chunks).await?;
+    
+    Ok(Json(FileUploadResponse {
+        document_id,
+        filename,
+        size: content.len(),
+        content_hash,
+        status: "processed".to_string(),
+        chunk_count: result.stats.chunk_count,
+        entity_count: result.stats.entity_count,
+        relationship_count: result.stats.relationship_count,
+        is_duplicate: false,
+    }))
+}
+
+/// Batch file upload response.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct BatchUploadResponse {
+    /// Total files received.
+    pub total_files: usize,
+    
+    /// Successfully processed files.
+    pub processed: usize,
+    
+    /// Duplicate files (skipped).
+    pub duplicates: usize,
+    
+    /// Failed files.
+    pub failed: usize,
+    
+    /// Results for each file.
+    pub results: Vec<BatchFileResult>,
+}
+
+/// Result for a single file in batch upload.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct BatchFileResult {
+    /// Original filename.
+    pub filename: String,
+    
+    /// Document ID if successful.
+    pub document_id: Option<String>,
+    
+    /// Status: processed, duplicate, or failed.
+    pub status: String,
+    
+    /// Error message if failed.
+    pub error: Option<String>,
+}
+
+/// Upload multiple files via multipart form.
+#[utoipa::path(
+    post,
+    path = "/api/v1/documents/upload/batch",
+    tag = "Documents",
+    request_body(content_type = "multipart/form-data", description = "Files to upload"),
+    responses(
+        (status = 201, description = "Batch upload completed", body = BatchUploadResponse),
+        (status = 400, description = "Invalid request")
+    )
+)]
+pub async fn upload_files_batch(
+    State(state): State<AppState>,
+    mut multipart: Multipart,
+) -> ApiResult<Json<BatchUploadResponse>> {
+    let mut results = Vec::new();
+    let mut processed = 0usize;
+    let mut duplicates = 0usize;
+    let mut failed = 0usize;
+    
+    // Collect all files first
+    let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+    
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        ApiError::BadRequest(format!("Failed to read multipart field: {}", e))
+    })? {
+        let field_name = field.name().unwrap_or("").to_string();
+        
+        if field_name == "files" || field_name == "file" {
+            let filename = field
+                .file_name()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| format!("file_{}.txt", files.len()));
+            
+            let content = field.bytes().await.map_err(|e| {
+                ApiError::BadRequest(format!("Failed to read file: {}", e))
+            })?.to_vec();
+            
+            files.push((filename, content));
+        }
+    }
+    
+    // Process each file
+    for (filename, content) in files {
+        let result = process_single_file(&state, &filename, &content).await;
+        
+        match result {
+            Ok((doc_id, is_duplicate)) => {
+                if is_duplicate {
+                    duplicates += 1;
+                    results.push(BatchFileResult {
+                        filename,
+                        document_id: Some(doc_id),
+                        status: "duplicate".to_string(),
+                        error: None,
+                    });
+                } else {
+                    processed += 1;
+                    results.push(BatchFileResult {
+                        filename,
+                        document_id: Some(doc_id),
+                        status: "processed".to_string(),
+                        error: None,
+                    });
+                }
+            }
+            Err(e) => {
+                failed += 1;
+                results.push(BatchFileResult {
+                    filename,
+                    document_id: None,
+                    status: "failed".to_string(),
+                    error: Some(e.to_string()),
+                });
+            }
+        }
+    }
+    
+    Ok(Json(BatchUploadResponse {
+        total_files: results.len(),
+        processed,
+        duplicates,
+        failed,
+        results,
+    }))
+}
+
+/// Process a single file and return (document_id, is_duplicate).
+async fn process_single_file(
+    state: &AppState,
+    filename: &str,
+    content: &[u8],
+) -> Result<(String, bool), ApiError> {
+    // Validate file size
+    if content.len() > state.config.max_document_size {
+        return Err(ApiError::BadRequest(format!(
+            "File {} exceeds maximum size",
+            filename
+        )));
+    }
+    
+    // Validate extension
+    let extension = filename
+        .rsplit('.')
+        .next()
+        .unwrap_or("")
+        .to_lowercase();
+    
+    let allowed_extensions = ["txt", "md", "json", "csv", "html", "htm", "xml", "yaml", "yml"];
+    if !allowed_extensions.contains(&extension.as_str()) {
+        return Err(ApiError::BadRequest(format!(
+            "Unsupported file type: .{}",
+            extension
+        )));
+    }
+    
+    // Convert to UTF-8
+    let text_content = String::from_utf8(content.to_vec()).map_err(|_| {
+        ApiError::BadRequest(format!("File {} is not valid UTF-8", filename))
+    })?;
+    
+    if text_content.trim().is_empty() {
+        return Err(ApiError::ValidationError(format!(
+            "File {} is empty",
+            filename
+        )));
+    }
+    
+    // Calculate hash
+    let mut hasher = Sha256::new();
+    hasher.update(content);
+    let content_hash = hex::encode(hasher.finalize());
+    
+    // Check for duplicate
+    let hash_key = format!("doc:hash:{}", content_hash);
+    if let Some(existing) = state.kv_storage.get_by_id(&hash_key).await? {
+        if let Some(doc_id) = existing.as_str() {
+            return Ok((doc_id.to_string(), true));
+        }
+    }
+    
+    // Generate document ID
+    let document_id = Uuid::new_v4().to_string();
+    
+    // Store hash mapping
+    state.kv_storage.upsert(&[
+        (hash_key, serde_json::json!(document_id)),
+    ]).await?;
+    
+    // Process through pipeline
+    let result = state
+        .pipeline
+        .process(&document_id, &text_content)
+        .await?;
+    
+    // Store chunks
+    let chunks: Vec<(String, serde_json::Value)> = result
+        .chunks
+        .iter()
+        .map(|c| {
+            (
+                c.id.clone(),
+                serde_json::json!({
+                    "content": c.content,
+                    "document_id": document_id,
+                    "index": c.index,
+                    "source_file": filename,
+                }),
+            )
+        })
+        .collect();
+    
+    state.kv_storage.upsert(&chunks).await?;
+    
+    Ok((document_id, false))
 }
 
 #[cfg(test)]

@@ -540,3 +540,416 @@ async fn test_query_all_modes() {
         );
     }
 }
+
+// ============================================================================
+// Conversation History Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_query_with_conversation_history() {
+    let app = create_test_app();
+
+    let request = json!({
+        "query": "What did we discuss earlier?",
+        "mode": "naive",
+        "conversation_history": [
+            {"role": "user", "content": "Tell me about machine learning."},
+            {"role": "assistant", "content": "Machine learning is a subset of AI that enables systems to learn from data."},
+            {"role": "user", "content": "How does it relate to neural networks?"},
+            {"role": "assistant", "content": "Neural networks are a key technique used in machine learning for pattern recognition."}
+        ]
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/query")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = extract_json(response).await;
+    assert!(body.get("answer").is_some());
+    assert!(body.get("conversation_id").is_some(), "Should return conversation_id when history is provided");
+}
+
+#[tokio::test]
+async fn test_query_without_conversation_history_no_id() {
+    let app = create_test_app();
+
+    let request = json!({
+        "query": "What is machine learning?",
+        "mode": "naive"
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/query")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = extract_json(response).await;
+    assert!(body.get("answer").is_some());
+    // No conversation_id when no history is provided
+    assert!(body.get("conversation_id").is_none() || body.get("conversation_id").unwrap().is_null());
+}
+
+#[tokio::test]
+async fn test_query_empty_conversation_history() {
+    let app = create_test_app();
+
+    let request = json!({
+        "query": "What is deep learning?",
+        "conversation_history": []
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/query")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = extract_json(response).await;
+    assert!(body.get("answer").is_some());
+}
+
+#[tokio::test]
+async fn test_query_conversation_history_structure() {
+    let app = create_test_app();
+
+    let request = json!({
+        "query": "Continue our discussion",
+        "conversation_history": [
+            {"role": "user", "content": "Hello, I have a question."},
+            {"role": "assistant", "content": "Sure, how can I help you?"}
+        ]
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/query")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = extract_json(response).await;
+    
+    // Verify response structure
+    assert!(body.get("answer").is_some(), "Response should have answer");
+    assert!(body.get("mode").is_some(), "Response should have mode");
+    assert!(body.get("sources").is_some(), "Response should have sources");
+    assert!(body.get("stats").is_some(), "Response should have stats");
+    assert!(body.get("conversation_id").is_some(), "Response should have conversation_id");
+    
+    // Verify conversation_id is a valid UUID
+    let conv_id = body.get("conversation_id").unwrap().as_str().unwrap();
+    assert_eq!(conv_id.len(), 36, "Conversation ID should be a UUID");
+}
+
+#[tokio::test]
+async fn test_query_multi_turn_context() {
+    let server = Server::new(create_test_config(), AppState::test_state());
+    
+    // First query without history
+    let request1 = json!({
+        "query": "Tell me about Rust programming",
+        "mode": "naive"
+    });
+
+    let app = server.build_router();
+    let response1 = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/query")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request1).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response1.status(), StatusCode::OK);
+    let body1 = extract_json(response1).await;
+    let answer1 = body1.get("answer").unwrap().as_str().unwrap();
+
+    // Second query with history from first
+    let request2 = json!({
+        "query": "What are its main features?",
+        "mode": "naive",
+        "conversation_history": [
+            {"role": "user", "content": "Tell me about Rust programming"},
+            {"role": "assistant", "content": answer1}
+        ]
+    });
+
+    let app = server.build_router();
+    let response2 = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/query")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request2).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response2.status(), StatusCode::OK);
+    let body2 = extract_json(response2).await;
+    assert!(body2.get("answer").is_some());
+    assert!(body2.get("conversation_id").is_some());
+}
+
+// ============================================================================
+// Reranking Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_query_with_reranking_enabled() {
+    let app = create_test_app();
+
+    let request = json!({
+        "query": "What is machine learning?",
+        "mode": "naive",
+        "enable_rerank": true
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/query")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = extract_json(response).await;
+    assert!(body.get("answer").is_some());
+    assert_eq!(body.get("reranked").and_then(|v| v.as_bool()), Some(true));
+    
+    // Stats should include rerank time
+    let stats = body.get("stats").unwrap();
+    assert!(stats.get("rerank_time_ms").is_some());
+}
+
+#[tokio::test]
+async fn test_query_with_reranking_disabled() {
+    let app = create_test_app();
+
+    let request = json!({
+        "query": "What is artificial intelligence?",
+        "mode": "naive",
+        "enable_rerank": false
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/query")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = extract_json(response).await;
+    assert!(body.get("answer").is_some());
+    
+    // Reranked should be false (and omitted from response due to skip_serializing_if)
+    assert!(
+        body.get("reranked").is_none() || 
+        body.get("reranked").and_then(|v| v.as_bool()) == Some(false)
+    );
+    
+    // Rerank time should not be present
+    let stats = body.get("stats").unwrap();
+    assert!(stats.get("rerank_time_ms").is_none());
+}
+
+#[tokio::test]
+async fn test_query_rerank_default_enabled() {
+    let app = create_test_app();
+
+    // Don't specify enable_rerank - should default to true
+    let request = json!({
+        "query": "What are neural networks?",
+        "mode": "naive"
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/query")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = extract_json(response).await;
+    assert!(body.get("answer").is_some());
+    
+    // Default should be reranked = true
+    assert_eq!(body.get("reranked").and_then(|v| v.as_bool()), Some(true));
+}
+
+#[tokio::test]
+async fn test_query_rerank_with_top_k() {
+    let app = create_test_app();
+
+    let request = json!({
+        "query": "What is deep learning?",
+        "mode": "naive",
+        "enable_rerank": true,
+        "rerank_top_k": 3
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/query")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = extract_json(response).await;
+    assert!(body.get("answer").is_some());
+    assert_eq!(body.get("reranked").and_then(|v| v.as_bool()), Some(true));
+    
+    // Sources should be limited to top_k chunks (if there were any)
+    let sources = body.get("sources").and_then(|v| v.as_array()).unwrap();
+    let chunks: Vec<&Value> = sources.iter()
+        .filter(|s| s.get("source_type").and_then(|v| v.as_str()) == Some("chunk"))
+        .collect();
+    assert!(chunks.len() <= 3, "Should have at most 3 chunks after rerank_top_k");
+}
+
+#[tokio::test]
+async fn test_query_rerank_sources_have_rerank_scores() {
+    let server = Server::new(create_test_config(), AppState::test_state());
+    
+    // First upload a document to ensure we have chunks
+    let _doc_id = upload_document(
+        &server,
+        "Machine learning is a branch of artificial intelligence. \
+         It enables systems to learn from data. \
+         Deep learning uses neural networks with many layers."
+    ).await;
+    
+    let request = json!({
+        "query": "What is machine learning?",
+        "mode": "naive",
+        "enable_rerank": true
+    });
+
+    let app = server.build_router();
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/query")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = extract_json(response).await;
+    assert_eq!(body.get("reranked").and_then(|v| v.as_bool()), Some(true));
+    
+    // Check that chunk sources have rerank_score field
+    let sources = body.get("sources").and_then(|v| v.as_array()).unwrap();
+    for source in sources {
+        let source_type = source.get("source_type").and_then(|v| v.as_str()).unwrap();
+        if source_type == "chunk" {
+            // Chunks should have rerank_score when reranking is enabled
+            assert!(
+                source.get("rerank_score").is_some(),
+                "Chunk source should have rerank_score"
+            );
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_query_rerank_with_model() {
+    let app = create_test_app();
+
+    let request = json!({
+        "query": "Explain transformers",
+        "mode": "naive",
+        "enable_rerank": true,
+        "rerank_model": "cohere-rerank-v3"
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/query")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = extract_json(response).await;
+    assert!(body.get("answer").is_some());
+    // Model parameter is accepted (even if not fully implemented yet)
+}

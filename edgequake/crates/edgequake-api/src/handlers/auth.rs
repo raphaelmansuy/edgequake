@@ -559,15 +559,58 @@ pub async fn logout(
     )
 )]
 pub async fn get_me(
-    State(_state): State<AppState>,
-    // TODO: Add auth middleware integration
-    // auth: AuthUser,
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<GetMeResponse>, ApiError> {
-    // For now, return a mock response until auth middleware is integrated
-    // In production, the auth middleware would extract the user from the JWT
-    Err(ApiError::NotImplemented {
-        feature: "get_me requires auth middleware integration".to_string(),
-    })
+    // Extract the Authorization header
+    let auth_header = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .ok_or(ApiError::Unauthorized)?;
+    
+    // Parse the Bearer token
+    let token = auth_header
+        .strip_prefix("Bearer ")
+        .ok_or(ApiError::BadRequest(
+            "Invalid Authorization header format. Expected 'Bearer <token>'".to_string(),
+        ))?;
+    
+    // Verify the JWT and extract claims
+    let claims = state
+        .jwt_service
+        .verify_token(token)
+        .map_err(|e| ApiError::BadRequest(format!("Invalid token: {}", e)))?;
+    
+    // Get the user ID from claims
+    let user_id = claims.user_id()
+        .map_err(|e| ApiError::BadRequest(format!("Invalid user ID in token: {}", e)))?;
+    
+    // Fetch user from storage
+    let user_key = format!("{}{}", USER_KEY_PREFIX, user_id);
+    
+    let user_value = state
+        .kv_storage
+        .get_by_id(&user_key)
+        .await
+        .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?
+        .ok_or_else(|| ApiError::NotFound(format!("User {} not found", user_id)))?;
+    
+    let user_record: UserRecord = serde_json::from_value(user_value)
+        .map_err(|e| ApiError::Internal(format!("Deserialization error: {}", e)))?;
+    
+    // Check if user is active
+    if !user_record.is_active {
+        return Err(ApiError::Forbidden);
+    }
+    
+    Ok(Json(GetMeResponse {
+        user: UserInfo {
+            user_id: user_record.user_id,
+            username: user_record.username,
+            email: user_record.email,
+            role: user_record.role,
+        },
+    }))
 }
 
 /// Create a new user (admin only).

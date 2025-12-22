@@ -80,6 +80,20 @@ pub struct QueryRequest {
 
     /// Additional parameters.
     pub params: HashMap<String, serde_json::Value>,
+    
+    /// Conversation history for multi-turn context.
+    #[serde(default)]
+    pub conversation_history: Vec<ConversationMessage>,
+}
+
+/// A single message in conversation history.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConversationMessage {
+    /// Role of the message sender (user, assistant, system).
+    pub role: String,
+    
+    /// Content of the message.
+    pub content: String,
 }
 
 impl QueryRequest {
@@ -91,6 +105,7 @@ impl QueryRequest {
             max_results: None,
             context_only: false,
             params: HashMap::new(),
+            conversation_history: Vec::new(),
         }
     }
 
@@ -103,6 +118,12 @@ impl QueryRequest {
     /// Set context-only mode.
     pub fn context_only(mut self) -> Self {
         self.context_only = true;
+        self
+    }
+    
+    /// Add conversation history.
+    pub fn with_conversation_history(mut self, history: Vec<ConversationMessage>) -> Self {
+        self.conversation_history = history;
         self
     }
 }

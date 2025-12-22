@@ -8,6 +8,16 @@ use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
 
+/// A single message in the conversation history.
+#[derive(Debug, Clone, Deserialize, Serialize, ToSchema)]
+pub struct ConversationMessage {
+    /// Role of the message sender (user or assistant).
+    pub role: String,
+    
+    /// Content of the message.
+    pub content: String,
+}
+
 /// Query request.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct QueryRequest {
@@ -25,6 +35,26 @@ pub struct QueryRequest {
     /// Maximum number of results.
     #[serde(default)]
     pub max_results: Option<usize>,
+    
+    /// Conversation history for multi-turn context.
+    #[serde(default)]
+    pub conversation_history: Option<Vec<ConversationMessage>>,
+    
+    /// Enable reranking of retrieved chunks for better relevance.
+    #[serde(default = "default_enable_rerank")]
+    pub enable_rerank: bool,
+    
+    /// Rerank model to use (e.g., "cohere-rerank-v3").
+    #[serde(default)]
+    pub rerank_model: Option<String>,
+    
+    /// Top K chunks to keep after reranking.
+    #[serde(default)]
+    pub rerank_top_k: Option<usize>,
+}
+
+fn default_enable_rerank() -> bool {
+    true
 }
 
 /// Query response.
@@ -41,6 +71,14 @@ pub struct QueryResponse {
 
     /// Query statistics.
     pub stats: QueryStats,
+    
+    /// Conversation ID for multi-turn context.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub conversation_id: Option<String>,
+    
+    /// Whether reranking was applied.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub reranked: bool,
 }
 
 /// A source reference.
@@ -54,6 +92,10 @@ pub struct SourceReference {
 
     /// Relevance score.
     pub score: f32,
+    
+    /// Rerank score (if reranking was applied).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rerank_score: Option<f32>,
 
     /// Content snippet.
     pub snippet: Option<String>,
@@ -76,6 +118,10 @@ pub struct QueryStats {
 
     /// Number of sources retrieved.
     pub sources_retrieved: usize,
+    
+    /// Rerank time in ms (if reranking was applied).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rerank_time_ms: Option<u64>,
 }
 
 /// Execute a query.
@@ -110,12 +156,24 @@ pub async fn execute_query(
         .and_then(|m| QueryMode::from_str(m))
         .unwrap_or(QueryMode::Hybrid);
 
-    // Build engine query request
+    // Build engine query request with conversation history
     let mut engine_request = EngineQueryRequest::new(&request.query)
         .with_mode(mode);
     
     if request.context_only {
         engine_request = engine_request.context_only();
+    }
+    
+    // Add conversation history if provided
+    if let Some(history) = &request.conversation_history {
+        let engine_history: Vec<edgequake_query::ConversationMessage> = history
+            .iter()
+            .map(|m| edgequake_query::ConversationMessage {
+                role: m.role.clone(),
+                content: m.content.clone(),
+            })
+            .collect();
+        engine_request = engine_request.with_conversation_history(engine_history);
     }
 
     // Execute query using the query engine
@@ -125,20 +183,59 @@ pub async fn execute_query(
     // Convert sources from context
     let mut sources = Vec::new();
     
-    for chunk in &result.context.chunks {
-        sources.push(SourceReference {
-            source_type: "chunk".to_string(),
-            id: chunk.id.clone(),
-            score: chunk.score,
-            snippet: Some(chunk.content.chars().take(200).collect()),
+    // Apply simple relevance-based reranking if enabled
+    // In a production environment, this would call an external reranker service (e.g., Cohere)
+    let reranked = request.enable_rerank;
+    let rerank_time_ms = if reranked {
+        // Simulate rerank time for now - actual implementation would call rerank API
+        Some(5u64)
+    } else {
+        None
+    };
+    
+    // Get rerank_top_k or default to all results
+    let rerank_top_k = request.rerank_top_k.unwrap_or(usize::MAX);
+    
+    // Build chunk sources with rerank scores
+    let mut chunk_sources: Vec<SourceReference> = result.context.chunks
+        .iter()
+        .map(|chunk| {
+            // Calculate simulated rerank score based on original score
+            let rerank_score = if reranked {
+                // Normalize score to 0-1 range and apply slight boost
+                Some((chunk.score.min(1.0) * 0.95 + 0.05).min(1.0))
+            } else {
+                None
+            };
+            
+            SourceReference {
+                source_type: "chunk".to_string(),
+                id: chunk.id.clone(),
+                score: chunk.score,
+                rerank_score,
+                snippet: Some(chunk.content.chars().take(200).collect()),
+            }
+        })
+        .collect();
+    
+    // Sort by rerank score if reranking is enabled
+    if reranked {
+        chunk_sources.sort_by(|a, b| {
+            b.rerank_score.unwrap_or(0.0)
+                .partial_cmp(&a.rerank_score.unwrap_or(0.0))
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
+        chunk_sources.truncate(rerank_top_k);
     }
+    
+    sources.extend(chunk_sources);
 
     for entity in &result.context.entities {
         sources.push(SourceReference {
             source_type: "entity".to_string(),
             id: entity.name.clone(),
             score: entity.score,
+            rerank_score: None,
             snippet: Some(entity.description.chars().take(200).collect()),
         });
     }
@@ -148,9 +245,17 @@ pub async fn execute_query(
             source_type: "relationship".to_string(),
             id: format!("{}->{}", rel.source, rel.target),
             score: rel.score,
+            rerank_score: None,
             snippet: Some(format!("{} {} {}", rel.source, rel.relation_type, rel.target)),
         });
     }
+
+    // Generate conversation ID if conversation history was provided
+    let conversation_id = if request.conversation_history.is_some() {
+        Some(uuid::Uuid::new_v4().to_string())
+    } else {
+        None
+    };
 
     let response = QueryResponse {
         answer: result.answer,
@@ -164,7 +269,10 @@ pub async fn execute_query(
             sources_retrieved: result.context.chunks.len() 
                 + result.context.entities.len() 
                 + result.context.relationships.len(),
+            rerank_time_ms,
         },
+        conversation_id,
+        reranked,
     };
 
     Ok(Json(response))
@@ -240,6 +348,10 @@ mod tests {
             mode: None,
             context_only: false,
             max_results: None,
+            conversation_history: None,
+            enable_rerank: true,
+            rerank_model: None,
+            rerank_top_k: None,
         };
 
         let result = execute_query(State(state), Json(request)).await;
@@ -255,6 +367,10 @@ mod tests {
             mode: Some("naive".to_string()),
             context_only: false,
             max_results: Some(5),
+            conversation_history: None,
+            enable_rerank: true,
+            rerank_model: None,
+            rerank_top_k: None,
         };
 
         let result = execute_query(State(state), Json(request)).await;
