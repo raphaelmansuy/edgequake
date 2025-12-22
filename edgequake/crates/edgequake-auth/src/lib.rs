@@ -36,7 +36,7 @@ pub mod tenant;
 // Re-export main types
 pub use config::AuthConfig;
 pub use error::{AuthError, AuthResult};
-pub use extractors::{AuthUser, ApiKeyAuth, OptionalAuth};
+pub use extractors::{ApiKeyAuth, AuthUser, OptionalAuth};
 pub use jwt::{Claims, JwtService};
 pub use password::PasswordService;
 pub use rbac::{Permission, RbacService};

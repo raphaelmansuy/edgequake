@@ -9,7 +9,7 @@ description = "Authentication and authorization for EdgeQuake"
 
 [features]
 default = []
-multi-tenant = []  # Enable multi-tenancy support
+multi-tenant = [] # Enable multi-tenancy support
 
 [dependencies]
 # Async runtime
