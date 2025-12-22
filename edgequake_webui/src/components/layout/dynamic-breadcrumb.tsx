@@ -1,16 +1,17 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
-import Link from 'next/link';
-import { ChevronRight, Home, Network, FileText, MessageSquare, Terminal, Settings } from 'lucide-react';
 import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
+    Breadcrumb,
+    BreadcrumbItem,
+    BreadcrumbLink,
+    BreadcrumbList,
+    BreadcrumbPage,
+    BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
+import { ChevronRight, FileText, Home, MessageSquare, Network, Settings, Terminal } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import React from 'react';
 
 interface PathConfig {
   label: string;
@@ -85,9 +86,9 @@ export function DynamicBreadcrumb({ customSegments }: DynamicBreadcrumbProps) {
           const Icon = item.icon;
           
           return (
-            <BreadcrumbItem key={item.href}>
-              {!isLast ? (
-                <>
+            <React.Fragment key={item.href}>
+              <BreadcrumbItem>
+                {!isLast ? (
                   <BreadcrumbLink asChild>
                     <Link
                       href={item.href}
@@ -97,17 +98,19 @@ export function DynamicBreadcrumb({ customSegments }: DynamicBreadcrumbProps) {
                       <span>{item.label}</span>
                     </Link>
                   </BreadcrumbLink>
-                  <BreadcrumbSeparator>
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </BreadcrumbSeparator>
-                </>
-              ) : (
-                <BreadcrumbPage className="flex items-center gap-1.5 font-medium">
-                  {Icon && <Icon className="h-3.5 w-3.5" />}
-                  <span>{item.label}</span>
-                </BreadcrumbPage>
+                ) : (
+                  <BreadcrumbPage className="flex items-center gap-1.5 font-medium">
+                    {Icon && <Icon className="h-3.5 w-3.5" />}
+                    <span>{item.label}</span>
+                  </BreadcrumbPage>
+                )}
+              </BreadcrumbItem>
+              {!isLast && (
+                <BreadcrumbSeparator>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </BreadcrumbSeparator>
               )}
-            </BreadcrumbItem>
+            </React.Fragment>
           );
         })}
       </BreadcrumbList>

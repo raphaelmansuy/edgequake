@@ -1,14 +1,14 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
-import { Loader2, Network } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useAuthStore } from '@/stores/use-auth-store';
+import { Input } from '@/components/ui/input';
 import { login } from '@/lib/api/edgequake';
+import { useAuthStore } from '@/stores/use-auth-store';
+import { Loader2, Network } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { toast } from 'sonner';
 
 export default function LoginPage() {
   const router = useRouter();

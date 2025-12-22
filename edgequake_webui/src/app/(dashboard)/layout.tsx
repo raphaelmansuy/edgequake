@@ -1,8 +1,8 @@
 'use client';
 
-import { Sidebar } from '@/components/layout/sidebar';
-import { Header } from '@/components/layout/header';
 import { DynamicBreadcrumb } from '@/components/layout/dynamic-breadcrumb';
+import { Header } from '@/components/layout/header';
+import { Sidebar } from '@/components/layout/sidebar';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 
 export default function DashboardLayout({

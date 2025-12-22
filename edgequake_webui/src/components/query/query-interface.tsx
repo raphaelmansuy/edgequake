@@ -1,50 +1,42 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { toast } from 'sonner';
-import {
-  Send,
-  Loader2,
-  Settings2,
-  History,
-  Star,
-  Trash2,
-  Target,
-  Globe,
-  Combine,
-  Sparkles,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger,
 } from '@/components/ui/sheet';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { query as queryApi, queryStream } from '@/lib/api/edgequake';
-import { useQueryStore, useRecentQueries, useFavoriteQueries } from '@/stores/use-query-store';
+import { useFavoriteQueries, useQueryStore, useRecentQueries } from '@/stores/use-query-store';
 import { useSettingsStore } from '@/stores/use-settings-store';
+import type { QueryContext, QueryMode } from '@/types';
+import { useMutation } from '@tanstack/react-query';
+import {
+    Combine,
+    Globe,
+    History,
+    Loader2,
+    Send,
+    Settings2,
+    Sparkles,
+    Star,
+    Target,
+    Trash2,
+} from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { toast } from 'sonner';
 import { QueryModeSelector } from './query-mode-selector';
 import { SourceCitations } from './source-citations';
-import type { QueryMode, QueryResponse, QueryStreamChunk, QueryContext } from '@/types';
 
 const modeConfig = {
   local: {

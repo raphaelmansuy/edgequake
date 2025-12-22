@@ -1,12 +1,12 @@
-import type { ApiError } from '@/types';
+import type { ApiError } from "@/types";
 
 // Server Base URL (without /api/v1)
 const getServerBaseUrl = () => {
   const envUrl = process.env.NEXT_PUBLIC_API_URL;
   if (envUrl) {
-    return envUrl.replace(/\/$/, '');
+    return envUrl.replace(/\/$/, "");
   }
-  return '';
+  return "";
 };
 
 // API Base URL configuration
@@ -14,7 +14,7 @@ const getServerBaseUrl = () => {
 // Otherwise default to /api/v1 for same-origin requests
 const getApiBaseUrl = () => {
   const serverUrl = getServerBaseUrl();
-  return serverUrl ? `${serverUrl}/api/v1` : '/api/v1';
+  return serverUrl ? `${serverUrl}/api/v1` : "/api/v1";
 };
 
 export const SERVER_BASE_URL = getServerBaseUrl();
@@ -29,25 +29,30 @@ export class ApiRequestError extends Error {
     public details?: Record<string, unknown>
   ) {
     super(message);
-    this.name = 'ApiRequestError';
+    this.name = "ApiRequestError";
   }
 
   static fromResponse(error: ApiError): ApiRequestError {
-    return new ApiRequestError(error.message, error.status, error.code, error.details);
+    return new ApiRequestError(
+      error.message,
+      error.status,
+      error.code,
+      error.details
+    );
   }
 }
 
 export class AuthError extends ApiRequestError {
-  constructor(message: string = 'Authentication required') {
-    super(message, 401, 'AUTH_REQUIRED');
-    this.name = 'AuthError';
+  constructor(message: string = "Authentication required") {
+    super(message, 401, "AUTH_REQUIRED");
+    this.name = "AuthError";
   }
 }
 
 export class NetworkError extends Error {
-  constructor(message: string = 'Network request failed') {
+  constructor(message: string = "Network request failed") {
     super(message);
-    this.name = 'NetworkError';
+    this.name = "NetworkError";
   }
 }
 
@@ -58,16 +63,19 @@ let refreshToken: string | null = null;
 export function setTokens(access: string, refresh: string): void {
   accessToken = access;
   refreshToken = refresh;
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('accessToken', access);
-    localStorage.setItem('refreshToken', refresh);
+  if (typeof window !== "undefined") {
+    localStorage.setItem("accessToken", access);
+    localStorage.setItem("refreshToken", refresh);
   }
 }
 
-export function getTokens(): { accessToken: string | null; refreshToken: string | null } {
-  if (typeof window !== 'undefined' && !accessToken) {
-    accessToken = localStorage.getItem('accessToken');
-    refreshToken = localStorage.getItem('refreshToken');
+export function getTokens(): {
+  accessToken: string | null;
+  refreshToken: string | null;
+} {
+  if (typeof window !== "undefined" && !accessToken) {
+    accessToken = localStorage.getItem("accessToken");
+    refreshToken = localStorage.getItem("refreshToken");
   }
   return { accessToken, refreshToken };
 }
@@ -75,9 +83,9 @@ export function getTokens(): { accessToken: string | null; refreshToken: string 
 export function clearTokens(): void {
   accessToken = null;
   refreshToken = null;
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
   }
 }
 
@@ -88,18 +96,21 @@ let currentWorkspaceId: string | null = null;
 export function setTenantContext(tenantId: string, workspaceId?: string): void {
   currentTenantId = tenantId;
   currentWorkspaceId = workspaceId || null;
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('tenantId', tenantId);
+  if (typeof window !== "undefined") {
+    localStorage.setItem("tenantId", tenantId);
     if (workspaceId) {
-      localStorage.setItem('workspaceId', workspaceId);
+      localStorage.setItem("workspaceId", workspaceId);
     }
   }
 }
 
-export function getTenantContext(): { tenantId: string | null; workspaceId: string | null } {
-  if (typeof window !== 'undefined' && !currentTenantId) {
-    currentTenantId = localStorage.getItem('tenantId');
-    currentWorkspaceId = localStorage.getItem('workspaceId');
+export function getTenantContext(): {
+  tenantId: string | null;
+  workspaceId: string | null;
+} {
+  if (typeof window !== "undefined" && !currentTenantId) {
+    currentTenantId = localStorage.getItem("tenantId");
+    currentWorkspaceId = localStorage.getItem("workspaceId");
   }
   return { tenantId: currentTenantId, workspaceId: currentWorkspaceId };
 }
@@ -107,24 +118,24 @@ export function getTenantContext(): { tenantId: string | null; workspaceId: stri
 // Headers builder
 function buildHeaders(customHeaders?: HeadersInit): Headers {
   const headers = new Headers(customHeaders);
-  
-  if (!headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
+
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
   }
-  
+
   const { accessToken: token } = getTokens();
   if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
+    headers.set("Authorization", `Bearer ${token}`);
   }
-  
+
   const { tenantId, workspaceId } = getTenantContext();
   if (tenantId) {
-    headers.set('X-Tenant-ID', tenantId);
+    headers.set("X-Tenant-ID", tenantId);
   }
   if (workspaceId) {
-    headers.set('X-Workspace-ID', workspaceId);
+    headers.set("X-Workspace-ID", workspaceId);
   }
-  
+
   return headers;
 }
 
@@ -133,16 +144,18 @@ export async function apiClient<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
-  
+  const url = endpoint.startsWith("http")
+    ? endpoint
+    : `${API_BASE_URL}${endpoint}`;
+
   const config: RequestInit = {
     ...options,
     headers: buildHeaders(options.headers),
   };
-  
+
   try {
     const response = await fetch(url, config);
-    
+
     // Handle 401 - try to refresh token
     if (response.status === 401) {
       const refreshed = await tryRefreshToken();
@@ -157,17 +170,17 @@ export async function apiClient<T>(
       }
       throw new AuthError();
     }
-    
+
     if (!response.ok) {
       throw await handleErrorResponse(response);
     }
-    
+
     // Handle empty responses
     const text = await response.text();
     if (!text) {
       return {} as T;
     }
-    
+
     return JSON.parse(text) as T;
   } catch (error) {
     if (error instanceof ApiRequestError || error instanceof AuthError) {
@@ -181,13 +194,18 @@ export async function apiClient<T>(
 }
 
 // Error response handler
-async function handleErrorResponse(response: Response): Promise<ApiRequestError> {
+async function handleErrorResponse(
+  response: Response
+): Promise<ApiRequestError> {
   try {
-    const errorData = await response.json() as ApiError;
-    return ApiRequestError.fromResponse({ ...errorData, status: response.status });
+    const errorData = (await response.json()) as ApiError;
+    return ApiRequestError.fromResponse({
+      ...errorData,
+      status: response.status,
+    });
   } catch {
     return new ApiRequestError(
-      response.statusText || 'Request failed',
+      response.statusText || "Request failed",
       response.status
     );
   }
@@ -199,22 +217,25 @@ async function tryRefreshToken(): Promise<boolean> {
   if (!refresh) {
     return false;
   }
-  
+
   try {
     const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ refresh_token: refresh }),
     });
-    
+
     if (!response.ok) {
       clearTokens();
       return false;
     }
-    
-    const data = await response.json() as { access_token: string; refresh_token: string };
+
+    const data = (await response.json()) as {
+      access_token: string;
+      refresh_token: string;
+    };
     setTokens(data.access_token, data.refresh_token);
     return true;
   } catch {
@@ -228,31 +249,33 @@ export async function* streamClient<T>(
   endpoint: string,
   options: RequestInit = {}
 ): AsyncGenerator<T, void, unknown> {
-  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
-  
+  const url = endpoint.startsWith("http")
+    ? endpoint
+    : `${API_BASE_URL}${endpoint}`;
+
   const config: RequestInit = {
     ...options,
     headers: buildHeaders(options.headers),
   };
-  
+
   const response = await fetch(url, config);
-  
+
   if (!response.ok) {
     throw await handleErrorResponse(response);
   }
-  
+
   if (!response.body) {
-    throw new Error('Response body is null');
+    throw new Error("Response body is null");
   }
-  
+
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = '';
-  
+  let buffer = "";
+
   try {
     while (true) {
       const { done, value } = await reader.read();
-      
+
       if (done) {
         // Process any remaining buffer
         if (buffer.trim()) {
@@ -260,13 +283,13 @@ export async function* streamClient<T>(
         }
         break;
       }
-      
+
       buffer += decoder.decode(value, { stream: true });
-      
+
       // Process complete lines (NDJSON format)
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
       for (const line of lines) {
         const trimmed = line.trim();
         if (trimmed) {
@@ -282,36 +305,36 @@ export async function* streamClient<T>(
 // Convenience methods
 export const api = {
   get: <T>(endpoint: string, options?: RequestInit) =>
-    apiClient<T>(endpoint, { ...options, method: 'GET' }),
-    
+    apiClient<T>(endpoint, { ...options, method: "GET" }),
+
   post: <T>(endpoint: string, data?: unknown, options?: RequestInit) =>
     apiClient<T>(endpoint, {
       ...options,
-      method: 'POST',
+      method: "POST",
       body: data ? JSON.stringify(data) : undefined,
     }),
-    
+
   put: <T>(endpoint: string, data?: unknown, options?: RequestInit) =>
     apiClient<T>(endpoint, {
       ...options,
-      method: 'PUT',
+      method: "PUT",
       body: data ? JSON.stringify(data) : undefined,
     }),
-    
+
   patch: <T>(endpoint: string, data?: unknown, options?: RequestInit) =>
     apiClient<T>(endpoint, {
       ...options,
-      method: 'PATCH',
+      method: "PATCH",
       body: data ? JSON.stringify(data) : undefined,
     }),
-    
+
   delete: <T>(endpoint: string, options?: RequestInit) =>
-    apiClient<T>(endpoint, { ...options, method: 'DELETE' }),
-    
+    apiClient<T>(endpoint, { ...options, method: "DELETE" }),
+
   stream: <T>(endpoint: string, data?: unknown, options?: RequestInit) =>
     streamClient<T>(endpoint, {
       ...options,
-      method: 'POST',
+      method: "POST",
       body: data ? JSON.stringify(data) : undefined,
     }),
 };

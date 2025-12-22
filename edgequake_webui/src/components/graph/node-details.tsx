@@ -1,14 +1,14 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { X, ExternalLink, GitMerge, Trash2 } from 'lucide-react';
 import { useGraphStore } from '@/stores/use-graph-store';
 import type { GraphNode } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
+import { GitMerge, Trash2, X } from 'lucide-react';
 
 interface NodeDetailsProps {
   node: GraphNode;

@@ -1,14 +1,14 @@
 'use client';
 
-import { Target, Globe, Layers, Zap } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import type { QueryMode } from '@/types';
+import { Globe, Layers, Target, Zap } from 'lucide-react';
 
 interface QueryModeSelectorProps {
   value: QueryMode;

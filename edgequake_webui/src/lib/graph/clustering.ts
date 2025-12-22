@@ -1,28 +1,28 @@
-import Graph from 'graphology';
-import louvain from 'graphology-communities-louvain';
+import Graph from "graphology";
+import louvain from "graphology-communities-louvain";
 
 // Color palette for communities (up to 20 distinct colors)
 const COMMUNITY_COLORS = [
-  '#3b82f6', // blue
-  '#10b981', // emerald
-  '#f59e0b', // amber
-  '#ef4444', // red
-  '#8b5cf6', // violet
-  '#ec4899', // pink
-  '#06b6d4', // cyan
-  '#84cc16', // lime
-  '#f97316', // orange
-  '#6366f1', // indigo
-  '#14b8a6', // teal
-  '#a855f7', // purple
-  '#22c55e', // green
-  '#eab308', // yellow
-  '#0ea5e9', // sky
-  '#d946ef', // fuchsia
-  '#64748b', // slate
-  '#78716c', // stone
-  '#059669', // emerald-600
-  '#dc2626', // red-600
+  "#3b82f6", // blue
+  "#10b981", // emerald
+  "#f59e0b", // amber
+  "#ef4444", // red
+  "#8b5cf6", // violet
+  "#ec4899", // pink
+  "#06b6d4", // cyan
+  "#84cc16", // lime
+  "#f97316", // orange
+  "#6366f1", // indigo
+  "#14b8a6", // teal
+  "#a855f7", // purple
+  "#22c55e", // green
+  "#eab308", // yellow
+  "#0ea5e9", // sky
+  "#d946ef", // fuchsia
+  "#64748b", // slate
+  "#78716c", // stone
+  "#059669", // emerald-600
+  "#dc2626", // red-600
 ];
 
 export interface Community {
@@ -62,7 +62,7 @@ export function detectCommunities(graph: Graph): ClusteringResult {
   graph.forEachNode((node) => {
     const communityId = communities[node];
     nodeToCommuntiy.set(node, communityId);
-    
+
     if (!communityNodes[communityId]) {
       communityNodes[communityId] = [];
     }
@@ -81,7 +81,8 @@ export function detectCommunities(graph: Graph): ClusteringResult {
     .sort((a, b) => b.size - a.size);
 
   // Calculate approximate modularity (number of communities / total nodes)
-  const approxModularity = communityList.length > 0 ? 1 - (1 / communityList.length) : 0;
+  const approxModularity =
+    communityList.length > 0 ? 1 - 1 / communityList.length : 0;
 
   return {
     communities: communityList,
@@ -93,7 +94,10 @@ export function detectCommunities(graph: Graph): ClusteringResult {
 /**
  * Apply community colors to graph nodes
  */
-export function applyCommuntiyColors(graph: Graph, result: ClusteringResult): void {
+export function applyCommuntiyColors(
+  graph: Graph,
+  result: ClusteringResult
+): void {
   const communityColorMap = new Map<number, string>();
   result.communities.forEach((community) => {
     communityColorMap.set(community.id, community.color);
@@ -104,8 +108,8 @@ export function applyCommuntiyColors(graph: Graph, result: ClusteringResult): vo
     if (communityId !== undefined) {
       const color = communityColorMap.get(communityId);
       if (color) {
-        graph.setNodeAttribute(node, 'communityColor', color);
-        graph.setNodeAttribute(node, 'community', communityId);
+        graph.setNodeAttribute(node, "communityColor", color);
+        graph.setNodeAttribute(node, "community", communityId);
       }
     }
   });
@@ -124,7 +128,8 @@ export function getCommunitySummary(result: ClusteringResult): {
   return {
     totalCommunities: result.communities.length,
     largestCommunity: sizes.length > 0 ? Math.max(...sizes) : 0,
-    averageSize: sizes.length > 0 ? sizes.reduce((a, b) => a + b, 0) / sizes.length : 0,
+    averageSize:
+      sizes.length > 0 ? sizes.reduce((a, b) => a + b, 0) / sizes.length : 0,
     modularity: result.modularity,
   };
 }

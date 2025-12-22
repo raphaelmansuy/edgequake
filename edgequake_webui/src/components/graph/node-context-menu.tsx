@@ -1,27 +1,15 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuShortcut,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-} from '@/components/ui/context-menu';
-import {
-  Eye,
-  Copy,
-  Trash2,
-  Link2,
-  Network,
-  Search,
-  FileText,
-  ExternalLink,
-} from 'lucide-react';
 import type { GraphNode } from '@/types';
+import {
+    Copy,
+    Eye,
+    FileText,
+    Network,
+    Search,
+    Trash2
+} from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 
 interface NodeContextMenuPosition {
   x: number;

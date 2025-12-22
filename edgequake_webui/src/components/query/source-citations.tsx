@@ -1,18 +1,18 @@
 'use client';
 
-import { useState } from 'react';
-import { FileText, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from '@/components/ui/hover-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import {
+    HoverCard,
+    HoverCardContent,
+    HoverCardTrigger,
+} from '@/components/ui/hover-card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { QueryContext } from '@/types';
+import { ChevronDown, ChevronUp, ExternalLink, FileText } from 'lucide-react';
+import { useState } from 'react';
 
 interface SourceCitationsProps {
   context: QueryContext;

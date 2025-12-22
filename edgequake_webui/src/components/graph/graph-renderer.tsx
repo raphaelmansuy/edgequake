@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useMemo } from 'react';
-import Graph from 'graphology';
-import Sigma from 'sigma';
-import forceAtlas2 from 'graphology-layout-forceatlas2';
-import { useGraphStore } from '@/stores/use-graph-store';
 import { detectCommunities, getCommunityColor } from '@/lib/graph/clustering';
-import type { GraphNode, GraphEdge } from '@/types';
+import { useGraphStore } from '@/stores/use-graph-store';
+import type { GraphEdge, GraphNode } from '@/types';
+import Graph from 'graphology';
+import forceAtlas2 from 'graphology-layout-forceatlas2';
+import { useCallback, useEffect, useRef } from 'react';
+import Sigma from 'sigma';
 
 // Color palette for entity types
 const TYPE_COLORS: Record<string, string> = {

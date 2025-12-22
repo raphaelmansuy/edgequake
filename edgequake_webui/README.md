@@ -54,11 +54,11 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `NEXT_PUBLIC_API_URL` | EdgeQuake API base URL | `/api/v1` |
-| `NEXT_PUBLIC_ENABLE_DEMO_MODE` | Enable demo mode without backend | `false` |
-| `NEXT_PUBLIC_ENABLE_API_EXPLORER` | Show API Explorer in navigation | `true` |
+| Variable                          | Description                      | Default   |
+| --------------------------------- | -------------------------------- | --------- |
+| `NEXT_PUBLIC_API_URL`             | EdgeQuake API base URL           | `/api/v1` |
+| `NEXT_PUBLIC_ENABLE_DEMO_MODE`    | Enable demo mode without backend | `false`   |
+| `NEXT_PUBLIC_ENABLE_API_EXPLORER` | Show API Explorer in navigation  | `true`    |
 
 ## Project Structure
 

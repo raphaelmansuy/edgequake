@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 /**
  * Global keyboard shortcuts for EdgeQuake WebUI
- * 
+ *
  * Shortcuts:
  * - Cmd/Ctrl + K: Open command palette (future)
  * - Cmd/Ctrl + G: Go to Graph
@@ -22,8 +22,8 @@ export function useKeyboardShortcuts() {
       // Skip if user is typing in an input
       const target = e.target as HTMLElement;
       if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
         target.isContentEditable
       ) {
         return;
@@ -32,31 +32,31 @@ export function useKeyboardShortcuts() {
       const isMeta = e.metaKey || e.ctrlKey;
 
       // Cmd/Ctrl + G: Go to Graph
-      if (isMeta && e.key === 'g') {
+      if (isMeta && e.key === "g") {
         e.preventDefault();
-        router.push('/graph');
+        router.push("/graph");
       }
-      
+
       // Cmd/Ctrl + D: Go to Documents
-      if (isMeta && e.key === 'd') {
+      if (isMeta && e.key === "d") {
         e.preventDefault();
-        router.push('/documents');
+        router.push("/documents");
       }
-      
+
       // Cmd/Ctrl + Q: Go to Query (use Shift to avoid quit conflict)
-      if (isMeta && e.shiftKey && e.key === 'Q') {
+      if (isMeta && e.shiftKey && e.key === "Q") {
         e.preventDefault();
-        router.push('/query');
+        router.push("/query");
       }
-      
+
       // Cmd/Ctrl + ,: Go to Settings
-      if (isMeta && e.key === ',') {
+      if (isMeta && e.key === ",") {
         e.preventDefault();
-        router.push('/settings');
+        router.push("/settings");
       }
     };
 
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, [router]);
 }

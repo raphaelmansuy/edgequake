@@ -1,32 +1,32 @@
 'use client';
 
-import { useTheme } from 'next-themes';
-import { Moon, Sun, Monitor, Palette, Globe, Database, Trash2 } from 'lucide-react';
-import { toast } from 'sonner';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { useSettingsStore } from '@/stores/use-settings-store';
+import { Switch } from '@/components/ui/switch';
 import { useQueryStore } from '@/stores/use-query-store';
+import { useSettingsStore } from '@/stores/use-settings-store';
+import { Database, Globe, Monitor, Moon, Palette, Sun, Trash2 } from 'lucide-react';
+import { useTheme } from 'next-themes';
+import { toast } from 'sonner';
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();

@@ -1,33 +1,25 @@
 'use client';
 
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Textarea } from '@/components/ui/textarea';
+import { api } from '@/lib/api/client';
+import {
+    Check,
+    ChevronDown,
+    ChevronRight,
+    Copy,
+    Loader2,
+    Play,
+} from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import {
-  Play,
-  Copy,
-  Check,
-  Loader2,
-  ChevronDown,
-  ChevronRight,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
-import { api } from '@/lib/api/client';
 
 interface Endpoint {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';

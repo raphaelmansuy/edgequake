@@ -1,7 +1,7 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import { Skeleton } from '@/components/ui/skeleton';
+import dynamic from 'next/dynamic';
 
 // Dynamic import for GraphViewer since it uses browser APIs (Sigma.js)
 const GraphViewer = dynamic(

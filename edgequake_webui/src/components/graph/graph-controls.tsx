@@ -2,8 +2,8 @@
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useGraphStore } from '@/stores/use-graph-store';
 import { useSettingsStore } from '@/stores/use-settings-store';
-import { useGraphStore, type ColorMode } from '@/stores/use-graph-store';
 
 export function GraphControls() {
   const { graphSettings, setGraphSettings } = useSettingsStore();
