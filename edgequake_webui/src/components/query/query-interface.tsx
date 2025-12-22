@@ -43,7 +43,8 @@ import { query as queryApi, queryStream } from '@/lib/api/edgequake';
 import { useQueryStore, useRecentQueries, useFavoriteQueries } from '@/stores/use-query-store';
 import { useSettingsStore } from '@/stores/use-settings-store';
 import { QueryModeSelector } from './query-mode-selector';
-import type { QueryMode, QueryResponse, QueryStreamChunk } from '@/types';
+import { SourceCitations } from './source-citations';
+import type { QueryMode, QueryResponse, QueryStreamChunk, QueryContext } from '@/types';
 
 const modeConfig = {
   local: {
@@ -75,6 +76,7 @@ interface Message {
   mode?: QueryMode;
   tokensUsed?: number;
   durationMs?: number;
+  context?: QueryContext;
 }
 
 export function QueryInterface() {
@@ -104,6 +106,7 @@ export function QueryInterface() {
       let fullContent = '';
       let tokensUsed = 0;
       let durationMs = 0;
+      let context: QueryContext | undefined;
 
       for await (const chunk of queryStream({
         query: queryText,
@@ -116,6 +119,8 @@ export function QueryInterface() {
         if (chunk.type === 'token' && chunk.content) {
           fullContent += chunk.content;
           setStreamingContent(fullContent);
+        } else if (chunk.type === 'context' && chunk.context) {
+          context = chunk.context;
         } else if (chunk.type === 'done') {
           tokensUsed = chunk.tokens_used || 0;
           durationMs = chunk.duration_ms || 0;
@@ -134,6 +139,7 @@ export function QueryInterface() {
           mode: querySettings.mode,
           tokensUsed,
           durationMs,
+          context,
         },
       ]);
 
@@ -174,6 +180,7 @@ export function QueryInterface() {
           mode: data.mode,
           tokensUsed: data.tokens_used,
           durationMs: data.duration_ms,
+          context: data.context,
         },
       ]);
 
@@ -352,6 +359,20 @@ export function QueryInterface() {
                             <Badge variant="secondary">{message.mode}</Badge>
                             <span>{message.tokensUsed} tokens</span>
                             <span>{message.durationMs}ms</span>
+                          </div>
+                        )}
+                        {/* Source Citations */}
+                        {message.context && (
+                          <div className="mt-3 pt-2 border-t">
+                            <SourceCitations
+                              context={message.context}
+                              onEntityClick={(entityId) => {
+                                window.location.href = `/graph?entity=${encodeURIComponent(entityId)}`;
+                              }}
+                              onDocumentClick={(documentId) => {
+                                window.location.href = `/documents?id=${encodeURIComponent(documentId)}`;
+                              }}
+                            />
                           </div>
                         )}
                       </div>

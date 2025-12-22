@@ -35,6 +35,8 @@ downloads/
 eggs/
 .eggs/
 lib/
+# Don't ignore Next.js lib directory
+!**/src/lib/
 lib64/
 parts/
 sdist/

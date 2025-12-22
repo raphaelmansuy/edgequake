@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
 import Graph from 'graphology';
 import Sigma from 'sigma';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
 import { useGraphStore } from '@/stores/use-graph-store';
+import { detectCommunities, getCommunityColor } from '@/lib/graph/clustering';
 import type { GraphNode, GraphEdge } from '@/types';
 
 // Color palette for entity types
@@ -27,12 +28,14 @@ interface GraphRendererProps {
   edges: GraphEdge[];
   onNodeClick?: (nodeId: string) => void;
   onNodeHover?: (nodeId: string | null) => void;
+  onNodeRightClick?: (nodeId: string, x: number, y: number) => void;
 }
 
-export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover }: GraphRendererProps) {
+export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRightClick }: GraphRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sigmaRef = useRef<Sigma | null>(null);
   const setSigmaInstance = useGraphStore((s) => s.setSigmaInstance);
+  const colorMode = useGraphStore((s) => s.colorMode);
 
   const initializeGraph = useCallback(() => {
     if (!containerRef.current || nodes.length === 0) return;
@@ -78,6 +81,24 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover }: GraphR
       }
     });
 
+    // Apply community detection if in community color mode
+    if (colorMode === 'community' && graph.order > 1 && graph.size > 0) {
+      try {
+        const clusteringResult = detectCommunities(graph);
+        // Apply community colors
+        graph.forEachNode((nodeId) => {
+          const communityId = clusteringResult.nodeToCommuntiy.get(nodeId);
+          if (communityId !== undefined) {
+            graph.setNodeAttribute(nodeId, 'color', getCommunityColor(communityId));
+            graph.setNodeAttribute(nodeId, 'community', communityId);
+          }
+        });
+      } catch (e) {
+        // Clustering failed, keep default colors
+        console.warn('Community detection failed:', e);
+      }
+    }
+
     // Apply force-directed layout
     if (graph.order > 0) {
       forceAtlas2.assign(graph, {
@@ -106,6 +127,14 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover }: GraphR
     // Event handlers
     sigma.on('clickNode', ({ node }) => {
       onNodeClick?.(node);
+    });
+
+    sigma.on('rightClickNode', ({ node, event }) => {
+      // Prevent default browser context menu
+      if (containerRef.current) {
+        containerRef.current.addEventListener('contextmenu', (e) => e.preventDefault(), { once: true });
+      }
+      onNodeRightClick?.(node, event.x, event.y);
     });
 
     sigma.on('enterNode', ({ node }) => {
@@ -145,7 +174,7 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover }: GraphR
       sigmaRef.current = null;
       setSigmaInstance(null);
     };
-  }, [nodes, edges, onNodeClick, onNodeHover, setSigmaInstance]);
+  }, [nodes, edges, colorMode, onNodeClick, onNodeHover, onNodeRightClick, setSigmaInstance]);
 
   useEffect(() => {
     const cleanup = initializeGraph();

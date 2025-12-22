@@ -4,6 +4,8 @@ import type { GraphEdge, GraphNode, KnowledgeGraph } from "@/types";
 import Sigma from "sigma";
 import { create } from "zustand";
 
+export type ColorMode = 'entity-type' | 'community';
+
 interface GraphState {
   // Graph data
   graph: KnowledgeGraph | null;
@@ -20,6 +22,10 @@ interface GraphState {
   visibleEntityTypes: Set<string>;
   visibleRelationshipTypes: Set<string>;
   searchQuery: string;
+
+  // Display settings
+  colorMode: ColorMode;
+  showClustering: boolean;
 
   // Sigma instance reference
   sigmaInstance: Sigma | null;
@@ -49,6 +55,10 @@ interface GraphActions {
   setSearchQuery: (query: string) => void;
   resetFilters: () => void;
 
+  // Display settings
+  setColorMode: (mode: ColorMode) => void;
+  toggleClustering: () => void;
+
   // Sigma instance
   setSigmaInstance: (sigma: Sigma | null) => void;
 
@@ -70,6 +80,8 @@ const initialState: GraphState = {
   visibleEntityTypes: new Set(),
   visibleRelationshipTypes: new Set(),
   searchQuery: "",
+  colorMode: 'entity-type',
+  showClustering: false,
   sigmaInstance: null,
   isLoading: false,
   error: null,
@@ -188,6 +200,13 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
       });
     }
   },
+
+  // Display settings
+  setColorMode: (mode) => set({ colorMode: mode }),
+  toggleClustering: () => set((state) => ({ 
+    showClustering: !state.showClustering,
+    colorMode: state.showClustering ? 'entity-type' : 'community',
+  })),
 
   // Sigma instance
   setSigmaInstance: (sigma) => set({ sigmaInstance: sigma }),

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2, RefreshCw, ZoomIn, ZoomOut, Maximize2, AlertCircle, Network, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,8 +9,11 @@ import { GraphRenderer } from './graph-renderer';
 import { GraphControls } from './graph-controls';
 import { NodeDetails } from './node-details';
 import { GraphFilters } from './graph-filters';
+import { NodeContextMenu, useNodeContextMenu } from './node-context-menu';
 import { useGraphStore } from '@/stores/use-graph-store';
 import { getGraph } from '@/lib/api/edgequake';
+import { toast } from 'sonner';
+import type { GraphNode } from '@/types';
 
 export function GraphViewer() {
   const {
@@ -24,6 +27,14 @@ export function GraphViewer() {
     setLoading,
     setError,
   } = useGraphStore();
+
+  // Context menu state
+  const {
+    contextMenuNode,
+    contextMenuPosition,
+    openContextMenu,
+    closeContextMenu,
+  } = useNodeContextMenu();
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['graph'],
@@ -67,6 +78,47 @@ export function GraphViewer() {
       camera.animatedReset();
     }
   };
+
+  // Context menu handlers
+  const handleNodeRightClick = useCallback((nodeId: string, x: number, y: number) => {
+    const node = nodes.find((n) => n.id === nodeId);
+    if (node) {
+      openContextMenu(node, x, y);
+    }
+  }, [nodes, openContextMenu]);
+
+  const handleViewDetails = useCallback((node: GraphNode) => {
+    selectNode(node.id);
+  }, [selectNode]);
+
+  const handleExpandNeighborhood = useCallback((node: GraphNode) => {
+    // Focus camera on this node and highlight its neighborhood
+    if (sigmaInstance) {
+      const graph = sigmaInstance.getGraph();
+      const nodeData = graph.getNodeAttributes(node.id);
+      if (nodeData) {
+        const camera = sigmaInstance.getCamera();
+        camera.animate({ x: nodeData.x, y: nodeData.y, ratio: 0.3 }, { duration: 500 });
+      }
+    }
+    selectNode(node.id);
+    toast.success(`Expanded neighborhood for ${node.label}`);
+  }, [sigmaInstance, selectNode]);
+
+  const handleFindRelated = useCallback((node: GraphNode) => {
+    // Navigate to query page with pre-filled query
+    window.location.href = `/query?q=Find entities related to ${encodeURIComponent(node.label)}`;
+  }, []);
+
+  const handleViewDocuments = useCallback((node: GraphNode) => {
+    // Navigate to documents page with entity filter
+    window.location.href = `/documents?entity=${encodeURIComponent(node.id)}`;
+  }, []);
+
+  const handleCopyId = useCallback((node: GraphNode) => {
+    navigator.clipboard.writeText(node.id);
+    toast.success(`Copied entity ID: ${node.id}`);
+  }, []);
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
 
@@ -152,8 +204,21 @@ export function GraphViewer() {
               edges={edges}
               onNodeClick={selectNode}
               onNodeHover={hoverNode}
+              onNodeRightClick={handleNodeRightClick}
             />
           )}
+
+          {/* Node Context Menu */}
+          <NodeContextMenu
+            node={contextMenuNode}
+            position={contextMenuPosition}
+            onClose={closeContextMenu}
+            onViewDetails={handleViewDetails}
+            onExpandNeighborhood={handleExpandNeighborhood}
+            onFindRelated={handleFindRelated}
+            onViewDocuments={handleViewDocuments}
+            onCopyId={handleCopyId}
+          />
 
           {/* Graph Controls Overlay */}
           <div className="absolute bottom-4 left-4">

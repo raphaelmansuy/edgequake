@@ -3,9 +3,21 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSettingsStore } from '@/stores/use-settings-store';
+import { useGraphStore, type ColorMode } from '@/stores/use-graph-store';
 
 export function GraphControls() {
   const { graphSettings, setGraphSettings } = useSettingsStore();
+  const { colorMode, setColorMode } = useGraphStore();
+
+  const handleColorByChange = (value: 'type' | 'community' | 'degree') => {
+    setGraphSettings({ colorBy: value });
+    // Also update graph store color mode
+    if (value === 'community') {
+      setColorMode('community');
+    } else {
+      setColorMode('entity-type');
+    }
+  };
 
   return (
     <Card className="w-48 shadow-lg">
@@ -55,9 +67,7 @@ export function GraphControls() {
           <label className="text-xs font-medium text-muted-foreground">Color By</label>
           <Select
             value={graphSettings.colorBy}
-            onValueChange={(value: 'type' | 'community' | 'degree') =>
-              setGraphSettings({ colorBy: value })
-            }
+            onValueChange={handleColorByChange}
           >
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
