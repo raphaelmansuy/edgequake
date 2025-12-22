@@ -33,8 +33,8 @@ pub mod truncation;
 pub mod vector_filter;
 
 pub use chunk_retrieval::{
-    retrieve_chunks_from_entities, retrieve_chunks_from_relationships, ChunkSelectionMethod,
-    merge_chunks,
+    merge_chunks, retrieve_chunks_from_entities, retrieve_chunks_from_relationships,
+    ChunkSelectionMethod,
 };
 pub use context::{QueryContext, RetrievedContext};
 pub use engine::{QueryEngine, QueryEngineConfig, QueryRequest, QueryResponse};
@@ -47,7 +47,6 @@ pub use strategies::{
 };
 pub use tokenizer::{MockTokenizer, SimpleTokenizer, Tokenizer};
 pub use truncation::{
-    balance_context, truncate_chunks, truncate_entities, truncate_relationships,
-    TruncationConfig,
+    balance_context, truncate_chunks, truncate_entities, truncate_relationships, TruncationConfig,
 };
 pub use vector_filter::{filter_by_type, get_typed_vectors, VectorType};

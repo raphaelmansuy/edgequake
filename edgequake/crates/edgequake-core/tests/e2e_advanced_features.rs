@@ -2,11 +2,11 @@
 //!
 //! Tests keyword extraction, truncation, and chunk retrieval integration.
 
+use edgequake_query::context::{RetrievedChunk, RetrievedEntity, RetrievedRelationship};
 use edgequake_query::{
     balance_context, retrieve_chunks_from_entities, truncate_entities, ChunkSelectionMethod,
     KeywordExtractor, MockKeywordExtractor, SimpleTokenizer, Tokenizer, TruncationConfig,
 };
-use edgequake_query::context::{RetrievedChunk, RetrievedEntity, RetrievedRelationship};
 use edgequake_storage::{KVStorage, MemoryKVStorage};
 use std::sync::Arc;
 
@@ -14,7 +14,7 @@ use std::sync::Arc;
 #[tokio::test]
 async fn test_keyword_extraction() {
     let extractor = MockKeywordExtractor::new();
-    
+
     // Add a response
     extractor.add_response(edgequake_query::Keywords::new(
         vec![
@@ -35,7 +35,9 @@ async fn test_keyword_extraction() {
 
     assert_eq!(keywords.high_level.len(), 2);
     assert_eq!(keywords.low_level.len(), 3);
-    assert!(keywords.high_level.contains(&"machine learning".to_string()));
+    assert!(keywords
+        .high_level
+        .contains(&"machine learning".to_string()));
     assert!(keywords.low_level.contains(&"SARAH CHEN".to_string()));
 }
 
@@ -44,9 +46,9 @@ async fn test_keyword_extraction() {
 fn test_truncation_with_large_context() {
     let tokenizer = SimpleTokenizer;
     let config = TruncationConfig {
-        max_entity_tokens: 200,   // Very strict limit
+        max_entity_tokens: 200, // Very strict limit
         max_relation_tokens: 200,
-        max_total_tokens: 300,    // Even stricter total
+        max_total_tokens: 300, // Even stricter total
     };
 
     // Create many entities with longer descriptions to force truncation

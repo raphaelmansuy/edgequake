@@ -126,9 +126,8 @@ impl KeywordExtractor for LLMKeywordExtractor {
             .map_err(|e| QueryError::LlmError(e))?;
 
         // Parse JSON response
-        let keywords: Keywords = serde_json::from_str(&response.content).map_err(|e| {
-            QueryError::Internal(format!("Failed to parse keywords JSON: {}", e))
-        })?;
+        let keywords: Keywords = serde_json::from_str(&response.content)
+            .map_err(|e| QueryError::Internal(format!("Failed to parse keywords JSON: {}", e)))?;
 
         Ok(keywords)
     }

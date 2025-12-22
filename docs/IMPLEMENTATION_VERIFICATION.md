@@ -15,9 +15,11 @@ The implementation plan for advanced retrieval features has been **100% complete
 ## ✅ Phase Completion Status
 
 ### Phase 1: Keyword Extraction ✅ COMPLETE
+
 **Module**: `edgequake-query/src/keywords.rs` (264 lines)
 
 **Deliverables**:
+
 - ✅ `Keywords` struct (high_level + low_level vectors)
 - ✅ `KeywordExtractor` trait for extensibility
 - ✅ `LLMKeywordExtractor` with engineered prompt + 3 examples
@@ -25,6 +27,7 @@ The implementation plan for advanced retrieval features has been **100% complete
 - ✅ 6 comprehensive unit tests
 
 **Verification**:
+
 ```bash
 ✓ File exists: keywords.rs
 ✓ Tests passing: 6/6
@@ -36,15 +39,18 @@ The implementation plan for advanced retrieval features has been **100% complete
 ### Phase 2: Tokenization + Truncation ✅ COMPLETE
 
 #### Tokenization
+
 **Module**: `edgequake-query/src/tokenizer.rs` (158 lines)
 
 **Deliverables**:
+
 - ✅ `Tokenizer` trait (encode, decode, count_tokens)
 - ✅ `SimpleTokenizer` with 4-char/token heuristic
 - ✅ `MockTokenizer` with configurable rate
 - ✅ 7 unit tests covering all methods
 
 **Verification**:
+
 ```bash
 ✓ File exists: tokenizer.rs
 ✓ Tests passing: 7/7
@@ -52,9 +58,11 @@ The implementation plan for advanced retrieval features has been **100% complete
 ```
 
 #### Truncation
+
 **Module**: `edgequake-query/src/truncation.rs` (324 lines)
 
 **Deliverables**:
+
 - ✅ `TruncationConfig` with LightRAG defaults (8K/8K/16K)
 - ✅ `truncate_entities()` function
 - ✅ `truncate_relationships()` function
@@ -63,6 +71,7 @@ The implementation plan for advanced retrieval features has been **100% complete
 - ✅ 7 unit tests + 2 E2E tests
 
 **Verification**:
+
 ```bash
 ✓ File exists: truncation.rs
 ✓ Tests passing: 9/9
@@ -73,9 +82,11 @@ The implementation plan for advanced retrieval features has been **100% complete
 ---
 
 ### Phase 3: Chunk Retrieval ✅ COMPLETE
+
 **Module**: `edgequake-query/src/chunk_retrieval.rs` (314 lines)
 
 **Deliverables**:
+
 - ✅ `ChunkSelectionMethod` enum (Weight, Vector)
 - ✅ `retrieve_chunks_from_entities()` function
 - ✅ `retrieve_chunks_from_relationships()` function
@@ -83,6 +94,7 @@ The implementation plan for advanced retrieval features has been **100% complete
 - ✅ 5 unit tests + 1 E2E test
 
 **Verification**:
+
 ```bash
 ✓ File exists: chunk_retrieval.rs
 ✓ Tests passing: 6/6
@@ -95,6 +107,7 @@ The implementation plan for advanced retrieval features has been **100% complete
 ### Phase 4: Integration ✅ COMPLETE
 
 **QueryEngine Updates**:
+
 - ✅ Added `use_keyword_extraction` flag to config
 - ✅ Added `truncation: TruncationConfig` to config
 - ✅ Added `with_keyword_extractor()` method
@@ -102,16 +115,19 @@ The implementation plan for advanced retrieval features has been **100% complete
 - ✅ Integrated automatic truncation in `retrieve_context()`
 
 **Module Exports** (`lib.rs`):
+
 - ✅ Exported `Keywords`, `KeywordExtractor`, `LLMKeywordExtractor`, `MockKeywordExtractor`
 - ✅ Exported `Tokenizer`, `SimpleTokenizer`, `MockTokenizer`
 - ✅ Exported `TruncationConfig`, truncation functions
 - ✅ Exported `ChunkSelectionMethod`, retrieval functions
 
 **Example Updates**:
+
 - ✅ Fixed `streaming_query.rs` with new config fields
 - ✅ Updated `production_pipeline.rs` compatibility
 
 **Verification**:
+
 ```bash
 ✓ QueryEngine compiles with new features
 ✓ Config backward compatible (defaults provided)
@@ -125,16 +141,17 @@ The implementation plan for advanced retrieval features has been **100% complete
 
 **Test Coverage**:
 
-| Module | Unit Tests | E2E Tests | Total | Status |
-|--------|-----------|-----------|-------|--------|
-| keywords.rs | 6 | 1 | 7 | ✅ Pass |
-| tokenizer.rs | 7 | 0 | 7 | ✅ Pass |
-| truncation.rs | 7 | 2 | 9 | ✅ Pass |
-| chunk_retrieval.rs | 5 | 1 | 6 | ✅ Pass |
-| **Integration** | 0 | 28 | 28 | ✅ Pass |
-| **Total New Tests** | **25** | **32** | **57** | ✅ **100%** |
+| Module              | Unit Tests | E2E Tests | Total  | Status      |
+| ------------------- | ---------- | --------- | ------ | ----------- |
+| keywords.rs         | 6          | 1         | 7      | ✅ Pass     |
+| tokenizer.rs        | 7          | 0         | 7      | ✅ Pass     |
+| truncation.rs       | 7          | 2         | 9      | ✅ Pass     |
+| chunk_retrieval.rs  | 5          | 1         | 6      | ✅ Pass     |
+| **Integration**     | 0          | 28        | 28     | ✅ Pass     |
+| **Total New Tests** | **25**     | **32**    | **57** | ✅ **100%** |
 
 **Full Test Suite Results**:
+
 ```bash
 Total Tests: 319
 Passed: 319 (100%)
@@ -144,11 +161,13 @@ Time: ~44 seconds
 ```
 
 **E2E Test File**:
+
 - ✅ `e2e_advanced_features.rs` created with 7 integration tests
 - ✅ All realistic scenarios validated
 - ✅ Edge cases covered (large context, truncation limits, etc.)
 
 **Verification Commands**:
+
 ```bash
 ✓ cargo test --workspace (319 tests pass)
 ✓ cargo build --release (compiles successfully)
@@ -160,30 +179,33 @@ Time: ~44 seconds
 ## 📊 Code Statistics
 
 ### Production Code
-| Component | Lines | Files |
-|-----------|-------|-------|
-| Keyword Extraction | 264 | 1 |
-| Tokenization | 158 | 1 |
-| Truncation | 324 | 1 |
-| Chunk Retrieval | 314 | 1 |
-| Integration | ~300 | 3 |
-| **Total** | **1,360** | **7** |
+
+| Component          | Lines     | Files |
+| ------------------ | --------- | ----- |
+| Keyword Extraction | 264       | 1     |
+| Tokenization       | 158       | 1     |
+| Truncation         | 324       | 1     |
+| Chunk Retrieval    | 314       | 1     |
+| Integration        | ~300      | 3     |
+| **Total**          | **1,360** | **7** |
 
 ### Test Code
-| Type | Count | Lines (est.) |
-|------|-------|-------------|
-| Unit Tests | 25 | ~500 |
-| E2E Tests | 7 | ~350 |
-| Integration | 25 | ~500 |
-| **Total** | **57** | **~1,350** |
+
+| Type        | Count  | Lines (est.) |
+| ----------- | ------ | ------------ |
+| Unit Tests  | 25     | ~500         |
+| E2E Tests   | 7      | ~350         |
+| Integration | 25     | ~500         |
+| **Total**   | **57** | **~1,350**   |
 
 ### Documentation
-| Document | Lines | Purpose |
-|----------|-------|---------|
-| IMPLEMENTATION_PLAN.md | 120 | 5-phase roadmap |
-| ADVANCED_RETRIEVAL_FEATURES.md | 400+ | Comprehensive guide |
-| Task Log | 200+ | Session notes |
-| **Total** | **720+** | Complete docs |
+
+| Document                       | Lines    | Purpose             |
+| ------------------------------ | -------- | ------------------- |
+| IMPLEMENTATION_PLAN.md         | 120      | 5-phase roadmap     |
+| ADVANCED_RETRIEVAL_FEATURES.md | 400+     | Comprehensive guide |
+| Task Log                       | 200+     | Session notes       |
+| **Total**                      | **720+** | Complete docs       |
 
 ---
 
@@ -191,23 +213,23 @@ Time: ~44 seconds
 
 ### LightRAG Comparison
 
-| Feature | LightRAG | EdgeQuake | Implementation | Tests |
-|---------|----------|-----------|----------------|-------|
-| **Keyword Extraction** | ✅ | ✅ | keywords.rs | 7 |
-| High/Low Separation | ✅ | ✅ | Keywords struct | ✓ |
-| LLM-based | ✅ | ✅ | LLMKeywordExtractor | ✓ |
-| **Token Truncation** | ✅ | ✅ | truncation.rs | 9 |
-| Entity Limits (8K) | ✅ | ✅ | TruncationConfig | ✓ |
-| Relationship Limits (8K) | ✅ | ✅ | TruncationConfig | ✓ |
-| Total Limit (16K) | ✅ | ✅ | TruncationConfig | ✓ |
-| Proportional Reduction | ✅ | ✅ | balance_context() | ✓ |
-| **Tokenization** | ✅ | ✅ | tokenizer.rs | 7 |
-| Token Counting | ✅ | ✅ | Tokenizer trait | ✓ |
-| Custom Implementations | ✅ | ✅ | Trait-based | ✓ |
-| **Chunk Retrieval** | ✅ | ✅ | chunk_retrieval.rs | 6 |
-| Weight-based | ✅ | ✅ | ChunkSelectionMethod | ✓ |
-| Vector-based | ✅ | ✅ | ChunkSelectionMethod | ✓ |
-| Deduplication | ✅ | ✅ | merge_chunks() | ✓ |
+| Feature                  | LightRAG | EdgeQuake | Implementation       | Tests |
+| ------------------------ | -------- | --------- | -------------------- | ----- |
+| **Keyword Extraction**   | ✅       | ✅        | keywords.rs          | 7     |
+| High/Low Separation      | ✅       | ✅        | Keywords struct      | ✓     |
+| LLM-based                | ✅       | ✅        | LLMKeywordExtractor  | ✓     |
+| **Token Truncation**     | ✅       | ✅        | truncation.rs        | 9     |
+| Entity Limits (8K)       | ✅       | ✅        | TruncationConfig     | ✓     |
+| Relationship Limits (8K) | ✅       | ✅        | TruncationConfig     | ✓     |
+| Total Limit (16K)        | ✅       | ✅        | TruncationConfig     | ✓     |
+| Proportional Reduction   | ✅       | ✅        | balance_context()    | ✓     |
+| **Tokenization**         | ✅       | ✅        | tokenizer.rs         | 7     |
+| Token Counting           | ✅       | ✅        | Tokenizer trait      | ✓     |
+| Custom Implementations   | ✅       | ✅        | Trait-based          | ✓     |
+| **Chunk Retrieval**      | ✅       | ✅        | chunk_retrieval.rs   | 6     |
+| Weight-based             | ✅       | ✅        | ChunkSelectionMethod | ✓     |
+| Vector-based             | ✅       | ✅        | ChunkSelectionMethod | ✓     |
+| Deduplication            | ✅       | ✅        | merge_chunks()       | ✓     |
 
 **Result**: 🎯 **100% Feature Parity Achieved**
 
@@ -216,18 +238,17 @@ Time: ~44 seconds
 ## 📝 Documentation Verification
 
 ### Created Documents
+
 1. ✅ **IMPLEMENTATION_PLAN.md** (120 lines)
    - 5-phase execution plan
    - Timeline estimates
    - Success criteria
-   
 2. ✅ **ADVANCED_RETRIEVAL_FEATURES.md** (400+ lines)
    - Comprehensive feature guide
    - Usage examples for all features
    - Performance characteristics
    - Migration guide
    - Comparison with LightRAG
-   
 3. ✅ **Task Log** (200+ lines)
    - Session notes
    - Decisions made
@@ -235,6 +256,7 @@ Time: ~44 seconds
    - Statistics
 
 ### Updated Documents
+
 - ✅ Updated production guides
 - ✅ Updated architecture docs
 - ✅ Updated API references
@@ -244,18 +266,21 @@ Time: ~44 seconds
 ## 🔍 Quality Assurance
 
 ### Code Quality
+
 - ✅ **Clippy**: 1 minor warning (unused import, non-blocking)
 - ✅ **Formatting**: All code formatted with rustfmt
 - ✅ **Compilation**: Clean release build
 - ✅ **Tests**: 100% pass rate (319/319)
 
 ### Architecture Quality
+
 - ✅ **Trait-based design**: Extensible and testable
 - ✅ **Non-breaking changes**: All features opt-in
 - ✅ **Backward compatible**: Existing code works unchanged
 - ✅ **Production-ready**: Comprehensive error handling
 
 ### Test Quality
+
 - ✅ **Unit tests**: Cover all public APIs
 - ✅ **Integration tests**: Validate feature interactions
 - ✅ **E2E tests**: Realistic usage scenarios
@@ -266,6 +291,7 @@ Time: ~44 seconds
 ## 🚀 Deployment Readiness
 
 ### Build Verification
+
 ```bash
 ✓ Debug build: cargo build (success)
 ✓ Release build: cargo build --release (success)
@@ -274,6 +300,7 @@ Time: ~44 seconds
 ```
 
 ### Integration Verification
+
 ```bash
 ✓ QueryEngine API: Compatible
 ✓ Config changes: Non-breaking
@@ -282,6 +309,7 @@ Time: ~44 seconds
 ```
 
 ### Performance Verification
+
 - ✅ **Keyword Extraction**: ~200-500ms (LLM call)
 - ✅ **Tokenization**: <1ms (local computation)
 - ✅ **Truncation**: <5ms (typical context)
@@ -293,21 +321,22 @@ Time: ~44 seconds
 
 ### Planned vs Actual
 
-| Metric | Planned | Actual | Status |
-|--------|---------|--------|--------|
-| Production Lines | 1,200-1,500 | 1,360 | ✅ On target |
-| Test Count | 50+ | 57 | ✅ Exceeded |
-| Test Pass Rate | 100% | 100% | ✅ Perfect |
-| Documentation | 3 docs | 3+ docs | ✅ Complete |
-| Phases | 5 | 5 | ✅ Complete |
-| Time Estimate | 2.5-3 hrs | ~2.5 hrs | ✅ On time |
-| Feature Parity | 100% | 100% | ✅ Achieved |
+| Metric           | Planned     | Actual   | Status       |
+| ---------------- | ----------- | -------- | ------------ |
+| Production Lines | 1,200-1,500 | 1,360    | ✅ On target |
+| Test Count       | 50+         | 57       | ✅ Exceeded  |
+| Test Pass Rate   | 100%        | 100%     | ✅ Perfect   |
+| Documentation    | 3 docs      | 3+ docs  | ✅ Complete  |
+| Phases           | 5           | 5        | ✅ Complete  |
+| Time Estimate    | 2.5-3 hrs   | ~2.5 hrs | ✅ On time   |
+| Feature Parity   | 100%        | 100%     | ✅ Achieved  |
 
 ---
 
 ## ✅ Final Verification Checklist
 
 ### Implementation
+
 - [x] All 4 new modules created and tested
 - [x] QueryEngine integration complete
 - [x] Module exports updated
@@ -315,6 +344,7 @@ Time: ~44 seconds
 - [x] No breaking changes
 
 ### Testing
+
 - [x] 25 new unit tests passing
 - [x] 7 new E2E tests passing
 - [x] 25 integration tests passing
@@ -322,6 +352,7 @@ Time: ~44 seconds
 - [x] Edge cases covered
 
 ### Documentation
+
 - [x] Implementation plan created
 - [x] Feature guide written (400+ lines)
 - [x] Usage examples provided
@@ -329,6 +360,7 @@ Time: ~44 seconds
 - [x] Task log completed
 
 ### Quality
+
 - [x] Code formatted (rustfmt)
 - [x] Linting passed (clippy)
 - [x] Release build successful
@@ -336,6 +368,7 @@ Time: ~44 seconds
 - [x] Performance validated
 
 ### Deployment
+
 - [x] Git commit created (d3748ab)
 - [x] Changes staged and committed
 - [x] Documentation in repository
@@ -357,6 +390,7 @@ All 5 phases of the implementation plan have been successfully executed:
 5. ✅ **Integration**: Seamless QueryEngine integration
 
 **Quality Metrics**:
+
 - 319 tests passing (100% success rate)
 - 1,360 lines of production code
 - 400+ lines of documentation
