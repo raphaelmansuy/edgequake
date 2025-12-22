@@ -6,8 +6,8 @@
 //! Environment variables needed:
 //! - POSTGRES_HOST (default: localhost)
 //! - POSTGRES_PORT (default: 5432)
-//! - POSTGRES_DB (default: edgequake_test)
-//! - POSTGRES_USER (default: postgres)
+//! - POSTGRES_DB (default: edgequake)
+//! - POSTGRES_USER (default: edgequake)
 //! - POSTGRES_PASSWORD (required)
 
 #![cfg(feature = "postgres")]
@@ -19,7 +19,7 @@ use std::time::Duration;
 
 use edgequake_storage::{
     GraphStorage, KVStorage, VectorStorage,
-    PostgresConfig, PostgresPool, PostgresKVStorage, PgVectorStorage, PostgresAGEGraphStorage,
+    PostgresConfig, PostgresKVStorage, PgVectorStorage, PostgresAGEGraphStorage,
 };
 
 /// Get PostgreSQL configuration from environment variables.
@@ -33,8 +33,8 @@ fn get_test_config() -> Option<PostgresConfig> {
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(5432),
-        database: env::var("POSTGRES_DB").unwrap_or_else(|_| "edgequake_test".to_string()),
-        user: env::var("POSTGRES_USER").unwrap_or_else(|_| "postgres".to_string()),
+        database: env::var("POSTGRES_DB").unwrap_or_else(|_| "edgequake".to_string()),
+        user: env::var("POSTGRES_USER").unwrap_or_else(|_| "edgequake".to_string()),
         password,
         namespace: format!("test_{}", uuid::Uuid::new_v4().to_string().replace("-", "")[..8].to_string()),
         max_connections: 5,
@@ -64,8 +64,7 @@ macro_rules! require_postgres {
 async fn test_postgres_kv_basic_operations() {
     let config = require_postgres!();
     
-    let pool = PostgresPool::new(config.clone()).await.expect("Failed to create pool");
-    let kv_storage = PostgresKVStorage::new(pool, &config.namespace);
+    let kv_storage = PostgresKVStorage::new(config);
     
     kv_storage.initialize().await.expect("Failed to initialize");
     
@@ -103,8 +102,7 @@ async fn test_postgres_kv_basic_operations() {
 async fn test_postgres_kv_bulk_operations() {
     let config = require_postgres!();
     
-    let pool = PostgresPool::new(config.clone()).await.expect("Failed to create pool");
-    let kv_storage = PostgresKVStorage::new(pool, &config.namespace);
+    let kv_storage = PostgresKVStorage::new(config);
     
     kv_storage.initialize().await.expect("Failed to initialize");
     
@@ -137,8 +135,7 @@ async fn test_postgres_kv_bulk_operations() {
 async fn test_pgvector_basic_operations() {
     let config = require_postgres!();
     
-    let pool = PostgresPool::new(config.clone()).await.expect("Failed to create pool");
-    let vector_storage = PgVectorStorage::new(pool, &config.namespace, 384);
+    let vector_storage = PgVectorStorage::with_dimension(config, 384);
     
     vector_storage.initialize().await.expect("Failed to initialize");
     
@@ -174,8 +171,7 @@ async fn test_pgvector_basic_operations() {
 async fn test_pgvector_similarity_search() {
     let config = require_postgres!();
     
-    let pool = PostgresPool::new(config.clone()).await.expect("Failed to create pool");
-    let vector_storage = PgVectorStorage::new(pool, &config.namespace, 384);
+    let vector_storage = PgVectorStorage::with_dimension(config, 384);
     
     vector_storage.initialize().await.expect("Failed to initialize");
     
@@ -233,8 +229,7 @@ async fn test_pgvector_similarity_search() {
 async fn test_postgres_age_basic_operations() {
     let config = require_postgres!();
     
-    let pool = PostgresPool::new(config.clone()).await.expect("Failed to create pool");
-    let graph_storage = PostgresAGEGraphStorage::new(pool, &config.namespace);
+    let graph_storage = PostgresAGEGraphStorage::new(config);
     
     graph_storage.initialize().await.expect("Failed to initialize");
     
@@ -281,8 +276,7 @@ async fn test_postgres_age_basic_operations() {
 async fn test_postgres_age_graph_traversal() {
     let config = require_postgres!();
     
-    let pool = PostgresPool::new(config.clone()).await.expect("Failed to create pool");
-    let graph_storage = PostgresAGEGraphStorage::new(pool, &config.namespace);
+    let graph_storage = PostgresAGEGraphStorage::new(config);
     
     graph_storage.initialize().await.expect("Failed to initialize");
     
@@ -342,11 +336,9 @@ async fn test_postgres_full_e2e_pipeline() {
     let config = require_postgres!();
     
     // Initialize all PostgreSQL storage components
-    let pool = PostgresPool::new(config.clone()).await.expect("Failed to create pool");
-    
-    let kv_storage = Arc::new(PostgresKVStorage::new(pool.clone(), &config.namespace));
-    let vector_storage = Arc::new(PgVectorStorage::new(pool.clone(), &config.namespace, 1536));
-    let graph_storage = Arc::new(PostgresAGEGraphStorage::new(pool.clone(), &config.namespace));
+    let kv_storage = Arc::new(PostgresKVStorage::new(config.clone()));
+    let vector_storage = Arc::new(PgVectorStorage::with_dimension(config.clone(), 1536));
+    let graph_storage = Arc::new(PostgresAGEGraphStorage::new(config));
     
     kv_storage.initialize().await.expect("Failed to initialize KV storage");
     vector_storage.initialize().await.expect("Failed to initialize vector storage");

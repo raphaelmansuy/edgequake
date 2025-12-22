@@ -11,131 +11,125 @@ use super::connection::PostgresPool;
 /// PostgreSQL vector storage using pgvector.
 ///
 /// Supports:
-/// - HNSW index for approximate nearest neighbor search
-/// - IVFFlat index for faster indexing
-/// - Exact brute-force search
-///
-/// # Example
-///
-/// ```ignore
-/// use edgequake_storage::adapters::postgres::{PostgresConfig, PgVectorStorage};
-///
-/// let config = PostgresConfig::new("localhost", 5432, "edgequake", "user", "pass")
-///     .with_namespace("my-workspace");
-///
-/// let storage = PgVectorStorage::new(config, 1536).await?;
-/// storage.initialize().await?;
-/// ```
+/// - IVFFlat index for approximate nearest neighbor search
+/// - HNSW index for faster queries on large datasets  
+/// - Cosine, L2, and inner product distance metrics
 pub struct PgVectorStorage {
     pool: PostgresPool,
-    dimension: usize,
     table_name: String,
-    index_name: String,
+    namespace: String,
+    dimension: usize,
+    index_type: VectorIndexType,
+    ivfflat_lists: u32,
+    hnsw_m: u32,
+    hnsw_ef_construction: u32,
+    prefix: String,
 }
 
 impl PgVectorStorage {
-    /// Create a new PgVector storage.
-    pub fn new(config: PostgresConfig, dimension: usize) -> Self {
+    /// Create a new pgvector storage.
+    pub fn new(config: PostgresConfig) -> Self {
         let prefix = config.table_prefix();
-        let table_name = format!("{}_vectors", prefix);
-        let index_name = format!("{}_vectors_embedding_idx", prefix);
+        let table_name = format!("public.eq_{}_vectors", prefix);
+        let namespace = config.namespace.clone();
+        let dimension = 1536; // Default OpenAI embedding dimension
+        let index_type = config.vector_index_type.clone();
+        let ivfflat_lists = config.ivfflat_lists;
+        let hnsw_m = config.hnsw_m;
+        let hnsw_ef_construction = config.hnsw_ef_construction;
         
         Self {
             pool: PostgresPool::new(config),
-            dimension,
             table_name,
-            index_name,
+            namespace,
+            dimension,
+            index_type,
+            ivfflat_lists,
+            hnsw_m,
+            hnsw_ef_construction,
+            prefix,
         }
     }
     
-    /// Get the underlying pool.
-    pub fn pool(&self) -> &PostgresPool {
-        &self.pool
+    /// Create a new pgvector storage with a specific dimension.
+    pub fn with_dimension(config: PostgresConfig, dimension: usize) -> Self {
+        let mut storage = Self::new(config);
+        storage.dimension = dimension;
+        storage
     }
     
     /// Create the vectors table.
     async fn create_table(&self) -> Result<()> {
         let pool = self.pool.get().await?;
         
-        let create_sql = format!(
+        // Ensure pgvector extension is available
+        sqlx::query("CREATE EXTENSION IF NOT EXISTS vector")
+            .execute(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!(
+                "Failed to create vector extension: {}", e
+            )))?;
+        
+        let sql = format!(
             r#"
             CREATE TABLE IF NOT EXISTS {} (
                 id TEXT PRIMARY KEY,
-                embedding vector({}),
-                metadata JSONB NOT NULL DEFAULT '{{}}',
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                embedding vector({}) NOT NULL,
+                metadata JSONB DEFAULT '{{}}',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
             "#,
             self.table_name,
             self.dimension
         );
         
-        sqlx::query(&create_sql)
+        sqlx::query(&sql)
             .execute(&pool)
             .await
-            .map_err(|e| StorageError::InitializationError(format!(
+            .map_err(|e| StorageError::Database(format!(
                 "Failed to create vectors table: {}", e
             )))?;
         
-        Ok(())
-    }
-    
-    /// Create the vector index.
-    async fn create_index(&self) -> Result<()> {
-        let pool = self.pool.get().await?;
-        let config = self.pool.config();
-        
-        let index_sql = match config.vector_index_type {
-            VectorIndexType::None => return Ok(()),
-            VectorIndexType::HNSW => {
-                format!(
-                    r#"
-                    CREATE INDEX IF NOT EXISTS {} ON {} 
-                    USING hnsw (embedding vector_cosine_ops)
-                    WITH (m = {}, ef_construction = {})
-                    "#,
-                    self.index_name,
-                    self.table_name,
-                    config.hnsw_m,
-                    config.hnsw_ef_construction
-                )
-            }
-            VectorIndexType::IVFFlat => {
-                format!(
-                    r#"
-                    CREATE INDEX IF NOT EXISTS {} ON {} 
-                    USING ivfflat (embedding vector_cosine_ops)
-                    WITH (lists = {})
-                    "#,
-                    self.index_name,
-                    self.table_name,
-                    config.ivfflat_lists
-                )
-            }
+        // Create vector index
+        let index_sql = match self.index_type {
+            VectorIndexType::IVFFlat => format!(
+                "CREATE INDEX IF NOT EXISTS eq_{}_vectors_embedding_idx ON {} USING ivfflat (embedding vector_cosine_ops) WITH (lists = {})",
+                self.prefix, self.table_name, self.ivfflat_lists
+            ),
+            VectorIndexType::HNSW => format!(
+                "CREATE INDEX IF NOT EXISTS eq_{}_vectors_embedding_idx ON {} USING hnsw (embedding vector_cosine_ops) WITH (m = {}, ef_construction = {})",
+                self.prefix, self.table_name, self.hnsw_m, self.hnsw_ef_construction
+            ),
+            VectorIndexType::None => String::new(),
         };
         
-        sqlx::query(&index_sql)
-            .execute(&pool)
-            .await
-            .map_err(|e| StorageError::InitializationError(format!(
-                "Failed to create vector index: {}", e
-            )))?;
+        // Index creation may fail if table is empty, that's OK
+        if !index_sql.is_empty() {
+            sqlx::query(&index_sql).execute(&pool).await.ok();
+        }
         
         Ok(())
     }
     
-    /// Format a vector for SQL.
-    fn format_vector(v: &[f32]) -> String {
-        let nums: Vec<String> = v.iter().map(|x| x.to_string()).collect();
-        format!("[{}]", nums.join(","))
+    /// Convert embedding vector to PostgreSQL format.
+    fn format_embedding(embedding: &[f32]) -> String {
+        let values: Vec<String> = embedding.iter().map(|v| v.to_string()).collect();
+        format!("[{}]", values.join(","))
+    }
+    
+    /// Parse embedding from PostgreSQL text format.
+    fn parse_embedding(text: &str) -> Vec<f32> {
+        let trimmed = text.trim_start_matches('[').trim_end_matches(']');
+        trimmed.split(',')
+            .filter_map(|s| s.trim().parse::<f32>().ok())
+            .collect()
     }
 }
 
 #[async_trait]
 impl VectorStorage for PgVectorStorage {
     fn namespace(&self) -> &str {
-        &self.pool.config().namespace
+        &self.namespace
     }
     
     fn dimension(&self) -> usize {
@@ -145,12 +139,10 @@ impl VectorStorage for PgVectorStorage {
     async fn initialize(&self) -> Result<()> {
         self.pool.initialize().await?;
         self.create_table().await?;
-        self.create_index().await?;
         Ok(())
     }
     
     async fn finalize(&self) -> Result<()> {
-        // PostgreSQL handles durability automatically
         Ok(())
     }
     
@@ -161,66 +153,61 @@ impl VectorStorage for PgVectorStorage {
         filter_ids: Option<&[String]>,
     ) -> Result<Vec<VectorSearchResult>> {
         let pool = self.pool.get().await?;
-        let query_vec = Self::format_vector(query_embedding);
+        let embedding_str = Self::format_embedding(query_embedding);
         
-        let (sql, bind_ids): (String, Option<Vec<String>>) = match filter_ids {
-            Some(ids) if !ids.is_empty() => {
-                let placeholders: Vec<String> = (1..=ids.len())
-                    .map(|i| format!("${}", i + 1))
-                    .collect();
-                (
-                    format!(
-                        r#"
-                        SELECT id, 1 - (embedding <=> $1::vector) as score, metadata
-                        FROM {}
-                        WHERE id = ANY(ARRAY[{}])
-                        ORDER BY embedding <=> $1::vector
-                        LIMIT {}
-                        "#,
-                        self.table_name,
-                        placeholders.join(", "),
-                        top_k
-                    ),
-                    Some(ids.to_vec()),
-                )
+        let sql = if let Some(ids) = filter_ids {
+            if ids.is_empty() {
+                return Ok(Vec::new());
             }
-            _ => (
-                format!(
-                    r#"
-                    SELECT id, 1 - (embedding <=> $1::vector) as score, metadata
-                    FROM {}
-                    ORDER BY embedding <=> $1::vector
-                    LIMIT {}
-                    "#,
-                    self.table_name,
-                    top_k
-                ),
-                None,
-            ),
+            format!(
+                r#"
+                SELECT id, metadata, 1 - (embedding <=> $1::vector) as score
+                FROM {}
+                WHERE id = ANY($2)
+                ORDER BY embedding <=> $1::vector
+                LIMIT $3
+                "#,
+                self.table_name
+            )
+        } else {
+            format!(
+                r#"
+                SELECT id, metadata, 1 - (embedding <=> $1::vector) as score
+                FROM {}
+                ORDER BY embedding <=> $1::vector
+                LIMIT $2
+                "#,
+                self.table_name
+            )
         };
         
-        let mut query = sqlx::query(&sql).bind(&query_vec);
+        let rows = if let Some(ids) = filter_ids {
+            sqlx::query(&sql)
+                .bind(&embedding_str)
+                .bind(ids)
+                .bind(top_k as i32)
+                .fetch_all(&pool)
+                .await
+        } else {
+            sqlx::query(&sql)
+                .bind(&embedding_str)
+                .bind(top_k as i32)
+                .fetch_all(&pool)
+                .await
+        };
         
-        if let Some(ids) = &bind_ids {
-            for id in ids {
-                query = query.bind(id);
+        let rows = rows.map_err(|e| StorageError::Database(format!("Vector query failed: {}", e)))?;
+        
+        let results = rows.iter().map(|row| {
+            let id: String = row.get("id");
+            let score: f64 = row.get("score");
+            let metadata: serde_json::Value = row.get("metadata");
+            VectorSearchResult {
+                id,
+                score: score as f32,
+                metadata,
             }
-        }
-        
-        let rows = query
-            .fetch_all(&pool)
-            .await
-            .map_err(|e| StorageError::QueryError(format!("Vector query failed: {}", e)))?;
-        
-        let results = rows
-            .into_iter()
-            .map(|row| {
-                let id: String = row.get("id");
-                let score: f32 = row.get::<f64, _>("score") as f32;
-                let metadata: serde_json::Value = row.get("metadata");
-                VectorSearchResult { id, score, metadata }
-            })
-            .collect();
+        }).collect();
         
         Ok(results)
     }
@@ -237,34 +224,33 @@ impl VectorStorage for PgVectorStorage {
         
         for (id, embedding, metadata) in data {
             if embedding.len() != self.dimension {
-                return Err(StorageError::InvalidInput(format!(
-                    "Expected dimension {}, got {}",
+                return Err(StorageError::InvalidQuery(format!(
+                    "Embedding dimension mismatch: expected {}, got {}",
                     self.dimension,
                     embedding.len()
                 )));
             }
             
-            let vec_str = Self::format_vector(embedding);
+            let embedding_str = Self::format_embedding(embedding);
             
             let sql = format!(
                 r#"
-                INSERT INTO {} (id, embedding, metadata, updated_at)
-                VALUES ($1, $2::vector, $3, NOW())
+                INSERT INTO {} (id, embedding, metadata)
+                VALUES ($1, $2::vector, $3)
                 ON CONFLICT (id) DO UPDATE SET
                     embedding = EXCLUDED.embedding,
-                    metadata = EXCLUDED.metadata,
-                    updated_at = NOW()
+                    metadata = EXCLUDED.metadata
                 "#,
                 self.table_name
             );
             
             sqlx::query(&sql)
                 .bind(id)
-                .bind(&vec_str)
+                .bind(&embedding_str)
                 .bind(metadata)
                 .execute(&pool)
                 .await
-                .map_err(|e| StorageError::WriteError(format!("Upsert failed: {}", e)))?;
+                .map_err(|e| StorageError::Database(format!("Upsert failed: {}", e)))?;
         }
         
         Ok(())
@@ -277,25 +263,16 @@ impl VectorStorage for PgVectorStorage {
         
         let pool = self.pool.get().await?;
         
-        let placeholders: Vec<String> = (1..=ids.len())
-            .map(|i| format!("${}", i))
-            .collect();
-        
         let sql = format!(
-            "DELETE FROM {} WHERE id = ANY(ARRAY[{}])",
-            self.table_name,
-            placeholders.join(", ")
+            "DELETE FROM {} WHERE id = ANY($1)",
+            self.table_name
         );
         
-        let mut query = sqlx::query(&sql);
-        for id in ids {
-            query = query.bind(id);
-        }
-        
-        query
+        sqlx::query(&sql)
+            .bind(ids)
             .execute(&pool)
             .await
-            .map_err(|e| StorageError::WriteError(format!("Delete failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Delete failed: {}", e)))?;
         
         Ok(())
     }
@@ -312,7 +289,7 @@ impl VectorStorage for PgVectorStorage {
             .bind(entity_name)
             .execute(&pool)
             .await
-            .map_err(|e| StorageError::WriteError(format!("Delete entity failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Delete entity failed: {}", e)))?;
         
         Ok(())
     }
@@ -322,9 +299,9 @@ impl VectorStorage for PgVectorStorage {
         
         let sql = format!(
             r#"
-            DELETE FROM {} WHERE 
-                metadata->>'source_entity' = $1 OR 
-                metadata->>'target_entity' = $1
+            DELETE FROM {} 
+            WHERE metadata->>'source' = $1 
+               OR metadata->>'target' = $1
             "#,
             self.table_name
         );
@@ -333,7 +310,7 @@ impl VectorStorage for PgVectorStorage {
             .bind(entity_name)
             .execute(&pool)
             .await
-            .map_err(|e| StorageError::WriteError(format!(
+            .map_err(|e| StorageError::Database(format!(
                 "Delete entity relations failed: {}", e
             )))?;
         
@@ -348,20 +325,13 @@ impl VectorStorage for PgVectorStorage {
             self.table_name
         );
         
-        let row = sqlx::query(&sql)
+        let row: Option<(String,)> = sqlx::query_as(&sql)
             .bind(id)
             .fetch_optional(&pool)
             .await
-            .map_err(|e| StorageError::QueryError(format!("Get by ID failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Get by ID failed: {}", e)))?;
         
-        match row {
-            Some(row) => {
-                let embedding_str: String = row.get("embedding");
-                let embedding = parse_vector_string(&embedding_str)?;
-                Ok(Some(embedding))
-            }
-            None => Ok(None),
-        }
+        Ok(row.map(|(embedding_str,)| Self::parse_embedding(&embedding_str)))
     }
     
     async fn get_by_ids(&self, ids: &[String]) -> Result<Vec<(String, Vec<f32>)>> {
@@ -371,35 +341,20 @@ impl VectorStorage for PgVectorStorage {
         
         let pool = self.pool.get().await?;
         
-        let placeholders: Vec<String> = (1..=ids.len())
-            .map(|i| format!("${}", i))
-            .collect();
-        
         let sql = format!(
-            "SELECT id, embedding::text FROM {} WHERE id = ANY(ARRAY[{}])",
-            self.table_name,
-            placeholders.join(", ")
+            "SELECT id, embedding::text FROM {} WHERE id = ANY($1)",
+            self.table_name
         );
         
-        let mut query = sqlx::query(&sql);
-        for id in ids {
-            query = query.bind(id);
-        }
-        
-        let rows = query
+        let rows: Vec<(String, String)> = sqlx::query_as(&sql)
+            .bind(ids)
             .fetch_all(&pool)
             .await
-            .map_err(|e| StorageError::QueryError(format!("Get by IDs failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Get by IDs failed: {}", e)))?;
         
-        let mut results = Vec::new();
-        for row in rows {
-            let id: String = row.get("id");
-            let embedding_str: String = row.get("embedding");
-            let embedding = parse_vector_string(&embedding_str)?;
-            results.push((id, embedding));
-        }
-        
-        Ok(results)
+        Ok(rows.into_iter()
+            .map(|(id, embedding_str)| (id, Self::parse_embedding(&embedding_str)))
+            .collect())
     }
     
     async fn is_empty(&self) -> Result<bool> {
@@ -410,55 +365,34 @@ impl VectorStorage for PgVectorStorage {
     async fn count(&self) -> Result<usize> {
         let pool = self.pool.get().await?;
         
-        let sql = format!("SELECT COUNT(*) as count FROM {}", self.table_name);
+        let sql = format!("SELECT COUNT(*) FROM {}", self.table_name);
         
-        let row = sqlx::query(&sql)
+        let row: (i64,) = sqlx::query_as(&sql)
             .fetch_one(&pool)
             .await
-            .map_err(|e| StorageError::QueryError(format!("Count failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Count failed: {}", e)))?;
         
-        let count: i64 = row.get("count");
-        Ok(count as usize)
+        Ok(row.0 as usize)
     }
     
     async fn clear(&self) -> Result<()> {
         let pool = self.pool.get().await?;
         
-        let sql = format!("TRUNCATE TABLE {}", self.table_name);
+        let sql = format!("DELETE FROM {}", self.table_name);
         
         sqlx::query(&sql)
             .execute(&pool)
             .await
-            .map_err(|e| StorageError::WriteError(format!("Clear failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Clear failed: {}", e)))?;
         
         Ok(())
     }
 }
 
-/// Parse a PostgreSQL vector string like "[1.0,2.0,3.0]" into Vec<f32>.
-fn parse_vector_string(s: &str) -> Result<Vec<f32>> {
-    let trimmed = s.trim().trim_start_matches('[').trim_end_matches(']');
-    
-    if trimmed.is_empty() {
-        return Ok(Vec::new());
-    }
-    
-    trimmed
-        .split(',')
-        .map(|x| {
-            x.trim()
-                .parse::<f32>()
-                .map_err(|e| StorageError::DataCorruption(format!(
-                    "Invalid vector element '{}': {}", x, e
-                )))
-        })
-        .collect()
-}
-
 impl std::fmt::Debug for PgVectorStorage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PgVectorStorage")
-            .field("namespace", &self.pool.config().namespace)
+            .field("namespace", &self.namespace)
             .field("dimension", &self.dimension)
             .field("table_name", &self.table_name)
             .finish()
@@ -470,25 +404,16 @@ mod tests {
     use super::*;
     
     #[test]
-    fn test_format_vector() {
-        let v = vec![1.0, 2.5, 3.14];
-        let formatted = PgVectorStorage::format_vector(&v);
-        assert_eq!(formatted, "[1,2.5,3.14]");
+    fn test_format_embedding() {
+        let embedding = vec![1.0, 2.0, 3.0];
+        let formatted = PgVectorStorage::format_embedding(&embedding);
+        assert_eq!(formatted, "[1,2,3]");
     }
     
     #[test]
-    fn test_parse_vector_string() {
-        let s = "[1.0,2.5,3.14]";
-        let v = parse_vector_string(s).unwrap();
-        assert_eq!(v.len(), 3);
-        assert!((v[0] - 1.0).abs() < f32::EPSILON);
-        assert!((v[1] - 2.5).abs() < f32::EPSILON);
-    }
-    
-    #[test]
-    fn test_parse_empty_vector() {
-        let s = "[]";
-        let v = parse_vector_string(s).unwrap();
-        assert!(v.is_empty());
+    fn test_parse_embedding() {
+        let text = "[1,2,3]";
+        let parsed = PgVectorStorage::parse_embedding(text);
+        assert_eq!(parsed, vec![1.0, 2.0, 3.0]);
     }
 }

@@ -38,23 +38,28 @@ pub struct PostgresAGEGraphStorage {
     graph_name: String,
     nodes_table: String,
     edges_table: String,
+    namespace: String,
     use_age: bool,
+    prefix: String,
 }
 
 impl PostgresAGEGraphStorage {
     /// Create a new Apache AGE graph storage.
     pub fn new(config: PostgresConfig) -> Self {
         let prefix = config.table_prefix();
-        let graph_name = format!("{}_graph", prefix);
-        let nodes_table = format!("{}_nodes", prefix);
-        let edges_table = format!("{}_edges", prefix);
+        let graph_name = format!("eq_{}_graph", prefix);
+        let nodes_table = format!("public.eq_{}_nodes", prefix);
+        let edges_table = format!("public.eq_{}_edges", prefix);
+        let namespace = config.namespace.clone();
         
         Self {
             pool: PostgresPool::new(config),
             graph_name,
             nodes_table,
             edges_table,
+            namespace,
             use_age: true, // Will be set to false if AGE is not available
+            prefix,
         }
     }
     
@@ -72,7 +77,7 @@ impl PostgresAGEGraphStorage {
         )
         .fetch_optional(&pool)
         .await
-        .map_err(|e| StorageError::QueryError(format!("AGE check failed: {}", e)))?;
+        .map_err(|e| StorageError::Database(format!("AGE check failed: {}", e)))?;
         
         Ok(result.is_some())
     }
@@ -85,7 +90,7 @@ impl PostgresAGEGraphStorage {
         sqlx::query("SET search_path = ag_catalog, \"$user\", public")
             .execute(&pool)
             .await
-            .map_err(|e| StorageError::InitializationError(format!(
+            .map_err(|e| StorageError::Database(format!(
                 "Failed to set AGE search path: {}", e
             )))?;
         
@@ -102,7 +107,7 @@ impl PostgresAGEGraphStorage {
                 if e.to_string().contains("already exists") {
                     Ok(())
                 } else {
-                    Err(StorageError::InitializationError(format!(
+                    Err(StorageError::Database(format!(
                         "Failed to create AGE graph: {}", e
                     )))
                 }
@@ -130,7 +135,7 @@ impl PostgresAGEGraphStorage {
         sqlx::query(&nodes_sql)
             .execute(&pool)
             .await
-            .map_err(|e| StorageError::InitializationError(format!(
+            .map_err(|e| StorageError::Database(format!(
                 "Failed to create nodes table: {}", e
             )))?;
         
@@ -154,18 +159,18 @@ impl PostgresAGEGraphStorage {
         sqlx::query(&edges_sql)
             .execute(&pool)
             .await
-            .map_err(|e| StorageError::InitializationError(format!(
+            .map_err(|e| StorageError::Database(format!(
                 "Failed to create edges table: {}", e
             )))?;
         
         // Create indexes
         let source_idx = format!(
-            "CREATE INDEX IF NOT EXISTS {}_source_idx ON {} (source_id)",
-            self.edges_table, self.edges_table
+            "CREATE INDEX IF NOT EXISTS eq_{}_edges_source_idx ON {} (source_id)",
+            self.prefix, self.edges_table
         );
         let target_idx = format!(
-            "CREATE INDEX IF NOT EXISTS {}_target_idx ON {} (target_id)",
-            self.edges_table, self.edges_table
+            "CREATE INDEX IF NOT EXISTS eq_{}_edges_target_idx ON {} (target_id)",
+            self.prefix, self.edges_table
         );
         
         sqlx::query(&source_idx).execute(&pool).await.ok();
@@ -178,7 +183,7 @@ impl PostgresAGEGraphStorage {
 #[async_trait]
 impl GraphStorage for PostgresAGEGraphStorage {
     fn namespace(&self) -> &str {
-        &self.pool.config().namespace
+        &self.namespace
     }
     
     async fn initialize(&self) -> Result<()> {
@@ -219,7 +224,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
             .bind(node_id)
             .fetch_optional(&pool)
             .await
-            .map_err(|e| StorageError::QueryError(format!("Has node failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Has node failed: {}", e)))?;
         
         Ok(row.is_some())
     }
@@ -236,7 +241,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
             .bind(node_id)
             .fetch_optional(&pool)
             .await
-            .map_err(|e| StorageError::QueryError(format!("Get node failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Get node failed: {}", e)))?;
         
         match row {
             Some(row) => {
@@ -260,17 +265,17 @@ impl GraphStorage for PostgresAGEGraphStorage {
         let pool = self.pool.get().await?;
         
         let properties_json = serde_json::to_value(&properties)
-            .map_err(|e| StorageError::SerializationError(e.to_string()))?;
+            .map_err(|e| StorageError::Serialization(e.to_string()))?;
         
         let sql = format!(
             r#"
             INSERT INTO {} (id, properties, updated_at)
             VALUES ($1, $2, NOW())
             ON CONFLICT (id) DO UPDATE SET
-                properties = {} || EXCLUDED.properties,
+                properties = EXCLUDED.properties,
                 updated_at = NOW()
             "#,
-            self.nodes_table, self.nodes_table
+            self.nodes_table
         );
         
         sqlx::query(&sql)
@@ -278,7 +283,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
             .bind(&properties_json)
             .execute(&pool)
             .await
-            .map_err(|e| StorageError::WriteError(format!("Upsert node failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Upsert node failed: {}", e)))?;
         
         Ok(())
     }
@@ -296,7 +301,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
             .bind(node_id)
             .execute(&pool)
             .await
-            .map_err(|e| StorageError::WriteError(format!("Delete node failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Delete node failed: {}", e)))?;
         
         Ok(())
     }
@@ -316,7 +321,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
             .bind(node_id)
             .fetch_one(&pool)
             .await
-            .map_err(|e| StorageError::QueryError(format!("Node degree failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Node degree failed: {}", e)))?;
         
         let degree: i64 = row.get("degree");
         Ok(degree as usize)
@@ -333,7 +338,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
         let rows = sqlx::query(&sql)
             .fetch_all(&pool)
             .await
-            .map_err(|e| StorageError::QueryError(format!("Get all nodes failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Get all nodes failed: {}", e)))?;
         
         let nodes = rows
             .into_iter()
@@ -374,7 +379,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
         let rows = query
             .fetch_all(&pool)
             .await
-            .map_err(|e| StorageError::QueryError(format!("Get nodes by IDs failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Get nodes by IDs failed: {}", e)))?;
         
         let nodes = rows
             .into_iter()
@@ -403,7 +408,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
             .bind(target)
             .fetch_optional(&pool)
             .await
-            .map_err(|e| StorageError::QueryError(format!("Has edge failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Has edge failed: {}", e)))?;
         
         Ok(row.is_some())
     }
@@ -421,7 +426,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
             .bind(target)
             .fetch_optional(&pool)
             .await
-            .map_err(|e| StorageError::QueryError(format!("Get edge failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Get edge failed: {}", e)))?;
         
         match row {
             Some(row) => {
@@ -446,17 +451,17 @@ impl GraphStorage for PostgresAGEGraphStorage {
         let pool = self.pool.get().await?;
         
         let properties_json = serde_json::to_value(&properties)
-            .map_err(|e| StorageError::SerializationError(e.to_string()))?;
+            .map_err(|e| StorageError::Serialization(e.to_string()))?;
         
         let sql = format!(
             r#"
             INSERT INTO {} (source_id, target_id, properties, updated_at)
             VALUES ($1, $2, $3, NOW())
             ON CONFLICT (source_id, target_id) DO UPDATE SET
-                properties = {} || EXCLUDED.properties,
+                properties = EXCLUDED.properties,
                 updated_at = NOW()
             "#,
-            self.edges_table, self.edges_table
+            self.edges_table
         );
         
         sqlx::query(&sql)
@@ -465,7 +470,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
             .bind(&properties_json)
             .execute(&pool)
             .await
-            .map_err(|e| StorageError::WriteError(format!("Upsert edge failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Upsert edge failed: {}", e)))?;
         
         Ok(())
     }
@@ -483,7 +488,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
             .bind(target)
             .execute(&pool)
             .await
-            .map_err(|e| StorageError::WriteError(format!("Delete edge failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Delete edge failed: {}", e)))?;
         
         Ok(())
     }
@@ -503,7 +508,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
             .bind(node_id)
             .fetch_all(&pool)
             .await
-            .map_err(|e| StorageError::QueryError(format!("Get node edges failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Get node edges failed: {}", e)))?;
         
         let edges = rows
             .into_iter()
@@ -531,7 +536,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
         let rows = sqlx::query(&sql)
             .fetch_all(&pool)
             .await
-            .map_err(|e| StorageError::QueryError(format!("Get all edges failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Get all edges failed: {}", e)))?;
         
         let edges = rows
             .into_iter()
@@ -584,7 +589,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
             .bind(max_nodes as i32)
             .fetch_all(&pool)
             .await
-            .map_err(|e| StorageError::QueryError(format!("Get knowledge graph failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Get knowledge graph failed: {}", e)))?;
         
         let mut kg = KnowledgeGraph::new();
         let mut node_ids: Vec<String> = Vec::new();
@@ -627,7 +632,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
             let edge_rows = query
                 .fetch_all(&pool)
                 .await
-                .map_err(|e| StorageError::QueryError(format!("Get KG edges failed: {}", e)))?;
+                .map_err(|e| StorageError::Database(format!("Get KG edges failed: {}", e)))?;
             
             for row in edge_rows {
                 let source: String = row.get("source_id");
@@ -665,7 +670,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
             .bind(limit as i32)
             .fetch_all(&pool)
             .await
-            .map_err(|e| StorageError::QueryError(format!("Get popular labels failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Get popular labels failed: {}", e)))?;
         
         let labels = rows
             .into_iter()
@@ -690,7 +695,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
             .bind(limit as i32)
             .fetch_all(&pool)
             .await
-            .map_err(|e| StorageError::QueryError(format!("Search labels failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Search labels failed: {}", e)))?;
         
         let labels = rows
             .into_iter()
@@ -720,7 +725,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
         let row = sqlx::query(&sql)
             .fetch_one(&pool)
             .await
-            .map_err(|e| StorageError::QueryError(format!("Node count failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Node count failed: {}", e)))?;
         
         let count: i64 = row.get("count");
         Ok(count as usize)
@@ -734,7 +739,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
         let row = sqlx::query(&sql)
             .fetch_one(&pool)
             .await
-            .map_err(|e| StorageError::QueryError(format!("Edge count failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Edge count failed: {}", e)))?;
         
         let count: i64 = row.get("count");
         Ok(count as usize)
@@ -750,12 +755,12 @@ impl GraphStorage for PostgresAGEGraphStorage {
         sqlx::query(&edges_sql)
             .execute(&pool)
             .await
-            .map_err(|e| StorageError::WriteError(format!("Clear edges failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Clear edges failed: {}", e)))?;
         
         sqlx::query(&nodes_sql)
             .execute(&pool)
             .await
-            .map_err(|e| StorageError::WriteError(format!("Clear nodes failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Clear nodes failed: {}", e)))?;
         
         Ok(())
     }
@@ -764,7 +769,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
 impl std::fmt::Debug for PostgresAGEGraphStorage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PostgresAGEGraphStorage")
-            .field("namespace", &self.pool.config().namespace)
+            .field("namespace", &self.namespace)
             .field("graph_name", &self.graph_name)
             .field("use_age", &self.use_age)
             .finish()

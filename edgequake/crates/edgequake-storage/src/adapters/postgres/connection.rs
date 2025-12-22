@@ -45,7 +45,7 @@ impl PostgresPool {
             .idle_timeout(Some(self.config.idle_timeout))
             .connect(&self.config.connection_url())
             .await
-            .map_err(|e| StorageError::ConnectionError(format!("Failed to connect: {}", e)))?;
+            .map_err(|e| StorageError::Connection(format!("Failed to connect: {}", e)))?;
         
         // Enable required extensions
         self.setup_extensions(&pool).await?;
@@ -59,7 +59,7 @@ impl PostgresPool {
         let pool_guard = self.pool.read().await;
         pool_guard
             .clone()
-            .ok_or_else(|| StorageError::ConnectionError("Pool not initialized".to_string()))
+            .ok_or_else(|| StorageError::Connection("Pool not initialized".to_string()))
     }
     
     /// Close the connection pool.
@@ -83,7 +83,7 @@ impl PostgresPool {
         sqlx::query("CREATE EXTENSION IF NOT EXISTS vector")
             .execute(pool)
             .await
-            .map_err(|e| StorageError::InitializationError(format!(
+            .map_err(|e| StorageError::Database(format!(
                 "Failed to create vector extension: {}. Make sure pgvector is installed.", e
             )))?;
         
@@ -97,7 +97,7 @@ impl PostgresPool {
                 sqlx::query("SET search_path = ag_catalog, \"$user\", public")
                     .execute(pool)
                     .await
-                    .map_err(|e| StorageError::InitializationError(format!(
+                    .map_err(|e| StorageError::Database(format!(
                         "Failed to set AGE search path: {}", e
                     )))?;
             }
@@ -117,7 +117,7 @@ impl PostgresPool {
         sqlx::query(query)
             .execute(&pool)
             .await
-            .map_err(|e| StorageError::QueryError(format!("Query failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Query failed: {}", e)))?;
         Ok(())
     }
     
@@ -127,7 +127,7 @@ impl PostgresPool {
         let row = sqlx::query("SELECT 1 as health")
             .fetch_one(&pool)
             .await
-            .map_err(|e| StorageError::ConnectionError(format!("Health check failed: {}", e)))?;
+            .map_err(|e| StorageError::Connection(format!("Health check failed: {}", e)))?;
         
         let health: i32 = row.get("health");
         Ok(health == 1)

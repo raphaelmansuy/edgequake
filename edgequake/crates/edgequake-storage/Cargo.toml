@@ -27,3 +27,4 @@ sqlx = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio-test = { workspace = true }
+uuid = { version = "1.19", features = ["v4"] }
