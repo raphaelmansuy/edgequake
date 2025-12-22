@@ -13,12 +13,13 @@ use std::sync::Arc;
 
 use edgequake_llm::{EmbeddingProvider, LLMProvider, MockProvider};
 use edgequake_pipeline::{
-    Chunker, ChunkerConfig, EntityExtractor, ExtractionResult, ExtractedEntity,
-    ExtractedRelationship, LLMExtractor, Pipeline, PipelineConfig, SimpleExtractor,
-    KnowledgeGraphMerger, MergerConfig,
+    Chunker, ChunkerConfig, EntityExtractor, ExtractedEntity, ExtractedRelationship,
+    ExtractionResult, KnowledgeGraphMerger, LLMExtractor, MergerConfig, Pipeline, PipelineConfig,
+    SimpleExtractor,
 };
 use edgequake_storage::{
-    GraphStorage, KVStorage, VectorStorage, MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
+    GraphStorage, KVStorage, MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
+    VectorStorage,
 };
 
 /// Sample documents for testing - these represent real-world content
@@ -78,11 +79,17 @@ fn test_chunker_basic() {
     let chunks = chunker.chunk(SAMPLE_DOCUMENT_1, "doc-1").unwrap();
 
     assert!(!chunks.is_empty(), "Should produce chunks");
-    assert!(chunks.len() > 1, "Long document should produce multiple chunks");
+    assert!(
+        chunks.len() > 1,
+        "Long document should produce multiple chunks"
+    );
 
     // Verify chunk properties
     for chunk in &chunks {
-        assert!(!chunk.content.is_empty(), "Chunk content should not be empty");
+        assert!(
+            !chunk.content.is_empty(),
+            "Chunk content should not be empty"
+        );
         assert!(!chunk.id.is_empty(), "Chunk ID should not be empty");
     }
 }
@@ -127,18 +134,22 @@ fn test_chunker_default_config() {
 #[tokio::test]
 async fn test_simple_extractor() {
     let extractor = SimpleExtractor::default();
-    
+
     let chunk = edgequake_pipeline::TextChunk::new(
-        "chunk-1", 
-        "Dr. Sarah Chen designed EdgeQuake. John Smith contributed to it.", 
-        0, 0, 60
+        "chunk-1",
+        "Dr. Sarah Chen designed EdgeQuake. John Smith contributed to it.",
+        0,
+        0,
+        60,
     );
 
     let result = extractor.extract(&chunk).await.unwrap();
 
     // SimpleExtractor uses regex to find PERSON patterns like "Sarah Chen", "John Smith"
-    assert!(!result.entities.is_empty() || result.entities.is_empty(), 
-        "Extraction should complete without error");
+    assert!(
+        !result.entities.is_empty() || result.entities.is_empty(),
+        "Extraction should complete without error"
+    );
     assert_eq!(result.source_chunk_id, "chunk-1");
 }
 
@@ -148,31 +159,43 @@ async fn test_simple_extractor() {
 async fn test_llm_extractor_with_mock() {
     // Set up mock with a valid JSON response
     let mock_provider = Arc::new(MockProvider::new());
-    mock_provider.add_response(r#"
+    mock_provider
+        .add_response(
+            r#"
     {
         "entities": [
             {"name": "EdgeQuake", "type": "TECHNOLOGY", "description": "A RAG system"}
         ],
         "relationships": []
     }
-    "#).await;
+    "#,
+        )
+        .await;
 
     let extractor = LLMExtractor::new(mock_provider);
 
     let chunk = edgequake_pipeline::TextChunk::new(
-        "chunk-1", 
-        "EdgeQuake is a high-performance RAG system.", 
-        0, 0, 45
+        "chunk-1",
+        "EdgeQuake is a high-performance RAG system.",
+        0,
+        0,
+        45,
     );
 
     let result = extractor.extract(&chunk).await;
 
     // With the mock JSON response, we should get entities
-    assert!(result.is_ok(), "Extraction should succeed with valid JSON response");
-    
+    assert!(
+        result.is_ok(),
+        "Extraction should succeed with valid JSON response"
+    );
+
     let extraction = result.unwrap();
     assert_eq!(extraction.source_chunk_id, "chunk-1");
-    assert!(!extraction.entities.is_empty(), "Should extract entities from JSON");
+    assert!(
+        !extraction.entities.is_empty(),
+        "Should extract entities from JSON"
+    );
     assert_eq!(extraction.entities[0].name, "EdgeQuake");
 }
 
@@ -193,11 +216,8 @@ async fn test_llm_extractor_with_relationships() {
 
     let extractor = LLMExtractor::new(mock_provider);
 
-    let chunk = edgequake_pipeline::TextChunk::new(
-        "chunk-1", 
-        "EdgeQuake is built in Rust.", 
-        0, 0, 30
-    );
+    let chunk =
+        edgequake_pipeline::TextChunk::new("chunk-1", "EdgeQuake is built in Rust.", 0, 0, 30);
 
     let result = extractor.extract(&chunk).await.unwrap();
 
@@ -269,11 +289,17 @@ async fn test_merger_creates_relationships() {
     let stats = merger.merge(vec![result]).await.unwrap();
 
     assert_eq!(stats.entities_created, 2, "Should create 2 entities");
-    assert_eq!(stats.relationships_created, 1, "Should create 1 relationship");
+    assert_eq!(
+        stats.relationships_created, 1,
+        "Should create 1 relationship"
+    );
 
     // Verify relationship exists (normalized keys are UPPERCASE)
     let edge = graph_storage.get_edge("EDGEQUAKE", "RUST").await.unwrap();
-    assert!(edge.is_some(), "Edge should exist between EdgeQuake and Rust");
+    assert!(
+        edge.is_some(),
+        "Edge should exist between EdgeQuake and Rust"
+    );
 }
 
 #[tokio::test]
@@ -312,7 +338,12 @@ async fn test_merger_updates_existing_entities() {
 
     // Verify description was updated (normalized key is UPPERCASE)
     let node = graph_storage.get_node("EDGEQUAKE").await.unwrap().unwrap();
-    let desc = node.properties.get("description").unwrap().as_str().unwrap();
+    let desc = node
+        .properties
+        .get("description")
+        .unwrap()
+        .as_str()
+        .unwrap();
     assert!(desc.len() > 10, "Description should have content");
 }
 
@@ -322,7 +353,9 @@ async fn test_merger_updates_existing_entities() {
 async fn test_full_pipeline_with_mock_llm() {
     // Create mock that returns valid extraction JSON
     let mock_provider = Arc::new(MockProvider::new());
-    mock_provider.add_response(r#"{"entities": [], "relationships": []}"#).await;
+    mock_provider
+        .add_response(r#"{"entities": [], "relationships": []}"#)
+        .await;
 
     // Create the extractor wrapping the mock provider
     let extractor: Arc<dyn EntityExtractor> = Arc::new(LLMExtractor::new(mock_provider.clone()));
@@ -383,8 +416,7 @@ async fn test_pipeline_with_simple_extractor() {
         ..Default::default()
     };
 
-    let pipeline = Pipeline::new(config)
-        .with_extractor(extractor);
+    let pipeline = Pipeline::new(config).with_extractor(extractor);
 
     let result = pipeline.process("doc-1", SAMPLE_DOCUMENT_1).await.unwrap();
 
@@ -556,7 +588,10 @@ async fn test_vector_similarity_search() {
 
     // Query for RAG systems - should find edgequake and lightrag
     let query_embedding = create_embedding(0.05);
-    let results = vector_storage.query(&query_embedding, 3, None).await.unwrap();
+    let results = vector_storage
+        .query(&query_embedding, 3, None)
+        .await
+        .unwrap();
 
     assert!(!results.is_empty(), "Should find results");
     // The closest vectors should be the RAG systems
@@ -723,7 +758,7 @@ async fn test_special_characters_in_entities() {
 #[tokio::test]
 async fn test_complete_e2e_flow() {
     // This test simulates the complete flow from document ingestion to query
-    
+
     // 1. Initialize storage
     let graph_storage = Arc::new(MemoryGraphStorage::new("e2e-test"));
     let vector_storage = Arc::new(MemoryVectorStorage::new("e2e-test", 1536)); // OpenAI embedding dimension
@@ -735,7 +770,7 @@ async fn test_complete_e2e_flow() {
 
     // 2. Set up mock LLM with realistic extraction response
     let mock_provider = Arc::new(MockProvider::new());
-    
+
     // Add extraction response
     mock_provider.add_response(r#"
     {
@@ -774,25 +809,25 @@ async fn test_complete_e2e_flow() {
     let result = pipeline.process("doc-1", SAMPLE_DOCUMENT_1).await.unwrap();
 
     assert!(!result.chunks.is_empty(), "Pipeline should produce chunks");
-    
+
     // Since we only added one mock response, only the first chunk gets extraction
     // In real usage, you'd add a response for each chunk
     if !result.extractions.is_empty() {
-        assert!(result.extractions[0].entities.len() >= 1, "Should extract entities");
+        assert!(
+            result.extractions[0].entities.len() >= 1,
+            "Should extract entities"
+        );
     }
 
     // 5. Merge into knowledge graph
     let merger_config = MergerConfig::default();
-    let merger = KnowledgeGraphMerger::new(
-        merger_config, 
-        graph_storage.clone(), 
-        vector_storage.clone()
-    );
+    let merger =
+        KnowledgeGraphMerger::new(merger_config, graph_storage.clone(), vector_storage.clone());
 
     if !result.extractions.is_empty() {
         let merge_stats = merger.merge(result.extractions).await.unwrap();
         assert!(merge_stats.entities_created > 0, "Should create entities");
-        
+
         // 6. Verify knowledge graph state
         let node_count = graph_storage.node_count().await.unwrap();
         assert!(node_count > 0, "Graph should have nodes");

@@ -4,10 +4,10 @@ use std::collections::HashSet;
 
 use async_trait::async_trait;
 
-use crate::error::{Result, StorageError};
-use crate::traits::KVStorage;
 use super::config::PostgresConfig;
 use super::connection::PostgresPool;
+use crate::error::{Result, StorageError};
+use crate::traits::KVStorage;
 
 /// PostgreSQL key-value storage using JSONB.
 ///
@@ -33,7 +33,7 @@ impl PostgresKVStorage {
         let prefix = config.table_prefix();
         let table_name = format!("public.eq_{}_kv", prefix);
         let namespace = config.namespace.clone();
-        
+
         Self {
             pool: PostgresPool::new(config),
             table_name,
@@ -41,16 +41,16 @@ impl PostgresKVStorage {
             prefix,
         }
     }
-    
+
     /// Get the underlying pool.
     pub fn pool(&self) -> &PostgresPool {
         &self.pool
     }
-    
+
     /// Create the KV table.
     async fn create_table(&self) -> Result<()> {
         let pool = self.pool.get().await?;
-        
+
         let sql = format!(
             r#"
             CREATE TABLE IF NOT EXISTS {} (
@@ -62,22 +62,20 @@ impl PostgresKVStorage {
             "#,
             self.table_name
         );
-        
+
         sqlx::query(&sql)
             .execute(&pool)
             .await
-            .map_err(|e| StorageError::Database(format!(
-                "Failed to create KV table: {}", e
-            )))?;
-        
+            .map_err(|e| StorageError::Database(format!("Failed to create KV table: {}", e)))?;
+
         // Create GIN index for JSONB queries
         let gin_sql = format!(
             "CREATE INDEX IF NOT EXISTS eq_{}_kv_value_gin ON {} USING GIN (value)",
             self.prefix, self.table_name
         );
-        
+
         sqlx::query(&gin_sql).execute(&pool).await.ok();
-        
+
         Ok(())
     }
 }
@@ -87,87 +85,78 @@ impl KVStorage for PostgresKVStorage {
     fn namespace(&self) -> &str {
         &self.namespace
     }
-    
+
     async fn initialize(&self) -> Result<()> {
         self.pool.initialize().await?;
         self.create_table().await?;
         Ok(())
     }
-    
+
     async fn finalize(&self) -> Result<()> {
         Ok(())
     }
-    
+
     async fn get_by_id(&self, id: &str) -> Result<Option<serde_json::Value>> {
         let pool = self.pool.get().await?;
-        
-        let sql = format!(
-            "SELECT value FROM {} WHERE key = $1",
-            self.table_name
-        );
-        
+
+        let sql = format!("SELECT value FROM {} WHERE key = $1", self.table_name);
+
         let row: Option<(serde_json::Value,)> = sqlx::query_as(&sql)
             .bind(id)
             .fetch_optional(&pool)
             .await
             .map_err(|e| StorageError::Database(format!("KV get failed: {}", e)))?;
-        
+
         Ok(row.map(|(v,)| v))
     }
-    
+
     async fn get_by_ids(&self, ids: &[String]) -> Result<Vec<serde_json::Value>> {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
-        
+
         let pool = self.pool.get().await?;
-        
-        let sql = format!(
-            "SELECT value FROM {} WHERE key = ANY($1)",
-            self.table_name
-        );
-        
+
+        let sql = format!("SELECT value FROM {} WHERE key = ANY($1)", self.table_name);
+
         let rows: Vec<(serde_json::Value,)> = sqlx::query_as(&sql)
             .bind(ids)
             .fetch_all(&pool)
             .await
             .map_err(|e| StorageError::Database(format!("KV get_by_ids failed: {}", e)))?;
-        
+
         Ok(rows.into_iter().map(|(v,)| v).collect())
     }
-    
+
     async fn filter_keys(&self, keys: HashSet<String>) -> Result<HashSet<String>> {
         if keys.is_empty() {
             return Ok(HashSet::new());
         }
-        
+
         let pool = self.pool.get().await?;
         let keys_vec: Vec<String> = keys.iter().cloned().collect();
-        
-        let sql = format!(
-            "SELECT key FROM {} WHERE key = ANY($1)",
-            self.table_name
-        );
-        
+
+        let sql = format!("SELECT key FROM {} WHERE key = ANY($1)", self.table_name);
+
         let rows: Vec<(String,)> = sqlx::query_as(&sql)
             .bind(&keys_vec)
             .fetch_all(&pool)
             .await
             .map_err(|e| StorageError::Database(format!("KV filter_keys failed: {}", e)))?;
-        
+
         let existing: HashSet<String> = rows.into_iter().map(|(k,)| k).collect();
-        
+
         // Return keys that do NOT exist
         Ok(keys.difference(&existing).cloned().collect())
     }
-    
+
     async fn upsert(&self, data: &[(String, serde_json::Value)]) -> Result<()> {
         if data.is_empty() {
             return Ok(());
         }
-        
+
         let pool = self.pool.get().await?;
-        
+
         for (key, value) in data {
             let sql = format!(
                 r#"
@@ -179,7 +168,7 @@ impl KVStorage for PostgresKVStorage {
                 "#,
                 self.table_name
             );
-            
+
             sqlx::query(&sql)
                 .bind(key)
                 .bind(value)
@@ -187,72 +176,69 @@ impl KVStorage for PostgresKVStorage {
                 .await
                 .map_err(|e| StorageError::Database(format!("KV upsert failed: {}", e)))?;
         }
-        
+
         Ok(())
     }
-    
+
     async fn delete(&self, ids: &[String]) -> Result<()> {
         if ids.is_empty() {
             return Ok(());
         }
-        
+
         let pool = self.pool.get().await?;
-        
-        let sql = format!(
-            "DELETE FROM {} WHERE key = ANY($1)",
-            self.table_name
-        );
-        
+
+        let sql = format!("DELETE FROM {} WHERE key = ANY($1)", self.table_name);
+
         sqlx::query(&sql)
             .bind(ids)
             .execute(&pool)
             .await
             .map_err(|e| StorageError::Database(format!("KV delete failed: {}", e)))?;
-        
+
         Ok(())
     }
-    
+
     async fn is_empty(&self) -> Result<bool> {
         let count = self.count().await?;
         Ok(count == 0)
     }
-    
+
     async fn count(&self) -> Result<usize> {
         let pool = self.pool.get().await?;
-        
+
         let sql = format!("SELECT COUNT(*) as count FROM {}", self.table_name);
-        
+
         let row: (i64,) = sqlx::query_as(&sql)
             .fetch_one(&pool)
             .await
             .map_err(|e| StorageError::Database(format!("KV count failed: {}", e)))?;
-        
+
         Ok(row.0 as usize)
     }
-    
+
     async fn keys(&self) -> Result<Vec<String>> {
         let pool = self.pool.get().await?;
-        
+
         let sql = format!("SELECT key FROM {}", self.table_name);
-        
+
         let rows: Vec<(String,)> = sqlx::query_as(&sql)
             .fetch_all(&pool)
             .await
             .map_err(|e| StorageError::Database(format!("KV keys failed: {}", e)))?;
-        
+
         Ok(rows.into_iter().map(|(k,)| k).collect())
     }
-    
+
     async fn clear(&self) -> Result<()> {
         let pool = self.pool.get().await?;
-        
+
         let sql = format!("DELETE FROM {}", self.table_name);
-        
+
         sqlx::query(&sql)
             .execute(&pool)
             .await
             .map_err(|e| StorageError::Database(format!("KV clear failed: {}", e)))?;
-        
+
         Ok(())
     }
 }
@@ -269,12 +255,12 @@ impl std::fmt::Debug for PostgresKVStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_kv_storage_creation() {
         let config = PostgresConfig::default().with_namespace("test");
         let storage = PostgresKVStorage::new(config);
-        
+
         assert_eq!(storage.table_name, "eq_test_kv");
     }
 }

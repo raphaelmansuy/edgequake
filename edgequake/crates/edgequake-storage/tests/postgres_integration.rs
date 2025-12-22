@@ -18,15 +18,15 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use edgequake_storage::{
-    GraphStorage, KVStorage, VectorStorage,
-    PostgresConfig, PostgresKVStorage, PgVectorStorage, PostgresAGEGraphStorage,
+    GraphStorage, KVStorage, PgVectorStorage, PostgresAGEGraphStorage, PostgresConfig,
+    PostgresKVStorage, VectorStorage,
 };
 
 /// Get PostgreSQL configuration from environment variables.
 fn get_test_config() -> Option<PostgresConfig> {
     // Check if password is set (indicates test environment is configured)
     let password = env::var("POSTGRES_PASSWORD").ok()?;
-    
+
     Some(PostgresConfig {
         host: env::var("POSTGRES_HOST").unwrap_or_else(|_| "localhost".to_string()),
         port: env::var("POSTGRES_PORT")
@@ -36,7 +36,10 @@ fn get_test_config() -> Option<PostgresConfig> {
         database: env::var("POSTGRES_DB").unwrap_or_else(|_| "edgequake".to_string()),
         user: env::var("POSTGRES_USER").unwrap_or_else(|_| "edgequake".to_string()),
         password,
-        namespace: format!("test_{}", uuid::Uuid::new_v4().to_string().replace("-", "")[..8].to_string()),
+        namespace: format!(
+            "test_{}",
+            uuid::Uuid::new_v4().to_string().replace("-", "")[..8].to_string()
+        ),
         max_connections: 5,
         min_connections: 1,
         connect_timeout: Duration::from_secs(10),
@@ -63,37 +66,46 @@ macro_rules! require_postgres {
 #[tokio::test]
 async fn test_postgres_kv_basic_operations() {
     let config = require_postgres!();
-    
+
     let kv_storage = PostgresKVStorage::new(config);
-    
+
     kv_storage.initialize().await.expect("Failed to initialize");
-    
+
     // Insert
-    kv_storage.upsert(&[(
-        "doc-1".to_string(),
-        serde_json::json!({"title": "Test Document", "content": "Hello World"}),
-    )]).await.expect("Failed to upsert");
-    
+    kv_storage
+        .upsert(&[(
+            "doc-1".to_string(),
+            serde_json::json!({"title": "Test Document", "content": "Hello World"}),
+        )])
+        .await
+        .expect("Failed to upsert");
+
     // Get
     let result = kv_storage.get_by_id("doc-1").await.expect("Failed to get");
     assert!(result.is_some());
     let doc = result.unwrap();
     assert_eq!(doc["title"], "Test Document");
-    
+
     // Update
-    kv_storage.upsert(&[(
-        "doc-1".to_string(),
-        serde_json::json!({"title": "Updated Document", "content": "Hello World Updated"}),
-    )]).await.expect("Failed to update");
-    
+    kv_storage
+        .upsert(&[(
+            "doc-1".to_string(),
+            serde_json::json!({"title": "Updated Document", "content": "Hello World Updated"}),
+        )])
+        .await
+        .expect("Failed to update");
+
     let result = kv_storage.get_by_id("doc-1").await.expect("Failed to get");
     assert_eq!(result.unwrap()["title"], "Updated Document");
-    
+
     // Delete
-    kv_storage.delete(&["doc-1".to_string()]).await.expect("Failed to delete");
+    kv_storage
+        .delete(&["doc-1".to_string()])
+        .await
+        .expect("Failed to delete");
     let result = kv_storage.get_by_id("doc-1").await.expect("Failed to get");
     assert!(result.is_none());
-    
+
     // Cleanup
     kv_storage.clear().await.expect("Failed to clear");
 }
@@ -101,30 +113,38 @@ async fn test_postgres_kv_basic_operations() {
 #[tokio::test]
 async fn test_postgres_kv_bulk_operations() {
     let config = require_postgres!();
-    
+
     let kv_storage = PostgresKVStorage::new(config);
-    
+
     kv_storage.initialize().await.expect("Failed to initialize");
-    
+
     // Bulk insert
     let docs: Vec<(String, serde_json::Value)> = (0..100)
-        .map(|i| (
-            format!("doc-{}", i),
-            serde_json::json!({"index": i, "content": format!("Document {}", i)}),
-        ))
+        .map(|i| {
+            (
+                format!("doc-{}", i),
+                serde_json::json!({"index": i, "content": format!("Document {}", i)}),
+            )
+        })
         .collect();
-    
-    kv_storage.upsert(&docs).await.expect("Failed to bulk upsert");
-    
+
+    kv_storage
+        .upsert(&docs)
+        .await
+        .expect("Failed to bulk upsert");
+
     // Bulk get
     let ids: Vec<String> = (0..50).map(|i| format!("doc-{}", i)).collect();
-    let results = kv_storage.get_by_ids(&ids).await.expect("Failed to bulk get");
+    let results = kv_storage
+        .get_by_ids(&ids)
+        .await
+        .expect("Failed to bulk get");
     assert_eq!(results.len(), 50);
-    
+
     // Count
     let count = kv_storage.count().await.expect("Failed to count");
     assert_eq!(count, 100);
-    
+
     // Cleanup
     kv_storage.clear().await.expect("Failed to clear");
 }
@@ -134,35 +154,61 @@ async fn test_postgres_kv_bulk_operations() {
 #[tokio::test]
 async fn test_pgvector_basic_operations() {
     let config = require_postgres!();
-    
+
     let vector_storage = PgVectorStorage::with_dimension(config, 384);
-    
-    vector_storage.initialize().await.expect("Failed to initialize");
-    
+
+    vector_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize");
+
     // Insert vectors
     let embedding1: Vec<f32> = (0..384).map(|i| (i as f32) / 1000.0).collect();
     let embedding2: Vec<f32> = (0..384).map(|i| ((i + 1) as f32) / 1000.0).collect();
-    
-    vector_storage.upsert(&[
-        ("vec-1".to_string(), embedding1.clone(), serde_json::json!({"name": "Vector 1"})),
-        ("vec-2".to_string(), embedding2.clone(), serde_json::json!({"name": "Vector 2"})),
-    ]).await.expect("Failed to upsert vectors");
-    
+
+    vector_storage
+        .upsert(&[
+            (
+                "vec-1".to_string(),
+                embedding1.clone(),
+                serde_json::json!({"name": "Vector 1"}),
+            ),
+            (
+                "vec-2".to_string(),
+                embedding2.clone(),
+                serde_json::json!({"name": "Vector 2"}),
+            ),
+        ])
+        .await
+        .expect("Failed to upsert vectors");
+
     // Query
-    let results = vector_storage.query(&embedding1, 5, None).await.expect("Failed to query");
+    let results = vector_storage
+        .query(&embedding1, 5, None)
+        .await
+        .expect("Failed to query");
     assert!(!results.is_empty());
     assert_eq!(results[0].id, "vec-1"); // Most similar to itself
-    
+
     // Get by ID
-    let vec = vector_storage.get_by_id("vec-1").await.expect("Failed to get by ID");
+    let vec = vector_storage
+        .get_by_id("vec-1")
+        .await
+        .expect("Failed to get by ID");
     assert!(vec.is_some());
     assert_eq!(vec.unwrap().len(), 384);
-    
+
     // Delete
-    vector_storage.delete(&["vec-1".to_string()]).await.expect("Failed to delete");
-    let vec = vector_storage.get_by_id("vec-1").await.expect("Failed to get by ID");
+    vector_storage
+        .delete(&["vec-1".to_string()])
+        .await
+        .expect("Failed to delete");
+    let vec = vector_storage
+        .get_by_id("vec-1")
+        .await
+        .expect("Failed to get by ID");
     assert!(vec.is_none());
-    
+
     // Cleanup
     vector_storage.clear().await.expect("Failed to clear");
 }
@@ -170,55 +216,78 @@ async fn test_pgvector_basic_operations() {
 #[tokio::test]
 async fn test_pgvector_similarity_search() {
     let config = require_postgres!();
-    
+
     let vector_storage = PgVectorStorage::with_dimension(config, 384);
-    
-    vector_storage.initialize().await.expect("Failed to initialize");
-    
+
+    vector_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize");
+
     // Create distinct embedding clusters
     let cluster1_base: Vec<f32> = (0..384).map(|i| (i as f32 * 0.001).sin()).collect();
     let cluster2_base: Vec<f32> = (0..384).map(|i| (i as f32 * 0.001).cos()).collect();
-    
+
     // Add vectors from cluster 1
     for i in 0..5 {
         let mut embedding = cluster1_base.clone();
         for j in 0..384 {
             embedding[j] += (i as f32) * 0.001;
         }
-        vector_storage.upsert(&[(
-            format!("cluster1-{}", i),
-            embedding,
-            serde_json::json!({"cluster": 1, "index": i}),
-        )]).await.expect("Failed to upsert");
+        vector_storage
+            .upsert(&[(
+                format!("cluster1-{}", i),
+                embedding,
+                serde_json::json!({"cluster": 1, "index": i}),
+            )])
+            .await
+            .expect("Failed to upsert");
     }
-    
+
     // Add vectors from cluster 2
     for i in 0..5 {
         let mut embedding = cluster2_base.clone();
         for j in 0..384 {
             embedding[j] += (i as f32) * 0.001;
         }
-        vector_storage.upsert(&[(
-            format!("cluster2-{}", i),
-            embedding,
-            serde_json::json!({"cluster": 2, "index": i}),
-        )]).await.expect("Failed to upsert");
+        vector_storage
+            .upsert(&[(
+                format!("cluster2-{}", i),
+                embedding,
+                serde_json::json!({"cluster": 2, "index": i}),
+            )])
+            .await
+            .expect("Failed to upsert");
     }
-    
+
     // Query with cluster1 base - should find cluster1 vectors
-    let results = vector_storage.query(&cluster1_base, 3, None).await.expect("Failed to query");
+    let results = vector_storage
+        .query(&cluster1_base, 3, None)
+        .await
+        .expect("Failed to query");
     assert_eq!(results.len(), 3);
     for result in &results {
-        assert!(result.id.starts_with("cluster1"), "Expected cluster1 vectors, got {}", result.id);
+        assert!(
+            result.id.starts_with("cluster1"),
+            "Expected cluster1 vectors, got {}",
+            result.id
+        );
     }
-    
+
     // Query with cluster2 base - should find cluster2 vectors
-    let results = vector_storage.query(&cluster2_base, 3, None).await.expect("Failed to query");
+    let results = vector_storage
+        .query(&cluster2_base, 3, None)
+        .await
+        .expect("Failed to query");
     assert_eq!(results.len(), 3);
     for result in &results {
-        assert!(result.id.starts_with("cluster2"), "Expected cluster2 vectors, got {}", result.id);
+        assert!(
+            result.id.starts_with("cluster2"),
+            "Expected cluster2 vectors, got {}",
+            result.id
+        );
     }
-    
+
     // Cleanup
     vector_storage.clear().await.expect("Failed to clear");
 }
@@ -228,46 +297,82 @@ async fn test_pgvector_similarity_search() {
 #[tokio::test]
 async fn test_postgres_age_basic_operations() {
     let config = require_postgres!();
-    
+
     let graph_storage = PostgresAGEGraphStorage::new(config);
-    
-    graph_storage.initialize().await.expect("Failed to initialize");
-    
+
+    graph_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize");
+
     // Create nodes
     let mut props1 = HashMap::new();
     props1.insert("label".to_string(), serde_json::json!("EdgeQuake"));
     props1.insert("type".to_string(), serde_json::json!("TECHNOLOGY"));
-    graph_storage.upsert_node("edgequake", props1).await.expect("Failed to upsert node");
-    
+    graph_storage
+        .upsert_node("edgequake", props1)
+        .await
+        .expect("Failed to upsert node");
+
     let mut props2 = HashMap::new();
     props2.insert("label".to_string(), serde_json::json!("Rust"));
     props2.insert("type".to_string(), serde_json::json!("TECHNOLOGY"));
-    graph_storage.upsert_node("rust", props2).await.expect("Failed to upsert node");
-    
+    graph_storage
+        .upsert_node("rust", props2)
+        .await
+        .expect("Failed to upsert node");
+
     // Verify nodes exist
-    assert!(graph_storage.has_node("edgequake").await.expect("Failed to check node"));
-    assert!(graph_storage.has_node("rust").await.expect("Failed to check node"));
-    
+    assert!(graph_storage
+        .has_node("edgequake")
+        .await
+        .expect("Failed to check node"));
+    assert!(graph_storage
+        .has_node("rust")
+        .await
+        .expect("Failed to check node"));
+
     // Create edge
     let mut edge_props = HashMap::new();
     edge_props.insert("relation".to_string(), serde_json::json!("BUILT_WITH"));
-    graph_storage.upsert_edge("edgequake", "rust", edge_props).await.expect("Failed to upsert edge");
-    
+    graph_storage
+        .upsert_edge("edgequake", "rust", edge_props)
+        .await
+        .expect("Failed to upsert edge");
+
     // Verify edge exists
-    assert!(graph_storage.has_edge("edgequake", "rust").await.expect("Failed to check edge"));
-    
+    assert!(graph_storage
+        .has_edge("edgequake", "rust")
+        .await
+        .expect("Failed to check edge"));
+
     // Get neighbors
-    let neighbors = graph_storage.get_neighbors("edgequake", 1).await.expect("Failed to get neighbors");
+    let neighbors = graph_storage
+        .get_neighbors("edgequake", 1)
+        .await
+        .expect("Failed to get neighbors");
     assert!(!neighbors.is_empty());
-    
+
     // Delete edge
-    graph_storage.delete_edge("edgequake", "rust").await.expect("Failed to delete edge");
-    assert!(!graph_storage.has_edge("edgequake", "rust").await.expect("Failed to check edge"));
-    
+    graph_storage
+        .delete_edge("edgequake", "rust")
+        .await
+        .expect("Failed to delete edge");
+    assert!(!graph_storage
+        .has_edge("edgequake", "rust")
+        .await
+        .expect("Failed to check edge"));
+
     // Delete node
-    graph_storage.delete_node("edgequake").await.expect("Failed to delete node");
-    assert!(!graph_storage.has_node("edgequake").await.expect("Failed to check node"));
-    
+    graph_storage
+        .delete_node("edgequake")
+        .await
+        .expect("Failed to delete node");
+    assert!(!graph_storage
+        .has_node("edgequake")
+        .await
+        .expect("Failed to check node"));
+
     // Cleanup
     graph_storage.clear().await.expect("Failed to clear");
 }
@@ -275,11 +380,14 @@ async fn test_postgres_age_basic_operations() {
 #[tokio::test]
 async fn test_postgres_age_graph_traversal() {
     let config = require_postgres!();
-    
+
     let graph_storage = PostgresAGEGraphStorage::new(config);
-    
-    graph_storage.initialize().await.expect("Failed to initialize");
-    
+
+    graph_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize");
+
     // Build a small knowledge graph
     let entities = [
         ("edgequake", "EdgeQuake", "TECHNOLOGY"),
@@ -288,43 +396,61 @@ async fn test_postgres_age_graph_traversal() {
         ("lightrag", "LightRAG", "TECHNOLOGY"),
         ("sarah", "Sarah Chen", "PERSON"),
     ];
-    
+
     for (id, label, entity_type) in entities {
         let mut props = HashMap::new();
         props.insert("label".to_string(), serde_json::json!(label));
         props.insert("type".to_string(), serde_json::json!(entity_type));
-        graph_storage.upsert_node(id, props).await.expect("Failed to upsert node");
+        graph_storage
+            .upsert_node(id, props)
+            .await
+            .expect("Failed to upsert node");
     }
-    
+
     let relationships = [
         ("edgequake", "rust", "BUILT_WITH"),
         ("lightrag", "python", "BUILT_WITH"),
         ("edgequake", "lightrag", "INSPIRED_BY"),
         ("sarah", "edgequake", "DESIGNED"),
     ];
-    
+
     for (src, tgt, rel) in relationships {
         let mut props = HashMap::new();
         props.insert("relation".to_string(), serde_json::json!(rel));
-        graph_storage.upsert_edge(src, tgt, props).await.expect("Failed to upsert edge");
+        graph_storage
+            .upsert_edge(src, tgt, props)
+            .await
+            .expect("Failed to upsert edge");
     }
-    
+
     // Test traversals
-    let node_count = graph_storage.node_count().await.expect("Failed to count nodes");
+    let node_count = graph_storage
+        .node_count()
+        .await
+        .expect("Failed to count nodes");
     assert_eq!(node_count, 5);
-    
-    let edge_count = graph_storage.edge_count().await.expect("Failed to count edges");
+
+    let edge_count = graph_storage
+        .edge_count()
+        .await
+        .expect("Failed to count edges");
     assert_eq!(edge_count, 4);
-    
+
     // Get neighbors at depth 1
-    let neighbors = graph_storage.get_neighbors("edgequake", 1).await.expect("Failed to get neighbors");
+    let neighbors = graph_storage
+        .get_neighbors("edgequake", 1)
+        .await
+        .expect("Failed to get neighbors");
     assert!(neighbors.len() >= 2); // rust, lightrag, sarah
-    
+
     // Get knowledge graph
-    let kg = graph_storage.get_knowledge_graph("edgequake", 2, 100).await.expect("Failed to get KG");
+    let kg = graph_storage
+        .get_knowledge_graph("edgequake", 2, 100)
+        .await
+        .expect("Failed to get KG");
     assert!(!kg.nodes.is_empty());
     assert!(!kg.edges.is_empty());
-    
+
     // Cleanup
     graph_storage.clear().await.expect("Failed to clear");
 }
@@ -334,16 +460,25 @@ async fn test_postgres_age_graph_traversal() {
 #[tokio::test]
 async fn test_postgres_full_e2e_pipeline() {
     let config = require_postgres!();
-    
+
     // Initialize all PostgreSQL storage components
     let kv_storage = Arc::new(PostgresKVStorage::new(config.clone()));
     let vector_storage = Arc::new(PgVectorStorage::with_dimension(config.clone(), 1536));
     let graph_storage = Arc::new(PostgresAGEGraphStorage::new(config));
-    
-    kv_storage.initialize().await.expect("Failed to initialize KV storage");
-    vector_storage.initialize().await.expect("Failed to initialize vector storage");
-    graph_storage.initialize().await.expect("Failed to initialize graph storage");
-    
+
+    kv_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize KV storage");
+    vector_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize vector storage");
+    graph_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize graph storage");
+
     // 1. Store a document
     let doc_id = "doc-e2e-1";
     let document = serde_json::json!({
@@ -351,72 +486,660 @@ async fn test_postgres_full_e2e_pipeline() {
         "content": "EdgeQuake is a high-performance RAG system built in Rust...",
         "metadata": {"source": "integration_test"}
     });
-    kv_storage.upsert(&[(doc_id.to_string(), document)]).await.expect("Failed to store document");
-    
+    kv_storage
+        .upsert(&[(doc_id.to_string(), document)])
+        .await
+        .expect("Failed to store document");
+
     // 2. Store entities in graph
     let entities = [
-        ("EDGEQUAKE", "EdgeQuake", "TECHNOLOGY", "A high-performance RAG system"),
-        ("RUST", "Rust", "TECHNOLOGY", "A systems programming language"),
+        (
+            "EDGEQUAKE",
+            "EdgeQuake",
+            "TECHNOLOGY",
+            "A high-performance RAG system",
+        ),
+        (
+            "RUST",
+            "Rust",
+            "TECHNOLOGY",
+            "A systems programming language",
+        ),
         ("SARAH_CHEN", "Sarah Chen", "PERSON", "Lead architect"),
     ];
-    
+
     for (id, label, entity_type, description) in entities {
         let mut props = HashMap::new();
         props.insert("label".to_string(), serde_json::json!(label));
         props.insert("type".to_string(), serde_json::json!(entity_type));
         props.insert("description".to_string(), serde_json::json!(description));
-        graph_storage.upsert_node(id, props).await.expect("Failed to create entity");
+        graph_storage
+            .upsert_node(id, props)
+            .await
+            .expect("Failed to create entity");
     }
-    
+
     // 3. Store relationships
     let relationships = [
         ("EDGEQUAKE", "RUST", "BUILT_WITH"),
         ("SARAH_CHEN", "EDGEQUAKE", "DESIGNED"),
     ];
-    
+
     for (src, tgt, rel) in relationships {
         let mut props = HashMap::new();
         props.insert("relation".to_string(), serde_json::json!(rel));
-        graph_storage.upsert_edge(src, tgt, props).await.expect("Failed to create relationship");
+        graph_storage
+            .upsert_edge(src, tgt, props)
+            .await
+            .expect("Failed to create relationship");
     }
-    
+
     // 4. Store entity embeddings
     let create_embedding = |seed: f32| -> Vec<f32> {
-        (0..1536).map(|i| ((i as f32 + seed) / 10000.0).sin()).collect()
+        (0..1536)
+            .map(|i| ((i as f32 + seed) / 10000.0).sin())
+            .collect()
     };
-    
-    vector_storage.upsert(&[
-        ("EDGEQUAKE".to_string(), create_embedding(0.0), serde_json::json!({"label": "EdgeQuake"})),
-        ("RUST".to_string(), create_embedding(1.0), serde_json::json!({"label": "Rust"})),
-        ("SARAH_CHEN".to_string(), create_embedding(2.0), serde_json::json!({"label": "Sarah Chen"})),
-    ]).await.expect("Failed to store embeddings");
-    
+
+    vector_storage
+        .upsert(&[
+            (
+                "EDGEQUAKE".to_string(),
+                create_embedding(0.0),
+                serde_json::json!({"label": "EdgeQuake"}),
+            ),
+            (
+                "RUST".to_string(),
+                create_embedding(1.0),
+                serde_json::json!({"label": "Rust"}),
+            ),
+            (
+                "SARAH_CHEN".to_string(),
+                create_embedding(2.0),
+                serde_json::json!({"label": "Sarah Chen"}),
+            ),
+        ])
+        .await
+        .expect("Failed to store embeddings");
+
     // 5. Query - verify everything works
-    
+
     // Document retrieval
-    let doc = kv_storage.get_by_id(doc_id).await.expect("Failed to get document");
+    let doc = kv_storage
+        .get_by_id(doc_id)
+        .await
+        .expect("Failed to get document");
     assert!(doc.is_some());
     assert_eq!(doc.unwrap()["title"], "EdgeQuake Architecture");
-    
+
     // Vector similarity search
     let query_vec = create_embedding(0.0);
-    let results = vector_storage.query(&query_vec, 3, None).await.expect("Failed to query vectors");
+    let results = vector_storage
+        .query(&query_vec, 3, None)
+        .await
+        .expect("Failed to query vectors");
     assert!(!results.is_empty());
     assert_eq!(results[0].id, "EDGEQUAKE"); // Most similar to itself
-    
+
     // Graph traversal
-    let neighbors = graph_storage.get_neighbors("EDGEQUAKE", 1).await.expect("Failed to get neighbors");
+    let neighbors = graph_storage
+        .get_neighbors("EDGEQUAKE", 1)
+        .await
+        .expect("Failed to get neighbors");
     assert!(!neighbors.is_empty());
-    
+
     // Knowledge graph extraction
-    let kg = graph_storage.get_knowledge_graph("EDGEQUAKE", 2, 50).await.expect("Failed to get KG");
+    let kg = graph_storage
+        .get_knowledge_graph("EDGEQUAKE", 2, 50)
+        .await
+        .expect("Failed to get KG");
     assert!(kg.node_count() >= 2);
     assert!(kg.edge_count() >= 1);
-    
+
     // 6. Cleanup
     kv_storage.clear().await.expect("Failed to clear KV");
-    vector_storage.clear().await.expect("Failed to clear vectors");
+    vector_storage
+        .clear()
+        .await
+        .expect("Failed to clear vectors");
     graph_storage.clear().await.expect("Failed to clear graph");
-    
+
     println!("PostgreSQL E2E test completed successfully!");
+}
+
+// ============ AGE-Specific Cypher Tests ============
+
+#[tokio::test]
+async fn test_age_cypher_variable_length_paths() {
+    let config = require_postgres!();
+
+    let graph_storage = PostgresAGEGraphStorage::new(config);
+    graph_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize");
+
+    // Build a chain: A -> B -> C -> D -> E
+    let nodes = ["A", "B", "C", "D", "E"];
+    for node_id in &nodes {
+        let mut props = HashMap::new();
+        props.insert("name".to_string(), serde_json::json!(node_id));
+        graph_storage
+            .upsert_node(node_id, props)
+            .await
+            .expect("Failed to create node");
+    }
+
+    // Create chain edges
+    for i in 0..nodes.len() - 1 {
+        let mut props = HashMap::new();
+        props.insert("relation".to_string(), serde_json::json!("NEXT"));
+        graph_storage
+            .upsert_edge(nodes[i], nodes[i + 1], props)
+            .await
+            .expect("Failed to create edge");
+    }
+
+    // Test depth 1: A should see B
+    let neighbors_1 = graph_storage
+        .get_neighbors("A", 1)
+        .await
+        .expect("Failed to get neighbors at depth 1");
+    assert_eq!(neighbors_1.len(), 1, "Depth 1 should find 1 neighbor");
+    assert_eq!(neighbors_1[0].id, "B");
+
+    // Test depth 2: A should see B, C
+    let neighbors_2 = graph_storage
+        .get_neighbors("A", 2)
+        .await
+        .expect("Failed to get neighbors at depth 2");
+    assert_eq!(neighbors_2.len(), 2, "Depth 2 should find 2 neighbors");
+
+    // Test depth 3: A should see B, C, D
+    let neighbors_3 = graph_storage
+        .get_neighbors("A", 3)
+        .await
+        .expect("Failed to get neighbors at depth 3");
+    assert_eq!(neighbors_3.len(), 3, "Depth 3 should find 3 neighbors");
+
+    // Test full depth: A should see all 4 other nodes
+    let neighbors_all = graph_storage
+        .get_neighbors("A", 10)
+        .await
+        .expect("Failed to get all neighbors");
+    assert_eq!(neighbors_all.len(), 4, "Should find all 4 neighbors");
+
+    // Cleanup
+    graph_storage.clear().await.expect("Failed to clear");
+}
+
+#[tokio::test]
+async fn test_age_cypher_knowledge_graph_extraction() {
+    let config = require_postgres!();
+
+    let graph_storage = PostgresAGEGraphStorage::new(config);
+    graph_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize");
+
+    // Build a star graph: Center connected to 5 satellites
+    // Also add some satellites connected to each other
+    let center = "CENTER";
+    let satellites = ["SAT1", "SAT2", "SAT3", "SAT4", "SAT5"];
+
+    let mut props = HashMap::new();
+    props.insert("name".to_string(), serde_json::json!("Center Node"));
+    props.insert("type".to_string(), serde_json::json!("HUB"));
+    graph_storage
+        .upsert_node(center, props)
+        .await
+        .expect("Failed to create center");
+
+    for (i, sat_id) in satellites.iter().enumerate() {
+        let mut props = HashMap::new();
+        props.insert(
+            "name".to_string(),
+            serde_json::json!(format!("Satellite {}", i + 1)),
+        );
+        props.insert("type".to_string(), serde_json::json!("SATELLITE"));
+        graph_storage
+            .upsert_node(sat_id, props)
+            .await
+            .expect("Failed to create satellite");
+
+        let mut edge_props = HashMap::new();
+        edge_props.insert("relation".to_string(), serde_json::json!("CONNECTED_TO"));
+        graph_storage
+            .upsert_edge(center, sat_id, edge_props)
+            .await
+            .expect("Failed to create edge");
+    }
+
+    // Add edges between some satellites
+    let mut props = HashMap::new();
+    props.insert("relation".to_string(), serde_json::json!("PEER"));
+    graph_storage
+        .upsert_edge("SAT1", "SAT2", props.clone())
+        .await
+        .expect("Failed");
+    graph_storage
+        .upsert_edge("SAT3", "SAT4", props)
+        .await
+        .expect("Failed");
+
+    // Extract knowledge graph from center
+    let kg = graph_storage
+        .get_knowledge_graph(center, 1, 100)
+        .await
+        .expect("Failed to get KG");
+
+    assert_eq!(kg.node_count(), 6, "Should have center + 5 satellites");
+    assert!(
+        kg.edge_count() >= 5,
+        "Should have at least 5 edges from center"
+    );
+
+    // Extract KG with depth 2 to include satellite-to-satellite edges
+    let kg_deep = graph_storage
+        .get_knowledge_graph(center, 2, 100)
+        .await
+        .expect("Failed to get deep KG");
+
+    assert_eq!(kg_deep.node_count(), 6, "Should still have 6 nodes");
+    assert_eq!(kg_deep.edge_count(), 7, "Should have 5 + 2 = 7 edges");
+
+    // Test truncation
+    let kg_limited = graph_storage
+        .get_knowledge_graph(center, 2, 3)
+        .await
+        .expect("Failed to get limited KG");
+
+    assert!(kg_limited.node_count() <= 3, "Should be limited to 3 nodes");
+    assert!(kg_limited.is_truncated, "Should be marked as truncated");
+
+    // Cleanup
+    graph_storage.clear().await.expect("Failed to clear");
+}
+
+#[tokio::test]
+async fn test_age_cypher_node_degree() {
+    let config = require_postgres!();
+
+    let graph_storage = PostgresAGEGraphStorage::new(config);
+    graph_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize");
+
+    // Create a hub node connected to multiple satellites
+    let hub = "HUB";
+    let satellites = ["S1", "S2", "S3", "S4", "S5"];
+
+    let mut props = HashMap::new();
+    props.insert("type".to_string(), serde_json::json!("hub"));
+    graph_storage
+        .upsert_node(hub, props)
+        .await
+        .expect("Failed to create hub");
+
+    for sat in &satellites {
+        let mut props = HashMap::new();
+        props.insert("type".to_string(), serde_json::json!("satellite"));
+        graph_storage
+            .upsert_node(sat, props)
+            .await
+            .expect("Failed to create satellite");
+
+        let mut edge_props = HashMap::new();
+        edge_props.insert("weight".to_string(), serde_json::json!(1.0));
+        graph_storage
+            .upsert_edge(hub, sat, edge_props)
+            .await
+            .expect("Failed to create edge");
+    }
+
+    // Hub should have degree 5 (5 outgoing edges)
+    let hub_degree = graph_storage
+        .node_degree(hub)
+        .await
+        .expect("Failed to get degree");
+    assert_eq!(hub_degree, 5, "Hub should have degree 5");
+
+    // Satellites should have degree 1 each (1 incoming edge)
+    for sat in &satellites {
+        let sat_degree = graph_storage
+            .node_degree(sat)
+            .await
+            .expect("Failed to get degree");
+        assert_eq!(sat_degree, 1, "Satellite should have degree 1");
+    }
+
+    // Cleanup
+    graph_storage.clear().await.expect("Failed to clear");
+}
+
+#[tokio::test]
+async fn test_age_cypher_search_labels() {
+    let config = require_postgres!();
+
+    let graph_storage = PostgresAGEGraphStorage::new(config);
+    graph_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize");
+
+    // Create nodes with various IDs
+    let node_ids = [
+        "EDGEQUAKE_MAIN",
+        "EDGEQUAKE_API",
+        "EDGEQUAKE_STORAGE",
+        "LIGHTRAG_CORE",
+        "LIGHTRAG_API",
+        "RUST_TOKIO",
+        "PYTHON_ASYNCIO",
+    ];
+
+    for node_id in &node_ids {
+        let mut props = HashMap::new();
+        props.insert("name".to_string(), serde_json::json!(node_id));
+        graph_storage
+            .upsert_node(node_id, props)
+            .await
+            .expect("Failed to create node");
+    }
+
+    // Search for "EDGEQUAKE" should find 3 nodes
+    let edge_results = graph_storage
+        .search_labels("edgequake", 10)
+        .await
+        .expect("Failed to search");
+    assert_eq!(edge_results.len(), 3, "Should find 3 EDGEQUAKE nodes");
+
+    // Search for "API" should find 2 nodes
+    let api_results = graph_storage
+        .search_labels("api", 10)
+        .await
+        .expect("Failed to search");
+    assert_eq!(api_results.len(), 2, "Should find 2 API nodes");
+
+    // Search for "RUST" should find 1 node
+    let rust_results = graph_storage
+        .search_labels("rust", 10)
+        .await
+        .expect("Failed to search");
+    assert_eq!(rust_results.len(), 1, "Should find 1 RUST node");
+
+    // Test limit
+    let limited = graph_storage
+        .search_labels("EDGE", 2)
+        .await
+        .expect("Failed to search");
+    assert_eq!(limited.len(), 2, "Should be limited to 2 results");
+
+    // Cleanup
+    graph_storage.clear().await.expect("Failed to clear");
+}
+
+#[tokio::test]
+async fn test_age_cypher_popular_labels() {
+    let config = require_postgres!();
+
+    let graph_storage = PostgresAGEGraphStorage::new(config);
+    graph_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize");
+
+    // Create nodes with different connectivity
+    let nodes = [
+        "HIGH_DEGREE",
+        "MEDIUM_DEGREE",
+        "LOW_DEGREE",
+        "LEAF1",
+        "LEAF2",
+        "LEAF3",
+    ];
+    for node in &nodes {
+        let mut props = HashMap::new();
+        props.insert("name".to_string(), serde_json::json!(node));
+        graph_storage
+            .upsert_node(node, props)
+            .await
+            .expect("Failed");
+    }
+
+    // HIGH_DEGREE connects to all others
+    for node in &nodes[1..] {
+        let mut props = HashMap::new();
+        props.insert("relation".to_string(), serde_json::json!("CONNECTED"));
+        graph_storage
+            .upsert_edge("HIGH_DEGREE", node, props)
+            .await
+            .expect("Failed");
+    }
+
+    // MEDIUM_DEGREE connects to leafs
+    for node in &nodes[3..] {
+        let mut props = HashMap::new();
+        props.insert("relation".to_string(), serde_json::json!("CONNECTED"));
+        graph_storage
+            .upsert_edge("MEDIUM_DEGREE", node, props)
+            .await
+            .expect("Failed");
+    }
+
+    // LOW_DEGREE connects to one leaf
+    let mut props = HashMap::new();
+    props.insert("relation".to_string(), serde_json::json!("CONNECTED"));
+    graph_storage
+        .upsert_edge("LOW_DEGREE", "LEAF1", props)
+        .await
+        .expect("Failed");
+
+    // Get popular labels (by degree)
+    let popular = graph_storage
+        .get_popular_labels(3)
+        .await
+        .expect("Failed to get popular");
+
+    assert!(!popular.is_empty(), "Should have popular labels");
+    // HIGH_DEGREE should be first (degree 5)
+    assert_eq!(
+        popular[0], "HIGH_DEGREE",
+        "HIGH_DEGREE should be most popular"
+    );
+
+    // Cleanup
+    graph_storage.clear().await.expect("Failed to clear");
+}
+
+#[tokio::test]
+async fn test_age_cypher_edge_properties() {
+    let config = require_postgres!();
+
+    let graph_storage = PostgresAGEGraphStorage::new(config);
+    graph_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize");
+
+    // Create nodes
+    graph_storage
+        .upsert_node("A", HashMap::new())
+        .await
+        .expect("Failed");
+    graph_storage
+        .upsert_node("B", HashMap::new())
+        .await
+        .expect("Failed");
+
+    // Create edge with rich properties
+    let mut edge_props = HashMap::new();
+    edge_props.insert("relation".to_string(), serde_json::json!("KNOWS"));
+    edge_props.insert("weight".to_string(), serde_json::json!(0.95));
+    edge_props.insert("since".to_string(), serde_json::json!("2024-01-01"));
+    edge_props.insert("count".to_string(), serde_json::json!(42));
+
+    graph_storage
+        .upsert_edge("A", "B", edge_props)
+        .await
+        .expect("Failed to create edge");
+
+    // Retrieve and verify edge
+    let edge = graph_storage
+        .get_edge("A", "B")
+        .await
+        .expect("Failed to get edge");
+
+    assert!(edge.is_some(), "Edge should exist");
+    let edge = edge.unwrap();
+    assert_eq!(edge.source, "A");
+    assert_eq!(edge.target, "B");
+    assert_eq!(edge.properties.get("relation").unwrap(), "KNOWS");
+    assert_eq!(edge.properties.get("weight").unwrap(), 0.95);
+    assert_eq!(edge.properties.get("count").unwrap(), 42);
+
+    // Update edge properties
+    let mut updated_props = HashMap::new();
+    updated_props.insert("relation".to_string(), serde_json::json!("CLOSE_FRIENDS"));
+    updated_props.insert("weight".to_string(), serde_json::json!(0.99));
+
+    graph_storage
+        .upsert_edge("A", "B", updated_props)
+        .await
+        .expect("Failed to update edge");
+
+    let updated_edge = graph_storage
+        .get_edge("A", "B")
+        .await
+        .expect("Failed to get updated edge");
+
+    assert!(updated_edge.is_some());
+    let updated_edge = updated_edge.unwrap();
+    assert_eq!(
+        updated_edge.properties.get("relation").unwrap(),
+        "CLOSE_FRIENDS"
+    );
+    assert_eq!(updated_edge.properties.get("weight").unwrap(), 0.99);
+
+    // Cleanup
+    graph_storage.clear().await.expect("Failed to clear");
+}
+
+#[tokio::test]
+async fn test_age_cypher_node_update() {
+    let config = require_postgres!();
+
+    let graph_storage = PostgresAGEGraphStorage::new(config);
+    graph_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize");
+
+    // Create node with initial properties
+    let mut initial_props = HashMap::new();
+    initial_props.insert("name".to_string(), serde_json::json!("Alice"));
+    initial_props.insert("age".to_string(), serde_json::json!(30));
+
+    graph_storage
+        .upsert_node("user-1", initial_props)
+        .await
+        .expect("Failed to create node");
+
+    // Verify initial state
+    let node = graph_storage
+        .get_node("user-1")
+        .await
+        .expect("Failed to get node");
+
+    assert!(node.is_some());
+    let node = node.unwrap();
+    assert_eq!(node.id, "user-1");
+    assert_eq!(node.properties.get("name").unwrap(), "Alice");
+    assert_eq!(node.properties.get("age").unwrap(), 30);
+
+    // Update node properties
+    let mut updated_props = HashMap::new();
+    updated_props.insert("name".to_string(), serde_json::json!("Alice Smith"));
+    updated_props.insert("age".to_string(), serde_json::json!(31));
+    updated_props.insert("city".to_string(), serde_json::json!("New York"));
+
+    graph_storage
+        .upsert_node("user-1", updated_props)
+        .await
+        .expect("Failed to update node");
+
+    // Verify updated state
+    let updated = graph_storage
+        .get_node("user-1")
+        .await
+        .expect("Failed to get updated node");
+
+    assert!(updated.is_some());
+    let updated = updated.unwrap();
+    assert_eq!(updated.properties.get("name").unwrap(), "Alice Smith");
+    assert_eq!(updated.properties.get("age").unwrap(), 31);
+    assert_eq!(updated.properties.get("city").unwrap(), "New York");
+
+    // Cleanup
+    graph_storage.clear().await.expect("Failed to clear");
+}
+
+#[tokio::test]
+async fn test_age_cypher_detach_delete() {
+    let config = require_postgres!();
+
+    let graph_storage = PostgresAGEGraphStorage::new(config);
+    graph_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize");
+
+    // Create a hub with edges
+    graph_storage
+        .upsert_node("HUB", HashMap::new())
+        .await
+        .expect("Failed");
+    graph_storage
+        .upsert_node("SAT1", HashMap::new())
+        .await
+        .expect("Failed");
+    graph_storage
+        .upsert_node("SAT2", HashMap::new())
+        .await
+        .expect("Failed");
+
+    let mut props = HashMap::new();
+    props.insert("relation".to_string(), serde_json::json!("CONNECTS"));
+    graph_storage
+        .upsert_edge("HUB", "SAT1", props.clone())
+        .await
+        .expect("Failed");
+    graph_storage
+        .upsert_edge("HUB", "SAT2", props)
+        .await
+        .expect("Failed");
+
+    // Verify initial state
+    assert_eq!(graph_storage.node_count().await.expect("Failed"), 3);
+    assert_eq!(graph_storage.edge_count().await.expect("Failed"), 2);
+
+    // Delete HUB (should also delete connected edges via DETACH DELETE)
+    graph_storage
+        .delete_node("HUB")
+        .await
+        .expect("Failed to delete hub");
+
+    // Verify HUB is gone but satellites remain
+    assert!(!graph_storage.has_node("HUB").await.expect("Failed"));
+    assert!(graph_storage.has_node("SAT1").await.expect("Failed"));
+    assert!(graph_storage.has_node("SAT2").await.expect("Failed"));
+
+    // Edges should be gone too
+    assert_eq!(graph_storage.edge_count().await.expect("Failed"), 0);
+    assert_eq!(graph_storage.node_count().await.expect("Failed"), 2);
+
+    // Cleanup
+    graph_storage.clear().await.expect("Failed to clear");
 }
