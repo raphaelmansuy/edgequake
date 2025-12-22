@@ -306,7 +306,7 @@ async fn test_query_stats() {
 
     let body = extract_json(response).await;
     let stats = body.get("stats").expect("Should have stats");
-    
+
     assert!(stats.get("embedding_time_ms").is_some());
     assert!(stats.get("retrieval_time_ms").is_some());
     assert!(stats.get("generation_time_ms").is_some());
@@ -364,14 +364,14 @@ async fn test_stream_query_success() {
 
     // Streaming responses return 200 with SSE content type
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     // Verify content type is SSE
     let content_type = response
         .headers()
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    
+
     assert!(content_type.contains("text/event-stream"));
 }
 
@@ -443,7 +443,7 @@ async fn test_query_after_document_upload() {
 
     let body = extract_json(response).await;
     assert!(body.get("answer").is_some());
-    
+
     // With mock LLM, we should still get sources
     let sources = body.get("sources").and_then(|v| v.as_array());
     assert!(sources.is_some());
@@ -482,7 +482,7 @@ async fn test_query_sources_types() {
 
     let body = extract_json(response).await;
     let sources = body.get("sources").and_then(|v| v.as_array());
-    
+
     if let Some(sources) = sources {
         for source in sources {
             let source_type = source.get("source_type").and_then(|v| v.as_str());
@@ -576,7 +576,10 @@ async fn test_query_with_conversation_history() {
 
     let body = extract_json(response).await;
     assert!(body.get("answer").is_some());
-    assert!(body.get("conversation_id").is_some(), "Should return conversation_id when history is provided");
+    assert!(
+        body.get("conversation_id").is_some(),
+        "Should return conversation_id when history is provided"
+    );
 }
 
 #[tokio::test]
@@ -605,7 +608,9 @@ async fn test_query_without_conversation_history_no_id() {
     let body = extract_json(response).await;
     assert!(body.get("answer").is_some());
     // No conversation_id when no history is provided
-    assert!(body.get("conversation_id").is_none() || body.get("conversation_id").unwrap().is_null());
+    assert!(
+        body.get("conversation_id").is_none() || body.get("conversation_id").unwrap().is_null()
+    );
 }
 
 #[tokio::test]
@@ -662,14 +667,20 @@ async fn test_query_conversation_history_structure() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = extract_json(response).await;
-    
+
     // Verify response structure
     assert!(body.get("answer").is_some(), "Response should have answer");
     assert!(body.get("mode").is_some(), "Response should have mode");
-    assert!(body.get("sources").is_some(), "Response should have sources");
+    assert!(
+        body.get("sources").is_some(),
+        "Response should have sources"
+    );
     assert!(body.get("stats").is_some(), "Response should have stats");
-    assert!(body.get("conversation_id").is_some(), "Response should have conversation_id");
-    
+    assert!(
+        body.get("conversation_id").is_some(),
+        "Response should have conversation_id"
+    );
+
     // Verify conversation_id is a valid UUID
     let conv_id = body.get("conversation_id").unwrap().as_str().unwrap();
     assert_eq!(conv_id.len(), 36, "Conversation ID should be a UUID");
@@ -678,7 +689,7 @@ async fn test_query_conversation_history_structure() {
 #[tokio::test]
 async fn test_query_multi_turn_context() {
     let server = Server::new(create_test_config(), AppState::test_state());
-    
+
     // First query without history
     let request1 = json!({
         "query": "Tell me about Rust programming",
@@ -762,7 +773,7 @@ async fn test_query_with_reranking_enabled() {
     let body = extract_json(response).await;
     assert!(body.get("answer").is_some());
     assert_eq!(body.get("reranked").and_then(|v| v.as_bool()), Some(true));
-    
+
     // Stats should include rerank time
     let stats = body.get("stats").unwrap();
     assert!(stats.get("rerank_time_ms").is_some());
@@ -794,13 +805,13 @@ async fn test_query_with_reranking_disabled() {
 
     let body = extract_json(response).await;
     assert!(body.get("answer").is_some());
-    
+
     // Reranked should be false (and omitted from response due to skip_serializing_if)
     assert!(
-        body.get("reranked").is_none() || 
-        body.get("reranked").and_then(|v| v.as_bool()) == Some(false)
+        body.get("reranked").is_none()
+            || body.get("reranked").and_then(|v| v.as_bool()) == Some(false)
     );
-    
+
     // Rerank time should not be present
     let stats = body.get("stats").unwrap();
     assert!(stats.get("rerank_time_ms").is_none());
@@ -832,7 +843,7 @@ async fn test_query_rerank_default_enabled() {
 
     let body = extract_json(response).await;
     assert!(body.get("answer").is_some());
-    
+
     // Default should be reranked = true
     assert_eq!(body.get("reranked").and_then(|v| v.as_bool()), Some(true));
 }
@@ -865,27 +876,32 @@ async fn test_query_rerank_with_top_k() {
     let body = extract_json(response).await;
     assert!(body.get("answer").is_some());
     assert_eq!(body.get("reranked").and_then(|v| v.as_bool()), Some(true));
-    
+
     // Sources should be limited to top_k chunks (if there were any)
     let sources = body.get("sources").and_then(|v| v.as_array()).unwrap();
-    let chunks: Vec<&Value> = sources.iter()
+    let chunks: Vec<&Value> = sources
+        .iter()
         .filter(|s| s.get("source_type").and_then(|v| v.as_str()) == Some("chunk"))
         .collect();
-    assert!(chunks.len() <= 3, "Should have at most 3 chunks after rerank_top_k");
+    assert!(
+        chunks.len() <= 3,
+        "Should have at most 3 chunks after rerank_top_k"
+    );
 }
 
 #[tokio::test]
 async fn test_query_rerank_sources_have_rerank_scores() {
     let server = Server::new(create_test_config(), AppState::test_state());
-    
+
     // First upload a document to ensure we have chunks
     let _doc_id = upload_document(
         &server,
         "Machine learning is a branch of artificial intelligence. \
          It enables systems to learn from data. \
-         Deep learning uses neural networks with many layers."
-    ).await;
-    
+         Deep learning uses neural networks with many layers.",
+    )
+    .await;
+
     let request = json!({
         "query": "What is machine learning?",
         "mode": "naive",
@@ -909,7 +925,7 @@ async fn test_query_rerank_sources_have_rerank_scores() {
 
     let body = extract_json(response).await;
     assert_eq!(body.get("reranked").and_then(|v| v.as_bool()), Some(true));
-    
+
     // Check that chunk sources have rerank_score field
     let sources = body.get("sources").and_then(|v| v.as_array()).unwrap();
     for source in sources {

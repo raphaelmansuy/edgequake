@@ -1063,7 +1063,7 @@ async fn test_complete_auth_flow() {
 #[tokio::test]
 async fn test_get_me_success() {
     let server = create_test_server();
-    
+
     // 1. Create a user
     let app = server.build_router();
     let response = app
@@ -1128,7 +1128,7 @@ async fn test_get_me_success() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let me_json = parse_json(response).await;
     assert!(me_json.get("user").is_some());
     assert_eq!(me_json["user"]["username"], "getmetest");
@@ -1200,7 +1200,7 @@ async fn test_get_me_invalid_token() {
 #[tokio::test]
 async fn test_get_me_response_structure() {
     let server = create_test_server();
-    
+
     // Create user and login
     let app = server.build_router();
     app.oneshot(
@@ -1258,11 +1258,14 @@ async fn test_get_me_response_structure() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let json = parse_json(response).await;
-    
+
     // Verify response structure
-    assert!(json.get("user").is_some(), "Response should have user object");
+    assert!(
+        json.get("user").is_some(),
+        "Response should have user object"
+    );
     let user = &json["user"];
     assert!(user.get("user_id").is_some(), "User should have user_id");
     assert!(user.get("username").is_some(), "User should have username");

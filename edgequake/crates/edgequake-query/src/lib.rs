@@ -37,7 +37,9 @@ pub use chunk_retrieval::{
     ChunkSelectionMethod,
 };
 pub use context::{QueryContext, RetrievedContext};
-pub use engine::{QueryEngine, QueryEngineConfig, QueryRequest, QueryResponse, ConversationMessage};
+pub use engine::{
+    ConversationMessage, QueryEngine, QueryEngineConfig, QueryRequest, QueryResponse,
+};
 pub use error::{QueryError, Result};
 pub use keywords::{KeywordExtractor, Keywords, LLMKeywordExtractor, MockKeywordExtractor};
 pub use modes::QueryMode;

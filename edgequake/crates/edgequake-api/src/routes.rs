@@ -49,7 +49,10 @@ fn api_v1_routes() -> Router<AppState> {
         )
         // File Upload (multipart)
         .route("/documents/upload", post(handlers::upload_file))
-        .route("/documents/upload/batch", post(handlers::upload_files_batch))
+        .route(
+            "/documents/upload/batch",
+            post(handlers::upload_files_batch),
+        )
         // Query
         .route("/query", post(handlers::execute_query))
         .route("/query/stream", post(handlers::stream_query))

@@ -64,7 +64,7 @@ fn create_multipart_body(filename: &str, content: &str) -> (String, Vec<u8>) {
 fn create_batch_multipart_body(files: &[(&str, &str)]) -> (String, Vec<u8>) {
     let boundary = "----TestBoundary1234567890";
     let mut body = String::new();
-    
+
     for (filename, content) in files {
         body.push_str(&format!(
             "--{boundary}\r\n\
@@ -76,7 +76,7 @@ fn create_batch_multipart_body(files: &[(&str, &str)]) -> (String, Vec<u8>) {
             content = content
         ));
     }
-    
+
     body.push_str(&format!("--{boundary}--\r\n", boundary = boundary));
     (boundary.to_string(), body.into_bytes())
 }
@@ -88,10 +88,10 @@ fn create_batch_multipart_body(files: &[(&str, &str)]) -> (String, Vec<u8>) {
 #[tokio::test]
 async fn test_upload_file_success() {
     let app = create_test_app();
-    
+
     let (boundary, body) = create_multipart_body(
         "test_document.txt",
-        "This is a test document about artificial intelligence and machine learning."
+        "This is a test document about artificial intelligence and machine learning.",
     );
 
     let response = app
@@ -113,19 +113,25 @@ async fn test_upload_file_success() {
 
     let body = extract_json(response).await;
     assert!(body.get("document_id").is_some());
-    assert_eq!(body.get("filename").and_then(|v| v.as_str()), Some("test_document.txt"));
+    assert_eq!(
+        body.get("filename").and_then(|v| v.as_str()),
+        Some("test_document.txt")
+    );
     assert!(body.get("size").is_some());
     assert!(body.get("content_hash").is_some());
-    assert_eq!(body.get("status").and_then(|v| v.as_str()), Some("processed"));
+    assert_eq!(
+        body.get("status").and_then(|v| v.as_str()),
+        Some("processed")
+    );
 }
 
 #[tokio::test]
 async fn test_upload_file_markdown() {
     let app = create_test_app();
-    
+
     let (boundary, body) = create_multipart_body(
         "readme.md",
-        "# Test Document\n\nThis is a markdown document with **bold** text."
+        "# Test Document\n\nThis is a markdown document with **bold** text.",
     );
 
     let response = app
@@ -146,16 +152,19 @@ async fn test_upload_file_markdown() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = extract_json(response).await;
-    assert_eq!(body.get("filename").and_then(|v| v.as_str()), Some("readme.md"));
+    assert_eq!(
+        body.get("filename").and_then(|v| v.as_str()),
+        Some("readme.md")
+    );
 }
 
 #[tokio::test]
 async fn test_upload_file_json() {
     let app = create_test_app();
-    
+
     let (boundary, body) = create_multipart_body(
         "config.json",
-        r#"{"name": "test", "version": "1.0", "features": ["rag", "graph"]}"#
+        r#"{"name": "test", "version": "1.0", "features": ["rag", "graph"]}"#,
     );
 
     let response = app
@@ -179,7 +188,7 @@ async fn test_upload_file_json() {
 #[tokio::test]
 async fn test_upload_file_unsupported_type() {
     let app = create_test_app();
-    
+
     // Binary file type should be rejected
     let boundary = "----TestBoundary1234567890";
     let body = format!(
@@ -213,7 +222,7 @@ async fn test_upload_file_unsupported_type() {
 #[tokio::test]
 async fn test_upload_file_empty_content() {
     let app = create_test_app();
-    
+
     let (boundary, body) = create_multipart_body("empty.txt", "");
 
     let response = app
@@ -233,15 +242,15 @@ async fn test_upload_file_empty_content() {
 
     // Should fail validation for empty content (returns 400 BAD_REQUEST or 422)
     assert!(
-        response.status() == StatusCode::BAD_REQUEST || 
-        response.status() == StatusCode::UNPROCESSABLE_ENTITY
+        response.status() == StatusCode::BAD_REQUEST
+            || response.status() == StatusCode::UNPROCESSABLE_ENTITY
     );
 }
 
 #[tokio::test]
 async fn test_upload_file_no_file() {
     let app = create_test_app();
-    
+
     // Empty multipart body
     let boundary = "----TestBoundary1234567890";
     let body = format!("--{boundary}--\r\n", boundary = boundary);
@@ -272,7 +281,7 @@ async fn test_upload_file_no_file() {
 #[tokio::test]
 async fn test_upload_file_deduplication() {
     let server = create_test_server();
-    
+
     let content = "This is a unique document about quantum computing and neural networks.";
     let (boundary, body) = create_multipart_body("document1.txt", content);
 
@@ -300,7 +309,7 @@ async fn test_upload_file_deduplication() {
 
     // Upload same content with different filename
     let (boundary2, body2) = create_multipart_body("document2.txt", content);
-    
+
     let app = server.build_router();
     let response2 = app
         .oneshot(
@@ -324,12 +333,15 @@ async fn test_upload_file_deduplication() {
 
     // Same hash
     assert_eq!(hash1, hash2);
-    
+
     // Same document ID (deduplicated)
     assert_eq!(doc_id1, doc_id2);
-    
+
     // Status should indicate duplicate
-    assert_eq!(body2.get("status").and_then(|v| v.as_str()), Some("duplicate"));
+    assert_eq!(
+        body2.get("status").and_then(|v| v.as_str()),
+        Some("duplicate")
+    );
 }
 
 // ============================================================================
@@ -339,13 +351,22 @@ async fn test_upload_file_deduplication() {
 #[tokio::test]
 async fn test_upload_batch_success() {
     let app = create_test_app();
-    
+
     let files = vec![
-        ("doc1.txt", "First document about machine learning algorithms."),
-        ("doc2.txt", "Second document about natural language processing."),
-        ("doc3.txt", "Third document about computer vision techniques."),
+        (
+            "doc1.txt",
+            "First document about machine learning algorithms.",
+        ),
+        (
+            "doc2.txt",
+            "Second document about natural language processing.",
+        ),
+        (
+            "doc3.txt",
+            "Third document about computer vision techniques.",
+        ),
     ];
-    
+
     let (boundary, body) = create_batch_multipart_body(&files);
 
     let response = app
@@ -367,10 +388,10 @@ async fn test_upload_batch_success() {
 
     let body = extract_json(response).await;
     assert!(body.get("results").is_some());
-    
+
     let results = body.get("results").unwrap().as_array().unwrap();
     assert_eq!(results.len(), 3);
-    
+
     assert_eq!(body.get("total_files").and_then(|v| v.as_u64()), Some(3));
     assert_eq!(body.get("processed").and_then(|v| v.as_u64()), Some(3));
     assert_eq!(body.get("duplicates").and_then(|v| v.as_u64()), Some(0));
@@ -380,15 +401,15 @@ async fn test_upload_batch_success() {
 #[tokio::test]
 async fn test_upload_batch_with_duplicates() {
     let server = create_test_server();
-    
+
     let content = "Duplicate content for batch testing purposes.";
-    
+
     let files = vec![
         ("unique1.txt", "First unique document about blockchain."),
         ("dup1.txt", content),
-        ("dup2.txt", content),  // Same content as dup1
+        ("dup2.txt", content), // Same content as dup1
     ];
-    
+
     let (boundary, body) = create_batch_multipart_body(&files);
 
     let app = server.build_router();
@@ -418,7 +439,7 @@ async fn test_upload_batch_with_duplicates() {
 #[tokio::test]
 async fn test_upload_batch_empty() {
     let app = create_test_app();
-    
+
     // Empty batch
     let boundary = "----TestBoundary1234567890";
     let body = format!("--{boundary}--\r\n", boundary = boundary);
@@ -440,7 +461,7 @@ async fn test_upload_batch_empty() {
 
     // Empty batch should return success with 0 files
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let body = extract_json(response).await;
     assert_eq!(body.get("total_files").and_then(|v| v.as_u64()), Some(0));
 }
@@ -448,12 +469,12 @@ async fn test_upload_batch_empty() {
 #[tokio::test]
 async fn test_upload_batch_mixed_valid_invalid() {
     let app = create_test_app();
-    
+
     let files = vec![
         ("valid.txt", "Valid text document content."),
-        ("empty.txt", ""),  // Invalid: empty content
+        ("empty.txt", ""), // Invalid: empty content
     ];
-    
+
     let (boundary, body) = create_batch_multipart_body(&files);
 
     let response = app
@@ -486,12 +507,12 @@ async fn test_upload_batch_mixed_valid_invalid() {
 #[tokio::test]
 async fn test_content_hash_consistency() {
     let server = create_test_server();
-    
+
     let content = "Consistent content for hash verification testing.";
-    
+
     // Upload file
     let (boundary, body) = create_multipart_body("hash_test.txt", content);
-    
+
     let app = server.build_router();
     let response = app
         .oneshot(
@@ -510,10 +531,10 @@ async fn test_content_hash_consistency() {
 
     let body = extract_json(response).await;
     let hash = body.get("content_hash").and_then(|v| v.as_str()).unwrap();
-    
+
     // Hash should be 64 characters (SHA-256 hex)
     assert_eq!(hash.len(), 64);
-    
+
     // Should only contain hex characters
     assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
 }
@@ -525,7 +546,7 @@ async fn test_content_hash_consistency() {
 #[tokio::test]
 async fn test_upload_file_size_reported() {
     let app = create_test_app();
-    
+
     let content = "This is a test document with known size.";
     let (boundary, body) = create_multipart_body("size_test.txt", content);
 
@@ -548,7 +569,7 @@ async fn test_upload_file_size_reported() {
 
     let body = extract_json(response).await;
     let size = body.get("size").and_then(|v| v.as_u64()).unwrap();
-    
+
     // Size should match content length
     assert_eq!(size, content.len() as u64);
 }
@@ -560,10 +581,10 @@ async fn test_upload_file_size_reported() {
 #[tokio::test]
 async fn test_upload_file_response_structure() {
     let app = create_test_app();
-    
+
     let (boundary, body) = create_multipart_body(
         "structure_test.txt",
-        "Document for testing response structure."
+        "Document for testing response structure.",
     );
 
     let response = app
@@ -584,31 +605,34 @@ async fn test_upload_file_response_structure() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = extract_json(response).await;
-    
+
     // Required fields
     assert!(body.get("document_id").is_some(), "Missing document_id");
     assert!(body.get("filename").is_some(), "Missing filename");
     assert!(body.get("size").is_some(), "Missing size");
     assert!(body.get("content_hash").is_some(), "Missing content_hash");
     assert!(body.get("status").is_some(), "Missing status");
-    
+
     // Processing counts (for processed status)
     if body.get("status").and_then(|v| v.as_str()) == Some("processed") {
         assert!(body.get("chunk_count").is_some(), "Missing chunk_count");
         assert!(body.get("entity_count").is_some(), "Missing entity_count");
-        assert!(body.get("relationship_count").is_some(), "Missing relationship_count");
+        assert!(
+            body.get("relationship_count").is_some(),
+            "Missing relationship_count"
+        );
     }
 }
 
 #[tokio::test]
 async fn test_batch_upload_response_structure() {
     let app = create_test_app();
-    
+
     let files = vec![
         ("batch_struct1.txt", "First batch document."),
         ("batch_struct2.txt", "Second batch document."),
     ];
-    
+
     let (boundary, body) = create_batch_multipart_body(&files);
 
     let response = app
@@ -629,14 +653,14 @@ async fn test_batch_upload_response_structure() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = extract_json(response).await;
-    
+
     // Required fields
     assert!(body.get("results").is_some(), "Missing results array");
     assert!(body.get("total_files").is_some(), "Missing total_files");
     assert!(body.get("processed").is_some(), "Missing processed");
     assert!(body.get("duplicates").is_some(), "Missing duplicates");
     assert!(body.get("failed").is_some(), "Missing failed");
-    
+
     // Each file in array should have required fields
     let results = body.get("results").unwrap().as_array().unwrap();
     for file in results {
