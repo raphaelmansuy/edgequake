@@ -8,6 +8,7 @@ use edgequake_query::{QueryEngine, QueryEngineConfig};
 use edgequake_storage::adapters::memory::{
     MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
 };
+use edgequake_tasks::{SharedTaskQueue, SharedTaskStorage};
 
 /// Application state shared across handlers.
 #[derive(Clone)]
@@ -32,6 +33,12 @@ pub struct AppState {
 
     /// Processing pipeline.
     pub pipeline: Arc<Pipeline>,
+
+    /// Task storage.
+    pub task_storage: SharedTaskStorage,
+
+    /// Task queue.
+    pub task_queue: SharedTaskQueue,
 
     /// Configuration.
     pub config: AppConfig,
@@ -70,6 +77,8 @@ impl AppState {
         embedding_provider: Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
         query_engine: Arc<QueryEngine>,
         pipeline: Arc<Pipeline>,
+        task_storage: SharedTaskStorage,
+        task_queue: SharedTaskQueue,
     ) -> Self {
         Self {
             kv_storage,
@@ -79,6 +88,8 @@ impl AppState {
             embedding_provider,
             query_engine,
             pipeline,
+            task_storage,
+            task_queue,
             config: AppConfig::default(),
         }
     }
@@ -90,6 +101,10 @@ impl AppState {
         let graph_storage = Arc::new(MemoryGraphStorage::new("default"));
         let llm_provider = Arc::new(OpenAIProvider::new(llm_api_key));
         let pipeline = Arc::new(Pipeline::default_pipeline());
+
+        // Create task infrastructure
+        let task_storage = Arc::new(edgequake_tasks::memory::MemoryTaskStorage::new());
+        let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
 
         // Create query engine
         let query_engine = Arc::new(QueryEngine::new(
@@ -111,6 +126,8 @@ impl AppState {
                 as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
             query_engine,
             pipeline,
+            task_storage,
+            task_queue,
             config: AppConfig::default(),
         }
     }
@@ -124,6 +141,10 @@ impl AppState {
         let vector_storage = Arc::new(MemoryVectorStorage::new("test", 1536)); // Match MockProvider dimension
         let graph_storage = Arc::new(MemoryGraphStorage::new("test"));
         let pipeline = Arc::new(Pipeline::default_pipeline());
+
+        // Create task infrastructure
+        let task_storage = Arc::new(edgequake_tasks::memory::MemoryTaskStorage::new());
+        let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
 
         let query_config = QueryEngineConfig::default();
         let query_engine = Arc::new(QueryEngine::new(
@@ -145,6 +166,8 @@ impl AppState {
                 as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
             query_engine,
             pipeline,
+            task_storage,
+            task_queue,
             config: AppConfig::default(),
         }
     }

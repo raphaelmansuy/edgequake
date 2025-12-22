@@ -13,6 +13,7 @@ edgequake-storage = { path = "../edgequake-storage" }
 edgequake-llm = { path = "../edgequake-llm" }
 edgequake-pipeline = { path = "../edgequake-pipeline" }
 edgequake-query = { path = "../edgequake-query" }
+edgequake-tasks = { path = "../edgequake-tasks", features = ["postgres"] }
 
 axum.workspace = true
 tokio = { workspace = true, features = ["full"] }
@@ -31,6 +32,11 @@ utoipa.workspace = true
 utoipa-swagger-ui = { version = "9", features = ["axum"] }
 uuid.workspace = true
 futures.workspace = true
+
+# File handling
+sha2 = "0.10"
+hex = "0.4"
+bytes = "1.9"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }

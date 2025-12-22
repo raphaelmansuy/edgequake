@@ -38,6 +38,11 @@ fn api_v1_routes() -> Router<AppState> {
         .route("/graph", get(handlers::get_graph))
         .route("/graph/nodes/{node_id}", get(handlers::get_node))
         .route("/graph/labels/search", get(handlers::search_labels))
+        // Tasks
+        .route("/tasks/{track_id}", get(handlers::get_task))
+        .route("/tasks", get(handlers::list_tasks))
+        .route("/tasks/{track_id}/cancel", post(handlers::cancel_task))
+        .route("/tasks/{track_id}/retry", post(handlers::retry_task))
 }
 
 #[cfg(test)]

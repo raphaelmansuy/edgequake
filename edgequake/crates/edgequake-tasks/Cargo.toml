@@ -1,0 +1,57 @@
+[package]
+name = "edgequake-tasks"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.43", features = ["full"] }
+tokio-util = "0.7"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# UUID generation
+uuid = { version = "1.11", features = ["v4", "serde"] }
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Logging
+tracing = "0.1"
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Async traits
+async-trait = "0.1"
+
+# CPU detection
+num_cpus = "1.16"
+
+# Redis (optional)
+redis = { version = "0.27", features = [
+    "tokio-comp",
+    "tokio-rustls-comp",
+], optional = true }
+
+# Database (optional, for persistence)
+sqlx = { version = "0.8", features = [
+    "postgres",
+    "runtime-tokio-rustls",
+    "chrono",
+    "uuid",
+    "json",
+], optional = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
+
+[features]
+default = ["memory"]
+memory = []
+redis-queue = ["redis"]
+postgres = ["sqlx"]
