@@ -34,6 +34,7 @@ Content-Type: application/json
 ```
 
 **Request:**
+
 ```json
 {
   "entity_name": "QUANTUM_COMPUTING",
@@ -49,6 +50,7 @@ Content-Type: application/json
 ```
 
 **Response (201 Created):**
+
 ```json
 {
   "status": "success",
@@ -72,6 +74,7 @@ Content-Type: application/json
 ```
 
 **Response (409 Conflict):**
+
 ```json
 {
   "error": "entity_exists",
@@ -88,6 +91,7 @@ GET /api/v1/graph/entities/{entity_name}
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "entity": {
@@ -134,6 +138,7 @@ Content-Type: application/json
 ```
 
 **Request:**
+
 ```json
 {
   "entity_type": "TECHNOLOGY",
@@ -147,6 +152,7 @@ Content-Type: application/json
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "status": "success",
@@ -173,10 +179,12 @@ DELETE /api/v1/graph/entities/{entity_name}
 ```
 
 **Query Parameters:**
+
 - `delete_relationships`: boolean (default: true) - Also delete connected relationships
 - `confirm`: boolean (required: true) - Confirmation flag
 
 **Response (200 OK):**
+
 ```json
 {
   "status": "success",
@@ -194,6 +202,7 @@ GET /api/v1/graph/entities/exists?entity_name=QUANTUM_COMPUTING
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "exists": true,
@@ -211,6 +220,7 @@ Content-Type: application/json
 ```
 
 **Request:**
+
 ```json
 {
   "source_entity": "quantum_computing",
@@ -224,6 +234,7 @@ Content-Type: application/json
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "status": "success",
@@ -256,6 +267,7 @@ Content-Type: application/json
 ```
 
 **Request:**
+
 ```json
 {
   "src_id": "QUANTUM_COMPUTING",
@@ -273,6 +285,7 @@ Content-Type: application/json
 ```
 
 **Response (201 Created):**
+
 ```json
 {
   "status": "success",
@@ -299,6 +312,7 @@ GET /api/v1/graph/relationships/{relationship_id}
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "relationship": {
@@ -334,6 +348,7 @@ Content-Type: application/json
 ```
 
 **Request:**
+
 ```json
 {
   "keywords": "application, security, encryption, quantum_resistance",
@@ -347,6 +362,7 @@ Content-Type: application/json
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "status": "success",
@@ -372,6 +388,7 @@ DELETE /api/v1/graph/relationships/{relationship_id}
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "status": "success",
@@ -391,6 +408,7 @@ GET /api/v1/graph/statistics
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "nodes": {
@@ -436,6 +454,7 @@ GET /api/v1/graph/labels/popular?limit=20
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "labels": [
@@ -463,6 +482,7 @@ GET /api/v1/graph/labels/search?q=quantum&limit=10
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "results": [
@@ -600,7 +620,7 @@ impl EntityMerger {
             .ok_or(Error::EntityNotFound(source_id.to_string()))?;
         let target = self.graph_storage.get_entity(target_id).await?
             .ok_or(Error::EntityNotFound(target_id.to_string()))?;
-        
+
         // 2. Merge descriptions
         let merged_description = match strategy {
             MergeStrategy::PreferTarget => target.description,
@@ -616,10 +636,10 @@ impl EntityMerger {
                 }
             }
         };
-        
+
         // 3. Get all relationships of source entity
         let source_rels = self.graph_storage.get_entity_relationships(source_id).await?;
-        
+
         // 4. Redirect relationships to target entity
         for rel in source_rels {
             // Check if similar relationship already exists
@@ -635,17 +655,17 @@ impl EntityMerger {
                 ).await?;
             }
         }
-        
+
         // 5. Update target entity
         let mut merged_entity = target.clone();
         merged_entity.description = merged_description;
         merged_entity.updated_at = Utc::now();
-        
+
         self.graph_storage.update_entity(&merged_entity).await?;
-        
+
         // 6. Delete source entity
         self.graph_storage.delete_entity(source_id).await?;
-        
+
         // 7. Log merge operation
         self.audit_log.log_merge(
             source_id,
@@ -653,7 +673,7 @@ impl EntityMerger {
             user_id,
             &format!("Merged {} into {}", source_id, target_id),
         ).await?;
-        
+
         Ok(merged_entity)
     }
 }
@@ -677,20 +697,20 @@ impl GraphValidator {
                 "Entity name must be uppercase".to_string()
             ));
         }
-        
+
         // Check entity doesn't already exist
         if self.graph_storage.get_entity(&entity.id).await?.is_some() {
             return Err(ValidationError::EntityExists(entity.id.clone()));
         }
-        
+
         // Check description is not empty
         if entity.description.trim().is_empty() {
             return Err(ValidationError::EmptyDescription);
         }
-        
+
         Ok(())
     }
-    
+
     pub async fn validate_relationship_create(
         &self,
         relationship: &Relationship,
@@ -699,17 +719,17 @@ impl GraphValidator {
         if self.graph_storage.get_entity(&relationship.src_id).await?.is_none() {
             return Err(ValidationError::EntityNotFound(relationship.src_id.clone()));
         }
-        
+
         // Check target entity exists
         if self.graph_storage.get_entity(&relationship.tgt_id).await?.is_none() {
             return Err(ValidationError::EntityNotFound(relationship.tgt_id.clone()));
         }
-        
+
         // Check weight is in valid range [0, 1]
         if relationship.weight < 0.0 || relationship.weight > 1.0 {
             return Err(ValidationError::InvalidWeight(relationship.weight));
         }
-        
+
         Ok(())
     }
 }
@@ -723,7 +743,7 @@ impl GraphValidator {
 #[tokio::test]
 async fn test_create_entity() {
     let app = test_app().await;
-    
+
     let response = app
         .post("/api/v1/graph/entities")
         .json(&json!({
@@ -734,9 +754,9 @@ async fn test_create_entity() {
         }))
         .send()
         .await;
-    
+
     assert_eq!(response.status(), StatusCode::CREATED);
-    
+
     let body: CreateEntityResponse = response.json().await;
     assert_eq!(body.entity.entity_name, "TEST_ENTITY");
 }
@@ -744,11 +764,11 @@ async fn test_create_entity() {
 #[tokio::test]
 async fn test_merge_entities() {
     let app = test_app().await;
-    
+
     // Create two entities
     create_entity(&app, "ENTITY_A").await;
     create_entity(&app, "ENTITY_B").await;
-    
+
     // Merge them
     let response = app
         .post("/api/v1/graph/entities/merge")
@@ -759,9 +779,9 @@ async fn test_merge_entities() {
         }))
         .send()
         .await;
-    
+
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     // Verify source entity is deleted
     let get_response = app
         .get("/api/v1/graph/entities/ENTITY_A")

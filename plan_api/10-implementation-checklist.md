@@ -8,6 +8,7 @@
 ## Phase 1: Background Tasks (v1.1.0)
 
 ### Core Infrastructure
+
 - [ ] Create `edgequake-tasks` crate
 - [ ] Define `Task` struct and `TaskStatus` enum
 - [ ] Implement `TaskQueue` trait
@@ -17,12 +18,14 @@
 - [ ] Add track ID generation: `{type}-{uuid}`
 
 ### Database Schema
+
 - [ ] Create `tasks` table migration
 - [ ] Create `document_status` table migration
 - [ ] Create `conversation_history` table migration
 - [ ] Add indexes for performance
 
 ### Document Enhancements
+
 - [ ] Implement multipart file upload handler
 - [ ] Add SHA-256 content hashing
 - [ ] Implement duplicate detection
@@ -30,6 +33,7 @@
 - [ ] Implement directory scanner
 
 ### Query Enhancements
+
 - [ ] Add token budget parameters to `QueryRequest`
 - [ ] Implement `TokenBudgetController`
 - [ ] Implement `ConversationHistoryManager`
@@ -38,6 +42,7 @@
 - [ ] Add context-only endpoint
 
 ### API Endpoints (8 new)
+
 - [ ] `POST /documents/upload` (multipart)
 - [ ] `POST /documents/text` (direct text)
 - [ ] `POST /documents/texts` (batch)
@@ -49,6 +54,7 @@
 - [ ] `POST /query/context` (context only)
 
 ### Testing
+
 - [ ] Unit tests for task queue
 - [ ] Unit tests for token budget controller
 - [ ] Integration tests for async workflow
@@ -56,6 +62,7 @@
 - [ ] Load tests for task queue
 
 ### Documentation
+
 - [ ] Update OpenAPI spec
 - [ ] Write migration guide
 - [ ] Update README with new endpoints
@@ -66,6 +73,7 @@
 ## Phase 2: Graph Management (v1.2.0)
 
 ### Core Infrastructure
+
 - [ ] Create `edgequake-graph-management` crate
 - [ ] Implement `EntityManager`
 - [ ] Implement `RelationshipManager`
@@ -73,34 +81,40 @@
 - [ ] Implement `EntityMerger` with strategies
 
 ### Database Schema
+
 - [ ] Create `audit_log` table migration
 - [ ] Add `is_manual` flag to Entity schema
 - [ ] Add `is_manual` flag to Relationship schema
 
 ### Entity Operations
+
 - [ ] Implement entity CRUD operations
 - [ ] Add entity existence check
 - [ ] Implement entity merge logic
 - [ ] Add merge strategies (prefer_target, prefer_source, etc.)
 
 ### Relationship Operations
+
 - [ ] Implement relationship CRUD operations
 - [ ] Add relationship validation
 - [ ] Implement cascade delete logic
 
 ### Bulk Operations
+
 - [ ] Implement directory scanner
 - [ ] Implement clear all documents
 - [ ] Implement delete failed documents
 - [ ] Implement reindex failed documents
 
 ### Graph Analytics
+
 - [ ] Implement statistics endpoint (node/edge counts)
 - [ ] Implement popular labels query
 - [ ] Implement label search
 - [ ] Add centrality calculations
 
 ### API Endpoints (15 new)
+
 - [ ] `POST /graph/entities` (create)
 - [ ] `GET /graph/entities/{id}` (get)
 - [ ] `PUT /graph/entities/{id}` (update)
@@ -120,6 +134,7 @@
 - [ ] `GET /graph/labels/search` (search labels)
 
 ### Testing
+
 - [ ] Unit tests for entity operations
 - [ ] Unit tests for relationship operations
 - [ ] Unit tests for merge logic
@@ -127,6 +142,7 @@
 - [ ] API tests for bulk operations
 
 ### Documentation
+
 - [ ] Update OpenAPI spec
 - [ ] Document entity merge strategies
 - [ ] Document audit logging
@@ -137,6 +153,7 @@
 ## Phase 3: Production Features (v2.0.0)
 
 ### Authentication
+
 - [ ] Create `edgequake-auth` crate
 - [ ] Implement JWT token generation/validation
 - [ ] Implement API key authentication
@@ -146,6 +163,7 @@
 - [ ] Implement `ApiKeyAuth` extractor
 
 ### Database Schema
+
 - [ ] Create `users` table migration
 - [ ] Create `api_keys` table migration
 - [ ] Create `refresh_tokens` table migration
@@ -154,6 +172,7 @@
 - [ ] Create `memberships` table migration
 
 ### Multi-Tenancy
+
 - [ ] Implement tenant context middleware
 - [ ] Update storage adapters for tenant isolation
 - [ ] Implement workspace management
@@ -161,12 +180,14 @@
 - [ ] Add feature flag: `multi-tenant`
 
 ### RBAC
+
 - [ ] Define roles (admin, user, readonly)
 - [ ] Implement permission checker
 - [ ] Add role-based endpoint guards
 - [ ] Implement admin endpoints
 
 ### Observability
+
 - [ ] Integrate OpenTelemetry
 - [ ] Add Prometheus metrics (20+ metrics)
 - [ ] Implement distributed tracing
@@ -175,12 +196,14 @@
 - [ ] Add health check endpoints
 
 ### Rate Limiting
+
 - [ ] Implement token bucket algorithm
 - [ ] Add per-user rate limits
 - [ ] Add per-tenant rate limits
 - [ ] Return 429 on limit exceeded
 
 ### API Endpoints (25 new)
+
 - [ ] `POST /auth/token` (login)
 - [ ] `POST /auth/refresh` (refresh token)
 - [ ] `POST /auth/logout` (logout)
@@ -202,6 +225,7 @@
 - [ ] `GET /metrics` (Prometheus metrics)
 
 ### Testing
+
 - [ ] Security tests (auth, authz)
 - [ ] Multi-tenant isolation tests
 - [ ] Load tests with rate limiting
@@ -209,6 +233,7 @@
 - [ ] E2E tests for complete workflows
 
 ### Documentation
+
 - [ ] Complete OpenAPI 3.1 spec
 - [ ] Write security documentation
 - [ ] Write multi-tenancy guide
@@ -221,6 +246,7 @@
 ## Cross-Cutting Concerns
 
 ### Performance
+
 - [ ] Optimize database queries
 - [ ] Add connection pooling
 - [ ] Implement caching (Redis)
@@ -228,6 +254,7 @@
 - [ ] Add request batching where possible
 
 ### Security
+
 - [ ] Implement TLS/SSL
 - [ ] Add input validation
 - [ ] Implement SQL injection prevention
@@ -236,6 +263,7 @@
 - [ ] Add security headers
 
 ### Reliability
+
 - [ ] Implement circuit breaker for LLM
 - [ ] Add retry logic with exponential backoff
 - [ ] Implement graceful shutdown
@@ -243,6 +271,7 @@
 - [ ] Implement backup/restore
 
 ### Scalability
+
 - [ ] Test with 100K+ documents
 - [ ] Test with 1M+ entities
 - [ ] Benchmark query performance
@@ -254,6 +283,7 @@
 ## Completion Criteria
 
 ### Phase 1 (v1.1.0)
+
 - ✅ All 8 new endpoints implemented
 - ✅ Background tasks working reliably
 - ✅ 90%+ test coverage
@@ -261,6 +291,7 @@
 - ✅ No performance degradation vs v1.0
 
 ### Phase 2 (v1.2.0)
+
 - ✅ All 15 new endpoints implemented
 - ✅ Graph CRUD operations working
 - ✅ Audit logging functional
@@ -268,6 +299,7 @@
 - ✅ Documentation updated
 
 ### Phase 3 (v2.0.0)
+
 - ✅ All 25 new endpoints implemented
 - ✅ Authentication working
 - ✅ Multi-tenancy functional

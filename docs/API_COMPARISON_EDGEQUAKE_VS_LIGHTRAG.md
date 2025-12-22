@@ -13,6 +13,7 @@ This document provides a comprehensive comparison between **EdgeQuake** (Rust/Ax
 ## Overview
 
 ### EdgeQuake API
+
 - **Framework:** Axum 0.8.8 (Rust)
 - **Server Port:** 8080
 - **Base Path:** `/api/v1`
@@ -21,6 +22,7 @@ This document provides a comprehensive comparison between **EdgeQuake** (Rust/Ax
 - **Multi-tenant Support:** No (single workspace: "default")
 
 ### LightRAG API
+
 - **Framework:** FastAPI (Python)
 - **Server Port:** Configurable (default 8020)
 - **Base Path:** `/api/v1`
@@ -32,30 +34,31 @@ This document provides a comprehensive comparison between **EdgeQuake** (Rust/Ax
 
 ## Core Feature Comparison Matrix
 
-| Feature Category | EdgeQuake | LightRAG | Status |
-|-----------------|-----------|----------|---------|
-| Health/Status | ✅ Yes | ✅ Yes | ✅ Parity |
-| Document Upload | ✅ Yes | ✅ Yes | ⚠️ Partial Parity |
-| Document Listing | ✅ Yes | ✅ Yes | ⚠️ Partial Parity |
-| Document Deletion | ✅ Yes | ✅ Yes | ✅ Parity |
-| Text Insertion | ❌ No | ✅ Yes | ❌ Missing |
-| Batch Text Insertion | ❌ No | ✅ Yes | ❌ Missing |
-| Document Scanning | ❌ No | ✅ Yes | ❌ Missing |
-| Query Execution | ✅ Yes | ✅ Yes | ⚠️ Partial Parity |
-| Streaming Query | ✅ Yes | ✅ Yes | ✅ Parity |
-| Query with Context | ⚠️ Partial | ✅ Yes | ⚠️ Partial |
-| Graph Visualization | ✅ Yes | ✅ Yes | ✅ Parity |
-| Node Search | ✅ Yes | ✅ Yes | ✅ Parity |
-| Entity/Relation Edit | ❌ No | ✅ Yes | ❌ Missing |
-| Entity/Relation Create | ❌ No | ✅ Yes | ❌ Missing |
-| Entity Merge | ❌ No | ✅ Yes | ❌ Missing |
-| Multi-tenancy | ❌ No | ✅ Yes | ❌ Missing |
-| Admin Functions | ❌ No | ✅ Yes | ❌ Missing |
-| Membership Management | ❌ No | ✅ Yes | ❌ Missing |
-| Ollama Proxy | ❌ No | ✅ Yes | ❌ Missing |
-| Authentication | ❌ No | ✅ Yes | ❌ Missing |
+| Feature Category       | EdgeQuake  | LightRAG | Status            |
+| ---------------------- | ---------- | -------- | ----------------- |
+| Health/Status          | ✅ Yes     | ✅ Yes   | ✅ Parity         |
+| Document Upload        | ✅ Yes     | ✅ Yes   | ⚠️ Partial Parity |
+| Document Listing       | ✅ Yes     | ✅ Yes   | ⚠️ Partial Parity |
+| Document Deletion      | ✅ Yes     | ✅ Yes   | ✅ Parity         |
+| Text Insertion         | ❌ No      | ✅ Yes   | ❌ Missing        |
+| Batch Text Insertion   | ❌ No      | ✅ Yes   | ❌ Missing        |
+| Document Scanning      | ❌ No      | ✅ Yes   | ❌ Missing        |
+| Query Execution        | ✅ Yes     | ✅ Yes   | ⚠️ Partial Parity |
+| Streaming Query        | ✅ Yes     | ✅ Yes   | ✅ Parity         |
+| Query with Context     | ⚠️ Partial | ✅ Yes   | ⚠️ Partial        |
+| Graph Visualization    | ✅ Yes     | ✅ Yes   | ✅ Parity         |
+| Node Search            | ✅ Yes     | ✅ Yes   | ✅ Parity         |
+| Entity/Relation Edit   | ❌ No      | ✅ Yes   | ❌ Missing        |
+| Entity/Relation Create | ❌ No      | ✅ Yes   | ❌ Missing        |
+| Entity Merge           | ❌ No      | ✅ Yes   | ❌ Missing        |
+| Multi-tenancy          | ❌ No      | ✅ Yes   | ❌ Missing        |
+| Admin Functions        | ❌ No      | ✅ Yes   | ❌ Missing        |
+| Membership Management  | ❌ No      | ✅ Yes   | ❌ Missing        |
+| Ollama Proxy           | ❌ No      | ✅ Yes   | ❌ Missing        |
+| Authentication         | ❌ No      | ✅ Yes   | ❌ Missing        |
 
 **Legend:**
+
 - ✅ Parity: Feature fully implemented and comparable
 - ⚠️ Partial Parity: Feature exists but with differences
 - ❌ Missing: Feature not implemented
@@ -67,6 +70,7 @@ This document provides a comprehensive comparison between **EdgeQuake** (Rust/Ax
 ### 1. Health & Status Endpoints
 
 #### EdgeQuake
+
 ```rust
 GET  /health           // Health check with component status
 GET  /ready            // Readiness probe
@@ -74,6 +78,7 @@ GET  /live             // Liveness probe
 ```
 
 **Response Example:**
+
 ```json
 {
   "status": "healthy",
@@ -89,6 +94,7 @@ GET  /live             // Liveness probe
 ```
 
 #### LightRAG
+
 ```python
 GET  /health           // Basic health check
 ```
@@ -102,6 +108,7 @@ GET  /health           // Basic health check
 #### 2.1 Document Upload
 
 **EdgeQuake:**
+
 ```rust
 POST /api/v1/documents
 Body: {
@@ -119,6 +126,7 @@ Response: {
 ```
 
 **LightRAG:**
+
 ```python
 POST /documents/upload
 Form Data:
@@ -132,6 +140,7 @@ Response: {
 ```
 
 **Key Differences:**
+
 - EdgeQuake: JSON text input, synchronous processing
 - LightRAG: File upload, background task processing with track_id
 - LightRAG: Duplicate detection via doc_status storage
@@ -145,11 +154,13 @@ Response: {
 #### 2.2 Text Insertion (Direct Text)
 
 **EdgeQuake:**
+
 ```
 ❌ Not Available
 ```
 
 **LightRAG:**
+
 ```python
 POST /documents/text
 Body: {
@@ -176,11 +187,13 @@ Body: {
 #### 2.3 Document Scanning
 
 **EdgeQuake:**
+
 ```
 ❌ Not Available
 ```
 
 **LightRAG:**
+
 ```python
 POST /documents/scan
 // Triggers background scan of input directory
@@ -198,6 +211,7 @@ Response: {
 #### 2.4 Document Listing
 
 **EdgeQuake:**
+
 ```rust
 GET /api/v1/documents
 Response: {
@@ -215,6 +229,7 @@ Response: {
 ```
 
 **LightRAG:**
+
 ```python
 GET /documents/status
 Query:
@@ -237,6 +252,7 @@ Response: {
 ```
 
 **Key Differences:**
+
 - EdgeQuake: Simple document list with chunk counts
 - LightRAG: Detailed status tracking (indexed/failed/processing/pending)
 - LightRAG: Rich filtering and statistics
@@ -249,12 +265,14 @@ Response: {
 #### 2.5 Document Deletion
 
 **EdgeQuake:**
+
 ```rust
 DELETE /api/v1/documents/{document_id}
 Response: 204 No Content
 ```
 
 **LightRAG:**
+
 ```python
 DELETE /documents/{doc_id}
 Response: {
@@ -269,6 +287,7 @@ DELETE /documents/failed            // Clear only failed documents
 ```
 
 **Key Differences:**
+
 - EdgeQuake: Delete by document ID only
 - LightRAG: Multiple deletion methods (by ID, filename, all, failed only)
 - LightRAG: Bulk delete operations
@@ -282,6 +301,7 @@ DELETE /documents/failed            // Clear only failed documents
 #### 3.1 Standard Query
 
 **EdgeQuake:**
+
 ```rust
 POST /api/v1/query
 Body: {
@@ -312,6 +332,7 @@ Response: {
 ```
 
 **LightRAG:**
+
 ```python
 POST /query
 Body: {
@@ -338,16 +359,16 @@ Response: {
 
 **Key Differences:**
 
-| Feature | EdgeQuake | LightRAG |
-|---------|-----------|----------|
-| Query Modes | 5 (naive, local, global, hybrid, mix) | 6 (+ bypass mode) |
-| Token Budget Control | ❌ No | ✅ Yes (entity, relation, total) |
-| Keyword Control | ❌ No | ✅ Yes (high-level, low-level) |
-| Conversation History | ❌ No | ✅ Yes |
-| Custom Prompts | ❌ No | ✅ Yes |
-| Reranking | ⚠️ Implicit | ✅ Explicit control |
-| Statistics | ✅ Detailed timing | ❌ Not exposed |
-| Source References | ✅ Yes | ✅ Yes |
+| Feature              | EdgeQuake                             | LightRAG                         |
+| -------------------- | ------------------------------------- | -------------------------------- |
+| Query Modes          | 5 (naive, local, global, hybrid, mix) | 6 (+ bypass mode)                |
+| Token Budget Control | ❌ No                                 | ✅ Yes (entity, relation, total) |
+| Keyword Control      | ❌ No                                 | ✅ Yes (high-level, low-level)   |
+| Conversation History | ❌ No                                 | ✅ Yes                           |
+| Custom Prompts       | ❌ No                                 | ✅ Yes                           |
+| Reranking            | ⚠️ Implicit                           | ✅ Explicit control              |
+| Statistics           | ✅ Detailed timing                    | ❌ Not exposed                   |
+| Source References    | ✅ Yes                                | ✅ Yes                           |
 
 **Assessment:** ⚠️ **Partial Parity** - Both functional, but LightRAG provides more control
 
@@ -356,6 +377,7 @@ Response: {
 #### 3.2 Streaming Query
 
 **EdgeQuake:**
+
 ```rust
 POST /api/v1/query/stream
 Body: {
@@ -366,6 +388,7 @@ Response: Server-Sent Events (SSE)
 ```
 
 **LightRAG:**
+
 ```python
 POST /query/stream
 Body: Same as /query with stream=true
@@ -379,6 +402,7 @@ Stream format:
 ```
 
 **Key Differences:**
+
 - EdgeQuake: SSE (Server-Sent Events)
 - LightRAG: NDJSON (Newline-Delimited JSON)
 - LightRAG: References sent in first chunk
@@ -391,11 +415,13 @@ Stream format:
 #### 3.3 Query with Context Data
 
 **EdgeQuake:**
+
 ```
 ⚠️ Available via context_only parameter but not a separate endpoint
 ```
 
 **LightRAG:**
+
 ```python
 POST /query/data
 Body: Same as /query
@@ -426,6 +452,7 @@ Response: {
 #### 4.1 Graph Visualization
 
 **EdgeQuake:**
+
 ```rust
 GET /api/v1/graph
 Query:
@@ -459,6 +486,7 @@ Response: {
 ```
 
 **LightRAG:**
+
 ```python
 GET /graphs
 Query:
@@ -477,6 +505,7 @@ Response: {
 #### 4.2 Node Operations
 
 **EdgeQuake:**
+
 ```rust
 GET /api/v1/graph/nodes/{node_id}  // Get specific node
 GET /api/v1/graph/labels/search    // Search labels
@@ -484,6 +513,7 @@ GET /api/v1/graph/labels/search    // Search labels
 ```
 
 **LightRAG:**
+
 ```python
 GET /graph/label/list              // List all labels
 GET /graph/label/popular           // Get popular labels
@@ -500,11 +530,13 @@ GET /graph/entity/exists           // Check if entity exists
 #### 4.3 Graph Editing (Manual Knowledge Entry)
 
 **EdgeQuake:**
+
 ```
 ❌ Not Available
 ```
 
 **LightRAG:**
+
 ```python
 // Entity Operations
 POST /graph/entity/create
@@ -556,11 +588,13 @@ Body: {
 ### 5. Multi-Tenancy & Admin Endpoints
 
 **EdgeQuake:**
+
 ```
 ❌ Not Available - Single workspace "default" only
 ```
 
 **LightRAG:**
+
 ```python
 // Tenant Management
 GET    /tenants                    // List all tenants (paginated)
@@ -594,11 +628,13 @@ GET    /users/me/tenants           // List user's tenants
 ### 6. Authentication & Authorization
 
 **EdgeQuake:**
+
 ```
 ❌ Not Implemented - No authentication
 ```
 
 **LightRAG:**
+
 ```python
 POST /token                        // OAuth2 token login
 // Dependencies: OAuth2 + API Key support
@@ -613,11 +649,13 @@ POST /token                        // OAuth2 token login
 ### 7. Ollama Proxy API
 
 **EdgeQuake:**
+
 ```
 ❌ Not Available
 ```
 
 **LightRAG:**
+
 ```python
 GET  /api/tags                     // List Ollama models
 POST /api/generate                 // Generate completion
@@ -633,31 +671,31 @@ POST /api/embeddings               // Generate embeddings
 
 ### Query Modes
 
-| Mode | EdgeQuake | LightRAG | Description |
-|------|-----------|----------|-------------|
-| naive | ✅ Yes | ✅ Yes | Simple vector search |
-| local | ✅ Yes | ✅ Yes | Entity-focused retrieval |
-| global | ✅ Yes | ✅ Yes | Relationship-focused retrieval |
-| hybrid | ✅ Yes | ✅ Yes | Combined entity + relationship |
-| mix | ✅ Yes | ✅ Yes | Mixed retrieval strategy |
-| bypass | ❌ No | ✅ Yes | Direct LLM without RAG |
+| Mode   | EdgeQuake | LightRAG | Description                    |
+| ------ | --------- | -------- | ------------------------------ |
+| naive  | ✅ Yes    | ✅ Yes   | Simple vector search           |
+| local  | ✅ Yes    | ✅ Yes   | Entity-focused retrieval       |
+| global | ✅ Yes    | ✅ Yes   | Relationship-focused retrieval |
+| hybrid | ✅ Yes    | ✅ Yes   | Combined entity + relationship |
+| mix    | ✅ Yes    | ✅ Yes   | Mixed retrieval strategy       |
+| bypass | ❌ No     | ✅ Yes   | Direct LLM without RAG         |
 
 ### Advanced Query Features
 
-| Feature | EdgeQuake | LightRAG |
-|---------|-----------|----------|
-| Token Budget Control | ❌ | ✅ |
-| Max Entity Tokens | ❌ | ✅ |
-| Max Relation Tokens | ❌ | ✅ |
-| Max Total Tokens | ❌ | ✅ |
-| High-Level Keywords | ❌ | ✅ |
-| Low-Level Keywords | ❌ | ✅ |
-| Conversation History | ❌ | ✅ |
-| Custom User Prompt | ❌ | ✅ |
-| Rerank Control | ⚠️ Implicit | ✅ Explicit |
-| Include References | ✅ Yes | ✅ Yes |
-| Include Chunk Content | ❌ | ✅ |
-| Context Only Mode | ✅ Yes | ⚠️ Via /query/data |
+| Feature               | EdgeQuake   | LightRAG           |
+| --------------------- | ----------- | ------------------ |
+| Token Budget Control  | ❌          | ✅                 |
+| Max Entity Tokens     | ❌          | ✅                 |
+| Max Relation Tokens   | ❌          | ✅                 |
+| Max Total Tokens      | ❌          | ✅                 |
+| High-Level Keywords   | ❌          | ✅                 |
+| Low-Level Keywords    | ❌          | ✅                 |
+| Conversation History  | ❌          | ✅                 |
+| Custom User Prompt    | ❌          | ✅                 |
+| Rerank Control        | ⚠️ Implicit | ✅ Explicit        |
+| Include References    | ✅ Yes      | ✅ Yes             |
+| Include Chunk Content | ❌          | ✅                 |
+| Context Only Mode     | ✅ Yes      | ⚠️ Via /query/data |
 
 ---
 
@@ -666,6 +704,7 @@ POST /api/embeddings               // Generate embeddings
 ### Document Processing
 
 **EdgeQuake:**
+
 ```rust
 Input: content (string), title (optional), metadata (optional)
 Processing: Synchronous pipeline
@@ -674,6 +713,7 @@ Storage: KV storage for chunks, Graph for entities/relationships
 ```
 
 **LightRAG:**
+
 ```python
 Input: file (upload) or text (string), file_source (optional)
 Processing: Async background tasks with track_id
@@ -686,6 +726,7 @@ Features: Duplicate detection, Docling parsing, sanitization
 ### Query Response
 
 **EdgeQuake:**
+
 ```rust
 {
   "answer": "string",
@@ -696,6 +737,7 @@ Features: Duplicate detection, Docling parsing, sanitization
 ```
 
 **LightRAG:**
+
 ```python
 {
   "response": "string",
@@ -716,21 +758,25 @@ Features: Duplicate detection, Docling parsing, sanitization
 ### High Priority (Core RAG Functionality)
 
 1. **Background Task Processing**
+
    - LightRAG uses background tasks with track_id for async processing
    - EdgeQuake processes documents synchronously
    - Impact: Blocks API calls for large documents
 
 2. **Document Status Tracking**
+
    - LightRAG: Detailed status (pending → processing → indexed/failed)
    - EdgeQuake: No status tracking beyond success/failure
    - Impact: No visibility into processing state
 
 3. **Direct Text Insertion**
+
    - LightRAG: POST /documents/text and /documents/texts
    - EdgeQuake: Only via /documents with JSON content
    - Impact: Less flexible document input
 
 4. **Token Budget Control**
+
    - LightRAG: max_entity_tokens, max_relation_tokens, max_total_tokens
    - EdgeQuake: No token budget controls
    - Impact: Less control over LLM costs and context window
@@ -743,21 +789,25 @@ Features: Duplicate detection, Docling parsing, sanitization
 ### Medium Priority (Advanced Features)
 
 6. **High-Level/Low-Level Keywords**
+
    - LightRAG: Explicit keyword control for retrieval
    - EdgeQuake: No keyword parameters
    - Impact: Less fine-grained retrieval control
 
 7. **Custom Prompts**
+
    - LightRAG: user_prompt parameter
    - EdgeQuake: No custom prompt support
    - Impact: Less flexibility for specialized use cases
 
 8. **Graph Editing Operations**
+
    - LightRAG: Entity/Relationship create, edit, merge
    - EdgeQuake: No manual graph editing
    - Impact: Cannot manually correct or enhance knowledge graph
 
 9. **Bulk Operations**
+
    - LightRAG: Batch text insertion, clear all documents, clear failed
    - EdgeQuake: Individual operations only
    - Impact: Less efficient for bulk operations
@@ -770,21 +820,25 @@ Features: Duplicate detection, Docling parsing, sanitization
 ### Low Priority (Optional Features)
 
 11. **Multi-Tenancy**
+
     - LightRAG: Full multi-tenant support with tenant/KB management
     - EdgeQuake: Single workspace "default"
     - Impact: Cannot serve multiple isolated tenants
 
 12. **Authentication**
+
     - LightRAG: OAuth2 + API Key
     - EdgeQuake: No authentication
     - Impact: Not production-ready for public deployment
 
 13. **Admin Functions**
+
     - LightRAG: Admin routes for tenant management
     - EdgeQuake: No admin functionality
     - Impact: No administrative controls
 
 14. **Ollama Proxy**
+
     - LightRAG: Built-in Ollama API proxy
     - EdgeQuake: No Ollama proxy
     - Impact: Must connect directly to Ollama
@@ -801,16 +855,19 @@ Features: Duplicate detection, Docling parsing, sanitization
 ### Phase 1: Core RAG Enhancements
 
 1. **Async Background Processing**
+
    - Implement background task queue (tokio tasks + channels)
    - Add track_id to responses for status polling
    - Create GET /api/v1/tasks/{track_id} endpoint
 
 2. **Document Status Tracking**
+
    - Add doc_status table/collection
    - Track: pending, processing, indexed, failed
    - Implement GET /api/v1/documents/status endpoint
 
 3. **Query Enhancements**
+
    - Add token budget parameters (max_entity_tokens, max_relation_tokens, max_total_tokens)
    - Implement conversation history support
    - Add hl_keywords/ll_keywords parameters
@@ -823,6 +880,7 @@ Features: Duplicate detection, Docling parsing, sanitization
 ### Phase 2: Graph Management
 
 5. **Graph Editing Operations**
+
    - POST /api/v1/graph/entities (create)
    - PUT /api/v1/graph/entities/{id} (edit)
    - POST /api/v1/graph/entities/merge (merge duplicates)
@@ -837,11 +895,13 @@ Features: Duplicate detection, Docling parsing, sanitization
 ### Phase 3: Production Readiness
 
 7. **Authentication & Authorization**
+
    - Implement JWT-based authentication
    - Add API key support
    - Create auth middleware
 
 8. **Multi-Tenancy** (Optional)
+
    - Add tenant_id to all operations
    - Implement tenant isolation in storage
    - Create tenant management endpoints
@@ -858,12 +918,14 @@ Features: Duplicate detection, Docling parsing, sanitization
 ### Strengths
 
 **EdgeQuake:**
+
 - ✅ Native compiled (Rust) - faster execution
 - ✅ Lower memory footprint
 - ✅ Better concurrency (Tokio async runtime)
 - ✅ Type safety at compile time
 
 **LightRAG:**
+
 - ✅ Mature Python ecosystem (Docling, rich libraries)
 - ✅ Easier to extend and customize
 - ✅ Faster development iteration
@@ -872,11 +934,13 @@ Features: Duplicate detection, Docling parsing, sanitization
 ### Weaknesses
 
 **EdgeQuake:**
+
 - ⚠️ Less feature-complete
 - ⚠️ Smaller ecosystem for RAG-specific tools
 - ⚠️ Longer development cycle for new features
 
 **LightRAG:**
+
 - ⚠️ Higher memory usage (Python runtime)
 - ⚠️ GIL limitations for CPU-bound tasks
 - ⚠️ Slower startup time
@@ -886,6 +950,7 @@ Features: Duplicate detection, Docling parsing, sanitization
 ## API Design Quality
 
 ### EdgeQuake Strengths
+
 - ✅ Clean RESTful design
 - ✅ Consistent error responses
 - ✅ Good OpenAPI documentation
@@ -893,6 +958,7 @@ Features: Duplicate detection, Docling parsing, sanitization
 - ✅ Clear endpoint structure
 
 ### LightRAG Strengths
+
 - ✅ Comprehensive endpoint coverage
 - ✅ Rich query parameters
 - ✅ Good separation of concerns (routers)
@@ -902,12 +968,14 @@ Features: Duplicate detection, Docling parsing, sanitization
 ### Areas for Improvement
 
 **EdgeQuake:**
+
 - ⚠️ No versioning strategy documented
 - ⚠️ Missing rate limiting
 - ⚠️ No pagination on graph endpoints (only documents)
 - ⚠️ No filtering/sorting options
 
 **LightRAG:**
+
 - ⚠️ Inconsistent response formats (some use "status", some don't)
 - ⚠️ Many optional parameters (can be overwhelming)
 - ⚠️ Some endpoints lack clear error codes
@@ -926,11 +994,13 @@ Features: Duplicate detection, Docling parsing, sanitization
 ### Requires Adaptation
 
 1. **Document Management:**
+
    - Track background tasks externally
    - Poll document list for status
    - No duplicate detection built-in
 
 2. **Advanced Queries:**
+
    - Remove token budget parameters
    - Remove conversation_history
    - Remove hl_keywords/ll_keywords
@@ -957,6 +1027,7 @@ Features: Duplicate detection, Docling parsing, sanitization
 ### Summary
 
 **EdgeQuake** provides a **solid foundation** for core RAG functionality with excellent performance characteristics due to its Rust implementation. However, it **lacks many advanced features** present in LightRAG, particularly around:
+
 - Background task processing
 - Token budget controls
 - Conversation history
@@ -969,10 +1040,12 @@ Features: Duplicate detection, Docling parsing, sanitization
 ### Recommendations
 
 **For New Deployments:**
+
 - **Choose EdgeQuake** if: Performance and resource efficiency are critical, basic RAG is sufficient
 - **Choose LightRAG** if: Feature richness, multi-tenancy, and faster customization are priorities
 
 **For EdgeQuake Development:**
+
 - **Prioritize:** Background tasks, token budgets, conversation history (Phase 1)
 - **Consider:** Graph editing, bulk operations (Phase 2)
 - **Future:** Authentication, multi-tenancy, observability (Phase 3)
@@ -980,11 +1053,13 @@ Features: Duplicate detection, Docling parsing, sanitization
 ### Feature Parity Status
 
 **Current State:**
+
 - Core Endpoints: ~60% parity
 - Advanced Features: ~30% parity
 - Production Features: ~10% parity
 
 **Target v1.1:**
+
 - Core Endpoints: 90% parity
 - Advanced Features: 70% parity
 - Production Features: 50% parity

@@ -78,6 +78,7 @@ This master plan defines the complete API enhancement roadmap for EdgeQuake to a
 **Focus:** Background processing, token controls, conversation history
 
 **Deliverables:**
+
 - ✅ Background task processing with track_id
 - ✅ Document status tracking (pending/processing/indexed/failed)
 - ✅ Token budget controls (entity, relation, total)
@@ -98,6 +99,7 @@ This master plan defines the complete API enhancement roadmap for EdgeQuake to a
 **Focus:** Manual graph editing, bulk operations, enhanced document management
 
 **Deliverables:**
+
 - ✅ Entity CRUD operations (create, read, update, merge)
 - ✅ Relationship CRUD operations
 - ✅ Bulk document operations (delete all, clear failed)
@@ -118,6 +120,7 @@ This master plan defines the complete API enhancement roadmap for EdgeQuake to a
 **Focus:** Authentication, multi-tenancy, observability, scalability
 
 **Deliverables:**
+
 - ✅ JWT authentication + API key support
 - ✅ Multi-tenancy with tenant isolation
 - ✅ Admin APIs for tenant/KB management
@@ -136,86 +139,94 @@ This master plan defines the complete API enhancement roadmap for EdgeQuake to a
 ## Feature Mapping: LightRAG → EdgeQuake
 
 ### Health & Status
-| LightRAG | EdgeQuake v0.1 | EdgeQuake v2.0 |
-|----------|----------------|----------------|
-| GET /health | ✅ /health | ✅ /health |
-| - | ✅ /ready | ✅ /ready |
-| - | ✅ /live | ✅ /live |
-| - | ❌ | ✅ /metrics |
+
+| LightRAG    | EdgeQuake v0.1 | EdgeQuake v2.0 |
+| ----------- | -------------- | -------------- |
+| GET /health | ✅ /health     | ✅ /health     |
+| -           | ✅ /ready      | ✅ /ready      |
+| -           | ✅ /live       | ✅ /live       |
+| -           | ❌             | ✅ /metrics    |
 
 ### Document Management
-| LightRAG | EdgeQuake v0.1 | EdgeQuake v2.0 |
-|----------|----------------|----------------|
-| POST /documents/upload | ⚠️ /api/v1/documents | ✅ /api/v1/documents/upload |
-| POST /documents/text | ❌ | ✅ /api/v1/documents/text |
-| POST /documents/texts | ❌ | ✅ /api/v1/documents/texts |
-| POST /documents/scan | ❌ | ✅ /api/v1/documents/scan |
-| GET /documents/status | ⚠️ /api/v1/documents | ✅ /api/v1/documents/status |
-| GET /documents/list | ✅ /api/v1/documents | ✅ /api/v1/documents |
-| GET /documents/{id} | ✅ /api/v1/documents/{id} | ✅ /api/v1/documents/{id} |
-| DELETE /documents/{id} | ✅ /api/v1/documents/{id} | ✅ /api/v1/documents/{id} |
-| DELETE /documents/file/{name} | ❌ | ✅ /api/v1/documents/file/{filename} |
-| DELETE /documents/clear | ❌ | ✅ /api/v1/documents/clear |
-| DELETE /documents/failed | ❌ | ✅ /api/v1/documents/failed |
-| GET /documents/stats | ❌ | ✅ /api/v1/documents/stats |
-| POST /documents/reindex-failed | ❌ | ✅ /api/v1/documents/reindex-failed |
+
+| LightRAG                       | EdgeQuake v0.1            | EdgeQuake v2.0                       |
+| ------------------------------ | ------------------------- | ------------------------------------ |
+| POST /documents/upload         | ⚠️ /api/v1/documents      | ✅ /api/v1/documents/upload          |
+| POST /documents/text           | ❌                        | ✅ /api/v1/documents/text            |
+| POST /documents/texts          | ❌                        | ✅ /api/v1/documents/texts           |
+| POST /documents/scan           | ❌                        | ✅ /api/v1/documents/scan            |
+| GET /documents/status          | ⚠️ /api/v1/documents      | ✅ /api/v1/documents/status          |
+| GET /documents/list            | ✅ /api/v1/documents      | ✅ /api/v1/documents                 |
+| GET /documents/{id}            | ✅ /api/v1/documents/{id} | ✅ /api/v1/documents/{id}            |
+| DELETE /documents/{id}         | ✅ /api/v1/documents/{id} | ✅ /api/v1/documents/{id}            |
+| DELETE /documents/file/{name}  | ❌                        | ✅ /api/v1/documents/file/{filename} |
+| DELETE /documents/clear        | ❌                        | ✅ /api/v1/documents/clear           |
+| DELETE /documents/failed       | ❌                        | ✅ /api/v1/documents/failed          |
+| GET /documents/stats           | ❌                        | ✅ /api/v1/documents/stats           |
+| POST /documents/reindex-failed | ❌                        | ✅ /api/v1/documents/reindex-failed  |
 
 ### Query Operations
-| LightRAG | EdgeQuake v0.1 | EdgeQuake v2.0 |
-|----------|----------------|----------------|
-| POST /query | ✅ /api/v1/query | ✅ /api/v1/query |
-| POST /query/stream | ✅ /api/v1/query/stream | ✅ /api/v1/query/stream |
-| POST /query/data | ❌ | ✅ /api/v1/query/context |
+
+| LightRAG           | EdgeQuake v0.1          | EdgeQuake v2.0           |
+| ------------------ | ----------------------- | ------------------------ |
+| POST /query        | ✅ /api/v1/query        | ✅ /api/v1/query         |
+| POST /query/stream | ✅ /api/v1/query/stream | ✅ /api/v1/query/stream  |
+| POST /query/data   | ❌                      | ✅ /api/v1/query/context |
 
 ### Graph Operations
-| LightRAG | EdgeQuake v0.1 | EdgeQuake v2.0 |
-|----------|----------------|----------------|
-| GET /graphs | ✅ /api/v1/graph | ✅ /api/v1/graph |
-| GET /graph/label/list | ❌ | ✅ /api/v1/graph/labels |
-| GET /graph/label/popular | ❌ | ✅ /api/v1/graph/labels/popular |
-| GET /graph/label/search | ✅ /api/v1/graph/labels/search | ✅ /api/v1/graph/labels/search |
-| GET /graph/nodes/{id} | ✅ /api/v1/graph/nodes/{id} | ✅ /api/v1/graph/nodes/{id} |
-| GET /graph/entity/exists | ❌ | ✅ /api/v1/graph/entities/exists |
-| POST /graph/entity/create | ❌ | ✅ /api/v1/graph/entities |
-| POST /graph/entity/edit | ❌ | ✅ /api/v1/graph/entities/{id} |
-| POST /graph/entities/merge | ❌ | ✅ /api/v1/graph/entities/merge |
-| POST /graph/relation/create | ❌ | ✅ /api/v1/graph/relationships |
-| POST /graph/relation/edit | ❌ | ✅ /api/v1/graph/relationships/{id} |
+
+| LightRAG                    | EdgeQuake v0.1                 | EdgeQuake v2.0                      |
+| --------------------------- | ------------------------------ | ----------------------------------- |
+| GET /graphs                 | ✅ /api/v1/graph               | ✅ /api/v1/graph                    |
+| GET /graph/label/list       | ❌                             | ✅ /api/v1/graph/labels             |
+| GET /graph/label/popular    | ❌                             | ✅ /api/v1/graph/labels/popular     |
+| GET /graph/label/search     | ✅ /api/v1/graph/labels/search | ✅ /api/v1/graph/labels/search      |
+| GET /graph/nodes/{id}       | ✅ /api/v1/graph/nodes/{id}    | ✅ /api/v1/graph/nodes/{id}         |
+| GET /graph/entity/exists    | ❌                             | ✅ /api/v1/graph/entities/exists    |
+| POST /graph/entity/create   | ❌                             | ✅ /api/v1/graph/entities           |
+| POST /graph/entity/edit     | ❌                             | ✅ /api/v1/graph/entities/{id}      |
+| POST /graph/entities/merge  | ❌                             | ✅ /api/v1/graph/entities/merge     |
+| POST /graph/relation/create | ❌                             | ✅ /api/v1/graph/relationships      |
+| POST /graph/relation/edit   | ❌                             | ✅ /api/v1/graph/relationships/{id} |
 
 ### Multi-Tenancy (v2.0 Optional)
-| LightRAG | EdgeQuake v0.1 | EdgeQuake v2.0 |
-|----------|----------------|----------------|
-| GET /tenants | ❌ | ✅ /api/v1/tenants |
-| GET /tenants/me | ❌ | ✅ /api/v1/tenants/me |
-| POST /tenants | ❌ | ✅ /api/v1/tenants |
-| POST /tenants/select | ❌ | ✅ /api/v1/tenants/select |
-| GET /knowledge-bases | ❌ | ✅ /api/v1/workspaces |
-| GET /knowledge-bases/{id} | ❌ | ✅ /api/v1/workspaces/{id} |
-| PUT /knowledge-bases/{id} | ❌ | ✅ /api/v1/workspaces/{id} |
-| DELETE /knowledge-bases/{id} | ❌ | ✅ /api/v1/workspaces/{id} |
+
+| LightRAG                     | EdgeQuake v0.1 | EdgeQuake v2.0             |
+| ---------------------------- | -------------- | -------------------------- |
+| GET /tenants                 | ❌             | ✅ /api/v1/tenants         |
+| GET /tenants/me              | ❌             | ✅ /api/v1/tenants/me      |
+| POST /tenants                | ❌             | ✅ /api/v1/tenants         |
+| POST /tenants/select         | ❌             | ✅ /api/v1/tenants/select  |
+| GET /knowledge-bases         | ❌             | ✅ /api/v1/workspaces      |
+| GET /knowledge-bases/{id}    | ❌             | ✅ /api/v1/workspaces/{id} |
+| PUT /knowledge-bases/{id}    | ❌             | ✅ /api/v1/workspaces/{id} |
+| DELETE /knowledge-bases/{id} | ❌             | ✅ /api/v1/workspaces/{id} |
 
 ### Admin Operations (v2.0)
-| LightRAG | EdgeQuake v0.1 | EdgeQuake v2.0 |
-|----------|----------------|----------------|
-| POST /admin/tenants | ❌ | ✅ /api/v1/admin/tenants |
-| GET /admin/tenants | ❌ | ✅ /api/v1/admin/tenants |
-| GET /admin/stats | ❌ | ✅ /api/v1/admin/stats |
+
+| LightRAG            | EdgeQuake v0.1 | EdgeQuake v2.0           |
+| ------------------- | -------------- | ------------------------ |
+| POST /admin/tenants | ❌             | ✅ /api/v1/admin/tenants |
+| GET /admin/tenants  | ❌             | ✅ /api/v1/admin/tenants |
+| GET /admin/stats    | ❌             | ✅ /api/v1/admin/stats   |
 
 ### Membership (v2.0)
-| LightRAG | EdgeQuake v0.1 | EdgeQuake v2.0 |
-|----------|----------------|----------------|
-| POST /memberships | ❌ | ✅ /api/v1/memberships |
-| GET /memberships/{tid} | ❌ | ✅ /api/v1/memberships/{tenant_id} |
-| PUT /memberships/{tid}/users/{uid} | ❌ | ✅ /api/v1/memberships/{tenant_id}/users/{user_id} |
-| DELETE /memberships/{tid}/users/{uid} | ❌ | ✅ /api/v1/memberships/{tenant_id}/users/{user_id} |
-| GET /users/me/tenants | ❌ | ✅ /api/v1/users/me/tenants |
+
+| LightRAG                              | EdgeQuake v0.1 | EdgeQuake v2.0                                     |
+| ------------------------------------- | -------------- | -------------------------------------------------- |
+| POST /memberships                     | ❌             | ✅ /api/v1/memberships                             |
+| GET /memberships/{tid}                | ❌             | ✅ /api/v1/memberships/{tenant_id}                 |
+| PUT /memberships/{tid}/users/{uid}    | ❌             | ✅ /api/v1/memberships/{tenant_id}/users/{user_id} |
+| DELETE /memberships/{tid}/users/{uid} | ❌             | ✅ /api/v1/memberships/{tenant_id}/users/{user_id} |
+| GET /users/me/tenants                 | ❌             | ✅ /api/v1/users/me/tenants                        |
 
 ### Authentication (v2.0)
-| LightRAG | EdgeQuake v0.1 | EdgeQuake v2.0 |
-|----------|----------------|----------------|
-| POST /token | ❌ | ✅ /api/v1/auth/token |
-| POST /token/refresh | ❌ | ✅ /api/v1/auth/refresh |
-| POST /logout | ❌ | ✅ /api/v1/auth/logout |
+
+| LightRAG            | EdgeQuake v0.1 | EdgeQuake v2.0          |
+| ------------------- | -------------- | ----------------------- |
+| POST /token         | ❌             | ✅ /api/v1/auth/token   |
+| POST /token/refresh | ❌             | ✅ /api/v1/auth/refresh |
+| POST /logout        | ❌             | ✅ /api/v1/auth/logout  |
 
 ---
 
@@ -463,10 +474,10 @@ mod tests {
     // Business logic tests (no I/O)
     #[test]
     fn test_token_budget_calculation() { }
-    
+
     #[test]
     fn test_conversation_history_formatting() { }
-    
+
     #[test]
     fn test_entity_normalization() { }
 }
@@ -542,6 +553,7 @@ k6 run --vus 100 --duration 30s tests/load/query_stress.js
 ## Success Metrics
 
 ### Phase 1 (v1.1.0)
+
 - ✅ All tests pass (unit, integration, API)
 - ✅ Zero breaking changes to v1.0 API
 - ✅ Background tasks complete with <5% error rate
@@ -549,12 +561,14 @@ k6 run --vus 100 --duration 30s tests/load/query_stress.js
 - ✅ Token budget reduces LLM costs by 30%+
 
 ### Phase 2 (v1.2.0)
+
 - ✅ Graph editing operations have <100ms latency
 - ✅ Bulk operations handle 10,000+ documents
 - ✅ Zero data loss in graph merge operations
 - ✅ API documentation coverage 100%
 
 ### Phase 3 (v2.0.0)
+
 - ✅ Authentication adds <50ms overhead
 - ✅ Multi-tenant mode supports 1000+ tenants
 - ✅ Horizontal scaling demonstrated (3+ nodes)
@@ -568,21 +582,21 @@ k6 run --vus 100 --duration 30s tests/load/query_stress.js
 
 ### Technical Risks
 
-| Risk | Impact | Probability | Mitigation |
-|------|--------|-------------|------------|
-| Background task queue complexity | HIGH | MEDIUM | Use proven libraries (tokio), extensive testing |
-| Multi-tenant data isolation bugs | HIGH | LOW | Strict tenant_id checks, comprehensive tests |
-| Authentication vulnerabilities | HIGH | MEDIUM | Security audit, follow OWASP guidelines |
-| Performance degradation | MEDIUM | MEDIUM | Continuous benchmarking, profiling |
-| Breaking changes slip through | MEDIUM | LOW | Strict API versioning, deprecation policy |
+| Risk                             | Impact | Probability | Mitigation                                      |
+| -------------------------------- | ------ | ----------- | ----------------------------------------------- |
+| Background task queue complexity | HIGH   | MEDIUM      | Use proven libraries (tokio), extensive testing |
+| Multi-tenant data isolation bugs | HIGH   | LOW         | Strict tenant_id checks, comprehensive tests    |
+| Authentication vulnerabilities   | HIGH   | MEDIUM      | Security audit, follow OWASP guidelines         |
+| Performance degradation          | MEDIUM | MEDIUM      | Continuous benchmarking, profiling              |
+| Breaking changes slip through    | MEDIUM | LOW         | Strict API versioning, deprecation policy       |
 
 ### Schedule Risks
 
-| Risk | Impact | Probability | Mitigation |
-|------|--------|-------------|------------|
-| Phase 1 delays Phase 2 | MEDIUM | MEDIUM | Parallel workstreams where possible |
-| LLM API changes | LOW | LOW | Abstraction layer insulates changes |
-| Storage backend issues | MEDIUM | LOW | Maintain backwards compatibility |
+| Risk                   | Impact | Probability | Mitigation                          |
+| ---------------------- | ------ | ----------- | ----------------------------------- |
+| Phase 1 delays Phase 2 | MEDIUM | MEDIUM      | Parallel workstreams where possible |
+| LLM API changes        | LOW    | LOW         | Abstraction layer insulates changes |
+| Storage backend issues | MEDIUM | LOW         | Maintain backwards compatibility    |
 
 ---
 
@@ -610,17 +624,20 @@ k6 run --vus 100 --duration 30s tests/load/query_stress.js
 ## Approval & Sign-off
 
 ### Phase 1 Approval
+
 - [ ] Architecture Review
 - [ ] Security Review
 - [ ] Performance Benchmark Baseline
 - [ ] Documentation Review
 
 ### Phase 2 Approval
+
 - [ ] Phase 1 Complete & Stable
 - [ ] Graph Management Design Review
 - [ ] Integration Test Coverage >80%
 
 ### Phase 3 Approval
+
 - [ ] Phase 2 Complete & Stable
 - [ ] Security Audit Complete
 - [ ] Production Readiness Review
@@ -629,6 +646,7 @@ k6 run --vus 100 --duration 30s tests/load/query_stress.js
 ---
 
 **Next Steps:**
+
 1. Review this master plan with stakeholders
 2. Prioritize Phase 1 specifications
 3. Begin implementation of background task system

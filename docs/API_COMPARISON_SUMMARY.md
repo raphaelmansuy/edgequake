@@ -6,53 +6,53 @@
 
 ## 📊 Quick Stats
 
-| Metric | EdgeQuake | LightRAG |
-|--------|-----------|----------|
-| **Total Endpoints** | 11 | 40+ |
-| **Framework** | Axum (Rust) | FastAPI (Python) |
-| **Authentication** | ❌ None | ✅ OAuth2 + API Key |
-| **Multi-tenant** | ❌ No | ✅ Yes |
+| Metric               | EdgeQuake    | LightRAG            |
+| -------------------- | ------------ | ------------------- |
+| **Total Endpoints**  | 11           | 40+                 |
+| **Framework**        | Axum (Rust)  | FastAPI (Python)    |
+| **Authentication**   | ❌ None      | ✅ OAuth2 + API Key |
+| **Multi-tenant**     | ❌ No        | ✅ Yes              |
 | **Async Processing** | ❌ Sync only | ✅ Background tasks |
-| **Graph Editing** | ❌ Read-only | ✅ Full CRUD |
+| **Graph Editing**    | ❌ Read-only | ✅ Full CRUD        |
 
 ---
 
 ## ✅ Feature Parity Matrix
 
-| Feature | EdgeQuake | LightRAG |
-|---------|:---------:|:--------:|
-| **Core RAG** | | |
-| Health Check | ✅ | ✅ |
-| Document Upload | ✅ | ✅ |
-| Query (basic) | ✅ | ✅ |
-| Streaming Query | ✅ | ✅ |
-| Graph Visualization | ✅ | ✅ |
-| **Advanced RAG** | | |
-| Token Budget Control | ❌ | ✅ |
-| Conversation History | ❌ | ✅ |
-| Custom Keywords | ❌ | ✅ |
-| Custom Prompts | ❌ | ✅ |
-| Rerank Control | ⚠️ | ✅ |
-| **Document Management** | | |
-| File Upload | ❌ | ✅ |
-| Direct Text Insert | ❌ | ✅ |
-| Batch Insert | ❌ | ✅ |
-| Status Tracking | ❌ | ✅ |
-| Directory Scan | ❌ | ✅ |
-| **Graph Management** | | |
-| View Graph | ✅ | ✅ |
-| Search Nodes | ✅ | ✅ |
-| Create Entity | ❌ | ✅ |
-| Edit Entity | ❌ | ✅ |
-| Merge Entity | ❌ | ✅ |
-| Create Relation | ❌ | ✅ |
-| Edit Relation | ❌ | ✅ |
-| **Production** | | |
-| Authentication | ❌ | ✅ |
-| Multi-tenancy | ❌ | ✅ |
-| Admin APIs | ❌ | ✅ |
-| Membership Mgmt | ❌ | ✅ |
-| Ollama Proxy | ❌ | ✅ |
+| Feature                 | EdgeQuake | LightRAG |
+| ----------------------- | :-------: | :------: |
+| **Core RAG**            |           |          |
+| Health Check            |    ✅     |    ✅    |
+| Document Upload         |    ✅     |    ✅    |
+| Query (basic)           |    ✅     |    ✅    |
+| Streaming Query         |    ✅     |    ✅    |
+| Graph Visualization     |    ✅     |    ✅    |
+| **Advanced RAG**        |           |          |
+| Token Budget Control    |    ❌     |    ✅    |
+| Conversation History    |    ❌     |    ✅    |
+| Custom Keywords         |    ❌     |    ✅    |
+| Custom Prompts          |    ❌     |    ✅    |
+| Rerank Control          |    ⚠️     |    ✅    |
+| **Document Management** |           |          |
+| File Upload             |    ❌     |    ✅    |
+| Direct Text Insert      |    ❌     |    ✅    |
+| Batch Insert            |    ❌     |    ✅    |
+| Status Tracking         |    ❌     |    ✅    |
+| Directory Scan          |    ❌     |    ✅    |
+| **Graph Management**    |           |          |
+| View Graph              |    ✅     |    ✅    |
+| Search Nodes            |    ✅     |    ✅    |
+| Create Entity           |    ❌     |    ✅    |
+| Edit Entity             |    ❌     |    ✅    |
+| Merge Entity            |    ❌     |    ✅    |
+| Create Relation         |    ❌     |    ✅    |
+| Edit Relation           |    ❌     |    ✅    |
+| **Production**          |           |          |
+| Authentication          |    ❌     |    ✅    |
+| Multi-tenancy           |    ❌     |    ✅    |
+| Admin APIs              |    ❌     |    ✅    |
+| Membership Mgmt         |    ❌     |    ✅    |
+| Ollama Proxy            |    ❌     |    ✅    |
 
 **Legend:** ✅ Available | ❌ Missing | ⚠️ Partial
 
@@ -73,24 +73,27 @@ Overall:             ~35% ████▒▒▒▒▒▒▒▒▒▒
 ## 🔍 Key Differences
 
 ### EdgeQuake Advantages
+
 ✅ **Performance:** Native Rust, lower memory, faster execution  
 ✅ **Type Safety:** Compile-time guarantees  
 ✅ **Concurrency:** Superior async handling (Tokio)  
-✅ **Detailed Stats:** Query timing breakdown  
+✅ **Detailed Stats:** Query timing breakdown
 
 ### LightRAG Advantages
+
 ✅ **Feature Complete:** 3.6x more endpoints  
 ✅ **Async Processing:** Background tasks with tracking  
 ✅ **Advanced Query:** Token budgets, conversation history  
 ✅ **Graph Editing:** Manual knowledge entry & correction  
 ✅ **Multi-tenant:** Full isolation & admin controls  
-✅ **Authentication:** Production-ready security  
+✅ **Authentication:** Production-ready security
 
 ---
 
 ## 🚀 Quick Migration Guide
 
 ### ✅ Direct Compatible (No Changes)
+
 ```bash
 # Health
 GET /health → GET /health
@@ -104,6 +107,7 @@ GET /api/v1/graph → GET /graphs
 ```
 
 ### ⚠️ Requires Adaptation
+
 ```bash
 # Document Upload
 POST /api/v1/documents (JSON)
@@ -116,6 +120,7 @@ Keep: query, mode, max_results
 ```
 
 ### ❌ Not Supported
+
 - Multi-tenancy features
 - Authentication headers
 - Background task tracking
@@ -127,6 +132,7 @@ Keep: query, mode, max_results
 ## 📋 EdgeQuake Roadmap Priorities
 
 ### Phase 1: Core RAG (Target: v1.1)
+
 1. ✅ Background task processing + track_id
 2. ✅ Document status tracking (pending/processing/indexed/failed)
 3. ✅ Token budget controls (max_entity_tokens, max_relation_tokens)
@@ -134,12 +140,14 @@ Keep: query, mode, max_results
 5. ✅ Direct text insertion endpoints
 
 ### Phase 2: Graph Management (Target: v1.2)
+
 6. ✅ Entity create/edit/merge endpoints
 7. ✅ Relationship create/edit endpoints
 8. ✅ Bulk operations (delete all, delete failed)
 9. ✅ Directory scanning
 
 ### Phase 3: Production (Target: v2.0)
+
 10. ✅ JWT authentication
 11. ✅ Multi-tenancy (optional)
 12. ✅ OpenTelemetry + Prometheus
@@ -150,18 +158,21 @@ Keep: query, mode, max_results
 ## 💡 Recommendations
 
 ### Choose EdgeQuake If:
+
 - Performance & efficiency are critical
 - Resource constraints (memory, CPU)
 - Type safety is important
 - Basic RAG features sufficient
 
 ### Choose LightRAG If:
+
 - Feature richness required
 - Multi-tenancy needed
 - Faster customization desired
 - Python ecosystem advantages
 
 ### Use Both If:
+
 - EdgeQuake for performance-critical queries
 - LightRAG for admin & management UI
 - Hybrid architecture with shared storage
@@ -173,6 +184,7 @@ Keep: query, mode, max_results
 ### Document Upload
 
 **EdgeQuake:**
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/documents \
   -H "Content-Type: application/json" \
@@ -180,6 +192,7 @@ curl -X POST http://localhost:8080/api/v1/documents \
 ```
 
 **LightRAG:**
+
 ```bash
 curl -X POST http://localhost:8020/documents/upload \
   -F "file=@paper.pdf"
@@ -189,6 +202,7 @@ curl -X POST http://localhost:8020/documents/upload \
 ### Advanced Query
 
 **EdgeQuake:**
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/query \
   -H "Content-Type: application/json" \
@@ -196,6 +210,7 @@ curl -X POST http://localhost:8080/api/v1/query \
 ```
 
 **LightRAG:**
+
 ```bash
 curl -X POST http://localhost:8020/query \
   -H "Content-Type: application/json" \

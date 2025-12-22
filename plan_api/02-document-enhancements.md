@@ -34,6 +34,7 @@ Content-Type: multipart/form-data
 ```
 
 **Request:**
+
 ```http
 POST /api/v1/documents/upload HTTP/1.1
 Host: localhost:8080
@@ -52,6 +53,7 @@ Content-Disposition: form-data; name="metadata"
 ```
 
 **Response (202 Accepted):**
+
 ```json
 {
   "document_id": "doc-xyz789",
@@ -74,6 +76,7 @@ Content-Type: application/json
 ```
 
 **Request:**
+
 ```json
 {
   "text": "Artificial intelligence research paper content...",
@@ -88,6 +91,7 @@ Content-Type: application/json
 ```
 
 **Response (202 Accepted):**
+
 ```json
 {
   "document_id": "doc-abc123",
@@ -98,6 +102,7 @@ Content-Type: application/json
 ```
 
 **Response (409 Conflict - Duplicate):**
+
 ```json
 {
   "status": "duplicated",
@@ -116,6 +121,7 @@ Content-Type: application/json
 ```
 
 **Request:**
+
 ```json
 {
   "texts": [
@@ -123,11 +129,7 @@ Content-Type: application/json
     "Second document content...",
     "Third document content..."
   ],
-  "file_sources": [
-    "batch_1_doc_1",
-    "batch_1_doc_2",
-    "batch_1_doc_3"
-  ],
+  "file_sources": ["batch_1_doc_1", "batch_1_doc_2", "batch_1_doc_3"],
   "metadata": {
     "batch_id": "batch_2025_12_22",
     "category": "research_papers"
@@ -136,6 +138,7 @@ Content-Type: application/json
 ```
 
 **Response (202 Accepted):**
+
 ```json
 {
   "batch_id": "batch-xyz123",
@@ -169,6 +172,7 @@ GET /api/v1/documents/status
 ```
 
 **Query Parameters:**
+
 - `filter`: all, indexed, failed, processing, pending (default: all)
 - `search`: Search in filenames/titles
 - `page`: Page number (default: 1)
@@ -177,11 +181,13 @@ GET /api/v1/documents/status
 - `order`: asc, desc (default: desc)
 
 **Request:**
+
 ```http
 GET /api/v1/documents/status?filter=failed&page=1&page_size=10 HTTP/1.1
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "documents": [
@@ -221,11 +227,13 @@ DELETE /api/v1/documents/file/{filename}
 ```
 
 **Request:**
+
 ```http
 DELETE /api/v1/documents/file/research_paper.pdf HTTP/1.1
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "status": "success",
@@ -238,6 +246,7 @@ DELETE /api/v1/documents/file/research_paper.pdf HTTP/1.1
 ```
 
 **Response (404 Not Found):**
+
 ```json
 {
   "error": "document_not_found",
@@ -252,11 +261,13 @@ DELETE /api/v1/documents/clear
 ```
 
 **Request:**
+
 ```http
 DELETE /api/v1/documents/clear HTTP/1.1
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "status": "success",
@@ -269,6 +280,7 @@ DELETE /api/v1/documents/clear HTTP/1.1
 ```
 
 **Response (200 OK with confirmation required):**
+
 ```http
 DELETE /api/v1/documents/clear?confirm=true HTTP/1.1
 ```
@@ -280,11 +292,13 @@ DELETE /api/v1/documents/failed
 ```
 
 **Request:**
+
 ```http
 DELETE /api/v1/documents/failed HTTP/1.1
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "status": "success",
@@ -301,20 +315,18 @@ POST /api/v1/documents/reindex-failed
 ```
 
 **Request:**
+
 ```http
 POST /api/v1/documents/reindex-failed HTTP/1.1
 ```
 
 **Response (202 Accepted):**
+
 ```json
 {
   "status": "accepted",
   "message": "35 failed documents queued for reindexing",
-  "track_ids": [
-    "reindex-abc123...",
-    "reindex-def456...",
-    "..."
-  ]
+  "track_ids": ["reindex-abc123...", "reindex-def456...", "..."]
 }
 ```
 
@@ -326,6 +338,7 @@ Content-Type: application/json
 ```
 
 **Request:**
+
 ```json
 {
   "directory_path": "/data/input",
@@ -340,6 +353,7 @@ Content-Type: application/json
 ```
 
 **Response (202 Accepted):**
+
 ```json
 {
   "status": "accepted",
@@ -360,6 +374,7 @@ GET /api/v1/documents/stats
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "documents": {
@@ -400,32 +415,32 @@ CREATE TABLE document_status (
     doc_id VARCHAR(100) PRIMARY KEY,
     file_path TEXT,
     content_hash VARCHAR(64),  -- SHA-256 of content for deduplication
-    
+
     -- Status
     status VARCHAR(20) NOT NULL,  -- pending, processing, indexed, failed
     track_id VARCHAR(50),
-    
+
     -- Timestamps
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     indexed_at TIMESTAMPTZ,
-    
+
     -- Processing info
     error_message TEXT,
     retry_count INTEGER DEFAULT 0,
-    
+
     -- Content stats
     chunk_count INTEGER DEFAULT 0,
     entity_count INTEGER DEFAULT 0,
     relationship_count INTEGER DEFAULT 0,
     size_bytes BIGINT DEFAULT 0,
-    
+
     -- Metadata
     metadata JSONB,
-    
+
     -- Foreign key
     FOREIGN KEY (track_id) REFERENCES tasks(track_id),
-    
+
     -- Constraints
     CONSTRAINT valid_doc_status CHECK (status IN ('pending', 'processing', 'indexed', 'failed'))
 );
@@ -476,13 +491,13 @@ pub enum DocumentStatusType {
 pub struct UploadFileRequest {
     #[serde(skip)]  // Populated from multipart field
     pub file: Vec<u8>,
-    
+
     #[serde(skip)]
     pub filename: String,
-    
+
     #[serde(skip)]
     pub content_type: String,
-    
+
     pub metadata: Option<serde_json::Value>,
 }
 
@@ -518,10 +533,12 @@ pub struct ScanDirectoryRequest {
 ### Content Deduplication
 
 **LightRAG vs EdgeQuake:**
+
 - LightRAG uses MD5: `hashlib.md5(content.encode()).hexdigest()`
 - EdgeQuake uses SHA-256 (more secure, recommended)
 
 **LightRAG Implementation:**
+
 ```python
 # File: lightrag/utils.py
 def compute_mdhash_id(content: str, prefix: str = "doc") -> str:
@@ -530,6 +547,7 @@ def compute_mdhash_id(content: str, prefix: str = "doc") -> str:
 ```
 
 **EdgeQuake Implementation (SHA-256):**
+
 ```rust
 use sha2::{Sha256, Digest};
 
@@ -561,10 +579,10 @@ pub async fn upload_file(
     let mut filename = String::new();
     let mut content_type = String::new();
     let mut metadata = None;
-    
+
     while let Some(field) = multipart.next_field().await? {
         let field_name = field.name().unwrap_or("").to_string();
-        
+
         match field_name.as_str() {
             "file" => {
                 filename = field.file_name()
@@ -582,12 +600,12 @@ pub async fn upload_file(
             _ => {}
         }
     }
-    
+
     // Validate file
     if file_data.is_empty() {
         return Err(ApiError::BadRequest("Empty file".to_string()));
     }
-    
+
     // Check file size
     if file_data.len() > state.config.max_file_size {
         return Err(ApiError::PayloadTooLarge(format!(
@@ -595,10 +613,10 @@ pub async fn upload_file(
             state.config.max_file_size
         )));
     }
-    
+
     // Extract text content (PDF/DOCX parsing)
     let content = extract_text(&file_data, &content_type).await?;
-    
+
     // Check for duplicates
     if let Some(existing) = check_duplicate(&state.doc_status_storage, &content).await? {
         return Ok((
@@ -612,11 +630,11 @@ pub async fn upload_file(
             }),
         ));
     }
-    
+
     // Create document record
     let document_id = Uuid::new_v4().to_string();
     let content_hash = compute_content_hash(&content);
-    
+
     // Create background task
     let task_data = serde_json::json!({
         "document_id": document_id,
@@ -626,11 +644,11 @@ pub async fn upload_file(
         "size_bytes": file_data.len(),
         "metadata": metadata,
     });
-    
+
     let track_id = state.task_service
         .create_task(TaskType::Upload, task_data, None)
         .await?;
-    
+
     // Create document status record
     let doc_status = DocumentStatus {
         doc_id: document_id.clone(),
@@ -644,9 +662,9 @@ pub async fn upload_file(
         metadata,
         ..Default::default()
     };
-    
+
     state.doc_status_storage.create(&doc_status).await?;
-    
+
     Ok((
         StatusCode::ACCEPTED,
         Json(UploadFileResponse {
@@ -687,7 +705,7 @@ impl DirectoryScanner {
             include_builder.add(Glob::new(pattern)?);
         }
         let include_set = include_builder.build()?;
-        
+
         let mut exclude_builder = GlobSetBuilder::new();
         if let Some(exclude) = &request.exclude_patterns {
             for pattern in exclude {
@@ -695,7 +713,7 @@ impl DirectoryScanner {
             }
         }
         let exclude_set = exclude_builder.build()?;
-        
+
         // Create scan task
         let track_id = self.task_service
             .create_task(
@@ -704,59 +722,59 @@ impl DirectoryScanner {
                 None,
             )
             .await?;
-        
+
         Ok(track_id)
     }
-    
+
     async fn process_scan(&self, request: ScanDirectoryRequest) -> Result<(), Error> {
         let walker = if request.recursive {
             WalkDir::new(&request.directory_path)
         } else {
             WalkDir::new(&request.directory_path).max_depth(1)
         };
-        
+
         for entry in walker {
             let entry = entry?;
-            
+
             if !entry.file_type().is_file() {
                 continue;
             }
-            
+
             let path = entry.path();
             let filename = path.file_name()
                 .and_then(|n| n.to_str())
                 .ok_or(Error::InvalidFilename)?;
-            
+
             // Check patterns
             if !include_set.is_match(filename) {
                 continue;
             }
-            
+
             if exclude_set.is_match(filename) {
                 continue;
             }
-            
+
             // Read and process file
             let content = tokio::fs::read_to_string(path).await?;
-            
+
             // Check for duplicates
             if check_duplicate(&self.doc_status_storage, &content).await?.is_some() {
                 tracing::info!("Skipping duplicate file: {}", filename);
                 continue;
             }
-            
+
             // Create insert task
             let task_data = serde_json::json!({
                 "content": content,
                 "file_path": path.to_string_lossy(),
                 "metadata": request.metadata,
             });
-            
+
             self.task_service
                 .create_task(TaskType::Insert, task_data, None)
                 .await?;
         }
-        
+
         Ok(())
     }
 }
@@ -770,19 +788,19 @@ impl DirectoryScanner {
 #[tokio::test]
 async fn test_file_upload() {
     let app = test_app().await;
-    
+
     let form = multipart::Form::new()
         .file("file", "test.txt", "Test content".as_bytes())
         .text("metadata", r#"{"tags": ["test"]}"#);
-    
+
     let response = app
         .post("/api/v1/documents/upload")
         .multipart(form)
         .send()
         .await;
-    
+
     assert_eq!(response.status(), StatusCode::ACCEPTED);
-    
+
     let body: UploadFileResponse = response.json().await;
     assert!(body.track_id.starts_with("upload-"));
 }
@@ -790,9 +808,9 @@ async fn test_file_upload() {
 #[tokio::test]
 async fn test_duplicate_detection() {
     let app = test_app().await;
-    
+
     let content = "Unique test content";
-    
+
     // First insert
     let resp1 = app
         .post("/api/v1/documents/text")
@@ -800,7 +818,7 @@ async fn test_duplicate_detection() {
         .send()
         .await;
     assert_eq!(resp1.status(), StatusCode::ACCEPTED);
-    
+
     // Second insert (duplicate)
     let resp2 = app
         .post("/api/v1/documents/text")
@@ -808,7 +826,7 @@ async fn test_duplicate_detection() {
         .send()
         .await;
     assert_eq!(resp2.status(), StatusCode::CONFLICT);
-    
+
     let body: InsertTextResponse = resp2.json().await;
     assert_eq!(body.status, "duplicated");
 }

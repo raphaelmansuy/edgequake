@@ -30,59 +30,59 @@ Enhance query capabilities with token budget controls, conversation history, cus
 pub struct QueryRequest {
     /// The query text (required)
     pub query: String,
-    
+
     /// Query mode: naive, local, global, hybrid, mix, bypass
     #[serde(default = "default_mode")]
     pub mode: QueryMode,
-    
+
     /// Maximum number of entities/relations to retrieve
     #[serde(default)]
     pub top_k: Option<usize>,
-    
+
     /// Maximum number of text chunks to retrieve
     #[serde(default)]
     pub chunk_top_k: Option<usize>,
-    
+
     /// Maximum tokens for entity context
     #[serde(default)]
     pub max_entity_tokens: Option<usize>,
-    
+
     /// Maximum tokens for relationship context
     #[serde(default)]
     pub max_relation_tokens: Option<usize>,
-    
+
     /// Maximum total tokens (entities + relations + chunks + prompt)
     #[serde(default)]
     pub max_total_tokens: Option<usize>,
-    
+
     /// High-level keywords (optional, auto-extracted if empty)
     #[serde(default)]
     pub hl_keywords: Vec<String>,
-    
+
     /// Low-level keywords (optional, auto-extracted if empty)
     #[serde(default)]
     pub ll_keywords: Vec<String>,
-    
+
     /// Conversation history for multi-turn context
     #[serde(default)]
     pub conversation_history: Option<Vec<ConversationMessage>>,
-    
+
     /// Custom user prompt (overrides default)
     #[serde(default)]
     pub user_prompt: Option<String>,
-    
+
     /// Enable/disable chunk reranking
     #[serde(default = "default_enable_rerank")]
     pub enable_rerank: bool,
-    
+
     /// Include references in response
     #[serde(default = "default_include_references")]
     pub include_references: bool,
-    
+
     /// Include full chunk content in references (for debugging)
     #[serde(default)]
     pub include_chunk_content: bool,
-    
+
     /// Return only context without generation
     #[serde(default)]
     pub context_only: bool,
@@ -127,21 +127,21 @@ fn default_include_references() -> bool {
 pub struct QueryResponse {
     /// Generated answer
     pub answer: String,
-    
+
     /// Query mode used
     pub mode: String,
-    
+
     /// Source references (if include_references=true)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub references: Option<Vec<SourceReference>>,
-    
+
     /// Query statistics
     pub stats: QueryStats,
-    
+
     /// Extracted keywords (if not provided)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extracted_keywords: Option<ExtractedKeywords>,
-    
+
     /// Token usage breakdown
     pub token_usage: TokenUsage,
 }
@@ -168,7 +168,7 @@ pub struct SourceReference {
     pub id: String,
     pub score: f32,
     pub snippet: Option<String>,
-    
+
     /// Full content (if include_chunk_content=true)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub full_content: Option<String>,
@@ -187,6 +187,7 @@ Content-Type: application/json
 ```
 
 **Request Example:**
+
 ```json
 {
   "query": "What are the latest developments in AGI research?",
@@ -215,6 +216,7 @@ Content-Type: application/json
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "answer": "Recent developments in AGI research include...",
@@ -271,6 +273,7 @@ Content-Type: application/json
 ```
 
 **Request:**
+
 ```json
 {
   "query": "quantum computing applications",
@@ -281,6 +284,7 @@ Content-Type: application/json
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "query": "quantum computing applications",
@@ -354,11 +358,11 @@ impl TokenBudgetController {
         let mut entity_tokens = 0;
         let mut relation_tokens = 0;
         let mut chunk_tokens = 0;
-        
+
         let mut filtered_entities = Vec::new();
         let mut filtered_relations = Vec::new();
         let mut filtered_chunks = Vec::new();
-        
+
         // Process entities (sorted by score)
         for entity in context.entities {
             let tokens = self.tokenizer.count(&entity.description);
@@ -370,7 +374,7 @@ impl TokenBudgetController {
             entity_tokens += tokens;
             filtered_entities.push(entity);
         }
-        
+
         // Process relationships
         for rel in context.relationships {
             let tokens = self.tokenizer.count(&rel.description);
@@ -382,7 +386,7 @@ impl TokenBudgetController {
             relation_tokens += tokens;
             filtered_relations.push(rel);
         }
-        
+
         // Process chunks
         for chunk in context.chunks {
             let tokens = self.tokenizer.count(&chunk.content);
@@ -395,7 +399,7 @@ impl TokenBudgetController {
             chunk_tokens += tokens;
             filtered_chunks.push(chunk);
         }
-        
+
         RetrievalContext {
             entities: filtered_entities,
             relationships: filtered_relations,
@@ -430,7 +434,7 @@ impl ConversationHistoryManager {
             .get_recent_messages(session_id, max_messages)
             .await
     }
-    
+
     pub async fn add_message(
         &self,
         session_id: &str,
@@ -438,7 +442,7 @@ impl ConversationHistoryManager {
     ) -> Result<(), Error> {
         self.storage.insert_message(session_id, message).await
     }
-    
+
     pub fn format_history_for_prompt(
         &self,
         history: &[ConversationMessage],
@@ -492,13 +496,13 @@ Format as JSON:
 }}"#,
             query
         );
-        
+
         let response = self.llm.generate(&prompt, None).await?;
         let keywords: ExtractedKeywords = serde_json::from_str(&response)?;
-        
+
         Ok(keywords)
     }
-    
+
     pub fn use_keywords_in_retrieval(
         &self,
         context: &mut RetrievalContext,
@@ -511,19 +515,19 @@ Format as JSON:
                 entity.score *= 1.2;  // 20% boost
             }
         }
-        
+
         // Boost chunks matching low-level keywords
         for chunk in &mut context.chunks {
             if self.matches_keywords(&chunk.content, ll_keywords) {
                 chunk.score *= 1.1;  // 10% boost
             }
         }
-        
+
         // Re-sort by updated scores
         context.entities.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
         context.chunks.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
     }
-    
+
     fn matches_keywords(&self, text: &str, keywords: &[String]) -> bool {
         let text_lower = text.to_lowercase();
         keywords.iter().any(|kw| text_lower.contains(&kw.to_lowercase()))
@@ -542,7 +546,7 @@ pub async fn execute_bypass_query(
 ) -> Result<QueryResponse, Error> {
     // Build prompt without RAG context
     let mut prompt = String::new();
-    
+
     // Add conversation history if provided
     if let Some(history) = conversation_history {
         prompt.push_str("Conversation History:\n");
@@ -551,19 +555,19 @@ pub async fn execute_bypass_query(
         }
         prompt.push_str("\n");
     }
-    
+
     // Add custom or default prompt
     if let Some(custom) = custom_prompt {
         prompt.push_str(&custom);
     } else {
         prompt.push_str("Please answer the following question:");
     }
-    
+
     prompt.push_str(&format!("\n\nQuestion: {}\n\nAnswer:", query));
-    
+
     // Generate response directly from LLM
     let answer = llm.generate(&prompt, None).await?;
-    
+
     Ok(QueryResponse {
         answer,
         mode: "bypass".to_string(),
@@ -632,7 +636,7 @@ max_concurrent_queries = 100
 #[tokio::test]
 async fn test_token_budget_enforcement() {
     let controller = TokenBudgetController::new(Arc::new(MockTokenizer::new()));
-    
+
     let context = RetrievalContext {
         entities: vec![
             // 10 entities, 100 tokens each = 1000 tokens
@@ -643,15 +647,15 @@ async fn test_token_budget_enforcement() {
         relationships: vec![],
         chunks: vec![],
     };
-    
+
     let config = TokenBudgetConfig {
         max_entity_tokens: Some(500),  // Limit to 500 tokens
         max_relation_tokens: None,
         max_total_tokens: None,
     };
-    
+
     let filtered = controller.enforce_budget(context, config);
-    
+
     // Should keep only first 5 entities (500 tokens)
     assert_eq!(filtered.entities.len(), 5);
 }
@@ -659,23 +663,23 @@ async fn test_token_budget_enforcement() {
 #[tokio::test]
 async fn test_conversation_history() {
     let manager = ConversationHistoryManager::new(Arc::new(MockStorage::new()));
-    
+
     let session_id = "session-123";
-    
+
     // Add messages
     manager.add_message(session_id, ConversationMessage {
         role: "user".to_string(),
         content: "What is AI?".to_string(),
     }).await.unwrap();
-    
+
     manager.add_message(session_id, ConversationMessage {
         role: "assistant".to_string(),
         content: "AI is...".to_string(),
     }).await.unwrap();
-    
+
     // Retrieve history
     let history = manager.get_session_history(session_id, 10).await.unwrap();
-    
+
     assert_eq!(history.len(), 2);
     assert_eq!(history[0].role, "user");
     assert_eq!(history[1].role, "assistant");
@@ -684,14 +688,14 @@ async fn test_conversation_history() {
 #[tokio::test]
 async fn test_bypass_mode() {
     let llm = Arc::new(MockLLM::new());
-    
+
     let response = execute_bypass_query(
         &llm,
         "What is 2+2?",
         None,
         None,
     ).await.unwrap();
-    
+
     assert_eq!(response.mode, "bypass");
     assert!(response.references.is_none());
     assert_eq!(response.stats.sources_retrieved, 0);

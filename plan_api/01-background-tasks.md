@@ -82,27 +82,27 @@ CREATE TABLE tasks (
     -- Identity
     track_id VARCHAR(50) PRIMARY KEY,        -- Format: {type}-{uuid}
     task_type VARCHAR(20) NOT NULL,          -- upload, insert, scan, reindex
-    
+
     -- Status
     status VARCHAR(20) NOT NULL,             -- pending, processing, indexed, failed
-    
+
     -- Timestamps
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     started_at TIMESTAMPTZ,                  -- When processing began
     completed_at TIMESTAMPTZ,                -- When finished (success or failure)
-    
+
     -- Error handling
     error_message TEXT,
     retry_count INTEGER DEFAULT 0,
     max_retries INTEGER DEFAULT 3,
-    
+
     -- Payload
     task_data JSONB NOT NULL,                -- Task-specific data
-    
+
     -- Metadata
     metadata JSONB,                          -- User-defined metadata
-    
+
     -- Indexes
     CONSTRAINT valid_status CHECK (status IN ('pending', 'processing', 'indexed', 'failed', 'cancelled'))
 );
@@ -196,7 +196,7 @@ impl TaskService {
         metadata: Option<serde_json::Value>,
     ) -> Result<String, Error> {
         let track_id = generate_track_id(&task_type);
-        
+
         let task = Task {
             track_id: track_id.clone(),
             task_type,
@@ -206,13 +206,13 @@ impl TaskService {
             metadata,
             ..Default::default()
         };
-        
+
         // Persist task
         self.storage.create_task(&task).await?;
-        
+
         // Enqueue for processing
         self.queue.send(task).await?;
-        
+
         Ok(track_id)
     }
 }
@@ -225,12 +225,14 @@ GET /api/v1/tasks/{track_id}
 ```
 
 **Request:**
+
 ```http
 GET /api/v1/tasks/upload-a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5g6h7 HTTP/1.1
 Host: localhost:8080
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "track_id": "upload-a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5g6h7",
@@ -254,6 +256,7 @@ Host: localhost:8080
 ```
 
 **Response (200 OK - Completed):**
+
 ```json
 {
   "track_id": "upload-a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5g6h7",
@@ -273,6 +276,7 @@ Host: localhost:8080
 ```
 
 **Response (200 OK - Failed):**
+
 ```json
 {
   "track_id": "upload-a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5g6h7",
@@ -289,6 +293,7 @@ Host: localhost:8080
 ```
 
 **Response (404 Not Found):**
+
 ```json
 {
   "error": "task_not_found",
@@ -303,6 +308,7 @@ GET /api/v1/tasks
 ```
 
 **Query Parameters:**
+
 - `status`: Filter by status (pending, processing, indexed, failed)
 - `task_type`: Filter by type (upload, insert, scan, reindex)
 - `page`: Page number (default: 1)
@@ -311,12 +317,14 @@ GET /api/v1/tasks
 - `order`: Sort order (asc, desc, default: desc)
 
 **Request:**
+
 ```http
 GET /api/v1/tasks?status=failed&page=1&page_size=20 HTTP/1.1
 Host: localhost:8080
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "tasks": [
@@ -357,12 +365,14 @@ POST /api/v1/tasks/{track_id}/cancel
 ```
 
 **Request:**
+
 ```http
 POST /api/v1/tasks/upload-a1b2c3d4.../cancel HTTP/1.1
 Host: localhost:8080
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "track_id": "upload-a1b2c3d4...",
@@ -372,6 +382,7 @@ Host: localhost:8080
 ```
 
 **Response (409 Conflict):**
+
 ```json
 {
   "error": "cannot_cancel",
@@ -386,12 +397,14 @@ POST /api/v1/tasks/{track_id}/retry
 ```
 
 **Request:**
+
 ```http
 POST /api/v1/tasks/upload-a1b2c3d4.../retry HTTP/1.1
 Host: localhost:8080
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "track_id": "upload-a1b2c3d4...",
@@ -444,14 +457,14 @@ impl TaskQueue for ChannelTaskQueue {
             .await
             .map_err(|e| Error::QueueFull(e.to_string()))
     }
-    
+
     async fn receive(&self) -> Result<Task, Error> {
         let mut rx = self.receiver.lock().await;
         rx.recv()
             .await
             .ok_or(Error::QueueClosed)
     }
-    
+
     async fn size(&self) -> usize {
         // Channel size estimation
         0 // mpsc::Sender doesn't expose size
@@ -481,26 +494,26 @@ impl TaskQueue for RedisTaskQueue {
     async fn send(&self, task: Task) -> Result<(), Error> {
         let mut conn = self.client.get_async_connection().await?;
         let task_json = serde_json::to_string(&task)?;
-        
+
         redis::cmd("RPUSH")
             .arg(&self.queue_name)
             .arg(&task_json)
             .query_async(&mut conn)
             .await?;
-        
+
         Ok(())
     }
-    
+
     async fn receive(&self) -> Result<Task, Error> {
         let mut conn = self.client.get_async_connection().await?;
-        
+
         // BLPOP with 1 second timeout
         let result: Option<(String, String)> = redis::cmd("BLPOP")
             .arg(&self.queue_name)
             .arg(1)
             .query_async(&mut conn)
             .await?;
-        
+
         match result {
             Some((_, task_json)) => {
                 let task: Task = serde_json::from_str(&task_json)?;
@@ -509,7 +522,7 @@ impl TaskQueue for RedisTaskQueue {
             None => Err(Error::QueueEmpty),
         }
     }
-    
+
     async fn size(&self) -> usize {
         let mut conn = self.client.get_async_connection().await.unwrap();
         redis::cmd("LLEN")
@@ -540,7 +553,7 @@ impl WorkerPool {
     ) -> Self {
         let (shutdown_tx, _) = broadcast::channel(1);
         let mut workers = Vec::new();
-        
+
         for id in 0..num_workers {
             let worker = Worker::new(
                 id,
@@ -549,24 +562,24 @@ impl WorkerPool {
                 Arc::clone(&pipeline),
                 shutdown_tx.subscribe(),
             );
-            
+
             let handle = tokio::spawn(async move {
                 worker.run().await;
             });
-            
+
             workers.push(handle);
         }
-        
+
         Self {
             workers,
             shutdown_tx,
         }
     }
-    
+
     pub async fn shutdown(self) {
         // Signal shutdown
         let _ = self.shutdown_tx.send(());
-        
+
         // Wait for all workers to finish
         for handle in self.workers {
             let _ = handle.await;
@@ -585,7 +598,7 @@ struct Worker {
 impl Worker {
     async fn run(mut self) {
         tracing::info!("Worker {} started", self.id);
-        
+
         loop {
             tokio::select! {
                 _ = self.shutdown_rx.recv() => {
@@ -609,15 +622,15 @@ impl Worker {
             }
         }
     }
-    
+
     async fn process_task(&self, mut task: Task) {
         tracing::info!("Worker {} processing task {}", self.id, task.track_id);
-        
+
         // Update status to processing
         task.status = TaskStatus::Processing;
         task.started_at = Some(Utc::now());
         let _ = self.storage.update_task(&task).await;
-        
+
         // Execute task
         let result = match task.task_type {
             TaskType::Upload => self.process_upload(&task).await,
@@ -625,7 +638,7 @@ impl Worker {
             TaskType::Scan => self.process_scan(&task).await,
             TaskType::Reindex => self.process_reindex(&task).await,
         };
-        
+
         // Update final status
         match result {
             Ok(result_data) => {
@@ -637,7 +650,7 @@ impl Worker {
                 task.status = TaskStatus::Failed;
                 task.completed_at = Some(Utc::now());
                 task.error_message = Some(e.to_string());
-                
+
                 tracing::error!(
                     "Worker {} task {} failed: {}",
                     self.id,
@@ -646,21 +659,21 @@ impl Worker {
                 );
             }
         }
-        
+
         task.updated_at = Utc::now();
         let _ = self.storage.update_task(&task).await;
     }
-    
+
     async fn process_upload(&self, task: &Task) -> Result<serde_json::Value, Error> {
         // Extract file_path from task_data
         let data: UploadTaskData = serde_json::from_value(task.task_data.clone())?;
-        
+
         // Read file content
         let content = tokio::fs::read_to_string(&data.file_path).await?;
-        
+
         // Process through pipeline
         let result = self.pipeline.process(&data.document_id, &content).await?;
-        
+
         // Return result data
         Ok(serde_json::json!({
             "document_id": data.document_id,
@@ -669,7 +682,7 @@ impl Worker {
             "relationship_count": result.stats.relationship_count,
         }))
     }
-    
+
     // Similar implementations for insert, scan, reindex...
 }
 ```
@@ -688,7 +701,7 @@ pub fn generate_track_id(task_type: &TaskType) -> String {
         TaskType::Scan => "scan",
         TaskType::Reindex => "reindex",
     };
-    
+
     let uuid = Uuid::new_v4();
     format!("{}-{}", prefix, uuid)
 }
@@ -721,10 +734,10 @@ pub async fn upload_document(
     if request.content.trim().is_empty() {
         return Err(ApiError::ValidationError("Content cannot be empty".to_string()));
     }
-    
+
     // Generate document ID
     let document_id = Uuid::new_v4().to_string();
-    
+
     // Create background task
     let task_data = serde_json::json!({
         "document_id": document_id,
@@ -732,11 +745,11 @@ pub async fn upload_document(
         "title": request.title,
         "metadata": request.metadata,
     });
-    
+
     let track_id = state.task_service
         .create_task(TaskType::Insert, task_data, None)
         .await?;
-    
+
     // Return immediately with track_id
     Ok((
         StatusCode::ACCEPTED,
@@ -793,29 +806,29 @@ lazy_static! {
         "edgequake_tasks_created_total",
         "Total number of tasks created"
     ).unwrap();
-    
+
     static ref TASKS_COMPLETED: IntCounter = register_int_counter!(
         "edgequake_tasks_completed_total",
         "Total number of tasks completed successfully"
     ).unwrap();
-    
+
     static ref TASKS_FAILED: IntCounter = register_int_counter!(
         "edgequake_tasks_failed_total",
         "Total number of tasks failed"
     ).unwrap();
-    
+
     // Queue metrics
     static ref QUEUE_SIZE: IntGauge = register_int_gauge!(
         "edgequake_task_queue_size",
         "Current number of tasks in queue"
     ).unwrap();
-    
+
     // Task duration
     static ref TASK_DURATION: Histogram = register_histogram!(
         "edgequake_task_duration_seconds",
         "Task processing duration in seconds"
     ).unwrap();
-    
+
     // Worker metrics
     static ref ACTIVE_WORKERS: IntGauge = register_int_gauge!(
         "edgequake_active_workers",
@@ -832,11 +845,11 @@ use tracing::{info, error, instrument};
 #[instrument(skip(self, task), fields(track_id = %task.track_id, task_type = ?task.task_type))]
 async fn process_task(&self, task: Task) -> Result<(), Error> {
     info!("Starting task processing");
-    
+
     let start = Instant::now();
     let result = self.execute_task(&task).await;
     let duration = start.elapsed();
-    
+
     match result {
         Ok(_) => {
             info!(duration_ms = duration.as_millis(), "Task completed successfully");
@@ -847,9 +860,9 @@ async fn process_task(&self, task: Task) -> Result<(), Error> {
             TASKS_FAILED.inc();
         }
     }
-    
+
     TASK_DURATION.observe(duration.as_secs_f64());
-    
+
     result
 }
 ```
@@ -866,7 +879,7 @@ async fn test_task_creation() {
     let queue = Arc::new(ChannelTaskQueue::new(100));
     let storage = Arc::new(MockTaskStorage::new());
     let service = TaskService::new(queue, storage);
-    
+
     let track_id = service
         .create_task(
             TaskType::Insert,
@@ -875,7 +888,7 @@ async fn test_task_creation() {
         )
         .await
         .unwrap();
-    
+
     assert!(track_id.starts_with("insert-"));
 }
 
@@ -884,9 +897,9 @@ async fn test_worker_processes_task() {
     let queue = Arc::new(ChannelTaskQueue::new(100));
     let storage = Arc::new(MockTaskStorage::new());
     let pipeline = Arc::new(MockPipeline::new());
-    
+
     let pool = WorkerPool::new(1, queue.clone(), storage.clone(), pipeline);
-    
+
     // Create task
     let task = Task {
         track_id: "test-123".to_string(),
@@ -895,17 +908,17 @@ async fn test_worker_processes_task() {
         task_data: serde_json::json!({"text": "test content"}),
         ..Default::default()
     };
-    
+
     storage.create_task(&task).await.unwrap();
     queue.send(task).await.unwrap();
-    
+
     // Wait for processing
     tokio::time::sleep(Duration::from_secs(2)).await;
-    
+
     // Verify task completed
     let updated_task = storage.get_task("test-123").await.unwrap();
     assert_eq!(updated_task.status, TaskStatus::Indexed);
-    
+
     pool.shutdown().await;
 }
 ```
@@ -916,7 +929,7 @@ async fn test_worker_processes_task() {
 #[tokio::test]
 async fn test_end_to_end_document_upload() {
     let app = test_app().await;
-    
+
     // Upload document
     let response = app
         .post("/api/v1/documents")
@@ -926,29 +939,29 @@ async fn test_end_to_end_document_upload() {
         }))
         .send()
         .await;
-    
+
     assert_eq!(response.status(), StatusCode::ACCEPTED);
-    
+
     let body: UploadDocumentResponse = response.json().await;
     assert!(body.track_id.starts_with("insert-"));
-    
+
     // Poll for completion
     for _ in 0..10 {
         tokio::time::sleep(Duration::from_millis(500)).await;
-        
+
         let status_response = app
             .get(&format!("/api/v1/tasks/{}", body.track_id))
             .send()
             .await;
-        
+
         let status: TaskStatusResponse = status_response.json().await;
-        
+
         if status.status == "indexed" {
             assert!(status.result.is_some());
             return;
         }
     }
-    
+
     panic!("Task did not complete in time");
 }
 ```
@@ -960,6 +973,7 @@ async fn test_end_to_end_document_upload() {
 ### From v1.0 (Synchronous) to v1.1 (Async)
 
 **Old Code (v1.0):**
+
 ```rust
 let response = client
     .post("/api/v1/documents")
@@ -975,6 +989,7 @@ println!("Entities: {}", body.entity_count);
 ```
 
 **New Code (v1.1):**
+
 ```rust
 let response = client
     .post("/api/v1/documents")
@@ -996,7 +1011,7 @@ loop {
         .await?
         .json::<TaskStatusResponse>()
         .await?;
-    
+
     match status.status.as_str() {
         "indexed" => {
             println!("Entities: {}", status.result.unwrap()["entity_count"]);
@@ -1027,13 +1042,13 @@ loop {
 
 ## Performance Targets
 
-| Metric | Target | Measurement |
-|--------|--------|-------------|
-| Task Creation Latency | <50ms | p95 |
-| Queue Throughput | 1000+ tasks/sec | Sustained |
-| Worker CPU Usage | <80% | Per-worker average |
-| Memory per Task | <1MB | Average |
-| Task Storage Size | <10KB | Per task record |
+| Metric                | Target          | Measurement        |
+| --------------------- | --------------- | ------------------ |
+| Task Creation Latency | <50ms           | p95                |
+| Queue Throughput      | 1000+ tasks/sec | Sustained          |
+| Worker CPU Usage      | <80%            | Per-worker average |
+| Memory per Task       | <1MB            | Average            |
+| Task Storage Size     | <10KB           | Per task record    |
 
 ---
 

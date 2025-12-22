@@ -24,6 +24,7 @@ v1.0 (Current)     v1.1 (Phase 1)      v1.2 (Phase 2)      v2.0 (Phase 3)
 ### Implementation Checklist
 
 - [ ] **1. Task Queue System** (2 weeks)
+
   - [ ] Create `tasks` table schema
   - [ ] Implement `TaskQueue` trait
   - [ ] Implement `ChannelTaskQueue` (tokio channels)
@@ -32,18 +33,21 @@ v1.0 (Current)     v1.1 (Phase 1)      v1.2 (Phase 2)      v2.0 (Phase 3)
   - [ ] Track ID generation: `{type}-{uuid}`
 
 - [ ] **2. Background Worker Pool** (1 week)
+
   - [ ] Implement `WorkerPool` with configurable threads
   - [ ] Task processing loop
   - [ ] Error handling and retry logic
   - [ ] Graceful shutdown
 
 - [ ] **3. Document Status Tracking** (2 weeks)
+
   - [ ] Create `document_status` table
   - [ ] Add `track_id`, `status`, `progress_percent` columns
   - [ ] Implement status update logic
   - [ ] Add SHA-256 content hashing for deduplication
 
 - [ ] **4. New Endpoints** (2 weeks)
+
   - [ ] `POST /documents/upload` (multipart file upload)
   - [ ] `POST /documents/text` (direct text insert)
   - [ ] `POST /documents/texts` (batch text insert)
@@ -54,6 +58,7 @@ v1.0 (Current)     v1.1 (Phase 1)      v1.2 (Phase 2)      v2.0 (Phase 3)
   - [ ] `POST /tasks/{id}/retry` (retry failed)
 
 - [ ] **5. Enhanced Query** (2 weeks)
+
   - [ ] Add token budget parameters to `QueryRequest`
   - [ ] Implement `TokenBudgetController`
   - [ ] Add conversation history support
@@ -168,6 +173,7 @@ GET /tasks/upload-abc123
 ### Implementation Checklist
 
 - [ ] **1. Entity CRUD** (3 weeks)
+
   - [ ] `POST /graph/entities` (create entity)
   - [ ] `GET /graph/entities/{id}` (get entity)
   - [ ] `PUT /graph/entities/{id}` (update entity)
@@ -176,23 +182,27 @@ GET /tasks/upload-abc123
   - [ ] `POST /graph/entities/merge` (merge duplicates)
 
 - [ ] **2. Relationship CRUD** (2 weeks)
+
   - [ ] `POST /graph/relationships` (create relationship)
   - [ ] `GET /graph/relationships/{id}` (get relationship)
   - [ ] `PUT /graph/relationships/{id}` (update relationship)
   - [ ] `DELETE /graph/relationships/{id}` (delete relationship)
 
 - [ ] **3. Bulk Operations** (2 weeks)
+
   - [ ] `POST /documents/scan` (directory scanner)
   - [ ] `DELETE /documents/clear` (clear all)
   - [ ] `DELETE /documents/failed` (delete failed)
   - [ ] `POST /documents/reindex-failed` (retry failed)
 
 - [ ] **4. Graph Analytics** (2 weeks)
+
   - [ ] `GET /graph/statistics` (node/edge counts, centrality)
   - [ ] `GET /graph/labels/popular` (most common labels)
   - [ ] `GET /graph/labels/search` (search labels)
 
 - [ ] **5. Audit Logging** (1 week)
+
   - [ ] Create `audit_log` table
   - [ ] Log all graph mutations
   - [ ] Add `is_manual` flag to entities/relationships
@@ -227,7 +237,7 @@ CREATE INDEX idx_audit_created_at ON audit_log(created_at);
 -- Migration: 005_manual_entities.sql
 
 -- Add is_manual flag to Entity nodes in AGE
-ALTER TABLE ag_catalog.ag_label 
+ALTER TABLE ag_catalog.ag_label
 ADD COLUMN is_manual BOOLEAN DEFAULT FALSE;
 ```
 
@@ -245,6 +255,7 @@ ADD COLUMN is_manual BOOLEAN DEFAULT FALSE;
 ### Implementation Checklist
 
 - [ ] **1. Authentication** (4 weeks)
+
   - [ ] Create `users`, `api_keys`, `refresh_tokens` tables
   - [ ] Implement JWT generation/validation
   - [ ] Implement API key authentication
@@ -253,6 +264,7 @@ ADD COLUMN is_manual BOOLEAN DEFAULT FALSE;
   - [ ] Endpoints: `/auth/token`, `/auth/refresh`, `/auth/logout`
 
 - [ ] **2. Multi-Tenancy** (6 weeks)
+
   - [ ] Create `tenants`, `workspaces`, `memberships` tables
   - [ ] Implement tenant context middleware
   - [ ] Update storage adapters for tenant isolation
@@ -261,12 +273,14 @@ ADD COLUMN is_manual BOOLEAN DEFAULT FALSE;
   - [ ] Endpoints: `/tenants`, `/workspaces`, `/memberships`
 
 - [ ] **3. RBAC** (2 weeks)
+
   - [ ] Define roles: admin, user, readonly
   - [ ] Implement permission checker
   - [ ] Add role-based endpoint guards
   - [ ] Admin endpoints: `/admin/*`
 
 - [ ] **4. Observability** (3 weeks)
+
   - [ ] Integrate OpenTelemetry
   - [ ] Add Prometheus metrics (20+ metrics)
   - [ ] Implement distributed tracing
@@ -275,6 +289,7 @@ ADD COLUMN is_manual BOOLEAN DEFAULT FALSE;
   - [ ] Endpoint: `/metrics`
 
 - [ ] **5. Rate Limiting** (1 week)
+
   - [ ] Implement token bucket algorithm
   - [ ] Per-user and per-tenant limits
   - [ ] Return 429 status on limit exceeded
@@ -375,6 +390,7 @@ CREATE TABLE memberships (
 All endpoints (except `/health`, `/ready`, `/metrics`) now require authentication.
 
 **Migration Steps:**
+
 1. Create default admin user
 2. Generate API keys for existing clients
 3. Update client code to include `Authorization` header
