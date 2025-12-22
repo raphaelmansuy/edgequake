@@ -143,49 +143,39 @@ impl<V: VectorStorage, G: GraphStorage> QueryStrategy for LocalStrategy<V, G> {
     ) -> Result<QueryContext> {
         let mut context = QueryContext::new();
 
-        // Step 1: Vector search for initial chunks
-        let chunk_results = self
+        // Step 1: Vector search for entities (as per LightRAG Local mode spec)
+        // Local mode should search entity_vdb, not chunks
+        let vector_results = self
             .vector_storage
-            .query(query_embedding, config.max_chunks / 2, None)
+            .query(query_embedding, config.max_entities * 2, None)  // Get more for filtering
             .await?;
 
-        for result in &chunk_results {
+        // Filter to entity vectors only
+        let entity_results = crate::vector_filter::filter_by_type(
+            vector_results,
+            crate::vector_filter::VectorType::Entity,
+        );
+
+        let mut entity_ids = HashSet::new();
+
+        // Step 2: Extract entity IDs from vector results
+        for result in entity_results.iter().take(config.max_entities) {
             if result.score >= config.min_score {
-                let content = result
+                let entity_name = result
                     .metadata
-                    .get("content")
+                    .get("entity_name")
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string();
 
-                context.add_chunk(RetrievedChunk::new(&result.id, content, result.score));
-            }
-        }
-
-        // Step 2: Find entities mentioned in top chunks
-        let mut entity_ids = HashSet::new();
-        for result in chunk_results.iter().take(3) {
-            if let Some(entities) = result.metadata.get("entities") {
-                if let Some(arr) = entities.as_array() {
-                    for e in arr {
-                        if let Some(s) = e.as_str() {
-                            entity_ids.insert(normalize_entity_name(s));
-                        }
-                    }
+                if !entity_name.is_empty() {
+                    entity_ids.insert(normalize_entity_name(&entity_name));
                 }
             }
         }
 
-        // Step 3: Expand to include query terms as potential entities
-        for word in query.split_whitespace() {
-            let normalized = normalize_entity_name(word);
-            if normalized.len() >= 3 {
-                entity_ids.insert(normalized);
-            }
-        }
-
-        // Step 4: Retrieve entities and their neighborhoods
-        for entity_id in entity_ids.iter().take(config.max_entities) {
+        // Step 3: Retrieve entities and their local graph neighborhoods
+        for entity_id in &entity_ids {
             if let Some(node) = self.graph_storage.get_node(entity_id).await? {
                 let entity_type = node
                     .properties
@@ -207,7 +197,7 @@ impl<V: VectorStorage, G: GraphStorage> QueryStrategy for LocalStrategy<V, G> {
                     RetrievedEntity::new(&node.id, entity_type, description).with_degree(degree),
                 );
 
-                // Get direct relationships
+                // Get direct relationships (1-hop neighborhood)
                 let edges = self.graph_storage.get_node_edges(entity_id).await?;
                 for edge in edges.iter().take(config.max_relationships_per_entity) {
                     let rel_type = edge
@@ -240,38 +230,93 @@ impl<V: VectorStorage, G: GraphStorage> QueryStrategy for LocalStrategy<V, G> {
     }
 }
 
-/// Global query strategy - community/cluster-based search.
-pub struct GlobalStrategy<G: GraphStorage> {
+/// Global query strategy - relationship-focused search.
+pub struct GlobalStrategy<V: VectorStorage, G: GraphStorage> {
+    vector_storage: Arc<V>,
     graph_storage: Arc<G>,
 }
 
-impl<G: GraphStorage> GlobalStrategy<G> {
+impl<V: VectorStorage, G: GraphStorage> GlobalStrategy<V, G> {
     /// Create a new global strategy.
-    pub fn new(graph_storage: Arc<G>) -> Self {
-        Self { graph_storage }
+    pub fn new(vector_storage: Arc<V>, graph_storage: Arc<G>) -> Self {
+        Self {
+            vector_storage,
+            graph_storage,
+        }
     }
 }
 
 #[async_trait]
-impl<G: GraphStorage> QueryStrategy for GlobalStrategy<G> {
+impl<V: VectorStorage, G: GraphStorage> QueryStrategy for GlobalStrategy<V, G> {
     async fn execute(
         &self,
         _query: &str,
-        _query_embedding: &[f32],
+        query_embedding: &[f32],
         config: &StrategyConfig,
     ) -> Result<QueryContext> {
         let mut context = QueryContext::new();
 
-        // Global strategy focuses on high-degree entities (hubs)
-        // and their communities
-        let popular = self
-            .graph_storage
-            .get_popular_labels(config.max_entities)
+        // Step 1: Vector search for relationships (as per LightRAG Global mode spec)
+        // Global mode should search relations_vdb
+        let vector_results = self
+            .vector_storage
+            .query(query_embedding, config.max_entities * 3, None)  // Get more for filtering
             .await?;
 
-        let mut seen_relationships = HashSet::new();
+        // Filter to relationship vectors only
+        let relationship_results = crate::vector_filter::filter_by_type(
+            vector_results,
+            crate::vector_filter::VectorType::Relationship,
+        );
 
-        for entity_id in popular.iter().take(config.max_entities) {
+        let mut seen_relationships = HashSet::new();
+        let mut entity_ids = HashSet::new();
+
+        // Step 2: Extract relationships from vector results
+        for result in relationship_results.iter().take(config.max_entities * 2) {
+            if result.score >= config.min_score {
+                let src_id = result
+                    .metadata
+                    .get("src_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let tgt_id = result
+                    .metadata
+                    .get("tgt_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let rel_type = result
+                    .metadata
+                    .get("relation_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("RELATED_TO");
+
+                if !src_id.is_empty() && !tgt_id.is_empty() {
+                    let rel_key = format!("{}->{}:{}", src_id, tgt_id, rel_type);
+
+                    if seen_relationships.insert(rel_key) {
+                        let description = result
+                            .metadata
+                            .get("description")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+
+                        context.add_relationship(
+                            RetrievedRelationship::new(src_id, tgt_id, rel_type.to_string())
+                                .with_description(description),
+                        );
+
+                        // Track entities involved
+                        entity_ids.insert(src_id.to_string());
+                        entity_ids.insert(tgt_id.to_string());
+                    }
+                }
+            }
+        }
+
+        // Step 3: Retrieve entity details for all entities in relationships
+        for entity_id in entity_ids.iter().take(config.max_entities) {
             if let Some(node) = self.graph_storage.get_node(entity_id).await? {
                 let entity_type = node
                     .properties
@@ -292,34 +337,6 @@ impl<G: GraphStorage> QueryStrategy for GlobalStrategy<G> {
                 context.add_entity(
                     RetrievedEntity::new(&node.id, entity_type, description).with_degree(degree),
                 );
-
-                // Get all relationships for hub entities
-                let edges = self.graph_storage.get_node_edges(entity_id).await?;
-                for edge in edges.iter().take(config.max_relationships_per_entity * 2) {
-                    let rel_key = format!("{}->{}:{}", &edge.source, &edge.target, 
-                        edge.properties.get("relation_type").and_then(|v| v.as_str()).unwrap_or(""));
-                    
-                    if seen_relationships.insert(rel_key) {
-                        let rel_type = edge
-                            .properties
-                            .get("relation_type")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("RELATED_TO")
-                            .to_string();
-
-                        let description = edge
-                            .properties
-                            .get("description")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string();
-
-                        context.add_relationship(
-                            RetrievedRelationship::new(&edge.source, &edge.target, rel_type)
-                                .with_description(description),
-                        );
-                    }
-                }
             }
         }
 
@@ -334,7 +351,7 @@ impl<G: GraphStorage> QueryStrategy for GlobalStrategy<G> {
 /// Hybrid query strategy - combines local and global approaches.
 pub struct HybridStrategy<V: VectorStorage, G: GraphStorage> {
     local_strategy: LocalStrategy<V, G>,
-    global_strategy: GlobalStrategy<G>,
+    global_strategy: GlobalStrategy<V, G>,
 }
 
 impl<V: VectorStorage, G: GraphStorage> HybridStrategy<V, G> {
@@ -342,7 +359,7 @@ impl<V: VectorStorage, G: GraphStorage> HybridStrategy<V, G> {
     pub fn new(vector_storage: Arc<V>, graph_storage: Arc<G>) -> Self {
         Self {
             local_strategy: LocalStrategy::new(Arc::clone(&vector_storage), Arc::clone(&graph_storage)),
-            global_strategy: GlobalStrategy::new(graph_storage),
+            global_strategy: GlobalStrategy::new(vector_storage, graph_storage),
         }
     }
 }
@@ -485,8 +502,8 @@ where
 {
     match mode {
         QueryMode::Naive => Box::new(NaiveStrategy::new(vector_storage)),
-        QueryMode::Local => Box::new(LocalStrategy::new(vector_storage, graph_storage)),
-        QueryMode::Global => Box::new(GlobalStrategy::new(graph_storage)),
+        QueryMode::Local => Box::new(LocalStrategy::new(vector_storage.clone(), graph_storage.clone())),
+        QueryMode::Global => Box::new(GlobalStrategy::new(vector_storage, graph_storage)),
         QueryMode::Hybrid => Box::new(HybridStrategy::new(vector_storage, graph_storage)),
         QueryMode::Mix => Box::new(MixStrategy::new(vector_storage, graph_storage)),
     }
@@ -600,17 +617,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_global_strategy_mode() {
+        let vector_storage = Arc::new(MemoryVectorStorage::new("test", 3));
         let graph_storage = Arc::new(MemoryGraphStorage::new("test"));
-        let strategy = GlobalStrategy::new(graph_storage);
+        let strategy = GlobalStrategy::new(vector_storage, graph_storage);
         assert_eq!(strategy.mode(), QueryMode::Global);
     }
 
     #[tokio::test]
     async fn test_global_strategy_empty_storage() {
+        let vector_storage = Arc::new(MemoryVectorStorage::new("test", 3));
         let graph_storage = Arc::new(MemoryGraphStorage::new("test"));
+        vector_storage.initialize().await.unwrap();
         graph_storage.initialize().await.unwrap();
         
-        let strategy = GlobalStrategy::new(graph_storage);
+        let strategy = GlobalStrategy::new(vector_storage, graph_storage);
         let config = StrategyConfig::default();
         
         let context = strategy.execute("test query", &[0.1, 0.2, 0.3], &config).await.unwrap();
@@ -696,14 +716,15 @@ mod tests {
         props.insert("description".to_string(), json!("A systems programming language"));
         graph_storage.upsert_node("RUST", props).await.unwrap();
         
-        let strategy = GlobalStrategy::new(graph_storage);
+        let strategy = GlobalStrategy::new(vector_storage, graph_storage);
         let config = StrategyConfig::default();
         
         // Query with "rust" term to match the entity
         let context = strategy.execute("rust language", &[0.1, 0.2, 0.3], &config).await.unwrap();
-        // Global strategy looks for entities matching query terms
-        // It should find the RUST entity
-        assert!(context.entities.len() <= 1); // May or may not find it depending on matching logic
+        // Global strategy now looks for relationships through vector search
+        // With empty relationship VDB, it should return empty context
+        assert_eq!(context.entities.len(), 0);
+        assert_eq!(context.relationships.len(), 0);
     }
 
     #[test]

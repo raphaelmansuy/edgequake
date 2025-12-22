@@ -103,13 +103,18 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
     async fn merge_entity(&self, entity: ExtractedEntity) -> Result<bool> {
         let entity_key = normalize_entity_name(&entity.name);
 
-        // Store embedding if present
+        // Store entity embedding with type metadata (for Local query mode)
         if let Some(embedding) = &entity.embedding {
             self.vector_storage
                 .upsert(&[(
                     entity_key.clone(),
                     embedding.clone(),
-                    serde_json::json!({ "name": entity.name }),
+                    serde_json::json!({
+                        "type": "entity",  // Mark as entity for retrieval filtering
+                        "entity_name": entity.name,
+                        "entity_type": entity.entity_type,
+                        "description": entity.description
+                    }),
                 )])
                 .await?;
         }
@@ -141,6 +146,25 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
     async fn merge_relationship(&self, rel: ExtractedRelationship) -> Result<bool> {
         let source_key = normalize_entity_name(&rel.source);
         let target_key = normalize_entity_name(&rel.target);
+
+        // Store relationship embedding with type metadata (for Global query mode)
+        if let Some(embedding) = &rel.embedding {
+            let rel_id = format!("{}->{}:{}", source_key, target_key, rel.relation_type);
+            self.vector_storage
+                .upsert(&[(
+                    rel_id,
+                    embedding.clone(),
+                    serde_json::json!({
+                        "type": "relationship",  // Mark as relationship for retrieval filtering
+                        "src_id": source_key,
+                        "tgt_id": target_key,
+                        "keywords": rel.keywords.join(", "),
+                        "relation_type": rel.relation_type,
+                        "description": rel.description
+                    }),
+                )])
+                .await?;
+        }
 
         // Check if edge exists
         let existing = self.graph_storage.get_edge(&source_key, &target_key).await?;

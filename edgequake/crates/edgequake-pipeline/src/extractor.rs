@@ -117,6 +117,10 @@ pub struct ExtractedRelationship {
 
     /// Keywords associated with this relationship.
     pub keywords: Vec<String>,
+
+    /// Relationship embedding (for similarity search).
+    /// Computed from: keywords + source + target + description
+    pub embedding: Option<Vec<f32>>,
 }
 
 impl ExtractedRelationship {
@@ -133,6 +137,7 @@ impl ExtractedRelationship {
             description: String::new(),
             weight: 0.5,
             keywords: Vec::new(),
+            embedding: None,
         }
     }
 

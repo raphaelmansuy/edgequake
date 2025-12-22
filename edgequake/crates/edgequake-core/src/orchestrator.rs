@@ -399,7 +399,7 @@ impl EdgeQuake {
             .await
             .map_err(|e| Error::internal(format!("Merge error: {}", e)))?;
 
-        // 3. Store chunk embeddings
+        // 3. Store chunk embeddings with type metadata
         for chunk in &processing_result.chunks {
             if let Some(embedding) = &chunk.embedding {
                 vector_storage
@@ -407,6 +407,7 @@ impl EdgeQuake {
                         chunk.id.clone(),
                         embedding.clone(),
                         serde_json::json!({
+                            "type": "chunk",  // Mark as chunk for retrieval filtering
                             "document_id": doc_id,
                             "index": chunk.index,
                             "content": chunk.content

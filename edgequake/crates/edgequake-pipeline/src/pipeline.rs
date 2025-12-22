@@ -33,6 +33,9 @@ pub struct PipelineConfig {
     /// Whether to generate entity embeddings.
     pub enable_entity_embeddings: bool,
 
+    /// Whether to generate relationship embeddings.
+    pub enable_relationship_embeddings: bool,
+
     /// Maximum concurrent extraction tasks.
     pub max_concurrent_extractions: usize,
 }
@@ -47,6 +50,7 @@ impl Default for PipelineConfig {
             enable_relationship_extraction: true,
             enable_chunk_embeddings: true,
             enable_entity_embeddings: true,
+            enable_relationship_embeddings: true,
             max_concurrent_extractions: 4,
         }
     }
@@ -185,6 +189,39 @@ impl Pipeline {
 
                         for (entity, embedding) in extraction.entities.iter_mut().zip(embeddings) {
                             entity.embedding = Some(embedding);
+                        }
+                    }
+                }
+            }
+
+            // Relationship embeddings (as per LightRAG spec)
+            if self.config.enable_relationship_embeddings {
+                for extraction in &mut extractions {
+                    let relationship_texts: Vec<String> = extraction
+                        .relationships
+                        .iter()
+                        .map(|r| {
+                            // Format: "keywords\tsource->target\ndescription"
+                            // Matches LightRAG's relationship embedding format
+                            format!(
+                                "{}\t{}->{}\n{}",
+                                r.keywords.join(", "),
+                                r.source,
+                                r.target,
+                                r.description
+                            )
+                        })
+                        .collect();
+
+                    if !relationship_texts.is_empty() {
+                        let embeddings = provider.embed(&relationship_texts).await.map_err(|e| {
+                            crate::error::PipelineError::EmbeddingError(e.to_string())
+                        })?;
+
+                        for (relationship, embedding) in
+                            extraction.relationships.iter_mut().zip(embeddings)
+                        {
+                            relationship.embedding = Some(embedding);
                         }
                     }
                 }

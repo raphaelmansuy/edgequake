@@ -26,6 +26,7 @@ pub mod engine;
 pub mod error;
 pub mod modes;
 pub mod strategies;
+pub mod vector_filter;
 
 pub use context::{QueryContext, RetrievedContext};
 pub use engine::{QueryEngine, QueryEngineConfig, QueryRequest, QueryResponse};
@@ -35,3 +36,4 @@ pub use strategies::{
     create_strategy, GlobalStrategy, HybridStrategy, LocalStrategy, MixStrategy, NaiveStrategy,
     QueryStrategy, StrategyConfig,
 };
+pub use vector_filter::{VectorType, filter_by_type, get_typed_vectors};
