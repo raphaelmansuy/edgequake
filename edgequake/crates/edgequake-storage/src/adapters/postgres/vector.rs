@@ -1,12 +1,10 @@
 //! PostgreSQL vector storage using pgvector extension.
 
-use std::collections::HashMap;
-
 use async_trait::async_trait;
 use sqlx::Row;
 
 use crate::error::{Result, StorageError};
-use crate::traits::vector::{VectorSearchResult, VectorStorage};
+use crate::traits::{VectorSearchResult, VectorStorage};
 use super::config::{PostgresConfig, VectorIndexType};
 use super::connection::PostgresPool;
 

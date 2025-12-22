@@ -5,6 +5,10 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS age;
+
+-- Set search path for AGE
+SET search_path = ag_catalog, "$user", public;
 
 -- Create schema for EdgeQuake
 CREATE SCHEMA IF NOT EXISTS edgequake;

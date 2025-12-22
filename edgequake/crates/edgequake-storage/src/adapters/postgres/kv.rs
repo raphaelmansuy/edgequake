@@ -1,15 +1,10 @@
 //! PostgreSQL key-value storage using JSONB.
 
-use std::collections::HashMap;
-use std::future::Future;
-use std::pin::Pin;
-
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 use sqlx::Row;
 
 use crate::error::{Result, StorageError};
-use crate::traits::kv::KVStorage;
+use crate::traits::KVStorage;
 use super::config::PostgresConfig;
 use super::connection::PostgresPool;
 

@@ -6,7 +6,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::error::Result;
-use crate::traits::{GraphEdge, GraphNode, GraphStorage};
+use crate::traits::GraphStorage;
 
 /// A detected community in the graph.
 #[derive(Debug, Clone)]

@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use sqlx::Row;
 
 use crate::error::{Result, StorageError};
-use crate::traits::graph::{GraphEdge, GraphNode, GraphStorage, KnowledgeGraph};
+use crate::traits::{GraphEdge, GraphNode, GraphStorage, KnowledgeGraph};
 use super::config::PostgresConfig;
 use super::connection::PostgresPool;
 

@@ -28,9 +28,11 @@ services:
       retries: 3
       start_period: 10s
 
-  # PostgreSQL with pgvector extension
+  # PostgreSQL with pgvector and Apache AGE extensions
   postgres:
-    image: pgvector/pgvector:pg16
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
     container_name: edgequake-postgres
     restart: unless-stopped
     ports:
