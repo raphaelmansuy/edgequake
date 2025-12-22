@@ -6,21 +6,22 @@
 
 ## 📋 Table of Contents
 
-| Document | Description | Size |
-|----------|-------------|------|
-| [00-MASTER_PLAN.md](00-MASTER_PLAN.md) | Comprehensive 18-month roadmap and architecture | 20KB |
-| [01-background-tasks.md](01-background-tasks.md) | Async task processing with Redis/Channels | 27KB |
-| [02-document-enhancements.md](02-document-enhancements.md) | File uploads, status tracking, deduplication | 19KB |
-| [03-advanced-query.md](03-advanced-query.md) | Token budgets, conversation history, bypass mode | 24KB |
-| [04-graph-management.md](04-graph-management.md) | Entity/Relationship CRUD, merge operations | 22KB |
-| [05-authentication.md](05-authentication.md) | JWT + API key authentication, RBAC | 15KB |
-| [06-multi-tenancy.md](06-multi-tenancy.md) | Tenant isolation, workspaces, memberships | 12KB |
-| [07-api-reference.md](07-api-reference.md) | Complete API reference (59 endpoints) | 8KB |
-| [08-observability.md](08-observability.md) | Metrics, tracing, logging, dashboards | 14KB |
-| [09-migration-guide.md](09-migration-guide.md) | Step-by-step migration from v1.0 → v2.0 | 18KB |
-| [10-implementation-checklist.md](10-implementation-checklist.md) | Detailed implementation tracking | 12KB |
+| Document | Description | LightRAG Reference | Size |
+|----------|-------------|-------------------|------|
+| [00-MASTER_PLAN.md](00-MASTER_PLAN.md) | Comprehensive 18-month roadmap and architecture | Overall comparison | 20KB |
+| [01-background-tasks.md](01-background-tasks.md) | Async task processing with Redis/Channels | `document_routes.py`, `utils.py` | 27KB |
+| [02-document-enhancements.md](02-document-enhancements.md) | File uploads, status tracking, deduplication | `document_routes.py`, `utils.py` | 19KB |
+| [03-advanced-query.md](03-advanced-query.md) | Token budgets, conversation history, bypass mode | `query_routes.py`, `base.py` | 24KB |
+| [04-graph-management.md](04-graph-management.md) | Entity/Relationship CRUD, merge operations | `graph_routes.py`, `kg/*.py` | 22KB |
+| [05-authentication.md](05-authentication.md) | JWT + API key authentication, RBAC | `auth.py`, `utils_api.py` | 15KB |
+| [06-multi-tenancy.md](06-multi-tenancy.md) | Tenant isolation, workspaces, memberships | `tenant_routes.py`, `tenant_rag_manager.py` | 12KB |
+| [07-api-reference.md](07-api-reference.md) | Complete API reference (59 endpoints) | All route files | 8KB |
+| [08-observability.md](08-observability.md) | Metrics, tracing, logging, dashboards | `utils.py` (logging) | 14KB |
+| [09-migration-guide.md](09-migration-guide.md) | Step-by-step migration from v1.0 → v2.0 | N/A | 18KB |
+| [10-implementation-checklist.md](10-implementation-checklist.md) | Detailed implementation tracking | N/A | 12KB |
+| [11-lightrag-cross-reference.md](11-lightrag-cross-reference.md) | **Detailed LightRAG code mapping** | **All files** | **20KB** |
 
-**Total:** ~191KB of comprehensive specifications
+**Total:** ~211KB of comprehensive specifications with full LightRAG cross-references
 
 ---
 
@@ -162,15 +163,26 @@ Isolation: {tenant_id}:{workspace_id}:doc-{uuid}
 
 ### For Developers
 1. Read [00-MASTER_PLAN.md](00-MASTER_PLAN.md) - architecture overview
-2. Choose a phase to implement
-3. Read phase-specific docs (e.g., 01, 02, 03 for Phase 1)
-4. Follow [10-implementation-checklist.md](10-implementation-checklist.md)
-5. Use [09-migration-guide.md](09-migration-guide.md) for database migrations
+2. **Read [11-lightrag-cross-reference.md](11-lightrag-cross-reference.md)** - detailed LightRAG code mapping
+3. Choose a phase to implement
+4. Read phase-specific docs (e.g., 01, 02, 03 for Phase 1)
+5. Follow [10-implementation-checklist.md](10-implementation-checklist.md)
+6. Use [09-migration-guide.md](09-migration-guide.md) for database migrations
+7. **Cross-reference LightRAG source code** for implementation details
 
 ### For DevOps Engineers
 1. Read [08-observability.md](08-observability.md) - monitoring setup
 2. Read [09-migration-guide.md](09-migration-guide.md) - deployment steps
 3. Review [06-multi-tenancy.md](06-multi-tenancy.md) - tenant configuration
+
+### Key Implementation References
+
+**Critical:** Always refer to [11-lightrag-cross-reference.md](11-lightrag-cross-reference.md) for:
+- Exact LightRAG source file locations
+- Python → Rust translation patterns
+- Implementation priority matrix
+- Testing strategy mapping
+- Configuration cross-references
 
 ---
 
@@ -216,6 +228,8 @@ Isolation: {tenant_id}:{workspace_id}:doc-{uuid}
 
 ## 🔗 Related Documents
 
+- **LightRAG Cross-Reference:** [11-lightrag-cross-reference.md](11-lightrag-cross-reference.md) - **NEW** Detailed mapping to LightRAG source code
+- **API Comparison:** [../docs/API_COMPARISON_EDGEQUAKE_VS_LIGHTRAG.md](../docs/API_COMPARISON_EDGEQUAKE_VS_LIGHTRAG.md) - Feature gap analysis
 - **Current Implementation:** [../edgequake/](../edgequake/)
 - **LightRAG Reference:** [../lightrag/](../lightrag/)
 - **Production Docs:** [../docs/](../docs/)

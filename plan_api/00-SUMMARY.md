@@ -8,7 +8,7 @@
 
 ## 📦 Deliverables
 
-### 12 Comprehensive Documents
+### 13 Comprehensive Documents
 
 | # | Document | Lines | Size | Purpose |
 |---|----------|-------|------|---------|
@@ -23,8 +23,9 @@
 | 08 | [observability.md](08-observability.md) | ~300 | 7.2KB | Metrics, tracing, logging |
 | 09 | [migration-guide.md](09-migration-guide.md) | ~550 | 13KB | Step-by-step v1.0 → v2.0 |
 | 10 | [implementation-checklist.md](10-implementation-checklist.md) | ~350 | 8.2KB | Detailed task tracking |
-| 11 | [README.md](README.md) | ~280 | 8.3KB | Quick navigation guide |
-| **TOTAL** | - | **6,229** | **188KB** | **Complete specification** |
+| 11 | [lightrag-cross-reference.md](11-lightrag-cross-reference.md) | ~650 | 20KB | **LightRAG source code mapping** |
+| 12 | [README.md](README.md) | ~300 | 8.5KB | Quick navigation guide |
+| **TOTAL** | - | **6,900** | **211KB** | **Complete specification with LightRAG mapping** |
 
 ---
 
@@ -122,6 +123,21 @@
 3. **Concurrency:** Tokio async vs threading
 4. **Graph Storage:** AGE vs NetworkX (native graph queries)
 5. **API Design:** RESTful consistency
+
+### LightRAG Implementation Reference
+
+**New:** [11-lightrag-cross-reference.md](11-lightrag-cross-reference.md) provides detailed mapping:
+- Exact LightRAG file locations for each feature
+- Python → Rust translation patterns
+- Implementation priority matrix
+- Code examples side-by-side
+- Configuration cross-references
+
+**Key Differences:**
+- LightRAG uses MD5 for content hashing → EdgeQuake uses SHA-256 (more secure)
+- LightRAG uses FastAPI BackgroundTasks → EdgeQuake uses Tokio channels + Redis
+- LightRAG stores doc_status in memory → EdgeQuake uses PostgreSQL
+- LightRAG uses NetworkX → EdgeQuake uses Apache AGE (PostgreSQL extension)
 
 ---
 
@@ -226,18 +242,21 @@
 
 ## 🎉 Conclusion
 
-**EdgeQuake API v2.0 specification is COMPLETE and ready for implementation.**
+**EdgeQuake API v2.0 specification is COMPLETE with full LightRAG cross-references.**
 
 This specification provides:
 - ✅ Complete roadmap (18 months)
 - ✅ Detailed API design (59 endpoints)
 - ✅ Implementation guidance (100+ code examples)
+- ✅ **LightRAG source code mapping** (NEW)
 - ✅ Database schemas (7 migrations)
 - ✅ Testing strategies
 - ✅ Migration paths
 - ✅ Success metrics
 
-**Total Deliverable:** 6,229 lines, 188KB, 12 documents
+**Total Deliverable:** 6,900 lines, 211KB, 13 documents
+
+**Key Addition:** [11-lightrag-cross-reference.md](11-lightrag-cross-reference.md) maps every feature to LightRAG source code with side-by-side Python/Rust examples.
 
 ---
 

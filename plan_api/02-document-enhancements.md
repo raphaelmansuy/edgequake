@@ -517,6 +517,19 @@ pub struct ScanDirectoryRequest {
 
 ### Content Deduplication
 
+**LightRAG vs EdgeQuake:**
+- LightRAG uses MD5: `hashlib.md5(content.encode()).hexdigest()`
+- EdgeQuake uses SHA-256 (more secure, recommended)
+
+**LightRAG Implementation:**
+```python
+# File: lightrag/utils.py
+def compute_mdhash_id(content: str, prefix: str = "doc") -> str:
+    """Compute MD5 hash for content deduplication"""
+    return f"{prefix}-{hashlib.md5(content.encode()).hexdigest()}"
+```
+
+**EdgeQuake Implementation (SHA-256):**
 ```rust
 use sha2::{Sha256, Digest};
 
