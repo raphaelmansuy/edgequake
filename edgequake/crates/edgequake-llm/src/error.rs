@@ -52,6 +52,10 @@ pub enum LlmError {
     #[error("Request timed out")]
     Timeout,
 
+    /// Feature not supported.
+    #[error("Not supported: {0}")]
+    NotSupported(String),
+
     /// Unknown error.
     #[error("Unknown error: {0}")]
     Unknown(String),
@@ -91,5 +95,92 @@ impl From<async_openai::error::OpenAIError> for LlmError {
             }
             _ => LlmError::ProviderError(err.to_string()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_llm_error_display() {
+        let error = LlmError::ApiError("something went wrong".to_string());
+        assert_eq!(error.to_string(), "API error: something went wrong");
+        
+        let error = LlmError::RateLimited("too many requests".to_string());
+        assert_eq!(error.to_string(), "Rate limit exceeded: too many requests");
+        
+        let error = LlmError::InvalidRequest("bad params".to_string());
+        assert_eq!(error.to_string(), "Invalid request: bad params");
+    }
+
+    #[test]
+    fn test_llm_error_auth() {
+        let error = LlmError::AuthError("invalid key".to_string());
+        assert_eq!(error.to_string(), "Authentication error: invalid key");
+    }
+
+    #[test]
+    fn test_llm_error_token_limit() {
+        let error = LlmError::TokenLimitExceeded { max: 4096, got: 5000 };
+        assert_eq!(error.to_string(), "Token limit exceeded: max 4096, got 5000");
+    }
+
+    #[test]
+    fn test_llm_error_model_not_found() {
+        let error = LlmError::ModelNotFound("gpt-5-turbo".to_string());
+        assert_eq!(error.to_string(), "Model not found: gpt-5-turbo");
+    }
+
+    #[test]
+    fn test_llm_error_network() {
+        let error = LlmError::NetworkError("connection refused".to_string());
+        assert_eq!(error.to_string(), "Network error: connection refused");
+    }
+
+    #[test]
+    fn test_llm_error_config() {
+        let error = LlmError::ConfigError("missing api key".to_string());
+        assert_eq!(error.to_string(), "Configuration error: missing api key");
+    }
+
+    #[test]
+    fn test_llm_error_provider() {
+        let error = LlmError::ProviderError("openai specific error".to_string());
+        assert_eq!(error.to_string(), "Provider error: openai specific error");
+    }
+
+    #[test]
+    fn test_llm_error_timeout() {
+        let error = LlmError::Timeout;
+        assert_eq!(error.to_string(), "Request timed out");
+    }
+
+    #[test]
+    fn test_llm_error_not_supported() {
+        let error = LlmError::NotSupported("function calling".to_string());
+        assert_eq!(error.to_string(), "Not supported: function calling");
+    }
+
+    #[test]
+    fn test_llm_error_unknown() {
+        let error = LlmError::Unknown("mystery error".to_string());
+        assert_eq!(error.to_string(), "Unknown error: mystery error");
+    }
+
+    #[test]
+    fn test_llm_error_debug() {
+        let error = LlmError::ApiError("test".to_string());
+        let debug = format!("{:?}", error);
+        assert!(debug.contains("ApiError"));
+        assert!(debug.contains("test"));
+    }
+
+    #[test]
+    fn test_llm_error_from_serde_json() {
+        let json_str = "not json at all";
+        let json_err: serde_json::Error = serde_json::from_str::<serde_json::Value>(json_str).unwrap_err();
+        let llm_err: LlmError = json_err.into();
+        assert!(matches!(llm_err, LlmError::SerializationError(_)));
     }
 }

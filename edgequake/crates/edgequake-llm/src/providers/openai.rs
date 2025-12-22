@@ -239,6 +239,39 @@ impl LLMProvider for OpenAIProvider {
         })
     }
 
+    async fn stream(&self, prompt: &str) -> Result<futures::stream::BoxStream<'static, Result<String>>> {
+        use futures::StreamExt;
+        
+        let request = ChatCompletionRequestUserMessageArgs::default()
+            .content(prompt)
+            .build()
+            .map(Into::into)
+            .map_err(|e| LlmError::InvalidRequest(e.to_string()))?;
+
+        let request = CreateChatCompletionRequestArgs::default()
+            .model(&self.model)
+            .messages(vec![request])
+            .stream(true)
+            .build()
+            .map_err(|e| LlmError::InvalidRequest(e.to_string()))?;
+
+        let stream = self.client.chat().create_stream(request).await?;
+
+        let mapped_stream = stream.map(|res| {
+            match res {
+                Ok(response) => {
+                    let content = response.choices.first()
+                        .and_then(|c| c.delta.content.clone())
+                        .unwrap_or_default();
+                    Ok(content)
+                }
+                Err(e) => Err(LlmError::ApiError(e.to_string())),
+            }
+        });
+
+        Ok(mapped_stream.boxed())
+    }
+
     fn supports_streaming(&self) -> bool {
         true
     }

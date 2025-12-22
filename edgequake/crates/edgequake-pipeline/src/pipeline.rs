@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use edgequake_llm::traits::EmbeddingProvider;
 use serde::{Deserialize, Serialize};
 
 use crate::chunker::{Chunker, ChunkerConfig, TextChunk};
@@ -94,6 +95,7 @@ pub struct Pipeline {
     config: PipelineConfig,
     chunker: Chunker,
     extractor: Option<Arc<dyn EntityExtractor>>,
+    embedding_provider: Option<Arc<dyn EmbeddingProvider>>,
 }
 
 impl Pipeline {
@@ -105,6 +107,7 @@ impl Pipeline {
             config,
             chunker,
             extractor: None,
+            embedding_provider: None,
         }
     }
 
@@ -119,13 +122,19 @@ impl Pipeline {
         self
     }
 
+    /// Set the embedding provider.
+    pub fn with_embedding_provider(mut self, provider: Arc<dyn EmbeddingProvider>) -> Self {
+        self.embedding_provider = Some(provider);
+        self
+    }
+
     /// Process a document through the pipeline.
     pub async fn process(&self, document_id: &str, content: &str) -> Result<ProcessingResult> {
         let start = std::time::Instant::now();
         let mut stats = ProcessingStats::default();
 
         // Step 1: Chunk the document
-        let chunks = self.chunker.chunk(content, document_id)?;
+        let mut chunks = self.chunker.chunk(content, document_id)?;
         stats.chunk_count = chunks.len();
 
         // Step 2: Extract entities and relationships
@@ -139,6 +148,45 @@ impl Pipeline {
                     stats.relationship_count += extraction.relationships.len();
                     stats.llm_calls += 1;
                     extractions.push(extraction);
+                }
+            }
+        }
+
+        // Step 3: Generate embeddings
+        if let Some(provider) = &self.embedding_provider {
+            // Chunk embeddings
+            if self.config.enable_chunk_embeddings {
+                let texts: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
+                if !texts.is_empty() {
+                    let embeddings = provider
+                        .embed(&texts)
+                        .await
+                        .map_err(|e| crate::error::PipelineError::EmbeddingError(e.to_string()))?;
+
+                    for (chunk, embedding) in chunks.iter_mut().zip(embeddings) {
+                        chunk.embedding = Some(embedding);
+                    }
+                }
+            }
+
+            // Entity embeddings
+            if self.config.enable_entity_embeddings {
+                for extraction in &mut extractions {
+                    let entity_texts: Vec<String> = extraction
+                        .entities
+                        .iter()
+                        .map(|e| format!("{}: {}", e.name, e.description))
+                        .collect();
+
+                    if !entity_texts.is_empty() {
+                        let embeddings = provider.embed(&entity_texts).await.map_err(|e| {
+                            crate::error::PipelineError::EmbeddingError(e.to_string())
+                        })?;
+
+                        for (entity, embedding) in extraction.entities.iter_mut().zip(embeddings) {
+                            entity.embedding = Some(embedding);
+                        }
+                    }
                 }
             }
         }
@@ -176,6 +224,16 @@ impl Pipeline {
     /// Get the chunker.
     pub fn chunker(&self) -> &Chunker {
         &self.chunker
+    }
+
+    /// Get the extractor.
+    pub fn extractor(&self) -> Option<Arc<dyn EntityExtractor>> {
+        self.extractor.clone()
+    }
+
+    /// Get the embedding provider.
+    pub fn embedding_provider(&self) -> Option<Arc<dyn EmbeddingProvider>> {
+        self.embedding_provider.clone()
     }
 }
 

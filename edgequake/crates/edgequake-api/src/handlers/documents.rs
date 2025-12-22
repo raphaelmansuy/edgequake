@@ -167,7 +167,9 @@ pub struct DocumentSummary {
         (status = 200, description = "Documents retrieved", body = ListDocumentsResponse)
     )
 )]
-pub async fn list_documents(State(state): State<AppState>) -> ApiResult<Json<ListDocumentsResponse>> {
+pub async fn list_documents(
+    State(state): State<AppState>,
+) -> ApiResult<Json<ListDocumentsResponse>> {
     let keys = state.kv_storage.keys().await?;
 
     // Group by document
@@ -195,6 +197,142 @@ pub async fn list_documents(State(state): State<AppState>) -> ApiResult<Json<Lis
     }))
 }
 
+/// Get document by ID request.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct GetDocumentRequest {
+    /// Document ID.
+    pub document_id: String,
+}
+
+/// Document details response.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct DocumentDetailResponse {
+    /// Document ID.
+    pub id: String,
+
+    /// Document title.
+    pub title: Option<String>,
+
+    /// Number of chunks.
+    pub chunk_count: usize,
+
+    /// Document status.
+    pub status: String,
+
+    /// Metadata.
+    pub metadata: Option<serde_json::Value>,
+}
+
+/// Get a document by ID.
+#[utoipa::path(
+    get,
+    path = "/api/v1/documents/{document_id}",
+    tag = "Documents",
+    params(
+        ("document_id" = String, Path, description = "Document ID")
+    ),
+    responses(
+        (status = 200, description = "Document found", body = DocumentDetailResponse),
+        (status = 404, description = "Document not found")
+    )
+)]
+pub async fn get_document(
+    State(state): State<AppState>,
+    axum::extract::Path(document_id): axum::extract::Path<String>,
+) -> ApiResult<Json<DocumentDetailResponse>> {
+    let keys = state.kv_storage.keys().await?;
+
+    // Find chunks belonging to this document
+    let chunk_count = keys
+        .iter()
+        .filter(|k| k.starts_with(&format!("{}-chunk-", document_id)))
+        .count();
+
+    if chunk_count == 0 {
+        return Err(ApiError::NotFound(format!(
+            "Document {} not found",
+            document_id
+        )));
+    }
+
+    Ok(Json(DocumentDetailResponse {
+        id: document_id,
+        title: None,
+        chunk_count,
+        status: "processed".to_string(),
+        metadata: None,
+    }))
+}
+
+/// Document deletion response.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct DeleteDocumentResponse {
+    /// Document ID.
+    pub document_id: String,
+
+    /// Whether the document was deleted.
+    pub deleted: bool,
+
+    /// Number of chunks deleted.
+    pub chunks_deleted: usize,
+
+    /// Number of entities affected.
+    pub entities_affected: usize,
+
+    /// Number of relationships affected.
+    pub relationships_affected: usize,
+}
+
+/// Delete a document by ID.
+#[utoipa::path(
+    delete,
+    path = "/api/v1/documents/{document_id}",
+    tag = "Documents",
+    params(
+        ("document_id" = String, Path, description = "Document ID to delete")
+    ),
+    responses(
+        (status = 200, description = "Document deleted", body = DeleteDocumentResponse),
+        (status = 404, description = "Document not found")
+    )
+)]
+pub async fn delete_document(
+    State(state): State<AppState>,
+    axum::extract::Path(document_id): axum::extract::Path<String>,
+) -> ApiResult<Json<DeleteDocumentResponse>> {
+    let keys = state.kv_storage.keys().await?;
+
+    // Find chunks belonging to this document
+    let chunk_ids: Vec<String> = keys
+        .iter()
+        .filter(|k| k.starts_with(&format!("{}-chunk-", document_id)))
+        .cloned()
+        .collect();
+
+    if chunk_ids.is_empty() {
+        return Err(ApiError::NotFound(format!(
+            "Document {} not found",
+            document_id
+        )));
+    }
+
+    let chunks_deleted = chunk_ids.len();
+
+    // Delete chunks from KV storage
+    state.kv_storage.delete(&chunk_ids).await?;
+
+    // TODO: Implement cascade deletion for entities and relationships
+    // This would require updating the graph storage to remove orphaned entities
+
+    Ok(Json(DeleteDocumentResponse {
+        document_id,
+        deleted: true,
+        chunks_deleted,
+        entities_affected: 0,
+        relationships_affected: 0,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -208,5 +346,132 @@ mod tests {
         };
 
         assert!(!request.content.is_empty());
+    }
+
+    #[test]
+    fn test_upload_request_serialization() {
+        let json = r#"{
+            "content": "Hello world",
+            "title": "Test Doc",
+            "metadata": {"key": "value"}
+        }"#;
+
+        let request: UploadDocumentRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.content, "Hello world");
+        assert_eq!(request.title, Some("Test Doc".to_string()));
+        assert!(request.metadata.is_some());
+    }
+
+    #[test]
+    fn test_upload_request_minimal() {
+        let json = r#"{"content": "Just content"}"#;
+
+        let request: UploadDocumentRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.content, "Just content");
+        assert!(request.title.is_none());
+        assert!(request.metadata.is_none());
+    }
+
+    #[test]
+    fn test_upload_response_serialization() {
+        let response = UploadDocumentResponse {
+            document_id: "doc-123".to_string(),
+            status: "processed".to_string(),
+            chunk_count: 5,
+            entity_count: 3,
+            relationship_count: 2,
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("doc-123"));
+        assert!(json.contains("processed"));
+    }
+
+    #[test]
+    fn test_list_documents_request_defaults() {
+        let json = r#"{}"#;
+        let request: ListDocumentsRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.page, 1);
+        assert_eq!(request.page_size, 20);
+    }
+
+    #[test]
+    fn test_list_documents_request_custom() {
+        let json = r#"{"page": 3, "page_size": 50}"#;
+        let request: ListDocumentsRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.page, 3);
+        assert_eq!(request.page_size, 50);
+    }
+
+    #[test]
+    fn test_document_summary_serialization() {
+        let summary = DocumentSummary {
+            id: "doc-456".to_string(),
+            title: Some("My Document".to_string()),
+            chunk_count: 10,
+        };
+
+        let json = serde_json::to_string(&summary).unwrap();
+        assert!(json.contains("doc-456"));
+        assert!(json.contains("My Document"));
+    }
+
+    #[test]
+    fn test_list_documents_response_serialization() {
+        let response = ListDocumentsResponse {
+            documents: vec![DocumentSummary {
+                id: "doc-1".to_string(),
+                title: None,
+                chunk_count: 5,
+            }],
+            total: 1,
+            page: 1,
+            page_size: 20,
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("doc-1"));
+        assert!(json.contains("\"total\":1"));
+    }
+
+    #[test]
+    fn test_document_detail_response_serialization() {
+        let response = DocumentDetailResponse {
+            id: "doc-789".to_string(),
+            title: Some("Test".to_string()),
+            chunk_count: 5,
+            status: "processed".to_string(),
+            metadata: None,
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("doc-789"));
+        assert!(json.contains("processed"));
+    }
+
+    #[test]
+    fn test_delete_document_response_serialization() {
+        let response = DeleteDocumentResponse {
+            document_id: "doc-to-delete".to_string(),
+            deleted: true,
+            chunks_deleted: 7,
+            entities_affected: 2,
+            relationships_affected: 1,
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("doc-to-delete"));
+        assert!(json.contains("\"deleted\":true"));
+        assert!(json.contains("\"chunks_deleted\":7"));
+    }
+
+    #[test]
+    fn test_default_page() {
+        assert_eq!(default_page(), 1);
+    }
+
+    #[test]
+    fn test_default_page_size() {
+        assert_eq!(default_page_size(), 20);
     }
 }

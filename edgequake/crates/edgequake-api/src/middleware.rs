@@ -261,5 +261,138 @@ mod tests {
         assert!(config.is_public_path("/swagger-ui/index.html"));
         assert!(!config.is_public_path("/api/v1/documents"));
     }
+
+    #[test]
+    fn test_auth_config_multiple_keys() {
+        let config = AuthConfig::with_api_keys(vec![
+            "key1".to_string(),
+            "key2".to_string(),
+            "key3".to_string(),
+        ]);
+        assert!(config.validate_api_key("key1"));
+        assert!(config.validate_api_key("key2"));
+        assert!(config.validate_api_key("key3"));
+        assert!(!config.validate_api_key("key4"));
+    }
+
+    #[test]
+    fn test_auth_config_empty_keys() {
+        let config = AuthConfig::with_api_keys(vec![]);
+        assert!(config.enabled);
+        assert!(!config.validate_api_key("any-key"));
+    }
+
+    #[test]
+    fn test_auth_error_serialization() {
+        let error = AuthError {
+            error: "unauthorized".to_string(),
+            message: "Invalid API key".to_string(),
+        };
+        
+        let json = serde_json::to_string(&error).unwrap();
+        assert!(json.contains("unauthorized"));
+        assert!(json.contains("Invalid API key"));
+    }
+
+    #[test]
+    fn test_auth_error_deserialization() {
+        let json = r#"{"error":"forbidden","message":"Access denied"}"#;
+        let error: AuthError = serde_json::from_str(json).unwrap();
+        assert_eq!(error.error, "forbidden");
+        assert_eq!(error.message, "Access denied");
+    }
+
+    #[test]
+    fn test_auth_state_creation() {
+        let config = AuthConfig::default();
+        let state = AuthState::new(config);
+        assert!(!state.config.enabled);
+    }
+
+    #[test]
+    fn test_rate_limit_config_default() {
+        let config = RateLimitConfig::default();
+        assert!(!config.enabled);
+        assert_eq!(config.max_requests, 100);
+        assert_eq!(config.window_seconds, 60);
+    }
+
+    #[test]
+    fn test_rate_limit_config_custom() {
+        let config = RateLimitConfig {
+            enabled: true,
+            max_requests: 50,
+            window_seconds: 30,
+        };
+        assert!(config.enabled);
+        assert_eq!(config.max_requests, 50);
+        assert_eq!(config.window_seconds, 30);
+    }
+
+    #[test]
+    fn test_rate_limit_config_clone() {
+        let config = RateLimitConfig::default();
+        let cloned = config.clone();
+        assert_eq!(config.enabled, cloned.enabled);
+        assert_eq!(config.max_requests, cloned.max_requests);
+    }
+
+    #[test]
+    fn test_auth_config_debug() {
+        let config = AuthConfig::default();
+        let debug_str = format!("{:?}", config);
+        assert!(debug_str.contains("enabled"));
+        assert!(debug_str.contains("public_paths"));
+    }
+
+    #[test]
+    fn test_rate_limit_config_debug() {
+        let config = RateLimitConfig::default();
+        let debug_str = format!("{:?}", config);
+        assert!(debug_str.contains("enabled"));
+        assert!(debug_str.contains("max_requests"));
+    }
+
+    #[test]
+    fn test_public_paths_variations() {
+        let config = AuthConfig::default();
+        
+        // Check exact public paths
+        assert!(config.is_public_path("/health"));
+        assert!(config.is_public_path("/ready"));
+        assert!(config.is_public_path("/live"));
+        assert!(config.is_public_path("/api-docs"));
+        assert!(config.is_public_path("/api-docs/openapi.json"));
+        
+        // Check swagger paths
+        assert!(config.is_public_path("/swagger-ui"));
+        assert!(config.is_public_path("/swagger-ui/"));
+        assert!(config.is_public_path("/swagger-ui/index.html"));
+        
+        // Non-public paths
+        assert!(!config.is_public_path("/api/v1/query"));
+        assert!(!config.is_public_path("/api/v1/graph"));
+        assert!(!config.is_public_path("/admin"));
+        assert!(!config.is_public_path("/rapidoc")); // Not in default public paths
+    }
+
+    #[test]
+    fn test_auth_config_clone() {
+        let config = AuthConfig::with_api_keys(vec!["key".to_string()]);
+        let cloned = config.clone();
+        assert_eq!(config.enabled, cloned.enabled);
+        assert!(cloned.validate_api_key("key"));
+    }
+
+    #[test]
+    fn test_auth_error_debug() {
+        let error = AuthError {
+            error: "test".to_string(),
+            message: "test message".to_string(),
+        };
+        let debug_str = format!("{:?}", error);
+        assert!(debug_str.contains("test"));
+        assert!(debug_str.contains("test message"));
+    }
 }
 

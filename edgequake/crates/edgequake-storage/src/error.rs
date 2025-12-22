@@ -54,3 +54,77 @@ impl From<serde_json::Error> for StorageError {
 
 /// Result type for storage operations.
 pub type Result<T> = std::result::Result<T, StorageError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_storage_error_connection() {
+        let error = StorageError::Connection("refused".to_string());
+        assert_eq!(error.to_string(), "Connection failed: refused");
+    }
+
+    #[test]
+    fn test_storage_error_not_found() {
+        let error = StorageError::NotFound("doc-123".to_string());
+        assert_eq!(error.to_string(), "Record not found: doc-123");
+    }
+
+    #[test]
+    fn test_storage_error_already_exists() {
+        let error = StorageError::AlreadyExists("entity-456".to_string());
+        assert_eq!(error.to_string(), "Record already exists: entity-456");
+    }
+
+    #[test]
+    fn test_storage_error_invalid_query() {
+        let error = StorageError::InvalidQuery("syntax error".to_string());
+        assert_eq!(error.to_string(), "Invalid query: syntax error");
+    }
+
+    #[test]
+    fn test_storage_error_transaction() {
+        let error = StorageError::Transaction("rollback".to_string());
+        assert_eq!(error.to_string(), "Transaction failed: rollback");
+    }
+
+    #[test]
+    fn test_storage_error_serialization() {
+        let error = StorageError::Serialization("invalid json".to_string());
+        assert_eq!(error.to_string(), "Serialization error: invalid json");
+    }
+
+    #[test]
+    fn test_storage_error_database() {
+        let error = StorageError::Database("constraint violation".to_string());
+        assert_eq!(error.to_string(), "Database error: constraint violation");
+    }
+
+    #[test]
+    fn test_storage_error_not_initialized() {
+        let error = StorageError::NotInitialized;
+        assert_eq!(error.to_string(), "Storage not initialized");
+    }
+
+    #[test]
+    fn test_storage_error_invalid_config() {
+        let error = StorageError::InvalidConfig("missing host".to_string());
+        assert_eq!(error.to_string(), "Invalid configuration: missing host");
+    }
+
+    #[test]
+    fn test_storage_error_from_serde_json() {
+        let json_err: serde_json::Error = 
+            serde_json::from_str::<serde_json::Value>("not json").unwrap_err();
+        let storage_err: StorageError = json_err.into();
+        assert!(matches!(storage_err, StorageError::Serialization(_)));
+    }
+
+    #[test]
+    fn test_storage_error_debug() {
+        let error = StorageError::NotInitialized;
+        let debug = format!("{:?}", error);
+        assert!(debug.contains("NotInitialized"));
+    }
+}

@@ -109,7 +109,7 @@ impl KVStorage for PostgresKVStorage {
         Ok(())
     }
     
-    async fn get_by_id<T: for<'de> Deserialize<'de> + Send>(&self, id: &str) -> Result<Option<T>> {
+    async fn get_by_id(&self, id: &str) -> Result<Option<serde_json::Value>> {
         let pool = self.pool.get().await?;
         
         let sql = format!(
@@ -126,18 +126,16 @@ impl KVStorage for PostgresKVStorage {
         match row {
             Some(row) => {
                 let value: serde_json::Value = row.get("value");
-                let result: T = serde_json::from_value(value)
-                    .map_err(|e| StorageError::DeserializationError(e.to_string()))?;
-                Ok(Some(result))
+                Ok(Some(value))
             }
             None => Ok(None),
         }
     }
     
-    async fn get_by_ids<T: for<'de> Deserialize<'de> + Send>(
+    async fn get_by_ids(
         &self,
-        ids: Vec<String>,
-    ) -> Result<Vec<T>> {
+        ids: &[String],
+    ) -> Result<Vec<serde_json::Value>> {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
@@ -155,7 +153,7 @@ impl KVStorage for PostgresKVStorage {
         );
         
         let mut query = sqlx::query(&sql);
-        for id in &ids {
+        for id in ids {
             query = query.bind(id);
         }
         
@@ -167,9 +165,7 @@ impl KVStorage for PostgresKVStorage {
         let mut results = Vec::new();
         for row in rows {
             let value: serde_json::Value = row.get("value");
-            let result: T = serde_json::from_value(value)
-                .map_err(|e| StorageError::DeserializationError(e.to_string()))?;
-            results.push(result);
+            results.push(value);
         }
         
         Ok(results)
@@ -212,7 +208,7 @@ impl KVStorage for PostgresKVStorage {
         Ok(())
     }
     
-    async fn upsert<T: Serialize + Send + Sync>(&self, data: HashMap<String, T>) -> Result<()> {
+    async fn upsert(&self, data: &[(String, serde_json::Value)]) -> Result<()> {
         if data.is_empty() {
             return Ok(());
         }
@@ -220,9 +216,6 @@ impl KVStorage for PostgresKVStorage {
         let pool = self.pool.get().await?;
         
         for (key, value) in data {
-            let json_value = serde_json::to_value(&value)
-                .map_err(|e| StorageError::SerializationError(e.to_string()))?;
-            
             let sql = format!(
                 r#"
                 INSERT INTO {} (key, value, updated_at)
@@ -235,8 +228,8 @@ impl KVStorage for PostgresKVStorage {
             );
             
             sqlx::query(&sql)
-                .bind(&key)
-                .bind(&json_value)
+                .bind(key)
+                .bind(value)
                 .execute(&pool)
                 .await
                 .map_err(|e| StorageError::WriteError(format!("KV upsert failed: {}", e)))?;

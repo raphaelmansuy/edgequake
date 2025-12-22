@@ -6,6 +6,8 @@ use std::collections::HashMap;
 
 use crate::error::Result;
 
+use futures::stream::BoxStream;
+
 /// Response from an LLM completion.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LLMResponse {
@@ -134,6 +136,11 @@ pub trait LLMProvider: Send + Sync {
         messages: &[ChatMessage],
         options: Option<&CompletionOptions>,
     ) -> Result<LLMResponse>;
+
+    /// Generate a streaming completion.
+    async fn stream(&self, _prompt: &str) -> Result<BoxStream<'static, Result<String>>> {
+        Err(crate::error::LlmError::NotSupported("Streaming not supported".to_string()))
+    }
 
     /// Check if the model supports streaming.
     fn supports_streaming(&self) -> bool {

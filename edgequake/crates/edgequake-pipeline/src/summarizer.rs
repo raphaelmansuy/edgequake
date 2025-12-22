@@ -216,4 +216,112 @@ mod tests {
         let result = summarizer.summarize_combined(&descriptions).await.unwrap();
         assert!(result.contains("First") || result.contains("Second"));
     }
+
+    #[test]
+    fn test_summarizer_config_default() {
+        let config = SummarizerConfig::default();
+        assert_eq!(config.max_input_length, 2048);
+        assert_eq!(config.target_length, 512);
+        assert!(config.preserve_entities);
+    }
+
+    #[test]
+    fn test_summarizer_config_custom() {
+        let config = SummarizerConfig {
+            max_input_length: 1024,
+            target_length: 256,
+            preserve_entities: false,
+        };
+        assert_eq!(config.max_input_length, 1024);
+        assert!(!config.preserve_entities);
+    }
+
+    #[test]
+    fn test_summarizer_config_clone() {
+        let config = SummarizerConfig::default();
+        let cloned = config.clone();
+        assert_eq!(config.target_length, cloned.target_length);
+    }
+
+    #[test]
+    fn test_summarizer_config_debug() {
+        let config = SummarizerConfig::default();
+        let debug = format!("{:?}", config);
+        assert!(debug.contains("max_input_length"));
+        assert!(debug.contains("2048"));
+    }
+
+    #[test]
+    fn test_simple_summarizer_default() {
+        let summarizer = SimpleSummarizer::default();
+        assert_eq!(summarizer.config.target_length, 512);
+    }
+
+    #[tokio::test]
+    async fn test_summarizer_exclamation_split() {
+        let config = SummarizerConfig {
+            target_length: 30,
+            ..Default::default()
+        };
+        let summarizer = SimpleSummarizer::new(config);
+        
+        let text = "Wow! Amazing! Incredible! Fantastic!";
+        let result = summarizer.summarize(text).await.unwrap();
+        assert!(!result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_summarizer_question_split() {
+        let config = SummarizerConfig {
+            target_length: 50,
+            ..Default::default()
+        };
+        let summarizer = SimpleSummarizer::new(config);
+        
+        let text = "What is this? How does it work? Why does it matter?";
+        let result = summarizer.summarize(text).await.unwrap();
+        assert!(!result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_summarizer_empty_text() {
+        let summarizer = SimpleSummarizer::default();
+        let result = summarizer.summarize("").await.unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_summarize_entity_description_both_empty() {
+        let summarizer = SimpleSummarizer::default();
+        let result = summarize_entity_description(&summarizer, "", "", 1000).await.unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_summarize_entity_description_existing_empty() {
+        let summarizer = SimpleSummarizer::default();
+        let result = summarize_entity_description(&summarizer, "", "new content", 1000).await.unwrap();
+        assert_eq!(result, "new content");
+    }
+
+    #[tokio::test]
+    async fn test_summarize_entity_description_new_empty() {
+        let summarizer = SimpleSummarizer::default();
+        let result = summarize_entity_description(&summarizer, "existing content", "", 1000).await.unwrap();
+        assert_eq!(result, "existing content");
+    }
+
+    #[tokio::test]
+    async fn test_summarize_entity_description_duplicate() {
+        let summarizer = SimpleSummarizer::default();
+        let result = summarize_entity_description(&summarizer, "same content", "same content", 1000).await.unwrap();
+        assert_eq!(result, "same content");
+    }
+
+    #[tokio::test]
+    async fn test_summarize_entity_description_contains() {
+        let summarizer = SimpleSummarizer::default();
+        let result = summarize_entity_description(&summarizer, "existing content here", "content", 1000).await.unwrap();
+        assert_eq!(result, "existing content here");
+    }
 }

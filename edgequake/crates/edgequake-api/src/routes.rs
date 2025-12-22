@@ -1,7 +1,7 @@
 //! API routes.
 
 use axum::{
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
 };
 
@@ -26,6 +26,11 @@ fn api_v1_routes() -> Router<AppState> {
         // Documents
         .route("/documents", post(handlers::upload_document))
         .route("/documents", get(handlers::list_documents))
+        .route("/documents/{document_id}", get(handlers::get_document))
+        .route(
+            "/documents/{document_id}",
+            delete(handlers::delete_document),
+        )
         // Query
         .route("/query", post(handlers::execute_query))
         .route("/query/stream", post(handlers::stream_query))

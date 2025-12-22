@@ -8,7 +8,6 @@ repository.workspace = true
 description = "Document processing pipeline for EdgeQuake"
 
 [dependencies]
-edgequake-core = { path = "../edgequake-core" }
 edgequake-storage = { path = "../edgequake-storage" }
 edgequake-llm = { path = "../edgequake-llm" }
 

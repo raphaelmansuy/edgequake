@@ -181,6 +181,9 @@ pub struct StreamQueryRequest {
     pub mode: Option<String>,
 }
 
+use axum::response::sse::{Event, Sse};
+use futures::StreamExt;
+
 /// Execute a streaming query.
 #[utoipa::path(
     post,
@@ -193,15 +196,35 @@ pub struct StreamQueryRequest {
     )
 )]
 pub async fn stream_query(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(request): Json<StreamQueryRequest>,
-) -> ApiResult<&'static str> {
+) -> ApiResult<Sse<impl futures::Stream<Item = Result<Event, std::convert::Infallible>>>> {
     if request.query.trim().is_empty() {
         return Err(ApiError::ValidationError("Query cannot be empty".to_string()));
     }
 
-    // Streaming implementation would use SSE
-    Ok("Streaming not yet implemented")
+    // Parse query mode
+    let mode = request.mode
+        .as_ref()
+        .and_then(|m| QueryMode::from_str(m))
+        .unwrap_or(QueryMode::Hybrid);
+
+    // Build engine query request
+    let engine_request = EngineQueryRequest::new(&request.query)
+        .with_mode(mode);
+
+    // Execute streaming query
+    let stream = state.query_engine.query_stream(engine_request).await
+        .map_err(|e| ApiError::Internal(format!("Streaming query failed: {}", e)))?;
+
+    let sse_stream = stream.map(|res| {
+        match res {
+            Ok(text) => Ok(Event::default().data(text)),
+            Err(e) => Ok(Event::default().data(format!("Error: {}", e))),
+        }
+    });
+
+    Ok(Sse::new(sse_stream))
 }
 
 #[cfg(test)]
@@ -235,6 +258,19 @@ mod tests {
         };
 
         let result = execute_query(State(state), Json(request)).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_stream_query_success() {
+        let state = AppState::test_state();
+
+        let request = StreamQueryRequest {
+            query: "What is Rust?".to_string(),
+            mode: Some("naive".to_string()),
+        };
+
+        let result = stream_query(State(state), Json(request)).await;
         assert!(result.is_ok());
     }
 }

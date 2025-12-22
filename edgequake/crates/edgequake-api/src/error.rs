@@ -169,4 +169,90 @@ mod tests {
             StatusCode::INTERNAL_SERVER_ERROR
         );
     }
+
+    #[test]
+    fn test_error_response_serialization() {
+        let error = ErrorResponse::new("TEST_ERROR", "Test message");
+        let json = serde_json::to_string(&error).unwrap();
+        assert!(json.contains("TEST_ERROR"));
+        assert!(json.contains("Test message"));
+        // details should be skipped when None
+        assert!(!json.contains("details"));
+    }
+
+    #[test]
+    fn test_error_response_with_details_serialization() {
+        let error = ErrorResponse::new("ERROR", "Message")
+            .with_details(serde_json::json!({"key": "value"}));
+        let json = serde_json::to_string(&error).unwrap();
+        assert!(json.contains("details"));
+        assert!(json.contains("key"));
+    }
+
+    #[test]
+    fn test_error_response_deserialization() {
+        let json = r#"{"code":"NOT_FOUND","message":"Resource not found"}"#;
+        let error: ErrorResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(error.code, "NOT_FOUND");
+        assert_eq!(error.message, "Resource not found");
+        assert!(error.details.is_none());
+    }
+
+    #[test]
+    fn test_all_error_status_codes() {
+        assert_eq!(ApiError::Unauthorized.status_code(), StatusCode::UNAUTHORIZED);
+        assert_eq!(ApiError::Forbidden.status_code(), StatusCode::FORBIDDEN);
+        assert_eq!(ApiError::Conflict("c".into()).status_code(), StatusCode::CONFLICT);
+        assert_eq!(ApiError::ValidationError("v".into()).status_code(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(ApiError::RateLimited.status_code(), StatusCode::TOO_MANY_REQUESTS);
+    }
+
+    #[test]
+    fn test_all_error_codes() {
+        assert_eq!(ApiError::BadRequest("b".into()).code(), "BAD_REQUEST");
+        assert_eq!(ApiError::NotFound("n".into()).code(), "NOT_FOUND");
+        assert_eq!(ApiError::Unauthorized.code(), "UNAUTHORIZED");
+        assert_eq!(ApiError::Forbidden.code(), "FORBIDDEN");
+        assert_eq!(ApiError::Conflict("c".into()).code(), "CONFLICT");
+        assert_eq!(ApiError::ValidationError("v".into()).code(), "VALIDATION_ERROR");
+        assert_eq!(ApiError::RateLimited.code(), "RATE_LIMITED");
+        assert_eq!(ApiError::Internal("i".into()).code(), "INTERNAL_ERROR");
+    }
+
+    #[test]
+    fn test_error_display() {
+        let error = ApiError::BadRequest("invalid input".to_string());
+        assert_eq!(error.to_string(), "Bad request: invalid input");
+        
+        let error = ApiError::NotFound("document".to_string());
+        assert_eq!(error.to_string(), "Not found: document");
+        
+        let error = ApiError::Unauthorized;
+        assert_eq!(error.to_string(), "Unauthorized");
+    }
+
+    #[test]
+    fn test_error_response_clone() {
+        let error = ErrorResponse::new("CODE", "Message")
+            .with_details(serde_json::json!({"x": 1}));
+        let cloned = error.clone();
+        assert_eq!(error.code, cloned.code);
+        assert_eq!(error.message, cloned.message);
+    }
+
+    #[test]
+    fn test_error_response_debug() {
+        let error = ErrorResponse::new("DEBUG_TEST", "Debug message");
+        let debug_str = format!("{:?}", error);
+        assert!(debug_str.contains("DEBUG_TEST"));
+        assert!(debug_str.contains("Debug message"));
+    }
+
+    #[test]
+    fn test_api_error_debug() {
+        let error = ApiError::BadRequest("debug test".to_string());
+        let debug_str = format!("{:?}", error);
+        assert!(debug_str.contains("BadRequest"));
+        assert!(debug_str.contains("debug test"));
+    }
 }

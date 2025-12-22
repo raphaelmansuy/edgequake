@@ -62,6 +62,9 @@ pub struct ExtractedEntity {
 
     /// Source text spans.
     pub source_spans: Vec<String>,
+
+    /// Entity embedding.
+    pub embedding: Option<Vec<f32>>,
 }
 
 impl ExtractedEntity {
@@ -77,6 +80,7 @@ impl ExtractedEntity {
             description: description.into(),
             importance: 0.5,
             source_spans: Vec::new(),
+            embedding: None,
         }
     }
 
@@ -229,7 +233,7 @@ impl EntityExtractor for SimpleExtractor {
 /// LLM-based entity extractor using structured prompts.
 pub struct LLMExtractor<L>
 where
-    L: edgequake_llm::LLMProvider,
+    L: edgequake_llm::LLMProvider + ?Sized,
 {
     llm_provider: std::sync::Arc<L>,
     entity_types: Vec<String>,
@@ -237,7 +241,7 @@ where
 
 impl<L> LLMExtractor<L>
 where
-    L: edgequake_llm::LLMProvider,
+    L: edgequake_llm::LLMProvider + ?Sized,
 {
     /// Create a new LLM extractor.
     pub fn new(llm_provider: std::sync::Arc<L>) -> Self {
@@ -340,7 +344,7 @@ Respond with valid JSON in this exact format:
 #[async_trait]
 impl<L> EntityExtractor for LLMExtractor<L>
 where
-    L: edgequake_llm::LLMProvider + Send + Sync,
+    L: edgequake_llm::LLMProvider + Send + Sync + ?Sized,
 {
     async fn extract(&self, chunk: &TextChunk) -> Result<ExtractionResult> {
         let prompt = self.build_prompt(&chunk.content);

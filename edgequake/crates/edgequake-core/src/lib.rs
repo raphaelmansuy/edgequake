@@ -26,16 +26,17 @@
 pub mod config;
 pub mod error;
 pub mod orchestrator;
+pub mod query;
 pub mod types;
 pub mod utils;
 
 // Re-export commonly used types
 pub use config::Config;
 pub use error::{Error, Result};
-pub use orchestrator::{
-    EdgeQuake, EdgeQuakeConfig, QueryMode, QueryParams, QueryResult, QueryContext,
-    InsertResult, DocumentInfo, GraphStats, StorageBackend, StorageConfig,
-};
+pub use orchestrator::{EdgeQuake, EdgeQuakeConfig, StorageBackend, StorageConfig};
+pub use query::QueryEngine;
 pub use types::{
-    Chunk, Document, DocumentStatus, Embedding, EmbeddingConfig, GraphEntity, GraphRelationship,
+    Chunk, ContextChunk, ContextEntity, ContextRelationship, Document, DocumentInfo,
+    DocumentStatus, Embedding, EmbeddingConfig, GraphEntity, GraphRelationship, GraphStats,
+    InsertResult, QueryContext, QueryMode, QueryParams, QueryResult, QueryStats,
 };

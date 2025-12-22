@@ -64,6 +64,9 @@ pub struct TextChunk {
 
     /// Approximate token count.
     pub token_count: usize,
+
+    /// Chunk embedding.
+    pub embedding: Option<Vec<f32>>,
 }
 
 impl TextChunk {
@@ -84,6 +87,7 @@ impl TextChunk {
             start_offset,
             end_offset,
             token_count,
+            embedding: None,
         }
     }
 }

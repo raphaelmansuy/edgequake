@@ -10,10 +10,17 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use edgequake_llm::traits::{EmbeddingProvider, LLMProvider};
+use edgequake_pipeline::{
+    KnowledgeGraphMerger, LLMExtractor, MergerConfig, Pipeline, PipelineConfig,
+};
+use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
-use crate::types::{Document, DocumentStatus};
+use crate::types::{
+    ContextEntity, DocumentInfo, GraphStats, InsertResult, QueryContext, QueryParams, QueryResult,
+};
 
 /// EdgeQuake instance configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -198,299 +205,28 @@ impl EdgeQuakeConfig {
     }
 }
 
-/// Query mode for retrieval.
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
-pub enum QueryMode {
-    /// Local mode: Focus on entity-centric retrieval.
-    Local,
-
-    /// Global mode: Use high-level graph structure.
-    Global,
-
-    /// Hybrid mode: Combine local and global.
-    #[default]
-    Hybrid,
-
-    /// Mix mode: Adaptive selection based on query.
-    Mix,
-
-    /// Naive mode: Simple vector search only.
-    Naive,
-
-    /// Bypass mode: Skip retrieval, direct LLM query.
-    Bypass,
-}
-
-/// Query parameters.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct QueryParams {
-    /// Query mode.
-    pub mode: QueryMode,
-
-    /// Whether to stream the response.
-    pub stream: bool,
-
-    /// Whether to return only context (no LLM generation).
-    pub only_need_context: bool,
-
-    /// Whether to return only the prompt.
-    pub only_need_prompt: bool,
-
-    /// Number of top entities to retrieve.
-    pub top_k: usize,
-
-    /// Maximum tokens for response.
-    pub max_tokens: Option<usize>,
-
-    /// Enable history tracking.
-    pub enable_history: bool,
-
-    /// History context to include.
-    pub history_context: Option<String>,
-}
-
-impl Default for QueryParams {
-    fn default() -> Self {
-        Self {
-            mode: QueryMode::Hybrid,
-            stream: false,
-            only_need_context: false,
-            only_need_prompt: false,
-            top_k: 60,
-            max_tokens: None,
-            enable_history: false,
-            history_context: None,
-        }
-    }
-}
-
-impl QueryParams {
-    /// Create new query params.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Set query mode.
-    pub fn with_mode(mut self, mode: QueryMode) -> Self {
-        self.mode = mode;
-        self
-    }
-
-    /// Enable streaming.
-    pub fn with_streaming(mut self) -> Self {
-        self.stream = true;
-        self
-    }
-
-    /// Set top_k.
-    pub fn with_top_k(mut self, k: usize) -> Self {
-        self.top_k = k;
-        self
-    }
-
-    /// Return only context without LLM generation.
-    pub fn context_only(mut self) -> Self {
-        self.only_need_context = true;
-        self
-    }
-}
-
-/// Query result from EdgeQuake.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct QueryResult {
-    /// The generated response.
-    pub response: String,
-
-    /// Query mode that was used.
-    pub mode: QueryMode,
-
-    /// Retrieved context.
-    pub context: QueryContext,
-
-    /// Statistics about the query.
-    pub stats: QueryStats,
-}
-
-/// Retrieved context for a query.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct QueryContext {
-    /// Retrieved entities.
-    pub entities: Vec<ContextEntity>,
-
-    /// Retrieved relationships.
-    pub relationships: Vec<ContextRelationship>,
-
-    /// Retrieved text chunks.
-    pub chunks: Vec<ContextChunk>,
-}
-
-/// An entity in the query context.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ContextEntity {
-    /// Entity name/ID.
-    pub name: String,
-
-    /// Entity type.
-    pub entity_type: String,
-
-    /// Entity description.
-    pub description: String,
-
-    /// Relevance score.
-    pub score: f32,
-}
-
-/// A relationship in the query context.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ContextRelationship {
-    /// Source entity.
-    pub source: String,
-
-    /// Target entity.
-    pub target: String,
-
-    /// Relationship type.
-    pub relation_type: String,
-
-    /// Description.
-    pub description: String,
-
-    /// Relevance score.
-    pub score: f32,
-}
-
-/// A text chunk in the query context.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ContextChunk {
-    /// Chunk ID.
-    pub chunk_id: String,
-
-    /// Document ID.
-    pub document_id: String,
-
-    /// Chunk content.
-    pub content: String,
-
-    /// Relevance score.
-    pub score: f32,
-}
-
-/// Statistics from a query.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct QueryStats {
-    /// Time spent in retrieval (ms).
-    pub retrieval_time_ms: u64,
-
-    /// Time spent in LLM generation (ms).
-    pub generation_time_ms: u64,
-
-    /// Total time (ms).
-    pub total_time_ms: u64,
-
-    /// Number of entities retrieved.
-    pub entities_retrieved: usize,
-
-    /// Number of relationships retrieved.
-    pub relationships_retrieved: usize,
-
-    /// Number of chunks retrieved.
-    pub chunks_retrieved: usize,
-
-    /// Tokens used in prompt.
-    pub prompt_tokens: usize,
-
-    /// Tokens in response.
-    pub response_tokens: usize,
-}
-
-/// Document insertion result.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InsertResult {
-    /// Document ID.
-    pub document_id: String,
-
-    /// Whether the insertion was successful.
-    pub success: bool,
-
-    /// Number of chunks created.
-    pub chunks_created: usize,
-
-    /// Number of entities extracted.
-    pub entities_extracted: usize,
-
-    /// Number of relationships extracted.
-    pub relationships_extracted: usize,
-
-    /// Processing time in milliseconds.
-    pub processing_time_ms: u64,
-
-    /// Any error message.
-    pub error: Option<String>,
-}
-
-/// Status of a document in the system.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DocumentInfo {
-    /// Document ID.
-    pub id: String,
-
-    /// Original filename if available.
-    pub filename: Option<String>,
-
-    /// Document status.
-    pub status: DocumentStatus,
-
-    /// Number of chunks.
-    pub chunk_count: usize,
-
-    /// Number of entities.
-    pub entity_count: usize,
-
-    /// Creation timestamp.
-    pub created_at: String,
-
-    /// Last update timestamp.
-    pub updated_at: Option<String>,
-}
-
-/// Graph statistics.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct GraphStats {
-    /// Total number of nodes.
-    pub node_count: usize,
-
-    /// Total number of edges.
-    pub edge_count: usize,
-
-    /// Number of entity types.
-    pub entity_type_count: usize,
-
-    /// Number of relationship types.
-    pub relationship_type_count: usize,
-
-    /// Top entity types by count.
-    pub top_entity_types: Vec<(String, usize)>,
-
-    /// Top relationship types by count.
-    pub top_relationship_types: Vec<(String, usize)>,
-}
-
-/// Placeholder for the actual EdgeQuake instance.
-/// 
-/// In a full implementation, this would contain:
-/// - Storage backends (KV, Vector, Graph)
-/// - LLM client
-/// - Embedding client
-/// - Pipeline for document processing
-/// - Query strategies
-///
-/// For now, this provides the interface structure.
+/// EdgeQuake orchestrator.
 pub struct EdgeQuake {
     /// Configuration.
     config: EdgeQuakeConfig,
 
     /// Whether the instance is initialized.
     initialized: bool,
+
+    /// Storage backends.
+    kv_storage: Option<Arc<dyn KVStorage>>,
+    vector_storage: Option<Arc<dyn VectorStorage>>,
+    graph_storage: Option<Arc<dyn GraphStorage>>,
+
+    /// LLM and embedding providers.
+    llm_provider: Option<Arc<dyn LLMProvider>>,
+    embedding_provider: Option<Arc<dyn EmbeddingProvider>>,
+
+    /// Pipeline for document processing.
+    pipeline: Option<Arc<Pipeline>>,
+
+    /// Query engine.
+    query_engine: Option<Arc<crate::query::QueryEngine>>,
 }
 
 impl EdgeQuake {
@@ -499,6 +235,13 @@ impl EdgeQuake {
         Self {
             config,
             initialized: false,
+            kv_storage: None,
+            vector_storage: None,
+            graph_storage: None,
+            llm_provider: None,
+            embedding_provider: None,
+            pipeline: None,
+            query_engine: None,
         }
     }
 
@@ -507,19 +250,91 @@ impl EdgeQuake {
         Self::new(EdgeQuakeConfig::default())
     }
 
+    /// Set the storage backends.
+    pub fn with_storage_backends(
+        mut self,
+        kv: Arc<dyn KVStorage>,
+        vector: Arc<dyn VectorStorage>,
+        graph: Arc<dyn GraphStorage>,
+    ) -> Self {
+        self.kv_storage = Some(kv);
+        self.vector_storage = Some(vector);
+        self.graph_storage = Some(graph);
+        self
+    }
+
+    /// Set the LLM and embedding providers.
+    pub fn with_providers(
+        mut self,
+        llm: Arc<dyn LLMProvider>,
+        embedding: Arc<dyn EmbeddingProvider>,
+    ) -> Self {
+        self.llm_provider = Some(llm);
+        self.embedding_provider = Some(embedding);
+        self
+    }
+
     /// Initialize the EdgeQuake instance.
-    /// 
+    ///
     /// This sets up all storage backends and connections.
     pub async fn initialize(&mut self) -> Result<()> {
-        tracing::info!("Initializing EdgeQuake for namespace: {}", self.config.namespace);
-        
-        // TODO: Initialize storage backends based on config
-        // TODO: Initialize LLM and embedding clients
-        // TODO: Set up pipeline
-        
+        tracing::info!(
+            "Initializing EdgeQuake for namespace: {}",
+            self.config.namespace
+        );
+
+        // Ensure providers are set
+        let llm = self
+            .llm_provider
+            .as_ref()
+            .ok_or_else(|| Error::config("LLM provider not set"))?;
+        let embedding = self
+            .embedding_provider
+            .as_ref()
+            .ok_or_else(|| Error::config("Embedding provider not set"))?;
+
+        // Set up pipeline
+        let pipeline_config = PipelineConfig {
+            chunker: edgequake_pipeline::ChunkerConfig {
+                chunk_size: self.config.chunk_token_size,
+                chunk_overlap: self.config.chunk_overlap_token_size,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let extractor = Arc::new(
+            LLMExtractor::new(llm.clone()).with_entity_types(self.config.entity_types.clone()),
+        );
+
+        let pipeline = Pipeline::new(pipeline_config)
+            .with_extractor(extractor)
+            .with_embedding_provider(embedding.clone());
+
+        self.pipeline = Some(Arc::new(pipeline));
+
+        // Set up query engine
+        let graph_storage = self
+            .graph_storage
+            .as_ref()
+            .ok_or_else(|| Error::config("Graph storage not set"))?;
+        let vector_storage = self
+            .vector_storage
+            .as_ref()
+            .ok_or_else(|| Error::config("Vector storage not set"))?;
+
+        let query_engine = crate::query::QueryEngine::new(
+            llm.clone(),
+            embedding.clone(),
+            graph_storage.clone(),
+            vector_storage.clone(),
+        );
+
+        self.query_engine = Some(Arc::new(query_engine));
+
         self.initialized = true;
         tracing::info!("EdgeQuake initialized successfully");
-        
+
         Ok(())
     }
 
@@ -551,28 +366,76 @@ impl EdgeQuake {
 
         let start = std::time::Instant::now();
 
-        // TODO: Actual implementation:
-        // 1. Chunk the document
-        // 2. Extract entities and relationships via LLM
-        // 3. Generate embeddings
-        // 4. Store in vector DB and graph
-        // 5. Update document metadata
+        let pipeline = self
+            .pipeline
+            .as_ref()
+            .ok_or_else(|| Error::not_initialized("Pipeline not initialized"))?;
+
+        let graph_storage = self
+            .graph_storage
+            .as_ref()
+            .ok_or_else(|| Error::not_initialized("Graph storage not initialized"))?;
+
+        let vector_storage = self
+            .vector_storage
+            .as_ref()
+            .ok_or_else(|| Error::not_initialized("Vector storage not initialized"))?;
+
+        // 1. Process document through pipeline (Chunking + Extraction + Embedding)
+        let processing_result = pipeline
+            .process(&doc_id, content)
+            .await
+            .map_err(|e| Error::internal(format!("Pipeline error: {}", e)))?;
+
+        // 2. Merge results into knowledge graph and vector store
+        let merger = KnowledgeGraphMerger::new(
+            MergerConfig::default(),
+            graph_storage.clone(),
+            vector_storage.clone(),
+        );
+
+        let merge_stats = merger
+            .merge(processing_result.extractions.clone())
+            .await
+            .map_err(|e| Error::internal(format!("Merge error: {}", e)))?;
+
+        // 3. Store chunk embeddings
+        for chunk in &processing_result.chunks {
+            if let Some(embedding) = &chunk.embedding {
+                vector_storage
+                    .upsert(&[(
+                        chunk.id.clone(),
+                        embedding.clone(),
+                        serde_json::json!({
+                            "document_id": doc_id,
+                            "index": chunk.index,
+                            "content": chunk.content
+                        }),
+                    )])
+                    .await
+                    .map_err(|e| Error::internal(format!("Vector storage error: {}", e)))?;
+            }
+        }
 
         let processing_time_ms = start.elapsed().as_millis() as u64;
 
         Ok(InsertResult {
             document_id: doc_id,
             success: true,
-            chunks_created: 0,
-            entities_extracted: 0,
-            relationships_extracted: 0,
+            chunks_created: processing_result.stats.chunk_count,
+            entities_extracted: merge_stats.entities_created + merge_stats.entities_updated,
+            relationships_extracted: merge_stats.relationships_created
+                + merge_stats.relationships_updated,
             processing_time_ms,
             error: None,
         })
     }
 
     /// Insert multiple documents.
-    pub async fn insert_batch(&self, documents: Vec<(&str, Option<&str>)>) -> Result<Vec<InsertResult>> {
+    pub async fn insert_batch(
+        &self,
+        documents: Vec<(&str, Option<&str>)>,
+    ) -> Result<Vec<InsertResult>> {
         let mut results = Vec::with_capacity(documents.len());
 
         for (content, doc_id) in documents {
@@ -590,25 +453,13 @@ impl EdgeQuake {
         }
 
         let params = params.unwrap_or_default();
-        let start = std::time::Instant::now();
 
-        // TODO: Actual implementation:
-        // 1. Generate query embedding
-        // 2. Retrieve context based on mode
-        // 3. Build prompt
-        // 4. Generate response via LLM
+        let query_engine = self
+            .query_engine
+            .as_ref()
+            .ok_or_else(|| Error::not_initialized("Query engine not initialized"))?;
 
-        let total_time_ms = start.elapsed().as_millis() as u64;
-
-        Ok(QueryResult {
-            response: String::new(),
-            mode: params.mode,
-            context: QueryContext::default(),
-            stats: QueryStats {
-                total_time_ms,
-                ..Default::default()
-            },
-        })
+        query_engine.query(query, params).await
     }
 
     /// Delete a document and all its associated data.
@@ -618,9 +469,9 @@ impl EdgeQuake {
         }
 
         tracing::info!("Deleting document: {}", document_id);
-        
+
         // TODO: Delete from all storages
-        
+
         Ok(true)
     }
 
@@ -631,9 +482,9 @@ impl EdgeQuake {
         }
 
         tracing::info!("Deleting entity: {}", entity_name);
-        
+
         // TODO: Delete from graph and vector stores
-        
+
         Ok(true)
     }
 
@@ -643,11 +494,23 @@ impl EdgeQuake {
             return Err(Error::not_initialized("EdgeQuake not initialized"));
         }
 
-        Ok(GraphStats::default())
+        let graph_storage = self
+            .graph_storage
+            .as_ref()
+            .ok_or_else(|| Error::not_initialized("Graph storage not initialized"))?;
+
+        let node_count = graph_storage.node_count().await?;
+        let edge_count = graph_storage.edge_count().await?;
+
+        Ok(GraphStats {
+            node_count,
+            edge_count,
+            ..Default::default()
+        })
     }
 
     /// Get document information.
-    pub async fn get_document(&self, document_id: &str) -> Result<Option<DocumentInfo>> {
+    pub async fn get_document(&self, _document_id: &str) -> Result<Option<DocumentInfo>> {
         if !self.initialized {
             return Err(Error::not_initialized("EdgeQuake not initialized"));
         }
@@ -671,23 +534,151 @@ impl EdgeQuake {
             return Err(Error::not_initialized("EdgeQuake not initialized"));
         }
 
-        // TODO: Search in graph
-        Ok(Vec::new())
+        let embedding_provider = self
+            .embedding_provider
+            .as_ref()
+            .ok_or_else(|| Error::not_initialized("Embedding provider not initialized"))?;
+
+        let vector_storage = self
+            .vector_storage
+            .as_ref()
+            .ok_or_else(|| Error::not_initialized("Vector storage not initialized"))?;
+
+        let graph_storage = self
+            .graph_storage
+            .as_ref()
+            .ok_or_else(|| Error::not_initialized("Graph storage not initialized"))?;
+
+        // 1. Embed query
+        let embeddings = embedding_provider.embed(&[query.to_string()]).await?;
+        let query_embedding = embeddings
+            .first()
+            .ok_or_else(|| Error::internal("No embedding generated"))?;
+
+        // 2. Search vector store
+        let results = vector_storage.query(query_embedding, limit, None).await?;
+
+        // 3. Map to ContextEntity
+        let mut entities = Vec::new();
+        for result in results {
+            if let Some(node) = graph_storage.get_node(&result.id).await? {
+                entities.push(ContextEntity {
+                    name: node
+                        .properties
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(&result.id)
+                        .to_string(),
+                    entity_type: node
+                        .properties
+                        .get("entity_type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("UNKNOWN")
+                        .to_string(),
+                    description: node
+                        .properties
+                        .get("description")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    score: result.score,
+                });
+            }
+        }
+
+        Ok(entities)
     }
 
     /// Get knowledge graph subgraph around an entity.
     pub async fn get_entity_graph(
         &self,
         entity_name: &str,
-        max_depth: usize,
-        max_nodes: usize,
+        _max_depth: usize,
+        _max_nodes: usize,
     ) -> Result<QueryContext> {
         if !self.initialized {
             return Err(Error::not_initialized("EdgeQuake not initialized"));
         }
 
-        // TODO: Get subgraph from graph storage
-        Ok(QueryContext::default())
+        let graph_storage = self
+            .graph_storage
+            .as_ref()
+            .ok_or_else(|| Error::not_initialized("Graph storage not initialized"))?;
+
+        // For now, just get the entity and its immediate neighbors
+        let mut entities = Vec::new();
+        let mut relationships = Vec::new();
+
+        if let Some(node) = graph_storage.get_node(entity_name).await? {
+            entities.push(ContextEntity {
+                name: node
+                    .properties
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(entity_name)
+                    .to_string(),
+                entity_type: node
+                    .properties
+                    .get("entity_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("UNKNOWN")
+                    .to_string(),
+                description: node
+                    .properties
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                score: 1.0,
+            });
+
+            let edges = graph_storage.get_node_edges(entity_name).await?;
+            for edge in edges {
+                relationships.push(crate::types::ContextRelationship {
+                    source: edge.source.clone(),
+                    target: edge.target.clone(),
+                    relation_type: "RELATED".to_string(),
+                    description: edge
+                        .properties
+                        .get("description")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    score: 1.0,
+                });
+
+                // Also add the target entity if not already present
+                if let Some(target_node) = graph_storage.get_node(&edge.target).await? {
+                    entities.push(ContextEntity {
+                        name: target_node
+                            .properties
+                            .get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or(&edge.target)
+                            .to_string(),
+                        entity_type: target_node
+                            .properties
+                            .get("entity_type")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("UNKNOWN")
+                            .to_string(),
+                        description: target_node
+                            .properties
+                            .get("description")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                        score: 1.0,
+                    });
+                }
+            }
+        }
+
+        Ok(QueryContext {
+            entities,
+            relationships,
+            ..Default::default()
+        })
     }
 
     /// Check if the instance is healthy.
@@ -709,6 +700,7 @@ impl std::fmt::Debug for EdgeQuake {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::QueryMode;
 
     #[test]
     fn test_config_builder() {
@@ -739,15 +731,28 @@ mod tests {
 
     #[tokio::test]
     async fn test_edgequake_lifecycle() {
-        let mut eq = EdgeQuake::new(EdgeQuakeConfig::default());
-        
+        use edgequake_llm::MockProvider;
+        use edgequake_storage::adapters::memory::{
+            MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
+        };
+
+        let mock_provider = Arc::new(MockProvider::new());
+        let kv_storage: Arc<dyn KVStorage> = Arc::new(MemoryKVStorage::new("test"));
+        let vector_storage: Arc<dyn VectorStorage> =
+            Arc::new(MemoryVectorStorage::new("test", 1536));
+        let graph_storage: Arc<dyn GraphStorage> = Arc::new(MemoryGraphStorage::new("test"));
+
+        let mut eq = EdgeQuake::new(EdgeQuakeConfig::default())
+            .with_storage_backends(kv_storage, vector_storage, graph_storage)
+            .with_providers(mock_provider.clone(), mock_provider);
+
         assert!(!eq.initialized);
-        
+
         eq.initialize().await.unwrap();
-        
+
         assert!(eq.initialized);
         assert!(eq.health_check().await.unwrap());
-        
+
         eq.finalize().await.unwrap();
     }
 }

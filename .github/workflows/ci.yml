@@ -1,0 +1,140 @@
+name: CI
+
+on:
+    push:
+        branches: [main, edgequake-main]
+    pull_request:
+        branches: [main, edgequake-main]
+
+env:
+    CARGO_TERM_COLOR: always
+    RUST_BACKTRACE: 1
+
+jobs:
+    check:
+        name: Check
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install Rust
+              uses: dtolnay/rust-action@stable
+              with:
+                  components: clippy, rustfmt
+
+            - name: Cache cargo
+              uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: edgequake
+
+            - name: Check formatting
+              working-directory: edgequake
+              run: cargo fmt --all -- --check
+
+            - name: Check clippy
+              working-directory: edgequake
+              run: cargo clippy --all-targets --all-features -- -D warnings
+
+    test:
+        name: Test
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install Rust
+              uses: dtolnay/rust-action@stable
+
+            - name: Cache cargo
+              uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: edgequake
+
+            - name: Run tests
+              working-directory: edgequake
+              run: cargo test --all --no-fail-fast
+
+    build:
+        name: Build
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install Rust
+              uses: dtolnay/rust-action@stable
+
+            - name: Cache cargo
+              uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: edgequake
+
+            - name: Build release
+              working-directory: edgequake
+              run: cargo build --release --all-targets
+
+            - name: Build examples
+              working-directory: edgequake
+              run: cargo build --examples
+
+    coverage:
+        name: Coverage
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install Rust
+              uses: dtolnay/rust-action@stable
+
+            - name: Install cargo-tarpaulin
+              run: cargo install cargo-tarpaulin
+
+            - name: Cache cargo
+              uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: edgequake
+
+            - name: Generate coverage
+              working-directory: edgequake
+              run: cargo tarpaulin --all --timeout 300 --out xml
+
+            - name: Upload coverage to Codecov
+              uses: codecov/codecov-action@v4
+              with:
+                  files: edgequake/cobertura.xml
+                  fail_ci_if_error: false
+
+    security:
+        name: Security Audit
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install Rust
+              uses: dtolnay/rust-action@stable
+
+            - name: Install cargo-audit
+              run: cargo install cargo-audit
+
+            - name: Run security audit
+              working-directory: edgequake
+              run: cargo audit --ignore RUSTSEC-2023-0071 # Ignore rsa timing issue (no fix available)
+              continue-on-error: true # Don't fail on unmaintained warnings
+
+    docs:
+        name: Documentation
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install Rust
+              uses: dtolnay/rust-action@stable
+
+            - name: Cache cargo
+              uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: edgequake
+
+            - name: Build docs
+              working-directory: edgequake
+              run: cargo doc --all --no-deps
+              env:
+                  RUSTDOCFLAGS: -D warnings

@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 
 use crate::context::{QueryContext, RetrievedChunk, RetrievedEntity, RetrievedRelationship};
@@ -134,34 +135,22 @@ pub struct QueryStats {
 }
 
 /// The query engine for RAG.
-pub struct QueryEngine<V, G, E, L>
-where
-    V: VectorStorage,
-    G: GraphStorage,
-    E: EmbeddingProvider,
-    L: LLMProvider,
-{
+pub struct QueryEngine {
     config: QueryEngineConfig,
-    vector_storage: Arc<V>,
-    graph_storage: Arc<G>,
-    embedding_provider: Arc<E>,
-    llm_provider: Arc<L>,
+    vector_storage: Arc<dyn VectorStorage>,
+    graph_storage: Arc<dyn GraphStorage>,
+    embedding_provider: Arc<dyn EmbeddingProvider>,
+    llm_provider: Arc<dyn LLMProvider>,
 }
 
-impl<V, G, E, L> QueryEngine<V, G, E, L>
-where
-    V: VectorStorage,
-    G: GraphStorage,
-    E: EmbeddingProvider,
-    L: LLMProvider,
-{
+impl QueryEngine {
     /// Create a new query engine.
     pub fn new(
         config: QueryEngineConfig,
-        vector_storage: Arc<V>,
-        graph_storage: Arc<G>,
-        embedding_provider: Arc<E>,
-        llm_provider: Arc<L>,
+        vector_storage: Arc<dyn VectorStorage>,
+        graph_storage: Arc<dyn GraphStorage>,
+        embedding_provider: Arc<dyn EmbeddingProvider>,
+        llm_provider: Arc<dyn LLMProvider>,
     ) -> Self {
         Self {
             config,
@@ -211,6 +200,51 @@ where
             mode,
             stats,
         })
+    }
+
+    /// Execute a streaming query.
+    pub async fn query_stream(&self, request: QueryRequest) -> Result<futures::stream::BoxStream<'static, Result<String>>> {
+        let mode = request.mode.unwrap_or(self.config.default_mode);
+
+        // Step 1: Generate query embedding
+        let query_embedding = self
+            .embedding_provider
+            .embed_one(&request.query)
+            .await?;
+
+        // Step 2: Retrieve context based on mode
+        let context = self.retrieve_context(&request.query, &query_embedding, mode).await?;
+
+        if context.is_empty() {
+            use futures::StreamExt;
+            return Ok(futures::stream::once(async { 
+                Ok("I'm sorry, but I couldn't find any relevant information in my knowledge base to answer your question.".to_string()) 
+            }).boxed());
+        }
+
+        // Step 3: Generate streaming answer
+        let context_text = context.to_context_string();
+
+        let prompt = format!(
+            r#"You are a helpful assistant. Answer the user's question based on the following context.
+
+## Context
+{context_text}
+
+## Question
+{query}
+
+## Answer
+Provide a clear, accurate answer based on the context above. If the context doesn't contain enough information to answer the question, say so."#,
+            context_text = context_text,
+            query = request.query
+        );
+
+        self.llm_provider
+            .stream(&prompt)
+            .await
+            .map(|stream| stream.map(|res| res.map_err(QueryError::from)).boxed())
+            .map_err(QueryError::from)
     }
 
     /// Retrieve context for a query.
@@ -300,7 +334,7 @@ where
     /// Generate an answer using the LLM.
     async fn generate_answer(&self, query: &str, context: &QueryContext) -> Result<String> {
         if context.is_empty() {
-            return Err(QueryError::NoResults);
+            return Ok("I'm sorry, but I couldn't find any relevant information in my knowledge base to answer your question.".to_string());
         }
 
         let context_text = context.to_context_string();

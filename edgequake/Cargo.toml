@@ -25,6 +25,30 @@ path = "src/main.rs"
 name = "basic_rag"
 path = "examples/basic_rag.rs"
 
+[[example]]
+name = "streaming_query"
+path = "examples/streaming_query.rs"
+
+[[example]]
+name = "graph_exploration"
+path = "examples/graph_exploration.rs"
+
+[[example]]
+name = "multi_tenant"
+path = "examples/multi_tenant.rs"
+
+[[bench]]
+name = "chunking_bench"
+harness = false
+
+[[bench]]
+name = "query_bench"
+harness = false
+
+[[bench]]
+name = "storage_bench"
+harness = false
+
 [dependencies]
 edgequake-core = { workspace = true }
 edgequake-storage = { workspace = true }
@@ -37,6 +61,11 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 anyhow = { workspace = true }
 serde_json = { workspace = true }
+futures = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+tokio-test = { workspace = true }
 
 [workspace.package]
 version = "0.1.0"
@@ -76,14 +105,25 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 # Web framework
 axum = "0.8"
 tower = "0.5"
-tower-http = { version = "0.6", features = ["cors", "trace", "compression-gzip"] }
+tower-http = { version = "0.6", features = [
+    "cors",
+    "trace",
+    "compression-gzip",
+] }
 
 # OpenAPI
 utoipa = { version = "5.4", features = ["axum_extras", "chrono", "uuid"] }
 utoipa-swagger-ui = { version = "8.0", features = ["axum"] }
 
 # Database
-sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls-ring-webpki", "postgres", "chrono", "json", "uuid"] }
+sqlx = { version = "0.8", features = [
+    "runtime-tokio",
+    "tls-rustls-ring-webpki",
+    "postgres",
+    "chrono",
+    "json",
+    "uuid",
+] }
 
 # LLM
 async-openai = { version = "0.32", features = ["chat-completion", "embedding"] }
@@ -98,6 +138,7 @@ config = "0.14"
 
 # Testing
 tokio-test = "0.4"
+criterion = { version = "0.5", features = ["async_tokio"] }
 
 # Workspace crates
 edgequake-core = { path = "crates/edgequake-core" }

@@ -30,3 +30,5 @@ pub use error::{LlmError, Result};
 pub use providers::openai::OpenAIProvider;
 pub use tokenizer::Tokenizer;
 pub use traits::{EmbeddingProvider, LLMProvider, LLMResponse};
+
+pub use providers::mock::MockProvider;

@@ -15,8 +15,6 @@ postgres = ["dep:sqlx"]
 full = ["postgres"]
 
 [dependencies]
-edgequake-core = { workspace = true }
-
 async-trait = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }

@@ -7,8 +7,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use edgequake_core::utils::KeyedLocks;
-use edgequake_storage::{GraphEdge, GraphNode, GraphStorage};
+use edgequake_storage::{GraphEdge, GraphNode, GraphStorage, VectorStorage};
 
 use crate::error::Result;
 use crate::extractor::{ExtractedEntity, ExtractedRelationship, ExtractionResult};
@@ -41,19 +40,19 @@ impl Default for MergerConfig {
 }
 
 /// Merges extracted entities and relationships into the knowledge graph.
-pub struct KnowledgeGraphMerger<G: GraphStorage> {
+pub struct KnowledgeGraphMerger<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> {
     config: MergerConfig,
     graph_storage: Arc<G>,
-    entity_locks: KeyedLocks<String>,
+    vector_storage: Arc<V>,
 }
 
-impl<G: GraphStorage> KnowledgeGraphMerger<G> {
+impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G, V> {
     /// Create a new merger.
-    pub fn new(config: MergerConfig, graph_storage: Arc<G>) -> Self {
+    pub fn new(config: MergerConfig, graph_storage: Arc<G>, vector_storage: Arc<V>) -> Self {
         Self {
             config,
             graph_storage,
-            entity_locks: KeyedLocks::new(),
+            vector_storage,
         }
     }
 
@@ -104,8 +103,16 @@ impl<G: GraphStorage> KnowledgeGraphMerger<G> {
     async fn merge_entity(&self, entity: ExtractedEntity) -> Result<bool> {
         let entity_key = normalize_entity_name(&entity.name);
 
-        // Acquire lock for this entity
-        let _lock = self.entity_locks.lock(entity_key.clone()).await;
+        // Store embedding if present
+        if let Some(embedding) = &entity.embedding {
+            self.vector_storage
+                .upsert(&[(
+                    entity_key.clone(),
+                    embedding.clone(),
+                    serde_json::json!({ "name": entity.name }),
+                )])
+                .await?;
+        }
 
         // Check if entity exists
         let existing = self.graph_storage.get_node(&entity_key).await?;
@@ -134,16 +141,6 @@ impl<G: GraphStorage> KnowledgeGraphMerger<G> {
     async fn merge_relationship(&self, rel: ExtractedRelationship) -> Result<bool> {
         let source_key = normalize_entity_name(&rel.source);
         let target_key = normalize_entity_name(&rel.target);
-
-        // Acquire locks for both entities (in consistent order to prevent deadlocks)
-        let (first_key, second_key) = if source_key < target_key {
-            (source_key.clone(), target_key.clone())
-        } else {
-            (target_key.clone(), source_key.clone())
-        };
-
-        let _lock1 = self.entity_locks.lock(first_key).await;
-        let _lock2 = self.entity_locks.lock(second_key).await;
 
         // Check if edge exists
         let existing = self.graph_storage.get_edge(&source_key, &target_key).await?;

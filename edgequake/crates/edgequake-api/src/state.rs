@@ -5,28 +5,30 @@ use std::sync::Arc;
 use edgequake_llm::OpenAIProvider;
 use edgequake_pipeline::Pipeline;
 use edgequake_query::{QueryEngine, QueryEngineConfig};
-use edgequake_storage::adapters::memory::{MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage};
-
-/// Type alias for the query engine with memory storage.
-pub type MemoryQueryEngine = QueryEngine<MemoryVectorStorage, MemoryGraphStorage, OpenAIProvider, OpenAIProvider>;
+use edgequake_storage::adapters::memory::{
+    MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
+};
 
 /// Application state shared across handlers.
 #[derive(Clone)]
 pub struct AppState {
     /// KV storage.
-    pub kv_storage: Arc<MemoryKVStorage>,
+    pub kv_storage: Arc<dyn edgequake_storage::traits::KVStorage>,
 
     /// Vector storage.
-    pub vector_storage: Arc<MemoryVectorStorage>,
+    pub vector_storage: Arc<dyn edgequake_storage::traits::VectorStorage>,
 
     /// Graph storage.
-    pub graph_storage: Arc<MemoryGraphStorage>,
+    pub graph_storage: Arc<dyn edgequake_storage::traits::GraphStorage>,
 
     /// LLM provider.
-    pub llm_provider: Arc<OpenAIProvider>,
+    pub llm_provider: Arc<dyn edgequake_llm::traits::LLMProvider>,
+
+    /// Embedding provider.
+    pub embedding_provider: Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
 
     /// Query engine.
-    pub query_engine: Arc<MemoryQueryEngine>,
+    pub query_engine: Arc<QueryEngine>,
 
     /// Processing pipeline.
     pub pipeline: Arc<Pipeline>,
@@ -59,6 +61,28 @@ impl Default for AppConfig {
 }
 
 impl AppState {
+    /// Create a new application state.
+    pub fn new(
+        kv_storage: Arc<dyn edgequake_storage::traits::KVStorage>,
+        vector_storage: Arc<dyn edgequake_storage::traits::VectorStorage>,
+        graph_storage: Arc<dyn edgequake_storage::traits::GraphStorage>,
+        llm_provider: Arc<dyn edgequake_llm::traits::LLMProvider>,
+        embedding_provider: Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+        query_engine: Arc<QueryEngine>,
+        pipeline: Arc<Pipeline>,
+    ) -> Self {
+        Self {
+            kv_storage,
+            vector_storage,
+            graph_storage,
+            llm_provider,
+            embedding_provider,
+            query_engine,
+            pipeline,
+            config: AppConfig::default(),
+        }
+    }
+
     /// Create a new application state with memory storage.
     pub fn new_memory(llm_api_key: impl Into<String>) -> Self {
         let kv_storage = Arc::new(MemoryKVStorage::new("default"));
@@ -70,17 +94,21 @@ impl AppState {
         // Create query engine
         let query_engine = Arc::new(QueryEngine::new(
             QueryEngineConfig::default(),
-            Arc::clone(&vector_storage),
-            Arc::clone(&graph_storage),
-            Arc::clone(&llm_provider),
-            Arc::clone(&llm_provider),
+            Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
+            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
         ));
 
         Self {
-            kv_storage,
-            vector_storage,
-            graph_storage,
-            llm_provider,
+            kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
+            vector_storage: Arc::clone(&vector_storage)
+                as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            graph_storage: Arc::clone(&graph_storage)
+                as Arc<dyn edgequake_storage::traits::GraphStorage>,
+            llm_provider: Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+            embedding_provider: Arc::clone(&llm_provider)
+                as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
             query_engine,
             pipeline,
             config: AppConfig::default(),
@@ -89,6 +117,35 @@ impl AppState {
 
     /// Create a minimal state for testing.
     pub fn test_state() -> Self {
-        Self::new_memory("test-key")
+        use edgequake_llm::MockProvider;
+
+        let mock_provider = Arc::new(MockProvider::new());
+        let kv_storage = Arc::new(MemoryKVStorage::new("test"));
+        let vector_storage = Arc::new(MemoryVectorStorage::new("test", 1536)); // Match MockProvider dimension
+        let graph_storage = Arc::new(MemoryGraphStorage::new("test"));
+        let pipeline = Arc::new(Pipeline::default_pipeline());
+
+        let query_config = QueryEngineConfig::default();
+        let query_engine = Arc::new(QueryEngine::new(
+            query_config,
+            Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
+            Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+            Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+        ));
+
+        Self {
+            kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
+            vector_storage: Arc::clone(&vector_storage)
+                as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            graph_storage: Arc::clone(&graph_storage)
+                as Arc<dyn edgequake_storage::traits::GraphStorage>,
+            llm_provider: Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+            embedding_provider: Arc::clone(&mock_provider)
+                as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+            query_engine,
+            pipeline,
+            config: AppConfig::default(),
+        }
     }
 }

@@ -58,10 +58,10 @@ pub trait KVStorage: Send + Sync {
     ///
     /// # Returns
     ///
-    /// * `Ok(Some(value))` - Record found and deserialized
+    /// * `Ok(Some(value))` - Record found
     /// * `Ok(None)` - Record not found
-    /// * `Err(_)` - Error during retrieval or deserialization
-    async fn get_by_id<T: DeserializeOwned + Send>(&self, id: &str) -> Result<Option<T>>;
+    /// * `Err(_)` - Error during retrieval
+    async fn get_by_id(&self, id: &str) -> Result<Option<serde_json::Value>>;
 
     /// Retrieve multiple records by their IDs.
     ///
@@ -72,7 +72,7 @@ pub trait KVStorage: Send + Sync {
     /// # Returns
     ///
     /// Vector of found records. Missing records are silently omitted.
-    async fn get_by_ids<T: DeserializeOwned + Send>(&self, ids: &[String]) -> Result<Vec<T>>;
+    async fn get_by_ids(&self, ids: &[String]) -> Result<Vec<serde_json::Value>>;
 
     /// Filter keys to find which do NOT exist in storage.
     ///
@@ -95,7 +95,7 @@ pub trait KVStorage: Send + Sync {
     /// # Arguments
     ///
     /// * `data` - Vector of (id, value) tuples to upsert
-    async fn upsert<T: Serialize + Send + Sync>(&self, data: &[(String, T)]) -> Result<()>;
+    async fn upsert(&self, data: &[(String, serde_json::Value)]) -> Result<()>;
 
     /// Delete records by their IDs.
     ///
@@ -118,3 +118,39 @@ pub trait KVStorage: Send + Sync {
     /// Clear all records from storage.
     async fn clear(&self) -> Result<()>;
 }
+
+/// Extension trait for KV storage with typed access.
+#[async_trait]
+pub trait KVStorageExt: KVStorage {
+    /// Retrieve a single record and deserialize it.
+    async fn get_json<T: serde::de::DeserializeOwned + Send>(&self, id: &str) -> Result<Option<T>> {
+        let val = self.get_by_id(id).await?;
+        match val {
+            Some(v) => Ok(Some(serde_json::from_value(v)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Retrieve multiple records and deserialize them.
+    async fn get_jsons<T: serde::de::DeserializeOwned + Send>(&self, ids: &[String]) -> Result<Vec<T>> {
+        let vals = self.get_by_ids(ids).await?;
+        let mut results = Vec::new();
+        for v in vals {
+            if let Ok(item) = serde_json::from_value(v) {
+                results.push(item);
+            }
+        }
+        Ok(results)
+    }
+
+    /// Upsert multiple records after serializing them.
+    async fn upsert_json<T: serde::Serialize + Send + Sync>(&self, data: &[(String, T)]) -> Result<()> {
+        let mut json_data = Vec::new();
+        for (id, val) in data {
+            json_data.push((id.clone(), serde_json::to_value(val)?));
+        }
+        self.upsert(&json_data).await
+    }
+}
+
+impl<T: KVStorage + ?Sized> KVStorageExt for T {}
