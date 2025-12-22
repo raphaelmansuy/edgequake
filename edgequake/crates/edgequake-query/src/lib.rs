@@ -21,19 +21,33 @@
 //! 3. Context aggregation
 //! 4. LLM answer generation
 
+pub mod chunk_retrieval;
 pub mod context;
 pub mod engine;
 pub mod error;
+pub mod keywords;
 pub mod modes;
 pub mod strategies;
+pub mod tokenizer;
+pub mod truncation;
 pub mod vector_filter;
 
+pub use chunk_retrieval::{
+    retrieve_chunks_from_entities, retrieve_chunks_from_relationships, ChunkSelectionMethod,
+    merge_chunks,
+};
 pub use context::{QueryContext, RetrievedContext};
 pub use engine::{QueryEngine, QueryEngineConfig, QueryRequest, QueryResponse};
 pub use error::{QueryError, Result};
+pub use keywords::{KeywordExtractor, Keywords, LLMKeywordExtractor, MockKeywordExtractor};
 pub use modes::QueryMode;
 pub use strategies::{
     create_strategy, GlobalStrategy, HybridStrategy, LocalStrategy, MixStrategy, NaiveStrategy,
     QueryStrategy, StrategyConfig,
 };
-pub use vector_filter::{VectorType, filter_by_type, get_typed_vectors};
+pub use tokenizer::{MockTokenizer, SimpleTokenizer, Tokenizer};
+pub use truncation::{
+    balance_context, truncate_chunks, truncate_entities, truncate_relationships,
+    TruncationConfig,
+};
+pub use vector_filter::{filter_by_type, get_typed_vectors, VectorType};

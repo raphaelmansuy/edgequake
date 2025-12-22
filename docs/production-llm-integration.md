@@ -1,4 +1,5 @@
 # Real LLM Provider Integration Guide
+
 **Date**: 2025-01-21 17:00  
 **Status**: ✅ PRODUCTION READY
 
@@ -13,15 +14,18 @@ EdgeQuake now supports **real LLM providers** for production deployment. The sys
 ## Supported Providers
 
 ### ✅ OpenAI (Fully Integrated)
+
 - **Models**: GPT-4o, GPT-4o-mini, GPT-4-turbo, GPT-3.5-turbo
 - **Embeddings**: text-embedding-3-small (1536d), text-embedding-3-large (3072d)
 - **Status**: Production ready, tested with real API
 
 ### 🔧 Anthropic (Planned)
+
 - **Models**: Claude 3.5 Sonnet, Claude 3 Opus
 - **Status**: Not yet implemented
 
 ### 🔧 Local Models (Supported via OpenAI-compatible API)
+
 - **Ollama**: Compatible with OpenAI API format
 - **LM Studio**: Compatible with OpenAI API format
 - **Status**: Supported through `OpenAIProvider::compatible()`
@@ -54,34 +58,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .with_model("gpt-4o-mini")  // Cost-effective, fast
             .with_embedding_model("text-embedding-3-small")
     );
-    
+
     // 2. Setup storage (use PostgreSQL for production)
     let graph_storage = Arc::new(/* PostgreSQL AGE storage */);
     let vector_storage = Arc::new(/* PostgreSQL vector storage */);
     let kv_storage = Arc::new(/* PostgreSQL KV storage */);
-    
+
     // 3. Create EdgeQuake instance
     let config = EdgeQuakeConfig::new()
         .with_namespace("production")
         .with_postgres("postgresql://localhost/edgequake");
-    
+
     let mut edgequake = EdgeQuake::new(config)
         .with_storage_backends(kv_storage, vector_storage, graph_storage)
         .with_providers(
             provider.clone() as Arc<dyn edgequake_llm::LLMProvider>,
             provider as Arc<dyn edgequake_llm::EmbeddingProvider>,
         );
-    
+
     edgequake.initialize().await?;
-    
+
     // 4. Ingest documents
     let document = std::fs::read_to_string("document.txt")?;
     let result = edgequake.insert(&document, Some("doc-001")).await?;
-    
+
     println!("Extracted {} entities, {} relationships",
         result.entities_extracted,
         result.relationships_extracted);
-    
+
     Ok(())
 }
 ```
@@ -98,7 +102,7 @@ async fn create_provider() -> (Arc<dyn LLMProvider>, Arc<dyn EmbeddingProvider>)
             return (provider.clone(), provider);
         }
     }
-    
+
     // Fall back to mock
     let mock = Arc::new(MockProvider::new());
     (mock.clone(), mock)
@@ -108,6 +112,7 @@ async fn create_provider() -> (Arc<dyn LLMProvider>, Arc<dyn EmbeddingProvider>)
 ## Test Results with Real LLM
 
 ### Mock Provider (Before)
+
 ```
 Total entities extracted: 9
 Total relationships extracted: 6
@@ -116,6 +121,7 @@ Test time: 0.00s
 ```
 
 ### Real OpenAI Provider (After)
+
 ```
 🔑 Using REAL OpenAI provider (API key found)
 
@@ -128,6 +134,7 @@ Test time: 34.31s
 ```
 
 **Improvements with Real LLM**:
+
 - **2.3x more entities** extracted (21 vs 9)
 - **3.5x more relationships** extracted (21 vs 6)
 - **2.7x larger graph** (16 nodes vs 6)
@@ -138,28 +145,32 @@ Test time: 34.31s
 ## Environment Variables
 
 ### Required
-| Variable | Purpose | Example |
-|----------|---------|---------|
+
+| Variable         | Purpose                   | Example       |
+| ---------------- | ------------------------- | ------------- |
 | `OPENAI_API_KEY` | OpenAI API authentication | `sk-proj-...` |
 
 ### Optional
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `OPENAI_MODEL` | Completion model | `gpt-4o-mini` |
-| `OPENAI_EMBEDDING_MODEL` | Embedding model | `text-embedding-3-small` |
-| `OPENAI_API_BASE` | Custom API endpoint | `https://api.openai.com/v1` |
+
+| Variable                 | Purpose             | Default                     |
+| ------------------------ | ------------------- | --------------------------- |
+| `OPENAI_MODEL`           | Completion model    | `gpt-4o-mini`               |
+| `OPENAI_EMBEDDING_MODEL` | Embedding model     | `text-embedding-3-small`    |
+| `OPENAI_API_BASE`        | Custom API endpoint | `https://api.openai.com/v1` |
 
 ## Model Selection Guide
 
 ### For Production
 
 **Recommended: gpt-4o-mini**
+
 - **Cost**: $0.150 per 1M input tokens, $0.600 per 1M output tokens
 - **Speed**: Very fast (2-3s per request)
 - **Quality**: Excellent for entity extraction
 - **Context**: 128K tokens
 
 **Alternative: gpt-4o**
+
 - **Cost**: $2.50 per 1M input tokens, $10.00 per 1M output tokens
 - **Speed**: Fast (3-5s per request)
 - **Quality**: Best quality
@@ -169,12 +180,14 @@ Test time: 34.31s
 ### For Embeddings
 
 **Recommended: text-embedding-3-small**
+
 - **Cost**: $0.020 per 1M tokens
 - **Dimension**: 1536
 - **Speed**: Very fast
 - **Quality**: Excellent for RAG
 
 **Alternative: text-embedding-3-large**
+
 - **Cost**: $0.130 per 1M tokens
 - **Dimension**: 3072
 - **Speed**: Fast
@@ -186,11 +199,13 @@ Test time: 34.31s
 ### Typical Document Processing
 
 **Assumptions**:
+
 - Document size: 2000 words (~3000 tokens)
 - Chunks: 3 chunks per document
 - Entity extraction: 50 entities, 40 relationships
 
 **Costs per Document (gpt-4o-mini)**:
+
 - Extraction (3 chunks × 3000 tokens): $0.00135
 - Embeddings (50 entities + 40 rels): $0.000002
 - **Total per document**: ~$0.0014 (0.14 cents)
@@ -200,6 +215,7 @@ Test time: 34.31s
 ### Large-Scale Deployment
 
 **100,000 documents**:
+
 - Extraction cost: $135
 - Embedding cost: $0.18
 - Storage (PostgreSQL): ~$20/month
@@ -269,14 +285,15 @@ match edgequake.insert(document, doc_id).await {
 
 OpenAI has rate limits by tier:
 
-| Tier | RPM | TPM | Batch Queue |
-|------|-----|-----|-------------|
-| Free | 3 | 40K | - |
-| Tier 1 | 500 | 30M | 1.5M |
-| Tier 2 | 5000 | 450M | 10M |
-| Tier 3 | 10000 | 10B | 50M |
+| Tier   | RPM   | TPM  | Batch Queue |
+| ------ | ----- | ---- | ----------- |
+| Free   | 3     | 40K  | -           |
+| Tier 1 | 500   | 30M  | 1.5M        |
+| Tier 2 | 5000  | 450M | 10M         |
+| Tier 3 | 10000 | 10B  | 50M         |
 
 **Recommendations**:
+
 - Use semaphore to limit concurrent requests
 - Implement exponential backoff for 429 errors
 - Cache extraction results in KV storage
@@ -340,12 +357,14 @@ metrics::counter!("llm_api_calls", 1);
 ## Testing Strategy
 
 ### CI/CD (No API Keys)
+
 ```bash
 # Runs with mock provider automatically
 cargo test
 ```
 
 ### Local Development (With API Key)
+
 ```bash
 # Set API key to test with real LLM
 export OPENAI_API_KEY="sk-..."
@@ -353,6 +372,7 @@ cargo test --package edgequake-core --test e2e_pipeline -- --nocapture
 ```
 
 ### Staging Environment
+
 ```bash
 # Use less expensive model for staging
 export OPENAI_MODEL="gpt-3.5-turbo"
@@ -360,6 +380,7 @@ cargo test --package edgequake-core --test e2e_pipeline
 ```
 
 ### Production Validation
+
 ```bash
 # Use production model
 export OPENAI_MODEL="gpt-4o-mini"
@@ -369,6 +390,7 @@ cargo test --package edgequake-core --test e2e_pipeline
 ## Migration from Mock to Production
 
 ### Step 1: Install Dependencies
+
 ```toml
 [dependencies]
 edgequake-llm = { path = "../edgequake-llm" }
@@ -376,6 +398,7 @@ edgequake-core = { path = "../edgequake-core" }
 ```
 
 ### Step 2: Update Configuration
+
 ```rust
 // Before (mock)
 let provider = Arc::new(MockProvider::new());
@@ -387,12 +410,14 @@ let provider = Arc::new(OpenAIProvider::new(api_key));
 ```
 
 ### Step 3: Test Incrementally
+
 1. Test with 1 document
 2. Test with 10 documents
 3. Monitor costs and performance
 4. Scale to production workload
 
 ### Step 4: Deploy
+
 ```bash
 # Set environment variables
 export OPENAI_API_KEY="sk-..."
@@ -405,6 +430,7 @@ export OPENAI_MODEL="gpt-4o-mini"
 ## Troubleshooting
 
 ### "Invalid API Key"
+
 ```bash
 # Check environment variable
 echo $OPENAI_API_KEY
@@ -414,6 +440,7 @@ echo $OPENAI_API_KEY
 ```
 
 ### "Rate Limit Exceeded"
+
 ```rust
 // Implement rate limiting
 use tokio::sync::Semaphore;
@@ -424,6 +451,7 @@ let result = edgequake.insert(doc, id).await?;
 ```
 
 ### "Invalid JSON Response"
+
 ```rust
 // LLM didn't return valid JSON
 // Enable response validation
@@ -435,6 +463,7 @@ let options = CompletionOptions {
 ```
 
 ### High Costs
+
 - Use gpt-4o-mini instead of gpt-4
 - Enable caching
 - Reduce chunk overlap

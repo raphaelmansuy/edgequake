@@ -19,22 +19,22 @@ use edgequake_storage::traits::{GraphStorage, VectorStorage};
 pub struct StrategyConfig {
     /// Maximum chunks to retrieve.
     pub max_chunks: usize,
-    
+
     /// Maximum entities to retrieve.
     pub max_entities: usize,
-    
+
     /// Maximum relationships per entity.
     pub max_relationships_per_entity: usize,
-    
+
     /// Graph traversal depth.
     pub graph_depth: usize,
-    
+
     /// Minimum similarity score threshold.
     pub min_score: f32,
-    
+
     /// Weight for vector search results (0.0 - 1.0).
     pub vector_weight: f32,
-    
+
     /// Weight for graph search results (0.0 - 1.0).
     pub graph_weight: f32,
 }
@@ -147,7 +147,7 @@ impl<V: VectorStorage, G: GraphStorage> QueryStrategy for LocalStrategy<V, G> {
         // Local mode should search entity_vdb, not chunks
         let vector_results = self
             .vector_storage
-            .query(query_embedding, config.max_entities * 2, None)  // Get more for filtering
+            .query(query_embedding, config.max_entities * 2, None) // Get more for filtering
             .await?;
 
         // Filter to entity vectors only
@@ -260,7 +260,7 @@ impl<V: VectorStorage, G: GraphStorage> QueryStrategy for GlobalStrategy<V, G> {
         // Global mode should search relations_vdb
         let vector_results = self
             .vector_storage
-            .query(query_embedding, config.max_entities * 3, None)  // Get more for filtering
+            .query(query_embedding, config.max_entities * 3, None) // Get more for filtering
             .await?;
 
         // Filter to relationship vectors only
@@ -358,7 +358,10 @@ impl<V: VectorStorage, G: GraphStorage> HybridStrategy<V, G> {
     /// Create a new hybrid strategy.
     pub fn new(vector_storage: Arc<V>, graph_storage: Arc<G>) -> Self {
         Self {
-            local_strategy: LocalStrategy::new(Arc::clone(&vector_storage), Arc::clone(&graph_storage)),
+            local_strategy: LocalStrategy::new(
+                Arc::clone(&vector_storage),
+                Arc::clone(&graph_storage),
+            ),
             global_strategy: GlobalStrategy::new(vector_storage, graph_storage),
         }
     }
@@ -380,8 +383,14 @@ impl<V: VectorStorage, G: GraphStorage> QueryStrategy for HybridStrategy<V, G> {
         let mut global_config = config.clone();
         global_config.max_entities /= 2;
 
-        let local_context = self.local_strategy.execute(query, query_embedding, &local_config).await?;
-        let global_context = self.global_strategy.execute(query, query_embedding, &global_config).await?;
+        let local_context = self
+            .local_strategy
+            .execute(query, query_embedding, &local_config)
+            .await?;
+        let global_context = self
+            .global_strategy
+            .execute(query, query_embedding, &global_config)
+            .await?;
 
         // Merge contexts
         let mut merged = QueryContext::new();
@@ -393,7 +402,11 @@ impl<V: VectorStorage, G: GraphStorage> QueryStrategy for HybridStrategy<V, G> {
 
         // Merge entities (deduplicate)
         let mut seen_entities = HashSet::new();
-        for entity in local_context.entities.iter().chain(global_context.entities.iter()) {
+        for entity in local_context
+            .entities
+            .iter()
+            .chain(global_context.entities.iter())
+        {
             if seen_entities.insert(entity.name.clone()) {
                 merged.add_entity(entity.clone());
             }
@@ -401,7 +414,11 @@ impl<V: VectorStorage, G: GraphStorage> QueryStrategy for HybridStrategy<V, G> {
 
         // Merge relationships (deduplicate)
         let mut seen_rels = HashSet::new();
-        for rel in local_context.relationships.iter().chain(global_context.relationships.iter()) {
+        for rel in local_context
+            .relationships
+            .iter()
+            .chain(global_context.relationships.iter())
+        {
             let key = format!("{}->{}:{}", rel.source, rel.target, rel.relation_type);
             if seen_rels.insert(key) {
                 merged.add_relationship(rel.clone());
@@ -451,8 +468,14 @@ impl<V: VectorStorage, G: GraphStorage> QueryStrategy for MixStrategy<V, G> {
         hybrid_config.max_entities = graph_count.max(1);
         hybrid_config.max_chunks = 0; // Don't duplicate chunk retrieval
 
-        let naive_context = self.naive_strategy.execute(query, query_embedding, &naive_config).await?;
-        let hybrid_context = self.hybrid_strategy.execute(query, query_embedding, &hybrid_config).await?;
+        let naive_context = self
+            .naive_strategy
+            .execute(query, query_embedding, &naive_config)
+            .await?;
+        let hybrid_context = self
+            .hybrid_strategy
+            .execute(query, query_embedding, &hybrid_config)
+            .await?;
 
         // Combine with weights
         let mut merged = QueryContext::new();
@@ -502,7 +525,10 @@ where
 {
     match mode {
         QueryMode::Naive => Box::new(NaiveStrategy::new(vector_storage)),
-        QueryMode::Local => Box::new(LocalStrategy::new(vector_storage.clone(), graph_storage.clone())),
+        QueryMode::Local => Box::new(LocalStrategy::new(
+            vector_storage.clone(),
+            graph_storage.clone(),
+        )),
         QueryMode::Global => Box::new(GlobalStrategy::new(vector_storage, graph_storage)),
         QueryMode::Hybrid => Box::new(HybridStrategy::new(vector_storage, graph_storage)),
         QueryMode::Mix => Box::new(MixStrategy::new(vector_storage, graph_storage)),
@@ -558,11 +584,14 @@ mod tests {
     async fn test_naive_strategy_empty_storage() {
         let vector_storage = Arc::new(MemoryVectorStorage::new("test", 3));
         vector_storage.initialize().await.unwrap();
-        
+
         let strategy = NaiveStrategy::new(vector_storage);
         let config = StrategyConfig::default();
-        
-        let context = strategy.execute("test query", &[0.1, 0.2, 0.3], &config).await.unwrap();
+
+        let context = strategy
+            .execute("test query", &[0.1, 0.2, 0.3], &config)
+            .await
+            .unwrap();
         assert!(context.chunks.is_empty());
     }
 
@@ -570,24 +599,25 @@ mod tests {
     async fn test_naive_strategy_with_data() {
         let vector_storage = Arc::new(MemoryVectorStorage::new("test", 3));
         vector_storage.initialize().await.unwrap();
-        
+
         // Insert some test vectors using the batch API
         let metadata = json!({
             "content": "Rust is a systems programming language.",
             "source": "test_doc"
         });
-        let data = vec![
-            ("chunk1".to_string(), vec![0.1, 0.2, 0.3], metadata),
-        ];
+        let data = vec![("chunk1".to_string(), vec![0.1, 0.2, 0.3], metadata)];
         vector_storage.upsert(&data).await.unwrap();
-        
+
         let strategy = NaiveStrategy::new(vector_storage);
         let config = StrategyConfig {
             min_score: 0.0,
             ..Default::default()
         };
-        
-        let context = strategy.execute("test", &[0.1, 0.2, 0.3], &config).await.unwrap();
+
+        let context = strategy
+            .execute("test", &[0.1, 0.2, 0.3], &config)
+            .await
+            .unwrap();
         assert_eq!(context.chunks.len(), 1);
         assert!(context.chunks[0].content.contains("Rust"));
     }
@@ -606,11 +636,14 @@ mod tests {
         let graph_storage = Arc::new(MemoryGraphStorage::new("test"));
         vector_storage.initialize().await.unwrap();
         graph_storage.initialize().await.unwrap();
-        
+
         let strategy = LocalStrategy::new(vector_storage, graph_storage);
         let config = StrategyConfig::default();
-        
-        let context = strategy.execute("test query", &[0.1, 0.2, 0.3], &config).await.unwrap();
+
+        let context = strategy
+            .execute("test query", &[0.1, 0.2, 0.3], &config)
+            .await
+            .unwrap();
         assert!(context.chunks.is_empty());
         assert!(context.entities.is_empty());
     }
@@ -629,11 +662,14 @@ mod tests {
         let graph_storage = Arc::new(MemoryGraphStorage::new("test"));
         vector_storage.initialize().await.unwrap();
         graph_storage.initialize().await.unwrap();
-        
+
         let strategy = GlobalStrategy::new(vector_storage, graph_storage);
         let config = StrategyConfig::default();
-        
-        let context = strategy.execute("test query", &[0.1, 0.2, 0.3], &config).await.unwrap();
+
+        let context = strategy
+            .execute("test query", &[0.1, 0.2, 0.3], &config)
+            .await
+            .unwrap();
         assert!(context.entities.is_empty());
         assert!(context.relationships.is_empty());
     }
@@ -652,11 +688,14 @@ mod tests {
         let graph_storage = Arc::new(MemoryGraphStorage::new("test"));
         vector_storage.initialize().await.unwrap();
         graph_storage.initialize().await.unwrap();
-        
+
         let strategy = HybridStrategy::new(vector_storage, graph_storage);
         let config = StrategyConfig::default();
-        
-        let context = strategy.execute("test query", &[0.1, 0.2, 0.3], &config).await.unwrap();
+
+        let context = strategy
+            .execute("test query", &[0.1, 0.2, 0.3], &config)
+            .await
+            .unwrap();
         assert!(context.chunks.is_empty());
     }
 
@@ -674,11 +713,14 @@ mod tests {
         let graph_storage = Arc::new(MemoryGraphStorage::new("test"));
         vector_storage.initialize().await.unwrap();
         graph_storage.initialize().await.unwrap();
-        
+
         let strategy = MixStrategy::new(vector_storage, graph_storage);
         let config = StrategyConfig::default();
-        
-        let context = strategy.execute("test query", &[0.1, 0.2, 0.3], &config).await.unwrap();
+
+        let context = strategy
+            .execute("test query", &[0.1, 0.2, 0.3], &config)
+            .await
+            .unwrap();
         assert!(context.chunks.is_empty());
     }
 
@@ -686,20 +728,40 @@ mod tests {
     async fn test_create_strategy_factory() {
         let vector_storage = Arc::new(MemoryVectorStorage::new("test", 3));
         let graph_storage = Arc::new(MemoryGraphStorage::new("test"));
-        
-        let naive = create_strategy(QueryMode::Naive, vector_storage.clone(), graph_storage.clone());
+
+        let naive = create_strategy(
+            QueryMode::Naive,
+            vector_storage.clone(),
+            graph_storage.clone(),
+        );
         assert_eq!(naive.mode(), QueryMode::Naive);
-        
-        let local = create_strategy(QueryMode::Local, vector_storage.clone(), graph_storage.clone());
+
+        let local = create_strategy(
+            QueryMode::Local,
+            vector_storage.clone(),
+            graph_storage.clone(),
+        );
         assert_eq!(local.mode(), QueryMode::Local);
-        
-        let global = create_strategy(QueryMode::Global, vector_storage.clone(), graph_storage.clone());
+
+        let global = create_strategy(
+            QueryMode::Global,
+            vector_storage.clone(),
+            graph_storage.clone(),
+        );
         assert_eq!(global.mode(), QueryMode::Global);
-        
-        let hybrid = create_strategy(QueryMode::Hybrid, vector_storage.clone(), graph_storage.clone());
+
+        let hybrid = create_strategy(
+            QueryMode::Hybrid,
+            vector_storage.clone(),
+            graph_storage.clone(),
+        );
         assert_eq!(hybrid.mode(), QueryMode::Hybrid);
-        
-        let mix = create_strategy(QueryMode::Mix, vector_storage.clone(), graph_storage.clone());
+
+        let mix = create_strategy(
+            QueryMode::Mix,
+            vector_storage.clone(),
+            graph_storage.clone(),
+        );
         assert_eq!(mix.mode(), QueryMode::Mix);
     }
 
@@ -709,18 +771,24 @@ mod tests {
         let graph_storage = Arc::new(MemoryGraphStorage::new("test"));
         vector_storage.initialize().await.unwrap();
         graph_storage.initialize().await.unwrap();
-        
+
         // Add a node to the graph using HashMap
         let mut props: HashMap<String, serde_json::Value> = HashMap::new();
         props.insert("entity_type".to_string(), json!("CONCEPT"));
-        props.insert("description".to_string(), json!("A systems programming language"));
+        props.insert(
+            "description".to_string(),
+            json!("A systems programming language"),
+        );
         graph_storage.upsert_node("RUST", props).await.unwrap();
-        
+
         let strategy = GlobalStrategy::new(vector_storage, graph_storage);
         let config = StrategyConfig::default();
-        
+
         // Query with "rust" term to match the entity
-        let context = strategy.execute("rust language", &[0.1, 0.2, 0.3], &config).await.unwrap();
+        let context = strategy
+            .execute("rust language", &[0.1, 0.2, 0.3], &config)
+            .await
+            .unwrap();
         // Global strategy now looks for relationships through vector search
         // With empty relationship VDB, it should return empty context
         assert_eq!(context.entities.len(), 0);

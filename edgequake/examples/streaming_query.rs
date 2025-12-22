@@ -35,6 +35,8 @@ async fn main() -> anyhow::Result<()> {
             graph_depth: 2,
             min_score: 0.1,
             include_sources: true,
+            use_keyword_extraction: false,
+            truncation: edgequake_query::TruncationConfig::default(),
         },
         vector_storage.clone(),
         graph_storage.clone(),

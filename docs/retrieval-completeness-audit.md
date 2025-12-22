@@ -9,6 +9,7 @@
 ## Executive Summary
 
 After deep analysis of:
+
 1. `docs_retro/05-algorithms.md` - LightRAG algorithm specification
 2. `lightrag/operate.py` - Python implementation (~5000 lines)
 3. `edgequake/crates/` - Rust implementation
@@ -16,6 +17,7 @@ After deep analysis of:
 **Status:** ✅ **CORE ALGORITHMS COMPLETE** | ⚠️ **ADVANCED FEATURES MISSING**
 
 **Already Implemented (Recent Session):**
+
 - ✅ Entity vector search (Local mode)
 - ✅ Relationship vector search (Global mode)
 - ✅ Type-based vector filtering (chunk/entity/relationship)
@@ -24,6 +26,7 @@ After deep analysis of:
 - ✅ Round-robin entity/relationship merging
 
 **Missing Features (Found in LightRAG):**
+
 - ❌ Keyword extraction (high-level + low-level)
 - ❌ Token-based truncation for LLM efficiency
 - ❌ Chunk reranking by frequency/vector similarity
@@ -40,6 +43,7 @@ After deep analysis of:
 ### 1. Keyword Extraction ❌ CRITICAL MISSING
 
 **LightRAG Implementation:**
+
 ```python
 async def extract_keywords_only(text, param, global_config, hashing_kv):
     # Call LLM to extract high-level and low-level keywords
@@ -54,17 +58,20 @@ async def extract_keywords_only(text, param, global_config, hashing_kv):
 ```
 
 **Purpose:**
+
 - **High-level keywords:** Abstract concepts, themes, topics → used for Global mode
 - **Low-level keywords:** Specific entities, technical terms → used for Local mode
 - Allows bypass of keyword extraction when provided by user
 - Cached for performance
 
 **EdgeQuake:**
+
 - ❌ **Missing entirely**
 - Queries are used directly as-is for vector search
 - No distinction between high/low-level concepts
 
 **Impact:**
+
 - **Severe:** Local/Global modes less effective without proper keyword targeting
 - Users can't bypass LLM for faster queries
 - No query preprocessing/optimization
@@ -74,24 +81,25 @@ async def extract_keywords_only(text, param, global_config, hashing_kv):
 ### 2. Token-Based Truncation ❌ CRITICAL MISSING
 
 **LightRAG Implementation:**
+
 ```python
 async def _apply_token_truncation(search_result, query_param, global_config):
     tokenizer = global_config["tokenizer"]
-    
+
     # Truncate entities by token count
     entity_texts = [format_entity(e) for e in entities]
     entities_truncated = truncate_list_by_token_size(
         entity_texts,
         query_param.max_entity_tokens
     )
-    
+
     # Truncate relations by token count
     relation_texts = [format_relation(r) for r in relations]
     relations_truncated = truncate_list_by_token_size(
         relation_texts,
         query_param.max_relation_tokens
     )
-    
+
     # Ensure total doesn't exceed max_total_tokens
     total_tokens = count_tokens(entities + relations + chunks)
     if total_tokens > query_param.max_total_tokens:
@@ -100,17 +108,20 @@ async def _apply_token_truncation(search_result, query_param, global_config):
 ```
 
 **Parameters:**
+
 - `max_entity_tokens`: Max tokens for entity context (default: 8000)
 - `max_relation_tokens`: Max tokens for relationship context (default: 8000)
 - `max_total_tokens`: Max tokens for entire context (default: 16000)
 
 **EdgeQuake:**
+
 - ❌ **Missing entirely**
 - Uses fixed counts: `max_chunks`, `max_entities`
 - No token-aware truncation
 - Risk of context window overflow
 
 **Impact:**
+
 - **Severe:** Can exceed LLM context limits
 - Inefficient use of context budget
 - No fine-grained control over entity vs relation balance
@@ -120,6 +131,7 @@ async def _apply_token_truncation(search_result, query_param, global_config):
 ### 3. Chunk Retrieval from Entities ❌ HIGH PRIORITY
 
 **LightRAG Implementation:**
+
 ```python
 async def _find_related_text_unit_from_entities(
     node_datas,
@@ -132,20 +144,20 @@ async def _find_related_text_unit_from_entities(
     query_embedding
 ):
     # Two methods:
-    
+
     # Method 1: WEIGHT - Frequency-based polling
     chunk_freq = Counter()  # chunk_id -> frequency
     for entity in node_datas:
         source_ids = entity["source_id"].split("|")
         for chunk_id in source_ids:
             chunk_freq[chunk_id] += 1
-    
+
     # Use linear gradient weighted polling
     selected = pick_by_weighted_polling(
         chunk_freq,
         query_param.related_chunk_number
     )
-    
+
     # Method 2: VECTOR - Similarity-based
     all_chunks = [text_chunks_db.get(cid) for cid in chunk_freq.keys()]
     selected = pick_by_vector_similarity(
@@ -153,17 +165,19 @@ async def _find_related_text_unit_from_entities(
         query_embedding,
         query_param.chunk_top_k
     )
-    
+
     return selected_chunks
 ```
 
 **EdgeQuake:**
+
 - ❌ **Missing entirely**
 - Local mode retrieves entities but doesn't get their source chunks
 - No chunk frequency tracking
 - No vector-based chunk reranking
 
 **Impact:**
+
 - **High:** Local mode returns entities without supporting evidence
 - Users don't see original text that mentioned entities
 - Less verifiable responses
@@ -173,15 +187,16 @@ async def _find_related_text_unit_from_entities(
 ### 4. Entity Degree/Rank Sorting ❌ MEDIUM PRIORITY
 
 **LightRAG Implementation:**
+
 ```python
 async def _get_node_data(query, knowledge_graph_inst, entities_vdb, query_param):
     # Vector search for entities
     results = await entities_vdb.query(query, top_k=query_param.top_k)
     node_ids = [r["entity_name"] for r in results]
-    
+
     # Get node degrees (graph centrality)
     node_degrees = await knowledge_graph_inst.node_degrees_batch(node_ids)
-    
+
     # Attach degree/rank to each entity
     node_datas = [
         {
@@ -191,24 +206,27 @@ async def _get_node_data(query, knowledge_graph_inst, entities_vdb, query_param)
         }
         for entity_name, node, degree in zip(node_ids, nodes, node_degrees)
     ]
-    
+
     # Relationships sorted by: rank (degree) + weight
     edges = sorted(edges, key=lambda x: (x["rank"], x["weight"]), reverse=True)
-    
+
     return node_datas, edges
 ```
 
 **Purpose:**
+
 - Prioritize central/important entities in graph
 - Sort relationships by importance (degree + edge weight)
 - Helps select most relevant connections
 
 **EdgeQuake:**
+
 - ✅ Has `node_degree()` method
 - ❌ **Not used in query strategies**
 - ❌ No relationship sorting by importance
 
 **Impact:**
+
 - **Medium:** Results not optimally ordered
 - Less relevant entities/relationships may appear first
 - Suboptimal context for LLM
@@ -218,6 +236,7 @@ async def _get_node_data(query, knowledge_graph_inst, entities_vdb, query_param)
 ### 5. Relationship Chunk Retrieval ❌ MEDIUM PRIORITY
 
 **LightRAG Implementation:**
+
 ```python
 async def _find_related_text_unit_from_relations(
     edge_datas,
@@ -234,22 +253,24 @@ async def _find_related_text_unit_from_relations(
         source_ids = edge["source_id"].split("|")
         for chunk_id in source_ids:
             chunk_freq[chunk_id] += 1
-    
+
     # Method 1: WEIGHT - Linear gradient polling
     selected = pick_by_weighted_polling(chunk_freq, query_param.related_chunk_number)
-    
+
     # Method 2: VECTOR - Rerank by similarity
     selected = pick_by_vector_similarity(all_chunks, query_embedding, query_param.chunk_top_k)
-    
+
     return selected_chunks
 ```
 
 **EdgeQuake:**
+
 - ❌ **Missing entirely**
 - Global mode returns relationships but no source chunks
 - No evidence for relationship claims
 
 **Impact:**
+
 - **Medium:** Global mode lacks supporting text
 - Less verifiable relationship information
 - Users can't verify where relationships came from
@@ -259,6 +280,7 @@ async def _find_related_text_unit_from_relations(
 ### 6. Chunk Frequency Tracking ❌ MEDIUM PRIORITY
 
 **LightRAG Implementation:**
+
 ```python
 # Track chunks across all retrieval sources
 chunk_tracking = {}  # chunk_id -> {source, frequency, order}
@@ -285,16 +307,19 @@ for i, chunk in enumerate(vector_chunks):
 ```
 
 **Purpose:**
+
 - Track which chunks appear in multiple retrieval paths
 - Prioritize chunks mentioned by multiple entities/relationships
 - Log chunk sources for debugging: E (entity), R (relationship), C (vector)
 
 **EdgeQuake:**
+
 - ❌ **Missing entirely**
 - No cross-source chunk tracking
 - No frequency-based prioritization
 
 **Impact:**
+
 - **Medium:** Misses chunks that are highly relevant (mentioned multiple times)
 - No visibility into retrieval process
 - Can't implement weighted polling
@@ -304,6 +329,7 @@ for i, chunk in enumerate(vector_chunks):
 ### 7. Conversation History Support ❌ LOW PRIORITY
 
 **LightRAG Implementation:**
+
 ```python
 # In QueryParam
 class QueryParam:
@@ -320,16 +346,19 @@ response = await use_model_func(
 ```
 
 **Purpose:**
+
 - Support multi-turn conversations
 - Context from previous exchanges
 - Better follow-up question handling
 
 **EdgeQuake:**
+
 - ❌ **Missing entirely**
 - Each query is isolated
 - No conversation context
 
 **Impact:**
+
 - **Low:** Can be added as enhancement
 - Currently supports single-turn Q&A
 - Users can't ask follow-up questions effectively
@@ -339,6 +368,7 @@ response = await use_model_func(
 ### 8. Response Type Customization ❌ LOW PRIORITY
 
 **LightRAG Implementation:**
+
 ```python
 # In QueryParam
 response_type: str = "Multiple Paragraphs"  # or "Single Paragraph", "Bullet Points", etc.
@@ -352,16 +382,19 @@ sys_prompt = PROMPTS["rag_response"].format(
 ```
 
 **Purpose:**
+
 - Control LLM output format
 - Match user preferences (paragraphs, bullets, tables, etc.)
 - Consistent formatting
 
 **EdgeQuake:**
+
 - ❌ **Missing entirely**
 - Fixed response format
 - No user control
 
 **Impact:**
+
 - **Low:** Nice-to-have feature
 - Can be added to prompt template
 - Doesn't affect retrieval quality
@@ -371,6 +404,7 @@ sys_prompt = PROMPTS["rag_response"].format(
 ### 9. Only-Context and Only-Prompt Modes ❌ LOW PRIORITY
 
 **LightRAG Implementation:**
+
 ```python
 # In QueryParam
 only_need_context: bool = False  # Return raw context without LLM response
@@ -386,15 +420,18 @@ if query_param.only_need_prompt:
 ```
 
 **Purpose:**
+
 - Debug retrieval without LLM cost
 - Inspect generated prompts
 - Test context quality separately
 
 **EdgeQuake:**
+
 - ✅ Has `context_only` mode
 - ❌ **Missing** `only_need_prompt` mode
 
 **Impact:**
+
 - **Low:** Debugging feature
 - Can be added easily
 - Not critical for production
@@ -404,6 +441,7 @@ if query_param.only_need_prompt:
 ### 10. Reranking Support ❌ LOW PRIORITY
 
 **LightRAG Implementation:**
+
 ```python
 # In QueryParam
 enable_rerank: bool = False
@@ -417,16 +455,19 @@ if query_param.enable_rerank:
 ```
 
 **Purpose:**
+
 - Improve relevance after initial retrieval
 - Filter low-quality results
 - Better LLM input
 
 **EdgeQuake:**
+
 - ❌ **Missing entirely**
 - No reranking step
 - Raw vector search results used
 
 **Impact:**
+
 - **Low:** Advanced optimization
 - Can improve quality but not critical
 - Adds latency
@@ -435,18 +476,18 @@ if query_param.enable_rerank:
 
 ## Implementation Priority Matrix
 
-| Feature | Priority | Effort | Impact | Status |
-|---------|----------|--------|--------|--------|
-| Keyword Extraction | 🔴 CRITICAL | High | Severe | ❌ Missing |
-| Token-Based Truncation | 🔴 CRITICAL | Medium | Severe | ❌ Missing |
-| Chunk Retrieval from Entities | 🟡 HIGH | Medium | High | ❌ Missing |
-| Entity Degree Sorting | 🟢 MEDIUM | Low | Medium | ❌ Missing |
-| Relationship Chunk Retrieval | 🟢 MEDIUM | Medium | Medium | ❌ Missing |
-| Chunk Frequency Tracking | 🟢 MEDIUM | Medium | Medium | ❌ Missing |
-| Conversation History | 🔵 LOW | Low | Low | ❌ Missing |
-| Response Type | 🔵 LOW | Low | Low | ❌ Missing |
-| Only-Prompt Mode | 🔵 LOW | Low | Low | ❌ Missing |
-| Reranking | 🔵 LOW | High | Low | ❌ Missing |
+| Feature                       | Priority    | Effort | Impact | Status     |
+| ----------------------------- | ----------- | ------ | ------ | ---------- |
+| Keyword Extraction            | 🔴 CRITICAL | High   | Severe | ❌ Missing |
+| Token-Based Truncation        | 🔴 CRITICAL | Medium | Severe | ❌ Missing |
+| Chunk Retrieval from Entities | 🟡 HIGH     | Medium | High   | ❌ Missing |
+| Entity Degree Sorting         | 🟢 MEDIUM   | Low    | Medium | ❌ Missing |
+| Relationship Chunk Retrieval  | 🟢 MEDIUM   | Medium | Medium | ❌ Missing |
+| Chunk Frequency Tracking      | 🟢 MEDIUM   | Medium | Medium | ❌ Missing |
+| Conversation History          | 🔵 LOW      | Low    | Low    | ❌ Missing |
+| Response Type                 | 🔵 LOW      | Low    | Low    | ❌ Missing |
+| Only-Prompt Mode              | 🔵 LOW      | Low    | Low    | ❌ Missing |
+| Reranking                     | 🔵 LOW      | High   | Low    | ❌ Missing |
 
 ---
 
@@ -455,6 +496,7 @@ if query_param.enable_rerank:
 ### Phase 1: Critical Features (1-2 weeks)
 
 1. **Keyword Extraction** (3-4 days)
+
    - Add LLM prompt for keyword extraction
    - Support user-provided keywords
    - Implement caching
@@ -469,6 +511,7 @@ if query_param.enable_rerank:
 ### Phase 2: High Priority Features (1 week)
 
 3. **Chunk Retrieval from Entities** (3-4 days)
+
    - Implement `find_related_chunks_from_entities()`
    - Add frequency-based weighted polling
    - Add vector similarity reranking
@@ -482,6 +525,7 @@ if query_param.enable_rerank:
 ### Phase 3: Medium Priority Features (1 week)
 
 5. **Relationship Chunk Retrieval** (2-3 days)
+
    - Implement `find_related_chunks_from_relationships()`
    - Integrate into Global mode
    - Add frequency tracking
@@ -503,6 +547,7 @@ if query_param.enable_rerank:
 ## Testing Requirements
 
 ### Unit Tests (Per Feature)
+
 - Keyword extraction with various query types
 - Token truncation edge cases
 - Chunk retrieval algorithms (WEIGHT vs VECTOR)
@@ -510,11 +555,13 @@ if query_param.enable_rerank:
 - Frequency tracking accuracy
 
 ### Integration Tests
+
 - End-to-end query with all features enabled
 - Compare output quality vs LightRAG
 - Performance benchmarks
 
 ### E2E Tests (Must Add)
+
 - Test with large knowledge graphs (1M+ entities)
 - Multi-turn conversation flows
 - Token limit stress tests
@@ -525,17 +572,20 @@ if query_param.enable_rerank:
 ## Success Criteria
 
 ### Functional Completeness
+
 - ✅ All 10 missing features implemented
 - ✅ Unit tests pass (100% coverage on new code)
 - ✅ Integration tests pass
 - ✅ E2E tests pass
 
 ### Quality Metrics
+
 - ✅ Retrieval quality matches LightRAG (manual evaluation)
 - ✅ Token usage stays within limits
 - ✅ Response relevance improves vs baseline
 
 ### Performance
+
 - ✅ Keyword extraction adds <200ms latency
 - ✅ Token truncation adds <50ms latency
 - ✅ Chunk retrieval adds <300ms latency
@@ -565,9 +615,9 @@ EdgeQuake has **solid foundations** with core retrieval algorithms implemented c
 Implementing these 3 critical features should be **highest priority**. The remaining 7 features can be added incrementally based on user feedback and specific use case needs.
 
 **Estimated Timeline:**
+
 - Critical features: 1-2 weeks
 - High priority: 1 week
 - Medium priority: 1 week
 - Polish: 1 week
 - **Total: 4-5 weeks** for complete feature parity with LightRAG
-

@@ -42,7 +42,7 @@ pub fn filter_by_type(
     vector_type: VectorType,
 ) -> Vec<VectorSearchResult> {
     let type_str = vector_type.as_str();
-    
+
     results
         .into_iter()
         .filter(|result| {

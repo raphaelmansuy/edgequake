@@ -5,27 +5,30 @@
 //!
 //! Tests cover both Memory and PostgreSQL storage backends.
 
-use std::sync::Arc;
 use std::env;
+use std::sync::Arc;
 
 use edgequake_core::{EdgeQuake, EdgeQuakeConfig, StorageBackend, StorageConfig};
 use edgequake_llm::{MockProvider, OpenAIProvider};
 use edgequake_pipeline::{
-    ExtractionResult, ExtractedEntity, ExtractedRelationship, KnowledgeGraphMerger, MergerConfig,
+    ExtractedEntity, ExtractedRelationship, ExtractionResult, KnowledgeGraphMerger, MergerConfig,
 };
 use edgequake_storage::{GraphStorage, MemoryGraphStorage, MemoryVectorStorage};
 
 /// Create LLM provider from environment or use smart mock.
-/// 
+///
 /// Checks for OPENAI_API_KEY environment variable:
 /// - If present: Creates real OpenAI provider for production testing
 /// - If absent: Creates smart mock provider with valid JSON responses
-/// 
+///
 /// This allows the same tests to work in:
 /// - CI/CD: Uses mock provider (no API keys needed)
 /// - Local development: Can test with real LLM if API key is set
 /// - Production: Uses real LLM provider
-async fn create_llm_provider() -> (Arc<dyn edgequake_llm::LLMProvider>, Arc<dyn edgequake_llm::EmbeddingProvider>) {
+async fn create_llm_provider() -> (
+    Arc<dyn edgequake_llm::LLMProvider>,
+    Arc<dyn edgequake_llm::EmbeddingProvider>,
+) {
     // Check for OpenAI API key
     if let Ok(api_key) = env::var("OPENAI_API_KEY") {
         if !api_key.is_empty() && api_key != "test-key" {
@@ -33,7 +36,7 @@ async fn create_llm_provider() -> (Arc<dyn edgequake_llm::LLMProvider>, Arc<dyn 
             let provider = Arc::new(
                 OpenAIProvider::new(api_key)
                     .with_model("gpt-4o-mini") // Fast and cost-effective
-                    .with_embedding_model("text-embedding-3-small")
+                    .with_embedding_model("text-embedding-3-small"),
             );
             return (
                 provider.clone() as Arc<dyn edgequake_llm::LLMProvider>,
@@ -41,7 +44,7 @@ async fn create_llm_provider() -> (Arc<dyn edgequake_llm::LLMProvider>, Arc<dyn 
             );
         }
     }
-    
+
     // Fall back to smart mock provider
     println!("🔧 Using Smart Mock provider (no API key or testing mode)");
     let mock = create_smart_mock_provider().await;
@@ -54,7 +57,7 @@ async fn create_llm_provider() -> (Arc<dyn edgequake_llm::LLMProvider>, Arc<dyn 
 /// Create a smart mock provider that returns valid extraction JSON.
 async fn create_smart_mock_provider() -> Arc<MockProvider> {
     let provider = Arc::new(MockProvider::new());
-    
+
     // Add valid extraction JSON response
     let extraction_json = r#"{
   "entities": [
@@ -71,7 +74,7 @@ async fn create_smart_mock_provider() -> Arc<MockProvider> {
     {"source": "Michael Torres", "target": "Sarah Chen", "type": "WORKS_WITH", "description": "Michael Torres works with Sarah Chen on the project"}
   ]
 }"#;
-    
+
     provider.add_response(extraction_json).await;
     provider
 }
@@ -111,7 +114,11 @@ async fn test_memory_e2e_document_to_knowledge_graph() {
     let (llm_provider, embedding_provider) = create_llm_provider().await;
 
     let mut edgequake = EdgeQuake::new(config)
-        .with_storage_backends(kv_storage.clone(), vector_storage.clone(), graph_storage.clone())
+        .with_storage_backends(
+            kv_storage.clone(),
+            vector_storage.clone(),
+            graph_storage.clone(),
+        )
         .with_providers(llm_provider, embedding_provider);
 
     edgequake
@@ -130,12 +137,18 @@ async fn test_memory_e2e_document_to_knowledge_graph() {
     assert!(result.success, "Insert should succeed");
     assert!(result.chunks_created > 0, "Should create chunks");
     println!("✓ Created {} chunks", result.chunks_created);
-    
+
     // With SmartMockProvider, extraction should succeed
     assert!(result.entities_extracted > 0, "Should extract entities");
-    assert!(result.relationships_extracted > 0, "Should extract relationships");
+    assert!(
+        result.relationships_extracted > 0,
+        "Should extract relationships"
+    );
     println!("✓ Extracted {} entities", result.entities_extracted);
-    println!("✓ Extracted {} relationships", result.relationships_extracted);
+    println!(
+        "✓ Extracted {} relationships",
+        result.relationships_extracted
+    );
 
     // 5. Query graph statistics
     let stats = edgequake
@@ -143,7 +156,10 @@ async fn test_memory_e2e_document_to_knowledge_graph() {
         .await
         .expect("Failed to get stats");
 
-    println!("✓ Graph stats: {} nodes, {} edges", stats.node_count, stats.edge_count);
+    println!(
+        "✓ Graph stats: {} nodes, {} edges",
+        stats.node_count, stats.edge_count
+    );
     assert!(stats.node_count > 0, "Should have nodes in graph");
     assert!(stats.edge_count > 0, "Should have edges in graph");
 
@@ -280,7 +296,7 @@ async fn test_memory_e2e_with_simulated_extraction() {
 #[tokio::test]
 async fn test_multi_document_ingestion_pipeline() {
     println!("\n=== Testing Multi-Document Ingestion Pipeline ===");
-    
+
     // 1. Setup storage backends
     let kv_storage = Arc::new(edgequake_storage::MemoryKVStorage::new("test_multi_doc"));
     let vector_storage = Arc::new(MemoryVectorStorage::new("test_multi_doc", 1536));
@@ -296,13 +312,15 @@ async fn test_multi_document_ingestion_pipeline() {
 
     // 3. Setup LLM provider (real or mock based on environment)
     // For mock provider, pre-configure responses for 3 documents
-    let (llm_provider, embedding_provider) = if env::var("OPENAI_API_KEY").is_ok() && env::var("OPENAI_API_KEY").unwrap() != "test-key" {
+    let (llm_provider, embedding_provider) = if env::var("OPENAI_API_KEY").is_ok()
+        && env::var("OPENAI_API_KEY").unwrap() != "test-key"
+    {
         // Real provider - will make actual API calls
         create_llm_provider().await
     } else {
         // Mock provider - pre-configure responses
         let mock_provider = Arc::new(MockProvider::new());
-        
+
         // Document 1 extraction response
         mock_provider.add_response(r#"{
   "entities": [
@@ -357,17 +375,23 @@ async fn test_multi_document_ingestion_pipeline() {
     // 4. Ingest multiple documents
     let documents = vec![
         ("doc-001", SAMPLE_DOCUMENT),
-        ("doc-002", r#"
+        (
+            "doc-002",
+            r#"
 Michael Torres leads the LLM integration efforts for EdgeQuake, working closely with the architecture team.
 EdgeQuake leverages Apache AGE, a powerful graph database extension for PostgreSQL, to store and query
 complex knowledge graphs efficiently. The system can handle millions of entities and relationships.
-"#),
-        ("doc-003", r#"
+"#,
+        ),
+        (
+            "doc-003",
+            r#"
 The development team consists of Sarah Chen, who brings extensive experience in graph databases and
 distributed systems, and Michael Torres, a specialist in large language models and embeddings.
 Together, they've built a system that combines the best of both worlds. Apache AGE extends PostgreSQL
 with graph capabilities, providing ACID guarantees and efficient graph traversal.
-"#),
+"#,
+        ),
     ];
 
     let mut total_entities = 0;
@@ -383,10 +407,13 @@ with graph capabilities, providing ACID guarantees and efficient graph traversal
         assert!(result.success, "Insert should succeed");
         total_entities += result.entities_extracted;
         total_relationships += result.relationships_extracted;
-        
+
         println!("  ✓ Created {} chunks", result.chunks_created);
         println!("  ✓ Extracted {} entities", result.entities_extracted);
-        println!("  ✓ Extracted {} relationships", result.relationships_extracted);
+        println!(
+            "  ✓ Extracted {} relationships",
+            result.relationships_extracted
+        );
     }
 
     println!("\n=== Final Results ===");
@@ -394,13 +421,22 @@ with graph capabilities, providing ACID guarantees and efficient graph traversal
     println!("Total relationships extracted: {}", total_relationships);
 
     // 5. Verify knowledge graph
-    let stats = edgequake.get_graph_stats().await.expect("Failed to get stats");
-    println!("Graph contains: {} unique nodes, {} edges", stats.node_count, stats.edge_count);
+    let stats = edgequake
+        .get_graph_stats()
+        .await
+        .expect("Failed to get stats");
+    println!(
+        "Graph contains: {} unique nodes, {} edges",
+        stats.node_count, stats.edge_count
+    );
 
     // Should have fewer unique entities than total extracted (due to merging)
     assert!(stats.node_count > 0, "Should have nodes");
     assert!(stats.edge_count > 0, "Should have edges");
-    assert!(stats.node_count <= total_entities, "Should merge duplicate entities");
+    assert!(
+        stats.node_count <= total_entities,
+        "Should merge duplicate entities"
+    );
 
     // 6. Verify entity merging worked
     assert!(
@@ -421,19 +457,32 @@ with graph capabilities, providing ACID guarantees and efficient graph traversal
         .get_neighbors("SARAH_CHEN", 1)
         .await
         .expect("Failed to get neighbors");
-    println!("Sarah Chen is connected to {} entities", sarah_neighbors.len());
-    assert!(sarah_neighbors.len() >= 2, "Sarah should be connected to multiple entities");
+    println!(
+        "Sarah Chen is connected to {} entities",
+        sarah_neighbors.len()
+    );
+    assert!(
+        sarah_neighbors.len() >= 2,
+        "Sarah should be connected to multiple entities"
+    );
 
     // 8. Test knowledge graph traversal
     let kg = graph_storage
         .get_knowledge_graph("EDGEQUAKE", 2, 50)
         .await
         .expect("Failed to get knowledge graph");
-    println!("EdgeQuake subgraph: {} nodes, {} edges", kg.node_count(), kg.edge_count());
+    println!(
+        "EdgeQuake subgraph: {} nodes, {} edges",
+        kg.node_count(),
+        kg.edge_count()
+    );
     assert!(kg.node_count() >= 3, "Should have substantial subgraph");
 
     println!("\n✅ Multi-Document Ingestion Pipeline Test PASSED!");
-    println!("   Successfully ingested {} documents into unified knowledge graph", documents.len());
+    println!(
+        "   Successfully ingested {} documents into unified knowledge graph",
+        documents.len()
+    );
 }
 
 // Helper functions

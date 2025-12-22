@@ -180,7 +180,10 @@ async fn test_chunk_retrieval_from_entities() {
     };
 
     let result = edgequake
-        .query("What research does Dr. Sarah Martinez conduct?", Some(params))
+        .query(
+            "What research does Dr. Sarah Martinez conduct?",
+            Some(params),
+        )
         .await
         .expect("Query failed");
 
@@ -198,7 +201,9 @@ async fn test_chunk_retrieval_from_entities() {
 
     println!("\n⚠️  EXPECTED BEHAVIOR (from LightRAG):");
     println!("   1. Search entity_vdb for 'Dr. Sarah Martinez'");
-    println!("   2. Get entity node from graph with source_id = 'doc-health|chunk-0,doc-collab|chunk-0'");
+    println!(
+        "   2. Get entity node from graph with source_id = 'doc-health|chunk-0,doc-collab|chunk-0'"
+    );
     println!("   3. Retrieve chunks: ['doc-health|chunk-0', 'doc-collab|chunk-0']");
     println!("   4. Include these chunks in context for LLM");
     println!("\n⚠️  CURRENT BEHAVIOR:");
@@ -366,10 +371,7 @@ async fn test_entity_degree_sorting() {
 
     println!("\nRetrieved {} entities:", result.context.entities.len());
     for (i, entity) in result.context.entities.iter().enumerate() {
-        let degree = graph_storage
-            .node_degree(&entity.name)
-            .await
-            .unwrap_or(0);
+        let degree = graph_storage.node_degree(&entity.name).await.unwrap_or(0);
         println!("  {}. {} (degree: {})", i + 1, entity.name, degree);
     }
 
@@ -439,7 +441,10 @@ async fn test_chunk_frequency_tracking() {
     };
 
     let result = edgequake
-        .query("How does machine learning impact different fields?", Some(params))
+        .query(
+            "How does machine learning impact different fields?",
+            Some(params),
+        )
         .await
         .expect("Query failed");
 
@@ -614,7 +619,7 @@ async fn test_cross_document_entity_linking() {
     if let Some(node) = sarah_node {
         println!("Dr. Sarah Martinez entity:");
         println!("  - Properties: {:?}", node.properties);
-        
+
         // Entity should have source_ids from both doc-1 and doc-3
         if let Some(source_id) = node.properties.get("source_id") {
             println!("  - Source IDs: {:?}", source_id);
@@ -638,15 +643,14 @@ async fn test_cross_document_entity_linking() {
     println!("  - {} relationships", result.context.relationships.len());
 
     // Should find collaboration relationship between Sarah and Elon (from doc-3)
-    let found_collaboration = result
-        .context
-        .relationships
-        .iter()
-        .any(|r| {
-            (r.source.contains("SARAH") && r.target.contains("ELON"))
-                || (r.source.contains("ELON") && r.target.contains("SARAH"))
-        });
+    let found_collaboration = result.context.relationships.iter().any(|r| {
+        (r.source.contains("SARAH") && r.target.contains("ELON"))
+            || (r.source.contains("ELON") && r.target.contains("SARAH"))
+    });
 
     println!("\n✅ Cross-document entity linking works");
-    println!("   Found collaboration relationship: {}", found_collaboration);
+    println!(
+        "   Found collaboration relationship: {}",
+        found_collaboration
+    );
 }

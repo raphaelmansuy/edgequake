@@ -8,7 +8,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::context::{QueryContext, RetrievedChunk, RetrievedEntity, RetrievedRelationship};
 use crate::error::{QueryError, Result};
+use crate::keywords::KeywordExtractor;
 use crate::modes::QueryMode;
+use crate::tokenizer::{SimpleTokenizer, Tokenizer};
+use crate::truncation::{balance_context, TruncationConfig};
 
 use edgequake_llm::traits::{EmbeddingProvider, LLMProvider};
 use edgequake_storage::traits::{GraphStorage, VectorStorage};
@@ -36,6 +39,12 @@ pub struct QueryEngineConfig {
 
     /// Whether to include sources in the response.
     pub include_sources: bool,
+
+    /// Whether to use keyword extraction.
+    pub use_keyword_extraction: bool,
+
+    /// Token-based truncation configuration.
+    pub truncation: TruncationConfig,
 }
 
 impl Default for QueryEngineConfig {
@@ -48,6 +57,8 @@ impl Default for QueryEngineConfig {
             graph_depth: 2,
             min_score: 0.1,
             include_sources: true,
+            use_keyword_extraction: false,
+            truncation: TruncationConfig::default(),
         }
     }
 }
@@ -141,6 +152,8 @@ pub struct QueryEngine {
     graph_storage: Arc<dyn GraphStorage>,
     embedding_provider: Arc<dyn EmbeddingProvider>,
     llm_provider: Arc<dyn LLMProvider>,
+    keyword_extractor: Option<Arc<dyn KeywordExtractor>>,
+    tokenizer: Arc<dyn Tokenizer>,
 }
 
 impl QueryEngine {
@@ -158,7 +171,21 @@ impl QueryEngine {
             graph_storage,
             embedding_provider,
             llm_provider,
+            keyword_extractor: None,
+            tokenizer: Arc::new(SimpleTokenizer),
         }
+    }
+
+    /// Set a custom keyword extractor.
+    pub fn with_keyword_extractor(mut self, extractor: Arc<dyn KeywordExtractor>) -> Self {
+        self.keyword_extractor = Some(extractor);
+        self
+    }
+
+    /// Set a custom tokenizer.
+    pub fn with_tokenizer(mut self, tokenizer: Arc<dyn Tokenizer>) -> Self {
+        self.tokenizer = tokenizer;
+        self
     }
 
     /// Execute a query.
@@ -327,6 +354,19 @@ Provide a clear, accurate answer based on the context above. If the context does
                 }
             }
         }
+
+        // Apply truncation to ensure we don't exceed token limits
+        let (truncated_entities, truncated_relationships, truncated_chunks) = balance_context(
+            context.entities.clone(),
+            context.relationships.clone(),
+            context.chunks.clone(),
+            &self.config.truncation,
+            self.tokenizer.as_ref(),
+        );
+
+        context.entities = truncated_entities;
+        context.relationships = truncated_relationships;
+        context.chunks = truncated_chunks;
 
         Ok(context)
     }

@@ -253,7 +253,10 @@ async fn test_global_mode_retrieval() {
     };
 
     let result = edgequake
-        .query("What are the connections between people and systems?", Some(params))
+        .query(
+            "What are the connections between people and systems?",
+            Some(params),
+        )
         .await
         .expect("Query failed");
 
@@ -431,7 +434,12 @@ async fn test_vector_type_filtering() {
         .filter(|r| r.metadata.get("type").and_then(|v| v.as_str()) == Some("relationship"))
         .collect();
 
-    println!("✓ Filtered: {} chunks, {} entities, {} relationships", chunks.len(), entities.len(), relationships.len());
+    println!(
+        "✓ Filtered: {} chunks, {} entities, {} relationships",
+        chunks.len(),
+        entities.len(),
+        relationships.len()
+    );
 
     assert_eq!(chunks.len(), 1, "Should filter 1 chunk");
     assert_eq!(entities.len(), 1, "Should filter 1 entity");
