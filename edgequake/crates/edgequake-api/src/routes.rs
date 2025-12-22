@@ -15,6 +15,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/health", get(handlers::health_check))
         .route("/ready", get(handlers::readiness_check))
         .route("/live", get(handlers::liveness_check))
+        // Metrics endpoint (Phase 3)
+        .route("/metrics", get(handlers::get_metrics))
         // API v1 endpoints
         .nest("/api/v1", api_v1_routes())
         .with_state(state)
@@ -23,6 +25,20 @@ pub fn create_router(state: AppState) -> Router {
 /// API v1 routes.
 fn api_v1_routes() -> Router<AppState> {
     Router::new()
+        // Authentication (Phase 3)
+        .route("/auth/login", post(handlers::login))
+        .route("/auth/refresh", post(handlers::refresh_token))
+        .route("/auth/logout", post(handlers::logout))
+        .route("/auth/me", get(handlers::get_me))
+        // Users (Phase 3)
+        .route("/users", post(handlers::create_user))
+        .route("/users", get(handlers::list_users))
+        .route("/users/{user_id}", get(handlers::get_user))
+        .route("/users/{user_id}", delete(handlers::delete_user))
+        // API Keys (Phase 3)
+        .route("/api-keys", post(handlers::create_api_key))
+        .route("/api-keys", get(handlers::list_api_keys))
+        .route("/api-keys/{key_id}", delete(handlers::revoke_api_key))
         // Documents
         .route("/documents", post(handlers::upload_document))
         .route("/documents", get(handlers::list_documents))

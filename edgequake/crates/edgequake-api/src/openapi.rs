@@ -20,6 +20,7 @@ use crate::handlers;
         handlers::health_check,
         handlers::readiness_check,
         handlers::liveness_check,
+        handlers::get_metrics,
         handlers::upload_document,
         handlers::list_documents,
         handlers::execute_query,
@@ -39,6 +40,18 @@ use crate::handlers;
         handlers::get_relationship,
         handlers::update_relationship,
         handlers::delete_relationship,
+        // Authentication (Phase 3)
+        handlers::login,
+        handlers::refresh_token,
+        handlers::logout,
+        handlers::get_me,
+        handlers::create_user,
+        handlers::list_users,
+        handlers::get_user,
+        handlers::delete_user,
+        handlers::create_api_key,
+        handlers::list_api_keys,
+        handlers::revoke_api_key,
     ),
     components(schemas(
         handlers::HealthResponse,
@@ -87,14 +100,64 @@ use crate::handlers;
         handlers::RelationshipEntities,
         handlers::EntitySummary,
         handlers::RelationshipChangesSummary,
+        // Authentication schemas (Phase 3)
+        handlers::LoginRequest,
+        handlers::LoginResponse,
+        handlers::UserInfo,
+        handlers::RefreshTokenRequest,
+        handlers::RefreshTokenResponse,
+        handlers::CreateUserRequest,
+        handlers::CreateUserResponse,
+        handlers::CreateApiKeyRequest,
+        handlers::CreateApiKeyResponse,
+        handlers::ApiKeySummary,
+        handlers::ListApiKeysResponse,
+        handlers::RevokeApiKeyResponse,
+        handlers::GetMeResponse,
     )),
     tags(
         (name = "Health", description = "Health check endpoints"),
+        (name = "Observability", description = "Metrics and monitoring endpoints (Phase 3)"),
         (name = "Documents", description = "Document ingestion endpoints"),
         (name = "Query", description = "Query execution endpoints"),
         (name = "Graph", description = "Knowledge graph exploration endpoints"),
         (name = "Entities", description = "Entity CRUD operations (Phase 2)"),
         (name = "Relationships", description = "Relationship CRUD operations (Phase 2)"),
-    )
+        (name = "Authentication", description = "User authentication and session management (Phase 3)"),
+        (name = "User Management", description = "User administration endpoints (Phase 3)"),
+        (name = "API Keys", description = "API key management endpoints (Phase 3)"),
+    ),
+    security(
+        ("bearer_auth" = []),
+        ("api_key" = [])
+    ),
+    modifiers(&SecurityAddon)
 )]
 pub struct ApiDoc;
+
+/// Security addon for OpenAPI documentation.
+struct SecurityAddon;
+
+impl utoipa::Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        if let Some(components) = openapi.components.as_mut() {
+            components.add_security_scheme(
+                "bearer_auth",
+                utoipa::openapi::security::SecurityScheme::Http(
+                    utoipa::openapi::security::HttpBuilder::new()
+                        .scheme(utoipa::openapi::security::HttpAuthScheme::Bearer)
+                        .bearer_format("JWT")
+                        .build(),
+                ),
+            );
+            components.add_security_scheme(
+                "api_key",
+                utoipa::openapi::security::SecurityScheme::ApiKey(
+                    utoipa::openapi::security::ApiKey::Header(
+                        utoipa::openapi::security::ApiKeyValue::new("X-API-Key"),
+                    ),
+                ),
+            );
+        }
+    }
+}

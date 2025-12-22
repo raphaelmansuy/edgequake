@@ -73,6 +73,13 @@ pub enum ApiError {
     #[error("Rate limited")]
     RateLimited,
 
+    /// Not implemented.
+    #[error("Not implemented: {feature}")]
+    NotImplemented {
+        /// Feature name.
+        feature: String,
+    },
+
     /// Internal server error.
     #[error("Internal error: {0}")]
     Internal(String),
@@ -105,6 +112,7 @@ impl ApiError {
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::ValidationError(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::RateLimited => StatusCode::TOO_MANY_REQUESTS,
+            Self::NotImplemented { .. } => StatusCode::NOT_IMPLEMENTED,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Storage(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Llm(_) => StatusCode::BAD_GATEWAY,
@@ -123,6 +131,7 @@ impl ApiError {
             Self::Conflict(_) => "CONFLICT",
             Self::ValidationError(_) => "VALIDATION_ERROR",
             Self::RateLimited => "RATE_LIMITED",
+            Self::NotImplemented { .. } => "NOT_IMPLEMENTED",
             Self::Internal(_) => "INTERNAL_ERROR",
             Self::Storage(_) => "STORAGE_ERROR",
             Self::Llm(_) => "LLM_ERROR",

@@ -8,6 +8,7 @@ members = [
     "crates/edgequake-query",
     "crates/edgequake-api",
     "crates/edgequake-tasks",
+    "crates/edgequake-auth",
 ]
 
 [package]
@@ -148,6 +149,13 @@ edgequake-llm = { path = "crates/edgequake-llm" }
 edgequake-pipeline = { path = "crates/edgequake-pipeline" }
 edgequake-query = { path = "crates/edgequake-query" }
 edgequake-api = { path = "crates/edgequake-api" }
+edgequake-auth = { path = "crates/edgequake-auth" }
+
+# Authentication
+argon2 = "0.5"
+password-hash = "0.5"
+jsonwebtoken = "9.3"
+rand = "0.9"
 
 [profile.release]
 lto = "thin"

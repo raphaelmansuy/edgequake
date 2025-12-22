@@ -1,0 +1,48 @@
+[package]
+name = "edgequake-auth"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Authentication and authorization for EdgeQuake"
+
+[features]
+default = []
+multi-tenant = []  # Enable multi-tenancy support
+
+[dependencies]
+# Async runtime
+tokio = { workspace = true, features = ["full"] }
+async-trait = { workspace = true }
+
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+# Time and dates
+chrono = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Web framework
+axum = { workspace = true }
+
+# UUID
+uuid = { workspace = true }
+
+# Password hashing (Argon2)
+argon2 = { version = "0.5", features = ["std"] }
+
+# JWT
+jsonwebtoken = "9.3"
+
+# Random generation (for API key generation)
+rand = { version = "0.8", features = ["std"] }
+
+# Tracing
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }
