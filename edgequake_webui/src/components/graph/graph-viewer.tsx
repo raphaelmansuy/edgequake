@@ -1,19 +1,19 @@
 'use client';
 
-import { useEffect, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Loader2, RefreshCw, ZoomIn, ZoomOut, Maximize2, AlertCircle, Network, Upload } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { GraphRenderer } from './graph-renderer';
-import { GraphControls } from './graph-controls';
-import { NodeDetails } from './node-details';
-import { GraphFilters } from './graph-filters';
-import { NodeContextMenu, useNodeContextMenu } from './node-context-menu';
-import { useGraphStore } from '@/stores/use-graph-store';
+import { Button } from '@/components/ui/button';
 import { getGraph } from '@/lib/api/edgequake';
-import { toast } from 'sonner';
+import { useGraphStore } from '@/stores/use-graph-store';
 import type { GraphNode } from '@/types';
+import { useQuery } from '@tanstack/react-query';
+import { AlertCircle, Loader2, Maximize2, Network, RefreshCw, Upload, ZoomIn, ZoomOut } from 'lucide-react';
+import { useCallback, useEffect } from 'react';
+import { toast } from 'sonner';
+import { GraphControls } from './graph-controls';
+import { GraphFilters } from './graph-filters';
+import { GraphRenderer } from './graph-renderer';
+import { NodeContextMenu, useNodeContextMenu } from './node-context-menu';
+import { NodeDetails } from './node-details';
 
 export function GraphViewer() {
   const {
@@ -148,7 +148,7 @@ export function GraphViewer() {
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-semibold">Knowledge Graph</h2>
             {isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-            {data && (
+            {data?.metadata && (
               <span className="text-sm text-muted-foreground">
                 {data.metadata.node_count} nodes · {data.metadata.edge_count} edges
               </span>

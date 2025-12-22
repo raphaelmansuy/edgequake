@@ -1,12 +1,12 @@
 'use client';
 
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
-import { Search } from 'lucide-react';
 import { useGraphStore } from '@/stores/use-graph-store';
+import { Search } from 'lucide-react';
 
 // Color palette for entity types
 const TYPE_COLORS: Record<string, string> = {
@@ -28,9 +28,9 @@ export function GraphFilters() {
     setSearchQuery,
   } = useGraphStore();
 
-  if (!graph) return null;
+  if (!graph?.metadata) return null;
 
-  const entityTypes = graph.metadata.entity_types;
+  const entityTypes = graph.metadata.entity_types || [];
   const typeCounts = graph.nodes.reduce((acc, node) => {
     acc[node.entity_type] = (acc[node.entity_type] || 0) + 1;
     return acc;

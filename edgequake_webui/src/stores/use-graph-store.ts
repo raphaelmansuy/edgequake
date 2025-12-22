@@ -4,7 +4,7 @@ import type { GraphEdge, GraphNode, KnowledgeGraph } from "@/types";
 import Sigma from "sigma";
 import { create } from "zustand";
 
-export type ColorMode = 'entity-type' | 'community';
+export type ColorMode = "entity-type" | "community";
 
 interface GraphState {
   // Graph data
@@ -80,7 +80,7 @@ const initialState: GraphState = {
   visibleEntityTypes: new Set(),
   visibleRelationshipTypes: new Set(),
   searchQuery: "",
-  colorMode: 'entity-type',
+  colorMode: "entity-type",
   showClustering: false,
   sigmaInstance: null,
   isLoading: false,
@@ -192,10 +192,12 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
 
   resetFilters: () => {
     const { graph } = get();
-    if (graph) {
+    if (graph?.metadata) {
       set({
-        visibleEntityTypes: new Set(graph.metadata.entity_types),
-        visibleRelationshipTypes: new Set(graph.metadata.relationship_types),
+        visibleEntityTypes: new Set(graph.metadata.entity_types || []),
+        visibleRelationshipTypes: new Set(
+          graph.metadata.relationship_types || []
+        ),
         searchQuery: "",
       });
     }
@@ -203,10 +205,11 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
 
   // Display settings
   setColorMode: (mode) => set({ colorMode: mode }),
-  toggleClustering: () => set((state) => ({ 
-    showClustering: !state.showClustering,
-    colorMode: state.showClustering ? 'entity-type' : 'community',
-  })),
+  toggleClustering: () =>
+    set((state) => ({
+      showClustering: !state.showClustering,
+      colorMode: state.showClustering ? "entity-type" : "community",
+    })),
 
   // Sigma instance
   setSigmaInstance: (sigma) => set({ sigmaInstance: sigma }),
