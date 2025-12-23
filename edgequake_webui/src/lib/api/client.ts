@@ -311,14 +311,16 @@ export async function* streamClient<T>(
 // SSE format: "data: <content>" or multiple "data: " lines for multiline content
 function parseSSEData(event: string): unknown {
   const lines = event.split("\n");
-  let data = "";
+  const dataChunks: string[] = [];
 
   for (const line of lines) {
     const trimmed = line.trim();
     if (trimmed.startsWith("data:")) {
-      // Extract content after "data: " or "data:"
-      const content = trimmed.slice(5).trim();
-      data += content;
+      // Extract content after "data: " - preserve leading space for word separation
+      const content = trimmed.slice(5); // Don't trim start to preserve spaces!
+      if (content) {
+        dataChunks.push(content);
+      }
     } else if (
       trimmed.startsWith("event:") ||
       trimmed.startsWith("id:") ||
@@ -328,13 +330,16 @@ function parseSSEData(event: string): unknown {
       continue;
     } else if (trimmed && !trimmed.startsWith(":")) {
       // Non-SSE line - might be plain content or NDJSON fallback
-      data += trimmed;
+      dataChunks.push(trimmed);
     }
   }
 
-  if (!data) {
+  if (dataChunks.length === 0) {
     return null;
   }
+
+  // Join data chunks - preserve spaces for word separation
+  const data = dataChunks.join("");
 
   // Try to parse as JSON first (structured response)
   try {

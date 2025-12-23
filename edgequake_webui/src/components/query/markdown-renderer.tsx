@@ -273,24 +273,20 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 
   // Fallback content for when error occurs during streaming
   const fallback = (
-    <div className={cn('prose prose-sm dark:prose-invert max-w-none', className)}>
-      <p className="whitespace-pre-wrap">{safeContent}</p>
+    <div className={cn('prose prose-sm dark:prose-invert max-w-none break-words', className)}>
+      <p className="whitespace-pre-wrap break-words">{safeContent}</p>
     </div>
   );
 
-  // During streaming, use simple pre-wrap to avoid react-markdown parsing errors
-  // This prevents the "Cannot use 'in' operator" error that occurs with partial content
-  if (isStreaming) {
-    return (
-      <div className={cn('prose prose-sm dark:prose-invert max-w-none', className)}>
-        <p className="whitespace-pre-wrap">{safeContent}</p>
-      </div>
-    );
+  // During active streaming with partial content, use fallback to avoid parsing errors
+  // Once streaming is done or content is stable, use full markdown rendering
+  if (isStreaming && safeContent.length < 50) {
+    return fallback;
   }
 
   return (
     <MarkdownErrorBoundary key={contentKey} fallback={fallback}>
-      <div className={cn('prose prose-sm dark:prose-invert max-w-none', className)}>
+      <div className={cn('prose prose-sm dark:prose-invert max-w-none break-words', className)}>
         <ReactMarkdown
           remarkPlugins={remarkPlugins}
           rehypePlugins={rehypePlugins}

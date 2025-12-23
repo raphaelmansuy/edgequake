@@ -178,7 +178,7 @@ const ChatMessage = memo(function ChatMessage({
       <div className="flex justify-end mb-6">
         <div className="flex items-start gap-3 max-w-[85%]">
           <div className="bg-primary text-primary-foreground rounded-2xl rounded-tr-sm px-4 py-3 shadow-sm">
-            <p className="whitespace-pre-wrap">{message.content}</p>
+            <p className="whitespace-pre-wrap break-words overflow-wrap-anywhere">{message.content}</p>
           </div>
           <Avatar className="h-8 w-8 shrink-0 ring-2 ring-background shadow-sm">
             <AvatarFallback className="bg-primary/10">
@@ -245,14 +245,17 @@ const ChatMessage = memo(function ChatMessage({
 
           {/* Main Response */}
           {(displayContent || message.isStreaming) && (
-            <div className="bg-card border rounded-2xl rounded-tl-sm px-4 py-3">
+            <div className="bg-card border rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
               {message.isError ? (
-                <p className="text-destructive">{displayContent}</p>
+                <p className="text-destructive break-words overflow-wrap-anywhere">{displayContent}</p>
               ) : displayContent ? (
-                <MarkdownRenderer
-                  content={displayContent}
-                  isStreaming={message.isStreaming}
-                />
+                <div className="break-words overflow-wrap-anywhere hyphens-auto">
+                  <MarkdownRenderer
+                    content={displayContent}
+                    isStreaming={message.isStreaming}
+                    className="break-words prose prose-sm max-w-none"
+                  />
+                </div>
               ) : null}
               {message.isStreaming && (
                 <span className="inline-block w-2 h-4 bg-foreground animate-pulse ml-1" />
@@ -262,14 +265,14 @@ const ChatMessage = memo(function ChatMessage({
 
           {/* Streaming indicator when in thinking phase */}
           {message.isStreaming && !displayContent && hasThinking && (
-            <div className="bg-card border rounded-2xl rounded-tl-sm px-4 py-3">
+            <div className="bg-card border rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <div className="flex gap-1">
                   <span className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                   <span className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                   <span className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
-                <span className="text-sm">{t('query.generating', 'Generating response...')}</span>
+                <span className="text-sm font-medium">{t('query.generating', 'Generating response...')}</span>
               </div>
             </div>
           )}

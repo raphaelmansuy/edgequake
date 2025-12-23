@@ -21,8 +21,8 @@ This document provides the master implementation guide for EdgeQuake UX improvem
 
 ### 🎉 All 3 Phases Complete!
 
-| Phase | Commit   | Tests | Description                        |
-| ----- | -------- | ----- | ---------------------------------- |
+| Phase | Commit    | Tests     | Description                      |
+| ----- | --------- | --------- | -------------------------------- |
 | 1     | `45985f0` | 17 passed | Core fixes, dashboard, sidebar   |
 | 2     | `f942153` | 13 passed | Graph export, document actions   |
 | 3     | `d2923f7` | 16 passed | Polish, accessibility, skeletons |

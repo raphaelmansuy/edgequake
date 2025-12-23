@@ -227,7 +227,9 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
   // =========================================================================
 
   test.describe("Theme Transition", () => {
-    test("theme toggle button should be visible in header", async ({ page }) => {
+    test("theme toggle button should be visible in header", async ({
+      page,
+    }) => {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
 
@@ -245,9 +247,13 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
       await themeButton.click();
 
       // Should see theme options in dropdown
-      await expect(page.getByRole("menuitem", { name: /light/i })).toBeVisible();
+      await expect(
+        page.getByRole("menuitem", { name: /light/i })
+      ).toBeVisible();
       await expect(page.getByRole("menuitem", { name: /dark/i })).toBeVisible();
-      await expect(page.getByRole("menuitem", { name: /system/i })).toBeVisible();
+      await expect(
+        page.getByRole("menuitem", { name: /system/i })
+      ).toBeVisible();
     });
 
     test("clicking light theme should apply light mode", async ({ page }) => {
@@ -288,7 +294,9 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
       expect(htmlClass).toContain("dark");
     });
 
-    test("theme switching should have CSS transition styles", async ({ page }) => {
+    test("theme switching should have CSS transition styles", async ({
+      page,
+    }) => {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
 
@@ -308,7 +316,9 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
   // =========================================================================
 
   test.describe("Toast Action Buttons", () => {
-    test("toasts should appear on the page when triggered", async ({ page }) => {
+    test("toasts should appear on the page when triggered", async ({
+      page,
+    }) => {
       // Navigate to settings page which has toast-triggering actions
       await page.goto("/settings");
       await page.waitForLoadState("networkidle");
@@ -319,7 +329,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
 
       // Wait for any visual feedback (the toast or download happens quickly)
       await page.waitForTimeout(500);
-      
+
       // The page should still be functional after toast action
       await expect(page).toHaveURL("/settings");
     });

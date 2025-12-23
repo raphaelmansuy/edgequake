@@ -24,7 +24,7 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { useQueryStore } from '@/stores/use-query-store';
 import { useSettingsStore } from '@/stores/use-settings-store';
-import { Database, Download, Globe, Monitor, Moon, Palette, Sun, Trash2, Upload } from 'lucide-react';
+import { Database, Download, Globe, Monitor, Moon, Palette, Sun, Upload } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useRef } from 'react';
 import { toast } from 'sonner';

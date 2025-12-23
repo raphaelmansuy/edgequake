@@ -82,9 +82,9 @@ export const useSettingsStore = create<SettingsState>()(
       exportSettings: () => {
         const state = get();
         const exportData = {
-          version: '1.0',
+          version: "1.0",
           exportedAt: new Date().toISOString(),
-          application: 'EdgeQuake',
+          application: "EdgeQuake",
           settings: {
             theme: state.theme,
             language: state.language,
@@ -102,22 +102,28 @@ export const useSettingsStore = create<SettingsState>()(
 
           // Validate structure
           if (!data.version || !data.settings) {
-            throw new Error('Invalid settings file format');
+            throw new Error("Invalid settings file format");
           }
 
           // Validate application source
-          if (data.application && data.application !== 'EdgeQuake') {
-            throw new Error('Settings file is from a different application');
+          if (data.application && data.application !== "EdgeQuake") {
+            throw new Error("Settings file is from a different application");
           }
 
           const { settings } = data;
-          
+
           // Apply settings with defaults for missing values
           set({
-            theme: settings.theme || 'system',
-            language: settings.language || 'en',
-            graphSettings: { ...defaultGraphSettings, ...settings.graphSettings },
-            querySettings: { ...defaultQuerySettings, ...settings.querySettings },
+            theme: settings.theme || "system",
+            language: settings.language || "en",
+            graphSettings: {
+              ...defaultGraphSettings,
+              ...settings.graphSettings,
+            },
+            querySettings: {
+              ...defaultQuerySettings,
+              ...settings.querySettings,
+            },
             sidebarCollapsed: settings.sidebarCollapsed ?? false,
           });
 
@@ -125,7 +131,7 @@ export const useSettingsStore = create<SettingsState>()(
         } catch (error) {
           return {
             success: false,
-            error: error instanceof Error ? error.message : 'Unknown error',
+            error: error instanceof Error ? error.message : "Unknown error",
           };
         }
       },
