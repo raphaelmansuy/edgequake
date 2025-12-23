@@ -122,7 +122,8 @@
     "actions": {
       "view": "View Details",
       "reprocess": "Reprocess",
-      "delete": "Delete"
+      "delete": "Delete",
+      "viewInGraph": "View in Graph"
     },
     "status": {
       "all": "All Status",
@@ -140,6 +141,21 @@
       "sortBy": "Sort by:",
       "created": "Created",
       "updated": "Updated"
+    },
+    "details": {
+      "overview": "Overview",
+      "content": "Content",
+      "entities": "Entities",
+      "id": "Document ID",
+      "status": "Status",
+      "created": "Created",
+      "updated": "Last Updated",
+      "chunks": "Chunks",
+      "error": "Error",
+      "noContent": "No content available",
+      "noEntities": "No entities extracted yet",
+      "entitiesExtracted": "{{count}} entities extracted",
+      "viewInGraphHint": "View in Knowledge Graph for detailed entity information"
     }
   },
   "graph": {
@@ -217,7 +233,19 @@
     },
     "showAll": "Show All",
     "hidden": "hidden",
-    "collapseLegend": "Collapse"
+    "collapseLegend": "Collapse",
+    "export": {
+      "title": "Export graph",
+      "png": "Export as PNG",
+      "svg": "Export as SVG",
+      "json": "Export as JSON",
+      "pngSuccess": "Graph exported as PNG",
+      "svgSuccess": "Graph exported as SVG",
+      "jsonSuccess": "Graph exported as JSON",
+      "svgComingSoon": "SVG export coming soon",
+      "failed": "Export failed",
+      "noCanvas": "No graph canvas found"
+    }
   },
   "query": {
     "title": "Query",

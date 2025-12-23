@@ -20,9 +20,11 @@ import {
     FileText,
     Hash,
     Link2,
+    Network,
     RotateCcw,
     Tag
 } from 'lucide-react';
+import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
@@ -208,9 +210,15 @@ export function DocumentDetailDialog({
                   <p className="text-sm text-muted-foreground mb-2">
                     {t('documents.details.entitiesExtracted', '{{count}} entities extracted', { count: document.entity_count })}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    {t('documents.details.viewInGraph', 'View in Knowledge Graph for detailed entity information')}
+                  <p className="text-xs text-muted-foreground mb-4">
+                    {t('documents.details.viewInGraphHint', 'View in Knowledge Graph for detailed entity information')}
                   </p>
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={`/graph?document=${encodeURIComponent(document.id)}`}>
+                      <Network className="h-4 w-4 mr-2" />
+                      {t('documents.actions.viewInGraph', 'View in Graph')}
+                    </Link>
+                  </Button>
                 </div>
               ) : (
                 <p className="text-muted-foreground text-sm text-center py-8">

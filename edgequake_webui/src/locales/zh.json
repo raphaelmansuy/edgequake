@@ -122,7 +122,8 @@
     "actions": {
       "view": "查看详情",
       "reprocess": "重新处理",
-      "delete": "删除"
+      "delete": "删除",
+      "viewInGraph": "在图谱中查看"
     },
     "status": {
       "all": "所有状态",
@@ -140,6 +141,21 @@
       "sortBy": "排序方式：",
       "created": "创建时间",
       "updated": "更新时间"
+    },
+    "details": {
+      "overview": "概览",
+      "content": "内容",
+      "entities": "实体",
+      "id": "文档 ID",
+      "status": "状态",
+      "created": "创建时间",
+      "updated": "最后更新",
+      "chunks": "分块数",
+      "error": "错误",
+      "noContent": "无可用内容",
+      "noEntities": "尚未提取实体",
+      "entitiesExtracted": "已提取 {{count}} 个实体",
+      "viewInGraphHint": "在知识图谱中查看详细实体信息"
     }
   },
   "graph": {
@@ -193,6 +209,18 @@
       "technology": "技术",
       "location": "地点",
       "other": "其他"
+    },
+    "export": {
+      "title": "导出图谱",
+      "png": "导出为 PNG",
+      "svg": "导出为 SVG",
+      "json": "导出为 JSON",
+      "pngSuccess": "图谱已导出为 PNG",
+      "svgSuccess": "图谱已导出为 SVG",
+      "jsonSuccess": "图谱已导出为 JSON",
+      "svgComingSoon": "SVG 导出功能即将推出",
+      "failed": "导出失败",
+      "noCanvas": "未找到图谱画布"
     }
   },
   "query": {

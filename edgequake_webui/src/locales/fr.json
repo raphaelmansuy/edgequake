@@ -122,7 +122,8 @@
     "actions": {
       "view": "Voir les détails",
       "reprocess": "Retraiter",
-      "delete": "Supprimer"
+      "delete": "Supprimer",
+      "viewInGraph": "Voir dans le graphe"
     },
     "status": {
       "all": "Tous les statuts",
@@ -140,6 +141,21 @@
       "sortBy": "Trier par :",
       "created": "Créé",
       "updated": "Mis à jour"
+    },
+    "details": {
+      "overview": "Aperçu",
+      "content": "Contenu",
+      "entities": "Entités",
+      "id": "ID du document",
+      "status": "Statut",
+      "created": "Créé",
+      "updated": "Dernière mise à jour",
+      "chunks": "Segments",
+      "error": "Erreur",
+      "noContent": "Aucun contenu disponible",
+      "noEntities": "Aucune entité extraite encore",
+      "entitiesExtracted": "{{count}} entités extraites",
+      "viewInGraphHint": "Voir dans le graphe de connaissances pour plus de détails"
     }
   },
   "graph": {
@@ -193,6 +209,18 @@
       "technology": "Technologie",
       "location": "Lieu",
       "other": "Autre"
+    },
+    "export": {
+      "title": "Exporter le graphe",
+      "png": "Exporter en PNG",
+      "svg": "Exporter en SVG",
+      "json": "Exporter en JSON",
+      "pngSuccess": "Graphe exporté en PNG",
+      "svgSuccess": "Graphe exporté en SVG",
+      "jsonSuccess": "Graphe exporté en JSON",
+      "svgComingSoon": "Export SVG bientôt disponible",
+      "failed": "Échec de l'export",
+      "noCanvas": "Canevas du graphe introuvable"
     }
   },
   "query": {

@@ -10,6 +10,7 @@ import { AlertCircle, Loader2, Maximize2, Network, RefreshCw, Upload, ZoomIn, Zo
 import { useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { GraphControls } from './graph-controls';
+import { GraphExport } from './graph-export';
 import { GraphFilters } from './graph-filters';
 import { GraphLegend } from './graph-legend';
 import { GraphRenderer } from './graph-renderer';
@@ -190,6 +191,7 @@ export function GraphViewer() {
           <div className="flex items-center gap-1">
             <GraphSearch />
             <LayoutControl />
+            <GraphExport />
             <Button variant="ghost" size="icon" onClick={() => refetch()} title="Refresh">
               <RefreshCw className="h-4 w-4" />
             </Button>
