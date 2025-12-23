@@ -533,7 +533,10 @@ pub async fn list_documents(
         }
     }
 
-    let documents: Vec<DocumentSummary> = doc_chunks
+    // Build document list from BOTH:
+    // 1. Documents with chunks (processed)
+    // 2. Documents with metadata but no chunks yet (pending/processing)
+    let mut documents: Vec<DocumentSummary> = doc_chunks
         .into_iter()
         .map(|(id, chunk_count)| {
             let meta = doc_metadata.remove(&id).unwrap_or_default();
@@ -553,6 +556,32 @@ pub async fn list_documents(
             }
         })
         .collect();
+
+    // Add documents that have metadata but no chunks yet (pending/processing)
+    for (id, meta) in doc_metadata {
+        documents.push(DocumentSummary {
+            id,
+            title: meta.title,
+            file_name: meta.file_name,
+            content_summary: meta.content_summary,
+            content_length: meta.content_length,
+            chunk_count: 0,
+            entity_count: meta.entity_count,
+            status: meta.status,
+            error_message: meta.error_message,
+            track_id: meta.track_id,
+            created_at: meta.created_at,
+            updated_at: meta.updated_at,
+        });
+    }
+
+    // Sort by created_at descending (newest first)
+    documents.sort_by(|a, b| {
+        b.created_at
+            .as_deref()
+            .unwrap_or("")
+            .cmp(a.created_at.as_deref().unwrap_or(""))
+    });
 
     // Calculate status counts for all documents
     let status_counts = StatusCounts {

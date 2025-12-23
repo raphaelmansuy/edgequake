@@ -62,7 +62,7 @@ import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { BatchProgressCard } from './batch-progress-card';
+// import { BatchProgressCard } from './batch-progress-card'; // Disabled until async processing is ready
 import { DocumentFilters, type DocStatus, type SortDirection, type SortField } from './document-filters';
 import { PaginationControls } from './pagination-controls';
 import { PipelineStatusDialog } from './pipeline-status-dialog';
@@ -120,8 +120,8 @@ export function DocumentManager() {
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   
-  // Track ID for batch progress (Phase 2)
-  const [activeTrackId, setActiveTrackId] = useState<string | null>(null);
+  // Track ID for batch progress (Phase 2) - disabled until async processing is ready
+  // const [activeTrackId, setActiveTrackId] = useState<string | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['documents', currentPage, pageSize, statusFilter],
@@ -147,9 +147,8 @@ export function DocumentManager() {
       
       setIsUploading(true);
       
-      // Generate a shared track_id for this batch (Phase 2)
+      // Generate a shared track_id for this batch
       const trackId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-      setActiveTrackId(trackId);
       
       // Initialize upload state for all files
       const initialFiles: UploadingFile[] = files.map((file) => ({
@@ -191,13 +190,16 @@ export function DocumentManager() {
             )
           );
 
-          // Upload to server with filename as title and shared track_id (Phase 2)
+          // Upload to server with filename as title
+          // NOTE: Using sync processing (async_processing: false) because the async 
+          // task worker isn't fully implemented yet. This means documents are processed
+          // immediately and status is set to 'completed' upon return.
           const response = await uploadDocument({ 
             content: text, 
             source_type: 'text',
             title: file.name, // Use filename as title
-            async_processing: true, // Enable async processing
-            track_id: trackId, // Share track_id for all files in batch
+            async_processing: false, // Use sync processing (worker not ready)
+            track_id: trackId, // Track ID for grouping
           });
           
           // Check for duplicate (Phase 4)
@@ -656,18 +658,18 @@ export function DocumentManager() {
         </CardContent>
       </Card>
 
-      {/* Batch Progress Card (Phase 2) */}
+      {/* Batch Progress Card (Phase 2) - Disabled until async processing is ready
       {activeTrackId && !isUploading && (
         <BatchProgressCard
           trackId={activeTrackId}
           onClose={() => setActiveTrackId(null)}
           onComplete={() => {
             queryClient.invalidateQueries({ queryKey: ['documents'] });
-            // Clear track ID after a delay to let user see completion
             setTimeout(() => setActiveTrackId(null), 5000);
           }}
         />
       )}
+      */}
 
       {/* Documents Table */}
       <Card>
