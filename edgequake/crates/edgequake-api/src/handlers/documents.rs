@@ -29,6 +29,10 @@ pub struct UploadDocumentRequest {
     /// Whether to process asynchronously (default: false for backwards compatibility)
     #[serde(default)]
     pub async_processing: bool,
+
+    /// Optional track ID for batch grouping. If not provided, one will be generated.
+    #[serde(default)]
+    pub track_id: Option<String>,
 }
 
 /// Document upload response.
@@ -43,6 +47,13 @@ pub struct UploadDocumentResponse {
     /// Task track ID (only set when async_processing is true).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub task_id: Option<String>,
+
+    /// Track ID for batch grouping.
+    pub track_id: String,
+
+    /// ID of existing document if this is a duplicate.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duplicate_of: Option<String>,
 
     /// Number of chunks created (only set for sync processing).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -87,10 +98,35 @@ pub async fn upload_document(
         ));
     }
 
+    // Generate or use provided track_id
+    let track_id = request.track_id.unwrap_or_else(|| {
+        format!(
+            "upload_{}_{}",
+            Utc::now().format("%Y%m%d_%H%M%S"),
+            &Uuid::new_v4().to_string()[..8]
+        )
+    });
+
+    // Compute content hash for duplicate detection
+    let mut hasher = Sha256::new();
+    hasher.update(request.content.as_bytes());
+    let content_hash = format!("{:x}", hasher.finalize());
+
+    // Check for duplicate content (optional - search existing documents)
+    // For now, we'll store the hash and the frontend can check duplicates if needed
+
     // Generate document ID
     let document_id = Uuid::new_v4().to_string();
 
-    // Store document metadata (including title)
+    // Generate content summary (first 200 chars)
+    let content_summary = if request.content.len() > 200 {
+        format!("{}...", &request.content.chars().take(200).collect::<String>())
+    } else {
+        request.content.clone()
+    };
+    let content_length = request.content.len();
+
+    // Store document metadata (including title, content_summary, content_length, track_id)
     let doc_metadata_key = format!("{}-metadata", document_id);
     let initial_status = if request.async_processing {
         "pending"
@@ -100,6 +136,10 @@ pub async fn upload_document(
     let doc_metadata = serde_json::json!({
         "id": document_id,
         "title": request.title,
+        "content_summary": content_summary,
+        "content_length": content_length,
+        "content_hash": content_hash,
+        "track_id": track_id,
         "created_at": Utc::now().to_rfc3339(),
         "status": initial_status,
     });
@@ -154,6 +194,8 @@ pub async fn upload_document(
             document_id,
             status: "pending".to_string(),
             task_id: Some(task_id),
+            track_id,
+            duplicate_of: None,
             chunk_count: None,
             entity_count: None,
             relationship_count: None,
@@ -237,10 +279,14 @@ pub async fn upload_document(
             }
         }
 
-        // Update document status to completed
+        // Update document status to completed (preserve content_summary, content_length, track_id)
         let doc_metadata = serde_json::json!({
             "id": document_id,
             "title": request.title,
+            "content_summary": content_summary,
+            "content_length": content_length,
+            "content_hash": content_hash,
+            "track_id": track_id,
             "created_at": Utc::now().to_rfc3339(),
             "status": "completed",
             "chunk_count": result.stats.chunk_count,
@@ -256,6 +302,8 @@ pub async fn upload_document(
             document_id,
             status: "processed".to_string(),
             task_id: None,
+            track_id,
+            duplicate_of: None,
             chunk_count: Some(result.stats.chunk_count),
             entity_count: Some(result.stats.entity_count),
             relationship_count: Some(result.stats.relationship_count),
@@ -283,6 +331,19 @@ fn default_page_size() -> usize {
     20
 }
 
+/// Status counts for document filtering.
+#[derive(Debug, Clone, Serialize, Default, ToSchema)]
+pub struct StatusCounts {
+    /// Number of pending documents.
+    pub pending: usize,
+    /// Number of processing documents.
+    pub processing: usize,
+    /// Number of completed documents.
+    pub completed: usize,
+    /// Number of failed documents.
+    pub failed: usize,
+}
+
 /// List documents response.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ListDocumentsResponse {
@@ -297,6 +358,9 @@ pub struct ListDocumentsResponse {
 
     /// Page size.
     pub page_size: usize,
+
+    /// Status counts for all documents (not just current page).
+    pub status_counts: StatusCounts,
 }
 
 /// Document summary.
@@ -312,6 +376,14 @@ pub struct DocumentSummary {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_name: Option<String>,
 
+    /// First 200 characters of document content (preview).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_summary: Option<String>,
+
+    /// Total length of document content in characters.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_length: Option<usize>,
+
     /// Number of chunks.
     pub chunk_count: usize,
 
@@ -322,6 +394,14 @@ pub struct DocumentSummary {
     /// Document processing status.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
+
+    /// Error message if processing failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+
+    /// Track ID for batch grouping.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub track_id: Option<String>,
 
     /// Creation timestamp (ISO 8601 format).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -366,7 +446,11 @@ pub async fn list_documents(
     struct DocMetadata {
         title: Option<String>,
         file_name: Option<String>,
+        content_summary: Option<String>,
+        content_length: Option<usize>,
         status: Option<String>,
+        error_message: Option<String>,
+        track_id: Option<String>,
         created_at: Option<String>,
         updated_at: Option<String>,
         entity_count: Option<usize>,
@@ -393,9 +477,33 @@ pub async fn list_documents(
                     }
                 }
                 
+                // Get content_summary
+                meta.content_summary = obj
+                    .get("content_summary")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                
+                // Get content_length
+                meta.content_length = obj
+                    .get("content_length")
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as usize);
+                
                 // Get status
                 meta.status = obj
                     .get("status")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                
+                // Get error_message
+                meta.error_message = obj
+                    .get("error_message")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                
+                // Get track_id
+                meta.track_id = obj
+                    .get("track_id")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
                 
@@ -430,20 +538,35 @@ pub async fn list_documents(
                 id,
                 title: meta.title,
                 file_name: meta.file_name,
+                content_summary: meta.content_summary,
+                content_length: meta.content_length,
                 chunk_count,
                 entity_count: meta.entity_count,
                 status: meta.status,
+                error_message: meta.error_message,
+                track_id: meta.track_id,
                 created_at: meta.created_at,
                 updated_at: meta.updated_at,
             }
         })
         .collect();
 
+    // Calculate status counts for all documents
+    let status_counts = StatusCounts {
+        pending: documents.iter().filter(|d| d.status.as_deref() == Some("pending")).count(),
+        processing: documents.iter().filter(|d| d.status.as_deref() == Some("processing")).count(),
+        completed: documents.iter().filter(|d| {
+            d.status.is_none() || d.status.as_deref() == Some("completed") || d.status.as_deref() == Some("indexed")
+        }).count(),
+        failed: documents.iter().filter(|d| d.status.as_deref() == Some("failed")).count(),
+    };
+
     Ok(Json(ListDocumentsResponse {
         total: documents.len(),
         documents,
         page: 1,
         page_size: 20,
+        status_counts,
     }))
 }
 
@@ -1022,6 +1145,7 @@ mod tests {
             title: Some("Test".to_string()),
             metadata: None,
             async_processing: false,
+            track_id: None,
         };
 
         assert!(!request.content.is_empty());
@@ -1057,6 +1181,8 @@ mod tests {
             document_id: "doc-123".to_string(),
             status: "processed".to_string(),
             task_id: None,
+            track_id: "upload_20240101_abc12345".to_string(),
+            duplicate_of: None,
             chunk_count: Some(5),
             entity_count: Some(3),
             relationship_count: Some(2),
@@ -1089,9 +1215,13 @@ mod tests {
             id: "doc-456".to_string(),
             title: Some("My Document".to_string()),
             file_name: None,
+            content_summary: Some("This is the first 200 chars of the document...".to_string()),
+            content_length: Some(5000),
             chunk_count: 10,
             entity_count: None,
             status: Some("completed".to_string()),
+            error_message: None,
+            track_id: Some("upload_20240101_abc12345".to_string()),
             created_at: None,
             updated_at: None,
         };
@@ -1108,15 +1238,25 @@ mod tests {
                 id: "doc-1".to_string(),
                 title: None,
                 file_name: None,
+                content_summary: None,
+                content_length: None,
                 chunk_count: 5,
                 entity_count: None,
                 status: Some("completed".to_string()),
+                error_message: None,
+                track_id: None,
                 created_at: None,
                 updated_at: None,
             }],
             total: 1,
             page: 1,
             page_size: 20,
+            status_counts: StatusCounts {
+                pending: 0,
+                processing: 0,
+                completed: 1,
+                failed: 0,
+            },
         };
 
         let json = serde_json::to_string(&response).unwrap();

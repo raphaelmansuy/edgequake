@@ -39,16 +39,39 @@ export interface Document {
   title?: string | null;
   content?: string;
   source_type?: "file" | "text" | "url";
-  status?: "pending" | "processing" | "completed" | "failed";
+  status?: "pending" | "processing" | "completed" | "failed" | "indexed";
   error_message?: string;
   file_name?: string;
   file_size?: number;
   mime_type?: string;
   chunk_count?: number;
   entity_count?: number;
+  /** First 200 characters of document content (preview). */
+  content_summary?: string;
+  /** Total length of document content in characters. */
+  content_length?: number;
+  /** Track ID for batch grouping. */
+  track_id?: string;
   created_at?: string;
   updated_at?: string;
   processed_at?: string;
+}
+
+/** Status counts for document filtering. */
+export interface DocumentStatusCounts {
+  pending: number;
+  processing: number;
+  completed: number;
+  failed: number;
+}
+
+/** Response from list documents API. */
+export interface ListDocumentsResponse {
+  documents: Document[];
+  total: number;
+  page: number;
+  page_size: number;
+  status_counts: DocumentStatusCounts;
 }
 
 export interface DocumentChunk {
@@ -66,12 +89,18 @@ export interface UploadDocumentRequest {
   source_type?: "text" | "file" | "url";
   metadata?: Record<string, unknown>;
   async_processing?: boolean;
+  /** Optional track ID for batch grouping. If not provided, one will be generated. */
+  track_id?: string;
 }
 
 export interface UploadDocumentResponse {
   document_id: string;
   status: string;
   task_id?: string;
+  /** Track ID for batch grouping. */
+  track_id: string;
+  /** ID of existing document if this is a duplicate. */
+  duplicate_of?: string;
   chunk_count?: number;
   entity_count?: number;
   relationship_count?: number;

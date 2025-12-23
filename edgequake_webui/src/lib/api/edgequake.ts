@@ -1,10 +1,12 @@
 import type {
   Document,
+  DocumentStatusCounts,
   Entity,
   GraphEdge,
   GraphNode,
   HealthResponse,
   KnowledgeGraph,
+  ListDocumentsResponse,
   LoginRequest,
   LoginResponse,
   MergeEntitiesRequest,
@@ -111,9 +113,14 @@ export async function createWorkspace(
 // Documents
 // ============================================================================
 
+/** Extended paginated response that includes status_counts from the server. */
+export interface DocumentsListResult extends PaginatedResponse<Document> {
+  status_counts: DocumentStatusCounts;
+}
+
 export async function getDocuments(
   params?: PaginationParams & { status?: string }
-): Promise<PaginatedResponse<Document>> {
+): Promise<DocumentsListResult> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set("page", String(params.page));
   if (params?.page_size)
@@ -124,14 +131,10 @@ export async function getDocuments(
 
   const query = searchParams.toString();
 
-  // API returns { documents: [...], total, page, page_size }
-  // We need to transform to { items: [...], total, page, page_size, has_more }
-  const response = await api.get<{
-    documents: Document[];
-    total: number;
-    page: number;
-    page_size: number;
-  }>(`/documents${query ? `?${query}` : ""}`);
+  // API now returns { documents: [...], total, page, page_size, status_counts }
+  const response = await api.get<ListDocumentsResponse>(
+    `/documents${query ? `?${query}` : ""}`
+  );
 
   return {
     items: response.documents || [],
@@ -139,6 +142,12 @@ export async function getDocuments(
     page: response.page || 1,
     page_size: response.page_size || 20,
     has_more: response.page * response.page_size < response.total,
+    status_counts: response.status_counts || {
+      pending: 0,
+      processing: 0,
+      completed: 0,
+      failed: 0,
+    },
   };
 }
 

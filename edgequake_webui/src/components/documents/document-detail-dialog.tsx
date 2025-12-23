@@ -38,10 +38,13 @@ function StatusBadge({ status }: { status: Document['status'] }) {
     pending: { label: 'Pending', variant: 'secondary' as const },
     processing: { label: 'Processing', variant: 'default' as const },
     completed: { label: 'Completed', variant: 'default' as const },
+    indexed: { label: 'Indexed', variant: 'default' as const },
     failed: { label: 'Failed', variant: 'destructive' as const },
   };
 
-  const config = statusConfig[status || 'pending'];
+  // Handle 'indexed' as 'completed' for display purposes
+  const key = status || 'pending';
+  const config = statusConfig[key] || statusConfig.pending;
   return <Badge variant={config.variant}>{config.label}</Badge>;
 }
 

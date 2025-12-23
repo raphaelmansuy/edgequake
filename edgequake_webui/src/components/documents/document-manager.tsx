@@ -79,13 +79,14 @@ const statusConfig = {
   pending: { icon: Clock, color: 'bg-yellow-500', label: 'Pending', animate: false },
   processing: { icon: Loader2, color: 'bg-blue-500', label: 'Processing', animate: true },
   completed: { icon: CheckCircle, color: 'bg-green-500', label: 'Completed', animate: false },
+  indexed: { icon: CheckCircle, color: 'bg-green-500', label: 'Indexed', animate: false },
   failed: { icon: XCircle, color: 'bg-red-500', label: 'Failed', animate: false },
 } as const;
 
 type DocumentStatus = keyof typeof statusConfig;
 
 function StatusBadge({ status }: { status: DocumentStatus }) {
-  const config = statusConfig[status];
+  const config = statusConfig[status] || statusConfig.completed;
   const Icon = config.icon;
 
   return (
@@ -358,12 +359,20 @@ export function DocumentManager() {
   const totalPages = Math.ceil(documents.length / pageSize);
   const totalCount = documents.length;
   
-  // Calculate status counts for filter badges
-  const statusCounts: Record<DocStatus, number> = {
+  // Use server-side status counts from API response (more efficient)
+  // Fall back to client-side calculation if not available
+  const serverStatusCounts = data?.status_counts;
+  const statusCounts: Record<DocStatus, number> = serverStatusCounts ? {
+    all: allDocuments.length,
+    pending: serverStatusCounts.pending,
+    processing: serverStatusCounts.processing,
+    completed: serverStatusCounts.completed,
+    failed: serverStatusCounts.failed,
+  } : {
     all: allDocuments.length,
     pending: allDocuments.filter((d) => d.status === 'pending').length,
     processing: allDocuments.filter((d) => d.status === 'processing').length,
-    completed: allDocuments.filter((d) => !d.status || d.status === 'completed').length,
+    completed: allDocuments.filter((d) => !d.status || d.status === 'completed' || d.status === 'indexed').length,
     failed: allDocuments.filter((d) => d.status === 'failed').length,
   };
 
