@@ -74,6 +74,63 @@ export interface ListDocumentsResponse {
   status_counts: DocumentStatusCounts;
 }
 
+/** Track status response for batch grouping (Phase 2). */
+export interface TrackStatusResponse {
+  /** Track ID for this batch. */
+  track_id: string;
+  /** When the first document was uploaded. */
+  created_at?: string;
+  /** Documents in this batch. */
+  documents: Document[];
+  /** Total number of documents. */
+  total_count: number;
+  /** Status summary for the batch. */
+  status_summary: DocumentStatusCounts;
+  /** Whether processing is complete (all docs completed or failed). */
+  is_complete: boolean;
+  /** Latest processing message. */
+  latest_message?: string;
+}
+
+/** Pipeline message from the server (Phase 3). */
+export interface PipelineMessage {
+  timestamp: string;
+  level: "info" | "warn" | "error";
+  message: string;
+}
+
+/** Enhanced pipeline status response (Phase 3). */
+export interface EnhancedPipelineStatus {
+  /** Whether the pipeline is currently processing. */
+  is_busy: boolean;
+  /** Current job name. */
+  job_name?: string;
+  /** When the current job started. */
+  job_start?: string;
+  /** Total documents to process. */
+  total_documents: number;
+  /** Documents processed so far. */
+  processed_documents: number;
+  /** Current batch number. */
+  current_batch: number;
+  /** Total number of batches. */
+  total_batches: number;
+  /** Latest status message. */
+  latest_message?: string;
+  /** History of pipeline messages. */
+  history_messages: PipelineMessage[];
+  /** Whether cancellation has been requested. */
+  cancellation_requested: boolean;
+  /** Number of pending tasks. */
+  pending_tasks: number;
+  /** Number of processing tasks. */
+  processing_tasks: number;
+  /** Number of completed tasks. */
+  completed_tasks: number;
+  /** Number of failed tasks. */
+  failed_tasks: number;
+}
+
 export interface DocumentChunk {
   id: string;
   document_id: string;

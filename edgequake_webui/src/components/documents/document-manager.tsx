@@ -62,6 +62,7 @@ import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { BatchProgressCard } from './batch-progress-card';
 import { DocumentFilters, type DocStatus, type SortDirection, type SortField } from './document-filters';
 import { PaginationControls } from './pagination-controls';
 import { PipelineStatusDialog } from './pipeline-status-dialog';
@@ -118,6 +119,9 @@ export function DocumentManager() {
   // Upload progress tracking state
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  
+  // Track ID for batch progress (Phase 2)
+  const [activeTrackId, setActiveTrackId] = useState<string | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['documents', currentPage, pageSize, statusFilter],
@@ -142,6 +146,10 @@ export function DocumentManager() {
       if (files.length === 0) return;
       
       setIsUploading(true);
+      
+      // Generate a shared track_id for this batch (Phase 2)
+      const trackId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      setActiveTrackId(trackId);
       
       // Initialize upload state for all files
       const initialFiles: UploadingFile[] = files.map((file) => ({
@@ -183,13 +191,40 @@ export function DocumentManager() {
             )
           );
 
-          // Upload to server with filename as title (async processing enabled)
+          // Upload to server with filename as title and shared track_id (Phase 2)
           const response = await uploadDocument({ 
             content: text, 
             source_type: 'text',
             title: file.name, // Use filename as title
             async_processing: true, // Enable async processing
+            track_id: trackId, // Share track_id for all files in batch
           });
+          
+          // Check for duplicate (Phase 4)
+          if (response.duplicate_of) {
+            // Show duplicate warning
+            toast.warning(
+              t('documents.upload.duplicate', '{{name}} is a duplicate (existing: {{id}})', {
+                name: file.name,
+                id: response.duplicate_of.slice(0, 8),
+              }),
+              { duration: 4000 }
+            );
+            
+            // Mark as duplicate (treat as success but with warning)
+            setUploadingFiles((prev) =>
+              prev.map((f, idx) =>
+                idx === i ? { 
+                  ...f, 
+                  status: 'success' as const, 
+                  progress: 100, 
+                  phase: t('documents.upload.duplicateSkipped', 'Duplicate (skipped)'),
+                } : f
+              )
+            );
+            successCount++;
+            continue; // Skip to next file
+          }
           
           // Phase 3: Extraction queued
           setUploadingFiles((prev) =>
@@ -620,6 +655,19 @@ export function DocumentManager() {
           )}
         </CardContent>
       </Card>
+
+      {/* Batch Progress Card (Phase 2) */}
+      {activeTrackId && !isUploading && (
+        <BatchProgressCard
+          trackId={activeTrackId}
+          onClose={() => setActiveTrackId(null)}
+          onComplete={() => {
+            queryClient.invalidateQueries({ queryKey: ['documents'] });
+            // Clear track ID after a delay to let user see completion
+            setTimeout(() => setActiveTrackId(null), 5000);
+          }}
+        />
+      )}
 
       {/* Documents Table */}
       <Card>

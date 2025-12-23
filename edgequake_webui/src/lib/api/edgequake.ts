@@ -1,6 +1,7 @@
 import type {
   Document,
   DocumentStatusCounts,
+  EnhancedPipelineStatus,
   Entity,
   GraphEdge,
   GraphNode,
@@ -19,6 +20,7 @@ import type {
   QueryStreamChunk,
   Relationship,
   Tenant,
+  TrackStatusResponse,
   UploadDocumentRequest,
   UploadDocumentResponse,
   Workspace,
@@ -351,17 +353,20 @@ export async function getTasksList(params?: {
   if (params?.status) searchParams.set("status", params.status);
   if (params?.task_type) searchParams.set("task_type", params.task_type);
   if (params?.page) searchParams.set("page", String(params.page));
-  if (params?.page_size) searchParams.set("page_size", String(params.page_size));
-  
+  if (params?.page_size)
+    searchParams.set("page_size", String(params.page_size));
+
   const query = searchParams.toString();
-  return api.get<import("@/types").TaskListResponse>(`/tasks${query ? `?${query}` : ""}`);
+  return api.get<import("@/types").TaskListResponse>(
+    `/tasks${query ? `?${query}` : ""}`
+  );
 }
 
 export async function getPipelineStatus(): Promise<PipelineStatus> {
   try {
     // Use the tasks list endpoint to derive pipeline status
     const result = await getTasksList({ page_size: 50 });
-    
+
     return {
       is_busy: result.statistics.processing > 0,
       running_tasks: result.statistics.processing,
@@ -402,8 +407,78 @@ export async function cancelTask(taskId: string): Promise<void> {
   return api.post<void>(`/tasks/${taskId}/cancel`);
 }
 
-export async function retryTask(taskId: string): Promise<import("@/types").TaskResponse> {
+export async function retryTask(
+  taskId: string
+): Promise<import("@/types").TaskResponse> {
   return api.post<import("@/types").TaskResponse>(`/tasks/${taskId}/retry`);
+}
+
+// ============================================================================
+// Track Status (Phase 2)
+// ============================================================================
+
+/**
+ * Get track status by track ID.
+ * Returns all documents uploaded with a specific track_id, along with status summary.
+ */
+export async function getTrackStatus(
+  trackId: string
+): Promise<TrackStatusResponse> {
+  return api.get<TrackStatusResponse>(`/documents/track/${trackId}`);
+}
+
+// ============================================================================
+// Enhanced Pipeline Status (Phase 3)
+// ============================================================================
+
+/**
+ * Get enhanced pipeline status with history messages.
+ * Falls back to basic status if enhanced endpoint not available.
+ */
+export async function getEnhancedPipelineStatus(): Promise<EnhancedPipelineStatus> {
+  try {
+    // Try enhanced endpoint first
+    return await api.get<EnhancedPipelineStatus>("/pipeline/status");
+  } catch {
+    // Fall back to basic status derived from tasks
+    const result = await getTasksList({ page_size: 50 });
+
+    return {
+      is_busy: result.statistics.processing > 0,
+      job_name:
+        result.statistics.processing > 0 ? "Processing documents" : undefined,
+      job_start: undefined,
+      total_documents: 0,
+      processed_documents: 0,
+      current_batch: 0,
+      total_batches: 0,
+      latest_message:
+        result.statistics.processing > 0
+          ? `Processing ${result.statistics.processing} document(s)...`
+          : undefined,
+      history_messages: [],
+      cancellation_requested: false,
+      pending_tasks: result.statistics.pending,
+      processing_tasks: result.statistics.processing,
+      completed_tasks: result.statistics.indexed,
+      failed_tasks: result.statistics.failed,
+    };
+  }
+}
+
+/**
+ * Request pipeline cancellation.
+ */
+export async function requestPipelineCancellation(): Promise<{
+  status: string;
+}> {
+  try {
+    return await api.post<{ status: string }>("/pipeline/cancel");
+  } catch {
+    // Fall back to cancelling individual tasks
+    await cancelPipeline();
+    return { status: "cancellation_requested" };
+  }
 }
 
 // ============================================================================
@@ -467,6 +542,13 @@ export const edgequakeApi = {
   getTaskStatus,
   cancelTask,
   retryTask,
+
+  // Track Status (Phase 2)
+  getTrackStatus,
+
+  // Enhanced Pipeline (Phase 3)
+  getEnhancedPipelineStatus,
+  requestPipelineCancellation,
 };
 
 export default edgequakeApi;

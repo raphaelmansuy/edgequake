@@ -47,6 +47,11 @@ fn api_v1_routes() -> Router<AppState> {
             "/documents/{document_id}",
             delete(handlers::delete_document),
         )
+        // Track Status (Phase 2)
+        .route(
+            "/documents/track/{track_id}",
+            get(handlers::get_track_status),
+        )
         // File Upload (multipart)
         .route("/documents/upload", post(handlers::upload_file))
         .route(
@@ -92,6 +97,9 @@ fn api_v1_routes() -> Router<AppState> {
         .route("/tasks", get(handlers::list_tasks))
         .route("/tasks/{track_id}/cancel", post(handlers::cancel_task))
         .route("/tasks/{track_id}/retry", post(handlers::retry_task))
+        // Pipeline (Phase 3)
+        .route("/pipeline/status", get(handlers::get_pipeline_status))
+        .route("/pipeline/cancel", post(handlers::cancel_pipeline))
 }
 
 #[cfg(test)]

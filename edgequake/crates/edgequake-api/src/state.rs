@@ -9,7 +9,7 @@ use edgequake_query::{QueryEngine, QueryEngineConfig};
 use edgequake_storage::adapters::memory::{
     MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
 };
-use edgequake_tasks::{SharedTaskQueue, SharedTaskStorage};
+use edgequake_tasks::{PipelineState, SharedTaskQueue, SharedTaskStorage};
 
 /// Application state shared across handlers.
 #[derive(Clone)]
@@ -40,6 +40,9 @@ pub struct AppState {
 
     /// Task queue.
     pub task_queue: SharedTaskQueue,
+
+    /// Pipeline state for real-time progress tracking (Phase 3).
+    pub pipeline_state: PipelineState,
 
     /// Configuration.
     pub config: AppConfig,
@@ -108,6 +111,7 @@ impl AppState {
             pipeline,
             task_storage,
             task_queue,
+            pipeline_state: PipelineState::new(),
             config: AppConfig::default(),
             auth_config,
             jwt_service,
@@ -168,6 +172,7 @@ impl AppState {
             pipeline,
             task_storage,
             task_queue,
+            pipeline_state: PipelineState::new(),
             config: AppConfig::default(),
             auth_config,
             jwt_service,
@@ -218,6 +223,7 @@ impl AppState {
             pipeline,
             task_storage,
             task_queue,
+            pipeline_state: PipelineState::new(),
             config: AppConfig::default(),
             auth_config,
             jwt_service,

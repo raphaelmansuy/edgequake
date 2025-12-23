@@ -120,7 +120,10 @@ pub async fn upload_document(
 
     // Generate content summary (first 200 chars)
     let content_summary = if request.content.len() > 200 {
-        format!("{}...", &request.content.chars().take(200).collect::<String>())
+        format!(
+            "{}...",
+            &request.content.chars().take(200).collect::<String>()
+        )
     } else {
         request.content.clone()
     };
@@ -440,7 +443,7 @@ pub async fn list_documents(
 
     // Fetch all metadata and store complete document info
     let metadata_values = state.kv_storage.get_by_ids(&metadata_keys).await?;
-    
+
     // Store complete document metadata, keyed by document ID
     #[derive(Default)]
     struct DocMetadata {
@@ -455,7 +458,7 @@ pub async fn list_documents(
         updated_at: Option<String>,
         entity_count: Option<usize>,
     }
-    
+
     let mut doc_metadata: std::collections::HashMap<String, DocMetadata> =
         std::collections::HashMap::new();
 
@@ -463,68 +466,68 @@ pub async fn list_documents(
         if let Some(obj) = value.as_object() {
             if let Some(id) = obj.get("id").and_then(|v| v.as_str()) {
                 let mut meta = DocMetadata::default();
-                
+
                 // Get title from metadata
                 meta.title = obj
                     .get("title")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
-                
+
                 // Use title as file_name fallback if it looks like a filename
                 if let Some(ref title) = meta.title {
                     if title.contains('.') {
                         meta.file_name = Some(title.clone());
                     }
                 }
-                
+
                 // Get content_summary
                 meta.content_summary = obj
                     .get("content_summary")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
-                
+
                 // Get content_length
                 meta.content_length = obj
                     .get("content_length")
                     .and_then(|v| v.as_u64())
                     .map(|n| n as usize);
-                
+
                 // Get status
                 meta.status = obj
                     .get("status")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
-                
+
                 // Get error_message
                 meta.error_message = obj
                     .get("error_message")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
-                
+
                 // Get track_id
                 meta.track_id = obj
                     .get("track_id")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
-                
+
                 // Get created_at
                 meta.created_at = obj
                     .get("created_at")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
-                
+
                 // Get updated_at
                 meta.updated_at = obj
                     .get("updated_at")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
-                
+
                 // Get entity_count
                 meta.entity_count = obj
                     .get("entity_count")
                     .and_then(|v| v.as_u64())
                     .map(|n| n as usize);
-                
+
                 doc_metadata.insert(id.to_string(), meta);
             }
         }
@@ -553,12 +556,26 @@ pub async fn list_documents(
 
     // Calculate status counts for all documents
     let status_counts = StatusCounts {
-        pending: documents.iter().filter(|d| d.status.as_deref() == Some("pending")).count(),
-        processing: documents.iter().filter(|d| d.status.as_deref() == Some("processing")).count(),
-        completed: documents.iter().filter(|d| {
-            d.status.is_none() || d.status.as_deref() == Some("completed") || d.status.as_deref() == Some("indexed")
-        }).count(),
-        failed: documents.iter().filter(|d| d.status.as_deref() == Some("failed")).count(),
+        pending: documents
+            .iter()
+            .filter(|d| d.status.as_deref() == Some("pending"))
+            .count(),
+        processing: documents
+            .iter()
+            .filter(|d| d.status.as_deref() == Some("processing"))
+            .count(),
+        completed: documents
+            .iter()
+            .filter(|d| {
+                d.status.is_none()
+                    || d.status.as_deref() == Some("completed")
+                    || d.status.as_deref() == Some("indexed")
+            })
+            .count(),
+        failed: documents
+            .iter()
+            .filter(|d| d.status.as_deref() == Some("failed"))
+            .count(),
     };
 
     Ok(Json(ListDocumentsResponse {
@@ -1134,6 +1151,196 @@ async fn process_single_file(
     Ok((document_id, false))
 }
 
+// ============================================================================
+// Track Status (Phase 2)
+// ============================================================================
+
+/// Track status response for batch grouping.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct TrackStatusResponse {
+    /// Track ID for this batch.
+    pub track_id: String,
+
+    /// When the first document was uploaded.
+    pub created_at: Option<String>,
+
+    /// Documents in this batch.
+    pub documents: Vec<DocumentSummary>,
+
+    /// Total number of documents.
+    pub total_count: usize,
+
+    /// Status summary for the batch.
+    pub status_summary: StatusCounts,
+
+    /// Whether processing is complete (all docs completed or failed).
+    pub is_complete: bool,
+
+    /// Latest processing message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_message: Option<String>,
+}
+
+/// Get track status by track ID.
+///
+/// Returns all documents uploaded with a specific track_id, along with status summary.
+#[utoipa::path(
+    get,
+    path = "/api/v1/documents/track/{track_id}",
+    tag = "Documents",
+    params(
+        ("track_id" = String, Path, description = "Track ID for the batch")
+    ),
+    responses(
+        (status = 200, description = "Track status retrieved", body = TrackStatusResponse),
+        (status = 404, description = "Track not found")
+    )
+)]
+pub async fn get_track_status(
+    State(state): State<AppState>,
+    axum::extract::Path(track_id): axum::extract::Path<String>,
+) -> ApiResult<Json<TrackStatusResponse>> {
+    let keys = state.kv_storage.keys().await?;
+
+    // Find all metadata keys
+    let metadata_keys: Vec<String> = keys
+        .iter()
+        .filter(|k| k.ends_with("-metadata"))
+        .cloned()
+        .collect();
+
+    // Fetch all metadata
+    let metadata_values = state.kv_storage.get_by_ids(&metadata_keys).await?;
+
+    // Group chunks by document
+    let mut doc_chunks: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for key in &keys {
+        if let Some(doc_id) = key.split("-chunk-").next() {
+            if !doc_id.ends_with("-metadata") && !doc_id.ends_with("-content") {
+                *doc_chunks.entry(doc_id.to_string()).or_default() += 1;
+            }
+        }
+    }
+
+    // Filter documents by track_id
+    let mut track_docs: Vec<DocumentSummary> = Vec::new();
+    let mut created_times: Vec<String> = Vec::new();
+
+    for value in metadata_values {
+        if let Some(obj) = value.as_object() {
+            let doc_track_id = obj.get("track_id").and_then(|v| v.as_str()).unwrap_or("");
+
+            if doc_track_id == track_id {
+                let id = obj
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+
+                let chunk_count = doc_chunks.get(&id).copied().unwrap_or(0);
+
+                if let Some(created_at) = obj.get("created_at").and_then(|v| v.as_str()) {
+                    created_times.push(created_at.to_string());
+                }
+
+                track_docs.push(DocumentSummary {
+                    id,
+                    title: obj.get("title").and_then(|v| v.as_str()).map(String::from),
+                    file_name: obj
+                        .get("file_name")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    content_summary: obj
+                        .get("content_summary")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    content_length: obj
+                        .get("content_length")
+                        .and_then(|v| v.as_u64())
+                        .map(|n| n as usize),
+                    chunk_count,
+                    entity_count: obj
+                        .get("entity_count")
+                        .and_then(|v| v.as_u64())
+                        .map(|n| n as usize),
+                    status: obj.get("status").and_then(|v| v.as_str()).map(String::from),
+                    error_message: obj
+                        .get("error_message")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    track_id: Some(track_id.clone()),
+                    created_at: obj
+                        .get("created_at")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    updated_at: obj
+                        .get("updated_at")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                });
+            }
+        }
+    }
+
+    if track_docs.is_empty() {
+        return Err(ApiError::NotFound(format!("Track not found: {}", track_id)));
+    }
+
+    // Calculate status summary
+    let status_summary = StatusCounts {
+        pending: track_docs
+            .iter()
+            .filter(|d| d.status.as_deref() == Some("pending"))
+            .count(),
+        processing: track_docs
+            .iter()
+            .filter(|d| d.status.as_deref() == Some("processing"))
+            .count(),
+        completed: track_docs
+            .iter()
+            .filter(|d| {
+                d.status.is_none()
+                    || d.status.as_deref() == Some("completed")
+                    || d.status.as_deref() == Some("indexed")
+            })
+            .count(),
+        failed: track_docs
+            .iter()
+            .filter(|d| d.status.as_deref() == Some("failed"))
+            .count(),
+    };
+
+    // Find earliest created_at
+    created_times.sort();
+    let created_at = created_times.first().cloned();
+
+    // Check if complete (no pending or processing)
+    let is_complete = status_summary.pending == 0 && status_summary.processing == 0;
+
+    // Build latest message
+    let latest_message = if !is_complete {
+        Some(format!(
+            "Processing {}/{} documents...",
+            status_summary.completed + status_summary.failed,
+            track_docs.len()
+        ))
+    } else if status_summary.failed > 0 {
+        Some(format!("Completed with {} errors", status_summary.failed))
+    } else {
+        Some("All documents processed successfully".to_string())
+    };
+
+    Ok(Json(TrackStatusResponse {
+        track_id,
+        created_at,
+        documents: track_docs.clone(),
+        total_count: track_docs.len(),
+        status_summary,
+        is_complete,
+        latest_message,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1303,5 +1510,41 @@ mod tests {
     #[test]
     fn test_default_page_size() {
         assert_eq!(default_page_size(), 20);
+    }
+
+    #[test]
+    fn test_track_status_response_serialization() {
+        let response = TrackStatusResponse {
+            track_id: "upload_20240101_abc12345".to_string(),
+            created_at: Some("2024-01-01T00:00:00Z".to_string()),
+            documents: vec![DocumentSummary {
+                id: "doc-1".to_string(),
+                title: Some("Test Doc".to_string()),
+                file_name: None,
+                content_summary: None,
+                content_length: None,
+                chunk_count: 5,
+                entity_count: Some(3),
+                status: Some("completed".to_string()),
+                error_message: None,
+                track_id: Some("upload_20240101_abc12345".to_string()),
+                created_at: None,
+                updated_at: None,
+            }],
+            total_count: 1,
+            status_summary: StatusCounts {
+                pending: 0,
+                processing: 0,
+                completed: 1,
+                failed: 0,
+            },
+            is_complete: true,
+            latest_message: Some("All documents processed successfully".to_string()),
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("upload_20240101_abc12345"));
+        assert!(json.contains("\"is_complete\":true"));
+        assert!(json.contains("\"total_count\":1"));
     }
 }

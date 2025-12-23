@@ -48,6 +48,7 @@
 
 pub mod error;
 pub mod memory;
+pub mod pipeline_state;
 #[cfg(feature = "postgres")]
 pub mod postgres;
 pub mod queue;
@@ -57,6 +58,7 @@ pub mod worker;
 
 // Re-export commonly used types
 pub use error::{TaskError, TaskResult};
+pub use pipeline_state::{PipelineMessage, PipelineState, PipelineStatusSnapshot};
 pub use queue::{ChannelTaskQueue, SharedTaskQueue, TaskQueue, UnboundedChannelTaskQueue};
 pub use storage::{
     Pagination, SharedTaskStorage, SortField, SortOrder, TaskFilter, TaskList, TaskStatistics,
