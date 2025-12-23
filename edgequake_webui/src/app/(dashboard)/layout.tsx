@@ -3,6 +3,7 @@
 import { DynamicBreadcrumb } from '@/components/layout/dynamic-breadcrumb';
 import { Header } from '@/components/layout/header';
 import { Sidebar } from '@/components/layout/sidebar';
+import { SkipLink } from '@/components/shared/skip-link';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 
 export default function DashboardLayout({
@@ -15,6 +16,7 @@ export default function DashboardLayout({
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+      <SkipLink />
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header />
@@ -22,7 +24,7 @@ export default function DashboardLayout({
         <div className="border-b px-6 py-2 bg-muted/30">
           <DynamicBreadcrumb />
         </div>
-        <main className="flex-1 overflow-auto">
+        <main id="main-content" className="flex-1 overflow-auto" tabIndex={-1}>
           {children}
         </main>
       </div>

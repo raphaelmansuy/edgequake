@@ -4,6 +4,7 @@ import { QuickActions, RecentActivity, StatsCard, SystemStatus } from '@/compone
 import { DynamicBreadcrumb } from '@/components/layout/dynamic-breadcrumb';
 import { Header } from '@/components/layout/header';
 import { Sidebar } from '@/components/layout/sidebar';
+import { SkipLink } from '@/components/shared/skip-link';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { getDocuments, getGraph } from '@/lib/api/edgequake';
 import { useQuery } from '@tanstack/react-query';
@@ -38,13 +39,14 @@ export default function Home() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+      <SkipLink />
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header />
         <div className="border-b px-6 py-2 bg-muted/30">
           <DynamicBreadcrumb />
         </div>
-        <main className="flex-1 overflow-auto">
+        <main id="main-content" className="flex-1 overflow-auto" tabIndex={-1}>
           <div className="p-6 space-y-6">
             {/* Header */}
             <div>

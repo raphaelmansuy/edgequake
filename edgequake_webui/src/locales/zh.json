@@ -30,7 +30,10 @@
     "navigation": "导航",
     "keyboardShortcuts": "键盘快捷键",
     "keyboardShortcutsDesc": "使用这些快捷键快速导航",
-    "pressEscToClose": "按 Esc 关闭"
+    "pressEscToClose": "按 Esc 关闭",
+    "skipToContent": "跳转到主要内容",
+    "show": "显示",
+    "hide": "隐藏"
   },
   "nav": {
     "dashboard": "仪表板",
@@ -295,6 +298,17 @@
       "status": "连接状态",
       "connected": "已连接",
       "disconnected": "已断开"
+    },
+    "data": {
+      "title": "数据管理",
+      "backup": "设置备份",
+      "backupDesc": "导出或导入您的设置为 JSON",
+      "export": "导出",
+      "import": "导入",
+      "exported": "设置导出成功",
+      "imported": "设置导入成功",
+      "importError": "导入失败：{{error}}",
+      "invalidFile": "无效的设置文件格式"
     }
   },
   "errors": {

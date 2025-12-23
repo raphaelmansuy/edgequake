@@ -30,7 +30,10 @@
     "navigation": "Navigation",
     "keyboardShortcuts": "Keyboard Shortcuts",
     "keyboardShortcutsDesc": "Use these shortcuts to navigate quickly",
-    "pressEscToClose": "Press Esc to close"
+    "pressEscToClose": "Press Esc to close",
+    "skipToContent": "Skip to main content",
+    "show": "Show",
+    "hide": "Hide"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -319,6 +322,17 @@
       "status": "Connection Status",
       "connected": "Connected",
       "disconnected": "Disconnected"
+    },
+    "data": {
+      "title": "Data Management",
+      "backup": "Settings Backup",
+      "backupDesc": "Export or import your settings as JSON",
+      "export": "Export",
+      "import": "Import",
+      "exported": "Settings exported successfully",
+      "imported": "Settings imported successfully",
+      "importError": "Import failed: {{error}}",
+      "invalidFile": "Invalid settings file format"
     }
   },
   "errors": {

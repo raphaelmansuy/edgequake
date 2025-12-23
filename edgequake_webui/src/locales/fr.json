@@ -30,7 +30,10 @@
     "navigation": "Navigation",
     "keyboardShortcuts": "Raccourcis clavier",
     "keyboardShortcutsDesc": "Utilisez ces raccourcis pour naviguer rapidement",
-    "pressEscToClose": "Appuyez sur Échap pour fermer"
+    "pressEscToClose": "Appuyez sur Échap pour fermer",
+    "skipToContent": "Aller au contenu principal",
+    "show": "Afficher",
+    "hide": "Masquer"
   },
   "nav": {
     "dashboard": "Tableau de bord",
@@ -295,6 +298,17 @@
       "status": "État de la connexion",
       "connected": "Connecté",
       "disconnected": "Déconnecté"
+    },
+    "data": {
+      "title": "Gestion des données",
+      "backup": "Sauvegarde des paramètres",
+      "backupDesc": "Exporter ou importer vos paramètres en JSON",
+      "export": "Exporter",
+      "import": "Importer",
+      "exported": "Paramètres exportés avec succès",
+      "imported": "Paramètres importés avec succès",
+      "importError": "Échec de l'importation : {{error}}",
+      "invalidFile": "Format de fichier de paramètres invalide"
     }
   },
   "errors": {

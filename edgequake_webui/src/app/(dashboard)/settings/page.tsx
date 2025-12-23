@@ -24,8 +24,9 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { useQueryStore } from '@/stores/use-query-store';
 import { useSettingsStore } from '@/stores/use-settings-store';
-import { Database, Globe, Monitor, Moon, Palette, Sun, Trash2 } from 'lucide-react';
+import { Database, Download, Globe, Monitor, Moon, Palette, Sun, Trash2, Upload } from 'lucide-react';
 import { useTheme } from 'next-themes';
+import { useRef } from 'react';
 import { toast } from 'sonner';
 
 export default function SettingsPage() {
@@ -37,9 +38,12 @@ export default function SettingsPage() {
     setLanguage, 
     setGraphSettings,
     setQuerySettings,
-    resetSettings 
+    resetSettings,
+    exportSettings,
+    importSettings,
   } = useSettingsStore();
   const { clearHistory } = useQueryStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleClearHistory = () => {
     clearHistory();
@@ -49,6 +53,42 @@ export default function SettingsPage() {
   const handleResetSettings = () => {
     resetSettings();
     toast.success('Settings reset to defaults');
+  };
+
+  const handleExportSettings = () => {
+    const json = exportSettings();
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `edgequake-settings-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Settings exported successfully');
+  };
+
+  const handleImportSettings = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = importSettings(e.target?.result as string);
+      if (result.success) {
+        toast.success('Settings imported successfully');
+      } else {
+        toast.error(`Import failed: ${result.error}`);
+      }
+    };
+    reader.onerror = () => {
+      toast.error('Failed to read file');
+    };
+    reader.readAsText(file);
+    
+    // Reset file input so the same file can be imported again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleThemeChange = (newTheme: string) => {
@@ -313,14 +353,45 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Trash2 className="h-5 w-5" />
+            <Database className="h-5 w-5" />
             Data Management
           </CardTitle>
           <CardDescription>
-            Manage local data and reset settings
+            Manage local data, import/export settings, and reset
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Import/Export Settings */}
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-sm font-medium">Settings Backup</label>
+              <p className="text-xs text-muted-foreground">
+                Export or import your settings as JSON
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleExportSettings}>
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+              <Button variant="outline" size="sm" asChild>
+                <label className="cursor-pointer">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".json"
+                    className="hidden"
+                    onChange={handleImportSettings}
+                  />
+                </label>
+              </Button>
+            </div>
+          </div>
+
+          <Separator />
+
           {/* Clear History */}
           <div className="flex items-center justify-between">
             <div>

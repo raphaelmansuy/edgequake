@@ -40,6 +40,9 @@ interface SettingsState extends AppSettings {
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebar: () => void;
   resetSettings: () => void;
+  // Import/Export
+  exportSettings: () => string;
+  importSettings: (jsonString: string) => { success: boolean; error?: string };
 }
 
 const initialState: AppSettings & { sidebarCollapsed: boolean } = {
@@ -52,7 +55,7 @@ const initialState: AppSettings & { sidebarCollapsed: boolean } = {
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       ...initialState,
 
       setTheme: (theme) => set({ theme }),
@@ -75,6 +78,57 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 
       resetSettings: () => set(initialState),
+
+      exportSettings: () => {
+        const state = get();
+        const exportData = {
+          version: '1.0',
+          exportedAt: new Date().toISOString(),
+          application: 'EdgeQuake',
+          settings: {
+            theme: state.theme,
+            language: state.language,
+            graphSettings: state.graphSettings,
+            querySettings: state.querySettings,
+            sidebarCollapsed: state.sidebarCollapsed,
+          },
+        };
+        return JSON.stringify(exportData, null, 2);
+      },
+
+      importSettings: (jsonString: string) => {
+        try {
+          const data = JSON.parse(jsonString);
+
+          // Validate structure
+          if (!data.version || !data.settings) {
+            throw new Error('Invalid settings file format');
+          }
+
+          // Validate application source
+          if (data.application && data.application !== 'EdgeQuake') {
+            throw new Error('Settings file is from a different application');
+          }
+
+          const { settings } = data;
+          
+          // Apply settings with defaults for missing values
+          set({
+            theme: settings.theme || 'system',
+            language: settings.language || 'en',
+            graphSettings: { ...defaultGraphSettings, ...settings.graphSettings },
+            querySettings: { ...defaultQuerySettings, ...settings.querySettings },
+            sidebarCollapsed: settings.sidebarCollapsed ?? false,
+          });
+
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          };
+        }
+      },
     }),
     {
       name: "edgequake-settings",
