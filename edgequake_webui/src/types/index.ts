@@ -65,12 +65,16 @@ export interface UploadDocumentRequest {
   title?: string;
   source_type?: "text" | "file" | "url";
   metadata?: Record<string, unknown>;
+  async_processing?: boolean;
 }
 
 export interface UploadDocumentResponse {
   document_id: string;
   status: string;
-  message: string;
+  task_id?: string;
+  chunk_count?: number;
+  entity_count?: number;
+  relationship_count?: number;
 }
 
 // Query types
@@ -269,6 +273,9 @@ export interface GraphSettings {
   edgeThickness: "thin" | "medium" | "thick";
   layout: "force" | "circular" | "random";
   colorBy: "type" | "community" | "degree";
+  enableNodeDrag?: boolean;
+  highlightNeighbors?: boolean;
+  hideUnselectedEdges?: boolean;
 }
 
 export interface QuerySettings {

@@ -16,6 +16,9 @@ const defaultGraphSettings: GraphSettings = {
   edgeThickness: "medium",
   layout: "force",
   colorBy: "type",
+  enableNodeDrag: true,
+  highlightNeighbors: true,
+  hideUnselectedEdges: false,
 };
 
 const defaultQuerySettings: QuerySettings = {
@@ -23,7 +26,7 @@ const defaultQuerySettings: QuerySettings = {
   topK: 10,
   maxTokens: 2048,
   temperature: 0.7,
-  stream: false,
+  stream: true, // Enable streaming by default for better UX
 };
 
 interface SettingsState extends AppSettings {

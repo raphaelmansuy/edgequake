@@ -23,8 +23,15 @@ export function LanguageSelector() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" title="Change language">
-          <Globe className="h-4 w-4" />
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          title="Change language"
+          aria-label="Change language"
+          data-testid="language-selector"
+        >
+          <Globe className="h-4 w-4" aria-hidden="true" />
+          <span className="sr-only">Change language</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

@@ -21,6 +21,8 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Progress } from '@/components/ui/progress';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     Table,
@@ -45,12 +47,15 @@ import {
     AlertCircle,
     CheckCircle,
     Clock,
+    FileSearch,
     FileText,
     Loader2,
     MoreVertical,
     RefreshCw,
+    Sparkles,
     Trash2,
     Upload,
+    X,
     XCircle,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
@@ -60,6 +65,15 @@ import { toast } from 'sonner';
 import { DocumentFilters, type DocStatus, type SortDirection, type SortField } from './document-filters';
 import { PaginationControls } from './pagination-controls';
 import { PipelineStatusDialog } from './pipeline-status-dialog';
+
+// Track upload progress and errors for files
+interface UploadingFile {
+  file: File;
+  progress: number;
+  status: 'pending' | 'reading' | 'uploading' | 'extracting' | 'success' | 'error';
+  error?: string;
+  phase?: string; // Human-readable phase description
+}
 
 const statusConfig = {
   pending: { icon: Clock, color: 'bg-yellow-500', label: 'Pending', animate: false },
@@ -100,6 +114,10 @@ export function DocumentManager() {
   // Pipeline status dialog state
   const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
 
+  // Upload progress tracking state
+  const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['documents', currentPage, pageSize, statusFilter],
     queryFn: () => getDocuments({ 
@@ -117,18 +135,141 @@ export function DocumentManager() {
     refetchInterval: 2000,
   });
 
-  const uploadMutation = useMutation({
-    mutationFn: async (content: string) => {
-      return uploadDocument({ content, source_type: 'text' });
-    },
-    onSuccess: () => {
-      toast.success('Document uploaded successfully');
+  // Enhanced upload handler with progress tracking
+  const handleFilesUpload = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) return;
+      
+      setIsUploading(true);
+      
+      // Initialize upload state for all files
+      const initialFiles: UploadingFile[] = files.map((file) => ({
+        file,
+        progress: 0,
+        status: 'pending' as const,
+        phase: 'Waiting...',
+      }));
+      setUploadingFiles(initialFiles);
+
+      // Show loading toast
+      const toastId = toast.loading(
+        t('documents.upload.inProgress', { count: files.length }) || `Uploading ${files.length} file(s)...`,
+        { duration: Infinity }
+      );
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      // Process files sequentially for better feedback
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // Phase 1: Reading file
+        setUploadingFiles((prev) =>
+          prev.map((f, idx) =>
+            idx === i ? { ...f, status: 'reading' as const, progress: 10, phase: t('documents.upload.reading', 'Reading file...') } : f
+          )
+        );
+
+        try {
+          // Read file content
+          const text = await file.text();
+          
+          // Phase 2: Uploading to server
+          setUploadingFiles((prev) =>
+            prev.map((f, idx) =>
+              idx === i ? { ...f, status: 'uploading' as const, progress: 40, phase: t('documents.upload.uploading', 'Uploading to server...') } : f
+            )
+          );
+
+          // Upload to server with filename as title (async processing enabled)
+          const response = await uploadDocument({ 
+            content: text, 
+            source_type: 'text',
+            title: file.name, // Use filename as title
+            async_processing: true, // Enable async processing
+          });
+          
+          // Phase 3: Extraction queued
+          setUploadingFiles((prev) =>
+            prev.map((f, idx) =>
+              idx === i ? { 
+                ...f, 
+                status: 'extracting' as const, 
+                progress: 80, 
+                phase: response.task_id 
+                  ? t('documents.upload.queued', 'Queued for extraction (Task: {{taskId}})', { taskId: response.task_id.slice(0, 8) })
+                  : t('documents.upload.extracting', 'Processing...'),
+              } : f
+            )
+          );
+          
+          // Brief delay to show extraction phase
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          // Mark as complete
+          setUploadingFiles((prev) =>
+            prev.map((f, idx) =>
+              idx === i ? { ...f, status: 'success' as const, progress: 100, phase: t('documents.upload.complete', 'Complete!') } : f
+            )
+          );
+          
+          successCount++;
+        } catch (error) {
+          // Mark as error
+          const errorMessage = error instanceof Error ? error.message : 'Upload failed';
+          setUploadingFiles((prev) =>
+            prev.map((f, idx) =>
+              idx === i ? { ...f, status: 'error' as const, progress: 100, error: errorMessage, phase: t('common.failed', 'Failed') } : f
+            )
+          );
+          
+          errorCount++;
+        }
+      }
+
+      // Update toast with final result
+      if (errorCount === 0) {
+        toast.success(
+          t('documents.upload.success', { count: successCount }) || `Successfully uploaded ${successCount} file(s)`,
+          { id: toastId }
+        );
+      } else if (successCount === 0) {
+        toast.error(
+          t('documents.upload.allFailed', { count: errorCount }) || `All ${errorCount} file(s) failed to upload`,
+          { id: toastId }
+        );
+      } else {
+        toast.warning(
+          t('documents.upload.partial', { success: successCount, failed: errorCount }) || 
+            `Uploaded ${successCount} file(s), ${errorCount} failed`,
+          { id: toastId }
+        );
+      }
+
+      // Refresh documents list
       queryClient.invalidateQueries({ queryKey: ['documents'] });
+      setIsUploading(false);
+
+      // Clear upload list after a delay
+      setTimeout(() => {
+        setUploadingFiles([]);
+      }, 3000);
     },
-    onError: (error) => {
-      toast.error(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    [queryClient, t]
+  );
+
+  // Remove a file from the upload list
+  const removeUploadingFile = useCallback((index: number) => {
+    setUploadingFiles((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const onDrop = useCallback(
+    async (acceptedFiles: File[]) => {
+      await handleFilesUpload(acceptedFiles);
     },
-  });
+    [handleFilesUpload]
+  );
 
   const deleteMutation = useMutation({
     mutationFn: deleteDocument,
@@ -163,16 +304,6 @@ export function DocumentManager() {
     },
   });
 
-  const onDrop = useCallback(
-    async (acceptedFiles: File[]) => {
-      for (const file of acceptedFiles) {
-        const text = await file.text();
-        uploadMutation.mutate(text);
-      }
-    },
-    [uploadMutation]
-  );
-
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
@@ -181,6 +312,15 @@ export function DocumentManager() {
       'application/json': ['.json'],
     },
   });
+
+  // Filter documents client-side (fallback when backend doesn't support filtering)
+  const filterDocuments = (docs: Document[]): Document[] => {
+    if (statusFilter === 'all') return docs;
+    return docs.filter((doc) => {
+      const docStatus = doc.status || 'completed'; // Default to completed if no status
+      return docStatus === statusFilter;
+    });
+  };
 
   // Sort documents client-side for now
   const sortDocuments = (docs: Document[]): Document[] => {
@@ -213,9 +353,19 @@ export function DocumentManager() {
     });
   };
 
-  const documents = sortDocuments(data?.items || []);
-  const totalPages = Math.ceil((data?.total || 0) / pageSize);
-  const totalCount = data?.total || documents.length;
+  const documents = sortDocuments(filterDocuments(data?.items || []));
+  const allDocuments = data?.items || [];
+  const totalPages = Math.ceil(documents.length / pageSize);
+  const totalCount = documents.length;
+  
+  // Calculate status counts for filter badges
+  const statusCounts: Record<DocStatus, number> = {
+    all: allDocuments.length,
+    pending: allDocuments.filter((d) => d.status === 'pending').length,
+    processing: allDocuments.filter((d) => d.status === 'processing').length,
+    completed: allDocuments.filter((d) => !d.status || d.status === 'completed').length,
+    failed: allDocuments.filter((d) => d.status === 'failed').length,
+  };
 
   if (isError) {
     return (
@@ -303,6 +453,7 @@ export function DocumentManager() {
         onSortFieldChange={setSortField}
         sortDirection={sortDirection}
         onSortDirectionChange={setSortDirection}
+        statusCounts={statusCounts}
       />
 
       {/* Upload Zone */}
@@ -331,6 +482,89 @@ export function DocumentManager() {
               </>
             )}
           </div>
+          
+          {/* Uploading Files List */}
+          {uploadingFiles.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <h4 className="text-sm font-medium text-muted-foreground mb-2">
+                {isUploading ? 'Uploading...' : 'Upload Complete'}
+              </h4>
+              <ScrollArea className="max-h-48">
+                <div className="space-y-2">
+                  {uploadingFiles.map((uploadFile, index) => (
+                    <div
+                      key={`${uploadFile.file.name}-${index}`}
+                      className="flex items-center gap-3 p-3 rounded-lg border bg-card"
+                    >
+                      <div className="flex-shrink-0">
+                        {uploadFile.status === 'success' ? (
+                          <CheckCircle className="h-5 w-5 text-green-500" />
+                        ) : uploadFile.status === 'error' ? (
+                          <XCircle className="h-5 w-5 text-red-500" />
+                        ) : uploadFile.status === 'extracting' ? (
+                          <Sparkles className="h-5 w-5 text-purple-500 animate-pulse" />
+                        ) : uploadFile.status === 'uploading' ? (
+                          <Upload className="h-5 w-5 text-blue-500 animate-bounce" />
+                        ) : uploadFile.status === 'reading' ? (
+                          <FileSearch className="h-5 w-5 text-amber-500 animate-pulse" />
+                        ) : (
+                          <Clock className="h-5 w-5 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{uploadFile.file.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-muted-foreground">
+                            {(uploadFile.file.size / 1024).toFixed(1)} KB
+                          </p>
+                          {uploadFile.phase && uploadFile.status !== 'success' && uploadFile.status !== 'error' && (
+                            <span className={`text-xs font-medium ${
+                              uploadFile.status === 'reading' ? 'text-amber-500' :
+                              uploadFile.status === 'uploading' ? 'text-blue-500' :
+                              uploadFile.status === 'extracting' ? 'text-purple-500' :
+                              'text-muted-foreground'
+                            }`}>
+                              • {uploadFile.phase}
+                            </span>
+                          )}
+                        </div>
+                        {(uploadFile.status === 'reading' || uploadFile.status === 'uploading' || uploadFile.status === 'extracting') && (
+                          <div className="relative mt-1">
+                            <Progress value={uploadFile.progress} className="h-1.5" />
+                            <div className="absolute inset-0 overflow-hidden rounded-full">
+                              <div 
+                                className={`h-full transition-all duration-300 ${
+                                  uploadFile.status === 'reading' ? 'bg-amber-400/30' :
+                                  uploadFile.status === 'uploading' ? 'bg-blue-400/30' :
+                                  'bg-purple-400/30'
+                                }`}
+                                style={{ 
+                                  width: '30%',
+                                  animation: 'shimmer 1s ease-in-out infinite',
+                                  transform: `translateX(${uploadFile.progress * 3}%)`
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {uploadFile.error && (
+                          <p className="text-xs text-red-500 mt-1">{uploadFile.error}</p>
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 flex-shrink-0"
+                        onClick={() => removeUploadingFile(index)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+          )}
         </CardContent>
       </Card>
 

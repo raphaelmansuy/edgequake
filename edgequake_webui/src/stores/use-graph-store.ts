@@ -17,6 +17,7 @@ interface GraphState {
   focusedNodeId: string | null;
   hoveredNodeId: string | null;
   selectedNodes: Set<string>;
+  showNodeDetails: boolean; // Controls visibility of node details panel
 
   // Filter state
   visibleEntityTypes: Set<string>;
@@ -45,6 +46,7 @@ interface GraphActions {
   focusNode: (nodeId: string | null) => void;
   hoverNode: (nodeId: string | null) => void;
   toggleNodeSelection: (nodeId: string) => void;
+  toggleNodeDetails: () => void;
   clearSelection: () => void;
 
   // Filter actions
@@ -77,6 +79,7 @@ const initialState: GraphState = {
   focusedNodeId: null,
   hoveredNodeId: null,
   selectedNodes: new Set(),
+  showNodeDetails: true,
   visibleEntityTypes: new Set(),
   visibleRelationshipTypes: new Set(),
   searchQuery: "",
@@ -119,7 +122,11 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
     }),
 
   // Selection actions
-  selectNode: (nodeId) => set({ selectedNodeId: nodeId }),
+  selectNode: (nodeId) =>
+    set({ selectedNodeId: nodeId, showNodeDetails: nodeId !== null }),
+
+  toggleNodeDetails: () =>
+    set((state) => ({ showNodeDetails: !state.showNodeDetails })),
 
   focusNode: (nodeId) => {
     set({ focusedNodeId: nodeId });
@@ -219,10 +226,13 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
   setError: (error) => set({ error, isLoading: false }),
 }));
 
-// Selectors
+// Selectors - these return new arrays on each call, so use with useMemo in components
 export const useFilteredNodes = () => {
-  const { nodes, visibleEntityTypes, searchQuery } = useGraphStore();
+  const nodes = useGraphStore((state) => state.nodes);
+  const visibleEntityTypes = useGraphStore((state) => state.visibleEntityTypes);
+  const searchQuery = useGraphStore((state) => state.searchQuery);
 
+  // Filter nodes based on visibility and search query
   return nodes.filter((node) => {
     if (!visibleEntityTypes.has(node.node_type)) return false;
     if (searchQuery) {
@@ -237,9 +247,30 @@ export const useFilteredNodes = () => {
 };
 
 export const useFilteredEdges = () => {
-  const { edges, visibleRelationshipTypes } = useGraphStore();
-  const filteredNodes = useFilteredNodes();
-  const nodeIds = new Set(filteredNodes.map((n) => n.id));
+  const edges = useGraphStore((state) => state.edges);
+  const nodes = useGraphStore((state) => state.nodes);
+  const visibleEntityTypes = useGraphStore((state) => state.visibleEntityTypes);
+  const visibleRelationshipTypes = useGraphStore(
+    (state) => state.visibleRelationshipTypes
+  );
+  const searchQuery = useGraphStore((state) => state.searchQuery);
+
+  // Compute filtered node IDs
+  const nodeIds = new Set(
+    nodes
+      .filter((node) => {
+        if (!visibleEntityTypes.has(node.node_type)) return false;
+        if (searchQuery) {
+          const query = searchQuery.toLowerCase();
+          return (
+            node.label.toLowerCase().includes(query) ||
+            node.description?.toLowerCase().includes(query)
+          );
+        }
+        return true;
+      })
+      .map((n) => n.id)
+  );
 
   return edges.filter((edge) => {
     if (!visibleRelationshipTypes.has(edge.relationship_type)) return false;

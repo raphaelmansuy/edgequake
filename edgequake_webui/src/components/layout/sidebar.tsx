@@ -26,8 +26,8 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
     <div className="flex h-full flex-col">
       {/* Logo */}
       <div className="flex h-16 items-center border-b px-4">
-        <Link href="/graph" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+        <Link href="/graph" className="flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-lg">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary" aria-hidden="true">
             <Network className="h-5 w-5 text-primary-foreground" />
           </div>
           <span className="text-xl font-bold">EdgeQuake</span>
@@ -35,7 +35,7 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 p-2">
+      <nav className="flex-1 space-y-1 p-2" aria-label={t('common.navigation', 'Main navigation')}>
         {navItems.map(({ href, icon: Icon, labelKey }) => {
           const isActive = pathname === href || pathname.startsWith(href + '/');
           
@@ -44,14 +44,15 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
               key={href}
               href={href}
               onClick={onItemClick}
+              aria-current={isActive ? 'page' : undefined}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
                 isActive
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >
-              <Icon className="h-5 w-5" />
+              <Icon className="h-5 w-5" aria-hidden="true" />
               <span>{t(labelKey)}</span>
             </Link>
           );
@@ -71,7 +72,7 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
 
 export function Sidebar() {
   return (
-    <aside className="hidden w-64 border-r bg-card md:block">
+    <aside className="hidden w-64 border-r bg-card md:block" aria-label="Sidebar navigation">
       <SidebarContent />
     </aside>
   );

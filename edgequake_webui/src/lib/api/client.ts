@@ -244,7 +244,8 @@ async function tryRefreshToken(): Promise<boolean> {
   }
 }
 
-// Streaming API client for SSE/NDJSON responses
+// Streaming API client for SSE (Server-Sent Events) responses
+// SSE format: "data: <content>\n\n" for each event
 export async function* streamClient<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -279,26 +280,68 @@ export async function* streamClient<T>(
       if (done) {
         // Process any remaining buffer
         if (buffer.trim()) {
-          yield JSON.parse(buffer) as T;
+          const parsed = parseSSEData(buffer);
+          if (parsed !== null) {
+            yield parsed as T;
+          }
         }
         break;
       }
 
       buffer += decoder.decode(value, { stream: true });
 
-      // Process complete lines (NDJSON format)
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
+      // Process complete SSE events (separated by double newlines)
+      // SSE format: "data: <content>\n\n"
+      const events = buffer.split("\n\n");
+      buffer = events.pop() || "";
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed) {
-          yield JSON.parse(trimmed) as T;
+      for (const event of events) {
+        const parsed = parseSSEData(event);
+        if (parsed !== null) {
+          yield parsed as T;
         }
       }
     }
   } finally {
     reader.releaseLock();
+  }
+}
+
+// Parse SSE data line(s) and return the content
+// SSE format: "data: <content>" or multiple "data: " lines for multiline content
+function parseSSEData(event: string): unknown {
+  const lines = event.split("\n");
+  let data = "";
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("data:")) {
+      // Extract content after "data: " or "data:"
+      const content = trimmed.slice(5).trim();
+      data += content;
+    } else if (
+      trimmed.startsWith("event:") ||
+      trimmed.startsWith("id:") ||
+      trimmed.startsWith("retry:")
+    ) {
+      // Ignore other SSE fields for now
+      continue;
+    } else if (trimmed && !trimmed.startsWith(":")) {
+      // Non-SSE line - might be plain content or NDJSON fallback
+      data += trimmed;
+    }
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  // Try to parse as JSON first (structured response)
+  try {
+    return JSON.parse(data);
+  } catch {
+    // Not JSON, return as raw text wrapped in expected format
+    return { type: "token", content: data };
   }
 }
 

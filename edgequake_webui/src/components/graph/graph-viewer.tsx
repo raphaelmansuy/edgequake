@@ -7,28 +7,59 @@ import { useGraphStore } from '@/stores/use-graph-store';
 import type { GraphNode } from '@/types';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Loader2, Maximize2, Network, RefreshCw, Upload, ZoomIn, ZoomOut } from 'lucide-react';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { GraphControls } from './graph-controls';
 import { GraphFilters } from './graph-filters';
+import { GraphLegend } from './graph-legend';
 import { GraphRenderer } from './graph-renderer';
 import { GraphSearch } from './graph-search';
 import { LayoutControl } from './layout-control';
 import { NodeContextMenu, useNodeContextMenu } from './node-context-menu';
 import { NodeDetails } from './node-details';
+import { ZoomControls } from './zoom-controls';
 
 export function GraphViewer() {
   const {
-    nodes,
-    edges,
+    nodes: allNodes,
+    edges: allEdges,
     selectedNodeId,
+    showNodeDetails,
     sigmaInstance,
     setGraph,
     selectNode,
+    toggleNodeDetails,
     hoverNode,
     setLoading,
     setError,
+    visibleEntityTypes,
+    visibleRelationshipTypes,
+    searchQuery,
   } = useGraphStore();
+
+  // Memoize filtered nodes to prevent re-render loops
+  const filteredNodes = useMemo(() => {
+    return allNodes.filter((node) => {
+      if (!visibleEntityTypes.has(node.node_type)) return false;
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        return (
+          node.label.toLowerCase().includes(query) ||
+          node.description?.toLowerCase().includes(query)
+        );
+      }
+      return true;
+    });
+  }, [allNodes, visibleEntityTypes, searchQuery]);
+
+  // Memoize filtered edges
+  const filteredEdges = useMemo(() => {
+    const nodeIds = new Set(filteredNodes.map((n) => n.id));
+    return allEdges.filter((edge) => {
+      if (!visibleRelationshipTypes.has(edge.relationship_type)) return false;
+      return nodeIds.has(edge.source) && nodeIds.has(edge.target);
+    });
+  }, [allEdges, filteredNodes, visibleRelationshipTypes]);
 
   // Context menu state
   const {
@@ -83,11 +114,11 @@ export function GraphViewer() {
 
   // Context menu handlers
   const handleNodeRightClick = useCallback((nodeId: string, x: number, y: number) => {
-    const node = nodes.find((n) => n.id === nodeId);
+    const node = allNodes.find((n) => n.id === nodeId);
     if (node) {
       openContextMenu(node, x, y);
     }
-  }, [nodes, openContextMenu]);
+  }, [allNodes, openContextMenu]);
 
   const handleViewDetails = useCallback((node: GraphNode) => {
     selectNode(node.id);
@@ -122,7 +153,7 @@ export function GraphViewer() {
     toast.success(`Copied entity ID: ${node.id}`);
   }, []);
 
-  const selectedNode = nodes.find((n) => n.id === selectedNodeId);
+  const selectedNode = allNodes.find((n) => n.id === selectedNodeId);
 
   if (isError) {
     return (
@@ -175,15 +206,15 @@ export function GraphViewer() {
         </div>
 
         {/* Graph Canvas */}
-        <div className="flex-1 relative">
-          {isLoading && nodes.length === 0 ? (
+        <div className="flex-1 relative" data-graph-container>
+          {isLoading && allNodes.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground">Loading knowledge graph...</p>
               </div>
             </div>
-          ) : nodes.length === 0 ? (
+          ) : allNodes.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center max-w-md px-4">
                 <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
@@ -202,14 +233,38 @@ export function GraphViewer() {
                 </Button>
               </div>
             </div>
+          ) : filteredNodes.length === 0 ? (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-center max-w-md px-4">
+                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                  <Network className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-medium">No visible nodes</h3>
+                <p className="text-sm text-muted-foreground mt-2">
+                  All node types are hidden. Use the legend below to show node categories.
+                </p>
+              </div>
+            </div>
           ) : (
-            <GraphRenderer
-              nodes={nodes}
-              edges={edges}
-              onNodeClick={selectNode}
-              onNodeHover={hoverNode}
-              onNodeRightClick={handleNodeRightClick}
-            />
+            <>
+              <GraphRenderer
+                nodes={filteredNodes}
+                edges={filteredEdges}
+                onNodeClick={selectNode}
+                onNodeHover={hoverNode}
+                onNodeRightClick={handleNodeRightClick}
+              />
+              
+              {/* Loading Overlay */}
+              {isLoading && allNodes.length > 0 && (
+                <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-sm z-10">
+                  <div className="text-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
+                    <p className="text-sm font-medium">Refreshing graph...</p>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {/* Node Context Menu */}
@@ -224,9 +279,19 @@ export function GraphViewer() {
             onCopyId={handleCopyId}
           />
 
-          {/* Graph Controls Overlay */}
-          <div className="absolute bottom-4 left-4">
+          {/* Graph Controls Overlay - Bottom Left */}
+          <div className="absolute bottom-4 left-4 flex flex-col gap-2">
             <GraphControls />
+          </div>
+          
+          {/* Zoom Controls Overlay - Right Side */}
+          <div className="absolute top-4 right-4 flex flex-col gap-2">
+            <ZoomControls />
+          </div>
+          
+          {/* Legend Overlay - Bottom Right */}
+          <div className="absolute bottom-4 right-4">
+            <GraphLegend />
           </div>
         </div>
       </div>
@@ -238,7 +303,19 @@ export function GraphViewer() {
           <GraphFilters />
 
           {/* Node Details */}
-          {selectedNode && <NodeDetails node={selectedNode} />}
+          {selectedNode && showNodeDetails && <NodeDetails node={selectedNode} />}
+          
+          {/* Show details button when panel is hidden but node is selected */}
+          {selectedNode && !showNodeDetails && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={toggleNodeDetails}
+            >
+              Show Node Details
+            </Button>
+          )}
         </div>
       </div>
     </div>

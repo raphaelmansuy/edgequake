@@ -49,7 +49,16 @@
   "documents": {
     "title": "Documents",
     "subtitle": "Upload and manage documents for knowledge graph extraction",
-    "upload": "Upload",
+    "upload": {
+      "title": "Upload",
+      "inProgress": "Uploading {{count}} file(s)...",
+      "reading": "Step 1: Reading file...",
+      "uploading": "Step 2: Uploading to server...",
+      "extracting": "Step 3: Processing pipeline...",
+      "success": "{{count}} file(s) uploaded successfully",
+      "error": "{{count}} file(s) failed to upload",
+      "complete": "Uploaded! Processing in background..."
+    },
     "uploadDrop": "Drag & drop files or click to upload",
     "uploadDropActive": "Drop files here...",
     "uploadSupports": "Supports TXT, MD, JSON files",
@@ -97,6 +106,14 @@
     "uploadDocuments": "Upload Documents",
     "loading": "Loading knowledge graph...",
     "nodeCount": "{{nodes}} nodes · {{edges}} edges",
+    "zoomIn": "Zoom In",
+    "zoomOut": "Zoom Out",
+    "resetZoom": "Reset View",
+    "rotateClockwise": "Rotate Clockwise",
+    "rotateCounterClockwise": "Rotate Counter-Clockwise",
+    "focusOnNode": "Focus on Selected Node",
+    "enterFullscreen": "Fullscreen",
+    "exitFullscreen": "Exit Fullscreen",
     "controls": {
       "zoomIn": "Zoom In",
       "zoomOut": "Zoom Out",
@@ -112,7 +129,11 @@
     },
     "search": {
       "placeholder": "Search nodes...",
-      "noResults": "No nodes found"
+      "noResults": "No nodes found",
+      "results": "Results",
+      "recent": "Nodes",
+      "navigate": "Navigate",
+      "select": "Select"
     },
     "nodeDetails": {
       "title": "Node Details",
@@ -141,7 +162,19 @@
       "technology": "Technology",
       "location": "Location",
       "other": "Other"
-    }
+    },
+    "nodeTypes": {
+      "person": "Person",
+      "organization": "Organization",
+      "location": "Location",
+      "event": "Event",
+      "concept": "Concept",
+      "document": "Document",
+      "default": "Other"
+    },
+    "showAll": "Show All",
+    "hidden": "hidden",
+    "collapseLegend": "Collapse"
   },
   "query": {
     "title": "Query",

@@ -2,9 +2,12 @@
 
 import { detectCommunities, getCommunityColor } from '@/lib/graph/clustering';
 import { useGraphStore } from '@/stores/use-graph-store';
+import { useSettingsStore } from '@/stores/use-settings-store';
 import type { GraphEdge, GraphNode } from '@/types';
 import Graph from 'graphology';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
+import circular from 'graphology-layout/circular';
+import random from 'graphology-layout/random';
 import { useCallback, useEffect, useRef } from 'react';
 import Sigma from 'sigma';
 
@@ -17,6 +20,13 @@ const TYPE_COLORS: Record<string, string> = {
   CONCEPT: '#8b5cf6',
   DOCUMENT: '#6366f1',
   DEFAULT: '#64748b',
+};
+
+// Node size mapping
+const NODE_SIZES: Record<string, number> = {
+  small: 6,
+  medium: 10,
+  large: 14,
 };
 
 function getNodeColor(entityType: string | undefined): string {
@@ -37,6 +47,16 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
   const sigmaRef = useRef<Sigma | null>(null);
   const setSigmaInstance = useGraphStore((s) => s.setSigmaInstance);
   const colorMode = useGraphStore((s) => s.colorMode);
+  const { graphSettings } = useSettingsStore();
+
+  // Get settings with defaults
+  const showLabels = graphSettings.showLabels ?? true;
+  const showEdgeLabels = graphSettings.showEdgeLabels ?? false;
+  const enableNodeDrag = graphSettings.enableNodeDrag ?? true;
+  const highlightNeighbors = graphSettings.highlightNeighbors ?? true;
+  const hideUnselectedEdges = graphSettings.hideUnselectedEdges ?? false;
+  const nodeSize = NODE_SIZES[graphSettings.nodeSize] ?? NODE_SIZES.medium;
+  const layout = graphSettings.layout ?? 'force';
 
   const initializeGraph = useCallback(() => {
     if (!containerRef.current || nodes.length === 0) return;
@@ -59,7 +79,7 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
         label: node.label,
         x: Math.cos(angle) * radius,
         y: Math.sin(angle) * radius,
-        size: 10,
+        size: nodeSize,
         color: getNodeColor(node.node_type),
         entityType: node.node_type,
         description: node.description,
@@ -100,22 +120,34 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
       }
     }
 
-    // Apply force-directed layout
+    // Apply layout based on settings
     if (graph.order > 0) {
-      forceAtlas2.assign(graph, {
-        iterations: 100,
-        settings: {
-          gravity: 1,
-          scalingRatio: 2,
-          strongGravityMode: true,
-          barnesHutOptimize: graph.order > 100,
-        },
-      });
+      switch (layout) {
+        case 'circular':
+          circular.assign(graph);
+          break;
+        case 'random':
+          random.assign(graph);
+          break;
+        case 'force':
+        default:
+          forceAtlas2.assign(graph, {
+            iterations: 100,
+            settings: {
+              gravity: 1,
+              scalingRatio: 2,
+              strongGravityMode: true,
+              barnesHutOptimize: graph.order > 100,
+            },
+          });
+          break;
+      }
     }
 
-    // Create Sigma instance
+    // Create Sigma instance with settings
     const sigma = new Sigma(graph, containerRef.current, {
-      renderLabels: true,
+      renderLabels: showLabels,
+      renderEdgeLabels: showEdgeLabels,
       labelSize: 12,
       labelColor: { color: '#374151' },
       labelFont: 'Inter, sans-serif',
@@ -142,65 +174,92 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
       onNodeRightClick?.(node, event.x, event.y);
     });
 
-    // Node drag - start
-    sigma.on('downNode', (e) => {
-      draggedNode = e.node;
-      graph.setNodeAttribute(e.node, 'highlighted', true);
-    });
+    // Node drag - only if enabled
+    if (enableNodeDrag) {
+      // Node drag - start
+      sigma.on('downNode', (e) => {
+        draggedNode = e.node;
+        graph.setNodeAttribute(e.node, 'highlighted', true);
+      });
 
-    // Mouse move for dragging
-    sigma.getMouseCaptor().on('mousemovebody', (e) => {
-      if (!draggedNode) return;
-      
-      // Get position in graph coordinates
-      const pos = sigma.viewportToGraph(e);
-      
-      // Update node position
-      graph.setNodeAttribute(draggedNode, 'x', pos.x);
-      graph.setNodeAttribute(draggedNode, 'y', pos.y);
-      
-      // Prevent camera movement
-      e.preventSigmaDefault();
-      e.original.preventDefault();
-      e.original.stopPropagation();
-    });
+      // Mouse move for dragging
+      sigma.getMouseCaptor().on('mousemovebody', (e) => {
+        if (!draggedNode) return;
+        
+        // Get position in graph coordinates
+        const pos = sigma.viewportToGraph(e);
+        
+        // Update node position
+        graph.setNodeAttribute(draggedNode, 'x', pos.x);
+        graph.setNodeAttribute(draggedNode, 'y', pos.y);
+        
+        // Prevent camera movement
+        e.preventSigmaDefault();
+        e.original.preventDefault();
+        e.original.stopPropagation();
+      });
 
-    // Mouse up - end drag
-    sigma.getMouseCaptor().on('mouseup', () => {
-      if (draggedNode) {
-        graph.removeNodeAttribute(draggedNode, 'highlighted');
-        draggedNode = null;
-      }
-    });
-
-    // Node hover
-    sigma.on('enterNode', ({ node }) => {
-      onNodeHover?.(node);
-      // Highlight connected nodes
-      const connectedNodes = new Set<string>();
-      graph.forEachNeighbor(node, (neighbor) => connectedNodes.add(neighbor));
-      
-      graph.forEachNode((n) => {
-        if (n === node) {
-          graph.setNodeAttribute(n, 'highlighted', true);
-        } else if (connectedNodes.has(n)) {
-          graph.setNodeAttribute(n, 'highlighted', true);
-        } else {
-          graph.setNodeAttribute(n, 'hidden', true);
+      // Mouse up - end drag
+      sigma.getMouseCaptor().on('mouseup', () => {
+        if (draggedNode) {
+          graph.removeNodeAttribute(draggedNode, 'highlighted');
+          draggedNode = null;
         }
       });
+    }
+
+    // Node hover - with optional neighbor highlighting and edge hiding
+    sigma.on('enterNode', ({ node }) => {
+      onNodeHover?.(node);
       
-      sigma.refresh();
+      if (highlightNeighbors) {
+        // Highlight connected nodes
+        const connectedNodes = new Set<string>();
+        graph.forEachNeighbor(node, (neighbor) => connectedNodes.add(neighbor));
+        
+        graph.forEachNode((n) => {
+          if (n === node) {
+            graph.setNodeAttribute(n, 'highlighted', true);
+          } else if (connectedNodes.has(n)) {
+            graph.setNodeAttribute(n, 'highlighted', true);
+          } else {
+            graph.setNodeAttribute(n, 'hidden', true);
+          }
+        });
+        
+        // Hide unselected edges if setting is enabled
+        if (hideUnselectedEdges) {
+          graph.forEachEdge((edge, attrs, source, target) => {
+            const isConnected = source === node || target === node;
+            if (!isConnected) {
+              graph.setEdgeAttribute(edge, 'hidden', true);
+            }
+          });
+        }
+        
+        sigma.refresh();
+      }
     });
 
     sigma.on('leaveNode', () => {
       onNodeHover?.(null);
-      // Reset all nodes
-      graph.forEachNode((n) => {
-        graph.removeNodeAttribute(n, 'hidden');
-        graph.removeNodeAttribute(n, 'highlighted');
-      });
-      sigma.refresh();
+      
+      if (highlightNeighbors) {
+        // Reset all nodes
+        graph.forEachNode((n) => {
+          graph.removeNodeAttribute(n, 'hidden');
+          graph.removeNodeAttribute(n, 'highlighted');
+        });
+        
+        // Reset all edges
+        if (hideUnselectedEdges) {
+          graph.forEachEdge((edge) => {
+            graph.removeEdgeAttribute(edge, 'hidden');
+          });
+        }
+        
+        sigma.refresh();
+      }
     });
 
     sigmaRef.current = sigma;
@@ -211,7 +270,7 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
       sigmaRef.current = null;
       setSigmaInstance(null);
     };
-  }, [nodes, edges, colorMode, onNodeClick, onNodeHover, onNodeRightClick, setSigmaInstance]);
+  }, [nodes, edges, colorMode, layout, nodeSize, showLabels, showEdgeLabels, enableNodeDrag, highlightNeighbors, hideUnselectedEdges, onNodeClick, onNodeHover, onNodeRightClick, setSigmaInstance]);
 
   useEffect(() => {
     const cleanup = initializeGraph();

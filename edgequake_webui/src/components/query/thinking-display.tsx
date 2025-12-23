@@ -23,7 +23,12 @@ interface ParsedContent {
  * - <thinking>...</thinking>
  * - **Thinking:**...
  */
-export function parseCOTContent(content: string): ParsedContent {
+export function parseCOTContent(content: string | undefined | null): ParsedContent {
+  // Handle undefined/null content safely
+  if (!content || typeof content !== 'string') {
+    return { thinking: [], response: '' };
+  }
+  
   const thinking: string[] = [];
   let response = content;
 

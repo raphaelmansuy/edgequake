@@ -1,13 +1,31 @@
 "use client";
 
-import type { QueryHistoryItem } from "@/types";
+import type { QueryContext, QueryHistoryItem, QueryMode } from "@/types";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+
+// Message type for conversation
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  mode?: QueryMode;
+  tokensUsed?: number;
+  durationMs?: number;
+  thinkingTimeMs?: number;
+  context?: QueryContext;
+  isError?: boolean;
+  isStreaming?: boolean;
+  timestamp?: number;
+}
 
 interface QueryState {
   // Current query
   currentQuery: string;
   isQuerying: boolean;
+
+  // Conversation messages (persisted)
+  conversationMessages: ChatMessage[];
 
   // Streaming response
   streamingResponse: string;
@@ -24,6 +42,15 @@ interface QueryActions {
   // Query actions
   setCurrentQuery: (query: string) => void;
   setIsQuerying: (isQuerying: boolean) => void;
+
+  // Conversation actions
+  setConversationMessages: (messages: ChatMessage[]) => void;
+  addConversationMessage: (message: ChatMessage) => void;
+  updateConversationMessage: (
+    id: string,
+    updates: Partial<ChatMessage>
+  ) => void;
+  clearConversation: () => void;
 
   // Streaming actions
   appendStreamChunk: (chunk: string) => void;
@@ -48,6 +75,7 @@ type QueryStore = QueryState & QueryActions;
 const initialState: QueryState = {
   currentQuery: "",
   isQuerying: false,
+  conversationMessages: [],
   streamingResponse: "",
   isStreaming: false,
   history: [],
@@ -62,6 +90,21 @@ export const useQueryStore = create<QueryStore>()(
       // Query actions
       setCurrentQuery: (query) => set({ currentQuery: query }),
       setIsQuerying: (isQuerying) => set({ isQuerying }),
+
+      // Conversation actions
+      setConversationMessages: (messages) =>
+        set({ conversationMessages: messages }),
+      addConversationMessage: (message) =>
+        set((state) => ({
+          conversationMessages: [...state.conversationMessages, message],
+        })),
+      updateConversationMessage: (id, updates) =>
+        set((state) => ({
+          conversationMessages: state.conversationMessages.map((msg) =>
+            msg.id === id ? { ...msg, ...updates } : msg
+          ),
+        })),
+      clearConversation: () => set({ conversationMessages: [] }),
 
       // Streaming actions
       appendStreamChunk: (chunk) =>
@@ -110,6 +153,7 @@ export const useQueryStore = create<QueryStore>()(
       name: "edgequake-query",
       partialize: (state) => ({
         history: state.history,
+        conversationMessages: state.conversationMessages,
       }),
     }
   )

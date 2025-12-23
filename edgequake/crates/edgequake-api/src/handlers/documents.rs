@@ -1,10 +1,8 @@
 //! Document ingestion handlers.
 
-use axum::{
-    extract::State,
-    Json,
-};
+use axum::{extract::State, Json};
 use axum_extra::extract::Multipart;
+use chrono::Utc;
 use edgequake_storage::KVStorage;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -27,6 +25,10 @@ pub struct UploadDocumentRequest {
     /// Optional document metadata.
     #[serde(default)]
     pub metadata: Option<serde_json::Value>,
+
+    /// Whether to process asynchronously (default: false for backwards compatibility)
+    #[serde(default)]
+    pub async_processing: bool,
 }
 
 /// Document upload response.
@@ -38,14 +40,21 @@ pub struct UploadDocumentResponse {
     /// Processing status.
     pub status: String,
 
-    /// Number of chunks created.
-    pub chunk_count: usize,
+    /// Task track ID (only set when async_processing is true).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_id: Option<String>,
 
-    /// Number of entities extracted.
-    pub entity_count: usize,
+    /// Number of chunks created (only set for sync processing).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chunk_count: Option<usize>,
 
-    /// Number of relationships extracted.
-    pub relationship_count: usize,
+    /// Number of entities extracted (only set for sync processing).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entity_count: Option<usize>,
+
+    /// Number of relationships extracted (only set for sync processing).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relationship_count: Option<usize>,
 }
 
 /// Upload a document for processing.
@@ -81,61 +90,177 @@ pub async fn upload_document(
     // Generate document ID
     let document_id = Uuid::new_v4().to_string();
 
-    // Process through pipeline
-    let result = state
-        .pipeline
-        .process(&document_id, &request.content)
+    // Store document metadata (including title)
+    let doc_metadata_key = format!("{}-metadata", document_id);
+    let initial_status = if request.async_processing {
+        "pending"
+    } else {
+        "processing"
+    };
+    let doc_metadata = serde_json::json!({
+        "id": document_id,
+        "title": request.title,
+        "created_at": Utc::now().to_rfc3339(),
+        "status": initial_status,
+    });
+    state
+        .kv_storage
+        .upsert(&[(doc_metadata_key.clone(), doc_metadata)])
         .await?;
 
-    // Store chunks in KV storage
-    let chunks: Vec<(String, serde_json::Value)> = result
-        .chunks
-        .iter()
-        .map(|c| {
-            (
-                c.id.clone(),
-                serde_json::json!({
-                    "content": c.content,
-                    "document_id": document_id,
-                    "index": c.index,
-                }),
-            )
-        })
-        .collect();
+    // Store the document content for processing
+    let doc_content_key = format!("{}-content", document_id);
+    let doc_content = serde_json::json!({
+        "content": request.content,
+    });
+    state
+        .kv_storage
+        .upsert(&[(doc_content_key, doc_content)])
+        .await?;
 
-    state.kv_storage.upsert(&chunks).await?;
+    // Handle async vs sync processing
+    if request.async_processing {
+        // Create task for background processing
+        use edgequake_tasks::{Task, TaskType, TextInsertData};
 
-    // Store entities and relationships in graph storage
-    for extraction in &result.extractions {
-        for entity in &extraction.entities {
-            let mut properties = std::collections::HashMap::new();
-            properties.insert("entity_type".to_string(), serde_json::json!(entity.entity_type));
-            properties.insert("description".to_string(), serde_json::json!(entity.description));
-            properties.insert("importance".to_string(), serde_json::json!(entity.importance));
-            properties.insert("source_ids".to_string(), serde_json::json!(vec![&document_id]));
-            
-            state.graph_storage.upsert_node(&entity.name, properties).await?;
+        let task_data = TextInsertData {
+            text: request.content.clone(),
+            file_source: request.title.clone().unwrap_or_else(|| document_id.clone()),
+            workspace_id: "default".to_string(),
+            metadata: Some(serde_json::json!({
+                "document_id": document_id,
+                "title": request.title,
+            })),
+        };
+
+        let task = Task::new(TaskType::Insert, serde_json::to_value(task_data).unwrap());
+        let task_id = task.track_id.clone();
+
+        // Store task
+        state
+            .task_storage
+            .create_task(&task)
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to create task: {}", e)))?;
+
+        // Queue task for processing
+        state
+            .task_queue
+            .send(task)
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to queue task: {}", e)))?;
+
+        Ok(Json(UploadDocumentResponse {
+            document_id,
+            status: "pending".to_string(),
+            task_id: Some(task_id),
+            chunk_count: None,
+            entity_count: None,
+            relationship_count: None,
+        }))
+    } else {
+        // Synchronous processing (original behavior)
+        let result = state
+            .pipeline
+            .process(&document_id, &request.content)
+            .await?;
+
+        // Store chunks in KV storage
+        let chunks: Vec<(String, serde_json::Value)> = result
+            .chunks
+            .iter()
+            .map(|c| {
+                (
+                    c.id.clone(),
+                    serde_json::json!({
+                        "content": c.content,
+                        "document_id": document_id,
+                        "index": c.index,
+                    }),
+                )
+            })
+            .collect();
+
+        state.kv_storage.upsert(&chunks).await?;
+
+        // Store entities and relationships in graph storage
+        for extraction in &result.extractions {
+            for entity in &extraction.entities {
+                let mut properties = std::collections::HashMap::new();
+                properties.insert(
+                    "entity_type".to_string(),
+                    serde_json::json!(entity.entity_type),
+                );
+                properties.insert(
+                    "description".to_string(),
+                    serde_json::json!(entity.description),
+                );
+                properties.insert(
+                    "importance".to_string(),
+                    serde_json::json!(entity.importance),
+                );
+                properties.insert(
+                    "source_ids".to_string(),
+                    serde_json::json!(vec![&document_id]),
+                );
+
+                state
+                    .graph_storage
+                    .upsert_node(&entity.name, properties)
+                    .await?;
+            }
+
+            for relationship in &extraction.relationships {
+                let mut properties = std::collections::HashMap::new();
+                properties.insert(
+                    "relation_type".to_string(),
+                    serde_json::json!(relationship.relation_type),
+                );
+                properties.insert(
+                    "description".to_string(),
+                    serde_json::json!(relationship.description),
+                );
+                properties.insert("weight".to_string(), serde_json::json!(relationship.weight));
+                properties.insert(
+                    "keywords".to_string(),
+                    serde_json::json!(relationship.keywords),
+                );
+                properties.insert(
+                    "source_ids".to_string(),
+                    serde_json::json!(vec![&document_id]),
+                );
+
+                state
+                    .graph_storage
+                    .upsert_edge(&relationship.source, &relationship.target, properties)
+                    .await?;
+            }
         }
 
-        for relationship in &extraction.relationships {
-            let mut properties = std::collections::HashMap::new();
-            properties.insert("relation_type".to_string(), serde_json::json!(relationship.relation_type));
-            properties.insert("description".to_string(), serde_json::json!(relationship.description));
-            properties.insert("weight".to_string(), serde_json::json!(relationship.weight));
-            properties.insert("keywords".to_string(), serde_json::json!(relationship.keywords));
-            properties.insert("source_ids".to_string(), serde_json::json!(vec![&document_id]));
-            
-            state.graph_storage.upsert_edge(&relationship.source, &relationship.target, properties).await?;
-        }
+        // Update document status to completed
+        let doc_metadata = serde_json::json!({
+            "id": document_id,
+            "title": request.title,
+            "created_at": Utc::now().to_rfc3339(),
+            "status": "completed",
+            "chunk_count": result.stats.chunk_count,
+            "entity_count": result.stats.entity_count,
+            "relationship_count": result.stats.relationship_count,
+        });
+        state
+            .kv_storage
+            .upsert(&[(doc_metadata_key, doc_metadata)])
+            .await?;
+
+        Ok(Json(UploadDocumentResponse {
+            document_id,
+            status: "processed".to_string(),
+            task_id: None,
+            chunk_count: Some(result.stats.chunk_count),
+            entity_count: Some(result.stats.entity_count),
+            relationship_count: Some(result.stats.relationship_count),
+        }))
     }
-
-    Ok(Json(UploadDocumentResponse {
-        document_id,
-        status: "processed".to_string(),
-        chunk_count: result.stats.chunk_count,
-        entity_count: result.stats.entity_count,
-        relationship_count: result.stats.relationship_count,
-    }))
 }
 
 /// List documents request.
@@ -201,20 +326,44 @@ pub async fn list_documents(
 ) -> ApiResult<Json<ListDocumentsResponse>> {
     let keys = state.kv_storage.keys().await?;
 
-    // Group by document
+    // Group by document and collect metadata keys
     let mut doc_chunks: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut metadata_keys: Vec<String> = Vec::new();
+
     for key in &keys {
-        if let Some(doc_id) = key.split("-chunk-").next() {
+        if key.ends_with("-metadata") {
+            metadata_keys.push(key.clone());
+        } else if let Some(doc_id) = key.split("-chunk-").next() {
             *doc_chunks.entry(doc_id.to_string()).or_default() += 1;
+        }
+    }
+
+    // Fetch all metadata
+    let metadata_values = state.kv_storage.get_by_ids(&metadata_keys).await?;
+    let mut doc_titles: std::collections::HashMap<String, Option<String>> =
+        std::collections::HashMap::new();
+
+    for value in metadata_values {
+        if let Some(obj) = value.as_object() {
+            if let Some(id) = obj.get("id").and_then(|v| v.as_str()) {
+                let title = obj
+                    .get("title")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                doc_titles.insert(id.to_string(), title);
+            }
         }
     }
 
     let documents: Vec<DocumentSummary> = doc_chunks
         .into_iter()
-        .map(|(id, chunk_count)| DocumentSummary {
-            id,
-            title: None,
-            chunk_count,
+        .map(|(id, chunk_count)| {
+            let title = doc_titles.get(&id).cloned().flatten();
+            DocumentSummary {
+                id,
+                title,
+                chunk_count,
+            }
         })
         .collect();
 
@@ -371,28 +520,28 @@ pub async fn delete_document(
 pub struct FileUploadResponse {
     /// Generated document ID.
     pub document_id: String,
-    
+
     /// Original filename.
     pub filename: String,
-    
+
     /// File size in bytes.
     pub size: usize,
-    
+
     /// Content hash (SHA-256).
     pub content_hash: String,
-    
+
     /// Processing status.
     pub status: String,
-    
+
     /// Number of chunks created.
     pub chunk_count: usize,
-    
+
     /// Number of entities extracted.
     pub entity_count: usize,
-    
+
     /// Number of relationships extracted.
     pub relationship_count: usize,
-    
+
     /// Whether this was a duplicate (already processed).
     pub is_duplicate: bool,
 }
@@ -419,13 +568,15 @@ pub async fn upload_file(
     let mut filename = String::new();
     let mut content = Vec::new();
     let mut metadata: Option<serde_json::Value> = None;
-    
+
     // Process multipart fields
-    while let Some(field) = multipart.next_field().await.map_err(|e| {
-        ApiError::BadRequest(format!("Failed to read multipart field: {}", e))
-    })? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| ApiError::BadRequest(format!("Failed to read multipart field: {}", e)))?
+    {
         let field_name = field.name().unwrap_or("").to_string();
-        
+
         match field_name.as_str() {
             "file" => {
                 // Get filename
@@ -433,18 +584,23 @@ pub async fn upload_file(
                     .file_name()
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| "unnamed.txt".to_string());
-                
+
                 // Read file content
-                content = field.bytes().await.map_err(|e| {
-                    ApiError::BadRequest(format!("Failed to read file content: {}", e))
-                })?.to_vec();
+                content = field
+                    .bytes()
+                    .await
+                    .map_err(|e| {
+                        ApiError::BadRequest(format!("Failed to read file content: {}", e))
+                    })?
+                    .to_vec();
             }
             "metadata" => {
                 // Optional metadata field
-                let text = field.text().await.map_err(|e| {
-                    ApiError::BadRequest(format!("Failed to read metadata: {}", e))
-                })?;
-                
+                let text = field
+                    .text()
+                    .await
+                    .map_err(|e| ApiError::BadRequest(format!("Failed to read metadata: {}", e)))?;
+
                 if !text.is_empty() {
                     metadata = serde_json::from_str(&text).ok();
                 }
@@ -454,12 +610,12 @@ pub async fn upload_file(
             }
         }
     }
-    
+
     // Validate we got a file
     if content.is_empty() {
         return Err(ApiError::BadRequest("No file provided".to_string()));
     }
-    
+
     // Validate file size
     if content.len() > state.config.max_document_size {
         return Err(ApiError::BadRequest(format!(
@@ -467,38 +623,35 @@ pub async fn upload_file(
             state.config.max_document_size
         )));
     }
-    
+
     // Validate file extension
-    let extension = filename
-        .rsplit('.')
-        .next()
-        .unwrap_or("")
-        .to_lowercase();
-    
-    let allowed_extensions = ["txt", "md", "json", "csv", "html", "htm", "xml", "yaml", "yml"];
+    let extension = filename.rsplit('.').next().unwrap_or("").to_lowercase();
+
+    let allowed_extensions = [
+        "txt", "md", "json", "csv", "html", "htm", "xml", "yaml", "yml",
+    ];
     if !allowed_extensions.contains(&extension.as_str()) {
         return Err(ApiError::BadRequest(format!(
             "Unsupported file type: .{}. Allowed types: {:?}",
             extension, allowed_extensions
         )));
     }
-    
+
     // Convert to UTF-8 string
-    let text_content = String::from_utf8(content.clone()).map_err(|e| {
-        ApiError::BadRequest(format!("File is not valid UTF-8: {}", e))
-    })?;
-    
+    let text_content = String::from_utf8(content.clone())
+        .map_err(|e| ApiError::BadRequest(format!("File is not valid UTF-8: {}", e)))?;
+
     if text_content.trim().is_empty() {
         return Err(ApiError::ValidationError(
             "File content cannot be empty".to_string(),
         ));
     }
-    
+
     // Calculate content hash for deduplication
     let mut hasher = Sha256::new();
     hasher.update(&content);
     let content_hash = hex::encode(hasher.finalize());
-    
+
     // Check for duplicate
     let hash_key = format!("doc:hash:{}", content_hash);
     if let Some(existing_doc_id) = state.kv_storage.get_by_id(&hash_key).await? {
@@ -516,15 +669,16 @@ pub async fn upload_file(
             }));
         }
     }
-    
+
     // Generate document ID
     let document_id = Uuid::new_v4().to_string();
-    
+
     // Store hash mapping for deduplication
-    state.kv_storage.upsert(&[
-        (hash_key, serde_json::json!(document_id)),
-    ]).await?;
-    
+    state
+        .kv_storage
+        .upsert(&[(hash_key, serde_json::json!(document_id))])
+        .await?;
+
     // Store file metadata
     let file_meta = serde_json::json!({
         "filename": filename,
@@ -534,16 +688,14 @@ pub async fn upload_file(
         "metadata": metadata,
         "uploaded_at": chrono::Utc::now().to_rfc3339(),
     });
-    state.kv_storage.upsert(&[
-        (format!("doc:meta:{}", document_id), file_meta),
-    ]).await?;
-    
-    // Process through pipeline
-    let result = state
-        .pipeline
-        .process(&document_id, &text_content)
+    state
+        .kv_storage
+        .upsert(&[(format!("doc:meta:{}", document_id), file_meta)])
         .await?;
-    
+
+    // Process through pipeline
+    let result = state.pipeline.process(&document_id, &text_content).await?;
+
     // Store chunks in KV storage
     let chunks: Vec<(String, serde_json::Value)> = result
         .chunks
@@ -560,9 +712,9 @@ pub async fn upload_file(
             )
         })
         .collect();
-    
+
     state.kv_storage.upsert(&chunks).await?;
-    
+
     Ok(Json(FileUploadResponse {
         document_id,
         filename,
@@ -581,16 +733,16 @@ pub async fn upload_file(
 pub struct BatchUploadResponse {
     /// Total files received.
     pub total_files: usize,
-    
+
     /// Successfully processed files.
     pub processed: usize,
-    
+
     /// Duplicate files (skipped).
     pub duplicates: usize,
-    
+
     /// Failed files.
     pub failed: usize,
-    
+
     /// Results for each file.
     pub results: Vec<BatchFileResult>,
 }
@@ -600,13 +752,13 @@ pub struct BatchUploadResponse {
 pub struct BatchFileResult {
     /// Original filename.
     pub filename: String,
-    
+
     /// Document ID if successful.
     pub document_id: Option<String>,
-    
+
     /// Status: processed, duplicate, or failed.
     pub status: String,
-    
+
     /// Error message if failed.
     pub error: Option<String>,
 }
@@ -630,33 +782,37 @@ pub async fn upload_files_batch(
     let mut processed = 0usize;
     let mut duplicates = 0usize;
     let mut failed = 0usize;
-    
+
     // Collect all files first
     let mut files: Vec<(String, Vec<u8>)> = Vec::new();
-    
-    while let Some(field) = multipart.next_field().await.map_err(|e| {
-        ApiError::BadRequest(format!("Failed to read multipart field: {}", e))
-    })? {
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| ApiError::BadRequest(format!("Failed to read multipart field: {}", e)))?
+    {
         let field_name = field.name().unwrap_or("").to_string();
-        
+
         if field_name == "files" || field_name == "file" {
             let filename = field
                 .file_name()
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| format!("file_{}.txt", files.len()));
-            
-            let content = field.bytes().await.map_err(|e| {
-                ApiError::BadRequest(format!("Failed to read file: {}", e))
-            })?.to_vec();
-            
+
+            let content = field
+                .bytes()
+                .await
+                .map_err(|e| ApiError::BadRequest(format!("Failed to read file: {}", e)))?
+                .to_vec();
+
             files.push((filename, content));
         }
     }
-    
+
     // Process each file
     for (filename, content) in files {
         let result = process_single_file(&state, &filename, &content).await;
-        
+
         match result {
             Ok((doc_id, is_duplicate)) => {
                 if is_duplicate {
@@ -688,7 +844,7 @@ pub async fn upload_files_batch(
             }
         }
     }
-    
+
     Ok(Json(BatchUploadResponse {
         total_files: results.len(),
         processed,
@@ -711,39 +867,36 @@ async fn process_single_file(
             filename
         )));
     }
-    
+
     // Validate extension
-    let extension = filename
-        .rsplit('.')
-        .next()
-        .unwrap_or("")
-        .to_lowercase();
-    
-    let allowed_extensions = ["txt", "md", "json", "csv", "html", "htm", "xml", "yaml", "yml"];
+    let extension = filename.rsplit('.').next().unwrap_or("").to_lowercase();
+
+    let allowed_extensions = [
+        "txt", "md", "json", "csv", "html", "htm", "xml", "yaml", "yml",
+    ];
     if !allowed_extensions.contains(&extension.as_str()) {
         return Err(ApiError::BadRequest(format!(
             "Unsupported file type: .{}",
             extension
         )));
     }
-    
+
     // Convert to UTF-8
-    let text_content = String::from_utf8(content.to_vec()).map_err(|_| {
-        ApiError::BadRequest(format!("File {} is not valid UTF-8", filename))
-    })?;
-    
+    let text_content = String::from_utf8(content.to_vec())
+        .map_err(|_| ApiError::BadRequest(format!("File {} is not valid UTF-8", filename)))?;
+
     if text_content.trim().is_empty() {
         return Err(ApiError::ValidationError(format!(
             "File {} is empty",
             filename
         )));
     }
-    
+
     // Calculate hash
     let mut hasher = Sha256::new();
     hasher.update(content);
     let content_hash = hex::encode(hasher.finalize());
-    
+
     // Check for duplicate
     let hash_key = format!("doc:hash:{}", content_hash);
     if let Some(existing) = state.kv_storage.get_by_id(&hash_key).await? {
@@ -751,21 +904,19 @@ async fn process_single_file(
             return Ok((doc_id.to_string(), true));
         }
     }
-    
+
     // Generate document ID
     let document_id = Uuid::new_v4().to_string();
-    
+
     // Store hash mapping
-    state.kv_storage.upsert(&[
-        (hash_key, serde_json::json!(document_id)),
-    ]).await?;
-    
-    // Process through pipeline
-    let result = state
-        .pipeline
-        .process(&document_id, &text_content)
+    state
+        .kv_storage
+        .upsert(&[(hash_key, serde_json::json!(document_id))])
         .await?;
-    
+
+    // Process through pipeline
+    let result = state.pipeline.process(&document_id, &text_content).await?;
+
     // Store chunks
     let chunks: Vec<(String, serde_json::Value)> = result
         .chunks
@@ -782,9 +933,9 @@ async fn process_single_file(
             )
         })
         .collect();
-    
+
     state.kv_storage.upsert(&chunks).await?;
-    
+
     Ok((document_id, false))
 }
 
