@@ -22,7 +22,7 @@ import { useAuthStore } from '@/stores/use-auth-store';
 import { Circle, LogOut, Monitor, Moon, Sun, User } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { MobileSidebar } from './sidebar';
 
 type ConnectionStatus = 'connected' | 'disconnected' | 'checking';
@@ -33,6 +33,19 @@ export function Header() {
   const { isAuthenticated, user, logout } = useAuthStore();
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('checking');
   const [version, setVersion] = useState<string>('');
+
+  // Smooth theme transition handler
+  const handleThemeChange = useCallback((theme: string) => {
+    // Add class to disable transitions during theme switch
+    document.documentElement.classList.add('theme-switching');
+    setTheme(theme);
+    // Remove class after a brief delay to allow theme to apply
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.documentElement.classList.remove('theme-switching');
+      });
+    });
+  }, [setTheme]);
 
   // Check backend connection status
   useEffect(() => {
@@ -113,15 +126,15 @@ export function Header() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setTheme('light')}>
+              <DropdownMenuItem onClick={() => handleThemeChange('light')}>
                 <Sun className="mr-2 h-4 w-4" />
                 Light
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme('dark')}>
+              <DropdownMenuItem onClick={() => handleThemeChange('dark')}>
                 <Moon className="mr-2 h-4 w-4" />
                 Dark
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme('system')}>
+              <DropdownMenuItem onClick={() => handleThemeChange('system')}>
                 <Monitor className="mr-2 h-4 w-4" />
                 System
               </DropdownMenuItem>

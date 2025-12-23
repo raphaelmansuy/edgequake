@@ -26,6 +26,9 @@
     "upload": "Upload",
     "download": "Download",
     "tryAgain": "Try again",
+    "retry": "Retry",
+    "unknownError": "Unknown error",
+    "failed": "Failed",
     "platform": "Graph-RAG Platform",
     "navigation": "Navigation",
     "keyboardShortcuts": "Keyboard Shortcuts",
@@ -101,10 +104,27 @@
       "extracting": "Step 3: Processing pipeline...",
       "success": "{{count}} file(s) uploaded successfully",
       "error": "{{count}} file(s) failed to upload",
+      "allFailed": "All {{count}} file(s) failed to upload",
+      "partial": "Uploaded {{success}} file(s), {{failed}} failed",
       "complete": "Uploaded! Processing in background...",
       "fileTooLarge": "File \"{{name}}\" is too large ({{size}}MB). Maximum size is 10MB.",
-      "invalidType": "File \"{{name}}\" has an unsupported format. Supported: TXT, MD, JSON."
+      "invalidType": "File \"{{name}}\" has an unsupported format. Supported: TXT, MD, JSON.",
+      "viewInGraph": "View in Graph"
     },
+    "delete": {
+      "success": "Document deleted",
+      "successDesc": "The document has been permanently removed.",
+      "failed": "Delete failed"
+    },
+    "deleteAll": {
+      "success": "Deleted {{count}} documents",
+      "failed": "Delete all failed"
+    },
+    "reprocess": {
+      "success": "Document queued for reprocessing",
+      "failed": "Reprocess failed"
+    },
+    "viewStatus": "View Status",
     "uploadDrop": "Drag & drop files or click to upload",
     "uploadDropActive": "Drop files here...",
     "uploadSupports": "Supports TXT, MD, JSON files",
@@ -255,6 +275,7 @@
     "subtitle": "Ask questions about your knowledge graph",
     "placeholder": "Ask a question...",
     "submit": "Send",
+    "failed": "Query failed",
     "startConversation": "Start a conversation",
     "startConversationSubtitle": "Ask questions about your knowledge graph",
     "modes": {

@@ -1,14 +1,21 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from "react";
+
+/**
+ * Get current match status for a media query (for SSR fallback)
+ */
+function getServerSnapshot(): boolean {
+  return false; // Default to false on server
+}
 
 /**
  * Hook to check if a media query matches.
- * Useful for responsive behavior in React components.
- * 
+ * Uses useSyncExternalStore for proper SSR and hydration handling.
+ *
  * @param query - CSS media query string (e.g., '(max-width: 768px)')
  * @returns boolean indicating if the query matches
- * 
+ *
  * @example
  * ```tsx
  * const isMobile = useMediaQuery('(max-width: 768px)');
@@ -16,34 +23,23 @@ import { useEffect, useState } from 'react';
  * ```
  */
 export function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(false);
-
-  useEffect(() => {
-    // Check if window is available (SSR safety)
-    if (typeof window === 'undefined') {
-      return;
+  const getSnapshot = () => {
+    if (typeof window === "undefined") {
+      return false;
     }
+    return window.matchMedia(query).matches;
+  };
 
+  const subscribe = (callback: () => void) => {
+    if (typeof window === "undefined") {
+      return () => {};
+    }
     const media = window.matchMedia(query);
-    
-    // Set initial value
-    setMatches(media.matches);
+    media.addEventListener("change", callback);
+    return () => media.removeEventListener("change", callback);
+  };
 
-    // Define listener
-    const listener = (event: MediaQueryListEvent) => {
-      setMatches(event.matches);
-    };
-
-    // Add listener
-    media.addEventListener('change', listener);
-
-    // Cleanup
-    return () => {
-      media.removeEventListener('change', listener);
-    };
-  }, [query]);
-
-  return matches;
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
 export default useMediaQuery;

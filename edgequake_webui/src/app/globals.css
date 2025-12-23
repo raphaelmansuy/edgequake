@@ -124,6 +124,19 @@
   }
 }
 
+/* Smooth theme transition - prevents flash on theme change */
+html {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Disable all transitions during theme switch to prevent flickering */
+html.theme-switching,
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition-duration: 0s !important;
+}
+
 /* Custom animations for delightful micro-interactions */
 @keyframes shimmer {
   0% {

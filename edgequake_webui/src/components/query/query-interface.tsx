@@ -586,7 +586,14 @@ export function QueryInterface() {
       }
 
       const errorMessage = error instanceof Error ? error.message : 'Query failed';
-      toast.error(errorMessage);
+      toast.error(errorMessage, {
+        action: {
+          label: t('common.retry', 'Retry'),
+          onClick: () => {
+            // User can retry by resubmitting the same query
+          },
+        },
+      });
 
       // Update error message using store action
       updateConversationMessage(messageId, { content: errorMessage, isStreaming: false, isError: true });
@@ -631,7 +638,15 @@ export function QueryInterface() {
       });
     },
     onError: (error) => {
-      toast.error(`Query failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(t('query.failed', 'Query failed'), {
+        description: error instanceof Error ? error.message : t('common.unknownError', 'Unknown error'),
+        action: {
+          label: t('common.retry', 'Retry'),
+          onClick: () => {
+            // User can retry from the UI
+          },
+        },
+      });
     },
   });
 

@@ -62,6 +62,7 @@ import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 import { BatchProgressCard } from './batch-progress-card';
 import { DocumentFilters, type DocStatus, type SortDirection, type SortField } from './document-filters';
 import { PaginationControls } from './pagination-controls';
@@ -101,6 +102,7 @@ function StatusBadge({ status }: { status: DocumentStatus }) {
 export function DocumentManager() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const router = useRouter();
   // TODO: Implement bulk selection in future
   // const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
@@ -269,18 +271,42 @@ export function DocumentManager() {
       if (errorCount === 0) {
         toast.success(
           t('documents.upload.success', { count: successCount }) || `Successfully uploaded ${successCount} file(s)`,
-          { id: toastId, duration: 3000 }
+          { 
+            id: toastId, 
+            duration: 5000,
+            action: {
+              label: t('documents.upload.viewInGraph', 'View in Graph'),
+              onClick: () => router.push('/graph'),
+            },
+          }
         );
       } else if (successCount === 0) {
         toast.error(
           t('documents.upload.allFailed', { count: errorCount }) || `All ${errorCount} file(s) failed to upload`,
-          { id: toastId, duration: 5000 }
+          { 
+            id: toastId, 
+            duration: 5000,
+            action: {
+              label: t('common.retry', 'Retry'),
+              onClick: () => {
+                // Reset and allow user to try again
+                setUploadingFiles([]);
+              },
+            },
+          }
         );
       } else {
         toast.warning(
           t('documents.upload.partial', { success: successCount, failed: errorCount }) || 
             `Uploaded ${successCount} file(s), ${errorCount} failed`,
-          { id: toastId, duration: 5000 }
+          { 
+            id: toastId, 
+            duration: 5000,
+            action: {
+              label: t('documents.upload.viewInGraph', 'View in Graph'),
+              onClick: () => router.push('/graph'),
+            },
+          }
         );
       }
 
@@ -298,7 +324,7 @@ export function DocumentManager() {
         setUploadingFiles([]);
       }, 3000);
     },
-    [queryClient, t]
+    [queryClient, t, router]
   );
 
   // Remove a file from the upload list
@@ -343,33 +369,66 @@ export function DocumentManager() {
   const deleteMutation = useMutation({
     mutationFn: deleteDocument,
     onSuccess: () => {
-      toast.success('Document deleted');
+      toast.success(t('documents.delete.success', 'Document deleted'), {
+        duration: 4000,
+        description: t('documents.delete.successDesc', 'The document has been permanently removed.'),
+      });
       queryClient.invalidateQueries({ queryKey: ['documents'] });
     },
     onError: (error) => {
-      toast.error(`Delete failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(t('documents.delete.failed', 'Delete failed'), {
+        description: error instanceof Error ? error.message : t('common.unknownError', 'Unknown error'),
+        action: {
+          label: t('common.retry', 'Retry'),
+          onClick: () => {
+            // User can retry from the UI
+          },
+        },
+      });
     },
   });
 
   const deleteAllMutation = useMutation({
     mutationFn: deleteAllDocuments,
     onSuccess: (data) => {
-      toast.success(`Deleted ${data.deleted_count} documents`);
+      toast.success(t('documents.deleteAll.success', { count: data.deleted_count }) || `Deleted ${data.deleted_count} documents`, {
+        duration: 4000,
+      });
       queryClient.invalidateQueries({ queryKey: ['documents'] });
     },
     onError: (error) => {
-      toast.error(`Delete all failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(t('documents.deleteAll.failed', 'Delete all failed'), {
+        description: error instanceof Error ? error.message : t('common.unknownError', 'Unknown error'),
+        action: {
+          label: t('common.retry', 'Retry'),
+          onClick: () => deleteAllMutation.mutate(),
+        },
+      });
     },
   });
 
   const reprocessMutation = useMutation({
     mutationFn: reprocessDocument,
     onSuccess: () => {
-      toast.success('Document queued for reprocessing');
+      toast.success(t('documents.reprocess.success', 'Document queued for reprocessing'), {
+        duration: 4000,
+        action: {
+          label: t('documents.viewStatus', 'View Status'),
+          onClick: () => setPipelineDialogOpen(true),
+        },
+      });
       queryClient.invalidateQueries({ queryKey: ['documents'] });
     },
     onError: (error) => {
-      toast.error(`Reprocess failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(t('documents.reprocess.failed', 'Reprocess failed'), {
+        description: error instanceof Error ? error.message : t('common.unknownError', 'Unknown error'),
+        action: {
+          label: t('common.retry', 'Retry'),
+          onClick: () => {
+            // User can retry from the UI
+          },
+        },
+      });
     },
   });
 
