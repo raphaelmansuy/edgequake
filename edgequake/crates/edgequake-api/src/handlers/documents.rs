@@ -308,8 +308,28 @@ pub struct DocumentSummary {
     /// Document title.
     pub title: Option<String>,
 
+    /// Original file name (used for display if title is not set).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_name: Option<String>,
+
     /// Number of chunks.
     pub chunk_count: usize,
+
+    /// Number of entities extracted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entity_count: Option<usize>,
+
+    /// Document processing status.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+
+    /// Creation timestamp (ISO 8601 format).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+
+    /// Last update timestamp (ISO 8601 format).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
 }
 
 /// List all documents.
@@ -338,19 +358,66 @@ pub async fn list_documents(
         }
     }
 
-    // Fetch all metadata
+    // Fetch all metadata and store complete document info
     let metadata_values = state.kv_storage.get_by_ids(&metadata_keys).await?;
-    let mut doc_titles: std::collections::HashMap<String, Option<String>> =
+    
+    // Store complete document metadata, keyed by document ID
+    #[derive(Default)]
+    struct DocMetadata {
+        title: Option<String>,
+        file_name: Option<String>,
+        status: Option<String>,
+        created_at: Option<String>,
+        updated_at: Option<String>,
+        entity_count: Option<usize>,
+    }
+    
+    let mut doc_metadata: std::collections::HashMap<String, DocMetadata> =
         std::collections::HashMap::new();
 
     for value in metadata_values {
         if let Some(obj) = value.as_object() {
             if let Some(id) = obj.get("id").and_then(|v| v.as_str()) {
-                let title = obj
+                let mut meta = DocMetadata::default();
+                
+                // Get title from metadata
+                meta.title = obj
                     .get("title")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
-                doc_titles.insert(id.to_string(), title);
+                
+                // Use title as file_name fallback if it looks like a filename
+                if let Some(ref title) = meta.title {
+                    if title.contains('.') {
+                        meta.file_name = Some(title.clone());
+                    }
+                }
+                
+                // Get status
+                meta.status = obj
+                    .get("status")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                
+                // Get created_at
+                meta.created_at = obj
+                    .get("created_at")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                
+                // Get updated_at
+                meta.updated_at = obj
+                    .get("updated_at")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                
+                // Get entity_count
+                meta.entity_count = obj
+                    .get("entity_count")
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as usize);
+                
+                doc_metadata.insert(id.to_string(), meta);
             }
         }
     }
@@ -358,11 +425,16 @@ pub async fn list_documents(
     let documents: Vec<DocumentSummary> = doc_chunks
         .into_iter()
         .map(|(id, chunk_count)| {
-            let title = doc_titles.get(&id).cloned().flatten();
+            let meta = doc_metadata.remove(&id).unwrap_or_default();
             DocumentSummary {
                 id,
-                title,
+                title: meta.title,
+                file_name: meta.file_name,
                 chunk_count,
+                entity_count: meta.entity_count,
+                status: meta.status,
+                created_at: meta.created_at,
+                updated_at: meta.updated_at,
             }
         })
         .collect();
@@ -949,6 +1021,7 @@ mod tests {
             content: "Test content".to_string(),
             title: Some("Test".to_string()),
             metadata: None,
+            async_processing: false,
         };
 
         assert!(!request.content.is_empty());
@@ -983,9 +1056,10 @@ mod tests {
         let response = UploadDocumentResponse {
             document_id: "doc-123".to_string(),
             status: "processed".to_string(),
-            chunk_count: 5,
-            entity_count: 3,
-            relationship_count: 2,
+            task_id: None,
+            chunk_count: Some(5),
+            entity_count: Some(3),
+            relationship_count: Some(2),
         };
 
         let json = serde_json::to_string(&response).unwrap();
@@ -1014,7 +1088,12 @@ mod tests {
         let summary = DocumentSummary {
             id: "doc-456".to_string(),
             title: Some("My Document".to_string()),
+            file_name: None,
             chunk_count: 10,
+            entity_count: None,
+            status: Some("completed".to_string()),
+            created_at: None,
+            updated_at: None,
         };
 
         let json = serde_json::to_string(&summary).unwrap();
@@ -1028,7 +1107,12 @@ mod tests {
             documents: vec![DocumentSummary {
                 id: "doc-1".to_string(),
                 title: None,
+                file_name: None,
                 chunk_count: 5,
+                entity_count: None,
+                status: Some("completed".to_string()),
+                created_at: None,
+                updated_at: None,
             }],
             total: 1,
             page: 1,

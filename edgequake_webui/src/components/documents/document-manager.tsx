@@ -232,18 +232,18 @@ export function DocumentManager() {
       if (errorCount === 0) {
         toast.success(
           t('documents.upload.success', { count: successCount }) || `Successfully uploaded ${successCount} file(s)`,
-          { id: toastId }
+          { id: toastId, duration: 3000 }
         );
       } else if (successCount === 0) {
         toast.error(
           t('documents.upload.allFailed', { count: errorCount }) || `All ${errorCount} file(s) failed to upload`,
-          { id: toastId }
+          { id: toastId, duration: 5000 }
         );
       } else {
         toast.warning(
           t('documents.upload.partial', { success: successCount, failed: errorCount }) || 
             `Uploaded ${successCount} file(s), ${errorCount} failed`,
-          { id: toastId }
+          { id: toastId, duration: 5000 }
         );
       }
 
@@ -485,10 +485,54 @@ export function DocumentManager() {
           
           {/* Uploading Files List */}
           {uploadingFiles.length > 0 && (
-            <div className="mt-4 space-y-2">
-              <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                {isUploading ? 'Uploading...' : 'Upload Complete'}
-              </h4>
+            <div className="mt-4 space-y-3">
+              {/* Overall Progress Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-semibold">
+                    {isUploading ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        {t('documents.upload.processing', 'Processing Files')}
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                        <CheckCircle className="h-4 w-4" />
+                        {t('documents.upload.complete', 'Upload Complete')}
+                      </span>
+                    )}
+                  </h4>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {uploadingFiles.filter(f => f.status === 'success').length}/{uploadingFiles.length} {t('documents.upload.filesComplete', 'files complete')}
+                </span>
+              </div>
+              
+              {/* Phase Legend */}
+              {isUploading && (
+                <div className="flex items-center gap-4 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-amber-500" />
+                    {t('documents.upload.phase.reading', 'Reading')}
+                  </span>
+                  <span className="text-muted-foreground/50">→</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-blue-500" />
+                    {t('documents.upload.phase.uploading', 'Uploading')}
+                  </span>
+                  <span className="text-muted-foreground/50">→</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-purple-500" />
+                    {t('documents.upload.phase.extracting', 'Extracting')}
+                  </span>
+                  <span className="text-muted-foreground/50">→</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-green-500" />
+                    {t('documents.upload.phase.done', 'Done')}
+                  </span>
+                </div>
+              )}
+              
               <ScrollArea className="max-h-48">
                 <div className="space-y-2">
                   {uploadingFiles.map((uploadFile, index) => (

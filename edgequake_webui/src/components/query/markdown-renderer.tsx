@@ -267,6 +267,10 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     return null;
   }
 
+  // Generate a stable key based on content length to help React reconciliation
+  // This helps prevent errors during rapid content updates
+  const contentKey = `md-${safeContent.length}-${safeContent.slice(0, 20).replace(/\W/g, '')}`;
+
   // Fallback content for when error occurs during streaming
   const fallback = (
     <div className={cn('prose prose-sm dark:prose-invert max-w-none', className)}>
@@ -285,7 +289,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   }
 
   return (
-    <MarkdownErrorBoundary fallback={fallback}>
+    <MarkdownErrorBoundary key={contentKey} fallback={fallback}>
       <div className={cn('prose prose-sm dark:prose-invert max-w-none', className)}>
         <ReactMarkdown
           remarkPlugins={remarkPlugins}

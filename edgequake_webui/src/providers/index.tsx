@@ -18,7 +18,12 @@ export function AppProviders({ children }: AppProvidersProps) {
         <I18nProvider>
           <KeyboardShortcutsProvider>
             {children}
-            <Toaster richColors position="bottom-right" />
+            <Toaster 
+              richColors 
+              position="bottom-right" 
+              duration={3000}
+              closeButton
+            />
           </KeyboardShortcutsProvider>
         </I18nProvider>
       </ThemeProvider>

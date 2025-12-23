@@ -670,12 +670,16 @@ export function QueryInterface() {
     const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user');
     if (!lastUserMessage) return;
 
-    // Remove last assistant message by setting filtered list
-    setMessages(messages.slice(0, -1));
+    // Remove last assistant message
+    const filteredMessages = messages.slice(0, -1);
+    setMessages(filteredMessages);
 
-    // Regenerate
-    handleStreamQuery(lastUserMessage.content);
-  }, [messages, querySettings]);
+    // Defer the regeneration to next tick to ensure state is updated
+    // This prevents race conditions between state update and new message creation
+    setTimeout(() => {
+      handleStreamQuery(lastUserMessage.content);
+    }, 0);
+  }, [messages, setMessages, querySettings]);
 
   // Handle suggestion click
   const handleSuggestionClick = useCallback((text: string) => {
