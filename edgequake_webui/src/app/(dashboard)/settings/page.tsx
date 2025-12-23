@@ -51,6 +51,33 @@ export default function SettingsPage() {
     toast.success('Settings reset to defaults');
   };
 
+  const handleThemeChange = (newTheme: string) => {
+    setTheme(newTheme);
+    toast.success(`Theme changed to ${newTheme}`);
+  };
+
+  const handleLanguageChange = (newLanguage: 'en' | 'zh' | 'ja' | 'ko') => {
+    setLanguage(newLanguage);
+    const languageNames = { en: 'English', zh: '中文', ja: '日本語', ko: '한국어' };
+    toast.success(`Language changed to ${languageNames[newLanguage]}`);
+  };
+
+  const handleGraphSettingsChange = <K extends keyof typeof graphSettings>(
+    key: K,
+    value: typeof graphSettings[K]
+  ) => {
+    setGraphSettings({ [key]: value });
+    toast.success('Graph settings updated');
+  };
+
+  const handleQuerySettingsChange = <K extends keyof typeof querySettings>(
+    key: K,
+    value: typeof querySettings[K]
+  ) => {
+    setQuerySettings({ [key]: value });
+    toast.success('Query settings updated');
+  };
+
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div>
@@ -80,7 +107,7 @@ export default function SettingsPage() {
                 Select your preferred color scheme
               </p>
             </div>
-            <Select value={theme} onValueChange={setTheme}>
+            <Select value={theme} onValueChange={handleThemeChange}>
               <SelectTrigger className="w-[150px]">
                 <SelectValue />
               </SelectTrigger>
@@ -117,7 +144,7 @@ export default function SettingsPage() {
                 Select your preferred language
               </p>
             </div>
-            <Select value={language} onValueChange={(v: 'en' | 'zh' | 'ja' | 'ko') => setLanguage(v)}>
+            <Select value={language} onValueChange={handleLanguageChange}>
               <SelectTrigger className="w-[150px]">
                 <SelectValue />
               </SelectTrigger>
@@ -154,7 +181,7 @@ export default function SettingsPage() {
             </div>
             <Switch
               checked={graphSettings.showLabels}
-              onCheckedChange={(showLabels) => setGraphSettings({ showLabels })}
+              onCheckedChange={(showLabels) => handleGraphSettingsChange('showLabels', showLabels)}
             />
           </div>
 
@@ -170,7 +197,7 @@ export default function SettingsPage() {
             </div>
             <Switch
               checked={graphSettings.showEdgeLabels}
-              onCheckedChange={(showEdgeLabels) => setGraphSettings({ showEdgeLabels })}
+              onCheckedChange={(showEdgeLabels) => handleGraphSettingsChange('showEdgeLabels', showEdgeLabels)}
             />
           </div>
 
@@ -186,7 +213,7 @@ export default function SettingsPage() {
             </div>
             <Select
               value={graphSettings.nodeSize}
-              onValueChange={(nodeSize: 'small' | 'medium' | 'large') => setGraphSettings({ nodeSize })}
+              onValueChange={(nodeSize: 'small' | 'medium' | 'large') => handleGraphSettingsChange('nodeSize', nodeSize)}
             >
               <SelectTrigger className="w-[120px]">
                 <SelectValue />
@@ -211,7 +238,7 @@ export default function SettingsPage() {
             </div>
             <Select
               value={graphSettings.layout}
-              onValueChange={(layout: 'force' | 'circular' | 'random') => setGraphSettings({ layout })}
+              onValueChange={(layout: 'force' | 'circular' | 'random') => handleGraphSettingsChange('layout', layout)}
             >
               <SelectTrigger className="w-[150px]">
                 <SelectValue />
@@ -249,7 +276,7 @@ export default function SettingsPage() {
             <Select
               value={querySettings.mode}
               onValueChange={(mode: 'local' | 'global' | 'hybrid' | 'naive') => 
-                setQuerySettings({ mode })
+                handleQuerySettingsChange('mode', mode)
               }
             >
               <SelectTrigger className="w-[120px]">
@@ -276,7 +303,7 @@ export default function SettingsPage() {
             </div>
             <Switch
               checked={querySettings.stream}
-              onCheckedChange={(stream) => setQuerySettings({ stream })}
+              onCheckedChange={(stream) => handleQuerySettingsChange('stream', stream)}
             />
           </div>
         </CardContent>

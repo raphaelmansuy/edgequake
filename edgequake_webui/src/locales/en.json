@@ -33,11 +33,52 @@
     "pressEscToClose": "Press Esc to close"
   },
   "nav": {
+    "dashboard": "Dashboard",
     "graph": "Knowledge Graph",
     "documents": "Documents",
     "query": "Query",
     "apiExplorer": "API Explorer",
     "settings": "Settings"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome to EdgeQuake - Your Knowledge Graph RAG Platform",
+    "stats": {
+      "documents": "Documents",
+      "documentsDesc": "Uploaded documents",
+      "entities": "Entities",
+      "entitiesDesc": "Extracted entities",
+      "relationships": "Relationships",
+      "relationshipsDesc": "Entity connections",
+      "entityTypes": "Entity Types",
+      "entityTypesDesc": "Unique categories"
+    },
+    "quickActions": {
+      "title": "Quick Actions",
+      "subtitle": "Get started with common tasks",
+      "upload": "Upload Documents",
+      "uploadDesc": "Add new documents to your knowledge base",
+      "query": "Query Knowledge",
+      "queryDesc": "Ask questions about your data",
+      "graph": "View Graph",
+      "graphDesc": "Explore entity relationships"
+    },
+    "recentActivity": {
+      "title": "Recent Activity",
+      "subtitle": "Latest document uploads and processing",
+      "noActivity": "No recent activity",
+      "uploadFirst": "Upload your first document"
+    },
+    "system": {
+      "title": "System Status",
+      "subtitle": "API connection and health",
+      "apiStatus": "API Status",
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "version": "Version",
+      "storage": "Storage",
+      "llmProvider": "LLM Provider"
+    }
   },
   "header": {
     "documents": "Documents",
@@ -57,7 +98,9 @@
       "extracting": "Step 3: Processing pipeline...",
       "success": "{{count}} file(s) uploaded successfully",
       "error": "{{count}} file(s) failed to upload",
-      "complete": "Uploaded! Processing in background..."
+      "complete": "Uploaded! Processing in background...",
+      "fileTooLarge": "File \"{{name}}\" is too large ({{size}}MB). Maximum size is 10MB.",
+      "invalidType": "File \"{{name}}\" has an unsupported format. Supported: TXT, MD, JSON."
     },
     "uploadDrop": "Drag & drop files or click to upload",
     "uploadDropActive": "Drop files here...",

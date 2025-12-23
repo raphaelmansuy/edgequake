@@ -33,11 +33,52 @@
     "pressEscToClose": "Appuyez sur Échap pour fermer"
   },
   "nav": {
+    "dashboard": "Tableau de bord",
     "graph": "Graphe de connaissances",
     "documents": "Documents",
     "query": "Requête",
     "apiExplorer": "Explorateur API",
     "settings": "Paramètres"
+  },
+  "dashboard": {
+    "title": "Tableau de bord",
+    "welcome": "Bienvenue sur EdgeQuake - Votre plateforme RAG de graphe de connaissances",
+    "stats": {
+      "documents": "Documents",
+      "documentsDesc": "Documents téléchargés",
+      "entities": "Entités",
+      "entitiesDesc": "Entités extraites",
+      "relationships": "Relations",
+      "relationshipsDesc": "Connexions entre entités",
+      "entityTypes": "Types d'entités",
+      "entityTypesDesc": "Catégories uniques"
+    },
+    "quickActions": {
+      "title": "Actions rapides",
+      "subtitle": "Commencez avec les tâches courantes",
+      "upload": "Télécharger des documents",
+      "uploadDesc": "Ajouter de nouveaux documents à votre base de connaissances",
+      "query": "Interroger les connaissances",
+      "queryDesc": "Poser des questions sur vos données",
+      "graph": "Voir le graphe",
+      "graphDesc": "Explorer les relations entre entités"
+    },
+    "recentActivity": {
+      "title": "Activité récente",
+      "subtitle": "Derniers téléchargements et traitements de documents",
+      "noActivity": "Aucune activité récente",
+      "uploadFirst": "Téléchargez votre premier document"
+    },
+    "system": {
+      "title": "État du système",
+      "subtitle": "Connexion API et santé",
+      "apiStatus": "État de l'API",
+      "connected": "Connecté",
+      "disconnected": "Déconnecté",
+      "version": "Version",
+      "storage": "Stockage",
+      "llmProvider": "Fournisseur LLM"
+    }
   },
   "header": {
     "documents": "Documents",
@@ -49,7 +90,18 @@
   "documents": {
     "title": "Documents",
     "subtitle": "Téléchargez et gérez les documents pour l'extraction du graphe de connaissances",
-    "upload": "Télécharger",
+    "upload": {
+      "title": "Télécharger",
+      "inProgress": "Téléchargement de {{count}} fichier(s)...",
+      "reading": "Étape 1 : Lecture du fichier...",
+      "uploading": "Étape 2 : Envoi vers le serveur...",
+      "extracting": "Étape 3 : Pipeline de traitement...",
+      "success": "{{count}} fichier(s) téléchargé(s) avec succès",
+      "error": "{{count}} fichier(s) ont échoué",
+      "complete": "Téléchargé ! Traitement en cours...",
+      "fileTooLarge": "Le fichier \"{{name}}\" est trop volumineux ({{size}}Mo). La taille maximale est de 10Mo.",
+      "invalidType": "Le fichier \"{{name}}\" a un format non supporté. Formats supportés : TXT, MD, JSON."
+    },
     "uploadDrop": "Glissez-déposez des fichiers ou cliquez pour télécharger",
     "uploadDropActive": "Déposez les fichiers ici...",
     "uploadSupports": "Supporte les fichiers TXT, MD, JSON",

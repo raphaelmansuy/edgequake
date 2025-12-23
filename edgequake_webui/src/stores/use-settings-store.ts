@@ -30,19 +30,24 @@ const defaultQuerySettings: QuerySettings = {
 };
 
 interface SettingsState extends AppSettings {
+  // Sidebar state
+  sidebarCollapsed: boolean;
   // Actions
   setTheme: (theme: AppSettings["theme"]) => void;
   setLanguage: (language: AppSettings["language"]) => void;
   setGraphSettings: (settings: Partial<GraphSettings>) => void;
   setQuerySettings: (settings: Partial<QuerySettings>) => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  toggleSidebar: () => void;
   resetSettings: () => void;
 }
 
-const initialState: AppSettings = {
+const initialState: AppSettings & { sidebarCollapsed: boolean } = {
   theme: "system",
   language: "en",
   graphSettings: defaultGraphSettings,
   querySettings: defaultQuerySettings,
+  sidebarCollapsed: false,
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -64,6 +69,11 @@ export const useSettingsStore = create<SettingsState>()(
           querySettings: { ...state.querySettings, ...settings },
         })),
 
+      setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+
+      toggleSidebar: () =>
+        set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+
       resetSettings: () => set(initialState),
     }),
     {
@@ -73,6 +83,7 @@ export const useSettingsStore = create<SettingsState>()(
         language: state.language,
         graphSettings: state.graphSettings,
         querySettings: state.querySettings,
+        sidebarCollapsed: state.sidebarCollapsed,
       }),
     }
   )

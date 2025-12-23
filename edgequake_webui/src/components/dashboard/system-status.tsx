@@ -1,0 +1,117 @@
+'use client';
+
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { checkHealth } from '@/lib/api/edgequake';
+import { useQuery } from '@tanstack/react-query';
+import { CheckCircle, Circle, Server, XCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+
+export function SystemStatus() {
+  const { t } = useTranslation();
+
+  const { data: health, isLoading, isError } = useQuery({
+    queryKey: ['health'],
+    queryFn: checkHealth,
+    refetchInterval: 30000,
+    retry: 2,
+  });
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Server className="h-5 w-5" />
+            {t('dashboard.system.title', 'System Status')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-4 w-48" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const isConnected = !isError && health;
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-lg flex items-center gap-2">
+          <Server className="h-5 w-5" />
+          {t('dashboard.system.title', 'System Status')}
+        </CardTitle>
+        <CardDescription>
+          {t('dashboard.system.subtitle', 'API connection and health')}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {/* Connection Status */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">
+              {t('dashboard.system.apiStatus', 'API Status')}
+            </span>
+            <Badge 
+              variant={isConnected ? 'default' : 'destructive'}
+              className="gap-1"
+            >
+              {isConnected ? (
+                <>
+                  <CheckCircle className="h-3 w-3" />
+                  {t('dashboard.system.connected', 'Connected')}
+                </>
+              ) : (
+                <>
+                  <XCircle className="h-3 w-3" />
+                  {t('dashboard.system.disconnected', 'Disconnected')}
+                </>
+              )}
+            </Badge>
+          </div>
+
+          {/* API Version */}
+          {isConnected && health?.version && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">
+                {t('dashboard.system.version', 'Version')}
+              </span>
+              <span className="text-sm font-mono">v{health.version}</span>
+            </div>
+          )}
+
+          {/* Storage Status */}
+          {isConnected && health?.components?.storage && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">
+                {t('dashboard.system.storage', 'Storage')}
+              </span>
+              <Badge variant="outline" className="gap-1">
+                <Circle className={`h-2 w-2 ${health.components.storage === 'up' ? 'fill-green-500 text-green-500' : 'fill-red-500 text-red-500'}`} />
+                {health.components.storage === 'up' ? 'Connected' : 'Disconnected'}
+              </Badge>
+            </div>
+          )}
+
+          {/* LLM Status */}
+          {isConnected && health?.components?.llm_provider && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">
+                {t('dashboard.system.llmProvider', 'LLM Provider')}
+              </span>
+              <Badge variant="outline" className="gap-1">
+                <Circle className={`h-2 w-2 ${health.components.llm_provider === 'up' ? 'fill-green-500 text-green-500' : 'fill-red-500 text-red-500'}`} />
+                {health.components.llm_provider === 'up' ? 'Available' : 'Unavailable'}
+              </Badge>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

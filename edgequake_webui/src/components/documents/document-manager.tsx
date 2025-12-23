@@ -306,11 +306,38 @@ export function DocumentManager() {
     setUploadingFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  // Maximum file size: 10MB
+  const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
   const onDrop = useCallback(
-    async (acceptedFiles: File[]) => {
-      await handleFilesUpload(acceptedFiles);
+    async (acceptedFiles: File[], fileRejections: readonly { file: File; errors: readonly { code: string; message: string }[] }[]) => {
+      // Handle rejected files (too large or wrong type)
+      for (const rejection of fileRejections) {
+        const errorMessages = rejection.errors.map(e => {
+          if (e.code === 'file-too-large') {
+            const sizeMB = (rejection.file.size / (1024 * 1024)).toFixed(2);
+            return t('documents.upload.fileTooLarge', 'File "{{name}}" is too large ({{size}}MB). Maximum size is 10MB.', {
+              name: rejection.file.name,
+              size: sizeMB,
+            });
+          }
+          if (e.code === 'file-invalid-type') {
+            return t('documents.upload.invalidType', 'File "{{name}}" has an unsupported format. Supported: TXT, MD, JSON.', {
+              name: rejection.file.name,
+            });
+          }
+          return e.message;
+        }).join(', ');
+        
+        toast.error(errorMessages);
+      }
+      
+      // Process accepted files
+      if (acceptedFiles.length > 0) {
+        await handleFilesUpload(acceptedFiles);
+      }
     },
-    [handleFilesUpload]
+    [handleFilesUpload, t]
   );
 
   const deleteMutation = useMutation({
@@ -353,6 +380,7 @@ export function DocumentManager() {
       'text/markdown': ['.md'],
       'application/json': ['.json'],
     },
+    maxSize: MAX_FILE_SIZE, // 10MB limit
   });
 
   // Filter documents client-side (fallback when backend doesn't support filtering)

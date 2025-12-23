@@ -33,11 +33,52 @@
     "pressEscToClose": "按 Esc 关闭"
   },
   "nav": {
+    "dashboard": "仪表板",
     "graph": "知识图谱",
     "documents": "文档",
     "query": "查询",
     "apiExplorer": "API浏览器",
     "settings": "设置"
+  },
+  "dashboard": {
+    "title": "仪表板",
+    "welcome": "欢迎使用 EdgeQuake - 您的知识图谱 RAG 平台",
+    "stats": {
+      "documents": "文档",
+      "documentsDesc": "已上传文档",
+      "entities": "实体",
+      "entitiesDesc": "提取的实体",
+      "relationships": "关系",
+      "relationshipsDesc": "实体连接",
+      "entityTypes": "实体类型",
+      "entityTypesDesc": "唯一类别"
+    },
+    "quickActions": {
+      "title": "快捷操作",
+      "subtitle": "开始常见任务",
+      "upload": "上传文档",
+      "uploadDesc": "添加新文档到知识库",
+      "query": "查询知识",
+      "queryDesc": "提问您的数据",
+      "graph": "查看图谱",
+      "graphDesc": "探索实体关系"
+    },
+    "recentActivity": {
+      "title": "最近活动",
+      "subtitle": "最新文档上传和处理",
+      "noActivity": "暂无活动",
+      "uploadFirst": "上传您的第一个文档"
+    },
+    "system": {
+      "title": "系统状态",
+      "subtitle": "API 连接和健康状态",
+      "apiStatus": "API 状态",
+      "connected": "已连接",
+      "disconnected": "已断开",
+      "version": "版本",
+      "storage": "存储",
+      "llmProvider": "LLM 提供者"
+    }
   },
   "header": {
     "documents": "文档",
@@ -49,7 +90,18 @@
   "documents": {
     "title": "文档",
     "subtitle": "上传和管理用于知识图谱提取的文档",
-    "upload": "上传",
+    "upload": {
+      "title": "上传",
+      "inProgress": "正在上传 {{count}} 个文件...",
+      "reading": "步骤 1: 读取文件...",
+      "uploading": "步骤 2: 上传到服务器...",
+      "extracting": "步骤 3: 处理管道...",
+      "success": "{{count}} 个文件上传成功",
+      "error": "{{count}} 个文件上传失败",
+      "complete": "已上传！正在后台处理...",
+      "fileTooLarge": "文件 \"{{name}}\" 太大 ({{size}}MB)。最大限制为 10MB。",
+      "invalidType": "文件 \"{{name}}\" 格式不支持。支持格式：TXT、MD、JSON。"
+    },
     "uploadDrop": "拖放文件或点击上传",
     "uploadDropActive": "将文件放在这里...",
     "uploadSupports": "支持 TXT、MD、JSON 文件",
