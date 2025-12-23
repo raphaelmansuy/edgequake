@@ -33,10 +33,7 @@ pub async fn get_task(
 
     match task {
         Some(task) => Ok(Json(TaskResponse::from(task))),
-        None => Err(ApiError::NotFound(format!(
-            "Task not found: {}",
-            track_id
-        ))),
+        None => Err(ApiError::NotFound(format!("Task not found: {}", track_id))),
     }
 }
 
@@ -100,7 +97,11 @@ pub async fn list_tasks(
         .map_err(|e| ApiError::Internal(format!("Failed to get statistics: {}", e)))?;
 
     Ok(Json(TaskListResponse {
-        tasks: task_list.tasks.into_iter().map(TaskResponse::from).collect(),
+        tasks: task_list
+            .tasks
+            .into_iter()
+            .map(TaskResponse::from)
+            .collect(),
         pagination: PaginationInfo {
             total: task_list.total,
             page: task_list.page,
@@ -227,12 +228,31 @@ pub struct TaskResponse {
     pub updated_at: String,
     pub started_at: Option<String>,
     pub completed_at: Option<String>,
+    /// Simple error message (backward compatibility).
     pub error_message: Option<String>,
+    /// Detailed error information (Phase 1 enhancement).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<TaskErrorResponse>,
     pub retry_count: i32,
     pub max_retries: i32,
     pub progress: Option<serde_json::Value>,
     pub result: Option<serde_json::Value>,
     pub metadata: Option<serde_json::Value>,
+}
+
+/// Detailed error response for failed tasks.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct TaskErrorResponse {
+    /// High-level error message.
+    pub message: String,
+    /// Processing step where failure occurred.
+    pub step: String,
+    /// Specific reason for the failure.
+    pub reason: String,
+    /// Suggested action to fix the issue.
+    pub suggestion: String,
+    /// Whether this error is retryable.
+    pub retryable: bool,
 }
 
 impl From<edgequake_tasks::Task> for TaskResponse {
@@ -246,6 +266,13 @@ impl From<edgequake_tasks::Task> for TaskResponse {
             started_at: task.started_at.map(|t| t.to_rfc3339()),
             completed_at: task.completed_at.map(|t| t.to_rfc3339()),
             error_message: task.error_message,
+            error: task.error.map(|e| TaskErrorResponse {
+                message: e.message,
+                step: e.step,
+                reason: e.reason,
+                suggestion: e.suggestion,
+                retryable: e.retryable,
+            }),
             retry_count: task.retry_count,
             max_retries: task.max_retries,
             progress: task.progress.and_then(|p| serde_json::to_value(p).ok()),

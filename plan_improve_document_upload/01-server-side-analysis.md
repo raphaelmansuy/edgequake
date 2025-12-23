@@ -69,15 +69,18 @@ pub struct UploadDocumentResponse {
 ### Processing Modes
 
 #### Synchronous Mode (Default)
+
 ```
 Client Request → Upload → Process → Extract → Index → Response
                                     (blocking)
 ```
+
 - Returns immediately with full results
 - Good for small documents
 - No task_id returned
 
 #### Asynchronous Mode (async_processing=true)
+
 ```
 Client Request → Upload → Create Task → Response
                               ↓
@@ -85,6 +88,7 @@ Client Request → Upload → Create Task → Response
                               ↓
                       Process in Background
 ```
+
 - Returns immediately with task_id
 - Client polls `/tasks/{task_id}` for status
 - Scalable for large documents
@@ -105,10 +109,10 @@ if request.async_processing.unwrap_or(false) {
             "title": title,
         }),
     );
-    
+
     // Queue task for background processing
     task_store.add_task(task).await?;
-    
+
     // Return immediately with task_id
     Ok(Json(UploadDocumentResponse {
         document_id,
@@ -182,16 +186,16 @@ pub struct TaskProgress {
 ┌─────────┐     ┌────────────┐     ┌─────────┐
 │ Pending │────▶│ Processing │────▶│ Indexed │
 └─────────┘     └────────────┘     └─────────┘
-     │               │                   
-     │               ▼                   
-     │          ┌─────────┐              
+     │               │
+     │               ▼
+     │          ┌─────────┐
      │          │ Failed  │──(retry)──▶ Pending
-     │          └─────────┘              
-     │               │                   
-     ▼               ▼                   
-┌───────────┐                            
-│ Cancelled │                            
-└───────────┘                            
+     │          └─────────┘
+     │               │
+     ▼               ▼
+┌───────────┐
+│ Cancelled │
+└───────────┘
 ```
 
 ### Task Methods
@@ -259,14 +263,14 @@ pub struct StatisticsInfo {
 
 ### Task Query Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `status` | string | - | Filter by status (pending, processing, indexed, failed, cancelled) |
-| `task_type` | string | - | Filter by type (upload, insert, scan, reindex) |
-| `page` | int | 1 | Page number |
-| `page_size` | int | 20 | Items per page |
-| `sort_by` | string | created_at | Sort field |
-| `sort_order` | string | desc | Sort direction (asc, desc) |
+| Parameter    | Type   | Default    | Description                                                        |
+| ------------ | ------ | ---------- | ------------------------------------------------------------------ |
+| `status`     | string | -          | Filter by status (pending, processing, indexed, failed, cancelled) |
+| `task_type`  | string | -          | Filter by type (upload, insert, scan, reindex)                     |
+| `page`       | int    | 1          | Page number                                                        |
+| `page_size`  | int    | 20         | Items per page                                                     |
+| `sort_by`    | string | created_at | Sort field                                                         |
+| `sort_order` | string | desc       | Sort direction (asc, desc)                                         |
 
 ### Endpoint: `GET /tasks/:track_id`
 
@@ -348,29 +352,29 @@ pub struct WorkerPool {
 impl WorkerPool {
     pub async fn process_task(&self, task: &mut Task) -> Result<()> {
         task.mark_processing();
-        
+
         match &task.task_type {
             TaskType::Upload => {
                 let document_id = task.payload["document_id"].as_str()?;
                 let content = task.payload["content"].as_str()?;
                 let title = task.payload["title"].as_str();
-                
+
                 // Update progress: chunking
                 task.update_progress(1, 4);
                 let chunks = chunker.chunk(&content)?;
-                
+
                 // Update progress: embedding
                 task.update_progress(2, 4);
                 let embeddings = embedder.embed(&chunks).await?;
-                
+
                 // Update progress: entity extraction
                 task.update_progress(3, 4);
                 let entities = extractor.extract(&content).await?;
-                
+
                 // Update progress: indexing
                 task.update_progress(4, 4);
                 storage.index(document_id, chunks, embeddings, entities).await?;
-                
+
                 task.mark_success(json!({
                     "chunk_count": chunks.len(),
                     "entity_count": entities.len(),
@@ -378,7 +382,7 @@ impl WorkerPool {
             }
             // ... other task types
         }
-        
+
         Ok(())
     }
 }
@@ -387,37 +391,44 @@ impl WorkerPool {
 ## Current Limitations
 
 ### 1. No Batch Progress Tracking
+
 - Tasks track individual progress (current_step/total_steps)
 - No global batch progress (documents processed / total documents)
 - Missing: `batchs`, `cur_batch` like LightRAG
 
 ### 2. No History Messages
+
 - No log of processing activities
 - Missing: `history_messages`, `latest_message` like LightRAG
 
 ### 3. No Track ID Grouping
+
 - Each task has individual track_id
 - No way to group documents uploaded in same batch
 - Missing: `TrackStatusResponse` like LightRAG
 
 ### 4. Limited Document Metadata
+
 - Missing `content_summary` (first N chars of content)
 - Missing `file_path` (original file location)
 - Missing `error_msg` in document response
 
 ### 5. No Status Counts in List Response
+
 - Client must count statuses manually
 - Missing: `status_counts` like LightRAG's `PaginatedDocsResponse`
 
 ## Summary
 
 EdgeQuake has a solid foundation with:
+
 - ✅ Async task processing with worker pool
 - ✅ Task progress tracking (steps, percent)
 - ✅ Task retry and cancellation
 - ✅ Task statistics (pending, processing, indexed, failed, cancelled)
 
 Key gaps compared to LightRAG:
+
 - ❌ Batch/job-level progress tracking
 - ❌ Real-time history messages
 - ❌ Track-based document grouping

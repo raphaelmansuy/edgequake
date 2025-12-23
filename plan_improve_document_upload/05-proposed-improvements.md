@@ -17,23 +17,23 @@ pub struct PipelineStatusResponse {
     pub is_busy: bool,
     pub job_name: Option<String>,
     pub job_start: Option<String>,  // ISO timestamp
-    
+
     // Batch progress
     pub total_documents: u32,
     pub processed_documents: u32,
     pub total_batches: u32,
     pub current_batch: u32,
-    
+
     // Task statistics
     pub pending_tasks: u32,
     pub processing_tasks: u32,
     pub completed_tasks: u32,
     pub failed_tasks: u32,
-    
+
     // Real-time messages
     pub latest_message: Option<String>,
     pub history_messages: Vec<PipelineMessage>,
-    
+
     // Control state
     pub cancellation_requested: bool,
 }
@@ -47,6 +47,7 @@ pub struct PipelineMessage {
 ```
 
 **Example Response:**
+
 ```json
 {
   "is_busy": true,
@@ -62,10 +63,26 @@ pub struct PipelineMessage {
   "failed_tasks": 0,
   "latest_message": "Extracting entities from document_005...",
   "history_messages": [
-    { "timestamp": "2024-01-15T10:30:45Z", "level": "info", "message": "Starting batch processing for 10 documents" },
-    { "timestamp": "2024-01-15T10:30:46Z", "level": "info", "message": "Batch 1: Processing documents 1-4" },
-    { "timestamp": "2024-01-15T10:30:50Z", "level": "info", "message": "Batch 1: Extracted 45 entities" },
-    { "timestamp": "2024-01-15T10:30:51Z", "level": "info", "message": "Batch 2: Processing documents 5-8" }
+    {
+      "timestamp": "2024-01-15T10:30:45Z",
+      "level": "info",
+      "message": "Starting batch processing for 10 documents"
+    },
+    {
+      "timestamp": "2024-01-15T10:30:46Z",
+      "level": "info",
+      "message": "Batch 1: Processing documents 1-4"
+    },
+    {
+      "timestamp": "2024-01-15T10:30:50Z",
+      "level": "info",
+      "message": "Batch 1: Extracted 45 entities"
+    },
+    {
+      "timestamp": "2024-01-15T10:30:51Z",
+      "level": "info",
+      "message": "Batch 2: Processing documents 5-8"
+    }
   ],
   "cancellation_requested": false
 }
@@ -102,6 +119,7 @@ pub struct UploadDocumentResponse {
 **Example Responses:**
 
 Success:
+
 ```json
 {
   "document_id": "doc_abc123",
@@ -115,6 +133,7 @@ Success:
 ```
 
 Duplicate:
+
 ```json
 {
   "document_id": "doc_abc123",
@@ -166,6 +185,7 @@ pub struct StatusCounts {
 ```
 
 **Example Response:**
+
 ```json
 {
   "documents": [
@@ -216,6 +236,7 @@ pub struct TrackStatusResponse {
 ```
 
 **Example Response:**
+
 ```json
 {
   "track_id": "upload_20240115_103045_batch1",
@@ -253,13 +274,13 @@ pub struct TaskResponse {
     pub completed_at: Option<String>,
     pub retry_count: u32,
     pub max_retries: u32,
-    
+
     // Progress
     pub progress: Option<TaskProgress>,
-    
+
     // Enhanced error info
     pub error: Option<TaskError>,  // NEW: Detailed error
-    
+
     // Results
     pub result: Option<Value>,
     pub metadata: Option<Value>,
@@ -276,6 +297,7 @@ pub struct TaskError {
 ```
 
 **Example Error:**
+
 ```json
 {
   "track_id": "task_xyz789",
@@ -321,7 +343,7 @@ impl PipelineState {
             self.messages.remove(0);
         }
     }
-    
+
     pub fn start_job(&mut self, name: String, total_docs: u32, batches: u32) {
         self.is_busy = true;
         self.job_name = Some(name.clone());
@@ -332,16 +354,16 @@ impl PipelineState {
         self.total_batches = batches;
         self.log("info", format!("Starting job: {}", name));
     }
-    
+
     pub fn advance_batch(&mut self) {
         self.current_batch += 1;
         self.log("info", format!(
-            "Processing batch {}/{}", 
-            self.current_batch, 
+            "Processing batch {}/{}",
+            self.current_batch,
             self.total_batches
         ));
     }
-    
+
     pub fn document_processed(&mut self, doc_id: &str, entity_count: usize) {
         self.processed_documents += 1;
         self.log("info", format!(
@@ -350,7 +372,7 @@ impl PipelineState {
             self.processed_documents, self.total_documents
         ));
     }
-    
+
     pub fn finish_job(&mut self) {
         self.log("info", format!(
             "Job complete: {} documents processed",
@@ -370,27 +392,27 @@ impl WorkerPool {
     pub async fn process_batch(&self, tasks: Vec<Task>) -> Result<()> {
         let batch_size = 4;
         let total_batches = (tasks.len() + batch_size - 1) / batch_size;
-        
+
         // Start job
         self.pipeline_state.lock().await.start_job(
             format!("Processing {} documents", tasks.len()),
             tasks.len() as u32,
             total_batches as u32,
         );
-        
+
         for (batch_idx, batch) in tasks.chunks(batch_size).enumerate() {
             self.pipeline_state.lock().await.advance_batch();
-            
+
             for task in batch {
                 // Log processing start
                 self.pipeline_state.lock().await.log(
                     "info",
                     format!("Extracting entities from {}...", task.track_id),
                 );
-                
+
                 // Process task
                 let result = self.process_single_task(task).await;
-                
+
                 match result {
                     Ok(entities) => {
                         self.pipeline_state.lock().await.document_processed(
@@ -407,7 +429,7 @@ impl WorkerPool {
                 }
             }
         }
-        
+
         self.pipeline_state.lock().await.finish_job();
         Ok(())
     }
@@ -441,7 +463,7 @@ interface EnhancedPipelineStatus {
 
 interface PipelineMessage {
   timestamp: string;
-  level: 'info' | 'warn' | 'error';
+  level: "info" | "warn" | "error";
   message: string;
 }
 ```
@@ -493,10 +515,12 @@ export function PipelineStatusDialog({ open, onOpenChange }: Props) {
   const historyRef = useRef<HTMLDivElement>(null);
   const [isUserScrolled, setIsUserScrolled] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-  const [position, setPosition] = useState<'left' | 'center' | 'right'>('center');
+  const [position, setPosition] = useState<"left" | "center" | "right">(
+    "center"
+  );
 
   const { data: status } = useQuery({
-    queryKey: ['pipeline-status'],
+    queryKey: ["pipeline-status"],
     queryFn: getEnhancedPipelineStatus,
     refetchInterval: open ? 2000 : false,
     enabled: open,
@@ -509,9 +533,10 @@ export function PipelineStatusDialog({ open, onOpenChange }: Props) {
     container.scrollTop = container.scrollHeight;
   }, [status?.history_messages, isUserScrolled]);
 
-  const progress = status?.total_documents > 0
-    ? (status.processed_documents / status.total_documents) * 100
-    : 0;
+  const progress =
+    status?.total_documents > 0
+      ? (status.processed_documents / status.total_documents) * 100
+      : 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -520,7 +545,7 @@ export function PipelineStatusDialog({ open, onOpenChange }: Props) {
           <DialogTitle className="flex items-center justify-between">
             <span className="flex items-center gap-2">
               <Activity className="h-5 w-5" />
-              {t('pipeline.title')}
+              {t("pipeline.title")}
             </span>
             <PositionControls position={position} onChange={setPosition} />
           </DialogTitle>
@@ -536,28 +561,39 @@ export function PipelineStatusDialog({ open, onOpenChange }: Props) {
                   {status.job_name}
                 </span>
                 <span className="text-sm text-muted-foreground">
-                  {status.processed_documents}/{status.total_documents} ({progress.toFixed(0)}%)
+                  {status.processed_documents}/{status.total_documents} (
+                  {progress.toFixed(0)}%)
                 </span>
               </div>
               <Progress value={progress} />
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>Started: {formatTime(status.job_start)}</span>
-                <span>Batch {status.current_batch}/{status.total_batches}</span>
+                <span>
+                  Batch {status.current_batch}/{status.total_batches}
+                </span>
               </div>
             </div>
 
             {/* Statistics */}
             <div className="grid grid-cols-4 gap-2 text-center">
               <StatBox label="Pending" value={status.pending_tasks} />
-              <StatBox label="Running" value={status.processing_tasks} color="yellow" />
-              <StatBox label="Complete" value={status.completed_tasks} color="green" />
+              <StatBox
+                label="Running"
+                value={status.processing_tasks}
+                color="yellow"
+              />
+              <StatBox
+                label="Complete"
+                value={status.completed_tasks}
+                color="green"
+              />
               <StatBox label="Failed" value={status.failed_tasks} color="red" />
             </div>
 
             {/* Messages */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Messages:</label>
-              <ScrollArea 
+              <ScrollArea
                 ref={historyRef}
                 onScroll={handleScroll}
                 className="h-48 rounded-md bg-muted p-3 font-mono text-xs"
@@ -610,48 +646,52 @@ export function PipelineStatusDialog({ open, onOpenChange }: Props) {
 ```tsx
 // Enhanced upload handler
 const handleFilesUpload = useCallback(async (files: File[]) => {
-  const trackId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  
+  const trackId = `upload_${Date.now()}_${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+
   // Show batch in UI
   setCurrentBatch({
     trackId,
-    files: files.map(f => ({ name: f.name, status: 'pending' })),
+    files: files.map((f) => ({ name: f.name, status: "pending" })),
   });
-  
+
   for (const file of files) {
     const response = await uploadDocument({
       content: await file.text(),
       title: file.name,
-      track_id: trackId,  // All files share same track
+      track_id: trackId, // All files share same track
       async_processing: true,
     });
-    
+
     // Handle duplicate
-    if (response.status === 'duplicated') {
+    if (response.status === "duplicated") {
       toast.warning(`${file.name} already exists`);
     }
   }
-  
+
   // Start polling track status
   setPollingTrackId(trackId);
 }, []);
 
 // Poll track status
 const { data: trackStatus } = useQuery({
-  queryKey: ['track-status', pollingTrackId],
+  queryKey: ["track-status", pollingTrackId],
   queryFn: () => getTrackStatus(pollingTrackId),
   refetchInterval: 2000,
   enabled: !!pollingTrackId,
 });
 
 // Show batch progress
-{trackStatus && (
-  <BatchProgress
-    trackId={trackStatus.track_id}
-    documents={trackStatus.documents}
-    summary={trackStatus.status_summary}
-  />
-)}
+{
+  trackStatus && (
+    <BatchProgress
+      trackId={trackStatus.track_id}
+      documents={trackStatus.documents}
+      summary={trackStatus.status_summary}
+    />
+  );
+}
 ```
 
 ### 3. Status Counts in Filters
@@ -659,7 +699,7 @@ const { data: trackStatus } = useQuery({
 ```tsx
 // Use server-side counts instead of client-side calculation
 const { data } = useQuery({
-  queryKey: ['documents', page, pageSize],
+  queryKey: ["documents", page, pageSize],
   queryFn: () => getDocuments({ page, page_size: pageSize }),
 });
 
@@ -672,14 +712,15 @@ const statusCounts = data?.status_counts || {
 };
 
 <DocumentFilters
-  statusCounts={statusCounts}  // From API, not calculated
+  statusCounts={statusCounts} // From API, not calculated
   // ...
-/>
+/>;
 ```
 
 ## Summary
 
 ### API Changes
+
 1. **Enhanced Pipeline Status** - Add batch progress, messages
 2. **Track ID System** - Group uploaded documents
 3. **Status Counts** - Return in list response
@@ -687,6 +728,7 @@ const statusCounts = data?.status_counts || {
 5. **Detailed Errors** - Step, reason, suggestion
 
 ### Frontend Changes
+
 1. **Enhanced Pipeline Dialog** - Progress bar, messages, position control
 2. **Batch Upload** - Track ID, group progress
 3. **Server-Side Counts** - Use API counts for filters

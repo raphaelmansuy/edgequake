@@ -7,28 +7,33 @@
 ## Actions
 
 1. **Backend - StatusCounts in List Response**
+
    - Added `StatusCounts` struct with pending, processing, completed, failed counts
    - Updated `ListDocumentsResponse` to include `status_counts`
    - Server now calculates counts for ALL documents (not just current page)
 
 2. **Backend - Enhanced DocumentSummary**
+
    - Added `content_summary` (first 200 chars of document)
    - Added `content_length` (total characters)
    - Added `error_message` (if processing failed)
    - Added `track_id` (for batch grouping)
 
 3. **Backend - Track ID System**
+
    - Added `track_id: Option<String>` to UploadDocumentRequest
    - Added `track_id: String` and `duplicate_of: Option<String>` to UploadDocumentResponse
    - Auto-generate track_id as `upload_YYYYMMDD_HHMMSS_UUID` if not provided
    - Store track_id in document metadata
 
 4. **Backend - Content Hash for Duplicate Detection**
+
    - Compute SHA256 hash of content using `sha2` crate
    - Store `content_hash` in document metadata
    - Prepare infrastructure for duplicate detection
 
 5. **Frontend - TypeScript Types**
+
    - Added `DocumentStatusCounts` interface
    - Added `ListDocumentsResponse` interface
    - Extended `Document` with content_summary, content_length, track_id, indexed status
@@ -36,10 +41,12 @@
    - Extended `UploadDocumentResponse` with track_id, duplicate_of
 
 6. **Frontend - API Functions**
+
    - Created `DocumentsListResult` extending PaginatedResponse with status_counts
    - Updated `getDocuments()` to return status_counts from API
 
 7. **Frontend - Document Manager**
+
    - Use server-side status_counts instead of client-side calculation
    - Fall back to client-side calculation if API doesn't return counts
    - Added 'indexed' status to StatusBadge components

@@ -82,8 +82,11 @@ pub struct Task {
     /// When task completed (success or failure)
     pub completed_at: Option<DateTime<Utc>>,
 
-    /// Error message if failed
+    /// Error message if failed (kept for backward compatibility)
     pub error_message: Option<String>,
+
+    /// Detailed error information (Phase 1 enhancement)
+    pub error: Option<TaskFailureInfo>,
 
     /// Number of retry attempts
     pub retry_count: i32,
@@ -112,6 +115,95 @@ pub struct TaskProgress {
     pub percent_complete: u8,
 }
 
+/// Detailed error information for failed tasks.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskFailureInfo {
+    /// High-level error message.
+    pub message: String,
+    /// Processing step where failure occurred: "chunking", "embedding", "extraction", "indexing".
+    pub step: String,
+    /// Specific reason for the failure.
+    pub reason: String,
+    /// Suggested action to fix the issue.
+    pub suggestion: String,
+    /// Whether this error is retryable.
+    pub retryable: bool,
+}
+
+impl TaskFailureInfo {
+    /// Create a new task error.
+    pub fn new(
+        message: impl Into<String>,
+        step: impl Into<String>,
+        reason: impl Into<String>,
+        suggestion: impl Into<String>,
+        retryable: bool,
+    ) -> Self {
+        Self {
+            message: message.into(),
+            step: step.into(),
+            reason: reason.into(),
+            suggestion: suggestion.into(),
+            retryable,
+        }
+    }
+
+    /// Create a chunking error.
+    pub fn chunking(reason: impl Into<String>) -> Self {
+        Self::new(
+            "Document chunking failed",
+            "chunking",
+            reason,
+            "Check document format and encoding",
+            true,
+        )
+    }
+
+    /// Create an embedding error.
+    pub fn embedding(reason: impl Into<String>) -> Self {
+        Self::new(
+            "Embedding generation failed",
+            "embedding",
+            reason,
+            "Check LLM provider connectivity and API limits",
+            true,
+        )
+    }
+
+    /// Create an extraction error.
+    pub fn extraction(reason: impl Into<String>) -> Self {
+        Self::new(
+            "Entity extraction failed",
+            "extraction",
+            reason,
+            "Check LLM provider connectivity and API limits",
+            true,
+        )
+    }
+
+    /// Create an indexing error.
+    pub fn indexing(reason: impl Into<String>) -> Self {
+        Self::new(
+            "Graph indexing failed",
+            "indexing",
+            reason,
+            "Check storage backend connectivity",
+            true,
+        )
+    }
+
+    /// Create a rate limit error.
+    pub fn rate_limit(step: impl Into<String>) -> Self {
+        Self::new(
+            "Rate limit exceeded",
+            step,
+            "API rate limit exceeded",
+            "Wait 30 seconds and retry, or reduce batch size",
+            true,
+        )
+    }
+}
+
 impl Task {
     /// Create a new task
     pub fn new(task_type: TaskType, task_data: serde_json::Value) -> Self {
@@ -127,6 +219,7 @@ impl Task {
             started_at: None,
             completed_at: None,
             error_message: None,
+            error: None,
             retry_count: 0,
             max_retries: 3,
             task_data,
@@ -149,14 +242,26 @@ impl Task {
         self.completed_at = Some(Utc::now());
         self.updated_at = Utc::now();
         self.result = Some(result);
+        self.error = None;
+        self.error_message = None;
     }
 
-    /// Mark task as failed
+    /// Mark task as failed with simple error message (backward compatible)
     pub fn mark_failed(&mut self, error: String) {
         self.status = TaskStatus::Failed;
         self.completed_at = Some(Utc::now());
         self.updated_at = Utc::now();
         self.error_message = Some(error);
+        self.retry_count += 1;
+    }
+
+    /// Mark task as failed with detailed error information (Phase 1 enhancement)
+    pub fn mark_failed_with_details(&mut self, error: TaskFailureInfo) {
+        self.status = TaskStatus::Failed;
+        self.completed_at = Some(Utc::now());
+        self.updated_at = Utc::now();
+        self.error_message = Some(error.message.clone());
+        self.error = Some(error);
         self.retry_count += 1;
     }
 
@@ -179,15 +284,14 @@ impl Task {
 
     /// Check if task can be retried
     pub fn can_retry(&self) -> bool {
-        self.status == TaskStatus::Failed && self.retry_count < self.max_retries
+        let is_retryable = self.error.as_ref().map(|e| e.retryable).unwrap_or(true);
+        self.status == TaskStatus::Failed && self.retry_count < self.max_retries && is_retryable
     }
 
     /// Check if task is terminal (completed or permanently failed)
     pub fn is_terminal(&self) -> bool {
-        matches!(
-            self.status,
-            TaskStatus::Indexed | TaskStatus::Cancelled
-        ) || (self.status == TaskStatus::Failed && !self.can_retry())
+        matches!(self.status, TaskStatus::Indexed | TaskStatus::Cancelled)
+            || (self.status == TaskStatus::Failed && !self.can_retry())
     }
 }
 
@@ -297,7 +401,7 @@ mod tests {
 
         task.update_progress("parsing_files".to_string(), 4, 25);
         assert!(task.progress.is_some());
-        
+
         let progress = task.progress.as_ref().unwrap();
         assert_eq!(progress.current_step, "parsing_files");
         assert_eq!(progress.total_steps, 4);
@@ -314,5 +418,75 @@ mod tests {
 
         // IDs should be unique
         assert_ne!(track_id, track_id2);
+    }
+
+    #[test]
+    fn test_task_error_creation() {
+        let error = TaskFailureInfo::new(
+            "Test error",
+            "chunking",
+            "Invalid format",
+            "Check the file format",
+            true,
+        );
+
+        assert_eq!(error.message, "Test error");
+        assert_eq!(error.step, "chunking");
+        assert_eq!(error.reason, "Invalid format");
+        assert_eq!(error.suggestion, "Check the file format");
+        assert!(error.retryable);
+    }
+
+    #[test]
+    fn test_task_error_helpers() {
+        let chunking_error = TaskFailureInfo::chunking("Invalid UTF-8");
+        assert_eq!(chunking_error.step, "chunking");
+        assert!(chunking_error.retryable);
+
+        let embedding_error = TaskFailureInfo::embedding("API timeout");
+        assert_eq!(embedding_error.step, "embedding");
+
+        let extraction_error = TaskFailureInfo::extraction("No entities found");
+        assert_eq!(extraction_error.step, "extraction");
+
+        let indexing_error = TaskFailureInfo::indexing("Database connection failed");
+        assert_eq!(indexing_error.step, "indexing");
+
+        let rate_limit_error = TaskFailureInfo::rate_limit("extraction");
+        assert!(rate_limit_error.reason.contains("rate limit"));
+    }
+
+    #[test]
+    fn test_task_failed_with_details() {
+        let data = serde_json::json!({});
+        let mut task = Task::new(TaskType::Insert, data);
+
+        let error = TaskFailureInfo::extraction("API rate limit exceeded");
+        task.mark_failed_with_details(error);
+
+        assert_eq!(task.status, TaskStatus::Failed);
+        assert!(task.error.is_some());
+        assert_eq!(task.error.as_ref().unwrap().step, "extraction");
+        assert_eq!(
+            task.error_message.as_ref().unwrap(),
+            "Entity extraction failed"
+        );
+    }
+
+    #[test]
+    fn test_non_retryable_error() {
+        let data = serde_json::json!({});
+        let mut task = Task::new(TaskType::Insert, data);
+
+        let error = TaskFailureInfo::new(
+            "Permanent error",
+            "indexing",
+            "Invalid data",
+            "Contact support",
+            false, // Not retryable
+        );
+        task.mark_failed_with_details(error);
+
+        assert!(!task.can_retry()); // Should not be retryable
     }
 }

@@ -23,12 +23,14 @@ pub mod error;
 pub mod handlers;
 pub mod middleware;
 pub mod openapi;
+pub mod processor;
 pub mod routes;
 pub mod server;
 pub mod state;
 
 pub use error::{ApiError, ApiResult};
 pub use middleware::{AuthConfig, AuthState, RateLimitConfig};
+pub use processor::DocumentTaskProcessor;
 pub use routes::create_router;
 pub use server::{Server, ServerConfig};
 pub use state::AppState;

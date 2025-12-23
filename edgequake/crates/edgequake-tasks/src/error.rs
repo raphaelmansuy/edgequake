@@ -43,6 +43,22 @@ pub enum TaskError {
     #[error("Invalid task data: {0}")]
     InvalidTaskData(String),
 
+    /// Pipeline processing error.
+    #[error("Processing error: {0}")]
+    Process(String),
+
+    /// Storage operation error.
+    #[error("Storage error: {0}")]
+    Storage(String),
+
+    /// Invalid task payload.
+    #[error("Invalid payload: {0}")]
+    InvalidPayload(String),
+
+    /// Unsupported operation.
+    #[error("Unsupported operation: {0}")]
+    UnsupportedOperation(String),
+
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 }

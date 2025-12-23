@@ -7,19 +7,23 @@
 ## Actions
 
 1. **Backend - DocumentSummary Enhancement**
+
    - Added `file_name`, `status`, `created_at`, `updated_at`, `entity_count` fields to `DocumentSummary` struct
    - Updated `list_documents` handler to parse complete metadata from KV storage
    - Fixed related unit tests
 
 2. **Frontend - Toast Duration Fix**
+
    - Added `duration={3000}` and `closeButton` props to global Toaster
    - Added explicit `duration: 3000` (success) and `duration: 5000` (error/warning) to upload toasts
 
 3. **Frontend - Markdown Renderer Error Fix**
+
    - Added content-based key to MarkdownErrorBoundary for proper reconciliation
    - Key format: `md-{length}-{prefix}` to help React reset error state on content change
 
 4. **Frontend - Query Regenerate Race Condition Fix**
+
    - Fixed `handleRegenerate` to use `setTimeout(..., 0)` to defer `handleStreamQuery`
    - Ensures state update completes before new message is added
 

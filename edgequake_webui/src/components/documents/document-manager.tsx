@@ -62,7 +62,7 @@ import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-// import { BatchProgressCard } from './batch-progress-card'; // Disabled until async processing is ready
+import { BatchProgressCard } from './batch-progress-card';
 import { DocumentFilters, type DocStatus, type SortDirection, type SortField } from './document-filters';
 import { PaginationControls } from './pagination-controls';
 import { PipelineStatusDialog } from './pipeline-status-dialog';
@@ -120,8 +120,8 @@ export function DocumentManager() {
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   
-  // Track ID for batch progress (Phase 2) - disabled until async processing is ready
-  // const [activeTrackId, setActiveTrackId] = useState<string | null>(null);
+  // Track ID for batch progress (Phase 2) - async processing enabled
+  const [activeTrackId, setActiveTrackId] = useState<string | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['documents', currentPage, pageSize, statusFilter],
@@ -191,14 +191,13 @@ export function DocumentManager() {
           );
 
           // Upload to server with filename as title
-          // NOTE: Using sync processing (async_processing: false) because the async 
-          // task worker isn't fully implemented yet. This means documents are processed
-          // immediately and status is set to 'completed' upon return.
+          // Using async processing - documents are queued and processed in background
+          // by the WorkerPool. Status updates via track_id polling.
           const response = await uploadDocument({ 
             content: text, 
             source_type: 'text',
             title: file.name, // Use filename as title
-            async_processing: false, // Use sync processing (worker not ready)
+            async_processing: true, // Use async processing (worker pool enabled)
             track_id: trackId, // Track ID for grouping
           });
           
@@ -288,6 +287,11 @@ export function DocumentManager() {
       // Refresh documents list
       queryClient.invalidateQueries({ queryKey: ['documents'] });
       setIsUploading(false);
+
+      // Set the active track ID to show batch progress card (for async processing)
+      if (successCount > 0) {
+        setActiveTrackId(trackId);
+      }
 
       // Clear upload list after a delay
       setTimeout(() => {
@@ -658,7 +662,7 @@ export function DocumentManager() {
         </CardContent>
       </Card>
 
-      {/* Batch Progress Card (Phase 2) - Disabled until async processing is ready
+      {/* Batch Progress Card (Phase 2) - Async processing enabled */}
       {activeTrackId && !isUploading && (
         <BatchProgressCard
           trackId={activeTrackId}
@@ -669,7 +673,6 @@ export function DocumentManager() {
           }}
         />
       )}
-      */}
 
       {/* Documents Table */}
       <Card>

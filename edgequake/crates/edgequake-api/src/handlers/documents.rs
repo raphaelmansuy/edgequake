@@ -436,8 +436,14 @@ pub async fn list_documents(
     for key in &keys {
         if key.ends_with("-metadata") {
             metadata_keys.push(key.clone());
-        } else if let Some(doc_id) = key.split("-chunk-").next() {
-            *doc_chunks.entry(doc_id.to_string()).or_default() += 1;
+        } else if key.contains("-chunk-") {
+            // Only count actual chunk keys (e.g., "doc-id-chunk-0")
+            if let Some(doc_id) = key.split("-chunk-").next() {
+                // Filter out non-document keys (like -metadata, -content suffixes)
+                if !doc_id.ends_with("-metadata") && !doc_id.ends_with("-content") {
+                    *doc_chunks.entry(doc_id.to_string()).or_default() += 1;
+                }
+            }
         }
     }
 

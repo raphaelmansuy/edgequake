@@ -258,6 +258,21 @@ export interface Workspace {
 }
 
 // Task/Pipeline types
+
+/** Detailed error information for task failures. */
+export interface TaskError {
+  /** Human-readable error message. */
+  message: string;
+  /** Which processing step failed (chunking, embedding, extraction, indexing). */
+  step: string;
+  /** Technical reason for the failure. */
+  reason: string;
+  /** Suggested action to resolve the issue. */
+  suggestion: string;
+  /** Whether the task can be retried. */
+  retryable: boolean;
+}
+
 export interface TaskResponse {
   track_id: string;
   task_type: string;
@@ -266,7 +281,10 @@ export interface TaskResponse {
   updated_at: string;
   started_at?: string;
   completed_at?: string;
+  /** Simple error message (backward compatible). */
   error_message?: string;
+  /** Detailed error information with step, reason, suggestion. */
+  error?: TaskError;
   retry_count: number;
   max_retries: number;
   progress?: Record<string, unknown>;

@@ -68,17 +68,17 @@ pub async fn list_documents(
     Query(params): Query<ListDocumentsParams>,
 ) -> Result<Json<ListDocumentsResponse>, ApiError> {
     // ... existing pagination logic
-    
+
     // Get all documents for status counts (or use a separate query)
     let all_docs = state.edgequake.list_documents(None, None).await?;
-    
+
     let status_counts = StatusCounts {
         pending: all_docs.iter().filter(|d| d.status == Some("pending".into())).count(),
         processing: all_docs.iter().filter(|d| d.status == Some("processing".into())).count(),
         completed: all_docs.iter().filter(|d| d.status.is_none() || d.status == Some("completed".into())).count(),
         failed: all_docs.iter().filter(|d| d.status == Some("failed".into())).count(),
     };
-    
+
     Ok(Json(ListDocumentsResponse {
         documents,
         total,
@@ -189,7 +189,7 @@ export interface PaginatedResponse<T> {
   page: number;
   page_size: number;
   has_more: boolean;
-  status_counts?: StatusCounts;  // ADD
+  status_counts?: StatusCounts; // ADD
 }
 
 export interface StatusCounts {
@@ -212,8 +212,11 @@ const statusCounts = data?.status_counts || {
 };
 
 // Update DocStatus type to include 'all'
-const allCount = statusCounts.pending + statusCounts.processing + 
-                 statusCounts.completed + statusCounts.failed;
+const allCount =
+  statusCounts.pending +
+  statusCounts.processing +
+  statusCounts.completed +
+  statusCounts.failed;
 
 <DocumentFilters
   statusCounts={{
@@ -221,7 +224,7 @@ const allCount = statusCounts.pending + statusCounts.processing +
     ...statusCounts,
   }}
   // ...
-/>
+/>;
 ```
 
 ---
@@ -259,18 +262,18 @@ pub async fn upload_document(
 ) -> Result<Json<UploadDocumentResponse>, ApiError> {
     // Generate or use provided track_id
     let track_id = request.track_id.unwrap_or_else(|| {
-        format!("upload_{}_{}", 
+        format!("upload_{}_{}",
             Utc::now().format("%Y%m%d_%H%M%S"),
             Uuid::new_v4().to_string().split('-').next().unwrap()
         )
     });
-    
+
     // Store track_id in document metadata
     let mut metadata = request.metadata.unwrap_or_default();
     metadata["track_id"] = Value::String(track_id.clone());
-    
+
     // ... rest of upload logic
-    
+
     Ok(Json(UploadDocumentResponse {
         document_id,
         status: "pending".to_string(),
@@ -311,21 +314,21 @@ pub async fn get_track_status(
                 == Some(&track_id)
         })
         .collect();
-    
+
     let status_summary = StatusCounts {
         pending: track_docs.iter().filter(|d| d.status == Some("pending".into())).count(),
         processing: track_docs.iter().filter(|d| d.status == Some("processing".into())).count(),
         completed: track_docs.iter().filter(|d| d.status.is_none() || d.status == Some("completed".into())).count(),
         failed: track_docs.iter().filter(|d| d.status == Some("failed".into())).count(),
     };
-    
+
     let created_at = track_docs
         .iter()
         .filter_map(|d| d.created_at.as_ref())
         .min()
         .cloned()
         .unwrap_or_default();
-    
+
     Ok(Json(TrackStatusResponse {
         track_id,
         created_at,
@@ -358,7 +361,9 @@ export interface TrackStatusResponse {
   status_summary: StatusCounts;
 }
 
-export async function getTrackStatus(trackId: string): Promise<TrackStatusResponse> {
+export async function getTrackStatus(
+  trackId: string
+): Promise<TrackStatusResponse> {
   return api.get<TrackStatusResponse>(`/documents/track/${trackId}`);
 }
 ```
@@ -368,40 +373,44 @@ export async function getTrackStatus(trackId: string): Promise<TrackStatusRespon
 ```typescript
 // Enhanced upload handler with track_id
 const handleFilesUpload = useCallback(async (files: File[]) => {
-  const trackId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  
+  const trackId = `upload_${Date.now()}_${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+
   // ... upload files with track_id
-  
+
   for (const file of files) {
     await uploadDocument({
       content: await file.text(),
       title: file.name,
-      track_id: trackId,  // All files share same track
+      track_id: trackId, // All files share same track
       async_processing: true,
     });
   }
-  
+
   // Show batch progress
   setActiveTrackId(trackId);
 }, []);
 
 // Poll track status when active
 const { data: trackStatus } = useQuery({
-  queryKey: ['track-status', activeTrackId],
+  queryKey: ["track-status", activeTrackId],
   queryFn: () => getTrackStatus(activeTrackId!),
   refetchInterval: activeTrackId ? 2000 : false,
   enabled: !!activeTrackId,
 });
 
 // Render batch progress
-{trackStatus && (
-  <BatchProgressCard
-    trackId={trackStatus.track_id}
-    summary={trackStatus.status_summary}
-    total={trackStatus.total_count}
-    onClose={() => setActiveTrackId(null)}
-  />
-)}
+{
+  trackStatus && (
+    <BatchProgressCard
+      trackId={trackStatus.track_id}
+      summary={trackStatus.status_summary}
+      total={trackStatus.total_count}
+      onClose={() => setActiveTrackId(null)}
+    />
+  );
+}
 ```
 
 ---
@@ -462,7 +471,7 @@ impl PipelineState {
             }))
         }
     }
-    
+
     pub async fn start_job(&self, name: String, total_docs: u32, batches: u32) {
         let mut inner = self.inner.write().await;
         inner.is_busy = true;
@@ -475,32 +484,32 @@ impl PipelineState {
         inner.cancellation_requested = false;
         self.log_internal(&mut inner, "info", format!("Starting: {}", name));
     }
-    
+
     pub async fn log(&self, level: &str, message: String) {
         let mut inner = self.inner.write().await;
         self.log_internal(&mut inner, level, message);
     }
-    
+
     fn log_internal(&self, inner: &mut PipelineStateInner, level: &str, message: String) {
         inner.messages.push(PipelineMessage {
             timestamp: Utc::now().to_rfc3339(),
             level: level.to_string(),
             message,
         });
-        
+
         // Keep last N messages
         if inner.messages.len() > inner.max_messages {
             inner.messages.remove(0);
         }
     }
-    
+
     pub async fn advance_batch(&self) {
         let mut inner = self.inner.write().await;
         inner.current_batch += 1;
         let msg = format!("Batch {}/{}", inner.current_batch, inner.total_batches);
         self.log_internal(&mut inner, "info", msg);
     }
-    
+
     pub async fn document_processed(&self, doc_id: &str, entities: usize) {
         let mut inner = self.inner.write().await;
         inner.processed_documents += 1;
@@ -510,7 +519,7 @@ impl PipelineState {
         );
         self.log_internal(&mut inner, "info", msg);
     }
-    
+
     pub async fn finish_job(&self) {
         let mut inner = self.inner.write().await;
         let msg = format!("Complete: {} documents", inner.processed_documents);
@@ -518,17 +527,17 @@ impl PipelineState {
         inner.is_busy = false;
         inner.job_name = None;
     }
-    
+
     pub async fn request_cancellation(&self) {
         let mut inner = self.inner.write().await;
         inner.cancellation_requested = true;
         self.log_internal(&mut inner, "warn", "Cancellation requested".to_string());
     }
-    
+
     pub async fn is_cancellation_requested(&self) -> bool {
         self.inner.read().await.cancellation_requested
     }
-    
+
     pub async fn get_status(&self) -> PipelineStatusSnapshot {
         let inner = self.inner.read().await;
         PipelineStatusSnapshot {
@@ -575,37 +584,37 @@ impl WorkerPool {
     pub fn new(/* ... */, pipeline_state: PipelineState) -> Self {
         // ...
     }
-    
+
     pub async fn process_pending_tasks(&self) -> Result<()> {
         let pending = self.task_store.get_pending_tasks().await?;
         if pending.is_empty() {
             return Ok(());
         }
-        
+
         let batch_size = 4;
         let total_batches = (pending.len() + batch_size - 1) / batch_size;
-        
+
         self.pipeline_state.start_job(
             format!("Processing {} documents", pending.len()),
             pending.len() as u32,
             total_batches as u32,
         ).await;
-        
+
         for batch in pending.chunks(batch_size) {
             // Check for cancellation
             if self.pipeline_state.is_cancellation_requested().await {
                 self.pipeline_state.log("warn", "Processing cancelled".to_string()).await;
                 break;
             }
-            
+
             self.pipeline_state.advance_batch().await;
-            
+
             for task in batch {
                 self.pipeline_state.log(
                     "info",
                     format!("Extracting entities from {}...", task.track_id),
                 ).await;
-                
+
                 match self.process_single_task(task).await {
                     Ok(result) => {
                         let entity_count = result.entity_count.unwrap_or(0);
@@ -623,7 +632,7 @@ impl WorkerPool {
                 }
             }
         }
-        
+
         self.pipeline_state.finish_job().await;
         Ok(())
     }
@@ -644,7 +653,7 @@ pub struct PipelineStatusResponse {
     // From pipeline state
     #[serde(flatten)]
     pub pipeline: PipelineStatusSnapshot,
-    
+
     // From task statistics
     pub pending_tasks: usize,
     pub processing_tasks: usize,
@@ -657,7 +666,7 @@ pub async fn get_pipeline_status(
 ) -> Result<Json<PipelineStatusResponse>, ApiError> {
     let pipeline = state.pipeline_state.get_status().await;
     let stats = state.task_store.get_statistics().await?;
-    
+
     Ok(Json(PipelineStatusResponse {
         pipeline,
         pending_tasks: stats.pending,
@@ -708,20 +717,22 @@ function CancelConfirmDialog({
   processedCount: number;
 }) {
   const { t } = useTranslation();
-  
+
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{t('pipeline.cancelConfirmTitle')}</AlertDialogTitle>
+          <AlertDialogTitle>
+            {t("pipeline.cancelConfirmTitle")}
+          </AlertDialogTitle>
           <AlertDialogDescription>
-            {t('pipeline.cancelConfirmDesc', { count: processedCount })}
+            {t("pipeline.cancelConfirmDesc", { count: processedCount })}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>{t('common.keepProcessing')}</AlertDialogCancel>
+          <AlertDialogCancel>{t("common.keepProcessing")}</AlertDialogCancel>
           <AlertDialogAction onClick={onConfirm} className="bg-destructive">
-            {t('common.yesCancel')}
+            {t("common.yesCancel")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -742,7 +753,7 @@ async fn check_duplicate(
 ) -> Option<String> {
     // Simple hash-based duplicate detection
     let hash = sha256::digest(content);
-    
+
     let docs = state.edgequake.list_documents(None, None).await.ok()?;
     docs.into_iter()
         .find(|d| {
@@ -773,11 +784,11 @@ metadata["content_hash"] = Value::String(sha256::digest(&content));
 
 ```typescript
 // Handle duplicate response
-if (response.status === 'duplicated') {
+if (response.status === "duplicated") {
   toast.warning(
-    t('documents.upload.duplicate', { 
+    t("documents.upload.duplicate", {
       name: file.name,
-      existing: response.duplicate_of 
+      existing: response.duplicate_of,
     })
   );
   // Skip or show option to replace
@@ -798,25 +809,25 @@ See implementation in `05-proposed-improvements.md` - Position control section.
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_pipeline_state_logging() {
         let state = PipelineState::new();
-        
+
         state.start_job("Test".to_string(), 10, 3).await;
         state.log("info", "Test message".to_string()).await;
-        
+
         let snapshot = state.get_status().await;
         assert!(snapshot.is_busy);
         assert_eq!(snapshot.total_documents, 10);
         assert_eq!(snapshot.history_messages.len(), 2);
     }
-    
+
     #[tokio::test]
     async fn test_status_counts() {
         // Test status count calculation
     }
-    
+
     #[tokio::test]
     async fn test_track_id_grouping() {
         // Test documents grouped by track_id
@@ -830,9 +841,9 @@ mod tests {
 #[tokio::test]
 async fn test_upload_with_track_id() {
     let client = TestClient::new().await;
-    
+
     let track_id = "test_track_123";
-    
+
     // Upload 3 documents with same track_id
     for i in 0..3 {
         client.upload_document(&json!({
@@ -842,7 +853,7 @@ async fn test_upload_with_track_id() {
             "async_processing": true,
         })).await.unwrap();
     }
-    
+
     // Get track status
     let status = client.get_track_status(track_id).await.unwrap();
     assert_eq!(status.total_count, 3);
@@ -852,23 +863,27 @@ async fn test_upload_with_track_id() {
 ### E2E Tests (Playwright)
 
 ```typescript
-test('should show pipeline progress during upload', async ({ page }) => {
-  await page.goto('/documents');
-  
+test("should show pipeline progress during upload", async ({ page }) => {
+  await page.goto("/documents");
+
   // Upload multiple files
-  const fileChooserPromise = page.waitForEvent('filechooser');
+  const fileChooserPromise = page.waitForEvent("filechooser");
   await page.click('[data-testid="upload-zone"]');
   const fileChooser = await fileChooserPromise;
-  await fileChooser.setFiles(['test1.txt', 'test2.txt', 'test3.txt']);
-  
+  await fileChooser.setFiles(["test1.txt", "test2.txt", "test3.txt"]);
+
   // Verify pipeline dialog shows
   await expect(page.locator('[data-testid="pipeline-dialog"]')).toBeVisible();
-  
+
   // Verify progress updates
-  await expect(page.locator('[data-testid="batch-progress"]')).toContainText('Batch');
-  
+  await expect(page.locator('[data-testid="batch-progress"]')).toContainText(
+    "Batch"
+  );
+
   // Verify messages appear
-  await expect(page.locator('[data-testid="pipeline-messages"]')).toContainText('Processing');
+  await expect(page.locator('[data-testid="pipeline-messages"]')).toContainText(
+    "Processing"
+  );
 });
 ```
 
@@ -882,6 +897,7 @@ test('should show pipeline progress during upload', async ({ page }) => {
 4. **Phase 4**: Deploy polish features, full E2E testing
 
 Each phase should be:
+
 - Deployed independently
 - Tested in staging for 24-48 hours
 - Monitored for performance impact
@@ -891,13 +907,13 @@ Each phase should be:
 
 ## Summary
 
-| Phase | Deliverable | Estimated Time | Value |
-|-------|------------|----------------|-------|
-| 1 | Status counts, content summary, errors | 1-2 days | High |
-| 2 | Track ID system, batch grouping | 2-3 days | High |
-| 3 | Pipeline messages, real-time updates | 3-4 days | Critical |
-| 4 | Polish features | 1-2 days | Medium |
-| **Total** | | **7-11 days** | |
+| Phase     | Deliverable                            | Estimated Time | Value    |
+| --------- | -------------------------------------- | -------------- | -------- |
+| 1         | Status counts, content summary, errors | 1-2 days       | High     |
+| 2         | Track ID system, batch grouping        | 2-3 days       | High     |
+| 3         | Pipeline messages, real-time updates   | 3-4 days       | Critical |
+| 4         | Polish features                        | 1-2 days       | Medium   |
+| **Total** |                                        | **7-11 days**  |          |
 
 **Ready to implement!**
 

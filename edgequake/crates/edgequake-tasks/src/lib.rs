@@ -65,7 +65,7 @@ pub use storage::{
     TaskStorage,
 };
 pub use types::{
-    DirectoryScanData, DocumentUploadData, ReindexData, Task, TaskProgress, TaskStatus, TaskType,
-    TextInsertData,
+    DirectoryScanData, DocumentUploadData, ReindexData, Task, TaskFailureInfo, TaskProgress,
+    TaskStatus, TaskType, TextInsertData,
 };
 pub use worker::{SharedTaskProcessor, TaskProcessor, WorkerPool, WorkerPoolConfig};

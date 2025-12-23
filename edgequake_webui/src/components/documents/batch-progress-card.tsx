@@ -35,10 +35,14 @@ const statusConfig = {
 export function BatchProgressCard({ trackId, onClose, onComplete }: BatchProgressCardProps) {
   const { t } = useTranslation();
 
-  const { data: trackStatus, isLoading } = useQuery({
+  const { data: trackStatus, isLoading, isError, error } = useQuery({
     queryKey: ['track-status', trackId],
     queryFn: () => getTrackStatus(trackId),
     refetchInterval: (query) => {
+      // Stop polling on error
+      if (query.state.error) {
+        return false;
+      }
       // Stop polling when complete
       const data = query.state.data as TrackStatusResponse | undefined;
       if (data?.is_complete) {
@@ -51,7 +55,40 @@ export function BatchProgressCard({ trackId, onClose, onComplete }: BatchProgres
       return 2000; // Poll every 2 seconds
     },
     enabled: !!trackId,
+    retry: 2, // Only retry twice on failure
   });
+
+  // Handle error state
+  if (isError) {
+    return (
+      <Card className="border-destructive/50 shadow-lg">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-medium flex items-center gap-2 text-destructive">
+              <XCircle className="h-4 w-4" />
+              {t('documents.batch.error', 'Tracking Error')}
+            </CardTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={onClose}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            {t('documents.batch.errorMessage', 'Unable to track batch progress. Documents may still be processing.')}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {error instanceof Error ? error.message : 'Unknown error'}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (isLoading || !trackStatus) {
     return (

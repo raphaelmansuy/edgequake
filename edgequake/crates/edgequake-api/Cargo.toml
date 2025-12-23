@@ -35,6 +35,7 @@ utoipa-swagger-ui = { version = "9", features = ["axum"] }
 uuid.workspace = true
 futures.workspace = true
 chrono = { version = "0.4", features = ["serde"] }
+async-trait.workspace = true
 
 # File handling
 sha2 = "0.10"

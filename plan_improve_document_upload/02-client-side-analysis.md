@@ -56,9 +56,9 @@ This document analyzes EdgeQuake's current frontend implementation for document 
 const { getRootProps, getInputProps, isDragActive } = useDropzone({
   onDrop,
   accept: {
-    'text/plain': ['.txt'],
-    'text/markdown': ['.md'],
-    'application/json': ['.json'],
+    "text/plain": [".txt"],
+    "text/markdown": [".md"],
+    "application/json": [".json"],
   },
 });
 ```
@@ -69,7 +69,13 @@ const { getRootProps, getInputProps, isDragActive } = useDropzone({
 interface UploadingFile {
   file: File;
   progress: number;
-  status: 'pending' | 'reading' | 'uploading' | 'extracting' | 'success' | 'error';
+  status:
+    | "pending"
+    | "reading"
+    | "uploading"
+    | "extracting"
+    | "success"
+    | "error";
   error?: string;
   phase?: string; // Human-readable phase description
 }
@@ -119,115 +125,142 @@ const [isUploading, setIsUploading] = useState(false);
 
 ### File Status Icons
 
-| Status | Icon | Color | Animation |
-|--------|------|-------|-----------|
-| pending | Clock | muted | none |
-| reading | FileSearch | amber-500 | pulse |
-| uploading | Upload | blue-500 | bounce |
-| extracting | Sparkles | purple-500 | pulse |
-| success | CheckCircle | green-500 | none |
-| error | XCircle | red-500 | none |
+| Status     | Icon        | Color      | Animation |
+| ---------- | ----------- | ---------- | --------- |
+| pending    | Clock       | muted      | none      |
+| reading    | FileSearch  | amber-500  | pulse     |
+| uploading  | Upload      | blue-500   | bounce    |
+| extracting | Sparkles    | purple-500 | pulse     |
+| success    | CheckCircle | green-500  | none      |
+| error      | XCircle     | red-500    | none      |
 
 ### Upload Handler Implementation
 
 ```typescript
-const handleFilesUpload = useCallback(async (files: File[]) => {
-  if (files.length === 0) return;
-  
-  setIsUploading(true);
-  
-  // Initialize upload state for all files
-  const initialFiles: UploadingFile[] = files.map((file) => ({
-    file,
-    progress: 0,
-    status: 'pending',
-    phase: 'Waiting...',
-  }));
-  setUploadingFiles(initialFiles);
+const handleFilesUpload = useCallback(
+  async (files: File[]) => {
+    if (files.length === 0) return;
 
-  // Show loading toast
-  const toastId = toast.loading(`Uploading ${files.length} file(s)...`, {
-    duration: Infinity
-  });
+    setIsUploading(true);
 
-  let successCount = 0;
-  let errorCount = 0;
+    // Initialize upload state for all files
+    const initialFiles: UploadingFile[] = files.map((file) => ({
+      file,
+      progress: 0,
+      status: "pending",
+      phase: "Waiting...",
+    }));
+    setUploadingFiles(initialFiles);
 
-  // Process files SEQUENTIALLY for better feedback
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    
-    // Phase 1: Reading file
-    setUploadingFiles((prev) =>
-      prev.map((f, idx) =>
-        idx === i ? { ...f, status: 'reading', progress: 10, phase: 'Reading file...' } : f
-      )
-    );
+    // Show loading toast
+    const toastId = toast.loading(`Uploading ${files.length} file(s)...`, {
+      duration: Infinity,
+    });
 
-    try {
-      const text = await file.text();
-      
-      // Phase 2: Uploading to server
+    let successCount = 0;
+    let errorCount = 0;
+
+    // Process files SEQUENTIALLY for better feedback
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+
+      // Phase 1: Reading file
       setUploadingFiles((prev) =>
         prev.map((f, idx) =>
-          idx === i ? { ...f, status: 'uploading', progress: 40, phase: 'Uploading...' } : f
+          idx === i
+            ? {
+                ...f,
+                status: "reading",
+                progress: 10,
+                phase: "Reading file...",
+              }
+            : f
         )
       );
 
-      const response = await uploadDocument({ 
-        content: text, 
-        title: file.name,
-        async_processing: true,
-      });
-      
-      // Phase 3: Extraction queued
-      setUploadingFiles((prev) =>
-        prev.map((f, idx) =>
-          idx === i ? { 
-            ...f, 
-            status: 'extracting', 
-            progress: 80, 
-            phase: response.task_id 
-              ? `Queued (Task: ${response.task_id.slice(0, 8)})`
-              : 'Processing...',
-          } : f
-        )
-      );
-      
-      // Mark as complete
-      setUploadingFiles((prev) =>
-        prev.map((f, idx) =>
-          idx === i ? { ...f, status: 'success', progress: 100, phase: 'Complete!' } : f
-        )
-      );
-      
-      successCount++;
-    } catch (error) {
-      setUploadingFiles((prev) =>
-        prev.map((f, idx) =>
-          idx === i ? { ...f, status: 'error', progress: 100, error: error.message } : f
-        )
-      );
-      errorCount++;
+      try {
+        const text = await file.text();
+
+        // Phase 2: Uploading to server
+        setUploadingFiles((prev) =>
+          prev.map((f, idx) =>
+            idx === i
+              ? {
+                  ...f,
+                  status: "uploading",
+                  progress: 40,
+                  phase: "Uploading...",
+                }
+              : f
+          )
+        );
+
+        const response = await uploadDocument({
+          content: text,
+          title: file.name,
+          async_processing: true,
+        });
+
+        // Phase 3: Extraction queued
+        setUploadingFiles((prev) =>
+          prev.map((f, idx) =>
+            idx === i
+              ? {
+                  ...f,
+                  status: "extracting",
+                  progress: 80,
+                  phase: response.task_id
+                    ? `Queued (Task: ${response.task_id.slice(0, 8)})`
+                    : "Processing...",
+                }
+              : f
+          )
+        );
+
+        // Mark as complete
+        setUploadingFiles((prev) =>
+          prev.map((f, idx) =>
+            idx === i
+              ? { ...f, status: "success", progress: 100, phase: "Complete!" }
+              : f
+          )
+        );
+
+        successCount++;
+      } catch (error) {
+        setUploadingFiles((prev) =>
+          prev.map((f, idx) =>
+            idx === i
+              ? { ...f, status: "error", progress: 100, error: error.message }
+              : f
+          )
+        );
+        errorCount++;
+      }
     }
-  }
 
-  // Update toast with final result
-  if (errorCount === 0) {
-    toast.success(`Successfully uploaded ${successCount} file(s)`, { id: toastId });
-  } else if (successCount === 0) {
-    toast.error(`All ${errorCount} file(s) failed`, { id: toastId });
-  } else {
-    toast.warning(`Uploaded ${successCount}, ${errorCount} failed`, { id: toastId });
-  }
+    // Update toast with final result
+    if (errorCount === 0) {
+      toast.success(`Successfully uploaded ${successCount} file(s)`, {
+        id: toastId,
+      });
+    } else if (successCount === 0) {
+      toast.error(`All ${errorCount} file(s) failed`, { id: toastId });
+    } else {
+      toast.warning(`Uploaded ${successCount}, ${errorCount} failed`, {
+        id: toastId,
+      });
+    }
 
-  // Refresh documents list
-  queryClient.invalidateQueries({ queryKey: ['documents'] });
-  setIsUploading(false);
+    // Refresh documents list
+    queryClient.invalidateQueries({ queryKey: ["documents"] });
+    setIsUploading(false);
 
-  // Clear upload list after delay
-  setTimeout(() => setUploadingFiles([]), 3000);
-}, [queryClient, t]);
+    // Clear upload list after delay
+    setTimeout(() => setUploadingFiles([]), 3000);
+  },
+  [queryClient, t]
+);
 ```
 
 ## Document List
@@ -236,12 +269,13 @@ const handleFilesUpload = useCallback(async (files: File[]) => {
 
 ```typescript
 const { data, isLoading, isError, error, refetch } = useQuery({
-  queryKey: ['documents', currentPage, pageSize, statusFilter],
-  queryFn: () => getDocuments({ 
-    page: currentPage, 
-    page_size: pageSize,
-    status: statusFilter === 'all' ? undefined : statusFilter,
-  }),
+  queryKey: ["documents", currentPage, pageSize, statusFilter],
+  queryFn: () =>
+    getDocuments({
+      page: currentPage,
+      page_size: pageSize,
+      status: statusFilter === "all" ? undefined : statusFilter,
+    }),
   refetchInterval: 5000, // Poll for status updates every 5 seconds
 });
 ```
@@ -251,7 +285,12 @@ const { data, isLoading, isError, error, refetch } = useQuery({
 **File:** `document-filters.tsx`
 
 ```typescript
-export type DocStatus = 'all' | 'pending' | 'processing' | 'completed' | 'failed';
+export type DocStatus =
+  | "all"
+  | "pending"
+  | "processing"
+  | "completed"
+  | "failed";
 
 interface DocumentFiltersProps {
   status: DocStatus;
@@ -267,10 +306,11 @@ interface DocumentFiltersProps {
 // Currently calculated client-side, not from API
 const statusCounts: Record<DocStatus, number> = {
   all: allDocuments.length,
-  pending: allDocuments.filter((d) => d.status === 'pending').length,
-  processing: allDocuments.filter((d) => d.status === 'processing').length,
-  completed: allDocuments.filter((d) => !d.status || d.status === 'completed').length,
-  failed: allDocuments.filter((d) => d.status === 'failed').length,
+  pending: allDocuments.filter((d) => d.status === "pending").length,
+  processing: allDocuments.filter((d) => d.status === "processing").length,
+  completed: allDocuments.filter((d) => !d.status || d.status === "completed")
+    .length,
+  failed: allDocuments.filter((d) => d.status === "failed").length,
 };
 ```
 
@@ -278,22 +318,42 @@ const statusCounts: Record<DocStatus, number> = {
 
 ### Document Table Columns
 
-| Column | Source | Display |
-|--------|--------|---------|
-| Title | `doc.title \|\| doc.file_name \|\| doc.id.slice(0,8)` | Text |
-| Status | `doc.status \|\| 'completed'` | Badge with icon |
-| Entities | `doc.entity_count ?? doc.chunk_count ?? '-'` | Number |
-| Created | `doc.created_at` | Relative time |
-| Actions | - | Dropdown menu |
+| Column   | Source                                                | Display         |
+| -------- | ----------------------------------------------------- | --------------- |
+| Title    | `doc.title \|\| doc.file_name \|\| doc.id.slice(0,8)` | Text            |
+| Status   | `doc.status \|\| 'completed'`                         | Badge with icon |
+| Entities | `doc.entity_count ?? doc.chunk_count ?? '-'`          | Number          |
+| Created  | `doc.created_at`                                      | Relative time   |
+| Actions  | -                                                     | Dropdown menu   |
 
 ### Status Badge Component
 
 ```typescript
 const statusConfig = {
-  pending: { icon: Clock, color: 'bg-yellow-500', label: 'Pending', animate: false },
-  processing: { icon: Loader2, color: 'bg-blue-500', label: 'Processing', animate: true },
-  completed: { icon: CheckCircle, color: 'bg-green-500', label: 'Completed', animate: false },
-  failed: { icon: XCircle, color: 'bg-red-500', label: 'Failed', animate: false },
+  pending: {
+    icon: Clock,
+    color: "bg-yellow-500",
+    label: "Pending",
+    animate: false,
+  },
+  processing: {
+    icon: Loader2,
+    color: "bg-blue-500",
+    label: "Processing",
+    animate: true,
+  },
+  completed: {
+    icon: CheckCircle,
+    color: "bg-green-500",
+    label: "Completed",
+    animate: false,
+  },
+  failed: {
+    icon: XCircle,
+    color: "bg-red-500",
+    label: "Failed",
+    animate: false,
+  },
 };
 
 function StatusBadge({ status }: { status: DocumentStatus }) {
@@ -302,7 +362,7 @@ function StatusBadge({ status }: { status: DocumentStatus }) {
 
   return (
     <Badge variant="outline" className="gap-1">
-      <Icon className={`h-3 w-3 ${config.animate ? 'animate-spin' : ''}`} />
+      <Icon className={`h-3 w-3 ${config.animate ? "animate-spin" : ""}`} />
       {config.label}
     </Badge>
   );
@@ -317,7 +377,7 @@ function StatusBadge({ status }: { status: DocumentStatus }) {
 
 ```typescript
 const { data, isLoading } = useQuery({
-  queryKey: ['pipeline-status'],
+  queryKey: ["pipeline-status"],
   queryFn: getPipelineStatus,
   refetchInterval: open ? 2000 : false, // Poll every 2s when open
   enabled: open,
@@ -341,7 +401,9 @@ const { data, isLoading } = useQuery({
       </div>
       <div className="p-2 bg-muted rounded">
         <p>Completed</p>
-        <p className="text-xl font-bold text-green-600">{data.completed_tasks}</p>
+        <p className="text-xl font-bold text-green-600">
+          {data.completed_tasks}
+        </p>
       </div>
       <div className="p-2 bg-muted rounded">
         <p>Failed</p>
@@ -353,7 +415,10 @@ const { data, isLoading } = useQuery({
     {data.tasks?.length > 0 && (
       <ScrollArea className="h-32 rounded-md border">
         {data.tasks.slice(0, 10).map((task) => (
-          <div key={task.track_id} className="flex items-center justify-between">
+          <div
+            key={task.track_id}
+            className="flex items-center justify-between"
+          >
             <span>{task.track_id.slice(0, 8)}...</span>
             <span className={statusColorClass}>{task.status}</span>
           </div>
@@ -375,7 +440,7 @@ const { data, isLoading } = useQuery({
 // getPipelineStatus() derives status from tasks list
 export async function getPipelineStatus(): Promise<PipelineStatus> {
   const result = await getTasksList({ page_size: 50 });
-  
+
   return {
     is_busy: result.statistics.processing > 0,
     running_tasks: result.statistics.processing,
@@ -389,11 +454,11 @@ export async function getPipelineStatus(): Promise<PipelineStatus> {
 
 ## Polling Strategy
 
-| Resource | Interval | Condition |
-|----------|----------|-----------|
-| Documents | 5000ms | Always |
-| Pipeline Status | 2000ms | Dialog open |
-| Pipeline Status (header) | 5000ms | Always |
+| Resource                 | Interval | Condition   |
+| ------------------------ | -------- | ----------- |
+| Documents                | 5000ms   | Always      |
+| Pipeline Status          | 2000ms   | Dialog open |
+| Pipeline Status (header) | 5000ms   | Always      |
 
 ## API Integration
 
@@ -430,7 +495,9 @@ export async function deleteDocument(documentId: string): Promise<void>;
 export async function deleteAllDocuments(): Promise<{ deleted_count: number }>;
 
 // Reprocess document
-export async function reprocessDocument(documentId: string): Promise<UploadDocumentResponse>;
+export async function reprocessDocument(
+  documentId: string
+): Promise<UploadDocumentResponse>;
 ```
 
 ### Task API Functions
@@ -466,26 +533,31 @@ export async function retryTask(taskId: string): Promise<TaskResponse>;
 ## UX Gaps
 
 ### 1. No Real-Time Pipeline Messages
+
 - Only shows task IDs and statuses
 - No logs or messages from processing pipeline
 - Users can't see what's happening during extraction
 
 ### 2. No Batch Progress
+
 - Can't see "Processing document 3 of 10"
 - No overall batch completion percentage
 - No estimated time remaining
 
 ### 3. Status Counts Require Full Data
+
 - `statusCounts` calculated client-side
 - Requires loading all documents
 - Doesn't scale with large document sets
 
 ### 4. No Document Grouping
+
 - Can't see which documents were uploaded together
 - No batch/track_id correlation
 - Hard to track multi-file uploads
 
 ### 5. Limited Error Details
+
 - Only shows generic error messages
 - No step-level failure information
 - No retry suggestions
@@ -493,12 +565,14 @@ export async function retryTask(taskId: string): Promise<TaskResponse>;
 ## Summary
 
 EdgeQuake's frontend has a good foundation:
+
 - ✅ Phased upload progress with visual indicators
 - ✅ Status badges with animations
 - ✅ Pipeline status dialog with cancel
 - ✅ Polling for status updates
 
 Key improvements needed:
+
 - ❌ Real-time pipeline messages (like LightRAG's `history_messages`)
 - ❌ Batch progress (documents/total, batches/total)
 - ❌ Server-side status counts

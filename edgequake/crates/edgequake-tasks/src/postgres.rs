@@ -99,6 +99,9 @@ impl TaskStorage for PostgresTaskStorage {
                 started_at: row.get("started_at"),
                 completed_at: row.get("completed_at"),
                 error_message: row.get("error_message"),
+                error: row
+                    .get::<Option<serde_json::Value>, _>("error")
+                    .and_then(|v| serde_json::from_value(v).ok()),
                 retry_count: row.get("retry_count"),
                 max_retries: row.get("max_retries"),
                 task_data: row.get("task_data"),
@@ -228,6 +231,9 @@ impl TaskStorage for PostgresTaskStorage {
                     started_at: row.get("started_at"),
                     completed_at: row.get("completed_at"),
                     error_message: row.get("error_message"),
+                    error: row
+                        .get::<Option<serde_json::Value>, _>("error")
+                        .and_then(|v| serde_json::from_value(v).ok()),
                     retry_count: row.get("retry_count"),
                     max_retries: row.get("max_retries"),
                     task_data: row.get("task_data"),

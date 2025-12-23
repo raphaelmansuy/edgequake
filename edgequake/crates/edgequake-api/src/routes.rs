@@ -42,21 +42,22 @@ fn api_v1_routes() -> Router<AppState> {
         // Documents
         .route("/documents", post(handlers::upload_document))
         .route("/documents", get(handlers::list_documents))
-        .route("/documents/{document_id}", get(handlers::get_document))
-        .route(
-            "/documents/{document_id}",
-            delete(handlers::delete_document),
-        )
-        // Track Status (Phase 2)
+        // Track Status (Phase 2) - MUST come before /documents/{document_id}
         .route(
             "/documents/track/{track_id}",
             get(handlers::get_track_status),
         )
-        // File Upload (multipart)
+        // File Upload (multipart) - MUST come before /documents/{document_id}
         .route("/documents/upload", post(handlers::upload_file))
         .route(
             "/documents/upload/batch",
             post(handlers::upload_files_batch),
+        )
+        // Document by ID - comes last because {document_id} matches any path segment
+        .route("/documents/{document_id}", get(handlers::get_document))
+        .route(
+            "/documents/{document_id}",
+            delete(handlers::delete_document),
         )
         // Query
         .route("/query", post(handlers::execute_query))
