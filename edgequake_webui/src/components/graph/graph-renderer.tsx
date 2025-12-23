@@ -126,10 +126,14 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
     });
 
     // Event handlers
+    let draggedNode: string | null = null;
+
+    // Node click
     sigma.on('clickNode', ({ node }) => {
       onNodeClick?.(node);
     });
 
+    // Node right-click
     sigma.on('rightClickNode', ({ node, event }) => {
       // Prevent default browser context menu
       if (containerRef.current) {
@@ -138,6 +142,38 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
       onNodeRightClick?.(node, event.x, event.y);
     });
 
+    // Node drag - start
+    sigma.on('downNode', (e) => {
+      draggedNode = e.node;
+      graph.setNodeAttribute(e.node, 'highlighted', true);
+    });
+
+    // Mouse move for dragging
+    sigma.getMouseCaptor().on('mousemovebody', (e) => {
+      if (!draggedNode) return;
+      
+      // Get position in graph coordinates
+      const pos = sigma.viewportToGraph(e);
+      
+      // Update node position
+      graph.setNodeAttribute(draggedNode, 'x', pos.x);
+      graph.setNodeAttribute(draggedNode, 'y', pos.y);
+      
+      // Prevent camera movement
+      e.preventSigmaDefault();
+      e.original.preventDefault();
+      e.original.stopPropagation();
+    });
+
+    // Mouse up - end drag
+    sigma.getMouseCaptor().on('mouseup', () => {
+      if (draggedNode) {
+        graph.removeNodeAttribute(draggedNode, 'highlighted');
+        draggedNode = null;
+      }
+    });
+
+    // Node hover
     sigma.on('enterNode', ({ node }) => {
       onNodeHover?.(node);
       // Highlight connected nodes

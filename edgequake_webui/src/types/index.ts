@@ -180,11 +180,19 @@ export interface PipelineTask {
 }
 
 export interface PipelineStatus {
+  is_busy: boolean;
   running_tasks: number;
   queued_tasks: number;
   completed_tasks: number;
   failed_tasks: number;
   tasks: PipelineTask[];
+  // Extended fields for pipeline dialog
+  job_name?: string;
+  start_time?: string;
+  progress?: number;
+  current?: number;
+  total?: number;
+  messages?: string[];
 }
 
 // Health types

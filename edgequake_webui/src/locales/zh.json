@@ -1,0 +1,227 @@
+{
+  "common": {
+    "cancel": "取消",
+    "save": "保存",
+    "delete": "删除",
+    "confirm": "确认",
+    "refresh": "刷新",
+    "loading": "加载中...",
+    "error": "错误",
+    "success": "成功",
+    "close": "关闭",
+    "search": "搜索",
+    "filter": "筛选",
+    "sort": "排序",
+    "all": "全部",
+    "none": "无",
+    "yes": "是",
+    "no": "否",
+    "actions": "操作",
+    "settings": "设置",
+    "back": "返回",
+    "next": "下一页",
+    "previous": "上一页",
+    "copy": "复制",
+    "copied": "已复制！",
+    "upload": "上传",
+    "download": "下载",
+    "tryAgain": "重试",
+    "platform": "图谱RAG平台",
+    "navigation": "导航",
+    "keyboardShortcuts": "键盘快捷键",
+    "keyboardShortcutsDesc": "使用这些快捷键快速导航",
+    "pressEscToClose": "按 Esc 关闭"
+  },
+  "nav": {
+    "graph": "知识图谱",
+    "documents": "文档",
+    "query": "查询",
+    "apiExplorer": "API浏览器",
+    "settings": "设置"
+  },
+  "header": {
+    "documents": "文档",
+    "knowledgeGraph": "知识图谱",
+    "query": "查询",
+    "settings": "设置",
+    "language": "语言"
+  },
+  "documents": {
+    "title": "文档",
+    "subtitle": "上传和管理用于知识图谱提取的文档",
+    "upload": "上传",
+    "uploadDrop": "拖放文件或点击上传",
+    "uploadDropActive": "将文件放在这里...",
+    "uploadSupports": "支持 TXT、MD、JSON 文件",
+    "clearAll": "清除全部",
+    "noDocuments": "暂无文档",
+    "noDocumentsSubtitle": "上传文档以构建您的知识图谱",
+    "deleteConfirm": "删除所有文档？",
+    "deleteConfirmDescription": "这将永久删除所有 {{count}} 个文档及其提取的实体。此操作无法撤销。",
+    "documentCount": "文档 ({{count}})",
+    "table": {
+      "title": "标题",
+      "status": "状态",
+      "entities": "实体",
+      "created": "创建时间",
+      "actions": "操作"
+    },
+    "actions": {
+      "view": "查看详情",
+      "reprocess": "重新处理",
+      "delete": "删除"
+    },
+    "status": {
+      "all": "所有状态",
+      "pending": "待处理",
+      "processing": "处理中",
+      "completed": "已完成",
+      "failed": "失败"
+    },
+    "pagination": {
+      "rowsPerPage": "每页行数：",
+      "page": "第 {{current}} 页，共 {{total}} 页"
+    },
+    "filter": {
+      "status": "按状态筛选",
+      "sortBy": "排序方式：",
+      "created": "创建时间",
+      "updated": "更新时间"
+    }
+  },
+  "graph": {
+    "title": "知识图谱",
+    "noGraph": "暂无知识图谱",
+    "noGraphSubtitle": "您的知识图谱为空。上传文档以自动提取实体和关系。",
+    "uploadDocuments": "上传文档",
+    "loading": "正在加载知识图谱...",
+    "nodeCount": "{{nodes}} 个节点 · {{edges}} 条边",
+    "controls": {
+      "zoomIn": "放大",
+      "zoomOut": "缩小",
+      "reset": "重置视图",
+      "fullscreen": "全屏",
+      "refresh": "刷新"
+    },
+    "layouts": {
+      "title": "布局",
+      "force": "力导向",
+      "circular": "环形",
+      "random": "随机"
+    },
+    "search": {
+      "placeholder": "搜索节点...",
+      "noResults": "未找到节点"
+    },
+    "nodeDetails": {
+      "title": "节点详情",
+      "type": "类型",
+      "connections": "连接",
+      "properties": "属性",
+      "description": "描述",
+      "documents": "来源文档"
+    },
+    "contextMenu": {
+      "viewDetails": "查看详情",
+      "expandNeighborhood": "展开邻域",
+      "findRelated": "查找相关",
+      "viewDocuments": "查看文档",
+      "copyId": "复制 ID"
+    },
+    "filters": {
+      "title": "筛选器",
+      "nodeTypes": "节点类型",
+      "connectionRange": "连接范围"
+    },
+    "legend": {
+      "title": "图例",
+      "person": "人物",
+      "organization": "组织",
+      "technology": "技术",
+      "location": "地点",
+      "other": "其他"
+    }
+  },
+  "query": {
+    "title": "查询",
+    "subtitle": "询问有关知识图谱的问题",
+    "placeholder": "提问...",
+    "submit": "发送",
+    "startConversation": "开始对话",
+    "startConversationSubtitle": "询问有关知识图谱的问题",
+    "modes": {
+      "local": "本地",
+      "localDescription": "在实体邻域内搜索",
+      "global": "全局",
+      "globalDescription": "搜索整个知识图谱",
+      "hybrid": "混合",
+      "hybridDescription": "结合本地和全局搜索",
+      "naive": "朴素",
+      "naiveDescription": "简单关键词搜索"
+    },
+    "settings": {
+      "title": "查询设置",
+      "streaming": "流式传输",
+      "streamingDescription": "在生成时显示响应",
+      "topK": "Top K 结果",
+      "temperature": "温度",
+      "maxTokens": "最大令牌数"
+    },
+    "response": {
+      "tokens": "{{count}} 个令牌",
+      "duration": "{{ms}}毫秒",
+      "thinking": "思考中...",
+      "thoughtFor": "思考了 {{seconds}}秒"
+    },
+    "sources": {
+      "title": "来源",
+      "entities": "实体",
+      "relationships": "关系",
+      "documents": "文档"
+    },
+    "history": {
+      "title": "历史",
+      "recent": "最近查询",
+      "favorites": "收藏",
+      "noHistory": "无查询历史",
+      "clear": "清除历史"
+    }
+  },
+  "pipeline": {
+    "title": "管道状态",
+    "idle": "管道空闲",
+    "busy": "管道繁忙",
+    "job": "作业：{{name}}",
+    "started": "开始时间：{{time}}",
+    "progress": "进度",
+    "messages": "消息",
+    "cancel": "取消管道",
+    "processed": "已处理 {{current}}/{{total}} 个文档"
+  },
+  "settings": {
+    "title": "设置",
+    "appearance": {
+      "title": "外观",
+      "theme": "主题",
+      "themeLight": "浅色",
+      "themeDark": "深色",
+      "themeSystem": "系统",
+      "language": "语言"
+    },
+    "api": {
+      "title": "API 配置",
+      "endpoint": "API 端点",
+      "status": "连接状态",
+      "connected": "已连接",
+      "disconnected": "已断开"
+    }
+  },
+  "errors": {
+    "loadDocuments": "加载文档时出错",
+    "loadGraph": "加载图谱时出错",
+    "uploadFailed": "上传失败：{{error}}",
+    "deleteFailed": "删除失败：{{error}}",
+    "queryFailed": "查询失败：{{error}}",
+    "connectionFailed": "连接失败"
+  }
+}

@@ -12,6 +12,8 @@ import { toast } from 'sonner';
 import { GraphControls } from './graph-controls';
 import { GraphFilters } from './graph-filters';
 import { GraphRenderer } from './graph-renderer';
+import { GraphSearch } from './graph-search';
+import { LayoutControl } from './layout-control';
 import { NodeContextMenu, useNodeContextMenu } from './node-context-menu';
 import { NodeDetails } from './node-details';
 
@@ -155,6 +157,8 @@ export function GraphViewer() {
             )}
           </div>
           <div className="flex items-center gap-1">
+            <GraphSearch />
+            <LayoutControl />
             <Button variant="ghost" size="icon" onClick={() => refetch()} title="Refresh">
               <RefreshCw className="h-4 w-4" />
             </Button>

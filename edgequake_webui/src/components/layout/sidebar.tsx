@@ -8,17 +8,19 @@ import { FileText, Menu, MessageSquare, Network, Settings, Terminal } from 'luci
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const navItems = [
-  { href: '/graph', icon: Network, label: 'Knowledge Graph' },
-  { href: '/documents', icon: FileText, label: 'Documents' },
-  { href: '/query', icon: MessageSquare, label: 'Query' },
-  { href: '/api-explorer', icon: Terminal, label: 'API Explorer' },
-  { href: '/settings', icon: Settings, label: 'Settings' },
+  { href: '/graph', icon: Network, labelKey: 'nav.graph' },
+  { href: '/documents', icon: FileText, labelKey: 'nav.documents' },
+  { href: '/query', icon: MessageSquare, labelKey: 'nav.query' },
+  { href: '/api-explorer', icon: Terminal, labelKey: 'nav.apiExplorer' },
+  { href: '/settings', icon: Settings, labelKey: 'nav.settings' },
 ];
 
 function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
   const pathname = usePathname();
+  const { t } = useTranslation();
 
   return (
     <div className="flex h-full flex-col">
@@ -34,7 +36,7 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 p-2">
-        {navItems.map(({ href, icon: Icon, label }) => {
+        {navItems.map(({ href, icon: Icon, labelKey }) => {
           const isActive = pathname === href || pathname.startsWith(href + '/');
           
           return (
@@ -50,7 +52,7 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
               )}
             >
               <Icon className="h-5 w-5" />
-              <span>{label}</span>
+              <span>{t(labelKey)}</span>
             </Link>
           );
         })}
@@ -60,7 +62,7 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
       <div className="border-t p-4">
         <div className="text-xs text-muted-foreground">
           <p>EdgeQuake v0.1.0</p>
-          <p>Graph-RAG Platform</p>
+          <p>{t('common.platform')}</p>
         </div>
       </div>
     </div>

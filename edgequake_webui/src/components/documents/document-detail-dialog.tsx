@@ -1,0 +1,225 @@
+'use client';
+
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import type { Document } from '@/types';
+import { formatDistanceToNow } from 'date-fns';
+import {
+    Calendar,
+    Clock,
+    Copy,
+    FileText,
+    Hash,
+    Link2,
+    RotateCcw,
+    Tag
+} from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
+
+interface DocumentDetailDialogProps {
+  document: Document | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onReprocess?: (id: string) => void;
+}
+
+function StatusBadge({ status }: { status: Document['status'] }) {
+  const statusConfig = {
+    pending: { label: 'Pending', variant: 'secondary' as const },
+    processing: { label: 'Processing', variant: 'default' as const },
+    completed: { label: 'Completed', variant: 'default' as const },
+    failed: { label: 'Failed', variant: 'destructive' as const },
+  };
+
+  const config = statusConfig[status || 'pending'];
+  return <Badge variant={config.variant}>{config.label}</Badge>;
+}
+
+function MetadataItem({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof FileText;
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-3 py-2">
+      <Icon className="h-4 w-4 text-muted-foreground mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="text-sm font-medium truncate">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Dialog showing detailed information about a document
+ */
+export function DocumentDetailDialog({
+  document,
+  open,
+  onOpenChange,
+  onReprocess,
+}: DocumentDetailDialogProps) {
+  const { t } = useTranslation();
+
+  if (!document) return null;
+
+  const handleCopyId = () => {
+    navigator.clipboard.writeText(document.id);
+    toast.success(t('common.copied', 'Copied!'));
+  };
+
+  const formatDate = (date: string | Date | undefined) => {
+    if (!date) return 'N/A';
+    const d = typeof date === 'string' ? new Date(date) : date;
+    return formatDistanceToNow(d, { addSuffix: true });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl max-h-[85vh]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            {document.title || 'Untitled Document'}
+          </DialogTitle>
+          <DialogDescription className="flex items-center gap-2">
+            <StatusBadge status={document.status} />
+            <span className="text-muted-foreground">·</span>
+            <span>{formatDate(document.created_at)}</span>
+          </DialogDescription>
+        </DialogHeader>
+
+        <Tabs defaultValue="overview" className="mt-4">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="overview">
+              {t('documents.details.overview', 'Overview')}
+            </TabsTrigger>
+            <TabsTrigger value="content">
+              {t('documents.details.content', 'Content')}
+            </TabsTrigger>
+            <TabsTrigger value="entities">
+              {t('documents.details.entities', 'Entities')}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="mt-4 space-y-4">
+            {/* Metadata Grid */}
+            <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
+              <MetadataItem
+                icon={Hash}
+                label={t('documents.details.id', 'Document ID')}
+                value={
+                  <span className="flex items-center gap-1">
+                    <code className="text-xs">{document.id.slice(0, 12)}...</code>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCopyId}>
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </span>
+                }
+              />
+              <MetadataItem
+                icon={Tag}
+                label={t('documents.details.status', 'Status')}
+                value={<StatusBadge status={document.status} />}
+              />
+              <MetadataItem
+                icon={Calendar}
+                label={t('documents.details.created', 'Created')}
+                value={formatDate(document.created_at)}
+              />
+              <MetadataItem
+                icon={Clock}
+                label={t('documents.details.updated', 'Last Updated')}
+                value={formatDate(document.updated_at)}
+              />
+              <MetadataItem
+                icon={Link2}
+                label={t('documents.details.entities', 'Entities Extracted')}
+                value={document.entity_count ?? 0}
+              />
+              <MetadataItem
+                icon={FileText}
+                label={t('documents.details.chunks', 'Chunks')}
+                value={document.chunk_count ?? 0}
+              />
+            </div>
+
+            {/* Error message if failed */}
+            {document.status === 'failed' && document.error_message && (
+              <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                <h4 className="text-sm font-medium text-destructive mb-1">
+                  {t('documents.details.error', 'Error')}
+                </h4>
+                <p className="text-xs text-destructive/80">{document.error_message}</p>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-2 pt-2">
+              {document.status === 'failed' && onReprocess && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onReprocess(document.id)}
+                >
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  {t('documents.actions.reprocess', 'Reprocess')}
+                </Button>
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="content" className="mt-4">
+            <ScrollArea className="h-[300px] rounded-lg border p-4">
+              {document.content ? (
+                <pre className="text-sm whitespace-pre-wrap font-mono">
+                  {document.content}
+                </pre>
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  {t('documents.details.noContent', 'No content available')}
+                </p>
+              )}
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="entities" className="mt-4">
+            <ScrollArea className="h-[300px] rounded-lg border p-4">
+              {document.entity_count && document.entity_count > 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-sm text-muted-foreground mb-2">
+                    {t('documents.details.entitiesExtracted', '{{count}} entities extracted', { count: document.entity_count })}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {t('documents.details.viewInGraph', 'View in Knowledge Graph for detailed entity information')}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-sm text-center py-8">
+                  {t('documents.details.noEntities', 'No entities extracted yet')}
+                </p>
+              )}
+            </ScrollArea>
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export default DocumentDetailDialog;

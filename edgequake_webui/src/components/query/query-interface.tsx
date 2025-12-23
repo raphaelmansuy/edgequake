@@ -20,46 +20,21 @@ import { useSettingsStore } from '@/stores/use-settings-store';
 import type { QueryContext, QueryMode } from '@/types';
 import { useMutation } from '@tanstack/react-query';
 import {
-    Combine,
-    Globe,
     History,
     Loader2,
     Send,
     Settings2,
     Sparkles,
     Star,
-    Target,
     Trash2,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { MarkdownRenderer } from './markdown-renderer';
 import { QueryModeSelector } from './query-mode-selector';
 import { SourceCitations } from './source-citations';
-
-const modeConfig = {
-  local: {
-    icon: Target,
-    label: 'Local',
-    description: 'Search within entity neighborhood',
-  },
-  global: {
-    icon: Globe,
-    label: 'Global',
-    description: 'Search entire knowledge graph',
-  },
-  hybrid: {
-    icon: Combine,
-    label: 'Hybrid',
-    description: 'Combine local and global search',
-  },
-  naive: {
-    icon: Sparkles,
-    label: 'Naive',
-    description: 'Simple keyword search',
-  },
-} as const;
+import { COTRenderer } from './thinking-display';
 
 interface Message {
   id: string;
@@ -72,6 +47,7 @@ interface Message {
 }
 
 export function QueryInterface() {
+  const { t } = useTranslation();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -226,9 +202,9 @@ export function QueryInterface() {
         {/* Header */}
         <div className="flex items-center justify-between border-b px-4 py-3">
           <div>
-            <h1 className="text-lg font-semibold">Query</h1>
+            <h1 className="text-lg font-semibold">{t('query.title', 'Query')}</h1>
             <p className="text-sm text-muted-foreground">
-              Ask questions about your knowledge graph
+              {t('query.subtitle', 'Ask questions about your knowledge graph')}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -248,15 +224,15 @@ export function QueryInterface() {
               </SheetTrigger>
               <SheetContent>
                 <SheetHeader>
-                  <SheetTitle>Query Settings</SheetTitle>
+                  <SheetTitle>{t('query.settings.title', 'Query Settings')}</SheetTitle>
                 </SheetHeader>
                 <div className="space-y-6 mt-6">
                   {/* Stream Toggle */}
                   <div className="flex items-center justify-between">
                     <div>
-                      <label className="text-sm font-medium">Streaming</label>
+                      <label className="text-sm font-medium">{t('query.settings.streaming', 'Streaming')}</label>
                       <p className="text-xs text-muted-foreground">
-                        Show response as it generates
+                        {t('query.settings.streamingDescription', 'Show response as it generates')}
                       </p>
                     </div>
                     <Switch
@@ -268,7 +244,7 @@ export function QueryInterface() {
                   {/* Top K */}
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <label className="text-sm font-medium">Top K Results</label>
+                      <label className="text-sm font-medium">{t('query.settings.topK', 'Top K Results')}</label>
                       <span className="text-sm text-muted-foreground">{querySettings.topK}</span>
                     </div>
                     <Slider
@@ -342,10 +318,13 @@ export function QueryInterface() {
                 >
                   <CardContent className="p-3">
                     {message.role === 'assistant' ? (
-                      <div className="prose prose-sm dark:prose-invert max-w-none">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {message.content}
-                        </ReactMarkdown>
+                      <div>
+                        <COTRenderer
+                          content={message.content}
+                          renderResponse={(response) => (
+                            <MarkdownRenderer content={response} />
+                          )}
+                        />
                         {message.tokensUsed && (
                           <div className="flex gap-2 mt-2 text-xs text-muted-foreground">
                             <Badge variant="secondary">{message.mode}</Badge>
@@ -381,10 +360,8 @@ export function QueryInterface() {
               <div className="flex justify-start">
                 <Card className="max-w-[80%]">
                   <CardContent className="p-3">
-                    <div className="prose prose-sm dark:prose-invert max-w-none">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {streamingContent}
-                      </ReactMarkdown>
+                    <div>
+                      <MarkdownRenderer content={streamingContent} />
                       <span className="inline-block w-2 h-4 bg-foreground animate-pulse ml-1" />
                     </div>
                   </CardContent>

@@ -336,6 +336,10 @@ export async function getPipelineStatus(): Promise<PipelineStatus> {
   return api.get<PipelineStatus>("/pipeline/status");
 }
 
+export async function cancelPipeline(): Promise<void> {
+  return api.post<void>("/pipeline/cancel");
+}
+
 export async function getTaskStatus(
   taskId: string
 ): Promise<PipelineStatus["tasks"][0]> {
@@ -402,6 +406,7 @@ export const edgequakeApi = {
 
   // Pipeline
   getPipelineStatus,
+  cancelPipeline,
   getTaskStatus,
   cancelTask,
 };

@@ -34,6 +34,7 @@ import {
     deleteAllDocuments,
     deleteDocument,
     getDocuments,
+    getPipelineStatus,
     reprocessDocument,
     uploadDocument,
 } from '@/lib/api/edgequake';
@@ -54,7 +55,11 @@ import {
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { DocumentFilters, type DocStatus, type SortDirection, type SortField } from './document-filters';
+import { PaginationControls } from './pagination-controls';
+import { PipelineStatusDialog } from './pipeline-status-dialog';
 
 const statusConfig = {
   pending: { icon: Clock, color: 'bg-yellow-500', label: 'Pending', animate: false },
@@ -63,7 +68,9 @@ const statusConfig = {
   failed: { icon: XCircle, color: 'bg-red-500', label: 'Failed', animate: false },
 } as const;
 
-function StatusBadge({ status }: { status: Document['status'] }) {
+type DocumentStatus = keyof typeof statusConfig;
+
+function StatusBadge({ status }: { status: DocumentStatus }) {
   const config = statusConfig[status];
   const Icon = config.icon;
 
@@ -76,13 +83,38 @@ function StatusBadge({ status }: { status: Document['status'] }) {
 }
 
 export function DocumentManager() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // TODO: Implement bulk selection in future
+  // const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  
+  // Filter and sort state
+  const [statusFilter, setStatusFilter] = useState<DocStatus>('all');
+  const [sortField, setSortField] = useState<SortField>('created_at');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  
+  // Pipeline status dialog state
+  const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['documents'],
-    queryFn: () => getDocuments({ page_size: 100 }),
+    queryKey: ['documents', currentPage, pageSize, statusFilter],
+    queryFn: () => getDocuments({ 
+      page: currentPage, 
+      page_size: pageSize,
+      status: statusFilter === 'all' ? undefined : statusFilter,
+    }),
     refetchInterval: 5000, // Poll for status updates
+  });
+  
+  // Pipeline status query
+  const { data: pipelineStatus } = useQuery({
+    queryKey: ['pipeline-status'],
+    queryFn: getPipelineStatus,
+    refetchInterval: 2000,
   });
 
   const uploadMutation = useMutation({
@@ -150,7 +182,40 @@ export function DocumentManager() {
     },
   });
 
-  const documents = data?.items || [];
+  // Sort documents client-side for now
+  const sortDocuments = (docs: Document[]): Document[] => {
+    return [...docs].sort((a, b) => {
+      let aVal: string | number | Date = '';
+      let bVal: string | number | Date = '';
+      
+      switch (sortField) {
+        case 'title':
+          aVal = a.title || a.file_name || a.id;
+          bVal = b.title || b.file_name || b.id;
+          break;
+        case 'created_at':
+          aVal = new Date(a.created_at || 0);
+          bVal = new Date(b.created_at || 0);
+          break;
+        case 'status':
+          aVal = a.status || '';
+          bVal = b.status || '';
+          break;
+        case 'entity_count':
+          aVal = a.entity_count ?? a.chunk_count ?? 0;
+          bVal = b.entity_count ?? b.chunk_count ?? 0;
+          break;
+      }
+      
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
+
+  const documents = sortDocuments(data?.items || []);
+  const totalPages = Math.ceil((data?.total || 0) / pageSize);
+  const totalCount = data?.total || documents.length;
 
   if (isError) {
     return (
@@ -174,39 +239,54 @@ export function DocumentManager() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Documents</h1>
+          <h1 className="text-2xl font-bold">{t('documents.title')}</h1>
           <p className="text-muted-foreground">
-            Upload and manage documents for knowledge graph extraction
+            {t('documents.subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Pipeline Status */}
+          {pipelineStatus?.is_busy && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPipelineDialogOpen(true)}
+              className="gap-1 text-orange-500"
+            >
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {t('pipeline.busy')}
+            </Button>
+          )}
+          <PipelineStatusDialog
+            open={pipelineDialogOpen}
+            onOpenChange={setPipelineDialogOpen}
+          />
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4 mr-1" />
-            Refresh
+            {t('documents.refresh')}
           </Button>
           {documents.length > 0 && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" size="sm">
                   <Trash2 className="h-4 w-4 mr-1" />
-                  Clear All
+                  {t('documents.clearAll')}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Delete all documents?</AlertDialogTitle>
+                  <AlertDialogTitle>{t('documents.deleteAllTitle')}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will permanently delete all {documents.length} documents and their extracted
-                    entities. This action cannot be undone.
+                    {t('documents.deleteAllDescription', { count: totalCount })}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={() => deleteAllMutation.mutate()}
                     className="bg-destructive text-destructive-foreground"
                   >
-                    Delete All
+                    {t('documents.deleteAll')}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -214,6 +294,16 @@ export function DocumentManager() {
           )}
         </div>
       </div>
+      
+      {/* Filters */}
+      <DocumentFilters
+        status={statusFilter}
+        onStatusChange={setStatusFilter}
+        sortField={sortField}
+        onSortFieldChange={setSortField}
+        sortDirection={sortDirection}
+        onSortDirectionChange={setSortDirection}
+      />
 
       {/* Upload Zone */}
       <Card>
@@ -301,14 +391,14 @@ export function DocumentManager() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => reprocessMutation.mutate(doc.id)}>
                             <RefreshCw className="h-4 w-4 mr-2" />
-                            Reprocess
+                            {t('documents.reprocess')}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => deleteMutation.mutate(doc.id)}
                             className="text-destructive"
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
+                            {t('documents.delete')}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -317,6 +407,22 @@ export function DocumentManager() {
                 ))}
               </TableBody>
             </Table>
+          )}
+          
+          {/* Pagination */}
+          {documents.length > 0 && (
+            <div className="mt-4">
+              <PaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(newSize) => {
+                  setPageSize(newSize);
+                  setCurrentPage(1); // Reset to first page when changing page size
+                }}
+              />
+            </div>
           )}
         </CardContent>
       </Card>

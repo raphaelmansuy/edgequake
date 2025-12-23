@@ -7,7 +7,7 @@ import { useSettingsStore } from '@/stores/use-settings-store';
 
 export function GraphControls() {
   const { graphSettings, setGraphSettings } = useSettingsStore();
-  const { colorMode, setColorMode } = useGraphStore();
+  const { setColorMode } = useGraphStore();
 
   const handleColorByChange = (value: 'type' | 'community' | 'degree') => {
     setGraphSettings({ colorBy: value });

@@ -1,0 +1,227 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "refresh": "Refresh",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "close": "Close",
+    "search": "Search",
+    "filter": "Filter",
+    "sort": "Sort",
+    "all": "All",
+    "none": "None",
+    "yes": "Yes",
+    "no": "No",
+    "actions": "Actions",
+    "settings": "Settings",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "upload": "Upload",
+    "download": "Download",
+    "tryAgain": "Try again",
+    "platform": "Graph-RAG Platform",
+    "navigation": "Navigation",
+    "keyboardShortcuts": "Keyboard Shortcuts",
+    "keyboardShortcutsDesc": "Use these shortcuts to navigate quickly",
+    "pressEscToClose": "Press Esc to close"
+  },
+  "nav": {
+    "graph": "Knowledge Graph",
+    "documents": "Documents",
+    "query": "Query",
+    "apiExplorer": "API Explorer",
+    "settings": "Settings"
+  },
+  "header": {
+    "documents": "Documents",
+    "knowledgeGraph": "Knowledge Graph",
+    "query": "Query",
+    "settings": "Settings",
+    "language": "Language"
+  },
+  "documents": {
+    "title": "Documents",
+    "subtitle": "Upload and manage documents for knowledge graph extraction",
+    "upload": "Upload",
+    "uploadDrop": "Drag & drop files or click to upload",
+    "uploadDropActive": "Drop files here...",
+    "uploadSupports": "Supports TXT, MD, JSON files",
+    "clearAll": "Clear All",
+    "noDocuments": "No documents yet",
+    "noDocumentsSubtitle": "Upload documents to build your knowledge graph",
+    "deleteConfirm": "Delete all documents?",
+    "deleteConfirmDescription": "This will permanently delete all {{count}} documents and their extracted entities. This action cannot be undone.",
+    "documentCount": "Documents ({{count}})",
+    "table": {
+      "title": "Title",
+      "status": "Status",
+      "entities": "Entities",
+      "created": "Created",
+      "actions": "Actions"
+    },
+    "actions": {
+      "view": "View Details",
+      "reprocess": "Reprocess",
+      "delete": "Delete"
+    },
+    "status": {
+      "all": "All Status",
+      "pending": "Pending",
+      "processing": "Processing",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "pagination": {
+      "rowsPerPage": "Rows per page:",
+      "page": "Page {{current}} of {{total}}"
+    },
+    "filter": {
+      "status": "Filter by status",
+      "sortBy": "Sort by:",
+      "created": "Created",
+      "updated": "Updated"
+    }
+  },
+  "graph": {
+    "title": "Knowledge Graph",
+    "noGraph": "No knowledge graph yet",
+    "noGraphSubtitle": "Your knowledge graph is empty. Upload documents to automatically extract entities and relationships.",
+    "uploadDocuments": "Upload Documents",
+    "loading": "Loading knowledge graph...",
+    "nodeCount": "{{nodes}} nodes · {{edges}} edges",
+    "controls": {
+      "zoomIn": "Zoom In",
+      "zoomOut": "Zoom Out",
+      "reset": "Reset View",
+      "fullscreen": "Fullscreen",
+      "refresh": "Refresh"
+    },
+    "layouts": {
+      "title": "Layout",
+      "force": "Force Atlas",
+      "circular": "Circular",
+      "random": "Random"
+    },
+    "search": {
+      "placeholder": "Search nodes...",
+      "noResults": "No nodes found"
+    },
+    "nodeDetails": {
+      "title": "Node Details",
+      "type": "Type",
+      "connections": "Connections",
+      "properties": "Properties",
+      "description": "Description",
+      "documents": "Source Documents"
+    },
+    "contextMenu": {
+      "viewDetails": "View Details",
+      "expandNeighborhood": "Expand Neighborhood",
+      "findRelated": "Find Related",
+      "viewDocuments": "View Documents",
+      "copyId": "Copy ID"
+    },
+    "filters": {
+      "title": "Filters",
+      "nodeTypes": "Node Types",
+      "connectionRange": "Connection Range"
+    },
+    "legend": {
+      "title": "Legend",
+      "person": "Person",
+      "organization": "Organization",
+      "technology": "Technology",
+      "location": "Location",
+      "other": "Other"
+    }
+  },
+  "query": {
+    "title": "Query",
+    "subtitle": "Ask questions about your knowledge graph",
+    "placeholder": "Ask a question...",
+    "submit": "Send",
+    "startConversation": "Start a conversation",
+    "startConversationSubtitle": "Ask questions about your knowledge graph",
+    "modes": {
+      "local": "Local",
+      "localDescription": "Search within entity neighborhood",
+      "global": "Global",
+      "globalDescription": "Search entire knowledge graph",
+      "hybrid": "Hybrid",
+      "hybridDescription": "Combine local and global search",
+      "naive": "Naive",
+      "naiveDescription": "Simple keyword search"
+    },
+    "settings": {
+      "title": "Query Settings",
+      "streaming": "Streaming",
+      "streamingDescription": "Show response as it generates",
+      "topK": "Top K Results",
+      "temperature": "Temperature",
+      "maxTokens": "Max Tokens"
+    },
+    "response": {
+      "tokens": "{{count}} tokens",
+      "duration": "{{ms}}ms",
+      "thinking": "Thinking...",
+      "thoughtFor": "Thought for {{seconds}}s"
+    },
+    "sources": {
+      "title": "Sources",
+      "entities": "Entities",
+      "relationships": "Relationships",
+      "documents": "Documents"
+    },
+    "history": {
+      "title": "History",
+      "recent": "Recent Queries",
+      "favorites": "Favorites",
+      "noHistory": "No query history",
+      "clear": "Clear History"
+    }
+  },
+  "pipeline": {
+    "title": "Pipeline Status",
+    "idle": "Pipeline is idle",
+    "busy": "Pipeline Busy",
+    "job": "Job: {{name}}",
+    "started": "Started: {{time}}",
+    "progress": "Progress",
+    "messages": "Messages",
+    "cancel": "Cancel Pipeline",
+    "processed": "{{current}} of {{total}} documents processed"
+  },
+  "settings": {
+    "title": "Settings",
+    "appearance": {
+      "title": "Appearance",
+      "theme": "Theme",
+      "themeLight": "Light",
+      "themeDark": "Dark",
+      "themeSystem": "System",
+      "language": "Language"
+    },
+    "api": {
+      "title": "API Configuration",
+      "endpoint": "API Endpoint",
+      "status": "Connection Status",
+      "connected": "Connected",
+      "disconnected": "Disconnected"
+    }
+  },
+  "errors": {
+    "loadDocuments": "Error loading documents",
+    "loadGraph": "Error loading graph",
+    "uploadFailed": "Upload failed: {{error}}",
+    "deleteFailed": "Delete failed: {{error}}",
+    "queryFailed": "Query failed: {{error}}",
+    "connectionFailed": "Connection failed"
+  }
+}

@@ -75,14 +75,18 @@ export function NodeDetails({ node }: NodeDetailsProps) {
               <span className="text-muted-foreground">ID</span>
               <span className="font-mono text-xs">{node.id.slice(0, 8)}...</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Sources</span>
-              <span>{node.source_ids.length} documents</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Created</span>
-              <span>{formatDistanceToNow(new Date(node.created_at), { addSuffix: true })}</span>
-            </div>
+            {node.degree !== undefined && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Connections</span>
+                <span>{node.degree}</span>
+              </div>
+            )}
+            {node.created_at && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Created</span>
+                <span>{formatDistanceToNow(new Date(node.created_at), { addSuffix: true })}</span>
+              </div>
+            )}
           </div>
         </div>
 

@@ -10,6 +10,7 @@ import {
     Trash2
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface NodeContextMenuPosition {
   x: number;
@@ -39,18 +40,9 @@ export function NodeContextMenu({
   onCopyId,
   onDelete,
 }: NodeContextMenuProps) {
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (node && position) {
-      setOpen(true);
-    } else {
-      setOpen(false);
-    }
-  }, [node, position]);
+  const { t } = useTranslation();
 
   const handleClose = useCallback(() => {
-    setOpen(false);
     onClose();
   }, [onClose]);
 
@@ -75,7 +67,7 @@ export function NodeContextMenu({
           }}
         >
           <Eye className="h-4 w-4" />
-          <span>View Details</span>
+          <span>{t('graph.contextMenu.viewDetails', 'View Details')}</span>
           <span className="ml-auto text-xs text-muted-foreground">Enter</span>
         </button>
 
@@ -87,7 +79,7 @@ export function NodeContextMenu({
           }}
         >
           <Network className="h-4 w-4" />
-          <span>Expand Neighborhood</span>
+          <span>{t('graph.contextMenu.expandNeighborhood', 'Expand Neighborhood')}</span>
         </button>
 
         <button
@@ -98,7 +90,7 @@ export function NodeContextMenu({
           }}
         >
           <Search className="h-4 w-4" />
-          <span>Find Related Entities</span>
+          <span>{t('graph.contextMenu.findRelated', 'Find Related Entities')}</span>
         </button>
 
         <div className="my-1 h-px bg-border" />
@@ -111,7 +103,7 @@ export function NodeContextMenu({
           }}
         >
           <FileText className="h-4 w-4" />
-          <span>View Source Documents</span>
+          <span>{t('graph.contextMenu.viewDocuments', 'View Source Documents')}</span>
         </button>
 
         <button
@@ -122,7 +114,7 @@ export function NodeContextMenu({
           }}
         >
           <Copy className="h-4 w-4" />
-          <span>Copy Entity ID</span>
+          <span>{t('graph.contextMenu.copyId', 'Copy Entity ID')}</span>
           <span className="ml-auto text-xs text-muted-foreground">⌘C</span>
         </button>
 
@@ -137,7 +129,7 @@ export function NodeContextMenu({
               }}
             >
               <Trash2 className="h-4 w-4" />
-              <span>Delete Entity</span>
+              <span>{t('graph.contextMenu.deleteEntity', 'Delete Entity')}</span>
             </button>
           </>
         )}

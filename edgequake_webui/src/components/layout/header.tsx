@@ -1,20 +1,21 @@
 'use client';
 
 import { ClientOnly } from '@/components/client-only';
+import { LanguageSelector } from '@/components/shared/language-selector';
 import { Button } from '@/components/ui/button';
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { checkHealth } from '@/lib/api/edgequake';
 import { useAuthStore } from '@/stores/use-auth-store';
@@ -95,6 +96,11 @@ export function Header() {
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
+
+        {/* Language Selector */}
+        <ClientOnly fallback={null}>
+          <LanguageSelector />
+        </ClientOnly>
 
         {/* Theme Toggle */}
         <ClientOnly fallback={<Button variant="ghost" size="icon"><Sun className="h-5 w-5" /></Button>}>
