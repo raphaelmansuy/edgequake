@@ -332,22 +332,69 @@ export async function deleteRelationship(
 // Pipeline / Tasks
 // ============================================================================
 
+export async function getTasksList(params?: {
+  status?: string;
+  task_type?: string;
+  page?: number;
+  page_size?: number;
+}): Promise<import("@/types").TaskListResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.set("status", params.status);
+  if (params?.task_type) searchParams.set("task_type", params.task_type);
+  if (params?.page) searchParams.set("page", String(params.page));
+  if (params?.page_size) searchParams.set("page_size", String(params.page_size));
+  
+  const query = searchParams.toString();
+  return api.get<import("@/types").TaskListResponse>(`/tasks${query ? `?${query}` : ""}`);
+}
+
 export async function getPipelineStatus(): Promise<PipelineStatus> {
-  return api.get<PipelineStatus>("/pipeline/status");
+  try {
+    // Use the tasks list endpoint to derive pipeline status
+    const result = await getTasksList({ page_size: 50 });
+    
+    return {
+      is_busy: result.statistics.processing > 0,
+      running_tasks: result.statistics.processing,
+      queued_tasks: result.statistics.pending,
+      completed_tasks: result.statistics.indexed,
+      failed_tasks: result.statistics.failed,
+      tasks: result.tasks,
+      statistics: result.statistics,
+    };
+  } catch {
+    // Return empty status if endpoint fails
+    return {
+      is_busy: false,
+      running_tasks: 0,
+      queued_tasks: 0,
+      completed_tasks: 0,
+      failed_tasks: 0,
+      tasks: [],
+    };
+  }
 }
 
 export async function cancelPipeline(): Promise<void> {
-  return api.post<void>("/pipeline/cancel");
+  // Cancel all processing tasks
+  const result = await getTasksList({ status: "processing" });
+  for (const task of result.tasks) {
+    await cancelTask(task.track_id);
+  }
 }
 
 export async function getTaskStatus(
   taskId: string
-): Promise<PipelineStatus["tasks"][0]> {
-  return api.get<PipelineStatus["tasks"][0]>(`/tasks/${taskId}`);
+): Promise<import("@/types").TaskResponse> {
+  return api.get<import("@/types").TaskResponse>(`/tasks/${taskId}`);
 }
 
 export async function cancelTask(taskId: string): Promise<void> {
   return api.post<void>(`/tasks/${taskId}/cancel`);
+}
+
+export async function retryTask(taskId: string): Promise<import("@/types").TaskResponse> {
+  return api.post<import("@/types").TaskResponse>(`/tasks/${taskId}/retry`);
 }
 
 // ============================================================================
@@ -404,11 +451,13 @@ export const edgequakeApi = {
   updateRelationship,
   deleteRelationship,
 
-  // Pipeline
+  // Pipeline / Tasks
   getPipelineStatus,
   cancelPipeline,
+  getTasksList,
   getTaskStatus,
   cancelTask,
+  retryTask,
 };
 
 export default edgequakeApi;

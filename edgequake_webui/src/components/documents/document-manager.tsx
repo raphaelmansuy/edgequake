@@ -275,9 +275,9 @@ export function DocumentManager() {
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>{t('documents.deleteAllTitle')}</AlertDialogTitle>
+                  <AlertDialogTitle>{t('documents.deleteConfirm')}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    {t('documents.deleteAllDescription', { count: totalCount })}
+                    {t('documents.deleteConfirmDescription', { count: totalCount })}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -286,7 +286,7 @@ export function DocumentManager() {
                     onClick={() => deleteAllMutation.mutate()}
                     className="bg-destructive text-destructive-foreground"
                   >
-                    {t('documents.deleteAll')}
+                    {t('common.delete')}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -391,14 +391,14 @@ export function DocumentManager() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => reprocessMutation.mutate(doc.id)}>
                             <RefreshCw className="h-4 w-4 mr-2" />
-                            {t('documents.reprocess')}
+                            {t('documents.actions.reprocess')}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => deleteMutation.mutate(doc.id)}
                             className="text-destructive"
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
-                            {t('documents.delete')}
+                            {t('documents.actions.delete')}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

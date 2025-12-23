@@ -168,31 +168,48 @@ export interface Workspace {
 }
 
 // Task/Pipeline types
-export interface PipelineTask {
-  id: string;
-  document_id: string;
-  status: "queued" | "running" | "completed" | "failed";
-  stage: "parsing" | "chunking" | "extraction" | "embedding" | "indexing";
-  progress: number;
-  error_message?: string;
+export interface TaskResponse {
+  track_id: string;
+  task_type: string;
+  status: "pending" | "processing" | "indexed" | "failed" | "cancelled";
+  created_at: string;
+  updated_at: string;
   started_at?: string;
   completed_at?: string;
+  error_message?: string;
+  retry_count: number;
+  max_retries: number;
+  progress?: Record<string, unknown>;
+  result?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
 }
 
+export interface TaskListResponse {
+  tasks: TaskResponse[];
+  pagination: {
+    total: number;
+    page: number;
+    page_size: number;
+    total_pages: number;
+  };
+  statistics: {
+    pending: number;
+    processing: number;
+    indexed: number;
+    failed: number;
+    cancelled: number;
+  };
+}
+
+// Derived pipeline status (for UI compatibility)
 export interface PipelineStatus {
   is_busy: boolean;
   running_tasks: number;
   queued_tasks: number;
   completed_tasks: number;
   failed_tasks: number;
-  tasks: PipelineTask[];
-  // Extended fields for pipeline dialog
-  job_name?: string;
-  start_time?: string;
-  progress?: number;
-  current?: number;
-  total?: number;
-  messages?: string[];
+  tasks: TaskResponse[];
+  statistics?: TaskListResponse["statistics"];
 }
 
 // Health types

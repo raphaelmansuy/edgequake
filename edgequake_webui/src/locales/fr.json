@@ -54,6 +54,7 @@
     "uploadDropActive": "Déposez les fichiers ici...",
     "uploadSupports": "Supporte les fichiers TXT, MD, JSON",
     "clearAll": "Tout effacer",
+    "refresh": "Rafraîchir",
     "noDocuments": "Aucun document",
     "noDocumentsSubtitle": "Téléchargez des documents pour construire votre graphe de connaissances",
     "deleteConfirm": "Supprimer tous les documents ?",

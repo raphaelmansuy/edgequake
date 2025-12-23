@@ -7,7 +7,6 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cancelPipeline, getPipelineStatus } from '@/lib/api/edgequake';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -50,14 +49,6 @@ export function PipelineStatusDialog({
     cancelMutation.mutate();
   };
 
-  const formatTime = (timestamp: string) => {
-    try {
-      return new Date(timestamp).toLocaleTimeString();
-    } catch {
-      return timestamp;
-    }
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -74,43 +65,43 @@ export function PipelineStatusDialog({
           </div>
         ) : data?.is_busy ? (
           <div className="space-y-4">
-            {/* Job Info */}
-            <div>
-              <p className="text-sm font-medium">
-                {t('pipeline.job', { name: data.job_name || 'Processing' })}
-              </p>
-              {data.start_time && (
-                <p className="text-sm text-muted-foreground">
-                  {t('pipeline.started', { time: formatTime(data.start_time) })}
-                </p>
-              )}
+            {/* Statistics */}
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="p-2 bg-muted rounded">
+                <p className="text-muted-foreground">Processing</p>
+                <p className="text-xl font-bold">{data.running_tasks}</p>
+              </div>
+              <div className="p-2 bg-muted rounded">
+                <p className="text-muted-foreground">Queued</p>
+                <p className="text-xl font-bold">{data.queued_tasks}</p>
+              </div>
+              <div className="p-2 bg-muted rounded">
+                <p className="text-muted-foreground">Completed</p>
+                <p className="text-xl font-bold text-green-600">{data.completed_tasks}</p>
+              </div>
+              <div className="p-2 bg-muted rounded">
+                <p className="text-muted-foreground">Failed</p>
+                <p className="text-xl font-bold text-red-600">{data.failed_tasks}</p>
+              </div>
             </div>
 
-            {/* Progress Bar */}
-            {data.progress !== undefined && (
+            {/* Recent Tasks */}
+            {data.tasks && data.tasks.length > 0 && (
               <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>{t('pipeline.progress')}</span>
-                  <span>{Math.round(data.progress)}%</span>
-                </div>
-                <Progress value={data.progress} />
-                {data.current !== undefined && data.total !== undefined && (
-                  <p className="text-xs text-muted-foreground text-center">
-                    {t('pipeline.processed', { current: data.current, total: data.total })}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Messages Log */}
-            {data.messages && data.messages.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">{t('pipeline.messages')}</p>
+                <p className="text-sm font-medium">{t('pipeline.messages', 'Recent Tasks')}</p>
                 <ScrollArea className="h-32 rounded-md border bg-muted p-2">
-                  {data.messages.map((msg: string, i: number) => (
-                    <p key={i} className="text-xs font-mono">
-                      {msg}
-                    </p>
+                  {data.tasks.slice(0, 10).map((task) => (
+                    <div key={task.track_id} className="flex items-center justify-between py-1 text-xs font-mono">
+                      <span className="truncate flex-1">{task.track_id.slice(0, 8)}...</span>
+                      <span className={`ml-2 px-1 rounded ${
+                        task.status === 'processing' ? 'bg-yellow-200 text-yellow-800' :
+                        task.status === 'indexed' ? 'bg-green-200 text-green-800' :
+                        task.status === 'failed' ? 'bg-red-200 text-red-800' :
+                        'bg-gray-200 text-gray-800'
+                      }`}>
+                        {task.status}
+                      </span>
+                    </div>
                   ))}
                 </ScrollArea>
               </div>
@@ -132,8 +123,13 @@ export function PipelineStatusDialog({
             </Button>
           </div>
         ) : (
-          <div className="py-8 text-center text-muted-foreground">
-            {t('pipeline.idle')}
+          <div className="py-8 text-center">
+            <p className="text-muted-foreground mb-2">{t('pipeline.idle')}</p>
+            {data && (
+              <p className="text-xs text-muted-foreground">
+                Total: {data.completed_tasks} completed, {data.failed_tasks} failed
+              </p>
+            )}
           </div>
         )}
       </DialogContent>

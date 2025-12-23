@@ -8,6 +8,7 @@
 ## Actions Performed
 
 1. **i18n Infrastructure**
+
    - Installed `i18next`, `react-i18next`, `i18next-browser-languagedetector`
    - Created i18n configuration (`/lib/i18n.ts`)
    - Created locale files for English, Chinese, French (`/locales/*.json`)
@@ -16,6 +17,7 @@
    - Added language selector to header
 
 2. **Document Management Enhancements**
+
    - Created `PaginationControls` component
    - Created `useUrlState` hook for URL state sync
    - Created `DocumentFilters` component with status filters and sorting
@@ -25,6 +27,7 @@
    - Created `Progress` UI component
 
 3. **Graph Visualization Enhancements**
+
    - Added node drag & drop functionality to `GraphRenderer`
    - Created `GraphSearch` component with MiniSearch
    - Created `LayoutControl` component (Force Atlas, Circular, Random)
@@ -32,12 +35,14 @@
    - Enhanced `NodeContextMenu` with i18n translations
 
 4. **Query Interface Improvements**
+
    - Created `MarkdownRenderer` with LaTeX (KaTeX) support
    - Created `MermaidDiagram` component for diagram rendering
    - Created `COTRenderer` for chain-of-thought display
    - Updated `QueryInterface` with new renderers and i18n
 
 5. **Keyboard Shortcuts**
+
    - Enhanced `useKeyboardShortcuts` hook with help dialog support
    - Created `KeyboardShortcutsDialog` component
    - Created `KeyboardShortcutsProvider` for global shortcuts
@@ -81,6 +86,7 @@
 ## Files Created/Modified
 
 ### New Files
+
 - `src/lib/i18n.ts`
 - `src/locales/en.json`
 - `src/locales/zh.json`
@@ -102,6 +108,7 @@
 - `src/components/ui/progress.tsx`
 
 ### Modified Files
+
 - `src/providers/index.tsx` - Added I18n and Keyboard providers
 - `src/components/layout/header.tsx` - Added language selector
 - `src/components/layout/sidebar.tsx` - Added i18n translations

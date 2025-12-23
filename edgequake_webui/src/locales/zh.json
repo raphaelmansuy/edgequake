@@ -54,6 +54,7 @@
     "uploadDropActive": "将文件放在这里...",
     "uploadSupports": "支持 TXT、MD、JSON 文件",
     "clearAll": "清除全部",
+    "refresh": "刷新",
     "noDocuments": "暂无文档",
     "noDocumentsSubtitle": "上传文档以构建您的知识图谱",
     "deleteConfirm": "删除所有文档？",

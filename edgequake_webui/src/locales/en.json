@@ -54,6 +54,7 @@
     "uploadDropActive": "Drop files here...",
     "uploadSupports": "Supports TXT, MD, JSON files",
     "clearAll": "Clear All",
+    "refresh": "Refresh",
     "noDocuments": "No documents yet",
     "noDocumentsSubtitle": "Upload documents to build your knowledge graph",
     "deleteConfirm": "Delete all documents?",

@@ -1,25 +1,25 @@
 'use client';
 
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuLabel,
+    ContextMenuSeparator,
+} from '@/components/ui/context-menu';
+import type { GraphNode } from '@/types';
+import {
+    Copy,
+    Expand,
+    Eye,
+    FileText,
+    Link2,
+    Search,
+    Trash2,
+} from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuLabel,
-} from '@/components/ui/context-menu';
-import {
-  Eye,
-  Expand,
-  Search,
-  FileText,
-  Copy,
-  Link2,
-  Trash2,
-} from 'lucide-react';
 import { toast } from 'sonner';
-import type { GraphNode } from '@/types';
 
 export interface NodeContextMenuAction {
   type:
