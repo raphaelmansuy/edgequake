@@ -1,14 +1,44 @@
-# EdgeQuake Documentation Sync - COMPLETED
+# EdgeQuake Documentation Fact-Check
 
-## Last Updated: 2025-01-15
-## Status: ✅ COMPLETE
-## Final Phase: 6 (Commit Ready)
+## Last Updated: 2025-12-24
+## Status: 🔍 FACT-CHECKING IN PROGRESS
+## Current File: 0001-quick-start.md
 
 ---
 
-## Summary
+## Fact-Check Session
 
-All 7 core documentation files have been updated from outdated LightRAG Python docs to accurate EdgeQuake Rust documentation.
+### 0001-quick-start.md
+
+**Verified Against:**
+- `edgequake/crates/edgequake-core/src/orchestrator.rs` (EdgeQuake struct)
+- `edgequake/crates/edgequake-core/src/config.rs` (Config structs)
+- `edgequake/crates/edgequake-core/src/types/query.rs` (QueryMode, QueryParams)
+- `edgequake/crates/edgequake-query/src/modes.rs` (QueryMode)
+- `edgequake/crates/edgequake-llm/src/providers/openai.rs` (OpenAIProvider)
+- `edgequake/crates/edgequake-api/src/routes.rs` (API endpoints)
+
+**Issues Found:**
+
+| Issue | Location | Doc Says | Code Says |
+|-------|----------|----------|-----------|
+| QueryMode::Mix description | Query modes section | "Mix: Weighted combination" | Correct - exists in types/query.rs |
+| QueryMode::Bypass missing | Query modes section | Only 5 modes | Actually 6 modes (includes Bypass) |
+| query_with_mode method | Code example | `eq.query_with_mode(...)` | Does not exist - use `eq.query(query, Some(QueryParams::new().with_mode(...)))` |
+| Result.entity_count | Insert example | `result.entity_count` | Actually `result.entities_extracted` |
+| Result.relationship_count | Insert example | `result.relationship_count` | Actually `result.relationships_extracted` |
+| Config::from_env() | Config section | `Config::from_env()` | Not implemented - use Default or manual |
+| EDGEQUAKE_PORT env | Env vars | `EDGEQUAKE_PORT` | Actual: `EDGEQUAKE_API_PORT` or just use 8080 default |
+| EDGEQUAKE_NAMESPACE | Env vars | Listed | Should be `namespace` in StorageConfig |
+
+**Corrections Needed:**
+1. Add Bypass mode to query modes section
+2. Fix query_with_mode to proper API
+3. Fix InsertResult field names
+4. Remove Config::from_env() or document actual loading
+5. Update environment variable names
+
+---
 
 ### Phase Results
 

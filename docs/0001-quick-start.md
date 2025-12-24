@@ -78,7 +78,7 @@ cargo test
 ```rust
 use edgequake_core::{EdgeQuake, EdgeQuakeConfig};
 use edgequake_llm::OpenAIProvider;
-use edgequake_storage::MemoryStorage;
+use edgequake_storage::{MemoryKVStorage, MemoryVectorStorage, MemoryGraphStorage};
 use std::sync::Arc;
 
 #[tokio::main]
@@ -92,12 +92,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Create storage backends
-    let kv = Arc::new(MemoryStorage::new());
-    let vector = Arc::new(MemoryStorage::new());
-    let graph = Arc::new(MemoryStorage::new());
+    let namespace = "default";
+    let kv = Arc::new(MemoryKVStorage::new(namespace));
+    let vector = Arc::new(MemoryVectorStorage::new(namespace, 1536));
+    let graph = Arc::new(MemoryGraphStorage::new(namespace));
 
     // Initialize EdgeQuake
-    let config = EdgeQuakeConfig::default();
+    let config = EdgeQuakeConfig::new().with_namespace(namespace);
     let mut eq = EdgeQuake::new(config)
         .with_providers(provider.clone(), provider.clone())
         .with_storage_backends(kv, vector, graph);
@@ -108,15 +109,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = eq.insert(
         "Marie Curie was a physicist who discovered radium. 
          She was born in Poland and later moved to France. 
-         She won the Nobel Prize in Physics in 1903."
+         She won the Nobel Prize in Physics in 1903.",
+        None  // Auto-generate document ID
     ).await?;
     
     println!("Inserted: {} entities, {} relationships", 
-        result.entity_count, result.relationship_count);
+        result.entities_extracted, result.relationships_extracted);
 
     // Query the knowledge graph
-    let response = eq.query("What did Marie Curie discover?").await?;
+    let response = eq.query("What did Marie Curie discover?", None).await?;
     println!("Answer: {}", response.answer);
+
+    Ok(())
+};
 
     Ok(())
 }
@@ -124,30 +129,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### 2. Query Modes Explained
 
-EdgeQuake supports 5 query modes, each optimized for different use cases:
+EdgeQuake supports 6 query modes, each optimized for different use cases:
 
 ```rust
-use edgequake_query::QueryMode;
+use edgequake_core::types::{QueryMode, QueryParams};
 
 // NAIVE: Direct vector similarity search (fastest)
 // Best for: Simple factual lookups
-let response = eq.query_with_mode("question", QueryMode::Naive).await?;
+let params = QueryParams::new().with_mode(QueryMode::Naive);
+let response = eq.query("question", Some(params)).await?;
 
 // LOCAL: Entity-centric search with local neighborhood
 // Best for: Questions about specific entities
-let response = eq.query_with_mode("question", QueryMode::Local).await?;
+let params = QueryParams::new().with_mode(QueryMode::Local);
+let response = eq.query("question", Some(params)).await?;
 
 // GLOBAL: Community-based search using graph clusters
 // Best for: Broad topic questions
-let response = eq.query_with_mode("question", QueryMode::Global).await?;
+let params = QueryParams::new().with_mode(QueryMode::Global);
+let response = eq.query("question", Some(params)).await?;
 
-// HYBRID: Combines local and global approaches (recommended)
+// HYBRID: Combines local and global approaches (recommended, default)
 // Best for: General-purpose queries
-let response = eq.query_with_mode("question", QueryMode::Hybrid).await?;
+let response = eq.query("question", None).await?;  // Default is Hybrid
 
-// MIX: Weighted combination of naive and graph-based
+// MIX: Adaptive combination based on query type
 // Best for: Maximum flexibility
-let response = eq.query_with_mode("question", QueryMode::Mix).await?;
+let params = QueryParams::new().with_mode(QueryMode::Mix);
+let response = eq.query("question", Some(params)).await?;
+
+// BYPASS: Skip retrieval, direct LLM query
+// Best for: General questions without RAG
+let params = QueryParams::new().with_mode(QueryMode::Bypass);
+let response = eq.query("question", Some(params)).await?;
 ```
 
 ---
@@ -264,57 +278,34 @@ npm run dev
 OPENAI_API_KEY=sk-xxx              # OpenAI API key
 
 # LLM Configuration
-EDGEQUAKE_LLM_PROVIDER=openai      # Provider: openai, ollama, anthropic
 EDGEQUAKE_LLM_MODEL=gpt-4o-mini    # Model name
 EDGEQUAKE_EMBEDDING_MODEL=text-embedding-3-small
 
-# Server
-EDGEQUAKE_HOST=0.0.0.0             # Bind address
-EDGEQUAKE_PORT=8080                # API server port
+# Server (defaults)
+# Host: 0.0.0.0, Port: 8080
 
-# Storage (optional)
-EDGEQUAKE_DATABASE_URL=postgres://localhost/edgequake
-EDGEQUAKE_NAMESPACE=default        # Multi-tenant namespace
+# Storage (for PostgreSQL)
+DATABASE_URL=postgres://localhost/edgequake
 ```
 
 ### Rust Configuration
 
 ```rust
-use edgequake_core::Config;
+use edgequake_core::EdgeQuakeConfig;
 
-let config = Config::from_env();  // Load from environment
+// Create with defaults
+let config = EdgeQuakeConfig::default();
 
-// Or configure programmatically
-let config = Config {
-    storage: StorageConfig {
-        database_url: "postgres://localhost/edgequake".to_string(),
-        max_connections: 10,
-        ..Default::default()
-    },
-    llm: LlmConfig {
-        provider: "openai".to_string(),
-        model: "gpt-4o-mini".to_string(),
-        embedding_model: "text-embedding-3-small".to_string(),
-        embedding_dim: 1536,
-        ..Default::default()
-    },
-    pipeline: PipelineConfig {
-        chunk_size: 1200,
-        chunk_overlap: 100,
-        ..Default::default()
-    },
-    query: QueryConfig {
-        default_mode: QueryMode::Hybrid,
-        max_vector_results: 20,
-        max_graph_depth: 3,
-        ..Default::default()
-    },
-    api: ApiConfig {
-        port: 8080,
-        cors_enabled: true,
-        ..Default::default()
-    },
-};
+// Or configure via builder pattern
+let config = EdgeQuakeConfig::new()
+    .with_namespace("my-workspace")
+    .with_llm_model("gpt-4o-mini")
+    .with_embedding_model("text-embedding-3-small", 1536)
+    .with_chunk_config(1200, 100);
+
+// For PostgreSQL storage
+let config = EdgeQuakeConfig::new()
+    .with_postgres("postgres://user:pass@localhost/edgequake");
 ```
 
 ---
@@ -324,11 +315,13 @@ let config = Config {
 ### Memory Storage (Development)
 
 ```rust
-use edgequake_storage::MemoryStorage;
+use edgequake_storage::{MemoryKVStorage, MemoryVectorStorage, MemoryGraphStorage};
+use std::sync::Arc;
 
-let kv = Arc::new(MemoryStorage::new());
-let vector = Arc::new(MemoryStorage::new());
-let graph = Arc::new(MemoryStorage::new());
+let namespace = "my-workspace";
+let kv = Arc::new(MemoryKVStorage::new(namespace));
+let vector = Arc::new(MemoryVectorStorage::new(namespace, 1536));  // 1536 = embedding dim
+let graph = Arc::new(MemoryGraphStorage::new(namespace));
 ```
 
 ### PostgreSQL Storage (Production)
@@ -336,6 +329,7 @@ let graph = Arc::new(MemoryStorage::new());
 ```rust
 use edgequake_storage::PostgresStorage;
 
+// Connect to PostgreSQL with pgvector and AGE extensions
 let storage = PostgresStorage::connect(
     "postgres://user:pass@localhost/edgequake"
 ).await?;

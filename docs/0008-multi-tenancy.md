@@ -1,658 +1,357 @@
-# LightRAG Multi-Tenancy Guide
+# EdgeQuake Multi-Tenancy Guide
 
-> **🚀 Enterprise Feature** | Multi-tenancy is the first enterprise feature added to this fork of LightRAG.
->
-This document describes the enterprise multi-tenancy features added to LightRAG.
+> Namespace-based data isolation for multi-tenant deployments
 
-## Multi-Tenancy Overview
+**Version**: 0.1.0 | **Last Updated**: December 2025
 
-LightRAG Enterprise provides a complete multi-tenant architecture for isolating data across organizations, teams, or applications. This is essential for SaaS deployments, enterprise environments, and any scenario requiring data isolation between different user groups.
+---
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Namespace-Based Isolation](#namespace-based-isolation)
+3. [Implementation](#implementation)
+4. [PostgreSQL Multi-Tenancy](#postgresql-multi-tenancy)
+5. [API Usage](#api-usage)
+6. [Best Practices](#best-practices)
+
+---
+
+## Overview
+
+EdgeQuake provides namespace-based data isolation for multi-tenant deployments. Each tenant gets isolated storage through namespaced storage backends.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                       MULTI-TENANCY ARCHITECTURE                             │
+│                       NAMESPACE-BASED ISOLATION                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
-│  │                         API GATEWAY                                   │   │
-│  │                    (JWT Authentication)                               │   │
-│  └────────────────────────────┬─────────────────────────────────────────┘   │
-│                               │                                              │
-│                               ▼                                              │
-│  ┌──────────────────────────────────────────────────────────────────────┐   │
-│  │                      TENANT RAG MANAGER                               │   │
-│  │              (LRU Cache + Per-Tenant Instances)                       │   │
+│  │                      EdgeQuake API Server                             │   │
 │  └────────────────────────────┬─────────────────────────────────────────┘   │
 │                               │                                              │
 │       ┌───────────────────────┼───────────────────────┐                     │
 │       │                       │                       │                     │
 │       ▼                       ▼                       ▼                     │
 │  ┌────────────┐         ┌────────────┐         ┌────────────┐              │
-│  │  Tenant A  │         │  Tenant B  │         │  Tenant C  │              │
+│  │ Namespace  │         │ Namespace  │         │ Namespace  │              │
+│  │  tenant_a  │         │  tenant_b  │         │  tenant_c  │              │
 │  ├────────────┤         ├────────────┤         ├────────────┤              │
-│  │ ┌────────┐ │         │ ┌────────┐ │         │ ┌────────┐ │              │
-│  │ │  KB 1  │ │         │ │  KB 1  │ │         │ │  KB 1  │ │              │
-│  │ └────────┘ │         │ └────────┘ │         │ └────────┘ │              │
-│  │ ┌────────┐ │         │ ┌────────┐ │         │            │              │
-│  │ │  KB 2  │ │         │ │  KB 2  │ │         │            │              │
-│  │ └────────┘ │         │ └────────┘ │         │            │              │
+│  │ KV Storage │         │ KV Storage │         │ KV Storage │              │
+│  │ Vector DB  │         │ Vector DB  │         │ Vector DB  │              │
+│  │ Graph DB   │         │ Graph DB   │         │ Graph DB   │              │
 │  └────────────┘         └────────────┘         └────────────┘              │
-│                                                                              │
-│  ┌──────────────────────────────────────────────────────────────────────┐   │
-│  │                     ISOLATED STORAGE                                  │   │
-│  │  tenant_a/kb_1/      tenant_b/kb_1/      tenant_c/kb_1/              │   │
-│  │  tenant_a/kb_2/      tenant_b/kb_2/                                   │   │
-│  └──────────────────────────────────────────────────────────────────────┘   │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
----
+### Key Concepts
 
-## Key Concepts
-
-### Tenant
-
-A tenant represents an organization or isolated environment. Each tenant:
-- Has unique configuration (models, thresholds, quotas)
-- Contains multiple knowledge bases
-- Manages its own users and roles
-- Is isolated from other tenants
-
-### Knowledge Base (KB)
-
-A knowledge base is a document collection within a tenant:
-- Stores documents, entities, and relationships
-- Has isolated storage (KV, vector, graph)
-- Can override tenant-level configuration
-- Tracks statistics (document count, storage)
-
-### Roles & Permissions
-
-```
-┌────────────────────────────────────────────────────────────────────────────┐
-│                         RBAC HIERARCHY                                      │
-├────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ADMIN           ─────────────────────────────────────────────────────┐    │
-│  │ All permissions                                                     │    │
-│  │ ├── tenant:manage           ← Manage tenant settings               │    │
-│  │ ├── tenant:manage_members   ← Add/remove users                     │    │
-│  │ ├── tenant:manage_billing   ← Billing access                       │    │
-│  │ └── All KB/Document/Query permissions                              │    │
-│  │                                                                     │    │
-│  EDITOR          ─────────────────────────────────────────────────────┤    │
-│  │ Content management                                                  │    │
-│  │ ├── kb:create               ← Create knowledge bases               │    │
-│  │ ├── kb:delete               ← Delete knowledge bases               │    │
-│  │ ├── document:create         ← Upload documents                     │    │
-│  │ ├── document:update         ← Edit documents                       │    │
-│  │ ├── document:delete         ← Remove documents                     │    │
-│  │ ├── document:read           ← Read documents                       │    │
-│  │ └── query:run               ← Execute queries                      │    │
-│  │                                                                     │    │
-│  VIEWER          ─────────────────────────────────────────────────────┤    │
-│  │ Read + query                                                        │    │
-│  │ ├── document:read           ← Read documents                       │    │
-│  │ └── query:run               ← Execute queries                      │    │
-│  │                                                                     │    │
-│  VIEWER_READONLY ─────────────────────────────────────────────────────┘    │
-│    Query only                                                               │
-│    └── query:run               ← Execute queries only                      │
-│                                                                             │
-└────────────────────────────────────────────────────────────────────────────┘
-```
+| Concept | Description |
+|---------|-------------|
+| **Namespace** | String identifier that isolates data across storage backends |
+| **Tenant** | Logical organization with its own namespace |
+| **Storage Backend** | KV, Vector, or Graph storage scoped to a namespace |
 
 ---
 
-## Configuration
+## Namespace-Based Isolation
 
-### Enable Multi-Tenancy
+Each storage backend in EdgeQuake accepts a namespace parameter that isolates data:
 
-```bash
-# Environment variables
-ENABLE_MULTI_TENANTS=true
-LIGHTRAG_MULTI_TENANT_STRICT=true
-LIGHTRAG_REQUIRE_USER_AUTH=true
-LIGHTRAG_SUPER_ADMIN_USERS=admin
-```
+### Storage Trait Namespaces
 
-### Security Settings
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ENABLE_MULTI_TENANTS` | `false` | Enable multi-tenant mode |
-| `LIGHTRAG_MULTI_TENANT_STRICT` | `true` | Enforce tenant isolation on data endpoints |
-| `LIGHTRAG_REQUIRE_USER_AUTH` | `true` | Require user auth for tenant access |
-| `LIGHTRAG_SUPER_ADMIN_USERS` | `admin` | Comma-separated list of super admins |
-
----
-
-## TenantRAGManager
-
-The `TenantRAGManager` handles LightRAG instance lifecycle:
-
-### Features
-
-- **Instance Caching**: LRU cache for tenant/KB instances
-- **Lazy Initialization**: Instances created on-demand
-- **Resource Cleanup**: Automatic finalization on eviction
-- **Async-Safe**: Double-check locking for concurrent access
-- **Security Validation**: User access verification
-
-### Implementation
-
-```python
-from lightrag.tenant_rag_manager import TenantRAGManager
-from lightrag.services.tenant_service import TenantService
-
-# Initialize manager
-manager = TenantRAGManager(
-    base_working_dir="./rag_storage",
-    tenant_service=tenant_service,
-    template_rag=global_rag_instance,
-    max_cached_instances=100  # LRU limit
-)
-
-# Get tenant-specific instance
-rag = await manager.get_rag_instance(
-    tenant_id="uuid-tenant-1",
-    kb_id="uuid-kb-1",
-    user_id="user@example.com"  # For access control
-)
-
-# Use normally
-await rag.ainsert("Document content...")
-result = await rag.aquery("Query?")
-
-# Cleanup
-await manager.cleanup_instance(tenant_id, kb_id)
-await manager.cleanup_all()  # Shutdown
-```
-
-### Storage Isolation
-
-Each tenant/KB combination gets isolated storage:
-
-```
-rag_storage/
-├── tenant_abc123/
-│   ├── kb_xyz789/
-│   │   ├── kv_store_*.json
-│   │   ├── vector_db/
-│   │   └── graph_db/
-│   └── kb_def456/
-│       ├── kv_store_*.json
-│       ├── vector_db/
-│       └── graph_db/
-└── tenant_ghi012/
-    └── kb_jkl345/
-        ├── kv_store_*.json
-        ├── vector_db/
-        └── graph_db/
-```
-
----
-
-## Tenant Service
-
-The `TenantService` manages tenant and KB metadata:
-
-### Create Tenant
-
-```python
-from lightrag.services.tenant_service import TenantService
-from lightrag.models.tenant import TenantConfig, ResourceQuota
-
-tenant = await tenant_service.create_tenant(
-    tenant_name="Acme Corp",
-    description="Production tenant",
-    config=TenantConfig(
-        llm_model="gpt-4o-mini",
-        embedding_model="text-embedding-ada-002",
-        top_k=50,
-        enable_rerank=True
-    ),
-    created_by="admin@acme.com"
-)
-print(f"Created tenant: {tenant.tenant_id}")
-```
-
-### Create Knowledge Base
-
-```python
-kb = await tenant_service.create_knowledge_base(
-    tenant_id=tenant.tenant_id,
-    kb_name="Product Documentation",
-    description="Internal product docs",
-    created_by="admin@acme.com"
-)
-print(f"Created KB: {kb.kb_id}")
-```
-
-### User Management
-
-```python
-# Add user to tenant
-await tenant_service.add_user_to_tenant(
-    user_id="user@acme.com",
-    tenant_id=tenant.tenant_id,
-    role="editor",
-    created_by="admin@acme.com"
-)
-
-# Verify access
-has_access = await tenant_service.verify_user_access(
-    user_id="user@acme.com",
-    tenant_id=tenant.tenant_id,
-    required_role="viewer"
-)
-```
-
----
-
-## REST API Endpoints
-
-### Tenant Management
-
-```bash
-# List tenants (public for selection)
-GET /api/v1/tenants?page=1&page_size=10
-
-# Create tenant
-POST /api/v1/tenants
-{
-    "name": "Acme Corp",
-    "description": "Production tenant",
-    "metadata": {"plan": "enterprise"}
+```rust
+// All storage traits include namespace()
+pub trait KVStorage: Send + Sync {
+    fn namespace(&self) -> &str;
+    // ... other methods
 }
 
-# Get tenant
-GET /api/v1/tenants/{tenant_id}
-
-# Update tenant
-PUT /api/v1/tenants/{tenant_id}
-{
-    "name": "Acme Corporation",
-    "description": "Updated description"
+pub trait VectorStorage: Send + Sync {
+    fn namespace(&self) -> &str;
+    // ... other methods
 }
 
-# Delete tenant
-DELETE /api/v1/tenants/{tenant_id}
+pub trait GraphStorage: Send + Sync {
+    fn namespace(&self) -> &str;
+    // ... other methods
+}
 ```
 
-### Knowledge Base Management
+### Data Isolation
 
-```bash
-# List KBs
-GET /api/v1/tenants/{tenant_id}/kbs
+- Documents, entities, and relationships are scoped to namespace
+- Vector embeddings are isolated per namespace
+- Graph nodes and edges are namespace-specific
+- No cross-namespace data leakage
 
-# Create KB
-POST /api/v1/tenants/{tenant_id}/kbs
-{
-    "name": "Product Docs",
-    "description": "Documentation KB"
+---
+
+## Implementation
+
+### Creating Tenant-Isolated Storage
+
+```rust
+use edgequake_storage::adapters::memory::{
+    MemoryKVStorage, MemoryVectorStorage, MemoryGraphStorage
+};
+use std::sync::Arc;
+
+/// Create isolated storage for a tenant
+fn create_tenant_storage(tenant_id: &str) -> (
+    Arc<MemoryKVStorage>,
+    Arc<MemoryVectorStorage>,
+    Arc<MemoryGraphStorage>,
+) {
+    let namespace = format!("tenant_{}", tenant_id);
+    
+    (
+        Arc::new(MemoryKVStorage::new(&namespace)),
+        Arc::new(MemoryVectorStorage::new(&namespace, 1536)),
+        Arc::new(MemoryGraphStorage::new(&namespace)),
+    )
 }
-
-# Get KB
-GET /api/v1/tenants/{tenant_id}/kbs/{kb_id}
-
-# Update KB
-PUT /api/v1/tenants/{tenant_id}/kbs/{kb_id}
-{
-    "name": "Updated Name"
-}
-
-# Delete KB
-DELETE /api/v1/tenants/{tenant_id}/kbs/{kb_id}
 ```
 
-### Member Management
+### TenantRAG Example
 
-```bash
-# List members
-GET /api/v1/tenants/{tenant_id}/members
+```rust
+use std::sync::Arc;
+use edgequake_llm::MockProvider;
+use edgequake_storage::{MemoryKVStorage, MemoryVectorStorage, MemoryGraphStorage};
 
-# Add member
-POST /api/v1/tenants/{tenant_id}/members
-{
-    "user_id": "user@example.com",
-    "role": "editor"
+/// A tenant-isolated RAG instance.
+struct TenantRAG {
+    tenant_id: String,
+    kv_storage: Arc<MemoryKVStorage>,
+    vector_storage: Arc<MemoryVectorStorage>,
+    graph_storage: Arc<MemoryGraphStorage>,
 }
 
-# Update role
-PUT /api/v1/tenants/{tenant_id}/members/{user_id}
-{
-    "role": "admin"
+impl TenantRAG {
+    /// Create a new tenant-isolated RAG instance.
+    fn new(tenant_id: &str) -> Self {
+        let namespace = format!("tenant_{}", tenant_id);
+        
+        Self {
+            tenant_id: tenant_id.to_string(),
+            kv_storage: Arc::new(MemoryKVStorage::new(&namespace)),
+            vector_storage: Arc::new(MemoryVectorStorage::new(&namespace, 1536)),
+            graph_storage: Arc::new(MemoryGraphStorage::new(&namespace)),
+        }
+    }
+    
+    /// Initialize storage backends.
+    async fn initialize(&self) -> anyhow::Result<()> {
+        self.kv_storage.initialize().await?;
+        self.vector_storage.initialize().await?;
+        self.graph_storage.initialize().await?;
+        Ok(())
+    }
+}
+```
+
+### Multi-Tenant Manager
+
+```rust
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+/// Manages multiple tenant RAG instances.
+struct TenantManager {
+    tenants: RwLock<HashMap<String, Arc<TenantRAG>>>,
 }
 
-# Remove member
-DELETE /api/v1/tenants/{tenant_id}/members/{user_id}
+impl TenantManager {
+    fn new() -> Self {
+        Self {
+            tenants: RwLock::new(HashMap::new()),
+        }
+    }
+    
+    /// Get or create a tenant instance.
+    async fn get_tenant(&self, tenant_id: &str) -> Arc<TenantRAG> {
+        // Check if already exists
+        {
+            let tenants = self.tenants.read().await;
+            if let Some(tenant) = tenants.get(tenant_id) {
+                return tenant.clone();
+            }
+        }
+        
+        // Create new tenant
+        let tenant = Arc::new(TenantRAG::new(tenant_id));
+        tenant.initialize().await.expect("Failed to initialize tenant");
+        
+        // Store
+        {
+            let mut tenants = self.tenants.write().await;
+            tenants.insert(tenant_id.to_string(), tenant.clone());
+        }
+        
+        tenant
+    }
+}
 ```
 
 ---
 
-## Data Models
+## PostgreSQL Multi-Tenancy
 
-### Tenant
+For production deployments, use PostgreSQL storage with namespace isolation:
 
-```python
-@dataclass
-class Tenant:
-    tenant_id: str                      # UUID
-    tenant_name: str                    # Display name
-    description: Optional[str]          # Description
-    config: TenantConfig                # Model/query configuration
-    quota: ResourceQuota                # Resource limits
-    is_active: bool = True              # Active status
-    created_at: datetime                # Creation timestamp
-    updated_at: datetime                # Last update
-    created_by: Optional[str]           # Creator user ID
-    metadata: Dict[str, Any]            # Custom metadata
+### Namespace in PostgreSQL
 
-    # Statistics
-    kb_count: int = 0
-    total_documents: int = 0
-    total_storage_mb: float = 0.0
+```rust
+use edgequake_storage::adapters::postgres::{
+    PostgresConfig, PostgresPool, PostgresKVStorage, PgVectorStorage, PostgresAGEGraphStorage
+};
+
+// Create tenant-specific storage
+let namespace = format!("tenant_{}", tenant_id);
+
+let kv_storage = Arc::new(PostgresKVStorage::new(pool.clone(), &namespace));
+let vector_storage = Arc::new(PgVectorStorage::new(pool.clone(), &namespace, 1536));
+let graph_storage = Arc::new(PostgresAGEGraphStorage::new(pool.clone(), &namespace));
 ```
 
-### TenantConfig
+### Database Schema Isolation
 
-```python
-@dataclass
-class TenantConfig:
-    # Model selection
-    llm_model: str = "gpt-4o-mini"
-    embedding_model: str = "bge-m3:latest"
-    rerank_model: Optional[str] = None
-
-    # LLM parameters
-    llm_model_kwargs: Dict = {}
-    llm_temperature: float = 1.0
-    llm_max_tokens: int = 4096
-
-    # Embedding
-    embedding_dim: int = 1024
-    embedding_batch_num: int = 10
-
-    # Query defaults
-    top_k: int = 40
-    chunk_top_k: int = 20
-    cosine_threshold: float = 0.2
-    enable_llm_cache: bool = True
-    enable_rerank: bool = True
-
-    # Chunking
-    chunk_size: int = 1200
-    chunk_overlap: int = 100
-
-    # Custom metadata (storage backends, etc.)
-    custom_metadata: Dict = {}
-```
-
-### ResourceQuota
-
-```python
-@dataclass
-class ResourceQuota:
-    max_documents: int = 10000
-    max_storage_gb: float = 100.0
-    max_concurrent_queries: int = 10
-    max_monthly_api_calls: int = 100000
-    max_kb_per_tenant: int = 50
-    max_entities_per_kb: int = 100000
-    max_relationships_per_kb: int = 500000
-```
-
-### KnowledgeBase
-
-```python
-@dataclass
-class KnowledgeBase:
-    kb_id: str                          # UUID
-    tenant_id: str                      # Parent tenant
-    kb_name: str                        # Display name
-    description: Optional[str]          # Description
-    config: KBConfig                    # KB-specific config overrides
-    is_active: bool = True              # Active status
-    created_at: datetime                # Creation timestamp
-    updated_at: datetime                # Last update
-    created_by: Optional[str]           # Creator user ID
-
-    # Statistics
-    document_count: int = 0
-    entity_count: int = 0
-    relation_count: int = 0
-    storage_size_mb: float = 0.0
-```
-
----
-
-## TenantContext
-
-Request context carrying tenant/KB information:
-
-```python
-@dataclass
-class TenantContext:
-    tenant_id: str                      # Current tenant
-    kb_id: Optional[str]                # Current KB (if scoped)
-    user_id: str                        # Authenticated user
-    role: Role                          # User's role
-    permissions: List[Permission]       # Effective permissions
-
-    def has_permission(self, permission: Permission) -> bool:
-        """Check if context has specific permission."""
-        return permission in self.permissions
-```
-
----
-
-## Request Headers
-
-Multi-tenant requests require these headers:
-
-```bash
-# Authentication
-Authorization: Bearer <jwt_token>
-
-# Tenant context
-X-Tenant-ID: <tenant_uuid>      # Required
-X-KB-ID: <kb_uuid>              # Required for KB operations
-```
-
-### Example Request
-
-```bash
-curl -X POST "http://localhost:9621/api/v1/tenants/{tenant_id}/kbs/{kb_id}/documents/text" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..." \
-  -H "X-Tenant-ID: abc123-tenant-uuid" \
-  -H "X-KB-ID: xyz789-kb-uuid" \
-  -H "Content-Type: application/json" \
-  -d '{"text": "Document content..."}'
-```
-
----
-
-## Security Best Practices
-
-### 1. Enable Strict Mode
-
-```bash
-LIGHTRAG_MULTI_TENANT_STRICT=true
-LIGHTRAG_REQUIRE_USER_AUTH=true
-```
-
-### 2. Use Strong JWT Secrets
-
-```bash
-TOKEN_SECRET=your-32-byte-cryptographic-secret
-JWT_ALGORITHM=HS256
-TOKEN_EXPIRE_HOURS=24
-```
-
-### 3. Limit Super Admins
-
-```bash
-LIGHTRAG_SUPER_ADMIN_USERS=admin@company.com
-```
-
-### 4. Audit Access
-
-```python
-# TenantService logs all access
-logger.info(f"User {user_id} accessed tenant {tenant_id}")
-logger.warning(f"Access denied: user={user_id} tenant={tenant_id}")
-```
-
-### 5. Resource Quotas
-
-```python
-quota = ResourceQuota(
-    max_documents=5000,
-    max_storage_gb=50.0,
-    max_concurrent_queries=5,
-    max_monthly_api_calls=50000
-)
-```
-
----
-
-## Database Schema (PostgreSQL)
-
-Multi-tenancy uses these tables:
+Data is isolated via namespace column in all tables:
 
 ```sql
--- Tenants table
-CREATE TABLE tenants (
-    tenant_id UUID PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Knowledge bases table
-CREATE TABLE knowledge_bases (
-    kb_id UUID PRIMARY KEY,
-    tenant_id UUID REFERENCES tenants(tenant_id),
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Tenant memberships
-CREATE TABLE tenant_memberships (
+-- All tables include namespace column
+CREATE TABLE edgequake_documents (
     id UUID PRIMARY KEY,
-    tenant_id UUID REFERENCES tenants(tenant_id),
-    user_id VARCHAR(255) NOT NULL,
-    role VARCHAR(50) NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    created_by VARCHAR(255),
-    UNIQUE(tenant_id, user_id)
+    namespace VARCHAR(255) NOT NULL DEFAULT 'default',
+    -- ... other columns
 );
 
--- Create indexes
-CREATE INDEX idx_kb_tenant ON knowledge_bases(tenant_id);
-CREATE INDEX idx_membership_tenant ON tenant_memberships(tenant_id);
-CREATE INDEX idx_membership_user ON tenant_memberships(user_id);
+CREATE TABLE edgequake_chunks (
+    id UUID PRIMARY KEY,
+    namespace VARCHAR(255) NOT NULL DEFAULT 'default',
+    -- ... other columns
+);
+
+-- Queries are always scoped by namespace
+SELECT * FROM edgequake_documents WHERE namespace = 'tenant_abc';
 ```
 
 ---
 
-## Example: Complete Multi-Tenant Setup
+## API Usage
 
-```python
-import asyncio
-from lightrag import LightRAG
-from lightrag.tenant_rag_manager import TenantRAGManager
-from lightrag.services.tenant_service import TenantService
-from lightrag.models.tenant import TenantConfig, Role
+### Workspace-Based Multi-Tenancy
 
-async def setup_multi_tenant():
-    # 1. Initialize global components
-    from lightrag.kg.postgres_impl import PGKVStorage
+The EdgeQuake API uses workspaces for multi-tenancy:
 
-    kv_storage = PGKVStorage(
-        namespace="system",
-        global_config={"postgres_url": "postgresql://..."}
-    )
-    await kv_storage.initialize()
+```bash
+# Create workspace (tenant)
+POST /api/v1/workspaces
+{
+    "name": "Acme Corp",
+    "description": "Production workspace"
+}
 
-    # 2. Initialize tenant service
-    tenant_service = TenantService(kv_storage)
+# All subsequent operations are scoped to workspace
+POST /api/v1/workspaces/{workspace_id}/documents
+GET /api/v1/workspaces/{workspace_id}/query
+```
 
-    # 3. Create template RAG (for configuration inheritance)
-    template_rag = LightRAG(
-        working_dir="./rag_storage",
-        llm_model_name="gpt-4o-mini",
-        kv_storage="PGKVStorage",
-        vector_storage="PGVectorStorage",
-        graph_storage="Neo4JStorage"
-    )
+### Configuration
 
-    # 4. Initialize tenant manager
-    manager = TenantRAGManager(
-        base_working_dir="./rag_storage",
-        tenant_service=tenant_service,
-        template_rag=template_rag,
-        max_cached_instances=100
-    )
+```bash
+# Set default namespace
+export EDGEQUAKE_NAMESPACE=production
 
-    # 5. Create tenant
-    tenant = await tenant_service.create_tenant(
-        tenant_name="Acme Corp",
-        config=TenantConfig(
-            llm_model="gpt-4o",
-            top_k=50
-        ),
-        created_by="admin@acme.com"
-    )
-
-    # 6. Create knowledge base
-    kb = await tenant_service.create_knowledge_base(
-        tenant_id=tenant.tenant_id,
-        kb_name="Product Docs",
-        created_by="admin@acme.com"
-    )
-
-    # 7. Add user
-    await tenant_service.add_user_to_tenant(
-        user_id="user@acme.com",
-        tenant_id=tenant.tenant_id,
-        role="editor"
-    )
-
-    # 8. Get tenant-specific RAG instance
-    rag = await manager.get_rag_instance(
-        tenant_id=tenant.tenant_id,
-        kb_id=kb.kb_id,
-        user_id="user@acme.com"
-    )
-
-    # 9. Use normally
-    await rag.ainsert("Product documentation content...")
-    result = await rag.aquery("How do I use the product?")
-
-    print(f"Answer: {result}")
-
-    # 10. Cleanup
-    await manager.cleanup_all()
-
-asyncio.run(setup_multi_tenant())
+# Or per-request via API
+curl -X POST "http://localhost:8080/api/v1/query" \
+  -H "X-Workspace-ID: tenant_abc" \
+  -d '{"query": "What is EdgeQuake?"}'
 ```
 
 ---
 
-**Related Documentation:**
-- [Architecture Overview](0002-architecture-overview.md)
-- [API Reference](0003-api-reference.md)
-- [Configuration Reference](0007-configuration-reference.md)
-- [Deployment Guide](0006-deployment-guide.md)
+## Best Practices
+
+### 1. Consistent Namespace Naming
+
+```rust
+// Good: Clear, consistent naming
+let namespace = format!("tenant_{}", tenant_id);
+let namespace = format!("org_{}", org_id);
+
+// Bad: Inconsistent or unclear
+let namespace = tenant_id.clone();  // No prefix
+```
+
+### 2. Namespace Validation
+
+```rust
+fn validate_namespace(namespace: &str) -> Result<(), Error> {
+    if namespace.is_empty() {
+        return Err(Error::InvalidNamespace("Empty namespace"));
+    }
+    if namespace.len() > 255 {
+        return Err(Error::InvalidNamespace("Namespace too long"));
+    }
+    if !namespace.chars().all(|c| c.is_alphanumeric() || c == '_') {
+        return Err(Error::InvalidNamespace("Invalid characters"));
+    }
+    Ok(())
+}
+```
+
+### 3. Resource Cleanup
+
+```rust
+impl TenantManager {
+    /// Clean up tenant resources on deletion.
+    async fn delete_tenant(&self, tenant_id: &str) -> Result<()> {
+        if let Some(tenant) = self.tenants.write().await.remove(tenant_id) {
+            // Finalize storage
+            tenant.kv_storage.finalize().await?;
+            tenant.vector_storage.finalize().await?;
+            tenant.graph_storage.finalize().await?;
+        }
+        Ok(())
+    }
+}
+```
+
+### 4. Connection Pooling
+
+```rust
+// Share connection pool across tenants
+let pool = PostgresPool::connect(&config).await?;
+
+// Each tenant uses same pool but different namespace
+let tenant_a = PostgresKVStorage::new(pool.clone(), "tenant_a");
+let tenant_b = PostgresKVStorage::new(pool.clone(), "tenant_b");
+```
 
 ---
 
-*Multi-tenancy feature*
+## Running the Example
+
+```bash
+# Run the multi-tenant example
+cargo run --example multi_tenant
+
+# Output:
+# Tenant 'acme' storage initialized
+# Tenant 'globex' storage initialized
+# Tenant 'acme': Ingesting document 'doc1' (3 chunks)
+# Tenant 'globex': Ingesting document 'doc2' (2 chunks)
+# Tenant 'acme': Found 3 relevant chunks
+```
+
+---
+
+## Next Steps
+
+- **[Storage Backends](0004-storage-backends.md)** - Configure storage
+- **[Configuration Reference](0007-configuration-reference.md)** - All config options
+- **[Deployment Guide](0006-deployment-guide.md)** - Production deployment

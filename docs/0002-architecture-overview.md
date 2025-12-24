@@ -29,7 +29,7 @@ EdgeQuake is a **Graph-Enhanced Retrieval-Augmented Generation** framework imple
 | Language | Python | Rust |
 | Retrieval | Vector similarity only | Graph + Vector hybrid |
 | Context | Flat document chunks | Entity-Relation aware |
-| Query Modes | Single mode | 5 modes (naive/local/global/hybrid/mix) |
+| Query Modes | Single mode | 6 modes (naive/local/global/hybrid/mix/bypass) |
 | Knowledge | Implicit in embeddings | Explicit knowledge graph |
 | Performance | Standard | High-performance, async |
 | WebUI | Basic | Next.js 16 + React 19 |
@@ -132,10 +132,14 @@ pub struct EdgeQuake {
 }
 
 impl EdgeQuake {
-    pub async fn insert(&self, text: &str) -> Result<InsertResult>;
-    pub async fn query(&self, query: &str) -> Result<QueryResult>;
-    pub async fn delete_document(&self, doc_id: &str) -> Result<()>;
-    pub fn get_graph_stats(&self) -> Result<GraphStats>;
+    pub fn new(config: EdgeQuakeConfig) -> Self;
+    pub fn with_storage_backends(...) -> Self;
+    pub fn with_providers(...) -> Self;
+    pub async fn initialize(&mut self) -> Result<()>;
+    pub async fn insert(&self, content: &str, doc_id: Option<&str>) -> Result<InsertResult>;
+    pub async fn query(&self, query: &str, params: Option<QueryParams>) -> Result<QueryResult>;
+    pub async fn delete_document(&self, doc_id: &str) -> Result<bool>;
+    pub async fn get_graph_stats(&self) -> Result<GraphStats>;
 }
 ```
 
@@ -190,21 +194,29 @@ fn api_v1_routes() -> Router<AppState> {
 
 #[async_trait]
 pub trait LLMProvider: Send + Sync {
-    async fn complete(&self, messages: &[ChatMessage], options: CompletionOptions) 
-        -> Result<LLMResponse>;
-    
-    async fn complete_stream(&self, messages: &[ChatMessage], options: CompletionOptions) 
-        -> Result<impl Stream<Item = Result<String>>>;
-    
-    fn model_name(&self) -> &str;
+    fn name(&self) -> &str;
+    fn model(&self) -> &str;
     fn max_context_length(&self) -> usize;
+    
+    async fn complete(&self, prompt: &str) -> Result<LLMResponse>;
+    async fn complete_with_options(&self, prompt: &str, options: &CompletionOptions) 
+        -> Result<LLMResponse>;
+    async fn chat(&self, messages: &[ChatMessage], options: Option<&CompletionOptions>) 
+        -> Result<LLMResponse>;
+    async fn stream(&self, prompt: &str) -> Result<BoxStream<'static, Result<String>>>;
+    
+    fn supports_streaming(&self) -> bool;
+    fn supports_json_mode(&self) -> bool;
 }
 
 #[async_trait]
 pub trait EmbeddingProvider: Send + Sync {
-    async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>>;
+    fn name(&self) -> &str;
+    fn model(&self) -> &str;
     fn dimension(&self) -> usize;
-    fn model_name(&self) -> &str;
+    fn max_tokens(&self) -> usize;
+    async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>>;
+    async fn embed_one(&self, text: &str) -> Result<Vec<f32>>;
 }
 ```
 
@@ -274,6 +286,9 @@ pub enum QueryMode {
     
     /// Weighted combination of all modes
     Mix,
+    
+    /// Skip retrieval, direct LLM query
+    Bypass,
 }
 
 impl QueryMode {

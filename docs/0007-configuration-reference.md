@@ -101,20 +101,20 @@ export EDGEQUAKE_CORS_ORIGINS="http://localhost:3000,https://app.example.com"
 
 ```rust
 pub struct StorageConfig {
-    /// Storage backend type: memory, postgresql
-    pub storage_type: String,           // Default: "memory"
+    /// Database connection URL
+    pub database_url: String,           // Default: "postgres://localhost:5432/edgequake"
     
-    /// PostgreSQL connection string
-    pub connection_string: Option<String>,
+    /// Maximum connections in pool
+    pub max_connections: u32,            // Default: 10
     
-    /// Connection pool size
-    pub pool_size: u32,                 // Default: 10
+    /// Minimum connections in pool
+    pub min_connections: u32,            // Default: 1
     
     /// Connection timeout (seconds)
-    pub connect_timeout: u64,           // Default: 30
+    pub connect_timeout_secs: u64,       // Default: 30
     
-    /// Idle connection timeout (seconds)
-    pub idle_timeout: u64,              // Default: 600
+    /// Namespace for multi-tenancy
+    pub namespace: Option<String>,       // Default: None
 }
 ```
 
@@ -122,10 +122,8 @@ pub struct StorageConfig {
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `EDGEQUAKE_STORAGE_TYPE` | `memory` | Backend: `memory`, `postgresql` |
-| `DATABASE_URL` | - | PostgreSQL connection string |
-| `EDGEQUAKE_POOL_SIZE` | `10` | Connection pool size |
-| `EDGEQUAKE_CONNECT_TIMEOUT` | `30` | Connection timeout |
+| `EDGEQUAKE_DATABASE_URL` | - | PostgreSQL connection string |
+| `EDGEQUAKE_NAMESPACE` | - | Multi-tenant namespace |
 
 ### PostgreSQL Connection String
 
@@ -238,26 +236,23 @@ pub struct PipelineConfig {
     /// Overlap between chunks
     pub chunk_overlap: usize,           // Default: 100
     
+    /// Entity types to extract
+    pub entity_types: Vec<String>,      // Default: ["PERSON", "ORGANIZATION", ...]
+    
     /// Maximum entities per chunk
-    pub max_entities_per_chunk: usize,  // Default: 30
+    pub max_entities_per_chunk: usize,  // Default: 20
     
-    /// Entity extraction gleaning passes
-    pub gleaning_count: usize,          // Default: 1
+    /// Maximum relations per chunk
+    pub max_relations_per_chunk: usize, // Default: 20
     
-    /// Enable entity deduplication
-    pub enable_deduplication: bool,     // Default: true
+    /// Summarize long descriptions
+    pub summarize_descriptions: bool,   // Default: true
     
-    /// Similarity threshold for dedup (0-1)
-    pub dedup_threshold: f32,           // Default: 0.85
+    /// Max description tokens before summarization
+    pub max_description_tokens: usize,  // Default: 1200
     
-    /// Parallel processing workers
-    pub max_concurrent_chunks: usize,   // Default: 4
-    
-    /// Enable community detection
-    pub enable_communities: bool,       // Default: true
-    
-    /// Leiden algorithm resolution
-    pub community_resolution: f32,      // Default: 1.0
+    /// Concurrent extraction tasks
+    pub concurrency: usize,             // Default: 4
 }
 ```
 
@@ -267,11 +262,7 @@ pub struct PipelineConfig {
 |----------|---------|-------------|
 | `EDGEQUAKE_CHUNK_SIZE` | `1200` | Characters per chunk |
 | `EDGEQUAKE_CHUNK_OVERLAP` | `100` | Overlap between chunks |
-| `EDGEQUAKE_MAX_ENTITIES_PER_CHUNK` | `30` | Max entities extracted |
-| `EDGEQUAKE_GLEANING_COUNT` | `1` | Extraction passes |
-| `EDGEQUAKE_ENABLE_DEDUP` | `true` | Enable deduplication |
-| `EDGEQUAKE_DEDUP_THRESHOLD` | `0.85` | Dedup similarity |
-| `EDGEQUAKE_MAX_CONCURRENT_CHUNKS` | `4` | Parallel workers |
+| `EDGEQUAKE_MAX_ENTITIES_PER_CHUNK` | `20` | Max entities extracted |
 
 ### Chunking Strategies
 
@@ -296,23 +287,23 @@ pub struct QueryConfig {
     /// Default query mode
     pub default_mode: QueryMode,        // Default: Hybrid
     
-    /// Top-K results to retrieve
-    pub top_k: usize,                   // Default: 60
+    /// Maximum results for vector search
+    pub max_vector_results: usize,      // Default: 20
     
-    /// Similarity threshold (0-1)
-    pub similarity_threshold: f32,      // Default: 0.5
+    /// Maximum graph traversal depth
+    pub max_graph_depth: usize,         // Default: 3
     
-    /// Max tokens for context
-    pub max_context_tokens: usize,      // Default: 4000
+    /// Maximum entities in context
+    pub max_context_entities: usize,    // Default: 30
     
-    /// Enable query expansion
-    pub enable_query_expansion: bool,   // Default: true
+    /// Maximum relationships in context
+    pub max_context_relationships: usize, // Default: 30
     
-    /// Include sources in response
-    pub include_sources: bool,          // Default: true
+    /// Maximum chunks in context
+    pub max_context_chunks: usize,      // Default: 20
     
-    /// Enable streaming responses
-    pub enable_streaming: bool,         // Default: true
+    /// Whether to stream responses
+    pub stream_responses: bool,         // Default: true
 }
 
 pub enum QueryMode {
@@ -325,11 +316,11 @@ pub enum QueryMode {
     /// Community summaries
     Global,
     
-    /// Combined vector + graph
+    /// Combined vector + graph (default)
     Hybrid,
     
-    /// Adaptive mode selection
-    Mix,
+    /// No RAG, direct LLM query
+    Bypass,
 }
 ```
 
@@ -338,9 +329,6 @@ pub enum QueryMode {
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `EDGEQUAKE_DEFAULT_MODE` | `hybrid` | Query mode |
-| `EDGEQUAKE_TOP_K` | `60` | Results to retrieve |
-| `EDGEQUAKE_SIMILARITY_THRESHOLD` | `0.5` | Min similarity (0-1) |
-| `EDGEQUAKE_MAX_CONTEXT_TOKENS` | `4000` | Max context size |
 | `EDGEQUAKE_ENABLE_STREAMING` | `true` | Enable streaming |
 
 ### Query Mode Examples
@@ -358,8 +346,8 @@ export EDGEQUAKE_DEFAULT_MODE="global"
 # Best quality (recommended)
 export EDGEQUAKE_DEFAULT_MODE="hybrid"
 
-# Adaptive (auto-selects)
-export EDGEQUAKE_DEFAULT_MODE="mix"
+# Direct LLM (no RAG)
+export EDGEQUAKE_DEFAULT_MODE="bypass"
 ```
 
 ---
@@ -372,19 +360,14 @@ export EDGEQUAKE_DEFAULT_MODE="mix"
 # =============================================================================
 # API Configuration
 # =============================================================================
-EDGEQUAKE_API_HOST=0.0.0.0           # Listen address
-EDGEQUAKE_API_PORT=8080              # Listen port
-EDGEQUAKE_CORS_ORIGINS=*             # CORS origins (comma-separated)
-EDGEQUAKE_MAX_BODY_SIZE=52428800     # Max request body (bytes)
-EDGEQUAKE_REQUEST_TIMEOUT=300        # Request timeout (seconds)
+EDGEQUAKE_HOST=0.0.0.0               # Listen address
+EDGEQUAKE_PORT=8080                  # Listen port
 
 # =============================================================================
 # Storage Configuration
 # =============================================================================
-EDGEQUAKE_STORAGE_TYPE=memory        # memory | postgresql
-DATABASE_URL=postgresql://user:pass@localhost:5432/db
-EDGEQUAKE_POOL_SIZE=10               # Connection pool size
-EDGEQUAKE_CONNECT_TIMEOUT=30         # Connection timeout (seconds)
+EDGEQUAKE_DATABASE_URL=postgresql://user:pass@localhost:5432/db
+EDGEQUAKE_NAMESPACE=default          # Multi-tenant namespace
 
 # =============================================================================
 # LLM Configuration
@@ -393,30 +376,18 @@ OPENAI_API_KEY=sk-...                # OpenAI API key
 EDGEQUAKE_LLM_PROVIDER=openai        # openai | ollama
 EDGEQUAKE_LLM_MODEL=gpt-4o-mini      # LLM model
 EDGEQUAKE_EMBEDDING_MODEL=text-embedding-3-small
-EDGEQUAKE_EMBEDDING_DIM=1536         # Vector dimension
-EDGEQUAKE_LLM_TEMPERATURE=0.0        # Generation temperature
-EDGEQUAKE_LLM_MAX_TOKENS=4096        # Max tokens
-OPENAI_BASE_URL=                     # Custom API endpoint
-OLLAMA_HOST=http://localhost:11434   # Ollama server
 
 # =============================================================================
 # Pipeline Configuration
 # =============================================================================
 EDGEQUAKE_CHUNK_SIZE=1200            # Chunk size (chars)
 EDGEQUAKE_CHUNK_OVERLAP=100          # Chunk overlap
-EDGEQUAKE_MAX_ENTITIES_PER_CHUNK=30  # Max entities
-EDGEQUAKE_GLEANING_COUNT=1           # Extraction passes
-EDGEQUAKE_ENABLE_DEDUP=true          # Enable deduplication
-EDGEQUAKE_DEDUP_THRESHOLD=0.85       # Dedup threshold
+EDGEQUAKE_MAX_ENTITIES_PER_CHUNK=20  # Max entities
 
 # =============================================================================
 # Query Configuration
 # =============================================================================
-EDGEQUAKE_DEFAULT_MODE=hybrid        # naive|local|global|hybrid|mix
-EDGEQUAKE_TOP_K=60                   # Top-K retrieval
-EDGEQUAKE_SIMILARITY_THRESHOLD=0.5   # Min similarity
-EDGEQUAKE_MAX_CONTEXT_TOKENS=4000    # Context limit
-EDGEQUAKE_ENABLE_STREAMING=true      # Enable streaming
+EDGEQUAKE_DEFAULT_MODE=hybrid        # naive|local|global|hybrid|bypass
 
 # =============================================================================
 # Logging
@@ -437,16 +408,18 @@ RUST_LOG=edgequake=debug             # Debug EdgeQuake only
 [api]
 host = "0.0.0.0"
 port = 8080
+cors_enabled = true
 cors_origins = ["http://localhost:3000", "https://app.example.com"]
-max_body_size = 52_428_800
-request_timeout = 300
+auth_enabled = false
+body_limit = 10485760  # 10MB
+timeout_secs = 300
 
 [storage]
-storage_type = "postgresql"
-connection_string = "postgresql://edgequake:password@localhost:5432/edgequake"
-pool_size = 10
-connect_timeout = 30
-idle_timeout = 600
+database_url = "postgresql://edgequake:password@localhost:5432/edgequake"
+max_connections = 10
+min_connections = 1
+connect_timeout_secs = 30
+# namespace = "production"
 
 [llm]
 provider = "openai"
@@ -462,22 +435,21 @@ max_retries = 3
 [pipeline]
 chunk_size = 1200
 chunk_overlap = 100
-max_entities_per_chunk = 30
-gleaning_count = 1
-enable_deduplication = true
-dedup_threshold = 0.85
-max_concurrent_chunks = 4
-enable_communities = true
-community_resolution = 1.0
+entity_types = ["PERSON", "ORGANIZATION", "LOCATION", "EVENT", "CONCEPT", "TECHNOLOGY", "PRODUCT"]
+max_entities_per_chunk = 20
+max_relations_per_chunk = 20
+summarize_descriptions = true
+max_description_tokens = 1200
+concurrency = 4
 
 [query]
 default_mode = "hybrid"
-top_k = 60
-similarity_threshold = 0.5
-max_context_tokens = 4000
-enable_query_expansion = true
-include_sources = true
-enable_streaming = true
+max_vector_results = 20
+max_graph_depth = 3
+max_context_entities = 30
+max_context_relationships = 30
+max_context_chunks = 20
+stream_responses = true
 ```
 
 ### Loading Config

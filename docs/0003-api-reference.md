@@ -441,7 +441,7 @@ Authorization: Bearer <token>
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `query` | string | ✅ | - | Query text |
-| `mode` | string | ❌ | hybrid | Query mode: naive, local, global, hybrid, mix |
+| `mode` | string | ❌ | hybrid | Query mode: naive, local, global, hybrid, mix, bypass |
 | `context_only` | bool | ❌ | false | Return only context without LLM answer |
 | `max_results` | int | ❌ | 20 | Maximum context items |
 | `conversation_history` | array | ❌ | [] | Previous conversation for context |

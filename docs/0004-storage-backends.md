@@ -66,23 +66,29 @@ Key-value storage for documents, chunks, and metadata.
 
 #[async_trait]
 pub trait KVStorage: Send + Sync {
-    /// Get a value by key.
-    async fn get(&self, key: &str) -> Result<Option<serde_json::Value>>;
+    /// Get the storage namespace.
+    fn namespace(&self) -> &str;
     
-    /// Get multiple values by keys.
-    async fn get_batch(&self, keys: &[String]) -> Result<Vec<(String, serde_json::Value)>>;
+    /// Initialize the storage backend.
+    async fn initialize(&self) -> Result<()>;
+    
+    /// Flush pending changes.
+    async fn finalize(&self) -> Result<()>;
+    
+    /// Get a value by ID.
+    async fn get_by_id(&self, id: &str) -> Result<Option<serde_json::Value>>;
+    
+    /// Get multiple values by IDs.
+    async fn get_by_ids(&self, ids: &[String]) -> Result<Vec<serde_json::Value>>;
+    
+    /// Filter keys to find which do NOT exist in storage.
+    async fn filter_keys(&self, keys: HashSet<String>) -> Result<HashSet<String>>;
     
     /// Upsert key-value pairs.
-    async fn upsert(&self, items: &[(String, serde_json::Value)]) -> Result<()>;
+    async fn upsert(&self, data: &[(String, serde_json::Value)]) -> Result<()>;
     
-    /// Delete keys.
-    async fn delete(&self, keys: &[String]) -> Result<()>;
-    
-    /// List all keys (with optional prefix filter).
-    async fn keys(&self, prefix: Option<&str>) -> Result<Vec<String>>;
-    
-    /// Check if key exists.
-    async fn exists(&self, key: &str) -> Result<bool>;
+    /// Delete by IDs.
+    async fn delete(&self, ids: &[String]) -> Result<()>;
 }
 ```
 
@@ -96,8 +102,11 @@ let metadata = serde_json::json!({
 });
 kv_storage.upsert(&[("doc-123-metadata".to_string(), metadata)]).await?;
 
-// Retrieve
-let doc = kv_storage.get("doc-123-metadata").await?;
+// Retrieve using get_by_id
+let doc = kv_storage.get_by_id("doc-123-metadata").await?;
+
+// Retrieve multiple documents using get_by_ids
+let docs = kv_storage.get_by_ids(&["doc-123".into(), "doc-456".into()]).await?;
 ```
 
 ### VectorStorage Trait
@@ -109,56 +118,66 @@ Vector storage for embeddings and similarity search.
 
 #[async_trait]
 pub trait VectorStorage: Send + Sync {
-    /// Insert or update vectors.
-    async fn upsert(&self, vectors: &[VectorEntry]) -> Result<()>;
+    /// Get the storage namespace.
+    fn namespace(&self) -> &str;
     
-    /// Search for similar vectors.
-    async fn search(
-        &self, 
-        query: &[f32], 
+    /// Get the expected embedding dimension.
+    fn dimension(&self) -> usize;
+    
+    /// Initialize the vector storage.
+    async fn initialize(&self) -> Result<()>;
+    
+    /// Flush pending changes.
+    async fn finalize(&self) -> Result<()>;
+    
+    /// Perform similarity search.
+    async fn query(
+        &self,
+        query_embedding: &[f32],
         top_k: usize,
-        filter: Option<&VectorFilter>
-    ) -> Result<Vec<SearchResult>>;
+        filter_ids: Option<&[String]>,
+    ) -> Result<Vec<VectorSearchResult>>;
     
-    /// Delete vectors by ID.
+    /// Insert or update vectors with metadata.
+    async fn upsert(
+        &self,
+        data: &[(String, Vec<f32>, serde_json::Value)],
+    ) -> Result<()>;
+    
+    /// Delete vectors by IDs.
     async fn delete(&self, ids: &[String]) -> Result<()>;
     
     /// Get vector by ID.
-    async fn get(&self, id: &str) -> Result<Option<VectorEntry>>;
+    async fn get_by_id(&self, id: &str) -> Result<Option<Vec<f32>>>;
     
-    /// Get total vector count.
+    /// Get count of stored vectors.
     async fn count(&self) -> Result<usize>;
 }
 
-pub struct VectorEntry {
-    pub id: String,
-    pub vector: Vec<f32>,
-    pub metadata: HashMap<String, serde_json::Value>,
-}
-
-pub struct SearchResult {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VectorSearchResult {
     pub id: String,
     pub score: f32,
-    pub metadata: HashMap<String, serde_json::Value>,
+    pub metadata: serde_json::Value,
 }
 ```
 
 **Usage:**
 
 ```rust
-// Store embedding
-let entry = VectorEntry {
-    id: "chunk-001".to_string(),
-    vector: embedding_provider.embed(&["chunk text"]).await?[0].clone(),
-    metadata: HashMap::from([
-        ("doc_id".to_string(), json!("doc-123")),
-        ("chunk_index".to_string(), json!(0)),
-    ]),
-};
-vector_storage.upsert(&[entry]).await?;
+// Store embedding with (id, vector, metadata) tuple
+let chunk_text = "Your chunk text here";
+let embedding = embedding_provider.embed(&[chunk_text]).await?[0].clone();
+let metadata = serde_json::json!({
+    "doc_id": "doc-123",
+    "chunk_index": 0
+});
+vector_storage.upsert(&[
+    ("chunk-001".to_string(), embedding, metadata)
+]).await?;
 
-// Search
-let results = vector_storage.search(&query_embedding, 10, None).await?;
+// Search using query()
+let results = vector_storage.query(&query_embedding, 10, None).await?;
 ```
 
 ### GraphStorage Trait
@@ -170,34 +189,87 @@ Graph storage for knowledge graph nodes and edges.
 
 #[async_trait]
 pub trait GraphStorage: Send + Sync {
-    /// Add or update a node.
-    async fn add_node(&self, node: GraphNode) -> Result<()>;
+    /// Get the storage namespace.
+    fn namespace(&self) -> &str;
     
-    /// Add or update an edge.
-    async fn add_edge(&self, edge: GraphEdge) -> Result<()>;
+    /// Initialize the graph storage.
+    async fn initialize(&self) -> Result<()>;
+    
+    /// Flush pending changes.
+    async fn finalize(&self) -> Result<()>;
+    
+    // ========== Node Operations ==========
+    
+    /// Check if a node exists.
+    async fn has_node(&self, node_id: &str) -> Result<bool>;
     
     /// Get node by ID.
-    async fn get_node(&self, id: &str) -> Result<Option<GraphNode>>;
+    async fn get_node(&self, node_id: &str) -> Result<Option<GraphNode>>;
     
-    /// Get edge by ID.
-    async fn get_edge(&self, id: &str) -> Result<Option<GraphEdge>>;
+    /// Insert or update a node.
+    async fn upsert_node(
+        &self,
+        node_id: &str,
+        properties: HashMap<String, serde_json::Value>,
+    ) -> Result<()>;
     
-    /// Get neighbors of a node.
-    async fn get_neighbors(&self, id: &str, depth: usize) -> Result<Vec<GraphNode>>;
+    /// Delete node and its connected edges.
+    async fn delete_node(&self, node_id: &str) -> Result<()>;
     
-    /// Get knowledge graph subgraph.
+    /// Get the degree (number of edges) of a node.
+    async fn node_degree(&self, node_id: &str) -> Result<usize>;
+    
+    /// Get all nodes.
+    async fn get_all_nodes(&self) -> Result<Vec<GraphNode>>;
+    
+    /// Get nodes by a list of IDs.
+    async fn get_nodes_by_ids(&self, node_ids: &[String]) -> Result<Vec<GraphNode>>;
+    
+    // ========== Edge Operations ==========
+    
+    /// Check if an edge exists between two nodes.
+    async fn has_edge(&self, source: &str, target: &str) -> Result<bool>;
+    
+    /// Get an edge between two nodes.
+    async fn get_edge(&self, source: &str, target: &str) -> Result<Option<GraphEdge>>;
+    
+    /// Insert or update an edge.
+    async fn upsert_edge(
+        &self,
+        source: &str,
+        target: &str,
+        properties: HashMap<String, serde_json::Value>,
+    ) -> Result<()>;
+    
+    /// Delete an edge.
+    async fn delete_edge(&self, source: &str, target: &str) -> Result<()>;
+    
+    /// Get all edges connected to a node.
+    async fn get_node_edges(&self, node_id: &str) -> Result<Vec<GraphEdge>>;
+    
+    /// Get all edges.
+    async fn get_all_edges(&self) -> Result<Vec<GraphEdge>>;
+    
+    // ========== Graph Queries ==========
+    
+    /// Extract a subgraph starting from a node.
     async fn get_knowledge_graph(
         &self,
         start_node: &str,
-        depth: usize,
-        limit: usize
+        max_depth: usize,
+        max_nodes: usize,
     ) -> Result<KnowledgeGraph>;
     
-    /// Delete node and its edges.
-    async fn delete_node(&self, id: &str) -> Result<()>;
+    /// Get the most connected (popular) node labels.
+    async fn get_popular_labels(&self, limit: usize) -> Result<Vec<String>>;
     
-    /// Delete edge.
-    async fn delete_edge(&self, id: &str) -> Result<()>;
+    /// Search for nodes by label prefix.
+    async fn search_labels(&self, query: &str, limit: usize) -> Result<Vec<String>>;
+    
+    /// Get neighbors of a node at a specific depth.
+    async fn get_neighbors(&self, node_id: &str, depth: usize) -> Result<Vec<GraphNode>>;
+    
+    // ========== Utility Operations ==========
     
     /// Get node count.
     async fn node_count(&self) -> Result<usize>;
@@ -205,25 +277,24 @@ pub trait GraphStorage: Send + Sync {
     /// Get edge count.
     async fn edge_count(&self) -> Result<usize>;
     
-    /// Get node degree.
-    async fn node_degree(&self, id: &str) -> Result<usize>;
-    
-    /// Get popular labels (most connected nodes).
-    async fn get_popular_labels(&self, limit: usize) -> Result<Vec<String>>;
+    /// Clear all nodes and edges.
+    async fn clear(&self) -> Result<()>;
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphNode {
     pub id: String,
     pub properties: HashMap<String, serde_json::Value>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphEdge {
-    pub id: String,
     pub source: String,
     pub target: String,
     pub properties: HashMap<String, serde_json::Value>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KnowledgeGraph {
     pub nodes: Vec<GraphNode>,
     pub edges: Vec<GraphEdge>,
@@ -235,30 +306,42 @@ pub struct KnowledgeGraph {
 
 ## Memory Storage
 
-In-memory storage for development and testing.
+In-memory storage for development and testing. EdgeQuake provides separate memory storage implementations for each trait.
 
 ### Features
 
 | Feature | Support |
 |---------|---------|
 | Persistence | ❌ (data lost on restart) |
-| Concurrency | ✅ (thread-safe) |
+| Concurrency | ✅ (thread-safe via RwLock) |
 | Performance | ✅ (very fast) |
 | Production | ❌ (development only) |
+
+### Available Implementations
+
+| Class | Trait | Description |
+|-------|-------|-------------|
+| `MemoryKVStorage` | `KVStorage` | In-memory key-value store |
+| `MemoryVectorStorage` | `VectorStorage` | Brute-force cosine similarity search |
+| `MemoryGraphStorage` | `GraphStorage` | Adjacency list-based graph |
 
 ### Usage
 
 ```rust
-use edgequake_storage::MemoryStorage;
+use edgequake_storage::adapters::memory::{
+    MemoryKVStorage, MemoryVectorStorage, MemoryGraphStorage
+};
 use std::sync::Arc;
 
-// Create memory storage
-let storage = MemoryStorage::new();
+// Create separate storage instances with namespace
+let kv_storage = Arc::new(MemoryKVStorage::new("my_namespace"));
+let vector_storage = Arc::new(MemoryVectorStorage::new("my_namespace", 1536)); // dimension for embeddings
+let graph_storage = Arc::new(MemoryGraphStorage::new("my_namespace"));
 
-// Use for all storage types
-let kv_storage: Arc<dyn KVStorage> = Arc::new(storage.clone());
-let vector_storage: Arc<dyn VectorStorage> = Arc::new(storage.clone());
-let graph_storage: Arc<dyn GraphStorage> = Arc::new(storage.clone());
+// Initialize each storage
+kv_storage.initialize().await?;
+vector_storage.initialize().await?;
+graph_storage.initialize().await?;
 
 // Initialize EdgeQuake
 let mut eq = EdgeQuake::new(config)
@@ -270,22 +353,27 @@ let mut eq = EdgeQuake::new(config)
 ```rust
 // Located: edgequake/crates/edgequake-storage/src/adapters/memory/
 
-pub struct MemoryStorage {
-    kv: Arc<RwLock<HashMap<String, serde_json::Value>>>,
-    vectors: Arc<RwLock<HashMap<String, VectorEntry>>>,
-    nodes: Arc<RwLock<HashMap<String, GraphNode>>>,
-    edges: Arc<RwLock<HashMap<String, GraphEdge>>>,
+// Key-Value Storage
+pub struct MemoryKVStorage {
+    namespace: String,
+    data: RwLock<HashMap<String, serde_json::Value>>,
+    initialized: RwLock<bool>,
 }
 
-impl MemoryStorage {
-    pub fn new() -> Self {
-        Self {
-            kv: Arc::new(RwLock::new(HashMap::new())),
-            vectors: Arc::new(RwLock::new(HashMap::new())),
-            nodes: Arc::new(RwLock::new(HashMap::new())),
-            edges: Arc::new(RwLock::new(HashMap::new())),
-        }
-    }
+// Vector Storage (brute-force cosine similarity)
+pub struct MemoryVectorStorage {
+    namespace: String,
+    dimension: usize,
+    vectors: RwLock<HashMap<String, Vec<f32>>>,
+    metadata: RwLock<HashMap<String, serde_json::Value>>,
+}
+
+// Graph Storage (adjacency list)
+pub struct MemoryGraphStorage {
+    namespace: String,
+    nodes: RwLock<HashMap<String, HashMap<String, serde_json::Value>>>,
+    edges: RwLock<HashMap<(String, String), HashMap<String, serde_json::Value>>>,
+    adjacency: RwLock<HashMap<String, HashSet<String>>>,
 }
 ```
 
@@ -495,32 +583,61 @@ $$) AS (neighbor agtype);
 ### Usage
 
 ```rust
-use edgequake_storage::PostgresStorage;
+use edgequake_storage::adapters::postgres::{
+    PostgresConfig, PostgresPool, PostgresKVStorage, PgVectorStorage, PostgresAGEGraphStorage
+};
+use std::sync::Arc;
 
-// Connect to PostgreSQL
-let storage = PostgresStorage::connect(
-    "postgres://user:pass@localhost:5432/edgequake"
-).await?;
+// Configure PostgreSQL
+let config = PostgresConfig::new(
+    "localhost",  // host
+    5432,         // port
+    "edgequake",  // database
+    "postgres",   // user
+    "password",   // password
+).with_namespace("production");
 
-// Run migrations
-storage.run_migrations().await?;
+// Create connection pool
+let pool = PostgresPool::connect(&config).await?;
 
-// Get storage instances
-let kv_storage = Arc::new(storage.kv_storage());
-let vector_storage = Arc::new(storage.vector_storage());
-let graph_storage = Arc::new(storage.graph_storage());
+// Create storage instances
+let kv_storage = Arc::new(PostgresKVStorage::new(pool.clone(), "my_namespace"));
+let vector_storage = Arc::new(PgVectorStorage::new(pool.clone(), "my_namespace", 1536));
+let graph_storage = Arc::new(PostgresAGEGraphStorage::new(pool.clone(), "my_namespace"));
+
+// Initialize storages
+kv_storage.initialize().await?;
+vector_storage.initialize().await?;
+graph_storage.initialize().await?;
 ```
 
 ---
 
 ## Configuration Reference
 
-### Storage Configuration
+### PostgresConfig
 
 ```rust
-pub struct StorageConfig {
-    /// Database connection URL
-    pub database_url: String,
+// Located: edgequake/crates/edgequake-storage/src/adapters/postgres/config.rs
+
+pub struct PostgresConfig {
+    /// Database host
+    pub host: String,
+    
+    /// Database port
+    pub port: u16,
+    
+    /// Database name
+    pub database: String,
+    
+    /// Username
+    pub user: String,
+    
+    /// Password
+    pub password: String,
+    
+    /// Namespace for multi-tenancy
+    pub namespace: String,  // Default: "default"
     
     /// Maximum connections in pool
     pub max_connections: u32,  // Default: 10
@@ -528,11 +645,23 @@ pub struct StorageConfig {
     /// Minimum connections in pool
     pub min_connections: u32,  // Default: 1
     
-    /// Connection timeout (seconds)
-    pub connect_timeout_secs: u64,  // Default: 30
+    /// Connection timeout
+    pub connect_timeout: Duration,  // Default: 30 seconds
     
-    /// Namespace for multi-tenancy
-    pub namespace: Option<String>,  // Default: None
+    /// Idle connection timeout
+    pub idle_timeout: Duration,  // Default: 600 seconds
+    
+    /// SSL mode (Prefer, Require, Disable)
+    pub ssl_mode: SslMode,
+    
+    /// Vector index type (HNSW or IVFFlat)
+    pub vector_index_type: VectorIndexType,
+    
+    /// HNSW M parameter
+    pub hnsw_m: u32,  // Default: 16
+    
+    /// HNSW ef_construction parameter
+    pub hnsw_ef_construction: u32,  // Default: 64
 }
 ```
 
@@ -598,20 +727,31 @@ cargo run --bin edgequake-reindex -- --all
 ### Development
 
 ```rust
+use edgequake_storage::adapters::memory::{
+    MemoryKVStorage, MemoryVectorStorage, MemoryGraphStorage
+};
+
 // Use memory storage for fast iteration
-let storage = MemoryStorage::new();
+let kv = MemoryKVStorage::new("dev");
+let vector = MemoryVectorStorage::new("dev", 1536);
+let graph = MemoryGraphStorage::new("dev");
 ```
 
 ### Production
 
 ```rust
+use edgequake_storage::adapters::postgres::{PostgresConfig, PostgresPool};
+
 // Use PostgreSQL with connection pooling
-let config = StorageConfig {
-    database_url: std::env::var("DATABASE_URL")?,
+let config = PostgresConfig {
+    host: std::env::var("DB_HOST").unwrap_or("localhost".to_string()),
+    database: std::env::var("DB_NAME").unwrap_or("edgequake".to_string()),
+    user: std::env::var("DB_USER").unwrap_or("postgres".to_string()),
+    password: std::env::var("DB_PASSWORD").unwrap_or_default(),
+    namespace: "production".to_string(),
     max_connections: 20,
     min_connections: 5,
-    connect_timeout_secs: 30,
-    namespace: Some("production".to_string()),
+    ..Default::default()
 };
 ```
 
@@ -620,7 +760,10 @@ let config = StorageConfig {
 ```rust
 #[tokio::test]
 async fn test_with_memory_storage() {
-    let storage = MemoryStorage::new();
+    use edgequake_storage::adapters::memory::MemoryKVStorage;
+    
+    let storage = MemoryKVStorage::new("test");
+    storage.initialize().await.unwrap();
     // Test with isolated in-memory storage
 }
 ```

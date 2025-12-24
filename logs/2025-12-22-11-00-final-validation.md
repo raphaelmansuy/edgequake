@@ -237,7 +237,7 @@ Subject to standard staging validation:
 - [VALIDATION_REPORT.md](../VALIDATION_REPORT.md) - Validation report
 - [COMPLETION_REPORT.md](../implementation_plan/COMPLETION_REPORT.md) - Implementation report
 - [plan_progress.md](../implementation_plan/plan_progress.md) - Progress tracker
-- [PRODUCTION_READY.md](../docs/PRODUCTION_READY.md) - Production readiness docs
+- [PRODUCTION_READY.md](../docs/archive/PRODUCTION_READY.md) - Production readiness docs
 
 ---
 

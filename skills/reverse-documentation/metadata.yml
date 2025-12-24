@@ -1,0 +1,96 @@
+# Skill Metadata
+
+name: "reverse-documentation"
+version: "1.0.0"
+created: "2025-12-24"
+languages:
+  - rust
+  - typescript
+categories:
+  - documentation
+  - code-analysis
+  - architecture
+tags:
+  - rust
+  - typescript
+  - react
+  - documentation
+  - api-docs
+  - components
+  - traits
+  - async
+
+## Description
+
+Automatically generates comprehensive documentation by analyzing Rust and TypeScript codebases. Understands code structure, patterns, and relationships to create accurate, helpful documentation with working examples.
+
+## Capabilities
+
+### Rust
+- Trait definitions and implementations
+- Struct, enum, and type documentation
+- Async/await patterns
+- Error handling with Result types
+- Generic types and lifetimes
+- Module structure
+- Cargo workspace organization
+
+### TypeScript
+- React component props and events
+- Custom hooks
+- TypeScript interfaces and types
+- Next.js pages and API routes
+- Component composition patterns
+- State management
+- Generic components
+
+## Usage Patterns
+
+- "Generate documentation for [crate/module/component]"
+- "Document all [traits/components/hooks] in [path]"
+- "Create API documentation for [feature]"
+- "Document the [specific type/component]"
+
+## Integration
+
+Works seamlessly with:
+- EdgeQuake's multi-crate workspace
+- Next.js 15 App Router
+- shadcn/ui components
+- SWR data fetching
+- tokio async runtime
+- PostgreSQL with AGE extension
+
+## Quality Standards
+
+✅ Accurate reflection of code behavior
+✅ Working, compilable examples
+✅ Complete coverage of public APIs
+✅ Consistent terminology
+✅ Cross-references between related items
+✅ Accessibility documentation (for UI)
+✅ Performance notes where relevant
+
+## Output Formats
+
+- Inline code comments (Rust doc comments, TSDoc)
+- Markdown files (README, ARCHITECTURE, API docs)
+- Architecture diagrams (Mermaid)
+- Storybook stories (for React components)
+- API reference documentation
+
+## Verification
+
+Rust:
+```bash
+cargo doc --no-deps --open
+cargo test --doc
+cargo clippy
+```
+
+TypeScript:
+```bash
+npx tsc --noEmit
+npx typedoc src/
+npm run lint
+```

@@ -73,60 +73,96 @@ EdgeQuake requires two AI components for RAG operations:
 
 #[async_trait]
 pub trait LLMProvider: Send + Sync {
-    /// Generate a completion from messages.
-    async fn complete(
-        &self, 
-        messages: &[ChatMessage], 
-        options: CompletionOptions
+    /// Get the name of this provider.
+    fn name(&self) -> &str;
+    
+    /// Get the current model.
+    fn model(&self) -> &str;
+    
+    /// Get the maximum context length for the model.
+    fn max_context_length(&self) -> usize;
+    
+    /// Generate a completion for the given prompt.
+    async fn complete(&self, prompt: &str) -> Result<LLMResponse>;
+    
+    /// Generate a completion with custom options.
+    async fn complete_with_options(
+        &self,
+        prompt: &str,
+        options: &CompletionOptions,
+    ) -> Result<LLMResponse>;
+    
+    /// Generate a chat completion with messages.
+    async fn chat(
+        &self,
+        messages: &[ChatMessage],
+        options: Option<&CompletionOptions>,
     ) -> Result<LLMResponse>;
     
     /// Generate a streaming completion.
-    async fn complete_stream(
-        &self, 
-        messages: &[ChatMessage], 
-        options: CompletionOptions
-    ) -> Result<impl Stream<Item = Result<String>>>;
+    async fn stream(&self, prompt: &str) -> Result<BoxStream<'static, Result<String>>>;
     
-    /// Get the model name.
-    fn model_name(&self) -> &str;
+    /// Check if the model supports streaming.
+    fn supports_streaming(&self) -> bool;
     
-    /// Get the maximum context length.
-    fn max_context_length(&self) -> usize;
+    /// Check if the model supports JSON mode.
+    fn supports_json_mode(&self) -> bool;
 }
 
 #[async_trait]
 pub trait EmbeddingProvider: Send + Sync {
-    /// Generate embeddings for texts.
-    async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>>;
+    /// Get the name of this provider.
+    fn name(&self) -> &str;
     
-    /// Get embedding dimension.
+    /// Get the embedding model.
+    fn model(&self) -> &str;
+    
+    /// Get the dimension of the embeddings.
     fn dimension(&self) -> usize;
     
-    /// Get the model name.
-    fn model_name(&self) -> &str;
+    /// Get the maximum number of tokens per input.
+    fn max_tokens(&self) -> usize;
+    
+    /// Generate embeddings for a batch of texts.
+    async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>>;
+    
+    /// Generate embedding for a single text.
+    async fn embed_one(&self, text: &str) -> Result<Vec<f32>>;
 }
 
 pub struct ChatMessage {
     pub role: ChatRole,
     pub content: String,
+    pub name: Option<String>,
 }
 
 pub enum ChatRole {
     System,
     User,
     Assistant,
+    Function,
 }
 
+#[derive(Debug, Clone, Default)]
 pub struct CompletionOptions {
-    pub temperature: f32,
     pub max_tokens: Option<usize>,
+    pub temperature: Option<f32>,
+    pub top_p: Option<f32>,
     pub stop: Option<Vec<String>>,
+    pub frequency_penalty: Option<f32>,
+    pub presence_penalty: Option<f32>,
+    pub response_format: Option<String>,
+    pub system_prompt: Option<String>,
 }
 
 pub struct LLMResponse {
     pub content: String,
-    pub usage: TokenUsage,
-    pub finish_reason: String,
+    pub prompt_tokens: usize,
+    pub completion_tokens: usize,
+    pub total_tokens: usize,
+    pub model: String,
+    pub finish_reason: Option<String>,
+    pub metadata: HashMap<String, serde_json::Value>,
 }
 ```
 
@@ -307,22 +343,44 @@ For testing without API calls.
 - Deterministic outputs for testing
 - No API costs
 - Fast execution
-- Configurable responses
+- Queue-based response system
 
 ### Usage
 
 ```rust
 use edgequake_llm::MockProvider;
 
-// Create mock provider
+// Create mock provider with default responses
 let mock = Arc::new(MockProvider::new());
 
-// Or with custom configuration
-let mock = Arc::new(
-    MockProvider::new()
-        .with_entity_extraction_mode()  // Returns realistic entity extractions
-        .with_embedding_dimension(1536)
-);
+// Add custom responses to the queue
+mock.add_response("Custom response 1").await;
+mock.add_response("Custom response 2").await;
+
+// Add custom embeddings
+mock.add_embedding(vec![0.1; 1536]).await;
+```
+
+### Implementation Details
+
+```rust
+// Located: edgequake/crates/edgequake-llm/src/providers/mock.rs
+
+pub struct MockProvider {
+    responses: Arc<Mutex<Vec<String>>>,
+    embeddings: Arc<Mutex<Vec<Vec<f32>>>>,
+}
+
+impl MockProvider {
+    /// Create a new mock provider with default responses.
+    pub fn new() -> Self { ... }
+    
+    /// Add a response to the queue (consumed in order).
+    pub async fn add_response(&self, response: impl Into<String>) { ... }
+    
+    /// Add an embedding to the queue.
+    pub async fn add_embedding(&self, embedding: Vec<f32>) { ... }
+}
 ```
 
 ### Automatic Selection
