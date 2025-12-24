@@ -241,20 +241,49 @@ export interface AuthState {
 
 // Tenant types
 export interface Tenant {
+  /** Tenant unique identifier (UUID). */
   id: string;
+  /** Tenant display name. */
   name: string;
+  /** URL-friendly slug. */
+  slug?: string;
+  /** Optional description. */
   description?: string;
+  /** Subscription plan (free, basic, pro, enterprise). */
+  plan?: string;
+  /** Whether the tenant is active. */
+  is_active?: boolean;
+  /** Maximum workspaces allowed for this tenant. */
+  max_workspaces?: number;
+  /** Creation timestamp. */
   created_at: string;
+  /** Last update timestamp. */
+  updated_at?: string;
 }
 
 export interface Workspace {
+  /** Workspace unique identifier (UUID). */
   id: string;
+  /** Parent tenant ID. */
   tenant_id: string;
+  /** Workspace display name. */
   name: string;
+  /** URL-friendly slug. */
+  slug?: string;
+  /** Optional description. */
   description?: string;
-  document_count: number;
-  entity_count: number;
+  /** Whether the workspace is active. */
+  is_active?: boolean;
+  /** Maximum documents allowed. */
+  max_documents?: number;
+  /** Number of documents (from stats, may not be returned inline). */
+  document_count?: number;
+  /** Number of entities (from stats, may not be returned inline). */
+  entity_count?: number;
+  /** Creation timestamp. */
   created_at: string;
+  /** Last update timestamp. */
+  updated_at?: string;
 }
 
 // Task/Pipeline types

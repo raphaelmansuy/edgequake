@@ -6,9 +6,11 @@ use axum::{
 };
 use edgequake_storage::GraphStorage;
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 use utoipa::ToSchema;
 
 use crate::error::{ApiError, ApiResult};
+use crate::middleware::TenantContext;
 use crate::state::AppState;
 
 /// Graph node response.
@@ -110,10 +112,46 @@ fn default_max_nodes() -> usize {
 )]
 pub async fn get_graph(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Query(params): Query<GraphQueryParams>,
 ) -> ApiResult<Json<KnowledgeGraphResponse>> {
+    debug!(
+        tenant_id = ?tenant_ctx.tenant_id,
+        workspace_id = ?tenant_ctx.workspace_id,
+        "Getting graph with tenant context"
+    );
+
     let total_nodes = state.graph_storage.node_count().await?;
     let total_edges = state.graph_storage.edge_count().await?;
+
+    // Helper closure to check if a node matches the tenant context
+    let matches_tenant_context = |properties: &std::collections::HashMap<String, serde_json::Value>| {
+        // If no tenant context is set, allow all nodes
+        if tenant_ctx.tenant_id.is_none() {
+            return true;
+        }
+
+        // Check if node has matching tenant_id
+        if let Some(ref ctx_tenant_id) = tenant_ctx.tenant_id {
+            if let Some(node_tenant_id) = properties.get("tenant_id").and_then(|v| v.as_str()) {
+                if node_tenant_id != ctx_tenant_id {
+                    return false;
+                }
+            }
+            // If node has no tenant_id but context has one, still include it for backward compatibility
+        }
+
+        // Check workspace_id if set
+        if let Some(ref ctx_workspace_id) = tenant_ctx.workspace_id {
+            if let Some(node_workspace_id) = properties.get("workspace_id").and_then(|v| v.as_str()) {
+                if node_workspace_id != ctx_workspace_id {
+                    return false;
+                }
+            }
+        }
+
+        true
+    };
 
     let (nodes, edges, is_truncated) = if let Some(start) = &params.start_node {
         let kg = state
@@ -124,6 +162,7 @@ pub async fn get_graph(
         let nodes: Vec<GraphNodeResponse> = kg
             .nodes
             .into_iter()
+            .filter(|n| matches_tenant_context(&n.properties))
             .map(|n| GraphNodeResponse {
                 id: n.id.clone(),
                 label: n.id.clone(),
@@ -144,9 +183,16 @@ pub async fn get_graph(
             })
             .collect();
 
+        // Also filter edges by tenant context
+        let node_ids: std::collections::HashSet<_> = nodes.iter().map(|n| &n.id).collect();
         let edges: Vec<GraphEdgeResponse> = kg
             .edges
             .into_iter()
+            .filter(|e| {
+                matches_tenant_context(&e.properties)
+                    && node_ids.contains(&e.source)
+                    && node_ids.contains(&e.target)
+            })
             .map(|e| GraphEdgeResponse {
                 source: e.source,
                 target: e.target,
@@ -170,12 +216,19 @@ pub async fn get_graph(
         // Return popular nodes
         let popular = state
             .graph_storage
-            .get_popular_labels(params.max_nodes)
+            .get_popular_labels(params.max_nodes * 2) // Fetch more to account for filtering
             .await?;
 
         let mut nodes = Vec::new();
         for id in popular {
+            if nodes.len() >= params.max_nodes {
+                break;
+            }
             if let Some(node) = state.graph_storage.get_node(&id).await? {
+                // Filter by tenant context
+                if !matches_tenant_context(&node.properties) {
+                    continue;
+                }
                 let degree = state.graph_storage.node_degree(&id).await?;
                 nodes.push(GraphNodeResponse {
                     id: node.id.clone(),
@@ -198,12 +251,16 @@ pub async fn get_graph(
             }
         }
 
-        // Fetch edges between visible nodes
+        // Fetch edges between visible nodes, also filter by tenant context
         let all_edges = state.graph_storage.get_all_edges().await?;
         let node_ids: std::collections::HashSet<_> = nodes.iter().map(|n| &n.id).collect();
         let edges: Vec<GraphEdgeResponse> = all_edges
             .into_iter()
-            .filter(|e| node_ids.contains(&e.source) && node_ids.contains(&e.target))
+            .filter(|e| {
+                node_ids.contains(&e.source) 
+                    && node_ids.contains(&e.target) 
+                    && matches_tenant_context(&e.properties)
+            })
             .map(|e| GraphEdgeResponse {
                 source: e.source,
                 target: e.target,
@@ -465,13 +522,14 @@ mod tests {
     #[tokio::test]
     async fn test_get_graph_empty() {
         let state = AppState::test_state();
+        let tenant_ctx = TenantContext::default();
         let params = GraphQueryParams {
             start_node: None,
             depth: 2,
             max_nodes: 100,
         };
 
-        let result = get_graph(State(state), Query(params)).await;
+        let result = get_graph(State(state), tenant_ctx, Query(params)).await;
         assert!(result.is_ok());
 
         let response = result.unwrap().0;

@@ -2,9 +2,11 @@
 
 use axum::{extract::State, Json};
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 use utoipa::ToSchema;
 
 use crate::error::{ApiError, ApiResult};
+use crate::middleware::TenantContext;
 use crate::state::AppState;
 use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
 
@@ -158,8 +160,16 @@ pub struct QueryStats {
 )]
 pub async fn execute_query(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Json(request): Json<QueryRequest>,
 ) -> ApiResult<Json<QueryResponse>> {
+    debug!(
+        tenant_id = ?tenant_ctx.tenant_id,
+        workspace_id = ?tenant_ctx.workspace_id,
+        query = %request.query,
+        "Executing query with tenant context"
+    );
+
     if request.query.trim().is_empty() {
         return Err(ApiError::ValidationError(
             "Query cannot be empty".to_string(),
@@ -180,8 +190,16 @@ pub async fn execute_query(
         .and_then(|m| QueryMode::from_str(m))
         .unwrap_or(QueryMode::Hybrid);
 
-    // Build engine query request with conversation history
+    // Build engine query request with conversation history and tenant context
     let mut engine_request = EngineQueryRequest::new(&request.query).with_mode(mode);
+
+    // Add tenant context for filtering
+    if let Some(ref tenant_id) = tenant_ctx.tenant_id {
+        engine_request = engine_request.with_tenant_id(tenant_id.clone());
+    }
+    if let Some(ref workspace_id) = tenant_ctx.workspace_id {
+        engine_request = engine_request.with_workspace_id(workspace_id.clone());
+    }
 
     if request.context_only {
         engine_request = engine_request.context_only();
@@ -360,8 +378,16 @@ use futures::StreamExt;
 )]
 pub async fn stream_query(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Json(request): Json<StreamQueryRequest>,
 ) -> ApiResult<Sse<impl futures::Stream<Item = Result<Event, std::convert::Infallible>>>> {
+    debug!(
+        tenant_id = ?tenant_ctx.tenant_id,
+        workspace_id = ?tenant_ctx.workspace_id,
+        query = %request.query,
+        "Executing streaming query with tenant context"
+    );
+
     if request.query.trim().is_empty() {
         return Err(ApiError::ValidationError(
             "Query cannot be empty".to_string(),
@@ -375,8 +401,16 @@ pub async fn stream_query(
         .and_then(|m| QueryMode::from_str(m))
         .unwrap_or(QueryMode::Hybrid);
 
-    // Build engine query request
-    let engine_request = EngineQueryRequest::new(&request.query).with_mode(mode);
+    // Build engine query request with tenant context
+    let mut engine_request = EngineQueryRequest::new(&request.query).with_mode(mode);
+
+    // Add tenant context for filtering
+    if let Some(ref tenant_id) = tenant_ctx.tenant_id {
+        engine_request = engine_request.with_tenant_id(tenant_id.clone());
+    }
+    if let Some(ref workspace_id) = tenant_ctx.workspace_id {
+        engine_request = engine_request.with_workspace_id(workspace_id.clone());
+    }
 
     // Execute streaming query
     let stream = state
@@ -400,6 +434,7 @@ mod tests {
     #[tokio::test]
     async fn test_query_validation() {
         let state = AppState::test_state();
+        let tenant_ctx = TenantContext::default();
 
         let request = QueryRequest {
             query: "".to_string(),
@@ -414,13 +449,14 @@ mod tests {
             rerank_top_k: None,
         };
 
-        let result = execute_query(State(state), Json(request)).await;
+        let result = execute_query(State(state), tenant_ctx, Json(request)).await;
         assert!(result.is_err());
     }
 
     #[tokio::test]
     async fn test_query_success() {
         let state = AppState::test_state();
+        let tenant_ctx = TenantContext::default();
 
         let request = QueryRequest {
             query: "What is Rust?".to_string(),
@@ -435,20 +471,21 @@ mod tests {
             rerank_top_k: None,
         };
 
-        let result = execute_query(State(state), Json(request)).await;
+        let result = execute_query(State(state), tenant_ctx, Json(request)).await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_stream_query_success() {
         let state = AppState::test_state();
+        let tenant_ctx = TenantContext::default();
 
         let request = StreamQueryRequest {
             query: "What is Rust?".to_string(),
             mode: Some("naive".to_string()),
         };
 
-        let result = stream_query(State(state), Json(request)).await;
+        let result = stream_query(State(state), tenant_ctx, Json(request)).await;
         assert!(result.is_ok());
     }
 }

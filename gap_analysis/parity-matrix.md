@@ -95,27 +95,27 @@
 
 ### API: REST API Surface
 
-| ID    | Feature           | Source | Target | Status | Gap ID  | Priority | Notes           |
-| ----- | ----------------- | ------ | ------ | ------ | ------- | -------- | --------------- |
-| F-051 | Document Upload   | ✅     | ✅     | ✅     | -       | -        | -               |
-| F-052 | File Upload       | ✅     | ✅     | ✅     | -       | -        | Multipart       |
-| F-053 | Batch Upload      | ✅     | ✅     | ✅     | -       | -        | -               |
-| F-054 | Document List     | ✅     | ✅     | ✅     | -       | -        | -               |
-| F-055 | Document Delete   | ✅     | ✅     | ✅     | -       | -        | -               |
-| F-056 | Track Status      | ✅     | ✅     | ✅     | -       | -        | -               |
-| F-057 | Query             | ✅     | ✅     | ✅     | -       | -        | -               |
-| F-058 | Stream Query      | ✅     | ✅     | ✅     | -       | -        | -               |
-| F-059 | Graph Labels      | ✅     | ✅     | ✅     | GAP-036 | P2       | ✅ Popular API  |
-| F-060 | Graph Knowledge   | ✅     | ✅     | ✅     | -       | -        | -               |
-| F-061 | Entity CRUD       | ✅     | ✅     | ✅     | -       | -        | -               |
-| F-062 | Relationship CRUD | ✅     | ✅     | ✅     | -       | -        | -               |
-| F-063 | Entity Merge      | ✅     | ✅     | ✅     | -       | -        | -               |
-| F-064 | Pipeline Status   | ✅     | ✅     | ✅     | -       | -        | -               |
-| F-065 | Pipeline Cancel   | ✅     | ✅     | ✅     | -       | -        | -               |
-| F-072 | Ollama Emulation  | ✅     | ❌     | ❌     | GAP-038 | P3       | Compat API      |
-| F-073 | Health Check      | ✅     | ✅     | ✅     | -       | -        | -               |
-| F-076 | Document Scan     | ✅     | ✅     | ✅     | GAP-014 | P2       | ✅ Dir scanning |
-| F-077 | Reprocess Failed  | ✅     | ✅     | ✅     | GAP-039 | P2       | ✅ Retry logic  |
+| ID    | Feature           | Source | Target | Status | Gap ID  | Priority | Notes                 |
+| ----- | ----------------- | ------ | ------ | ------ | ------- | -------- | --------------------- |
+| F-051 | Document Upload   | ✅     | ✅     | ✅     | -       | -        | -                     |
+| F-052 | File Upload       | ✅     | ✅     | ✅     | -       | -        | Multipart             |
+| F-053 | Batch Upload      | ✅     | ✅     | ✅     | -       | -        | -                     |
+| F-054 | Document List     | ✅     | ✅     | ✅     | -       | -        | -                     |
+| F-055 | Document Delete   | ✅     | ✅     | ✅     | -       | -        | -                     |
+| F-056 | Track Status      | ✅     | ✅     | ✅     | -       | -        | -                     |
+| F-057 | Query             | ✅     | ✅     | ✅     | -       | -        | -                     |
+| F-058 | Stream Query      | ✅     | ✅     | ✅     | -       | -        | -                     |
+| F-059 | Graph Labels      | ✅     | ✅     | ✅     | GAP-036 | P2       | ✅ Popular API        |
+| F-060 | Graph Knowledge   | ✅     | ✅     | ✅     | -       | -        | -                     |
+| F-061 | Entity CRUD       | ✅     | ✅     | ✅     | -       | -        | -                     |
+| F-062 | Relationship CRUD | ✅     | ✅     | ✅     | -       | -        | -                     |
+| F-063 | Entity Merge      | ✅     | ✅     | ✅     | -       | -        | -                     |
+| F-064 | Pipeline Status   | ✅     | ✅     | ✅     | -       | -        | -                     |
+| F-065 | Pipeline Cancel   | ✅     | ✅     | ✅     | -       | -        | -                     |
+| F-072 | Ollama Emulation  | ✅     | ✅     | ✅     | GAP-038 | P3       | ✅ /api/chat,generate |
+| F-073 | Health Check      | ✅     | ✅     | ✅     | -       | -        | -                     |
+| F-076 | Document Scan     | ✅     | ✅     | ✅     | GAP-014 | P2       | ✅ Dir scanning       |
+| F-077 | Reprocess Failed  | ✅     | ✅     | ✅     | GAP-039 | P2       | ✅ Retry logic        |
 
 ---
 
@@ -155,11 +155,11 @@
 | DATA      | 12     | 6      | 0     | 6     | 0     | 0     | 50%       |
 | INTG      | 8      | 5      | 0     | 3     | 0     | 0     | 63%       |
 | SEC       | 6      | 6      | 0     | 0     | 0     | 0     | 100%      |
-| API       | 18     | 17     | 0     | 1     | 0     | 0     | 94%       |
+| API       | 18     | 18     | 0     | 0     | 0     | 0     | 100%      |
 | PERF      | 4      | 4      | 0     | 0     | 0     | 0     | 100%      |
 | OBS       | 2      | 1      | 0     | 0     | 0     | 1     | 100%      |
 | PROC      | 1      | 0      | 0     | 1     | 0     | 0     | 0%        |
-| **Total** | **78** | **71** | **0** | **6** | **0** | **1** | **91.0%** |
+| **Total** | **78** | **72** | **0** | **5** | **0** | **1** | **92.3%** |
 
 ---
 
@@ -209,6 +209,7 @@ The minimum feature set required for production parity:
 | ~~Document Status~~    | ~~1 day~~  | ~~Med~~  | ✅ DONE (GAP-023) |
 | ~~Reprocess Failed~~   | ~~1 day~~  | ~~Med~~  | ✅ DONE (GAP-039) |
 | ~~Popular Labels~~     | ~~1 day~~  | ~~Med~~  | ✅ DONE (GAP-036) |
+| ~~Ollama Emulation~~   | ~~2 days~~ | ~~High~~ | ✅ DONE (GAP-038) |
 
 ---
 

@@ -137,6 +137,28 @@ impl QueryRequest {
         self.conversation_history = history;
         self
     }
+
+    /// Set tenant ID for filtering.
+    pub fn with_tenant_id(mut self, tenant_id: impl Into<String>) -> Self {
+        self.params.insert("tenant_id".to_string(), serde_json::json!(tenant_id.into()));
+        self
+    }
+
+    /// Set workspace ID for filtering.
+    pub fn with_workspace_id(mut self, workspace_id: impl Into<String>) -> Self {
+        self.params.insert("workspace_id".to_string(), serde_json::json!(workspace_id.into()));
+        self
+    }
+
+    /// Get tenant ID from params.
+    pub fn tenant_id(&self) -> Option<String> {
+        self.params.get("tenant_id").and_then(|v| v.as_str()).map(|s| s.to_string())
+    }
+
+    /// Get workspace ID from params.
+    pub fn workspace_id(&self) -> Option<String> {
+        self.params.get("workspace_id").and_then(|v| v.as_str()).map(|s| s.to_string())
+    }
 }
 
 /// A query response.
@@ -237,7 +259,7 @@ impl QueryEngine {
 
         // Step 2: Retrieve context based on mode
         let retrieval_start = std::time::Instant::now();
-        let context = self.retrieve_context(&request.query, &query_embedding, mode).await?;
+        let context = self.retrieve_context(&request.query, &query_embedding, mode, request.tenant_id(), request.workspace_id()).await?;
         stats.retrieval_time_ms = retrieval_start.elapsed().as_millis() as u64;
         stats.context_tokens = context.token_count;
 
@@ -275,7 +297,7 @@ impl QueryEngine {
             .await?;
 
         // Step 2: Retrieve context based on mode
-        let context = self.retrieve_context(&request.query, &query_embedding, mode).await?;
+        let context = self.retrieve_context(&request.query, &query_embedding, mode, request.tenant_id(), request.workspace_id()).await?;
 
         if context.is_empty() {
             use futures::StreamExt;
@@ -315,8 +337,39 @@ Provide a clear, accurate answer based on the context above. If the context does
         _query: &str,
         query_embedding: &[f32],
         mode: QueryMode,
+        tenant_id: Option<String>,
+        workspace_id: Option<String>,
     ) -> Result<QueryContext> {
         let mut context = QueryContext::new();
+
+        // Helper closure to check if properties match tenant context
+        let matches_tenant = |properties: &std::collections::HashMap<String, serde_json::Value>| {
+            // If no tenant context is set, allow all
+            if tenant_id.is_none() {
+                return true;
+            }
+
+            // Check if properties have matching tenant_id
+            if let Some(ref ctx_tenant_id) = tenant_id {
+                if let Some(prop_tenant_id) = properties.get("tenant_id").and_then(|v| v.as_str()) {
+                    if prop_tenant_id != ctx_tenant_id {
+                        return false;
+                    }
+                }
+                // If no tenant_id in properties but context has one, still include for backward compatibility
+            }
+
+            // Check workspace_id if set
+            if let Some(ref ctx_workspace_id) = workspace_id {
+                if let Some(prop_workspace_id) = properties.get("workspace_id").and_then(|v| v.as_str()) {
+                    if prop_workspace_id != ctx_workspace_id {
+                        return false;
+                    }
+                }
+            }
+
+            true
+        };
 
         // Vector search for chunks
         if mode.uses_vector_search() {
@@ -327,6 +380,8 @@ Provide a clear, accurate answer based on the context above. If the context does
 
             for result in results {
                 if result.score >= self.config.min_score {
+                    // TODO: Add tenant filtering to vector storage results
+                    // For now, chunks don't have tenant_id filtering in vector storage
                     let content = result
                         .metadata
                         .get("content")
@@ -341,14 +396,23 @@ Provide a clear, accurate answer based on the context above. If the context does
 
         // Graph search for entities and relationships
         if mode.uses_graph() {
-            // Get top entities by popularity
+            // Get top entities by popularity (fetch more to account for filtering)
             let popular = self
                 .graph_storage
-                .get_popular_labels(self.config.max_entities)
+                .get_popular_labels(self.config.max_entities * 2)
                 .await?;
 
-            for entity_id in popular.iter().take(self.config.max_entities) {
+            let mut entity_count = 0;
+            for entity_id in popular.iter() {
+                if entity_count >= self.config.max_entities {
+                    break;
+                }
                 if let Some(node) = self.graph_storage.get_node(entity_id).await? {
+                    // Filter by tenant context
+                    if !matches_tenant(&node.properties) {
+                        continue;
+                    }
+
                     let entity_type = node
                         .properties
                         .get("entity_type")
@@ -369,10 +433,16 @@ Provide a clear, accurate answer based on the context above. If the context does
                         RetrievedEntity::new(&node.id, entity_type, description)
                             .with_degree(degree),
                     );
+                    entity_count += 1;
 
-                    // Get relationships
+                    // Get relationships (also filtered by tenant)
                     let edges = self.graph_storage.get_node_edges(entity_id).await?;
                     for edge in edges.iter().take(5) {
+                        // Filter edges by tenant context
+                        if !matches_tenant(&edge.properties) {
+                            continue;
+                        }
+
                         let rel_type = edge
                             .properties
                             .get("relation_type")

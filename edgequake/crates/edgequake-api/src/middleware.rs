@@ -48,17 +48,15 @@ pub async fn request_logging(request: Request, next: Next) -> Response {
 pub async fn request_id(mut request: Request, next: Next) -> Response {
     let request_id = uuid::Uuid::new_v4().to_string();
 
-    request.headers_mut().insert(
-        "x-request-id",
-        HeaderValue::from_str(&request_id).unwrap(),
-    );
+    request
+        .headers_mut()
+        .insert("x-request-id", HeaderValue::from_str(&request_id).unwrap());
 
     let mut response = next.run(request).await;
 
-    response.headers_mut().insert(
-        "x-request-id",
-        HeaderValue::from_str(&request_id).unwrap(),
-    );
+    response
+        .headers_mut()
+        .insert("x-request-id", HeaderValue::from_str(&request_id).unwrap());
 
     response
 }
@@ -234,6 +232,67 @@ impl Default for RateLimitConfig {
     }
 }
 
+// ============================================================================
+// Tenant Context Extractor
+// ============================================================================
+
+/// Tenant context extracted from request headers.
+///
+/// Extracts `X-Tenant-ID` and `X-Workspace-ID` headers from the request.
+/// These headers are set by the frontend when a user selects a tenant/workspace.
+#[derive(Debug, Clone, Default)]
+pub struct TenantContext {
+    /// The tenant ID from X-Tenant-ID header.
+    pub tenant_id: Option<String>,
+    /// The workspace ID from X-Workspace-ID header.
+    pub workspace_id: Option<String>,
+}
+
+impl TenantContext {
+    /// Extract tenant context from request headers.
+    pub fn from_headers(headers: &axum::http::HeaderMap) -> Self {
+        let tenant_id = headers
+            .get("x-tenant-id")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+
+        let workspace_id = headers
+            .get("x-workspace-id")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+
+        Self {
+            tenant_id,
+            workspace_id,
+        }
+    }
+
+    /// Check if tenant context is set.
+    pub fn has_tenant(&self) -> bool {
+        self.tenant_id.is_some()
+    }
+
+    /// Check if workspace context is set.
+    pub fn has_workspace(&self) -> bool {
+        self.workspace_id.is_some()
+    }
+}
+
+/// Axum extractor for TenantContext.
+impl<S> axum::extract::FromRequestParts<S> for TenantContext
+where
+    S: Send + Sync,
+{
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        _state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        Ok(TenantContext::from_headers(&parts.headers))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -288,7 +347,7 @@ mod tests {
             error: "unauthorized".to_string(),
             message: "Invalid API key".to_string(),
         };
-        
+
         let json = serde_json::to_string(&error).unwrap();
         assert!(json.contains("unauthorized"));
         assert!(json.contains("Invalid API key"));
@@ -356,19 +415,19 @@ mod tests {
     #[test]
     fn test_public_paths_variations() {
         let config = AuthConfig::default();
-        
+
         // Check exact public paths
         assert!(config.is_public_path("/health"));
         assert!(config.is_public_path("/ready"));
         assert!(config.is_public_path("/live"));
         assert!(config.is_public_path("/api-docs"));
         assert!(config.is_public_path("/api-docs/openapi.json"));
-        
+
         // Check swagger paths
         assert!(config.is_public_path("/swagger-ui"));
         assert!(config.is_public_path("/swagger-ui/"));
         assert!(config.is_public_path("/swagger-ui/index.html"));
-        
+
         // Non-public paths
         assert!(!config.is_public_path("/api/v1/query"));
         assert!(!config.is_public_path("/api/v1/graph"));
@@ -395,4 +454,3 @@ mod tests {
         assert!(debug_str.contains("test message"));
     }
 }
-

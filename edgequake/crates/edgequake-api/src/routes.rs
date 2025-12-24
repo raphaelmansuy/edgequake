@@ -17,9 +17,24 @@ pub fn create_router(state: AppState) -> Router {
         .route("/live", get(handlers::liveness_check))
         // Metrics endpoint (Phase 3)
         .route("/metrics", get(handlers::get_metrics))
+        // Ollama Emulation API (GAP-038)
+        .nest("/api", ollama_api_routes())
         // API v1 endpoints
         .nest("/api/v1", api_v1_routes())
         .with_state(state)
+}
+
+/// Ollama-compatible API routes.
+///
+/// These routes emulate the Ollama API, allowing EdgeQuake to be used
+/// as a drop-in replacement for Ollama with tools like OpenWebUI.
+fn ollama_api_routes() -> Router<AppState> {
+    Router::new()
+        .route("/version", get(handlers::ollama_version))
+        .route("/tags", get(handlers::ollama_tags))
+        .route("/ps", get(handlers::ollama_ps))
+        .route("/generate", post(handlers::ollama_generate))
+        .route("/chat", post(handlers::ollama_chat))
 }
 
 /// API v1 routes.

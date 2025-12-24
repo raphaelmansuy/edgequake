@@ -36,7 +36,9 @@
     "pressEscToClose": "Press Esc to close",
     "skipToContent": "Skip to main content",
     "show": "Show",
-    "hide": "Hide"
+    "hide": "Hide",
+    "create": "Create",
+    "optional": "Optional"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -122,7 +124,54 @@
     },
     "reprocess": {
       "success": "Document queued for reprocessing",
-      "failed": "Reprocess failed"
+      "failed": "Reprocess failed",
+      "successDesc": "The document will be fully reprocessed."
+    },
+    "reset": {
+      "button": "Reset Status",
+      "retryFailed": "Retry failed document",
+      "reprocess": "Reprocess document",
+      "retry": "Retry Processing",
+      "fullReprocess": "Full Reprocess",
+      "success": "Document queued for reprocessing",
+      "successDesc": "The document will be processed again shortly.",
+      "failed": "Failed to reset document",
+      "confirmTitle": "Reset Document Status?",
+      "confirmDescFailed": "This will retry processing the failed document. Any existing error will be cleared.",
+      "confirmDescCompleted": "This will reprocess the document, potentially updating extracted entities and relationships.",
+      "reprocessTitle": "Reprocess Document?",
+      "reprocessDesc": "This will fully reprocess the document from scratch. Existing entities and relationships from this document may be updated."
+    },
+    "scan": {
+      "scanDirectory": "Scan Directory",
+      "scanning": "Scanning...",
+      "started": "Scan started",
+      "startedDesc": "Scanning input directory for new documents...",
+      "failed": "Scan failed"
+    },
+    "reprocessAll": {
+      "retryFailed": "Retry Failed ({{count}})",
+      "processing": "Retrying...",
+      "started": "Reprocessing started",
+      "startedDesc": "Retrying {{count}} failed document(s)...",
+      "failed": "Reprocess failed",
+      "confirmTitle": "Reprocess Failed Documents?",
+      "confirmDesc": "This will retry processing for {{count}} failed document(s). This may take some time depending on document size.",
+      "confirm": "Retry All Failed"
+    },
+    "clearAll": {
+      "button": "Clear All",
+      "title": "Delete All Documents",
+      "warning": "This action cannot be undone. This will permanently delete:",
+      "item1": "{{count}} document(s)",
+      "item2": "All extracted entities and relationships",
+      "item3": "All document chunks and embeddings",
+      "typeToConfirm": "Type {{text}} to confirm:",
+      "confirmButton": "Delete All Documents",
+      "deleting": "Deleting...",
+      "success": "Documents cleared",
+      "successDesc": "Successfully deleted {{count}} document(s) and their associated data.",
+      "failed": "Clear failed"
     },
     "viewStatus": "View Status",
     "uploadDrop": "Drag & drop files or click to upload",
@@ -354,7 +403,85 @@
       "imported": "Settings imported successfully",
       "importError": "Import failed: {{error}}",
       "invalidFile": "Invalid settings file format"
+    },
+    "cache": {
+      "clear": "Clear Cache",
+      "clearTitle": "Clear Cache?",
+      "clearDescription": "This will clear all cached data in the application, including:",
+      "queryCache": "Query results cache",
+      "graphCache": "Graph visualization cache",
+      "historyCache": "Query history cache",
+      "reloadNote": "Data will be refreshed from the server.",
+      "cleared": "Cache cleared",
+      "clearedDesc": "Application cache has been cleared. Data will be refreshed from the server.",
+      "clearFailed": "Failed to clear cache"
     }
+  },
+  "tenant": {
+    "tenant": "Tenant",
+    "selectContext": "Select Context",
+    "selectTenant": "Select tenant...",
+    "name": "Tenant Name",
+    "namePlaceholder": "My Organization",
+    "description": "Description",
+    "descriptionPlaceholder": "A brief description...",
+    "createNew": "Create New Tenant",
+    "createDescription": "Create a new tenant to organize your workspaces and data.",
+    "createSuccess": "Tenant created successfully",
+    "createFailed": "Failed to create tenant"
+  },
+  "workspace": {
+    "workspace": "Workspace",
+    "selectWorkspace": "Select workspace...",
+    "name": "Workspace Name",
+    "namePlaceholder": "Project Alpha",
+    "description": "Description",
+    "descriptionPlaceholder": "A brief description...",
+    "createNew": "Create New Workspace",
+    "createDescription": "Create a new workspace within the current tenant to organize your documents.",
+    "createSuccess": "Workspace created successfully",
+    "createFailed": "Failed to create workspace"
+  },
+  "entity": {
+    "edit": "Edit Entity",
+    "editDescription": "Modify the entity properties. Renaming may trigger a merge if another entity with the same name exists.",
+    "label": "Entity Name",
+    "labelPlaceholder": "Entity name",
+    "type": "Entity Type",
+    "selectType": "Select type...",
+    "description": "Description",
+    "descriptionPlaceholder": "A brief description of this entity...",
+    "properties": "Properties",
+    "renameWarning": "Renaming may trigger a merge if a duplicate exists",
+    "noChanges": "No changes to save",
+    "updateSuccess": "Entity updated successfully",
+    "updateFailed": "Failed to update entity",
+    "labelConflict": "An entity with this name already exists. Consider merging instead.",
+    "mergeConflict": "Merge Conflict",
+    "mergeConflictDescription": "An entity with this name already exists. Would you like to merge them?",
+    "currentEntity": "Current Entity",
+    "existingEntity": "Existing Entity",
+    "mergeExplanation": "Merging will combine all relationships and properties from both entities into one. This action cannot be undone.",
+    "merge": "Merge Entities",
+    "mergeSuccess": "Entities merged successfully",
+    "mergeSuccessDesc": "Merged {{count}} entities into one.",
+    "mergeFailed": "Failed to merge entities"
+  },
+  "relationship": {
+    "edit": "Edit Relationship",
+    "editDescription": "Modify the relationship properties between entities.",
+    "type": "Relationship Type",
+    "selectType": "Select type...",
+    "customType": "Custom Type",
+    "customTypePlaceholder": "CUSTOM_TYPE",
+    "weight": "Weight",
+    "weightHint": "Higher weight indicates stronger relationship (0.0 - 1.0)",
+    "description": "Description",
+    "descriptionPlaceholder": "Describe this relationship...",
+    "sourceDocuments": "Source Documents",
+    "noChanges": "No changes to save",
+    "updateSuccess": "Relationship updated successfully",
+    "updateFailed": "Failed to update relationship"
   },
   "errors": {
     "loadDocuments": "Error loading documents",

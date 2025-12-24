@@ -19,6 +19,8 @@ edgequake-auth = { path = "../edgequake-auth" }
 axum.workspace = true
 axum-extra = { version = "0.10", features = ["multipart"] }
 tokio = { workspace = true, features = ["full"] }
+tokio-stream = "0.1"
+futures-util = "0.3"
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 thiserror.workspace = true

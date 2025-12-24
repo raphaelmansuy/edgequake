@@ -12,13 +12,15 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useGraphStore } from '@/stores/use-graph-store';
-import type { GraphNode } from '@/types';
+import type { GraphEdge, GraphNode } from '@/types';
+import { useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import {
     ArrowLeft,
     ArrowRight,
     Calendar,
     Copy,
+    Edit,
     ExternalLink,
     GitMerge,
     Hash,
@@ -28,7 +30,10 @@ import {
     Trash2,
     X
 } from 'lucide-react';
+import { useState } from 'react';
 import { toast } from 'sonner';
+import { EntityEditDialog } from './entity-edit-dialog';
+import { RelationshipEditDialog } from './relationship-edit-dialog';
 
 interface NodeDetailsProps {
   node: GraphNode;
@@ -47,6 +52,12 @@ const TYPE_COLORS: Record<string, string> = {
 
 export function NodeDetails({ node }: NodeDetailsProps) {
   const { selectNode, focusNode, edges, nodes, toggleNodeDetails } = useGraphStore();
+  const queryClient = useQueryClient();
+  
+  // Dialog states
+  const [showEntityEdit, setShowEntityEdit] = useState(false);
+  const [showRelationshipEdit, setShowRelationshipEdit] = useState(false);
+  const [selectedEdge, setSelectedEdge] = useState<GraphEdge | null>(null);
 
   const connectedEdges = edges.filter(
     (e) => e.source === node.id || e.target === node.id
@@ -106,6 +117,21 @@ export function NodeDetails({ node }: NodeDetailsProps) {
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Copy label</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 shrink-0"
+                      onClick={() => setShowEntityEdit(true)}
+                    >
+                      <Edit className="h-3 w-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Edit entity</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </div>
@@ -241,7 +267,6 @@ export function NodeDetails({ node }: NodeDetailsProps) {
                     <div
                       key={edge.id || `edge-${index}`}
                       className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted p-1.5 rounded-md transition-colors group"
-                      onClick={() => focusNode(nodeId)}
                     >
                       <div className="flex items-center shrink-0">
                         {isSource ? (
@@ -252,18 +277,43 @@ export function NodeDetails({ node }: NodeDetailsProps) {
                       </div>
                       <Badge 
                         variant="secondary" 
-                        className="text-[9px] font-normal shrink-0 max-w-[80px] truncate"
+                        className="text-[9px] font-normal shrink-0 max-w-[80px] truncate cursor-pointer hover:bg-secondary/80"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedEdge(edge);
+                          setShowRelationshipEdit(true);
+                        }}
+                        title="Click to edit relationship"
                       >
                         {edge.relationship_type}
                       </Badge>
-                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <div 
+                        className="flex items-center gap-1.5 flex-1 min-w-0"
+                        onClick={() => focusNode(nodeId)}
+                      >
                         <div 
                           className="w-2 h-2 rounded-full shrink-0"
                           style={{ backgroundColor: relationColor }}
                         />
                         <span className="truncate group-hover:underline">{label}</span>
                       </div>
-                      <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 opacity-0 group-hover:opacity-100 shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedEdge(edge);
+                          setShowRelationshipEdit(true);
+                        }}
+                        title="Edit relationship"
+                      >
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <ExternalLink 
+                        className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0 cursor-pointer" 
+                        onClick={() => focusNode(nodeId)}
+                      />
                     </div>
                   );
                 })
@@ -276,6 +326,22 @@ export function NodeDetails({ node }: NodeDetailsProps) {
 
         {/* Actions */}
         <div className="flex gap-2">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex-1 h-8"
+                  onClick={() => setShowEntityEdit(true)}
+                >
+                  <Edit className="h-3.5 w-3.5 mr-1.5" />
+                  Edit
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Edit entity details</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -300,6 +366,33 @@ export function NodeDetails({ node }: NodeDetailsProps) {
           </TooltipProvider>
         </div>
       </CardContent>
+
+      {/* Entity Edit Dialog */}
+      <EntityEditDialog
+        open={showEntityEdit}
+        onOpenChange={setShowEntityEdit}
+        node={node}
+        onUpdated={() => {
+          queryClient.invalidateQueries({ queryKey: ['graph'] });
+          toast.success('Entity updated successfully');
+        }}
+      />
+
+      {/* Relationship Edit Dialog */}
+      {selectedEdge && (
+        <RelationshipEditDialog
+          open={showRelationshipEdit}
+          onOpenChange={(open) => {
+            setShowRelationshipEdit(open);
+            if (!open) setSelectedEdge(null);
+          }}
+          edge={selectedEdge}
+          onUpdated={() => {
+            queryClient.invalidateQueries({ queryKey: ['graph'] });
+            toast.success('Relationship updated successfully');
+          }}
+        />
+      )}
     </Card>
   );
 }

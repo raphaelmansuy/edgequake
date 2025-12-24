@@ -1,6 +1,7 @@
 'use client';
 
 import { ClientOnly } from '@/components/client-only';
+import { TenantWorkspaceSelector } from '@/components/shared/tenant-workspace-selector';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import {
@@ -58,6 +59,22 @@ function SidebarContent({
             {!collapsed && <span className="text-xl font-bold">EdgeQuake</span>}
           </Link>
         </div>
+
+        {/* Tenant/Workspace Selector */}
+        {!collapsed && (
+          <div className="px-2 pb-2">
+            <ClientOnly fallback={null}>
+              <TenantWorkspaceSelector compact={false} />
+            </ClientOnly>
+          </div>
+        )}
+        {collapsed && (
+          <div className="px-2 pb-2 flex justify-center">
+            <ClientOnly fallback={null}>
+              <TenantWorkspaceSelector compact={true} />
+            </ClientOnly>
+          </div>
+        )}
 
         {/* Navigation */}
         <nav className="flex-1 space-y-1 p-2" aria-label={t('common.navigation', 'Main navigation')}>

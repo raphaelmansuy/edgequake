@@ -1,9 +1,9 @@
 # Parity Roadmap: EdgeQuake Implementation
 
 **Goal:** Achieve feature parity with LightRAG Python implementation  
-**Timeline:** ✅ P0, P1, P2 complete. Only P3 storage backends remaining  
+**Timeline:** ✅ P0, P1, P2, key P3 complete. Only storage backends remaining  
 **Generated:** 2024-12-24  
-**Last Updated:** 2024-12-25
+**Last Updated:** 2024-12-24
 
 ---
 
@@ -60,19 +60,19 @@ All P2 enhancements resolved:
 
 Lower priority enhancements:
 
-| Milestone           | Status | Gap IDs | Notes                         |
-| ------------------- | ------ | ------- | ----------------------------- |
-| Split by Character  | ✅     | GAP-017 | ✅ CharacterBasedChunking     |
-| Prompt-only Query   | ✅     | GAP-021 | ✅ prompt_only() in engine.rs |
-| Neo4j Storage       | ❌     | GAP-012 | Graph database backend        |
-| Qdrant/Milvus       | ❌     | GAP-013 | Vector database backend       |
-| Redis Storage       | ❌     | GAP-024 | Cache backend                 |
-| MongoDB Storage     | ❌     | GAP-025 | Document DB                   |
-| FAISS Storage       | ❌     | GAP-026 | Local vector                  |
-| NanoVectorDB        | ❌     | GAP-027 | Lightweight vector            |
-| HuggingFace         | ❌     | GAP-032 | Local models                  |
-| Ollama Emulation    | ❌     | GAP-038 | Compat API                    |
-| Docling Integration | ❌     | GAP-040 | PDF parsing                   |
+| Milestone           | Status | Gap IDs | Notes                                 |
+| ------------------- | ------ | ------- | ------------------------------------- |
+| Split by Character  | ✅     | GAP-017 | ✅ CharacterBasedChunking             |
+| Prompt-only Query   | ✅     | GAP-021 | ✅ prompt_only() in engine.rs         |
+| Ollama Emulation    | ✅     | GAP-038 | ✅ /api/chat,generate,tags,ps,version |
+| Neo4j Storage       | ❌     | GAP-012 | Graph database backend                |
+| Qdrant/Milvus       | ❌     | GAP-013 | Vector database backend               |
+| Redis Storage       | ❌     | GAP-024 | Cache backend                         |
+| MongoDB Storage     | ❌     | GAP-025 | Document DB                           |
+| FAISS Storage       | ❌     | GAP-026 | Local vector                          |
+| NanoVectorDB        | ❌     | GAP-027 | Lightweight vector                    |
+| HuggingFace         | ❌     | GAP-032 | Local models                          |
+| Docling Integration | ❌     | GAP-040 | PDF parsing                           |
 
 ---
 

@@ -28,6 +28,9 @@ pub mod routes;
 pub mod server;
 pub mod state;
 
+// Re-export commonly used types
+pub use middleware::TenantContext;
+
 pub use error::{ApiError, ApiResult};
 pub use middleware::{AuthConfig, AuthState, RateLimitConfig};
 pub use processor::DocumentTaskProcessor;

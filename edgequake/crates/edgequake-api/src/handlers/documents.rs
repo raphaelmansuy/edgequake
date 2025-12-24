@@ -6,10 +6,12 @@ use chrono::Utc;
 use edgequake_storage::KVStorage;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use tracing::debug;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
+use crate::middleware::TenantContext;
 use crate::state::AppState;
 
 /// Document upload request.
@@ -82,8 +84,15 @@ pub struct UploadDocumentResponse {
 )]
 pub async fn upload_document(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Json(request): Json<UploadDocumentRequest>,
 ) -> ApiResult<Json<UploadDocumentResponse>> {
+    debug!(
+        tenant_id = ?tenant_ctx.tenant_id,
+        workspace_id = ?tenant_ctx.workspace_id,
+        "Uploading document with tenant context"
+    );
+
     // Validate document size
     if request.content.len() > state.config.max_document_size {
         return Err(ApiError::BadRequest(format!(
@@ -129,13 +138,21 @@ pub async fn upload_document(
     };
     let content_length = request.content.len();
 
-    // Store document metadata (including title, content_summary, content_length, track_id)
+    // Store document metadata (including title, content_summary, content_length, track_id, tenant context)
     let doc_metadata_key = format!("{}-metadata", document_id);
     let initial_status = if request.async_processing {
         "pending"
     } else {
         "processing"
     };
+
+    // Extract tenant context for storage
+    let workspace_id_for_storage = tenant_ctx
+        .workspace_id
+        .clone()
+        .unwrap_or_else(|| "default".to_string());
+    let tenant_id_for_storage = tenant_ctx.tenant_id.clone();
+
     let doc_metadata = serde_json::json!({
         "id": document_id,
         "title": request.title,
@@ -145,6 +162,8 @@ pub async fn upload_document(
         "track_id": track_id,
         "created_at": Utc::now().to_rfc3339(),
         "status": initial_status,
+        "tenant_id": tenant_id_for_storage,
+        "workspace_id": workspace_id_for_storage,
     });
     state
         .kv_storage
@@ -166,13 +185,22 @@ pub async fn upload_document(
         // Create task for background processing
         use edgequake_tasks::{Task, TaskType, TextInsertData};
 
+        // Use tenant context for workspace_id, fallback to "default"
+        let workspace_id = tenant_ctx
+            .workspace_id
+            .clone()
+            .unwrap_or_else(|| "default".to_string());
+        let tenant_id = tenant_ctx.tenant_id.clone();
+
         let task_data = TextInsertData {
             text: request.content.clone(),
             file_source: request.title.clone().unwrap_or_else(|| document_id.clone()),
-            workspace_id: "default".to_string(),
+            workspace_id: workspace_id.clone(),
             metadata: Some(serde_json::json!({
                 "document_id": document_id,
                 "title": request.title,
+                "tenant_id": tenant_id,
+                "workspace_id": workspace_id,
             })),
         };
 
@@ -282,7 +310,7 @@ pub async fn upload_document(
             }
         }
 
-        // Update document status to completed (preserve content_summary, content_length, track_id)
+        // Update document status to completed (preserve content_summary, content_length, track_id, tenant context)
         let doc_metadata = serde_json::json!({
             "id": document_id,
             "title": request.title,
@@ -295,6 +323,8 @@ pub async fn upload_document(
             "chunk_count": result.stats.chunk_count,
             "entity_count": result.stats.entity_count,
             "relationship_count": result.stats.relationship_count,
+            "tenant_id": tenant_id_for_storage,
+            "workspace_id": workspace_id_for_storage,
         });
         state
             .kv_storage
@@ -426,7 +456,14 @@ pub struct DocumentSummary {
 )]
 pub async fn list_documents(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
 ) -> ApiResult<Json<ListDocumentsResponse>> {
+    debug!(
+        tenant_id = ?tenant_ctx.tenant_id,
+        workspace_id = ?tenant_ctx.workspace_id,
+        "Listing documents with tenant context"
+    );
+
     let keys = state.kv_storage.keys().await?;
 
     // Group by document and collect metadata keys
@@ -463,6 +500,8 @@ pub async fn list_documents(
         created_at: Option<String>,
         updated_at: Option<String>,
         entity_count: Option<usize>,
+        tenant_id: Option<String>,
+        workspace_id: Option<String>,
     }
 
     let mut doc_metadata: std::collections::HashMap<String, DocMetadata> =
@@ -534,19 +573,56 @@ pub async fn list_documents(
                     .and_then(|v| v.as_u64())
                     .map(|n| n as usize);
 
+                // Get tenant_id
+                meta.tenant_id = obj
+                    .get("tenant_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
+                // Get workspace_id
+                meta.workspace_id = obj
+                    .get("workspace_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
                 doc_metadata.insert(id.to_string(), meta);
             }
         }
     }
+
+    // Filter documents by tenant context
+    let filter_workspace_id = tenant_ctx.workspace_id.clone();
+    let filter_tenant_id = tenant_ctx.tenant_id.clone();
+
+    // Helper function to check if document matches tenant context
+    let matches_tenant_context = |meta: &DocMetadata| -> bool {
+        // If filter_workspace_id is set, document must match
+        if let Some(ref filter_ws) = filter_workspace_id {
+            if meta.workspace_id.as_ref() != Some(filter_ws) {
+                return false;
+            }
+        }
+        // If filter_tenant_id is set, document must match
+        if let Some(ref filter_tid) = filter_tenant_id {
+            if meta.tenant_id.as_ref() != Some(filter_tid) {
+                return false;
+            }
+        }
+        true
+    };
 
     // Build document list from BOTH:
     // 1. Documents with chunks (processed)
     // 2. Documents with metadata but no chunks yet (pending/processing)
     let mut documents: Vec<DocumentSummary> = doc_chunks
         .into_iter()
-        .map(|(id, chunk_count)| {
+        .filter_map(|(id, chunk_count)| {
             let meta = doc_metadata.remove(&id).unwrap_or_default();
-            DocumentSummary {
+            // Filter by tenant context
+            if !matches_tenant_context(&meta) {
+                return None;
+            }
+            Some(DocumentSummary {
                 id,
                 title: meta.title,
                 file_name: meta.file_name,
@@ -559,12 +635,16 @@ pub async fn list_documents(
                 track_id: meta.track_id,
                 created_at: meta.created_at,
                 updated_at: meta.updated_at,
-            }
+            })
         })
         .collect();
 
     // Add documents that have metadata but no chunks yet (pending/processing)
     for (id, meta) in doc_metadata {
+        // Filter by tenant context
+        if !matches_tenant_context(&meta) {
+            continue;
+        }
         documents.push(DocumentSummary {
             id,
             title: meta.title,
@@ -1466,8 +1546,14 @@ pub struct SkippedFile {
 )]
 pub async fn scan_directory(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Json(request): Json<ScanDirectoryRequest>,
 ) -> ApiResult<Json<ScanDirectoryResponse>> {
+    debug!(
+        "scan_directory called with tenant context: tenant_id={:?}, workspace_id={:?}",
+        tenant_ctx.tenant_id, tenant_ctx.workspace_id
+    );
+
     use std::path::Path;
 
     let base_path = Path::new(&request.path);
@@ -1609,14 +1695,23 @@ pub async fn scan_directory(
             // Create task for background processing
             use edgequake_tasks::{Task, TaskType, TextInsertData};
 
+            // Use tenant context for workspace_id, fallback to "default"
+            let workspace_id = tenant_ctx
+                .workspace_id
+                .clone()
+                .unwrap_or_else(|| "default".to_string());
+            let tenant_id = tenant_ctx.tenant_id.clone();
+
             let task_data = TextInsertData {
                 text: content,
                 file_source: file_path.display().to_string(),
-                workspace_id: "default".to_string(),
+                workspace_id: workspace_id.clone(),
                 metadata: Some(serde_json::json!({
                     "document_id": document_id,
                     "title": file_name,
                     "track_id": track_id,
+                    "tenant_id": tenant_id,
+                    "workspace_id": workspace_id,
                 })),
             };
 
@@ -1744,8 +1839,14 @@ pub struct ReprocessFailedResponse {
 )]
 pub async fn reprocess_failed(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Json(request): Json<ReprocessFailedRequest>,
 ) -> ApiResult<Json<ReprocessFailedResponse>> {
+    debug!(
+        "reprocess_failed called with tenant context: tenant_id={:?}, workspace_id={:?}",
+        tenant_ctx.tenant_id, tenant_ctx.workspace_id
+    );
+
     // Generate new track ID for reprocess batch
     let new_track_id = format!(
         "reprocess_{}_{}",
@@ -1811,16 +1912,25 @@ pub async fn reprocess_failed(
                 // Create new task
                 use edgequake_tasks::{Task, TaskType, TextInsertData};
 
+                // Use tenant context for workspace_id, fallback to "default"
+                let workspace_id = tenant_ctx
+                    .workspace_id
+                    .clone()
+                    .unwrap_or_else(|| "default".to_string());
+                let tenant_id = tenant_ctx.tenant_id.clone();
+
                 let title = doc_id.clone();
                 let task_data = TextInsertData {
                     text: content.to_string(),
                     file_source: title.clone(),
-                    workspace_id: "default".to_string(),
+                    workspace_id: workspace_id.clone(),
                     metadata: Some(serde_json::json!({
                         "document_id": doc_id,
                         "title": title,
                         "track_id": new_track_id,
                         "is_retry": true,
+                        "tenant_id": tenant_id,
+                        "workspace_id": workspace_id,
                     })),
                 };
 

@@ -78,8 +78,39 @@ export async function getCurrentUser(): Promise<LoginResponse["user"]> {
 // Tenants & Workspaces
 // ============================================================================
 
+/** Paginated tenant list response from backend. */
+interface TenantListResponse {
+  items: Tenant[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
+/** Paginated workspace list response from backend. */
+interface WorkspaceListResponse {
+  items: Workspace[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
+/** Workspace statistics response from backend. */
+export interface WorkspaceStats {
+  workspace_id: string;
+  document_count: number;
+  entity_count: number;
+  relationship_count: number;
+  chunk_count: number;
+  storage_bytes: number;
+}
+
 export async function getTenants(): Promise<Tenant[]> {
-  return api.get<Tenant[]>("/tenants");
+  const response = await api.get<TenantListResponse | Tenant[]>("/tenants");
+  // Handle both paginated response and legacy array format
+  if (Array.isArray(response)) {
+    return response;
+  }
+  return response.items || [];
 }
 
 export async function getTenant(tenantId: string): Promise<Tenant> {
@@ -94,7 +125,14 @@ export async function createTenant(data: {
 }
 
 export async function getWorkspaces(tenantId: string): Promise<Workspace[]> {
-  return api.get<Workspace[]>(`/tenants/${tenantId}/workspaces`);
+  const response = await api.get<WorkspaceListResponse | Workspace[]>(
+    `/tenants/${tenantId}/workspaces`
+  );
+  // Handle both paginated response and legacy array format
+  if (Array.isArray(response)) {
+    return response;
+  }
+  return response.items || [];
 }
 
 export async function getWorkspace(
@@ -102,6 +140,12 @@ export async function getWorkspace(
   workspaceId: string
 ): Promise<Workspace> {
   return api.get<Workspace>(`/tenants/${tenantId}/workspaces/${workspaceId}`);
+}
+
+export async function getWorkspaceStats(
+  workspaceId: string
+): Promise<WorkspaceStats> {
+  return api.get<WorkspaceStats>(`/workspaces/${workspaceId}/stats`);
 }
 
 export async function createWorkspace(
@@ -186,6 +230,34 @@ export async function reprocessDocument(
   documentId: string
 ): Promise<UploadDocumentResponse> {
   return api.post<UploadDocumentResponse>(`/documents/${documentId}/reprocess`);
+}
+
+/**
+ * Scan input directory for new documents.
+ * Triggers background scanning and processing of new files.
+ * @param path Optional path to scan (defaults to configured input directory)
+ */
+export async function scanDocuments(
+  path?: string
+): Promise<{ track_id: string; message: string }> {
+  return api.post<{ track_id: string; message: string }>(
+    "/documents/scan",
+    path ? { path } : {}
+  );
+}
+
+/**
+ * Reprocess all failed documents.
+ * Retries processing of documents that previously failed.
+ */
+export async function reprocessFailedDocuments(): Promise<{
+  track_id: string;
+  message: string;
+  count: number;
+}> {
+  return api.post<{ track_id: string; message: string; count: number }>(
+    "/documents/reprocess"
+  );
 }
 
 // ============================================================================
@@ -501,6 +573,7 @@ export const edgequakeApi = {
   createTenant,
   getWorkspaces,
   getWorkspace,
+  getWorkspaceStats,
   createWorkspace,
 
   // Documents
@@ -511,6 +584,8 @@ export const edgequakeApi = {
   deleteDocument,
   deleteAllDocuments,
   reprocessDocument,
+  scanDocuments,
+  reprocessFailedDocuments,
 
   // Query
   query,

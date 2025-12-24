@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { getGraph } from '@/lib/api/edgequake';
 import { focusCameraOnNode } from '@/lib/graph/camera-utils';
 import { useGraphStore } from '@/stores/use-graph-store';
+import { useTenantStore } from '@/stores/use-tenant-store';
 import type { GraphNode } from '@/types';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Loader2, Maximize2, Network, RefreshCw, Upload, ZoomIn, ZoomOut } from 'lucide-react';
@@ -39,6 +40,9 @@ export function GraphViewer() {
     searchQuery,
   } = useGraphStore();
 
+  // Get tenant context for query key
+  const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
+
   // Memoize filtered nodes to prevent re-render loops
   const filteredNodes = useMemo(() => {
     return allNodes.filter((node) => {
@@ -72,7 +76,7 @@ export function GraphViewer() {
   } = useNodeContextMenu();
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['graph'],
+    queryKey: ['graph', selectedTenantId, selectedWorkspaceId],
     queryFn: () => getGraph({ limit: 500 }),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });

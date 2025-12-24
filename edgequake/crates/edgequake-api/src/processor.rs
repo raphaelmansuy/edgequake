@@ -131,6 +131,26 @@ impl DocumentTaskProcessor {
             .info(format!("Extracting entities from {}...", document_id))
             .await;
 
+        // Extract tenant_id and workspace_id from metadata for graph scoping
+        let tenant_id = data
+            .metadata
+            .as_ref()
+            .and_then(|m| m.get("tenant_id"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        let workspace_id_meta = data
+            .metadata
+            .as_ref()
+            .and_then(|m| m.get("workspace_id"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| data.workspace_id.clone());
+
+        info!(
+            "Storing entities with tenant_id={:?}, workspace_id={:?}",
+            tenant_id, workspace_id_meta
+        );
+
         // Store entities and relationships in graph storage
         for extraction in &result.extractions {
             for entity in &extraction.entities {
@@ -139,6 +159,11 @@ impl DocumentTaskProcessor {
                 properties.insert("description".to_string(), json!(entity.description));
                 properties.insert("importance".to_string(), json!(entity.importance));
                 properties.insert("source_ids".to_string(), json!(vec![&document_id]));
+                // Add tenant scoping
+                if let Some(ref tid) = tenant_id {
+                    properties.insert("tenant_id".to_string(), json!(tid));
+                }
+                properties.insert("workspace_id".to_string(), json!(&workspace_id_meta));
 
                 if let Err(e) = self
                     .graph_storage
@@ -159,6 +184,11 @@ impl DocumentTaskProcessor {
                 properties.insert("weight".to_string(), json!(relationship.weight));
                 properties.insert("keywords".to_string(), json!(relationship.keywords));
                 properties.insert("source_ids".to_string(), json!(vec![&document_id]));
+                // Add tenant scoping
+                if let Some(ref tid) = tenant_id {
+                    properties.insert("tenant_id".to_string(), json!(tid));
+                }
+                properties.insert("workspace_id".to_string(), json!(&workspace_id_meta));
 
                 if let Err(e) = self
                     .graph_storage

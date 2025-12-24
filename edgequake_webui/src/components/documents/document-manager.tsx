@@ -1,17 +1,6 @@
 'use client';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,6 +29,7 @@ import {
     reprocessDocument,
     uploadDocument,
 } from '@/lib/api/edgequake';
+import { useTenantStore } from '@/stores/use-tenant-store';
 import type { Document } from '@/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
@@ -64,9 +54,13 @@ import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { BatchProgressCard } from './batch-progress-card';
+import { ClearDocumentsDialog } from './clear-documents-dialog';
 import { DocumentFilters, type DocStatus, type SortDirection, type SortField } from './document-filters';
 import { PaginationControls } from './pagination-controls';
 import { PipelineStatusDialog } from './pipeline-status-dialog';
+import { ReprocessFailedButton } from './reprocess-failed-button';
+import { ResetDocumentStatusButton } from './reset-document-status-button';
+import { ScanDocumentsButton } from './scan-documents-button';
 
 // Track upload progress and errors for files
 interface UploadingFile {
@@ -103,6 +97,10 @@ export function DocumentManager() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const router = useRouter();
+  
+  // Get tenant context for query key
+  const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
+  
   // TODO: Implement bulk selection in future
   // const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
@@ -126,7 +124,7 @@ export function DocumentManager() {
   const [activeTrackId, setActiveTrackId] = useState<string | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['documents', currentPage, pageSize, statusFilter],
+    queryKey: ['documents', selectedTenantId, selectedWorkspaceId, currentPage, pageSize, statusFilter],
     queryFn: () => getDocuments({ 
       page: currentPage, 
       page_size: pageSize,
@@ -548,37 +546,34 @@ export function DocumentManager() {
             open={pipelineDialogOpen}
             onOpenChange={setPipelineDialogOpen}
           />
+          
+          {/* Scan Documents Button (GAP-UI-001) */}
+          <ScanDocumentsButton
+            onScanStarted={(trackId) => {
+              setActiveTrackId(trackId);
+              setPipelineDialogOpen(true);
+            }}
+          />
+          
+          {/* Reprocess Failed Button (GAP-UI-002) */}
+          <ReprocessFailedButton
+            failedCount={statusCounts.failed}
+            onReprocessStarted={(trackId) => {
+              setActiveTrackId(trackId);
+              setPipelineDialogOpen(true);
+            }}
+          />
+          
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4 mr-1" />
             {t('documents.refresh')}
           </Button>
-          {documents.length > 0 && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm">
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  {t('documents.clearAll')}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{t('documents.deleteConfirm')}</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {t('documents.deleteConfirmDescription', { count: totalCount })}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => deleteAllMutation.mutate()}
-                    className="bg-destructive text-destructive-foreground"
-                  >
-                    {t('common.delete')}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
+          
+          {/* Clear Documents Dialog (GAP-UI-009) */}
+          <ClearDocumentsDialog
+            documentCount={totalCount}
+            onCleared={() => refetch()}
+          />
         </div>
       </div>
       
@@ -816,6 +811,13 @@ export function DocumentManager() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          {doc.status === 'failed' && (
+                            <DropdownMenuItem asChild>
+                              <div className="p-0">
+                                <ResetDocumentStatusButton document={doc} iconOnly={false} size="sm" />
+                              </div>
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem onClick={() => reprocessMutation.mutate(doc.id)}>
                             <RefreshCw className="h-4 w-4 mr-2" />
                             {t('documents.actions.reprocess')}

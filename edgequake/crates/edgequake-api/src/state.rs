@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use edgequake_auth::{AuthConfig, JwtService, PasswordService, RbacService};
+use edgequake_core::{InMemoryWorkspaceService, WorkspaceService};
 use edgequake_llm::OpenAIProvider;
 use edgequake_pipeline::Pipeline;
 use edgequake_query::{QueryEngine, QueryEngineConfig};
@@ -10,6 +11,9 @@ use edgequake_storage::adapters::memory::{
     MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
 };
 use edgequake_tasks::{PipelineState, SharedTaskQueue, SharedTaskStorage};
+
+/// Type alias for the shared workspace service.
+pub type SharedWorkspaceService = Arc<dyn WorkspaceService>;
 
 /// Application state shared across handlers.
 #[derive(Clone)]
@@ -43,6 +47,9 @@ pub struct AppState {
 
     /// Pipeline state for real-time progress tracking (Phase 3).
     pub pipeline_state: PipelineState,
+
+    /// Workspace service for tenant/workspace management.
+    pub workspace_service: SharedWorkspaceService,
 
     /// Configuration.
     pub config: AppConfig,
@@ -95,6 +102,7 @@ impl AppState {
         pipeline: Arc<Pipeline>,
         task_storage: SharedTaskStorage,
         task_queue: SharedTaskQueue,
+        workspace_service: SharedWorkspaceService,
     ) -> Self {
         let auth_config = AuthConfig::default();
         let jwt_service = Arc::new(JwtService::new(auth_config.clone()));
@@ -112,6 +120,7 @@ impl AppState {
             task_storage,
             task_queue,
             pipeline_state: PipelineState::new(),
+            workspace_service,
             config: AppConfig::default(),
             auth_config,
             jwt_service,
@@ -126,6 +135,9 @@ impl AppState {
         let vector_storage = Arc::new(MemoryVectorStorage::new("default", 1536));
         let graph_storage = Arc::new(MemoryGraphStorage::new("default"));
         let llm_provider = Arc::new(OpenAIProvider::new(llm_api_key));
+
+        // Create workspace service with default tenant
+        let workspace_service: SharedWorkspaceService = Arc::new(InMemoryWorkspaceService::new());
 
         // Create pipeline with LLM and embedding providers configured
         use edgequake_pipeline::LLMExtractor;
@@ -173,6 +185,7 @@ impl AppState {
             task_storage,
             task_queue,
             pipeline_state: PipelineState::new(),
+            workspace_service,
             config: AppConfig::default(),
             auth_config,
             jwt_service,
@@ -190,6 +203,9 @@ impl AppState {
         let vector_storage = Arc::new(MemoryVectorStorage::new("test", 1536)); // Match MockProvider dimension
         let graph_storage = Arc::new(MemoryGraphStorage::new("test"));
         let pipeline = Arc::new(Pipeline::default_pipeline());
+
+        // Create workspace service
+        let workspace_service: SharedWorkspaceService = Arc::new(InMemoryWorkspaceService::new());
 
         // Create task infrastructure
         let task_storage = Arc::new(edgequake_tasks::memory::MemoryTaskStorage::new());
@@ -224,11 +240,64 @@ impl AppState {
             task_storage,
             task_queue,
             pipeline_state: PipelineState::new(),
+            workspace_service,
             config: AppConfig::default(),
             auth_config,
             jwt_service,
             password_service,
             rbac_service,
         }
+    }
+
+    /// Initialize default tenant and workspace for non-authenticated mode.
+    /// This ensures that the system is usable without authentication.
+    pub async fn initialize_defaults(
+        &self,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        use edgequake_core::{CreateWorkspaceRequest, Tenant, TenantPlan};
+
+        // Check if default tenant already exists
+        let existing = self.workspace_service.list_tenants(10, 0).await?;
+
+        if !existing.is_empty() {
+            tracing::info!(
+                "Found {} existing tenant(s), skipping default initialization",
+                existing.len()
+            );
+            return Ok(());
+        }
+
+        // Create default tenant
+        let default_tenant = Tenant::new("Default", "default")
+            .with_plan(TenantPlan::Pro)
+            .with_description("Default tenant for EdgeQuake");
+
+        let tenant = self.workspace_service.create_tenant(default_tenant).await?;
+
+        tracing::info!(
+            tenant_id = %tenant.tenant_id,
+            "Created default tenant"
+        );
+
+        // Create default workspace within the tenant
+        let workspace_request = CreateWorkspaceRequest {
+            name: "Default Workspace".to_string(),
+            slug: Some("default".to_string()),
+            description: Some("Default knowledge base".to_string()),
+            max_documents: Some(10000),
+        };
+
+        let workspace = self
+            .workspace_service
+            .create_workspace(tenant.tenant_id, workspace_request)
+            .await?;
+
+        tracing::info!(
+            workspace_id = %workspace.workspace_id,
+            tenant_id = %tenant.tenant_id,
+            "Created default workspace"
+        );
+
+        Ok(())
     }
 }

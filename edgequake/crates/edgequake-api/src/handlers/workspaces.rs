@@ -187,14 +187,12 @@ pub struct WorkspaceStatsResponse {
     tags = ["tenants"]
 )]
 pub async fn create_tenant(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(request): Json<CreateTenantRequest>,
 ) -> Result<(StatusCode, Json<TenantResponse>), ApiError> {
     use edgequake_core::{Tenant, TenantPlan};
 
-    let slug = request
-        .slug
-        .unwrap_or_else(|| generate_slug(&request.name));
+    let slug = request.slug.unwrap_or_else(|| generate_slug(&request.name));
 
     let plan = match request.plan.as_deref() {
         Some("basic") => TenantPlan::Basic,
@@ -203,22 +201,31 @@ pub async fn create_tenant(
         _ => TenantPlan::Free,
     };
 
-    let tenant = Tenant::new(&request.name, &slug).with_plan(plan);
+    let mut tenant = Tenant::new(&request.name, &slug).with_plan(plan);
 
-    // TODO: Store tenant in database via workspace service
-    // For now, return the created tenant
+    if let Some(desc) = request.description.as_ref() {
+        tenant = tenant.with_description(desc);
+    }
+
+    // Store tenant via workspace service
+    let created_tenant = state
+        .workspace_service
+        .create_tenant(tenant)
+        .await
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
     let response = TenantResponse {
-        id: tenant.tenant_id,
-        name: tenant.name.clone(),
-        slug: tenant.slug.clone(),
-        plan: format!("{:?}", tenant.plan).to_lowercase(),
-        is_active: tenant.is_active,
-        max_workspaces: tenant.max_workspaces,
-        created_at: tenant.created_at.to_rfc3339(),
-        updated_at: tenant.updated_at.to_rfc3339(),
+        id: created_tenant.tenant_id,
+        name: created_tenant.name.clone(),
+        slug: created_tenant.slug.clone(),
+        plan: format!("{}", created_tenant.plan),
+        is_active: created_tenant.is_active,
+        max_workspaces: created_tenant.max_workspaces,
+        created_at: created_tenant.created_at.to_rfc3339(),
+        updated_at: created_tenant.updated_at.to_rfc3339(),
     };
 
+    tracing::info!(tenant_id = %created_tenant.tenant_id, "Created tenant");
     Ok((StatusCode::CREATED, Json(response)))
 }
 
@@ -235,15 +242,36 @@ pub async fn create_tenant(
     tags = ["tenants"]
 )]
 pub async fn list_tenants(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<TenantListResponse>, ApiError> {
     let limit = params.limit.min(100);
 
-    // TODO: Fetch from workspace service
+    let tenants = state
+        .workspace_service
+        .list_tenants(limit, params.offset)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    let items: Vec<TenantResponse> = tenants
+        .into_iter()
+        .map(|t| TenantResponse {
+            id: t.tenant_id,
+            name: t.name.clone(),
+            slug: t.slug.clone(),
+            plan: format!("{}", t.plan),
+            is_active: t.is_active,
+            max_workspaces: t.max_workspaces,
+            created_at: t.created_at.to_rfc3339(),
+            updated_at: t.updated_at.to_rfc3339(),
+        })
+        .collect();
+
+    let total = items.len();
+
     let response = TenantListResponse {
-        items: vec![],
-        total: 0,
+        items,
+        total,
         offset: params.offset,
         limit,
     };
@@ -267,14 +295,28 @@ pub async fn list_tenants(
     tags = ["tenants"]
 )]
 pub async fn get_tenant(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(tenant_id): Path<Uuid>,
 ) -> Result<Json<TenantResponse>, ApiError> {
-    // TODO: Fetch from workspace service
-    Err(ApiError::NotFound(format!(
-        "Tenant {} not found",
-        tenant_id
-    )))
+    let tenant = state
+        .workspace_service
+        .get_tenant(tenant_id)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .ok_or_else(|| ApiError::NotFound(format!("Tenant {} not found", tenant_id)))?;
+
+    let response = TenantResponse {
+        id: tenant.tenant_id,
+        name: tenant.name.clone(),
+        slug: tenant.slug.clone(),
+        plan: format!("{}", tenant.plan),
+        is_active: tenant.is_active,
+        max_workspaces: tenant.max_workspaces,
+        created_at: tenant.created_at.to_rfc3339(),
+        updated_at: tenant.updated_at.to_rfc3339(),
+    };
+
+    Ok(Json(response))
 }
 
 /// Update a tenant.
@@ -294,15 +336,52 @@ pub async fn get_tenant(
     tags = ["tenants"]
 )]
 pub async fn update_tenant(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(tenant_id): Path<Uuid>,
-    Json(_request): Json<UpdateTenantRequest>,
+    Json(request): Json<UpdateTenantRequest>,
 ) -> Result<Json<TenantResponse>, ApiError> {
-    // TODO: Update via workspace service
-    Err(ApiError::NotFound(format!(
-        "Tenant {} not found",
-        tenant_id
-    )))
+    // Get existing tenant
+    let mut tenant = state
+        .workspace_service
+        .get_tenant(tenant_id)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .ok_or_else(|| ApiError::NotFound(format!("Tenant {} not found", tenant_id)))?;
+
+    // Apply updates
+    if let Some(name) = request.name {
+        tenant.name = name;
+    }
+    if let Some(description) = request.description {
+        tenant.description = Some(description);
+    }
+    if let Some(is_active) = request.is_active {
+        tenant.is_active = is_active;
+    }
+    if let Some(plan_str) = request.plan {
+        tenant.plan = plan_str.parse().unwrap_or(tenant.plan);
+    }
+    tenant.updated_at = chrono::Utc::now();
+
+    // Save updated tenant
+    let updated = state
+        .workspace_service
+        .update_tenant(tenant)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    let response = TenantResponse {
+        id: updated.tenant_id,
+        name: updated.name.clone(),
+        slug: updated.slug.clone(),
+        plan: format!("{}", updated.plan),
+        is_active: updated.is_active,
+        max_workspaces: updated.max_workspaces,
+        created_at: updated.created_at.to_rfc3339(),
+        updated_at: updated.updated_at.to_rfc3339(),
+    };
+
+    Ok(Json(response))
 }
 
 /// Delete a tenant.
@@ -321,15 +400,18 @@ pub async fn update_tenant(
     tags = ["tenants"]
 )]
 pub async fn delete_tenant(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(tenant_id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
-    // TODO: Delete via workspace service
     tracing::info!(tenant_id = %tenant_id, "Deleting tenant");
-    Err(ApiError::NotFound(format!(
-        "Tenant {} not found",
-        tenant_id
-    )))
+
+    state
+        .workspace_service
+        .delete_tenant(tenant_id)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // ============ Workspace Handlers ============
@@ -353,28 +435,25 @@ pub async fn delete_tenant(
     tags = ["workspaces"]
 )]
 pub async fn create_workspace(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(tenant_id): Path<Uuid>,
     Json(request): Json<CreateWorkspaceApiRequest>,
 ) -> Result<(StatusCode, Json<WorkspaceResponse>), ApiError> {
-    use edgequake_core::Workspace;
+    use edgequake_core::CreateWorkspaceRequest;
 
-    let slug = request
-        .slug
-        .clone()
-        .unwrap_or_else(|| generate_slug(&request.name));
+    let create_request = CreateWorkspaceRequest {
+        name: request.name.clone(),
+        slug: request.slug.clone(),
+        description: request.description.clone(),
+        max_documents: request.max_documents,
+    };
 
-    let mut workspace = Workspace::new(tenant_id, &request.name, &slug);
-
-    if let Some(desc) = request.description {
-        workspace = workspace.with_description(desc);
-    }
-
-    if let Some(max_docs) = request.max_documents {
-        workspace = workspace.with_max_documents(max_docs);
-    }
-
-    // TODO: Store workspace in database via workspace service
+    // Store workspace via workspace service
+    let workspace = state
+        .workspace_service
+        .create_workspace(tenant_id, create_request)
+        .await
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
     let response = WorkspaceResponse {
         id: workspace.workspace_id,
@@ -387,6 +466,12 @@ pub async fn create_workspace(
         created_at: workspace.created_at.to_rfc3339(),
         updated_at: workspace.updated_at.to_rfc3339(),
     };
+
+    tracing::info!(
+        workspace_id = %workspace.workspace_id,
+        tenant_id = %tenant_id,
+        "Created workspace"
+    );
 
     Ok((StatusCode::CREATED, Json(response)))
 }
@@ -408,7 +493,7 @@ pub async fn create_workspace(
     tags = ["workspaces"]
 )]
 pub async fn list_workspaces(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(tenant_id): Path<Uuid>,
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<WorkspaceListResponse>, ApiError> {
@@ -416,10 +501,34 @@ pub async fn list_workspaces(
 
     tracing::debug!(tenant_id = %tenant_id, "Listing workspaces");
 
-    // TODO: Fetch from workspace service
+    let workspaces = state
+        .workspace_service
+        .list_workspaces(tenant_id)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    let items: Vec<WorkspaceResponse> = workspaces
+        .into_iter()
+        .skip(params.offset)
+        .take(limit)
+        .map(|ws| WorkspaceResponse {
+            id: ws.workspace_id,
+            tenant_id: ws.tenant_id,
+            name: ws.name.clone(),
+            slug: ws.slug.clone(),
+            description: ws.description.clone(),
+            is_active: ws.is_active,
+            max_documents: ws.max_documents(),
+            created_at: ws.created_at.to_rfc3339(),
+            updated_at: ws.updated_at.to_rfc3339(),
+        })
+        .collect();
+
+    let total = items.len();
+
     let response = WorkspaceListResponse {
-        items: vec![],
-        total: 0,
+        items,
+        total,
         offset: params.offset,
         limit,
     };
@@ -443,14 +552,29 @@ pub async fn list_workspaces(
     tags = ["workspaces"]
 )]
 pub async fn get_workspace(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(workspace_id): Path<Uuid>,
 ) -> Result<Json<WorkspaceResponse>, ApiError> {
-    // TODO: Fetch from workspace service
-    Err(ApiError::NotFound(format!(
-        "Workspace {} not found",
-        workspace_id
-    )))
+    let workspace = state
+        .workspace_service
+        .get_workspace(workspace_id)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .ok_or_else(|| ApiError::NotFound(format!("Workspace {} not found", workspace_id)))?;
+
+    let response = WorkspaceResponse {
+        id: workspace.workspace_id,
+        tenant_id: workspace.tenant_id,
+        name: workspace.name.clone(),
+        slug: workspace.slug.clone(),
+        description: workspace.description.clone(),
+        is_active: workspace.is_active,
+        max_documents: workspace.max_documents(),
+        created_at: workspace.created_at.to_rfc3339(),
+        updated_at: workspace.updated_at.to_rfc3339(),
+    };
+
+    Ok(Json(response))
 }
 
 /// Update a workspace.
@@ -470,15 +594,38 @@ pub async fn get_workspace(
     tags = ["workspaces"]
 )]
 pub async fn update_workspace(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(workspace_id): Path<Uuid>,
-    Json(_request): Json<UpdateWorkspaceApiRequest>,
+    Json(request): Json<UpdateWorkspaceApiRequest>,
 ) -> Result<Json<WorkspaceResponse>, ApiError> {
-    // TODO: Update via workspace service
-    Err(ApiError::NotFound(format!(
-        "Workspace {} not found",
-        workspace_id
-    )))
+    use edgequake_core::UpdateWorkspaceRequest;
+
+    let update_request = UpdateWorkspaceRequest {
+        name: request.name,
+        description: request.description,
+        is_active: request.is_active,
+        max_documents: request.max_documents,
+    };
+
+    let workspace = state
+        .workspace_service
+        .update_workspace(workspace_id, update_request)
+        .await
+        .map_err(|e| ApiError::NotFound(e.to_string()))?;
+
+    let response = WorkspaceResponse {
+        id: workspace.workspace_id,
+        tenant_id: workspace.tenant_id,
+        name: workspace.name.clone(),
+        slug: workspace.slug.clone(),
+        description: workspace.description.clone(),
+        is_active: workspace.is_active,
+        max_documents: workspace.max_documents(),
+        created_at: workspace.created_at.to_rfc3339(),
+        updated_at: workspace.updated_at.to_rfc3339(),
+    };
+
+    Ok(Json(response))
 }
 
 /// Delete a workspace.
@@ -497,15 +644,18 @@ pub async fn update_workspace(
     tags = ["workspaces"]
 )]
 pub async fn delete_workspace(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(workspace_id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
-    // TODO: Delete via workspace service
     tracing::info!(workspace_id = %workspace_id, "Deleting workspace");
-    Err(ApiError::NotFound(format!(
-        "Workspace {} not found",
-        workspace_id
-    )))
+
+    state
+        .workspace_service
+        .delete_workspace(workspace_id)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// Get workspace statistics.
@@ -524,20 +674,25 @@ pub async fn delete_workspace(
     tags = ["workspaces"]
 )]
 pub async fn get_workspace_stats(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(workspace_id): Path<Uuid>,
 ) -> Result<Json<WorkspaceStatsResponse>, ApiError> {
-    // TODO: Fetch from workspace service
-    let stats = WorkspaceStatsResponse {
-        workspace_id,
-        document_count: 0,
-        entity_count: 0,
-        relationship_count: 0,
-        chunk_count: 0,
-        storage_bytes: 0,
+    let stats = state
+        .workspace_service
+        .get_workspace_stats(workspace_id)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    let response = WorkspaceStatsResponse {
+        workspace_id: stats.workspace_id,
+        document_count: stats.document_count,
+        entity_count: stats.entity_count,
+        relationship_count: stats.relationship_count,
+        chunk_count: stats.chunk_count,
+        storage_bytes: stats.storage_bytes as u64,
     };
 
-    Ok(Json(stats))
+    Ok(Json(response))
 }
 
 // ============ Helper Functions ============

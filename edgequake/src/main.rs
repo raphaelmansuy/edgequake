@@ -30,6 +30,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create application state
     let state = AppState::new_memory(&api_key);
 
+    // Initialize default tenant and workspace for non-authenticated mode
+    if let Err(e) = state.initialize_defaults().await {
+        tracing::warn!("Failed to initialize defaults: {}", e);
+    }
+
     // Create document task processor
     let processor = Arc::new(DocumentTaskProcessor::new(
         Arc::clone(&state.pipeline),

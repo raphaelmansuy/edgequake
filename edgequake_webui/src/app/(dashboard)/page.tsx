@@ -2,6 +2,7 @@
 
 import { QuickActions, RecentActivity, StatsCard, SystemStatus } from '@/components/dashboard';
 import { getDocuments, getGraph } from '@/lib/api/edgequake';
+import { useTenantStore } from '@/stores/use-tenant-store';
 import { useQuery } from '@tanstack/react-query';
 import { FileText, GitMerge, Network, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -9,16 +10,19 @@ import { useTranslation } from 'react-i18next';
 export default function DashboardPage() {
   const { t } = useTranslation();
 
+  // Get tenant context for query keys
+  const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
+
   // Fetch document count
   const { data: documentsData, isLoading: isLoadingDocs } = useQuery({
-    queryKey: ['documents', 1, 10],
+    queryKey: ['documents', selectedTenantId, selectedWorkspaceId, 1, 10],
     queryFn: () => getDocuments({ page: 1, page_size: 10 }),
     staleTime: 30000,
   });
 
   // Fetch graph stats
   const { data: graphData, isLoading: isLoadingGraph } = useQuery({
-    queryKey: ['graph'],
+    queryKey: ['graph', selectedTenantId, selectedWorkspaceId],
     queryFn: () => getGraph({ limit: 1 }), // Just need metadata
     staleTime: 30000,
   });
