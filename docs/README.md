@@ -10,17 +10,17 @@
 
 ## Documentation Overview
 
-| Document | Description |
-|----------|-------------|
-| [Quick Start](0001-quick-start.md) | Get up and running in 5 minutes |
-| [Architecture Overview](0002-architecture-overview.md) | System design, crate structure, and core concepts |
-| [API Reference](0003-api-reference.md) | Complete REST API documentation |
-| [Storage Backends](0004-storage-backends.md) | Configure KV, vector, and graph storage |
-| [LLM Integration](0005-llm-integration.md) | LLM providers and embedding models |
-| [Deployment Guide](0006-deployment-guide.md) | Docker, Kubernetes, and production setup |
-| [Configuration Reference](0007-configuration-reference.md) | All environment variables and options |
-| [Multi-Tenancy](0008-multi-tenancy.md) | Tenant isolation and namespace management |
-| [Production LLM](production-llm-integration.md) | Real LLM provider integration guide |
+| Document                                                   | Description                                       |
+| ---------------------------------------------------------- | ------------------------------------------------- |
+| [Quick Start](0001-quick-start.md)                         | Get up and running in 5 minutes                   |
+| [Architecture Overview](0002-architecture-overview.md)     | System design, crate structure, and core concepts |
+| [API Reference](0003-api-reference.md)                     | Complete REST API documentation                   |
+| [Storage Backends](0004-storage-backends.md)               | Configure KV, vector, and graph storage           |
+| [LLM Integration](0005-llm-integration.md)                 | LLM providers and embedding models                |
+| [Deployment Guide](0006-deployment-guide.md)               | Docker, Kubernetes, and production setup          |
+| [Configuration Reference](0007-configuration-reference.md) | All environment variables and options             |
+| [Multi-Tenancy](0008-multi-tenancy.md)                     | Tenant isolation and namespace management         |
+| [Production LLM](production-llm-integration.md)            | Real LLM provider integration guide               |
 
 ---
 
@@ -107,14 +107,14 @@ docker compose up -d
 
 ## Query Modes
 
-| Mode | Description | Best For |
-|------|-------------|----------|
-| `naive` | Basic vector similarity search | Simple lookups |
-| `local` | Entity-focused retrieval | Specific facts |
-| `global` | High-level community summaries | Broad questions |
-| `hybrid` | Combined local + global (default) | Balanced queries |
-| `mix` | Full KG + vector integration | Complex reasoning |
-| `bypass` | Skip RAG, direct LLM | Testing/fallback |
+| Mode     | Description                       | Best For          |
+| -------- | --------------------------------- | ----------------- |
+| `naive`  | Basic vector similarity search    | Simple lookups    |
+| `local`  | Entity-focused retrieval          | Specific facts    |
+| `global` | High-level community summaries    | Broad questions   |
+| `hybrid` | Combined local + global (default) | Balanced queries  |
+| `mix`    | Full KG + vector integration      | Complex reasoning |
+| `bypass` | Skip RAG, direct LLM              | Testing/fallback  |
 
 > **Code Reference**: See [types/query.rs](../edgequake/crates/edgequake-core/src/types/query.rs#L4-L24)
 
@@ -122,18 +122,18 @@ docker compose up -d
 
 ## Deployment Options
 
-| Option | Use Case | Guide |
-|--------|----------|-------|
-| **Local** | Development | `cargo build && cargo run` |
-| **Docker** | Staging/Production | [Docker Guide](0006-deployment-guide.md#2-docker-deployment) |
-| **Kubernetes** | Production/Scale | [K8s Guide](0006-deployment-guide.md#3-kubernetes-deployment-helm) |
+| Option         | Use Case           | Guide                                                              |
+| -------------- | ------------------ | ------------------------------------------------------------------ |
+| **Local**      | Development        | `cargo build && cargo run`                                         |
+| **Docker**     | Staging/Production | [Docker Guide](0006-deployment-guide.md#2-docker-deployment)       |
+| **Kubernetes** | Production/Scale   | [K8s Guide](0006-deployment-guide.md#3-kubernetes-deployment-helm) |
 
 ### Storage Topology
 
-| Environment | KV | Vector | Graph |
-|-------------|-----|--------|-------|
-| Development | Memory | Memory | Memory |
-| Production | PostgreSQL | pgvector | Apache AGE |
+| Environment | KV         | Vector   | Graph      |
+| ----------- | ---------- | -------- | ---------- |
+| Development | Memory     | Memory   | Memory     |
+| Production  | PostgreSQL | pgvector | Apache AGE |
 
 ---
 
@@ -194,4 +194,4 @@ edgequake/
 
 ---
 
-*Built with Rust 🦀 for performance and reliability*
+_Built with Rust 🦀 for performance and reliability_
