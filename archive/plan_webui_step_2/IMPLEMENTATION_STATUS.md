@@ -12,13 +12,13 @@ The EdgeQuake WebUI gap analysis plan has been **successfully implemented**. All
 
 ### Key Achievements
 
-| Metric | Value |
-|--------|-------|
-| Identified Gaps | 20 |
-| Implemented | 18 (90%) |
-| E2E Tests | 20 passing |
-| Build Status | ✅ Passing |
-| i18n Languages | 3 (English, Chinese, French) |
+| Metric          | Value                        |
+| --------------- | ---------------------------- |
+| Identified Gaps | 20                           |
+| Implemented     | 18 (90%)                     |
+| E2E Tests       | 20 passing                   |
+| Build Status    | ✅ Passing                   |
+| i18n Languages  | 3 (English, Chinese, French) |
 
 ---
 
@@ -26,11 +26,12 @@ The EdgeQuake WebUI gap analysis plan has been **successfully implemented**. All
 
 ### ✅ Critical Priority (All Implemented)
 
-| Gap ID | Feature | Status | Verified |
-|--------|---------|--------|----------|
+| Gap ID  | Feature                     | Status         | Verified      |
+| ------- | --------------------------- | -------------- | ------------- |
 | GAP-001 | Internationalization (i18n) | ✅ Implemented | ✅ E2E Tested |
 
 **Implementation Details:**
+
 - i18next + react-i18next configured in `src/lib/i18n.ts`
 - Language selector component: `src/components/shared/language-selector.tsx`
 - Locale files for EN, ZH, FR in `src/locales/`
@@ -39,17 +40,17 @@ The EdgeQuake WebUI gap analysis plan has been **successfully implemented**. All
 
 ### ✅ High Priority (All Implemented)
 
-| Gap ID | Feature | Status | Verified |
-|--------|---------|--------|----------|
-| GAP-002 | Node Drag & Drop | ✅ Implemented | ✅ E2E Tested |
-| GAP-003 | Graph Layout Algorithms | ✅ Implemented | ✅ E2E Tested |
-| GAP-004 | Graph Node Search | ✅ Implemented | ✅ E2E Tested |
-| GAP-005 | Document Pagination | ✅ Implemented | ✅ E2E Tested |
-| GAP-006 | Document Filtering | ✅ Implemented | ✅ E2E Tested |
-| GAP-007 | Pipeline Status Monitoring | ✅ Implemented | ✅ E2E Tested |
-| GAP-008 | LaTeX Rendering | ✅ Implemented | ✅ Build Verified |
-| GAP-009 | Mermaid Diagrams | ✅ Implemented | ✅ Build Verified |
-| GAP-010 | COT/Thinking Display | ✅ Implemented | ✅ Build Verified |
+| Gap ID  | Feature                    | Status         | Verified          |
+| ------- | -------------------------- | -------------- | ----------------- |
+| GAP-002 | Node Drag & Drop           | ✅ Implemented | ✅ E2E Tested     |
+| GAP-003 | Graph Layout Algorithms    | ✅ Implemented | ✅ E2E Tested     |
+| GAP-004 | Graph Node Search          | ✅ Implemented | ✅ E2E Tested     |
+| GAP-005 | Document Pagination        | ✅ Implemented | ✅ E2E Tested     |
+| GAP-006 | Document Filtering         | ✅ Implemented | ✅ E2E Tested     |
+| GAP-007 | Pipeline Status Monitoring | ✅ Implemented | ✅ E2E Tested     |
+| GAP-008 | LaTeX Rendering            | ✅ Implemented | ✅ Build Verified |
+| GAP-009 | Mermaid Diagrams           | ✅ Implemented | ✅ Build Verified |
+| GAP-010 | COT/Thinking Display       | ✅ Implemented | ✅ Build Verified |
 
 **Implementation Files:**
 
@@ -78,23 +79,23 @@ The EdgeQuake WebUI gap analysis plan has been **successfully implemented**. All
 
 ### ✅ Medium Priority (Mostly Implemented)
 
-| Gap ID | Feature | Status | Verified |
-|--------|---------|--------|----------|
+| Gap ID  | Feature             | Status         | Verified          |
+| ------- | ------------------- | -------------- | ----------------- |
 | GAP-011 | Syntax Highlighting | ✅ Implemented | ✅ Build Verified |
-| GAP-014 | User Prompt History | ⚠️ Store Ready | UI Pending |
-| GAP-015 | Search History | ⚠️ Store Ready | UI Pending |
-| GAP-016 | Frontend Tests | ✅ Implemented | ✅ E2E Framework |
+| GAP-014 | User Prompt History | ⚠️ Store Ready | UI Pending        |
+| GAP-015 | Search History      | ⚠️ Store Ready | UI Pending        |
+| GAP-016 | Frontend Tests      | ✅ Implemented | ✅ E2E Framework  |
 
 ### ⚠️ Lower Priority (Partial Implementation)
 
-| Gap ID | Feature | Status | Notes |
-|--------|---------|--------|-------|
-| GAP-012 | Entity Property Editing | ⚠️ Backend Required | API not implemented |
-| GAP-013 | Entity Merge | ⚠️ Backend Required | API not implemented |
-| GAP-017 | Query Mode Prefix | ⚠️ Enhancement | `/mode` prefix parsing |
-| GAP-018 | Tab Visibility | 🔴 Not Implemented | Low priority optimization |
-| GAP-019 | Full-screen Mode | ⚠️ Partial | Graph viewer fullscreen |
-| GAP-020 | Graph Legend | ⚠️ Partial | Type colors visible, legend UI pending |
+| Gap ID  | Feature                 | Status              | Notes                                  |
+| ------- | ----------------------- | ------------------- | -------------------------------------- |
+| GAP-012 | Entity Property Editing | ⚠️ Backend Required | API not implemented                    |
+| GAP-013 | Entity Merge            | ⚠️ Backend Required | API not implemented                    |
+| GAP-017 | Query Mode Prefix       | ⚠️ Enhancement      | `/mode` prefix parsing                 |
+| GAP-018 | Tab Visibility          | 🔴 Not Implemented  | Low priority optimization              |
+| GAP-019 | Full-screen Mode        | ⚠️ Partial          | Graph viewer fullscreen                |
+| GAP-020 | Graph Legend            | ⚠️ Partial          | Type colors visible, legend UI pending |
 
 ---
 
@@ -104,16 +105,16 @@ The EdgeQuake WebUI gap analysis plan has been **successfully implemented**. All
 
 **File:** `src/hooks/use-keyboard-shortcuts.ts`
 
-| Shortcut | Action |
-|----------|--------|
-| `⌘/Ctrl + G` | Go to Knowledge Graph |
-| `⌘/Ctrl + D` | Go to Documents |
-| `⌘/Ctrl + Shift + Q` | Go to Query |
-| `⌘/Ctrl + ,` | Go to Settings |
-| `⌘/Ctrl + K` | Open search/command palette |
-| `⌘/Ctrl + /` | Show keyboard shortcuts |
-| `?` | Show keyboard shortcuts help |
-| `Escape` | Close dialogs and modals |
+| Shortcut             | Action                       |
+| -------------------- | ---------------------------- |
+| `⌘/Ctrl + G`         | Go to Knowledge Graph        |
+| `⌘/Ctrl + D`         | Go to Documents              |
+| `⌘/Ctrl + Shift + Q` | Go to Query                  |
+| `⌘/Ctrl + ,`         | Go to Settings               |
+| `⌘/Ctrl + K`         | Open search/command palette  |
+| `⌘/Ctrl + /`         | Show keyboard shortcuts      |
+| `?`                  | Show keyboard shortcuts help |
+| `Escape`             | Close dialogs and modals     |
 
 **Dialog:** `src/components/shared/keyboard-shortcuts-dialog.tsx`
 
@@ -160,11 +161,11 @@ All required dependencies from the gap analysis have been added to `package.json
 
 ```typescript
 export default defineConfig({
-  testDir: './e2e',
+  testDir: "./e2e",
   fullyParallel: true,
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
+    command: "npm run dev",
+    url: "http://localhost:3000",
   },
 });
 ```
@@ -173,18 +174,18 @@ export default defineConfig({
 
 **File:** `e2e/gap-features.spec.ts`
 
-| Test Suite | Tests | Status |
-|------------|-------|--------|
-| Navigation and Layout | 4 | ✅ Pass |
-| GAP-001: i18n | 3 | ✅ Pass |
-| GAP-005/006: Document Management | 3 | ✅ Pass |
-| GAP-002/003/004: Graph Visualization | 3 | ✅ Pass |
-| GAP-007: Pipeline Status | 1 | ✅ Pass |
-| GAP-008/009/010: Query Interface | 2 | ✅ Pass |
-| UX: Keyboard Shortcuts | 2 | ✅ Pass |
-| Theme Switching | 1 | ✅ Pass |
-| Settings Page | 1 | ✅ Pass |
-| **Total** | **20** | **✅ All Pass** |
+| Test Suite                           | Tests  | Status          |
+| ------------------------------------ | ------ | --------------- |
+| Navigation and Layout                | 4      | ✅ Pass         |
+| GAP-001: i18n                        | 3      | ✅ Pass         |
+| GAP-005/006: Document Management     | 3      | ✅ Pass         |
+| GAP-002/003/004: Graph Visualization | 3      | ✅ Pass         |
+| GAP-007: Pipeline Status             | 1      | ✅ Pass         |
+| GAP-008/009/010: Query Interface     | 2      | ✅ Pass         |
+| UX: Keyboard Shortcuts               | 2      | ✅ Pass         |
+| Theme Switching                      | 1      | ✅ Pass         |
+| Settings Page                        | 1      | ✅ Pass         |
+| **Total**                            | **20** | **✅ All Pass** |
 
 ### Running Tests
 
@@ -208,6 +209,7 @@ npm run test:e2e:headed
 These features require API implementation in the Rust backend:
 
 1. **Entity Property Editing (GAP-012)**
+
    - UI components ready for implementation
    - Requires `PATCH /api/v1/entities/:id` endpoint
 
@@ -218,12 +220,15 @@ These features require API implementation in the Rust backend:
 ### Nice-to-Have Features
 
 1. **Query Mode Prefix (GAP-017)**
+
    - Parse `/local`, `/global`, `/hybrid` prefixes in query input
 
 2. **Tab Visibility Optimization (GAP-018)**
+
    - Pause graph animation when tab is not visible
 
 3. **Full Graph Legend (GAP-020)**
+
    - Floating legend showing entity type colors
 
 4. **RTL Language Support**
@@ -233,13 +238,13 @@ These features require API implementation in the Rust backend:
 
 ## Quality Metrics Achieved
 
-| Metric | Target | Actual | Status |
-|--------|--------|--------|--------|
-| Build Status | Pass | Pass | ✅ |
-| TypeScript Errors | 0 | 0 | ✅ |
-| E2E Test Coverage | Core paths | 20 tests | ✅ |
-| i18n Coverage | 3 languages | 3 languages | ✅ |
-| Translation Keys | ~229 each | 229 each | ✅ |
+| Metric            | Target      | Actual      | Status |
+| ----------------- | ----------- | ----------- | ------ |
+| Build Status      | Pass        | Pass        | ✅     |
+| TypeScript Errors | 0           | 0           | ✅     |
+| E2E Test Coverage | Core paths  | 20 tests    | ✅     |
+| i18n Coverage     | 3 languages | 3 languages | ✅     |
+| Translation Keys  | ~229 each   | 229 each    | ✅     |
 
 ---
 

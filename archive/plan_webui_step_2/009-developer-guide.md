@@ -23,12 +23,12 @@
 
 ### Required Software
 
-| Tool | Version | Purpose |
-|------|---------|---------|
-| Node.js | ≥ 20.x | Runtime |
-| Bun | ≥ 1.0 | Package manager & runner |
-| Git | ≥ 2.x | Version control |
-| VS Code | Latest | Recommended IDE |
+| Tool    | Version | Purpose                  |
+| ------- | ------- | ------------------------ |
+| Node.js | ≥ 20.x  | Runtime                  |
+| Bun     | ≥ 1.0   | Package manager & runner |
+| Git     | ≥ 2.x   | Version control          |
+| VS Code | Latest  | Recommended IDE          |
 
 ### Recommended VS Code Extensions
 
@@ -179,13 +179,13 @@ edgequake_webui/
 
 ### Key Files to Know
 
-| File | Purpose | Modify When |
-|------|---------|-------------|
-| `src/app/layout.tsx` | Root layout, providers | Adding global providers |
-| `src/lib/api/client.ts` | API client setup | Changing API config |
-| `src/stores/settings-store.ts` | App settings state | Adding settings |
-| `src/components/ui/*` | UI primitives | Rarely (Shadcn) |
-| `tailwind.config.js` | Styling config | Adding design tokens |
+| File                           | Purpose                | Modify When             |
+| ------------------------------ | ---------------------- | ----------------------- |
+| `src/app/layout.tsx`           | Root layout, providers | Adding global providers |
+| `src/lib/api/client.ts`        | API client setup       | Changing API config     |
+| `src/stores/settings-store.ts` | App settings state     | Adding settings         |
+| `src/components/ui/*`          | UI primitives          | Rarely (Shadcn)         |
+| `tailwind.config.js`           | Styling config         | Adding design tokens    |
 
 ---
 
@@ -260,14 +260,12 @@ test(documents): add pagination tests
 **Step 3:** Use in component
 
 ```tsx
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from "react-i18next";
 
 function DocumentUpload() {
-  const { t } = useTranslation('common');
+  const { t } = useTranslation("common");
 
-  return (
-    <Button>{t('documents.uploadButton')}</Button>
-  );
+  return <Button>{t("documents.uploadButton")}</Button>;
 }
 ```
 
@@ -280,8 +278,10 @@ function DocumentUpload() {
 ```ts
 // src/lib/api/documents.ts
 export async function getDocuments(params: GetDocumentsParams) {
-  const response = await fetch(`${API_URL}/documents?${new URLSearchParams(params)}`);
-  if (!response.ok) throw new Error('Failed to fetch documents');
+  const response = await fetch(
+    `${API_URL}/documents?${new URLSearchParams(params)}`
+  );
+  if (!response.ok) throw new Error("Failed to fetch documents");
   return response.json() as Promise<DocumentsResponse>;
 }
 ```
@@ -290,12 +290,12 @@ export async function getDocuments(params: GetDocumentsParams) {
 
 ```ts
 // src/hooks/use-documents.ts
-import { useQuery } from '@tanstack/react-query';
-import { getDocuments } from '@/lib/api/documents';
+import { useQuery } from "@tanstack/react-query";
+import { getDocuments } from "@/lib/api/documents";
 
 export function useDocuments(params: GetDocumentsParams) {
   return useQuery({
-    queryKey: ['documents', params],
+    queryKey: ["documents", params],
     queryFn: () => getDocuments(params),
   });
 }
@@ -328,7 +328,7 @@ function DocumentList() {
 interface GraphStore {
   nodes: Node[];
   selectedNode: Node | null;
-  
+
   // Actions
   setNodes: (nodes: Node[]) => void;
   selectNode: (id: string) => void;
@@ -340,16 +340,16 @@ export const useGraphStore = create<GraphStore>((set, get) => ({
   selectedNode: null,
 
   setNodes: (nodes) => set({ nodes }),
-  
+
   selectNode: (id) => {
-    const node = get().nodes.find(n => n.id === id);
+    const node = get().nodes.find((n) => n.id === id);
     set({ selectedNode: node ?? null });
   },
 
   // NEW action
   updateNodePosition: (id, x, y) => {
     set((state) => ({
-      nodes: state.nodes.map(node =>
+      nodes: state.nodes.map((node) =>
         node.id === id ? { ...node, x, y } : node
       ),
     }));
@@ -379,20 +379,28 @@ function GraphNode({ node }) {
 
 ```tsx
 // src/components/documents/document-filter.tsx
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/components/ui/select";
 
 interface DocumentFilterProps {
   onFilterChange: (filters: Filters) => void;
   initialFilters?: Filters;
 }
 
-export function DocumentFilter({ onFilterChange, initialFilters }: DocumentFilterProps) {
-  const { t } = useTranslation('common');
-  const [status, setStatus] = useState(initialFilters?.status ?? 'all');
+export function DocumentFilter({
+  onFilterChange,
+  initialFilters,
+}: DocumentFilterProps) {
+  const { t } = useTranslation("common");
+  const [status, setStatus] = useState(initialFilters?.status ?? "all");
 
   const handleStatusChange = (value: string) => {
     setStatus(value);
@@ -403,12 +411,12 @@ export function DocumentFilter({ onFilterChange, initialFilters }: DocumentFilte
     <div className="flex gap-4">
       <Select value={status} onValueChange={handleStatusChange}>
         <SelectTrigger className="w-[180px]">
-          {t('documents.filterByStatus')}
+          {t("documents.filterByStatus")}
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">{t('common.all')}</SelectItem>
-          <SelectItem value="pending">{t('status.pending')}</SelectItem>
-          <SelectItem value="completed">{t('status.completed')}</SelectItem>
+          <SelectItem value="all">{t("common.all")}</SelectItem>
+          <SelectItem value="pending">{t("status.pending")}</SelectItem>
+          <SelectItem value="completed">{t("status.completed")}</SelectItem>
         </SelectContent>
       </Select>
     </div>
@@ -420,26 +428,26 @@ export function DocumentFilter({ onFilterChange, initialFilters }: DocumentFilte
 
 ```ts
 // src/components/documents/index.ts
-export { DocumentFilter } from './document-filter';
+export { DocumentFilter } from "./document-filter";
 ```
 
 **Step 3:** Write tests
 
 ```tsx
 // tests/unit/document-filter.test.tsx
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { DocumentFilter } from '@/components/documents';
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { DocumentFilter } from "@/components/documents";
 
-describe('DocumentFilter', () => {
-  it('calls onFilterChange when status changes', async () => {
+describe("DocumentFilter", () => {
+  it("calls onFilterChange when status changes", async () => {
     const onFilterChange = vi.fn();
     render(<DocumentFilter onFilterChange={onFilterChange} />);
 
-    await userEvent.click(screen.getByRole('combobox'));
-    await userEvent.click(screen.getByText('Completed'));
+    await userEvent.click(screen.getByRole("combobox"));
+    await userEvent.click(screen.getByText("Completed"));
 
-    expect(onFilterChange).toHaveBeenCalledWith({ status: 'completed' });
+    expect(onFilterChange).toHaveBeenCalledWith({ status: "completed" });
   });
 });
 ```
@@ -512,8 +520,8 @@ bun run start
 
 ```tsx
 // Add to component for debugging
-console.log('[DocumentFilter] props:', props);
-console.log('[DocumentFilter] state:', { status });
+console.log("[DocumentFilter] props:", props);
+console.log("[DocumentFilter] state:", { status });
 
 // Use React DevTools
 // Press F12 → Components tab → Search for component
@@ -579,30 +587,30 @@ bun run dev
 
 ### Documentation Links
 
-| Resource | URL |
-|----------|-----|
-| Next.js Docs | https://nextjs.org/docs |
-| React Query | https://tanstack.com/query |
-| Zustand | https://docs.pmnd.rs/zustand |
+| Resource     | URL                          |
+| ------------ | ---------------------------- |
+| Next.js Docs | https://nextjs.org/docs      |
+| React Query  | https://tanstack.com/query   |
+| Zustand      | https://docs.pmnd.rs/zustand |
 | Tailwind CSS | https://tailwindcss.com/docs |
-| Radix UI | https://radix-ui.com |
-| i18next | https://react.i18next.com |
-| Vitest | https://vitest.dev |
-| Playwright | https://playwright.dev |
+| Radix UI     | https://radix-ui.com         |
+| i18next      | https://react.i18next.com    |
+| Vitest       | https://vitest.dev           |
+| Playwright   | https://playwright.dev       |
 
 ---
 
 ### Project Documents
 
-| Document | Purpose |
-|----------|---------|
-| [Gap Analysis](./002-gap-analysis.md) | What to implement |
-| [Proposed Solutions](./003-proposed-solutions.md) | How to implement |
-| [Prioritization](./004-prioritization-roadmap.md) | When to implement |
-| [UX Improvements](./005-ux-improvements.md) | Design guidance |
-| [Performance Strategy](./006-performance-strategy.md) | Optimization tips |
-| [QA Plan](./007-qa-plan.md) | Testing approach |
-| [Success Criteria](./008-success-criteria.md) | Definition of done |
+| Document                                              | Purpose            |
+| ----------------------------------------------------- | ------------------ |
+| [Gap Analysis](./002-gap-analysis.md)                 | What to implement  |
+| [Proposed Solutions](./003-proposed-solutions.md)     | How to implement   |
+| [Prioritization](./004-prioritization-roadmap.md)     | When to implement  |
+| [UX Improvements](./005-ux-improvements.md)           | Design guidance    |
+| [Performance Strategy](./006-performance-strategy.md) | Optimization tips  |
+| [QA Plan](./007-qa-plan.md)                           | Testing approach   |
+| [Success Criteria](./008-success-criteria.md)         | Definition of done |
 
 ---
 
@@ -610,13 +618,13 @@ bun run dev
 
 For implementation patterns, refer to the LightRAG WebUI codebase:
 
-| Feature | LightRAG File |
-|---------|---------------|
-| i18n setup | `lightrag_webui/src/i18n/index.ts` |
-| Graph store | `lightrag_webui/src/stores/graph.ts` |
-| Document manager | `lightrag_webui/src/features/DocumentManager.tsx` |
-| Query interface | `lightrag_webui/src/features/RetrievalTesting.tsx` |
-| Settings | `lightrag_webui/src/stores/settings.ts` |
+| Feature          | LightRAG File                                      |
+| ---------------- | -------------------------------------------------- |
+| i18n setup       | `lightrag_webui/src/i18n/index.ts`                 |
+| Graph store      | `lightrag_webui/src/stores/graph.ts`               |
+| Document manager | `lightrag_webui/src/features/DocumentManager.tsx`  |
+| Query interface  | `lightrag_webui/src/features/RetrievalTesting.tsx` |
+| Settings         | `lightrag_webui/src/stores/settings.ts`            |
 
 ---
 
@@ -658,4 +666,4 @@ For implementation patterns, refer to the LightRAG WebUI codebase:
 
 ---
 
-*Document provides quick start guidance for implementing gap closure*
+_Document provides quick start guidance for implementing gap closure_

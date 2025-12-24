@@ -33,12 +33,12 @@
 
 ### Coverage Targets
 
-| Test Type | Target Coverage |
-|-----------|----------------|
-| Unit Tests | 80% statements |
+| Test Type         | Target Coverage      |
+| ----------------- | -------------------- |
+| Unit Tests        | 80% statements       |
 | Integration Tests | 70% of API endpoints |
-| E2E Tests | 100% critical paths |
-| Accessibility | WCAG 2.1 AA |
+| E2E Tests         | 100% critical paths  |
+| Accessibility     | WCAG 2.1 AA          |
 
 ---
 
@@ -60,15 +60,15 @@
 
 ### Test Distribution by Feature
 
-| Feature Area | Unit | Integration | E2E |
-|--------------|------|-------------|-----|
-| Graph Visualization | 15 | 5 | 3 |
-| Document Management | 20 | 10 | 5 |
-| Query Interface | 25 | 8 | 4 |
-| i18n System | 30 | 5 | 2 |
-| API Layer | 20 | 15 | 3 |
-| UI Components | 40 | 10 | 5 |
-| **Total** | **150** | **53** | **22** |
+| Feature Area        | Unit    | Integration | E2E    |
+| ------------------- | ------- | ----------- | ------ |
+| Graph Visualization | 15      | 5           | 3      |
+| Document Management | 20      | 10          | 5      |
+| Query Interface     | 25      | 8           | 4      |
+| i18n System         | 30      | 5           | 2      |
+| API Layer           | 20      | 15          | 3      |
+| UI Components       | 40      | 10          | 5      |
+| **Total**           | **150** | **53**      | **22** |
 
 ---
 
@@ -77,6 +77,7 @@
 ### Framework & Configuration
 
 **Stack:**
+
 - Vitest (compatible with Next.js)
 - @testing-library/react
 - @testing-library/user-event
@@ -86,21 +87,21 @@
 
 ```ts
 // vitest.config.ts
-import { defineConfig } from 'vitest/config';
-import react from '@vitejs/plugin-react';
-import path from 'path';
+import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
+import path from "path";
 
 export default defineConfig({
   plugins: [react()],
   test: {
-    environment: 'jsdom',
+    environment: "jsdom",
     globals: true,
-    setupFiles: ['./tests/setup.ts'],
-    include: ['**/*.{test,spec}.{ts,tsx}'],
+    setupFiles: ["./tests/setup.ts"],
+    include: ["**/*.{test,spec}.{ts,tsx}"],
     coverage: {
-      provider: 'v8',
-      reporter: ['text', 'json', 'html'],
-      exclude: ['node_modules/', 'tests/'],
+      provider: "v8",
+      reporter: ["text", "json", "html"],
+      exclude: ["node_modules/", "tests/"],
       thresholds: {
         statements: 80,
         branches: 75,
@@ -111,7 +112,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      "@": path.resolve(__dirname, "./src"),
     },
   },
 });
@@ -123,25 +124,25 @@ export default defineConfig({
 
 ```ts
 // tests/setup.ts
-import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import "@testing-library/jest-dom";
+import { vi } from "vitest";
 
 // Mock Next.js router
-vi.mock('next/navigation', () => ({
+vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: vi.fn(),
     replace: vi.fn(),
     prefetch: vi.fn(),
   }),
-  usePathname: () => '/documents',
+  usePathname: () => "/documents",
   useSearchParams: () => new URLSearchParams(),
 }));
 
 // Mock i18n
-vi.mock('react-i18next', () => ({
+vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => key,
-    i18n: { language: 'en', changeLanguage: vi.fn() },
+    i18n: { language: "en", changeLanguage: vi.fn() },
   }),
 }));
 
@@ -157,39 +158,39 @@ global.fetch = vi.fn();
 
 ```tsx
 // components/document-row.test.tsx
-import { render, screen, fireEvent } from '@testing-library/react';
-import { DocumentRow } from './document-row';
+import { render, screen, fireEvent } from "@testing-library/react";
+import { DocumentRow } from "./document-row";
 
-describe('DocumentRow', () => {
+describe("DocumentRow", () => {
   const mockDoc = {
-    id: '1',
-    title: 'Test Document',
-    status: 'completed',
-    created_at: '2024-01-15T10:00:00Z',
+    id: "1",
+    title: "Test Document",
+    status: "completed",
+    created_at: "2024-01-15T10:00:00Z",
     chunk_count: 5,
   };
 
-  it('renders document title', () => {
+  it("renders document title", () => {
     render(<DocumentRow doc={mockDoc} />);
-    expect(screen.getByText('Test Document')).toBeInTheDocument();
+    expect(screen.getByText("Test Document")).toBeInTheDocument();
   });
 
-  it('displays correct status badge', () => {
+  it("displays correct status badge", () => {
     render(<DocumentRow doc={mockDoc} />);
-    expect(screen.getByText('completed')).toHaveClass('bg-green-500');
+    expect(screen.getByText("completed")).toHaveClass("bg-green-500");
   });
 
-  it('calls onDelete when delete button clicked', async () => {
+  it("calls onDelete when delete button clicked", async () => {
     const onDelete = vi.fn();
     render(<DocumentRow doc={mockDoc} onDelete={onDelete} />);
-    
-    await fireEvent.click(screen.getByRole('button', { name: /delete/i }));
-    expect(onDelete).toHaveBeenCalledWith('1');
+
+    await fireEvent.click(screen.getByRole("button", { name: /delete/i }));
+    expect(onDelete).toHaveBeenCalledWith("1");
   });
 
-  it('formats date correctly for different locales', () => {
+  it("formats date correctly for different locales", () => {
     render(<DocumentRow doc={mockDoc} locale="de" />);
-    expect(screen.getByText('15.01.2024')).toBeInTheDocument();
+    expect(screen.getByText("15.01.2024")).toBeInTheDocument();
   });
 });
 ```
@@ -200,48 +201,46 @@ describe('DocumentRow', () => {
 
 ```tsx
 // hooks/use-documents.test.ts
-import { renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useDocuments } from './use-documents';
+import { renderHook, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useDocuments } from "./use-documents";
 
 const wrapper = ({ children }: { children: React.ReactNode }) => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
 };
 
-describe('useDocuments', () => {
+describe("useDocuments", () => {
   beforeEach(() => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
       json: async () => ({
-        items: [{ id: '1', title: 'Doc 1' }],
+        items: [{ id: "1", title: "Doc 1" }],
         total: 1,
         page: 1,
       }),
     } as Response);
   });
 
-  it('fetches documents on mount', async () => {
+  it("fetches documents on mount", async () => {
     const { result } = renderHook(() => useDocuments(), { wrapper });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.items).toHaveLength(1);
   });
 
-  it('refetches when page changes', async () => {
+  it("refetches when page changes", async () => {
     const { result, rerender } = renderHook(
       ({ page }) => useDocuments({ page }),
       { wrapper, initialProps: { page: 1 } }
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    
+
     rerender({ page: 2 });
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
   });
@@ -254,10 +253,10 @@ describe('useDocuments', () => {
 
 ```tsx
 // stores/graph-store.test.ts
-import { describe, it, expect, beforeEach } from 'vitest';
-import { useGraphStore } from './graph-store';
+import { describe, it, expect, beforeEach } from "vitest";
+import { useGraphStore } from "./graph-store";
 
-describe('GraphStore', () => {
+describe("GraphStore", () => {
   beforeEach(() => {
     useGraphStore.setState({
       nodes: [],
@@ -266,24 +265,24 @@ describe('GraphStore', () => {
     });
   });
 
-  it('adds nodes correctly', () => {
+  it("adds nodes correctly", () => {
     useGraphStore.getState().setNodes([
-      { id: '1', label: 'Node 1' },
-      { id: '2', label: 'Node 2' },
+      { id: "1", label: "Node 1" },
+      { id: "2", label: "Node 2" },
     ]);
 
     expect(useGraphStore.getState().nodes).toHaveLength(2);
   });
 
-  it('selects node by id', () => {
-    useGraphStore.getState().setNodes([{ id: '1', label: 'Node 1' }]);
-    useGraphStore.getState().selectNode('1');
+  it("selects node by id", () => {
+    useGraphStore.getState().setNodes([{ id: "1", label: "Node 1" }]);
+    useGraphStore.getState().selectNode("1");
 
-    expect(useGraphStore.getState().selectedNode?.id).toBe('1');
+    expect(useGraphStore.getState().selectedNode?.id).toBe("1");
   });
 
-  it('clears selection when node not found', () => {
-    useGraphStore.getState().selectNode('nonexistent');
+  it("clears selection when node not found", () => {
+    useGraphStore.getState().selectNode("nonexistent");
     expect(useGraphStore.getState().selectedNode).toBeNull();
   });
 });
@@ -297,28 +296,31 @@ describe('GraphStore', () => {
 
 ```tsx
 // tests/integration/api-documents.test.ts
-import { setupServer } from 'msw/node';
-import { http, HttpResponse } from 'msw';
-import { documentsApi } from '@/lib/api/documents';
+import { setupServer } from "msw/node";
+import { http, HttpResponse } from "msw";
+import { documentsApi } from "@/lib/api/documents";
 
 const server = setupServer(
-  http.get('/api/documents', () => {
+  http.get("/api/documents", () => {
     return HttpResponse.json({
-      items: [{ id: '1', title: 'Test' }],
+      items: [{ id: "1", title: "Test" }],
       total: 1,
       page: 1,
     });
   }),
 
-  http.post('/api/documents', async ({ request }) => {
+  http.post("/api/documents", async ({ request }) => {
     const body = await request.json();
-    return HttpResponse.json({
-      id: 'new-id',
-      ...body,
-    }, { status: 201 });
+    return HttpResponse.json(
+      {
+        id: "new-id",
+        ...body,
+      },
+      { status: 201 }
+    );
   }),
 
-  http.delete('/api/documents/:id', ({ params }) => {
+  http.delete("/api/documents/:id", ({ params }) => {
     return HttpResponse.json({ success: true });
   })
 );
@@ -327,37 +329,34 @@ beforeAll(() => server.listen());
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-describe('Documents API', () => {
-  it('fetches document list', async () => {
+describe("Documents API", () => {
+  it("fetches document list", async () => {
     const result = await documentsApi.getDocuments({ page: 1, pageSize: 10 });
     expect(result.items).toHaveLength(1);
-    expect(result.items[0].title).toBe('Test');
+    expect(result.items[0].title).toBe("Test");
   });
 
-  it('creates document', async () => {
+  it("creates document", async () => {
     const result = await documentsApi.createDocument({
-      content: 'Test content',
-      filename: 'test.txt',
+      content: "Test content",
+      filename: "test.txt",
     });
-    expect(result.id).toBe('new-id');
+    expect(result.id).toBe("new-id");
   });
 
-  it('deletes document', async () => {
-    const result = await documentsApi.deleteDocument('1');
+  it("deletes document", async () => {
+    const result = await documentsApi.deleteDocument("1");
     expect(result.success).toBe(true);
   });
 
-  it('handles API errors', async () => {
+  it("handles API errors", async () => {
     server.use(
-      http.get('/api/documents', () => {
-        return HttpResponse.json(
-          { error: 'Server error' },
-          { status: 500 }
-        );
+      http.get("/api/documents", () => {
+        return HttpResponse.json({ error: "Server error" }, { status: 500 });
       })
     );
 
-    await expect(documentsApi.getDocuments()).rejects.toThrow('Server error');
+    await expect(documentsApi.getDocuments()).rejects.toThrow("Server error");
   });
 });
 ```
@@ -368,13 +367,13 @@ describe('Documents API', () => {
 
 ```tsx
 // tests/integration/document-manager.test.tsx
-import { render, screen, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { DocumentManager } from '@/components/document-manager';
-import { TestProviders } from '../test-utils';
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { DocumentManager } from "@/components/document-manager";
+import { TestProviders } from "../test-utils";
 
-describe('DocumentManager Integration', () => {
-  it('loads and displays documents', async () => {
+describe("DocumentManager Integration", () => {
+  it("loads and displays documents", async () => {
     render(
       <TestProviders>
         <DocumentManager />
@@ -382,46 +381,46 @@ describe('DocumentManager Integration', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Test Document 1')).toBeInTheDocument();
+      expect(screen.getByText("Test Document 1")).toBeInTheDocument();
     });
   });
 
-  it('filters documents by search', async () => {
+  it("filters documents by search", async () => {
     const user = userEvent.setup();
-    
+
     render(
       <TestProviders>
         <DocumentManager />
       </TestProviders>
     );
 
-    await waitFor(() => screen.getByText('Test Document 1'));
+    await waitFor(() => screen.getByText("Test Document 1"));
 
     const searchInput = screen.getByPlaceholderText(/search/i);
-    await user.type(searchInput, 'specific');
+    await user.type(searchInput, "specific");
 
     await waitFor(() => {
-      expect(screen.queryByText('Test Document 1')).not.toBeInTheDocument();
-      expect(screen.getByText('Specific Document')).toBeInTheDocument();
+      expect(screen.queryByText("Test Document 1")).not.toBeInTheDocument();
+      expect(screen.getByText("Specific Document")).toBeInTheDocument();
     });
   });
 
-  it('paginates through documents', async () => {
+  it("paginates through documents", async () => {
     const user = userEvent.setup();
-    
+
     render(
       <TestProviders>
         <DocumentManager />
       </TestProviders>
     );
 
-    await waitFor(() => screen.getByText('Page 1'));
+    await waitFor(() => screen.getByText("Page 1"));
 
-    const nextButton = screen.getByRole('button', { name: /next/i });
+    const nextButton = screen.getByRole("button", { name: /next/i });
     await user.click(nextButton);
 
     await waitFor(() => {
-      expect(screen.getByText('Page 2')).toBeInTheDocument();
+      expect(screen.getByText("Page 2")).toBeInTheDocument();
     });
   });
 });
@@ -435,33 +434,30 @@ describe('DocumentManager Integration', () => {
 
 ```ts
 // playwright.config.ts
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
-  testDir: './e2e',
+  testDir: "./e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: [
-    ['html'],
-    ['json', { outputFile: 'test-results.json' }],
-  ],
+  reporter: [["html"], ["json", { outputFile: "test-results.json" }]],
   use: {
-    baseURL: 'http://localhost:3000',
-    trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
+    baseURL: "http://localhost:3000",
+    trace: "on-first-retry",
+    screenshot: "only-on-failure",
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
-    { name: 'Mobile Chrome', use: { ...devices['Pixel 5'] } },
-    { name: 'Mobile Safari', use: { ...devices['iPhone 12'] } },
+    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    { name: "firefox", use: { ...devices["Desktop Firefox"] } },
+    { name: "webkit", use: { ...devices["Desktop Safari"] } },
+    { name: "Mobile Chrome", use: { ...devices["Pixel 5"] } },
+    { name: "Mobile Safari", use: { ...devices["iPhone 12"] } },
   ],
   webServer: {
-    command: 'bun run dev',
-    url: 'http://localhost:3000',
+    command: "bun run dev",
+    url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
   },
 });
@@ -473,48 +469,48 @@ export default defineConfig({
 
 ```ts
 // e2e/document-upload.spec.ts
-import { test, expect } from '@playwright/test';
+import { test, expect } from "@playwright/test";
 
-test.describe('Document Upload Flow', () => {
-  test('uploads document and displays in list', async ({ page }) => {
-    await page.goto('/documents');
+test.describe("Document Upload Flow", () => {
+  test("uploads document and displays in list", async ({ page }) => {
+    await page.goto("/documents");
 
     // Click upload button
-    await page.getByRole('button', { name: /upload/i }).click();
+    await page.getByRole("button", { name: /upload/i }).click();
 
     // Upload file
     const fileInput = page.locator('input[type="file"]');
-    await fileInput.setInputFiles('./e2e/fixtures/sample.txt');
+    await fileInput.setInputFiles("./e2e/fixtures/sample.txt");
 
     // Wait for upload
-    await expect(page.getByText('Upload successful')).toBeVisible();
+    await expect(page.getByText("Upload successful")).toBeVisible();
 
     // Verify in list
-    await expect(page.getByText('sample.txt')).toBeVisible();
+    await expect(page.getByText("sample.txt")).toBeVisible();
   });
 
-  test('shows progress during upload', async ({ page }) => {
-    await page.goto('/documents');
-    await page.getByRole('button', { name: /upload/i }).click();
+  test("shows progress during upload", async ({ page }) => {
+    await page.goto("/documents");
+    await page.getByRole("button", { name: /upload/i }).click();
 
     const fileInput = page.locator('input[type="file"]');
-    await fileInput.setInputFiles('./e2e/fixtures/large-file.txt');
+    await fileInput.setInputFiles("./e2e/fixtures/large-file.txt");
 
     // Progress should appear
-    await expect(page.getByRole('progressbar')).toBeVisible();
+    await expect(page.getByRole("progressbar")).toBeVisible();
   });
 
-  test('handles upload errors gracefully', async ({ page }) => {
+  test("handles upload errors gracefully", async ({ page }) => {
     // Mock failed upload
-    await page.route('/api/documents', (route) => {
-      route.fulfill({ status: 500, body: 'Server error' });
+    await page.route("/api/documents", (route) => {
+      route.fulfill({ status: 500, body: "Server error" });
     });
 
-    await page.goto('/documents');
-    await page.getByRole('button', { name: /upload/i }).click();
-    
+    await page.goto("/documents");
+    await page.getByRole("button", { name: /upload/i }).click();
+
     const fileInput = page.locator('input[type="file"]');
-    await fileInput.setInputFiles('./e2e/fixtures/sample.txt');
+    await fileInput.setInputFiles("./e2e/fixtures/sample.txt");
 
     await expect(page.getByText(/error/i)).toBeVisible();
   });
@@ -525,30 +521,30 @@ test.describe('Document Upload Flow', () => {
 
 ```ts
 // e2e/graph-interaction.spec.ts
-import { test, expect } from '@playwright/test';
+import { test, expect } from "@playwright/test";
 
-test.describe('Graph Interaction', () => {
-  test('displays graph and allows node selection', async ({ page }) => {
-    await page.goto('/graph');
+test.describe("Graph Interaction", () => {
+  test("displays graph and allows node selection", async ({ page }) => {
+    await page.goto("/graph");
 
     // Wait for graph to load
-    await expect(page.locator('canvas')).toBeVisible();
+    await expect(page.locator("canvas")).toBeVisible();
 
     // Click on a node (approximate position)
-    await page.locator('canvas').click({ position: { x: 400, y: 300 } });
+    await page.locator("canvas").click({ position: { x: 400, y: 300 } });
 
     // Info panel should show
-    await expect(page.getByTestId('node-info-panel')).toBeVisible();
+    await expect(page.getByTestId("node-info-panel")).toBeVisible();
   });
 
-  test('search filters graph nodes', async ({ page }) => {
-    await page.goto('/graph');
+  test("search filters graph nodes", async ({ page }) => {
+    await page.goto("/graph");
 
-    await page.getByPlaceholder(/search/i).fill('ENTITY_NAME');
-    await page.keyboard.press('Enter');
+    await page.getByPlaceholder(/search/i).fill("ENTITY_NAME");
+    await page.keyboard.press("Enter");
 
     // Should highlight matching nodes
-    await expect(page.getByTestId('search-results')).toContainText('1 result');
+    await expect(page.getByTestId("search-results")).toContainText("1 result");
   });
 });
 ```
@@ -557,49 +553,57 @@ test.describe('Graph Interaction', () => {
 
 ```ts
 // e2e/query-flow.spec.ts
-import { test, expect } from '@playwright/test';
+import { test, expect } from "@playwright/test";
 
-test.describe('Query Flow', () => {
-  test('submits query and displays response', async ({ page }) => {
-    await page.goto('/query');
+test.describe("Query Flow", () => {
+  test("submits query and displays response", async ({ page }) => {
+    await page.goto("/query");
 
     // Type query
-    await page.getByRole('textbox', { name: /query/i }).fill('What is EdgeQuake?');
+    await page
+      .getByRole("textbox", { name: /query/i })
+      .fill("What is EdgeQuake?");
 
     // Submit
-    await page.getByRole('button', { name: /submit|send/i }).click();
+    await page.getByRole("button", { name: /submit|send/i }).click();
 
     // Response should appear
-    await expect(page.getByTestId('query-response')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByTestId("query-response")).toBeVisible({
+      timeout: 30000,
+    });
   });
 
-  test('shows streaming response', async ({ page }) => {
-    await page.goto('/query');
+  test("shows streaming response", async ({ page }) => {
+    await page.goto("/query");
 
-    await page.getByRole('textbox', { name: /query/i }).fill('Explain the architecture');
-    await page.getByRole('button', { name: /submit/i }).click();
+    await page
+      .getByRole("textbox", { name: /query/i })
+      .fill("Explain the architecture");
+    await page.getByRole("button", { name: /submit/i }).click();
 
     // Should show loading state
-    await expect(page.getByTestId('streaming-indicator')).toBeVisible();
+    await expect(page.getByTestId("streaming-indicator")).toBeVisible();
 
     // Content should stream in
     await expect(async () => {
-      const content = await page.getByTestId('query-response').textContent();
+      const content = await page.getByTestId("query-response").textContent();
       expect(content?.length).toBeGreaterThan(50);
     }).toPass({ timeout: 15000 });
   });
 
-  test('displays chain of thought when enabled', async ({ page }) => {
-    await page.goto('/query');
+  test("displays chain of thought when enabled", async ({ page }) => {
+    await page.goto("/query");
 
     // Enable COT
     await page.getByLabel(/chain of thought/i).check();
 
-    await page.getByRole('textbox', { name: /query/i }).fill('Test query');
-    await page.getByRole('button', { name: /submit/i }).click();
+    await page.getByRole("textbox", { name: /query/i }).fill("Test query");
+    await page.getByRole("button", { name: /submit/i }).click();
 
     // COT section should appear
-    await expect(page.getByTestId('chain-of-thought')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByTestId("chain-of-thought")).toBeVisible({
+      timeout: 30000,
+    });
   });
 });
 ```
@@ -623,11 +627,11 @@ test.describe('Query Flow', () => {
 
 ```tsx
 // components/document-table.stories.tsx
-import type { Meta, StoryObj } from '@storybook/react';
-import { DocumentTable } from './document-table';
+import type { Meta, StoryObj } from "@storybook/react";
+import { DocumentTable } from "./document-table";
 
 const meta: Meta<typeof DocumentTable> = {
-  title: 'Components/DocumentTable',
+  title: "Components/DocumentTable",
   component: DocumentTable,
   parameters: {
     chromatic: { viewports: [375, 768, 1280] },
@@ -690,7 +694,7 @@ jobs:
 
       - uses: treosh/lighthouse-ci-action@v11
         with:
-          configPath: './lighthouserc.json'
+          configPath: "./lighthouserc.json"
           uploadArtifacts: true
 ```
 
@@ -721,14 +725,14 @@ jobs:
 
 ```tsx
 // tests/a11y/document-manager.a11y.test.tsx
-import { render } from '@testing-library/react';
-import { axe, toHaveNoViolations } from 'jest-axe';
-import { DocumentManager } from '@/components/document-manager';
+import { render } from "@testing-library/react";
+import { axe, toHaveNoViolations } from "jest-axe";
+import { DocumentManager } from "@/components/document-manager";
 
 expect.extend(toHaveNoViolations);
 
-describe('DocumentManager Accessibility', () => {
-  it('has no accessibility violations', async () => {
+describe("DocumentManager Accessibility", () => {
+  it("has no accessibility violations", async () => {
     const { container } = render(
       <TestProviders>
         <DocumentManager documents={mockDocuments} />
@@ -745,25 +749,25 @@ describe('DocumentManager Accessibility', () => {
 
 ```ts
 // e2e/a11y.spec.ts
-import { test, expect } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
+import { test, expect } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 
-test.describe('Accessibility Audit', () => {
-  test('documents page has no a11y violations', async ({ page }) => {
-    await page.goto('/documents');
-    
+test.describe("Accessibility Audit", () => {
+  test("documents page has no a11y violations", async ({ page }) => {
+    await page.goto("/documents");
+
     const accessibilityScanResults = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
       .analyze();
 
     expect(accessibilityScanResults.violations).toEqual([]);
   });
 
-  test('graph page has no a11y violations', async ({ page }) => {
-    await page.goto('/graph');
-    
+  test("graph page has no a11y violations", async ({ page }) => {
+    await page.goto("/graph");
+
     const accessibilityScanResults = await new AxeBuilder({ page })
-      .exclude('canvas') // Canvas has limited a11y
+      .exclude("canvas") // Canvas has limited a11y
       .analyze();
 
     expect(accessibilityScanResults.violations).toEqual([]);
@@ -779,10 +783,10 @@ test.describe('Accessibility Audit', () => {
 
 ```js
 // eslint.config.mjs
-import eslint from '@eslint/js';
-import tseslint from 'typescript-eslint';
-import react from 'eslint-plugin-react';
-import reactHooks from 'eslint-plugin-react-hooks';
+import eslint from "@eslint/js";
+import tseslint from "typescript-eslint";
+import react from "eslint-plugin-react";
+import reactHooks from "eslint-plugin-react-hooks";
 
 export default tseslint.config(
   eslint.configs.recommended,
@@ -790,13 +794,13 @@ export default tseslint.config(
   {
     plugins: {
       react,
-      'react-hooks': reactHooks,
+      "react-hooks": reactHooks,
     },
     rules: {
-      'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn',
-      '@typescript-eslint/no-unused-vars': 'error',
-      '@typescript-eslint/no-explicit-any': 'warn',
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
+      "@typescript-eslint/no-unused-vars": "error",
+      "@typescript-eslint/no-explicit-any": "warn",
     },
   }
 );
@@ -832,10 +836,7 @@ export default tseslint.config(
     "prepare": "husky install"
   },
   "lint-staged": {
-    "*.{ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ]
+    "*.{ts,tsx}": ["eslint --fix", "prettier --write"]
   }
 }
 ```
@@ -926,41 +927,41 @@ jobs:
 
 ### Quality Gate Thresholds
 
-| Gate | Threshold | Action on Fail |
-|------|-----------|----------------|
-| Lint errors | 0 | Block merge |
-| Type errors | 0 | Block merge |
-| Unit test coverage | 80% | Warn |
-| Unit tests passing | 100% | Block merge |
-| E2E tests passing | 100% | Block merge |
-| Bundle size | +10KB | Warn |
-| Lighthouse performance | 80 | Warn |
-| Lighthouse a11y | 90 | Block merge |
+| Gate                   | Threshold | Action on Fail |
+| ---------------------- | --------- | -------------- |
+| Lint errors            | 0         | Block merge    |
+| Type errors            | 0         | Block merge    |
+| Unit test coverage     | 80%       | Warn           |
+| Unit tests passing     | 100%      | Block merge    |
+| E2E tests passing      | 100%      | Block merge    |
+| Bundle size            | +10KB     | Warn           |
+| Lighthouse performance | 80        | Warn           |
+| Lighthouse a11y        | 90        | Block merge    |
 
 ---
 
 ## Test Execution Schedule
 
-| Test Type | When | Duration |
-|-----------|------|----------|
-| Unit tests | Every commit | ~30s |
-| Integration tests | Every commit | ~1m |
-| E2E tests (fast) | Every PR | ~5m |
-| E2E tests (full) | Nightly | ~30m |
-| Visual regression | Weekly | ~15m |
-| Performance | Weekly | ~10m |
+| Test Type         | When         | Duration |
+| ----------------- | ------------ | -------- |
+| Unit tests        | Every commit | ~30s     |
+| Integration tests | Every commit | ~1m      |
+| E2E tests (fast)  | Every PR     | ~5m      |
+| E2E tests (full)  | Nightly      | ~30m     |
+| Visual regression | Weekly       | ~15m     |
+| Performance       | Weekly       | ~10m     |
 
 ---
 
 ## Cross-References
 
-| Document | Relationship |
-|----------|--------------|
-| [Gap Analysis](./002-gap-analysis.md) | Test gaps identified |
+| Document                                              | Relationship             |
+| ----------------------------------------------------- | ------------------------ |
+| [Gap Analysis](./002-gap-analysis.md)                 | Test gaps identified     |
 | [Performance Strategy](./006-performance-strategy.md) | Performance test targets |
-| [Success Criteria](./008-success-criteria.md) | Coverage requirements |
-| [Developer Guide](./009-developer-guide.md) | How to run tests |
+| [Success Criteria](./008-success-criteria.md)         | Coverage requirements    |
+| [Developer Guide](./009-developer-guide.md)           | How to run tests         |
 
 ---
 
-*Document defines comprehensive testing strategy and quality assurance processes*
+_Document defines comprehensive testing strategy and quality assurance processes_
