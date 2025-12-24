@@ -23,8 +23,8 @@ Sigma.js uses a camera system where:
 ```tsx
 // WRONG: Graph coordinates passed to camera
 sigmaInstance.getCamera().animate({
-  x: graph.getNodeAttribute(nodeId, 'x'),  // e.g., -50
-  y: graph.getNodeAttribute(nodeId, 'y'),  // e.g., 75
+  x: graph.getNodeAttribute(nodeId, "x"), // e.g., -50
+  y: graph.getNodeAttribute(nodeId, "y"), // e.g., 75
   ratio: 0.3,
 });
 ```
@@ -38,25 +38,26 @@ This results in the camera trying to center on position `-50, 75` in camera spac
 ```tsx
 const handleFocusOnNode = useCallback(() => {
   if (!sigmaInstance || !selectedNodeId) return;
-  
+
   const graph = sigmaInstance.getGraph();
   if (!graph.hasNode(selectedNodeId)) return;
 
   // Get node position in graph coordinates
-  const nodeX = graph.getNodeAttribute(selectedNodeId, 'x') as number;
-  const nodeY = graph.getNodeAttribute(selectedNodeId, 'y') as number;
-  
+  const nodeX = graph.getNodeAttribute(selectedNodeId, "x") as number;
+  const nodeY = graph.getNodeAttribute(selectedNodeId, "y") as number;
+
   // Get graph bounding box (extent of all nodes)
   const { x: xExtent, y: yExtent } = sigmaInstance.getBBox();
-  
+
   // Calculate normalized position (0-1 range)
   const graphWidth = xExtent[1] - xExtent[0];
   const graphHeight = yExtent[1] - yExtent[0];
-  
+
   // Avoid division by zero
   const normalizedX = graphWidth > 0 ? (nodeX - xExtent[0]) / graphWidth : 0.5;
-  const normalizedY = graphHeight > 0 ? (nodeY - yExtent[0]) / graphHeight : 0.5;
-  
+  const normalizedY =
+    graphHeight > 0 ? (nodeY - yExtent[0]) / graphHeight : 0.5;
+
   // Animate camera to focus on node
   sigmaInstance.getCamera().animate(
     {
@@ -68,7 +69,7 @@ const handleFocusOnNode = useCallback(() => {
   );
 
   // Highlight the node
-  graph.setNodeAttribute(selectedNodeId, 'highlighted', true);
+  graph.setNodeAttribute(selectedNodeId, "highlighted", true);
   sigmaInstance.refresh();
 }, [sigmaInstance, selectedNodeId]);
 ```
@@ -78,29 +79,29 @@ const handleFocusOnNode = useCallback(() => {
 ```tsx
 const handleFocusOnNode = useCallback(() => {
   if (!sigmaInstance || !selectedNodeId) return;
-  
+
   const graph = sigmaInstance.getGraph();
   if (!graph.hasNode(selectedNodeId)) return;
 
-  const nodeX = graph.getNodeAttribute(selectedNodeId, 'x') as number;
-  const nodeY = graph.getNodeAttribute(selectedNodeId, 'y') as number;
-  
+  const nodeX = graph.getNodeAttribute(selectedNodeId, "x") as number;
+  const nodeY = graph.getNodeAttribute(selectedNodeId, "y") as number;
+
   // Convert to viewport coordinates first
   const viewportPos = sigmaInstance.graphToViewport({ x: nodeX, y: nodeY });
   const dims = sigmaInstance.getDimensions();
-  
+
   // Get current camera state
   const camera = sigmaInstance.getCamera();
   const currentState = camera.getState();
-  
+
   // Calculate offset from center
   const centerX = dims.width / 2;
   const centerY = dims.height / 2;
-  
+
   // How far is the node from viewport center (in pixels)?
   const offsetX = (viewportPos.x - centerX) / dims.width;
   const offsetY = (viewportPos.y - centerY) / dims.height;
-  
+
   // Adjust camera position
   camera.animate(
     {
@@ -111,7 +112,7 @@ const handleFocusOnNode = useCallback(() => {
     { duration: 500 }
   );
 
-  graph.setNodeAttribute(selectedNodeId, 'highlighted', true);
+  graph.setNodeAttribute(selectedNodeId, "highlighted", true);
   sigmaInstance.refresh();
 }, [sigmaInstance, selectedNodeId]);
 ```
@@ -131,30 +132,27 @@ Option A is simpler and works reliably with Sigma's coordinate system. It normal
 ```tsx
 const handleFocusOnNode = useCallback(() => {
   if (!sigmaInstance || !selectedNodeId) return;
-  
+
   const graph = sigmaInstance.getGraph();
   if (!graph.hasNode(selectedNodeId)) return;
 
   try {
     // Get node position in graph coordinates
-    const nodeX = graph.getNodeAttribute(selectedNodeId, 'x') as number;
-    const nodeY = graph.getNodeAttribute(selectedNodeId, 'y') as number;
-    
+    const nodeX = graph.getNodeAttribute(selectedNodeId, "x") as number;
+    const nodeY = graph.getNodeAttribute(selectedNodeId, "y") as number;
+
     // Get graph bounding box (extent of all nodes)
     const bbox = sigmaInstance.getBBox();
-    
+
     // Calculate normalized position (0-1 range)
     const graphWidth = bbox.x[1] - bbox.x[0];
     const graphHeight = bbox.y[1] - bbox.y[0];
-    
+
     // Handle edge case of zero dimensions (single node)
-    const normalizedX = graphWidth > 0 
-      ? (nodeX - bbox.x[0]) / graphWidth 
-      : 0.5;
-    const normalizedY = graphHeight > 0 
-      ? (nodeY - bbox.y[0]) / graphHeight 
-      : 0.5;
-    
+    const normalizedX = graphWidth > 0 ? (nodeX - bbox.x[0]) / graphWidth : 0.5;
+    const normalizedY =
+      graphHeight > 0 ? (nodeY - bbox.y[0]) / graphHeight : 0.5;
+
     // Animate camera to focus on node with smooth easing
     sigmaInstance.getCamera().animate(
       {
@@ -162,17 +160,17 @@ const handleFocusOnNode = useCallback(() => {
         y: normalizedY,
         ratio: 0.4, // Good zoom level for focus
       },
-      { 
+      {
         duration: 500,
-        easing: 'quadraticInOut'
+        easing: "quadraticInOut",
       }
     );
 
     // Highlight the selected node
-    graph.setNodeAttribute(selectedNodeId, 'highlighted', true);
+    graph.setNodeAttribute(selectedNodeId, "highlighted", true);
     sigmaInstance.refresh();
   } catch (error) {
-    console.error('Error focusing on node:', error);
+    console.error("Error focusing on node:", error);
   }
 }, [sigmaInstance, selectedNodeId]);
 ```

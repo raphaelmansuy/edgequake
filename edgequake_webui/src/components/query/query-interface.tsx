@@ -738,9 +738,9 @@ export function QueryInterface() {
   const isLoading = streamingState === 'thinking' || streamingState === 'generating' || queryMutation.isPending;
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full min-h-0">
       {/* Main Query Area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between border-b px-4 py-3 flex-shrink-0">
           <div>
@@ -960,32 +960,34 @@ export function QueryInterface() {
         </div>
 
         {/* Messages */}
-        <ScrollArea ref={scrollRef} className="flex-1 p-4">
-          <div className="max-w-3xl mx-auto">
-            {messages.length === 0 && !queryMutation.isPending ? (
-              <EmptyState onSuggestionClick={handleSuggestionClick} />
-            ) : (
-              <>
-                {messages.map((message, index) => (
-                  <ChatMessage
-                    key={message.id}
-                    message={message}
-                    onRegenerate={
-                      message.role === 'assistant' && index === messages.length - 1
-                        ? handleRegenerate
-                        : undefined
-                    }
-                    isLast={index === messages.length - 1}
-                  />
-                ))}
-                {/* Show loading message for non-streaming queries */}
-                {queryMutation.isPending && <LoadingMessage />}
-              </>
-            )}
-            {/* Scroll anchor for auto-scroll */}
-            <div ref={scrollAnchorRef} />
-          </div>
-        </ScrollArea>
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <ScrollArea ref={scrollRef} className="h-full">
+            <div className="max-w-3xl mx-auto p-4">
+              {messages.length === 0 && !queryMutation.isPending ? (
+                <EmptyState onSuggestionClick={handleSuggestionClick} />
+              ) : (
+                <>
+                  {messages.map((message, index) => (
+                    <ChatMessage
+                      key={message.id}
+                      message={message}
+                      onRegenerate={
+                        message.role === 'assistant' && index === messages.length - 1
+                          ? handleRegenerate
+                          : undefined
+                      }
+                      isLast={index === messages.length - 1}
+                    />
+                  ))}
+                  {/* Show loading message for non-streaming queries */}
+                  {queryMutation.isPending && <LoadingMessage />}
+                </>
+              )}
+              {/* Scroll anchor for auto-scroll */}
+              <div ref={scrollAnchorRef} className="h-4" />
+            </div>
+          </ScrollArea>
+        </div>
 
         {/* Input - Fixed at bottom with flexbox */}
         <div className="border-t p-4 bg-background flex-shrink-0" role="form" aria-label={t('query.form', 'Query form')}>
@@ -1045,8 +1047,9 @@ export function QueryInterface() {
       </div>
 
       {/* History Sidebar */}
-      <aside className="w-72 border-l bg-card overflow-auto" aria-label={t('query.history.title', 'Query history')}>
-        <div className="p-4 space-y-4">
+      <aside className="w-72 border-l bg-card flex-shrink-0 min-h-0 overflow-hidden" aria-label={t('query.history.title', 'Query history')}>
+        <ScrollArea className="h-full">
+          <div className="p-4 space-y-4">
           {/* Favorites */}
           {favoriteQueries.length > 0 && (
             <Card>
@@ -1135,6 +1138,7 @@ export function QueryInterface() {
             </CardContent>
           </Card>
         </div>
+        </ScrollArea>
       </aside>
     </div>
   );

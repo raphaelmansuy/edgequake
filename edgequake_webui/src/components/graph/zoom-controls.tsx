@@ -8,6 +8,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { focusCameraOnNode, resetCameraToFitGraph } from '@/lib/graph/camera-utils';
 import { useGraphStore } from '@/stores/use-graph-store';
 import {
     Focus,
@@ -53,34 +54,7 @@ export function ZoomControls() {
 
   const handleResetZoom = useCallback(() => {
     if (sigmaInstance) {
-      try {
-        // Clear custom bounding box and refresh
-        sigmaInstance.setCustomBBox(null);
-        sigmaInstance.refresh();
-        
-        const graph = sigmaInstance.getGraph();
-        
-        // Check if graph has nodes
-        if (!graph?.order || graph.nodes().length === 0) {
-          sigmaInstance.getCamera().animate(
-            { x: 0.5, y: 0.5, ratio: 1 },
-            { duration: 300 }
-          );
-          return;
-        }
-
-        // Reset to fit all nodes with some padding
-        sigmaInstance.getCamera().animate(
-          { x: 0.5, y: 0.5, ratio: 1.1, angle: 0 },
-          { duration: 500 }
-        );
-      } catch (error) {
-        console.error('Error resetting zoom:', error);
-        sigmaInstance.getCamera().animate(
-          { x: 0.5, y: 0.5, ratio: 1, angle: 0 },
-          { duration: 300 }
-        );
-      }
+      resetCameraToFitGraph(sigmaInstance, 500);
     }
   }, [sigmaInstance]);
 
@@ -109,48 +83,11 @@ export function ZoomControls() {
   const handleFocusOnNode = useCallback(() => {
     if (!sigmaInstance || !selectedNodeId) return;
     
-    const graph = sigmaInstance.getGraph();
-    if (!graph.hasNode(selectedNodeId)) return;
-
-    try {
-      // Get node position in graph coordinates
-      const nodeX = graph.getNodeAttribute(selectedNodeId, 'x') as number;
-      const nodeY = graph.getNodeAttribute(selectedNodeId, 'y') as number;
-      
-      // Get graph bounding box (extent of all nodes)
-      const bbox = sigmaInstance.getBBox();
-      
-      // Calculate normalized position (0-1 range)
-      // Camera x,y expect values in 0-1 range representing graph extent fraction
-      const graphWidth = bbox.x[1] - bbox.x[0];
-      const graphHeight = bbox.y[1] - bbox.y[0];
-      
-      // Handle edge case of zero dimensions (single node or all nodes at same position)
-      const normalizedX = graphWidth > 0 
-        ? (nodeX - bbox.x[0]) / graphWidth 
-        : 0.5;
-      const normalizedY = graphHeight > 0 
-        ? (nodeY - bbox.y[0]) / graphHeight 
-        : 0.5;
-      
-      // Animate camera to focus on node with smooth easing
-      sigmaInstance.getCamera().animate(
-        {
-          x: normalizedX,
-          y: normalizedY,
-          ratio: 0.4, // Good zoom level for focus (lower = more zoomed in)
-        },
-        { 
-          duration: 500,
-        }
-      );
-
-      // Highlight the selected node
-      graph.setNodeAttribute(selectedNodeId, 'highlighted', true);
-      sigmaInstance.refresh();
-    } catch (error) {
-      console.error('Error focusing on node:', error);
-    }
+    focusCameraOnNode(sigmaInstance, selectedNodeId, {
+      ratio: 0.4,
+      duration: 500,
+      highlight: true,
+    });
   }, [sigmaInstance, selectedNodeId]);
 
   const handleFullscreen = useCallback(() => {

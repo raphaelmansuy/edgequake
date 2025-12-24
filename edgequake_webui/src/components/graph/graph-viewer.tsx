@@ -3,6 +3,7 @@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { getGraph } from '@/lib/api/edgequake';
+import { focusCameraOnNode } from '@/lib/graph/camera-utils';
 import { useGraphStore } from '@/stores/use-graph-store';
 import type { GraphNode } from '@/types';
 import { useQuery } from '@tanstack/react-query';
@@ -128,12 +129,11 @@ export function GraphViewer() {
   const handleExpandNeighborhood = useCallback((node: GraphNode) => {
     // Focus camera on this node and highlight its neighborhood
     if (sigmaInstance) {
-      const graph = sigmaInstance.getGraph();
-      const nodeData = graph.getNodeAttributes(node.id);
-      if (nodeData) {
-        const camera = sigmaInstance.getCamera();
-        camera.animate({ x: nodeData.x, y: nodeData.y, ratio: 0.3 }, { duration: 500 });
-      }
+      focusCameraOnNode(sigmaInstance, node.id, {
+        ratio: 0.3,
+        duration: 500,
+        highlight: false, // selectNode handles highlighting
+      });
     }
     selectNode(node.id);
     toast.success(`Expanded neighborhood for ${node.label}`);

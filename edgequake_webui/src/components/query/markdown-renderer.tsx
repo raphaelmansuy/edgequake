@@ -38,9 +38,9 @@ class MarkdownErrorBoundary extends Component<
     return { hasError: true };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    // Log the error but don't crash
-    console.warn('MarkdownRenderer error caught:', error.message);
+  componentDidCatch(_error: Error, _errorInfo: ErrorInfo): void {
+    // Silently catch the error - the fallback will be rendered
+    // No need to log these as they're expected during streaming
   }
 
   componentDidUpdate(prevProps: { children: ReactNode; fallback: ReactNode }): void {
@@ -253,6 +253,47 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
       if (props === undefined || props === null) return null;
       return <td className="border border-border px-3 py-2">{props.children ?? null}</td>;
     },
+    // Additional elements that may receive undefined props
+    pre(props) {
+      if (props === undefined || props === null) return null;
+      return <pre className="overflow-x-auto">{props.children ?? null}</pre>;
+    },
+    span(props) {
+      if (props === undefined || props === null) return null;
+      return <span {...props}>{props.children ?? null}</span>;
+    },
+    strong(props) {
+      if (props === undefined || props === null) return null;
+      return <strong className="font-semibold">{props.children ?? null}</strong>;
+    },
+    em(props) {
+      if (props === undefined || props === null) return null;
+      return <em className="italic">{props.children ?? null}</em>;
+    },
+    a(props) {
+      if (props === undefined || props === null) return null;
+      const { href, children, ...rest } = props;
+      return (
+        <a 
+          href={href} 
+          className="text-primary underline hover:text-primary/80" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          {...rest}
+        >
+          {children ?? null}
+        </a>
+      );
+    },
+    hr(props) {
+      if (props === undefined || props === null) return null;
+      return <hr className="my-4 border-t border-border" {...props} />;
+    },
+    img(props) {
+      if (props === undefined || props === null) return null;
+      const { src, alt, ...rest } = props;
+      return <img src={src} alt={alt ?? ''} className="max-w-full h-auto rounded" {...rest} />;
+    },
   // Empty dependency array - components use refs for dynamic values
   }), []);
 
@@ -264,9 +305,14 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   // Normalize markdown syntax that may be broken by streaming tokenization
   // Streaming often adds extra spaces around markdown markers like ** for bold
   // e.g., "** AI Model **" should be "**AI Model**" for proper rendering
+  // Also handles cases like ".** text **-" and "** text **:" where punctuation is adjacent
   const normalizeMarkdown = (text: string): string => {
     return text
-      // Fix bold: "** text **" -> "**text**"
+      // Fix bold markers with adjacent punctuation: ".** " or " **-" or " **:" etc
+      // Pattern: optional punctuation, **, optional space, word chars
+      .replace(/([.,;:!?]?)\*\*\s+/g, '$1**')
+      .replace(/\s+\*\*([.,;:!?\-]?)/g, '**$1')
+      // Standard bold fix: "** text **" -> "**text**"
       .replace(/\*\*\s+/g, '**')
       .replace(/\s+\*\*/g, '**')
       // Fix italic (single asterisk): "* text *" -> "*text*" - be careful with list items
@@ -281,7 +327,19 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
       .replace(/\s+`/g, '`')
       // Fix strikethrough: "~~ text ~~" -> "~~text~~"
       .replace(/~~\s+/g, '~~')
-      .replace(/\s+~~/g, '~~');
+      .replace(/\s+~~/g, '~~')
+      // Fix common LLM tokenization artifacts in entity names
+      // e.g., "LL M -C AS" -> "LLM-CAS", "Co de 2 Doc" -> "Code2Doc"
+      // Only apply within bold markers to preserve normal text
+      .replace(/\*\*([^*]+)\*\*/g, (match, content) => {
+        // Remove spaces around hyphens: "LL M -C AS" -> "LLM-CAS"
+        const fixed = content
+          .replace(/\s+-\s*/g, '-')
+          .replace(/\s*-\s+/g, '-')
+          // Remove spaces between uppercase letters that look like acronyms
+          .replace(/([A-Z])\s+([A-Z])/g, '$1$2');
+        return `**${fixed}**`;
+      });
   };
 
   // Sanitize content to prevent parsing errors
@@ -301,10 +359,18 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     </div>
   );
 
-  // During active streaming with partial content, use fallback to avoid parsing errors
-  // Once streaming is done or content is stable, use full markdown rendering
-  if (isStreaming && safeContent.length < 50) {
-    return fallback;
+  // During active streaming, use fallback for short content or content with unclosed markers
+  // This prevents react-markdown from choking on partial markdown
+  if (isStreaming) {
+    // Check for unclosed markdown markers that would cause parsing errors
+    const hasUnclosedBold = (safeContent.match(/\*\*/g) || []).length % 2 !== 0;
+    const hasUnclosedItalic = (safeContent.match(/(?<!\*)\*(?!\*)/g) || []).length % 2 !== 0;
+    const hasUnclosedCode = (safeContent.match(/`/g) || []).length % 2 !== 0;
+    const hasUnclosedCodeBlock = (safeContent.match(/```/g) || []).length % 2 !== 0;
+    
+    if (safeContent.length < 50 || hasUnclosedBold || hasUnclosedItalic || hasUnclosedCode || hasUnclosedCodeBlock) {
+      return fallback;
+    }
   }
 
   return (

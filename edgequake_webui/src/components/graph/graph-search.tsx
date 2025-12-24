@@ -14,6 +14,7 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
+import { focusCameraOnNode } from '@/lib/graph/camera-utils';
 import { useGraphStore } from '@/stores/use-graph-store';
 import type { GraphNode } from '@/types';
 import { Circle, Loader2, Search } from 'lucide-react';
@@ -169,18 +170,13 @@ export function GraphSearch({ onSelect }: GraphSearchProps) {
       // Select node in store
       selectNode(nodeId);
 
-      // Focus camera on node
+      // Focus camera on node using normalized coordinates
       if (sigmaInstance) {
-        const graph = sigmaInstance.getGraph();
-        const nodeData = graph.getNodeAttributes(nodeId);
-        if (nodeData) {
-          sigmaInstance
-            .getCamera()
-            .animate(
-              { x: nodeData.x, y: nodeData.y, ratio: 0.5 },
-              { duration: 500 }
-            );
-        }
+        focusCameraOnNode(sigmaInstance, nodeId, {
+          ratio: 0.5,
+          duration: 500,
+          highlight: false, // selectNode already handles highlighting
+        });
       }
 
       onSelect?.(nodeId);
