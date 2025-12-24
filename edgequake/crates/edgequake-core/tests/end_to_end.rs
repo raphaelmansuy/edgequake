@@ -45,7 +45,8 @@ async fn test_end_to_end_flow() {
     let query_result = eq.query(query, None).await.expect("Failed to query");
 
     assert!(!query_result.response.is_empty());
-    assert_eq!(query_result.mode, edgequake_core::types::QueryMode::Naive);
+    // Default mode is now Hybrid (combines Local + Global)
+    assert_eq!(query_result.mode, edgequake_core::types::QueryMode::Hybrid);
 
     // 6. Check graph stats
     let stats = eq.get_graph_stats().await.expect("Failed to get stats");

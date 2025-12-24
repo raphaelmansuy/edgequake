@@ -1,10 +1,12 @@
 use crate::error::Result;
+use crate::keyword_extractor::{ExtractedKeywords, KeywordExtractor};
 use crate::types::{
     ContextChunk, ContextEntity, ContextRelationship, QueryContext, QueryMode, QueryParams,
     QueryResult, QueryStats,
 };
 use edgequake_llm::traits::{EmbeddingProvider, LLMProvider};
 use edgequake_storage::traits::{GraphStorage, VectorStorage};
+use std::collections::HashSet;
 use std::sync::Arc;
 
 /// Engine for executing RAG queries.
@@ -38,7 +40,10 @@ impl QueryEngine {
         let result = match params.mode {
             QueryMode::Naive => self.query_naive(query, &params).await?,
             QueryMode::Local => self.query_local(query, &params).await?,
-            _ => self.query_naive(query, &params).await?, // Fallback for now
+            QueryMode::Global => self.query_global(query, &params).await?,
+            QueryMode::Mix => self.query_mix(query, &params).await?,
+            QueryMode::Hybrid => self.query_hybrid(query, &params).await?,
+            QueryMode::Bypass => self.query_bypass(query, &params).await?,
         };
 
         let mut final_result = result;
@@ -251,6 +256,471 @@ impl QueryEngine {
                 ..Default::default()
             },
         })
+    }
+
+    /// Global RAG: Relationship-centric high-level retrieval.
+    ///
+    /// This mode extracts high-level keywords from the query, searches for
+    /// relationships (edges) in the graph, and aggregates global context
+    /// from the entire knowledge graph.
+    async fn query_global(&self, query: &str, params: &QueryParams) -> Result<QueryResult> {
+        let retrieval_start = std::time::Instant::now();
+
+        // 1. Extract high-level keywords from query
+        let keyword_extractor = KeywordExtractor::new(Arc::clone(&self.llm));
+        let keywords = keyword_extractor.extract(query).await?;
+
+        tracing::debug!(
+            high_level = ?keywords.high_level,
+            low_level = ?keywords.low_level,
+            "Extracted keywords for global query"
+        );
+
+        // 2. Embed high-level keywords for relationship search
+        let keyword_texts: Vec<String> = keywords.high_level.clone();
+        
+        // If no high-level keywords, fall back to query embedding
+        let search_texts = if keyword_texts.is_empty() {
+            vec![query.to_string()]
+        } else {
+            keyword_texts
+        };
+
+        let keyword_embeddings = self
+            .embedding
+            .embed(&search_texts)
+            .await
+            .map_err(|e| crate::error::Error::internal(format!("Embedding error: {}", e)))?;
+
+        // 3. Search for relationships using keyword embeddings
+        let mut all_relationships = Vec::new();
+        let mut seen_relations = HashSet::new();
+        let per_keyword_k = (params.top_k / keyword_embeddings.len().max(1)).max(5);
+
+        for keyword_embedding in &keyword_embeddings {
+            let results = self
+                .vector_storage
+                .query(keyword_embedding, per_keyword_k, None)
+                .await
+                .map_err(|e| crate::error::Error::internal(format!("Vector search error: {}", e)))?;
+
+            for result in results {
+                // Use edge-like identifiers as keys for deduplication
+                let relation_key = result.id.clone();
+                if !seen_relations.contains(&relation_key) {
+                    seen_relations.insert(relation_key);
+                    all_relationships.push(result);
+                }
+            }
+        }
+
+        // Sort by score descending
+        all_relationships.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+
+        // 4. Retrieve relationship details and connected entities
+        let mut context_relationships = Vec::new();
+        let mut context_entities = Vec::new();
+        let mut seen_entity_ids = HashSet::new();
+        let mut context_text = String::new();
+
+        context_text.push_str("### High-Level Relationships ###\n\n");
+
+        for rel_result in all_relationships.iter().take(params.top_k) {
+            let description = rel_result.metadata
+                .get("content")
+                .or_else(|| rel_result.metadata.get("description"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            
+            let source_id = rel_result.metadata
+                .get("source")
+                .or_else(|| rel_result.metadata.get("source_id"))
+                .and_then(|v| v.as_str())
+                .unwrap_or(&rel_result.id);
+                
+            let target_id = rel_result.metadata
+                .get("target")
+                .or_else(|| rel_result.metadata.get("target_id"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+
+            // Add relationship to context
+            context_relationships.push(ContextRelationship {
+                source: source_id.to_string(),
+                target: target_id.to_string(),
+                relation_type: "RELATED".to_string(),
+                description: description.to_string(),
+                score: rel_result.score,
+            });
+
+            context_text.push_str(&format!(
+                "- {} → {}: {}\n",
+                source_id, target_id, description
+            ));
+
+            // Fetch connected entities for additional context
+            for entity_id in [source_id, target_id] {
+                if entity_id.is_empty() || seen_entity_ids.contains(entity_id) {
+                    continue;
+                }
+                seen_entity_ids.insert(entity_id.to_string());
+
+                if let Ok(Some(node)) = self.graph_storage.get_node(entity_id).await {
+                    let entity_desc = node
+                        .properties
+                        .get("description")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let entity_type = node
+                        .properties
+                        .get("entity_type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("UNKNOWN");
+
+                    context_entities.push(ContextEntity {
+                        name: entity_id.to_string(),
+                        entity_type: entity_type.to_string(),
+                        description: entity_desc.to_string(),
+                        score: rel_result.score,
+                    });
+                }
+            }
+        }
+
+        // Add entity descriptions to context
+        if !context_entities.is_empty() {
+            context_text.push_str("\n### Related Entities ###\n\n");
+            for entity in &context_entities {
+                if !entity.description.is_empty() {
+                    context_text.push_str(&format!(
+                        "**{}** ({}): {}\n",
+                        entity.name, entity.entity_type, entity.description
+                    ));
+                }
+            }
+        }
+
+        let retrieval_time_ms = retrieval_start.elapsed().as_millis() as u64;
+        let generation_start = std::time::Instant::now();
+
+        // 5. Generate response using global context
+        let prompt = self.build_global_prompt(query, &context_text, &keywords);
+
+        let response = self
+            .llm
+            .complete(&prompt)
+            .await
+            .map_err(|e| crate::error::Error::internal(format!("LLM error: {}", e)))?;
+
+        let generation_time_ms = generation_start.elapsed().as_millis() as u64;
+
+        // Calculate stats before moving values
+        let entities_count = seen_entity_ids.len();
+        let relationships_count = context_relationships.len();
+        let keywords_count = keywords.len();
+
+        Ok(QueryResult {
+            response: response.content,
+            mode: QueryMode::Global,
+            context: QueryContext {
+                entities: context_entities,
+                relationships: context_relationships,
+                ..Default::default()
+            },
+            stats: QueryStats {
+                retrieval_time_ms,
+                generation_time_ms,
+                total_time_ms: 0,
+                entities_retrieved: entities_count,
+                relationships_retrieved: relationships_count,
+                keywords_extracted: keywords_count,
+                prompt_tokens: response.prompt_tokens,
+                response_tokens: response.completion_tokens,
+                ..Default::default()
+            },
+        })
+    }
+
+    /// Mix RAG: Combines local entity-centric and naive chunk retrieval.
+    ///
+    /// This is the recommended default mode as it provides the most comprehensive
+    /// context for question answering.
+    async fn query_mix(&self, query: &str, params: &QueryParams) -> Result<QueryResult> {
+        let retrieval_start = std::time::Instant::now();
+
+        // 1. Run local query (entity-centric)
+        let local_result = self.query_local(query, params).await?;
+
+        // 2. Run naive query (chunk-based)
+        let naive_result = self.query_naive(query, params).await?;
+
+        // 3. Merge contexts with deduplication
+        let merged_entities = local_result.context.entities;
+        let merged_relationships = local_result.context.relationships;
+        let merged_chunks = naive_result.context.chunks;
+
+        // Deduplicate entities by name
+        let _seen_entity_names: HashSet<_> = merged_entities.iter().map(|e| &e.name).collect();
+        
+        // Deduplicate chunks by ID
+        let _seen_chunk_ids: HashSet<_> = merged_chunks.iter().map(|c| &c.chunk_id).collect();
+
+        // Build unified context text
+        let mut context_text = String::new();
+
+        // Add entities section
+        if !merged_entities.is_empty() {
+            context_text.push_str("### Knowledge Graph Entities ###\n\n");
+            for entity in &merged_entities {
+                context_text.push_str(&format!(
+                    "**{}** ({}): {}\n",
+                    entity.name, entity.entity_type, entity.description
+                ));
+            }
+            context_text.push_str("\n");
+        }
+
+        // Add relationships section
+        if !merged_relationships.is_empty() {
+            context_text.push_str("### Relationships ###\n\n");
+            for rel in &merged_relationships {
+                context_text.push_str(&format!(
+                    "- {} → {}: {}\n",
+                    rel.source, rel.target, rel.description
+                ));
+            }
+            context_text.push_str("\n");
+        }
+
+        // Add chunks section
+        if !merged_chunks.is_empty() {
+            context_text.push_str("### Document Chunks ###\n\n");
+            for chunk in &merged_chunks {
+                context_text.push_str(&format!(
+                    "---\n{}\n",
+                    chunk.content
+                ));
+            }
+        }
+
+        let retrieval_time_ms = retrieval_start.elapsed().as_millis() as u64;
+        let generation_start = std::time::Instant::now();
+
+        // 4. Generate response using combined context
+        let prompt = format!(
+            r#"---Role---
+You are a helpful assistant responding to questions about data in the knowledge graph and document chunks.
+
+---Goal---
+Generate a comprehensive response that synthesizes information from both the knowledge graph entities/relationships and the document chunks.
+
+---Context---
+{}
+
+---Query---
+{}
+
+---Instructions---
+1. Prioritize information from entities and relationships for structured knowledge
+2. Use document chunks to fill in details and provide supporting evidence
+3. If there are contradictions, prefer the more specific or recent information
+4. Cite sources when possible
+
+Response:"#,
+            context_text, query
+        );
+
+        let response = self
+            .llm
+            .complete(&prompt)
+            .await
+            .map_err(|e| crate::error::Error::internal(format!("LLM error: {}", e)))?;
+
+        let generation_time_ms = generation_start.elapsed().as_millis() as u64;
+
+        Ok(QueryResult {
+            response: response.content,
+            mode: QueryMode::Mix,
+            context: QueryContext {
+                entities: merged_entities,
+                relationships: merged_relationships,
+                chunks: merged_chunks,
+            },
+            stats: QueryStats {
+                retrieval_time_ms,
+                generation_time_ms,
+                total_time_ms: 0,
+                entities_retrieved: local_result.stats.entities_retrieved,
+                relationships_retrieved: local_result.stats.relationships_retrieved,
+                chunks_retrieved: naive_result.stats.chunks_retrieved,
+                prompt_tokens: response.prompt_tokens,
+                response_tokens: response.completion_tokens,
+                ..Default::default()
+            },
+        })
+    }
+
+    /// Hybrid RAG: Combines local and global modes (without naive chunks).
+    async fn query_hybrid(&self, query: &str, params: &QueryParams) -> Result<QueryResult> {
+        let retrieval_start = std::time::Instant::now();
+
+        // 1. Run local query (entity-centric)
+        let local_result = self.query_local(query, params).await?;
+
+        // 2. Run global query (relationship-centric)
+        let global_result = self.query_global(query, params).await?;
+
+        // 3. Merge contexts
+        let mut merged_entities = local_result.context.entities;
+        let mut merged_relationships = global_result.context.relationships;
+
+        // Add entities from global that aren't in local
+        let seen_entity_names: HashSet<_> = merged_entities.iter().map(|e| e.name.clone()).collect();
+        for entity in global_result.context.entities {
+            if !seen_entity_names.contains(&entity.name) {
+                merged_entities.push(entity);
+            }
+        }
+
+        // Add relationships from local
+        let seen_rels: HashSet<_> = merged_relationships
+            .iter()
+            .map(|r| (r.source.clone(), r.target.clone()))
+            .collect();
+        for rel in local_result.context.relationships {
+            if !seen_rels.contains(&(rel.source.clone(), rel.target.clone())) {
+                merged_relationships.push(rel);
+            }
+        }
+
+        // Build context
+        let mut context_text = String::new();
+
+        context_text.push_str("### Entities ###\n\n");
+        for entity in &merged_entities {
+            context_text.push_str(&format!(
+                "**{}** ({}): {}\n",
+                entity.name, entity.entity_type, entity.description
+            ));
+        }
+
+        context_text.push_str("\n### Relationships ###\n\n");
+        for rel in &merged_relationships {
+            context_text.push_str(&format!(
+                "- {} → {}: {}\n",
+                rel.source, rel.target, rel.description
+            ));
+        }
+
+        let retrieval_time_ms = retrieval_start.elapsed().as_millis() as u64;
+        let generation_start = std::time::Instant::now();
+
+        let prompt = format!(
+            "Answer the following question based on the provided knowledge graph context (entities and relationships).\n\nContext:\n{}\n\nQuestion: {}\n\nAnswer:",
+            context_text, query
+        );
+
+        let response = self
+            .llm
+            .complete(&prompt)
+            .await
+            .map_err(|e| crate::error::Error::internal(format!("LLM error: {}", e)))?;
+
+        let generation_time_ms = generation_start.elapsed().as_millis() as u64;
+
+        // Calculate stats before moving values
+        let relationships_count = merged_relationships.len();
+
+        Ok(QueryResult {
+            response: response.content,
+            mode: QueryMode::Hybrid,
+            context: QueryContext {
+                entities: merged_entities,
+                relationships: merged_relationships,
+                ..Default::default()
+            },
+            stats: QueryStats {
+                retrieval_time_ms,
+                generation_time_ms,
+                total_time_ms: 0,
+                entities_retrieved: local_result.stats.entities_retrieved + global_result.stats.entities_retrieved,
+                relationships_retrieved: relationships_count,
+                prompt_tokens: response.prompt_tokens,
+                response_tokens: response.completion_tokens,
+                ..Default::default()
+            },
+        })
+    }
+
+    /// Bypass RAG: Skip retrieval, direct LLM query.
+    async fn query_bypass(&self, query: &str, _params: &QueryParams) -> Result<QueryResult> {
+        let generation_start = std::time::Instant::now();
+
+        let prompt = format!(
+            "Answer the following question to the best of your ability.\n\nQuestion: {}\n\nAnswer:",
+            query
+        );
+
+        let response = self
+            .llm
+            .complete(&prompt)
+            .await
+            .map_err(|e| crate::error::Error::internal(format!("LLM error: {}", e)))?;
+
+        let generation_time_ms = generation_start.elapsed().as_millis() as u64;
+
+        Ok(QueryResult {
+            response: response.content,
+            mode: QueryMode::Bypass,
+            context: QueryContext::default(),
+            stats: QueryStats {
+                retrieval_time_ms: 0,
+                generation_time_ms,
+                total_time_ms: 0,
+                prompt_tokens: response.prompt_tokens,
+                response_tokens: response.completion_tokens,
+                ..Default::default()
+            },
+        })
+    }
+
+    /// Build prompt for global query mode.
+    fn build_global_prompt(
+        &self,
+        query: &str,
+        context: &str,
+        keywords: &ExtractedKeywords,
+    ) -> String {
+        format!(
+            r#"---Role---
+You are a helpful assistant responding to questions about data in the provided tables and relationships.
+
+---Goal---
+Generate a response of the target length and format that responds to the user's question, summarizing all information in the input data tables appropriate for the response length and format, and incorporating any relevant general knowledge.
+
+If you don't know the answer, just say so. Do not make anything up.
+
+Points supported by data should list their sources at the end of the response.
+
+---Target response length and format---
+Multiple paragraphs
+
+---Data tables---
+{context}
+
+---Keywords identified---
+High-level themes: {high_level_keywords}
+Specific terms: {low_level_keywords}
+
+---Query---
+{query}
+
+Response:"#,
+            context = context,
+            high_level_keywords = keywords.high_level.join(", "),
+            low_level_keywords = keywords.low_level.join(", "),
+            query = query
+        )
     }
 }
 

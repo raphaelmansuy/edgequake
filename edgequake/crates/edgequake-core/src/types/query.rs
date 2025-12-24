@@ -199,6 +199,9 @@ pub struct QueryStats {
     /// Number of chunks retrieved.
     pub chunks_retrieved: usize,
 
+    /// Number of keywords extracted.
+    pub keywords_extracted: usize,
+
     /// Tokens used in prompt.
     pub prompt_tokens: usize,
 

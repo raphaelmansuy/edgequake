@@ -1,7 +1,10 @@
 //! Description summarization.
 //!
 //! This module provides functionality to summarize long descriptions
-//! using LLMs or rule-based approaches.
+//! using LLMs or rule-based approaches. Supports map-reduce style
+//! summarization for merging multiple entity descriptions.
+//!
+//! Based on LightRAG's summarization: `lightrag/operate.py:_handle_entity_relation_summary()`
 
 use std::sync::Arc;
 
@@ -18,6 +21,12 @@ pub struct SummarizerConfig {
 
     /// Whether to preserve key entities in the summary.
     pub preserve_entities: bool,
+
+    /// Maximum tokens per chunk for map-reduce.
+    pub max_tokens_per_chunk: usize,
+
+    /// Force LLM summary when this many descriptions are being merged.
+    pub force_llm_summary_threshold: usize,
 }
 
 impl Default for SummarizerConfig {
@@ -26,7 +35,23 @@ impl Default for SummarizerConfig {
             max_input_length: 2048,
             target_length: 512,
             preserve_entities: true,
+            max_tokens_per_chunk: 4000,
+            force_llm_summary_threshold: 4,
         }
+    }
+}
+
+impl SummarizerConfig {
+    /// Create a config with specific target length.
+    pub fn with_target_length(mut self, length: usize) -> Self {
+        self.target_length = length;
+        self
+    }
+
+    /// Set the force LLM threshold.
+    pub fn with_force_threshold(mut self, threshold: usize) -> Self {
+        self.force_llm_summary_threshold = threshold;
+        self
     }
 }
 
@@ -131,6 +156,199 @@ Text:
 Summary:"#
         )
     }
+
+    /// Merge multiple entity descriptions into a coherent summary.
+    ///
+    /// Uses map-reduce approach for large description sets:
+    /// 1. Chunk descriptions to fit within token limits
+    /// 2. Summarize each chunk
+    /// 3. Recursively reduce until a single summary remains
+    pub async fn merge_entity_descriptions(
+        &self,
+        entity_name: &str,
+        descriptions: &[String],
+    ) -> Result<String> {
+        if descriptions.is_empty() {
+            return Ok(String::new());
+        }
+
+        if descriptions.len() == 1 {
+            return Ok(descriptions[0].clone());
+        }
+
+        // Check if we need LLM summarization
+        let total_length: usize = descriptions.iter().map(|d| d.len()).sum();
+        let estimated_tokens = total_length / 4; // Rough estimate
+
+        if descriptions.len() < self.config.force_llm_summary_threshold
+            && estimated_tokens < self.config.max_tokens_per_chunk
+        {
+            // Simple concatenation with deduplication
+            return Ok(self.simple_merge(descriptions));
+        }
+
+        // Apply map-reduce for large description sets
+        self.map_reduce_summarize(entity_name, descriptions).await
+    }
+
+    /// Simple merge without LLM (for small description sets).
+    fn simple_merge(&self, descriptions: &[String]) -> String {
+        let mut seen = std::collections::HashSet::new();
+        let mut result = Vec::new();
+
+        for desc in descriptions {
+            let normalized = desc.trim().to_lowercase();
+            if !seen.contains(&normalized) && !desc.trim().is_empty() {
+                seen.insert(normalized);
+                result.push(desc.trim());
+            }
+        }
+
+        result.join(" ")
+    }
+
+    /// Map-reduce summarization for large description sets.
+    async fn map_reduce_summarize(
+        &self,
+        entity_name: &str,
+        descriptions: &[String],
+    ) -> Result<String> {
+        // Map phase: chunk descriptions into groups
+        let chunks = self.chunk_descriptions(descriptions);
+
+        let mut intermediate_summaries = Vec::new();
+
+        for chunk in chunks {
+            let summary = self.summarize_chunk(entity_name, &chunk).await?;
+            intermediate_summaries.push(summary);
+        }
+
+        // Reduce phase: if we still have multiple summaries, reduce them
+        while intermediate_summaries.len() > 1 {
+            let new_chunks = self.chunk_descriptions(&intermediate_summaries);
+
+            let mut new_summaries = Vec::new();
+            for chunk in new_chunks {
+                let summary = self.summarize_chunk(entity_name, &chunk).await?;
+                new_summaries.push(summary);
+            }
+            intermediate_summaries = new_summaries;
+        }
+
+        Ok(intermediate_summaries.into_iter().next().unwrap_or_default())
+    }
+
+    /// Chunk descriptions to fit within token limit.
+    fn chunk_descriptions(&self, descriptions: &[String]) -> Vec<Vec<String>> {
+        let mut chunks = Vec::new();
+        let mut current_chunk = Vec::new();
+        let mut current_tokens = 0;
+
+        for desc in descriptions {
+            let desc_tokens = desc.len() / 4; // Rough estimate
+
+            if current_tokens + desc_tokens > self.config.max_tokens_per_chunk
+                && !current_chunk.is_empty()
+            {
+                chunks.push(std::mem::take(&mut current_chunk));
+                current_tokens = 0;
+            }
+
+            current_chunk.push(desc.clone());
+            current_tokens += desc_tokens;
+        }
+
+        if !current_chunk.is_empty() {
+            chunks.push(current_chunk);
+        }
+
+        chunks
+    }
+
+    /// Summarize a single chunk of descriptions.
+    async fn summarize_chunk(&self, entity_name: &str, descriptions: &[String]) -> Result<String> {
+        let descriptions_text = descriptions
+            .iter()
+            .enumerate()
+            .map(|(i, d)| format!("{}. {}", i + 1, d))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let prompt = format!(
+            r#"You are a helpful assistant responsible for generating a comprehensive summary of the data provided below.
+
+Given one or more descriptions of an entity, generate a single comprehensive description that:
+1. Captures all unique information from the input descriptions
+2. Resolves any contradictions by preferring more specific information
+3. Is written in a clear, coherent style
+4. Does not exceed 500 words
+
+# Entity: {entity_name}
+
+# Descriptions:
+{descriptions_text}
+
+# Comprehensive Summary:
+"#
+        );
+
+        let response = self
+            .llm_provider
+            .complete(&prompt)
+            .await
+            .map_err(|e| PipelineError::ExtractionError(format!("LLM error: {}", e)))?;
+
+        Ok(response.content.trim().to_string())
+    }
+
+    /// Merge relationship descriptions.
+    pub async fn merge_relationship_descriptions(
+        &self,
+        source: &str,
+        target: &str,
+        descriptions: &[String],
+    ) -> Result<String> {
+        if descriptions.is_empty() {
+            return Ok(String::new());
+        }
+
+        if descriptions.len() == 1 {
+            return Ok(descriptions[0].clone());
+        }
+
+        let descriptions_text = descriptions
+            .iter()
+            .enumerate()
+            .map(|(i, d)| format!("{}. {}", i + 1, d))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let prompt = format!(
+            r#"You are a helpful assistant responsible for generating a comprehensive summary of the relationship between two entities.
+
+Given one or more descriptions of a relationship between "{source}" and "{target}", generate a single comprehensive description that:
+1. Captures all unique information about their relationship
+2. Resolves any contradictions by preferring more specific information
+3. Is written in a clear, coherent style
+4. Does not exceed 200 words
+
+# Relationship: {source} → {target}
+
+# Descriptions:
+{descriptions_text}
+
+# Comprehensive Summary:
+"#
+        );
+
+        let response = self
+            .llm_provider
+            .complete(&prompt)
+            .await
+            .map_err(|e| PipelineError::ExtractionError(format!("LLM error: {}", e)))?;
+
+        Ok(response.content.trim().to_string())
+    }
 }
 
 #[async_trait::async_trait]
@@ -231,6 +449,8 @@ mod tests {
             max_input_length: 1024,
             target_length: 256,
             preserve_entities: false,
+            max_tokens_per_chunk: 600,
+            force_llm_summary_threshold: 10,
         };
         assert_eq!(config.max_input_length, 1024);
         assert!(!config.preserve_entities);

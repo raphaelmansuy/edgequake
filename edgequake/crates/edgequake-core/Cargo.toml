@@ -17,9 +17,11 @@ md5 = { workspace = true }
 uuid = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
+tiktoken-rs = { workspace = true }
 edgequake-llm.workspace = true
 edgequake-storage.workspace = true
 edgequake-pipeline.workspace = true
+async-trait.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }

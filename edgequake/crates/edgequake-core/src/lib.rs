@@ -25,10 +25,22 @@
 
 pub mod config;
 pub mod error;
+pub mod keyword_extractor;
 pub mod orchestrator;
 pub mod query;
+pub mod tenant_manager;
+pub mod token_budget;
 pub mod types;
 pub mod utils;
+
+// Re-export keyword extractor
+pub use keyword_extractor::{ExtractedKeywords, KeywordExtractor};
+
+// Re-export tenant manager
+pub use tenant_manager::{TenantConfig, TenantKBKey, TenantRAGManager, TenantService};
+
+// Re-export token budget
+pub use token_budget::{BudgetAllocation, BudgetSource, ContextSource, TokenBudget};
 
 // Re-export commonly used types
 pub use config::Config;
