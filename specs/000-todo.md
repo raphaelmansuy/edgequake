@@ -21,3 +21,4 @@ Other format: https://crates.io/crates/markdownify
 - Add the support of evaluation suite for RAG systems (RAGAS, mlflow etc.)
 
 - Ensure metadata management for documents and graph entities (page numbers, source documents etc.)
+- Add support to multi namespace queries
