@@ -27,13 +27,15 @@ pub mod merger;
 pub mod pipeline;
 pub mod summarizer;
 
-pub use chunker::{Chunker, ChunkerConfig, TextChunk};
+pub use chunker::{
+    CharacterBasedChunking, ChunkResult, Chunker, ChunkerConfig, ChunkingStrategy, TextChunk,
+    TokenBasedChunking,
+};
 pub use error::{PipelineError, Result};
 pub use extractor::{
-    EntityExtractor, ExtractedEntity, ExtractedRelationship, ExtractionResult, LLMExtractor,
-    SimpleExtractor,
+    EntityExtractor, ExtractedEntity, ExtractedRelationship, ExtractionResult, GleaningConfig,
+    GleaningExtractor, LLMExtractor, SimpleExtractor,
 };
 pub use merger::{KnowledgeGraphMerger, MergeStats, MergerConfig};
 pub use pipeline::{Pipeline, PipelineConfig};
 pub use summarizer::{DescriptionSummarizer, LLMSummarizer, SimpleSummarizer, SummarizerConfig};
-

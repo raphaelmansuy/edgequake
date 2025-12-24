@@ -78,6 +78,10 @@ pub struct QueryRequest {
     /// Whether to only retrieve context (no LLM generation).
     pub context_only: bool,
 
+    /// Whether to return the formatted prompt instead of calling LLM.
+    /// Useful for debugging or using your own LLM.
+    pub prompt_only: bool,
+
     /// Additional parameters.
     pub params: HashMap<String, serde_json::Value>,
     
@@ -104,6 +108,7 @@ impl QueryRequest {
             mode: None,
             max_results: None,
             context_only: false,
+            prompt_only: false,
             params: HashMap::new(),
             conversation_history: Vec::new(),
         }
@@ -118,6 +123,12 @@ impl QueryRequest {
     /// Set context-only mode.
     pub fn context_only(mut self) -> Self {
         self.context_only = true;
+        self
+    }
+
+    /// Set prompt-only mode.
+    pub fn prompt_only(mut self) -> Self {
+        self.prompt_only = true;
         self
     }
     
@@ -230,9 +241,12 @@ impl QueryEngine {
         stats.retrieval_time_ms = retrieval_start.elapsed().as_millis() as u64;
         stats.context_tokens = context.token_count;
 
-        // Step 3: Generate answer (if not context-only)
+        // Step 3: Generate answer (if not context-only or prompt-only)
         let answer = if request.context_only {
             String::new()
+        } else if request.prompt_only {
+            // Return the formatted prompt without calling the LLM
+            self.build_prompt(&request.query, &context)
         } else {
             let gen_start = std::time::Instant::now();
             let answer = self.generate_answer(&request.query, &context).await?;
@@ -392,6 +406,28 @@ Provide a clear, accurate answer based on the context above. If the context does
         Ok(context)
     }
 
+    /// Build the prompt string for a query (used by prompt_only mode).
+    fn build_prompt(&self, query: &str, context: &QueryContext) -> String {
+        if context.is_empty() {
+            return "I'm sorry, but I couldn't find any relevant information in my knowledge base to answer your question.".to_string();
+        }
+
+        let context_text = context.to_context_string();
+
+        format!(
+            r#"You are a helpful assistant. Answer the user's question based on the following context.
+
+## Context
+{context_text}
+
+## Question
+{query}
+
+## Answer
+Provide a clear, accurate answer based on the context above. If the context doesn't contain enough information to answer the question, say so."#
+        )
+    }
+
     /// Generate an answer using the LLM.
     async fn generate_answer(&self, query: &str, context: &QueryContext) -> Result<String> {
         if context.is_empty() {
@@ -437,6 +473,14 @@ mod tests {
         assert_eq!(request.query, "What is Rust?");
         assert_eq!(request.mode, Some(QueryMode::Local));
         assert!(request.context_only);
+        assert!(!request.prompt_only);
+
+        // Test prompt_only mode
+        let prompt_request = QueryRequest::new("What is Python?")
+            .prompt_only();
+
+        assert!(prompt_request.prompt_only);
+        assert!(!prompt_request.context_only);
     }
 
     #[test]

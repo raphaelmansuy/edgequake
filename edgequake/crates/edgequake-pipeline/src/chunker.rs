@@ -1,8 +1,47 @@
 //! Text chunking with overlap.
+//!
+//! This module provides flexible text chunking with support for custom chunking functions.
+//! Users can implement the `ChunkingStrategy` trait to provide their own chunking logic.
 
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use crate::error::Result;
+
+/// Result of a custom chunking operation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChunkResult {
+    /// The chunk text content.
+    pub content: String,
+    /// Approximate token count.
+    pub tokens: usize,
+    /// Zero-based index indicating the chunk's order in the document.
+    pub chunk_order_index: usize,
+}
+
+/// Trait for custom chunking strategies.
+///
+/// Implement this trait to provide your own chunking logic for document processing.
+/// This allows for flexible chunking strategies such as:
+/// - Semantic chunking (based on meaning/topics)
+/// - Fixed-size chunking with custom separators
+/// - Language-specific chunking (code, markdown, etc.)
+#[async_trait]
+pub trait ChunkingStrategy: Send + Sync {
+    /// Chunk the given text content into smaller pieces.
+    ///
+    /// # Arguments
+    /// * `content` - The full text content to chunk
+    /// * `config` - The chunking configuration
+    ///
+    /// # Returns
+    /// A vector of chunk results with content, token count, and order index
+    async fn chunk(&self, content: &str, config: &ChunkerConfig) -> Result<Vec<ChunkResult>>;
+
+    /// Get the name of this chunking strategy.
+    fn name(&self) -> &str;
+}
 
 /// Configuration for the chunker.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,6 +60,12 @@ pub struct ChunkerConfig {
 
     /// Whether to preserve sentence boundaries.
     pub preserve_sentences: bool,
+
+    /// Optional character to split on first (e.g., "\n" for line-by-line).
+    pub split_by_character: Option<String>,
+
+    /// If true, split only on the specified character, don't apply token limits.
+    pub split_by_character_only: bool,
 }
 
 impl Default for ChunkerConfig {
@@ -40,6 +85,8 @@ impl Default for ChunkerConfig {
                 " ".to_string(),
             ],
             preserve_sentences: true,
+            split_by_character: None,
+            split_by_character_only: false,
         }
     }
 }
@@ -97,15 +144,187 @@ fn estimate_tokens(text: &str) -> usize {
     (text.len() as f32 / 4.0).ceil() as usize
 }
 
+/// Default token-based chunking strategy.
+///
+/// This is the standard chunking strategy that splits text into chunks
+/// based on token count with overlap, respecting sentence boundaries.
+pub struct TokenBasedChunking;
+
+#[async_trait]
+impl ChunkingStrategy for TokenBasedChunking {
+    async fn chunk(&self, content: &str, config: &ChunkerConfig) -> Result<Vec<ChunkResult>> {
+        if content.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Check for split_by_character_only mode (GAP-017)
+        if let Some(ref split_char) = config.split_by_character {
+            if config.split_by_character_only {
+                return Ok(content
+                    .split(split_char.as_str())
+                    .enumerate()
+                    .filter(|(_, s)| !s.trim().is_empty())
+                    .map(|(idx, s)| ChunkResult {
+                        content: s.to_string(),
+                        tokens: estimate_tokens(s),
+                        chunk_order_index: idx,
+                    })
+                    .collect());
+            }
+        }
+
+        let target_chars = config.chunk_size * 4;
+        let overlap_chars = config.chunk_overlap * 4;
+        let min_chars = config.min_chunk_size * 4;
+
+        let chunks = split_text_internal(
+            content,
+            target_chars,
+            overlap_chars,
+            min_chars,
+            &config.separators,
+        );
+
+        Ok(chunks
+            .into_iter()
+            .enumerate()
+            .map(|(idx, (text, _, _))| ChunkResult {
+                content: text.clone(),
+                tokens: estimate_tokens(&text),
+                chunk_order_index: idx,
+            })
+            .collect())
+    }
+
+    fn name(&self) -> &str {
+        "token_based"
+    }
+}
+
+/// Character-based chunking strategy (GAP-017).
+///
+/// Splits text on a specific character (like newline) for pre-split content.
+pub struct CharacterBasedChunking {
+    /// Character to split on.
+    pub split_character: String,
+}
+
+impl CharacterBasedChunking {
+    /// Create a new character-based chunking strategy.
+    pub fn new(split_character: impl Into<String>) -> Self {
+        Self {
+            split_character: split_character.into(),
+        }
+    }
+
+    /// Create a newline-based chunker.
+    pub fn by_newline() -> Self {
+        Self::new("\n")
+    }
+
+    /// Create a paragraph-based chunker.
+    pub fn by_paragraph() -> Self {
+        Self::new("\n\n")
+    }
+}
+
+#[async_trait]
+impl ChunkingStrategy for CharacterBasedChunking {
+    async fn chunk(&self, content: &str, _config: &ChunkerConfig) -> Result<Vec<ChunkResult>> {
+        Ok(content
+            .split(&self.split_character)
+            .enumerate()
+            .filter(|(_, s)| !s.trim().is_empty())
+            .map(|(idx, s)| ChunkResult {
+                content: s.to_string(),
+                tokens: estimate_tokens(s),
+                chunk_order_index: idx,
+            })
+            .collect())
+    }
+
+    fn name(&self) -> &str {
+        "character_based"
+    }
+}
+
+/// Internal function to split text.
+fn split_text_internal(
+    text: &str,
+    target_size: usize,
+    overlap: usize,
+    min_size: usize,
+    separators: &[String],
+) -> Vec<(String, usize, usize)> {
+    if text.len() <= target_size {
+        return vec![(text.to_string(), 0, text.len())];
+    }
+
+    let mut chunks = Vec::new();
+    let mut current_pos = 0;
+
+    while current_pos < text.len() {
+        let remaining = &text[current_pos..];
+
+        if remaining.len() <= target_size {
+            chunks.push((remaining.to_string(), current_pos, text.len()));
+            break;
+        }
+
+        let end_pos = current_pos + target_size;
+        let chunk_text = &text[current_pos..end_pos.min(text.len())];
+
+        let split_point = find_split_point_internal(chunk_text, target_size, separators);
+        let actual_end = current_pos + split_point;
+
+        let chunk_content = text[current_pos..actual_end].to_string();
+
+        if chunk_content.len() >= min_size {
+            chunks.push((chunk_content, current_pos, actual_end));
+        }
+
+        current_pos = actual_end.saturating_sub(overlap);
+
+        if current_pos >= actual_end {
+            current_pos = actual_end;
+        }
+    }
+
+    chunks
+}
+
+/// Internal function to find split point.
+fn find_split_point_internal(text: &str, target: usize, separators: &[String]) -> usize {
+    let search_start = target.saturating_sub(target / 4);
+    let search_end = target.min(text.len());
+
+    for separator in separators {
+        if let Some(pos) = text[search_start..search_end].rfind(separator.as_str()) {
+            return search_start + pos + separator.len();
+        }
+    }
+
+    target.min(text.len())
+}
+
 /// Text chunker for splitting documents.
 pub struct Chunker {
     config: ChunkerConfig,
+    strategy: Arc<dyn ChunkingStrategy>,
 }
 
 impl Chunker {
     /// Create a new chunker with the given configuration.
     pub fn new(config: ChunkerConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            strategy: Arc::new(TokenBasedChunking),
+        }
+    }
+
+    /// Create a new chunker with a custom chunking strategy.
+    pub fn with_strategy(config: ChunkerConfig, strategy: Arc<dyn ChunkingStrategy>) -> Self {
+        Self { config, strategy }
     }
 
     /// Create a chunker with default configuration.
@@ -113,13 +332,52 @@ impl Chunker {
         Self::new(ChunkerConfig::default())
     }
 
+    /// Create a chunker that splits by character only.
+    pub fn character_chunker(split_character: impl Into<String>) -> Self {
+        let mut config = ChunkerConfig::default();
+        config.split_by_character = Some(split_character.into());
+        config.split_by_character_only = true;
+        Self {
+            config,
+            strategy: Arc::new(CharacterBasedChunking::by_newline()),
+        }
+    }
+
     /// Chunk text into overlapping segments.
     pub fn chunk(&self, text: &str, doc_id: &str) -> Result<Vec<TextChunk>> {
+        // Always use sync implementation to avoid tokio runtime conflicts
+        self.chunk_sync(text, doc_id)
+    }
+
+    /// Chunk text asynchronously using the configured strategy.
+    pub async fn chunk_async(&self, text: &str, doc_id: &str) -> Result<Vec<TextChunk>> {
+        let results = self.strategy.chunk(text, &self.config).await?;
+
+        Ok(results
+            .into_iter()
+            .enumerate()
+            .map(|(_, result)| {
+                let id = format!("{}-chunk-{}", doc_id, result.chunk_order_index);
+                TextChunk {
+                    id,
+                    content: result.content.clone(),
+                    index: result.chunk_order_index,
+                    start_offset: 0, // TODO: Track offsets in ChunkResult
+                    end_offset: result.content.len(),
+                    token_count: result.tokens,
+                    embedding: None,
+                }
+            })
+            .collect())
+    }
+
+    /// Synchronous chunk implementation (fallback).
+    fn chunk_sync(&self, text: &str, doc_id: &str) -> Result<Vec<TextChunk>> {
         if text.trim().is_empty() {
             return Ok(Vec::new());
         }
 
-        let target_chars = self.config.chunk_size * 4; // Rough token to char conversion
+        let target_chars = self.config.chunk_size * 4;
         let overlap_chars = self.config.chunk_overlap * 4;
         let min_chars = self.config.min_chunk_size * 4;
 
@@ -143,72 +401,38 @@ impl Chunker {
         overlap: usize,
         min_size: usize,
     ) -> Vec<(String, usize, usize)> {
-        if text.len() <= target_size {
-            return vec![(text.to_string(), 0, text.len())];
-        }
-
-        let mut chunks = Vec::new();
-        let mut current_pos = 0;
-
-        while current_pos < text.len() {
-            let remaining = &text[current_pos..];
-
-            if remaining.len() <= target_size {
-                // Last chunk
-                chunks.push((remaining.to_string(), current_pos, text.len()));
-                break;
-            }
-
-            // Find best split point
-            let end_pos = current_pos + target_size;
-            let chunk_text = &text[current_pos..end_pos.min(text.len())];
-
-            let split_point = self.find_split_point(chunk_text, target_size);
-            let actual_end = current_pos + split_point;
-
-            let chunk_content = text[current_pos..actual_end].to_string();
-
-            if chunk_content.len() >= min_size {
-                chunks.push((chunk_content, current_pos, actual_end));
-            }
-
-            // Move forward with overlap
-            current_pos = actual_end.saturating_sub(overlap);
-
-            // Prevent infinite loop
-            if current_pos >= actual_end {
-                current_pos = actual_end;
-            }
-        }
-
-        chunks
+        split_text_internal(
+            text,
+            target_size,
+            overlap,
+            min_size,
+            &self.config.separators,
+        )
     }
 
     /// Find the best split point near the target size.
+    #[allow(dead_code)]
     fn find_split_point(&self, text: &str, target: usize) -> usize {
-        let search_start = target.saturating_sub(target / 4);
-        let search_end = target.min(text.len());
-
-        // Look for separators in reverse order of preference
-        for separator in &self.config.separators {
-            if let Some(pos) = text[search_start..search_end].rfind(separator) {
-                return search_start + pos + separator.len();
-            }
-        }
-
-        // No separator found, split at target
-        target.min(text.len())
+        find_split_point_internal(text, target, &self.config.separators)
     }
 
     /// Get the chunker configuration.
     pub fn config(&self) -> &ChunkerConfig {
         &self.config
     }
+
+    /// Get the chunking strategy name.
+    pub fn strategy_name(&self) -> &str {
+        self.strategy.name()
+    }
 }
 
 impl Default for Chunker {
     fn default() -> Self {
-        Self::default_chunker()
+        Self {
+            config: ChunkerConfig::default(),
+            strategy: Arc::new(TokenBasedChunking),
+        }
     }
 }
 

@@ -1,102 +1,79 @@
 # Parity Roadmap: EdgeQuake Implementation
 
 **Goal:** Achieve feature parity with LightRAG Python implementation  
-**Timeline:** Estimated 10-12 weeks  
-**Generated:** 2024-12-24
+**Timeline:** ✅ Core complete, P2/P3 enhancements remaining  
+**Generated:** 2024-12-24  
+**Last Updated:** 2024-12-24
 
 ---
 
-## Milestones Overview
+## Status Summary
 
-```mermaid
-gantt
-    title EdgeQuake Parity Roadmap
-    dateFormat  YYYY-MM-DD
-    section Phase 1 - Critical
-    Global Query Mode       :p1a, 2025-01-06, 7d
-    Mix Query Mode          :p1b, after p1a, 4d
-    Tenant RAG Manager      :p1c, 2025-01-06, 7d
-    Multi-tenant Isolation  :p1d, after p1c, 5d
-    section Phase 2 - High
-    Keyword Extraction      :p2a, after p1b, 2d
-    Entity Deduplication    :p2b, after p2a, 3d
-    Reranking Integration   :p2c, after p2b, 4d
-    Rate Limiting           :p2d, after p2c, 3d
-    Anthropic Provider      :p2e, after p2d, 3d
-    LLM Cache Complete      :p2f, after p2e, 2d
-    section Phase 3 - Medium
-    Neo4j Storage           :p3a, after p2f, 4d
-    Qdrant Storage          :p3b, after p3a, 3d
-    Document Scan API       :p3c, after p3b, 2d
-    Azure OpenAI            :p3d, after p3c, 2d
-    section Phase 4 - Low
-    Redis Storage           :p4a, after p3d, 3d
-    Additional Providers    :p4b, after p4a, 5d
-    Polish & Testing        :p4c, after p4b, 5d
-```
+### ✅ Phase 1: Critical Parity (P0 Gaps) - COMPLETE
 
----
+All P0 gaps have been resolved:
 
-## Phase 1: Critical Parity (P0 Gaps)
+| Milestone              | Status | Gap IDs          | Notes                         |
+| ---------------------- | ------ | ---------------- | ----------------------------- |
+| Global Query Mode      | ✅     | GAP-001          | Implemented in query.rs       |
+| Mix Query Mode         | ✅     | GAP-002          | Implemented in query.rs       |
+| Tenant RAG Manager     | ✅     | GAP-004          | Implemented in tenant_manager |
+| Multi-tenant Isolation | ✅     | GAP-003, GAP-037 | PostgreSQL RLS + Workspaces   |
 
-**Objective:** Close all critical gaps to enable production-ready deployment  
-**Duration:** 3 weeks  
-**Success Criteria:** All query modes functional, multi-tenancy complete
+### ✅ Phase 2: Functional Parity (P1 Gaps) - COMPLETE
 
-### Milestone 1.1: Global Query Mode
+All P1 gaps have been resolved:
 
-**Gaps Addressed:**
+| Milestone             | Status | Gap IDs | Notes                      |
+| --------------------- | ------ | ------- | -------------------------- |
+| Keyword Extraction    | ✅     | GAP-007 | keyword_extractor.rs       |
+| Entity Deduplication  | ✅     | GAP-005 | merger.rs                  |
+| Description Summarize | ✅     | GAP-006 | summarizer.rs              |
+| Reranking Integration | ✅     | GAP-008 | reranker.rs                |
+| Token Budget          | ✅     | GAP-009 | token_budget.rs            |
+| Rate Limiting         | ✅     | GAP-011 | rate_limiter.rs            |
+| LLM Cache             | ✅     | GAP-015 | cache.rs                   |
+| Anthropic Provider    | ⏭️     | GAP-010 | Skipped (per user request) |
 
-- GAP-001: Query Mode: Global
+### 🔄 Phase 3: Complete Parity (P2 Gaps) - MOSTLY COMPLETE
 
-**Deliverables:**
+Remaining P2 enhancements:
 
-- [ ] Relationship vector search implementation
-- [ ] High-level keyword extraction (LLM-based)
-- [ ] Global context aggregation algorithm
-- [ ] Global query prompt template
-- [ ] Integration tests for global mode
+| Milestone              | Status | Gap IDs | Notes                                        |
+| ---------------------- | ------ | ------- | -------------------------------------------- |
+| Custom Chunking        | ✅     | GAP-016 | ✅ ChunkingStrategy trait                    |
+| Max Gleaning           | ✅     | GAP-018 | ✅ GleaningExtractor                         |
+| Reference List         | ✅     | GAP-022 | ✅ Full reference_id, document_id, file_path |
+| Document Status Fields | ✅     | GAP-023 | ✅ content_summary, chunk_ids, metadata      |
+| Neo4j Storage          | ❌     | GAP-012 | Graph database backend                       |
+| Qdrant/Milvus Storage  | ❌     | GAP-013 | Vector database backend                      |
+| Document Scan API      | ❌     | GAP-014 | Directory scanning                           |
+| Azure OpenAI           | ❌     | GAP-028 | Enterprise provider                          |
+| Ollama Complete        | ⚠️     | GAP-029 | Partial implementation                       |
 
-**Dependencies:** None
+### 📋 Phase 4: Extended Features (P3 Gaps) - PARTIALLY COMPLETE
 
-**Effort Estimate:** 7 person-days
+Lower priority enhancements:
 
-**Technical Approach:**
-
-1. Add `query_global()` method to QueryEngine
-2. Implement relationship vector search in VectorStorage trait
-3. Create keyword extraction prompt (port from LightRAG)
-4. Aggregate context from relationships into coherent summary
-5. Integrate with existing streaming infrastructure
-
-**Risks:**
-
-- LLM prompt quality may differ from Python version
-- **Mitigation:** Port exact prompts from LightRAG
-
-**Acceptance Criteria:**
-
-- [ ] Global query returns relationship-based context
-- [ ] High-level concepts extracted from queries
-- [ ] Response quality comparable to LightRAG
-- [ ] Performance within 20% of naive mode
+| Milestone           | Status | Gap IDs | Notes                         |
+| ------------------- | ------ | ------- | ----------------------------- |
+| Split by Character  | ✅     | GAP-017 | ✅ CharacterBasedChunking     |
+| Prompt-only Query   | ✅     | GAP-021 | ✅ prompt_only() in engine.rs |
+| Redis Storage       | ❌     | GAP-024 | Cache backend                 |
+| MongoDB Storage     | ❌     | GAP-025 | Document DB                   |
+| FAISS Storage       | ❌     | GAP-026 | Local vector                  |
+| NanoVectorDB        | ❌     | GAP-027 | Lightweight vector            |
+| Gemini Provider     | ❌     | GAP-030 | Google LLM                    |
+| Bedrock Provider    | ❌     | GAP-031 | AWS LLM                       |
+| HuggingFace         | ❌     | GAP-032 | Local models                  |
+| Jina Embedding      | ❌     | GAP-033 | Embedding provider            |
+| Ollama Emulation    | ❌     | GAP-038 | Compat API                    |
+| Reprocess Failed    | ❌     | GAP-039 | Retry logic                   |
+| Docling Integration | ❌     | GAP-040 | PDF parsing                   |
 
 ---
 
-### Milestone 1.2: Mix Query Mode
-
-**Gaps Addressed:**
-
-- GAP-002: Query Mode: Mix
-
-**Deliverables:**
-
-- [ ] Context merging algorithm
-- [ ] Deduplication logic for overlapping sources
-- [ ] Token budget allocation across contexts
-- [ ] Mix mode tests
-
-**Dependencies:** Milestone 1.1 (Global mode)
+## Remaining Work: Phase 3 Details
 
 **Effort Estimate:** 4 person-days
 

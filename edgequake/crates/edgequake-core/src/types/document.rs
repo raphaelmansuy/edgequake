@@ -74,6 +74,18 @@ pub struct Document {
     /// Error message if failed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// Content summary (first 100 chars) for preview
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_summary: Option<String>,
+    /// Total content length in bytes
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_length: Option<usize>,
+    /// List of chunk IDs associated with this document
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chunk_ids: Option<Vec<String>>,
+    /// Additional metadata
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
 }
 
 impl Document {
@@ -111,6 +123,8 @@ impl Document {
     /// ```
     pub fn new(content: String, file_path: Option<String>) -> Self {
         let now = Utc::now();
+        let content_length = content.len();
+        let content_summary = content.chars().take(100).collect::<String>();
         Self {
             id: Self::generate_id(&content),
             content,
@@ -121,15 +135,15 @@ impl Document {
             updated_at: now,
             chunks_count: None,
             error: None,
+            content_summary: Some(content_summary),
+            content_length: Some(content_length),
+            chunk_ids: None,
+            metadata: None,
         }
     }
 
     /// Create a new document with a specific track ID for batch processing.
-    pub fn new_with_track_id(
-        content: String,
-        file_path: Option<String>,
-        track_id: String,
-    ) -> Self {
+    pub fn new_with_track_id(content: String, file_path: Option<String>, track_id: String) -> Self {
         let mut doc = Self::new(content, file_path);
         doc.track_id = Some(track_id);
         doc
@@ -145,6 +159,15 @@ impl Document {
     pub fn mark_processed(&mut self, chunks_count: u32) {
         self.status = DocumentStatus::Processed;
         self.chunks_count = Some(chunks_count);
+        self.error = None;
+        self.updated_at = Utc::now();
+    }
+
+    /// Mark the document as successfully processed with chunk IDs.
+    pub fn mark_processed_with_chunks(&mut self, chunk_ids: Vec<String>) {
+        self.status = DocumentStatus::Processed;
+        self.chunks_count = Some(chunk_ids.len() as u32);
+        self.chunk_ids = Some(chunk_ids);
         self.error = None;
         self.updated_at = Utc::now();
     }
