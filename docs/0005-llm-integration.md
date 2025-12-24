@@ -4,6 +4,8 @@
 
 **Version**: 0.1.0 | **Last Updated**: December 2025
 
+> **Code Reference**: See [edgequake/crates/edgequake-llm/](../edgequake/crates/edgequake-llm/) for provider implementations
+
 ---
 
 ## Table of Contents
@@ -67,6 +69,8 @@ EdgeQuake requires two AI components for RAG operations:
 ## Provider Architecture
 
 ### Provider Traits
+
+> **Code Reference**: [edgequake/crates/edgequake-llm/src/traits.rs](../edgequake/crates/edgequake-llm/src/traits.rs)
 
 ```rust
 // Located: edgequake/crates/edgequake-llm/src/traits.rs

@@ -4,6 +4,8 @@
 
 **Version**: 0.1.0 | **Base URL**: `http://localhost:8080`
 
+> **Code Reference**: See [edgequake/crates/edgequake-api/src/routes.rs](../edgequake/crates/edgequake-api/src/routes.rs) for route definitions and [edgequake/crates/edgequake-api/src/handlers/](../edgequake/crates/edgequake-api/src/handlers/) for handler implementations
+
 ---
 
 ## Table of Contents

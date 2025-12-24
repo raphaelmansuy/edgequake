@@ -3,6 +3,13 @@
 **Date**: 2025-01-21 17:00  
 **Status**: ✅ PRODUCTION READY
 
+> **Code References**:
+>
+> - OpenAI Provider: [edgequake/crates/edgequake-llm/src/providers/openai.rs](../edgequake/crates/edgequake-llm/src/providers/openai.rs)
+> - EdgeQuake Config: [edgequake/crates/edgequake-core/src/orchestrator.rs](../edgequake/crates/edgequake-core/src/orchestrator.rs)
+> - Production Example: [edgequake/examples/production_pipeline.rs](../edgequake/examples/production_pipeline.rs)
+> - E2E Tests: [edgequake/crates/edgequake-core/tests/e2e_openai_integration.rs](../edgequake/crates/edgequake-core/tests/e2e_openai_integration.rs)
+
 ## Overview
 
 EdgeQuake now supports **real LLM providers** for production deployment. The system automatically detects available API keys and uses the appropriate provider:
@@ -317,13 +324,18 @@ echo "OPENAI_API_KEY=*" >> .gitignore
 
 ### 2. Caching
 
-Enable extraction caching to save costs:
+Extraction caching is enabled by default to save costs. The `enable_cache` field in `EdgeQuakeConfig` controls this:
 
 ```rust
-let config = EdgeQuakeConfig::new()
-    .with_namespace("prod")
-    .enable_cache(true);  // Cache LLM responses
+// Caching is enabled by default (EdgeQuakeConfig.enable_cache = true)
+let mut config = EdgeQuakeConfig::new()
+    .with_namespace("prod");
+
+// To disable caching:
+config.enable_cache = false;
 ```
+
+> **Code Reference**: See [orchestrator.rs](../edgequake/crates/edgequake-core/src/orchestrator.rs#L68) for the `enable_cache` field.
 
 ### 3. Error Recovery
 

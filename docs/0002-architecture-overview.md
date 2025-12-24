@@ -4,6 +4,8 @@
 
 **Version**: 0.1.0 | **Last Updated**: December 2025 | **Language**: Rust
 
+> **Code Reference**: Main crates in [edgequake/crates/](../edgequake/crates/)
+
 ---
 
 ## Table of Contents
@@ -108,6 +110,8 @@ EdgeQuake is a **Graph-Enhanced Retrieval-Augmented Generation** framework imple
 
 ### `edgequake-core` - Orchestration Layer
 
+> **Code Reference**: [edgequake/crates/edgequake-core/src/orchestrator.rs](../edgequake/crates/edgequake-core/src/orchestrator.rs)
+
 The central orchestrator that coordinates all RAG operations.
 
 ```rust
@@ -144,6 +148,8 @@ impl EdgeQuake {
 ```
 
 ### `edgequake-api` - REST API
+
+> **Code Reference**: [edgequake/crates/edgequake-api/src/routes.rs](../edgequake/crates/edgequake-api/src/routes.rs)
 
 Axum-based REST API with OpenAPI documentation.
 
@@ -189,6 +195,8 @@ fn api_v1_routes() -> Router<AppState> {
 
 ### `edgequake-llm` - LLM Providers
 
+> **Code Reference**: [edgequake/crates/edgequake-llm/src/traits.rs](../edgequake/crates/edgequake-llm/src/traits.rs)
+
 ```rust
 // Located: edgequake/crates/edgequake-llm/src/traits.rs
 
@@ -229,6 +237,8 @@ pub trait EmbeddingProvider: Send + Sync {
 
 ### `edgequake-storage` - Storage Abstractions
 
+> **Code Reference**: [edgequake/crates/edgequake-storage/src/traits/](../edgequake/crates/edgequake-storage/src/traits/)
+
 ```rust
 // Located: edgequake/crates/edgequake-storage/src/traits/
 
@@ -267,8 +277,10 @@ pub trait GraphStorage: Send + Sync {
 
 ### `edgequake-query` - Query Engine
 
+> **Code Reference**: [edgequake/crates/edgequake-core/src/types/query.rs](../edgequake/crates/edgequake-core/src/types/query.rs) (canonical QueryMode)
+
 ```rust
-// Located: edgequake/crates/edgequake-query/src/modes.rs
+// Located: edgequake/crates/edgequake-core/src/types/query.rs
 
 #[derive(Debug, Clone, Copy)]
 pub enum QueryMode {
@@ -303,6 +315,8 @@ impl QueryMode {
 ```
 
 ### `edgequake-pipeline` - Document Processing
+
+> **Code Reference**: [edgequake/crates/edgequake-pipeline/src/](../edgequake/crates/edgequake-pipeline/src/)
 
 ```rust
 // Document processing pipeline stages:
@@ -500,6 +514,8 @@ edgequake_webui/src/
 ## Configuration
 
 ### EdgeQuake Configuration Structure
+
+> **Code Reference**: [edgequake/crates/edgequake-core/src/config.rs](../edgequake/crates/edgequake-core/src/config.rs)
 
 ```rust
 // Located: edgequake/crates/edgequake-core/src/config.rs

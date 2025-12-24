@@ -1,5 +1,7 @@
 # EdgeQuake Quick Start Guide
 
+> **Code Reference**: Main implementation in [edgequake/crates/edgequake-core/](../edgequake/crates/edgequake-core/)
+
 Get up and running with EdgeQuake in 5 minutes.
 
 ## What is EdgeQuake?
@@ -75,8 +77,10 @@ cargo test
 
 ### 1. Basic Usage
 
+> **Code Reference**: See [edgequake/crates/edgequake-core/src/orchestrator.rs](../edgequake/crates/edgequake-core/src/orchestrator.rs) for `EdgeQuake` implementation
+
 ```rust
-use edgequake_core::{EdgeQuake, EdgeQuakeConfig};
+use edgequake_core::{EdgeQuake, EdgeQuakeConfig, StorageBackend, StorageConfig};
 use edgequake_llm::OpenAIProvider;
 use edgequake_storage::{MemoryKVStorage, MemoryVectorStorage, MemoryGraphStorage};
 use std::sync::Arc;
@@ -98,7 +102,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let graph = Arc::new(MemoryGraphStorage::new(namespace));
 
     // Initialize EdgeQuake
-    let config = EdgeQuakeConfig::new().with_namespace(namespace);
+    let config = EdgeQuakeConfig::new()
+        .with_namespace(namespace)
+        .with_storage(StorageConfig {
+            backend: StorageBackend::Memory,
+            ..Default::default()
+        });
+
     let mut eq = EdgeQuake::new(config)
         .with_providers(provider.clone(), provider.clone())
         .with_storage_backends(kv, vector, graph);
@@ -118,10 +128,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Query the knowledge graph
     let response = eq.query("What did Marie Curie discover?", None).await?;
-    println!("Answer: {}", response.answer);
-
-    Ok(())
-};
+    println!("Answer: {}", response.response);
 
     Ok(())
 }
@@ -129,10 +136,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### 2. Query Modes Explained
 
+> **Code Reference**: See [edgequake/crates/edgequake-core/src/types/query.rs](../edgequake/crates/edgequake-core/src/types/query.rs) for `QueryMode` enum
+
 EdgeQuake supports 6 query modes, each optimized for different use cases:
 
 ```rust
-use edgequake_core::types::{QueryMode, QueryParams};
+use edgequake_core::{QueryMode, QueryParams};
 
 // NAIVE: Direct vector similarity search (fastest)
 // Best for: Simple factual lookups
@@ -168,17 +177,21 @@ let response = eq.query("question", Some(params)).await?;
 
 ## Quick Start (REST API)
 
+> **Code Reference**: See [edgequake/crates/edgequake-api/src/routes.rs](../edgequake/crates/edgequake-api/src/routes.rs) for API routes
+
 ### 1. Start the Server
 
 ```bash
 # Set environment variables
 export OPENAI_API_KEY="sk-your-key"
-export EDGEQUAKE_PORT=8080
+export HOST=0.0.0.0  # Optional, defaults to 0.0.0.0
+export PORT=8080     # Optional, defaults to 8080
 
 # Start the API server
-cargo run --bin edgequake-api
+cargo run --release
 
 # Server runs at http://localhost:8080
+# Swagger UI available at http://localhost:8080/swagger-ui
 ```
 
 ### 2. Insert Documents
@@ -271,18 +284,18 @@ npm run dev
 
 ## Configuration
 
+> **Code Reference**: See [edgequake/crates/edgequake-core/src/orchestrator.rs](../edgequake/crates/edgequake-core/src/orchestrator.rs) for `EdgeQuakeConfig`
+
 ### Environment Variables
 
 ```bash
 # Required
 OPENAI_API_KEY=sk-xxx              # OpenAI API key
 
-# LLM Configuration
-EDGEQUAKE_LLM_MODEL=gpt-4o-mini    # Model name
-EDGEQUAKE_EMBEDDING_MODEL=text-embedding-3-small
-
-# Server (defaults)
-# Host: 0.0.0.0, Port: 8080
+# Server Configuration (see edgequake/src/main.rs)
+HOST=0.0.0.0                       # Server host (default: 0.0.0.0)
+PORT=8080                          # Server port (default: 8080)
+WORKER_THREADS=4                   # Number of worker threads (default: CPU cores)
 
 # Storage (for PostgreSQL)
 DATABASE_URL=postgres://localhost/edgequake
@@ -291,7 +304,7 @@ DATABASE_URL=postgres://localhost/edgequake
 ### Rust Configuration
 
 ```rust
-use edgequake_core::EdgeQuakeConfig;
+use edgequake_core::{EdgeQuakeConfig, StorageBackend, StorageConfig};
 
 // Create with defaults
 let config = EdgeQuakeConfig::default();
@@ -312,6 +325,8 @@ let config = EdgeQuakeConfig::new()
 
 ## Storage Backends
 
+> **Code Reference**: See [edgequake/crates/edgequake-storage/src/lib.rs](../edgequake/crates/edgequake-storage/src/lib.rs) for storage traits and adapters
+
 ### Memory Storage (Development)
 
 ```rust
@@ -326,17 +341,27 @@ let graph = Arc::new(MemoryGraphStorage::new(namespace));
 
 ### PostgreSQL Storage (Production)
 
+> **Code Reference**: See [edgequake/crates/edgequake-storage/src/adapters/postgres/](../edgequake/crates/edgequake-storage/src/adapters/postgres/) for PostgreSQL adapters
+
 ```rust
-use edgequake_storage::PostgresStorage;
+use edgequake_storage::{PostgresKVStorage, PgVectorStorage, PostgresAGEGraphStorage, PostgresConfig};
+use std::sync::Arc;
 
-// Connect to PostgreSQL with pgvector and AGE extensions
-let storage = PostgresStorage::connect(
-    "postgres://user:pass@localhost/edgequake"
-).await?;
+// Create configuration
+let config = PostgresConfig {
+    host: "localhost".to_string(),
+    port: 5432,
+    database: "edgequake".to_string(),
+    user: "postgres".to_string(),
+    password: "password".to_string(),
+    namespace: "my-namespace".to_string(),
+    ..Default::default()
+};
 
-let kv = Arc::new(storage.kv_storage());
-let vector = Arc::new(storage.vector_storage());
-let graph = Arc::new(storage.graph_storage());
+// Create individual storage adapters (each manages its own connection pool)
+let kv = Arc::new(PostgresKVStorage::new(config.clone()));
+let vector = Arc::new(PgVectorStorage::new(config.clone()));
+let graph = Arc::new(PostgresAGEGraphStorage::new(config));
 ```
 
 ---

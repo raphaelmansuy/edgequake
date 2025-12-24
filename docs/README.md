@@ -1,23 +1,10 @@
-# LightRAG Documentation
+# EdgeQuake Documentation
 
-**Version 1.4.9.2** | Graph-Enhanced Retrieval-Augmented Generation
+**Version 2.0** | Graph-Enhanced Retrieval-Augmented Generation in Rust
 
-```
-╔═══════════════════════════════════════════════════════════════════════════╗
-║                                                                           ║
-║     ██╗     ██╗ ██████╗ ██╗  ██╗████████╗██████╗  █████╗  ██████╗       ║
-║     ██║     ██║██╔════╝ ██║  ██║╚══██╔══╝██╔══██╗██╔══██╗██╔════╝       ║
-║     ██║     ██║██║  ███╗███████║   ██║   ██████╔╝███████║██║  ███╗      ║
-║     ██║     ██║██║   ██║██╔══██║   ██║   ██╔══██╗██╔══██║██║   ██║      ║
-║     ███████╗██║╚██████╔╝██║  ██║   ██║   ██║  ██║██║  ██║╚██████╔╝      ║
-║     ╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝       ║
-║                                                                           ║
-║         Simple and Fast Graph-Enhanced RAG System                        ║
-║                                                                           ║
-╚═══════════════════════════════════════════════════════════════════════════╝
-```
+> High-Performance Graph-Enhanced RAG System in Rust
 
-> **New Feature**: Multi-tenancy support with RBAC, tenant isolation, and knowledge base management.
+> **New Feature**: Multi-tenancy support with namespace isolation, PostgreSQL with pgvector and Apache AGE.
 
 ---
 
@@ -26,13 +13,14 @@
 | Document | Description |
 |----------|-------------|
 | [Quick Start](0001-quick-start.md) | Get up and running in 5 minutes |
-| [Architecture Overview](0002-architecture-overview.md) | System design, data flow, and core concepts |
+| [Architecture Overview](0002-architecture-overview.md) | System design, crate structure, and core concepts |
 | [API Reference](0003-api-reference.md) | Complete REST API documentation |
 | [Storage Backends](0004-storage-backends.md) | Configure KV, vector, and graph storage |
 | [LLM Integration](0005-llm-integration.md) | LLM providers and embedding models |
 | [Deployment Guide](0006-deployment-guide.md) | Docker, Kubernetes, and production setup |
 | [Configuration Reference](0007-configuration-reference.md) | All environment variables and options |
-| [Multi-Tenancy](0008-multi-tenancy.md) | Tenant isolation and RBAC |
+| [Multi-Tenancy](0008-multi-tenancy.md) | Tenant isolation and namespace management |
+| [Production LLM](production-llm-integration.md) | Real LLM provider integration guide |
 
 ---
 
@@ -41,34 +29,69 @@
 ### Getting Started
 
 ```bash
-# Install
-pip install lightrag-hku
+# Clone and build
+git clone https://github.com/your-org/edgequake.git
+cd edgequake/edgequake
+cargo build --release
 
-# Start server
+# Start server (default: http://0.0.0.0:8080)
 export OPENAI_API_KEY=sk-xxx
-python -m lightrag.api.lightrag_server
+./target/release/edgequake
 ```
 
-### Python Usage
+### Rust Usage
 
-```python
-from lightrag import LightRAG, QueryParam
+```rust
+use edgequake_core::{EdgeQuake, EdgeQuakeConfig, QueryParams, QueryMode};
+use edgequake_llm::OpenAIProvider;
+use edgequake_storage::adapters::memory::*;
+use std::sync::Arc;
 
-rag = LightRAG(working_dir="./rag_storage")
-await rag.ainsert("Your document text...")
-result = await rag.aquery("Your question?", param=QueryParam(mode="hybrid"))
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Setup providers
+    let api_key = std::env::var("OPENAI_API_KEY")?;
+    let provider = Arc::new(OpenAIProvider::new(api_key));
+
+    // Setup in-memory storage
+    let kv = Arc::new(MemoryKVStorage::new());
+    let vector = Arc::new(MemoryVectorStorage::new(1536));
+    let graph = Arc::new(MemoryGraphStorage::new());
+
+    // Create EdgeQuake instance
+    let config = EdgeQuakeConfig::new().with_namespace("demo");
+    let mut eq = EdgeQuake::new(config)
+        .with_storage_backends(kv, vector, graph)
+        .with_providers(provider.clone(), provider);
+
+    eq.initialize().await?;
+
+    // Insert document
+    let result = eq.insert("Your document text...", Some("doc-001")).await?;
+    println!("Extracted {} entities", result.entities_extracted);
+
+    // Query
+    let params = QueryParams::new().with_mode(QueryMode::Hybrid);
+    let response = eq.query("Your question?", Some(params)).await?;
+    println!("{}", response.response);
+
+    Ok(())
+}
 ```
 
 ### REST API
 
 ```bash
+# Health check
+curl http://localhost:8080/health
+
 # Insert document
-curl -X POST http://localhost:9621/documents/text \
+curl -X POST http://localhost:8080/api/v1/documents/text \
   -H "Content-Type: application/json" \
   -d '{"text": "Document content..."}'
 
 # Query
-curl -X POST http://localhost:9621/query \
+curl -X POST http://localhost:8080/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{"query": "Your question?", "mode": "hybrid"}'
 ```
@@ -76,40 +99,8 @@ curl -X POST http://localhost:9621/query \
 ### Docker
 
 ```bash
-docker run -p 9621:9621 -e OPENAI_API_KEY=sk-xxx ghcr.io/hkuds/lightrag:latest
-```
-
----
-
-## System Overview
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              LightRAG                                        │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│   Documents ──▶ Chunking ──▶ Entity Extraction ──▶ Knowledge Graph          │
-│                    │                                      │                  │
-│                    ▼                                      ▼                  │
-│              Embeddings ──────────────────────▶ Hybrid Retrieval            │
-│                                                       │                      │
-│                                                       ▼                      │
-│                              Query ──▶ LLM Generation ──▶ Response          │
-│                                                                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  Storage Backends:                                                           │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                       │
-│  │ KV Storage   │  │ Vector Store │  │ Graph Store  │                       │
-│  │ JSON/Redis/  │  │ NanoVectorDB │  │ NetworkX/    │                       │
-│  │ PostgreSQL/  │  │ pgvector/    │  │ Neo4j/AGE/   │                       │
-│  │ MongoDB      │  │ Milvus/FAISS │  │ Memgraph     │                       │
-│  └──────────────┘  └──────────────┘  └──────────────┘                       │
-│                                                                              │
-│  LLM Providers:                                                              │
-│  OpenAI │ Anthropic │ Ollama │ Azure │ Bedrock │ HuggingFace │ ...         │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+cd edgequake/docker
+docker compose up -d
 ```
 
 ---
@@ -121,8 +112,11 @@ docker run -p 9621:9621 -e OPENAI_API_KEY=sk-xxx ghcr.io/hkuds/lightrag:latest
 | `naive` | Basic vector similarity search | Simple lookups |
 | `local` | Entity-focused retrieval | Specific facts |
 | `global` | High-level community summaries | Broad questions |
-| `hybrid` | Combined local + global | Balanced queries |
+| `hybrid` | Combined local + global (default) | Balanced queries |
 | `mix` | Full KG + vector integration | Complex reasoning |
+| `bypass` | Skip RAG, direct LLM | Testing/fallback |
+
+> **Code Reference**: See [types/query.rs](../edgequake/crates/edgequake-core/src/types/query.rs#L4-L24)
 
 ---
 
@@ -130,7 +124,7 @@ docker run -p 9621:9621 -e OPENAI_API_KEY=sk-xxx ghcr.io/hkuds/lightrag:latest
 
 | Option | Use Case | Guide |
 |--------|----------|-------|
-| **Local** | Development | `pip install lightrag-hku` |
+| **Local** | Development | `cargo build && cargo run` |
 | **Docker** | Staging/Production | [Docker Guide](0006-deployment-guide.md#2-docker-deployment) |
 | **Kubernetes** | Production/Scale | [K8s Guide](0006-deployment-guide.md#3-kubernetes-deployment-helm) |
 
@@ -138,9 +132,8 @@ docker run -p 9621:9621 -e OPENAI_API_KEY=sk-xxx ghcr.io/hkuds/lightrag:latest
 
 | Environment | KV | Vector | Graph |
 |-------------|-----|--------|-------|
-| Development | JSON | NanoVectorDB | NetworkX |
-| Production | PostgreSQL | pgvector | Neo4j |
-| High-Scale | Redis | Milvus | Neo4j |
+| Development | Memory | Memory | Memory |
+| Production | PostgreSQL | pgvector | Apache AGE |
 
 ---
 
@@ -149,124 +142,56 @@ docker run -p 9621:9621 -e OPENAI_API_KEY=sk-xxx ghcr.io/hkuds/lightrag:latest
 ### Essential Environment Variables
 
 ```bash
-# LLM
-LLM_BINDING=openai
-LLM_MODEL=gpt-4o-mini
+# LLM (required for production)
 OPENAI_API_KEY=sk-xxx
 
-# Embedding
-EMBEDDING_BINDING=openai
-EMBEDDING_MODEL=text-embedding-ada-002
-EMBEDDING_DIM=1536
-
-# Storage
-LIGHTRAG_KV_STORAGE=JsonKVStorage
-LIGHTRAG_VECTOR_STORAGE=NanoVectorDBStorage
-LIGHTRAG_GRAPH_STORAGE=NetworkXStorage
-
 # Server
-PORT=9621
+HOST=0.0.0.0      # Bind address
+PORT=8080         # Server port
+WORKER_THREADS=4  # Tokio worker threads
+
+# Database (production)
+DATABASE_URL=postgresql://user:pass@localhost:5432/edgequake
 ```
+
+> **Code Reference**: See [main.rs](../edgequake/src/main.rs#L69-L73) for environment variable loading.
 
 See [Configuration Reference](0007-configuration-reference.md) for all options.
 
 ---
 
-## Feature Highlights
-
-### Knowledge Graph Integration
+## Project Structure
 
 ```
-┌────────────────────────────────────────────────────┐
-│              KNOWLEDGE GRAPH                        │
-│                                                     │
-│    [Person: Einstein] ─────developed──────▶        │
-│           │                               │        │
-│     born_in                        [Theory:        │
-│           │                        Relativity]     │
-│           ▼                               │        │
-│    [Location: Germany]           describes_│       │
-│                                           ▼        │
-│                                  [Concept:         │
-│                                   Spacetime]       │
-└────────────────────────────────────────────────────┘
+edgequake/
+├── Cargo.toml          # Workspace manifest
+├── src/main.rs         # API server binary
+├── crates/
+│   ├── edgequake-core/     # Orchestrator, types, config
+│   ├── edgequake-api/      # Axum REST API routes
+│   ├── edgequake-llm/      # LLM providers (OpenAI, Mock)
+│   ├── edgequake-storage/  # Storage adapters (Memory, PG)
+│   ├── edgequake-pipeline/ # Document processing
+│   └── edgequake-query/    # Query engine
+├── examples/           # Working examples
+├── tests/              # Integration tests
+└── docker/             # Docker configuration
 ```
-
-### Multi-Tenant Isolation
-
-```
-Tenant A          Tenant B          Tenant C
-    │                 │                 │
-    ▼                 ▼                 ▼
-┌────────┐       ┌────────┐       ┌────────┐
-│ KB-1   │       │ KB-1   │       │ KB-1   │
-│ KB-2   │       │ KB-2   │       └────────┘
-│ KB-3   │       └────────┘
-└────────┘
-```
-
----
-
-## Resources
-
-- **GitHub**: https://github.com/HKUDS/LightRAG
-- **PyPI**: https://pypi.org/project/lightrag-hku/
-- **Issues**: https://github.com/HKUDS/LightRAG/issues
 
 ---
 
 ## Document Index
 
-1. **[Quick Start Guide](0001-quick-start.md)**
-   - Installation options
-   - Python SDK basics
-   - REST API basics
-   - Common patterns
-
-2. **[Architecture Overview](0002-architecture-overview.md)**
-   - System design diagrams
-   - Core concepts (entities, relations, chunks)
-   - Data flow pipeline
-   - Query execution flow
-
-3. **[API Reference](0003-api-reference.md)**
-   - Document endpoints
-   - Query endpoints
-   - Graph endpoints
-   - Admin endpoints
-
-4. **[Storage Backends](0004-storage-backends.md)**
-   - KV storage options
-   - Vector storage options
-   - Graph storage options
-   - Configuration tables
-
-5. **[LLM Integration](0005-llm-integration.md)**
-   - Provider configurations
-   - Embedding models
-   - Reranking options
-   - Custom implementations
-
-6. **[Deployment Guide](0006-deployment-guide.md)**
-   - Local development
-   - Docker deployment
-   - Kubernetes/Helm
-   - Production best practices
-
-7. **[Configuration Reference](0007-configuration-reference.md)**
-   - Environment variables
-   - CLI arguments
-   - QueryParam options
-   - Complete .env example
-
-8. **[Multi-Tenancy Guide](0008-multi-tenancy.md)**
-   - Tenant isolation
-   - RBAC roles/permissions
-   - TenantRAGManager
-   - API endpoints
+1. **[Quick Start Guide](0001-quick-start.md)** - Build, run, basic usage
+2. **[Architecture Overview](0002-architecture-overview.md)** - Crate structure, data flow
+3. **[API Reference](0003-api-reference.md)** - REST endpoints documentation
+4. **[Storage Backends](0004-storage-backends.md)** - Memory, PostgreSQL adapters
+5. **[LLM Integration](0005-llm-integration.md)** - OpenAI, Mock providers
+6. **[Deployment Guide](0006-deployment-guide.md)** - Docker, K8s, production
+7. **[Configuration Reference](0007-configuration-reference.md)** - Environment variables
+8. **[Multi-Tenancy Guide](0008-multi-tenancy.md)** - Namespace isolation
+9. **[Production LLM](production-llm-integration.md)** - Real LLM provider guide
 
 ---
 
-*Built with ❤️ by [HKUDS](https://github.com/HKUDS)*
-
-*Multi-tenant feature Build * 
+*Built with Rust 🦀 for performance and reliability*

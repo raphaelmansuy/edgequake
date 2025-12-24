@@ -4,6 +4,8 @@
 
 **Version**: 0.1.0 | **Last Updated**: December 2025
 
+> **Code Reference**: See [edgequake/src/main.rs](../edgequake/src/main.rs) for server configuration and [edgequake/docker/](../edgequake/docker/) for Docker files
+
 ---
 
 ## Table of Contents
@@ -20,19 +22,19 @@
 
 ## Deployment Options
 
-| Option | Best For | Complexity | Scalability |
-|--------|----------|------------|-------------|
-| **Docker Compose** | Small/Medium deployments | Low | Medium |
-| **Manual** | Development, custom setups | Medium | Low |
-| **Kubernetes** | Large scale production | High | High |
+| Option             | Best For                   | Complexity | Scalability |
+| ------------------ | -------------------------- | ---------- | ----------- |
+| **Docker Compose** | Small/Medium deployments   | Low        | Medium      |
+| **Manual**         | Development, custom setups | Medium     | Low         |
+| **Kubernetes**     | Large scale production     | High       | High        |
 
 ### Minimum Requirements
 
-| Component | CPU | Memory | Storage |
-|-----------|-----|--------|---------|
-| EdgeQuake API | 2 cores | 2GB | 1GB |
-| WebUI | 1 core | 512MB | 100MB |
-| PostgreSQL | 2 cores | 4GB | 50GB+ |
+| Component     | CPU     | Memory | Storage |
+| ------------- | ------- | ------ | ------- |
+| EdgeQuake API | 2 cores | 2GB    | 1GB     |
+| WebUI         | 1 core  | 512MB  | 100MB   |
+| PostgreSQL    | 2 cores | 4GB    | 50GB+   |
 
 ---
 
@@ -62,7 +64,7 @@ docker compose logs -f edgequake-api
 
 ```yaml
 # docker-compose.yml
-version: '3.8'
+version: "3.8"
 
 services:
   edgequake-api:
@@ -239,11 +241,11 @@ npm run build
 # Set environment
 export DATABASE_URL="postgresql://user:pass@localhost:5432/edgequake"
 export OPENAI_API_KEY="sk-..."
-export EDGEQUAKE_API_HOST="0.0.0.0"
-export EDGEQUAKE_API_PORT="8080"
+export HOST="0.0.0.0"
+export PORT="8080"
 
-# Run
-./target/release/edgequake-api
+# Run (binary is named 'edgequake', not 'edgequake-api')
+./target/release/edgequake
 ```
 
 ### Run WebUI
@@ -261,7 +263,7 @@ npm start
 ### Systemd Service
 
 ```ini
-# /etc/systemd/system/edgequake-api.service
+# /etc/systemd/system/edgequake.service
 [Unit]
 Description=EdgeQuake API Server
 After=network.target postgresql.service
@@ -271,12 +273,12 @@ Type=simple
 User=edgequake
 Group=edgequake
 WorkingDirectory=/opt/edgequake
-ExecStart=/opt/edgequake/edgequake-api
+ExecStart=/opt/edgequake/edgequake
 Restart=on-failure
 RestartSec=5
 
-Environment=EDGEQUAKE_API_HOST=0.0.0.0
-Environment=EDGEQUAKE_API_PORT=8080
+Environment=HOST=0.0.0.0
+Environment=PORT=8080
 EnvironmentFile=/etc/edgequake/config.env
 
 [Install]
@@ -285,9 +287,9 @@ WantedBy=multi-user.target
 
 ```bash
 # Enable and start
-sudo systemctl enable edgequake-api
-sudo systemctl start edgequake-api
-sudo systemctl status edgequake-api
+sudo systemctl enable edgequake
+sudo systemctl start edgequake
+sudo systemctl status edgequake
 ```
 
 ---
@@ -422,21 +424,23 @@ spec:
 
 #### API Server
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `EDGEQUAKE_API_HOST` | No | `127.0.0.1` | Listen address |
-| `EDGEQUAKE_API_PORT` | No | `8080` | Listen port |
-| `DATABASE_URL` | Prod | - | PostgreSQL connection |
-| `OPENAI_API_KEY` | Prod | - | OpenAI API key |
-| `RUST_LOG` | No | `info` | Log level |
-| `EDGEQUAKE_STORAGE_TYPE` | No | `memory` | Storage backend |
+> **Note**: See [edgequake/src/main.rs](../edgequake/src/main.rs) for actual environment variable names
+
+| Variable         | Required | Default   | Description              |
+| ---------------- | -------- | --------- | ------------------------ |
+| `HOST`           | No       | `0.0.0.0` | Listen address           |
+| `PORT`           | No       | `8080`    | Listen port              |
+| `DATABASE_URL`   | Prod     | -         | PostgreSQL connection    |
+| `OPENAI_API_KEY` | Prod     | -         | OpenAI API key           |
+| `WORKER_THREADS` | No       | CPU cores | Number of worker threads |
+| `RUST_LOG`       | No       | `info`    | Log level                |
 
 #### WebUI
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `NEXT_PUBLIC_API_URL` | Yes | - | EdgeQuake API URL |
-| `PORT` | No | `3000` | Listen port |
+| Variable              | Required | Default | Description       |
+| --------------------- | -------- | ------- | ----------------- |
+| `NEXT_PUBLIC_API_URL` | Yes      | -       | EdgeQuake API URL |
+| `PORT`                | No       | `3000`  | Listen port       |
 
 ### Configuration File
 
@@ -475,33 +479,33 @@ similarity_threshold = 0.5
 
 ### Health Endpoints
 
-| Endpoint | Purpose | Expected Response |
-|----------|---------|-------------------|
-| `GET /health` | Overall health | `{"status": "healthy"}` |
-| `GET /live` | Liveness probe | `{"live": true}` |
-| `GET /ready` | Readiness probe | `{"ready": true}` |
-| `GET /metrics` | Prometheus metrics | Prometheus format |
+| Endpoint       | Purpose            | Expected Response       |
+| -------------- | ------------------ | ----------------------- |
+| `GET /health`  | Overall health     | `{"status": "healthy"}` |
+| `GET /live`    | Liveness probe     | `{"live": true}`        |
+| `GET /ready`   | Readiness probe    | `{"ready": true}`       |
+| `GET /metrics` | Prometheus metrics | Prometheus format       |
 
 ### Prometheus Metrics
 
 ```yaml
 # prometheus.yml
 scrape_configs:
-  - job_name: 'edgequake'
+  - job_name: "edgequake"
     static_configs:
-      - targets: ['edgequake-api:8080']
-    metrics_path: '/metrics'
+      - targets: ["edgequake-api:8080"]
+    metrics_path: "/metrics"
 ```
 
 ### Key Metrics
 
-| Metric | Type | Description |
-|--------|------|-------------|
-| `edgequake_requests_total` | Counter | Total HTTP requests |
-| `edgequake_request_duration_seconds` | Histogram | Request latency |
-| `edgequake_documents_processed_total` | Counter | Documents ingested |
-| `edgequake_query_latency_seconds` | Histogram | Query response time |
-| `edgequake_llm_tokens_used` | Counter | LLM token usage |
+| Metric                                | Type      | Description         |
+| ------------------------------------- | --------- | ------------------- |
+| `edgequake_requests_total`            | Counter   | Total HTTP requests |
+| `edgequake_request_duration_seconds`  | Histogram | Request latency     |
+| `edgequake_documents_processed_total` | Counter   | Documents ingested  |
+| `edgequake_query_latency_seconds`     | Histogram | Query response time |
+| `edgequake_llm_tokens_used`           | Counter   | LLM token usage     |
 
 ### Logging
 

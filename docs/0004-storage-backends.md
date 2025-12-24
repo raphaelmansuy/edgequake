@@ -4,6 +4,8 @@
 
 **Version**: 0.1.0 | **Last Updated**: December 2025
 
+> **Code Reference**: See [edgequake/crates/edgequake-storage/](../edgequake/crates/edgequake-storage/) for all storage implementations
+
 ---
 
 ## Table of Contents
@@ -582,28 +584,27 @@ $$) AS (neighbor agtype);
 
 ### Usage
 
+> **Code Reference**: See [edgequake/crates/edgequake-storage/src/adapters/postgres/](../edgequake/crates/edgequake-storage/src/adapters/postgres/) for PostgreSQL implementations
+
 ```rust
-use edgequake_storage::adapters::postgres::{
-    PostgresConfig, PostgresPool, PostgresKVStorage, PgVectorStorage, PostgresAGEGraphStorage
-};
+use edgequake_storage::{PostgresConfig, PostgresKVStorage, PgVectorStorage, PostgresAGEGraphStorage};
 use std::sync::Arc;
 
 // Configure PostgreSQL
-let config = PostgresConfig::new(
-    "localhost",  // host
-    5432,         // port
-    "edgequake",  // database
-    "postgres",   // user
-    "password",   // password
-).with_namespace("production");
+let config = PostgresConfig {
+    host: "localhost".to_string(),
+    port: 5432,
+    database: "edgequake".to_string(),
+    user: "postgres".to_string(),
+    password: "password".to_string(),
+    namespace: "production".to_string(),
+    ..Default::default()
+};
 
-// Create connection pool
-let pool = PostgresPool::connect(&config).await?;
-
-// Create storage instances
-let kv_storage = Arc::new(PostgresKVStorage::new(pool.clone(), "my_namespace"));
-let vector_storage = Arc::new(PgVectorStorage::new(pool.clone(), "my_namespace", 1536));
-let graph_storage = Arc::new(PostgresAGEGraphStorage::new(pool.clone(), "my_namespace"));
+// Create storage instances (each manages its own connection pool)
+let kv_storage = Arc::new(PostgresKVStorage::new(config.clone()));
+let vector_storage = Arc::new(PgVectorStorage::new(config.clone()));
+let graph_storage = Arc::new(PostgresAGEGraphStorage::new(config));
 
 // Initialize storages
 kv_storage.initialize().await?;

@@ -4,6 +4,8 @@
 
 **Version**: 0.1.0 | **Last Updated**: December 2025
 
+> **Code Reference**: See [edgequake/examples/multi_tenant.rs](../edgequake/examples/multi_tenant.rs) for a working example
+
 ---
 
 ## Table of Contents
@@ -204,17 +206,26 @@ For production deployments, use PostgreSQL storage with namespace isolation:
 
 ### Namespace in PostgreSQL
 
+> **Code Reference**: See [edgequake/crates/edgequake-storage/src/adapters/postgres/config.rs](../edgequake/crates/edgequake-storage/src/adapters/postgres/config.rs)
+
 ```rust
-use edgequake_storage::adapters::postgres::{
-    PostgresConfig, PostgresPool, PostgresKVStorage, PgVectorStorage, PostgresAGEGraphStorage
+use edgequake_storage::{PostgresConfig, PostgresKVStorage, PgVectorStorage, PostgresAGEGraphStorage};
+
+// Create tenant-specific config
+let config = PostgresConfig {
+    host: "localhost".to_string(),
+    port: 5432,
+    database: "edgequake".to_string(),
+    user: "postgres".to_string(),
+    password: "password".to_string(),
+    namespace: format!("tenant_{}", tenant_id),  // Tenant-specific namespace
+    ..Default::default()
 };
 
-// Create tenant-specific storage
-let namespace = format!("tenant_{}", tenant_id);
-
-let kv_storage = Arc::new(PostgresKVStorage::new(pool.clone(), &namespace));
-let vector_storage = Arc::new(PgVectorStorage::new(pool.clone(), &namespace, 1536));
-let graph_storage = Arc::new(PostgresAGEGraphStorage::new(pool.clone(), &namespace));
+// Each storage adapter uses the namespace from config
+let kv_storage = Arc::new(PostgresKVStorage::new(config.clone()));
+let vector_storage = Arc::new(PgVectorStorage::new(config.clone()));
+let graph_storage = Arc::new(PostgresAGEGraphStorage::new(config));
 ```
 
 ### Database Schema Isolation

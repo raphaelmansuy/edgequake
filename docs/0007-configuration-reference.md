@@ -4,6 +4,8 @@
 
 **Version**: 0.1.0 | **Last Updated**: December 2025
 
+> **Code Reference**: See [edgequake/crates/edgequake-core/src/config.rs](../edgequake/crates/edgequake-core/src/config.rs) for configuration structures
+
 ---
 
 ## Table of Contents
@@ -77,20 +79,18 @@ pub struct ApiConfig {
 
 ### Environment Variables
 
-| Variable                    | Default     | Description              |
-| --------------------------- | ----------- | ------------------------ |
-| `EDGEQUAKE_API_HOST`        | `127.0.0.1` | Listen address           |
-| `EDGEQUAKE_API_PORT`        | `8080`      | Listen port              |
-| `EDGEQUAKE_CORS_ORIGINS`    | `*`         | Comma-separated origins  |
-| `EDGEQUAKE_MAX_BODY_SIZE`   | `52428800`  | Max request body (bytes) |
-| `EDGEQUAKE_REQUEST_TIMEOUT` | `300`       | Timeout (seconds)        |
+> **Note**: The actual server binary uses simpler environment variable names. See [edgequake/src/main.rs](../edgequake/src/main.rs) for the actual implementation.
+
+| Variable | Default   | Description    |
+| -------- | --------- | -------------- |
+| `HOST`   | `0.0.0.0` | Listen address |
+| `PORT`   | `8080`    | Listen port    |
 
 ### Example
 
 ```bash
-export EDGEQUAKE_API_HOST="0.0.0.0"
-export EDGEQUAKE_API_PORT="8080"
-export EDGEQUAKE_CORS_ORIGINS="http://localhost:3000,https://app.example.com"
+export HOST="0.0.0.0"
+export PORT="8080"
 ```
 
 ---
@@ -360,38 +360,20 @@ export EDGEQUAKE_DEFAULT_MODE="bypass"
 
 ### Complete Reference
 
+> **Important**: The actual binary uses simple environment variable names. Many `EDGEQUAKE_*` prefixed variables are for the configuration structs but the main binary uses simpler names like `HOST`, `PORT`, `OPENAI_API_KEY`, `WORKER_THREADS`.
+
 ```bash
 # =============================================================================
-# API Configuration
+# API Configuration (used by main binary - edgequake/src/main.rs)
 # =============================================================================
-EDGEQUAKE_HOST=0.0.0.0               # Listen address
-EDGEQUAKE_PORT=8080                  # Listen port
-
-# =============================================================================
-# Storage Configuration
-# =============================================================================
-EDGEQUAKE_DATABASE_URL=postgresql://user:pass@localhost:5432/db
-EDGEQUAKE_NAMESPACE=default          # Multi-tenant namespace
+HOST=0.0.0.0                         # Listen address
+PORT=8080                            # Listen port
+WORKER_THREADS=4                     # Number of worker threads
 
 # =============================================================================
 # LLM Configuration
 # =============================================================================
-OPENAI_API_KEY=sk-...                # OpenAI API key
-EDGEQUAKE_LLM_PROVIDER=openai        # openai | ollama
-EDGEQUAKE_LLM_MODEL=gpt-4o-mini      # LLM model
-EDGEQUAKE_EMBEDDING_MODEL=text-embedding-3-small
-
-# =============================================================================
-# Pipeline Configuration
-# =============================================================================
-EDGEQUAKE_CHUNK_SIZE=1200            # Chunk size (chars)
-EDGEQUAKE_CHUNK_OVERLAP=100          # Chunk overlap
-EDGEQUAKE_MAX_ENTITIES_PER_CHUNK=20  # Max entities
-
-# =============================================================================
-# Query Configuration
-# =============================================================================
-EDGEQUAKE_DEFAULT_MODE=hybrid        # naive|local|global|hybrid|bypass
+OPENAI_API_KEY=sk-...                # OpenAI API key (required for production)
 
 # =============================================================================
 # Logging
