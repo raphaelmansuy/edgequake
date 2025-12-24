@@ -168,7 +168,10 @@ pub async fn get_graph(
         (nodes, edges, kg.is_truncated)
     } else {
         // Return popular nodes
-        let popular = state.graph_storage.get_popular_labels(params.max_nodes).await?;
+        let popular = state
+            .graph_storage
+            .get_popular_labels(params.max_nodes)
+            .await?;
 
         let mut nodes = Vec::new();
         for id in popular {

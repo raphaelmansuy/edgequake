@@ -1515,7 +1515,11 @@ pub async fn scan_directory(
         // Check extension filter
         if !request.extensions.is_empty() {
             if let Some(ext) = file_path.extension().and_then(|e| e.to_str()) {
-                if !request.extensions.iter().any(|e| e.eq_ignore_ascii_case(ext)) {
+                if !request
+                    .extensions
+                    .iter()
+                    .any(|e| e.eq_ignore_ascii_case(ext))
+                {
                     skipped_files.push(SkippedFile {
                         path: file_path.display().to_string(),
                         reason: format!("Extension .{} not in filter list", ext),
@@ -1776,10 +1780,7 @@ pub async fn reprocess_failed(
                     }
 
                     if let Some(doc_id) = obj.get("id").and_then(|v| v.as_str()) {
-                        failed_docs.push((
-                            doc_id.to_string(),
-                            key.replace("-metadata", ""),
-                        ));
+                        failed_docs.push((doc_id.to_string(), key.replace("-metadata", "")));
                     }
                 }
             }
@@ -1798,12 +1799,12 @@ pub async fn reprocess_failed(
                     if let Some(obj) = metadata.as_object_mut() {
                         obj.insert("status".to_string(), serde_json::json!("pending"));
                         obj.insert("track_id".to_string(), serde_json::json!(new_track_id));
-                        obj.insert("retry_at".to_string(), serde_json::json!(Utc::now().to_rfc3339()));
-                        
-                        state
-                            .kv_storage
-                            .upsert(&[(metadata_key, metadata)])
-                            .await?;
+                        obj.insert(
+                            "retry_at".to_string(),
+                            serde_json::json!(Utc::now().to_rfc3339()),
+                        );
+
+                        state.kv_storage.upsert(&[(metadata_key, metadata)]).await?;
                     }
                 }
 
