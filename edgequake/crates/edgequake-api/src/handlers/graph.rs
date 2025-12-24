@@ -323,6 +323,138 @@ pub async fn search_labels(
     Ok(Json(SearchLabelsResponse { labels }))
 }
 
+// ============================================
+// GAP-036: Popular Labels / Entities
+// ============================================
+
+/// Query parameters for popular labels.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct PopularLabelsQuery {
+    /// Maximum number of labels to return.
+    #[serde(default = "default_popular_limit")]
+    pub limit: usize,
+
+    /// Minimum degree (connections) to include.
+    #[serde(default)]
+    pub min_degree: Option<usize>,
+
+    /// Filter by entity type.
+    #[serde(default)]
+    pub entity_type: Option<String>,
+}
+
+fn default_popular_limit() -> usize {
+    50
+}
+
+/// Popular label with metadata.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct PopularLabel {
+    /// Label/entity name.
+    pub label: String,
+
+    /// Entity type.
+    pub entity_type: String,
+
+    /// Number of connections (degree).
+    pub degree: usize,
+
+    /// Brief description.
+    pub description: String,
+}
+
+/// Response with popular labels.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct PopularLabelsResponse {
+    /// List of popular labels sorted by degree.
+    pub labels: Vec<PopularLabel>,
+
+    /// Total entity count in graph.
+    pub total_entities: usize,
+}
+
+/// Get popular entities/labels sorted by connection count.
+#[utoipa::path(
+    get,
+    path = "/api/v1/graph/labels/popular",
+    tag = "Graph",
+    params(
+        ("limit" = usize, Query, description = "Max results (default 50)"),
+        ("min_degree" = Option<usize>, Query, description = "Minimum connections"),
+        ("entity_type" = Option<String>, Query, description = "Filter by type")
+    ),
+    responses(
+        (status = 200, description = "Popular labels retrieved", body = PopularLabelsResponse)
+    )
+)]
+pub async fn get_popular_labels(
+    State(state): State<AppState>,
+    Query(params): Query<PopularLabelsQuery>,
+) -> ApiResult<Json<PopularLabelsResponse>> {
+    let total_entities = state.graph_storage.node_count().await?;
+
+    // Get popular labels from storage
+    let popular_ids = state
+        .graph_storage
+        .get_popular_labels(params.limit * 2) // Get more to allow filtering
+        .await?;
+
+    let mut labels = Vec::new();
+
+    for id in popular_ids {
+        if labels.len() >= params.limit {
+            break;
+        }
+
+        if let Some(node) = state.graph_storage.get_node(&id).await? {
+            let degree = state.graph_storage.node_degree(&id).await?;
+
+            // Apply min_degree filter
+            if let Some(min) = params.min_degree {
+                if degree < min {
+                    continue;
+                }
+            }
+
+            let entity_type = node
+                .properties
+                .get("entity_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("UNKNOWN")
+                .to_string();
+
+            // Apply entity_type filter
+            if let Some(ref type_filter) = params.entity_type {
+                if !entity_type.eq_ignore_ascii_case(type_filter) {
+                    continue;
+                }
+            }
+
+            let description = node
+                .properties
+                .get("description")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            labels.push(PopularLabel {
+                label: id,
+                entity_type,
+                degree,
+                description,
+            });
+        }
+    }
+
+    // Sort by degree descending
+    labels.sort_by(|a, b| b.degree.cmp(&a.degree));
+
+    Ok(Json(PopularLabelsResponse {
+        labels,
+        total_entities,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

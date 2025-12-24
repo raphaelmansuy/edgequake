@@ -81,6 +81,10 @@ fn api_v1_routes() -> Router<AppState> {
             "/documents/upload/batch",
             post(handlers::upload_files_batch),
         )
+        // Document Scan API (GAP-014) - MUST come before /documents/{document_id}
+        .route("/documents/scan", post(handlers::scan_directory))
+        // Reprocess Failed Documents (GAP-039) - MUST come before /documents/{document_id}
+        .route("/documents/reprocess", post(handlers::reprocess_failed))
         // Document by ID - comes last because {document_id} matches any path segment
         .route("/documents/{document_id}", get(handlers::get_document))
         .route(
@@ -94,6 +98,7 @@ fn api_v1_routes() -> Router<AppState> {
         .route("/graph", get(handlers::get_graph))
         .route("/graph/nodes/{node_id}", get(handlers::get_node))
         .route("/graph/labels/search", get(handlers::search_labels))
+        .route("/graph/labels/popular", get(handlers::get_popular_labels))
         // Entities (Phase 2)
         .route("/graph/entities", post(handlers::create_entity))
         .route("/graph/entities/exists", get(handlers::entity_exists))

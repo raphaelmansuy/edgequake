@@ -34,6 +34,10 @@ pub mod traits;
 
 pub use cache::{CacheConfig, CacheStats, CachedProvider, LLMCache};
 pub use error::{LlmError, Result};
+pub use providers::azure_openai::AzureOpenAIProvider;
+pub use providers::gemini::GeminiProvider;
+pub use providers::jina::JinaProvider;
+pub use providers::ollama::OllamaProvider;
 pub use providers::openai::OpenAIProvider;
 pub use rate_limiter::{RateLimitedProvider, RateLimiter, RateLimiterConfig};
 pub use reranker::{

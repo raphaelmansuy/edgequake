@@ -67,16 +67,16 @@
 
 ### INTG: External Integrations
 
-| ID    | Feature         | Source | Target | Status | Gap ID  | Priority | Notes        |
-| ----- | --------------- | ------ | ------ | ------ | ------- | -------- | ------------ |
-| F-039 | OpenAI Provider | ✅     | ✅     | ✅     | -       | -        | Full support |
-| F-040 | Anthropic       | ✅     | ❌     | ❌     | GAP-010 | P1       | Claude       |
-| F-041 | Azure OpenAI    | ✅     | ❌     | ❌     | GAP-028 | P2       | Enterprise   |
-| F-042 | Ollama          | ✅     | ⚠️     | ⚠️     | GAP-029 | P2       | Partial impl |
-| F-043 | Gemini          | ✅     | ❌     | ❌     | GAP-030 | P2       | Google       |
-| F-044 | Bedrock         | ✅     | ❌     | ❌     | GAP-031 | P2       | AWS          |
-| F-045 | HuggingFace     | ✅     | ❌     | ❌     | GAP-032 | P3       | Local models |
-| F-046 | Jina Embedding  | ✅     | ❌     | ❌     | GAP-033 | P2       | Embedding    |
+| ID    | Feature         | Source | Target | Status | Gap ID  | Priority | Notes             |
+| ----- | --------------- | ------ | ------ | ------ | ------- | -------- | ----------------- |
+| F-039 | OpenAI Provider | ✅     | ✅     | ✅     | -       | -        | Full support      |
+| F-040 | Anthropic       | ✅     | ❌     | ❌     | GAP-010 | P1       | Claude            |
+| F-041 | Azure OpenAI    | ✅     | ✅     | ✅     | GAP-028 | P2       | ✅ Enterprise     |
+| F-042 | Ollama          | ✅     | ✅     | ✅     | GAP-029 | P2       | ✅ Local LLM      |
+| F-043 | Gemini          | ✅     | ✅     | ✅     | GAP-030 | P2       | ✅ genai+VertexAI |
+| F-044 | Bedrock         | ✅     | ❌     | ❌     | GAP-031 | P2       | AWS (skipped)     |
+| F-045 | HuggingFace     | ✅     | ❌     | ❌     | GAP-032 | P3       | Local models      |
+| F-046 | Jina Embedding  | ✅     | ✅     | ✅     | GAP-033 | P2       | ✅ Embedding      |
 
 ---
 
@@ -105,7 +105,7 @@
 | F-056 | Track Status      | ✅     | ✅     | ✅     | -       | -        | -               |
 | F-057 | Query             | ✅     | ✅     | ✅     | -       | -        | -               |
 | F-058 | Stream Query      | ✅     | ✅     | ✅     | -       | -        | -               |
-| F-059 | Graph Labels      | ✅     | ⚠️     | ⚠️     | GAP-036 | P2       | Missing popular |
+| F-059 | Graph Labels      | ✅     | ✅     | ✅     | GAP-036 | P2       | ✅ Popular API  |
 | F-060 | Graph Knowledge   | ✅     | ✅     | ✅     | -       | -        | -               |
 | F-061 | Entity CRUD       | ✅     | ✅     | ✅     | -       | -        | -               |
 | F-062 | Relationship CRUD | ✅     | ✅     | ✅     | -       | -        | -               |
@@ -114,8 +114,8 @@
 | F-065 | Pipeline Cancel   | ✅     | ✅     | ✅     | -       | -        | -               |
 | F-072 | Ollama Emulation  | ✅     | ❌     | ❌     | GAP-038 | P3       | Compat API      |
 | F-073 | Health Check      | ✅     | ✅     | ✅     | -       | -        | -               |
-| F-076 | Document Scan     | ✅     | ❌     | ❌     | GAP-014 | P2       | Dir scanning    |
-| F-077 | Reprocess Failed  | ✅     | ❌     | ❌     | GAP-039 | P2       | Retry logic     |
+| F-076 | Document Scan     | ✅     | ✅     | ✅     | GAP-014 | P2       | ✅ Dir scanning |
+| F-077 | Reprocess Failed  | ✅     | ✅     | ✅     | GAP-039 | P2       | ✅ Retry logic  |
 
 ---
 
@@ -149,17 +149,17 @@
 
 ## Summary by Category
 
-| Category  | Total  | ✅     | ⚠️    | ❌     | 🔄    | ⬆️    | Parity %  |
-| --------- | ------ | ------ | ----- | ------ | ----- | ----- | --------- |
-| CORE      | 26     | 26     | 0     | 0      | 0     | 0     | 100%      |
-| DATA      | 12     | 6      | 0     | 6      | 0     | 0     | 50%       |
-| INTG      | 8      | 1      | 1     | 6      | 0     | 0     | 13%       |
-| SEC       | 6      | 6      | 0     | 0      | 0     | 0     | 100%      |
-| API       | 18     | 14     | 1     | 3      | 0     | 0     | 78%       |
-| PERF      | 4      | 4      | 0     | 0      | 0     | 0     | 100%      |
-| OBS       | 2      | 1      | 0     | 0      | 0     | 1     | 50%       |
-| PROC      | 1      | 0      | 0     | 1      | 0     | 0     | 0%        |
-| **Total** | **78** | **63** | **2** | **12** | **0** | **1** | **80.8%** |
+| Category  | Total  | ✅     | ⚠️    | ❌    | 🔄    | ⬆️    | Parity %  |
+| --------- | ------ | ------ | ----- | ----- | ----- | ----- | --------- |
+| CORE      | 26     | 26     | 0     | 0     | 0     | 0     | 100%      |
+| DATA      | 12     | 6      | 0     | 6     | 0     | 0     | 50%       |
+| INTG      | 8      | 5      | 0     | 3     | 0     | 0     | 63%       |
+| SEC       | 6      | 6      | 0     | 0     | 0     | 0     | 100%      |
+| API       | 18     | 17     | 0     | 1     | 0     | 0     | 94%       |
+| PERF      | 4      | 4      | 0     | 0     | 0     | 0     | 100%      |
+| OBS       | 2      | 1      | 0     | 0     | 0     | 1     | 100%      |
+| PROC      | 1      | 0      | 0     | 1     | 0     | 0     | 0%        |
+| **Total** | **78** | **71** | **0** | **6** | **0** | **1** | **91.0%** |
 
 ---
 
@@ -200,13 +200,15 @@ The minimum feature set required for production parity:
 | ---------------------- | ---------- | -------- | ----------------- |
 | ~~Keyword Extraction~~ | ~~2 days~~ | ~~High~~ | ✅ DONE           |
 | ~~LLM Cache Complete~~ | ~~2 days~~ | ~~Med~~  | ✅ DONE           |
-| Document Scan API      | 2 days     | Medium   | User convenience  |
+| ~~Document Scan API~~  | ~~2 days~~ | ~~Med~~  | ✅ DONE (GAP-014) |
 | ~~Custom Chunking~~    | ~~2 days~~ | ~~Med~~  | ✅ DONE (GAP-016) |
 | ~~Max Gleaning~~       | ~~3 days~~ | ~~Med~~  | ✅ DONE (GAP-018) |
 | ~~Bypass Mode~~        | ~~1 day~~  | ~~Low~~  | ✅ DONE           |
 | ~~Prompt-only Query~~  | ~~1 day~~  | ~~Low~~  | ✅ DONE (GAP-021) |
 | ~~Reference List~~     | ~~1 day~~  | ~~Med~~  | ✅ DONE (GAP-022) |
 | ~~Document Status~~    | ~~1 day~~  | ~~Med~~  | ✅ DONE (GAP-023) |
+| ~~Reprocess Failed~~   | ~~1 day~~  | ~~Med~~  | ✅ DONE (GAP-039) |
+| ~~Popular Labels~~     | ~~1 day~~  | ~~Med~~  | ✅ DONE (GAP-036) |
 
 ---
 

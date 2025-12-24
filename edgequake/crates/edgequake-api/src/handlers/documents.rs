@@ -1376,6 +1376,480 @@ pub async fn get_track_status(
     }))
 }
 
+// ============================================
+// GAP-014: Document Scan API
+// ============================================
+
+/// Request to scan a directory for documents.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct ScanDirectoryRequest {
+    /// Path to the directory to scan.
+    pub path: String,
+
+    /// File extensions to include (e.g., ["txt", "md", "pdf"]).
+    /// If empty, all files are included.
+    #[serde(default)]
+    pub extensions: Vec<String>,
+
+    /// Whether to scan subdirectories recursively.
+    #[serde(default = "default_recursive")]
+    pub recursive: bool,
+
+    /// Maximum number of files to scan.
+    #[serde(default = "default_max_files")]
+    pub max_files: usize,
+
+    /// Whether to process documents asynchronously.
+    #[serde(default = "default_true")]
+    pub async_processing: bool,
+
+    /// Optional track ID for batch grouping.
+    #[serde(default)]
+    pub track_id: Option<String>,
+}
+
+fn default_recursive() -> bool {
+    true
+}
+
+fn default_max_files() -> usize {
+    1000
+}
+
+fn default_true() -> bool {
+    true
+}
+
+/// Response from directory scan.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ScanDirectoryResponse {
+    /// Track ID for the scan batch.
+    pub track_id: String,
+
+    /// Number of files found.
+    pub files_found: usize,
+
+    /// Number of files queued for processing.
+    pub files_queued: usize,
+
+    /// Number of files skipped (already processed or filtered).
+    pub files_skipped: usize,
+
+    /// List of queued file paths.
+    pub queued_files: Vec<String>,
+
+    /// List of skipped file paths with reasons.
+    pub skipped_files: Vec<SkippedFile>,
+}
+
+/// Information about a skipped file.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct SkippedFile {
+    /// Path to the file.
+    pub path: String,
+
+    /// Reason for skipping.
+    pub reason: String,
+}
+
+/// Scan a directory and queue documents for processing.
+#[utoipa::path(
+    post,
+    path = "/api/v1/documents/scan",
+    tag = "Documents",
+    request_body = ScanDirectoryRequest,
+    responses(
+        (status = 200, description = "Directory scanned successfully", body = ScanDirectoryResponse),
+        (status = 400, description = "Invalid request"),
+        (status = 404, description = "Directory not found")
+    )
+)]
+pub async fn scan_directory(
+    State(state): State<AppState>,
+    Json(request): Json<ScanDirectoryRequest>,
+) -> ApiResult<Json<ScanDirectoryResponse>> {
+    use std::path::Path;
+
+    let base_path = Path::new(&request.path);
+
+    // Validate path exists and is a directory
+    if !base_path.exists() {
+        return Err(ApiError::NotFound(format!(
+            "Directory not found: {}",
+            request.path
+        )));
+    }
+
+    if !base_path.is_dir() {
+        return Err(ApiError::BadRequest(format!(
+            "Path is not a directory: {}",
+            request.path
+        )));
+    }
+
+    // Generate track ID
+    let track_id = request.track_id.unwrap_or_else(|| {
+        format!(
+            "scan_{}_{}",
+            Utc::now().format("%Y%m%d_%H%M%S"),
+            &Uuid::new_v4().to_string()[..8]
+        )
+    });
+
+    let mut queued_files = Vec::new();
+    let mut skipped_files = Vec::new();
+    let mut files_found = 0;
+
+    // Collect files to process
+    let entries = collect_files(base_path, request.recursive, request.max_files)?;
+
+    for entry in entries {
+        files_found += 1;
+
+        let file_path = entry.path();
+        let file_name = file_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown");
+
+        // Check extension filter
+        if !request.extensions.is_empty() {
+            if let Some(ext) = file_path.extension().and_then(|e| e.to_str()) {
+                if !request.extensions.iter().any(|e| e.eq_ignore_ascii_case(ext)) {
+                    skipped_files.push(SkippedFile {
+                        path: file_path.display().to_string(),
+                        reason: format!("Extension .{} not in filter list", ext),
+                    });
+                    continue;
+                }
+            } else {
+                skipped_files.push(SkippedFile {
+                    path: file_path.display().to_string(),
+                    reason: "No extension".to_string(),
+                });
+                continue;
+            }
+        }
+
+        // Try to read file content
+        let content = match std::fs::read_to_string(&file_path) {
+            Ok(c) => c,
+            Err(e) => {
+                skipped_files.push(SkippedFile {
+                    path: file_path.display().to_string(),
+                    reason: format!("Failed to read: {}", e),
+                });
+                continue;
+            }
+        };
+
+        if content.trim().is_empty() {
+            skipped_files.push(SkippedFile {
+                path: file_path.display().to_string(),
+                reason: "Empty file".to_string(),
+            });
+            continue;
+        }
+
+        // Check size limit
+        if content.len() > state.config.max_document_size {
+            skipped_files.push(SkippedFile {
+                path: file_path.display().to_string(),
+                reason: format!(
+                    "Exceeds max size ({} > {})",
+                    content.len(),
+                    state.config.max_document_size
+                ),
+            });
+            continue;
+        }
+
+        // Generate document ID
+        let document_id = Uuid::new_v4().to_string();
+
+        // Generate content summary
+        let content_summary = if content.len() > 200 {
+            format!("{}...", &content.chars().take(200).collect::<String>())
+        } else {
+            content.clone()
+        };
+
+        // Store document metadata
+        let doc_metadata_key = format!("{}-metadata", document_id);
+        let doc_metadata = serde_json::json!({
+            "id": document_id,
+            "title": file_name,
+            "file_path": file_path.display().to_string(),
+            "content_summary": content_summary,
+            "content_length": content.len(),
+            "track_id": track_id,
+            "created_at": Utc::now().to_rfc3339(),
+            "status": "pending",
+        });
+        state
+            .kv_storage
+            .upsert(&[(doc_metadata_key, doc_metadata)])
+            .await?;
+
+        // Store document content
+        let doc_content_key = format!("{}-content", document_id);
+        let doc_content = serde_json::json!({
+            "content": content,
+        });
+        state
+            .kv_storage
+            .upsert(&[(doc_content_key, doc_content)])
+            .await?;
+
+        if request.async_processing {
+            // Create task for background processing
+            use edgequake_tasks::{Task, TaskType, TextInsertData};
+
+            let task_data = TextInsertData {
+                text: content,
+                file_source: file_path.display().to_string(),
+                workspace_id: "default".to_string(),
+                metadata: Some(serde_json::json!({
+                    "document_id": document_id,
+                    "title": file_name,
+                    "track_id": track_id,
+                })),
+            };
+
+            let task = Task::new(TaskType::Insert, serde_json::to_value(task_data).unwrap());
+
+            state
+                .task_storage
+                .create_task(&task)
+                .await
+                .map_err(|e| ApiError::Internal(format!("Failed to create task: {}", e)))?;
+
+            state
+                .task_queue
+                .send(task)
+                .await
+                .map_err(|e| ApiError::Internal(format!("Failed to queue task: {}", e)))?;
+        }
+
+        queued_files.push(file_path.display().to_string());
+    }
+
+    Ok(Json(ScanDirectoryResponse {
+        track_id,
+        files_found,
+        files_queued: queued_files.len(),
+        files_skipped: skipped_files.len(),
+        queued_files,
+        skipped_files,
+    }))
+}
+
+/// Collect files from a directory.
+fn collect_files(
+    path: &std::path::Path,
+    recursive: bool,
+    max_files: usize,
+) -> Result<Vec<std::fs::DirEntry>, ApiError> {
+    let mut files = Vec::new();
+
+    fn visit_dir(
+        dir: &std::path::Path,
+        recursive: bool,
+        max_files: usize,
+        files: &mut Vec<std::fs::DirEntry>,
+    ) -> Result<(), ApiError> {
+        if files.len() >= max_files {
+            return Ok(());
+        }
+
+        let entries = std::fs::read_dir(dir).map_err(|e| {
+            ApiError::Internal(format!("Failed to read directory {}: {}", dir.display(), e))
+        })?;
+
+        for entry in entries {
+            if files.len() >= max_files {
+                break;
+            }
+
+            let entry = entry.map_err(|e| {
+                ApiError::Internal(format!("Failed to read directory entry: {}", e))
+            })?;
+
+            let path = entry.path();
+
+            if path.is_file() {
+                files.push(entry);
+            } else if path.is_dir() && recursive {
+                visit_dir(&path, recursive, max_files, files)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    visit_dir(path, recursive, max_files, &mut files)?;
+    Ok(files)
+}
+
+// ============================================
+// GAP-039: Reprocess Failed Documents
+// ============================================
+
+/// Request to reprocess failed documents.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct ReprocessFailedRequest {
+    /// Optional track ID to reprocess. If not provided, all failed documents are reprocessed.
+    #[serde(default)]
+    pub track_id: Option<String>,
+
+    /// Maximum number of documents to reprocess.
+    #[serde(default = "default_max_reprocess")]
+    pub max_documents: usize,
+}
+
+fn default_max_reprocess() -> usize {
+    100
+}
+
+/// Response from reprocess operation.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ReprocessFailedResponse {
+    /// Track ID for the reprocess batch.
+    pub track_id: String,
+
+    /// Number of failed documents found.
+    pub failed_found: usize,
+
+    /// Number of documents queued for reprocessing.
+    pub requeued: usize,
+
+    /// List of document IDs being reprocessed.
+    pub document_ids: Vec<String>,
+}
+
+/// Reprocess failed documents.
+#[utoipa::path(
+    post,
+    path = "/api/v1/documents/reprocess",
+    tag = "Documents",
+    request_body = ReprocessFailedRequest,
+    responses(
+        (status = 200, description = "Failed documents requeued", body = ReprocessFailedResponse),
+        (status = 400, description = "Invalid request")
+    )
+)]
+pub async fn reprocess_failed(
+    State(state): State<AppState>,
+    Json(request): Json<ReprocessFailedRequest>,
+) -> ApiResult<Json<ReprocessFailedResponse>> {
+    // Generate new track ID for reprocess batch
+    let new_track_id = format!(
+        "reprocess_{}_{}",
+        Utc::now().format("%Y%m%d_%H%M%S"),
+        &Uuid::new_v4().to_string()[..8]
+    );
+
+    // Get all metadata keys
+    let all_keys: Vec<String> = state.kv_storage.keys().await?;
+
+    let mut failed_docs = Vec::new();
+    let mut requeued_ids = Vec::new();
+
+    // Find failed documents
+    for key in all_keys.iter().filter(|k| k.ends_with("-metadata")) {
+        if failed_docs.len() >= request.max_documents {
+            break;
+        }
+
+        if let Some(value) = state.kv_storage.get_by_id(key).await? {
+            if let Some(obj) = value.as_object() {
+                let status = obj.get("status").and_then(|v| v.as_str());
+                let doc_track_id = obj.get("track_id").and_then(|v| v.as_str());
+
+                // Check if document is failed
+                if status == Some("failed") {
+                    // If track_id filter specified, check it
+                    if let Some(ref filter_track) = request.track_id {
+                        if doc_track_id != Some(filter_track.as_str()) {
+                            continue;
+                        }
+                    }
+
+                    if let Some(doc_id) = obj.get("id").and_then(|v| v.as_str()) {
+                        failed_docs.push((
+                            doc_id.to_string(),
+                            key.replace("-metadata", ""),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    // Requeue failed documents
+    for (doc_id, _doc_key) in &failed_docs {
+        // Get document content
+        let content_key = format!("{}-content", doc_id);
+        if let Some(content_value) = state.kv_storage.get_by_id(&content_key).await? {
+            if let Some(content) = content_value.get("content").and_then(|v| v.as_str()) {
+                // Update status to pending
+                let metadata_key = format!("{}-metadata", doc_id);
+                if let Some(mut metadata) = state.kv_storage.get_by_id(&metadata_key).await? {
+                    if let Some(obj) = metadata.as_object_mut() {
+                        obj.insert("status".to_string(), serde_json::json!("pending"));
+                        obj.insert("track_id".to_string(), serde_json::json!(new_track_id));
+                        obj.insert("retry_at".to_string(), serde_json::json!(Utc::now().to_rfc3339()));
+                        
+                        state
+                            .kv_storage
+                            .upsert(&[(metadata_key, metadata)])
+                            .await?;
+                    }
+                }
+
+                // Create new task
+                use edgequake_tasks::{Task, TaskType, TextInsertData};
+
+                let title = doc_id.clone();
+                let task_data = TextInsertData {
+                    text: content.to_string(),
+                    file_source: title.clone(),
+                    workspace_id: "default".to_string(),
+                    metadata: Some(serde_json::json!({
+                        "document_id": doc_id,
+                        "title": title,
+                        "track_id": new_track_id,
+                        "is_retry": true,
+                    })),
+                };
+
+                let task = Task::new(TaskType::Insert, serde_json::to_value(task_data).unwrap());
+
+                state
+                    .task_storage
+                    .create_task(&task)
+                    .await
+                    .map_err(|e| ApiError::Internal(format!("Failed to create task: {}", e)))?;
+
+                state
+                    .task_queue
+                    .send(task)
+                    .await
+                    .map_err(|e| ApiError::Internal(format!("Failed to queue task: {}", e)))?;
+
+                requeued_ids.push(doc_id.clone());
+            }
+        }
+    }
+
+    Ok(Json(ReprocessFailedResponse {
+        track_id: new_track_id,
+        failed_found: failed_docs.len(),
+        requeued: requeued_ids.len(),
+        document_ids: requeued_ids,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
