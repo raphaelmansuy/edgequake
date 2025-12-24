@@ -1,29 +1,25 @@
-# LightRAG Storage Backends
+# EdgeQuake Storage Backends
 
 > Complete guide to storage backend configuration and implementation
 
-**Version**: 1.4.9.2 | **Last Updated**: December 2025
+**Version**: 0.1.0 | **Last Updated**: December 2025
 
 ---
 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Storage Types](#storage-types)
-3. [Backend Comparison](#backend-comparison)
-4. [PostgreSQL Backend](#postgresql-backend)
-5. [MongoDB Backend](#mongodb-backend)
-6. [Neo4j Backend](#neo4j-backend)
-7. [Redis Backend](#redis-backend)
-8. [File-Based Backends](#file-based-backends)
-9. [Vector Databases](#vector-databases)
-10. [Configuration Reference](#configuration-reference)
+2. [Storage Traits](#storage-traits)
+3. [Memory Storage](#memory-storage)
+4. [PostgreSQL Storage](#postgresql-storage)
+5. [Configuration Reference](#configuration-reference)
+6. [Migration Guide](#migration-guide)
 
 ---
 
 ## Overview
 
-LightRAG uses four types of storage, each with multiple backend options:
+EdgeQuake uses three types of storage, each with pluggable backend implementations:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -31,7 +27,7 @@ LightRAG uses four types of storage, each with multiple backend options:
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │                    LightRAG Core                                 │   │
+│  │                    EdgeQuake Core                                │   │
 │  └───────────────────────────┬─────────────────────────────────────┘   │
 │                              │                                          │
 │          ┌───────────────────┼───────────────────┐                     │
@@ -48,8 +44,8 @@ LightRAG uses four types of storage, each with multiple backend options:
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │                   Backend Implementations                        │   │
 │  │                                                                  │   │
-│  │  PostgreSQL │ MongoDB │ Redis │ Neo4j │ Milvus │ Qdrant │ FAISS │   │
-│  │  JSON/File  │ NetworkX │ NanoVectorDB │ Memgraph │ ...           │   │
+│  │       Memory (Development)  │  PostgreSQL (Production)          │   │
+│  │                             │  + pgvector + AGE                 │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -57,730 +53,582 @@ LightRAG uses four types of storage, each with multiple backend options:
 
 ---
 
-## Storage Types
+## Storage Traits
 
-### 1. Key-Value Storage (`BaseKVStorage`)
+EdgeQuake defines abstract traits for each storage type, allowing pluggable backends.
 
-Stores documents, chunks, and LLM cache.
+### KVStorage Trait
 
-| Implementation | Description | Use Case |
-|----------------|-------------|----------|
-| `JsonKVStorage` | File-based JSON | Development, single-node |
-| `PGKVStorage` | PostgreSQL tables | Production, multi-node |
-| `MongoKVStorage` | MongoDB collections | Production, flexible schema |
-| `RedisKVStorage` | Redis hash maps | High-performance caching |
+Key-value storage for documents, chunks, and metadata.
 
-### 2. Vector Storage (`BaseVectorStorage`)
+```rust
+// Located: edgequake/crates/edgequake-storage/src/traits/kv.rs
 
-Stores and queries embedding vectors.
+#[async_trait]
+pub trait KVStorage: Send + Sync {
+    /// Get a value by key.
+    async fn get(&self, key: &str) -> Result<Option<serde_json::Value>>;
+    
+    /// Get multiple values by keys.
+    async fn get_batch(&self, keys: &[String]) -> Result<Vec<(String, serde_json::Value)>>;
+    
+    /// Upsert key-value pairs.
+    async fn upsert(&self, items: &[(String, serde_json::Value)]) -> Result<()>;
+    
+    /// Delete keys.
+    async fn delete(&self, keys: &[String]) -> Result<()>;
+    
+    /// List all keys (with optional prefix filter).
+    async fn keys(&self, prefix: Option<&str>) -> Result<Vec<String>>;
+    
+    /// Check if key exists.
+    async fn exists(&self, key: &str) -> Result<bool>;
+}
+```
 
-| Implementation | Description | Use Case |
-|----------------|-------------|----------|
-| `NanoVectorDBStorage` | In-memory, file-persisted | Development, small datasets |
-| `PGVectorStorage` | PostgreSQL + pgvector | Production, unified DB |
-| `MilvusVectorDBStorage` | Milvus vector DB | Large-scale production |
-| `QdrantVectorDBStorage` | Qdrant vector DB | Cloud-native production |
-| `FaissVectorDBStorage` | FAISS index | Local high-performance |
-| `MongoVectorDBStorage` | MongoDB Atlas Vector | MongoDB ecosystem |
+**Usage:**
 
-### 3. Graph Storage (`BaseGraphStorage`)
+```rust
+// Store document metadata
+let metadata = serde_json::json!({
+    "title": "Document Title",
+    "created_at": "2025-12-24T14:30:00Z"
+});
+kv_storage.upsert(&[("doc-123-metadata".to_string(), metadata)]).await?;
 
-Stores knowledge graph nodes and edges.
+// Retrieve
+let doc = kv_storage.get("doc-123-metadata").await?;
+```
 
-| Implementation | Description | Use Case |
-|----------------|-------------|----------|
-| `NetworkXStorage` | In-memory NetworkX | Development, small graphs |
-| `PGGraphStorage` | PostgreSQL tables | Production, unified DB |
-| `Neo4JStorage` | Native graph DB | Complex graph queries |
-| `MemgraphStorage` | In-memory graph DB | Real-time analytics |
-| `MongoGraphStorage` | MongoDB documents | Document-graph hybrid |
+### VectorStorage Trait
 
-### 4. Document Status Storage (`DocStatusStorage`)
+Vector storage for embeddings and similarity search.
 
-Tracks document processing status.
+```rust
+// Located: edgequake/crates/edgequake-storage/src/traits/vector.rs
 
-| Implementation | Description | Use Case |
-|----------------|-------------|----------|
-| `JsonDocStatusStorage` | File-based JSON | Development |
-| `PGDocStatusStorage` | PostgreSQL | Production |
-| `MongoDocStatusStorage` | MongoDB | Production |
-| `RedisDocStatusStorage` | Redis | Distributed |
+#[async_trait]
+pub trait VectorStorage: Send + Sync {
+    /// Insert or update vectors.
+    async fn upsert(&self, vectors: &[VectorEntry]) -> Result<()>;
+    
+    /// Search for similar vectors.
+    async fn search(
+        &self, 
+        query: &[f32], 
+        top_k: usize,
+        filter: Option<&VectorFilter>
+    ) -> Result<Vec<SearchResult>>;
+    
+    /// Delete vectors by ID.
+    async fn delete(&self, ids: &[String]) -> Result<()>;
+    
+    /// Get vector by ID.
+    async fn get(&self, id: &str) -> Result<Option<VectorEntry>>;
+    
+    /// Get total vector count.
+    async fn count(&self) -> Result<usize>;
+}
+
+pub struct VectorEntry {
+    pub id: String,
+    pub vector: Vec<f32>,
+    pub metadata: HashMap<String, serde_json::Value>,
+}
+
+pub struct SearchResult {
+    pub id: String,
+    pub score: f32,
+    pub metadata: HashMap<String, serde_json::Value>,
+}
+```
+
+**Usage:**
+
+```rust
+// Store embedding
+let entry = VectorEntry {
+    id: "chunk-001".to_string(),
+    vector: embedding_provider.embed(&["chunk text"]).await?[0].clone(),
+    metadata: HashMap::from([
+        ("doc_id".to_string(), json!("doc-123")),
+        ("chunk_index".to_string(), json!(0)),
+    ]),
+};
+vector_storage.upsert(&[entry]).await?;
+
+// Search
+let results = vector_storage.search(&query_embedding, 10, None).await?;
+```
+
+### GraphStorage Trait
+
+Graph storage for knowledge graph nodes and edges.
+
+```rust
+// Located: edgequake/crates/edgequake-storage/src/traits/graph.rs
+
+#[async_trait]
+pub trait GraphStorage: Send + Sync {
+    /// Add or update a node.
+    async fn add_node(&self, node: GraphNode) -> Result<()>;
+    
+    /// Add or update an edge.
+    async fn add_edge(&self, edge: GraphEdge) -> Result<()>;
+    
+    /// Get node by ID.
+    async fn get_node(&self, id: &str) -> Result<Option<GraphNode>>;
+    
+    /// Get edge by ID.
+    async fn get_edge(&self, id: &str) -> Result<Option<GraphEdge>>;
+    
+    /// Get neighbors of a node.
+    async fn get_neighbors(&self, id: &str, depth: usize) -> Result<Vec<GraphNode>>;
+    
+    /// Get knowledge graph subgraph.
+    async fn get_knowledge_graph(
+        &self,
+        start_node: &str,
+        depth: usize,
+        limit: usize
+    ) -> Result<KnowledgeGraph>;
+    
+    /// Delete node and its edges.
+    async fn delete_node(&self, id: &str) -> Result<()>;
+    
+    /// Delete edge.
+    async fn delete_edge(&self, id: &str) -> Result<()>;
+    
+    /// Get node count.
+    async fn node_count(&self) -> Result<usize>;
+    
+    /// Get edge count.
+    async fn edge_count(&self) -> Result<usize>;
+    
+    /// Get node degree.
+    async fn node_degree(&self, id: &str) -> Result<usize>;
+    
+    /// Get popular labels (most connected nodes).
+    async fn get_popular_labels(&self, limit: usize) -> Result<Vec<String>>;
+}
+
+pub struct GraphNode {
+    pub id: String,
+    pub properties: HashMap<String, serde_json::Value>,
+}
+
+pub struct GraphEdge {
+    pub id: String,
+    pub source: String,
+    pub target: String,
+    pub properties: HashMap<String, serde_json::Value>,
+}
+
+pub struct KnowledgeGraph {
+    pub nodes: Vec<GraphNode>,
+    pub edges: Vec<GraphEdge>,
+    pub is_truncated: bool,
+}
+```
 
 ---
 
-## Backend Comparison
+## Memory Storage
 
-### Feature Matrix
+In-memory storage for development and testing.
 
+### Features
+
+| Feature | Support |
+|---------|---------|
+| Persistence | ❌ (data lost on restart) |
+| Concurrency | ✅ (thread-safe) |
+| Performance | ✅ (very fast) |
+| Production | ❌ (development only) |
+
+### Usage
+
+```rust
+use edgequake_storage::MemoryStorage;
+use std::sync::Arc;
+
+// Create memory storage
+let storage = MemoryStorage::new();
+
+// Use for all storage types
+let kv_storage: Arc<dyn KVStorage> = Arc::new(storage.clone());
+let vector_storage: Arc<dyn VectorStorage> = Arc::new(storage.clone());
+let graph_storage: Arc<dyn GraphStorage> = Arc::new(storage.clone());
+
+// Initialize EdgeQuake
+let mut eq = EdgeQuake::new(config)
+    .with_storage_backends(kv_storage, vector_storage, graph_storage);
 ```
-┌────────────────────┬─────────┬────────┬───────┬────────┬───────────┐
-│     Feature        │ PG Full │ Mongo  │ Neo4j │ Mixed  │ File-Only │
-├────────────────────┼─────────┼────────┼───────┼────────┼───────────┤
-│ KV Storage         │    ✅   │   ✅   │   ❌  │   ✅   │    ✅     │
-│ Vector Storage     │    ✅   │   ✅   │   ❌  │   ✅   │    ✅     │
-│ Graph Storage      │    ✅   │   ✅   │   ✅  │   ✅   │    ✅     │
-│ Doc Status         │    ✅   │   ✅   │   ❌  │   ✅   │    ✅     │
-│ Multi-tenant       │    ✅   │   ✅   │   ✅  │   ✅   │    ⚠️    │
-│ Horizontal Scale   │    ✅   │   ✅   │   ✅  │   ✅   │    ❌     │
-│ ACID Transactions  │    ✅   │   ⚠️   │   ✅  │   ⚠️   │    ❌     │
-│ Zero Dependencies  │    ❌   │   ❌   │   ❌  │   ❌   │    ✅     │
-│ Graph Queries      │    ⚠️   │   ⚠️   │   ✅  │   ✅   │    ⚠️    │
-│ Vector Search      │    ✅   │   ✅   │   ❌  │   ✅   │    ✅     │
-└────────────────────┴─────────┴────────┴───────┴────────┴───────────┘
 
-Legend: ✅ Full support  ⚠️ Limited  ❌ Not supported
+### Implementation Details
+
+```rust
+// Located: edgequake/crates/edgequake-storage/src/adapters/memory/
+
+pub struct MemoryStorage {
+    kv: Arc<RwLock<HashMap<String, serde_json::Value>>>,
+    vectors: Arc<RwLock<HashMap<String, VectorEntry>>>,
+    nodes: Arc<RwLock<HashMap<String, GraphNode>>>,
+    edges: Arc<RwLock<HashMap<String, GraphEdge>>>,
+}
+
+impl MemoryStorage {
+    pub fn new() -> Self {
+        Self {
+            kv: Arc::new(RwLock::new(HashMap::new())),
+            vectors: Arc::new(RwLock::new(HashMap::new())),
+            nodes: Arc::new(RwLock::new(HashMap::new())),
+            edges: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+}
 ```
-
-### Performance Characteristics
-
-| Backend | Write Speed | Read Speed | Memory Usage | Disk Usage |
-|---------|-------------|------------|--------------|------------|
-| PostgreSQL Full | Fast | Fast | Medium | Compact |
-| MongoDB Full | Fast | Fast | Medium | Medium |
-| Neo4j + Vector | Slow | Fast (graph) | High | Medium |
-| File-based | Slow | Medium | Low | Compact |
-| Milvus/Qdrant | Fast | Very Fast | High | Large |
 
 ---
 
-## PostgreSQL Backend
+## PostgreSQL Storage
 
-### Complete PostgreSQL Setup
+Production-ready PostgreSQL storage with pgvector and Apache AGE.
 
-PostgreSQL can handle ALL storage types (recommended for production):
+### Features
 
-```python
-from lightrag import LightRAG
+| Feature | Support |
+|---------|---------|
+| Persistence | ✅ |
+| Concurrency | ✅ (connection pooling) |
+| Vector Search | ✅ (pgvector) |
+| Graph Queries | ✅ (Apache AGE) |
+| Scalability | ✅ (horizontal scaling) |
+| ACID | ✅ |
+| Production | ✅ |
 
-rag = LightRAG(
-    working_dir="./rag_storage",
+### Prerequisites
 
-    # All PostgreSQL backends
-    kv_storage="PGKVStorage",
-    vector_storage="PGVectorStorage",
-    graph_storage="PGGraphStorage",
-    doc_status_storage="PGDocStatusStorage",
-)
+```sql
+-- Enable extensions
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS age;
+
+-- Load AGE
+LOAD 'age';
+SET search_path = ag_catalog, "$user", public;
+```
+
+### Configuration
+
+```rust
+use edgequake_core::Config;
+
+let config = Config {
+    storage: StorageConfig {
+        database_url: "postgres://user:pass@localhost:5432/edgequake".to_string(),
+        max_connections: 10,
+        min_connections: 2,
+        connect_timeout_secs: 30,
+        namespace: Some("default".to_string()),
+    },
+    ..Default::default()
+};
 ```
 
 ### Environment Variables
 
 ```bash
 # Required
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=your_password
-POSTGRES_DATABASE=lightrag
+EDGEQUAKE_DATABASE_URL=postgres://user:pass@localhost:5432/edgequake
 
 # Optional
-POSTGRES_MAX_CONNECTIONS=100
-POSTGRES_SSL_MODE=prefer           # disable|allow|prefer|require|verify-ca|verify-full
-POSTGRES_SSL_CERT=/path/to/cert
-POSTGRES_SSL_KEY=/path/to/key
-POSTGRES_SSL_ROOT_CERT=/path/to/ca
-
-# Vector index configuration
-POSTGRES_VECTOR_INDEX_TYPE=hnsw    # hnsw|ivfflat
-POSTGRES_HNSW_M=16
-POSTGRES_HNSW_EF=64
-POSTGRES_IVFFLAT_LISTS=100
+POSTGRES_MAX_CONNECTIONS=10
+POSTGRES_MIN_CONNECTIONS=2
+POSTGRES_CONNECT_TIMEOUT=30
+EDGEQUAKE_NAMESPACE=default
 ```
 
-### Schema Overview
+### Schema
 
 ```sql
 -- Documents table
-CREATE TABLE LIGHTRAG_DOC_FULL (
-    workspace VARCHAR(1024) NOT NULL,
-    id VARCHAR(255) NOT NULL,
-    doc_name VARCHAR(1024),
+CREATE TABLE IF NOT EXISTS edgequake_documents (
+    id UUID PRIMARY KEY,
+    namespace VARCHAR(255) NOT NULL DEFAULT 'default',
+    title VARCHAR(1024),
     content TEXT,
-    meta JSONB,
-    createtime TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
-    updatetime TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (workspace, id)
+    content_hash VARCHAR(64),
+    status VARCHAR(50) NOT NULL DEFAULT 'pending',
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    processed_at TIMESTAMPTZ
 );
 
--- Chunks table
-CREATE TABLE LIGHTRAG_DOC_CHUNKS (
-    workspace VARCHAR(1024) NOT NULL,
-    id VARCHAR(255) NOT NULL,
-    full_doc_id VARCHAR(255),
-    chunk_order_index INT,
-    tokens INT,
-    content TEXT,
-    content_summary TEXT,
-    file_path VARCHAR(32768),
-    create_time TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
-    update_time TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (workspace, id)
+CREATE INDEX idx_documents_namespace ON edgequake_documents(namespace);
+CREATE INDEX idx_documents_status ON edgequake_documents(status);
+CREATE INDEX idx_documents_hash ON edgequake_documents(content_hash);
+
+-- Chunks table with vector embeddings
+CREATE TABLE IF NOT EXISTS edgequake_chunks (
+    id UUID PRIMARY KEY,
+    namespace VARCHAR(255) NOT NULL DEFAULT 'default',
+    document_id UUID NOT NULL REFERENCES edgequake_documents(id) ON DELETE CASCADE,
+    chunk_index INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    embedding vector(1536),
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Entity vectors (pgvector extension required)
-CREATE TABLE LIGHTRAG_VDB_ENTITY (
-    workspace VARCHAR(1024) NOT NULL,
-    id VARCHAR(255) NOT NULL,
-    entity_name VARCHAR(1024),
-    content TEXT,
-    content_vector VECTOR(1024),  -- Adjust dimension to match embedding
-    source_id TEXT,
-    file_path TEXT,
-    create_time TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
-    update_time TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (workspace, id)
-);
+CREATE INDEX idx_chunks_document ON edgequake_chunks(document_id);
+CREATE INDEX idx_chunks_namespace ON edgequake_chunks(namespace);
 
--- Graph nodes
-CREATE TABLE LIGHTRAG_GRAPH_NODES (
-    workspace VARCHAR(1024) NOT NULL,
-    id VARCHAR(255) NOT NULL,
-    entity_type VARCHAR(255),
+-- Vector similarity index (HNSW)
+CREATE INDEX idx_chunks_embedding ON edgequake_chunks 
+    USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 64);
+
+-- Entities table
+CREATE TABLE IF NOT EXISTS edgequake_entities (
+    id VARCHAR(512) PRIMARY KEY,
+    namespace VARCHAR(255) NOT NULL DEFAULT 'default',
+    entity_type VARCHAR(255) NOT NULL,
     description TEXT,
-    source_id TEXT,
-    file_path TEXT,
-    created_at INT,
-    PRIMARY KEY (workspace, id)
+    embedding vector(1536),
+    source_ids TEXT[],
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Graph edges
-CREATE TABLE LIGHTRAG_GRAPH_EDGES (
-    workspace VARCHAR(1024) NOT NULL,
-    source_id VARCHAR(255) NOT NULL,
-    target_id VARCHAR(255) NOT NULL,
-    weight FLOAT,
+CREATE INDEX idx_entities_namespace ON edgequake_entities(namespace);
+CREATE INDEX idx_entities_type ON edgequake_entities(entity_type);
+CREATE INDEX idx_entities_embedding ON edgequake_entities 
+    USING hnsw (embedding vector_cosine_ops);
+
+-- Relationships table
+CREATE TABLE IF NOT EXISTS edgequake_relationships (
+    id UUID PRIMARY KEY,
+    namespace VARCHAR(255) NOT NULL DEFAULT 'default',
+    source_entity VARCHAR(512) NOT NULL REFERENCES edgequake_entities(id),
+    target_entity VARCHAR(512) NOT NULL REFERENCES edgequake_entities(id),
+    relationship_type VARCHAR(255) NOT NULL,
     description TEXT,
-    keywords TEXT,
-    source_chunk_id TEXT,
-    file_path TEXT,
-    created_at INT,
-    PRIMARY KEY (workspace, source_id, target_id)
+    weight FLOAT NOT NULL DEFAULT 1.0,
+    source_ids TEXT[],
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX idx_relationships_namespace ON edgequake_relationships(namespace);
+CREATE INDEX idx_relationships_source ON edgequake_relationships(source_entity);
+CREATE INDEX idx_relationships_target ON edgequake_relationships(target_entity);
+CREATE INDEX idx_relationships_type ON edgequake_relationships(relationship_type);
+
+-- Tasks table
+CREATE TABLE IF NOT EXISTS edgequake_tasks (
+    id UUID PRIMARY KEY,
+    track_id VARCHAR(255) NOT NULL UNIQUE,
+    namespace VARCHAR(255) NOT NULL DEFAULT 'default',
+    task_type VARCHAR(50) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'pending',
+    progress FLOAT DEFAULT 0.0,
+    message TEXT,
+    data JSONB,
+    error TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+);
+
+CREATE INDEX idx_tasks_track ON edgequake_tasks(track_id);
+CREATE INDEX idx_tasks_status ON edgequake_tasks(status);
+CREATE INDEX idx_tasks_namespace ON edgequake_tasks(namespace);
 ```
 
-### pgvector Index Types
+### Vector Search Query
 
 ```sql
--- HNSW index (recommended for accuracy)
-CREATE INDEX ON LIGHTRAG_VDB_ENTITY
-USING hnsw (content_vector vector_cosine_ops)
-WITH (m = 16, ef_construction = 64);
-
--- IVFFlat index (faster but less accurate)
-CREATE INDEX ON LIGHTRAG_VDB_ENTITY
-USING ivfflat (content_vector vector_cosine_ops)
-WITH (lists = 100);
+-- Find similar chunks
+SELECT id, content, metadata,
+       1 - (embedding <=> $1::vector) AS similarity
+FROM edgequake_chunks
+WHERE namespace = $2
+ORDER BY embedding <=> $1::vector
+LIMIT $3;
 ```
 
----
+### Graph Queries (Apache AGE)
 
-## MongoDB Backend
+```sql
+-- Create graph
+SELECT create_graph('edgequake_graph');
 
-### Complete MongoDB Setup
+-- Add node
+SELECT * FROM cypher('edgequake_graph', $$
+    MERGE (e:Entity {id: 'MARIE_CURIE'})
+    SET e.entity_type = 'PERSON',
+        e.description = 'Polish-French physicist'
+    RETURN e
+$$) AS (entity agtype);
 
-```python
-from lightrag import LightRAG
+-- Add relationship
+SELECT * FROM cypher('edgequake_graph', $$
+    MATCH (a:Entity {id: 'MARIE_CURIE'})
+    MATCH (b:Entity {id: 'RADIUM'})
+    MERGE (a)-[r:DISCOVERED]->(b)
+    SET r.weight = 1.0
+    RETURN r
+$$) AS (relationship agtype);
 
-rag = LightRAG(
-    working_dir="./rag_storage",
-
-    # All MongoDB backends
-    kv_storage="MongoKVStorage",
-    vector_storage="MongoVectorDBStorage",
-    graph_storage="MongoGraphStorage",
-    doc_status_storage="MongoDocStatusStorage",
-)
+-- Traverse neighbors
+SELECT * FROM cypher('edgequake_graph', $$
+    MATCH (start:Entity {id: 'MARIE_CURIE'})-[*1..2]-(neighbor:Entity)
+    RETURN DISTINCT neighbor
+    LIMIT 50
+$$) AS (neighbor agtype);
 ```
 
-### Environment Variables
+### Usage
 
-```bash
-MONGO_URI=mongodb://localhost:27017
-MONGO_DATABASE=lightrag
+```rust
+use edgequake_storage::PostgresStorage;
 
-# Atlas Vector Search (optional)
-MONGO_ATLAS_CLUSTER=your-cluster
-MONGO_ATLAS_API_KEY=your-api-key
-```
+// Connect to PostgreSQL
+let storage = PostgresStorage::connect(
+    "postgres://user:pass@localhost:5432/edgequake"
+).await?;
 
-### Collection Structure
+// Run migrations
+storage.run_migrations().await?;
 
-```javascript
-// Documents collection
-db.lightrag_doc_full.insertOne({
-    _id: "workspace:doc_id",
-    workspace: "default",
-    doc_id: "abc123",
-    doc_name: "document.txt",
-    content: "Full document text...",
-    meta: { source: "upload" },
-    created_at: ISODate(),
-    updated_at: ISODate()
-});
-
-// Entities collection (with vector)
-db.lightrag_entities.insertOne({
-    _id: "workspace:entity_id",
-    workspace: "default",
-    entity_name: "Apple Inc.",
-    entity_type: "organization",
-    description: "Technology company...",
-    content: "Apple Inc.\nTechnology company...",
-    embedding: [0.1, 0.2, ...],  // Vector embedding
-    source_id: "chunk_001,chunk_002",
-    file_path: "document.txt"
-});
-
-// Graph edges collection
-db.lightrag_graph_edges.insertOne({
-    _id: "workspace:source:target",
-    workspace: "default",
-    source: "Apple Inc.",
-    target: "iPhone",
-    weight: 3.5,
-    description: "Produces the iPhone",
-    keywords: "technology,smartphone"
-});
-```
-
-### Vector Search Index (Atlas)
-
-```javascript
-// Create vector search index
-db.lightrag_entities.createSearchIndex({
-    name: "vector_index",
-    definition: {
-        mappings: {
-            dynamic: true,
-            fields: {
-                embedding: {
-                    type: "knnVector",
-                    dimensions: 1024,
-                    similarity: "cosine"
-                }
-            }
-        }
-    }
-});
-```
-
----
-
-## Neo4j Backend
-
-### Neo4j for Graph Storage
-
-Neo4j provides native graph storage with Cypher queries:
-
-```python
-from lightrag import LightRAG
-
-rag = LightRAG(
-    working_dir="./rag_storage",
-
-    # Neo4j for graph, other backends for KV/Vector
-    kv_storage="PGKVStorage",           # or JsonKVStorage
-    vector_storage="PGVectorStorage",    # or other vector DB
-    graph_storage="Neo4JStorage",        # Neo4j graph
-    doc_status_storage="PGDocStatusStorage",
-)
-```
-
-### Environment Variables
-
-```bash
-NEO4J_URI=bolt://localhost:7687
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=your_password
-
-# Optional
-NEO4J_DATABASE=neo4j
-NEO4J_ENCRYPTED=false
-```
-
-### Graph Schema
-
-```cypher
-// Entity nodes
-CREATE (e:Entity {
-    entity_id: "Apple Inc.",
-    entity_type: "organization",
-    description: "Technology company...",
-    source_id: "chunk_001",
-    workspace: "default"
-})
-
-// Relationship
-MATCH (a:Entity {entity_id: "Apple Inc."})
-MATCH (b:Entity {entity_id: "iPhone"})
-CREATE (a)-[r:RELATED_TO {
-    weight: 3.5,
-    description: "Produces",
-    keywords: "technology"
-}]->(b)
-```
-
-### Cypher Queries Used
-
-```cypher
--- Get node with edges
-MATCH (n:Entity {entity_id: $entity_id, workspace: $workspace})
-OPTIONAL MATCH (n)-[r]-(m)
-RETURN n, r, m
-
--- Get knowledge graph (BFS)
-MATCH path = (start:Entity {entity_id: $label})-[*1..3]-(connected)
-WHERE start.workspace = $workspace
-RETURN path
-LIMIT $max_nodes
-
--- Search nodes
-MATCH (n:Entity)
-WHERE n.workspace = $workspace
-  AND toLower(n.entity_id) CONTAINS toLower($query)
-RETURN n.entity_id
-ORDER BY n.degree DESC
-LIMIT $limit
-```
-
----
-
-## Redis Backend
-
-### Redis for KV and Doc Status
-
-```python
-from lightrag import LightRAG
-
-rag = LightRAG(
-    working_dir="./rag_storage",
-
-    kv_storage="RedisKVStorage",
-    vector_storage="NanoVectorDBStorage",  # Redis doesn't have vector
-    graph_storage="NetworkXStorage",       # Redis doesn't have graph
-    doc_status_storage="RedisDocStatusStorage",
-)
-```
-
-### Environment Variables
-
-```bash
-REDIS_URI=redis://localhost:6379
-# or with auth
-REDIS_URI=redis://user:password@localhost:6379/0
-```
-
-### Key Structure
-
-```
-# Document storage
-lightrag:{workspace}:full_docs:{doc_id} -> JSON document
-
-# Chunks storage
-lightrag:{workspace}:text_chunks:{chunk_id} -> JSON chunk
-
-# LLM cache
-lightrag:{workspace}:llm_cache:{cache_key} -> JSON response
-
-# Document status
-lightrag:{workspace}:doc_status:{doc_id} -> JSON status
-```
-
----
-
-## File-Based Backends
-
-### Zero-Dependency Setup
-
-Best for development and small-scale usage:
-
-```python
-from lightrag import LightRAG
-
-rag = LightRAG(
-    working_dir="./rag_storage",
-
-    # All file-based (default)
-    kv_storage="JsonKVStorage",
-    vector_storage="NanoVectorDBStorage",
-    graph_storage="NetworkXStorage",
-    doc_status_storage="JsonDocStatusStorage",
-)
-```
-
-### File Structure
-
-```
-./rag_storage/
-├── full_docs.json              # Complete documents
-├── text_chunks.json            # Document chunks
-├── llm_response_cache.json     # LLM cache
-├── full_entities.json          # Entity metadata
-├── full_relations.json         # Relation metadata
-├── vdb_entities.json           # Entity vectors
-├── vdb_relationships.json      # Relation vectors
-├── vdb_chunks.json             # Chunk vectors
-├── graph_chunk_entity_relation.graphml  # Knowledge graph
-└── doc_status.json             # Processing status
-```
-
-### NanoVectorDB Format
-
-```json
-{
-  "data": {
-    "ent-abc123": {
-      "__id__": "ent-abc123",
-      "__vector__": [0.1, 0.2, 0.3, ...],
-      "entity_name": "Apple Inc.",
-      "content": "Apple Inc.\nTechnology company",
-      "source_id": "chunk_001"
-    }
-  },
-  "matrix": [[0.1, 0.2, ...], ...],
-  "index_to_id": ["ent-abc123", ...]
-}
-```
-
----
-
-## Vector Databases
-
-### Milvus
-
-```python
-rag = LightRAG(
-    vector_storage="MilvusVectorDBStorage",
-    vector_db_storage_cls_kwargs={
-        "host": "localhost",
-        "port": 19530,
-        "collection_name": "lightrag_vectors"
-    }
-)
-```
-
-```bash
-# Environment variables
-MILVUS_HOST=localhost
-MILVUS_PORT=19530
-MILVUS_TOKEN=your_token  # For Zilliz Cloud
-```
-
-### Qdrant
-
-```python
-rag = LightRAG(
-    vector_storage="QdrantVectorDBStorage",
-    vector_db_storage_cls_kwargs={
-        "collection_name": "lightrag"
-    }
-)
-```
-
-```bash
-QDRANT_URL=http://localhost:6333
-QDRANT_API_KEY=your_api_key  # Optional
-```
-
-### FAISS
-
-```python
-rag = LightRAG(
-    vector_storage="FaissVectorDBStorage",
-    vector_db_storage_cls_kwargs={
-        "index_type": "IVF_FLAT",  # or HNSW
-        "nlist": 100
-    }
-)
+// Get storage instances
+let kv_storage = Arc::new(storage.kv_storage());
+let vector_storage = Arc::new(storage.vector_storage());
+let graph_storage = Arc::new(storage.graph_storage());
 ```
 
 ---
 
 ## Configuration Reference
 
-### Complete Environment Variables
+### Storage Configuration
+
+```rust
+pub struct StorageConfig {
+    /// Database connection URL
+    pub database_url: String,
+    
+    /// Maximum connections in pool
+    pub max_connections: u32,  // Default: 10
+    
+    /// Minimum connections in pool
+    pub min_connections: u32,  // Default: 1
+    
+    /// Connection timeout (seconds)
+    pub connect_timeout_secs: u64,  // Default: 30
+    
+    /// Namespace for multi-tenancy
+    pub namespace: Option<String>,  // Default: None
+}
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `EDGEQUAKE_DATABASE_URL` | - | PostgreSQL connection string |
+| `POSTGRES_MAX_CONNECTIONS` | 10 | Max pool connections |
+| `POSTGRES_MIN_CONNECTIONS` | 1 | Min pool connections |
+| `POSTGRES_CONNECT_TIMEOUT` | 30 | Connection timeout (seconds) |
+| `EDGEQUAKE_NAMESPACE` | default | Multi-tenant namespace |
+
+---
+
+## Migration Guide
+
+### From Memory to PostgreSQL
+
+1. **Set up PostgreSQL:**
 
 ```bash
-# Storage Selection
-KV_STORAGE=PGKVStorage
-VECTOR_STORAGE=PGVectorStorage
-GRAPH_STORAGE=PGGraphStorage
-DOC_STATUS_STORAGE=PGDocStatusStorage
+# Start PostgreSQL with extensions
+docker run -d --name edgequake-pg \
+  -e POSTGRES_PASSWORD=password \
+  -p 5432:5432 \
+  ankane/pgvector:latest
 
-# PostgreSQL
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=secret
-POSTGRES_DATABASE=lightrag
-POSTGRES_MAX_CONNECTIONS=100
-POSTGRES_SSL_MODE=prefer
-
-# MongoDB
-MONGO_URI=mongodb://localhost:27017
-MONGO_DATABASE=lightrag
-
-# Neo4j
-NEO4J_URI=bolt://localhost:7687
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=password
-
-# Redis
-REDIS_URI=redis://localhost:6379
-
-# Milvus
-MILVUS_HOST=localhost
-MILVUS_PORT=19530
-
-# Qdrant
-QDRANT_URL=http://localhost:6333
-QDRANT_API_KEY=
-
-# Memgraph
-MEMGRAPH_URI=bolt://localhost:7687
+# Connect and enable extensions
+psql -h localhost -U postgres -c "CREATE EXTENSION vector;"
 ```
 
-### Programmatic Configuration
+2. **Update configuration:**
 
-```python
-from lightrag import LightRAG
-
-rag = LightRAG(
-    # Working directory
-    working_dir="./rag_storage",
-    workspace="my_project",  # Multi-tenant namespace
-
-    # Storage backends
-    kv_storage="PGKVStorage",
-    vector_storage="PGVectorStorage",
-    graph_storage="PGGraphStorage",
-    doc_status_storage="PGDocStatusStorage",
-
-    # Vector DB options
-    vector_db_storage_cls_kwargs={
-        "cosine_better_than_threshold": 0.2,
-        # Backend-specific options...
+```rust
+let config = Config {
+    storage: StorageConfig {
+        database_url: "postgres://postgres:password@localhost:5432/edgequake".to_string(),
+        ..Default::default()
     },
-
-    # Processing
-    chunk_token_size=1200,
-    chunk_overlap_token_size=100,
-)
+    ..Default::default()
+};
 ```
 
----
+3. **Run migrations:**
 
-## Multi-Tenant Data Isolation
-
-All storage backends support multi-tenant isolation:
-
-```python
-# Workspace creates isolated namespace
-rag = LightRAG(
-    working_dir="./rag_storage",
-    workspace="tenant_a:kb_prod",  # Composite namespace
-)
-
-# Or with explicit tenant context
-from lightrag.tenant_rag_manager import TenantRAGManager
-
-manager = TenantRAGManager(
-    base_working_dir="./rag_storage",
-    tenant_service=tenant_service,
-    template_rag=template_rag,
-)
-
-# Get tenant-specific instance
-rag = await manager.get_rag_instance(
-    tenant_id="tenant_a",
-    kb_id="kb_prod"
-)
+```rust
+let storage = PostgresStorage::connect(&config.storage.database_url).await?;
+storage.run_migrations().await?;
 ```
 
-### Isolation Pattern
+4. **Re-index existing documents:**
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│              Multi-Tenant Data Isolation                    │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  PostgreSQL: WHERE workspace = 'tenant_a:kb_prod:default'  │
-│                                                             │
-│  MongoDB: { workspace: "tenant_a:kb_prod:default" }        │
-│                                                             │
-│  Redis: lightrag:tenant_a:kb_prod:default:{key}            │
-│                                                             │
-│  Neo4j: MATCH (n {workspace: $workspace})                  │
-│                                                             │
-│  File: ./rag_storage/tenant_a:kb_prod/                     │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Migration Between Backends
-
-### Export/Import Pattern
-
-```python
-# Export from source
-source_rag = LightRAG(
-    kv_storage="JsonKVStorage",
-    vector_storage="NanoVectorDBStorage",
-    graph_storage="NetworkXStorage",
-)
-
-# Initialize source
-await source_rag.initialize_storages()
-
-# Get all data
-docs = await source_rag.full_docs.get_all()
-chunks = await source_rag.text_chunks.get_all()
-# ... export other data
-
-# Import to target
-target_rag = LightRAG(
-    kv_storage="PGKVStorage",
-    vector_storage="PGVectorStorage",
-    graph_storage="PGGraphStorage",
-)
-
-await target_rag.initialize_storages()
-await target_rag.full_docs.upsert(docs)
-await target_rag.text_chunks.upsert(chunks)
-# ... import other data
-await target_rag.finalize_storages()
+```bash
+# Re-process all documents to populate PostgreSQL
+cargo run --bin edgequake-reindex -- --all
 ```
 
 ---
 
 ## Best Practices
 
-### Production Recommendations
+### Development
 
-1. **Use PostgreSQL Full Stack** for simplicity and reliability
-2. **Enable connection pooling** for high concurrency
-3. **Create indexes** on frequently queried columns
-4. **Monitor storage growth** and plan capacity
-5. **Regular backups** with point-in-time recovery
-6. **Use SSL/TLS** for database connections
+```rust
+// Use memory storage for fast iteration
+let storage = MemoryStorage::new();
+```
 
-### Performance Tuning
+### Production
 
-```bash
-# PostgreSQL tuning
-POSTGRES_MAX_CONNECTIONS=200
-POSTGRES_VECTOR_INDEX_TYPE=hnsw
-POSTGRES_HNSW_M=32
-POSTGRES_HNSW_EF=128
+```rust
+// Use PostgreSQL with connection pooling
+let config = StorageConfig {
+    database_url: std::env::var("DATABASE_URL")?,
+    max_connections: 20,
+    min_connections: 5,
+    connect_timeout_secs: 30,
+    namespace: Some("production".to_string()),
+};
+```
 
-# LightRAG tuning
-MAX_PARALLEL_INSERT=4
-EMBEDDING_BATCH_NUM=20
-MAX_ASYNC=8
+### Testing
+
+```rust
+#[tokio::test]
+async fn test_with_memory_storage() {
+    let storage = MemoryStorage::new();
+    // Test with isolated in-memory storage
+}
 ```
 
 ---
 
-**Version**: 1.4.9.2 | **License**: MIT
+## Next Steps
+
+- **[LLM Integration](0005-llm-integration.md)** - Configure LLM providers
+- **[Deployment Guide](0006-deployment-guide.md)** - Production deployment
+- **[Configuration Reference](0007-configuration-reference.md)** - All config options

@@ -1,598 +1,596 @@
-# LightRAG Deployment Guide
+# EdgeQuake Deployment Guide
 
-## Deployment Overview
+> Production deployment for EdgeQuake API and WebUI
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        DEPLOYMENT OPTIONS                                    │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                  │
-│  │   LOCAL      │    │   DOCKER     │    │   K8S/HELM   │                  │
-│  │   (Dev)      │    │   (Staging)  │    │   (Prod)     │                  │
-│  ├──────────────┤    ├──────────────┤    ├──────────────┤                  │
-│  │ pip install  │    │ docker-      │    │ helm install │                  │
-│  │ python -m    │    │ compose up   │    │ kubectl      │                  │
-│  │ lightrag.api │    │              │    │ apply        │                  │
-│  └──────────────┘    └──────────────┘    └──────────────┘                  │
-│        │                   │                   │                            │
-│        └───────────────────┴───────────────────┘                            │
-│                            │                                                 │
-│        ┌───────────────────┴───────────────────┐                            │
-│        │         STORAGE TOPOLOGY              │                            │
-│        ├───────────────────────────────────────┤                            │
-│        │  Dev: JSON + NetworkX + NanoVectorDB  │                            │
-│        │  Prod: PostgreSQL + Neo4j + pgvector  │                            │
-│        └───────────────────────────────────────┘                            │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+**Version**: 0.1.0 | **Last Updated**: December 2025
 
 ---
 
-## 1. Local Development Setup
+## Table of Contents
 
-### Quick Install
-
-```bash
-# Clone repository
-git clone https://github.com/HKUDS/LightRAG.git
-cd LightRAG
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Linux/macOS
-# venv\Scripts\activate   # Windows
-
-# Install with API dependencies
-pip install -e ".[api]"
-```
-
-### Storage Dependencies
-
-```bash
-# Lightweight (development)
-pip install nano-vectordb networkx
-
-# PostgreSQL (production)
-pip install asyncpg psycopg2-binary pgvector
-
-# Neo4j (production graph)
-pip install neo4j
-
-# Additional vector stores
-pip install pymilvus qdrant-client redis faiss-cpu
-```
-
-### Running the Server
-
-```bash
-# Set environment variables
-export OPENAI_API_KEY="sk-xxx"
-export LLM_MODEL="gpt-4o-mini"
-
-# Start server
-python -m lightrag.api.lightrag_server
-# Server starts at http://localhost:9621
-```
+1. [Deployment Options](#deployment-options)
+2. [Docker Deployment](#docker-deployment)
+3. [Manual Deployment](#manual-deployment)
+4. [Kubernetes Deployment](#kubernetes-deployment)
+5. [Configuration](#configuration)
+6. [Monitoring & Health](#monitoring--health)
+7. [Troubleshooting](#troubleshooting)
 
 ---
 
-## 2. Docker Deployment
+## Deployment Options
 
-### Docker Architecture
+| Option | Best For | Complexity | Scalability |
+|--------|----------|------------|-------------|
+| **Docker Compose** | Small/Medium deployments | Low | Medium |
+| **Manual** | Development, custom setups | Medium | Low |
+| **Kubernetes** | Large scale production | High | High |
 
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                         DOCKER COMPOSE STACK                              │
-├──────────────────────────────────────────────────────────────────────────┤
-│                                                                           │
-│  ┌─────────────────────────────────────────────────────────────────────┐ │
-│  │                       lightrag:9621                                  │ │
-│  │  ┌─────────────────────────────────────────────────────────────────┐│ │
-│  │  │  python:3.12-slim + LightRAG API                                ││ │
-│  │  │                                                                  ││ │
-│  │  │  Volumes:                                                        ││ │
-│  │  │    /app/data/rag_storage  → ./data/rag_storage                  ││ │
-│  │  │    /app/data/inputs       → ./data/inputs                       ││ │
-│  │  │    /app/config.ini        → ./config.ini                        ││ │
-│  │  │    /app/.env              → ./.env                              ││ │
-│  │  └─────────────────────────────────────────────────────────────────┘│ │
-│  └─────────────────────────────────────────────────────────────────────┘ │
-│                                  │                                        │
-│                                  ▼                                        │
-│  ┌─────────────────────────────────────────────────────────────────────┐ │
-│  │              External Services (optional)                           │ │
-│  │                                                                      │ │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │ │
-│  │  │  PostgreSQL  │  │    Neo4j     │  │    Redis     │              │ │
-│  │  │    :5432     │  │    :7687     │  │    :6379     │              │ │
-│  │  └──────────────┘  └──────────────┘  └──────────────┘              │ │
-│  └─────────────────────────────────────────────────────────────────────┘ │
-│                                                                           │
-└──────────────────────────────────────────────────────────────────────────┘
-```
+### Minimum Requirements
 
-### docker-compose.yml
-
-```yaml
-services:
-  lightrag:
-    container_name: lightrag
-    image: ghcr.io/hkuds/lightrag:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "${PORT:-9621}:9621"
-    volumes:
-      - ./lightrag:/app/lightrag
-      - ./data/rag_storage:/app/data/rag_storage
-      - ./data/inputs:/app/data/inputs
-      - ./data/tiktoken:/app/data/tiktoken
-      - ./config.ini:/app/config.ini
-      - ./.env:/app/.env
-    env_file:
-      - .env
-    environment:
-      - TIKTOKEN_CACHE_DIR=/app/data/tiktoken
-      - INIT_DEMO_TENANTS=true
-      - AUTH_USER=admin
-      - AUTH_PASS=admin123
-    restart: unless-stopped
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-```
-
-### Environment File (.env)
-
-```bash
-# LLM Configuration
-LLM_BINDING=openai
-LLM_MODEL=gpt-4o-mini
-OPENAI_API_KEY=sk-xxx
-
-# Embedding Configuration
-EMBEDDING_BINDING=openai
-EMBEDDING_MODEL=text-embedding-ada-002
-EMBEDDING_DIM=1536
-
-# Storage (lightweight)
-LIGHTRAG_KV_STORAGE=JsonKVStorage
-LIGHTRAG_VECTOR_STORAGE=NanoVectorDBStorage
-LIGHTRAG_GRAPH_STORAGE=NetworkXStorage
-LIGHTRAG_DOC_STATUS_STORAGE=JsonDocStatusStorage
-
-# Server
-HOST=0.0.0.0
-PORT=9621
-
-# Multi-tenancy
-ENABLE_MULTI_TENANTS=false
-```
-
-### Docker Commands
-
-```bash
-# Start with pre-built image
-docker-compose up -d
-
-# Build and start locally
-docker-compose up -d --build
-
-# View logs
-docker-compose logs -f lightrag
-
-# Stop
-docker-compose down
-
-# Stop and remove volumes
-docker-compose down -v
-```
-
-### Development with External Databases
-
-```bash
-# Start only PostgreSQL and Redis for local development
-docker-compose -f docker-compose.dev-db.yml up -d
-
-# Services started:
-# - PostgreSQL: localhost:15432
-# - Redis: localhost:16379
-```
+| Component | CPU | Memory | Storage |
+|-----------|-----|--------|---------|
+| EdgeQuake API | 2 cores | 2GB | 1GB |
+| WebUI | 1 core | 512MB | 100MB |
+| PostgreSQL | 2 cores | 4GB | 50GB+ |
 
 ---
 
-## 3. Kubernetes Deployment (Helm)
+## Docker Deployment
 
 ### Prerequisites
 
-| Component | Minimum | Recommended |
-|-----------|---------|-------------|
-| Kubernetes | 1.20+ | 1.26+ |
-| Helm | 3.x | 3.12+ |
-| Memory | 4 GB | 8 GB |
-| CPUs | 2 | 4 |
-
-### Deployment Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         KUBERNETES CLUSTER                                   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  namespace: rag                                                              │
-│  ┌─────────────────────────────────────────────────────────────────────────┐│
-│  │                                                                          ││
-│  │  ┌──────────────────────────────────────────────────────────────────┐   ││
-│  │  │  Deployment: lightrag                                             │   ││
-│  │  │  ┌──────────────────────────────────────────────────────────────┐│   ││
-│  │  │  │  Pod: lightrag-xxxx-yyyy                                     ││   ││
-│  │  │  │  ┌────────────────────────────────────────────────────────┐  ││   ││
-│  │  │  │  │  Container: lightrag                                   │  ││   ││
-│  │  │  │  │  Image: ghcr.io/hkuds/lightrag:latest                 │  ││   ││
-│  │  │  │  │  Port: 9621                                            │  ││   ││
-│  │  │  │  │                                                         │  ││   ││
-│  │  │  │  │  Probes:                                               │  ││   ││
-│  │  │  │  │    readiness: GET /health                              │  ││   ││
-│  │  │  │  └────────────────────────────────────────────────────────┘  ││   ││
-│  │  │  │  Volumes:                                                    ││   ││
-│  │  │  │    - rag-storage (PVC)                                      ││   ││
-│  │  │  │    - inputs (PVC)                                           ││   ││
-│  │  │  │    - env-file (Secret)                                      ││   ││
-│  │  │  └──────────────────────────────────────────────────────────────┘│   ││
-│  │  └──────────────────────────────────────────────────────────────────┘   ││
-│  │                                                                          ││
-│  │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐       ││
-│  │  │ Service: lightrag│  │ PVC: rag-storage │  │ Secret: env      │       ││
-│  │  │ Type: ClusterIP  │  │ Size: 10Gi       │  │ (API keys)       │       ││
-│  │  │ Port: 9621       │  │                  │  │                  │       ││
-│  │  └──────────────────┘  └──────────────────┘  └──────────────────┘       ││
-│  │                                                                          ││
-│  └─────────────────────────────────────────────────────────────────────────┘│
-│                                                                              │
-│  ┌─────────────────────────────────────────────────────────────────────────┐│
-│  │  StatefulSet: pg-cluster         │  StatefulSet: neo4j-cluster         ││
-│  │  (via KubeBlocks)                │  (via KubeBlocks)                   ││
-│  │  - postgresql-0                  │  - neo4j-0                          ││
-│  │  - postgresql-1                  │                                      ││
-│  └─────────────────────────────────────────────────────────────────────────┘│
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+```bash
+# Docker and Docker Compose
+docker --version  # 20.10+
+docker compose version  # 2.0+
 ```
 
-### Lightweight Deployment (Development)
+### Quick Start
 
 ```bash
-# Set API credentials
-export OPENAI_API_BASE=https://api.openai.com/v1
-export OPENAI_API_KEY=sk-xxx
+cd edgequake/docker
 
-# Install using convenience script
-bash ./k8s-deploy/install_lightrag_dev.sh
+# Start all services
+docker compose up -d
 
-# Or using Helm directly
-helm upgrade --install lightrag ./k8s-deploy/lightrag \
-  --namespace rag --create-namespace \
-  --set-string env.LIGHTRAG_KV_STORAGE=JsonKVStorage \
-  --set-string env.LIGHTRAG_VECTOR_STORAGE=NanoVectorDBStorage \
-  --set-string env.LIGHTRAG_GRAPH_STORAGE=NetworkXStorage \
-  --set-string env.LIGHTRAG_DOC_STATUS_STORAGE=JsonDocStatusStorage \
-  --set-string env.LLM_BINDING=openai \
-  --set-string env.LLM_MODEL=gpt-4o-mini \
-  --set-string env.LLM_BINDING_HOST=$OPENAI_API_BASE \
-  --set-string env.LLM_BINDING_API_KEY=$OPENAI_API_KEY \
-  --set-string env.EMBEDDING_BINDING=openai \
-  --set-string env.EMBEDDING_MODEL=text-embedding-ada-002 \
-  --set-string env.EMBEDDING_DIM=1536 \
-  --set-string env.EMBEDDING_BINDING_API_KEY=$OPENAI_API_KEY
+# View logs
+docker compose logs -f edgequake-api
 ```
 
-### Production Deployment (with Databases)
-
-```bash
-# 1. Install KubeBlocks for database management
-bash ./k8s-deploy/databases/01-prepare.sh
-
-# 2. Install PostgreSQL and Neo4j
-bash ./k8s-deploy/databases/02-install-database.sh
-
-# 3. Verify databases are running
-kubectl get clusters -n rag
-# NAME            STATUS     AGE
-# neo4j-cluster   Running    39s
-# pg-cluster      Running    42s
-
-# 4. Install LightRAG (auto-configures database connections)
-export OPENAI_API_BASE=https://api.openai.com/v1
-export OPENAI_API_KEY=sk-xxx
-bash ./k8s-deploy/install_lightrag.sh
-```
-
-### Helm Values Configuration
+### Docker Compose Configuration
 
 ```yaml
-# k8s-deploy/lightrag/values.yaml
-replicaCount: 1
+# docker-compose.yml
+version: '3.8'
 
-image:
-  repository: ghcr.io/hkuds/lightrag
-  tag: latest
+services:
+  edgequake-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - EDGEQUAKE_API_HOST=0.0.0.0
+      - EDGEQUAKE_API_PORT=8080
+      - DATABASE_URL=postgresql://edgequake:password@postgres:5432/edgequake
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-resources:
-  limits:
-    cpu: 1000m
-    memory: 2Gi
-  requests:
-    cpu: 500m
-    memory: 1Gi
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: edgequake
+      POSTGRES_USER: edgequake
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U edgequake"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-persistence:
-  enabled: true
-  ragStorage:
-    size: 10Gi
-  inputs:
-    size: 5Gi
+  webui:
+    build:
+      context: ../edgequake_webui
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://edgequake-api:8080
+    depends_on:
+      - edgequake-api
 
-env:
-  HOST: 0.0.0.0
-  PORT: 9621
-
-  # LLM Configuration
-  LLM_BINDING: openai
-  LLM_MODEL: gpt-4o-mini
-  LLM_BINDING_HOST: ""
-  LLM_BINDING_API_KEY: ""
-
-  # Embedding Configuration
-  EMBEDDING_BINDING: openai
-  EMBEDDING_MODEL: text-embedding-ada-002
-  EMBEDDING_DIM: 1536
-
-  # Storage Configuration (Production)
-  LIGHTRAG_KV_STORAGE: PGKVStorage
-  LIGHTRAG_VECTOR_STORAGE: PGVectorStorage
-  LIGHTRAG_GRAPH_STORAGE: Neo4JStorage
-  LIGHTRAG_DOC_STATUS_STORAGE: PGDocStatusStorage
+volumes:
+  postgres_data:
 ```
 
-### Accessing the Application
+### API Dockerfile
 
-```bash
-# Port-forward to local machine
-kubectl --namespace rag port-forward svc/lightrag 9621:9621
+```dockerfile
+# edgequake/docker/Dockerfile
+FROM rust:1.83-slim-bookworm AS builder
 
-# Access at http://localhost:9621
+WORKDIR /app
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy workspace
+COPY . .
+
+# Build release binary
+RUN cargo build --release --package edgequake-api
+
+# Runtime image
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/target/release/edgequake-api /usr/local/bin/
+
+EXPOSE 8080
+
+CMD ["edgequake-api"]
 ```
 
----
+### WebUI Dockerfile
 
-## 4. Storage Configuration by Environment
+```dockerfile
+# edgequake_webui/Dockerfile
+FROM node:22-slim AS builder
 
-### Storage Topology Reference
+WORKDIR /app
 
-| Environment | KV Storage | Vector Storage | Graph Storage | Use Case |
-|-------------|------------|----------------|---------------|----------|
-| Development | JsonKVStorage | NanoVectorDBStorage | NetworkXStorage | Local testing |
-| Staging | RedisKVStorage | MilvusVectorDBStorage | Neo4JStorage | Integration testing |
-| Production | PGKVStorage | PGVectorStorage | Neo4JStorage | Production workloads |
-| High-Scale | RedisKVStorage | MilvusVectorDBStorage | Neo4JStorage | Large datasets |
+COPY package.json package-lock.json ./
+RUN npm ci
 
-### PostgreSQL Setup (Production)
+COPY . .
+RUN npm run build
 
-```bash
-# Required extensions
+# Runtime
+FROM node:22-slim
+
+WORKDIR /app
+
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/public ./public
+
+EXPOSE 3000
+
+CMD ["npm", "start"]
+```
+
+### PostgreSQL Extensions
+
+```sql
+-- docker/init.sql
+-- Install required extensions for EdgeQuake
+
+-- Vector similarity search
 CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Graph queries (Apache AGE)
 CREATE EXTENSION IF NOT EXISTS age;
 
-# Environment variables
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_USER=lightrag
-POSTGRES_PASSWORD=secret
-POSTGRES_DATABASE=lightrag
+-- Full-text search
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
-# Storage configuration
-LIGHTRAG_KV_STORAGE=PGKVStorage
-LIGHTRAG_VECTOR_STORAGE=PGVectorStorage
-LIGHTRAG_GRAPH_STORAGE=AGEStorage  # or Neo4JStorage
-LIGHTRAG_DOC_STATUS_STORAGE=PGDocStatusStorage
-```
-
-### Neo4j Setup (Production Graph)
-
-```bash
-# Environment variables
-NEO4J_URI=bolt://localhost:7687
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=secret
-
-# Storage configuration
-LIGHTRAG_GRAPH_STORAGE=Neo4JStorage
+-- UUID generation
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 ```
 
 ---
 
-## 5. Health & Monitoring
+## Manual Deployment
 
-### Health Endpoint
+### Build API Server
 
 ```bash
-# Check server health
-curl http://localhost:9621/health
+cd edgequake
 
-# Response
-{
-  "status": "healthy",
-  "version": "1.4.9.1"
-}
+# Install Rust toolchain
+rustup install stable
+rustup default stable
+
+# Build release binary
+cargo build --release --package edgequake-api
+
+# Binary location
+ls -la target/release/edgequake-api
 ```
 
-### Docker Health Check
+### Build WebUI
 
-```yaml
-healthcheck:
-  test: ["CMD", "curl", "-f", "http://localhost:9621/health"]
-  interval: 30s
-  timeout: 10s
-  retries: 3
-  start_period: 40s
+```bash
+cd edgequake_webui
+
+# Install dependencies
+npm ci
+
+# Build production
+npm run build
+
+# Output in .next/
 ```
 
-### Kubernetes Probes
+### Run API Server
 
-```yaml
-readinessProbe:
-  httpGet:
-    path: /health
-    port: 9621
-  initialDelaySeconds: 10
-  periodSeconds: 5
-  timeoutSeconds: 2
-  failureThreshold: 3
+```bash
+# Set environment
+export DATABASE_URL="postgresql://user:pass@localhost:5432/edgequake"
+export OPENAI_API_KEY="sk-..."
+export EDGEQUAKE_API_HOST="0.0.0.0"
+export EDGEQUAKE_API_PORT="8080"
 
-livenessProbe:
-  httpGet:
-    path: /health
-    port: 9621
-  initialDelaySeconds: 30
-  periodSeconds: 10
-  timeoutSeconds: 5
-  failureThreshold: 3
+# Run
+./target/release/edgequake-api
+```
+
+### Run WebUI
+
+```bash
+cd edgequake_webui
+
+# Set API URL
+export NEXT_PUBLIC_API_URL="http://localhost:8080"
+
+# Start production server
+npm start
+```
+
+### Systemd Service
+
+```ini
+# /etc/systemd/system/edgequake-api.service
+[Unit]
+Description=EdgeQuake API Server
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=edgequake
+Group=edgequake
+WorkingDirectory=/opt/edgequake
+ExecStart=/opt/edgequake/edgequake-api
+Restart=on-failure
+RestartSec=5
+
+Environment=EDGEQUAKE_API_HOST=0.0.0.0
+Environment=EDGEQUAKE_API_PORT=8080
+EnvironmentFile=/etc/edgequake/config.env
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+# Enable and start
+sudo systemctl enable edgequake-api
+sudo systemctl start edgequake-api
+sudo systemctl status edgequake-api
 ```
 
 ---
 
-## 6. Security Best Practices
+## Kubernetes Deployment
 
-### Authentication
-
-```bash
-# Enable API authentication
-AUTH_ENABLED=true
-AUTH_USER=admin
-AUTH_PASS=<secure-password>
-
-# JWT Token authentication
-AUTH_SECRET_KEY=<32-byte-secret>
-AUTH_ALGORITHM=HS256
-AUTH_ACCESS_TOKEN_EXPIRE_MINUTES=30
-```
-
-### Secrets Management
-
-```bash
-# Never commit secrets to version control
-# Use environment variables or secret managers
-
-# Kubernetes Secrets
-kubectl create secret generic lightrag-secrets \
-  --from-literal=OPENAI_API_KEY=sk-xxx \
-  --from-literal=POSTGRES_PASSWORD=xxx \
-  --namespace rag
-```
-
-### Network Security
+### Namespace and Secrets
 
 ```yaml
-# Kubernetes NetworkPolicy
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
+# k8s/namespace.yaml
+apiVersion: v1
+kind: Namespace
 metadata:
-  name: lightrag-network-policy
-  namespace: rag
+  name: edgequake
+---
+# k8s/secrets.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: edgequake-secrets
+  namespace: edgequake
+type: Opaque
+stringData:
+  openai-api-key: "sk-your-key"
+  database-url: "postgresql://user:pass@postgres:5432/edgequake"
+```
+
+### API Deployment
+
+```yaml
+# k8s/api-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edgequake-api
+  namespace: edgequake
 spec:
-  podSelector:
+  replicas: 3
+  selector:
     matchLabels:
-      app: lightrag
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    - from:
-        - podSelector: {}
-      ports:
-        - port: 9621
+      app: edgequake-api
+  template:
+    metadata:
+      labels:
+        app: edgequake-api
+    spec:
+      containers:
+        - name: api
+          image: edgequake/api:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: edgequake-secrets
+                  key: openai-api-key
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: edgequake-secrets
+                  key: database-url
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: edgequake-api
+  namespace: edgequake
+spec:
+  selector:
+    app: edgequake-api
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP
+```
+
+### Ingress
+
+```yaml
+# k8s/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: edgequake-ingress
+  namespace: edgequake
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - hosts:
+        - api.edgequake.example.com
+      secretName: edgequake-tls
+  rules:
+    - host: api.edgequake.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: edgequake-api
+                port:
+                  number: 8080
 ```
 
 ---
 
-## 7. Troubleshooting
+## Configuration
+
+### Environment Variables
+
+#### API Server
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `EDGEQUAKE_API_HOST` | No | `127.0.0.1` | Listen address |
+| `EDGEQUAKE_API_PORT` | No | `8080` | Listen port |
+| `DATABASE_URL` | Prod | - | PostgreSQL connection |
+| `OPENAI_API_KEY` | Prod | - | OpenAI API key |
+| `RUST_LOG` | No | `info` | Log level |
+| `EDGEQUAKE_STORAGE_TYPE` | No | `memory` | Storage backend |
+
+#### WebUI
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `NEXT_PUBLIC_API_URL` | Yes | - | EdgeQuake API URL |
+| `PORT` | No | `3000` | Listen port |
+
+### Configuration File
+
+```toml
+# config.toml (optional)
+[api]
+host = "0.0.0.0"
+port = 8080
+cors_origins = ["http://localhost:3000"]
+
+[storage]
+type = "postgresql"
+
+[storage.postgresql]
+connection_string = "postgresql://user:pass@localhost:5432/edgequake"
+pool_size = 10
+
+[llm]
+provider = "openai"
+model = "gpt-4o-mini"
+embedding_model = "text-embedding-3-small"
+temperature = 0.0
+
+[pipeline]
+chunk_size = 1200
+chunk_overlap = 100
+
+[query]
+top_k = 60
+similarity_threshold = 0.5
+```
+
+---
+
+## Monitoring & Health
+
+### Health Endpoints
+
+| Endpoint | Purpose | Expected Response |
+|----------|---------|-------------------|
+| `GET /health` | Overall health | `{"status": "healthy"}` |
+| `GET /live` | Liveness probe | `{"live": true}` |
+| `GET /ready` | Readiness probe | `{"ready": true}` |
+| `GET /metrics` | Prometheus metrics | Prometheus format |
+
+### Prometheus Metrics
+
+```yaml
+# prometheus.yml
+scrape_configs:
+  - job_name: 'edgequake'
+    static_configs:
+      - targets: ['edgequake-api:8080']
+    metrics_path: '/metrics'
+```
+
+### Key Metrics
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `edgequake_requests_total` | Counter | Total HTTP requests |
+| `edgequake_request_duration_seconds` | Histogram | Request latency |
+| `edgequake_documents_processed_total` | Counter | Documents ingested |
+| `edgequake_query_latency_seconds` | Histogram | Query response time |
+| `edgequake_llm_tokens_used` | Counter | LLM token usage |
+
+### Logging
+
+```rust
+// Structured JSON logging for production
+// Set RUST_LOG=info or RUST_LOG=edgequake=debug
+```
+
+```bash
+# Example log output
+{"timestamp":"2025-01-15T10:30:00Z","level":"INFO","target":"edgequake_api","message":"Server listening","host":"0.0.0.0","port":8080}
+{"timestamp":"2025-01-15T10:30:05Z","level":"INFO","target":"edgequake_api::handlers","message":"Document uploaded","doc_id":"abc123","chunks":5}
+```
+
+---
+
+## Troubleshooting
 
 ### Common Issues
 
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| Port 9621 in use | Another service running | Change PORT env var or stop conflicting service |
-| LLM API errors | Invalid API key | Verify OPENAI_API_KEY or LLM_BINDING_API_KEY |
-| Database connection failed | Wrong credentials | Check POSTGRES_* or NEO4J_* env vars |
-| Out of memory | Large document processing | Increase container memory limits |
-| Tiktoken cache errors | Missing cache directory | Set TIKTOKEN_CACHE_DIR |
-
-### Debug Commands
+#### API Won't Start
 
 ```bash
-# Docker logs
-docker logs -f lightrag
+# Check port availability
+lsof -i :8080
 
-# Kubernetes pod logs
-kubectl logs -f deployment/lightrag -n rag
+# Check database connection
+psql $DATABASE_URL -c "SELECT 1"
 
-# Check pod status
-kubectl describe pod -l app=lightrag -n rag
-
-# Database connectivity
-kubectl exec -it deployment/lightrag -n rag -- \
-  python -c "import asyncpg; print('PostgreSQL OK')"
+# Check logs
+docker compose logs edgequake-api
 ```
 
-### Log Levels
+#### Database Connection Errors
 
 ```bash
-# Set log level
-LOG_LEVEL=DEBUG  # DEBUG, INFO, WARNING, ERROR
+# Verify extensions
+psql $DATABASE_URL -c "\dx"
 
-# Enable verbose logging for specific modules
-LIGHTRAG_LOG_LEVEL=DEBUG
+# Required extensions:
+# - vector
+# - age
+# - pg_trgm
 ```
 
----
-
-## Quick Reference
-
-### Docker Commands
+#### LLM API Errors
 
 ```bash
-docker-compose up -d                    # Start
-docker-compose down                     # Stop
-docker-compose logs -f lightrag         # View logs
-docker-compose restart lightrag         # Restart
-docker-compose exec lightrag bash       # Shell access
+# Test API key
+curl https://api.openai.com/v1/models \
+  -H "Authorization: Bearer $OPENAI_API_KEY"
+
+# Check rate limits
+curl -I https://api.openai.com/v1/models \
+  -H "Authorization: Bearer $OPENAI_API_KEY" 2>&1 | grep -i rate
 ```
 
-### Helm Commands
+### Performance Tuning
 
 ```bash
-helm install lightrag ./k8s-deploy/lightrag -n rag    # Install
-helm upgrade lightrag ./k8s-deploy/lightrag -n rag    # Upgrade
-helm uninstall lightrag -n rag                        # Uninstall
-helm status lightrag -n rag                           # Status
-helm get values lightrag -n rag                       # Get values
+# PostgreSQL tuning
+ALTER SYSTEM SET shared_buffers = '2GB';
+ALTER SYSTEM SET effective_cache_size = '6GB';
+ALTER SYSTEM SET work_mem = '256MB';
+ALTER SYSTEM SET maintenance_work_mem = '512MB';
+SELECT pg_reload_conf();
+
+# Connection pooling
+# Use PgBouncer for high-concurrency deployments
 ```
 
-### kubectl Commands
+### Backup & Recovery
 
 ```bash
-kubectl get pods -n rag                               # List pods
-kubectl logs -f deployment/lightrag -n rag           # View logs
-kubectl port-forward svc/lightrag 9621:9621 -n rag   # Port forward
-kubectl exec -it deployment/lightrag -n rag -- bash  # Shell access
+# Backup PostgreSQL
+pg_dump $DATABASE_URL > backup.sql
+
+# Restore
+psql $DATABASE_URL < backup.sql
+
+# Backup with pg_dump (compressed)
+pg_dump -Fc $DATABASE_URL > backup.dump
+pg_restore -d $DATABASE_URL backup.dump
 ```
 
 ---
 
-**Related Documentation:**
-- [Architecture Overview](0002-architecture-overview.md)
-- [Configuration Reference](0007-configuration-reference.md)
-- [Storage Backends](0004-storage-backends.md)
-- [API Reference](0003-api-reference.md)
+## Next Steps
+
+- **[Configuration Reference](0007-configuration-reference.md)** - All config options
+- **[API Reference](0003-api-reference.md)** - API documentation
+- **[Storage Backends](0004-storage-backends.md)** - Database setup

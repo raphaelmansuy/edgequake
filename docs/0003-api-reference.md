@@ -1,598 +1,65 @@
-# LightRAG API Reference
+# EdgeQuake API Reference
 
-> Complete REST API documentation for LightRAG Server
+> Complete REST API documentation for EdgeQuake Server
 
-**Version**: 1.4.9.2 | **Base URL**: `http://localhost:9621`
+**Version**: 0.1.0 | **Base URL**: `http://localhost:8080`
 
 ---
 
 ## Table of Contents
 
-1. [Authentication](#authentication)
-2. [Query Endpoints](#query-endpoints)
-3. [Document Endpoints](#document-endpoints)
-4. [Graph Endpoints](#graph-endpoints)
-5. [Admin Endpoints](#admin-endpoints)
-6. [Multi-Tenant Headers](#multi-tenant-headers)
-7. [Error Handling](#error-handling)
+1. [Overview](#overview)
+2. [Health Endpoints](#health-endpoints)
+3. [Authentication](#authentication)
+4. [Document Endpoints](#document-endpoints)
+5. [Query Endpoints](#query-endpoints)
+6. [Graph Endpoints](#graph-endpoints)
+7. [Entity Endpoints](#entity-endpoints)
+8. [Relationship Endpoints](#relationship-endpoints)
+9. [Task Endpoints](#task-endpoints)
+10. [Error Handling](#error-handling)
 
 ---
 
-## Authentication
+## Overview
 
-LightRAG supports multiple authentication methods:
+### Base URL Structure
 
-### API Key Authentication
-
-```http
-Authorization: Bearer <API_KEY>
+```
+http://localhost:8080
+├── /health          # Health check (root level)
+├── /ready           # Readiness check
+├── /live            # Liveness check
+├── /metrics         # Prometheus metrics
+└── /api/v1/         # API version 1
+    ├── documents/   # Document management
+    ├── query/       # Query execution
+    ├── graph/       # Knowledge graph
+    └── tasks/       # Task management
 ```
 
-### Basic Authentication
+### Content Type
+
+All API requests and responses use JSON:
 
 ```http
-Authorization: Basic <base64(username:password)>
+Content-Type: application/json
+Accept: application/json
 ```
 
-### JWT Token (Multi-Tenant)
+### Authentication
+
+EdgeQuake supports JWT bearer token and API key authentication:
 
 ```http
 Authorization: Bearer <JWT_TOKEN>
-X-Tenant-ID: <tenant_uuid>
-X-KB-ID: <knowledge_base_uuid>
+# or
+X-API-Key: <API_KEY>
 ```
 
 ---
 
-## Query Endpoints
-
-### POST `/query`
-
-Execute a RAG query and get a response.
-
-```http
-POST /query
-Content-Type: application/json
-Authorization: Bearer <token>
-```
-
-#### Request Body
-
-```json
-{
-  "query": "What is the capital of France?",
-  "mode": "mix",
-  "only_need_context": false,
-  "only_need_prompt": false,
-  "response_type": "Multiple Paragraphs",
-  "top_k": 40,
-  "chunk_top_k": 20,
-  "max_entity_tokens": 6000,
-  "max_relation_tokens": 8000,
-  "max_total_tokens": 30000,
-  "conversation_history": [
-    {"role": "user", "content": "Tell me about Europe"},
-    {"role": "assistant", "content": "Europe is..."}
-  ],
-  "user_prompt": "Focus on historical context",
-  "enable_rerank": true,
-  "include_references": true
-}
-```
-
-#### Parameters
-
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `query` | string | ✅ | - | Query text (min 3 chars) |
-| `mode` | string | ❌ | `mix` | Query mode: `local`, `global`, `hybrid`, `naive`, `mix`, `bypass` |
-| `only_need_context` | bool | ❌ | `false` | Return only context without LLM response |
-| `only_need_prompt` | bool | ❌ | `false` | Return only generated prompt |
-| `response_type` | string | ❌ | `Multiple Paragraphs` | Response format |
-| `top_k` | int | ❌ | `40` | Number of entities/relations to retrieve |
-| `chunk_top_k` | int | ❌ | `20` | Number of text chunks to retrieve |
-| `max_entity_tokens` | int | ❌ | `6000` | Max tokens for entity context |
-| `max_relation_tokens` | int | ❌ | `8000` | Max tokens for relation context |
-| `max_total_tokens` | int | ❌ | `30000` | Total context token budget |
-| `conversation_history` | array | ❌ | `[]` | Previous conversation turns |
-| `user_prompt` | string | ❌ | `null` | Additional instructions for LLM |
-| `enable_rerank` | bool | ❌ | `true` | Enable chunk reranking |
-| `include_references` | bool | ❌ | `true` | Include reference list |
-
-#### Response
-
-```json
-{
-  "response": "Paris is the capital of France...",
-  "references": [
-    {"id": "doc-123", "title": "France Geography"},
-    {"id": "doc-456", "title": "European Capitals"}
-  ]
-}
-```
-
----
-
-### POST `/query/stream`
-
-Stream a RAG query response (Server-Sent Events).
-
-```http
-POST /query/stream
-Content-Type: application/json
-Authorization: Bearer <token>
-```
-
-#### Request Body
-
-Same as `/query`
-
-#### Response (NDJSON Stream)
-
-```json
-{"references": [{"id": "doc-123", "title": "France"}]}
-{"response": "Paris "}
-{"response": "is "}
-{"response": "the capital..."}
-```
-
----
-
-### POST `/query/data`
-
-Get structured query data with full context information.
-
-```http
-POST /query/data
-Content-Type: application/json
-Authorization: Bearer <token>
-```
-
-#### Response
-
-```json
-{
-  "status": "success",
-  "message": "Query completed",
-  "data": {
-    "entities": [
-      {
-        "entity_name": "Paris",
-        "entity_type": "location",
-        "description": "Capital city of France...",
-        "source_id": "chunk-001"
-      }
-    ],
-    "relationships": [
-      {
-        "source": "France",
-        "target": "Paris",
-        "description": "capital of",
-        "keywords": "capital, city"
-      }
-    ],
-    "chunks": [
-      {
-        "id": "chunk-001",
-        "content": "Paris is the capital...",
-        "file_path": "france.txt"
-      }
-    ],
-    "references": [...]
-  },
-  "metadata": {
-    "mode": "mix",
-    "high_level_keywords": ["capital", "france"],
-    "low_level_keywords": ["paris", "city"]
-  }
-}
-```
-
----
-
-## Document Endpoints
-
-### POST `/documents/text`
-
-Insert a single text document.
-
-```http
-POST /documents/text
-Content-Type: application/json
-Authorization: Bearer <token>
-```
-
-#### Request Body
-
-```json
-{
-  "text": "Document content to insert...",
-  "file_source": "manual_input.txt",
-  "external_id": "unique-doc-id-123"
-}
-```
-
-#### Response
-
-```json
-{
-  "status": "accepted",
-  "message": "Text document accepted for processing",
-  "doc_id": "abc123...",
-  "track_id": "track_20251204_123456_xyz"
-}
-```
-
----
-
-### POST `/documents/texts`
-
-Insert multiple text documents in batch.
-
-```http
-POST /documents/texts
-Content-Type: application/json
-Authorization: Bearer <token>
-```
-
-#### Request Body
-
-```json
-{
-  "texts": [
-    "First document content...",
-    "Second document content..."
-  ],
-  "file_sources": ["doc1.txt", "doc2.txt"],
-  "external_ids": ["id-001", "id-002"]
-}
-```
-
----
-
-### POST `/documents/upload`
-
-Upload a file for processing.
-
-```http
-POST /documents/upload
-Content-Type: multipart/form-data
-Authorization: Bearer <token>
-```
-
-#### Form Data
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `file` | file | File to upload (txt, md, pdf, docx) |
-
-#### Response
-
-```json
-{
-  "status": "uploaded",
-  "message": "File uploaded successfully",
-  "filename": "document.pdf",
-  "track_id": "track_20251204_123456_xyz"
-}
-```
-
----
-
-### POST `/documents/scan`
-
-Scan and process all files in the input directory.
-
-```http
-POST /documents/scan
-Authorization: Bearer <token>
-```
-
-#### Response
-
-```json
-{
-  "status": "scanning_started",
-  "message": "Scanning process initiated",
-  "track_id": "scan_20251204_123456_xyz"
-}
-```
-
----
-
-### GET `/documents`
-
-List all documents with pagination.
-
-```http
-GET /documents?page=1&page_size=20&status=processed&sort_field=created_at&sort_order=desc
-Authorization: Bearer <token>
-```
-
-#### Query Parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `page` | int | `1` | Page number |
-| `page_size` | int | `20` | Items per page (max 100) |
-| `status` | string | - | Filter by status: `pending`, `processing`, `processed`, `failed` |
-| `sort_field` | string | `created_at` | Sort field |
-| `sort_order` | string | `desc` | Sort order: `asc`, `desc` |
-
-#### Response
-
-```json
-{
-  "documents": [
-    {
-      "id": "abc123",
-      "file_path": "document.txt",
-      "status": "processed",
-      "chunks_count": 15,
-      "created_at": "2025-12-04T10:30:00Z",
-      "updated_at": "2025-12-04T10:35:00Z"
-    }
-  ],
-  "total": 150,
-  "page": 1,
-  "page_size": 20,
-  "total_pages": 8
-}
-```
-
----
-
-### GET `/documents/{doc_id}`
-
-Get document details by ID.
-
-```http
-GET /documents/{doc_id}
-Authorization: Bearer <token>
-```
-
----
-
-### DELETE `/documents/{doc_id}`
-
-Delete a document and its associated data.
-
-```http
-DELETE /documents/{doc_id}
-Authorization: Bearer <token>
-```
-
-#### Response
-
-```json
-{
-  "status": "success",
-  "message": "Document deleted successfully",
-  "details": {
-    "doc_id": "abc123",
-    "chunks_deleted": 15,
-    "entities_affected": 23,
-    "relations_affected": 12
-  }
-}
-```
-
----
-
-### DELETE `/documents`
-
-Clear all documents (dangerous operation).
-
-```http
-DELETE /documents
-Authorization: Bearer <token>
-```
-
----
-
-### GET `/documents/status/{track_id}`
-
-Get processing status for a tracking ID.
-
-```http
-GET /documents/status/{track_id}
-Authorization: Bearer <token>
-```
-
-#### Response
-
-```json
-{
-  "track_id": "track_20251204_123456_xyz",
-  "status": "processing",
-  "progress": 0.65,
-  "current_step": "entity_extraction",
-  "documents_processed": 5,
-  "documents_total": 8,
-  "errors": [],
-  "started_at": "2025-12-04T10:30:00Z",
-  "updated_at": "2025-12-04T10:35:00Z"
-}
-```
-
----
-
-## Graph Endpoints
-
-### GET `/graph/label/list`
-
-Get all entity labels in the knowledge graph.
-
-```http
-GET /graph/label/list
-Authorization: Bearer <token>
-```
-
-#### Response
-
-```json
-["Person", "Organization", "Location", "Event", "Concept"]
-```
-
----
-
-### GET `/graph/label/popular`
-
-Get popular labels sorted by node degree.
-
-```http
-GET /graph/label/popular?limit=100
-Authorization: Bearer <token>
-```
-
-#### Query Parameters
-
-| Parameter | Type | Default | Max | Description |
-|-----------|------|---------|-----|-------------|
-| `limit` | int | `300` | `1000` | Max labels to return |
-
----
-
-### GET `/graph/label/search`
-
-Search labels with fuzzy matching.
-
-```http
-GET /graph/label/search?q=apple&limit=50
-Authorization: Bearer <token>
-```
-
-#### Query Parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `q` | string | - | Search query (required) |
-| `limit` | int | `50` | Max results |
-
----
-
-### GET `/graphs`
-
-Get knowledge graph subgraph for a label.
-
-```http
-GET /graphs?label=Apple&max_depth=3&max_nodes=1000
-Authorization: Bearer <token>
-```
-
-#### Query Parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `label` | string | - | Starting node label (required) |
-| `max_depth` | int | `3` | Maximum traversal depth |
-| `max_nodes` | int | `1000` | Maximum nodes to return |
-
-#### Response
-
-```json
-{
-  "nodes": [
-    {
-      "id": "apple-inc",
-      "labels": ["Organization"],
-      "properties": {
-        "description": "Technology company...",
-        "entity_type": "organization"
-      }
-    }
-  ],
-  "edges": [
-    {
-      "id": "edge-001",
-      "source": "apple-inc",
-      "target": "iphone",
-      "type": "produces",
-      "properties": {
-        "description": "Apple produces iPhone",
-        "weight": 5.0
-      }
-    }
-  ],
-  "is_truncated": false
-}
-```
-
----
-
-### PUT `/graph/entity`
-
-Update an entity in the knowledge graph.
-
-```http
-PUT /graph/entity
-Content-Type: application/json
-Authorization: Bearer <token>
-```
-
-#### Request Body
-
-```json
-{
-  "entity_name": "Apple Inc.",
-  "updated_data": {
-    "description": "Updated description...",
-    "entity_type": "technology_company"
-  },
-  "allow_rename": false
-}
-```
-
----
-
-### PUT `/graph/relation`
-
-Update a relationship in the knowledge graph.
-
-```http
-PUT /graph/relation
-Content-Type: application/json
-Authorization: Bearer <token>
-```
-
-#### Request Body
-
-```json
-{
-  "source_id": "Apple Inc.",
-  "target_id": "iPhone",
-  "updated_data": {
-    "description": "Designs and manufactures",
-    "keywords": "technology, smartphone"
-  }
-}
-```
-
----
-
-### DELETE `/graph/entity/{entity_name}`
-
-Delete an entity from the knowledge graph.
-
-```http
-DELETE /graph/entity/{entity_name}
-Authorization: Bearer <token>
-```
-
----
-
-### DELETE `/graph/relation`
-
-Delete a relationship from the knowledge graph.
-
-```http
-DELETE /graph/relation?source_id=Apple&target_id=iPhone
-Authorization: Bearer <token>
-```
-
----
-
-## Admin Endpoints
+## Health Endpoints
 
 ### GET `/health`
 
@@ -602,76 +69,807 @@ Health check endpoint.
 GET /health
 ```
 
-#### Response
+**Response**
 
 ```json
 {
   "status": "healthy",
-  "version": "1.4.9.2",
-  "storage_status": "initialized",
-  "llm_status": "connected",
-  "embedding_status": "connected"
+  "version": "0.1.0",
+  "components": {
+    "database": "connected",
+    "llm_provider": "openai",
+    "storage": "ready"
+  }
 }
 ```
 
----
+### GET `/ready`
 
-### GET `/health/storage`
-
-Detailed storage health check.
+Kubernetes readiness probe.
 
 ```http
-GET /health/storage
-Authorization: Bearer <token>
+GET /ready
 ```
 
----
+**Response**
 
-### POST `/admin/drop`
-
-Drop all data from storages (destructive).
-
-```http
-POST /admin/drop
-Authorization: Bearer <token>
-```
-
----
-
-### POST `/documents/rebuild-index`
-
-Rebuild knowledge graph from cached extractions.
-
-```http
-POST /documents/rebuild-index
-Authorization: Bearer <token>
-```
-
----
-
-## Multi-Tenant Headers
-
-For multi-tenant deployments, include these headers:
-
-| Header | Description | Required |
-|--------|-------------|----------|
-| `X-Tenant-ID` | Tenant UUID | When multi-tenant enabled |
-| `X-KB-ID` | Knowledge Base UUID | When multi-tenant enabled |
-| `X-User-ID` | User identifier | For audit logging |
-
-### Example Multi-Tenant Request
-
-```http
-POST /query
-Content-Type: application/json
-Authorization: Bearer <jwt_token>
-X-Tenant-ID: 550e8400-e29b-41d4-a716-446655440000
-X-KB-ID: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
-
+```json
 {
-  "query": "What are our Q3 results?",
-  "mode": "mix"
+  "status": "ready"
 }
+```
+
+### GET `/live`
+
+Kubernetes liveness probe.
+
+```http
+GET /live
+```
+
+**Response**
+
+```json
+{
+  "status": "alive"
+}
+```
+
+### GET `/metrics`
+
+Prometheus metrics endpoint.
+
+```http
+GET /metrics
+```
+
+---
+
+## Authentication
+
+### POST `/api/v1/auth/login`
+
+Authenticate and obtain JWT tokens.
+
+```http
+POST /api/v1/auth/login
+Content-Type: application/json
+```
+
+**Request Body**
+
+```json
+{
+  "username": "admin",
+  "password": "password"
+}
+```
+
+**Response**
+
+```json
+{
+  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+  "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "user": {
+    "id": "user-123",
+    "username": "admin",
+    "role": "admin"
+  }
+}
+```
+
+### POST `/api/v1/auth/refresh`
+
+Refresh access token.
+
+```http
+POST /api/v1/auth/refresh
+Content-Type: application/json
+```
+
+**Request Body**
+
+```json
+{
+  "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+}
+```
+
+### POST `/api/v1/auth/logout`
+
+Invalidate tokens.
+
+```http
+POST /api/v1/auth/logout
+Authorization: Bearer <token>
+```
+
+### GET `/api/v1/auth/me`
+
+Get current user information.
+
+```http
+GET /api/v1/auth/me
+Authorization: Bearer <token>
+```
+
+---
+
+## Document Endpoints
+
+### POST `/api/v1/documents`
+
+Upload a text document for processing.
+
+```http
+POST /api/v1/documents
+Content-Type: application/json
+Authorization: Bearer <token>
+```
+
+**Request Body**
+
+```json
+{
+  "content": "Marie Curie was a physicist who discovered radium...",
+  "title": "Marie Curie Biography",
+  "metadata": {
+    "author": "Wikipedia",
+    "source": "https://en.wikipedia.org/wiki/Marie_Curie"
+  },
+  "async_processing": false,
+  "track_id": "batch-2024-001"
+}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `content` | string | ✅ | - | Document text content |
+| `title` | string | ❌ | null | Document title |
+| `metadata` | object | ❌ | null | Additional metadata |
+| `async_processing` | bool | ❌ | false | Process asynchronously |
+| `track_id` | string | ❌ | auto | Batch tracking ID |
+
+**Response (201 Created)**
+
+```json
+{
+  "document_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "completed",
+  "track_id": "batch-2024-001",
+  "chunk_count": 5,
+  "entity_count": 12,
+  "relationship_count": 8
+}
+```
+
+**Async Response**
+
+```json
+{
+  "document_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "pending",
+  "task_id": "task_20251224_143000_abc123",
+  "track_id": "batch-2024-001"
+}
+```
+
+### POST `/api/v1/documents/upload`
+
+Upload a file for processing.
+
+```http
+POST /api/v1/documents/upload
+Content-Type: multipart/form-data
+Authorization: Bearer <token>
+```
+
+**Form Data**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `file` | file | File to upload (txt, md, pdf, docx) |
+
+**Response**
+
+```json
+{
+  "document_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "pending",
+  "task_id": "task_20251224_143000_abc123",
+  "track_id": "upload_20251224_143000_abc123"
+}
+```
+
+### POST `/api/v1/documents/upload/batch`
+
+Upload multiple files.
+
+```http
+POST /api/v1/documents/upload/batch
+Content-Type: multipart/form-data
+Authorization: Bearer <token>
+```
+
+**Form Data**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `files` | file[] | Multiple files to upload |
+
+### GET `/api/v1/documents`
+
+List all documents with pagination.
+
+```http
+GET /api/v1/documents?page=1&page_size=20&status=completed
+Authorization: Bearer <token>
+```
+
+**Query Parameters**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `page` | int | 1 | Page number |
+| `page_size` | int | 20 | Items per page (max 100) |
+| `status` | string | - | Filter: pending, processing, completed, failed |
+| `sort_by` | string | created_at | Sort field |
+| `sort_order` | string | desc | asc or desc |
+
+**Response**
+
+```json
+{
+  "documents": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "title": "Marie Curie Biography",
+      "status": "completed",
+      "content_summary": "Marie Curie was a physicist who discovered radium...",
+      "content_length": 5432,
+      "chunk_count": 5,
+      "entity_count": 12,
+      "track_id": "batch-2024-001",
+      "created_at": "2025-12-24T14:30:00Z",
+      "processed_at": "2025-12-24T14:30:15Z"
+    }
+  ],
+  "total": 150,
+  "page": 1,
+  "page_size": 20,
+  "status_counts": {
+    "pending": 5,
+    "processing": 2,
+    "completed": 140,
+    "failed": 3
+  }
+}
+```
+
+### GET `/api/v1/documents/{document_id}`
+
+Get document details.
+
+```http
+GET /api/v1/documents/550e8400-e29b-41d4-a716-446655440000
+Authorization: Bearer <token>
+```
+
+### DELETE `/api/v1/documents/{document_id}`
+
+Delete a document and associated data.
+
+```http
+DELETE /api/v1/documents/550e8400-e29b-41d4-a716-446655440000
+Authorization: Bearer <token>
+```
+
+**Response**
+
+```json
+{
+  "status": "success",
+  "message": "Document deleted successfully",
+  "deleted_chunks": 5,
+  "affected_entities": 12,
+  "affected_relationships": 8
+}
+```
+
+### GET `/api/v1/documents/track/{track_id}`
+
+Get status of a batch upload.
+
+```http
+GET /api/v1/documents/track/batch-2024-001
+Authorization: Bearer <token>
+```
+
+**Response**
+
+```json
+{
+  "track_id": "batch-2024-001",
+  "created_at": "2025-12-24T14:30:00Z",
+  "documents": [...],
+  "total_count": 10,
+  "status_summary": {
+    "pending": 2,
+    "processing": 1,
+    "completed": 6,
+    "failed": 1
+  },
+  "is_complete": false,
+  "latest_message": "Processing document 7 of 10..."
+}
+```
+
+---
+
+## Query Endpoints
+
+### POST `/api/v1/query`
+
+Execute a RAG query.
+
+```http
+POST /api/v1/query
+Content-Type: application/json
+Authorization: Bearer <token>
+```
+
+**Request Body**
+
+```json
+{
+  "query": "What did Marie Curie discover?",
+  "mode": "hybrid",
+  "context_only": false,
+  "max_results": 10,
+  "conversation_history": [
+    {"role": "user", "content": "Tell me about scientists"},
+    {"role": "assistant", "content": "Scientists are..."}
+  ],
+  "enable_rerank": true,
+  "rerank_top_k": 5
+}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `query` | string | ✅ | - | Query text |
+| `mode` | string | ❌ | hybrid | Query mode: naive, local, global, hybrid, mix |
+| `context_only` | bool | ❌ | false | Return only context without LLM answer |
+| `max_results` | int | ❌ | 20 | Maximum context items |
+| `conversation_history` | array | ❌ | [] | Previous conversation for context |
+| `enable_rerank` | bool | ❌ | true | Enable reranking |
+| `rerank_top_k` | int | ❌ | 10 | Top K after reranking |
+
+**Response**
+
+```json
+{
+  "answer": "Marie Curie discovered radium and polonium. She conducted groundbreaking research on radioactivity...",
+  "mode": "hybrid",
+  "sources": [
+    {
+      "source_type": "chunk",
+      "id": "chunk-001",
+      "score": 0.92,
+      "rerank_score": 0.95,
+      "snippet": "Marie Curie discovered radium in 1898..."
+    },
+    {
+      "source_type": "entity",
+      "id": "MARIE_CURIE",
+      "score": 0.88,
+      "snippet": "Polish-French physicist and chemist..."
+    },
+    {
+      "source_type": "relationship",
+      "id": "MARIE_CURIE->RADIUM",
+      "score": 0.85,
+      "snippet": "MARIE_CURIE discovered RADIUM"
+    }
+  ],
+  "stats": {
+    "embedding_time_ms": 45,
+    "retrieval_time_ms": 120,
+    "generation_time_ms": 850,
+    "total_time_ms": 1015,
+    "sources_retrieved": 15,
+    "rerank_time_ms": 25
+  },
+  "conversation_id": "conv-550e8400",
+  "reranked": true
+}
+```
+
+### POST `/api/v1/query/stream`
+
+Stream a RAG query response (Server-Sent Events).
+
+```http
+POST /api/v1/query/stream
+Content-Type: application/json
+Authorization: Bearer <token>
+```
+
+**Request Body**
+
+```json
+{
+  "query": "Explain the theory of relativity",
+  "mode": "hybrid"
+}
+```
+
+**Response (SSE Stream)**
+
+```
+event: data
+data: {"type": "thinking", "content": "Analyzing query..."}
+
+event: data
+data: {"type": "sources", "sources": [...]}
+
+event: data
+data: {"type": "content", "content": "The theory of "}
+
+event: data
+data: {"type": "content", "content": "relativity..."}
+
+event: data
+data: {"type": "done", "stats": {...}}
+```
+
+---
+
+## Graph Endpoints
+
+### GET `/api/v1/graph`
+
+Get knowledge graph overview.
+
+```http
+GET /api/v1/graph?max_nodes=100&depth=2
+Authorization: Bearer <token>
+```
+
+**Query Parameters**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `start_node` | string | - | Starting node ID |
+| `depth` | int | 2 | Traversal depth |
+| `max_nodes` | int | 100 | Maximum nodes |
+
+**Response**
+
+```json
+{
+  "nodes": [
+    {
+      "id": "MARIE_CURIE",
+      "label": "MARIE_CURIE",
+      "node_type": "PERSON",
+      "description": "Polish-French physicist and chemist",
+      "degree": 15,
+      "properties": {
+        "born": "1867",
+        "nationality": "Polish-French"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "MARIE_CURIE",
+      "target": "RADIUM",
+      "edge_type": "DISCOVERED",
+      "weight": 1.0,
+      "properties": {
+        "year": "1898"
+      }
+    }
+  ],
+  "is_truncated": false,
+  "total_nodes": 150,
+  "total_edges": 230
+}
+```
+
+### GET `/api/v1/graph/nodes/{node_id}`
+
+Get specific node details.
+
+```http
+GET /api/v1/graph/nodes/MARIE_CURIE
+Authorization: Bearer <token>
+```
+
+### GET `/api/v1/graph/labels/search`
+
+Search node labels.
+
+```http
+GET /api/v1/graph/labels/search?q=curie&limit=10
+Authorization: Bearer <token>
+```
+
+**Response**
+
+```json
+{
+  "labels": [
+    {
+      "id": "MARIE_CURIE",
+      "node_type": "PERSON",
+      "score": 0.95
+    },
+    {
+      "id": "PIERRE_CURIE",
+      "node_type": "PERSON",
+      "score": 0.75
+    }
+  ]
+}
+```
+
+---
+
+## Entity Endpoints
+
+### POST `/api/v1/graph/entities`
+
+Create a new entity.
+
+```http
+POST /api/v1/graph/entities
+Content-Type: application/json
+Authorization: Bearer <token>
+```
+
+**Request Body**
+
+```json
+{
+  "entity_name": "Albert Einstein",
+  "entity_type": "PERSON",
+  "description": "German-born theoretical physicist",
+  "source_id": "manual_entry",
+  "metadata": {
+    "born": "1879",
+    "nationality": "German-American"
+  }
+}
+```
+
+**Response (201 Created)**
+
+```json
+{
+  "status": "success",
+  "message": "Entity created successfully",
+  "entity": {
+    "id": "ALBERT_EINSTEIN",
+    "entity_name": "ALBERT_EINSTEIN",
+    "entity_type": "PERSON",
+    "description": "German-born theoretical physicist",
+    "source_id": "manual_entry",
+    "created_at": "2025-12-24T14:30:00Z",
+    "updated_at": "2025-12-24T14:30:00Z",
+    "degree": 0,
+    "metadata": {...}
+  }
+}
+```
+
+### GET `/api/v1/graph/entities/exists`
+
+Check if entity exists.
+
+```http
+GET /api/v1/graph/entities/exists?entity_name=MARIE_CURIE
+Authorization: Bearer <token>
+```
+
+**Response**
+
+```json
+{
+  "exists": true,
+  "entity_id": "MARIE_CURIE",
+  "entity_type": "PERSON",
+  "degree": 15
+}
+```
+
+### GET `/api/v1/graph/entities/{entity_name}`
+
+Get entity details.
+
+```http
+GET /api/v1/graph/entities/MARIE_CURIE
+Authorization: Bearer <token>
+```
+
+### PUT `/api/v1/graph/entities/{entity_name}`
+
+Update an entity.
+
+```http
+PUT /api/v1/graph/entities/MARIE_CURIE
+Content-Type: application/json
+Authorization: Bearer <token>
+```
+
+**Request Body**
+
+```json
+{
+  "entity_type": "SCIENTIST",
+  "description": "Updated description...",
+  "metadata": {...}
+}
+```
+
+### DELETE `/api/v1/graph/entities/{entity_name}`
+
+Delete an entity and its relationships.
+
+```http
+DELETE /api/v1/graph/entities/MARIE_CURIE?cascade=true
+Authorization: Bearer <token>
+```
+
+### POST `/api/v1/graph/entities/merge`
+
+Merge two entities.
+
+```http
+POST /api/v1/graph/entities/merge
+Content-Type: application/json
+Authorization: Bearer <token>
+```
+
+**Request Body**
+
+```json
+{
+  "source_entity": "MARIE_SKLODOWSKA",
+  "target_entity": "MARIE_CURIE",
+  "merge_strategy": "prefer_target"
+}
+```
+
+**Response**
+
+```json
+{
+  "status": "success",
+  "message": "Entities merged successfully",
+  "merged_entity": {...},
+  "merge_details": {
+    "source_entity_id": "MARIE_SKLODOWSKA",
+    "target_entity_id": "MARIE_CURIE",
+    "relationships_merged": 5,
+    "duplicate_relationships_removed": 2
+  }
+}
+```
+
+---
+
+## Relationship Endpoints
+
+### POST `/api/v1/graph/relationships`
+
+Create a relationship.
+
+```http
+POST /api/v1/graph/relationships
+Content-Type: application/json
+Authorization: Bearer <token>
+```
+
+**Request Body**
+
+```json
+{
+  "source_entity": "MARIE_CURIE",
+  "target_entity": "RADIUM",
+  "relationship_type": "DISCOVERED",
+  "description": "Marie Curie discovered radium in 1898",
+  "weight": 1.0,
+  "source_id": "manual_entry"
+}
+```
+
+### GET `/api/v1/graph/relationships/{relationship_id}`
+
+Get relationship details.
+
+### PUT `/api/v1/graph/relationships/{relationship_id}`
+
+Update a relationship.
+
+### DELETE `/api/v1/graph/relationships/{relationship_id}`
+
+Delete a relationship.
+
+---
+
+## Task Endpoints
+
+### GET `/api/v1/tasks`
+
+List tasks with filtering.
+
+```http
+GET /api/v1/tasks?status=processing&page=1&page_size=20
+Authorization: Bearer <token>
+```
+
+**Query Parameters**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `status` | string | - | Filter by status |
+| `task_type` | string | - | Filter by type |
+| `page` | int | 1 | Page number |
+| `page_size` | int | 20 | Items per page |
+
+**Response**
+
+```json
+{
+  "tasks": [
+    {
+      "track_id": "task_20251224_143000_abc123",
+      "task_type": "insert",
+      "status": "processing",
+      "progress": 0.75,
+      "message": "Extracting entities...",
+      "created_at": "2025-12-24T14:30:00Z"
+    }
+  ],
+  "statistics": {
+    "pending": 5,
+    "processing": 2,
+    "indexed": 150,
+    "failed": 3
+  }
+}
+```
+
+### GET `/api/v1/tasks/{track_id}`
+
+Get task status.
+
+```http
+GET /api/v1/tasks/task_20251224_143000_abc123
+Authorization: Bearer <token>
+```
+
+### POST `/api/v1/tasks/{track_id}/cancel`
+
+Cancel a running task.
+
+```http
+POST /api/v1/tasks/task_20251224_143000_abc123/cancel
+Authorization: Bearer <token>
+```
+
+### POST `/api/v1/tasks/{track_id}/retry`
+
+Retry a failed task.
+
+```http
+POST /api/v1/tasks/task_20251224_143000_abc123/retry
+Authorization: Bearer <token>
 ```
 
 ---
@@ -682,133 +880,105 @@ X-KB-ID: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
 
 ```json
 {
-  "detail": "Error description",
-  "error_code": "ERROR_CODE",
-  "request_id": "req-12345"
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Query cannot be empty",
+    "details": {
+      "field": "query",
+      "constraint": "min_length"
+    }
+  },
+  "status": 400
 }
 ```
 
-### HTTP Status Codes
+### Error Codes
 
-| Code | Description |
-|------|-------------|
-| `200` | Success |
-| `201` | Created |
-| `202` | Accepted (async processing started) |
-| `400` | Bad Request (invalid input) |
-| `401` | Unauthorized (missing/invalid auth) |
-| `403` | Forbidden (insufficient permissions) |
-| `404` | Not Found |
-| `422` | Validation Error |
-| `429` | Too Many Requests |
-| `500` | Internal Server Error |
-
-### Common Error Codes
-
-| Error Code | Description |
-|------------|-------------|
-| `INVALID_QUERY` | Query text too short or invalid |
-| `DOCUMENT_NOT_FOUND` | Requested document doesn't exist |
-| `TENANT_NOT_FOUND` | Invalid tenant ID |
-| `KB_NOT_FOUND` | Invalid knowledge base ID |
-| `PROCESSING_FAILED` | Document processing failed |
-| `STORAGE_ERROR` | Database connection error |
-| `LLM_ERROR` | LLM provider error |
-| `RATE_LIMITED` | Too many requests |
+| HTTP Status | Code | Description |
+|-------------|------|-------------|
+| 400 | BAD_REQUEST | Invalid request format |
+| 400 | VALIDATION_ERROR | Request validation failed |
+| 401 | AUTH_REQUIRED | Authentication required |
+| 401 | INVALID_TOKEN | Invalid or expired token |
+| 403 | FORBIDDEN | Insufficient permissions |
+| 404 | NOT_FOUND | Resource not found |
+| 413 | PAYLOAD_TOO_LARGE | Document exceeds size limit |
+| 429 | RATE_LIMITED | Too many requests |
+| 500 | INTERNAL_ERROR | Server error |
 
 ---
 
-## Rate Limiting
+## Rate Limits
 
-Default rate limits (configurable via environment):
-
-| Endpoint Category | Limit |
-|-------------------|-------|
-| Query endpoints | 60/minute |
-| Document upload | 20/minute |
-| Batch operations | 10/minute |
-| Admin endpoints | 5/minute |
+| Endpoint Type | Limit |
+|---------------|-------|
+| Query | 100 requests/minute |
+| Document Upload | 50 requests/minute |
+| Graph Read | 500 requests/minute |
+| Graph Write | 100 requests/minute |
 
 ---
 
-## Ollama-Compatible API
+## WebSocket (Future)
 
-LightRAG provides Ollama-compatible endpoints for integration with Ollama clients.
+Real-time subscriptions for task updates:
 
-### POST `/api/generate`
+```javascript
+const ws = new WebSocket('ws://localhost:8080/api/v1/ws');
 
-Ollama-compatible generation endpoint.
+ws.onmessage = (event) => {
+  const update = JSON.parse(event.data);
+  console.log('Task update:', update);
+};
 
-```http
-POST /api/generate
-Content-Type: application/json
+ws.send(JSON.stringify({
+  type: 'subscribe',
+  channel: 'tasks',
+  track_id: 'task_20251224_143000_abc123'
+}));
 ```
 
-#### Request Body
+---
 
-```json
-{
-  "model": "lightrag",
-  "prompt": "What is the capital of France?",
-  "stream": false
+## SDK Examples
+
+### TypeScript/JavaScript
+
+```typescript
+import { edgequakeApi } from '@/lib/api/edgequake';
+
+// Upload document
+const result = await edgequakeApi.uploadDocument({
+  content: "Document text...",
+  title: "My Document"
+});
+
+// Query
+const response = await edgequakeApi.query({
+  query: "What is the main topic?",
+  mode: "hybrid"
+});
+
+// Streaming query
+for await (const chunk of edgequakeApi.queryStream({
+  query: "Explain in detail...",
+  mode: "hybrid"
+})) {
+  console.log(chunk.content);
 }
 ```
 
-### POST `/api/chat`
+### Rust
 
-Ollama-compatible chat endpoint.
+```rust
+use edgequake_core::EdgeQuake;
 
-```http
-POST /api/chat
-Content-Type: application/json
+let eq = EdgeQuake::connect("http://localhost:8080").await?;
+
+// Upload document
+let doc_id = eq.upload_document("Document text...", "My Document").await?;
+
+// Query
+let response = eq.query("What is the main topic?", QueryMode::Hybrid).await?;
+println!("Answer: {}", response.answer);
 ```
-
-#### Request Body
-
-```json
-{
-  "model": "lightrag",
-  "messages": [
-    {"role": "user", "content": "Tell me about Paris"}
-  ],
-  "stream": true
-}
-```
-
-### GET `/api/tags`
-
-List available models.
-
-```http
-GET /api/tags
-```
-
----
-
-## WebUI
-
-Access the built-in web interface at:
-
-```
-http://localhost:9621/webui
-```
-
-Features:
-- Document management
-- Knowledge graph visualization
-- Query interface
-- System configuration
-
----
-
-## OpenAPI Documentation
-
-Interactive API documentation available at:
-
-- **Swagger UI**: `http://localhost:9621/docs`
-- **ReDoc**: `http://localhost:9621/redoc`
-- **OpenAPI JSON**: `http://localhost:9621/openapi.json`
-
----
-
-**Version**: 1.4.9.2 | **License**: MIT

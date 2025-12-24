@@ -1,536 +1,542 @@
-# LightRAG Configuration Reference
+# EdgeQuake Configuration Reference
+
+> Complete reference for all EdgeQuake configuration options
+
+**Version**: 0.1.0 | **Last Updated**: December 2025
+
+---
+
+## Table of Contents
+
+1. [Configuration Overview](#configuration-overview)
+2. [API Configuration](#api-configuration)
+3. [Storage Configuration](#storage-configuration)
+4. [LLM Configuration](#llm-configuration)
+5. [Pipeline Configuration](#pipeline-configuration)
+6. [Query Configuration](#query-configuration)
+7. [Environment Variables](#environment-variables)
+8. [Configuration File](#configuration-file)
+
+---
 
 ## Configuration Overview
 
+EdgeQuake supports configuration through:
+
+1. **Environment Variables** - Recommended for production/Docker
+2. **Configuration File** - TOML format for complex setups
+3. **Programmatic** - Direct struct configuration in code
+
+### Priority Order
+
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       CONFIGURATION LAYERS                                   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │  1. COMMAND LINE ARGUMENTS (highest priority)                          │ │
-│  │     python -m lightrag.api.lightrag_server --port 9621 --workers 2     │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                    │                                         │
-│                                    ▼                                         │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │  2. ENVIRONMENT VARIABLES                                              │ │
-│  │     export PORT=9621                                                   │ │
-│  │     export LLM_MODEL=gpt-4o-mini                                      │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                    │                                         │
-│                                    ▼                                         │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │  3. .env FILE                                                          │ │
-│  │     LLM_MODEL=gpt-4o-mini                                             │ │
-│  │     EMBEDDING_DIM=1536                                                 │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                    │                                         │
-│                                    ▼                                         │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │  4. PYTHON DATACLASS DEFAULTS (lowest priority)                        │ │
-│  │     LightRAG(working_dir="./rag_storage")                             │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+Environment Variables > Config File > Default Values
+```
+
+### Configuration Structure
+
+```rust
+// edgequake/crates/edgequake-core/src/config.rs
+
+pub struct Config {
+    pub api: ApiConfig,
+    pub storage: StorageConfig,
+    pub llm: LlmConfig,
+    pub pipeline: PipelineConfig,
+    pub query: QueryConfig,
+}
 ```
 
 ---
 
-## 1. Server Configuration
+## API Configuration
 
-### Basic Server Settings
+### ApiConfig
 
-| Variable | CLI Flag | Default | Description |
-|----------|----------|---------|-------------|
-| `HOST` | `--host` | `0.0.0.0` | Server bind address |
-| `PORT` | `--port` | `9621` | Server port |
-| `WORKERS` | `--workers` | `2` | Number of worker processes |
-| `TIMEOUT` | `--timeout` | `300` | Request timeout (seconds) |
-| `WORKING_DIR` | `--working-dir` | `./rag_storage` | RAG storage directory |
-| `INPUT_DIR` | `--input-dir` | `./inputs` | Document input directory |
-
-### SSL/TLS Configuration
-
-| Variable | CLI Flag | Default | Description |
-|----------|----------|---------|-------------|
-| `SSL` | `--ssl` | `false` | Enable HTTPS |
-| `SSL_CERTFILE` | `--ssl-certfile` | `None` | Path to SSL certificate |
-| `SSL_KEYFILE` | `--ssl-keyfile` | `None` | Path to SSL private key |
-
-### Logging Configuration
-
-| Variable | CLI Flag | Default | Description |
-|----------|----------|---------|-------------|
-| `LOG_LEVEL` | `--log-level` | `INFO` | Logging level (DEBUG/INFO/WARNING/ERROR/CRITICAL) |
-| `VERBOSE` | `--verbose` | `false` | Enable verbose debug output |
-| `LOG_MAX_BYTES` | — | `10485760` | Max log file size (10MB) |
-| `LOG_BACKUP_COUNT` | — | `5` | Number of log backups |
-| `LOG_FILENAME` | — | `lightrag.log` | Log filename |
-
----
-
-## 2. LLM Configuration
-
-### Provider Selection
-
-| Variable | CLI Flag | Default | Description |
-|----------|----------|---------|-------------|
-| `LLM_BINDING` | `--llm-binding` | `openai` | LLM provider |
-| `LLM_MODEL` | — | `mistral-nemo:latest` | Model name |
-| `LLM_BINDING_HOST` | — | Provider-specific | API endpoint URL |
-| `LLM_BINDING_API_KEY` | — | `None` | API key |
-
-**Supported LLM Bindings:**
-- `openai` - OpenAI API (default)
-- `ollama` - Local Ollama
-- `lollms` - LoLLMs server
-- `azure_openai` - Azure OpenAI Service
-- `aws_bedrock` - AWS Bedrock
-- `openai-ollama` - OpenAI LLM + Ollama embeddings
-
-### Provider-Specific Host Defaults
-
-| Provider | Default Host |
-|----------|-------------|
-| `openai` | `https://api.openai.com/v1` |
-| `ollama` | `http://localhost:11434` |
-| `lollms` | `http://localhost:9600` |
-| `azure_openai` | `AZURE_OPENAI_ENDPOINT` env |
-
-### LLM Performance Settings
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MAX_ASYNC` | `4` | Max concurrent LLM requests |
-| `LLM_TIMEOUT` | `180` | LLM request timeout (seconds) |
-| `ENABLE_LLM_CACHE` | `true` | Enable LLM response caching |
-| `ENABLE_LLM_CACHE_FOR_EXTRACT` | `true` | Cache extraction responses |
-| `TEMPERATURE` | `1.0` | LLM temperature setting |
-
-### Ollama-Specific Settings
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `OLLAMA_NUM_CTX` | `32768` | Context window size |
-| `OLLAMA_EMULATING_MODEL_NAME` | `lightrag` | Simulated model name |
-| `OLLAMA_EMULATING_MODEL_TAG` | `latest` | Simulated model tag |
-
----
-
-## 3. Embedding Configuration
-
-### Embedding Provider
-
-| Variable | CLI Flag | Default | Description |
-|----------|----------|---------|-------------|
-| `EMBEDDING_BINDING` | `--embedding-binding` | `openai` | Embedding provider |
-| `EMBEDDING_MODEL` | — | `bge-m3:latest` | Embedding model name |
-| `EMBEDDING_DIM` | — | `1024` | Embedding dimensions |
-| `EMBEDDING_BINDING_HOST` | — | Provider-specific | API endpoint |
-| `EMBEDDING_BINDING_API_KEY` | — | `""` | API key |
-
-**Supported Embedding Bindings:**
-- `openai` - OpenAI embeddings
-- `ollama` - Local Ollama embeddings
-- `azure_openai` - Azure OpenAI embeddings
-- `aws_bedrock` - AWS Bedrock Titan
-- `jina` - Jina embeddings
-
-### Embedding Performance
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EMBEDDING_FUNC_MAX_ASYNC` | `8` | Max concurrent embedding requests |
-| `EMBEDDING_BATCH_NUM` | `10` | Batch size for embeddings |
-| `EMBEDDING_TIMEOUT` | `30` | Embedding request timeout (seconds) |
-
----
-
-## 4. Storage Configuration
-
-### Storage Backend Selection
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LIGHTRAG_KV_STORAGE` | `JsonKVStorage` | Key-value storage backend |
-| `LIGHTRAG_VECTOR_STORAGE` | `NanoVectorDBStorage` | Vector storage backend |
-| `LIGHTRAG_GRAPH_STORAGE` | `NetworkXStorage` | Graph storage backend |
-| `LIGHTRAG_DOC_STATUS_STORAGE` | `JsonDocStatusStorage` | Document status storage |
-
-### Available Storage Backends
-
-**KV Storage Options:**
-| Value | Use Case |
-|-------|----------|
-| `JsonKVStorage` | Development, file-based |
-| `RedisKVStorage` | Production, distributed |
-| `PGKVStorage` | Production, PostgreSQL |
-| `MongoKVStorage` | Production, MongoDB |
-
-**Vector Storage Options:**
-| Value | Use Case |
-|-------|----------|
-| `NanoVectorDBStorage` | Development, in-memory |
-| `PGVectorStorage` | Production, PostgreSQL |
-| `MilvusVectorDBStorage` | Production, high-scale |
-| `QdrantStorage` | Production, managed |
-| `FAISSStorage` | Production, local |
-| `RedisVectorStorage` | Production, distributed |
-| `MongoDBVectorStorage` | Production, MongoDB |
-
-**Graph Storage Options:**
-| Value | Use Case |
-|-------|----------|
-| `NetworkXStorage` | Development, in-memory |
-| `Neo4JStorage` | Production, native graph |
-| `PGGraphStorage` | Production, PostgreSQL |
-| `AGEStorage` | Production, PostgreSQL AGE |
-| `MemgraphStorage` | Production, real-time |
-| `GremlinStorage` | Production, Gremlin-compatible |
-
-### PostgreSQL Configuration
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `POSTGRES_HOST` | `localhost` | PostgreSQL host |
-| `POSTGRES_PORT` | `5432` | PostgreSQL port |
-| `POSTGRES_USER` | — | Database user |
-| `POSTGRES_PASSWORD` | — | Database password |
-| `POSTGRES_DATABASE` | — | Database name |
-
-### Neo4j Configuration
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `NEO4J_URI` | `bolt://localhost:7687` | Neo4j connection URI |
-| `NEO4J_USERNAME` | `neo4j` | Neo4j username |
-| `NEO4J_PASSWORD` | — | Neo4j password |
-
-### Redis Configuration
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `REDIS_URI` | `redis://localhost:6379` | Redis connection URI |
-
-### Milvus Configuration
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MILVUS_HOST` | `localhost` | Milvus host |
-| `MILVUS_PORT` | `19530` | Milvus port |
-| `MILVUS_USER` | — | Milvus user |
-| `MILVUS_PASSWORD` | — | Milvus password |
-| `MILVUS_DB_NAME` | `default` | Milvus database |
-
----
-
-## 5. Document Processing Configuration
-
-### Chunking Settings
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CHUNK_SIZE` | `1200` | Token size per chunk |
-| `CHUNK_OVERLAP_SIZE` | `100` | Overlap between chunks |
-
-### Entity Extraction
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SUMMARY_LANGUAGE` | `English` | Language for summaries |
-| `MAX_GLEANING` | `1` | Entity extraction iterations |
-| `ENTITY_TYPES` | See below | Types of entities to extract |
-
-**Default Entity Types:**
-```python
-ENTITY_TYPES = [
-    "Person", "Creature", "Organization", "Location",
-    "Event", "Concept", "Method", "Content",
-    "Data", "Artifact", "NaturalObject"
-]
+```rust
+pub struct ApiConfig {
+    /// Server listen address
+    pub host: String,               // Default: "127.0.0.1"
+    
+    /// Server listen port
+    pub port: u16,                  // Default: 8080
+    
+    /// CORS allowed origins
+    pub cors_origins: Vec<String>,  // Default: ["*"]
+    
+    /// Request body size limit
+    pub max_body_size: usize,       // Default: 52_428_800 (50MB)
+    
+    /// Request timeout in seconds
+    pub request_timeout: u64,       // Default: 300
+    
+    /// Enable request logging
+    pub enable_logging: bool,       // Default: true
+}
 ```
 
-### Summary Settings
+### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SUMMARY_MAX_TOKENS` | `1200` | Max tokens per summary |
-| `SUMMARY_LENGTH_RECOMMENDED` | `600` | Recommended summary length |
-| `SUMMARY_CONTEXT_SIZE` | `12000` | Context window for summarization |
-| `FORCE_LLM_SUMMARY_ON_MERGE` | `8` | Fragment threshold for LLM summary |
+| `EDGEQUAKE_API_HOST` | `127.0.0.1` | Listen address |
+| `EDGEQUAKE_API_PORT` | `8080` | Listen port |
+| `EDGEQUAKE_CORS_ORIGINS` | `*` | Comma-separated origins |
+| `EDGEQUAKE_MAX_BODY_SIZE` | `52428800` | Max request body (bytes) |
+| `EDGEQUAKE_REQUEST_TIMEOUT` | `300` | Timeout (seconds) |
 
-### Document Loader
+### Example
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DOCUMENT_LOADING_ENGINE` | `DEFAULT` | Document parser (DEFAULT/DOCLING) |
-
----
-
-## 6. Query Configuration
-
-### QueryParam Class
-
-```python
-@dataclass
-class QueryParam:
-    mode: str = "mix"                    # Query mode
-    only_need_context: bool = False      # Return only context
-    only_need_prompt: bool = False       # Return only prompt
-    response_type: str = "Multiple Paragraphs"
-    stream: bool = False                 # Enable streaming
-    top_k: int = 40                      # Top results
-    chunk_top_k: int = 20                # Top chunks
-    max_entity_tokens: int = 6000        # Entity token budget
-    max_relation_tokens: int = 8000      # Relation token budget
-    max_total_tokens: int = 30000        # Total token budget
-    enable_rerank: bool = True           # Enable reranking
-    include_references: bool = False     # Include citations
+```bash
+export EDGEQUAKE_API_HOST="0.0.0.0"
+export EDGEQUAKE_API_PORT="8080"
+export EDGEQUAKE_CORS_ORIGINS="http://localhost:3000,https://app.example.com"
 ```
 
-### Query Modes
+---
 
-| Mode | Description | Best For |
-|------|-------------|----------|
-| `naive` | Basic vector search | Simple lookups |
-| `local` | Entity-focused retrieval | Specific entities |
-| `global` | High-level summaries | Broad questions |
-| `hybrid` | Local + Global combined | Balanced queries |
-| `mix` | KG + Vector integration | Complex questions |
-| `bypass` | Skip RAG, direct LLM | Testing |
+## Storage Configuration
 
-### Query Environment Variables
+### StorageConfig
+
+```rust
+pub struct StorageConfig {
+    /// Storage backend type: memory, postgresql
+    pub storage_type: String,           // Default: "memory"
+    
+    /// PostgreSQL connection string
+    pub connection_string: Option<String>,
+    
+    /// Connection pool size
+    pub pool_size: u32,                 // Default: 10
+    
+    /// Connection timeout (seconds)
+    pub connect_timeout: u64,           // Default: 30
+    
+    /// Idle connection timeout (seconds)
+    pub idle_timeout: u64,              // Default: 600
+}
+```
+
+### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TOP_K` | `40` | Top-K entities/relations |
-| `CHUNK_TOP_K` | `20` | Top-K text chunks |
-| `MAX_ENTITY_TOKENS` | `6000` | Entity context budget |
-| `MAX_RELATION_TOKENS` | `8000` | Relation context budget |
-| `MAX_TOTAL_TOKENS` | `30000` | Total context budget |
-| `COSINE_THRESHOLD` | `0.2` | Similarity threshold |
-| `RELATED_CHUNK_NUMBER` | `5` | Related chunks to retrieve |
-| `HISTORY_TURNS` | `0` | Conversation history turns |
+| `EDGEQUAKE_STORAGE_TYPE` | `memory` | Backend: `memory`, `postgresql` |
+| `DATABASE_URL` | - | PostgreSQL connection string |
+| `EDGEQUAKE_POOL_SIZE` | `10` | Connection pool size |
+| `EDGEQUAKE_CONNECT_TIMEOUT` | `30` | Connection timeout |
+
+### PostgreSQL Connection String
+
+```
+postgresql://user:password@host:port/database?options
+```
+
+**Options:**
+- `sslmode=require` - Enable SSL
+- `application_name=edgequake` - App identifier
+- `connect_timeout=10` - Connection timeout
+
+**Example:**
+```bash
+export DATABASE_URL="postgresql://edgequake:secret@localhost:5432/edgequake?sslmode=prefer"
+```
+
+### Memory Storage
+
+```bash
+# Development mode - no database required
+export EDGEQUAKE_STORAGE_TYPE="memory"
+```
 
 ---
 
-## 7. Reranking Configuration
+## LLM Configuration
 
-| Variable | CLI Flag | Default | Description |
-|----------|----------|---------|-------------|
-| `RERANK_BINDING` | `--rerank-binding` | `null` | Rerank provider |
-| `RERANK_MODEL` | — | `None` | Rerank model name |
-| `RERANK_BINDING_HOST` | — | `None` | Rerank API endpoint |
-| `RERANK_BINDING_API_KEY` | — | `None` | Rerank API key |
-| `MIN_RERANK_SCORE` | — | `0.0` | Minimum rerank score |
-| `RERANK_BY_DEFAULT` | — | `true` | Enable reranking by default |
+### LlmConfig
 
-**Supported Rerank Bindings:**
-- `null` - Disabled
-- `cohere` - Cohere rerank
-- `jina` - Jina rerank
-- `aliyun` - Aliyun rerank
+```rust
+pub struct LlmConfig {
+    /// LLM provider: openai, ollama
+    pub provider: String,               // Default: "openai"
+    
+    /// API key (from env or config)
+    pub api_key: Option<String>,
+    
+    /// Custom API base URL
+    pub base_url: Option<String>,
+    
+    /// LLM model for generation
+    pub model: String,                  // Default: "gpt-4o-mini"
+    
+    /// Embedding model
+    pub embedding_model: String,        // Default: "text-embedding-3-small"
+    
+    /// Embedding vector dimension
+    pub embedding_dim: usize,           // Default: 1536
+    
+    /// Generation temperature (0-2)
+    pub temperature: f32,               // Default: 0.0
+    
+    /// Max tokens for generation
+    pub max_tokens: usize,              // Default: 4096
+    
+    /// API request timeout (seconds)
+    pub timeout_secs: u64,              // Default: 60
+    
+    /// Max retries for failed requests
+    pub max_retries: u32,               // Default: 3
+    
+    /// Retry delay (seconds)
+    pub retry_delay_secs: u64,          // Default: 1
+}
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OPENAI_API_KEY` | - | OpenAI API key |
+| `EDGEQUAKE_LLM_PROVIDER` | `openai` | Provider: `openai`, `ollama` |
+| `EDGEQUAKE_LLM_MODEL` | `gpt-4o-mini` | LLM model name |
+| `EDGEQUAKE_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
+| `EDGEQUAKE_EMBEDDING_DIM` | `1536` | Vector dimension |
+| `EDGEQUAKE_LLM_TEMPERATURE` | `0.0` | Generation temperature |
+| `EDGEQUAKE_LLM_MAX_TOKENS` | `4096` | Max generation tokens |
+| `OPENAI_BASE_URL` | - | Custom API endpoint |
+| `OLLAMA_HOST` | `http://localhost:11434` | Ollama server |
+
+### Provider Examples
+
+**OpenAI:**
+```bash
+export OPENAI_API_KEY="sk-..."
+export EDGEQUAKE_LLM_MODEL="gpt-4o-mini"
+export EDGEQUAKE_EMBEDDING_MODEL="text-embedding-3-small"
+```
+
+**Ollama:**
+```bash
+export EDGEQUAKE_LLM_PROVIDER="ollama"
+export OLLAMA_HOST="http://localhost:11434"
+export EDGEQUAKE_LLM_MODEL="llama3.2:3b"
+export EDGEQUAKE_EMBEDDING_MODEL="nomic-embed-text"
+```
 
 ---
 
-## 8. Authentication & Security
+## Pipeline Configuration
 
-### API Authentication
+### PipelineConfig
 
-| Variable | CLI Flag | Default | Description |
-|----------|----------|---------|-------------|
-| `LIGHTRAG_API_KEY` | `--key` | `None` | Simple API key auth |
-| `AUTH_ACCOUNTS` | — | `""` | Format: `user1:pass1,user2:pass2` |
-| `AUTH_USER` | — | `""` | Single username (if AUTH_ACCOUNTS not set) |
-| `AUTH_PASS` | — | `""` | Single password |
+```rust
+pub struct PipelineConfig {
+    /// Chunk size in characters
+    pub chunk_size: usize,              // Default: 1200
+    
+    /// Overlap between chunks
+    pub chunk_overlap: usize,           // Default: 100
+    
+    /// Maximum entities per chunk
+    pub max_entities_per_chunk: usize,  // Default: 30
+    
+    /// Entity extraction gleaning passes
+    pub gleaning_count: usize,          // Default: 1
+    
+    /// Enable entity deduplication
+    pub enable_deduplication: bool,     // Default: true
+    
+    /// Similarity threshold for dedup (0-1)
+    pub dedup_threshold: f32,           // Default: 0.85
+    
+    /// Parallel processing workers
+    pub max_concurrent_chunks: usize,   // Default: 4
+    
+    /// Enable community detection
+    pub enable_communities: bool,       // Default: true
+    
+    /// Leiden algorithm resolution
+    pub community_resolution: f32,      // Default: 1.0
+}
+```
 
-### JWT Configuration
+### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TOKEN_SECRET` | `lightrag-jwt-default-secret` | JWT signing secret |
-| `TOKEN_EXPIRE_HOURS` | `48` | Token expiration (hours) |
-| `GUEST_TOKEN_EXPIRE_HOURS` | `24` | Guest token expiration |
-| `JWT_ALGORITHM` | `HS256` | JWT algorithm |
+| `EDGEQUAKE_CHUNK_SIZE` | `1200` | Characters per chunk |
+| `EDGEQUAKE_CHUNK_OVERLAP` | `100` | Overlap between chunks |
+| `EDGEQUAKE_MAX_ENTITIES_PER_CHUNK` | `30` | Max entities extracted |
+| `EDGEQUAKE_GLEANING_COUNT` | `1` | Extraction passes |
+| `EDGEQUAKE_ENABLE_DEDUP` | `true` | Enable deduplication |
+| `EDGEQUAKE_DEDUP_THRESHOLD` | `0.85` | Dedup similarity |
+| `EDGEQUAKE_MAX_CONCURRENT_CHUNKS` | `4` | Parallel workers |
 
-### CORS & Network
+### Chunking Strategies
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CORS_ORIGINS` | `*` | Allowed CORS origins |
-| `WHITELIST_PATHS` | `/health,/api/*` | Public paths |
+```bash
+# Small documents - smaller chunks
+export EDGEQUAKE_CHUNK_SIZE="800"
+export EDGEQUAKE_CHUNK_OVERLAP="50"
 
-### Multi-Tenant Security
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LIGHTRAG_MULTI_TENANT_STRICT` | `true` | Enforce tenant isolation |
-| `LIGHTRAG_REQUIRE_USER_AUTH` | `true` | Require user authentication |
-| `LIGHTRAG_SUPER_ADMIN_USERS` | `admin` | Comma-separated admin usernames |
+# Large documents - larger chunks
+export EDGEQUAKE_CHUNK_SIZE="2000"
+export EDGEQUAKE_CHUNK_OVERLAP="200"
+```
 
 ---
 
-## 9. Multi-Tenancy Configuration
+## Query Configuration
+
+### QueryConfig
+
+```rust
+pub struct QueryConfig {
+    /// Default query mode
+    pub default_mode: QueryMode,        // Default: Hybrid
+    
+    /// Top-K results to retrieve
+    pub top_k: usize,                   // Default: 60
+    
+    /// Similarity threshold (0-1)
+    pub similarity_threshold: f32,      // Default: 0.5
+    
+    /// Max tokens for context
+    pub max_context_tokens: usize,      // Default: 4000
+    
+    /// Enable query expansion
+    pub enable_query_expansion: bool,   // Default: true
+    
+    /// Include sources in response
+    pub include_sources: bool,          // Default: true
+    
+    /// Enable streaming responses
+    pub enable_streaming: bool,         // Default: true
+}
+
+pub enum QueryMode {
+    /// Simple vector search
+    Naive,
+    
+    /// Entity-focused retrieval
+    Local,
+    
+    /// Community summaries
+    Global,
+    
+    /// Combined vector + graph
+    Hybrid,
+    
+    /// Adaptive mode selection
+    Mix,
+}
+```
+
+### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ENABLE_MULTI_TENANTS` | `false` | Enable multi-tenant mode |
-| `WORKSPACE` | `""` | Default workspace name |
-| `MAX_GRAPH_NODES` | `1000` | Max graph nodes per query |
-| `MAX_PARALLEL_INSERT` | `2` | Max parallel inserts |
+| `EDGEQUAKE_DEFAULT_MODE` | `hybrid` | Query mode |
+| `EDGEQUAKE_TOP_K` | `60` | Results to retrieve |
+| `EDGEQUAKE_SIMILARITY_THRESHOLD` | `0.5` | Min similarity (0-1) |
+| `EDGEQUAKE_MAX_CONTEXT_TOKENS` | `4000` | Max context size |
+| `EDGEQUAKE_ENABLE_STREAMING` | `true` | Enable streaming |
+
+### Query Mode Examples
+
+```bash
+# Fast, simple queries
+export EDGEQUAKE_DEFAULT_MODE="naive"
+
+# Entity-focused
+export EDGEQUAKE_DEFAULT_MODE="local"
+
+# High-level summaries
+export EDGEQUAKE_DEFAULT_MODE="global"
+
+# Best quality (recommended)
+export EDGEQUAKE_DEFAULT_MODE="hybrid"
+
+# Adaptive (auto-selects)
+export EDGEQUAKE_DEFAULT_MODE="mix"
+```
 
 ---
 
-## 10. Complete .env Example
+## Environment Variables
+
+### Complete Reference
 
 ```bash
 # =============================================================================
-# SERVER CONFIGURATION
+# API Configuration
 # =============================================================================
-HOST=0.0.0.0
-PORT=9621
-WORKERS=2
-TIMEOUT=300
-WORKING_DIR=./rag_storage
-INPUT_DIR=./inputs
-LOG_LEVEL=INFO
+EDGEQUAKE_API_HOST=0.0.0.0           # Listen address
+EDGEQUAKE_API_PORT=8080              # Listen port
+EDGEQUAKE_CORS_ORIGINS=*             # CORS origins (comma-separated)
+EDGEQUAKE_MAX_BODY_SIZE=52428800     # Max request body (bytes)
+EDGEQUAKE_REQUEST_TIMEOUT=300        # Request timeout (seconds)
 
 # =============================================================================
-# LLM CONFIGURATION
+# Storage Configuration
 # =============================================================================
-LLM_BINDING=openai
-LLM_MODEL=gpt-4o-mini
-LLM_BINDING_HOST=https://api.openai.com/v1
-LLM_BINDING_API_KEY=sk-xxx
-MAX_ASYNC=4
-ENABLE_LLM_CACHE=true
+EDGEQUAKE_STORAGE_TYPE=memory        # memory | postgresql
+DATABASE_URL=postgresql://user:pass@localhost:5432/db
+EDGEQUAKE_POOL_SIZE=10               # Connection pool size
+EDGEQUAKE_CONNECT_TIMEOUT=30         # Connection timeout (seconds)
 
 # =============================================================================
-# EMBEDDING CONFIGURATION
+# LLM Configuration
 # =============================================================================
-EMBEDDING_BINDING=openai
-EMBEDDING_MODEL=text-embedding-ada-002
-EMBEDDING_DIM=1536
-EMBEDDING_BINDING_API_KEY=sk-xxx
-EMBEDDING_FUNC_MAX_ASYNC=8
-EMBEDDING_BATCH_NUM=10
+OPENAI_API_KEY=sk-...                # OpenAI API key
+EDGEQUAKE_LLM_PROVIDER=openai        # openai | ollama
+EDGEQUAKE_LLM_MODEL=gpt-4o-mini      # LLM model
+EDGEQUAKE_EMBEDDING_MODEL=text-embedding-3-small
+EDGEQUAKE_EMBEDDING_DIM=1536         # Vector dimension
+EDGEQUAKE_LLM_TEMPERATURE=0.0        # Generation temperature
+EDGEQUAKE_LLM_MAX_TOKENS=4096        # Max tokens
+OPENAI_BASE_URL=                     # Custom API endpoint
+OLLAMA_HOST=http://localhost:11434   # Ollama server
 
 # =============================================================================
-# STORAGE CONFIGURATION
+# Pipeline Configuration
 # =============================================================================
-LIGHTRAG_KV_STORAGE=JsonKVStorage
-LIGHTRAG_VECTOR_STORAGE=NanoVectorDBStorage
-LIGHTRAG_GRAPH_STORAGE=NetworkXStorage
-LIGHTRAG_DOC_STATUS_STORAGE=JsonDocStatusStorage
-
-# PostgreSQL (if using PG storage)
-# POSTGRES_HOST=localhost
-# POSTGRES_PORT=5432
-# POSTGRES_USER=lightrag
-# POSTGRES_PASSWORD=secret
-# POSTGRES_DATABASE=lightrag
-
-# Neo4j (if using Neo4J storage)
-# NEO4J_URI=bolt://localhost:7687
-# NEO4J_USERNAME=neo4j
-# NEO4J_PASSWORD=secret
+EDGEQUAKE_CHUNK_SIZE=1200            # Chunk size (chars)
+EDGEQUAKE_CHUNK_OVERLAP=100          # Chunk overlap
+EDGEQUAKE_MAX_ENTITIES_PER_CHUNK=30  # Max entities
+EDGEQUAKE_GLEANING_COUNT=1           # Extraction passes
+EDGEQUAKE_ENABLE_DEDUP=true          # Enable deduplication
+EDGEQUAKE_DEDUP_THRESHOLD=0.85       # Dedup threshold
 
 # =============================================================================
-# DOCUMENT PROCESSING
+# Query Configuration
 # =============================================================================
-CHUNK_SIZE=1200
-CHUNK_OVERLAP_SIZE=100
-SUMMARY_LANGUAGE=English
-SUMMARY_MAX_TOKENS=1200
-SUMMARY_CONTEXT_SIZE=12000
+EDGEQUAKE_DEFAULT_MODE=hybrid        # naive|local|global|hybrid|mix
+EDGEQUAKE_TOP_K=60                   # Top-K retrieval
+EDGEQUAKE_SIMILARITY_THRESHOLD=0.5   # Min similarity
+EDGEQUAKE_MAX_CONTEXT_TOKENS=4000    # Context limit
+EDGEQUAKE_ENABLE_STREAMING=true      # Enable streaming
 
 # =============================================================================
-# QUERY CONFIGURATION
+# Logging
 # =============================================================================
-TOP_K=40
-CHUNK_TOP_K=20
-MAX_ENTITY_TOKENS=6000
-MAX_RELATION_TOKENS=8000
-MAX_TOTAL_TOKENS=30000
-COSINE_THRESHOLD=0.2
-
-# =============================================================================
-# RERANKING (optional)
-# =============================================================================
-# RERANK_BINDING=cohere
-# RERANK_MODEL=rerank-english-v2.0
-# RERANK_BINDING_API_KEY=xxx
-
-# =============================================================================
-# AUTHENTICATION
-# =============================================================================
-AUTH_USER=admin
-AUTH_PASS=admin123
-TOKEN_SECRET=your-secure-secret-key
-TOKEN_EXPIRE_HOURS=48
-CORS_ORIGINS=*
-
-# =============================================================================
-# MULTI-TENANCY (optional)
-# =============================================================================
-# ENABLE_MULTI_TENANTS=true
-# LIGHTRAG_MULTI_TENANT_STRICT=true
-# LIGHTRAG_REQUIRE_USER_AUTH=true
-# LIGHTRAG_SUPER_ADMIN_USERS=admin
+RUST_LOG=info                        # Log level
+RUST_LOG=edgequake=debug             # Debug EdgeQuake only
 ```
 
 ---
 
-## 11. Python LightRAG Dataclass
+## Configuration File
 
-```python
-@dataclass
-class LightRAG:
-    # Directory configuration
-    working_dir: str = "./rag_storage"
+### TOML Format
 
-    # LLM configuration
-    llm_model_name: str = "gpt-4o-mini"
-    llm_model_func: Callable = openai_complete_if_cache
-    llm_model_max_async: int = 4
-    llm_model_max_token_size: int = 32768
-    llm_model_kwargs: dict = field(default_factory=dict)
+```toml
+# config.toml
 
-    # Embedding configuration
-    embedding_model_name: str = "text-embedding-ada-002"
-    embedding_func: EmbeddingFunc = None
-    embedding_batch_num: int = 10
-    embedding_func_max_async: int = 8
+[api]
+host = "0.0.0.0"
+port = 8080
+cors_origins = ["http://localhost:3000", "https://app.example.com"]
+max_body_size = 52_428_800
+request_timeout = 300
 
-    # Chunking configuration
-    chunk_token_size: int = 1200
-    chunk_overlap_token_size: int = 100
-    tiktoken_model_name: str = "gpt-4o"
+[storage]
+storage_type = "postgresql"
+connection_string = "postgresql://edgequake:password@localhost:5432/edgequake"
+pool_size = 10
+connect_timeout = 30
+idle_timeout = 600
 
-    # Entity extraction
-    entity_extract_max_gleaning: int = 1
-    entity_summary_to_max_tokens: int = 1200
+[llm]
+provider = "openai"
+# api_key loaded from OPENAI_API_KEY env var
+model = "gpt-4o-mini"
+embedding_model = "text-embedding-3-small"
+embedding_dim = 1536
+temperature = 0.0
+max_tokens = 4096
+timeout_secs = 60
+max_retries = 3
 
-    # Storage backends
-    kv_storage: str = "JsonKVStorage"
-    vector_storage: str = "NanoVectorDBStorage"
-    graph_storage: str = "NetworkXStorage"
-    doc_status_storage: str = "JsonDocStatusStorage"
+[pipeline]
+chunk_size = 1200
+chunk_overlap = 100
+max_entities_per_chunk = 30
+gleaning_count = 1
+enable_deduplication = true
+dedup_threshold = 0.85
+max_concurrent_chunks = 4
+enable_communities = true
+community_resolution = 1.0
 
-    # Advanced options
-    enable_llm_cache: bool = True
-    enable_llm_cache_for_entity_extract: bool = True
-    auto_manage_storages_states: bool = True
+[query]
+default_mode = "hybrid"
+top_k = 60
+similarity_threshold = 0.5
+max_context_tokens = 4000
+enable_query_expansion = true
+include_sources = true
+enable_streaming = true
+```
 
-    # Namespace (for multi-tenancy)
-    namespace: str = None
+### Loading Config
+
+```rust
+use edgequake_core::Config;
+
+// Load from file
+let config = Config::from_file("config.toml")?;
+
+// Or from environment (preferred for production)
+let config = Config::from_env()?;
+
+// Or combine (env overrides file)
+let config = Config::from_file("config.toml")?
+    .with_env_overrides();
 ```
 
 ---
 
-**Related Documentation:**
-- [Architecture Overview](0002-architecture-overview.md)
-- [Storage Backends](0004-storage-backends.md)
-- [LLM Integration](0005-llm-integration.md)
-- [Deployment Guide](0006-deployment-guide.md)
+## Profile Presets
+
+### Development
+
+```bash
+# .env.development
+EDGEQUAKE_STORAGE_TYPE=memory
+EDGEQUAKE_LLM_PROVIDER=ollama
+OLLAMA_HOST=http://localhost:11434
+EDGEQUAKE_LLM_MODEL=llama3.2:3b
+RUST_LOG=edgequake=debug
+```
+
+### Testing
+
+```bash
+# .env.test
+EDGEQUAKE_STORAGE_TYPE=memory
+# No OPENAI_API_KEY = uses mock provider
+RUST_LOG=warn
+```
+
+### Production
+
+```bash
+# .env.production
+EDGEQUAKE_API_HOST=0.0.0.0
+EDGEQUAKE_STORAGE_TYPE=postgresql
+DATABASE_URL=postgresql://...
+OPENAI_API_KEY=sk-...
+EDGEQUAKE_LLM_MODEL=gpt-4o-mini
+EDGEQUAKE_EMBEDDING_MODEL=text-embedding-3-small
+RUST_LOG=info
+```
+
+---
+
+## Next Steps
+
+- **[Quick Start](0001-quick-start.md)** - Get started in 5 minutes
+- **[LLM Integration](0005-llm-integration.md)** - LLM provider setup
+- **[Deployment Guide](0006-deployment-guide.md)** - Production deployment

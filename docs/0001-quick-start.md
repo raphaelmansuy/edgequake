@@ -1,15 +1,15 @@
-# LightRAG Quick Start Guide
+# EdgeQuake Quick Start Guide
 
-Get up and running with LightRAG in 5 minutes.
+Get up and running with EdgeQuake in 5 minutes.
 
-## What is LightRAG?
+## What is EdgeQuake?
 
-LightRAG is a **Graph-Enhanced Retrieval-Augmented Generation (RAG)** system that combines knowledge graphs with vector search for superior context retrieval.
+EdgeQuake is a high-performance **Graph-Enhanced Retrieval-Augmented Generation (RAG)** system implemented in Rust, combining knowledge graphs with vector search for superior context retrieval. It features a Next.js WebUI for visual exploration and management.
 
 ```
 ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│   Document   │───▶│   LightRAG   │───▶│   Knowledge  │
-│    Input     │    │   Indexing   │    │    Graph     │
+│   Document   │───▶│  EdgeQuake   │───▶│   Knowledge  │
+│    Input     │    │   Pipeline   │    │    Graph     │
 └──────────────┘    └──────────────┘    └──────────────┘
                            │                    │
                            ▼                    ▼
@@ -30,121 +30,124 @@ LightRAG is a **Graph-Enhanced Retrieval-Augmented Generation (RAG)** system tha
 
 ## Installation
 
-### Option 1: pip (Recommended)
+### Prerequisites
+
+- Rust 1.75+ (via [rustup](https://rustup.rs/))
+- Node.js 20+ and npm (for WebUI)
+- PostgreSQL 15+ (optional, for production)
+- OpenAI API key (or compatible provider)
+
+### Option 1: Build from Source
 
 ```bash
-# Basic installation
-pip install lightrag-hku
+# Clone the repository
+git clone https://github.com/raphaelmansuy/edgequake.git
+cd edgequake
 
-# With API server
-pip install "lightrag-hku[api]"
+# Build the Rust backend
+cargo build --release
 
-# With storage backends
-pip install "lightrag-hku[postgres]"   # PostgreSQL
-pip install "lightrag-hku[neo4j]"      # Neo4j
-pip install "lightrag-hku[milvus]"     # Milvus
+# Build the WebUI
+cd edgequake_webui
+npm install
+npm run build
+cd ..
 ```
 
-### Option 2: From Source
+### Option 2: Development Setup
 
 ```bash
-git clone https://github.com/HKUDS/LightRAG.git
-cd LightRAG
-pip install -e ".[api]"
-```
+# Clone repository
+git clone https://github.com/raphaelmansuy/edgequake.git
+cd edgequake
 
-### Option 3: Docker
+# Run tests (uses mock provider - no API key needed)
+cargo test
 
-```bash
-docker pull ghcr.io/hkuds/lightrag:latest
-docker run -p 9621:9621 -e OPENAI_API_KEY=sk-xxx ghcr.io/hkuds/lightrag:latest
+# Run with real OpenAI (requires API key)
+export OPENAI_API_KEY="sk-your-key"
+cargo test
 ```
 
 ---
 
-## Quick Start (Python)
+## Quick Start (Rust API)
 
 ### 1. Basic Usage
 
-```python
-import asyncio
-from lightrag import LightRAG, QueryParam
-from lightrag.llm.openai import gpt_4o_mini_complete, openai_embed
+```rust
+use edgequake_core::{EdgeQuake, EdgeQuakeConfig};
+use edgequake_llm::OpenAIProvider;
+use edgequake_storage::MemoryStorage;
+use std::sync::Arc;
 
-async def main():
-    # Initialize LightRAG with OpenAI
-    rag = LightRAG(
-        working_dir="./rag_storage",
-        llm_model_func=gpt_4o_mini_complete,
-        embedding_func=openai_embed
-    )
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Create LLM provider
+    let api_key = std::env::var("OPENAI_API_KEY")?;
+    let provider = Arc::new(
+        OpenAIProvider::new(&api_key)
+            .with_model("gpt-4o-mini")
+            .with_embedding_model("text-embedding-3-small")
+    );
+
+    // Create storage backends
+    let kv = Arc::new(MemoryStorage::new());
+    let vector = Arc::new(MemoryStorage::new());
+    let graph = Arc::new(MemoryStorage::new());
+
+    // Initialize EdgeQuake
+    let config = EdgeQuakeConfig::default();
+    let mut eq = EdgeQuake::new(config)
+        .with_providers(provider.clone(), provider.clone())
+        .with_storage_backends(kv, vector, graph);
     
-    # Initialize storage backends
-    await rag.initialize_storages()
+    eq.initialize().await?;
 
-    # Insert documents
-    await rag.ainsert("Marie Curie was a physicist who discovered radium. "
-                      "She was born in Poland and later moved to France. "
-                      "She won the Nobel Prize in Physics in 1903.")
+    // Insert a document
+    let result = eq.insert(
+        "Marie Curie was a physicist who discovered radium. 
+         She was born in Poland and later moved to France. 
+         She won the Nobel Prize in Physics in 1903."
+    ).await?;
+    
+    println!("Inserted: {} entities, {} relationships", 
+        result.entity_count, result.relationship_count);
 
-    # Query with different modes
-    result = await rag.aquery(
-        "What did Marie Curie discover?",
-        param=QueryParam(mode="hybrid")
-    )
-    print(result)
+    // Query the knowledge graph
+    let response = eq.query("What did Marie Curie discover?").await?;
+    println!("Answer: {}", response.answer);
 
-asyncio.run(main())
+    Ok(())
+}
 ```
 
-### 2. Insert Documents from Files
+### 2. Query Modes Explained
 
-```python
-import asyncio
-from lightrag import LightRAG
-from lightrag.llm.openai import gpt_4o_mini_complete, openai_embed
+EdgeQuake supports 5 query modes, each optimized for different use cases:
 
-async def insert_files():
-    rag = LightRAG(
-        working_dir="./rag_storage",
-        llm_model_func=gpt_4o_mini_complete,
-        embedding_func=openai_embed
-    )
-    await rag.initialize_storages()
+```rust
+use edgequake_query::QueryMode;
 
-    # Insert from file
-    with open("document.txt", "r") as f:
-        text = f.read()
-    await rag.ainsert(text)
+// NAIVE: Direct vector similarity search (fastest)
+// Best for: Simple factual lookups
+let response = eq.query_with_mode("question", QueryMode::Naive).await?;
 
-    # Insert from multiple files
-    documents = ["doc1.txt", "doc2.txt", "doc3.txt"]
-    for doc in documents:
-        with open(doc, "r") as f:
-            await rag.ainsert(f.read())
+// LOCAL: Entity-centric search with local neighborhood
+// Best for: Questions about specific entities
+let response = eq.query_with_mode("question", QueryMode::Local).await?;
 
-asyncio.run(insert_files())
-```
+// GLOBAL: Community-based search using graph clusters
+// Best for: Broad topic questions
+let response = eq.query_with_mode("question", QueryMode::Global).await?;
 
-### 3. Query Modes Explained
+// HYBRID: Combines local and global approaches (recommended)
+// Best for: General-purpose queries
+let response = eq.query_with_mode("question", QueryMode::Hybrid).await?;
 
-```python
-from lightrag import QueryParam
-
-# NAIVE: Traditional vector search (fastest)
-result = await rag.aquery("question", param=QueryParam(mode="naive"))
-
-# LOCAL: Focuses on specific entities mentioned in query
-result = await rag.aquery("question", param=QueryParam(mode="local"))
-
-# GLOBAL: Uses high-level summaries for broad questions
-result = await rag.aquery("question", param=QueryParam(mode="global"))
-
-# HYBRID: Combines local + global (recommended)
-result = await rag.aquery("question", param=QueryParam(mode="hybrid"))
-
-# MIX: Uses all modes and combines results
-result = await rag.aquery("question", param=QueryParam(mode="mix"))
+// MIX: Weighted combination of naive and graph-based
+// Best for: Maximum flexibility
+let response = eq.query_with_mode("question", QueryMode::Mix).await?;
 ```
 
 ---
@@ -154,49 +157,101 @@ result = await rag.aquery("question", param=QueryParam(mode="mix"))
 ### 1. Start the Server
 
 ```bash
-# Set your API key
-export OPENAI_API_KEY=sk-xxx
+# Set environment variables
+export OPENAI_API_KEY="sk-your-key"
+export EDGEQUAKE_PORT=8080
 
-# Start server
-python -m lightrag.api.lightrag_server
+# Start the API server
+cargo run --bin edgequake-api
 
-# Server runs at http://localhost:9621
+# Server runs at http://localhost:8080
 ```
 
 ### 2. Insert Documents
 
 ```bash
-# Insert text
-curl -X POST http://localhost:9621/documents/text \
+# Insert text document
+curl -X POST http://localhost:8080/api/v1/documents \
   -H "Content-Type: application/json" \
-  -d '{"text": "Albert Einstein developed the theory of relativity."}'
+  -d '{
+    "content": "Albert Einstein developed the theory of relativity.",
+    "title": "Einstein",
+    "async_processing": false
+  }'
 
 # Upload file
-curl -X POST http://localhost:9621/documents/file \
-  -F "file=@document.pdf"
+curl -X POST http://localhost:8080/api/v1/documents/upload \
+  -F "file=@document.txt"
+
+# Batch upload
+curl -X POST http://localhost:8080/api/v1/documents/upload/batch \
+  -F "files=@doc1.txt" \
+  -F "files=@doc2.txt"
 ```
 
 ### 3. Query
 
 ```bash
 # Query with hybrid mode
-curl -X POST http://localhost:9621/query \
+curl -X POST http://localhost:8080/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{
     "query": "What is the theory of relativity?",
     "mode": "hybrid"
   }'
+
+# Streaming query (SSE)
+curl -X POST http://localhost:8080/api/v1/query/stream \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Explain quantum mechanics",
+    "mode": "hybrid"
+  }'
 ```
 
-### 4. View Knowledge Graph
+### 4. Explore Knowledge Graph
 
 ```bash
-# Get all entities
-curl http://localhost:9621/graphs/entities
+# Get graph overview
+curl http://localhost:8080/api/v1/graph
 
-# Get entity relationships
-curl http://localhost:9621/graphs/relations
+# Get specific node
+curl http://localhost:8080/api/v1/graph/nodes/ALBERT_EINSTEIN
+
+# Search labels
+curl "http://localhost:8080/api/v1/graph/labels/search?q=einstein"
 ```
+
+---
+
+## Quick Start (WebUI)
+
+### 1. Start the WebUI
+
+```bash
+cd edgequake_webui
+
+# Install dependencies
+npm install
+
+# Set API URL
+export NEXT_PUBLIC_API_URL=http://localhost:8080
+
+# Start development server
+npm run dev
+
+# WebUI runs at http://localhost:3000
+```
+
+### 2. WebUI Features
+
+| Feature | Description |
+|---------|-------------|
+| **Dashboard** | System overview, stats, quick actions |
+| **Documents** | Upload, manage, track processing status |
+| **Query** | Interactive query interface with streaming |
+| **Graph** | Visual knowledge graph exploration |
+| **Settings** | Configure API, themes, language |
 
 ---
 
@@ -209,216 +264,140 @@ curl http://localhost:9621/graphs/relations
 OPENAI_API_KEY=sk-xxx              # OpenAI API key
 
 # LLM Configuration
-LLM_MODEL=gpt-4o-mini              # Model name
-LLM_BINDING=openai                 # Provider: openai, ollama, anthropic
-
-# Embedding Configuration
-EMBEDDING_MODEL=text-embedding-ada-002
-EMBEDDING_DIM=1536
+EDGEQUAKE_LLM_PROVIDER=openai      # Provider: openai, ollama, anthropic
+EDGEQUAKE_LLM_MODEL=gpt-4o-mini    # Model name
+EDGEQUAKE_EMBEDDING_MODEL=text-embedding-3-small
 
 # Server
-PORT=9621                          # API server port
-HOST=0.0.0.0                       # Bind address
+EDGEQUAKE_HOST=0.0.0.0             # Bind address
+EDGEQUAKE_PORT=8080                # API server port
+
+# Storage (optional)
+EDGEQUAKE_DATABASE_URL=postgres://localhost/edgequake
+EDGEQUAKE_NAMESPACE=default        # Multi-tenant namespace
 ```
 
-### Using Different LLM Providers
+### Rust Configuration
 
-```python
-from lightrag import LightRAG
+```rust
+use edgequake_core::Config;
 
-# OpenAI (default)
-from lightrag.llm.openai import gpt_4o_mini_complete, openai_embed
+let config = Config::from_env();  // Load from environment
 
-rag = LightRAG(
-    working_dir="./rag_storage",
-    llm_model_func=gpt_4o_mini_complete,
-    embedding_func=openai_embed
-)
-
-# Ollama (local)
-from lightrag.llm.ollama import ollama_model_complete, ollama_embed
-
-rag = LightRAG(
-    working_dir="./rag_storage",
-    llm_model_func=ollama_model_complete,
-    llm_model_name="llama3",
-    llm_model_kwargs={"host": "http://localhost:11434"},
-    embedding_func=ollama_embed
-)
-
-# Anthropic Claude
-from lightrag.llm.anthropic import anthropic_complete
-
-rag = LightRAG(
-    working_dir="./rag_storage",
-    llm_model_func=anthropic_complete,
-    llm_model_name="claude-sonnet-4-20250514",
-    embedding_func=openai_embed  # Use OpenAI for embeddings
-)
-```
-
-### Storage Backends
-
-```python
-# Default (file-based, great for development)
-rag = LightRAG(working_dir="./rag_storage")
-
-# PostgreSQL (production)
-rag = LightRAG(
-    working_dir="./rag_storage",
-    kv_storage="PGKVStorage",
-    vector_storage="PGVectorStorage",
-    graph_storage="PGGraphStorage"
-)
-
-# Neo4j (advanced graph queries)
-rag = LightRAG(
-    working_dir="./rag_storage",
-    graph_storage="Neo4JStorage"
-)
+// Or configure programmatically
+let config = Config {
+    storage: StorageConfig {
+        database_url: "postgres://localhost/edgequake".to_string(),
+        max_connections: 10,
+        ..Default::default()
+    },
+    llm: LlmConfig {
+        provider: "openai".to_string(),
+        model: "gpt-4o-mini".to_string(),
+        embedding_model: "text-embedding-3-small".to_string(),
+        embedding_dim: 1536,
+        ..Default::default()
+    },
+    pipeline: PipelineConfig {
+        chunk_size: 1200,
+        chunk_overlap: 100,
+        ..Default::default()
+    },
+    query: QueryConfig {
+        default_mode: QueryMode::Hybrid,
+        max_vector_results: 20,
+        max_graph_depth: 3,
+        ..Default::default()
+    },
+    api: ApiConfig {
+        port: 8080,
+        cors_enabled: true,
+        ..Default::default()
+    },
+};
 ```
 
 ---
 
-## Common Patterns
+## Storage Backends
 
-### Pattern 1: Document Processing Pipeline
+### Memory Storage (Development)
 
-```python
-import asyncio
-from pathlib import Path
-from lightrag import LightRAG
-from lightrag.llm.openai import gpt_4o_mini_complete, openai_embed
+```rust
+use edgequake_storage::MemoryStorage;
 
-async def process_documents(folder_path: str):
-    rag = LightRAG(
-        working_dir="./rag_storage",
-        llm_model_func=gpt_4o_mini_complete,
-        embedding_func=openai_embed
-    )
-    await rag.initialize_storages()
-
-    # Process all text files
-    for file_path in Path(folder_path).glob("*.txt"):
-        print(f"Processing: {file_path}")
-        with open(file_path, "r") as f:
-            await rag.ainsert(f.read())
-
-    print("All documents indexed!")
-
-asyncio.run(process_documents("./documents"))
+let kv = Arc::new(MemoryStorage::new());
+let vector = Arc::new(MemoryStorage::new());
+let graph = Arc::new(MemoryStorage::new());
 ```
 
-### Pattern 2: Conversational RAG
+### PostgreSQL Storage (Production)
 
-```python
-import asyncio
-from lightrag import LightRAG, QueryParam
-from lightrag.llm.openai import gpt_4o_mini_complete, openai_embed
+```rust
+use edgequake_storage::PostgresStorage;
 
-async def chat():
-    rag = LightRAG(
-        working_dir="./rag_storage",
-        llm_model_func=gpt_4o_mini_complete,
-        embedding_func=openai_embed
-    )
-    await rag.initialize_storages()
+let storage = PostgresStorage::connect(
+    "postgres://user:pass@localhost/edgequake"
+).await?;
 
-    while True:
-        question = input("You: ")
-        if question.lower() == "quit":
-            break
-
-        response = await rag.aquery(
-            question,
-            param=QueryParam(mode="hybrid")
-        )
-        print(f"Assistant: {response}")
-
-asyncio.run(chat())
+let kv = Arc::new(storage.kv_storage());
+let vector = Arc::new(storage.vector_storage());
+let graph = Arc::new(storage.graph_storage());
 ```
 
-### Pattern 3: Batch Queries
+---
 
-```python
-import asyncio
-from lightrag import LightRAG, QueryParam
-from lightrag.llm.openai import gpt_4o_mini_complete, openai_embed
+## Run Production Example
 
-async def batch_query(questions: list):
-    rag = LightRAG(
-        working_dir="./rag_storage",
-        llm_model_func=gpt_4o_mini_complete,
-        embedding_func=openai_embed
-    )
-    await rag.initialize_storages()
+```bash
+# Set API key
+export OPENAI_API_KEY="sk-your-actual-key"
 
-    results = []
-    for question in questions:
-        result = await rag.aquery(
-            question,
-            param=QueryParam(mode="hybrid")
-        )
-        results.append({"question": question, "answer": result})
+# Run the production pipeline example
+cargo run --example production_pipeline
 
-    return results
-
-questions = [
-    "What is quantum computing?",
-    "Who invented the telephone?",
-    "What is machine learning?"
-]
-
-answers = asyncio.run(batch_query(questions))
+# Expected output:
+# 🚀 EdgeQuake Production Pipeline Example
+# ==========================================
+# ✓ API key found
+# ✓ LLM Provider: openai (model: gpt-4o-mini)
+# ✓ Embedding Provider: openai (model: text-embedding-3-small)
+# ✓ Storage backends ready
+# ✓ EdgeQuake initialized
+# 📄 Ingesting documents...
+# 📊 Processing Complete!
 ```
 
 ---
 
 ## Verify Installation
 
-```python
-# Test script - requires OPENAI_API_KEY environment variable
-import asyncio
-import shutil
-from lightrag import LightRAG, QueryParam
-from lightrag.llm.openai import gpt_4o_mini_complete, openai_embed
+```bash
+# Run all tests (uses mock provider)
+cargo test
 
-async def test():
-    # Initialize
-    rag = LightRAG(
-        working_dir="./test_rag",
-        llm_model_func=gpt_4o_mini_complete,
-        embedding_func=openai_embed
-    )
-    await rag.initialize_storages()
+# Run with real OpenAI provider
+export OPENAI_API_KEY="sk-xxx"
+cargo test -- --nocapture
 
-    # Insert test document
-    await rag.ainsert("Python is a programming language created by Guido van Rossum.")
+# Run specific E2E test
+cargo test --package edgequake-core --test e2e_pipeline
 
-    # Query
-    result = await rag.aquery("Who created Python?", param=QueryParam(mode="hybrid"))
-    print(f"Answer: {result}")
-
-    # Cleanup
-    shutil.rmtree("./test_rag")
-
-asyncio.run(test())
-```
-
-Expected output:
-```
-Answer: Python was created by Guido van Rossum.
+# Lint and format
+cargo clippy
+cargo fmt --check
 ```
 
 ---
 
 ## Next Steps
 
-1. **[Architecture Overview](0002-architecture-overview.md)** - Understand how LightRAG works
+1. **[Architecture Overview](0002-architecture-overview.md)** - Understand EdgeQuake internals
 2. **[API Reference](0003-api-reference.md)** - Complete REST API documentation
 3. **[Storage Backends](0004-storage-backends.md)** - Configure production storage
-4. **[LLM Integration](0005-llm-integration.md)** - Use different LLM providers
+4. **[LLM Integration](0005-llm-integration.md)** - Configure LLM providers
 5. **[Deployment Guide](0006-deployment-guide.md)** - Deploy to production
+6. **[Configuration Reference](0007-configuration-reference.md)** - All config options
 
 ---
 
@@ -426,33 +405,14 @@ Answer: Python was created by Guido van Rossum.
 
 | Issue | Solution |
 |-------|----------|
-| `ModuleNotFoundError: lightrag` | Run `pip install lightrag-hku` |
-| `OPENAI_API_KEY not set` | Export your API key: `export OPENAI_API_KEY=sk-xxx` |
-| `Connection refused` on port 9621 | Check if server is running: `python -m lightrag.api.lightrag_server` |
-| Slow indexing | Use batch inserts or consider PostgreSQL for large datasets |
-| Memory errors | Reduce chunk size or use streaming mode |
-
----
-
-## Example Projects
-
-```bash
-# Clone and explore examples
-git clone https://github.com/HKUDS/LightRAG.git
-cd LightRAG/examples
-
-# Run OpenAI demo
-python lightrag_openai_demo.py
-
-# Run Ollama demo (local LLM)
-python lightrag_ollama_demo.py
-
-# Visualize knowledge graph
-python graph_visual_with_html.py
-```
+| `OPENAI_API_KEY not set` | Export API key: `export OPENAI_API_KEY=sk-xxx` |
+| Build fails | Ensure Rust 1.75+: `rustup update` |
+| Connection refused on port 8080 | Check if server is running |
+| WebUI shows "Network Error" | Set `NEXT_PUBLIC_API_URL` correctly |
+| Slow processing | Use async_processing: true for large docs |
 
 ---
 
 **Need Help?**
-- GitHub Issues: https://github.com/HKUDS/LightRAG/issues
-- Documentation: https://github.com/HKUDS/LightRAG/wiki
+- GitHub Issues: https://github.com/raphaelmansuy/edgequake/issues
+- Documentation: [docs/](.)

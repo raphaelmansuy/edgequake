@@ -1,8 +1,8 @@
-# LightRAG Architecture Overview
+# EdgeQuake Architecture Overview
 
-> Technical deep-dive into LightRAG's Graph-Enhanced RAG system architecture
+> Technical deep-dive into EdgeQuake's Graph-Enhanced RAG system architecture
 
-**Version**: 1.4.9.2 | **Last Updated**: December 2025
+**Version**: 0.1.0 | **Last Updated**: December 2025 | **Language**: Rust
 
 ---
 
@@ -10,52 +10,58 @@
 
 1. [System Overview](#system-overview)
 2. [Core Architecture](#core-architecture)
-3. [Data Flow](#data-flow)
-4. [Component Breakdown](#component-breakdown)
-5. [Storage Architecture](#storage-architecture)
-6. [Query Pipeline](#query-pipeline)
-7. [Entity-Relationship Diagrams](#entity-relationship-diagrams)
+3. [Crate Structure](#crate-structure)
+4. [Data Flow](#data-flow)
+5. [Component Breakdown](#component-breakdown)
+6. [Storage Architecture](#storage-architecture)
+7. [Query Pipeline](#query-pipeline)
 
 ---
 
 ## System Overview
 
-LightRAG is a **Graph-Enhanced Retrieval-Augmented Generation** framework that combines knowledge graph construction with vector similarity search to provide contextually rich, accurate responses.
+EdgeQuake is a **Graph-Enhanced Retrieval-Augmented Generation** framework implemented in Rust, combining knowledge graph construction with vector similarity search to provide contextually rich, accurate responses.
 
 ### Key Differentiators
 
-| Feature | Traditional RAG | LightRAG |
-|---------|----------------|----------|
+| Feature | Traditional RAG | EdgeQuake |
+|---------|----------------|-----------|
+| Language | Python | Rust |
 | Retrieval | Vector similarity only | Graph + Vector hybrid |
 | Context | Flat document chunks | Entity-Relation aware |
-| Query Modes | Single mode | 5 modes (local/global/hybrid/naive/mix) |
+| Query Modes | Single mode | 5 modes (naive/local/global/hybrid/mix) |
 | Knowledge | Implicit in embeddings | Explicit knowledge graph |
-| Multi-tenant | ❌ | ✅ Full isolation |
+| Performance | Standard | High-performance, async |
+| WebUI | Basic | Next.js 16 + React 19 |
 
 ### High-Level Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              LightRAG System                                │
+│                              EdgeQuake System                               │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐  │
-│  │   FastAPI   │───▶│   LightRAG  │───▶│   Storage   │───▶│  Backends   │  │
-│  │   Server    │    │    Core     │    │   Layer     │    │             │  │
+│  │   Axum      │───▶│  EdgeQuake  │───▶│   Storage   │───▶│  Backends   │  │
+│  │   API       │    │    Core     │    │   Traits    │    │             │  │
 │  └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘  │
 │        │                  │                  │                  │          │
 │        │                  ▼                  ▼                  ▼          │
 │        │           ┌───────────┐      ┌───────────┐      ┌───────────┐    │
-│        │           │ Chunking  │      │ KV Store  │      │ PostgreSQL│    │
-│        │           │ + Extract │      │ VectorDB  │      │ MongoDB   │    │
-│        │           │ + Merge   │      │ GraphDB   │      │ Neo4j     │    │
-│        │           └───────────┘      │ DocStatus │      │ Redis     │    │
-│        │                              └───────────┘      └───────────┘    │
+│        │           │ Pipeline  │      │ KV Store  │      │ PostgreSQL│    │
+│        │           │ + Extract │      │ VectorDB  │      │ + pgvector│    │
+│        │           │ + Merge   │      │ GraphDB   │      │ + AGE     │    │
+│        │           └───────────┘      └───────────┘      └───────────┘    │
 │        │                                                                   │
 │        ▼                                                                   │
 │  ┌─────────────────────────────────────────────────────────────────────┐  │
 │  │                     LLM / Embedding Providers                        │  │
-│  │  OpenAI │ Azure │ Ollama │ Bedrock │ Anthropic │ HuggingFace │ ... │  │
+│  │                 OpenAI │ Ollama │ LM Studio (Compatible)            │  │
+│  └─────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐  │
+│  │                     Next.js WebUI (edgequake_webui)                  │  │
+│  │            React 19 │ TypeScript │ Sigma.js Graph │ Zustand         │  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -65,124 +71,257 @@ LightRAG is a **Graph-Enhanced Retrieval-Augmented Generation** framework that c
 
 ## Core Architecture
 
-### Module Dependency Graph
-
-```mermaid
-graph TB
-    subgraph "API Layer"
-        API[FastAPI Server]
-        Routes[Routers]
-        Auth[Auth Handler]
-    end
-
-    subgraph "Core Engine"
-        LR[LightRAG Class]
-        OP[Operate Module]
-        PM[Prompt Templates]
-    end
-
-    subgraph "Storage Abstractions"
-        BKV[BaseKVStorage]
-        BVS[BaseVectorStorage]
-        BGS[BaseGraphStorage]
-        DSS[DocStatusStorage]
-    end
-
-    subgraph "Implementations"
-        PG[PostgreSQL]
-        MG[MongoDB]
-        RD[Redis]
-        N4J[Neo4j]
-        NX[NetworkX]
-        QD[Qdrant]
-        ML[Milvus]
-        FS[FAISS]
-    end
-
-    subgraph "LLM Layer"
-        OAI[OpenAI]
-        OLL[Ollama]
-        AZ[Azure OpenAI]
-        BD[Bedrock]
-    end
-
-    API --> Routes
-    Routes --> Auth
-    Routes --> LR
-    LR --> OP
-    LR --> PM
-    LR --> BKV
-    LR --> BVS
-    LR --> BGS
-    LR --> DSS
-
-    BKV --> PG
-    BKV --> MG
-    BKV --> RD
-    BVS --> PG
-    BVS --> QD
-    BVS --> ML
-    BVS --> FS
-    BGS --> PG
-    BGS --> N4J
-    BGS --> NX
-    BGS --> MG
-
-    OP --> OAI
-    OP --> OLL
-    OP --> AZ
-    OP --> BD
-```
-
-### Core Class: `LightRAG`
-
-The `LightRAG` class (`lightrag/lightrag.py`) is the central orchestrator:
+### Crate Dependency Graph
 
 ```
-┌────────────────────────────────────────────────────────────────────┐
-│                         LightRAG Class                             │
-├────────────────────────────────────────────────────────────────────┤
-│                                                                    │
-│  Configuration                                                     │
-│  ├── working_dir: str          # Data storage directory           │
-│  ├── workspace: str            # Tenant isolation namespace        │
-│  ├── kv_storage: str           # JsonKV/Redis/PG/Mongo            │
-│  ├── vector_storage: str       # NanoVDB/Milvus/PG/Qdrant/FAISS   │
-│  ├── graph_storage: str        # NetworkX/Neo4j/PG/Memgraph       │
-│  └── doc_status_storage: str   # Json/Redis/PG/Mongo              │
-│                                                                    │
-│  Processing Settings                                               │
-│  ├── chunk_token_size: int     # Default: 1200                    │
-│  ├── chunk_overlap: int        # Default: 100                     │
-│  ├── entity_extract_max_gleaning: int  # Default: 1               │
-│  └── max_parallel_insert: int  # Default: 2                       │
-│                                                                    │
-│  Query Settings                                                    │
-│  ├── top_k: int                # Default: 40                      │
-│  ├── chunk_top_k: int          # Default: 20                      │
-│  ├── max_entity_tokens: int    # Default: 6000                    │
-│  ├── max_relation_tokens: int  # Default: 8000                    │
-│  └── max_total_tokens: int     # Default: 30000                   │
-│                                                                    │
-│  Storage Instances                                                 │
-│  ├── full_docs: BaseKVStorage                                     │
-│  ├── text_chunks: BaseKVStorage                                   │
-│  ├── entities_vdb: BaseVectorStorage                              │
-│  ├── relationships_vdb: BaseVectorStorage                         │
-│  ├── chunks_vdb: BaseVectorStorage                                │
-│  ├── chunk_entity_relation_graph: BaseGraphStorage                │
-│  └── doc_status: DocStatusStorage                                 │
-│                                                                    │
-│  Methods                                                           │
-│  ├── insert(docs) → track_id                                      │
-│  ├── ainsert(docs) → track_id                                     │
-│  ├── query(text, params) → response                               │
-│  ├── aquery(text, params) → response                              │
-│  ├── delete_by_doc(doc_id) → result                               │
-│  ├── get_knowledge_graph(label) → KnowledgeGraph                  │
-│  └── get_processing_status(track_id) → status                     │
-│                                                                    │
-└────────────────────────────────────────────────────────────────────┘
+                    ┌─────────────────────┐
+                    │   edgequake-api     │  ← REST API (Axum)
+                    │   (handlers, routes)│
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │   edgequake-core    │  ← Orchestration
+                    │   (EdgeQuake class) │
+                    └──────────┬──────────┘
+                               │
+          ┌────────────────────┼────────────────────┐
+          │                    │                    │
+          ▼                    ▼                    ▼
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│ edgequake-query │  │edgequake-pipeline│  │ edgequake-llm  │
+│   (QueryEngine) │  │   (Pipeline)     │  │   (Providers)  │
+└────────┬────────┘  └────────┬────────┘  └────────┬────────┘
+         │                    │                    │
+         └────────────────────┼────────────────────┘
+                              │
+                              ▼
+                    ┌─────────────────────┐
+                    │  edgequake-storage  │  ← Storage Traits
+                    │  (KV, Vector, Graph)│
+                    └─────────────────────┘
+```
+
+---
+
+## Crate Structure
+
+### `edgequake-core` - Orchestration Layer
+
+The central orchestrator that coordinates all RAG operations.
+
+```rust
+// Located: edgequake/crates/edgequake-core/src/orchestrator.rs
+
+pub struct EdgeQuake {
+    config: EdgeQuakeConfig,
+    initialized: bool,
+    
+    // Storage backends
+    kv_storage: Option<Arc<dyn KVStorage>>,
+    vector_storage: Option<Arc<dyn VectorStorage>>,
+    graph_storage: Option<Arc<dyn GraphStorage>>,
+    
+    // LLM providers
+    llm_provider: Option<Arc<dyn LLMProvider>>,
+    embedding_provider: Option<Arc<dyn EmbeddingProvider>>,
+    
+    // Processing components
+    pipeline: Option<Arc<Pipeline>>,
+    query_engine: Option<Arc<QueryEngine>>,
+}
+
+impl EdgeQuake {
+    pub async fn insert(&self, text: &str) -> Result<InsertResult>;
+    pub async fn query(&self, query: &str) -> Result<QueryResult>;
+    pub async fn delete_document(&self, doc_id: &str) -> Result<()>;
+    pub fn get_graph_stats(&self) -> Result<GraphStats>;
+}
+```
+
+### `edgequake-api` - REST API
+
+Axum-based REST API with OpenAPI documentation.
+
+```rust
+// Located: edgequake/crates/edgequake-api/src/routes.rs
+
+pub fn create_router(state: AppState) -> Router {
+    Router::new()
+        // Health endpoints
+        .route("/health", get(handlers::health_check))
+        .route("/ready", get(handlers::readiness_check))
+        .route("/metrics", get(handlers::get_metrics))
+        
+        // API v1 endpoints
+        .nest("/api/v1", api_v1_routes())
+        .with_state(state)
+}
+
+fn api_v1_routes() -> Router<AppState> {
+    Router::new()
+        // Documents
+        .route("/documents", post(handlers::upload_document))
+        .route("/documents", get(handlers::list_documents))
+        .route("/documents/upload", post(handlers::upload_file))
+        .route("/documents/{document_id}", get(handlers::get_document))
+        .route("/documents/{document_id}", delete(handlers::delete_document))
+        
+        // Query
+        .route("/query", post(handlers::execute_query))
+        .route("/query/stream", post(handlers::stream_query))
+        
+        // Graph
+        .route("/graph", get(handlers::get_graph))
+        .route("/graph/entities", post(handlers::create_entity))
+        .route("/graph/entities/{entity_name}", get(handlers::get_entity))
+        .route("/graph/relationships", post(handlers::create_relationship))
+        
+        // Tasks
+        .route("/tasks", get(handlers::list_tasks))
+        .route("/tasks/{track_id}", get(handlers::get_task))
+}
+```
+
+### `edgequake-llm` - LLM Providers
+
+```rust
+// Located: edgequake/crates/edgequake-llm/src/traits.rs
+
+#[async_trait]
+pub trait LLMProvider: Send + Sync {
+    async fn complete(&self, messages: &[ChatMessage], options: CompletionOptions) 
+        -> Result<LLMResponse>;
+    
+    async fn complete_stream(&self, messages: &[ChatMessage], options: CompletionOptions) 
+        -> Result<impl Stream<Item = Result<String>>>;
+    
+    fn model_name(&self) -> &str;
+    fn max_context_length(&self) -> usize;
+}
+
+#[async_trait]
+pub trait EmbeddingProvider: Send + Sync {
+    async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>>;
+    fn dimension(&self) -> usize;
+    fn model_name(&self) -> &str;
+}
+```
+
+**Implemented Providers:**
+
+| Provider | LLM | Embeddings | Notes |
+|----------|-----|------------|-------|
+| `OpenAIProvider` | ✅ | ✅ | Production ready |
+| `MockProvider` | ✅ | ✅ | Testing, deterministic |
+
+### `edgequake-storage` - Storage Abstractions
+
+```rust
+// Located: edgequake/crates/edgequake-storage/src/traits/
+
+#[async_trait]
+pub trait KVStorage: Send + Sync {
+    async fn get(&self, key: &str) -> Result<Option<serde_json::Value>>;
+    async fn upsert(&self, items: &[(String, serde_json::Value)]) -> Result<()>;
+    async fn delete(&self, keys: &[String]) -> Result<()>;
+    async fn keys(&self) -> Result<Vec<String>>;
+}
+
+#[async_trait]
+pub trait VectorStorage: Send + Sync {
+    async fn upsert(&self, vectors: &[VectorEntry]) -> Result<()>;
+    async fn search(&self, query: &[f32], top_k: usize) -> Result<Vec<SearchResult>>;
+    async fn delete(&self, ids: &[String]) -> Result<()>;
+}
+
+#[async_trait]
+pub trait GraphStorage: Send + Sync {
+    async fn add_node(&self, node: GraphNode) -> Result<()>;
+    async fn add_edge(&self, edge: GraphEdge) -> Result<()>;
+    async fn get_node(&self, id: &str) -> Result<Option<GraphNode>>;
+    async fn get_neighbors(&self, id: &str, depth: usize) -> Result<Vec<GraphNode>>;
+    async fn get_knowledge_graph(&self, start: &str, depth: usize, limit: usize) 
+        -> Result<KnowledgeGraph>;
+}
+```
+
+**Implemented Adapters:**
+
+| Adapter | KV | Vector | Graph | Use Case |
+|---------|----|----|-------|----------|
+| `MemoryStorage` | ✅ | ✅ | ✅ | Development/Testing |
+| `PostgresStorage` | ✅ | ✅ | ✅ | Production |
+
+### `edgequake-query` - Query Engine
+
+```rust
+// Located: edgequake/crates/edgequake-query/src/modes.rs
+
+#[derive(Debug, Clone, Copy)]
+pub enum QueryMode {
+    /// Simple vector similarity search
+    Naive,
+    
+    /// Entity-centric local neighborhood search
+    Local,
+    
+    /// Community-based global search
+    Global,
+    
+    /// Combined local and global
+    Hybrid,
+    
+    /// Weighted combination of all modes
+    Mix,
+}
+
+impl QueryMode {
+    pub fn uses_vector_search(&self) -> bool {
+        matches!(self, Self::Naive | Self::Local | Self::Mix)
+    }
+    
+    pub fn uses_graph(&self) -> bool {
+        matches!(self, Self::Local | Self::Global | Self::Hybrid | Self::Mix)
+    }
+}
+```
+
+### `edgequake-pipeline` - Document Processing
+
+```rust
+// Document processing pipeline stages:
+// 1. Chunking - Split documents into chunks
+// 2. Embedding - Generate vector embeddings
+// 3. Extraction - Extract entities and relationships via LLM
+// 4. Merging - Deduplicate and merge entities
+// 5. Storage - Persist to backends
+
+pub struct Pipeline {
+    chunker: Chunker,
+    extractor: LLMExtractor,
+    merger: KnowledgeGraphMerger,
+}
+
+impl Pipeline {
+    pub async fn process_document(&self, doc: &Document) 
+        -> Result<ProcessingResult> {
+        // 1. Chunk the document
+        let chunks = self.chunker.chunk(&doc.content)?;
+        
+        // 2. Extract entities and relationships
+        let extractions = self.extractor.extract(&chunks).await?;
+        
+        // 3. Merge into knowledge graph
+        let merged = self.merger.merge(extractions)?;
+        
+        Ok(ProcessingResult {
+            chunks: chunks.len(),
+            entities: merged.entities.len(),
+            relationships: merged.relationships.len(),
+        })
+    }
+}
 ```
 
 ---
@@ -192,593 +331,218 @@ The `LightRAG` class (`lightrag/lightrag.py`) is the central orchestrator:
 ### Document Ingestion Pipeline
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                        Document Ingestion Flow                           │
-├──────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  1. INPUT                                                                │
-│     ▼                                                                    │
-│  ┌──────────────────┐                                                    │
-│  │  Raw Documents   │  ◀── String/List[String] + optional file_paths    │
-│  └────────┬─────────┘                                                    │
-│           │                                                              │
-│  2. CHUNKING                                                             │
-│     ▼                                                                    │
-│  ┌──────────────────┐                                                    │
-│  │ chunking_by_     │  ── chunk_token_size: 1200                        │
-│  │ token_size()     │  ── overlap: 100 tokens                           │
-│  └────────┬─────────┘  ── optional character split                      │
-│           │                                                              │
-│  3. ENTITY EXTRACTION                                                    │
-│     ▼                                                                    │
-│  ┌──────────────────┐                                                    │
-│  │ extract_entities │  ── LLM extracts entities + relations             │
-│  │ ()               │  ── Parallel processing per chunk                 │
-│  └────────┬─────────┘  ── Gleaning for missed entities                  │
-│           │                                                              │
-│  4. MERGE & UPSERT                                                       │
-│     ▼                                                                    │
-│  ┌──────────────────┐                                                    │
-│  │ merge_nodes_and_ │  ── Deduplicate entities                          │
-│  │ edges()          │  ── Summarize descriptions via LLM                │
-│  └────────┬─────────┘  ── Upsert to graph + vector DBs                  │
-│           │                                                              │
-│  5. STORAGE                                                              │
-│     ▼                                                                    │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                    Storage Layer (Parallel Write)                 │   │
-│  ├──────────────┬──────────────┬──────────────┬──────────────────────┤   │
-│  │  full_docs   │ text_chunks  │ entities_vdb │ chunk_entity_graph   │   │
-│  │  (KV Store)  │ (KV Store)   │ (Vector DB)  │ (Graph DB)           │   │
-│  │              │              │ relations_vdb│                      │   │
-│  │              │              │ chunks_vdb   │                      │   │
-│  └──────────────┴──────────────┴──────────────┴──────────────────────┘   │
-│                                                                          │
-└──────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                        Document Ingestion Flow                               │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  1. INPUT                                                                    │
+│     │   POST /api/v1/documents                                              │
+│     │   { content: "...", title: "...", async_processing: bool }            │
+│     ▼                                                                        │
+│  ┌─────────────────────────────────────────────────────────────┐            │
+│  │  2. CHUNKING                                                 │            │
+│  │     • Token-based splitting (default: 1200 tokens)          │            │
+│  │     • Overlap preservation (default: 100 tokens)            │            │
+│  │     • Sentence boundary awareness                           │            │
+│  └─────────────────────────────────────────────────────────────┘            │
+│     │                                                                        │
+│     ▼                                                                        │
+│  ┌─────────────────────────────────────────────────────────────┐            │
+│  │  3. EMBEDDING                                                │            │
+│  │     • OpenAI text-embedding-3-small (1536 dims)             │            │
+│  │     • Batch processing for efficiency                        │            │
+│  │     • Store in VectorStorage                                 │            │
+│  └─────────────────────────────────────────────────────────────┘            │
+│     │                                                                        │
+│     ▼                                                                        │
+│  ┌─────────────────────────────────────────────────────────────┐            │
+│  │  4. ENTITY EXTRACTION (LLM)                                  │            │
+│  │     • GPT-4o-mini structured extraction                     │            │
+│  │     • Entity types: PERSON, ORGANIZATION, LOCATION, etc.   │            │
+│  │     • Relationship extraction: source → relation → target   │            │
+│  └─────────────────────────────────────────────────────────────┘            │
+│     │                                                                        │
+│     ▼                                                                        │
+│  ┌─────────────────────────────────────────────────────────────┐            │
+│  │  5. ENTITY MERGING                                           │            │
+│  │     • Name normalization: UPPERCASE_UNDERSCORE              │            │
+│  │     • Duplicate detection and merging                        │            │
+│  │     • Description aggregation                                │            │
+│  └─────────────────────────────────────────────────────────────┘            │
+│     │                                                                        │
+│     ▼                                                                        │
+│  ┌─────────────────────────────────────────────────────────────┐            │
+│  │  6. GRAPH STORAGE                                            │            │
+│  │     • Add nodes (entities) to GraphStorage                  │            │
+│  │     • Add edges (relationships) to GraphStorage             │            │
+│  │     • Update entity vectors in VectorStorage                │            │
+│  └─────────────────────────────────────────────────────────────┘            │
+│     │                                                                        │
+│     ▼                                                                        │
+│  OUTPUT                                                                      │
+│     { document_id, status: "completed", entity_count, relationship_count }  │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Entity Extraction Detail
+### Query Pipeline
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                   Entity Extraction Process                         │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  Input Chunk ────────────────────────────────────────────────────▶ │
-│  "Apple Inc. announced new iPhone at Cupertino headquarters..."    │
-│                                                                     │
-│            ▼                                                        │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │               LLM Extraction Prompt                          │   │
-│  │  - Entity types: Person, Organization, Location, Event...   │   │
-│  │  - Output format: entity<SEP>name<SEP>type<SEP>description  │   │
-│  │                   relation<SEP>src<SEP>tgt<SEP>kw<SEP>desc   │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│            ▼                                                        │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │                    Extracted Output                          │   │
-│  │                                                              │   │
-│  │  ENTITIES:                                                   │   │
-│  │  ├── Apple Inc. (organization) - Tech company...            │   │
-│  │  ├── iPhone (product) - Smartphone device...                │   │
-│  │  └── Cupertino (location) - City in California...           │   │
-│  │                                                              │   │
-│  │  RELATIONS:                                                  │   │
-│  │  ├── Apple Inc. → iPhone (produces)                         │   │
-│  │  └── Apple Inc. → Cupertino (headquartered_in)              │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Component Breakdown
-
-### Namespace Registry
-
-All storage namespaces are defined in `lightrag/namespace.py`:
-
-```python
-class NameSpace:
-    # Key-Value Stores
-    KV_STORE_FULL_DOCS = "full_docs"           # Complete document storage
-    KV_STORE_TEXT_CHUNKS = "text_chunks"       # Chunked text storage
-    KV_STORE_LLM_RESPONSE_CACHE = "llm_response_cache"  # LLM caching
-    KV_STORE_FULL_ENTITIES = "full_entities"   # Entity metadata
-    KV_STORE_FULL_RELATIONS = "full_relations" # Relation metadata
-
-    # Vector Stores
-    VECTOR_STORE_ENTITIES = "entities"         # Entity embeddings
-    VECTOR_STORE_RELATIONSHIPS = "relationships"  # Relation embeddings
-    VECTOR_STORE_CHUNKS = "chunks"             # Chunk embeddings
-
-    # Graph Store
-    GRAPH_STORE_CHUNK_ENTITY_RELATION = "chunk_entity_relation"
-
-    # Document Status
-    DOC_STATUS = "doc_status"
-```
-
-### Storage Implementation Matrix
-
-| Backend | KV Store | Vector Store | Graph Store | Doc Status |
-|---------|----------|--------------|-------------|------------|
-| **JSON/File** | ✅ JsonKVStorage | ❌ | ❌ | ✅ JsonDocStatus |
-| **PostgreSQL** | ✅ PGKVStorage | ✅ PGVectorStorage | ✅ PGGraphStorage | ✅ PGDocStatus |
-| **MongoDB** | ✅ MongoKVStorage | ✅ MongoVectorDB | ✅ MongoGraphStorage | ✅ MongoDocStatus |
-| **Redis** | ✅ RedisKVStorage | ❌ | ❌ | ✅ RedisDocStatus |
-| **Neo4j** | ❌ | ❌ | ✅ Neo4JStorage | ❌ |
-| **Memgraph** | ❌ | ❌ | ✅ MemgraphStorage | ❌ |
-| **NetworkX** | ❌ | ❌ | ✅ NetworkXStorage | ❌ |
-| **Milvus** | ❌ | ✅ MilvusVectorDB | ❌ | ❌ |
-| **Qdrant** | ❌ | ✅ QdrantVectorDB | ❌ | ❌ |
-| **FAISS** | ❌ | ✅ FaissVectorDB | ❌ | ❌ |
-| **NanoVectorDB** | ❌ | ✅ NanoVectorDB | ❌ | ❌ |
-
----
-
-## Storage Architecture
-
-### Abstract Base Classes
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                      Storage Abstract Classes                          │
-├────────────────────────────────────────────────────────────────────────┤
-│                                                                        │
-│  StorageNameSpace (Base)                                               │
-│  ├── namespace: str                                                    │
-│  ├── workspace: str                                                    │
-│  ├── global_config: dict                                               │
-│  ├── tenant_id: Optional[str]    # Multi-tenant support               │
-│  ├── kb_id: Optional[str]        # Knowledge base isolation            │
-│  ├── initialize() → None                                               │
-│  ├── finalize() → None                                                 │
-│  ├── index_done_callback() → None                                      │
-│  └── drop() → dict                                                     │
-│                                                                        │
-│  BaseKVStorage (StorageNameSpace)                                      │
-│  ├── get_by_id(id) → dict                                              │
-│  ├── get_by_ids(ids) → list[dict]                                      │
-│  ├── filter_keys(keys) → set[str]                                      │
-│  ├── upsert(data) → None                                               │
-│  └── delete(ids) → None                                                │
-│                                                                        │
-│  BaseVectorStorage (StorageNameSpace)                                  │
-│  ├── query(query, top_k, embedding) → list[dict]                       │
-│  ├── upsert(data) → None                                               │
-│  ├── delete(ids) → None                                                │
-│  ├── delete_entity(name) → None                                        │
-│  ├── get_by_id(id) → dict                                              │
-│  └── get_vectors_by_ids(ids) → dict[str, list[float]]                  │
-│                                                                        │
-│  BaseGraphStorage (StorageNameSpace)                                   │
-│  ├── has_node(node_id) → bool                                          │
-│  ├── has_edge(src, tgt) → bool                                         │
-│  ├── get_node(node_id) → dict                                          │
-│  ├── get_edge(src, tgt) → dict                                         │
-│  ├── get_node_edges(node_id) → list[tuple]                             │
-│  ├── upsert_node(node_id, data) → None                                 │
-│  ├── upsert_edge(src, tgt, data) → None                                │
-│  ├── delete_node(node_id) → None                                       │
-│  ├── get_knowledge_graph(label, depth) → KnowledgeGraph                │
-│  └── get_all_labels() → list[str]                                      │
-│                                                                        │
-│  DocStatusStorage (StorageNameSpace)                                   │
-│  ├── get_status_by_doc_id(doc_id) → DocProcessingStatus                │
-│  ├── upsert_status(doc_id, status) → None                              │
-│  ├── get_docs_by_status(status) → dict                                 │
-│  └── delete_status(doc_id) → None                                      │
-│                                                                        │
-└────────────────────────────────────────────────────────────────────────┘
-```
-
-### PostgreSQL Storage Implementation
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    PostgreSQL Storage Schema                            │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  Table: LIGHTRAG_DOC_FULL                                               │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │ workspace VARCHAR(1024)  PK  │  Tenant isolation namespace       │  │
-│  │ id        VARCHAR(255)   PK  │  Document hash ID                 │  │
-│  │ doc_name  VARCHAR(1024)      │  Original filename                │  │
-│  │ content   TEXT               │  Full document content            │  │
-│  │ meta      JSONB              │  Document metadata                │  │
-│  │ createtime TIMESTAMP(0)      │  Creation timestamp               │  │
-│  │ updatetime TIMESTAMP(0)      │  Last update timestamp            │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                         │
-│  Table: LIGHTRAG_DOC_CHUNKS                                             │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │ workspace       VARCHAR(1024) PK  │  Tenant namespace            │  │
-│  │ id              VARCHAR(255)  PK  │  Chunk hash ID               │  │
-│  │ full_doc_id     VARCHAR(255)      │  Parent document ID          │  │
-│  │ chunk_order_index INT             │  Chunk sequence number       │  │
-│  │ tokens          INT               │  Token count                 │  │
-│  │ content         TEXT              │  Chunk text content          │  │
-│  │ file_path       TEXT              │  Source file path            │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                         │
-│  Table: LIGHTRAG_VDB_ENTITY                                             │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │ workspace      VARCHAR(1024) PK  │  Tenant namespace             │  │
-│  │ id             VARCHAR(255)  PK  │  Entity hash ID               │  │
-│  │ entity_name    VARCHAR(1024)     │  Entity display name          │  │
-│  │ content        TEXT              │  Name + Description           │  │
-│  │ content_vector VECTOR(dim)       │  Embedding vector             │  │
-│  │ source_id      TEXT              │  Source chunk IDs             │  │
-│  │ file_path      TEXT              │  Source file paths            │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                         │
-│  Table: LIGHTRAG_VDB_RELATION                                           │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │ workspace      VARCHAR(1024) PK  │  Tenant namespace             │  │
-│  │ id             VARCHAR(255)  PK  │  Relation hash ID             │  │
-│  │ src_id         VARCHAR(1024)     │  Source entity name           │  │
-│  │ tgt_id         VARCHAR(1024)     │  Target entity name           │  │
-│  │ content        TEXT              │  Relation description         │  │
-│  │ content_vector VECTOR(dim)       │  Embedding vector             │  │
-│  │ source_id      TEXT              │  Source chunk IDs             │  │
-│  │ file_path      TEXT              │  Source file paths            │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                         │
-│  Table: LIGHTRAG_GRAPH_NODES                                            │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │ workspace    VARCHAR(1024) PK  │  Tenant namespace               │  │
-│  │ id           VARCHAR(255)  PK  │  Node/Entity name               │  │
-│  │ entity_type  VARCHAR(255)      │  Entity type (Person, etc.)     │  │
-│  │ description  TEXT              │  Entity description             │  │
-│  │ source_id    TEXT              │  Source chunk IDs               │  │
-│  │ file_path    TEXT              │  Source file paths              │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                         │
-│  Table: LIGHTRAG_GRAPH_EDGES                                            │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │ workspace    VARCHAR(1024) PK  │  Tenant namespace               │  │
-│  │ source_id    VARCHAR(255)  PK  │  Source node ID                 │  │
-│  │ target_id    VARCHAR(255)  PK  │  Target node ID                 │  │
-│  │ weight       FLOAT             │  Edge weight/strength           │  │
-│  │ description  TEXT              │  Relation description           │  │
-│  │ keywords     TEXT              │  Relation keywords              │  │
-│  │ source_chunk_id TEXT           │  Source chunk IDs               │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                           Query Pipeline                                     │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  1. INPUT                                                                    │
+│     │   POST /api/v1/query                                                  │
+│     │   { query: "...", mode: "hybrid" }                                    │
+│     ▼                                                                        │
+│  ┌─────────────────────────────────────────────────────────────┐            │
+│  │  2. QUERY EMBEDDING                                          │            │
+│  │     • Generate query vector embedding                        │            │
+│  │     • Extract keywords for graph search                      │            │
+│  └─────────────────────────────────────────────────────────────┘            │
+│     │                                                                        │
+│     ├────────────────────────────┬───────────────────────────┐              │
+│     ▼                            ▼                           ▼              │
+│  ┌───────────────┐    ┌───────────────┐    ┌───────────────┐               │
+│  │ NAIVE MODE    │    │ LOCAL MODE    │    │ GLOBAL MODE   │               │
+│  │ Vector search │    │ Entity match  │    │ Community     │               │
+│  │ top-k chunks  │    │ + neighbors   │    │ summaries     │               │
+│  └───────┬───────┘    └───────┬───────┘    └───────┬───────┘               │
+│          │                    │                    │                        │
+│          └────────────────────┼────────────────────┘                        │
+│                               ▼                                              │
+│  ┌─────────────────────────────────────────────────────────────┐            │
+│  │  3. CONTEXT ASSEMBLY                                         │            │
+│  │     • Merge chunks, entities, relationships                 │            │
+│  │     • Apply token limits                                     │            │
+│  │     • Rank by relevance                                      │            │
+│  └─────────────────────────────────────────────────────────────┘            │
+│     │                                                                        │
+│     ▼                                                                        │
+│  ┌─────────────────────────────────────────────────────────────┐            │
+│  │  4. LLM GENERATION                                           │            │
+│  │     • Build prompt with context                              │            │
+│  │     • Generate answer (streaming supported)                  │            │
+│  └─────────────────────────────────────────────────────────────┘            │
+│     │                                                                        │
+│     ▼                                                                        │
+│  OUTPUT                                                                      │
+│     { answer, mode, sources: [...], stats: { embedding_time, ... } }        │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Query Pipeline
+## WebUI Architecture
 
-### Query Modes
+### Technology Stack
+
+| Component | Technology |
+|-----------|------------|
+| Framework | Next.js 16 |
+| React | React 19 |
+| State | Zustand |
+| Data Fetching | TanStack Query |
+| Graph Visualization | Sigma.js + Graphology |
+| Styling | Tailwind CSS 4 |
+| Components | Radix UI |
+
+### Component Structure
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           Query Modes                                   │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  MODE: local                                                            │
-│  ┌───────────────────────────────────────────────────────────────────┐ │
-│  │ Focus: Specific entity context                                    │ │
-│  │ 1. Extract keywords from query (LLM)                              │ │
-│  │ 2. Search entity vector DB (top_k entities)                       │ │
-│  │ 3. Get entity neighbors from graph (1-hop)                        │ │
-│  │ 4. Retrieve related text chunks                                   │ │
-│  │ 5. Generate response with entity-focused context                  │ │
-│  └───────────────────────────────────────────────────────────────────┘ │
-│                                                                         │
-│  MODE: global                                                           │
-│  ┌───────────────────────────────────────────────────────────────────┐ │
-│  │ Focus: High-level relationships                                   │ │
-│  │ 1. Extract keywords from query (LLM)                              │ │
-│  │ 2. Search relationship vector DB (top_k relations)                │ │
-│  │ 3. Get connected entities for each relation                       │ │
-│  │ 4. Retrieve related text chunks                                   │ │
-│  │ 5. Generate response with relationship-focused context            │ │
-│  └───────────────────────────────────────────────────────────────────┘ │
-│                                                                         │
-│  MODE: hybrid                                                           │
-│  ┌───────────────────────────────────────────────────────────────────┐ │
-│  │ Focus: Combined entity + relation context                         │ │
-│  │ 1. Execute LOCAL mode retrieval                                   │ │
-│  │ 2. Execute GLOBAL mode retrieval                                  │ │
-│  │ 3. Merge and deduplicate context                                  │ │
-│  │ 4. Generate response with comprehensive context                   │ │
-│  └───────────────────────────────────────────────────────────────────┘ │
-│                                                                         │
-│  MODE: naive                                                            │
-│  ┌───────────────────────────────────────────────────────────────────┐ │
-│  │ Focus: Direct vector similarity (traditional RAG)                 │ │
-│  │ 1. Embed query                                                    │ │
-│  │ 2. Search chunks vector DB (top_k chunks)                         │ │
-│  │ 3. Generate response with chunk context                           │ │
-│  └───────────────────────────────────────────────────────────────────┘ │
-│                                                                         │
-│  MODE: mix (DEFAULT)                                                    │
-│  ┌───────────────────────────────────────────────────────────────────┐ │
-│  │ Focus: Knowledge graph + vector retrieval                         │ │
-│  │ 1. Execute HYBRID mode (entity + relations)                       │ │
-│  │ 2. Execute NAIVE mode (direct chunk similarity)                   │ │
-│  │ 3. Intelligently merge contexts                                   │ │
-│  │ 4. Apply reranking if enabled                                     │ │
-│  │ 5. Generate response with all context                             │ │
-│  └───────────────────────────────────────────────────────────────────┘ │
-│                                                                         │
-│  MODE: bypass                                                           │
-│  ┌───────────────────────────────────────────────────────────────────┐ │
-│  │ Focus: Direct LLM (no retrieval)                                  │ │
-│  │ 1. Send query directly to LLM                                     │ │
-│  │ 2. No context retrieval                                           │ │
-│  └───────────────────────────────────────────────────────────────────┘ │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-### Query Flow Diagram
-
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant API as FastAPI
-    participant LR as LightRAG
-    participant KW as Keyword Extractor
-    participant VDB as Vector DBs
-    participant GDB as Graph DB
-    participant LLM as LLM
-
-    C->>API: POST /query {query, mode}
-    API->>LR: aquery(query, params)
-
-    alt mode != bypass
-        LR->>KW: Extract keywords
-        KW->>LLM: Keyword extraction prompt
-        LLM-->>KW: {high_level, low_level}
-
-        par Parallel Retrieval
-            LR->>VDB: Search entities/relations/chunks
-            LR->>GDB: Get graph neighbors
-        end
-
-        VDB-->>LR: Entity/Relation matches
-        GDB-->>LR: Graph context
-
-        LR->>LR: Merge & deduplicate context
-        opt Rerank enabled
-            LR->>LR: Rerank chunks
-        end
-    end
-
-    LR->>LLM: Generate response
-    LLM-->>LR: Response text
-    LR-->>API: QueryResult
-    API-->>C: {response, references}
+edgequake_webui/src/
+├── app/                    # Next.js App Router
+│   ├── (auth)/            # Auth routes (login)
+│   ├── (dashboard)/       # Dashboard routes
+│   │   ├── page.tsx       # Main dashboard
+│   │   ├── documents/     # Document management
+│   │   ├── query/         # Query interface
+│   │   ├── graph/         # Graph visualization
+│   │   └── settings/      # Settings
+│   └── layout.tsx         # Root layout
+├── components/
+│   ├── ui/                # shadcn/ui components
+│   ├── graph/             # Graph visualization
+│   ├── documents/         # Document components
+│   ├── query/             # Query components
+│   └── layout/            # Layout components
+├── lib/
+│   └── api/               # API client
+│       ├── client.ts      # HTTP client
+│       └── edgequake.ts   # API functions
+├── stores/                # Zustand stores
+│   ├── use-auth-store.ts
+│   ├── use-graph-store.ts
+│   └── use-query-store.ts
+└── types/                 # TypeScript types
+    └── index.ts
 ```
 
 ---
 
-## Entity-Relationship Diagrams
+## Configuration
 
-### Document Processing ERD
+### EdgeQuake Configuration Structure
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    Document Processing Data Model                       │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  ┌──────────────┐         ┌──────────────┐         ┌──────────────┐    │
-│  │   Document   │ 1───n   │    Chunk     │  n───m  │    Entity    │    │
-│  ├──────────────┤         ├──────────────┤         ├──────────────┤    │
-│  │ id: str (PK) │─────────│ id: str (PK) │─────────│ id: str (PK) │    │
-│  │ content: text│         │ doc_id: FK   │         │ name: str    │    │
-│  │ file_path    │         │ order_index  │         │ type: str    │    │
-│  │ meta: json   │         │ content: text│         │ description  │    │
-│  │ created_at   │         │ tokens: int  │         │ source_ids   │    │
-│  └──────────────┘         │ file_path    │         │ vector: []   │    │
-│                           └──────────────┘         └──────────────┘    │
-│                                  │                        │            │
-│                                  │ n                      │ n          │
-│                                  │                        │            │
-│                                  ▼                        ▼            │
-│                           ┌──────────────┐         ┌──────────────┐    │
-│                           │ ChunkVector  │         │   Relation   │    │
-│                           ├──────────────┤         ├──────────────┤    │
-│                           │ chunk_id: FK │         │ id: str (PK) │    │
-│                           │ vector: []   │         │ source: FK   │    │
-│                           │ content: str │         │ target: FK   │    │
-│                           └──────────────┘         │ description  │    │
-│                                                    │ keywords: str│    │
-│                                                    │ weight: float│    │
-│                                                    │ vector: []   │    │
-│                                                    └──────────────┘    │
-│                                                                         │
-│  Legend:                                                                │
-│  ─────── = Relationship        PK = Primary Key                         │
-│  1───n   = One-to-Many         FK = Foreign Key                         │
-│  n───m   = Many-to-Many                                                 │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
+```rust
+// Located: edgequake/crates/edgequake-core/src/config.rs
 
-### Knowledge Graph Schema
+pub struct Config {
+    pub storage: StorageConfig,
+    pub llm: LlmConfig,
+    pub pipeline: PipelineConfig,
+    pub query: QueryConfig,
+    pub api: ApiConfig,
+}
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                     Knowledge Graph Structure                           │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│                          ┌─────────────┐                                │
-│                          │   ENTITY    │                                │
-│                          │  (Node)     │                                │
-│                          ├─────────────┤                                │
-│                          │ entity_id   │ ◀─────────────┐               │
-│                          │ entity_type │               │               │
-│                          │ description │               │               │
-│                          │ source_id   │               │               │
-│                          │ file_path   │               │               │
-│                          │ created_at  │               │               │
-│                          └──────┬──────┘               │               │
-│                                 │                      │               │
-│                      ┌──────────┴──────────┐           │               │
-│                      │                     │           │               │
-│                      ▼                     ▼           │               │
-│              ┌─────────────┐       ┌─────────────┐     │               │
-│              │  RELATION   │       │  RELATION   │     │               │
-│              │   (Edge)    │       │   (Edge)    │     │               │
-│              ├─────────────┤       ├─────────────┤     │               │
-│              │ source ─────┼───────┼─────────────┼─────┘               │
-│              │ target ─────┼───────┘             │                     │
-│              │ weight      │                     │                     │
-│              │ description │                     │                     │
-│              │ keywords    │                     │                     │
-│              │ source_id   │                     │                     │
-│              └─────────────┘                     │                     │
-│                                                  │                     │
-│              ┌───────────────────────────────────┘                     │
-│              │                                                         │
-│              ▼                                                         │
-│      ┌─────────────┐                                                   │
-│      │   ENTITY    │                                                   │
-│      │  (Node)     │  ◀── Another entity connected by relation         │
-│      └─────────────┘                                                   │
-│                                                                         │
-│  Graph Properties:                                                      │
-│  • Undirected edges (relations work both ways)                          │
-│  • Multi-edges allowed (multiple relations between same entities)       │
-│  • Self-loops not typical but possible                                  │
-│  • Weighted edges (based on mention frequency)                          │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
+pub struct StorageConfig {
+    pub database_url: String,      // postgres://localhost/edgequake
+    pub max_connections: u32,      // 10
+    pub min_connections: u32,      // 1
+    pub connect_timeout_secs: u64, // 30
+    pub namespace: Option<String>, // Multi-tenant namespace
+}
 
-### Multi-Tenant Data Isolation
+pub struct LlmConfig {
+    pub provider: String,          // "openai"
+    pub api_key: Option<String>,   // From OPENAI_API_KEY
+    pub base_url: Option<String>,  // Custom endpoint
+    pub model: String,             // "gpt-4o-mini"
+    pub embedding_model: String,   // "text-embedding-3-small"
+    pub embedding_dim: usize,      // 1536
+    pub max_tokens: usize,         // 4096
+    pub temperature: f32,          // 0.0
+}
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    Multi-Tenant Data Model                              │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  ┌────────────────────────────────────────────────────────────────────┐ │
-│  │                      Composite Key Pattern                         │ │
-│  │                                                                    │ │
-│  │  All tables use: (tenant_id, kb_id, resource_id) as primary key   │ │
-│  │                                                                    │ │
-│  │  workspace = "{tenant_id}:{kb_id}:{workspace_name}"               │ │
-│  └────────────────────────────────────────────────────────────────────┘ │
-│                                                                         │
-│  ┌──────────────────┐      ┌──────────────────┐                        │
-│  │     Tenant       │ 1──n │  Knowledge Base  │                        │
-│  ├──────────────────┤      ├──────────────────┤                        │
-│  │ id: UUID (PK)    │──────│ id: UUID (PK)    │                        │
-│  │ name: str        │      │ tenant_id: FK    │                        │
-│  │ config: json     │      │ name: str        │                        │
-│  │ quota: json      │      │ config: json     │                        │
-│  │ created_at       │      │ created_at       │                        │
-│  └──────────────────┘      └────────┬─────────┘                        │
-│                                     │                                   │
-│                                     │ 1                                 │
-│                                     ▼                                   │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │                    Scoped Resources                               │  │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │  │
-│  │  │  Documents  │  │  Entities   │  │  Relations  │              │  │
-│  │  ├─────────────┤  ├─────────────┤  ├─────────────┤              │  │
-│  │  │ tenant_id   │  │ tenant_id   │  │ tenant_id   │              │  │
-│  │  │ kb_id       │  │ kb_id       │  │ kb_id       │              │  │
-│  │  │ doc_id      │  │ entity_id   │  │ relation_id │              │  │
-│  │  │ ...         │  │ ...         │  │ ...         │              │  │
-│  │  └─────────────┘  └─────────────┘  └─────────────┘              │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                         │
-│  Query Filter Example (PostgreSQL):                                     │
-│  SELECT * FROM entities                                                 │
-│  WHERE workspace = 'tenant_a:kb_prod:default'                          │
-│    AND entity_name ILIKE '%search_term%'                               │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
+pub struct PipelineConfig {
+    pub chunk_size: usize,         // 1200 tokens
+    pub chunk_overlap: usize,      // 100 tokens
+    pub entity_types: Vec<String>, // PERSON, ORG, LOCATION...
+    pub concurrency: usize,        // 4 parallel tasks
+}
 
----
+pub struct QueryConfig {
+    pub default_mode: QueryMode,   // Hybrid
+    pub max_vector_results: usize, // 20
+    pub max_graph_depth: usize,    // 3
+    pub max_context_chunks: usize, // 20
+}
 
-## Configuration Reference
-
-### Default Constants
-
-```python
-# Query defaults (lightrag/constants.py)
-DEFAULT_TOP_K = 40                    # Entities/relations to retrieve
-DEFAULT_CHUNK_TOP_K = 20              # Text chunks to retrieve
-DEFAULT_MAX_ENTITY_TOKENS = 6000      # Max tokens for entity context
-DEFAULT_MAX_RELATION_TOKENS = 8000    # Max tokens for relation context
-DEFAULT_MAX_TOTAL_TOKENS = 30000      # Total context budget
-
-# Chunking defaults
-DEFAULT_CHUNK_SIZE = 1200             # Tokens per chunk
-DEFAULT_CHUNK_OVERLAP = 100           # Overlap between chunks
-
-# Processing defaults
-DEFAULT_MAX_GLEANING = 1              # Extra extraction passes
-DEFAULT_MAX_ASYNC = 4                 # Concurrent LLM calls
-DEFAULT_MAX_PARALLEL_INSERT = 2       # Concurrent document inserts
-
-# Timeouts
-DEFAULT_LLM_TIMEOUT = 180             # LLM call timeout (seconds)
-DEFAULT_EMBEDDING_TIMEOUT = 30        # Embedding call timeout
-```
-
-### Environment Variables
-
-```bash
-# Storage backends
-KV_STORAGE=JsonKVStorage          # JsonKVStorage|PGKVStorage|MongoKVStorage|RedisKVStorage
-VECTOR_STORAGE=NanoVectorDBStorage # NanoVectorDBStorage|PGVectorStorage|MilvusVectorDBStorage|QdrantVectorDBStorage
-GRAPH_STORAGE=NetworkXStorage     # NetworkXStorage|PGGraphStorage|Neo4JStorage|MemgraphStorage
-
-# PostgreSQL (when using PG* backends)
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=secret
-POSTGRES_DATABASE=lightrag
-
-# Neo4j (when using Neo4JStorage)
-NEO4J_URI=bolt://localhost:7687
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=password
-
-# Redis (when using Redis* backends)
-REDIS_URI=redis://localhost:6379
-
-# MongoDB (when using Mongo* backends)
-MONGO_URI=mongodb://localhost:27017
-MONGO_DATABASE=lightrag
-
-# Processing
-CHUNK_SIZE=1200
-CHUNK_OVERLAP_SIZE=100
-MAX_ASYNC=4
-MAX_PARALLEL_INSERT=2
-
-# Query
-TOP_K=40
-CHUNK_TOP_K=20
-COSINE_THRESHOLD=0.2
+pub struct ApiConfig {
+    pub host: String,              // "0.0.0.0"
+    pub port: u16,                 // 8080
+    pub cors_enabled: bool,        // true
+    pub body_limit: usize,         // 10MB
+}
 ```
 
 ---
 
 ## Next Steps
 
-- **[0003-api-reference.md](./0003-api-reference.md)**: Complete REST API documentation
-- **[0004-storage-backends.md](./0004-storage-backends.md)**: Detailed storage implementation guide
-- **[0005-llm-integration.md](./0005-llm-integration.md)**: LLM provider configuration
-- **[0006-deployment-guide.md](./0006-deployment-guide.md)**: Docker, K8s, and production setup
-- **[0007-configuration-reference.md](./0007-configuration-reference.md)**: All configuration options
-- **[0008-multi-tenancy.md](./0008-multi-tenancy.md)**: Multi-tenant setup guide
-
----
-
-**Version**: 1.4.9.2 | **License**: MIT | **Repository**: [HKUDS/LightRAG](https://github.com/HKUDS/LightRAG)
+1. **[API Reference](0003-api-reference.md)** - Complete REST API documentation
+2. **[Storage Backends](0004-storage-backends.md)** - Configure storage
+3. **[LLM Integration](0005-llm-integration.md)** - LLM providers
+4. **[Deployment Guide](0006-deployment-guide.md)** - Production deployment
