@@ -42,6 +42,7 @@ import {
     Info,
     Loader2,
     MessageSquare,
+    Plus,
     RefreshCw,
     Send,
     Settings2,
@@ -464,7 +465,9 @@ export function QueryInterface() {
   const [input, setInput] = useState('');
   const [streamingState, setStreamingState] = useState<StreamingState>('idle');
   const [currentStreamingId, setCurrentStreamingId] = useState<string | null>(null);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollAnchorRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const thinkingStartRef = useRef<number | null>(null);
@@ -483,15 +486,37 @@ export function QueryInterface() {
   const recentQueries = useRecentQueries(10);
   const favoriteQueries = useFavoriteQueries();
 
-  // Scroll to bottom when messages change
+  // Smart scroll to bottom when messages change - only if user hasn't scrolled up
   useEffect(() => {
-    if (scrollRef.current) {
-      const viewport = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      if (viewport) {
-        viewport.scrollTop = viewport.scrollHeight;
-      }
+    if (!shouldAutoScroll) return;
+    
+    if (scrollAnchorRef.current) {
+      scrollAnchorRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
-  }, [messages, streamingState]);
+  }, [messages, streamingState, shouldAutoScroll]);
+
+  // Detect if user has scrolled up (to disable auto-scroll)
+  useEffect(() => {
+    const viewport = scrollRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+    if (!viewport) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = viewport as HTMLElement;
+      // If user is near the bottom (within 100px), enable auto-scroll
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+      setShouldAutoScroll(isNearBottom);
+    };
+
+    viewport.addEventListener('scroll', handleScroll);
+    return () => viewport.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Re-enable auto-scroll when streaming starts
+  useEffect(() => {
+    if (streamingState === 'thinking' || streamingState === 'generating') {
+      setShouldAutoScroll(true);
+    }
+  }, [streamingState]);
 
   // Auto-resize textarea
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -715,9 +740,9 @@ export function QueryInterface() {
   return (
     <div className="flex h-full">
       {/* Main Query Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between border-b px-4 py-3">
+        <div className="flex items-center justify-between border-b px-4 py-3 flex-shrink-0">
           <div>
             <h1 className="text-lg font-semibold">{t('query.title', 'Query')}</h1>
             <p className="text-sm text-muted-foreground">
@@ -725,6 +750,23 @@ export function QueryInterface() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {/* New Conversation Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setMessages([]);
+                setInput('');
+                setCurrentStreamingId(null);
+                setStreamingState('idle');
+              }}
+              disabled={isLoading || messages.length === 0}
+              className="gap-1"
+            >
+              <Plus className="h-4 w-4" />
+              {t('query.newConversation', 'New')}
+            </Button>
+
             {/* Mode Selector */}
             <QueryModeSelector
               value={querySettings.mode}
@@ -940,11 +982,13 @@ export function QueryInterface() {
                 {queryMutation.isPending && <LoadingMessage />}
               </>
             )}
+            {/* Scroll anchor for auto-scroll */}
+            <div ref={scrollAnchorRef} />
           </div>
         </ScrollArea>
 
-        {/* Input */}
-        <div className="border-t p-4" role="form" aria-label={t('query.form', 'Query form')}>
+        {/* Input - Fixed at bottom with flexbox */}
+        <div className="border-t p-4 bg-background flex-shrink-0" role="form" aria-label={t('query.form', 'Query form')}>
           <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
             <div className="relative">
               <Textarea

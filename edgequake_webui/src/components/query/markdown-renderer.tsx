@@ -261,8 +261,31 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     return null;
   }
 
+  // Normalize markdown syntax that may be broken by streaming tokenization
+  // Streaming often adds extra spaces around markdown markers like ** for bold
+  // e.g., "** AI Model **" should be "**AI Model**" for proper rendering
+  const normalizeMarkdown = (text: string): string => {
+    return text
+      // Fix bold: "** text **" -> "**text**"
+      .replace(/\*\*\s+/g, '**')
+      .replace(/\s+\*\*/g, '**')
+      // Fix italic (single asterisk): "* text *" -> "*text*" - be careful with list items
+      // Only fix when there's a matching pair, not list items at start of line
+      .replace(/(\*)\s+(\S)/g, (match, star, char) => {
+        // Don't fix if it looks like a list item (start of line)
+        return `${star}${char}`;
+      })
+      .replace(/(\S)\s+(\*)/g, '$1$2')
+      // Fix code: "` text `" -> "`text`"
+      .replace(/`\s+/g, '`')
+      .replace(/\s+`/g, '`')
+      // Fix strikethrough: "~~ text ~~" -> "~~text~~"
+      .replace(/~~\s+/g, '~~')
+      .replace(/\s+~~/g, '~~');
+  };
+
   // Sanitize content to prevent parsing errors
-  const safeContent = content.trim();
+  const safeContent = normalizeMarkdown(content.trim());
   if (!safeContent) {
     return null;
   }

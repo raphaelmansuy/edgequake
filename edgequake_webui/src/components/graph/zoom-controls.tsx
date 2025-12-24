@@ -107,29 +107,49 @@ export function ZoomControls() {
   }, [sigmaInstance]);
 
   const handleFocusOnNode = useCallback(() => {
-    if (sigmaInstance && selectedNodeId) {
-      const graph = sigmaInstance.getGraph();
+    if (!sigmaInstance || !selectedNodeId) return;
+    
+    const graph = sigmaInstance.getGraph();
+    if (!graph.hasNode(selectedNodeId)) return;
+
+    try {
+      // Get node position in graph coordinates
+      const nodeX = graph.getNodeAttribute(selectedNodeId, 'x') as number;
+      const nodeY = graph.getNodeAttribute(selectedNodeId, 'y') as number;
       
-      if (graph.hasNode(selectedNodeId)) {
-        const nodePosition = {
-          x: graph.getNodeAttribute(selectedNodeId, 'x'),
-          y: graph.getNodeAttribute(selectedNodeId, 'y'),
-        };
+      // Get graph bounding box (extent of all nodes)
+      const bbox = sigmaInstance.getBBox();
+      
+      // Calculate normalized position (0-1 range)
+      // Camera x,y expect values in 0-1 range representing graph extent fraction
+      const graphWidth = bbox.x[1] - bbox.x[0];
+      const graphHeight = bbox.y[1] - bbox.y[0];
+      
+      // Handle edge case of zero dimensions (single node or all nodes at same position)
+      const normalizedX = graphWidth > 0 
+        ? (nodeX - bbox.x[0]) / graphWidth 
+        : 0.5;
+      const normalizedY = graphHeight > 0 
+        ? (nodeY - bbox.y[0]) / graphHeight 
+        : 0.5;
+      
+      // Animate camera to focus on node with smooth easing
+      sigmaInstance.getCamera().animate(
+        {
+          x: normalizedX,
+          y: normalizedY,
+          ratio: 0.4, // Good zoom level for focus (lower = more zoomed in)
+        },
+        { 
+          duration: 500,
+        }
+      );
 
-        // Animate to center on node with zoom
-        sigmaInstance.getCamera().animate(
-          {
-            x: nodePosition.x,
-            y: nodePosition.y,
-            ratio: 0.3, // Zoom in
-          },
-          { duration: 500 }
-        );
-
-        // Highlight the node
-        graph.setNodeAttribute(selectedNodeId, 'highlighted', true);
-        sigmaInstance.refresh();
-      }
+      // Highlight the selected node
+      graph.setNodeAttribute(selectedNodeId, 'highlighted', true);
+      sigmaInstance.refresh();
+    } catch (error) {
+      console.error('Error focusing on node:', error);
     }
   }, [sigmaInstance, selectedNodeId]);
 
