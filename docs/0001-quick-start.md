@@ -102,18 +102,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut eq = EdgeQuake::new(config)
         .with_providers(provider.clone(), provider.clone())
         .with_storage_backends(kv, vector, graph);
-    
+
     eq.initialize().await?;
 
     // Insert a document
     let result = eq.insert(
-        "Marie Curie was a physicist who discovered radium. 
-         She was born in Poland and later moved to France. 
+        "Marie Curie was a physicist who discovered radium.
+         She was born in Poland and later moved to France.
          She won the Nobel Prize in Physics in 1903.",
         None  // Auto-generate document ID
     ).await?;
-    
-    println!("Inserted: {} entities, {} relationships", 
+
+    println!("Inserted: {} entities, {} relationships",
         result.entities_extracted, result.relationships_extracted);
 
     // Query the knowledge graph
@@ -259,13 +259,13 @@ npm run dev
 
 ### 2. WebUI Features
 
-| Feature | Description |
-|---------|-------------|
-| **Dashboard** | System overview, stats, quick actions |
-| **Documents** | Upload, manage, track processing status |
-| **Query** | Interactive query interface with streaming |
-| **Graph** | Visual knowledge graph exploration |
-| **Settings** | Configure API, themes, language |
+| Feature       | Description                                |
+| ------------- | ------------------------------------------ |
+| **Dashboard** | System overview, stats, quick actions      |
+| **Documents** | Upload, manage, track processing status    |
+| **Query**     | Interactive query interface with streaming |
+| **Graph**     | Visual knowledge graph exploration         |
+| **Settings**  | Configure API, themes, language            |
 
 ---
 
@@ -397,16 +397,17 @@ cargo fmt --check
 
 ## Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| `OPENAI_API_KEY not set` | Export API key: `export OPENAI_API_KEY=sk-xxx` |
-| Build fails | Ensure Rust 1.75+: `rustup update` |
-| Connection refused on port 8080 | Check if server is running |
-| WebUI shows "Network Error" | Set `NEXT_PUBLIC_API_URL` correctly |
-| Slow processing | Use async_processing: true for large docs |
+| Issue                           | Solution                                       |
+| ------------------------------- | ---------------------------------------------- |
+| `OPENAI_API_KEY not set`        | Export API key: `export OPENAI_API_KEY=sk-xxx` |
+| Build fails                     | Ensure Rust 1.75+: `rustup update`             |
+| Connection refused on port 8080 | Check if server is running                     |
+| WebUI shows "Network Error"     | Set `NEXT_PUBLIC_API_URL` correctly            |
+| Slow processing                 | Use async_processing: true for large docs      |
 
 ---
 
 **Need Help?**
+
 - GitHub Issues: https://github.com/raphaelmansuy/edgequake/issues
 - Documentation: [docs/](.)

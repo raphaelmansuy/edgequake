@@ -75,36 +75,36 @@ EdgeQuake requires two AI components for RAG operations:
 pub trait LLMProvider: Send + Sync {
     /// Get the name of this provider.
     fn name(&self) -> &str;
-    
+
     /// Get the current model.
     fn model(&self) -> &str;
-    
+
     /// Get the maximum context length for the model.
     fn max_context_length(&self) -> usize;
-    
+
     /// Generate a completion for the given prompt.
     async fn complete(&self, prompt: &str) -> Result<LLMResponse>;
-    
+
     /// Generate a completion with custom options.
     async fn complete_with_options(
         &self,
         prompt: &str,
         options: &CompletionOptions,
     ) -> Result<LLMResponse>;
-    
+
     /// Generate a chat completion with messages.
     async fn chat(
         &self,
         messages: &[ChatMessage],
         options: Option<&CompletionOptions>,
     ) -> Result<LLMResponse>;
-    
+
     /// Generate a streaming completion.
     async fn stream(&self, prompt: &str) -> Result<BoxStream<'static, Result<String>>>;
-    
+
     /// Check if the model supports streaming.
     fn supports_streaming(&self) -> bool;
-    
+
     /// Check if the model supports JSON mode.
     fn supports_json_mode(&self) -> bool;
 }
@@ -113,19 +113,19 @@ pub trait LLMProvider: Send + Sync {
 pub trait EmbeddingProvider: Send + Sync {
     /// Get the name of this provider.
     fn name(&self) -> &str;
-    
+
     /// Get the embedding model.
     fn model(&self) -> &str;
-    
+
     /// Get the dimension of the embeddings.
     fn dimension(&self) -> usize;
-    
+
     /// Get the maximum number of tokens per input.
     fn max_tokens(&self) -> usize;
-    
+
     /// Generate embeddings for a batch of texts.
     async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>>;
-    
+
     /// Generate embedding for a single text.
     async fn embed_one(&self, text: &str) -> Result<Vec<f32>>;
 }
@@ -168,12 +168,12 @@ pub struct LLMResponse {
 
 ### Supported Providers
 
-| Provider | LLM | Embeddings | Production | Notes |
-|----------|-----|------------|------------|-------|
-| **OpenAI** | ✅ | ✅ | ✅ | Recommended |
-| **Ollama** | ✅ | ✅ | ✅ | Local inference |
-| **LM Studio** | ✅ | ✅ | ✅ | OpenAI-compatible |
-| **Mock** | ✅ | ✅ | ❌ | Testing only |
+| Provider      | LLM | Embeddings | Production | Notes             |
+| ------------- | --- | ---------- | ---------- | ----------------- |
+| **OpenAI**    | ✅  | ✅         | ✅         | Recommended       |
+| **Ollama**    | ✅  | ✅         | ✅         | Local inference   |
+| **LM Studio** | ✅  | ✅         | ✅         | OpenAI-compatible |
+| **Mock**      | ✅  | ✅         | ❌         | Testing only      |
 
 ---
 
@@ -214,31 +214,31 @@ OPENAI_BASE_URL=https://api.openai.com/v1
 
 #### LLM Models
 
-| Model | Context | Cost (Input/Output per 1M) | Notes |
-|-------|---------|---------------------------|-------|
-| `gpt-4o-mini` | 128K | $0.15 / $0.60 | **Recommended** |
-| `gpt-4o` | 128K | $2.50 / $10.00 | Highest quality |
-| `gpt-4-turbo` | 128K | $10.00 / $30.00 | Legacy |
-| `gpt-3.5-turbo` | 16K | $0.50 / $1.50 | Budget option |
-| `o1-mini` | 128K | $3.00 / $12.00 | Reasoning model |
+| Model           | Context | Cost (Input/Output per 1M) | Notes           |
+| --------------- | ------- | -------------------------- | --------------- |
+| `gpt-4o-mini`   | 128K    | $0.15 / $0.60              | **Recommended** |
+| `gpt-4o`        | 128K    | $2.50 / $10.00             | Highest quality |
+| `gpt-4-turbo`   | 128K    | $10.00 / $30.00            | Legacy          |
+| `gpt-3.5-turbo` | 16K     | $0.50 / $1.50              | Budget option   |
+| `o1-mini`       | 128K    | $3.00 / $12.00             | Reasoning model |
 
 #### Embedding Models
 
-| Model | Dimensions | Cost (per 1M tokens) | Notes |
-|-------|------------|---------------------|-------|
-| `text-embedding-3-small` | 1536 | $0.02 | **Recommended** |
-| `text-embedding-3-large` | 3072 | $0.13 | Higher quality |
-| `text-embedding-ada-002` | 1536 | $0.10 | Legacy |
+| Model                    | Dimensions | Cost (per 1M tokens) | Notes           |
+| ------------------------ | ---------- | -------------------- | --------------- |
+| `text-embedding-3-small` | 1536       | $0.02                | **Recommended** |
+| `text-embedding-3-large` | 3072       | $0.13                | Higher quality  |
+| `text-embedding-ada-002` | 1536       | $0.10                | Legacy          |
 
 ### Cost Estimation
 
 For `gpt-4o-mini` + `text-embedding-3-small`:
 
-| Operation | Tokens | Cost |
-|-----------|--------|------|
-| Entity extraction (per chunk) | ~800 in + 200 out | $0.0012 |
-| Embedding (per chunk) | ~1000 | $0.00002 |
-| Query generation | ~2000 in + 500 out | $0.006 |
+| Operation                     | Tokens             | Cost     |
+| ----------------------------- | ------------------ | -------- |
+| Entity extraction (per chunk) | ~800 in + 200 out  | $0.0012  |
+| Embedding (per chunk)         | ~1000              | $0.00002 |
+| Query generation              | ~2000 in + 500 out | $0.006   |
 
 **Per document (avg 5 chunks):** ~$0.007
 
@@ -280,14 +280,14 @@ EDGEQUAKE_EMBEDDING_MODEL=nomic-embed-text
 
 ### Recommended Ollama Models
 
-| Model | Size | Context | Notes |
-|-------|------|---------|-------|
-| `llama3.2:3b` | 2GB | 128K | Fast, good for extraction |
-| `llama3.1:8b` | 4.7GB | 128K | Better quality |
-| `mistral:7b` | 4GB | 32K | Good balance |
-| `phi3:mini` | 2GB | 4K | Lightweight |
-| `nomic-embed-text` | 274MB | - | Embeddings |
-| `mxbai-embed-large` | 670MB | - | Higher quality embeddings |
+| Model               | Size  | Context | Notes                     |
+| ------------------- | ----- | ------- | ------------------------- |
+| `llama3.2:3b`       | 2GB   | 128K    | Fast, good for extraction |
+| `llama3.1:8b`       | 4.7GB | 128K    | Better quality            |
+| `mistral:7b`        | 4GB   | 32K     | Good balance              |
+| `phi3:mini`         | 2GB   | 4K      | Lightweight               |
+| `nomic-embed-text`  | 274MB | -       | Embeddings                |
+| `mxbai-embed-large` | 670MB | -       | Higher quality embeddings |
 
 ---
 
@@ -374,10 +374,10 @@ pub struct MockProvider {
 impl MockProvider {
     /// Create a new mock provider with default responses.
     pub fn new() -> Self { ... }
-    
+
     /// Add a response to the queue (consumed in order).
     pub async fn add_response(&self, response: impl Into<String>) { ... }
-    
+
     /// Add an embedding to the queue.
     pub async fn add_embedding(&self, embedding: Vec<f32>) { ... }
 }
@@ -396,7 +396,7 @@ async fn create_provider() -> (Arc<dyn LLMProvider>, Arc<dyn EmbeddingProvider>)
             return (provider.clone(), provider);
         }
     }
-    
+
     // Fall back to mock
     let mock = Arc::new(MockProvider::new());
     (mock.clone(), mock)
@@ -424,31 +424,31 @@ cargo test -- --nocapture
 pub struct LlmConfig {
     /// Provider name: openai, ollama
     pub provider: String,
-    
+
     /// API key (optional for local providers)
     pub api_key: Option<String>,
-    
+
     /// Custom API base URL
     pub base_url: Option<String>,
-    
+
     /// LLM model name
     pub model: String,
-    
+
     /// Embedding model name
     pub embedding_model: String,
-    
+
     /// Embedding vector dimension
     pub embedding_dim: usize,
-    
+
     /// Maximum tokens for generation
     pub max_tokens: usize,
-    
+
     /// Temperature (0.0 = deterministic)
     pub temperature: f32,
-    
+
     /// Request timeout in seconds
     pub timeout_secs: u64,
-    
+
     /// Maximum retries for failed requests
     pub max_retries: u32,
 }
@@ -473,15 +473,15 @@ impl Default for LlmConfig {
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `OPENAI_API_KEY` | - | OpenAI API key |
-| `EDGEQUAKE_LLM_PROVIDER` | openai | Provider: openai, ollama |
-| `EDGEQUAKE_LLM_MODEL` | gpt-4o-mini | LLM model name |
-| `EDGEQUAKE_EMBEDDING_MODEL` | text-embedding-3-small | Embedding model |
-| `EDGEQUAKE_EMBEDDING_DIM` | 1536 | Embedding dimension |
-| `OPENAI_BASE_URL` | - | Custom API endpoint |
-| `OLLAMA_HOST` | http://localhost:11434 | Ollama server URL |
+| Variable                    | Default                | Description              |
+| --------------------------- | ---------------------- | ------------------------ |
+| `OPENAI_API_KEY`            | -                      | OpenAI API key           |
+| `EDGEQUAKE_LLM_PROVIDER`    | openai                 | Provider: openai, ollama |
+| `EDGEQUAKE_LLM_MODEL`       | gpt-4o-mini            | LLM model name           |
+| `EDGEQUAKE_EMBEDDING_MODEL` | text-embedding-3-small | Embedding model          |
+| `EDGEQUAKE_EMBEDDING_DIM`   | 1536                   | Embedding dimension      |
+| `OPENAI_BASE_URL`           | -                      | Custom API endpoint      |
+| `OLLAMA_HOST`               | http://localhost:11434 | Ollama server URL        |
 
 ---
 

@@ -28,19 +28,19 @@
 
 ## Key Fixes
 
-| Doc | Issue | Fix |
-|-----|-------|-----|
+| Doc  | Issue                               | Fix                                                            |
+| ---- | ----------------------------------- | -------------------------------------------------------------- |
 | 0001 | Wrong query API `query_with_mode()` | Changed to `query(q, Some(QueryParams::new().with_mode(...)))` |
-| 0004 | KVStorage.get() | Changed to get_by_id() |
-| 0004 | VectorStorage.search() | Changed to query() |
-| 0004 | Single MemoryStorage | Split to 3 classes |
-| 0007 | QueryConfig.top_k | Changed to max_vector_results |
-| 0008 | LightRAG Python | Replaced with EdgeQuake Rust docs |
+| 0004 | KVStorage.get()                     | Changed to get_by_id()                                         |
+| 0004 | VectorStorage.search()              | Changed to query()                                             |
+| 0004 | Single MemoryStorage                | Split to 3 classes                                             |
+| 0007 | QueryConfig.top_k                   | Changed to max_vector_results                                  |
+| 0008 | LightRAG Python                     | Replaced with EdgeQuake Rust docs                              |
 
 ## Files Archived
 
 - 0009-multi-tenant-vs-workspace-audit.md (LightRAG Python)
-- API_COMPARISON_*.md (comparison docs)
+- API*COMPARISON*\*.md (comparison docs)
 - DATABASE_ARCHITECTURE_UPDATE.md (internal ADR)
 - DockerDeployment.md (LightRAG Python)
 - FrontendBuildGuide.md (LightRAG Python)

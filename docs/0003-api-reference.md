@@ -225,13 +225,13 @@ Authorization: Bearer <token>
 }
 ```
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `content` | string | ✅ | - | Document text content |
-| `title` | string | ❌ | null | Document title |
-| `metadata` | object | ❌ | null | Additional metadata |
-| `async_processing` | bool | ❌ | false | Process asynchronously |
-| `track_id` | string | ❌ | auto | Batch tracking ID |
+| Field              | Type   | Required | Default | Description            |
+| ------------------ | ------ | -------- | ------- | ---------------------- |
+| `content`          | string | ✅       | -       | Document text content  |
+| `title`            | string | ❌       | null    | Document title         |
+| `metadata`         | object | ❌       | null    | Additional metadata    |
+| `async_processing` | bool   | ❌       | false   | Process asynchronously |
+| `track_id`         | string | ❌       | auto    | Batch tracking ID      |
 
 **Response (201 Created)**
 
@@ -269,8 +269,8 @@ Authorization: Bearer <token>
 
 **Form Data**
 
-| Field | Type | Description |
-|-------|------|-------------|
+| Field  | Type | Description                         |
+| ------ | ---- | ----------------------------------- |
 | `file` | file | File to upload (txt, md, pdf, docx) |
 
 **Response**
@@ -296,8 +296,8 @@ Authorization: Bearer <token>
 
 **Form Data**
 
-| Field | Type | Description |
-|-------|------|-------------|
+| Field   | Type   | Description              |
+| ------- | ------ | ------------------------ |
 | `files` | file[] | Multiple files to upload |
 
 ### GET `/api/v1/documents`
@@ -311,13 +311,13 @@ Authorization: Bearer <token>
 
 **Query Parameters**
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `page` | int | 1 | Page number |
-| `page_size` | int | 20 | Items per page (max 100) |
-| `status` | string | - | Filter: pending, processing, completed, failed |
-| `sort_by` | string | created_at | Sort field |
-| `sort_order` | string | desc | asc or desc |
+| Parameter    | Type   | Default    | Description                                    |
+| ------------ | ------ | ---------- | ---------------------------------------------- |
+| `page`       | int    | 1          | Page number                                    |
+| `page_size`  | int    | 20         | Items per page (max 100)                       |
+| `status`     | string | -          | Filter: pending, processing, completed, failed |
+| `sort_by`    | string | created_at | Sort field                                     |
+| `sort_order` | string | desc       | asc or desc                                    |
 
 **Response**
 
@@ -430,23 +430,23 @@ Authorization: Bearer <token>
   "context_only": false,
   "max_results": 10,
   "conversation_history": [
-    {"role": "user", "content": "Tell me about scientists"},
-    {"role": "assistant", "content": "Scientists are..."}
+    { "role": "user", "content": "Tell me about scientists" },
+    { "role": "assistant", "content": "Scientists are..." }
   ],
   "enable_rerank": true,
   "rerank_top_k": 5
 }
 ```
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `query` | string | ✅ | - | Query text |
-| `mode` | string | ❌ | hybrid | Query mode: naive, local, global, hybrid, mix, bypass |
-| `context_only` | bool | ❌ | false | Return only context without LLM answer |
-| `max_results` | int | ❌ | 20 | Maximum context items |
-| `conversation_history` | array | ❌ | [] | Previous conversation for context |
-| `enable_rerank` | bool | ❌ | true | Enable reranking |
-| `rerank_top_k` | int | ❌ | 10 | Top K after reranking |
+| Field                  | Type   | Required | Default | Description                                           |
+| ---------------------- | ------ | -------- | ------- | ----------------------------------------------------- |
+| `query`                | string | ✅       | -       | Query text                                            |
+| `mode`                 | string | ❌       | hybrid  | Query mode: naive, local, global, hybrid, mix, bypass |
+| `context_only`         | bool   | ❌       | false   | Return only context without LLM answer                |
+| `max_results`          | int    | ❌       | 20      | Maximum context items                                 |
+| `conversation_history` | array  | ❌       | []      | Previous conversation for context                     |
+| `enable_rerank`        | bool   | ❌       | true    | Enable reranking                                      |
+| `rerank_top_k`         | int    | ❌       | 10      | Top K after reranking                                 |
 
 **Response**
 
@@ -541,11 +541,11 @@ Authorization: Bearer <token>
 
 **Query Parameters**
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `start_node` | string | - | Starting node ID |
-| `depth` | int | 2 | Traversal depth |
-| `max_nodes` | int | 100 | Maximum nodes |
+| Parameter    | Type   | Default | Description      |
+| ------------ | ------ | ------- | ---------------- |
+| `start_node` | string | -       | Starting node ID |
+| `depth`      | int    | 2       | Traversal depth  |
+| `max_nodes`  | int    | 100     | Maximum nodes    |
 
 **Response**
 
@@ -815,12 +815,12 @@ Authorization: Bearer <token>
 
 **Query Parameters**
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `status` | string | - | Filter by status |
-| `task_type` | string | - | Filter by type |
-| `page` | int | 1 | Page number |
-| `page_size` | int | 20 | Items per page |
+| Parameter   | Type   | Default | Description      |
+| ----------- | ------ | ------- | ---------------- |
+| `status`    | string | -       | Filter by status |
+| `task_type` | string | -       | Filter by type   |
+| `page`      | int    | 1       | Page number      |
+| `page_size` | int    | 20      | Items per page   |
 
 **Response**
 
@@ -894,28 +894,28 @@ Authorization: Bearer <token>
 
 ### Error Codes
 
-| HTTP Status | Code | Description |
-|-------------|------|-------------|
-| 400 | BAD_REQUEST | Invalid request format |
-| 400 | VALIDATION_ERROR | Request validation failed |
-| 401 | AUTH_REQUIRED | Authentication required |
-| 401 | INVALID_TOKEN | Invalid or expired token |
-| 403 | FORBIDDEN | Insufficient permissions |
-| 404 | NOT_FOUND | Resource not found |
-| 413 | PAYLOAD_TOO_LARGE | Document exceeds size limit |
-| 429 | RATE_LIMITED | Too many requests |
-| 500 | INTERNAL_ERROR | Server error |
+| HTTP Status | Code              | Description                 |
+| ----------- | ----------------- | --------------------------- |
+| 400         | BAD_REQUEST       | Invalid request format      |
+| 400         | VALIDATION_ERROR  | Request validation failed   |
+| 401         | AUTH_REQUIRED     | Authentication required     |
+| 401         | INVALID_TOKEN     | Invalid or expired token    |
+| 403         | FORBIDDEN         | Insufficient permissions    |
+| 404         | NOT_FOUND         | Resource not found          |
+| 413         | PAYLOAD_TOO_LARGE | Document exceeds size limit |
+| 429         | RATE_LIMITED      | Too many requests           |
+| 500         | INTERNAL_ERROR    | Server error                |
 
 ---
 
 ## Rate Limits
 
-| Endpoint Type | Limit |
-|---------------|-------|
-| Query | 100 requests/minute |
-| Document Upload | 50 requests/minute |
-| Graph Read | 500 requests/minute |
-| Graph Write | 100 requests/minute |
+| Endpoint Type   | Limit               |
+| --------------- | ------------------- |
+| Query           | 100 requests/minute |
+| Document Upload | 50 requests/minute  |
+| Graph Read      | 500 requests/minute |
+| Graph Write     | 100 requests/minute |
 
 ---
 
@@ -924,18 +924,20 @@ Authorization: Bearer <token>
 Real-time subscriptions for task updates:
 
 ```javascript
-const ws = new WebSocket('ws://localhost:8080/api/v1/ws');
+const ws = new WebSocket("ws://localhost:8080/api/v1/ws");
 
 ws.onmessage = (event) => {
   const update = JSON.parse(event.data);
-  console.log('Task update:', update);
+  console.log("Task update:", update);
 };
 
-ws.send(JSON.stringify({
-  type: 'subscribe',
-  channel: 'tasks',
-  track_id: 'task_20251224_143000_abc123'
-}));
+ws.send(
+  JSON.stringify({
+    type: "subscribe",
+    channel: "tasks",
+    track_id: "task_20251224_143000_abc123",
+  })
+);
 ```
 
 ---
@@ -945,24 +947,24 @@ ws.send(JSON.stringify({
 ### TypeScript/JavaScript
 
 ```typescript
-import { edgequakeApi } from '@/lib/api/edgequake';
+import { edgequakeApi } from "@/lib/api/edgequake";
 
 // Upload document
 const result = await edgequakeApi.uploadDocument({
   content: "Document text...",
-  title: "My Document"
+  title: "My Document",
 });
 
 // Query
 const response = await edgequakeApi.query({
   query: "What is the main topic?",
-  mode: "hybrid"
+  mode: "hybrid",
 });
 
 // Streaming query
 for await (const chunk of edgequakeApi.queryStream({
   query: "Explain in detail...",
-  mode: "hybrid"
+  mode: "hybrid",
 })) {
   console.log(chunk.content);
 }

@@ -1,7 +1,9 @@
 # EdgeQuake Documentation Fact-Check
 
 ## Last Updated: 2025-12-24
+
 ## Status: 🔍 FACT-CHECKING IN PROGRESS
+
 ## Current File: 0001-quick-start.md
 
 ---
@@ -11,6 +13,7 @@
 ### 0001-quick-start.md
 
 **Verified Against:**
+
 - `edgequake/crates/edgequake-core/src/orchestrator.rs` (EdgeQuake struct)
 - `edgequake/crates/edgequake-core/src/config.rs` (Config structs)
 - `edgequake/crates/edgequake-core/src/types/query.rs` (QueryMode, QueryParams)
@@ -20,18 +23,19 @@
 
 **Issues Found:**
 
-| Issue | Location | Doc Says | Code Says |
-|-------|----------|----------|-----------|
-| QueryMode::Mix description | Query modes section | "Mix: Weighted combination" | Correct - exists in types/query.rs |
-| QueryMode::Bypass missing | Query modes section | Only 5 modes | Actually 6 modes (includes Bypass) |
-| query_with_mode method | Code example | `eq.query_with_mode(...)` | Does not exist - use `eq.query(query, Some(QueryParams::new().with_mode(...)))` |
-| Result.entity_count | Insert example | `result.entity_count` | Actually `result.entities_extracted` |
-| Result.relationship_count | Insert example | `result.relationship_count` | Actually `result.relationships_extracted` |
-| Config::from_env() | Config section | `Config::from_env()` | Not implemented - use Default or manual |
-| EDGEQUAKE_PORT env | Env vars | `EDGEQUAKE_PORT` | Actual: `EDGEQUAKE_API_PORT` or just use 8080 default |
-| EDGEQUAKE_NAMESPACE | Env vars | Listed | Should be `namespace` in StorageConfig |
+| Issue                      | Location            | Doc Says                    | Code Says                                                                       |
+| -------------------------- | ------------------- | --------------------------- | ------------------------------------------------------------------------------- |
+| QueryMode::Mix description | Query modes section | "Mix: Weighted combination" | Correct - exists in types/query.rs                                              |
+| QueryMode::Bypass missing  | Query modes section | Only 5 modes                | Actually 6 modes (includes Bypass)                                              |
+| query_with_mode method     | Code example        | `eq.query_with_mode(...)`   | Does not exist - use `eq.query(query, Some(QueryParams::new().with_mode(...)))` |
+| Result.entity_count        | Insert example      | `result.entity_count`       | Actually `result.entities_extracted`                                            |
+| Result.relationship_count  | Insert example      | `result.relationship_count` | Actually `result.relationships_extracted`                                       |
+| Config::from_env()         | Config section      | `Config::from_env()`        | Not implemented - use Default or manual                                         |
+| EDGEQUAKE_PORT env         | Env vars            | `EDGEQUAKE_PORT`            | Actual: `EDGEQUAKE_API_PORT` or just use 8080 default                           |
+| EDGEQUAKE_NAMESPACE        | Env vars            | Listed                      | Should be `namespace` in StorageConfig                                          |
 
 **Corrections Needed:**
+
 1. Add Bypass mode to query modes section
 2. Fix query_with_mode to proper API
 3. Fix InsertResult field names
@@ -42,42 +46,42 @@
 
 ### Phase Results
 
-| Phase | Status | Notes |
-|-------|--------|-------|
-| Phase 1: Inventory | ✅ Complete | Listed all docs, WebUI, and backend files |
-| Phase 2: Analysis | ✅ Complete | All 7 core docs identified as LightRAG (wrong) |
-| Phase 3: Archive | ✅ Complete | 7 files moved to docs/archive/ |
-| Phase 4: Update | ✅ Complete | 7 new EdgeQuake docs created |
-| Phase 5: Validate | ✅ Complete | All docs pass markdown lint |
-| Phase 6: Commit | ⏳ Ready | Awaiting git commit |
+| Phase              | Status      | Notes                                          |
+| ------------------ | ----------- | ---------------------------------------------- |
+| Phase 1: Inventory | ✅ Complete | Listed all docs, WebUI, and backend files      |
+| Phase 2: Analysis  | ✅ Complete | All 7 core docs identified as LightRAG (wrong) |
+| Phase 3: Archive   | ✅ Complete | 7 files moved to docs/archive/                 |
+| Phase 4: Update    | ✅ Complete | 7 new EdgeQuake docs created                   |
+| Phase 5: Validate  | ✅ Complete | All docs pass markdown lint                    |
+| Phase 6: Commit    | ⏳ Ready    | Awaiting git commit                            |
 
 ---
 
 ## Archived Files (docs/archive/)
 
-| Original | Archived To | Reason |
-|----------|-------------|--------|
-| 0001-quick-start.md | archive/lightrag-0001-quick-start.md | LightRAG Python docs |
-| 0002-architecture-overview.md | archive/lightrag-0002-architecture-overview.md | LightRAG Python docs |
-| 0003-api-reference.md | archive/lightrag-0003-api-reference.md | LightRAG Python docs |
-| 0004-storage-backends.md | archive/lightrag-0004-storage-backends.md | LightRAG Python docs |
-| 0005-llm-integration.md | archive/lightrag-0005-llm-integration.md | LightRAG Python docs |
-| 0006-deployment-guide.md | archive/lightrag-0006-deployment-guide.md | LightRAG Python docs |
+| Original                        | Archived To                                      | Reason               |
+| ------------------------------- | ------------------------------------------------ | -------------------- |
+| 0001-quick-start.md             | archive/lightrag-0001-quick-start.md             | LightRAG Python docs |
+| 0002-architecture-overview.md   | archive/lightrag-0002-architecture-overview.md   | LightRAG Python docs |
+| 0003-api-reference.md           | archive/lightrag-0003-api-reference.md           | LightRAG Python docs |
+| 0004-storage-backends.md        | archive/lightrag-0004-storage-backends.md        | LightRAG Python docs |
+| 0005-llm-integration.md         | archive/lightrag-0005-llm-integration.md         | LightRAG Python docs |
+| 0006-deployment-guide.md        | archive/lightrag-0006-deployment-guide.md        | LightRAG Python docs |
 | 0007-configuration-reference.md | archive/lightrag-0007-configuration-reference.md | LightRAG Python docs |
 
 ---
 
 ## New EdgeQuake Documentation
 
-| Doc File | Content | Lines |
-|----------|---------|-------|
-| 0001-quick-start.md | EdgeQuake Rust quick start, cargo build, API usage | ~200 |
-| 0002-architecture-overview.md | Crate structure, data flow, component diagram | ~350 |
-| 0003-api-reference.md | Full REST API documentation, all endpoints | ~550 |
-| 0004-storage-backends.md | Memory, PostgreSQL, traits, migration | ~400 |
-| 0005-llm-integration.md | OpenAI, Ollama, Mock, provider traits | ~400 |
-| 0006-deployment-guide.md | Docker, K8s, manual deployment, monitoring | ~450 |
-| 0007-configuration-reference.md | All config structs, env vars, TOML | ~400 |
+| Doc File                        | Content                                            | Lines |
+| ------------------------------- | -------------------------------------------------- | ----- |
+| 0001-quick-start.md             | EdgeQuake Rust quick start, cargo build, API usage | ~200  |
+| 0002-architecture-overview.md   | Crate structure, data flow, component diagram      | ~350  |
+| 0003-api-reference.md           | Full REST API documentation, all endpoints         | ~550  |
+| 0004-storage-backends.md        | Memory, PostgreSQL, traits, migration              | ~400  |
+| 0005-llm-integration.md         | OpenAI, Ollama, Mock, provider traits              | ~400  |
+| 0006-deployment-guide.md        | Docker, K8s, manual deployment, monitoring         | ~450  |
+| 0007-configuration-reference.md | All config structs, env vars, TOML                 | ~400  |
 
 ---
 
@@ -93,40 +97,45 @@
 
 ## Key Changes: LightRAG → EdgeQuake
 
-| Aspect | LightRAG (Old) | EdgeQuake (New) |
-|--------|----------------|-----------------|
-| Language | Python | Rust |
-| Framework | FastAPI | Axum |
-| API Port | 9621 | 8080 |
-| API Path | /api/v1 | /api/v1 |
-| Storage | Python classes | Rust traits |
-| LLM | llama_index | edgequake-llm crate |
-| Graph DB | NetworkX | PostgreSQL AGE |
-| Config | .env | TOML + env vars |
+| Aspect    | LightRAG (Old) | EdgeQuake (New)     |
+| --------- | -------------- | ------------------- |
+| Language  | Python         | Rust                |
+| Framework | FastAPI        | Axum                |
+| API Port  | 9621           | 8080                |
+| API Path  | /api/v1        | /api/v1             |
+| Storage   | Python classes | Rust traits         |
+| LLM       | llama_index    | edgequake-llm crate |
+| Graph DB  | NetworkX       | PostgreSQL AGE      |
+| Config    | .env           | TOML + env vars     |
 
 ---
 
 ## Notes
+
 - Legacy LightRAG Python docs preserved in archive/
 - New docs written for EdgeQuake Rust implementation
 - All code examples are actual Rust, not Python
 
 5. **0005-llm-integration.md**
+
    - Python LLM modules
    - Python code examples
    - → NEEDS COMPLETE REWRITE for Rust LLM
 
 6. **0006-deployment-guide.md**
+
    - Python deployment (pip install)
    - Python docker commands
    - → NEEDS MAJOR UPDATE for Rust deployment
 
 7. **0007-configuration-reference.md**
+
    - Python environment variables
    - Python dataclass defaults
    - → NEEDS COMPLETE REWRITE for Rust config
 
 8. **FrontendBuildGuide.md**
+
    - References lightrag_webui (old)
    - Should reference edgequake_webui
    - → NEEDS UPDATE
@@ -137,7 +146,7 @@
 
 ### Missing Documentation
 
-1. **EdgeQuake Rust API Reference** - Document actual /api/v1/* endpoints
+1. **EdgeQuake Rust API Reference** - Document actual /api/v1/\* endpoints
 2. **EdgeQuake WebUI Guide** - Next.js 16 frontend documentation
 3. **Rust Configuration** - EdgeQuakeConfig, StorageConfig, etc.
 4. **Rust Storage Adapters** - Memory, PostgreSQL adapters

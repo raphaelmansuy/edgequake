@@ -13,17 +13,20 @@ This guide will help you quickly start using the reverse-documentation skill to 
 ### For Rust Code
 
 **Step 1:** Choose what to document
+
 ```
 I want to document the edgequake-query crate
 ```
 
 **Step 2:** The AI will automatically:
+
 - Scan the crate structure
 - Analyze all public APIs
 - Extract design patterns
 - Generate comprehensive documentation
 
 **Step 3:** Review the output
+
 - Check generated doc comments
 - Verify examples compile: `cargo test --doc`
 - View HTML docs: `cargo doc --open`
@@ -31,17 +34,20 @@ I want to document the edgequake-query crate
 ### For TypeScript Code
 
 **Step 1:** Choose what to document
+
 ```
 I want to document the query components in src/components/query
 ```
 
 **Step 2:** The AI will automatically:
+
 - Scan component files
 - Extract prop types
 - Identify patterns
 - Generate TSDoc comments
 
 **Step 3:** Review the output
+
 - Check generated TSDoc comments
 - Verify types: `npx tsc --noEmit`
 - Generate docs: `npx typedoc src/`
@@ -86,7 +92,7 @@ Review and improve documentation for the QueryEngine struct
 ✅ `//!` module documentation  
 ✅ Working code examples  
 ✅ Error documentation  
-✅ Examples that pass `cargo test --doc`  
+✅ Examples that pass `cargo test --doc`
 
 ### For TypeScript
 
@@ -94,13 +100,14 @@ Review and improve documentation for the QueryEngine struct
 ✅ `@param` and `@returns` tags  
 ✅ Component prop documentation  
 ✅ Working usage examples  
-✅ Type-safe examples  
+✅ Type-safe examples
 
 ## Customization Options
 
 You can customize the documentation generation:
 
 ### Comprehensive Mode
+
 ```
 Generate comprehensive documentation for edgequake-core including:
 - All public and private items
@@ -110,11 +117,13 @@ Generate comprehensive documentation for edgequake-core including:
 ```
 
 ### Brief Mode
+
 ```
 Generate brief API documentation for edgequake-core focusing on public interfaces only
 ```
 
 ### With Diagrams
+
 ```
 Document edgequake-storage with architecture diagram showing all trait relationships
 ```
@@ -122,6 +131,7 @@ Document edgequake-storage with architecture diagram showing all trait relations
 ## Verification Steps
 
 ### Rust
+
 ```bash
 # Build documentation
 cargo doc --no-deps
@@ -137,6 +147,7 @@ cargo clippy
 ```
 
 ### TypeScript
+
 ```bash
 # Type check
 npx tsc --noEmit
@@ -162,16 +173,19 @@ npm run build
 ## Common Patterns
 
 ### Document an Entire Workspace
+
 ```
 Generate documentation for all crates in the edgequake workspace
 ```
 
 ### Document API Layer
+
 ```
 Document all API routes and types in the REST API
 ```
 
 ### Document UI Components
+
 ```
 Document all shadcn/ui component usage in the workspace management UI
 ```
@@ -200,6 +214,7 @@ After generating documentation:
 ## Getting Help
 
 If you need help:
+
 1. Check the [full README](./README.md)
 2. Review [examples](./examples/)
 3. Read language-specific instructions:
@@ -209,16 +224,19 @@ If you need help:
 ## Advanced Usage
 
 ### Generate Migration Guide
+
 ```
 Generate a migration guide from the old storage API to the new async trait-based API
 ```
 
 ### Compare Implementations
+
 ```
 Document and compare MemoryStorage vs PostgresStorage implementations
 ```
 
 ### Generate Architecture Documentation
+
 ```
 Create architecture documentation showing the complete RAG pipeline with diagrams
 ```
@@ -226,6 +244,7 @@ Create architecture documentation showing the complete RAG pipeline with diagram
 ## Quality Standards
 
 All generated documentation should:
+
 - ✅ Be accurate and reflect actual code
 - ✅ Include working examples
 - ✅ Follow language conventions

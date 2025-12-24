@@ -47,11 +47,11 @@ EdgeQuake provides namespace-based data isolation for multi-tenant deployments. 
 
 ### Key Concepts
 
-| Concept | Description |
-|---------|-------------|
-| **Namespace** | String identifier that isolates data across storage backends |
-| **Tenant** | Logical organization with its own namespace |
-| **Storage Backend** | KV, Vector, or Graph storage scoped to a namespace |
+| Concept             | Description                                                  |
+| ------------------- | ------------------------------------------------------------ |
+| **Namespace**       | String identifier that isolates data across storage backends |
+| **Tenant**          | Logical organization with its own namespace                  |
+| **Storage Backend** | KV, Vector, or Graph storage scoped to a namespace           |
 
 ---
 
@@ -105,7 +105,7 @@ fn create_tenant_storage(tenant_id: &str) -> (
     Arc<MemoryGraphStorage>,
 ) {
     let namespace = format!("tenant_{}", tenant_id);
-    
+
     (
         Arc::new(MemoryKVStorage::new(&namespace)),
         Arc::new(MemoryVectorStorage::new(&namespace, 1536)),
@@ -133,7 +133,7 @@ impl TenantRAG {
     /// Create a new tenant-isolated RAG instance.
     fn new(tenant_id: &str) -> Self {
         let namespace = format!("tenant_{}", tenant_id);
-        
+
         Self {
             tenant_id: tenant_id.to_string(),
             kv_storage: Arc::new(MemoryKVStorage::new(&namespace)),
@@ -141,7 +141,7 @@ impl TenantRAG {
             graph_storage: Arc::new(MemoryGraphStorage::new(&namespace)),
         }
     }
-    
+
     /// Initialize storage backends.
     async fn initialize(&self) -> anyhow::Result<()> {
         self.kv_storage.initialize().await?;
@@ -170,7 +170,7 @@ impl TenantManager {
             tenants: RwLock::new(HashMap::new()),
         }
     }
-    
+
     /// Get or create a tenant instance.
     async fn get_tenant(&self, tenant_id: &str) -> Arc<TenantRAG> {
         // Check if already exists
@@ -180,17 +180,17 @@ impl TenantManager {
                 return tenant.clone();
             }
         }
-        
+
         // Create new tenant
         let tenant = Arc::new(TenantRAG::new(tenant_id));
         tenant.initialize().await.expect("Failed to initialize tenant");
-        
+
         // Store
         {
             let mut tenants = self.tenants.write().await;
             tenants.insert(tenant_id.to_string(), tenant.clone());
         }
-        
+
         tenant
     }
 }

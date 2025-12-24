@@ -24,15 +24,15 @@ EdgeQuake is a **Graph-Enhanced Retrieval-Augmented Generation** framework imple
 
 ### Key Differentiators
 
-| Feature | Traditional RAG | EdgeQuake |
-|---------|----------------|-----------|
-| Language | Python | Rust |
-| Retrieval | Vector similarity only | Graph + Vector hybrid |
-| Context | Flat document chunks | Entity-Relation aware |
-| Query Modes | Single mode | 6 modes (naive/local/global/hybrid/mix/bypass) |
-| Knowledge | Implicit in embeddings | Explicit knowledge graph |
-| Performance | Standard | High-performance, async |
-| WebUI | Basic | Next.js 16 + React 19 |
+| Feature     | Traditional RAG        | EdgeQuake                                      |
+| ----------- | ---------------------- | ---------------------------------------------- |
+| Language    | Python                 | Rust                                           |
+| Retrieval   | Vector similarity only | Graph + Vector hybrid                          |
+| Context     | Flat document chunks   | Entity-Relation aware                          |
+| Query Modes | Single mode            | 6 modes (naive/local/global/hybrid/mix/bypass) |
+| Knowledge   | Implicit in embeddings | Explicit knowledge graph                       |
+| Performance | Standard               | High-performance, async                        |
+| WebUI       | Basic                  | Next.js 16 + React 19                          |
 
 ### High-Level Architecture
 
@@ -116,16 +116,16 @@ The central orchestrator that coordinates all RAG operations.
 pub struct EdgeQuake {
     config: EdgeQuakeConfig,
     initialized: bool,
-    
+
     // Storage backends
     kv_storage: Option<Arc<dyn KVStorage>>,
     vector_storage: Option<Arc<dyn VectorStorage>>,
     graph_storage: Option<Arc<dyn GraphStorage>>,
-    
+
     // LLM providers
     llm_provider: Option<Arc<dyn LLMProvider>>,
     embedding_provider: Option<Arc<dyn EmbeddingProvider>>,
-    
+
     // Processing components
     pipeline: Option<Arc<Pipeline>>,
     query_engine: Option<Arc<QueryEngine>>,
@@ -156,7 +156,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/health", get(handlers::health_check))
         .route("/ready", get(handlers::readiness_check))
         .route("/metrics", get(handlers::get_metrics))
-        
+
         // API v1 endpoints
         .nest("/api/v1", api_v1_routes())
         .with_state(state)
@@ -170,17 +170,17 @@ fn api_v1_routes() -> Router<AppState> {
         .route("/documents/upload", post(handlers::upload_file))
         .route("/documents/{document_id}", get(handlers::get_document))
         .route("/documents/{document_id}", delete(handlers::delete_document))
-        
+
         // Query
         .route("/query", post(handlers::execute_query))
         .route("/query/stream", post(handlers::stream_query))
-        
+
         // Graph
         .route("/graph", get(handlers::get_graph))
         .route("/graph/entities", post(handlers::create_entity))
         .route("/graph/entities/{entity_name}", get(handlers::get_entity))
         .route("/graph/relationships", post(handlers::create_relationship))
-        
+
         // Tasks
         .route("/tasks", get(handlers::list_tasks))
         .route("/tasks/{track_id}", get(handlers::get_task))
@@ -197,14 +197,14 @@ pub trait LLMProvider: Send + Sync {
     fn name(&self) -> &str;
     fn model(&self) -> &str;
     fn max_context_length(&self) -> usize;
-    
+
     async fn complete(&self, prompt: &str) -> Result<LLMResponse>;
-    async fn complete_with_options(&self, prompt: &str, options: &CompletionOptions) 
+    async fn complete_with_options(&self, prompt: &str, options: &CompletionOptions)
         -> Result<LLMResponse>;
-    async fn chat(&self, messages: &[ChatMessage], options: Option<&CompletionOptions>) 
+    async fn chat(&self, messages: &[ChatMessage], options: Option<&CompletionOptions>)
         -> Result<LLMResponse>;
     async fn stream(&self, prompt: &str) -> Result<BoxStream<'static, Result<String>>>;
-    
+
     fn supports_streaming(&self) -> bool;
     fn supports_json_mode(&self) -> bool;
 }
@@ -222,10 +222,10 @@ pub trait EmbeddingProvider: Send + Sync {
 
 **Implemented Providers:**
 
-| Provider | LLM | Embeddings | Notes |
-|----------|-----|------------|-------|
-| `OpenAIProvider` | ✅ | ✅ | Production ready |
-| `MockProvider` | ✅ | ✅ | Testing, deterministic |
+| Provider         | LLM | Embeddings | Notes                  |
+| ---------------- | --- | ---------- | ---------------------- |
+| `OpenAIProvider` | ✅  | ✅         | Production ready       |
+| `MockProvider`   | ✅  | ✅         | Testing, deterministic |
 
 ### `edgequake-storage` - Storage Abstractions
 
@@ -253,17 +253,17 @@ pub trait GraphStorage: Send + Sync {
     async fn add_edge(&self, edge: GraphEdge) -> Result<()>;
     async fn get_node(&self, id: &str) -> Result<Option<GraphNode>>;
     async fn get_neighbors(&self, id: &str, depth: usize) -> Result<Vec<GraphNode>>;
-    async fn get_knowledge_graph(&self, start: &str, depth: usize, limit: usize) 
+    async fn get_knowledge_graph(&self, start: &str, depth: usize, limit: usize)
         -> Result<KnowledgeGraph>;
 }
 ```
 
 **Implemented Adapters:**
 
-| Adapter | KV | Vector | Graph | Use Case |
-|---------|----|----|-------|----------|
-| `MemoryStorage` | ✅ | ✅ | ✅ | Development/Testing |
-| `PostgresStorage` | ✅ | ✅ | ✅ | Production |
+| Adapter           | KV  | Vector | Graph | Use Case            |
+| ----------------- | --- | ------ | ----- | ------------------- |
+| `MemoryStorage`   | ✅  | ✅     | ✅    | Development/Testing |
+| `PostgresStorage` | ✅  | ✅     | ✅    | Production          |
 
 ### `edgequake-query` - Query Engine
 
@@ -274,19 +274,19 @@ pub trait GraphStorage: Send + Sync {
 pub enum QueryMode {
     /// Simple vector similarity search
     Naive,
-    
+
     /// Entity-centric local neighborhood search
     Local,
-    
+
     /// Community-based global search
     Global,
-    
+
     /// Combined local and global
     Hybrid,
-    
+
     /// Weighted combination of all modes
     Mix,
-    
+
     /// Skip retrieval, direct LLM query
     Bypass,
 }
@@ -295,7 +295,7 @@ impl QueryMode {
     pub fn uses_vector_search(&self) -> bool {
         matches!(self, Self::Naive | Self::Local | Self::Mix)
     }
-    
+
     pub fn uses_graph(&self) -> bool {
         matches!(self, Self::Local | Self::Global | Self::Hybrid | Self::Mix)
     }
@@ -319,17 +319,17 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-    pub async fn process_document(&self, doc: &Document) 
+    pub async fn process_document(&self, doc: &Document)
         -> Result<ProcessingResult> {
         // 1. Chunk the document
         let chunks = self.chunker.chunk(&doc.content)?;
-        
+
         // 2. Extract entities and relationships
         let extractions = self.extractor.extract(&chunks).await?;
-        
+
         // 3. Merge into knowledge graph
         let merged = self.merger.merge(extractions)?;
-        
+
         Ok(ProcessingResult {
             chunks: chunks.len(),
             entities: merged.entities.len(),
@@ -454,15 +454,15 @@ impl Pipeline {
 
 ### Technology Stack
 
-| Component | Technology |
-|-----------|------------|
-| Framework | Next.js 16 |
-| React | React 19 |
-| State | Zustand |
-| Data Fetching | TanStack Query |
+| Component           | Technology            |
+| ------------------- | --------------------- |
+| Framework           | Next.js 16            |
+| React               | React 19              |
+| State               | Zustand               |
+| Data Fetching       | TanStack Query        |
 | Graph Visualization | Sigma.js + Graphology |
-| Styling | Tailwind CSS 4 |
-| Components | Radix UI |
+| Styling             | Tailwind CSS 4        |
+| Components          | Radix UI              |
 
 ### Component Structure
 

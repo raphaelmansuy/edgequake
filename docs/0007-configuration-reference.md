@@ -57,19 +57,19 @@ pub struct Config {
 pub struct ApiConfig {
     /// Server listen address
     pub host: String,               // Default: "127.0.0.1"
-    
+
     /// Server listen port
     pub port: u16,                  // Default: 8080
-    
+
     /// CORS allowed origins
     pub cors_origins: Vec<String>,  // Default: ["*"]
-    
+
     /// Request body size limit
     pub max_body_size: usize,       // Default: 52_428_800 (50MB)
-    
+
     /// Request timeout in seconds
     pub request_timeout: u64,       // Default: 300
-    
+
     /// Enable request logging
     pub enable_logging: bool,       // Default: true
 }
@@ -77,13 +77,13 @@ pub struct ApiConfig {
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EDGEQUAKE_API_HOST` | `127.0.0.1` | Listen address |
-| `EDGEQUAKE_API_PORT` | `8080` | Listen port |
-| `EDGEQUAKE_CORS_ORIGINS` | `*` | Comma-separated origins |
-| `EDGEQUAKE_MAX_BODY_SIZE` | `52428800` | Max request body (bytes) |
-| `EDGEQUAKE_REQUEST_TIMEOUT` | `300` | Timeout (seconds) |
+| Variable                    | Default     | Description              |
+| --------------------------- | ----------- | ------------------------ |
+| `EDGEQUAKE_API_HOST`        | `127.0.0.1` | Listen address           |
+| `EDGEQUAKE_API_PORT`        | `8080`      | Listen port              |
+| `EDGEQUAKE_CORS_ORIGINS`    | `*`         | Comma-separated origins  |
+| `EDGEQUAKE_MAX_BODY_SIZE`   | `52428800`  | Max request body (bytes) |
+| `EDGEQUAKE_REQUEST_TIMEOUT` | `300`       | Timeout (seconds)        |
 
 ### Example
 
@@ -103,16 +103,16 @@ export EDGEQUAKE_CORS_ORIGINS="http://localhost:3000,https://app.example.com"
 pub struct StorageConfig {
     /// Database connection URL
     pub database_url: String,           // Default: "postgres://localhost:5432/edgequake"
-    
+
     /// Maximum connections in pool
     pub max_connections: u32,            // Default: 10
-    
+
     /// Minimum connections in pool
     pub min_connections: u32,            // Default: 1
-    
+
     /// Connection timeout (seconds)
     pub connect_timeout_secs: u64,       // Default: 30
-    
+
     /// Namespace for multi-tenancy
     pub namespace: Option<String>,       // Default: None
 }
@@ -120,10 +120,10 @@ pub struct StorageConfig {
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EDGEQUAKE_DATABASE_URL` | - | PostgreSQL connection string |
-| `EDGEQUAKE_NAMESPACE` | - | Multi-tenant namespace |
+| Variable                 | Default | Description                  |
+| ------------------------ | ------- | ---------------------------- |
+| `EDGEQUAKE_DATABASE_URL` | -       | PostgreSQL connection string |
+| `EDGEQUAKE_NAMESPACE`    | -       | Multi-tenant namespace       |
 
 ### PostgreSQL Connection String
 
@@ -132,11 +132,13 @@ postgresql://user:password@host:port/database?options
 ```
 
 **Options:**
+
 - `sslmode=require` - Enable SSL
 - `application_name=edgequake` - App identifier
 - `connect_timeout=10` - Connection timeout
 
 **Example:**
+
 ```bash
 export DATABASE_URL="postgresql://edgequake:secret@localhost:5432/edgequake?sslmode=prefer"
 ```
@@ -158,34 +160,34 @@ export EDGEQUAKE_STORAGE_TYPE="memory"
 pub struct LlmConfig {
     /// LLM provider: openai, ollama
     pub provider: String,               // Default: "openai"
-    
+
     /// API key (from env or config)
     pub api_key: Option<String>,
-    
+
     /// Custom API base URL
     pub base_url: Option<String>,
-    
+
     /// LLM model for generation
     pub model: String,                  // Default: "gpt-4o-mini"
-    
+
     /// Embedding model
     pub embedding_model: String,        // Default: "text-embedding-3-small"
-    
+
     /// Embedding vector dimension
     pub embedding_dim: usize,           // Default: 1536
-    
+
     /// Generation temperature (0-2)
     pub temperature: f32,               // Default: 0.0
-    
+
     /// Max tokens for generation
     pub max_tokens: usize,              // Default: 4096
-    
+
     /// API request timeout (seconds)
     pub timeout_secs: u64,              // Default: 60
-    
+
     /// Max retries for failed requests
     pub max_retries: u32,               // Default: 3
-    
+
     /// Retry delay (seconds)
     pub retry_delay_secs: u64,          // Default: 1
 }
@@ -193,21 +195,22 @@ pub struct LlmConfig {
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `OPENAI_API_KEY` | - | OpenAI API key |
-| `EDGEQUAKE_LLM_PROVIDER` | `openai` | Provider: `openai`, `ollama` |
-| `EDGEQUAKE_LLM_MODEL` | `gpt-4o-mini` | LLM model name |
-| `EDGEQUAKE_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
-| `EDGEQUAKE_EMBEDDING_DIM` | `1536` | Vector dimension |
-| `EDGEQUAKE_LLM_TEMPERATURE` | `0.0` | Generation temperature |
-| `EDGEQUAKE_LLM_MAX_TOKENS` | `4096` | Max generation tokens |
-| `OPENAI_BASE_URL` | - | Custom API endpoint |
-| `OLLAMA_HOST` | `http://localhost:11434` | Ollama server |
+| Variable                    | Default                  | Description                  |
+| --------------------------- | ------------------------ | ---------------------------- |
+| `OPENAI_API_KEY`            | -                        | OpenAI API key               |
+| `EDGEQUAKE_LLM_PROVIDER`    | `openai`                 | Provider: `openai`, `ollama` |
+| `EDGEQUAKE_LLM_MODEL`       | `gpt-4o-mini`            | LLM model name               |
+| `EDGEQUAKE_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model              |
+| `EDGEQUAKE_EMBEDDING_DIM`   | `1536`                   | Vector dimension             |
+| `EDGEQUAKE_LLM_TEMPERATURE` | `0.0`                    | Generation temperature       |
+| `EDGEQUAKE_LLM_MAX_TOKENS`  | `4096`                   | Max generation tokens        |
+| `OPENAI_BASE_URL`           | -                        | Custom API endpoint          |
+| `OLLAMA_HOST`               | `http://localhost:11434` | Ollama server                |
 
 ### Provider Examples
 
 **OpenAI:**
+
 ```bash
 export OPENAI_API_KEY="sk-..."
 export EDGEQUAKE_LLM_MODEL="gpt-4o-mini"
@@ -215,6 +218,7 @@ export EDGEQUAKE_EMBEDDING_MODEL="text-embedding-3-small"
 ```
 
 **Ollama:**
+
 ```bash
 export EDGEQUAKE_LLM_PROVIDER="ollama"
 export OLLAMA_HOST="http://localhost:11434"
@@ -232,25 +236,25 @@ export EDGEQUAKE_EMBEDDING_MODEL="nomic-embed-text"
 pub struct PipelineConfig {
     /// Chunk size in characters
     pub chunk_size: usize,              // Default: 1200
-    
+
     /// Overlap between chunks
     pub chunk_overlap: usize,           // Default: 100
-    
+
     /// Entity types to extract
     pub entity_types: Vec<String>,      // Default: ["PERSON", "ORGANIZATION", ...]
-    
+
     /// Maximum entities per chunk
     pub max_entities_per_chunk: usize,  // Default: 20
-    
+
     /// Maximum relations per chunk
     pub max_relations_per_chunk: usize, // Default: 20
-    
+
     /// Summarize long descriptions
     pub summarize_descriptions: bool,   // Default: true
-    
+
     /// Max description tokens before summarization
     pub max_description_tokens: usize,  // Default: 1200
-    
+
     /// Concurrent extraction tasks
     pub concurrency: usize,             // Default: 4
 }
@@ -258,11 +262,11 @@ pub struct PipelineConfig {
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EDGEQUAKE_CHUNK_SIZE` | `1200` | Characters per chunk |
-| `EDGEQUAKE_CHUNK_OVERLAP` | `100` | Overlap between chunks |
-| `EDGEQUAKE_MAX_ENTITIES_PER_CHUNK` | `20` | Max entities extracted |
+| Variable                           | Default | Description            |
+| ---------------------------------- | ------- | ---------------------- |
+| `EDGEQUAKE_CHUNK_SIZE`             | `1200`  | Characters per chunk   |
+| `EDGEQUAKE_CHUNK_OVERLAP`          | `100`   | Overlap between chunks |
+| `EDGEQUAKE_MAX_ENTITIES_PER_CHUNK` | `20`    | Max entities extracted |
 
 ### Chunking Strategies
 
@@ -286,22 +290,22 @@ export EDGEQUAKE_CHUNK_OVERLAP="200"
 pub struct QueryConfig {
     /// Default query mode
     pub default_mode: QueryMode,        // Default: Hybrid
-    
+
     /// Maximum results for vector search
     pub max_vector_results: usize,      // Default: 20
-    
+
     /// Maximum graph traversal depth
     pub max_graph_depth: usize,         // Default: 3
-    
+
     /// Maximum entities in context
     pub max_context_entities: usize,    // Default: 30
-    
+
     /// Maximum relationships in context
     pub max_context_relationships: usize, // Default: 30
-    
+
     /// Maximum chunks in context
     pub max_context_chunks: usize,      // Default: 20
-    
+
     /// Whether to stream responses
     pub stream_responses: bool,         // Default: true
 }
@@ -309,16 +313,16 @@ pub struct QueryConfig {
 pub enum QueryMode {
     /// Simple vector search
     Naive,
-    
+
     /// Entity-focused retrieval
     Local,
-    
+
     /// Community summaries
     Global,
-    
+
     /// Combined vector + graph (default)
     Hybrid,
-    
+
     /// No RAG, direct LLM query
     Bypass,
 }
@@ -326,10 +330,10 @@ pub enum QueryMode {
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EDGEQUAKE_DEFAULT_MODE` | `hybrid` | Query mode |
-| `EDGEQUAKE_ENABLE_STREAMING` | `true` | Enable streaming |
+| Variable                     | Default  | Description      |
+| ---------------------------- | -------- | ---------------- |
+| `EDGEQUAKE_DEFAULT_MODE`     | `hybrid` | Query mode       |
+| `EDGEQUAKE_ENABLE_STREAMING` | `true`   | Enable streaming |
 
 ### Query Mode Examples
 

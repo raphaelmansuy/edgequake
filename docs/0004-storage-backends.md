@@ -68,25 +68,25 @@ Key-value storage for documents, chunks, and metadata.
 pub trait KVStorage: Send + Sync {
     /// Get the storage namespace.
     fn namespace(&self) -> &str;
-    
+
     /// Initialize the storage backend.
     async fn initialize(&self) -> Result<()>;
-    
+
     /// Flush pending changes.
     async fn finalize(&self) -> Result<()>;
-    
+
     /// Get a value by ID.
     async fn get_by_id(&self, id: &str) -> Result<Option<serde_json::Value>>;
-    
+
     /// Get multiple values by IDs.
     async fn get_by_ids(&self, ids: &[String]) -> Result<Vec<serde_json::Value>>;
-    
+
     /// Filter keys to find which do NOT exist in storage.
     async fn filter_keys(&self, keys: HashSet<String>) -> Result<HashSet<String>>;
-    
+
     /// Upsert key-value pairs.
     async fn upsert(&self, data: &[(String, serde_json::Value)]) -> Result<()>;
-    
+
     /// Delete by IDs.
     async fn delete(&self, ids: &[String]) -> Result<()>;
 }
@@ -120,16 +120,16 @@ Vector storage for embeddings and similarity search.
 pub trait VectorStorage: Send + Sync {
     /// Get the storage namespace.
     fn namespace(&self) -> &str;
-    
+
     /// Get the expected embedding dimension.
     fn dimension(&self) -> usize;
-    
+
     /// Initialize the vector storage.
     async fn initialize(&self) -> Result<()>;
-    
+
     /// Flush pending changes.
     async fn finalize(&self) -> Result<()>;
-    
+
     /// Perform similarity search.
     async fn query(
         &self,
@@ -137,19 +137,19 @@ pub trait VectorStorage: Send + Sync {
         top_k: usize,
         filter_ids: Option<&[String]>,
     ) -> Result<Vec<VectorSearchResult>>;
-    
+
     /// Insert or update vectors with metadata.
     async fn upsert(
         &self,
         data: &[(String, Vec<f32>, serde_json::Value)],
     ) -> Result<()>;
-    
+
     /// Delete vectors by IDs.
     async fn delete(&self, ids: &[String]) -> Result<()>;
-    
+
     /// Get vector by ID.
     async fn get_by_id(&self, id: &str) -> Result<Option<Vec<f32>>>;
-    
+
     /// Get count of stored vectors.
     async fn count(&self) -> Result<usize>;
 }
@@ -191,48 +191,48 @@ Graph storage for knowledge graph nodes and edges.
 pub trait GraphStorage: Send + Sync {
     /// Get the storage namespace.
     fn namespace(&self) -> &str;
-    
+
     /// Initialize the graph storage.
     async fn initialize(&self) -> Result<()>;
-    
+
     /// Flush pending changes.
     async fn finalize(&self) -> Result<()>;
-    
+
     // ========== Node Operations ==========
-    
+
     /// Check if a node exists.
     async fn has_node(&self, node_id: &str) -> Result<bool>;
-    
+
     /// Get node by ID.
     async fn get_node(&self, node_id: &str) -> Result<Option<GraphNode>>;
-    
+
     /// Insert or update a node.
     async fn upsert_node(
         &self,
         node_id: &str,
         properties: HashMap<String, serde_json::Value>,
     ) -> Result<()>;
-    
+
     /// Delete node and its connected edges.
     async fn delete_node(&self, node_id: &str) -> Result<()>;
-    
+
     /// Get the degree (number of edges) of a node.
     async fn node_degree(&self, node_id: &str) -> Result<usize>;
-    
+
     /// Get all nodes.
     async fn get_all_nodes(&self) -> Result<Vec<GraphNode>>;
-    
+
     /// Get nodes by a list of IDs.
     async fn get_nodes_by_ids(&self, node_ids: &[String]) -> Result<Vec<GraphNode>>;
-    
+
     // ========== Edge Operations ==========
-    
+
     /// Check if an edge exists between two nodes.
     async fn has_edge(&self, source: &str, target: &str) -> Result<bool>;
-    
+
     /// Get an edge between two nodes.
     async fn get_edge(&self, source: &str, target: &str) -> Result<Option<GraphEdge>>;
-    
+
     /// Insert or update an edge.
     async fn upsert_edge(
         &self,
@@ -240,18 +240,18 @@ pub trait GraphStorage: Send + Sync {
         target: &str,
         properties: HashMap<String, serde_json::Value>,
     ) -> Result<()>;
-    
+
     /// Delete an edge.
     async fn delete_edge(&self, source: &str, target: &str) -> Result<()>;
-    
+
     /// Get all edges connected to a node.
     async fn get_node_edges(&self, node_id: &str) -> Result<Vec<GraphEdge>>;
-    
+
     /// Get all edges.
     async fn get_all_edges(&self) -> Result<Vec<GraphEdge>>;
-    
+
     // ========== Graph Queries ==========
-    
+
     /// Extract a subgraph starting from a node.
     async fn get_knowledge_graph(
         &self,
@@ -259,24 +259,24 @@ pub trait GraphStorage: Send + Sync {
         max_depth: usize,
         max_nodes: usize,
     ) -> Result<KnowledgeGraph>;
-    
+
     /// Get the most connected (popular) node labels.
     async fn get_popular_labels(&self, limit: usize) -> Result<Vec<String>>;
-    
+
     /// Search for nodes by label prefix.
     async fn search_labels(&self, query: &str, limit: usize) -> Result<Vec<String>>;
-    
+
     /// Get neighbors of a node at a specific depth.
     async fn get_neighbors(&self, node_id: &str, depth: usize) -> Result<Vec<GraphNode>>;
-    
+
     // ========== Utility Operations ==========
-    
+
     /// Get node count.
     async fn node_count(&self) -> Result<usize>;
-    
+
     /// Get edge count.
     async fn edge_count(&self) -> Result<usize>;
-    
+
     /// Clear all nodes and edges.
     async fn clear(&self) -> Result<()>;
 }
@@ -310,20 +310,20 @@ In-memory storage for development and testing. EdgeQuake provides separate memor
 
 ### Features
 
-| Feature | Support |
-|---------|---------|
-| Persistence | ❌ (data lost on restart) |
+| Feature     | Support                     |
+| ----------- | --------------------------- |
+| Persistence | ❌ (data lost on restart)   |
 | Concurrency | ✅ (thread-safe via RwLock) |
-| Performance | ✅ (very fast) |
-| Production | ❌ (development only) |
+| Performance | ✅ (very fast)              |
+| Production  | ❌ (development only)       |
 
 ### Available Implementations
 
-| Class | Trait | Description |
-|-------|-------|-------------|
-| `MemoryKVStorage` | `KVStorage` | In-memory key-value store |
+| Class                 | Trait           | Description                          |
+| --------------------- | --------------- | ------------------------------------ |
+| `MemoryKVStorage`     | `KVStorage`     | In-memory key-value store            |
 | `MemoryVectorStorage` | `VectorStorage` | Brute-force cosine similarity search |
-| `MemoryGraphStorage` | `GraphStorage` | Adjacency list-based graph |
+| `MemoryGraphStorage`  | `GraphStorage`  | Adjacency list-based graph           |
 
 ### Usage
 
@@ -385,15 +385,15 @@ Production-ready PostgreSQL storage with pgvector and Apache AGE.
 
 ### Features
 
-| Feature | Support |
-|---------|---------|
-| Persistence | ✅ |
-| Concurrency | ✅ (connection pooling) |
-| Vector Search | ✅ (pgvector) |
-| Graph Queries | ✅ (Apache AGE) |
-| Scalability | ✅ (horizontal scaling) |
-| ACID | ✅ |
-| Production | ✅ |
+| Feature       | Support                 |
+| ------------- | ----------------------- |
+| Persistence   | ✅                      |
+| Concurrency   | ✅ (connection pooling) |
+| Vector Search | ✅ (pgvector)           |
+| Graph Queries | ✅ (Apache AGE)         |
+| Scalability   | ✅ (horizontal scaling) |
+| ACID          | ✅                      |
+| Production    | ✅                      |
 
 ### Prerequisites
 
@@ -474,7 +474,7 @@ CREATE INDEX idx_chunks_document ON edgequake_chunks(document_id);
 CREATE INDEX idx_chunks_namespace ON edgequake_chunks(namespace);
 
 -- Vector similarity index (HNSW)
-CREATE INDEX idx_chunks_embedding ON edgequake_chunks 
+CREATE INDEX idx_chunks_embedding ON edgequake_chunks
     USING hnsw (embedding vector_cosine_ops)
     WITH (m = 16, ef_construction = 64);
 
@@ -493,7 +493,7 @@ CREATE TABLE IF NOT EXISTS edgequake_entities (
 
 CREATE INDEX idx_entities_namespace ON edgequake_entities(namespace);
 CREATE INDEX idx_entities_type ON edgequake_entities(entity_type);
-CREATE INDEX idx_entities_embedding ON edgequake_entities 
+CREATE INDEX idx_entities_embedding ON edgequake_entities
     USING hnsw (embedding vector_cosine_ops);
 
 -- Relationships table
@@ -623,43 +623,43 @@ graph_storage.initialize().await?;
 pub struct PostgresConfig {
     /// Database host
     pub host: String,
-    
+
     /// Database port
     pub port: u16,
-    
+
     /// Database name
     pub database: String,
-    
+
     /// Username
     pub user: String,
-    
+
     /// Password
     pub password: String,
-    
+
     /// Namespace for multi-tenancy
     pub namespace: String,  // Default: "default"
-    
+
     /// Maximum connections in pool
     pub max_connections: u32,  // Default: 10
-    
+
     /// Minimum connections in pool
     pub min_connections: u32,  // Default: 1
-    
+
     /// Connection timeout
     pub connect_timeout: Duration,  // Default: 30 seconds
-    
+
     /// Idle connection timeout
     pub idle_timeout: Duration,  // Default: 600 seconds
-    
+
     /// SSL mode (Prefer, Require, Disable)
     pub ssl_mode: SslMode,
-    
+
     /// Vector index type (HNSW or IVFFlat)
     pub vector_index_type: VectorIndexType,
-    
+
     /// HNSW M parameter
     pub hnsw_m: u32,  // Default: 16
-    
+
     /// HNSW ef_construction parameter
     pub hnsw_ef_construction: u32,  // Default: 64
 }
@@ -667,13 +667,13 @@ pub struct PostgresConfig {
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EDGEQUAKE_DATABASE_URL` | - | PostgreSQL connection string |
-| `POSTGRES_MAX_CONNECTIONS` | 10 | Max pool connections |
-| `POSTGRES_MIN_CONNECTIONS` | 1 | Min pool connections |
-| `POSTGRES_CONNECT_TIMEOUT` | 30 | Connection timeout (seconds) |
-| `EDGEQUAKE_NAMESPACE` | default | Multi-tenant namespace |
+| Variable                   | Default | Description                  |
+| -------------------------- | ------- | ---------------------------- |
+| `EDGEQUAKE_DATABASE_URL`   | -       | PostgreSQL connection string |
+| `POSTGRES_MAX_CONNECTIONS` | 10      | Max pool connections         |
+| `POSTGRES_MIN_CONNECTIONS` | 1       | Min pool connections         |
+| `POSTGRES_CONNECT_TIMEOUT` | 30      | Connection timeout (seconds) |
+| `EDGEQUAKE_NAMESPACE`      | default | Multi-tenant namespace       |
 
 ---
 
@@ -761,7 +761,7 @@ let config = PostgresConfig {
 #[tokio::test]
 async fn test_with_memory_storage() {
     use edgequake_storage::adapters::memory::MemoryKVStorage;
-    
+
     let storage = MemoryKVStorage::new("test");
     storage.initialize().await.unwrap();
     // Test with isolated in-memory storage

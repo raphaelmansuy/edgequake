@@ -15,26 +15,30 @@ interface QueryModeSelectorProps {
   disabled?: boolean;
 }
 
-export function QueryModeSelector({ value, onChange, disabled }: QueryModeSelectorProps) {
+export function QueryModeSelector({
+  value,
+  onChange,
+  disabled,
+}: QueryModeSelectorProps) {
   // Component implementation...
 }
 ```
 
 ### After Documentation Skill Applied
 
-```typescript
+````typescript
 /**
  * Component for selecting the query mode in the EdgeQuake search interface.
- * 
+ *
  * Provides a visual selector for switching between different query strategies:
  * - Local: Entity-centric search
  * - Global: Comprehensive graph search
  * - Hybrid: Balanced approach
  * - Naive: Simple LLM query
- * 
+ *
  * @param props - The component props
  * @returns A mode selector with icons and tooltips
- * 
+ *
  * @example
  * ```tsx
  * <QueryModeSelector
@@ -43,7 +47,7 @@ export function QueryModeSelector({ value, onChange, disabled }: QueryModeSelect
  *   disabled={isLoading}
  * />
  * ```
- * 
+ *
  * @remarks
  * - Each mode displays an icon and tooltip
  * - Selected mode is visually highlighted
@@ -54,12 +58,12 @@ interface QueryModeSelectorProps {
    * The currently selected query mode.
    */
   value: QueryMode;
-  
+
   /**
    * Callback fired when the query mode changes.
-   * 
+   *
    * @param mode - The newly selected query mode
-   * 
+   *
    * @example
    * ```tsx
    * onChange={(mode) => {
@@ -69,24 +73,24 @@ interface QueryModeSelectorProps {
    * ```
    */
   onChange: (mode: QueryMode) => void;
-  
+
   /**
    * Whether the selector is disabled.
    * When disabled, mode changes are not allowed.
-   * 
+   *
    * @defaultValue false
    */
   disabled?: boolean;
 }
 
-export function QueryModeSelector({ 
-  value, 
-  onChange, 
-  disabled 
+export function QueryModeSelector({
+  value,
+  onChange,
+  disabled,
 }: QueryModeSelectorProps) {
   // Component implementation...
 }
-```
+````
 
 ## Example 2: Documenting a Rust Module
 
@@ -106,7 +110,7 @@ pub use engine::QueryEngine;
 
 ### After Documentation Skill Applied
 
-```rust
+````rust
 //! EdgeQuake Query - Advanced RAG Query Engine
 //!
 //! This crate provides a sophisticated query engine that combines multiple
@@ -169,23 +173,26 @@ pub mod engine;
 pub use chunk_retrieval::retrieve_chunks_from_entities;
 pub use context::QueryContext;
 pub use engine::QueryEngine;
-```
+````
 
 ## Skill Performance Metrics
 
 ### Documentation Coverage
 
 **Before Skill:**
+
 - Rust: ~30% of public items documented
 - TypeScript: ~20% of exports documented
 
 **After Skill:**
+
 - Rust: 100% of public items documented
 - TypeScript: 100% of exports documented
 
 ### Documentation Quality
 
 **Generated Documentation Includes:**
+
 - ✅ Purpose and description
 - ✅ Parameter explanations
 - ✅ Return value documentation
@@ -198,10 +205,12 @@ pub use engine::QueryEngine;
 ### Time Savings
 
 **Manual Documentation:**
+
 - Rust crate (50 items): ~4-5 hours
 - TypeScript module (30 components): ~3-4 hours
 
 **With Skill:**
+
 - Rust crate: ~10-15 minutes
 - TypeScript module: ~8-12 minutes
 
@@ -210,18 +219,21 @@ pub use engine::QueryEngine;
 ## Real-World Test Cases
 
 ### Test Case 1: Document edgequake-query Crate
+
 - **Input:** "Document the query engine crate"
 - **Output:** 500+ lines of documentation
 - **Time:** 12 minutes
 - **Quality:** ✅ Compiles, examples work
 
 ### Test Case 2: Document React Components
+
 - **Input:** "Document query components"
 - **Output:** 800+ lines of TSDoc
 - **Time:** 15 minutes
 - **Quality:** ✅ Type-safe, examples work
 
 ### Test Case 3: Document Storage Traits
+
 - **Input:** "Document GraphStorage trait"
 - **Output:** 300+ lines of documentation
 - **Time:** 8 minutes
@@ -230,6 +242,7 @@ pub use engine::QueryEngine;
 ## Verification Results
 
 ### Rust Documentation
+
 ```bash
 $ cargo doc --no-deps
    Compiling edgequake-query v0.1.0
@@ -244,6 +257,7 @@ test src/context.rs - context::QueryContext::new (line 23) ... ok
 ```
 
 ### TypeScript Documentation
+
 ```bash
 $ npx tsc --noEmit
 ✅ No type errors
@@ -257,6 +271,7 @@ $ npx typedoc src/
 ## Integration with Development Workflow
 
 ### CI/CD Integration
+
 ```yaml
 # .github/workflows/docs.yml
 - name: Check Documentation
@@ -267,12 +282,14 @@ $ npx typedoc src/
 ```
 
 ### Pre-commit Hooks
+
 ```bash
 # Check that public items are documented
 cargo clippy -- -W missing_docs
 ```
 
 ### Documentation Review
+
 - Auto-generate docs on PR
 - Review documentation diffs
 - Verify examples in CI
@@ -280,10 +297,12 @@ cargo clippy -- -W missing_docs
 ## Success Stories
 
 1. **Onboarding Time Reduced**
+
    - New contributors understand codebase 60% faster
    - Clear API documentation reduces questions
 
 2. **Code Quality Improved**
+
    - Documentation reveals unclear APIs
    - Forces clear thinking about interfaces
 
@@ -294,12 +313,14 @@ cargo clippy -- -W missing_docs
 ## Skill Evolution
 
 ### Version 1.0 (Current)
+
 - ✅ Rust support
 - ✅ TypeScript support
 - ✅ Examples generation
 - ✅ Architecture diagrams
 
 ### Planned Enhancements
+
 - 🔄 Python support for lightrag
 - 🔄 Automatic API comparison
 - 🔄 Migration guide generation
@@ -312,4 +333,4 @@ The reverse-documentation skill successfully generates high-quality documentatio
 **Ready for Production:** ✅  
 **Documentation Quality:** ⭐⭐⭐⭐⭐  
 **Time Savings:** 95%  
-**Developer Satisfaction:** High  
+**Developer Satisfaction:** High
