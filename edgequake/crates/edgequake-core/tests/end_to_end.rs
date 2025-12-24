@@ -1,6 +1,8 @@
 use edgequake_core::orchestrator::{EdgeQuake, EdgeQuakeConfig};
 use edgequake_llm::MockProvider;
-use edgequake_storage::adapters::memory::{MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage};
+use edgequake_storage::adapters::memory::{
+    MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
+};
 use std::sync::Arc;
 
 #[tokio::test]
@@ -12,7 +14,7 @@ async fn test_end_to_end_flow() {
 
     // 2. Setup providers
     let mock_provider = Arc::new(MockProvider::new());
-    
+
     // Add a valid JSON response for entity extraction
     mock_provider.add_response(r#"{
         "entities": [
@@ -25,17 +27,24 @@ async fn test_end_to_end_flow() {
     }"#).await;
 
     // Add a response for the query
-    mock_provider.add_response("EdgeQuake is a high-performance RAG system built in Rust.").await;
+    mock_provider
+        .add_response("EdgeQuake is a high-performance RAG system built in Rust.")
+        .await;
     let config = EdgeQuakeConfig::default();
     let mut eq = EdgeQuake::new(config)
         .with_storage_backends(kv, vector, graph)
         .with_providers(mock_provider.clone(), mock_provider.clone());
 
-    eq.initialize().await.expect("Failed to initialize EdgeQuake");
+    eq.initialize()
+        .await
+        .expect("Failed to initialize EdgeQuake");
 
     // 4. Insert a document
     let content = "EdgeQuake is a high-performance RAG system built in Rust. It uses knowledge graphs to improve retrieval accuracy.";
-    let insert_result = eq.insert(content, Some("doc-1")).await.expect("Failed to insert document");
+    let insert_result = eq
+        .insert(content, Some("doc-1"))
+        .await
+        .expect("Failed to insert document");
 
     assert!(insert_result.success);
     assert!(insert_result.chunks_created > 0);

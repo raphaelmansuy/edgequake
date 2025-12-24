@@ -98,6 +98,7 @@
 **Location:** `edgequake/crates/edgequake-core/src/query.rs` - `query_global()` method
 
 **Implementation Details:**
+
 - Uses `KeywordExtractor` to extract high-level and low-level keywords from query
 - Generates embeddings for keywords and searches vector store
 - Deduplicates relationships and fetches connected entities

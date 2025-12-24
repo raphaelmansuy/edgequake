@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::types::DocumentStatus;
+use serde::{Deserialize, Serialize};
 
 /// Query mode for retrieval.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]

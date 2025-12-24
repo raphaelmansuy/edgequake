@@ -35,43 +35,43 @@
 
 ## Files Created/Modified
 
-| File | Action | Purpose |
-|------|--------|---------|
-| `edgequake-llm/src/cache.rs` | Modified | Fixed type mismatches, implemented full traits |
-| `edgequake-llm/src/reranker.rs` | Created | Full reranking implementation (GAP-008) |
-| `edgequake-llm/src/lib.rs` | Modified | Export reranker module |
-| `gap_analysis/parity-matrix.md` | Modified | Updated GAP-008, GAP-009, GAP-015 to ✅ |
-| `gap_analysis/implementation_plan/00-INDEX.md` | Modified | Updated parity score to 73.1% |
-| `gap_analysis/gap-analysis.md` | Modified | Updated executive summary |
+| File                                           | Action   | Purpose                                        |
+| ---------------------------------------------- | -------- | ---------------------------------------------- |
+| `edgequake-llm/src/cache.rs`                   | Modified | Fixed type mismatches, implemented full traits |
+| `edgequake-llm/src/reranker.rs`                | Created  | Full reranking implementation (GAP-008)        |
+| `edgequake-llm/src/lib.rs`                     | Modified | Export reranker module                         |
+| `gap_analysis/parity-matrix.md`                | Modified | Updated GAP-008, GAP-009, GAP-015 to ✅        |
+| `gap_analysis/implementation_plan/00-INDEX.md` | Modified | Updated parity score to 73.1%                  |
+| `gap_analysis/gap-analysis.md`                 | Modified | Updated executive summary                      |
 
 ---
 
 ## Test Summary
 
-| Crate | Tests |
-|-------|-------|
-| edgequake-llm | 48 |
-| edgequake-core | 72 |
-| edgequake-storage | 25 |
-| edgequake-pipeline | 34 |
-| Other crates | 398 |
-| **Total** | **577** |
+| Crate              | Tests   |
+| ------------------ | ------- |
+| edgequake-llm      | 48      |
+| edgequake-core     | 72      |
+| edgequake-storage  | 25      |
+| edgequake-pipeline | 34      |
+| Other crates       | 398     |
+| **Total**          | **577** |
 
 ---
 
 ## Gap Status
 
-| Gap ID | Description | Status |
-|--------|-------------|--------|
-| GAP-001 | Query Mode: Global | ✅ DONE |
-| GAP-002 | Query Mode: Mix | ✅ DONE |
-| GAP-003 | Multi-tenancy | ⚠️ Partial |
-| GAP-004 | Tenant RAG Manager | ✅ DONE |
-| GAP-005 | Entity Deduplication | ✅ DONE |
-| GAP-006 | Description Summarization | ✅ DONE |
-| GAP-007 | Keyword Extraction | ✅ DONE |
-| GAP-008 | Reranking Integration | ✅ DONE |
-| GAP-009 | Token Budget | ✅ DONE |
-| GAP-010 | Anthropic Provider | ⏭️ Skipped |
-| GAP-011 | Rate Limiting | ✅ DONE |
-| GAP-015 | LLM Cache Complete | ✅ DONE |
+| Gap ID  | Description               | Status     |
+| ------- | ------------------------- | ---------- |
+| GAP-001 | Query Mode: Global        | ✅ DONE    |
+| GAP-002 | Query Mode: Mix           | ✅ DONE    |
+| GAP-003 | Multi-tenancy             | ⚠️ Partial |
+| GAP-004 | Tenant RAG Manager        | ✅ DONE    |
+| GAP-005 | Entity Deduplication      | ✅ DONE    |
+| GAP-006 | Description Summarization | ✅ DONE    |
+| GAP-007 | Keyword Extraction        | ✅ DONE    |
+| GAP-008 | Reranking Integration     | ✅ DONE    |
+| GAP-009 | Token Budget              | ✅ DONE    |
+| GAP-010 | Anthropic Provider        | ⏭️ Skipped |
+| GAP-011 | Rate Limiting             | ✅ DONE    |
+| GAP-015 | LLM Cache Complete        | ✅ DONE    |

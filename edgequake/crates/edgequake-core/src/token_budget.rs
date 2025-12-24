@@ -9,7 +9,7 @@
 use tiktoken_rs::{get_bpe_from_model, CoreBPE};
 
 /// Manages token budgets for context construction.
-/// 
+///
 /// Provides token counting, truncation, and budget allocation across
 /// multiple content sources (entities, relationships, chunks).
 pub struct TokenBudget {
@@ -83,7 +83,7 @@ impl TokenBudget {
 
         // Truncate tokens
         let truncated_tokens: Vec<_> = tokens.into_iter().take(budget).collect();
-        
+
         match self.encoder.decode(truncated_tokens) {
             Ok(decoded) => {
                 // Try to end at a sentence boundary
@@ -109,7 +109,7 @@ impl TokenBudget {
     /// Minimum allocations are respected if possible.
     pub fn allocate_budget(&self, sources: &[BudgetSource]) -> Vec<BudgetAllocation> {
         let total_available = self.available_tokens();
-        
+
         if sources.is_empty() {
             return vec![];
         }
@@ -123,14 +123,15 @@ impl TokenBudget {
                 .iter()
                 .map(|s| BudgetAllocation {
                     name: s.name.clone(),
-                    tokens: (s.min_tokens as f64 / total_min as f64 * total_available as f64) as usize,
+                    tokens: (s.min_tokens as f64 / total_min as f64 * total_available as f64)
+                        as usize,
                 })
                 .collect();
         }
 
         // Allocate remaining budget after minimums
         let remaining = total_available - total_min;
-        
+
         sources
             .iter()
             .map(|s| {
@@ -287,8 +288,7 @@ mod tests {
 
     #[test]
     fn test_available_tokens() {
-        let budget = TokenBudget::new("gpt-4", 4000)
-            .with_reserves(1000, 500);
+        let budget = TokenBudget::new("gpt-4", 4000).with_reserves(1000, 500);
         assert_eq!(budget.available_tokens(), 2500);
     }
 
@@ -311,8 +311,16 @@ mod tests {
     fn test_budget_allocation() {
         let budget = TokenBudget::new("gpt-4", 4000);
         let sources = vec![
-            BudgetSource { name: "entities".to_string(), weight: 2.0, min_tokens: 100 },
-            BudgetSource { name: "chunks".to_string(), weight: 1.0, min_tokens: 100 },
+            BudgetSource {
+                name: "entities".to_string(),
+                weight: 2.0,
+                min_tokens: 100,
+            },
+            BudgetSource {
+                name: "chunks".to_string(),
+                weight: 1.0,
+                min_tokens: 100,
+            },
         ];
 
         let allocations = budget.allocate_budget(&sources);
@@ -324,8 +332,16 @@ mod tests {
     fn test_budget_allocation_respects_minimums() {
         let budget = TokenBudget::new("gpt-4", 1000).with_reserves(0, 0);
         let sources = vec![
-            BudgetSource { name: "a".to_string(), weight: 1.0, min_tokens: 200 },
-            BudgetSource { name: "b".to_string(), weight: 1.0, min_tokens: 200 },
+            BudgetSource {
+                name: "a".to_string(),
+                weight: 1.0,
+                min_tokens: 200,
+            },
+            BudgetSource {
+                name: "b".to_string(),
+                weight: 1.0,
+                min_tokens: 200,
+            },
         ];
 
         let allocations = budget.allocate_budget(&sources);

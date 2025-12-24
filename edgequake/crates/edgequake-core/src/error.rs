@@ -31,6 +31,10 @@ pub enum Error {
     #[error("Validation error: {0}")]
     Validation(String),
 
+    /// Not found error
+    #[error("Not found: {0}")]
+    NotFound(String),
+
     /// Not initialized error
     #[error("Not initialized: {0}")]
     NotInitialized(String),
@@ -48,6 +52,11 @@ impl Error {
     /// Create a new not initialized error.
     pub fn not_initialized<S: Into<String>>(msg: S) -> Self {
         Error::NotInitialized(msg.into())
+    }
+
+    /// Create a new not found error.
+    pub fn not_found<S: Into<String>>(msg: S) -> Self {
+        Error::NotFound(msg.into())
     }
 
     /// Create a new configuration error.

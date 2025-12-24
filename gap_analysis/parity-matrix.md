@@ -82,14 +82,14 @@
 
 ### SEC: Security & Multi-Tenancy
 
-| ID    | Feature             | Source | Target | Status | Gap ID  | Priority | Notes        |
-| ----- | ------------------- | ------ | ------ | ------ | ------- | -------- | ------------ |
-| F-066 | Multi-tenancy       | ✅     | ⚠️     | ⚠️     | GAP-003 | P0       | **Critical** |
-| F-067 | Tenant RAG Manager  | ✅     | ✅     | ✅     | GAP-004 | P0       | ✅ Implemented  |
-| F-068 | Tenant/KB Isolation | ✅     | ⚠️     | ⚠️     | GAP-037 | P0       | Partial      |
-| F-069 | JWT Auth            | ✅     | ✅     | ✅     | -       | -        | Full support |
-| F-070 | API Key Auth        | ✅     | ✅     | ✅     | -       | -        | -            |
-| F-071 | RBAC                | ✅     | ✅     | ✅     | -       | -        | -            |
+| ID    | Feature             | Source | Target | Status | Gap ID  | Priority | Notes          |
+| ----- | ------------------- | ------ | ------ | ------ | ------- | -------- | -------------- |
+| F-066 | Multi-tenancy       | ✅     | ⚠️     | ⚠️     | GAP-003 | P0       | **Critical**   |
+| F-067 | Tenant RAG Manager  | ✅     | ✅     | ✅     | GAP-004 | P0       | ✅ Implemented |
+| F-068 | Tenant/KB Isolation | ✅     | ⚠️     | ⚠️     | GAP-037 | P0       | Partial        |
+| F-069 | JWT Auth            | ✅     | ✅     | ✅     | -       | -        | Full support   |
+| F-070 | API Key Auth        | ✅     | ✅     | ✅     | -       | -        | -              |
+| F-071 | RBAC                | ✅     | ✅     | ✅     | -       | -        | -              |
 
 ---
 
@@ -121,12 +121,12 @@
 
 ### PERF: Performance Features
 
-| ID    | Feature         | Source | Target | Status | Gap ID  | Priority | Notes        |
-| ----- | --------------- | ------ | ------ | ------ | ------- | -------- | ------------ |
-| F-047 | LLM Cache       | ✅     | ✅     | ✅     | GAP-015 | P1       | ✅ Full impl |
-| F-048 | Embedding Cache | ✅     | ✅     | ✅     | GAP-034 | P2       | ✅ In cache  |
+| ID    | Feature         | Source | Target | Status | Gap ID  | Priority | Notes          |
+| ----- | --------------- | ------ | ------ | ------ | ------- | -------- | -------------- |
+| F-047 | LLM Cache       | ✅     | ✅     | ✅     | GAP-015 | P1       | ✅ Full impl   |
+| F-048 | Embedding Cache | ✅     | ✅     | ✅     | GAP-034 | P2       | ✅ In cache    |
 | F-049 | Rate Limiting   | ✅     | ✅     | ✅     | GAP-011 | P1       | ✅ Implemented |
-| F-050 | Priority Queue  | ✅     | ❌     | ❌     | GAP-035 | P2       | LLM priority |
+| F-050 | Priority Queue  | ✅     | ❌     | ❌     | GAP-035 | P2       | LLM priority   |
 
 ---
 
@@ -149,17 +149,17 @@
 
 ## Summary by Category
 
-| Category  | Total  | ✅     | ⚠️     | ❌     | 🔄    | ⬆️    | Parity %  |
-| --------- | ------ | ------ | ------ | ------ | ----- | ----- | --------- |
-| CORE      | 26     | 20     | 3      | 3      | 0     | 0     | 77%       |
-| DATA      | 12     | 5      | 1      | 6      | 0     | 0     | 42%       |
-| INTG      | 8      | 1      | 1      | 6      | 0     | 0     | 13%       |
-| SEC       | 6      | 4      | 2      | 0      | 0     | 0     | 67%       |
-| API       | 18     | 14     | 1      | 3      | 0     | 0     | 78%       |
-| PERF      | 4      | 1      | 1      | 2      | 0     | 0     | 25%       |
-| OBS       | 2      | 1      | 0      | 0      | 0     | 1     | 50%       |
-| PROC      | 1      | 0      | 0      | 1      | 0     | 0     | 0%        |
-| **Total** | **78** | **51** | **9**  | **18** | **0** | **1** | **65.4%** |
+| Category  | Total  | ✅     | ⚠️    | ❌     | 🔄    | ⬆️    | Parity %  |
+| --------- | ------ | ------ | ----- | ------ | ----- | ----- | --------- |
+| CORE      | 26     | 20     | 3     | 3      | 0     | 0     | 77%       |
+| DATA      | 12     | 5      | 1     | 6      | 0     | 0     | 42%       |
+| INTG      | 8      | 1      | 1     | 6      | 0     | 0     | 13%       |
+| SEC       | 6      | 4      | 2     | 0      | 0     | 0     | 67%       |
+| API       | 18     | 14     | 1     | 3      | 0     | 0     | 78%       |
+| PERF      | 4      | 1      | 1     | 2      | 0     | 0     | 25%       |
+| OBS       | 2      | 1      | 0     | 0      | 0     | 1     | 50%       |
+| PROC      | 1      | 0      | 0     | 1      | 0     | 0     | 0%        |
+| **Total** | **78** | **51** | **9** | **18** | **0** | **1** | **65.4%** |
 
 ---
 
@@ -180,7 +180,7 @@ The minimum feature set required for production parity:
 3. **Core Quality (P1)** ✅ MOSTLY COMPLETE
 
    - ✅ Entity deduplication - VERIFIED
-   - ✅ Description summarization - IMPLEMENTED  
+   - ✅ Description summarization - IMPLEMENTED
    - ✅ Keyword extraction - IMPLEMENTED
    - ⚠️ Reranking
    - ⚠️ Token budget
@@ -193,13 +193,13 @@ The minimum feature set required for production parity:
 
 ## Quick Wins (Low Effort, High Value)
 
-| Feature            | Effort | Impact | Notes                    |
-| ------------------ | ------ | ------ | ------------------------ |
-| ~~Keyword Extraction~~ | ~~2 days~~ | ~~High~~ | ✅ DONE |
-| LLM Cache Complete | 2 days | Medium | Cost savings             |
-| Document Scan API  | 2 days | Medium | User convenience         |
-| ~~Bypass Mode~~    | ~~1 day~~ | ~~Low~~ | ✅ DONE              |
-| Prompt-only Query  | 1 day  | Low    | Debug feature            |
+| Feature                | Effort     | Impact   | Notes            |
+| ---------------------- | ---------- | -------- | ---------------- |
+| ~~Keyword Extraction~~ | ~~2 days~~ | ~~High~~ | ✅ DONE          |
+| LLM Cache Complete     | 2 days     | Medium   | Cost savings     |
+| Document Scan API      | 2 days     | Medium   | User convenience |
+| ~~Bypass Mode~~        | ~~1 day~~  | ~~Low~~  | ✅ DONE          |
+| Prompt-only Query      | 1 day      | Low      | Debug feature    |
 
 ---
 

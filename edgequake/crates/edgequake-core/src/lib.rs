@@ -32,12 +32,16 @@ pub mod tenant_manager;
 pub mod token_budget;
 pub mod types;
 pub mod utils;
+pub mod workspace_service;
 
 // Re-export keyword extractor
 pub use keyword_extractor::{ExtractedKeywords, KeywordExtractor};
 
 // Re-export tenant manager
 pub use tenant_manager::{TenantConfig, TenantKBKey, TenantRAGManager, TenantService};
+
+// Re-export workspace service
+pub use workspace_service::{InMemoryWorkspaceService, WorkspaceService, WorkspaceServiceFactory};
 
 // Re-export token budget
 pub use token_budget::{BudgetAllocation, BudgetSource, ContextSource, TokenBudget};
@@ -48,7 +52,9 @@ pub use error::{Error, Result};
 pub use orchestrator::{EdgeQuake, EdgeQuakeConfig, StorageBackend, StorageConfig};
 pub use query::QueryEngine;
 pub use types::{
-    Chunk, ContextChunk, ContextEntity, ContextRelationship, Document, DocumentInfo,
-    DocumentStatus, Embedding, EmbeddingConfig, GraphEntity, GraphRelationship, GraphStats,
-    InsertResult, QueryContext, QueryMode, QueryParams, QueryResult, QueryStats,
+    Chunk, ContextChunk, ContextEntity, ContextRelationship, CreateWorkspaceRequest, Document,
+    DocumentInfo, DocumentStatus, Embedding, EmbeddingConfig, GraphEntity, GraphRelationship,
+    GraphStats, InsertResult, Membership, MembershipRole, QueryContext, QueryMode, QueryParams,
+    QueryResult, QueryStats, Tenant, TenantContext, TenantPlan, UpdateWorkspaceRequest, Workspace,
+    WorkspaceStats,
 };

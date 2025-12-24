@@ -10,6 +10,7 @@ pub mod pipeline;
 pub mod query;
 pub mod relationships;
 pub mod tasks;
+pub mod workspaces;
 
 pub use auth::*;
 pub use documents::*;
@@ -21,3 +22,4 @@ pub use pipeline::*;
 pub use query::*;
 pub use relationships::*;
 pub use tasks::*;
+pub use workspaces::*;

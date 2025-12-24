@@ -101,11 +101,10 @@ impl KeywordExtractor {
 
         // Extract keywords via LLM
         let prompt = self.build_extraction_prompt(query_normalized);
-        let response = self
-            .llm
-            .complete(&prompt)
-            .await
-            .map_err(|e| Error::internal(format!("LLM error during keyword extraction: {}", e)))?;
+        let response =
+            self.llm.complete(&prompt).await.map_err(|e| {
+                Error::internal(format!("LLM error during keyword extraction: {}", e))
+            })?;
 
         let keywords = self.parse_keywords(&response.content)?;
 

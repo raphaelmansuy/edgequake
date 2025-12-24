@@ -39,6 +39,34 @@ fn api_v1_routes() -> Router<AppState> {
         .route("/api-keys", post(handlers::create_api_key))
         .route("/api-keys", get(handlers::list_api_keys))
         .route("/api-keys/{key_id}", delete(handlers::revoke_api_key))
+        // Tenants (Multi-tenancy)
+        .route("/tenants", post(handlers::create_tenant))
+        .route("/tenants", get(handlers::list_tenants))
+        .route("/tenants/{tenant_id}", get(handlers::get_tenant))
+        .route("/tenants/{tenant_id}", put(handlers::update_tenant))
+        .route("/tenants/{tenant_id}", delete(handlers::delete_tenant))
+        // Workspaces (Multi-tenancy)
+        .route(
+            "/tenants/{tenant_id}/workspaces",
+            post(handlers::create_workspace),
+        )
+        .route(
+            "/tenants/{tenant_id}/workspaces",
+            get(handlers::list_workspaces),
+        )
+        .route("/workspaces/{workspace_id}", get(handlers::get_workspace))
+        .route(
+            "/workspaces/{workspace_id}",
+            put(handlers::update_workspace),
+        )
+        .route(
+            "/workspaces/{workspace_id}",
+            delete(handlers::delete_workspace),
+        )
+        .route(
+            "/workspaces/{workspace_id}/stats",
+            get(handlers::get_workspace_stats),
+        )
         // Documents
         .route("/documents", post(handlers::upload_document))
         .route("/documents", get(handlers::list_documents))

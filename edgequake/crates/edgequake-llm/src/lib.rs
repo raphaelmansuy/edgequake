@@ -36,7 +36,9 @@ pub use cache::{CacheConfig, CacheStats, CachedProvider, LLMCache};
 pub use error::{LlmError, Result};
 pub use providers::openai::OpenAIProvider;
 pub use rate_limiter::{RateLimitedProvider, RateLimiter, RateLimiterConfig};
-pub use reranker::{HttpReranker, MockReranker, RerankConfig, RerankResult, Reranker, ScoreAggregation};
+pub use reranker::{
+    HttpReranker, MockReranker, RerankConfig, RerankResult, Reranker, ScoreAggregation,
+};
 pub use tokenizer::Tokenizer;
 pub use traits::{EmbeddingProvider, LLMProvider, LLMResponse};
 
