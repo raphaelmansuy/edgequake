@@ -33,10 +33,10 @@ export interface Conversation {
 interface ConversationState {
   // All conversations
   conversations: Conversation[];
-  
+
   // Current active conversation ID
   activeConversationId: string | null;
-  
+
   // Panel visibility
   historyPanelOpen: boolean;
 }
@@ -48,19 +48,22 @@ interface ConversationActions {
   setActiveConversation: (id: string | null) => void;
   renameConversation: (id: string, title: string) => void;
   clearConversations: () => void;
-  
+
   // Message actions (operate on active conversation)
   addMessage: (message: ConversationMessage) => void;
-  updateMessage: (messageId: string, updates: Partial<ConversationMessage>) => void;
+  updateMessage: (
+    messageId: string,
+    updates: Partial<ConversationMessage>
+  ) => void;
   clearActiveConversation: () => void;
-  
+
   // Get current conversation
   getActiveConversation: () => Conversation | null;
-  
+
   // Panel toggle
   setHistoryPanelOpen: (open: boolean) => void;
   toggleHistoryPanel: () => void;
-  
+
   // Auto-title based on first message
   autoTitleConversation: (conversationId: string) => void;
 }
@@ -73,7 +76,10 @@ const generateConversationTitle = (firstMessage: string): string => {
   return truncated.length < firstMessage.length ? truncated + "..." : truncated;
 };
 
-const createNewConversation = (tenantId?: string, workspaceId?: string): Conversation => ({
+const createNewConversation = (
+  tenantId?: string,
+  workspaceId?: string
+): Conversation => ({
   id: crypto.randomUUID(),
   title: `Chat ${new Date().toLocaleDateString()}`,
   messages: [],
@@ -102,10 +108,13 @@ export const useConversationStore = create<ConversationStore>()(
 
       deleteConversation: (id) => {
         set((state) => {
-          const newConversations = state.conversations.filter((c) => c.id !== id);
-          const newActiveId = state.activeConversationId === id
-            ? (newConversations[0]?.id ?? null)
-            : state.activeConversationId;
+          const newConversations = state.conversations.filter(
+            (c) => c.id !== id
+          );
+          const newActiveId =
+            state.activeConversationId === id
+              ? newConversations[0]?.id ?? null
+              : state.activeConversationId;
           return {
             conversations: newConversations,
             activeConversationId: newActiveId,
@@ -145,7 +154,11 @@ export const useConversationStore = create<ConversationStore>()(
           return {
             conversations: conversations.map((c) =>
               c.id === activeConversationId
-                ? { ...c, messages: [...c.messages, message], updatedAt: Date.now() }
+                ? {
+                    ...c,
+                    messages: [...c.messages, message],
+                    updatedAt: Date.now(),
+                  }
                 : c
             ),
             activeConversationId,
@@ -181,27 +194,38 @@ export const useConversationStore = create<ConversationStore>()(
 
       getActiveConversation: () => {
         const state = get();
-        return state.conversations.find((c) => c.id === state.activeConversationId) ?? null;
+        return (
+          state.conversations.find(
+            (c) => c.id === state.activeConversationId
+          ) ?? null
+        );
       },
 
       // Panel toggle
       setHistoryPanelOpen: (open) => set({ historyPanelOpen: open }),
-      toggleHistoryPanel: () => set((state) => ({ historyPanelOpen: !state.historyPanelOpen })),
+      toggleHistoryPanel: () =>
+        set((state) => ({ historyPanelOpen: !state.historyPanelOpen })),
 
       // Auto-title based on first message
       autoTitleConversation: (conversationId) => {
         set((state) => {
-          const conversation = state.conversations.find((c) => c.id === conversationId);
+          const conversation = state.conversations.find(
+            (c) => c.id === conversationId
+          );
           if (!conversation) return state;
 
-          const firstUserMessage = conversation.messages.find((m) => m.role === "user");
+          const firstUserMessage = conversation.messages.find(
+            (m) => m.role === "user"
+          );
           if (!firstUserMessage) return state;
 
           const title = generateConversationTitle(firstUserMessage.content);
 
           return {
             conversations: state.conversations.map((c) =>
-              c.id === conversationId ? { ...c, title, updatedAt: Date.now() } : c
+              c.id === conversationId
+                ? { ...c, title, updatedAt: Date.now() }
+                : c
             ),
           };
         });
@@ -221,7 +245,9 @@ export const useConversationStore = create<ConversationStore>()(
 // Selectors
 export const useActiveConversation = () => {
   const store = useConversationStore();
-  return store.conversations.find((c) => c.id === store.activeConversationId) ?? null;
+  return (
+    store.conversations.find((c) => c.id === store.activeConversationId) ?? null
+  );
 };
 
 export const useActiveMessages = () => {

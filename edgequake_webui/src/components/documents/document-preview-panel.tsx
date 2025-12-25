@@ -6,32 +6,32 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { getDocument } from '@/lib/api/edgequake';
 import type { Document } from '@/types';
 import { useQuery } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import {
-  AlertCircle,
-  Calendar,
-  CheckCircle,
-  ChevronDown,
-  ChevronUp,
-  Clock,
-  Copy,
-  ExternalLink,
-  Eye,
-  FileText,
-  HardDrive,
-  Loader2,
-  Network,
-  RefreshCw,
-  Trash2,
-  XCircle,
+    AlertCircle,
+    Calendar,
+    CheckCircle,
+    ChevronDown,
+    ChevronUp,
+    Clock,
+    Copy,
+    ExternalLink,
+    Eye,
+    FileText,
+    HardDrive,
+    Loader2,
+    Network,
+    RefreshCw,
+    Trash2,
+    XCircle,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';

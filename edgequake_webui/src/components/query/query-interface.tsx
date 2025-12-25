@@ -7,62 +7,62 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import {
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetHeader,
-    SheetTitle,
-    SheetTrigger,
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
 } from '@/components/ui/sheet';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { query as queryApi, queryStream } from '@/lib/api/edgequake';
 import {
-    useConversationStore,
-    useActiveConversation,
-    type ConversationMessage,
+  useActiveConversation,
+  useConversationStore,
+  type ConversationMessage,
 } from '@/stores/use-conversation-store';
 import { useSettingsStore } from '@/stores/use-settings-store';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { QueryContext } from '@/types';
 import { useMutation } from '@tanstack/react-query';
 import {
-    BookOpen,
-    Brain,
-    Check,
-    ChevronDown,
-    ChevronRight,
-    Clock,
-    Copy,
-    Gauge,
-    Info,
-    MessageSquare,
-    Plus,
-    RefreshCw,
-    Send,
-    Settings2,
-    Sliders,
-    Sparkles,
-    StopCircle,
-    Thermometer,
-    User,
-    Zap,
+  BookOpen,
+  Brain,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  Copy,
+  Gauge,
+  Info,
+  MessageSquare,
+  Plus,
+  RefreshCw,
+  Send,
+  Settings2,
+  Sliders,
+  Sparkles,
+  StopCircle,
+  Thermometer,
+  User,
+  Zap,
 } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { ConversationHistoryPanel } from './conversation-history-panel';
 import { MarkdownRenderer } from './markdown-renderer';
 import { QueryModeSelector } from './query-mode-selector';
 import { SourceCitations } from './source-citations';
 import { parseCOTContent } from './thinking-display';
-import { ConversationHistoryPanel } from './conversation-history-panel';
 
 // Streaming state for better UX
 type StreamingState = 'idle' | 'thinking' | 'generating' | 'complete' | 'error';

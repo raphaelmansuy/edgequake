@@ -1,42 +1,42 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import {
-  useConversationList,
-  useConversationStore,
-  type Conversation,
+    useConversationList,
+    useConversationStore,
+    type Conversation,
 } from "@/stores/use-conversation-store";
 import { useTenantStore } from "@/stores/use-tenant-store";
 import {
-  ChevronLeft,
-  ChevronRight,
-  Edit2,
-  MessageSquare,
-  MoreVertical,
-  Plus,
-  Search,
-  Trash2,
+    ChevronLeft,
+    ChevronRight,
+    Edit2,
+    MessageSquare,
+    MoreVertical,
+    Plus,
+    Search,
+    Trash2,
 } from "lucide-react";
 import { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 // ============================================================================
 // Conversation Item Component

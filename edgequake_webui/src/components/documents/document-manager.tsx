@@ -1,5 +1,6 @@
 'use client';
 
+import { RightPanel } from '@/components/layout/right-panel';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -32,7 +33,6 @@ import {
     uploadDocument,
 } from '@/lib/api/edgequake';
 import { cn } from '@/lib/utils';
-import { useSettingsStore } from '@/stores/use-settings-store';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { Document } from '@/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -68,7 +68,6 @@ import { PipelineStatusDialog } from './pipeline-status-dialog';
 import { ReprocessFailedButton } from './reprocess-failed-button';
 import { ResetDocumentStatusButton } from './reset-document-status-button';
 import { ScanDocumentsButton } from './scan-documents-button';
-import { RightPanel } from '@/components/layout/right-panel';
 
 // Track upload progress and errors for files
 interface UploadingFile {

@@ -2,24 +2,24 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { useGraphStore } from "@/stores/use-graph-store";
 import type { GraphNode } from "@/types";
 import {
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Network,
-  Search,
-  SortAsc,
-  SortDesc,
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    Network,
+    Search,
+    SortAsc,
+    SortDesc,
 } from "lucide-react";
 import { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";

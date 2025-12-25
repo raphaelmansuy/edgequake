@@ -11,6 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Loader2, Maximize2, Network, RefreshCw, Upload, ZoomIn, ZoomOut } from 'lucide-react';
 import { useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
+import { EntityBrowserPanel } from './entity-browser-panel';
 import { GraphControls } from './graph-controls';
 import { GraphExport } from './graph-export';
 import { GraphFilters } from './graph-filters';
@@ -21,7 +22,6 @@ import { LayoutControl } from './layout-control';
 import { NodeContextMenu, useNodeContextMenu } from './node-context-menu';
 import { NodeDetails } from './node-details';
 import { ZoomControls } from './zoom-controls';
-import { EntityBrowserPanel } from './entity-browser-panel';
 
 export function GraphViewer() {
   const {
