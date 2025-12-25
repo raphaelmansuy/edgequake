@@ -18,6 +18,7 @@ interface GraphState {
   hoveredNodeId: string | null;
   selectedNodes: Set<string>;
   showNodeDetails: boolean; // Controls visibility of node details panel
+  rightPanelCollapsed: boolean; // Controls visibility of right panel
 
   // Filter state
   visibleEntityTypes: Set<string>;
@@ -47,6 +48,7 @@ interface GraphActions {
   hoverNode: (nodeId: string | null) => void;
   toggleNodeSelection: (nodeId: string) => void;
   toggleNodeDetails: () => void;
+  toggleRightPanel: () => void;
   clearSelection: () => void;
 
   // Filter actions
@@ -80,6 +82,7 @@ const initialState: GraphState = {
   hoveredNodeId: null,
   selectedNodes: new Set(),
   showNodeDetails: true,
+  rightPanelCollapsed: false,
   visibleEntityTypes: new Set(),
   visibleRelationshipTypes: new Set(),
   searchQuery: "",
@@ -127,6 +130,9 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
 
   toggleNodeDetails: () =>
     set((state) => ({ showNodeDetails: !state.showNodeDetails })),
+
+  toggleRightPanel: () =>
+    set((state) => ({ rightPanelCollapsed: !state.rightPanelCollapsed })),
 
   focusNode: (nodeId) => {
     set({ focusedNodeId: nodeId });

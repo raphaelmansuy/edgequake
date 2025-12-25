@@ -4,11 +4,12 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { getGraph } from '@/lib/api/edgequake';
 import { focusCameraOnNode } from '@/lib/graph/camera-utils';
+import { cn } from '@/lib/utils';
 import { useGraphStore } from '@/stores/use-graph-store';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { GraphNode } from '@/types';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle, Loader2, Maximize2, Network, RefreshCw, Upload, ZoomIn, ZoomOut } from 'lucide-react';
+import { AlertCircle, ChevronLeft, ChevronRight, Loader2, Maximize2, Network, PanelRightClose, PanelRightOpen, RefreshCw, Upload, ZoomIn, ZoomOut } from 'lucide-react';
 import { useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { EntityBrowserPanel } from './entity-browser-panel';
@@ -29,10 +30,12 @@ export function GraphViewer() {
     edges: allEdges,
     selectedNodeId,
     showNodeDetails,
+    rightPanelCollapsed,
     sigmaInstance,
     setGraph,
     selectNode,
     toggleNodeDetails,
+    toggleRightPanel,
     hoverNode,
     setLoading,
     setError,
@@ -306,28 +309,83 @@ export function GraphViewer() {
         </div>
       </div>
 
-      {/* Right Sidebar - improved padding and scroll */}
-      <aside className="w-80 border-l bg-card flex flex-col overflow-hidden shrink-0">
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Filters */}
-          <GraphFilters />
-
-          {/* Node Details */}
-          {selectedNode && showNodeDetails && <NodeDetails node={selectedNode} />}
-          
-          {/* Show details button when panel is hidden but node is selected */}
-          {selectedNode && !showNodeDetails && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full"
-              onClick={toggleNodeDetails}
+      {/* Right Sidebar - Collapsible */}
+      {rightPanelCollapsed ? (
+        <div className="flex flex-col items-center py-3 w-12 border-l bg-card/50 shrink-0 transition-all duration-200">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 hover:bg-muted"
+            onClick={toggleRightPanel}
+            aria-label="Expand details panel"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div className="mt-4 flex flex-col items-center gap-2">
+            <PanelRightClose className="h-4 w-4 text-muted-foreground" />
+            <span
+              className="text-xs text-muted-foreground"
+              style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
             >
-              Show Node Details
-            </Button>
-          )}
+              Details
+            </span>
+          </div>
         </div>
-      </aside>
+      ) : (
+        <aside className={cn(
+          "border-l bg-card flex flex-col overflow-hidden shrink-0 transition-all duration-200",
+          "w-80"
+        )}>
+          {/* Panel Header */}
+          <div className="flex items-center justify-between p-3 border-b shrink-0">
+            <h3 className="text-sm font-semibold">Details & Filters</h3>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={toggleRightPanel}
+              aria-label="Collapse details panel"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+          
+          {/* Panel Content */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* Filters */}
+            <GraphFilters />
+
+            {/* Node Details - Full integration */}
+            {selectedNode && showNodeDetails && (
+              <div className="space-y-2">
+                <NodeDetails node={selectedNode} />
+              </div>
+            )}
+            
+            {/* Show details button when panel is hidden but node is selected */}
+            {selectedNode && !showNodeDetails && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={toggleNodeDetails}
+              >
+                Show Node Details
+              </Button>
+            )}
+            
+            {/* Empty state when no node selected */}
+            {!selectedNode && (
+              <div className="py-8 text-center">
+                <Network className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  Click on a node to view details
+                </p>
+              </div>
+            )}
+          </div>
+        </aside>
+      )}
     </div>
   );
 }

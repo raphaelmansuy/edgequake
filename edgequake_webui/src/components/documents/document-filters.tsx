@@ -54,13 +54,13 @@ export function DocumentFilters({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-3 mb-4">
+    <div className="flex flex-wrap items-center gap-3">
       {/* Status Filter */}
       <Select
         value={status}
         onValueChange={(v) => onStatusChange(v as DocStatus)}
       >
-        <SelectTrigger className="w-40 h-9">
+        <SelectTrigger className="w-40 h-10">
           <SelectValue placeholder={t('documents.filter.status')} />
         </SelectTrigger>
         <SelectContent>

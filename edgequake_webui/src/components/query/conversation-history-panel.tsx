@@ -100,8 +100,10 @@ const ConversationItem = memo(function ConversationItem({
   return (
     <div
       className={cn(
-        "group relative flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors",
-        isActive ? "bg-primary/10 border border-primary/20" : "hover:bg-muted"
+        "group relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150",
+        isActive 
+          ? "bg-primary/10 border border-primary/20 shadow-sm" 
+          : "hover:bg-muted/70 border border-transparent"
       )}
       onClick={onSelect}
       role="button"
@@ -114,7 +116,15 @@ const ConversationItem = memo(function ConversationItem({
       }}
       aria-pressed={isActive}
     >
-      <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <div className={cn(
+        "w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors",
+        isActive ? "bg-primary/15" : "bg-muted/50"
+      )}>
+        <MessageSquare className={cn(
+          "h-4 w-4",
+          isActive ? "text-primary" : "text-muted-foreground"
+        )} />
+      </div>
 
       <div className="flex-1 min-w-0">
         {isEditing ? (
@@ -251,22 +261,23 @@ export function ConversationHistoryPanel({ className }: ConversationHistoryPanel
     return (
       <div
         className={cn(
-          "flex flex-col items-center justify-start py-3 w-10 border-l bg-card",
+          "flex flex-col items-center justify-start py-4 w-12 border-l bg-card/50 shrink-0 transition-all duration-200",
           className
         )}
       >
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8"
+          className="h-8 w-8 hover:bg-muted"
           onClick={toggleHistoryPanel}
           aria-label={t("query.history.expand", "Expand history")}
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
         <div className="mt-4 flex flex-col items-center gap-2">
+          <MessageSquare className="h-4 w-4 text-muted-foreground" />
           <span
-            className="text-xs text-muted-foreground writing-mode-vertical"
+            className="text-xs text-muted-foreground"
             style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
           >
             {t("query.history.title", "History")}
@@ -279,19 +290,19 @@ export function ConversationHistoryPanel({ className }: ConversationHistoryPanel
   return (
     <aside
       className={cn(
-        "flex flex-col w-72 border-l bg-card transition-all duration-200",
+        "flex flex-col w-72 border-l bg-card/50 backdrop-blur-sm shrink-0 transition-all duration-200",
         className
       )}
       aria-label={t("query.history.title", "Conversation history")}
     >
       {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b bg-card/80 shrink-0">
         <h2 className="text-sm font-semibold">{t("query.history.title", "History")}</h2>
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-7 w-7 hover:bg-muted"
             onClick={handleNewConversation}
             aria-label={t("query.history.newConversation", "New conversation")}
           >
@@ -300,7 +311,7 @@ export function ConversationHistoryPanel({ className }: ConversationHistoryPanel
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-7 w-7 hover:bg-muted"
             onClick={toggleHistoryPanel}
             aria-label={t("query.history.collapse", "Collapse history")}
           >
@@ -310,24 +321,26 @@ export function ConversationHistoryPanel({ className }: ConversationHistoryPanel
       </div>
 
       {/* Search */}
-      <div className="p-2 border-b shrink-0">
+      <div className="p-3 border-b shrink-0">
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder={t("query.history.search", "Search conversations...")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 pl-8 text-sm"
+            className="h-9 pl-8 text-sm bg-muted/30 border-muted focus:bg-background transition-colors"
           />
         </div>
       </div>
 
       {/* Conversation List */}
       <ScrollArea className="flex-1">
-        <div className="p-2 space-y-1">
+        <div className="p-3 space-y-1">
           {filteredConversations.length === 0 ? (
-            <div className="py-8 text-center">
-              <MessageSquare className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
+            <div className="py-12 text-center">
+              <div className="w-12 h-12 mx-auto rounded-full bg-muted/50 flex items-center justify-center mb-3">
+                <MessageSquare className="h-6 w-6 text-muted-foreground/50" />
+              </div>
               <p className="text-sm text-muted-foreground">
                 {searchQuery
                   ? t("query.history.noResults", "No conversations found")
@@ -338,7 +351,7 @@ export function ConversationHistoryPanel({ className }: ConversationHistoryPanel
                   variant="link"
                   size="sm"
                   onClick={handleNewConversation}
-                  className="mt-2"
+                  className="mt-2 text-primary"
                 >
                   {t("query.history.startFirst", "Start your first conversation")}
                 </Button>
