@@ -7,30 +7,30 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table';
 import {
-    deleteAllDocuments,
-    deleteDocument,
-    getDocuments,
-    getPipelineStatus,
-    reprocessDocument,
-    uploadDocument,
+  deleteAllDocuments,
+  deleteDocument,
+  getDocuments,
+  getPipelineStatus,
+  reprocessDocument,
+  uploadDocument,
 } from '@/lib/api/edgequake';
 import { cn } from '@/lib/utils';
 import { useTenantStore } from '@/stores/use-tenant-store';
@@ -38,21 +38,21 @@ import type { Document } from '@/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import {
-    AlertCircle,
-    CheckCircle,
-    Clock,
-    Eye,
-    FileSearch,
-    FileText,
-    Loader2,
-    MoreVertical,
-    RefreshCw,
-    Search,
-    Sparkles,
-    Trash2,
-    Upload,
-    X,
-    XCircle,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Eye,
+  FileSearch,
+  FileText,
+  Loader2,
+  MoreVertical,
+  RefreshCw,
+  Search,
+  Sparkles,
+  Trash2,
+  Upload,
+  X,
+  XCircle,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
