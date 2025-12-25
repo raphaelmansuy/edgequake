@@ -3,7 +3,6 @@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -25,7 +24,11 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { query as queryApi, queryStream } from '@/lib/api/edgequake';
-import { useFavoriteQueries, useQueryStore, useRecentQueries, type ChatMessage } from '@/stores/use-query-store';
+import {
+    useConversationStore,
+    useActiveConversation,
+    type ConversationMessage,
+} from '@/stores/use-conversation-store';
 import { useSettingsStore } from '@/stores/use-settings-store';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { QueryContext } from '@/types';
@@ -39,9 +42,7 @@ import {
     Clock,
     Copy,
     Gauge,
-    History,
     Info,
-    Loader2,
     MessageSquare,
     Plus,
     RefreshCw,
@@ -49,26 +50,25 @@ import {
     Settings2,
     Sliders,
     Sparkles,
-    Star,
     StopCircle,
     Thermometer,
-    Trash2,
     User,
     Zap,
 } from 'lucide-react';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { MarkdownRenderer } from './markdown-renderer';
 import { QueryModeSelector } from './query-mode-selector';
 import { SourceCitations } from './source-citations';
 import { parseCOTContent } from './thinking-display';
+import { ConversationHistoryPanel } from './conversation-history-panel';
 
 // Streaming state for better UX
 type StreamingState = 'idle' | 'thinking' | 'generating' | 'complete' | 'error';
 
-// Use ChatMessage from store for local Message type alias
-type Message = ChatMessage;
+// Use ConversationMessage from store for local Message type alias
+type Message = ConversationMessage;
 
 // ============================================================================
 // Delightful Loading Indicator - Shows animated placeholder while waiting
@@ -367,52 +367,6 @@ const ChatMessage = memo(function ChatMessage({
 });
 
 // ============================================================================
-// Typing Indicator - Shows thinking/generating state
-// ============================================================================
-
-const TypingIndicator = memo(function TypingIndicator({ state }: { state: StreamingState }) {
-  const { t } = useTranslation();
-
-  if (state === 'idle' || state === 'complete') return null;
-
-  const messages: Record<StreamingState, string> = {
-    thinking: t('query.thinking', 'Thinking...'),
-    generating: t('query.generating', 'Generating response...'),
-    error: t('query.error', 'An error occurred'),
-    idle: '',
-    complete: '',
-  };
-
-  return (
-    <div className="flex justify-start mb-4">
-      <div className="flex items-start gap-3">
-        <Avatar className="h-8 w-8 shrink-0">
-          <AvatarFallback className="bg-gradient-to-br from-violet-500 to-purple-600">
-            <Sparkles className="h-4 w-4 text-white" />
-          </AvatarFallback>
-        </Avatar>
-        <div className="bg-card border rounded-2xl rounded-tl-sm px-4 py-3">
-          <div className="flex items-center gap-3">
-            {state === 'thinking' && (
-              <Brain className="h-4 w-4 text-purple-500 animate-pulse" />
-            )}
-            {state === 'generating' && (
-              <Loader2 className="h-4 w-4 animate-spin text-primary" />
-            )}
-            <span className="text-sm text-muted-foreground">{messages[state]}</span>
-            <div className="flex gap-1">
-              <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-              <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-              <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-});
-
-// ============================================================================
 // Empty State with suggestions
 // ============================================================================
 
@@ -465,7 +419,6 @@ export function QueryInterface() {
   const { t } = useTranslation();
   const [input, setInput] = useState('');
   const [streamingState, setStreamingState] = useState<StreamingState>('idle');
-  const [currentStreamingId, setCurrentStreamingId] = useState<string | null>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollAnchorRef = useRef<HTMLDivElement>(null);
@@ -475,26 +428,38 @@ export function QueryInterface() {
 
   const { querySettings, setQuerySettings } = useSettingsStore();
   const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
-  const { 
-    addToHistory, 
-    toggleFavorite, 
-    removeFromHistory,
-    conversationMessages: messages,
-    setConversationMessages: setMessages,
-    addConversationMessage,
-    updateConversationMessage,
-    clearConversation,
-  } = useQueryStore();
-  const recentQueries = useRecentQueries(10);
-  const favoriteQueries = useFavoriteQueries();
+  
+  // Use the new conversation store
+  const {
+    activeConversationId,
+    createConversation,
+    addMessage,
+    updateMessage,
+    autoTitleConversation,
+    clearActiveConversation,
+  } = useConversationStore();
+  
+  const activeConversation = useActiveConversation();
+  
+  // Memoize messages to avoid dependency issues with hooks
+  const messages = useMemo(() => activeConversation?.messages ?? [], [activeConversation?.messages]);
 
-  // Clear conversation when tenant or workspace changes (TC-UI-003 fix)
+  // Wrapper to maintain API compatibility
+  const setMessages = useCallback((msgs: Message[]) => {
+    // For setMessages, we need to clear and re-add
+    // This is less efficient but maintains compatibility
+    clearActiveConversation();
+    msgs.forEach(m => addMessage(m));
+  }, [clearActiveConversation, addMessage]);
+
+  // Handle tenant/workspace change - create a new conversation
   useEffect(() => {
-    // Only clear if there are messages to avoid showing unnecessary toast on initial load
+    // Only handle context change if there are messages
     if (messages.length > 0) {
-      clearConversation();
-      toast(t('query.conversationCleared', 'Conversation cleared'), {
-        description: t('query.conversationClearedDesc', 'Chat history has been cleared due to context change'),
+      // Create a new conversation for the new context
+      createConversation(selectedTenantId ?? undefined, selectedWorkspaceId ?? undefined);
+      toast(t('query.conversationCleared', 'New conversation started'), {
+        description: t('query.conversationClearedDesc', 'Context has changed. Starting a fresh conversation.'),
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -545,9 +510,8 @@ export function QueryInterface() {
     setStreamingState('idle');
   }, []);
 
-  const handleStreamQuery = async (queryText: string) => {
+  const handleStreamQuery = useCallback(async (queryText: string) => {
     const messageId = crypto.randomUUID();
-    setCurrentStreamingId(messageId);
     setStreamingState('thinking');
     thinkingStartRef.current = Date.now();
     abortControllerRef.current = new AbortController();
@@ -561,7 +525,7 @@ export function QueryInterface() {
       isStreaming: true,
       timestamp: Date.now(),
     };
-    addConversationMessage(assistantMessage);
+    addMessage(assistantMessage);
 
     try {
       let fullContent = '';
@@ -592,7 +556,7 @@ export function QueryInterface() {
             setStreamingState('generating');
           }
 
-          updateConversationMessage(messageId, { content: fullContent, thinkingTimeMs });
+          updateMessage(messageId, { content: fullContent, thinkingTimeMs });
         } else if (chunk.type === 'context' && chunk.context) {
           context = chunk.context;
         } else if (chunk.type === 'done') {
@@ -604,7 +568,7 @@ export function QueryInterface() {
       }
 
       // Finalize message using store action
-      updateConversationMessage(messageId, {
+      updateMessage(messageId, {
         content: fullContent,
         isStreaming: false,
         tokensUsed,
@@ -613,12 +577,10 @@ export function QueryInterface() {
         context,
       });
 
-      addToHistory({
-        query: queryText,
-        mode: querySettings.mode,
-        response: fullContent,
-        isFavorite: false,
-      });
+      // Auto-title the conversation after first exchange
+      if (activeConversationId && messages.length <= 1) {
+        autoTitleConversation(activeConversationId);
+      }
 
       setStreamingState('complete');
     } catch (error) {
@@ -638,15 +600,14 @@ export function QueryInterface() {
       });
 
       // Update error message using store action
-      updateConversationMessage(messageId, { content: errorMessage, isStreaming: false, isError: true });
+      updateMessage(messageId, { content: errorMessage, isStreaming: false, isError: true });
 
       setStreamingState('error');
     } finally {
-      setCurrentStreamingId(null);
       abortControllerRef.current = null;
       thinkingStartRef.current = null;
     }
-  };
+  }, [querySettings, addMessage, updateMessage, activeConversationId, messages.length, autoTitleConversation, t]);
 
   const queryMutation = useMutation({
     mutationFn: async (queryText: string) => {
@@ -659,9 +620,9 @@ export function QueryInterface() {
         stream: false,
       });
     },
-    onSuccess: (data, queryText) => {
+    onSuccess: (data) => {
       // Add assistant response using store action
-      addConversationMessage({
+      addMessage({
         id: crypto.randomUUID(),
         role: 'assistant',
         content: data.answer,
@@ -672,12 +633,10 @@ export function QueryInterface() {
         timestamp: Date.now(),
       });
 
-      addToHistory({
-        query: queryText,
-        mode: data.mode,
-        response: data.answer,
-        isFavorite: false,
-      });
+      // Auto-title the conversation after first exchange
+      if (activeConversationId && messages.length <= 1) {
+        autoTitleConversation(activeConversationId);
+      }
     },
     onError: (error) => {
       toast.error(t('query.failed', 'Query failed'), {
@@ -705,8 +664,13 @@ export function QueryInterface() {
       inputRef.current.style.height = 'auto';
     }
 
+    // Create a new conversation if none exists
+    if (!activeConversationId) {
+      createConversation(selectedTenantId ?? undefined, selectedWorkspaceId ?? undefined);
+    }
+
     // Add user message using store action
-    addConversationMessage({
+    addMessage({
       id: crypto.randomUUID(),
       role: 'user',
       content: queryText,
@@ -736,7 +700,7 @@ export function QueryInterface() {
     setTimeout(() => {
       handleStreamQuery(lastUserMessage.content);
     }, 0);
-  }, [messages, setMessages, querySettings]);
+  }, [messages, setMessages, handleStreamQuery]);
 
   // Handle suggestion click
   const handleSuggestionClick = useCallback((text: string) => {
@@ -744,10 +708,12 @@ export function QueryInterface() {
     inputRef.current?.focus();
   }, []);
 
-  const handleHistoryClick = (query: string) => {
-    setInput(query);
-    inputRef.current?.focus();
-  };
+  // Handle new conversation
+  const handleNewConversation = useCallback(() => {
+    createConversation(selectedTenantId ?? undefined, selectedWorkspaceId ?? undefined);
+    setInput('');
+    setStreamingState('idle');
+  }, [createConversation, selectedTenantId, selectedWorkspaceId]);
 
   const isLoading = streamingState === 'thinking' || streamingState === 'generating' || queryMutation.isPending;
 
@@ -756,7 +722,7 @@ export function QueryInterface() {
       {/* Main Query Area */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between border-b px-4 py-3 flex-shrink-0">
+        <div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
           <div>
             <h1 className="text-lg font-semibold">{t('query.title', 'Query')}</h1>
             <p className="text-sm text-muted-foreground">
@@ -768,13 +734,8 @@ export function QueryInterface() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                setMessages([]);
-                setInput('');
-                setCurrentStreamingId(null);
-                setStreamingState('idle');
-              }}
-              disabled={isLoading || messages.length === 0}
+              onClick={handleNewConversation}
+              disabled={isLoading}
               className="gap-1"
             >
               <Plus className="h-4 w-4" />
@@ -1060,100 +1021,8 @@ export function QueryInterface() {
         </div>
       </div>
 
-      {/* History Sidebar */}
-      <aside className="w-72 border-l bg-card flex-shrink-0 min-h-0 overflow-hidden" aria-label={t('query.history.title', 'Query history')}>
-        <ScrollArea className="h-full">
-          <div className="p-4 space-y-4">
-          {/* Favorites */}
-          {favoriteQueries.length > 0 && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Star className="h-4 w-4" />
-                  Favorites
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {favoriteQueries.slice(0, 5).map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-start gap-2 text-sm cursor-pointer hover:bg-muted p-2 rounded"
-                    onClick={() => handleHistoryClick(item.query)}
-                  >
-                    <span className="flex-1 truncate">{item.query}</span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleFavorite(item.id);
-                      }}
-                    >
-                      <Star className="h-3 w-3 fill-current" />
-                    </Button>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Recent */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <History className="h-4 w-4" />
-                Recent
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {recentQueries.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No recent queries</p>
-              ) : (
-                recentQueries.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-start gap-2 text-sm cursor-pointer hover:bg-muted p-2 rounded"
-                    onClick={() => handleHistoryClick(item.query)}
-                  >
-                    <span className="flex-1 truncate">{item.query}</span>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleFavorite(item.id);
-                        }}
-                        aria-label={item.isFavorite ? t('query.history.unfavorite', 'Remove from favorites') : t('query.history.favorite', 'Add to favorites')}
-                      >
-                        <Star
-                          className={`h-3 w-3 ${item.isFavorite ? 'fill-current' : ''}`}
-                          aria-hidden="true"
-                        />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeFromHistory(item.id);
-                        }}
-                        aria-label={t('query.history.remove', 'Remove from history')}
-                      >
-                        <Trash2 className="h-3 w-3" aria-hidden="true" />
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        </div>
-        </ScrollArea>
-      </aside>
+      {/* Conversation History Panel - New collapsible component */}
+      <ConversationHistoryPanel />
     </div>
   );
 }

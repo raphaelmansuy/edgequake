@@ -4,12 +4,14 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -29,6 +31,8 @@ import {
     reprocessDocument,
     uploadDocument,
 } from '@/lib/api/edgequake';
+import { cn } from '@/lib/utils';
+import { useSettingsStore } from '@/stores/use-settings-store';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { Document } from '@/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -37,11 +41,13 @@ import {
     AlertCircle,
     CheckCircle,
     Clock,
+    Eye,
     FileSearch,
     FileText,
     Loader2,
     MoreVertical,
     RefreshCw,
+    Search,
     Sparkles,
     Trash2,
     Upload,
@@ -56,11 +62,13 @@ import { toast } from 'sonner';
 import { BatchProgressCard } from './batch-progress-card';
 import { ClearDocumentsDialog } from './clear-documents-dialog';
 import { DocumentFilters, type DocStatus, type SortDirection, type SortField } from './document-filters';
+import { DocumentPreviewPanel } from './document-preview-panel';
 import { PaginationControls } from './pagination-controls';
 import { PipelineStatusDialog } from './pipeline-status-dialog';
 import { ReprocessFailedButton } from './reprocess-failed-button';
 import { ResetDocumentStatusButton } from './reset-document-status-button';
 import { ScanDocumentsButton } from './scan-documents-button';
+import { RightPanel } from '@/components/layout/right-panel';
 
 // Track upload progress and errors for files
 interface UploadingFile {
@@ -101,8 +109,15 @@ export function DocumentManager() {
   // Get tenant context for query key
   const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
   
-  // TODO: Implement bulk selection in future
-  // const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  
+  // Selected document for preview panel
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
+  const [previewPanelOpen, setPreviewPanelOpen] = useState(false);
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -442,11 +457,27 @@ export function DocumentManager() {
 
   // Filter documents client-side (fallback when backend doesn't support filtering)
   const filterDocuments = (docs: Document[]): Document[] => {
-    if (statusFilter === 'all') return docs;
-    return docs.filter((doc) => {
-      const docStatus = doc.status || 'completed'; // Default to completed if no status
-      return docStatus === statusFilter;
-    });
+    let filtered = docs;
+    
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter((doc) => {
+        const title = doc.title?.toLowerCase() || '';
+        const fileName = doc.file_name?.toLowerCase() || '';
+        return title.includes(query) || fileName.includes(query) || doc.id.includes(query);
+      });
+    }
+    
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((doc) => {
+        const docStatus = doc.status || 'completed';
+        return docStatus === statusFilter;
+      });
+    }
+    
+    return filtered;
   };
 
   // Sort documents client-side for now
@@ -502,6 +533,90 @@ export function DocumentManager() {
     failed: allDocuments.filter((d) => d.status === 'failed').length,
   };
 
+  // Bulk selection handlers
+  const handleSelectAll = useCallback((checked: boolean) => {
+    if (checked) {
+      setSelectedIds(new Set(documents.map(d => d.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  }, [documents]);
+
+  const handleSelectOne = useCallback((docId: string, checked: boolean) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(docId);
+      } else {
+        next.delete(docId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleBulkDelete = useCallback(async () => {
+    const idsToDelete = Array.from(selectedIds);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const id of idsToDelete) {
+      try {
+        await deleteDocument(id);
+        successCount++;
+      } catch {
+        errorCount++;
+      }
+    }
+
+    if (successCount > 0) {
+      toast.success(t('documents.bulk.deleteSuccess', { count: successCount }) || `Deleted ${successCount} document(s)`);
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+    }
+    if (errorCount > 0) {
+      toast.error(t('documents.bulk.deleteFailed', { count: errorCount }) || `Failed to delete ${errorCount} document(s)`);
+    }
+    setSelectedIds(new Set());
+  }, [selectedIds, queryClient, t]);
+
+  const handleBulkReprocess = useCallback(async () => {
+    const idsToReprocess = Array.from(selectedIds);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const id of idsToReprocess) {
+      try {
+        await reprocessDocument(id);
+        successCount++;
+      } catch {
+        errorCount++;
+      }
+    }
+
+    if (successCount > 0) {
+      toast.success(t('documents.bulk.reprocessSuccess', { count: successCount }) || `Queued ${successCount} document(s) for reprocessing`);
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+    }
+    if (errorCount > 0) {
+      toast.error(t('documents.bulk.reprocessFailed', { count: errorCount }) || `Failed to queue ${errorCount} document(s)`);
+    }
+    setSelectedIds(new Set());
+  }, [selectedIds, queryClient, t]);
+
+  // Document selection for preview panel
+  const handleDocumentClick = useCallback((doc: Document) => {
+    setSelectedDocument(doc);
+    setPreviewPanelOpen(true);
+  }, []);
+
+  const handlePreviewClose = useCallback(() => {
+    setSelectedDocument(null);
+    setPreviewPanelOpen(false);
+  }, []);
+
+  const handleViewInGraph = useCallback((doc: Document) => {
+    router.push(`/graph?entity=${encodeURIComponent(doc.id)}`);
+  }, [router]);
+
   if (isError) {
     return (
       <div className="p-6">
@@ -520,49 +635,51 @@ export function DocumentManager() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">{t('documents.title')}</h1>
-          <p className="text-muted-foreground">
-            {t('documents.subtitle')}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Pipeline Status */}
-          {pipelineStatus?.is_busy && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPipelineDialogOpen(true)}
-              className="gap-1 text-orange-500"
-            >
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {t('pipeline.busy')}
-            </Button>
-          )}
-          <PipelineStatusDialog
-            open={pipelineDialogOpen}
-            onOpenChange={setPipelineDialogOpen}
-          />
-          
-          {/* Scan Documents Button (GAP-UI-001) */}
-          <ScanDocumentsButton
-            onScanStarted={(trackId) => {
-              setActiveTrackId(trackId);
-              setPipelineDialogOpen(true);
-            }}
-          />
-          
-          {/* Reprocess Failed Button (GAP-UI-002) */}
-          <ReprocessFailedButton
-            failedCount={statusCounts.failed}
-            onReprocessStarted={(trackId) => {
-              setActiveTrackId(trackId);
-              setPipelineDialogOpen(true);
-            }}
-          />
+    <div className="flex h-full">
+      {/* Main Content */}
+      <div className="flex-1 p-6 space-y-6 overflow-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">{t('documents.title')}</h1>
+            <p className="text-muted-foreground">
+              {t('documents.subtitle')}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Pipeline Status */}
+            {pipelineStatus?.is_busy && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPipelineDialogOpen(true)}
+                className="gap-1 text-orange-500"
+              >
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {t('pipeline.busy')}
+              </Button>
+            )}
+            <PipelineStatusDialog
+              open={pipelineDialogOpen}
+              onOpenChange={setPipelineDialogOpen}
+            />
+            
+            {/* Scan Documents Button (GAP-UI-001) */}
+            <ScanDocumentsButton
+              onScanStarted={(trackId) => {
+                setActiveTrackId(trackId);
+                setPipelineDialogOpen(true);
+              }}
+            />
+            
+            {/* Reprocess Failed Button (GAP-UI-002) */}
+            <ReprocessFailedButton
+              failedCount={statusCounts.failed}
+              onReprocessStarted={(trackId) => {
+                setActiveTrackId(trackId);
+                setPipelineDialogOpen(true);
+              }}
+            />
           
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4 mr-1" />
@@ -577,16 +694,52 @@ export function DocumentManager() {
         </div>
       </div>
       
-      {/* Filters */}
-      <DocumentFilters
-        status={statusFilter}
-        onStatusChange={setStatusFilter}
-        sortField={sortField}
-        onSortFieldChange={setSortField}
-        sortDirection={sortDirection}
-        onSortDirectionChange={setSortDirection}
-        statusCounts={statusCounts}
-      />
+      {/* Search and Filters */}
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder={t('documents.search.placeholder', 'Search documents...')}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <DocumentFilters
+          status={statusFilter}
+          onStatusChange={setStatusFilter}
+          sortField={sortField}
+          onSortFieldChange={setSortField}
+          sortDirection={sortDirection}
+          onSortDirectionChange={setSortDirection}
+          statusCounts={statusCounts}
+        />
+      </div>
+
+      {/* Bulk Actions Bar */}
+      {selectedIds.size > 0 && (
+        <Card className="bg-muted/50">
+          <CardContent className="flex items-center justify-between py-3 px-4">
+            <span className="text-sm font-medium">
+              {t('documents.bulk.selected', { count: selectedIds.size }) || `${selectedIds.size} document(s) selected`}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleBulkReprocess}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                {t('documents.bulk.reprocess', 'Reprocess')}
+              </Button>
+              <Button variant="outline" size="sm" className="text-destructive" onClick={handleBulkDelete}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                {t('documents.bulk.delete', 'Delete')}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+                <X className="h-4 w-4 mr-2" />
+                {t('documents.bulk.clear', 'Clear')}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Upload Zone */}
       <Card>
@@ -781,16 +934,37 @@ export function DocumentManager() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[40px]">
+                    <Checkbox
+                      checked={selectedIds.size === documents.length && documents.length > 0}
+                      onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                      aria-label={t('documents.bulk.selectAll', 'Select all')}
+                    />
+                  </TableHead>
                   <TableHead>Title</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Entities</TableHead>
                   <TableHead>Created</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
+                  <TableHead className="w-[100px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {documents.map((doc) => (
-                  <TableRow key={doc.id}>
+                  <TableRow 
+                    key={doc.id}
+                    className={cn(
+                      "cursor-pointer hover:bg-muted/50",
+                      selectedDocument?.id === doc.id && "bg-muted"
+                    )}
+                    onClick={() => handleDocumentClick(doc)}
+                  >
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selectedIds.has(doc.id)}
+                        onCheckedChange={(checked) => handleSelectOne(doc.id, !!checked)}
+                        aria-label={t('documents.bulk.select', 'Select')}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">
                       {doc.title || doc.file_name || `Document ${doc.id.slice(0, 8)}`}
                     </TableCell>
@@ -803,34 +977,44 @@ export function DocumentManager() {
                         ? formatDistanceToNow(new Date(doc.created_at), { addSuffix: true })
                         : '-'}
                     </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {doc.status === 'failed' && (
-                            <DropdownMenuItem asChild>
-                              <div className="p-0">
-                                <ResetDocumentStatusButton document={doc} iconOnly={false} size="sm" />
-                              </div>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-1 justify-end">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleDocumentClick(doc)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {doc.status === 'failed' && (
+                              <DropdownMenuItem asChild>
+                                <div className="p-0">
+                                  <ResetDocumentStatusButton document={doc} iconOnly={false} size="sm" />
+                                </div>
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onClick={() => reprocessMutation.mutate(doc.id)}>
+                              <RefreshCw className="h-4 w-4 mr-2" />
+                              {t('documents.actions.reprocess')}
                             </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem onClick={() => reprocessMutation.mutate(doc.id)}>
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            {t('documents.actions.reprocess')}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => deleteMutation.mutate(doc.id)}
-                            className="text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            {t('documents.actions.delete')}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            <DropdownMenuItem
+                              onClick={() => deleteMutation.mutate(doc.id)}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              {t('documents.actions.delete')}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -855,6 +1039,33 @@ export function DocumentManager() {
           )}
         </CardContent>
       </Card>
+      </div>
+
+      {/* Right Panel - Document Preview */}
+      <RightPanel
+        isOpen={previewPanelOpen}
+        onToggle={() => setPreviewPanelOpen(!previewPanelOpen)}
+        onClose={handlePreviewClose}
+        title={selectedDocument ? (selectedDocument.title || selectedDocument.file_name || `Document ${selectedDocument.id.slice(0, 8)}`) : t('documents.preview.title', 'Document Preview')}
+        subtitle={selectedDocument?.id ? `ID: ${selectedDocument.id.slice(0, 12)}...` : undefined}
+        width="wide"
+        showCollapsedBar={true}
+        collapsedLabel={t('documents.preview.panelLabel', 'Preview')}
+        headerIcon={<FileText className="h-4 w-4" />}
+      >
+        <DocumentPreviewPanel
+          document={selectedDocument}
+          onDelete={(id) => {
+            deleteMutation.mutate(id);
+            handlePreviewClose();
+          }}
+          onReprocess={(id) => reprocessMutation.mutate(id)}
+          onViewFull={(doc) => router.push(`/documents/${doc.id}`)}
+          onViewInGraph={handleViewInGraph}
+          isDeleting={deleteMutation.isPending}
+          isReprocessing={reprocessMutation.isPending}
+        />
+      </RightPanel>
     </div>
   );
 }

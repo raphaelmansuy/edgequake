@@ -21,6 +21,7 @@ import { LayoutControl } from './layout-control';
 import { NodeContextMenu, useNodeContextMenu } from './node-context-menu';
 import { NodeDetails } from './node-details';
 import { ZoomControls } from './zoom-controls';
+import { EntityBrowserPanel } from './entity-browser-panel';
 
 export function GraphViewer() {
   const {
@@ -179,8 +180,11 @@ export function GraphViewer() {
 
   return (
     <div className="flex h-full">
+      {/* Left Entity Browser */}
+      <EntityBrowserPanel />
+
       {/* Main Graph Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Toolbar */}
         <div className="flex items-center justify-between border-b px-4 py-2">
           <div className="flex items-center gap-2">
