@@ -27,6 +27,7 @@ import {
 import { query as queryApi, queryStream } from '@/lib/api/edgequake';
 import { useFavoriteQueries, useQueryStore, useRecentQueries, type ChatMessage } from '@/stores/use-query-store';
 import { useSettingsStore } from '@/stores/use-settings-store';
+import { useTenantStore } from '@/stores/use-tenant-store';
 import type { QueryContext } from '@/types';
 import { useMutation } from '@tanstack/react-query';
 import {
@@ -473,6 +474,7 @@ export function QueryInterface() {
   const thinkingStartRef = useRef<number | null>(null);
 
   const { querySettings, setQuerySettings } = useSettingsStore();
+  const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
   const { 
     addToHistory, 
     toggleFavorite, 
@@ -485,6 +487,18 @@ export function QueryInterface() {
   } = useQueryStore();
   const recentQueries = useRecentQueries(10);
   const favoriteQueries = useFavoriteQueries();
+
+  // Clear conversation when tenant or workspace changes (TC-UI-003 fix)
+  useEffect(() => {
+    // Only clear if there are messages to avoid showing unnecessary toast on initial load
+    if (messages.length > 0) {
+      clearConversation();
+      toast(t('query.conversationCleared', 'Conversation cleared'), {
+        description: t('query.conversationClearedDesc', 'Chat history has been cleared due to context change'),
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTenantId, selectedWorkspaceId]);
 
   // Smart scroll to bottom when messages change - only if user hasn't scrolled up
   useEffect(() => {

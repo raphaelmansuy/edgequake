@@ -61,7 +61,11 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
     }
 
     /// Set tenant and workspace IDs.
-    pub fn with_tenant_context(mut self, tenant_id: Option<String>, workspace_id: Option<String>) -> Self {
+    pub fn with_tenant_context(
+        mut self,
+        tenant_id: Option<String>,
+        workspace_id: Option<String>,
+    ) -> Self {
         self.tenant_id = tenant_id;
         self.workspace_id = workspace_id;
         self
@@ -188,7 +192,10 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
         }
 
         // Check if edge exists
-        let existing = self.graph_storage.get_edge(&source_key, &target_key).await?;
+        let existing = self
+            .graph_storage
+            .get_edge(&source_key, &target_key)
+            .await?;
 
         match existing {
             Some(mut edge) => {
@@ -215,11 +222,7 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
     }
 
     /// Update an existing entity node with new information.
-    fn update_entity_node(
-        &self,
-        node: &mut GraphNode,
-        entity: &ExtractedEntity,
-    ) -> Result<()> {
+    fn update_entity_node(&self, node: &mut GraphNode, entity: &ExtractedEntity) -> Result<()> {
         // Merge descriptions
         let existing_desc = node
             .properties
@@ -264,10 +267,8 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
             }
         }
 
-        node.properties.insert(
-            "sources".to_string(),
-            serde_json::json!(sources),
-        );
+        node.properties
+            .insert("sources".to_string(), serde_json::json!(sources));
 
         Ok(())
     }
@@ -370,10 +371,8 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
             }
         }
 
-        edge.properties.insert(
-            "keywords".to_string(),
-            serde_json::json!(keywords),
-        );
+        edge.properties
+            .insert("keywords".to_string(), serde_json::json!(keywords));
 
         Ok(())
     }
@@ -398,10 +397,7 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
             "weight".to_string(),
             serde_json::Value::Number(serde_json::Number::from_f64(rel.weight as f64).unwrap()),
         );
-        properties.insert(
-            "keywords".to_string(),
-            serde_json::json!(rel.keywords),
-        );
+        properties.insert("keywords".to_string(), serde_json::json!(rel.keywords));
         properties.insert(
             "relation_type".to_string(),
             serde_json::Value::String(rel.relation_type.clone()),

@@ -293,7 +293,9 @@ impl TenantRAGManager {
                 "User authentication required for tenant access",
             ));
         } else {
-            tracing::warn!("No user_id provided for tenant access - allowing for backward compatibility");
+            tracing::warn!(
+                "No user_id provided for tenant access - allowing for backward compatibility"
+            );
         }
 
         // SECURITY: Create and validate tenant-specific working directory
@@ -481,12 +483,8 @@ mod tests {
     #[test]
     fn test_validate_identifier() {
         let tenant_service = Arc::new(InMemoryTenantService::new());
-        let manager = TenantRAGManager::new(
-            "/tmp/test",
-            tenant_service,
-            EdgeQuakeConfig::default(),
-            100,
-        );
+        let manager =
+            TenantRAGManager::new("/tmp/test", tenant_service, EdgeQuakeConfig::default(), 100);
 
         // Valid identifiers
         assert!(manager.validate_identifier("tenant-123", "test").is_ok());
@@ -495,7 +493,9 @@ mod tests {
 
         // Invalid identifiers
         assert!(manager.validate_identifier("", "test").is_err());
-        assert!(manager.validate_identifier("../etc/passwd", "test").is_err());
+        assert!(manager
+            .validate_identifier("../etc/passwd", "test")
+            .is_err());
         assert!(manager.validate_identifier("tenant/kb", "test").is_err());
         assert!(manager.validate_identifier("tenant\\kb", "test").is_err());
     }
@@ -515,9 +515,7 @@ mod tests {
         let service = InMemoryTenantService::new();
 
         // Add tenant
-        service
-            .add_tenant(TenantConfig::new("tenant1"))
-            .await;
+        service.add_tenant(TenantConfig::new("tenant1")).await;
 
         // Grant access
         service.grant_access("user1", "tenant1").await;
@@ -527,10 +525,16 @@ mod tests {
         assert!(tenant.is_some());
         assert_eq!(tenant.unwrap().tenant_id, "tenant1");
 
-        let has_access = service.verify_user_access("user1", "tenant1").await.unwrap();
+        let has_access = service
+            .verify_user_access("user1", "tenant1")
+            .await
+            .unwrap();
         assert!(has_access);
 
-        let no_access = service.verify_user_access("user2", "tenant1").await.unwrap();
+        let no_access = service
+            .verify_user_access("user2", "tenant1")
+            .await
+            .unwrap();
         assert!(!no_access);
     }
 }
