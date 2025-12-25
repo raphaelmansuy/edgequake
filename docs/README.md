@@ -87,9 +87,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 curl http://localhost:8080/health
 
 # Insert document
-curl -X POST http://localhost:8080/api/v1/documents/text \
+curl -X POST http://localhost:8080/api/v1/documents \
   -H "Content-Type: application/json" \
-  -d '{"text": "Document content..."}'
+  -d '{"content": "Document content...", "title": "My Document"}'
 
 # Query
 curl -X POST http://localhost:8080/api/v1/query \

@@ -34,7 +34,7 @@ EdgeQuake is a high-performance **Graph-Enhanced Retrieval-Augmented Generation 
 
 ### Prerequisites
 
-- Rust 1.75+ (via [rustup](https://rustup.rs/))
+- Rust 1.78+ (via [rustup](https://rustup.rs/))
 - Node.js 20+ and npm (for WebUI)
 - PostgreSQL 15+ (optional, for production)
 - OpenAI API key (or compatible provider)
@@ -425,7 +425,7 @@ cargo fmt --check
 | Issue                           | Solution                                       |
 | ------------------------------- | ---------------------------------------------- |
 | `OPENAI_API_KEY not set`        | Export API key: `export OPENAI_API_KEY=sk-xxx` |
-| Build fails                     | Ensure Rust 1.75+: `rustup update`             |
+| Build fails                     | Ensure Rust 1.78+: `rustup update`             |
 | Connection refused on port 8080 | Check if server is running                     |
 | WebUI shows "Network Error"     | Set `NEXT_PUBLIC_API_URL` correctly            |
 | Slow processing                 | Use async_processing: true for large docs      |

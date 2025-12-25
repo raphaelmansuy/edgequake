@@ -14,13 +14,18 @@
 2. [Health Endpoints](#health-endpoints)
 3. [Ollama Emulation API](#ollama-emulation-api)
 4. [Authentication](#authentication)
-5. [Document Endpoints](#document-endpoints)
-6. [Query Endpoints](#query-endpoints)
-7. [Graph Endpoints](#graph-endpoints)
-8. [Entity Endpoints](#entity-endpoints)
-9. [Relationship Endpoints](#relationship-endpoints)
-10. [Task Endpoints](#task-endpoints)
-11. [Error Handling](#error-handling)
+5. [User Endpoints](#user-endpoints)
+6. [API Key Endpoints](#api-key-endpoints)
+7. [Tenant Endpoints](#tenant-endpoints)
+8. [Workspace Endpoints](#workspace-endpoints)
+9. [Document Endpoints](#document-endpoints)
+10. [Query Endpoints](#query-endpoints)
+11. [Graph Endpoints](#graph-endpoints)
+12. [Entity Endpoints](#entity-endpoints)
+13. [Relationship Endpoints](#relationship-endpoints)
+14. [Task Endpoints](#task-endpoints)
+15. [Pipeline Endpoints](#pipeline-endpoints)
+16. [Error Handling](#error-handling)
 
 ---
 
@@ -41,10 +46,16 @@ http://localhost:8080
 │   ├── generate     # Text generation
 │   └── chat         # Chat completion
 └── /api/v1/         # API version 1
+    ├── auth/        # Authentication
+    ├── users/       # User management
+    ├── api-keys/    # API key management
+    ├── tenants/     # Tenant management
+    ├── workspaces/  # Workspace management
     ├── documents/   # Document management
     ├── query/       # Query execution
     ├── graph/       # Knowledge graph
-    └── tasks/       # Task management
+    ├── tasks/       # Task management
+    └── pipeline/    # Pipeline control
 ```
 
 ### Content Type
@@ -356,6 +367,410 @@ Get current user information.
 ```http
 GET /api/v1/auth/me
 Authorization: Bearer <token>
+```
+
+---
+
+## User Endpoints
+
+> **Code Reference**: [edgequake/crates/edgequake-api/src/handlers/auth.rs](../edgequake/crates/edgequake-api/src/handlers/auth.rs)
+
+### POST `/api/v1/users`
+
+Create a new user.
+
+```http
+POST /api/v1/users
+Content-Type: application/json
+Authorization: Bearer <token>
+```
+
+**Request Body**
+
+```json
+{
+  "username": "newuser",
+  "email": "newuser@example.com",
+  "password": "securepassword",
+  "role": "user"
+}
+```
+
+| Field      | Type   | Required | Default | Description                              |
+| ---------- | ------ | -------- | ------- | ---------------------------------------- |
+| `username` | string | ✅       | -       | Unique username                          |
+| `email`    | string | ✅       | -       | User email address                       |
+| `password` | string | ✅       | -       | User password                            |
+| `role`     | string | ❌       | `user`  | Role: `admin`, `user`, or `readonly`     |
+
+**Response (201 Created)**
+
+```json
+{
+  "user_id": "user-550e8400",
+  "username": "newuser",
+  "email": "newuser@example.com",
+  "role": "user",
+  "is_active": true,
+  "created_at": "2025-12-25T14:30:00Z"
+}
+```
+
+### GET `/api/v1/users`
+
+List all users with pagination.
+
+```http
+GET /api/v1/users?offset=0&limit=20
+Authorization: Bearer <token>
+```
+
+**Query Parameters**
+
+| Parameter | Type | Default | Description      |
+| --------- | ---- | ------- | ---------------- |
+| `offset`  | int  | 0       | Pagination offset|
+| `limit`   | int  | 20      | Items per page   |
+
+**Response**
+
+```json
+{
+  "users": [
+    {
+      "user_id": "user-123",
+      "username": "admin",
+      "email": "admin@example.com",
+      "role": "admin",
+      "is_active": true,
+      "created_at": "2025-12-24T10:00:00Z"
+    }
+  ],
+  "total": 1,
+  "offset": 0,
+  "limit": 20
+}
+```
+
+### GET `/api/v1/users/{user_id}`
+
+Get user details by ID.
+
+```http
+GET /api/v1/users/user-123
+Authorization: Bearer <token>
+```
+
+### DELETE `/api/v1/users/{user_id}`
+
+Delete a user.
+
+```http
+DELETE /api/v1/users/user-123
+Authorization: Bearer <token>
+```
+
+---
+
+## API Key Endpoints
+
+> **Code Reference**: [edgequake/crates/edgequake-api/src/handlers/auth.rs](../edgequake/crates/edgequake-api/src/handlers/auth.rs)
+
+### POST `/api/v1/api-keys`
+
+Create a new API key.
+
+```http
+POST /api/v1/api-keys
+Content-Type: application/json
+Authorization: Bearer <token>
+```
+
+**Request Body**
+
+```json
+{
+  "name": "Production API Key",
+  "expires_in_days": 365
+}
+```
+
+**Response (201 Created)**
+
+```json
+{
+  "key_id": "key-550e8400",
+  "name": "Production API Key",
+  "api_key": "eq_live_abc123...",
+  "created_at": "2025-12-25T14:30:00Z",
+  "expires_at": "2026-12-25T14:30:00Z"
+}
+```
+
+> ⚠️ **Important**: The `api_key` value is only shown once upon creation. Store it securely.
+
+### GET `/api/v1/api-keys`
+
+List all API keys for the current user.
+
+```http
+GET /api/v1/api-keys
+Authorization: Bearer <token>
+```
+
+**Response**
+
+```json
+{
+  "api_keys": [
+    {
+      "key_id": "key-550e8400",
+      "name": "Production API Key",
+      "key_prefix": "eq_live_abc...",
+      "created_at": "2025-12-25T14:30:00Z",
+      "expires_at": "2026-12-25T14:30:00Z",
+      "last_used_at": "2025-12-25T15:00:00Z"
+    }
+  ]
+}
+```
+
+### DELETE `/api/v1/api-keys/{key_id}`
+
+Revoke an API key.
+
+```http
+DELETE /api/v1/api-keys/key-550e8400
+Authorization: Bearer <token>
+```
+
+---
+
+## Tenant Endpoints
+
+> **Code Reference**: [edgequake/crates/edgequake-api/src/handlers/workspaces.rs](../edgequake/crates/edgequake-api/src/handlers/workspaces.rs)
+
+### POST `/api/v1/tenants`
+
+Create a new tenant.
+
+```http
+POST /api/v1/tenants
+Content-Type: application/json
+Authorization: Bearer <token>
+```
+
+**Request Body**
+
+```json
+{
+  "name": "Acme Corporation",
+  "slug": "acme-corp",
+  "description": "Production tenant for Acme",
+  "plan": "pro"
+}
+```
+
+| Field         | Type   | Required | Default | Description                              |
+| ------------- | ------ | -------- | ------- | ---------------------------------------- |
+| `name`        | string | ✅       | -       | Tenant name                              |
+| `slug`        | string | ❌       | auto    | URL-friendly identifier                  |
+| `description` | string | ❌       | null    | Tenant description                       |
+| `plan`        | string | ❌       | `free`  | Plan: `free`, `basic`, `pro`, `enterprise` |
+
+**Response (201 Created)**
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Acme Corporation",
+  "slug": "acme-corp",
+  "plan": "pro",
+  "is_active": true,
+  "max_workspaces": 10,
+  "created_at": "2025-12-25T14:30:00Z",
+  "updated_at": "2025-12-25T14:30:00Z"
+}
+```
+
+### GET `/api/v1/tenants`
+
+List all tenants.
+
+```http
+GET /api/v1/tenants?offset=0&limit=20
+Authorization: Bearer <token>
+```
+
+**Response**
+
+```json
+{
+  "items": [...],
+  "total": 5,
+  "offset": 0,
+  "limit": 20
+}
+```
+
+### GET `/api/v1/tenants/{tenant_id}`
+
+Get tenant details.
+
+```http
+GET /api/v1/tenants/550e8400-e29b-41d4-a716-446655440000
+Authorization: Bearer <token>
+```
+
+### PUT `/api/v1/tenants/{tenant_id}`
+
+Update a tenant.
+
+```http
+PUT /api/v1/tenants/550e8400-e29b-41d4-a716-446655440000
+Content-Type: application/json
+Authorization: Bearer <token>
+```
+
+**Request Body**
+
+```json
+{
+  "name": "Acme Corp Updated",
+  "description": "Updated description",
+  "plan": "enterprise",
+  "is_active": true
+}
+```
+
+### DELETE `/api/v1/tenants/{tenant_id}`
+
+Delete a tenant and all its workspaces.
+
+```http
+DELETE /api/v1/tenants/550e8400-e29b-41d4-a716-446655440000
+Authorization: Bearer <token>
+```
+
+---
+
+## Workspace Endpoints
+
+> **Code Reference**: [edgequake/crates/edgequake-api/src/handlers/workspaces.rs](../edgequake/crates/edgequake-api/src/handlers/workspaces.rs)
+
+### POST `/api/v1/tenants/{tenant_id}/workspaces`
+
+Create a new workspace within a tenant.
+
+```http
+POST /api/v1/tenants/550e8400-e29b-41d4-a716-446655440000/workspaces
+Content-Type: application/json
+Authorization: Bearer <token>
+```
+
+**Request Body**
+
+```json
+{
+  "name": "Production Workspace",
+  "slug": "production",
+  "description": "Main production environment",
+  "max_documents": 10000
+}
+```
+
+| Field           | Type   | Required | Default | Description                |
+| --------------- | ------ | -------- | ------- | -------------------------- |
+| `name`          | string | ✅       | -       | Workspace name             |
+| `slug`          | string | ❌       | auto    | URL-friendly identifier    |
+| `description`   | string | ❌       | null    | Workspace description      |
+| `max_documents` | int    | ❌       | null    | Maximum documents allowed  |
+
+**Response (201 Created)**
+
+```json
+{
+  "id": "660e8400-e29b-41d4-a716-446655440001",
+  "tenant_id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Production Workspace",
+  "slug": "production",
+  "description": "Main production environment",
+  "is_active": true,
+  "max_documents": 10000,
+  "created_at": "2025-12-25T14:30:00Z",
+  "updated_at": "2025-12-25T14:30:00Z"
+}
+```
+
+### GET `/api/v1/tenants/{tenant_id}/workspaces`
+
+List workspaces within a tenant.
+
+```http
+GET /api/v1/tenants/550e8400-e29b-41d4-a716-446655440000/workspaces?offset=0&limit=20
+Authorization: Bearer <token>
+```
+
+### GET `/api/v1/workspaces/{workspace_id}`
+
+Get workspace details.
+
+```http
+GET /api/v1/workspaces/660e8400-e29b-41d4-a716-446655440001
+Authorization: Bearer <token>
+```
+
+### PUT `/api/v1/workspaces/{workspace_id}`
+
+Update a workspace.
+
+```http
+PUT /api/v1/workspaces/660e8400-e29b-41d4-a716-446655440001
+Content-Type: application/json
+Authorization: Bearer <token>
+```
+
+**Request Body**
+
+```json
+{
+  "name": "Updated Workspace Name",
+  "description": "Updated description",
+  "is_active": true,
+  "max_documents": 20000
+}
+```
+
+### DELETE `/api/v1/workspaces/{workspace_id}`
+
+Delete a workspace and all its data.
+
+```http
+DELETE /api/v1/workspaces/660e8400-e29b-41d4-a716-446655440001
+Authorization: Bearer <token>
+```
+
+### GET `/api/v1/workspaces/{workspace_id}/stats`
+
+Get workspace statistics.
+
+```http
+GET /api/v1/workspaces/660e8400-e29b-41d4-a716-446655440001/stats
+Authorization: Bearer <token>
+```
+
+**Response**
+
+```json
+{
+  "workspace_id": "660e8400-e29b-41d4-a716-446655440001",
+  "document_count": 150,
+  "chunk_count": 750,
+  "entity_count": 500,
+  "relationship_count": 1200,
+  "storage_used_bytes": 52428800,
+  "last_activity_at": "2025-12-25T15:00:00Z"
+}
 ```
 
 ---
@@ -872,6 +1287,40 @@ Authorization: Bearer <token>
 }
 ```
 
+### GET `/api/v1/graph/labels/popular`
+
+Get popular node labels by degree.
+
+```http
+GET /api/v1/graph/labels/popular?limit=10
+Authorization: Bearer <token>
+```
+
+**Query Parameters**
+
+| Parameter | Type | Default | Description              |
+| --------- | ---- | ------- | ------------------------ |
+| `limit`   | int  | 10      | Maximum labels to return |
+
+**Response**
+
+```json
+{
+  "labels": [
+    {
+      "id": "MARIE_CURIE",
+      "node_type": "PERSON",
+      "degree": 15
+    },
+    {
+      "id": "RADIUM",
+      "node_type": "ELEMENT",
+      "degree": 8
+    }
+  ]
+}
+```
+
 ---
 
 ## Entity Endpoints
@@ -1124,6 +1573,71 @@ Retry a failed task.
 ```http
 POST /api/v1/tasks/task_20251224_143000_abc123/retry
 Authorization: Bearer <token>
+```
+
+---
+
+## Pipeline Endpoints
+
+> **Code Reference**: [edgequake/crates/edgequake-api/src/handlers/pipeline.rs](../edgequake/crates/edgequake-api/src/handlers/pipeline.rs)
+
+### GET `/api/v1/pipeline/status`
+
+Get current pipeline processing status.
+
+```http
+GET /api/v1/pipeline/status
+Authorization: Bearer <token>
+```
+
+**Response**
+
+```json
+{
+  "is_busy": true,
+  "job_name": "batch-upload-001",
+  "job_start": "2025-12-25T14:30:00Z",
+  "total_documents": 50,
+  "processed_documents": 25,
+  "current_batch": 3,
+  "total_batches": 5,
+  "latest_message": "Processing document 25 of 50...",
+  "history_messages": [
+    {
+      "timestamp": "2025-12-25T14:30:00Z",
+      "level": "info",
+      "message": "Pipeline started"
+    },
+    {
+      "timestamp": "2025-12-25T14:31:00Z",
+      "level": "info",
+      "message": "Batch 1 completed"
+    }
+  ],
+  "cancellation_requested": false,
+  "pending_tasks": 25,
+  "processing_tasks": 2,
+  "completed_tasks": 23,
+  "failed_tasks": 0
+}
+```
+
+### POST `/api/v1/pipeline/cancel`
+
+Request cancellation of the current pipeline job.
+
+```http
+POST /api/v1/pipeline/cancel
+Authorization: Bearer <token>
+```
+
+**Response**
+
+```json
+{
+  "status": "cancellation_requested",
+  "message": "Pipeline cancellation has been requested. Processing will stop after the current batch."
+}
 ```
 
 ---
