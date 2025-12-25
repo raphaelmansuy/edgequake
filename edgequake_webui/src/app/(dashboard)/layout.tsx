@@ -20,11 +20,15 @@ export default function DashboardLayout({
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header />
-        {/* Breadcrumb Navigation */}
-        <div className="border-b px-6 py-2 bg-muted/30">
+        {/* Breadcrumb Navigation - consistent padding with header */}
+        <div className="border-b px-6 py-3 bg-muted/30">
           <DynamicBreadcrumb />
         </div>
-        <main id="main-content" className="flex-1 overflow-auto" tabIndex={-1}>
+        <main 
+          id="main-content" 
+          className="flex-1 overflow-auto scroll-smooth" 
+          tabIndex={-1}
+        >
           {children}
         </main>
       </div>

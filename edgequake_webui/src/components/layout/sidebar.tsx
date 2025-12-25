@@ -5,10 +5,10 @@ import { TenantWorkspaceSelector } from '@/components/shared/tenant-workspace-se
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useSettingsStore } from '@/stores/use-settings-store';
@@ -47,29 +47,29 @@ function SidebarContent({
         {/* Logo */}
         <div className={cn(
           "flex h-16 items-center border-b",
-          collapsed ? "justify-center px-2" : "px-4"
+          collapsed ? "justify-center px-3" : "px-5"
         )}>
           <Link 
             href="/" 
-            className="flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-lg"
+            className="flex items-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-lg"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary" aria-hidden="true">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary" aria-hidden="true">
               <Network className="h-5 w-5 text-primary-foreground" />
             </div>
-            {!collapsed && <span className="text-xl font-bold">EdgeQuake</span>}
+            {!collapsed && <span className="text-xl font-bold tracking-tight">EdgeQuake</span>}
           </Link>
         </div>
 
         {/* Tenant/Workspace Selector */}
         {!collapsed && (
-          <div className="px-2 pb-2">
+          <div className="px-3 py-3">
             <ClientOnly fallback={null}>
               <TenantWorkspaceSelector compact={false} />
             </ClientOnly>
           </div>
         )}
         {collapsed && (
-          <div className="px-2 pb-2 flex justify-center">
+          <div className="px-2 py-3 flex justify-center">
             <ClientOnly fallback={null}>
               <TenantWorkspaceSelector compact={true} />
             </ClientOnly>
@@ -77,7 +77,7 @@ function SidebarContent({
         )}
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-1 p-2" aria-label={t('common.navigation', 'Main navigation')}>
+        <nav className="flex-1 space-y-1 px-3 py-2" aria-label={t('common.navigation', 'Main navigation')}>
           {navItems.map(({ href, icon: Icon, labelKey }) => {
             // Handle home page "/" specially to avoid matching all paths
             const isActive = href === '/' 
@@ -91,10 +91,12 @@ function SidebarContent({
                 onClick={onItemClick}
                 aria-current={isActive ? 'page' : undefined}
                 className={cn(
-                  'flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+                  'flex items-center rounded-xl px-3 py-3 text-sm font-medium transition-all duration-150',
+                  'min-h-[44px] touch-target', // WCAG touch target
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
                   collapsed ? 'justify-center' : 'gap-3',
                   isActive
-                    ? 'bg-primary text-primary-foreground'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 )}
               >
@@ -109,7 +111,7 @@ function SidebarContent({
                   <TooltipTrigger asChild>
                     {linkContent}
                   </TooltipTrigger>
-                  <TooltipContent side="right" sideOffset={10}>
+                  <TooltipContent side="right" sideOffset={12}>
                     {t(labelKey)}
                   </TooltipContent>
                 </Tooltip>
@@ -121,14 +123,14 @@ function SidebarContent({
         </nav>
 
         {/* Footer */}
-        <div className={cn("border-t p-4", collapsed && "p-2")}>
+        <div className={cn("border-t p-4", collapsed && "p-3")}>
           {showToggle && (
             <Button
               variant="ghost"
               size="sm"
               onClick={onToggle}
               className={cn(
-                "w-full mb-2",
+                "w-full mb-3 min-h-[40px]",
                 collapsed && "px-0"
               )}
               aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -144,8 +146,8 @@ function SidebarContent({
             </Button>
           )}
           {!collapsed && (
-            <div className="text-xs text-muted-foreground">
-              <p>EdgeQuake v0.1.0</p>
+            <div className="text-xs text-muted-foreground space-y-0.5">
+              <p className="font-medium">EdgeQuake v0.1.0</p>
               <p>{t('common.platform')}</p>
             </div>
           )}

@@ -185,18 +185,18 @@ export function GraphViewer() {
 
       {/* Main Graph Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Toolbar */}
-        <div className="flex items-center justify-between border-b px-4 py-2">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold">Knowledge Graph</h2>
+        {/* Toolbar - improved spacing */}
+        <header className="flex items-center justify-between border-b px-6 py-3">
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-semibold tracking-tight">Knowledge Graph</h2>
             {isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
             {data?.metadata && (
               <span className="text-sm text-muted-foreground">
-                {data.metadata.node_count} nodes · {data.metadata.edge_count} edges
+                {data.metadata.node_count.toLocaleString()} nodes · {data.metadata.edge_count.toLocaleString()} edges
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             <GraphSearch />
             <LayoutControl />
             <GraphExport />
@@ -213,7 +213,7 @@ export function GraphViewer() {
               <Maximize2 className="h-4 w-4" />
             </Button>
           </div>
-        </div>
+        </header>
 
         {/* Graph Canvas */}
         <div className="flex-1 relative" data-graph-container>
@@ -306,9 +306,9 @@ export function GraphViewer() {
         </div>
       </div>
 
-      {/* Right Sidebar */}
-      <div className="w-80 border-l bg-card overflow-auto">
-        <div className="p-4 space-y-4">
+      {/* Right Sidebar - improved padding */}
+      <aside className="w-80 border-l bg-card overflow-auto">
+        <div className="p-6 space-y-6">
           {/* Filters */}
           <GraphFilters />
 
@@ -327,7 +327,7 @@ export function GraphViewer() {
             </Button>
           )}
         </div>
-      </div>
+      </aside>
     </div>
   );
 }

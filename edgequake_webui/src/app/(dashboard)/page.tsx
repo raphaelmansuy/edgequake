@@ -36,25 +36,26 @@ export default function DashboardPage() {
   const entityTypes = new Set(graphData?.nodes?.map(n => n.node_type) || []).size;
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold">
+    <div className="p-page space-y-8">
+      {/* Header Section */}
+      <header className="space-y-2">
+        <h1 className="text-3xl font-bold tracking-tight">
           {t('dashboard.title', 'Dashboard')}
         </h1>
-        <p className="text-muted-foreground">
+        <p className="text-base text-muted-foreground max-w-2xl">
           {t('dashboard.welcome', 'Welcome to EdgeQuake - Your Knowledge Graph RAG Platform')}
         </p>
-      </div>
+      </header>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Stats Cards Grid */}
+      <section aria-label="Statistics" className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <StatsCard
           title={t('dashboard.stats.documents', 'Documents')}
           value={documentCount}
           description={t('dashboard.stats.documentsDesc', 'Uploaded documents')}
           icon={FileText}
           isLoading={isLoadingDocs}
+          variant="documents"
         />
         <StatsCard
           title={t('dashboard.stats.entities', 'Entities')}
@@ -62,6 +63,7 @@ export default function DashboardPage() {
           description={t('dashboard.stats.entitiesDesc', 'Extracted entities')}
           icon={Users}
           isLoading={isLoadingGraph}
+          variant="entities"
         />
         <StatsCard
           title={t('dashboard.stats.relationships', 'Relationships')}
@@ -69,6 +71,7 @@ export default function DashboardPage() {
           description={t('dashboard.stats.relationshipsDesc', 'Entity connections')}
           icon={GitMerge}
           isLoading={isLoadingGraph}
+          variant="relationships"
         />
         <StatsCard
           title={t('dashboard.stats.entityTypes', 'Entity Types')}
@@ -76,14 +79,17 @@ export default function DashboardPage() {
           description={t('dashboard.stats.entityTypesDesc', 'Unique categories')}
           icon={Network}
           isLoading={isLoadingGraph}
+          variant="types"
         />
-      </div>
+      </section>
 
       {/* Quick Actions */}
-      <QuickActions />
+      <section aria-label="Quick Actions">
+        <QuickActions />
+      </section>
 
       {/* Recent Activity and System Status */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      <section aria-label="Activity and Status" className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <RecentActivity 
             documents={recentDocuments} 
@@ -93,7 +99,7 @@ export default function DashboardPage() {
         <div>
           <SystemStatus />
         </div>
-      </div>
+      </section>
     </div>
   );
 }

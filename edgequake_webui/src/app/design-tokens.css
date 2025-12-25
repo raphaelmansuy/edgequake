@@ -1,0 +1,429 @@
+/**
+ * EdgeQuake Design Tokens
+ * 
+ * Standardized design tokens for consistent spacing, typography, and layout.
+ * Based on UX/UI audit recommendations (audit_ui/summary.md)
+ * 
+ * Usage: Import in globals.css after Tailwind imports
+ */
+
+:root {
+  /* ============================================
+   * SPACING SCALE (4px base unit)
+   * ============================================ */
+  --space-0: 0;
+  --space-px: 1px;
+  --space-0-5: 0.125rem;  /* 2px */
+  --space-1: 0.25rem;     /* 4px */
+  --space-1-5: 0.375rem;  /* 6px */
+  --space-2: 0.5rem;      /* 8px */
+  --space-2-5: 0.625rem;  /* 10px */
+  --space-3: 0.75rem;     /* 12px */
+  --space-3-5: 0.875rem;  /* 14px */
+  --space-4: 1rem;        /* 16px */
+  --space-5: 1.25rem;     /* 20px */
+  --space-6: 1.5rem;      /* 24px */
+  --space-7: 1.75rem;     /* 28px */
+  --space-8: 2rem;        /* 32px */
+  --space-9: 2.25rem;     /* 36px */
+  --space-10: 2.5rem;     /* 40px */
+  --space-11: 2.75rem;    /* 44px */
+  --space-12: 3rem;       /* 48px */
+  --space-14: 3.5rem;     /* 56px */
+  --space-16: 4rem;       /* 64px */
+  --space-20: 5rem;       /* 80px */
+  --space-24: 6rem;       /* 96px */
+  --space-28: 7rem;       /* 112px */
+  --space-32: 8rem;       /* 128px */
+
+  /* ============================================
+   * SEMANTIC SPACING
+   * ============================================ */
+  
+  /* Page Layout */
+  --page-padding-x: var(--space-6);        /* 24px horizontal page padding */
+  --page-padding-y: var(--space-6);        /* 24px vertical page padding */
+  --page-gap: var(--space-6);              /* 24px gap between page sections */
+  
+  /* Section Spacing */
+  --section-gap: var(--space-8);           /* 32px gap between major sections */
+  --section-padding: var(--space-6);       /* 24px internal section padding */
+  
+  /* Card Spacing */
+  --card-padding: var(--space-6);          /* 24px card padding */
+  --card-gap: var(--space-4);              /* 16px gap between cards */
+  --card-header-gap: var(--space-2);       /* 8px gap in card headers */
+  --card-content-gap: var(--space-4);      /* 16px gap in card content */
+  
+  /* Component Spacing */
+  --component-gap-xs: var(--space-1);      /* 4px - tight spacing */
+  --component-gap-sm: var(--space-2);      /* 8px - small spacing */
+  --component-gap-md: var(--space-4);      /* 16px - medium spacing */
+  --component-gap-lg: var(--space-6);      /* 24px - large spacing */
+  --component-gap-xl: var(--space-8);      /* 32px - extra large spacing */
+  
+  /* Form Element Spacing */
+  --input-padding-x: var(--space-3);       /* 12px horizontal input padding */
+  --input-padding-y: var(--space-2);       /* 8px vertical input padding */
+  --input-gap: var(--space-2);             /* 8px gap between input elements */
+  --label-gap: var(--space-1-5);           /* 6px gap between label and input */
+  --field-gap: var(--space-4);             /* 16px gap between form fields */
+  
+  /* Button Spacing */
+  --button-padding-x: var(--space-4);      /* 16px horizontal button padding */
+  --button-padding-y: var(--space-2);      /* 8px vertical button padding */
+  --button-gap: var(--space-2);            /* 8px gap between buttons */
+  --button-icon-gap: var(--space-2);       /* 8px gap between icon and text */
+  
+  /* Table Spacing */
+  --table-cell-padding-x: var(--space-4);  /* 16px horizontal cell padding */
+  --table-cell-padding-y: var(--space-3);  /* 12px vertical cell padding */
+  --table-header-padding-y: var(--space-3); /* 12px header padding */
+  
+  /* Touch Targets (WCAG AA minimum 44px, recommended 48px) */
+  --touch-target-min: 44px;
+  --touch-target-recommended: 48px;
+
+  /* ============================================
+   * TYPOGRAPHY SCALE (Major Third 1.25)
+   * ============================================ */
+  
+  /* Font Sizes */
+  --text-xs: 0.75rem;     /* 12px - captions, badges */
+  --text-sm: 0.875rem;    /* 14px - secondary text, labels */
+  --text-base: 1rem;      /* 16px - body text */
+  --text-lg: 1.125rem;    /* 18px - emphasized body */
+  --text-xl: 1.25rem;     /* 20px - section headers */
+  --text-2xl: 1.5rem;     /* 24px - card titles */
+  --text-3xl: 1.875rem;   /* 30px - page titles */
+  --text-4xl: 2.25rem;    /* 36px - hero text */
+  --text-5xl: 3rem;       /* 48px - display text */
+  
+  /* Font Weights */
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+  
+  /* Line Heights */
+  --leading-none: 1;
+  --leading-tight: 1.25;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+  --leading-loose: 2;
+  
+  /* Letter Spacing */
+  --tracking-tighter: -0.05em;
+  --tracking-tight: -0.025em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.025em;
+  --tracking-wider: 0.05em;
+
+  /* ============================================
+   * PANEL & LAYOUT WIDTHS
+   * ============================================ */
+  
+  /* Sidebar */
+  --sidebar-width-collapsed: 64px;
+  --sidebar-width-expanded: 256px;
+  --sidebar-width-max: 280px;
+  
+  /* Side Panels */
+  --panel-width-xs: 240px;    /* Very narrow panels */
+  --panel-width-sm: 280px;    /* Narrow side panels */
+  --panel-width-md: 320px;    /* Standard side panels */
+  --panel-width-lg: 400px;    /* Wide panels */
+  --panel-width-xl: 480px;    /* Extra wide panels, drawers */
+  
+  /* Content Widths */
+  --content-width-xs: 480px;  /* Very narrow content (forms) */
+  --content-width-sm: 640px;  /* Narrow content */
+  --content-width-md: 768px;  /* Medium content */
+  --content-width-lg: 1024px; /* Wide content */
+  --content-width-xl: 1280px; /* Full content */
+  --content-width-2xl: 1536px; /* Maximum content */
+  
+  /* Header & Footer */
+  --header-height: 56px;
+  --breadcrumb-height: 40px;
+  --footer-height: 48px;
+
+  /* ============================================
+   * ANIMATION TOKENS
+   * ============================================ */
+  
+  /* Durations */
+  --duration-instant: 0ms;
+  --duration-fast: 100ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --duration-slower: 500ms;
+  --duration-slowest: 700ms;
+  
+  /* Easings */
+  --ease-linear: linear;
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+  /* ============================================
+   * ELEVATION (Shadows)
+   * ============================================ */
+  
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.03);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.08), 0 8px 10px -6px rgb(0 0 0 / 0.05);
+  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.2);
+  
+  /* Focus Ring */
+  --shadow-focus: 0 0 0 3px var(--ring);
+
+  /* ============================================
+   * BORDER RADIUS
+   * ============================================ */
+  
+  --rounded-none: 0;
+  --rounded-sm: 0.25rem;    /* 4px */
+  --rounded-md: 0.375rem;   /* 6px */
+  --rounded-lg: 0.5rem;     /* 8px */
+  --rounded-xl: 0.75rem;    /* 12px */
+  --rounded-2xl: 1rem;      /* 16px */
+  --rounded-3xl: 1.5rem;    /* 24px */
+  --rounded-full: 9999px;
+
+  /* ============================================
+   * SEMANTIC COLOR ACCENTS (for Stats Cards)
+   * ============================================ */
+  
+  --accent-documents: oklch(0.65 0.2 250);     /* Blue */
+  --accent-entities: oklch(0.65 0.2 145);      /* Green */
+  --accent-relationships: oklch(0.65 0.2 290); /* Purple */
+  --accent-types: oklch(0.65 0.2 35);          /* Orange */
+  --accent-queries: oklch(0.65 0.2 320);       /* Pink */
+  --accent-graph: oklch(0.65 0.2 180);         /* Cyan */
+}
+
+/* Dark mode adjustments */
+.dark {
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.1);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.15), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.2), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.25), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.4);
+  
+  /* Semantic accents - slightly brighter in dark mode */
+  --accent-documents: oklch(0.72 0.18 250);
+  --accent-entities: oklch(0.72 0.18 145);
+  --accent-relationships: oklch(0.72 0.18 290);
+  --accent-types: oklch(0.72 0.18 35);
+  --accent-queries: oklch(0.72 0.18 320);
+  --accent-graph: oklch(0.72 0.18 180);
+}
+
+/* ============================================
+ * UTILITY CLASSES
+ * ============================================ */
+
+/* Page Layout */
+.page-container {
+  padding: var(--page-padding-y) var(--page-padding-x);
+}
+
+.page-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--page-gap);
+}
+
+/* Section Layout */
+.section-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--section-gap);
+}
+
+/* Card Grid */
+.card-grid {
+  display: grid;
+  gap: var(--card-gap);
+}
+
+.card-grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.card-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.card-grid-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 1024px) {
+  .card-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .card-grid-2,
+  .card-grid-3,
+  .card-grid-4 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Touch Target Enhancement */
+.touch-target {
+  min-height: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+}
+
+.touch-target-lg {
+  min-height: var(--touch-target-recommended);
+  min-width: var(--touch-target-recommended);
+}
+
+/* Section Dividers */
+.section-divider {
+  border-top: 1px solid var(--border);
+  margin: var(--section-gap) 0;
+}
+
+/* Consistent Card Styling */
+.card-enhanced {
+  padding: var(--card-padding);
+  border-radius: var(--rounded-xl);
+  transition: box-shadow var(--duration-fast) var(--ease-out),
+              transform var(--duration-fast) var(--ease-out);
+}
+
+.card-enhanced:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.card-enhanced:focus-within {
+  box-shadow: var(--shadow-focus);
+}
+
+/* Stats Card Accent Borders */
+.stats-card-documents {
+  border-top: 3px solid var(--accent-documents);
+}
+
+.stats-card-entities {
+  border-top: 3px solid var(--accent-entities);
+}
+
+.stats-card-relationships {
+  border-top: 3px solid var(--accent-relationships);
+}
+
+.stats-card-types {
+  border-top: 3px solid var(--accent-types);
+}
+
+/* Consistent Form Spacing */
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--label-gap);
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--field-gap);
+}
+
+/* Button Group */
+.button-group {
+  display: flex;
+  gap: var(--button-gap);
+  align-items: center;
+}
+
+/* Table Enhancements */
+.table-enhanced th,
+.table-enhanced td {
+  padding: var(--table-cell-padding-y) var(--table-cell-padding-x);
+}
+
+.table-enhanced th {
+  font-weight: var(--font-semibold);
+}
+
+/* Panel Layouts */
+.panel-sm {
+  width: var(--panel-width-sm);
+}
+
+.panel-md {
+  width: var(--panel-width-md);
+}
+
+.panel-lg {
+  width: var(--panel-width-lg);
+}
+
+/* Content Container */
+.content-container {
+  max-width: var(--content-width-lg);
+  margin: 0 auto;
+}
+
+.content-container-sm {
+  max-width: var(--content-width-sm);
+  margin: 0 auto;
+}
+
+/* Semantic Spacing Helpers */
+.gap-section {
+  gap: var(--section-gap);
+}
+
+.gap-card {
+  gap: var(--card-gap);
+}
+
+.gap-component-sm {
+  gap: var(--component-gap-sm);
+}
+
+.gap-component-md {
+  gap: var(--component-gap-md);
+}
+
+.gap-component-lg {
+  gap: var(--component-gap-lg);
+}
+
+/* Padding Helpers */
+.p-card {
+  padding: var(--card-padding);
+}
+
+.p-section {
+  padding: var(--section-padding);
+}
+
+.p-page {
+  padding: var(--page-padding-y) var(--page-padding-x);
+}
+
+.px-page {
+  padding-left: var(--page-padding-x);
+  padding-right: var(--page-padding-x);
+}
+
+.py-page {
+  padding-top: var(--page-padding-y);
+  padding-bottom: var(--page-padding-y);
+}

@@ -636,16 +636,16 @@ export function DocumentManager() {
   return (
     <div className="flex h-full">
       {/* Main Content */}
-      <div className="flex-1 p-6 space-y-6 overflow-auto">
+      <div className="flex-1 p-page space-y-6 overflow-auto">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">{t('documents.title')}</h1>
-            <p className="text-muted-foreground">
+        <header className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="space-y-1">
+            <h1 className="text-3xl font-bold tracking-tight">{t('documents.title')}</h1>
+            <p className="text-base text-muted-foreground">
               {t('documents.subtitle')}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {/* Pipeline Status */}
             {pipelineStatus?.is_busy && (
               <Button
@@ -691,7 +691,7 @@ export function DocumentManager() {
             onCleared={() => refetch()}
           />
         </div>
-      </div>
+      </header>
       
       {/* Search and Filters */}
       <div className="flex items-center gap-4">
@@ -740,31 +740,36 @@ export function DocumentManager() {
         </Card>
       )}
 
-      {/* Upload Zone */}
+      {/* Upload Zone - Compact design per audit QW-04 */}
       <Card>
-        <CardContent className="p-6">
+        <CardContent className="p-4">
           <div
             {...getRootProps()}
             className={`
-              border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
+              border-2 border-dashed rounded-xl py-6 px-8 text-center cursor-pointer 
+              transition-all duration-200 min-h-[100px]
               ${isDragActive
-                ? 'border-primary bg-primary/5'
-                : 'border-muted-foreground/25 hover:border-primary/50'
+                ? 'border-primary bg-primary/5 scale-[1.01]'
+                : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/30'
               }
             `}
           >
             <input {...getInputProps()} />
-            <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-4" />
-            {isDragActive ? (
-              <p className="text-lg">Drop files here...</p>
-            ) : (
-              <>
-                <p className="text-lg">Drag & drop files or click to upload</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Supports TXT, MD, JSON files
-                </p>
-              </>
-            )}
+            <div className="flex items-center justify-center gap-4">
+              <Upload className={`h-8 w-8 text-muted-foreground transition-transform ${isDragActive ? 'scale-110' : ''}`} />
+              <div className="text-left">
+                {isDragActive ? (
+                  <p className="text-base font-medium">Drop files here...</p>
+                ) : (
+                  <>
+                    <p className="text-base font-medium">Drag & drop files or click to upload</p>
+                    <p className="text-sm text-muted-foreground">
+                      Supports TXT, MD, JSON files (max 10MB)
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
           
           {/* Uploading Files List */}

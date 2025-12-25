@@ -119,31 +119,32 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="text-muted-foreground">
+    <div className="p-page max-w-4xl mx-auto space-y-8">
+      {/* Header */}
+      <header className="space-y-2">
+        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+        <p className="text-base text-muted-foreground">
           Customize your EdgeQuake experience
         </p>
-      </div>
+      </header>
 
       {/* Appearance */}
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-4">
           <CardTitle className="flex items-center gap-2">
-            <Palette className="h-5 w-5" />
+            <Palette className="h-5 w-5 text-primary" />
             Appearance
           </CardTitle>
           <CardDescription>
             Customize the look and feel of the application
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           {/* Theme */}
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-1">
               <label className="text-sm font-medium">Theme</label>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 Select your preferred color scheme
               </p>
             </div>
@@ -177,10 +178,10 @@ export default function SettingsPage() {
           <Separator />
 
           {/* Language */}
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-1">
               <label className="text-sm font-medium">Language</label>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 Select your preferred language
               </p>
             </div>
@@ -349,27 +350,27 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Data Management */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+      {/* Data Management - Dangerous Actions Section */}
+      <Card className="border-destructive/30">
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center gap-2 text-destructive">
             <Database className="h-5 w-5" />
             Data Management
           </CardTitle>
           <CardDescription>
-            Manage local data, import/export settings, and reset
+            Manage local data, import/export settings, and reset. Use caution with destructive actions.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           {/* Import/Export Settings */}
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-1">
               <label className="text-sm font-medium">Settings Backup</label>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 Export or import your settings as JSON
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <Button variant="outline" size="sm" onClick={handleExportSettings}>
                 <Download className="h-4 w-4 mr-2" />
                 Export
@@ -393,16 +394,16 @@ export default function SettingsPage() {
           <Separator />
 
           {/* Clear History */}
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-1">
               <label className="text-sm font-medium">Query History</label>
-              <p className="text-xs text-muted-foreground">
-                Clear all saved query history
+              <p className="text-sm text-muted-foreground">
+                Clear all saved query history and conversations
               </p>
             </div>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" className="border-destructive/50 text-destructive hover:bg-destructive/10">
                   Clear History
                 </Button>
               </AlertDialogTrigger>
@@ -410,12 +411,12 @@ export default function SettingsPage() {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Clear query history?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will permanently delete all your saved queries and favorites.
+                    This will permanently delete all your saved queries and favorites. This action cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleClearHistory}>
+                  <AlertDialogAction onClick={handleClearHistory} className="bg-destructive hover:bg-destructive/90">
                     Clear
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -426,11 +427,11 @@ export default function SettingsPage() {
           <Separator />
 
           {/* Reset Settings */}
-          <div className="flex items-center justify-between">
-            <div>
-              <label className="text-sm font-medium">Reset All Settings</label>
-              <p className="text-xs text-muted-foreground">
-                Reset all settings to their default values
+          <div className="flex items-center justify-between gap-4 p-4 rounded-lg bg-destructive/5 border border-destructive/20">
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-destructive">Reset All Settings</label>
+              <p className="text-sm text-muted-foreground">
+                Reset all settings to their default values. Your data will not be affected.
               </p>
             </div>
             <AlertDialog>
@@ -443,12 +444,12 @@ export default function SettingsPage() {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Reset all settings?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will reset all settings to their default values. Your data will not be affected.
+                    This will reset all settings to their default values. Your documents and knowledge graph data will not be affected. This action cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleResetSettings}>
+                  <AlertDialogAction onClick={handleResetSettings} className="bg-destructive hover:bg-destructive/90">
                     Reset
                   </AlertDialogAction>
                 </AlertDialogFooter>

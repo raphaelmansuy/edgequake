@@ -721,15 +721,15 @@ export function QueryInterface() {
     <div className="flex h-full min-h-0">
       {/* Main Query Area */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
-          <div>
-            <h1 className="text-lg font-semibold">{t('query.title', 'Query')}</h1>
+        {/* Header - improved spacing */}
+        <header className="flex items-center justify-between border-b px-6 py-4 shrink-0 bg-background">
+          <div className="space-y-1">
+            <h1 className="text-xl font-semibold tracking-tight">{t('query.title', 'Query')}</h1>
             <p className="text-sm text-muted-foreground">
               {t('query.subtitle', 'Ask questions about your knowledge graph')}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {/* New Conversation Button */}
             <Button
               variant="outline"
@@ -932,12 +932,12 @@ export function QueryInterface() {
               </SheetContent>
             </Sheet>
           </div>
-        </div>
+        </header>
 
-        {/* Messages */}
+        {/* Messages - improved padding */}
         <div className="flex-1 min-h-0 overflow-hidden">
           <ScrollArea ref={scrollRef} className="h-full">
-            <div className="max-w-3xl mx-auto p-4">
+            <div className="max-w-3xl mx-auto px-6 py-6">
               {messages.length === 0 && !queryMutation.isPending ? (
                 <EmptyState onSuggestionClick={handleSuggestionClick} />
               ) : (
@@ -959,13 +959,13 @@ export function QueryInterface() {
                 </>
               )}
               {/* Scroll anchor for auto-scroll */}
-              <div ref={scrollAnchorRef} className="h-4" />
+              <div ref={scrollAnchorRef} className="h-6" />
             </div>
           </ScrollArea>
         </div>
 
-        {/* Input - Fixed at bottom with flexbox */}
-        <div className="border-t p-4 bg-background flex-shrink-0" role="form" aria-label={t('query.form', 'Query form')}>
+        {/* Input - Fixed at bottom with improved spacing */}
+        <div className="border-t px-6 py-4 bg-background flex-shrink-0" role="form" aria-label={t('query.form', 'Query form')}>
           <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
             <div className="relative">
               <Textarea
@@ -973,7 +973,7 @@ export function QueryInterface() {
                 value={input}
                 onChange={handleInputChange}
                 placeholder={t('query.placeholder', 'Ask a question...')}
-                className="min-h-[52px] max-h-[200px] resize-none pr-24 py-3"
+                className="min-h-[56px] max-h-[200px] resize-none pr-24 py-4 text-base"
                 rows={1}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
@@ -988,14 +988,14 @@ export function QueryInterface() {
               <span id="query-hint" className="sr-only">
                 Press Enter to send, Shift+Enter for new line
               </span>
-              <div className="absolute right-2 bottom-2 flex items-center gap-1">
+              <div className="absolute right-3 bottom-3 flex items-center gap-2">
                 {isLoading ? (
                   <Button
                     type="button"
                     size="sm"
                     variant="ghost"
                     onClick={handleStop}
-                    className="h-8"
+                    className="h-9"
                     aria-label={t('query.stop', 'Stop generating')}
                   >
                     <StopCircle className="h-4 w-4 mr-1" aria-hidden="true" />
