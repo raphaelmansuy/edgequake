@@ -44,6 +44,8 @@ pub struct KnowledgeGraphMerger<G: GraphStorage + ?Sized, V: VectorStorage + ?Si
     config: MergerConfig,
     graph_storage: Arc<G>,
     vector_storage: Arc<V>,
+    tenant_id: Option<String>,
+    workspace_id: Option<String>,
 }
 
 impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G, V> {
@@ -53,7 +55,16 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
             config,
             graph_storage,
             vector_storage,
+            tenant_id: None,
+            workspace_id: None,
         }
+    }
+
+    /// Set tenant and workspace IDs.
+    pub fn with_tenant_context(mut self, tenant_id: Option<String>, workspace_id: Option<String>) -> Self {
+        self.tenant_id = tenant_id;
+        self.workspace_id = workspace_id;
+        self
     }
 
     /// Merge extraction results into the knowledge graph.
@@ -105,17 +116,22 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
 
         // Store entity embedding with type metadata (for Local query mode)
         if let Some(embedding) = &entity.embedding {
+            let mut metadata = serde_json::json!({
+                "type": "entity",  // Mark as entity for retrieval filtering
+                "entity_name": entity.name,
+                "entity_type": entity.entity_type,
+                "description": entity.description
+            });
+
+            if let Some(tenant_id) = &self.tenant_id {
+                metadata["tenant_id"] = serde_json::json!(tenant_id);
+            }
+            if let Some(workspace_id) = &self.workspace_id {
+                metadata["workspace_id"] = serde_json::json!(workspace_id);
+            }
+
             self.vector_storage
-                .upsert(&[(
-                    entity_key.clone(),
-                    embedding.clone(),
-                    serde_json::json!({
-                        "type": "entity",  // Mark as entity for retrieval filtering
-                        "entity_name": entity.name,
-                        "entity_type": entity.entity_type,
-                        "description": entity.description
-                    }),
-                )])
+                .upsert(&[(entity_key.clone(), embedding.clone(), metadata)])
                 .await?;
         }
 
@@ -150,19 +166,24 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
         // Store relationship embedding with type metadata (for Global query mode)
         if let Some(embedding) = &rel.embedding {
             let rel_id = format!("{}->{}:{}", source_key, target_key, rel.relation_type);
+            let mut metadata = serde_json::json!({
+                "type": "relationship",  // Mark as relationship for retrieval filtering
+                "src_id": source_key,
+                "tgt_id": target_key,
+                "keywords": rel.keywords.join(", "),
+                "relation_type": rel.relation_type,
+                "description": rel.description
+            });
+
+            if let Some(tenant_id) = &self.tenant_id {
+                metadata["tenant_id"] = serde_json::json!(tenant_id);
+            }
+            if let Some(workspace_id) = &self.workspace_id {
+                metadata["workspace_id"] = serde_json::json!(workspace_id);
+            }
+
             self.vector_storage
-                .upsert(&[(
-                    rel_id,
-                    embedding.clone(),
-                    serde_json::json!({
-                        "type": "relationship",  // Mark as relationship for retrieval filtering
-                        "src_id": source_key,
-                        "tgt_id": target_key,
-                        "keywords": rel.keywords.join(", "),
-                        "relation_type": rel.relation_type,
-                        "description": rel.description
-                    }),
-                )])
+                .upsert(&[(rel_id, embedding.clone(), metadata)])
                 .await?;
         }
 
@@ -279,6 +300,20 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
             serde_json::Value::String(entity.name.clone()),
         );
 
+        // Add tenant context
+        if let Some(tenant_id) = &self.tenant_id {
+            properties.insert(
+                "tenant_id".to_string(),
+                serde_json::Value::String(tenant_id.clone()),
+            );
+        }
+        if let Some(workspace_id) = &self.workspace_id {
+            properties.insert(
+                "workspace_id".to_string(),
+                serde_json::Value::String(workspace_id.clone()),
+            );
+        }
+
         Ok(GraphNode {
             id: entity_key,
             properties,
@@ -372,6 +407,20 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
             serde_json::Value::String(rel.relation_type.clone()),
         );
 
+        // Add tenant context
+        if let Some(tenant_id) = &self.tenant_id {
+            properties.insert(
+                "tenant_id".to_string(),
+                serde_json::Value::String(tenant_id.clone()),
+            );
+        }
+        if let Some(workspace_id) = &self.workspace_id {
+            properties.insert(
+                "workspace_id".to_string(),
+                serde_json::Value::String(workspace_id.clone()),
+            );
+        }
+
         Ok(GraphEdge {
             source: source_key.to_string(),
             target: target_key.to_string(),
@@ -395,6 +444,20 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
                 "label".to_string(),
                 serde_json::Value::String(label.to_string()),
             );
+
+            // Add tenant context
+            if let Some(tenant_id) = &self.tenant_id {
+                properties.insert(
+                    "tenant_id".to_string(),
+                    serde_json::Value::String(tenant_id.clone()),
+                );
+            }
+            if let Some(workspace_id) = &self.workspace_id {
+                properties.insert(
+                    "workspace_id".to_string(),
+                    serde_json::Value::String(workspace_id.clone()),
+                );
+            }
 
             self.graph_storage.upsert_node(key, properties).await?;
         }

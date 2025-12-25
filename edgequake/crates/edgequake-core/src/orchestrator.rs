@@ -31,6 +31,12 @@ pub struct EdgeQuakeConfig {
     /// Namespace/workspace identifier.
     pub namespace: String,
 
+    /// Tenant ID for multi-tenancy.
+    pub tenant_id: Option<String>,
+
+    /// Workspace ID for multi-tenancy.
+    pub workspace_id: Option<String>,
+
     /// LLM model name for entity extraction.
     pub llm_model_name: String,
 
@@ -120,6 +126,8 @@ impl Default for EdgeQuakeConfig {
         Self {
             working_dir: "./edgequake_data".to_string(),
             namespace: "default".to_string(),
+            tenant_id: None,
+            workspace_id: None,
             llm_model_name: "gpt-4o-mini".to_string(),
             response_model_name: None,
             embedding_model_name: "text-embedding-3-small".to_string(),
@@ -263,6 +271,18 @@ impl EdgeQuake {
         self
     }
 
+    /// Set the storage backends using a mutable reference.
+    pub fn set_storage_backends(
+        &mut self,
+        kv: Arc<dyn KVStorage>,
+        vector: Arc<dyn VectorStorage>,
+        graph: Arc<dyn GraphStorage>,
+    ) {
+        self.kv_storage = Some(kv);
+        self.vector_storage = Some(vector);
+        self.graph_storage = Some(graph);
+    }
+
     /// Set the LLM and embedding providers.
     pub fn with_providers(
         mut self,
@@ -272,6 +292,16 @@ impl EdgeQuake {
         self.llm_provider = Some(llm);
         self.embedding_provider = Some(embedding);
         self
+    }
+
+    /// Set the LLM and embedding providers using a mutable reference.
+    pub fn set_providers(
+        &mut self,
+        llm: Arc<dyn LLMProvider>,
+        embedding: Arc<dyn EmbeddingProvider>,
+    ) {
+        self.llm_provider = Some(llm);
+        self.embedding_provider = Some(embedding);
     }
 
     /// Initialize the EdgeQuake instance.
@@ -392,7 +422,8 @@ impl EdgeQuake {
             MergerConfig::default(),
             graph_storage.clone(),
             vector_storage.clone(),
-        );
+        )
+        .with_tenant_context(self.config.tenant_id.clone(), self.config.workspace_id.clone());
 
         let merge_stats = merger
             .merge(processing_result.extractions.clone())
@@ -402,17 +433,23 @@ impl EdgeQuake {
         // 3. Store chunk embeddings with type metadata
         for chunk in &processing_result.chunks {
             if let Some(embedding) = &chunk.embedding {
+                let mut metadata = serde_json::json!({
+                    "type": "chunk",  // Mark as chunk for retrieval filtering
+                    "document_id": doc_id,
+                    "index": chunk.index,
+                    "content": chunk.content
+                });
+
+                // Add tenant and workspace IDs if present
+                if let Some(tenant_id) = &self.config.tenant_id {
+                    metadata["tenant_id"] = serde_json::json!(tenant_id);
+                }
+                if let Some(workspace_id) = &self.config.workspace_id {
+                    metadata["workspace_id"] = serde_json::json!(workspace_id);
+                }
+
                 vector_storage
-                    .upsert(&[(
-                        chunk.id.clone(),
-                        embedding.clone(),
-                        serde_json::json!({
-                            "type": "chunk",  // Mark as chunk for retrieval filtering
-                            "document_id": doc_id,
-                            "index": chunk.index,
-                            "content": chunk.content
-                        }),
-                    )])
+                    .upsert(&[(chunk.id.clone(), embedding.clone(), metadata)])
                     .await
                     .map_err(|e| Error::internal(format!("Vector storage error: {}", e)))?;
             }
@@ -453,7 +490,15 @@ impl EdgeQuake {
             return Err(Error::not_initialized("EdgeQuake not initialized"));
         }
 
-        let params = params.unwrap_or_default();
+        let mut params = params.unwrap_or_default();
+
+        // Set tenant and workspace IDs from config if not provided in params
+        if params.tenant_id.is_none() {
+            params.tenant_id = self.config.tenant_id.clone();
+        }
+        if params.workspace_id.is_none() {
+            params.workspace_id = self.config.workspace_id.clone();
+        }
 
         let query_engine = self
             .query_engine

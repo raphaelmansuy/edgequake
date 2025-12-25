@@ -311,6 +311,8 @@ impl TenantRAGManager {
         let mut config = self.template_config.clone();
         config.working_dir = tenant_working_dir.to_string_lossy().to_string();
         config.namespace = format!("{}_{}", tenant_id, kb_id);
+        config.tenant_id = Some(tenant_id.clone());
+        config.workspace_id = Some(kb_id.clone());
 
         let instance = EdgeQuake::new(config);
 

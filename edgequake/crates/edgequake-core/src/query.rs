@@ -33,6 +33,46 @@ impl QueryEngine {
         }
     }
 
+    /// Check if metadata matches tenant context.
+    fn matches_tenant(
+        &self,
+        metadata: &serde_json::Value,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> bool {
+        // If no tenant context is set, allow all
+        if tenant_id.is_none() {
+            return true;
+        }
+
+        let metadata_map = match metadata.as_object() {
+            Some(map) => map,
+            None => return true, // No metadata, allow for backward compatibility
+        };
+
+        // Check if properties have matching tenant_id
+        if let Some(ctx_tenant_id) = tenant_id {
+            if let Some(prop_tenant_id) = metadata_map.get("tenant_id").and_then(|v| v.as_str()) {
+                if prop_tenant_id != ctx_tenant_id {
+                    return false;
+                }
+            }
+            // If no tenant_id in properties but context has one, still include for backward compatibility
+        }
+
+        // Check workspace_id if set
+        if let Some(ctx_workspace_id) = workspace_id {
+            if let Some(prop_workspace_id) = metadata_map.get("workspace_id").and_then(|v| v.as_str())
+            {
+                if prop_workspace_id != ctx_workspace_id {
+                    return false;
+                }
+            }
+        }
+
+        true
+    }
+
     /// Execute a query.
     pub async fn query(&self, query: &str, params: QueryParams) -> Result<QueryResult> {
         let start = std::time::Instant::now();
@@ -81,9 +121,23 @@ impl QueryEngine {
         let mut context_text = String::new();
 
         for result in search_results {
+            // Filter by tenant/workspace
+            if !self.matches_tenant(
+                &result.metadata,
+                params.tenant_id.as_deref(),
+                params.workspace_id.as_deref(),
+            ) {
+                continue;
+            }
+
             let id = result.id;
             let score = result.score;
             let metadata = result.metadata;
+
+            // Filter by type (only chunks for naive mode)
+            if metadata.get("type").and_then(|v| v.as_str()) != Some("chunk") {
+                continue;
+            }
 
             let content = metadata
                 .get("content")
@@ -170,10 +224,33 @@ impl QueryEngine {
         let mut context_text = String::new();
 
         for result in entity_results {
+            // Filter by tenant/workspace
+            if !self.matches_tenant(
+                &result.metadata,
+                params.tenant_id.as_deref(),
+                params.workspace_id.as_deref(),
+            ) {
+                continue;
+            }
+
+            // Filter by type (only entities for local mode)
+            if result.metadata.get("type").and_then(|v| v.as_str()) != Some("entity") {
+                continue;
+            }
+
             let entity_id = result.id;
             let score = result.score;
 
             if let Some(node) = self.graph_storage.get_node(&entity_id).await? {
+                // Filter node by tenant/workspace
+                if !self.matches_tenant(
+                    &serde_json::Value::Object(node.properties.clone().into_iter().collect()),
+                    params.tenant_id.as_deref(),
+                    params.workspace_id.as_deref(),
+                ) {
+                    continue;
+                }
+
                 let name = node
                     .properties
                     .get("name")
@@ -205,6 +282,15 @@ impl QueryEngine {
                 // Get neighbors (relationships)
                 let edges = self.graph_storage.get_node_edges(&entity_id).await?;
                 for edge in edges {
+                    // Filter edge by tenant/workspace
+                    if !self.matches_tenant(
+                        &serde_json::Value::Object(edge.properties.clone().into_iter().collect()),
+                        params.tenant_id.as_deref(),
+                        params.workspace_id.as_deref(),
+                    ) {
+                        continue;
+                    }
+
                     context_relationships.push(ContextRelationship {
                         source: edge.source.clone(),
                         target: edge.target.clone(),
@@ -305,6 +391,20 @@ impl QueryEngine {
                 .map_err(|e| crate::error::Error::internal(format!("Vector search error: {}", e)))?;
 
             for result in results {
+                // Filter by tenant/workspace
+                if !self.matches_tenant(
+                    &result.metadata,
+                    params.tenant_id.as_deref(),
+                    params.workspace_id.as_deref(),
+                ) {
+                    continue;
+                }
+
+                // Filter by type (only relationships for global mode)
+                if result.metadata.get("type").and_then(|v| v.as_str()) != Some("relationship") {
+                    continue;
+                }
+
                 // Use edge-like identifiers as keys for deduplication
                 let relation_key = result.id.clone();
                 if !seen_relations.contains(&relation_key) {
@@ -366,6 +466,15 @@ impl QueryEngine {
                 seen_entity_ids.insert(entity_id.to_string());
 
                 if let Ok(Some(node)) = self.graph_storage.get_node(entity_id).await {
+                    // Filter node by tenant/workspace
+                    if !self.matches_tenant(
+                        &serde_json::Value::Object(node.properties.clone().into_iter().collect()),
+                        params.tenant_id.as_deref(),
+                        params.workspace_id.as_deref(),
+                    ) {
+                        continue;
+                    }
+
                     let entity_desc = node
                         .properties
                         .get("description")

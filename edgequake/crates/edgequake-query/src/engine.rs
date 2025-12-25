@@ -380,8 +380,17 @@ Provide a clear, accurate answer based on the context above. If the context does
 
             for result in results {
                 if result.score >= self.config.min_score {
-                    // TODO: Add tenant filtering to vector storage results
-                    // For now, chunks don't have tenant_id filtering in vector storage
+                    // Filter vector results by tenant context
+                    let metadata_map: HashMap<String, serde_json::Value> = result
+                        .metadata
+                        .as_object()
+                        .map(|obj| obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+                        .unwrap_or_default();
+
+                    if !matches_tenant(&metadata_map) {
+                        continue;
+                    }
+
                     let content = result
                         .metadata
                         .get("content")

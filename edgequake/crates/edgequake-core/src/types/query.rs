@@ -50,6 +50,12 @@ pub struct QueryParams {
 
     /// History context to include.
     pub history_context: Option<String>,
+
+    /// Tenant ID for multi-tenancy.
+    pub tenant_id: Option<String>,
+
+    /// Workspace ID for multi-tenancy.
+    pub workspace_id: Option<String>,
 }
 
 impl Default for QueryParams {
@@ -63,6 +69,8 @@ impl Default for QueryParams {
             max_tokens: None,
             enable_history: false,
             history_context: None,
+            tenant_id: None,
+            workspace_id: None,
         }
     }
 }
