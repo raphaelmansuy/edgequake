@@ -70,16 +70,16 @@ Inventory → Analyze → (Archive?) → Update → Validate → Final Verify Lo
 
 ```mermaid
 flowchart TD
-	A[Inventory] --> B[Analysis]
-	B --> C{Archive?}
-	C -->|Yes| D[Move doc to docs/archive]
-	C -->|No| E[Updates]
-	D --> F[Validation]
-	E --> F
-	F --> G[Final verification loop]
-	G --> H{Mismatches found?}
-	H -->|Yes| E
-	H -->|No| I["Commit (optional)"]
+  A[1. Inventory] --> B[2. Analysis]
+  B --> C{3. Archive?}
+  C -->|Yes| D[3. Move doc to docs/archive]
+  C -->|No| E[4. Updates]
+  D --> F[5. Validation]
+  E --> F
+  F --> G[6. Final verification loop]
+  G --> H{6. Mismatches found?}
+  H -->|Yes| E
+  H -->|No| I["7. Commit (optional)"]
 ```
 
 ### Phase Gates
@@ -96,49 +96,49 @@ Each phase has an explicit **gate** that must be passed before proceeding. A gat
 
 ---
 
-#### Inventory Gate
+#### 1. Inventory Gate
 
 - **Entry**: `docs/` file list and initial mapping to source components in `docs/craftpad.md` exists.
 - **Exit (pass)**: Every document is either mapped to a source or marked as orphan; missing topics are listed with owner (or flagged as backlog).
 - **Evidence**: `docs/craftpad.md` inventory table, `rg "path/to/component"` hits summary.
 - **If fail**: Complete mapping and re-run Inventory Gate.
 
-#### Analysis Gate
+#### 2. Analysis Gate
 
 - **Entry**: Inventory Gate passed; `docs/craftpad.md` has per-component findings.
 - **Exit (pass)**: For each mapped source: at least one documented claim exists or a documented gap with owner assigned.
 - **Evidence**: Per-file findings in `docs/craftpad.md`, test snippets or code references for at least 80% of claims.
 - **If fail**: Continue analyzing sources; escalate ambiguous areas to code owners.
 
-#### Archival Gate
+#### 3. Archival Gate
 
 - **Entry**: Candidate archival files identified in Analysis Phase.
 - **Exit (pass)**: Archived files moved to `docs/archive/` with header containing date + reason; cross-references updated or removed.
 - **Evidence**: `git mv` or archive action recorded, updated backlinks fixed, `docs/craftpad.md` log entry.
 - **If fail**: Re-open analysis—verify that archive decision was correct.
 
-#### Update Gate
+#### 4. Update Gate
 
 - **Entry**: Files selected for update, with an initial set of proposed edits in a working branch or local edits.
 - **Exit (pass)**: All documented changes made; code examples tested against current code; examples compile/run where appropriate.
 - **Evidence**: Inline code examples validated (commands run, examples produce expected output), updated file diffs, `docs/craftpad.md` updated.
 - **If fail**: Fix the examples or update the source code, then re-run Update Gate.
 
-#### Validation Gate
+#### 5. Validation Gate
 
 - **Entry**: Update Gate passed.
 - **Exit (pass)**: No dead links; `docs/craftpad.md` shows zero unresolved findings; basic linting/formatting passes.
 - **Evidence**: Link-checker output or `rg` results, `markdownlint`/formatter run, `docs/craftpad.md` status.
 - **If fail**: Address failures and re-run Validation Gate.
 
-#### Final Verification Gate
+#### 6. Final Verification Gate
 
 - **Entry**: Validation Gate passed and PR or changes are ready for final verification.
 - **Exit (pass)**: Final verification loop (see Phase 6) completes with zero mismatches between modified docs and authoritative code/config sources.
 - **Evidence**: Short checklist per-file signed off in `docs/craftpad.md` and diff-free verification outputs (e.g., `rg`/`cargo`/`package.json` checks) attached to the craftpad entry.
 - **If fail**: Apply fixes to docs (or code), document the fix in `docs/craftpad.md`, repeat the final verification loop until the gate passes.
 
-#### Commit Gate
+#### 7. Commit Gate
 
 - **Entry**: Final Verification Gate passed.
 - **Exit (pass)**: Commit message follows the template, CI (if applicable) passes smoke checks, and PR description includes the craftpad summary + evidence.
@@ -152,29 +152,29 @@ Each phase has an explicit **gate** that must be passed before proceeding. A gat
 ```mermaid
 flowchart LR
   subgraph phase_gates[Phase Gates]
-    IG[Inventory] --> IGG{Inventory Gate}
-    IGG -->|pass| AN[Analysis]
+    IG[1. Inventory] --> IGG{1. Inventory Gate}
+    IGG -->|pass| AN[2. Analysis]
     IGG -->|fail| IG
 
-    AN --> ANG{Analysis Gate}
-    ANG -->|pass| AG[Archive/Decide]
+    AN --> ANG{2. Analysis Gate}
+    ANG -->|pass| AG[3. Archive/Decide]
     ANG -->|fail| AN
 
-    AG --> AGG{Archival Gate}
-    AGG -->|archive| UP[Update]
+    AG --> AGG{3. Archival Gate}
+    AGG -->|archive| UP[4. Update]
     AGG -->|keep| UP
     AGG -->|fail| AN
 
-    UP --> UPG{Update Gate}
-    UPG -->|pass| VAL[Validation]
+    UP --> UPG{4. Update Gate}
+    UPG -->|pass| VAL[5. Validation]
     UPG -->|fail| UP
 
-    VAL --> VAG{Validation Gate}
-    VAG -->|pass| FV[Final Verify]
+    VAL --> VAG{5. Validation Gate}
+    VAG -->|pass| FV[6. Final Verify]
     VAG -->|fail| UP
 
-    FV --> FVG{Final Verification Gate}
-    FVG -->|pass| CM[Commit]
+    FV --> FVG{6. Final Verification Gate}
+    FVG -->|pass| CM[7. Commit]
     FVG -->|fail| UP
   end
 ```
@@ -260,9 +260,12 @@ For each modified documentation file (repeat until no diffs are found):
    - Web UI: `package.json`, `next.config.*`, `vite.config.*`, API client code
    - Configuration: `.env.example`, config loaders, docs config reference
 3. Verify each claim against the source:
-   - API routes: path, method, query/body shape, status codes
-   - Config: key names, defaults, required/optional, allowed values
-   - Versions: toolchains, runtime versions, dependency major versions
+
+- API routes: path, method, query/body shape, status codes
+- Config: key names, defaults, required/optional, allowed values
+- Versions: toolchains, runtime versions, dependency major versions
+- Algorithms: verify algorithm descriptions precisely — confirm the authoritative implementation (source file/line), inputs, outputs, invariants, complexity and performance characteristics, edge cases, and any non-obvious heuristics. Attach unit/integration test references or benchmark results as evidence and include minimal reproducible examples when possible.
+
 4. If any mismatch is found, update the doc immediately and log the correction in `docs/craftpad.md`.
 5. Re-run the checks for that same doc until you can assert: “No remaining mismatches.”
 
