@@ -233,7 +233,7 @@ export function GraphSearch({ onSelect }: GraphSearchProps) {
         aria-label={t('graph.search.placeholder', 'Search nodes')}
       >
         <Command shouldFilter={false}>
-          <div className="flex items-center border-b px-3" cmdk-input-wrapper="">
+          <div className="flex items-center border-b px-3 py-1 bg-muted/30" cmdk-input-wrapper="">
             {isSearching ? (
               <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
             ) : (
@@ -244,7 +244,7 @@ export function GraphSearch({ onSelect }: GraphSearchProps) {
               placeholder={t('graph.search.placeholder', 'Search nodes...')}
               value={query}
               onValueChange={setQuery}
-              className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none focus:outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
               aria-label={t('graph.search.placeholder', 'Search nodes')}
             />
           </div>

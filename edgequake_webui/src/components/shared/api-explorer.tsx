@@ -67,11 +67,11 @@ const endpoints: Endpoint[] = [
 ];
 
 const methodColors = {
-  GET: 'bg-green-500',
-  POST: 'bg-blue-500',
-  PUT: 'bg-yellow-500',
-  PATCH: 'bg-orange-500',
-  DELETE: 'bg-red-500',
+  GET: 'bg-green-500/10 text-green-600 border border-green-500/30 dark:bg-green-500/20 dark:text-green-400',
+  POST: 'bg-blue-500/10 text-blue-600 border border-blue-500/30 dark:bg-blue-500/20 dark:text-blue-400',
+  PUT: 'bg-yellow-500/10 text-yellow-600 border border-yellow-500/30 dark:bg-yellow-500/20 dark:text-yellow-400',
+  PATCH: 'bg-orange-500/10 text-orange-600 border border-orange-500/30 dark:bg-orange-500/20 dark:text-orange-400',
+  DELETE: 'bg-red-500/10 text-red-600 border border-red-500/30 dark:bg-red-500/20 dark:text-red-400',
 } as const;
 
 export function ApiExplorer() {
@@ -189,7 +189,7 @@ export function ApiExplorer() {
                           }`}
                         >
                           <Badge
-                            className={`${methodColors[endpoint.method]} text-white text-[10px] px-1.5`}
+                            className={`${methodColors[endpoint.method]} text-[10px] px-1.5 font-semibold`}
                           >
                             {endpoint.method}
                           </Badge>
@@ -210,7 +210,7 @@ export function ApiExplorer() {
           <>
             {/* Header */}
             <div className="flex items-center gap-4 border-b px-4 py-3">
-              <Badge className={`${methodColors[selectedEndpoint.method]} text-white`}>
+              <Badge className={`${methodColors[selectedEndpoint.method]} font-semibold`}>
                 {selectedEndpoint.method}
               </Badge>
               <code className="text-sm font-mono">{selectedEndpoint.path}</code>

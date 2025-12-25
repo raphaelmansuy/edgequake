@@ -332,31 +332,31 @@ export function TenantWorkspaceSelector({
   // Full mode - show selectors stacked vertically for sidebar
   return (
     <>
-      <div className="flex flex-col gap-3 p-3 bg-muted/50 rounded-lg border border-border/50">
+      <div className="flex flex-col gap-3 p-3 bg-muted/50 rounded-lg border border-border/50 overflow-hidden">
         {/* Tenant Selector */}
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1.5 min-w-0">
           <Label className="text-xs font-semibold text-muted-foreground">
             {t('tenant.tenant', 'Tenant')}
           </Label>
-          <div className="flex gap-1.5 items-center">
+          <div className="flex gap-1.5 items-center min-w-0">
             {isLoadingTenants ? (
-              <Skeleton className="h-8 flex-1" />
+              <Skeleton className="h-8 flex-1 min-w-0" />
             ) : (
               <Select
                 value={selectedTenantId || ''}
                 onValueChange={handleTenantSelect}
               >
-                <SelectTrigger className="h-8 text-xs flex-1">
+                <SelectTrigger className="h-8 text-xs flex-1 min-w-0 max-w-[160px]">
                   <SelectValue
                     placeholder={t('tenant.selectTenant', 'Select tenant...')}
                   />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-w-[220px]">
                   {tenants.map((tenant) => (
                     <SelectItem key={tenant.id} value={tenant.id}>
-                      <div className="flex items-center gap-2">
-                        <Building2 className="h-3 w-3 text-muted-foreground" />
-                        {tenant.name}
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Building2 className="h-3 w-3 text-muted-foreground shrink-0" />
+                        <span className="truncate">{tenant.name}</span>
                       </div>
                     </SelectItem>
                   ))}
@@ -385,20 +385,20 @@ export function TenantWorkspaceSelector({
         </div>
 
         {/* Workspace Selector - Always show, even if tenant not selected */}
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1.5 min-w-0">
           <Label className="text-xs font-semibold text-muted-foreground">
             {t('workspace.workspace', 'Workspace')}
           </Label>
-          <div className="flex gap-1.5 items-center">
+          <div className="flex gap-1.5 items-center min-w-0">
             {isLoadingWorkspaces ? (
-              <Skeleton className="h-8 flex-1" />
+              <Skeleton className="h-8 flex-1 min-w-0" />
             ) : (
               <Select
                 value={selectedWorkspaceId || ''}
                 onValueChange={handleWorkspaceSelect}
                 disabled={!selectedTenantId}
               >
-                <SelectTrigger className="h-8 text-xs flex-1">
+                <SelectTrigger className="h-8 text-xs flex-1 min-w-0 max-w-[160px]">
                   <SelectValue
                     placeholder={
                       selectedTenantId
@@ -407,12 +407,12 @@ export function TenantWorkspaceSelector({
                     }
                   />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-w-[220px]">
                   {workspaces.map((workspace) => (
                     <SelectItem key={workspace.id} value={workspace.id}>
-                      <div className="flex items-center gap-2">
-                        <FolderKanban className="h-3 w-3 text-muted-foreground" />
-                        {workspace.name}
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FolderKanban className="h-3 w-3 text-muted-foreground shrink-0" />
+                        <span className="truncate">{workspace.name}</span>
                       </div>
                     </SelectItem>
                   ))}

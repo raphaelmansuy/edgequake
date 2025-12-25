@@ -36,5 +36,9 @@ const GraphViewer = dynamic(
 );
 
 export default function GraphPage() {
-  return <GraphViewer />;
+  return (
+    <div className="h-full overflow-hidden">
+      <GraphViewer />
+    </div>
+  );
 }

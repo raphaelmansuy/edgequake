@@ -56,9 +56,9 @@ export function QuickActions() {
                 key={action.id}
                 href={action.href}
                 className={cn(
-                  'flex flex-col items-center justify-center gap-3 rounded-lg border p-6 transition-all',
+                  'flex flex-col items-center justify-center gap-3 rounded-lg border p-6 transition-all duration-200',
                   action.bgColor,
-                  'hover:border-primary/50 hover:shadow-sm'
+                  'hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5'
                 )}
               >
                 <div className={cn('rounded-full p-3', action.bgColor)}>

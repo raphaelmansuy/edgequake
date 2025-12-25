@@ -119,7 +119,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="p-page max-w-4xl mx-auto space-y-8">
+    <div className="p-6 md:p-8 max-w-4xl mx-auto space-y-8">
       {/* Header */}
       <header className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Settings</h1>

@@ -286,14 +286,14 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
     return (
       <div
         className={cn(
-          "flex flex-col items-center justify-start py-3 w-10 border-r bg-card",
+          "flex flex-col items-center justify-start py-3 w-12 border-r bg-card/50 shrink-0 transition-all duration-200",
           className
         )}
       >
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8"
+          className="h-8 w-8 hover:bg-muted"
           onClick={() => setIsOpen(true)}
           aria-label={t("graph.entityBrowser.expand", "Expand entity browser")}
         >
@@ -318,7 +318,7 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
   return (
     <aside
       className={cn(
-        "flex flex-col w-72 border-r bg-card transition-all duration-200",
+        "flex flex-col w-72 border-r bg-card shrink-0 overflow-hidden transition-all duration-200",
         className
       )}
       aria-label={t("graph.entityBrowser.title", "Entity browser")}
@@ -347,14 +347,14 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
       </div>
 
       {/* Search */}
-      <div className="p-2 border-b shrink-0">
+      <div className="p-2.5 border-b shrink-0">
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder={t("graph.entityBrowser.search", "Search entities...")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 pl-8 text-sm"
+            className="h-9 pl-8 text-sm bg-muted/30 border-muted focus:bg-background transition-colors"
           />
         </div>
       </div>

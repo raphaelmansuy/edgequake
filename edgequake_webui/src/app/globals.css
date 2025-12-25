@@ -590,3 +590,32 @@ select:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
 }
+
+/* ============================================
+ * ENHANCED FORM INPUTS
+ * ============================================ */
+
+/* Consistent input borders */
+input:not([type="checkbox"]):not([type="radio"]),
+textarea,
+select,
+[role="combobox"] {
+  border: 1px solid var(--input);
+  background-color: var(--background);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Enhanced focus state with brand color */
+input:not([type="checkbox"]):not([type="radio"]):focus,
+textarea:focus,
+select:focus,
+[role="combobox"]:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px oklch(from var(--primary) l c h / 0.15);
+}
+
+/* Query input enhanced focus */
+.query-input:focus {
+  border-color: oklch(0.65 0.2 290);
+  box-shadow: 0 0 0 3px oklch(0.65 0.2 290 / 0.15);
+}

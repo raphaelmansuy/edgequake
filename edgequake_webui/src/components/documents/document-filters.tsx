@@ -54,13 +54,13 @@ export function DocumentFilters({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-4 mb-4">
+    <div className="flex flex-wrap items-center gap-3 mb-4">
       {/* Status Filter */}
       <Select
         value={status}
         onValueChange={(v) => onStatusChange(v as DocStatus)}
       >
-        <SelectTrigger className="w-44">
+        <SelectTrigger className="w-40 h-9">
           <SelectValue placeholder={t('documents.filter.status')} />
         </SelectTrigger>
         <SelectContent>
@@ -72,16 +72,19 @@ export function DocumentFilters({
         </SelectContent>
       </Select>
 
+      {/* Divider */}
+      <div className="h-6 w-px bg-border hidden sm:block" />
+
       {/* Sort Controls */}
-      <div className="flex items-center gap-1">
-        <span className="text-sm text-muted-foreground">
+      <div className="flex items-center gap-1.5">
+        <span className="text-sm text-muted-foreground whitespace-nowrap">
           {t('documents.filter.sortBy')}
         </span>
         <Button
           variant={sortField === 'created_at' ? 'secondary' : 'ghost'}
           size="sm"
           onClick={() => toggleSort('created_at')}
-          className="gap-1"
+          className="gap-1 h-9"
         >
           {t('documents.filter.created')}
           {sortField === 'created_at' && (
@@ -96,7 +99,7 @@ export function DocumentFilters({
           variant={sortField === 'updated_at' ? 'secondary' : 'ghost'}
           size="sm"
           onClick={() => toggleSort('updated_at')}
-          className="gap-1"
+          className="gap-1 h-9"
         >
           {t('documents.filter.updated')}
           {sortField === 'updated_at' && (

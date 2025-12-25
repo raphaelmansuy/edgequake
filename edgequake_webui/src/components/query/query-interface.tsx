@@ -484,7 +484,7 @@ const EmptyState = memo(function EmptyState({ onSuggestionClick, graphStats }: E
               <button
                 key={i}
                 onClick={() => onSuggestionClick(suggestion.text)}
-                className="group flex items-start gap-3 text-left px-4 py-3.5 rounded-xl border bg-card hover:bg-muted/50 hover:border-primary/30 transition-all duration-150 hover:shadow-sm"
+                className="group flex items-start gap-3 text-left px-4 py-3.5 rounded-xl border bg-card hover:bg-muted/50 hover:border-primary/30 transition-all duration-200 hover:shadow-sm hover:-translate-y-0.5"
               >
                 <div className="p-1.5 rounded-lg bg-muted group-hover:bg-primary/10 transition-colors shrink-0">
                   {suggestion.icon}
@@ -1061,7 +1061,7 @@ export function QueryInterface() {
                 value={input}
                 onChange={handleInputChange}
                 placeholder={t('query.placeholder', 'Ask a question...')}
-                className="min-h-[56px] max-h-[200px] resize-none pr-24 py-4 text-base"
+                className="min-h-[56px] max-h-[200px] resize-none pr-24 py-4 text-base query-input focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all duration-200"
                 rows={1}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {

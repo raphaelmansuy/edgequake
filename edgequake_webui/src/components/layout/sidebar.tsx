@@ -3,7 +3,7 @@
 import { ClientOnly } from '@/components/client-only';
 import { TenantWorkspaceSelector } from '@/components/shared/tenant-workspace-selector';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import {
   Tooltip,
   TooltipContent,
@@ -226,6 +226,10 @@ export function MobileSidebar() {
           </Button>
         </SheetTrigger>
         <SheetContent side="left" className="w-64 p-0">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Navigation Menu</SheetTitle>
+            <SheetDescription>Main navigation for EdgeQuake application</SheetDescription>
+          </SheetHeader>
           <SidebarContent onItemClick={() => setOpen(false)} />
         </SheetContent>
       </Sheet>

@@ -179,14 +179,14 @@ export function GraphViewer() {
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full overflow-hidden">
       {/* Left Entity Browser */}
       <EntityBrowserPanel />
 
       {/* Main Graph Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Toolbar - improved spacing */}
-        <header className="flex items-center justify-between border-b px-6 py-3">
+        <header className="flex items-center justify-between border-b px-6 py-3 shrink-0">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-semibold tracking-tight">Knowledge Graph</h2>
             {isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
@@ -216,7 +216,7 @@ export function GraphViewer() {
         </header>
 
         {/* Graph Canvas */}
-        <div className="flex-1 relative" data-graph-container>
+        <div className="flex-1 relative overflow-hidden" data-graph-container>
           {isLoading && allNodes.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">
@@ -306,9 +306,9 @@ export function GraphViewer() {
         </div>
       </div>
 
-      {/* Right Sidebar - improved padding */}
-      <aside className="w-80 border-l bg-card overflow-auto">
-        <div className="p-6 space-y-6">
+      {/* Right Sidebar - improved padding and scroll */}
+      <aside className="w-80 border-l bg-card flex flex-col overflow-hidden shrink-0">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* Filters */}
           <GraphFilters />
 
