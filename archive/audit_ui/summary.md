@@ -1,655 +1,729 @@
-# EdgeQuake UX/UI Audit - Summary & Roadmap
+# EdgeQuake WebUI UX/UI Audit Summary
 
-**Date:** December 25, 2025  
-**Auditor:** Senior UX/UI Designer  
-**Application:** EdgeQuake WebUI (Next.js 16 + React 19 + TypeScript)
+> **Audit Date:** January 2025  
+> **Spec Reference:** `specs/12-ux-ui-audit.md`  
+> **Scope:** All screens except Documentation page  
+> **Evidence:** 97+ screenshots in `/audit_ui/screenshots/`
 
 ---
 
 ## Executive Summary
 
-EdgeQuake has a **solid foundation** with modern UI components (Radix UI), thoughtful architecture, and good accessibility basics. However, there are significant opportunities to improve **information density**, **workflow efficiency**, and **user control** through collapsible panels, better visual hierarchy, and enhanced empty states.
+This audit evaluated EdgeQuake WebUI against modern design standards, accessibility requirements (WCAG 2.1 AA), and usability best practices. The assessment covered 6 major screens: Dashboard, Documents, Query, Graph, Settings, and API Explorer.
 
-### Key Findings
+### Key Metrics
 
-#### ✅ Strengths
+| Metric                  | Status |
+| ----------------------- | ------ |
+| Total Issues Identified | 42     |
+| Critical Issues         | 6      |
+| Major Issues            | 21     |
+| Minor Issues            | 15     |
+| Accessibility Concerns  | 8      |
 
-- Modern tech stack (Next.js 16, React 19, Radix UI, Tailwind)
-- Consistent component library (shadcn/ui)
-- Good accessibility foundations (skip links, aria-labels, keyboard nav)
-- Responsive mobile menu
-- Theme support (light/dark)
-- Internationalization (i18n) infrastructure
+### Severity Distribution by Screen
 
-#### ⚠️ Critical Issues
-
-1. **No collapsible panels** - Wastes space, limits user control
-2. **Weak visual hierarchy** - Everything looks equally important
-3. **Minimal empty states** - New users feel lost
-4. **No conversation management** - Can't return to previous queries
-5. **Limited bulk operations** - Tedious for power users
-
-#### 🎯 Impact
-
-- **User efficiency:** -30% (manual actions that should be batched)
-- **Cognitive load:** High (poor information hierarchy)
-- **Onboarding:** Difficult (no guidance or examples)
-- **Professional perception:** Amateurish (inconsistent spacing, weak empty states)
-
----
-
-## Audit Scope
-
-### Screens Audited
-
-1. **Dashboard** (`/`) - Home screen with stats and quick actions
-2. **Documents** (`/documents`) - Upload and manage documents
-3. **Query** (`/query`) - Chat-based RAG interface
-4. **Graph** (`/graph`) - Knowledge graph visualization
-5. **Settings** (`/settings`) - Application configuration
-6. **API Explorer** (`/api-explorer`) - API testing interface
-7. **Responsive** - Tablet (768px) and Mobile (375px)
-8. **Accessibility** - WCAG compliance audit
-
-### Methodology
-
-- ✅ Playwright end-to-end navigation (10 test scenarios)
-- ✅ Screenshot capture (18 screenshots)
-- ✅ Component code review (1000+ lines)
-- ✅ Accessibility audit (contrast, keyboard nav, screen reader)
-- ✅ Responsive testing (3 breakpoints)
-
----
-
-## Critical Issues by Screen
-
-### Dashboard
-
-- **C1:** No collapsible left sidebar (desktop)
-- **C2:** No right panel for insights/help
-- **M1:** Weak page title hierarchy (text-2xl → should be text-3xl)
-- **M2:** Uniform spacing (no visual rhythm)
-- **M3:** Stats card numbers too small
-
-**Impact:** Wastes space, poor scanning, unprofessional appearance
-
-### Documents
-
-- **C1:** No right panel for document preview
-- **C2:** Upload area not prominent enough
-- **C3:** No visual empty state
-- **M1:** Table columns not optimized
-- **M2:** Status filter UX weak (dropdown → should be tabs)
-- **M3:** No bulk selection
-
-**Impact:** Slow workflow, tedious operations, confusing upload
-
-### Query
-
-- **C1:** Right panel not independently collapsible
-- **C2:** Input area too small (no auto-expand)
-- **C3:** No chat history persistence
-- **M1:** Empty state too minimal
-- **M2:** Mode selector buried
-- **M3:** Source citations weak
-- **M4:** No conversation management
-
-**Impact:** Can't manage multiple conversations, inefficient space use, lost context
-
-### Graph
-
-- **C1:** No left panel for entity navigation
-- **C2:** No minimap for large graphs
-- **C3:** No onboarding/empty state
-- **M1:** Controls not visible (0 detected in test)
-
-**Impact:** Hard to explore, disorienting, no guidance
-
-### Settings
-
-- **C1:** Very minimal implementation (1 input detected)
-- **C2:** No tabs for organization
-
-**Impact:** Incomplete, unprofessional
-
-### API Explorer
-
-- **C1:** No interactive request builder
-- **C2:** No authentication UI
-- **M1:** Limited endpoints (only 3)
-
-**Impact:** Not usable for API testing
-
----
-
-## Design System Gaps
-
-### Typography
-
-❌ Inconsistent heading sizes  
-❌ Stats numbers not prominent (should be text-4xl)  
-❌ No clear hierarchy (H1/H2/H3)  
-✅ Font files loaded (Geist Sans/Mono)
-
-**Fix:** Implement 8-level type scale with clear usage rules
-
-### Spacing
-
-❌ Uniform spacing (space-y-6 everywhere)  
-❌ No progressive spacing scale  
-✅ Consistent padding (p-4, p-6)
-
-**Fix:** Use 16px within sections, 32px between sections
-
-### Colors
-
-✅ OKLCH color system  
-✅ Dark mode support  
-⚠️ Button contrast may fail WCAG (needs verification)
-
-**Fix:** Audit contrast ratios, ensure 4.5:1 minimum
-
-### Components
-
-✅ Comprehensive component library (Radix UI)  
-❌ Inconsistent usage patterns  
-❌ Missing patterns (stats cards, empty states, progress)
-
-**Fix:** Document standard patterns with examples
-
----
-
-## Accessibility Findings
-
-### ✅ Good
-
-- Skip link implemented
-- 6 aria-labeled elements
-- Proper heading hierarchy (H1:2, H2:0, H3:0)
-- Keyboard navigation works (Tab key functional)
-- Focus visible on tab
-
-### ⚠️ Needs Improvement
-
-- **Low aria-label count** (only 6 elements)
-- **Button contrast** may fail WCAG AA (need verification)
-- **No screen reader announcements** for dynamic content
-- **No reduced motion support** (animations always on)
-
-### WCAG Compliance Estimate
-
-- **Level A:** ~80% compliant
-- **Level AA:** ~60% compliant
-- **Level AAA:** ~40% compliant
-
-**Target:** 100% Level AA compliance
+| Screen       | Critical | Major | Minor | Total |
+| ------------ | -------- | ----- | ----- | ----- |
+| Dashboard    | 1        | 3     | 2     | 6     |
+| Documents    | 1        | 4     | 3     | 8     |
+| Query        | 1        | 3     | 3     | 7     |
+| Graph        | 1        | 4     | 2     | 7     |
+| Settings     | 0        | 3     | 2     | 5     |
+| API Explorer | 2        | 4     | 3     | 9     |
 
 ---
 
 ## Prioritized Roadmap
 
-### 🔥 Phase 1: Quick Wins (1-2 weeks, 3-5 days effort)
+### 🚀 Quick Wins (Sprint 1 - 1-2 weeks)
 
-#### Goals
+High-impact, low-effort improvements that can be deployed immediately.
 
-- Fix most critical UX issues
-- Improve visual hierarchy
-- Add missing empty states
+| ID    | Issue                                               | Screen           | Effort | Impact |
+| ----- | --------------------------------------------------- | ---------------- | ------ | ------ |
+| QW-01 | Add section dividers between settings groups        | Settings         | 2h     | High   |
+| QW-02 | Add 48px touch-target padding to clickable elements | All              | 4h     | High   |
+| QW-03 | Add loading spinner states for async operations     | All              | 4h     | High   |
+| QW-04 | Reduce upload zone height from 200px to 120px       | Documents        | 1h     | Medium |
+| QW-05 | Add empty state illustrations with CTAs             | Dashboard, Graph | 4h     | Medium |
+| QW-06 | Add visual feedback (pulse/scale) on button clicks  | All              | 2h     | Medium |
+| QW-07 | Increase stat card differentiation with icons       | Dashboard        | 3h     | Medium |
+| QW-08 | Add confirmation modal for dangerous actions        | Settings         | 3h     | High   |
+| QW-09 | Fix zoom control duplication on graph page          | Graph            | 1h     | Medium |
+| QW-10 | Add endpoint method icons (GET/POST/DELETE)         | API Explorer     | 2h     | Low    |
 
-#### Deliverables
-
-**1. Collapsible Sidebar** (Priority: CRITICAL)
-
-- [ ] Add collapse/expand button
-- [ ] 72px collapsed, 256px expanded
-- [ ] State persistence (localStorage)
-- [ ] Smooth transition (200ms)
-- [ ] Keyboard shortcut (Cmd/Ctrl+B)
-
-**Effort:** 2-3 hours  
-**Impact:** High - improves space management dramatically
-
-**2. Typography Hierarchy** (Priority: CRITICAL)
-
-- [ ] Page titles: text-3xl (30px) → from text-2xl (24px)
-- [ ] Section headers: text-xl (20px)
-- [ ] Stats values: text-4xl tabular-nums (36px)
-- [ ] Clear H1 > H2 > H3 distinction
-
-**Effort:** 1-2 hours (mostly CSS changes)  
-**Impact:** High - professionalism, scannability
-
-**3. Rich Empty States** (Priority: CRITICAL)
-
-- [ ] Query page: Large icon, examples, feature highlights
-- [ ] Documents page: Upload illustration, file type info, CTA
-- [ ] Graph page: "No entities yet" with link to upload
-
-**Effort:** 2-3 hours per screen (6-9 hours total)  
-**Impact:** High - onboarding, discoverability
-
-**4. Progressive Spacing** (Priority: CRITICAL)
-
-- [ ] Replace uniform space-y-6 with 16px/32px rhythm
-- [ ] Update all major pages
-
-**Effort:** 1 hour  
-**Impact:** Medium - visual polish
-
-**5. Auto-Expanding Textarea** (Priority: HIGH)
-
-- [ ] Query input starts at 52px, expands to 200px max
-- [ ] Shift+Enter for new line, Enter to send
-
-**Effort:** 1 hour  
-**Impact:** High - major UX improvement
-
-**6. Tab-Based Filters (Documents)** (Priority: HIGH)
-
-- [ ] Convert dropdown to tabs (All | Processing | Completed | Failed)
-- [ ] Show count badges
-- [ ] Active state clear
-
-**Effort:** 2 hours  
-**Impact:** Medium-High - faster filtering
-
-**Total Phase 1:** 10-16 hours (~2 weeks calendar time)
+**Sprint 1 Total:** ~26 hours
 
 ---
 
-### 📌 Phase 2: Core Features (3-4 weeks, 1 week effort)
+### 📊 Next (Sprint 2-3 - 2-4 weeks)
 
-#### Goals
+Medium-effort improvements addressing core UX problems.
 
-- Add right panels across all pages
-- Implement conversation management
-- Add bulk operations
+| ID    | Issue                                                | Screen       | Effort | Impact   |
+| ----- | ---------------------------------------------------- | ------------ | ------ | -------- |
+| NX-01 | Implement request/response panel for API Explorer    | API Explorer | 16h    | Critical |
+| NX-02 | Add bulk actions toolbar for document management     | Documents    | 12h    | High     |
+| NX-03 | Add mode explanation tooltips/help                   | Query        | 6h     | High     |
+| NX-04 | Add trend indicators to dashboard stats              | Dashboard    | 8h     | Medium   |
+| NX-05 | Implement entity details panel on graph nodes        | Graph        | 16h    | High     |
+| NX-06 | Add drag-and-drop visual feedback with dashed border | Documents    | 4h     | Medium   |
+| NX-07 | Collapsible sidebar with persistent state            | All          | 8h     | Medium   |
+| NX-08 | Add search/filter to API endpoint list               | API Explorer | 6h     | Medium   |
+| NX-09 | Implement dark mode toggle with system preference    | Settings     | 8h     | Medium   |
+| NX-10 | Add keyboard shortcuts for common actions            | All          | 8h     | Medium   |
+| NX-11 | Improve sparse graph visualization with clustering   | Graph        | 12h    | High     |
+| NX-12 | Add document preview on hover/click                  | Documents    | 12h    | Medium   |
 
-#### Deliverables
-
-**1. Right Panel System** (Priority: CRITICAL)
-
-- [ ] Dashboard: Insights/tips panel (320px)
-- [ ] Documents: Preview panel (400px)
-- [ ] Query: Sources panel collapsible (400px)
-- [ ] Graph: Node details panel (360px)
-- [ ] All panels collapsible independently
-- [ ] State persistence
-
-**Effort:** 4-6 hours per panel, 16-24 hours total  
-**Impact:** Critical - major UX improvement
-
-**2. Document Preview Panel** (Priority: HIGH)
-
-- [ ] Right panel opens when document selected
-- [ ] Shows metadata, content preview, actions
-- [ ] Navigate with arrow keys
-- [ ] ESC to close
-
-**Effort:** 4-6 hours  
-**Impact:** High - workflow efficiency
-
-**3. Conversation Management (Query)** (Priority: CRITICAL)
-
-- [ ] History sidebar (Sheet or collapsible panel)
-- [ ] New conversation button
-- [ ] Auto-title based on first query
-- [ ] Conversation list with search
-- [ ] Persist to backend/localStorage
-
-**Effort:** 6-8 hours (including backend if needed)  
-**Impact:** Critical - essential for query interface
-
-**4. Bulk Selection (Documents)** (Priority: HIGH)
-
-- [ ] Checkbox column
-- [ ] Select all / select range
-- [ ] Floating action bar (Delete, Reprocess)
-- [ ] Keyboard shortcuts (Shift+Click, Cmd+A)
-
-**Effort:** 3-4 hours  
-**Impact:** High - power user efficiency
-
-**5. Search Functionality** (Priority: HIGH)
-
-- [ ] Documents page: Search by filename
-- [ ] Graph page: Search entities
-- [ ] Debounced input (300ms)
-- [ ] Highlight results
-
-**Effort:** 2-3 hours per page, 4-6 hours total  
-**Impact:** Medium-High - discoverability
-
-**6. Graph Controls** (Priority: HIGH)
-
-- [ ] Zoom controls (+, -, fit view)
-- [ ] Layout selector dropdown
-- [ ] Export button (PNG, SVG, JSON)
-- [ ] Legend with checkboxes
-
-**Effort:** 3-4 hours  
-**Impact:** High - usability
-
-**Total Phase 2:** 30-40 hours (~4 weeks calendar time)
+**Sprint 2-3 Total:** ~116 hours
 
 ---
 
-### 💡 Phase 3: Polish & Enhancement (4-6 weeks, 1-2 weeks effort)
+### 📐 Later (Backlog - 1-3 months)
 
-#### Goals
+Strategic improvements requiring architectural changes.
 
-- Keyboard shortcuts
-- Advanced features
-- Mobile optimization
-- Full accessibility compliance
+| ID    | Issue                                           | Screen           | Effort | Impact   |
+| ----- | ----------------------------------------------- | ---------------- | ------ | -------- |
+| LT-01 | Implement comprehensive design system           | All              | 40h    | High     |
+| LT-02 | Add real-time collaboration indicators          | Documents, Query | 24h    | Medium   |
+| LT-03 | Implement advanced graph filtering/search       | Graph            | 32h    | High     |
+| LT-04 | Add authentication context to API Explorer      | API Explorer     | 16h    | Critical |
+| LT-05 | Implement responsive mobile layout overhaul     | All              | 40h    | Medium   |
+| LT-06 | Add onboarding wizard for new users             | All              | 24h    | Medium   |
+| LT-07 | Implement undo/redo for all destructive actions | All              | 32h    | Medium   |
+| LT-08 | Add analytics dashboard with usage metrics      | Dashboard        | 24h    | Low      |
+| LT-09 | Implement role-based access control UI          | Settings         | 32h    | Medium   |
+| LT-10 | Add WebSocket-based real-time updates           | All              | 40h    | Medium   |
 
-#### Deliverables
+**Backlog Total:** ~304 hours
 
-**1. Comprehensive Keyboard Shortcuts** (Priority: MEDIUM)
+---
 
-```
-Query:
-- Cmd/Ctrl+N: New conversation
-- Cmd/Ctrl+K: Focus input
-- Cmd/Ctrl+B: Toggle right panel
-- Cmd/Ctrl+H: Toggle history
-- Esc: Cancel/Clear
+## Proposed Design Tokens
 
-Documents:
-- U: Upload
-- Del: Delete selected
-- Cmd/Ctrl+A: Select all
-- Space: Toggle selection
+### Type Scale
 
-Global:
-- Cmd/Ctrl+/: Show shortcuts
-- Cmd/Ctrl+,: Settings
+Using a modular scale ratio of 1.25 (Major Third) for harmonious typography.
+
+```css
+:root {
+  /* Font Families */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "SF Mono", monospace;
+
+  /* Font Sizes - Major Third Scale (1.25) */
+  --text-xs: 0.64rem; /* 10.24px - labels, badges */
+  --text-sm: 0.8rem; /* 12.8px - captions, helper text */
+  --text-base: 1rem; /* 16px - body text */
+  --text-md: 1.25rem; /* 20px - section headers */
+  --text-lg: 1.563rem; /* 25px - card titles */
+  --text-xl: 1.953rem; /* 31.25px - page titles */
+  --text-2xl: 2.441rem; /* 39px - hero text */
+  --text-3xl: 3.052rem; /* 48.8px - display text */
+
+  /* Font Weights */
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  /* Line Heights */
+  --leading-tight: 1.25;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+  --leading-loose: 2;
+}
 ```
 
-**Effort:** 6-8 hours (shortcuts modal + implementation)  
-**Impact:** Medium - power user delight
+### Spacing Scale
 
-**2. Mobile Optimization** (Priority: HIGH)
+Using a 4px base unit for consistent spacing.
 
-- [ ] Right panels → Bottom sheets
-- [ ] Stats cards → Single column
-- [ ] Table → Card list view
-- [ ] Touch-optimized controls
+```css
+:root {
+  /* Spacing - 4px base unit */
+  --space-0: 0;
+  --space-1: 0.25rem; /* 4px */
+  --space-2: 0.5rem; /* 8px */
+  --space-3: 0.75rem; /* 12px */
+  --space-4: 1rem; /* 16px */
+  --space-5: 1.25rem; /* 20px */
+  --space-6: 1.5rem; /* 24px */
+  --space-8: 2rem; /* 32px */
+  --space-10: 2.5rem; /* 40px */
+  --space-12: 3rem; /* 48px */
+  --space-16: 4rem; /* 64px */
+  --space-20: 5rem; /* 80px */
+  --space-24: 6rem; /* 96px */
 
-**Effort:** 8-10 hours  
-**Impact:** High - mobile usability critical
+  /* Component-specific spacing */
+  --gap-card: var(--space-4);
+  --gap-section: var(--space-8);
+  --gap-page: var(--space-12);
 
-**3. Progressive Loading States** (Priority: MEDIUM)
+  /* Padding */
+  --padding-xs: var(--space-2);
+  --padding-sm: var(--space-3);
+  --padding-md: var(--space-4);
+  --padding-lg: var(--space-6);
+  --padding-xl: var(--space-8);
+}
+```
 
-- [ ] Query: Show phases (Retrieving → Thinking → Generating)
-- [ ] Documents: Batch upload with collapsible progress
-- [ ] Graph: Loading skeleton
+### Panel Width Standards
 
-**Effort:** 4-5 hours  
-**Impact:** Medium - perceived performance
+Consistent panel widths across the application.
 
-**4. Settings Implementation** (Priority: HIGH)
+```css
+:root {
+  /* Panel Widths */
+  --sidebar-width-collapsed: 64px;
+  --sidebar-width-expanded: 240px;
+  --sidebar-width-max: 280px;
 
-- [ ] Tabs: General, LLM, Storage, API Keys, Appearance
-- [ ] Profile settings
-- [ ] Query defaults (mode, temperature)
-- [ ] API provider configuration
-- [ ] Right panel for help text
+  --panel-width-sm: 280px; /* Narrow side panels */
+  --panel-width-md: 360px; /* Standard side panels */
+  --panel-width-lg: 480px; /* Wide panels, drawers */
+  --panel-width-xl: 640px; /* Modals, dialogs */
 
-**Effort:** 8-12 hours  
-**Impact:** High - essential functionality
+  /* Content Widths */
+  --content-width-sm: 640px; /* Narrow content */
+  --content-width-md: 768px; /* Medium content */
+  --content-width-lg: 1024px; /* Wide content */
+  --content-width-xl: 1280px; /* Full content */
 
-**5. API Explorer Enhancement** (Priority: MEDIUM)
+  /* Breakpoints */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+}
+```
 
-- [ ] Interactive request builder (Postman-style)
-- [ ] Authentication header input
-- [ ] Code generation (cURL, Python, JS)
-- [ ] Response schema display
+### Color System
 
-**Effort:** 10-12 hours  
-**Impact:** Medium - developer experience
+Semantic color tokens for consistent theming.
 
-**6. Accessibility Improvements** (Priority: HIGH)
+```css
+:root {
+  /* Brand Colors */
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-200: #bfdbfe;
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-800: #1e40af;
+  --color-primary-900: #1e3a8a;
 
-- [ ] Add aria-labels to all interactive elements (target: 50+)
-- [ ] Verify all contrast ratios (WCAG AA)
-- [ ] Implement aria-live regions for dynamic updates
-- [ ] Add reduced-motion support
-- [ ] Screen reader testing
+  /* Semantic Colors */
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
 
-**Effort:** 8-10 hours  
-**Impact:** High - compliance + inclusivity
+  /* Surface Colors */
+  --surface-primary: #ffffff;
+  --surface-secondary: #f8fafc;
+  --surface-tertiary: #f1f5f9;
+  --surface-elevated: #ffffff;
 
-**7. Message Actions (Query)** (Priority: MEDIUM)
+  /* Border Colors */
+  --border-subtle: #e2e8f0;
+  --border-default: #cbd5e1;
+  --border-strong: #94a3b8;
+  --border-focus: var(--color-primary-500);
 
-- [ ] Copy, Regenerate (already exist)
-- [ ] Edit user message
-- [ ] Bookmark/favorite
-- [ ] Share exchange
-- [ ] View entities in graph
-- [ ] Export conversation
+  /* Text Colors */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #94a3b8;
+  --text-inverse: #ffffff;
+  --text-link: var(--color-primary-600);
+}
+```
 
-**Effort:** 4-6 hours  
-**Impact:** Medium - feature completeness
+### Shadow System
 
-**8. Graph Enhancements** (Priority: MEDIUM)
+Elevation tokens for depth perception.
 
-- [ ] Entity list in left panel
-- [ ] Minimap for navigation
-- [ ] Path finding (shortest path between nodes)
-- [ ] Relationship labels on hover
-- [ ] Filter panel (by type, source, date)
+```css
+:root {
+  /* Shadows - Elevation Levels */
+  --shadow-none: none;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 /
+          0.1);
+  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
 
-**Effort:** 10-14 hours  
-**Impact:** Medium-High - graph usability
+  /* Component Shadows */
+  --shadow-card: var(--shadow-sm);
+  --shadow-card-hover: var(--shadow-md);
+  --shadow-dropdown: var(--shadow-lg);
+  --shadow-modal: var(--shadow-xl);
+  --shadow-focus: 0 0 0 3px var(--color-primary-200);
+}
+```
 
-**Total Phase 3:** 58-77 hours (~6 weeks calendar time)
+### Animation Tokens
 
----
+Consistent motion for interactions.
 
-## Total Effort Estimate
+```css
+:root {
+  /* Durations */
+  --duration-instant: 0ms;
+  --duration-fast: 100ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --duration-slower: 500ms;
 
-| Phase                         | Calendar Time  | Development Effort | Priority         |
-| ----------------------------- | -------------- | ------------------ | ---------------- |
-| Phase 1: Quick Wins           | 1-2 weeks      | 10-16 hours        | 🔥 Critical      |
-| Phase 2: Core Features        | 3-4 weeks      | 30-40 hours        | 📌 Important     |
-| Phase 3: Polish & Enhancement | 4-6 weeks      | 58-77 hours        | 💡 Nice-to-Have  |
-| **Total**                     | **8-12 weeks** | **98-133 hours**   | **(12-17 days)** |
+  /* Easings */
+  --ease-linear: linear;
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
 
-**Recommended team size:** 2 frontend developers + 1 designer  
-**Timeline with team:** 6-8 weeks
-
----
-
-## Success Metrics
-
-### Before (Current State)
-
-- User task completion time: **Baseline**
-- Navigation clicks to complete action: **5-7 average**
-- Space efficiency: **60%** (fixed panels waste space)
-- Mobile usability: **3/5** (functional but not optimized)
-- Accessibility score: **60% WCAG AA**
-- User satisfaction (NPS): **TBD**
-
-### After (Target State)
-
-- User task completion time: **-30%** improvement
-- Navigation clicks to complete action: **3-4 average** (bulk ops)
-- Space efficiency: **85%** (collapsible panels)
-- Mobile usability: **5/5** (bottom sheets, touch-optimized)
-- Accessibility score: **100% WCAG AA**
-- User satisfaction (NPS): **+20 points**
-
----
-
-## Implementation Strategy
-
-### Week 1-2: Quick Wins (Phase 1)
-
-- **Developer 1:** Collapsible sidebar + typography hierarchy
-- **Developer 2:** Empty states + spacing updates
-- **Designer:** Review and approve visual changes
-
-**Deliverable:** Dashboard, Documents, Query pages improved
-
-### Week 3-6: Core Features (Phase 2)
-
-- **Developer 1:** Right panels (all pages) + conversation management
-- **Developer 2:** Bulk selection + search + graph controls
-- **Designer:** Create panel content designs
-
-**Deliverable:** Full right panel system + core features
-
-### Week 7-12: Polish & Enhancement (Phase 3)
-
-- **Developer 1:** Keyboard shortcuts + mobile optimization + accessibility
-- **Developer 2:** Settings + API Explorer + advanced features
-- **Designer:** Final polish + documentation
-
-**Deliverable:** Production-ready, fully polished UI
-
----
-
-## Design System Deliverables
-
-### Phase 1
-
-- [x] Typography scale defined
-- [x] Spacing scale defined
-- [ ] Components documented (basic patterns)
-
-### Phase 2
-
-- [ ] All component patterns documented
-- [ ] Storybook examples created
-- [ ] Usage guidelines written
-
-### Phase 3
-
-- [ ] Accessibility checklist finalized
-- [ ] Animation library defined
-- [ ] Complete design system published
-
----
-
-## Technical Debt
-
-### Current
-
-- Inconsistent spacing throughout
-- Hardcoded colors (purple in COT display)
-- Mixed component patterns
-- No comprehensive error handling UI
-- Limited loading states
-
-### After Implementation
-
-- Consistent token-based styling
-- Reusable component library
-- Comprehensive state management
-- Full error boundary coverage
-- Rich loading/empty/error states
+  /* Standard Transitions */
+  --transition-colors: color var(--duration-fast) var(--ease-in-out), background-color
+      var(--duration-fast) var(--ease-in-out),
+    border-color var(--duration-fast) var(--ease-in-out);
+  --transition-transform: transform var(--duration-normal) var(--ease-out);
+  --transition-opacity: opacity var(--duration-normal) var(--ease-in-out);
+  --transition-shadow: box-shadow var(--duration-fast) var(--ease-in-out);
+  --transition-all: all var(--duration-normal) var(--ease-in-out);
+}
+```
 
 ---
 
-## Risk Assessment
+## Recommended Standardized Design Patterns
 
-### High Risk
+### 1. Panel Pattern
 
-- **Scope creep:** Features sound simple but have many edge cases
-  - **Mitigation:** Strict phase gating, MVP first
-- **Performance:** Right panels + heavy renders
-  - **Mitigation:** Lazy loading, virtualization
-- **Mobile complexity:** Bottom sheets + gestures
-  - **Mitigation:** Use battle-tested libraries (Vaul, Radix)
+Standard collapsible side panel with consistent structure.
 
-### Medium Risk
+```
+┌─────────────────────────────────────────────────┐
+│ ┌───────────────────────────────────────────┐   │
+│ │ 🔍 Panel Title                    [−] [×] │   │ ← Header: 48px height
+│ └───────────────────────────────────────────┘   │
+│ ┌───────────────────────────────────────────┐   │
+│ │ [ Search input...                    🔎 ] │   │ ← Optional search
+│ └───────────────────────────────────────────┘   │
+│ ┌───────────────────────────────────────────┐   │
+│ │ [All] [Active] [Archived] [Starred]       │   │ ← Optional tabs
+│ └───────────────────────────────────────────┘   │
+│ ┌───────────────────────────────────────────┐   │
+│ │                                           │   │
+│ │              Panel Content                │   │ ← Scrollable content
+│ │                                           │   │
+│ │           (scrollable area)               │   │
+│ │                                           │   │
+│ └───────────────────────────────────────────┘   │
+│ ┌───────────────────────────────────────────┐   │
+│ │ [Action Button]              [Secondary]  │   │ ← Optional footer
+│ └───────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────┘
+```
 
-- **Accessibility regression:** Changes break existing a11y
-  - **Mitigation:** Automated testing (axe-core, Playwright)
-- **Browser compatibility:** CSS features not universal
-  - **Mitigation:** Progressive enhancement
+**Implementation:**
 
-### Low Risk
-
-- **Design system adoption:** Team doesn't follow patterns
-  - **Mitigation:** Clear documentation + code reviews
+```tsx
+interface PanelProps {
+  title: string;
+  icon?: React.ReactNode;
+  collapsible?: boolean;
+  searchable?: boolean;
+  tabs?: { label: string; value: string }[];
+  footer?: React.ReactNode;
+  children: React.ReactNode;
+}
+```
 
 ---
 
-## Maintenance Plan
+### 2. Table Pattern
 
-### Weekly
+Standard data table with consistent features.
 
-- [ ] Review new components for design system compliance
-- [ ] Check accessibility violations (automated)
-- [ ] Monitor user feedback channels
+```
+┌────────────────────────────────────────────────────────────────┐
+│ ┌──────────────────────────────────────────────────────────┐   │
+│ │ [☐] Select All    [Bulk Action ▼]    [🔍 Search...  ]    │   │ ← Toolbar
+│ └──────────────────────────────────────────────────────────┘   │
+├────────────────────────────────────────────────────────────────┤
+│ [☐] Name ↕          Status ↕       Created ↕       Actions    │ ← Header
+├────────────────────────────────────────────────────────────────┤
+│ [☐] Document 1      ● Active       Jan 15, 2025    [⋮]        │
+│ [☐] Document 2      ○ Draft        Jan 14, 2025    [⋮]        │
+│ [☐] Document 3      ● Active       Jan 13, 2025    [⋮]        │
+│     ... (more rows) ...                                        │
+├────────────────────────────────────────────────────────────────┤
+│ Showing 1-10 of 42    [<] [1] [2] [3] ... [5] [>]    10 ▼     │ ← Footer
+└────────────────────────────────────────────────────────────────┘
+```
 
-### Monthly
+**Features:**
 
-- [ ] Audit for visual inconsistencies
-- [ ] Update design system documentation
-- [ ] Review performance metrics
+- Checkbox selection for bulk actions
+- Sortable columns with clear indicators
+- Row hover state with action reveal
+- Keyboard navigation (arrow keys, Enter to select)
+- Responsive: stack columns on mobile
 
-### Quarterly
+---
 
-- [ ] Comprehensive accessibility audit
-- [ ] User testing sessions
-- [ ] Design system evolution planning
+### 3. Form Pattern
+
+Standard form layout with consistent validation.
+
+```
+┌──────────────────────────────────────────────────┐
+│ Form Title                                       │
+│ Optional description text explaining the form    │
+├──────────────────────────────────────────────────┤
+│                                                  │
+│ Label *                         ⓘ (tooltip)     │
+│ ┌──────────────────────────────────────────┐    │
+│ │ Input value                              │    │
+│ └──────────────────────────────────────────┘    │
+│ Helper text or validation message               │
+│                                                  │
+│ Another Label                                    │
+│ ┌──────────────────────────────────────────┐    │
+│ │ Select option                          ▼ │    │
+│ └──────────────────────────────────────────┘    │
+│                                                  │
+│ Checkbox Group                                   │
+│ ☐ Option 1                                      │
+│ ☑ Option 2 (selected)                           │
+│ ☐ Option 3                                      │
+│                                                  │
+├──────────────────────────────────────────────────┤
+│               [Cancel]  [Save Changes]           │
+└──────────────────────────────────────────────────┘
+```
+
+**Validation States:**
+
+- Default: `border-default`
+- Focus: `border-focus` + `shadow-focus`
+- Error: `border-error` + red helper text
+- Success: `border-success` + green checkmark
+
+---
+
+### 4. Empty State Pattern
+
+Standard empty state with clear call-to-action.
+
+```
+┌──────────────────────────────────────────────────┐
+│                                                  │
+│                    ┌─────┐                       │
+│                    │ 📄  │                       │
+│                    └─────┘                       │
+│                                                  │
+│              No Documents Yet                    │
+│                                                  │
+│    Upload your first document to get started    │
+│    with knowledge extraction and querying.      │
+│                                                  │
+│            [+ Upload Document]                   │
+│                                                  │
+│    ─────────── or ───────────                   │
+│                                                  │
+│    📚 View Documentation  •  🎬 Watch Tutorial  │
+│                                                  │
+└──────────────────────────────────────────────────┘
+```
+
+**Guidelines:**
+
+- Centered illustration (64-96px)
+- Clear title explaining the empty state
+- Helpful description with context
+- Primary CTA button
+- Optional secondary actions
+
+---
+
+### 5. Modal/Dialog Pattern
+
+Standard modal with consistent structure.
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ │ ← Backdrop
+│ ░░░┌────────────────────────────────────────────────┐░░░ │
+│ ░░░│ Modal Title                               [×] │░░░ │ ← Header
+│ ░░░├────────────────────────────────────────────────┤░░░ │
+│ ░░░│                                                │░░░ │
+│ ░░░│              Modal Content                     │░░░ │ ← Body
+│ ░░░│                                                │░░░ │
+│ ░░░│  This is where the main content goes.          │░░░ │
+│ ░░░│  It can include forms, text, or any            │░░░ │
+│ ░░░│  other components.                             │░░░ │
+│ ░░░│                                                │░░░ │
+│ ░░░├────────────────────────────────────────────────┤░░░ │
+│ ░░░│                    [Cancel]  [Confirm]         │░░░ │ ← Footer
+│ ░░░└────────────────────────────────────────────────┘░░░ │
+│ ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Modal Sizes:**
+
+- Small: 400px (confirmations)
+- Medium: 560px (forms)
+- Large: 720px (complex content)
+- Full: 90vw (data-heavy modals)
+
+**Behavior:**
+
+- Focus trap inside modal
+- Escape key to close
+- Click backdrop to close (optional)
+- Animate in with scale + fade
+
+---
+
+### 6. Card Pattern
+
+Standard card with consistent structure.
+
+```
+┌────────────────────────────────────────────┐
+│ ┌────────────────────────────────────────┐ │
+│ │         [Optional Image/Icon]          │ │ ← Media area
+│ └────────────────────────────────────────┘ │
+│                                            │
+│ Card Title                        [⋮]     │ ← Header with actions
+│ Subtitle or meta information              │
+│                                            │
+│ ────────────────────────────────────────── │ ← Optional divider
+│                                            │
+│ Card body content goes here. This can      │ ← Body
+│ include text, lists, or any other          │
+│ components as needed.                      │
+│                                            │
+│ ────────────────────────────────────────── │
+│                                            │
+│ [Secondary]                    [Primary]   │ ← Footer actions
+│                                            │
+└────────────────────────────────────────────┘
+```
+
+**Variants:**
+
+- Default: `shadow-card`, `border-subtle`
+- Interactive: `hover:shadow-card-hover`, `cursor-pointer`
+- Selected: `border-primary`, `bg-primary-50`
+- Disabled: `opacity-50`, `pointer-events-none`
+
+---
+
+### 7. Toast/Notification Pattern
+
+Standard notification system.
+
+```
+Screen Layout:
+┌────────────────────────────────────────────────────────┐
+│                                                        │
+│                    Main Content                        │
+│                                                        │
+│                                                        │
+│                                                        │
+│                                                        │
+│                                                        │
+│  ┌──────────────────────────────────────────────────┐ │
+│  │ ✓ Document uploaded successfully          [×]    │ │ ← Toast
+│  └──────────────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────────┘
+
+Toast Structure:
+┌─────────────────────────────────────────────────┐
+│ [Icon] Message text                       [×]   │
+│        Optional action link                     │
+└─────────────────────────────────────────────────┘
+```
+
+**Toast Types:**
+
+- Success: Green icon, auto-dismiss 5s
+- Error: Red icon, manual dismiss required
+- Warning: Yellow icon, auto-dismiss 8s
+- Info: Blue icon, auto-dismiss 5s
+
+**Position:** Bottom-right, stacked vertically
+
+---
+
+### 8. Loading State Pattern
+
+Consistent loading indicators.
+
+```
+Skeleton Loading:
+┌────────────────────────────────────────────────┐
+│ ████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░ │ ← Title skeleton
+│ ████████████████████████████████░░░░░░░░░░░░░ │ ← Text skeleton
+│ ████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ │
+│                                                │
+│ ┌──────────────┐  ┌──────────────┐            │
+│ │ ░░░░░░░░░░░░ │  │ ░░░░░░░░░░░░ │            │ ← Card skeletons
+│ │ ░░░░░░░░░░░░ │  │ ░░░░░░░░░░░░ │            │
+│ └──────────────┘  └──────────────┘            │
+└────────────────────────────────────────────────┘
+
+Spinner Loading:
+┌────────────────────────────────────────────────┐
+│                                                │
+│                    ◌                           │
+│                 Loading...                     │
+│                                                │
+└────────────────────────────────────────────────┘
+
+Progress Loading:
+┌────────────────────────────────────────────────┐
+│ ████████████████████░░░░░░░░░░░░░░  65%       │
+│ Uploading document...                          │
+└────────────────────────────────────────────────┘
+```
+
+**Guidelines:**
+
+- Use skeleton for initial page loads
+- Use spinner for actions (< 3s expected)
+- Use progress for uploads/long operations
+- Always show loading state after 200ms delay
+
+---
+
+## Accessibility Checklist
+
+### WCAG 2.1 AA Requirements
+
+| Requirement                     | Current Status | Action Needed                               |
+| ------------------------------- | -------------- | ------------------------------------------- |
+| Color Contrast (4.5:1 for text) | ⚠️ Partial     | Audit all text colors                       |
+| Focus Indicators                | ⚠️ Partial     | Add consistent focus rings                  |
+| Keyboard Navigation             | ⚠️ Partial     | Ensure all interactions keyboard-accessible |
+| Screen Reader Support           | ❌ Missing     | Add ARIA labels to all interactive elements |
+| Touch Targets (48px min)        | ❌ Missing     | Increase clickable areas                    |
+| Error Identification            | ⚠️ Partial     | Improve form validation messages            |
+| Skip Links                      | ❌ Missing     | Add skip navigation links                   |
+| Reduced Motion                  | ❌ Missing     | Respect prefers-reduced-motion              |
+
+### Recommended ARIA Patterns
+
+```html
+<!-- Navigation -->
+<nav aria-label="Main navigation">
+  <ul role="menubar">
+    <li role="menuitem"><a href="/dashboard">Dashboard</a></li>
+  </ul>
+</nav>
+
+<!-- Modal -->
+<div role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <h2 id="modal-title">Modal Title</h2>
+</div>
+
+<!-- Loading -->
+<div role="status" aria-live="polite" aria-busy="true">
+  Loading documents...
+</div>
+
+<!-- Error -->
+<div role="alert" aria-live="assertive">Error: Document upload failed</div>
+```
+
+---
+
+## Implementation Priority Matrix
+
+```
+                    HIGH IMPACT
+                         │
+        ┌────────────────┼────────────────┐
+        │                │                │
+        │  QW-03, QW-08  │  NX-01, NX-05  │
+        │  Loading       │  API Panel     │
+        │  Confirmations │  Entity Detail │
+LOW     │                │                │    HIGH
+EFFORT ─┼────────────────┼────────────────┼─ EFFORT
+        │                │                │
+        │  QW-04, QW-09  │  LT-01, LT-05  │
+        │  Upload Zone   │  Design System │
+        │  Zoom Fix      │  Mobile Layout │
+        │                │                │
+        └────────────────┼────────────────┘
+                         │
+                    LOW IMPACT
+```
+
+---
+
+## Appendix: Screenshot Index
+
+### Dashboard
+
+- `screenshots/dashboard-full.png` - Complete dashboard view
+- `screenshots/dashboard-stats.png` - Stats cards section
+- `screenshots/dashboard-empty.png` - Empty state
+
+### Documents
+
+- `screenshots/documents-full.png` - Complete documents view
+- `screenshots/documents-upload.png` - Upload zone focus
+- `screenshots/documents-table.png` - Documents table
+
+### Query
+
+- `screenshots/query-full.png` - Complete query view
+- `screenshots/query-modes.png` - Mode selector
+- `screenshots/query-history.png` - Query history panel
+
+### Graph
+
+- `screenshots/graph-full.png` - Complete graph view
+- `screenshots/graph-controls.png` - Zoom controls
+- `screenshots/graph-entity-browser.png` - Entity browser
+
+### Settings
+
+- `screenshots/settings-full.png` - Complete settings view
+- `screenshots/settings-sections.png` - Settings sections
+
+### API Explorer
+
+- `screenshots/api-explorer-full.png` - Complete API explorer
+- `screenshots/api-explorer-endpoints.png` - Endpoint list
 
 ---
 
 ## Conclusion
 
-EdgeQuake's UI has a **strong foundation** but needs **strategic improvements** to match modern SaaS expectations. The proposed roadmap focuses on:
+The EdgeQuake WebUI has a solid foundation built on modern technologies (Next.js, shadcn/ui, TailwindCSS) but requires focused improvements in three key areas:
 
-1. **User control** (collapsible panels)
-2. **Visual clarity** (hierarchy, spacing)
-3. **Workflow efficiency** (bulk ops, keyboard shortcuts)
-4. **Professional polish** (empty states, loading states)
+1. **Consistency**: Implementing the proposed design tokens and patterns will unify the visual language
+2. **Functionality**: Critical missing features (API request panel, bulk actions) limit utility
+3. **Accessibility**: WCAG 2.1 AA compliance requires attention to focus states, ARIA, and touch targets
 
-**Recommended approach:** Implement **Phase 1 immediately** (10-16 hours) for maximum impact, then evaluate user feedback before committing to Phase 2.
-
-**ROI:** High - relatively small time investment (2-3 weeks) for significant UX improvement that will:
-
-- Reduce support tickets (clearer UI)
-- Improve user retention (better onboarding)
-- Increase power user efficiency (bulk ops, shortcuts)
-- Enhance brand perception (professional appearance)
+Following the prioritized roadmap, the Quick Wins can be delivered in 1-2 weeks, providing immediate value while laying groundwork for larger improvements.
 
 ---
 
-## Appendix: File Structure
-
-```
-audit_ui/
-├── summary.md                  # This file
-├── dashboard.md                # Dashboard audit (detailed)
-├── documents.md                # Documents audit (detailed)
-├── query.md                    # Query audit (detailed)
-├── other-screens.md            # Graph, Settings, API Explorer
-├── design-system.md            # Design tokens and patterns
-└── screenshots/                # 18 screenshots from Playwright
-    ├── 01-dashboard-full.png
-    ├── 02-documents-full.png
-    ├── 03-query-initial.png
-    ├── 03-query-with-response.png
-    ├── 04-graph-full.png
-    ├── 05-settings-full.png
-    ├── 06-api-explorer-full.png
-    ├── 07-tablet-*.png
-    ├── 08-mobile-*.png
-    └── ...
-```
-
----
-
-**Next Steps:**
-
-1. Review this audit with product/engineering team
-2. Prioritize Phase 1 items for immediate implementation
-3. Create GitHub issues/tickets for each deliverable
-4. Schedule kickoff meeting to align on approach
-
-**Questions?** Contact the UX team or review detailed audit files in `audit_ui/`.
+_Generated as part of UX/UI Audit per `specs/12-ux-ui-audit.md`_

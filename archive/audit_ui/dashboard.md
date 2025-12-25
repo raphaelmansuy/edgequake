@@ -1,475 +1,214 @@
-# Dashboard/Home Screen Audit
+# Dashboard UX/UI Audit
 
-## Screen: Dashboard (`/`)
+## 1. What I Reviewed
 
-**Screenshot References:**
+- **Route**: `/` (Dashboard/Home)
+- **Key UI Regions**:
+  - Left sidebar navigation (collapsible, 256px width)
+  - Top header bar with connection status, theme toggle, language selector
+  - Main content area with stats cards, quick actions, and activity panels
+  - Breadcrumb navigation below header
+- **Components**: `DashboardPage`, `Sidebar`, `Header`, `StatsCard`, `QuickActions`, `RecentActivity`, `SystemStatus`
 
-- [`01-dashboard-full.png`](../audit_ui/screenshots/01-dashboard-full.png)
-- [`01-dashboard-viewport.png`](../audit_ui/screenshots/01-dashboard-viewport.png)
+### Screenshots
 
-**Component Files:**
-
-- Layout: [`src/app/(dashboard)/layout.tsx`](<../edgequake_webui/src/app/(dashboard)/layout.tsx>)
-- Page: [`src/app/(dashboard)/page.tsx`](<../edgequake_webui/src/app/(dashboard)/page.tsx>)
-- Components: [`src/components/dashboard/`](../edgequake_webui/src/components/dashboard/)
-
----
-
-## What I Reviewed
-
-### UI Regions Analyzed:
-
-1. **Sidebar** (left panel) - Primary navigation with tenant/workspace selector
-2. **Header** - Connection status, theme switcher, user menu, mobile navigation
-3. **Breadcrumb** - Navigation context below header
-4. **Main Content Area** - Dashboard widgets including:
-   - Page title and description
-   - Stats cards (4-column grid)
-   - Quick Actions section
-   - Recent Activity section (2/3 width)
-   - System Status panel (1/3 width)
-
-### Measurements:
-
-- Main content area: **1664px × 999px** (at 1920px viewport)
-- Sidebar: **256px** width (expanded)
-- Header: **64px** height
-- Breadcrumb bar: ~**40px** height
+| State             | Screenshot                                                           |
+| ----------------- | -------------------------------------------------------------------- |
+| Full Page (Light) | ![Dashboard Full](screenshots/01-dashboard-full.png)                 |
+| Sidebar Collapsed | ![Sidebar Collapsed](screenshots/01-dashboard-sidebar-collapsed.png) |
+| Dark Theme        | ![Dark Theme](screenshots/02-dashboard-dark-theme.png)               |
+| Mobile View       | ![Mobile](screenshots/14-mobile-dashboard.png)                       |
+| Tablet View       | ![Tablet](screenshots/13-tablet-dashboard.png)                       |
 
 ---
 
-## Issues
+## 2. Issues
 
-### 🔴 Critical
+### Critical
 
-**C1. No Collapsible Left Panel**
+1. **Stats Cards Lack Visual Distinction**
 
-- **Location:** Sidebar component ([`sidebar.tsx`](../edgequake_webui/src/components/layout/sidebar.tsx))
-- **Issue:** Desktop sidebar has collapse functionality in code (`collapsed` prop, toggle button) but is not being used or exposed in the main layout
-- **Evidence:** `showToggle` prop is not passed as `true` in the desktop implementation
-- **Impact:** Wastes horizontal space for users who want more content area, especially on smaller screens (1366px, 1440px laptops)
+   - All four stats cards have identical white backgrounds with thin borders
+   - No visual differentiation between document, entity, relationship, and entity type counts
+   - Users may not quickly scan and differentiate metrics
 
-**C2. No Right Panel at All on Dashboard**
+2. **No Visual Loading States for Stats**
+   - When loading, skeleton loaders should be more prominent
+   - Currently uses subtle shimmer that may not be visible on some monitors
 
-- **Location:** Dashboard page layout
-- **Issue:** Unlike the query page which has a right panel for context, the dashboard has no collapsible right panel for additional information or filters
-- **Impact:** Inconsistent layout pattern across the application; missed opportunity for contextual help or advanced filters
+### Major
 
-### 🟡 Major
+3. **Welcome Message is Too Generic**
 
-**M1. Weak Visual Hierarchy in Page Title**
+   - "Bienvenue sur EdgeQuake - Votre plateforme RAG de graphe de connaissances"
+   - Should include tenant/workspace context
+   - No personalization or onboarding hints for new users
 
-- **Location:** Dashboard page header
-- **Current:** `text-2xl font-bold` (24px) for "Dashboard" title
-- **Issue:** Not sufficiently differentiated from card titles and other headings; feels small in the large content area
-- **Evidence:** H1 uses same `text-2xl` as some h2/h3 elements
+4. **Quick Actions Cards Lack Hover Feedback**
 
-**M2. Inconsistent Spacing Between Sections**
+   - The gradient hover states are subtle
+   - No elevation change or shadow to indicate interactivity
+   - Icon animations are missing
 
-- **Location:** Main content area (`space-y-6` = 24px)
-- **Issue:** All sections use uniform 24px spacing, which doesn't create enough visual separation between functionally different areas (stats vs actions vs activity)
-- **Visual hierarchy suffers** - everything feels equally important
+5. **Recent Activity Panel Empty State**
 
-**M3. Stats Cards Typography Too Generic**
+   - When there's minimal activity, the panel feels sparse
+   - No visual encouragement to add documents
 
-- **Location:** StatsCard components
-- **Issue:**
-  - Value numbers don't stand out enough (should be larger, bolder)
-  - Description text is same size/weight as title
-  - Poor scanning order - eye doesn't naturally go title → value → description
+6. **System Status Panel**
+   - Shows "Unavailable" for LLM Provider without explanation
+   - No link to settings to configure it
+   - Status indicators could be more prominent
 
-**M4. Recent Activity Table Density Issues**
+### Minor
 
-- **Location:** Recent Activity component
-- **Issue:**
-  - Too much whitespace in some columns, not enough in others
-  - No hover states or visual feedback
-  - Column widths not optimized (filename takes too much space)
+7. **Version Footer Hidden**
 
-**M5. Breadcrumb Bar Wastes Vertical Space**
+   - "EdgeQuake v0.1.0" and "Plateforme Graph-RAG" are small and in muted color
+   - Version info could be more accessible
 
-- **Location:** Below header (`py-2` + `border-b`)
-- **Issue:** Takes up a full row with border just for breadcrumbs when there's only 1-2 items
-- **Evidence:** ~40px of vertical space that could be reclaimed or better utilized
-- **Alternative:** Could be integrated into header or removed on simple pages
+8. **Sidebar Collapse Button Labeling**
 
-### 🟢 Minor
+   - Button says "Collapse" but could use an icon with tooltip for consistency
 
-**m1. No Visual Loading States for Stats**
-
-- **Location:** StatsCard components
-- **Issue:** While `isLoading` prop exists, the skeleton/loading state is not visually distinct enough
-- **Expected:** Shimmer effect or clear skeleton UI
-
-**m2. Quick Actions Cards Lack Visual Interest**
-
-- **Location:** QuickActions component
-- **Issue:** Plain cards with icons that don't leverage color or visual design
-- **Opportunity:** Use accent colors, gradients, or better iconography to make actions more inviting
-
-**m3. System Status Panel Underutilized**
-
-- **Location:** Right column (1/3 width)
-- **Issue:** Takes up significant space but only shows basic connection status
-- **Opportunity:** Could show more metrics (query latency, storage usage, recent errors, LLM stats)
-
-**m4. Mobile Header Redundant**
-
-- **Location:** Header component
-- **Issue:** Shows "EdgeQuake" text on mobile when mobile sidebar already shows the logo
-- **Code:** `<h1 className="text-lg font-semibold md:hidden">EdgeQuake</h1>`
-
-**m5. Tenant/Workspace Selector Cramped When Collapsed**
-
-- **Location:** Sidebar tenant selector
-- **Issue:** Compact version not well optimized for collapsed sidebar
-- **Evidence:** `compact={true}` prop but implementation may truncate important info
+9. **Tenant/Workspace Selector Spacing**
+   - Compact spacing between Tenant and Workspace selectors
+   - Labels could be slightly larger
 
 ---
 
-## Recommendations
+## 3. Recommendations
 
-### For Left Panel (Sidebar)
-
-**R1. Enable Desktop Sidebar Collapse** ⭐ **PRIORITY**
-
-```tsx
-// In layout.tsx, add state management
-const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-<Sidebar
-  collapsed={sidebarCollapsed}
-  onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-/>;
-```
-
-- **Collapsed width:** 72px (fits icon + padding)
-- **Expanded width:** 256px (current)
-- **Transition:** 200ms ease-in-out
-- **Persistence:** Save state to localStorage
-
-**R2. Default State Strategy**
-
-- **≥ 1440px viewport:** Expanded by default
-- **1024px - 1439px:** Collapsed by default
-- **< 1024px:** Mobile drawer (current behavior)
-
-**R3. Collapsed Sidebar Improvements**
-
-- Show tooltips on hover for all nav items (already implemented ✓)
-- Tenant/workspace selector should show just an icon/avatar in collapsed state
-- Keep version info hidden when collapsed
-
-### For Right Panel (Dashboard)
-
-**R4. Add Optional Right Panel for Insights** ⭐ **PRIORITY**
+### Stats Cards Enhancement
 
 ```
-┌─────────────┬──────────────────────┬──────────┐
-│   Sidebar   │    Main Content      │  Right   │
-│   (256px)   │     (flexible)       │ (320px)  │
-└─────────────┴──────────────────────┴──────────┘
+Current:                          Recommended:
+┌─────────────┐                  ┌─────────────┐
+│ Documents   │                  │ ████████████│ <- Colored top border
+│     1       │      -->         │  📄 Documents│ <- Larger icon
+│ Uploaded    │                  │     1       │
+└─────────────┘                  │ ─────────── │ <- Subtle separator
+                                 │ +12% ↑      │ <- Trend indicator
+                                 └─────────────┘
 ```
 
-**Panel Width:** 320px (collapsible)
-**Default State:** Collapsed on dashboard (optional feature)
-**Content Ideas:**
+1. **Add colored accent borders** to each card matching entity type colors
+2. **Increase icon size** from 16px to 24px
+3. **Add trend indicators** showing change over time (e.g., "+3 this week")
+4. **Use subtle shadows** on hover (shadow-sm to shadow-md)
 
-- **Quick Filters:** Filter stats by date range
-- **Recent Queries:** Last 5-10 queries run
-- **System Health:** Detailed metrics
-- **Tips & Onboarding:** Contextual help for new users
-- **Activity Feed:** Real-time updates
+### Quick Actions Improvement
 
-**R5. Make Right Panel Consistent Across All Pages**
+1. Add **scale transform on hover** (`hover:scale-102`)
+2. Add **shadow elevation** on hover
+3. Add **icon pulse animation** on hover
+4. Include keyboard shortcut hints (e.g., "⌘+U for Upload")
 
-- Query page: Context sources (keep current)
-- Documents page: Document preview/metadata
-- Graph page: Node details/filters
-- Settings page: Help documentation
+### Welcome Section Enhancement
 
-### For Visual Hierarchy
+1. Replace generic message with contextual info:
+   - "Tenant: [Name] • Workspace: [Name]"
+   - "Last activity: 2 hours ago"
+2. Add onboarding checklist for new users:
+   - ☐ Upload first document
+   - ☐ Explore knowledge graph
+   - ☐ Ask your first query
 
-**R6. Strengthen Typography System** ⭐ **PRIORITY**
+### System Status Panel
 
-**Page Titles (H1):**
-
-```css
-/* Current: text-2xl (24px) */
-/* Recommended: text-3xl font-bold tracking-tight (30px) */
-```
-
-**Section Titles (H2):**
-
-```css
-/* Recommended: text-xl font-semibold (20px) */
-```
-
-**Card Titles (H3):**
-
-```css
-/* Recommended: text-base font-medium (16px) */
-```
-
-**R7. Improve Stats Card Visual Design**
-
-```tsx
-// Enhanced Stats Card Structure:
-<Card>
-  <CardHeader className="pb-2">
-    <div className="flex items-center justify-between">
-      <CardTitle className="text-sm font-medium text-muted-foreground">
-        {title}
-      </CardTitle>
-      <Icon className="h-4 w-4 text-muted-foreground" />
-    </div>
-  </CardHeader>
-  <CardContent>
-    <div className="text-4xl font-bold tabular-nums">{value}</div>
-    <p className="text-xs text-muted-foreground mt-1">{description}</p>
-  </CardContent>
-</Card>
-```
-
-**Key Changes:**
-
-- Value: `text-4xl font-bold tabular-nums` (36px, monospace numbers)
-- Title: `text-sm` to de-emphasize (12px)
-- Description: `text-xs` (11px)
-- Add icon at top-right for visual interest
-
-### For Space Optimization
-
-**R8. Implement Progressive Spacing Scale**
-
-```tsx
-// Replace uniform space-y-6 with:
-<div className="p-6 space-y-8">
-  {" "}
-  {/* Container */}
-  <div>{/* Header - title + description */}</div>
-  <div className="space-y-4">
-    {" "}
-    {/* Stats section */}
-    {/* Stats cards with gap-4 */}
-  </div>
-  <div className="mt-8">
-    {" "}
-    {/* Quick Actions - larger gap */}
-    {/* Action cards */}
-  </div>
-  <div className="mt-8 space-y-6">
-    {" "}
-    {/* Activity section */}
-    {/* Recent Activity + System Status */}
-  </div>
-</div>
-```
-
-**Spacing Scale:**
-
-- Related items (within section): **16px** (gap-4)
-- Between sections: **32px** (mt-8)
-- Container padding: **24px** (p-6)
-
-**R9. Optimize Breadcrumb Integration**
-
-- **Option A:** Integrate into header (single 64px bar)
-- **Option B:** Remove breadcrumb bar on dashboard (it's just "Dashboard")
-- **Option C:** Only show breadcrumb when depth > 1 (e.g., Dashboard > Settings > API)
-
-**R10. Improve Table Density**
-
-```tsx
-// Recent Activity Table
-<Table>
-  <TableHeader>
-    <TableRow>
-      <TableHead className="w-[40%]">Document</TableHead>
-      <TableHead className="w-[20%]">Status</TableHead>
-      <TableHead className="w-[20%]">Date</TableHead>
-      <TableHead className="w-[20%] text-right">Actions</TableHead>
-    </TableRow>
-  </TableHeader>
-</Table>
-```
-
-- Add `hover:bg-muted/50` to rows
-- Add fixed column widths
-- Truncate long filenames with tooltip
-- Add subtle border-spacing
+1. Add **action buttons** for "Configure LLM" when provider is unavailable
+2. Use **larger status dots** (8px instead of 6px)
+3. Add **tooltip explanations** for each status item
 
 ---
 
-## Rationale
+## 4. Rationale
 
-### Why Collapsible Panels Matter
-
-- **User Control:** Power users want to maximize content area; new users may want persistent navigation
-- **Modern Standard:** Gmail, Notion, Linear, GitHub - all have collapsible sidebars
-- **Accessibility:** More content visible means less scrolling for screen reader users
-- **Responsive:** Helps bridge the gap between desktop and tablet layouts
-
-### Why Visual Hierarchy Matters
-
-- **Cognitive Load:** Clear hierarchy helps users process information 50% faster
-- **Scanning:** Users don't read, they scan - hierarchy guides their eyes
-- **Professionalism:** Weak hierarchy looks amateurish and hurts brand perception
-
-### Why Consistent Spacing Matters
-
-- **Rhythm:** Creates visual rhythm that feels natural and reduces cognitive friction
-- **Grouping:** Proximity indicates relationships between UI elements (Gestalt principles)
-- **Breathing Room:** Prevents information overload while maintaining density
+- **Stats Card Differentiation**: Enterprise dashboards require at-a-glance comprehension. Color coding reduces cognitive load by 40% (Nielsen Norman Group)
+- **Trend Indicators**: Users need to understand if metrics are improving or declining without drilling down
+- **Contextual Welcome**: Multi-tenant applications benefit from showing context to prevent user confusion
+- **Actionable Status**: "Unavailable" without a fix path creates user frustration and support tickets
 
 ---
 
-## Acceptance Criteria
+## 5. Acceptance Criteria
 
-### AC1: Collapsible Left Sidebar (Desktop)
-
-- [ ] Sidebar can be toggled via button (ChevronLeft/Right icon)
-- [ ] Collapsed width is 72px, expanded is 256px
-- [ ] Smooth transition animation (200ms)
-- [ ] State persists across page navigation (localStorage)
-- [ ] Tooltips show on hover when collapsed
-- [ ] Keyboard accessible (Ctrl+B or Cmd+B to toggle)
-
-### AC2: Optional Right Panel (Dashboard)
-
-- [ ] Right panel can be toggled on dashboard
-- [ ] Default state is collapsed (can be made visible)
-- [ ] Width is 320px when expanded
-- [ ] Shows contextual information (insights, tips, or filters)
-- [ ] Smooth transition animation (200ms)
-- [ ] State persists (localStorage)
-
-### AC3: Improved Visual Hierarchy
-
-- [ ] Page titles use `text-3xl font-bold` (30px)
-- [ ] Stats cards use `text-4xl font-bold tabular-nums` for values
-- [ ] Clear distinction between H1, H2, H3 sizing
-- [ ] Proper text color contrast: titles use foreground, descriptions use muted-foreground
-
-### AC4: Spacing Improvements
-
-- [ ] Progressive spacing implemented (16px within sections, 32px between sections)
-- [ ] Breadcrumb integrated into header OR removed on simple pages
-- [ ] No uniform spacing - each section uses appropriate gaps
-
-### AC5: Stats Card Redesign
-
-- [ ] Values are 36px, bold, tabular-nums
-- [ ] Icons positioned top-right
-- [ ] Loading states use skeleton UI with shimmer
-- [ ] Cards have subtle hover effect
-
-### AC6: Table Improvements
-
-- [ ] Column widths explicitly set
-- [ ] Row hover states implemented
-- [ ] Long filenames truncated with tooltip
-- [ ] Actions column right-aligned
+- [ ] Stats cards have unique accent colors matching their entity type
+- [ ] Stats cards show trend direction (up/down/stable) for the past 7 days
+- [ ] Quick actions respond to hover with scale and shadow changes
+- [ ] Welcome section shows current tenant/workspace names
+- [ ] System status includes "Configure" link when LLM provider is unavailable
+- [ ] All changes pass WCAG 2.1 AA contrast requirements
 
 ---
 
-## ASCII Layout Diagram - Recommended
+## 6. Layout Representation
 
-### Desktop (≥1440px) - Sidebars Expanded
-
-```
-┌──────────────┬────────────────────────────────────────────────┬──────────────┐
-│              │ Header (Connection • Theme • User)              │              │
-│              ├────────────────────────────────────────────────┤              │
-│              │ Breadcrumb (optional, integrated in header)    │              │
-│   Sidebar    ├────────────────────────────────────────────────┤   Right      │
-│   (256px)    │                                                │   Panel      │
-│              │              Main Content                       │   (320px)    │
-│  • Nav       │  ┌──────────────────────────────────────────┐ │              │
-│  • Tenant    │  │ Page Title (text-3xl)                    │ │  • Insights  │
-│  • Version   │  ├──────────────────────────────────────────┤ │  • Filters   │
-│              │  │ Stats Cards (4-col, gap-4)               │ │  • Activity  │
-│  [Collapse]  │  ├──────────────────────────────────────────┤ │              │
-│              │  │ Quick Actions (gap-4)                    │ │  [Collapse]  │
-│              │  ├──────────────────────────────────────────┤ │              │
-│              │  │ Recent Activity (2/3) │ System Status    │ │              │
-│              │  └──────────────────────────────────────────┘ │              │
-└──────────────┴────────────────────────────────────────────────┴──────────────┘
-     256px                    ~1344px                              320px
-```
-
-### Desktop (≥1440px) - Sidebars Collapsed
+### Current Layout (Desktop 1920x1080)
 
 ```
-┌───┬──────────────────────────────────────────────────────────────────┬───┐
-│   │ Header (Connection • Theme • User)                                │   │
-│   ├──────────────────────────────────────────────────────────────────┤   │
-│ S │                      Main Content (expanded)                      │ R │
-│ B │  ┌────────────────────────────────────────────────────────────┐  │ P │
-│   │  │ Page Title (text-3xl)                                       │  │   │
-│ 72│  ├────────────────────────────────────────────────────────────┤  │72 │
-│ px│  │ Stats Cards (4-col, gap-4) - WIDER                         │  │px │
-│   │  ├────────────────────────────────────────────────────────────┤  │   │
-│   │  │ Quick Actions                                              │  │   │
-│   │  ├────────────────────────────────────────────────────────────┤  │   │
-│   │  │ Recent Activity │ System Status                            │  │   │
-│   │  └────────────────────────────────────────────────────────────┘  │   │
-└───┴──────────────────────────────────────────────────────────────────┴───┘
- 72px                          ~1776px                                 72px
+┌────────────────────────────────────────────────────────────────────────────┐
+│ [Logo] EdgeQuake                               [API●] [🌐] [☀] [👤]        │
+├──────────────────┬─────────────────────────────────────────────────────────┤
+│                  │  🏠 EdgeQuake > Dashboard                              │
+│ Tenant           ├─────────────────────────────────────────────────────────┤
+│ [▼ Tenant_B][+]  │                                                         │
+│                  │  Tableau de bord                                        │
+│ Workspace        │  Bienvenue sur EdgeQuake - Votre plateforme...         │
+│ [▼ WS_Beta ][+]  │                                                         │
+│                  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐       │
+│ ● Tableau de bord│  │ Docs: 1 │ │ Ent: 0  │ │ Rel: 0  │ │Types: 2 │       │
+│ ○ Graphe         │  └─────────┘ └─────────┘ └─────────┘ └─────────┘       │
+│ ○ Documents      │                                                         │
+│ ○ Requête        │  Actions rapides                                        │
+│ ○ Explorateur API│  ┌───────────────┐ ┌───────────────┐ ┌───────────────┐  │
+│ ○ Paramètres     │  │ 📄 Upload    │ │ 💬 Query      │ │ 🔗 Graph      │  │
+│                  │  └───────────────┘ └───────────────┘ └───────────────┘  │
+│                  │                                                         │
+│ < Collapse       │  ┌─────────────────────────────┐ ┌───────────────────┐  │
+│                  │  │ Activité récente            │ │ État du système   │  │
+│ v0.1.0           │  │ • test_project_beta.txt ✓   │ │ API: ● Connecté   │  │
+│ Plateforme RAG   │  │   il y a 1 heure            │ │ Version: v0.1.0   │  │
+│                  │  └─────────────────────────────┘ └───────────────────┘  │
+└──────────────────┴─────────────────────────────────────────────────────────┘
+
+Width: Sidebar=256px, Main=1664px
+Height: Header=64px, Breadcrumb=37px, Main=979px
 ```
 
-### Laptop (1024px - 1439px) - Sidebar Collapsed, No Right Panel
+### Recommended Enhanced Layout
 
 ```
-┌───┬────────────────────────────────────────────────────────────┐
-│   │ Header                                                      │
-│   ├────────────────────────────────────────────────────────────┤
-│ S │              Main Content                                   │
-│ B │  ┌──────────────────────────────────────────────────────┐  │
-│   │  │ Page Title                                            │  │
-│ 72│  ├──────────────────────────────────────────────────────┤  │
-│ px│  │ Stats Cards (2-col on smaller screens)               │  │
-│   │  ├──────────────────────────────────────────────────────┤  │
-│   │  │ Quick Actions (2-col)                                │  │
-│   │  ├──────────────────────────────────────────────────────┤  │
-│   │  │ Recent Activity (full width)                         │  │
-│   │  │ System Status (full width, below)                    │  │
-│   │  └──────────────────────────────────────────────────────┘  │
-└───┴────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│ [Logo] EdgeQuake    Tenant_B > WS_Beta         [API●] [🌐] [☀] [👤]        │
+├──────────────────┬─────────────────────────────────────────────────────────┤
+│                  │                                                         │
+│ ● Dashboard      │  Welcome back!                  [📖 Docs] [⌨ Shortcuts]│
+│ ○ Graph          │  Tenant: Tenant_B • Workspace: WS_Beta                  │
+│ ○ Documents      │                                                         │
+│ ○ Query          │  ╔═════════════╗ ╔═════════════╗ ╔═════════════╗ ╔═════│
+│ ○ API            │  ║▓ Docs    1 ║ ║▒ Entities 0 ║ ║░ Relations 0║ ║░Typ 2║
+│ ○ Settings       │  ║  +1 ↑ 7d   ║ ║  -- stable  ║ ║  -- stable  ║ ║+2 ↑ ║
+│                  │  ╚═════════════╝ ╚═════════════╝ ╚═════════════╝ ╚═════│
+│                  │   ^ colored     ^ different      ^ different    ^ unique│
+│                  │     accent        accent           accent        accent │
+│                  │                                                         │
+│ [<]              │  Quick Actions                            [Show all →] │
+│                  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐     │
+│ v0.1.0           │  │ 📄 Upload    │ │ 💬 Query     │ │ 🔗 Graph     │     │
+│                  │  │ ⌘+U         │ │ ⌘+Q          │ │ ⌘+G          │     │
+│                  │  └──────────────┘ └──────────────┘ └──────────────┘     │
+└──────────────────┴─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Related Files & Components
+## Implementation Priority
 
-### Components to Modify:
-
-- ✏️ [`src/components/layout/sidebar.tsx`](../edgequake_webui/src/components/layout/sidebar.tsx) - Add desktop collapse
-- ✏️ [`src/app/(dashboard)/layout.tsx`](<../edgequake_webui/src/app/(dashboard)/layout.tsx>) - Add sidebar state management
-- ✏️ [`src/components/dashboard/stats-card.tsx`](../edgequake_webui/src/components/dashboard/stats-card.tsx) - Improve typography
-- ✏️ [`src/components/dashboard/recent-activity.tsx`](../edgequake_webui/src/components/dashboard/recent-activity.tsx) - Table density
-
-### New Components to Create:
-
-- 🆕 `src/components/layout/right-panel.tsx` - Reusable right panel component
-- 🆕 `src/components/dashboard/insights-panel.tsx` - Dashboard right panel content
-
-### Styles to Update:
-
-- ✏️ [`src/app/globals.css`](../edgequake_webui/src/app/globals.css) - Add spacing scale tokens
-- ✏️ Add typography scale variables
-
----
-
-## Priority Summary
-
-**🔥 Must Do (Quick Wins):**
-
-1. ✅ Enable collapsible left sidebar (R1) - 2-3 hours
-2. ✅ Fix typography hierarchy (R6, R7) - 1-2 hours
-3. ✅ Improve spacing system (R8) - 1 hour
-4. ✅ Optimize breadcrumb (R9) - 30 minutes
-
-**📌 Should Do (Next Sprint):** 5. Add optional right panel structure (R4) - 3-4 hours 6. Improve table density (R10) - 1-2 hours 7. Better loading states (m1) - 1 hour
-
-**💡 Nice to Have (Later):** 8. Quick Actions visual redesign (m2) 9. Enhanced System Status panel (m3) 10. Mobile header cleanup (m4)
+| Issue                      | Effort | Impact | Priority           |
+| -------------------------- | ------ | ------ | ------------------ |
+| Stats cards accent colors  | Low    | High   | **P1 - Quick Win** |
+| Trend indicators           | Medium | High   | **P2 - Next**      |
+| Quick actions hover states | Low    | Medium | **P1 - Quick Win** |
+| Contextual welcome         | Low    | Medium | **P2 - Next**      |
+| System status actions      | Low    | High   | **P1 - Quick Win** |
