@@ -123,34 +123,70 @@ function SidebarContent({
         </nav>
 
         {/* Footer */}
-        <div className={cn("border-t p-4", collapsed && "p-3")}>
+        <div className={cn(
+          "border-t p-4 space-y-3 transition-all duration-200",
+          collapsed && "p-2"
+        )}>
           {showToggle && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onToggle}
-              className={cn(
-                "w-full mb-3 min-h-[40px]",
-                collapsed && "px-0"
-              )}
-              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            >
-              {collapsed ? (
-                <ChevronRight className="h-4 w-4" />
-              ) : (
-                <>
-                  <ChevronLeft className="h-4 w-4 mr-2" />
-                  <span>Collapse</span>
-                </>
-              )}
-            </Button>
+            <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onToggle}
+                    className={cn(
+                      "w-full min-h-[40px] transition-all duration-200 hover:bg-muted",
+                      collapsed ? "px-0 justify-center" : "justify-start"
+                    )}
+                    aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                  >
+                    {collapsed ? (
+                      <ChevronRight className="h-4 w-4" />
+                    ) : (
+                      <>
+                        <ChevronLeft className="h-4 w-4 mr-2" />
+                        <span className="text-sm">Collapse</span>
+                      </>
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                {collapsed && (
+                  <TooltipContent side="right" sideOffset={12}>
+                    Expand sidebar
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
           )}
-          {!collapsed && (
-            <div className="text-xs text-muted-foreground space-y-0.5">
-              <p className="font-medium">EdgeQuake v0.1.0</p>
-              <p>{t('common.platform')}</p>
-            </div>
-          )}
+          
+          {/* App Info */}
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className={cn(
+                  "flex items-center gap-3 px-1 py-1 rounded-lg transition-colors hover:bg-muted/50 cursor-default",
+                  collapsed && "justify-center px-0"
+                )}>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary/80 to-primary shrink-0">
+                    <Network className="h-4 w-4 text-primary-foreground" />
+                  </div>
+                  {!collapsed && (
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm font-semibold truncate">EdgeQuake</span>
+                      <span className="text-[10px] text-muted-foreground">v0.1.0</span>
+                    </div>
+                  )}
+                </div>
+              </TooltipTrigger>
+              {collapsed && (
+                <TooltipContent side="right" sideOffset={12}>
+                  <p className="font-semibold">EdgeQuake v0.1.0</p>
+                  <p className="text-xs text-muted-foreground">{t('common.platform')}</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
     </TooltipProvider>

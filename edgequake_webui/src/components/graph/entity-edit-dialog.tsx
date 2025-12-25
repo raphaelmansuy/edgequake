@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
     Select,
     SelectContent,
@@ -19,18 +20,26 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { mergeEntities, updateEntity } from '@/lib/api/edgequake';
 import type { Entity, GraphNode } from '@/types';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     AlertTriangle,
+    Copy,
     Edit,
     GitMerge,
     Loader2,
-    Sparkles,
+    Lock
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
@@ -240,16 +249,24 @@ export function EntityEditDialog({
 
   if (!node) return null;
 
+  // Helper function for copying values
+  const handleCopyValue = useCallback(async (value: string, label: string) => {
+    await navigator.clipboard.writeText(value);
+    toast.success(`${label} copied to clipboard`);
+  }, []);
+
   return (
     <>
       <Dialog open={open && !mergeConflict.show} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Edit className="h-5 w-5" />
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader className="space-y-3">
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Edit className="h-5 w-5 text-primary" />
+              </div>
               {t('entity.edit', 'Edit Entity')}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-sm leading-relaxed">
               {t(
                 'entity.editDescription',
                 'Modify the entity properties. Renaming may trigger a merge if another entity with the same name exists.'
@@ -257,98 +274,155 @@ export function EntityEditDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Label */}
-            <div className="space-y-2">
-              <Label htmlFor="entity-label">
-                {t('entity.label', 'Entity Name')}
-              </Label>
-              <Input
-                id="entity-label"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                placeholder={t('entity.labelPlaceholder', 'Entity name')}
-                className="font-medium"
-              />
-              {label !== originalLabel && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3 text-yellow-500" />
-                  {t(
-                    'entity.renameWarning',
-                    'Renaming may trigger a merge if a duplicate exists'
-                  )}
-                </p>
-              )}
-            </div>
-
-            {/* Entity Type */}
-            <div className="space-y-2">
-              <Label htmlFor="entity-type">
-                {t('entity.type', 'Entity Type')}
-              </Label>
-              <Select value={entityType} onValueChange={setEntityType}>
-                <SelectTrigger id="entity-type">
-                  <SelectValue
-                    placeholder={t('entity.selectType', 'Select type...')}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {ENTITY_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="entity-description">
-                {t('entity.description', 'Description')}
-              </Label>
-              <Textarea
-                id="entity-description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder={t(
-                  'entity.descriptionPlaceholder',
-                  'A brief description of this entity...'
-                )}
-                rows={3}
-              />
-            </div>
-
-            {/* Properties Display (read-only) */}
-            {'properties' in node && node.properties && Object.keys(node.properties).length > 0 && (
+          <form onSubmit={handleSubmit} className="space-y-5 mt-2">
+            {/* Editable Fields Section */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <Edit className="h-3.5 w-3.5" />
+                {t('entity.editableFields', 'Editable Fields')}
+              </div>
+              
+              {/* Label */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-1">
-                  <Sparkles className="h-3 w-3" />
-                  {t('entity.properties', 'Properties')}
+                <Label htmlFor="entity-label" className="flex items-center gap-1">
+                  {t('entity.label', 'Entity Name')}
+                  <span className="text-destructive">*</span>
                 </Label>
-                <div className="bg-muted/50 rounded-md p-2 text-xs space-y-1">
-                  {Object.entries(node.properties).map(([key, value]) => (
-                    <div key={key} className="flex justify-between">
-                      <span className="text-muted-foreground">{key}</span>
-                      <span className="font-medium">{String(value)}</span>
-                    </div>
-                  ))}
+                <Input
+                  id="entity-label"
+                  value={label}
+                  onChange={(e) => setLabel(e.target.value)}
+                  placeholder={t('entity.labelPlaceholder', 'Entity name')}
+                  className="font-medium h-10"
+                  required
+                />
+                {label !== originalLabel && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5 bg-amber-50 dark:bg-amber-900/20 px-2 py-1.5 rounded-md">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    {t(
+                      'entity.renameWarning',
+                      'Renaming may trigger a merge if a duplicate exists'
+                    )}
+                  </p>
+                )}
+              </div>
+
+              {/* Entity Type */}
+              <div className="space-y-2">
+                <Label htmlFor="entity-type">
+                  {t('entity.type', 'Entity Type')}
+                </Label>
+                <Select value={entityType} onValueChange={setEntityType}>
+                  <SelectTrigger id="entity-type" className="h-10">
+                    <SelectValue
+                      placeholder={t('entity.selectType', 'Select type...')}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ENTITY_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="entity-description">
+                    {t('entity.description', 'Description')}
+                  </Label>
+                  <span className="text-xs text-muted-foreground">
+                    {description.length}/500
+                  </span>
                 </div>
+                <Textarea
+                  id="entity-description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value.slice(0, 500))}
+                  placeholder={t(
+                    'entity.descriptionPlaceholder',
+                    'A brief description of this entity...'
+                  )}
+                  rows={3}
+                  maxLength={500}
+                  className="resize-none"
+                />
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Read-Only System Properties */}
+            {'properties' in node && node.properties && Object.keys(node.properties).length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  <Lock className="h-3.5 w-3.5" />
+                  {t('entity.systemProperties', 'System Properties')}
+                  <span className="text-[10px] font-normal normal-case">(read-only)</span>
+                </div>
+                <ScrollArea className="max-h-[160px]">
+                  <div className="bg-muted/30 rounded-lg p-3 space-y-2 border border-border/50">
+                    {Object.entries(node.properties)
+                      .filter(([key]) => !['description', 'entity_type'].includes(key))
+                      .map(([key, value]) => {
+                        const stringValue = String(value);
+                        const isLongValue = stringValue.length > 24;
+                        
+                        return (
+                          <div key={key} className="flex items-center justify-between gap-2 text-xs group">
+                            <span className="text-muted-foreground min-w-[80px]">{key}</span>
+                            <div className="flex items-center gap-1.5 flex-1 justify-end min-w-0">
+                              <span 
+                                className="font-mono text-[10px] bg-background/50 px-2 py-1 rounded truncate max-w-[180px]"
+                                title={stringValue}
+                              >
+                                {isLongValue ? `${stringValue.slice(0, 24)}...` : stringValue}
+                              </span>
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      onClick={() => handleCopyValue(stringValue, key)}
+                                    >
+                                      <Copy className="h-3 w-3" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Copy {key}</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </ScrollArea>
               </div>
             )}
 
-            <DialogFooter className="gap-2">
+            <DialogFooter className="gap-2 sm:gap-2 pt-2">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
                 disabled={isLoading}
+                className="min-w-[100px]"
               >
                 {t('common.cancel', 'Cancel')}
               </Button>
-              <Button type="submit" disabled={!hasChanges || isLoading}>
+              <Button 
+                type="submit" 
+                disabled={!hasChanges || isLoading}
+                className="min-w-[120px]"
+              >
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {t('common.save', 'Save Changes')}
+                {isLoading ? t('common.saving', 'Saving...') : t('common.save', 'Save Changes')}
               </Button>
             </DialogFooter>
           </form>

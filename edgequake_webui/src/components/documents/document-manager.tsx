@@ -740,41 +740,55 @@ export function DocumentManager() {
         </Card>
       )}
 
-      {/* Upload Zone - Compact design per audit QW-04 */}
-      <Card>
-        <CardContent className="p-4">
+      {/* Upload Zone - Compact design per audit DOC-03 */}
+      <Card className="border-0 shadow-sm overflow-hidden">
+        <CardContent className="p-0">
           <div
             {...getRootProps()}
-            className={`
-              border-2 border-dashed rounded-xl py-6 px-8 text-center cursor-pointer 
-              transition-all duration-200 min-h-[100px]
-              ${isDragActive
-                ? 'border-primary bg-primary/5 scale-[1.01]'
-                : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/30'
-              }
-            `}
+            className={cn(
+              "border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200",
+              "flex items-center gap-4 px-6",
+              isDragActive
+                ? 'border-primary bg-primary/5 py-8'
+                : 'border-muted-foreground/20 hover:border-primary/50 hover:bg-muted/20 py-5'
+            )}
           >
             <input {...getInputProps()} />
-            <div className="flex items-center justify-center gap-4">
-              <Upload className={`h-8 w-8 text-muted-foreground transition-transform ${isDragActive ? 'scale-110' : ''}`} />
-              <div className="text-left">
-                {isDragActive ? (
-                  <p className="text-base font-medium">Drop files here...</p>
-                ) : (
-                  <>
-                    <p className="text-base font-medium">Drag & drop files or click to upload</p>
-                    <p className="text-sm text-muted-foreground">
-                      Supports TXT, MD, JSON files (max 10MB)
-                    </p>
-                  </>
-                )}
-              </div>
+            <div className={cn(
+              "p-3 rounded-xl transition-all",
+              isDragActive ? "bg-primary/10" : "bg-muted/50"
+            )}>
+              <Upload className={cn(
+                "h-6 w-6 transition-all duration-200",
+                isDragActive ? "text-primary scale-110" : "text-muted-foreground"
+              )} />
             </div>
+            <div className="flex-1 min-w-0">
+              {isDragActive ? (
+                <p className="text-base font-medium text-primary">Drop files here to upload</p>
+              ) : (
+                <>
+                  <p className="text-sm font-medium">
+                    Drag & drop files or <span className="text-primary">click to browse</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    TXT, MD, JSON (max 10MB per file)
+                  </p>
+                </>
+              )}
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="shrink-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Browse Files
+            </Button>
           </div>
-          
           {/* Uploading Files List */}
           {uploadingFiles.length > 0 && (
-            <div className="mt-4 space-y-3">
+            <div className="p-4 border-t space-y-3 bg-muted/10">
               {/* Overall Progress Header */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">

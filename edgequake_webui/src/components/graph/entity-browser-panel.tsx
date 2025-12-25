@@ -16,6 +16,7 @@ import {
     ChevronDown,
     ChevronLeft,
     ChevronRight,
+    Link2,
     Network,
     Search,
     SortAsc,
@@ -39,29 +40,70 @@ const EntityItem = memo(function EntityItem({
   isSelected,
   onClick,
 }: EntityItemProps) {
+  const connectionStrength = Math.min((node.degree || 0) / 10, 1); // Normalize to 0-1
+  
   return (
     <button
       onClick={onClick}
       className={cn(
-        "w-full text-left px-3 py-2 rounded-lg transition-colors",
-        "flex items-center gap-2 group",
+        "w-full text-left px-3 py-2.5 rounded-lg transition-all duration-150",
+        "flex items-center gap-2.5 group",
         isSelected
-          ? "bg-primary/10 border border-primary/20"
-          : "hover:bg-muted"
+          ? "bg-primary text-primary-foreground shadow-sm border-l-4 border-primary"
+          : "hover:bg-muted/70 hover:translate-x-0.5"
       )}
     >
       <div
-        className="w-2 h-2 rounded-full shrink-0"
+        className={cn(
+          "w-2.5 h-2.5 rounded-full shrink-0 ring-2 transition-transform",
+          isSelected 
+            ? "ring-primary-foreground/30 scale-125" 
+            : "ring-white dark:ring-gray-800"
+        )}
         style={{
           backgroundColor: getEntityTypeColor(node.node_type),
         }}
       />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{node.label}</p>
-        <p className="text-xs text-muted-foreground truncate">
-          {node.node_type}
-          {node.degree && node.degree > 0 && ` · ${node.degree} connections`}
+        <p className={cn(
+          "text-sm font-medium truncate",
+          isSelected && "font-semibold"
+        )}>
+          {node.label}
         </p>
+        <div className="flex items-center gap-2">
+          <span className={cn(
+            "text-[10px] uppercase tracking-wider",
+            isSelected ? "text-primary-foreground/70" : "text-muted-foreground"
+          )}>
+            {node.node_type}
+          </span>
+          {node.degree && node.degree > 0 && (
+            <>
+              <span className={cn(
+                "text-[10px]",
+                isSelected ? "text-primary-foreground/50" : "text-muted-foreground/50"
+              )}>·</span>
+              <div className="flex items-center gap-1">
+                <div className="w-12 h-1 bg-muted/50 rounded-full overflow-hidden">
+                  <div 
+                    className={cn(
+                      "h-full rounded-full transition-all",
+                      isSelected ? "bg-primary-foreground/60" : "bg-primary/60"
+                    )}
+                    style={{ width: `${connectionStrength * 100}%` }}
+                  />
+                </div>
+                <span className={cn(
+                  "text-[10px] font-medium",
+                  isSelected ? "text-primary-foreground/70" : "text-muted-foreground"
+                )}>
+                  {node.degree}
+                </span>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </button>
   );
@@ -413,15 +455,20 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
       </ScrollArea>
 
       {/* Footer with stats */}
-      <div className="p-2 border-t shrink-0">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>
-            {groupedNodes.length} {t("graph.entityBrowser.types", "types")}
-          </span>
-          <span>
-            {filteredNodes.reduce((acc, n) => acc + (n.degree ?? 0), 0) / 2}{" "}
-            {t("graph.entityBrowser.connections", "connections")}
-          </span>
+      <div className="p-3 border-t shrink-0 bg-muted/20">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
+              {groupedNodes.length} {t("graph.entityBrowser.types", "types")}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Link2 className="h-3 w-3" />
+            <span className="font-medium">
+              {Math.floor(filteredNodes.reduce((acc, n) => acc + (n.degree ?? 0), 0) / 2)}
+            </span>
+            <span>{t("graph.entityBrowser.connections", "connections")}</span>
+          </div>
         </div>
       </div>
     </aside>

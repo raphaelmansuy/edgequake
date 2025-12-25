@@ -11,6 +11,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import { useGraphStore } from '@/stores/use-graph-store';
 import type { GraphEdge, GraphNode } from '@/types';
 import { useQueryClient } from '@tanstack/react-query';
@@ -19,6 +20,9 @@ import {
     ArrowLeft,
     ArrowRight,
     Calendar,
+    Check,
+    ChevronDown,
+    ChevronRight,
     Copy,
     Edit,
     ExternalLink,
@@ -30,7 +34,7 @@ import {
     Trash2,
     X
 } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import { EntityEditDialog } from './entity-edit-dialog';
 import { RelationshipEditDialog } from './relationship-edit-dialog';
@@ -49,6 +53,69 @@ const TYPE_COLORS: Record<string, string> = {
   DOCUMENT: '#6366f1',
   DEFAULT: '#64748b',
 };
+
+// Expandable Property Value Component
+function PropertyValue({ 
+  label, 
+  value, 
+  copyable = true 
+}: { 
+  label: string; 
+  value: string; 
+  copyable?: boolean;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
+  
+  const isLong = value.length > 20;
+  const displayValue = isExpanded ? value : (isLong ? `${value.slice(0, 20)}...` : value);
+  
+  const handleCopy = useCallback(async () => {
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+    toast.success('Copied to clipboard');
+    setTimeout(() => setCopied(false), 2000);
+  }, [value]);
+  
+  return (
+    <div className="flex justify-between text-xs gap-2 group py-1">
+      <span className="text-muted-foreground shrink-0 min-w-[80px]">{label}</span>
+      <div className="flex items-center gap-1 min-w-0 justify-end">
+        <span 
+          className={cn(
+            "font-mono text-[10px] bg-background/50 px-1.5 py-0.5 rounded transition-all",
+            isLong && "cursor-pointer hover:bg-muted",
+            isExpanded ? "break-all whitespace-normal" : "truncate max-w-[140px]"
+          )}
+          onClick={isLong ? () => setIsExpanded(!isExpanded) : undefined}
+          title={isLong ? (isExpanded ? "Click to collapse" : "Click to expand") : value}
+        >
+          {displayValue}
+        </span>
+        {isLong && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-4 w-4 shrink-0 opacity-60 hover:opacity-100"
+            onClick={() => setIsExpanded(!isExpanded)}
+          >
+            {isExpanded ? <ChevronDown className="h-2.5 w-2.5" /> : <ChevronRight className="h-2.5 w-2.5" />}
+          </Button>
+        )}
+        {copyable && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={handleCopy}
+          >
+            {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function NodeDetails({ node }: NodeDetailsProps) {
   const { selectNode, focusNode, edges, nodes, toggleNodeDetails } = useGraphStore();
@@ -92,16 +159,16 @@ export function NodeDetails({ node }: NodeDetailsProps) {
   const typeColor = TYPE_COLORS[node.node_type?.toUpperCase()] || TYPE_COLORS.DEFAULT;
 
   return (
-    <Card className="shadow-lg">
-      <CardHeader className="pb-2">
+    <Card className="shadow-lg border-0 bg-card/95 backdrop-blur-sm">
+      <CardHeader className="pb-3 space-y-3">
         <div className="flex items-start justify-between gap-2">
-          <div className="space-y-1.5 flex-1 min-w-0">
+          <div className="space-y-2 flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <div 
-                className="w-3 h-3 rounded-full shrink-0"
+                className="w-3 h-3 rounded-full shrink-0 ring-2 ring-white dark:ring-gray-800 shadow-sm"
                 style={{ backgroundColor: typeColor }}
               />
-              <CardTitle className="text-base font-semibold truncate">
+              <CardTitle className="text-lg font-semibold truncate">
                 {node.label}
               </CardTitle>
               <TooltipProvider>
@@ -110,35 +177,20 @@ export function NodeDetails({ node }: NodeDetailsProps) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-5 w-5 shrink-0"
+                      className="h-6 w-6 shrink-0 hover:bg-muted/80"
                       onClick={handleCopyLabel}
                     >
-                      <Copy className="h-3 w-3" />
+                      <Copy className="h-3.5 w-3.5" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Copy label</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 shrink-0"
-                      onClick={() => setShowEntityEdit(true)}
-                    >
-                      <Edit className="h-3 w-3" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Edit entity</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
             </div>
             <Badge 
               variant="outline" 
-              className="text-[10px] font-medium"
-              style={{ borderColor: typeColor, color: typeColor }}
+              className="text-xs font-medium px-3 py-1"
+              style={{ borderColor: typeColor, color: typeColor, backgroundColor: `${typeColor}10` }}
             >
               {node.node_type || 'ENTITY'}
             </Badge>
@@ -146,7 +198,7 @@ export function NodeDetails({ node }: NodeDetailsProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 shrink-0"
+            className="h-7 w-7 shrink-0 hover:bg-muted/80"
             onClick={() => toggleNodeDetails()}
           >
             <X className="h-4 w-4" />
@@ -154,185 +206,218 @@ export function NodeDetails({ node }: NodeDetailsProps) {
         </div>
       </CardHeader>
       
-      <CardContent className="space-y-3 pt-0">
-        {/* Description */}
-        {node.description && (
-          <div className="bg-muted/50 rounded-md p-2.5">
-            <div className="flex items-center gap-1.5 mb-1">
-              <Info className="h-3 w-3 text-muted-foreground" />
-              <h4 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                Description
-              </h4>
-            </div>
-            <p className="text-xs leading-relaxed">{node.description}</p>
-          </div>
-        )}
-
-        {/* Properties */}
-        {node.properties && Object.keys(node.properties).length > 0 && (
-          <div>
-            <div className="flex items-center gap-1.5 mb-2">
-              <Sparkles className="h-3 w-3 text-muted-foreground" />
-              <h4 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                Properties
-              </h4>
-            </div>
-            <div className="space-y-1 bg-muted/30 rounded-md p-2">
-              {Object.entries(node.properties).map(([key, value]) => (
-                <div key={key} className="flex justify-between text-xs gap-2">
-                  <span className="text-muted-foreground shrink-0">{key}</span>
-                  <span className="truncate font-medium text-right">{String(value)}</span>
+      <CardContent className="space-y-4 pt-0">
+        <ScrollArea className="h-[calc(100vh-400px)] min-h-[200px] max-h-[400px] pr-3">
+          <div className="space-y-4">
+            {/* Description */}
+            {node.description && (
+              <div className="bg-muted/30 rounded-lg p-3 border border-border/50">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                  <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Description
+                  </h4>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+                <p className="text-sm leading-relaxed text-foreground/90">{node.description}</p>
+              </div>
+            )}
 
-        {/* Metadata */}
-        <div>
-          <div className="flex items-center gap-1.5 mb-2">
-            <Hash className="h-3 w-3 text-muted-foreground" />
-            <h4 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-              Metadata
-            </h4>
-          </div>
-          <div className="space-y-1.5 text-xs bg-muted/30 rounded-md p-2">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground flex items-center gap-1">
-                <Hash className="h-3 w-3" /> ID
-              </span>
-              <div className="flex items-center gap-1">
-                <span className="font-mono text-[10px] bg-background px-1.5 py-0.5 rounded">
-                  {node.id.slice(0, 12)}...
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5"
-                  onClick={handleCopyId}
-                >
-                  <Copy className="h-3 w-3" />
-                </Button>
+            {/* Properties */}
+            {node.properties && Object.keys(node.properties).length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
+                    <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      Properties
+                    </h4>
+                  </div>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-[10px] px-2"
+                          onClick={() => {
+                            const allProps = Object.entries(node.properties || {})
+                              .map(([k, v]) => `${k}: ${v}`)
+                              .join('\n');
+                            navigator.clipboard.writeText(allProps);
+                            toast.success('All properties copied');
+                          }}
+                        >
+                          <Copy className="h-3 w-3 mr-1" />
+                          Copy All
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Copy all properties</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <div className="bg-muted/20 rounded-lg p-3 space-y-0.5 border border-border/30">
+                  {Object.entries(node.properties).map(([key, value]) => (
+                    <PropertyValue key={key} label={key} value={String(value)} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Metadata */}
+            <div>
+              <div className="flex items-center gap-1.5 mb-2">
+                <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+                <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Metadata
+                </h4>
+              </div>
+              <div className="bg-muted/20 rounded-lg p-3 space-y-2 border border-border/30">
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="text-muted-foreground flex items-center gap-1.5">
+                    <Hash className="h-3 w-3" /> ID
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className="font-mono text-[10px] bg-background/50 px-2 py-0.5 rounded">
+                      {node.id.slice(0, 12)}...
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5"
+                      onClick={handleCopyId}
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+                {node.degree !== undefined && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Link2 className="h-3 w-3" /> Connections
+                    </span>
+                    <Badge variant="secondary" className="h-5 text-[10px] font-semibold">
+                      {node.degree}
+                    </Badge>
+                  </div>
+                )}
+                {node.created_at && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Calendar className="h-3 w-3" /> Created
+                    </span>
+                    <span className="text-[11px] font-medium">
+                      {formatDistanceToNow(new Date(node.created_at), { addSuffix: true })}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
-            {node.degree !== undefined && (
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center gap-1">
-                  <Link2 className="h-3 w-3" /> Connections
-                </span>
-                <Badge variant="secondary" className="h-5 text-[10px]">
-                  {node.degree}
+
+            <Separator className="my-2" />
+
+            {/* Relationships */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+                  <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Relationships
+                  </h4>
+                </div>
+                <Badge variant="outline" className="h-5 text-[10px] font-semibold">
+                  {connectedEdges.length}
                 </Badge>
               </div>
-            )}
-            {node.created_at && (
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center gap-1">
-                  <Calendar className="h-3 w-3" /> Created
-                </span>
-                <span className="text-[10px]">
-                  {formatDistanceToNow(new Date(node.created_at), { addSuffix: true })}
-                </span>
+              <div className="bg-muted/20 rounded-lg border border-border/30 overflow-hidden">
+                <ScrollArea className="h-[140px]">
+                  <div className="p-2 space-y-1">
+                    {relatedNodes.length === 0 ? (
+                      <p className="text-xs text-muted-foreground text-center py-6">
+                        No connections found
+                      </p>
+                    ) : (
+                      relatedNodes.map(({ edge, isSource, node: relatedNode, nodeId, label, type }, index) => {
+                        const relationColor = TYPE_COLORS[type.toUpperCase()] || TYPE_COLORS.DEFAULT;
+                        
+                        return (
+                          <div
+                            key={edge.id || `edge-${index}`}
+                            className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted/50 p-2 rounded-md transition-all group"
+                          >
+                            <div className="flex items-center shrink-0">
+                              {isSource ? (
+                                <div className="flex items-center gap-1 text-blue-500">
+                                  <ArrowRight className="h-3 w-3" />
+                                  <span className="text-[9px] uppercase font-medium">to</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1 text-green-500">
+                                  <ArrowLeft className="h-3 w-3" />
+                                  <span className="text-[9px] uppercase font-medium">from</span>
+                                </div>
+                              )}
+                            </div>
+                            <Badge 
+                              variant="secondary" 
+                              className="text-[9px] font-normal shrink-0 max-w-[80px] truncate cursor-pointer hover:bg-secondary/80 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedEdge(edge);
+                                setShowRelationshipEdit(true);
+                              }}
+                              title="Click to edit relationship"
+                            >
+                              {edge.relationship_type}
+                            </Badge>
+                            <div 
+                              className="flex items-center gap-1.5 flex-1 min-w-0"
+                              onClick={() => focusNode(nodeId)}
+                            >
+                              <div 
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: relationColor }}
+                              />
+                              <span className="truncate group-hover:underline font-medium">{label}</span>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-5 w-5 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedEdge(edge);
+                                setShowRelationshipEdit(true);
+                              }}
+                              title="Edit relationship"
+                            >
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                            <ExternalLink 
+                              className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0 cursor-pointer transition-opacity" 
+                              onClick={() => focusNode(nodeId)}
+                            />
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </ScrollArea>
               </div>
-            )}
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Relationships */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-1.5">
-              <Link2 className="h-3 w-3 text-muted-foreground" />
-              <h4 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                Relationships
-              </h4>
             </div>
-            <Badge variant="outline" className="h-4 text-[9px]">
-              {connectedEdges.length}
-            </Badge>
           </div>
-          <ScrollArea className="h-36">
-            <div className="space-y-1">
-              {relatedNodes.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-4">
-                  No connections
-                </p>
-              ) : (
-                relatedNodes.map(({ edge, isSource, node: relatedNode, nodeId, label, type }, index) => {
-                  const relationColor = TYPE_COLORS[type.toUpperCase()] || TYPE_COLORS.DEFAULT;
-                  
-                  return (
-                    <div
-                      key={edge.id || `edge-${index}`}
-                      className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted p-1.5 rounded-md transition-colors group"
-                    >
-                      <div className="flex items-center shrink-0">
-                        {isSource ? (
-                          <ArrowRight className="h-3 w-3 text-blue-500" />
-                        ) : (
-                          <ArrowLeft className="h-3 w-3 text-green-500" />
-                        )}
-                      </div>
-                      <Badge 
-                        variant="secondary" 
-                        className="text-[9px] font-normal shrink-0 max-w-[80px] truncate cursor-pointer hover:bg-secondary/80"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedEdge(edge);
-                          setShowRelationshipEdit(true);
-                        }}
-                        title="Click to edit relationship"
-                      >
-                        {edge.relationship_type}
-                      </Badge>
-                      <div 
-                        className="flex items-center gap-1.5 flex-1 min-w-0"
-                        onClick={() => focusNode(nodeId)}
-                      >
-                        <div 
-                          className="w-2 h-2 rounded-full shrink-0"
-                          style={{ backgroundColor: relationColor }}
-                        />
-                        <span className="truncate group-hover:underline">{label}</span>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-5 w-5 opacity-0 group-hover:opacity-100 shrink-0"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedEdge(edge);
-                          setShowRelationshipEdit(true);
-                        }}
-                        title="Edit relationship"
-                      >
-                        <Edit className="h-3 w-3" />
-                      </Button>
-                      <ExternalLink 
-                        className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0 cursor-pointer" 
-                        onClick={() => focusNode(nodeId)}
-                      />
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </ScrollArea>
-        </div>
+        </ScrollArea>
 
         <Separator />
 
         {/* Actions */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 pt-1">
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  className="flex-1 h-8"
+                  className="flex-1 h-9 font-medium hover:bg-primary/10 hover:border-primary/50 transition-all"
                   onClick={() => setShowEntityEdit(true)}
                 >
                   <Edit className="h-3.5 w-3.5 mr-1.5" />
@@ -345,7 +430,11 @@ export function NodeDetails({ node }: NodeDetailsProps) {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="sm" className="flex-1 h-8">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex-1 h-9 font-medium hover:bg-purple-500/10 hover:border-purple-500/50 transition-all"
+                >
                   <GitMerge className="h-3.5 w-3.5 mr-1.5" />
                   Merge
                 </Button>
@@ -356,7 +445,11 @@ export function NodeDetails({ node }: NodeDetailsProps) {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="sm" className="flex-1 h-8 text-destructive hover:text-destructive">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex-1 h-9 font-medium text-destructive hover:bg-destructive/10 hover:border-destructive/50 transition-all"
+                >
                   <Trash2 className="h-3.5 w-3.5 mr-1.5" />
                   Delete
                 </Button>

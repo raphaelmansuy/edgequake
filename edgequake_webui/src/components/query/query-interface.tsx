@@ -42,18 +42,21 @@ import {
   Clock,
   Copy,
   Gauge,
+  GitBranch,
   Info,
-  MessageSquare,
+  Lightbulb,
   Plus,
   RefreshCw,
+  Search,
   Send,
   Settings2,
   Sliders,
   Sparkles,
   StopCircle,
   Thermometer,
+  Upload,
   User,
-  Zap,
+  Zap
 } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -367,44 +370,129 @@ const ChatMessage = memo(function ChatMessage({
 });
 
 // ============================================================================
-// Empty State with suggestions
+// Empty State with suggestions and graph stats
 // ============================================================================
 
-const EmptyState = memo(function EmptyState({ onSuggestionClick }: { onSuggestionClick?: (text: string) => void }) {
+interface EmptyStateProps {
+  onSuggestionClick?: (text: string) => void;
+  graphStats?: { entities: number; relationships: number; types: number };
+}
+
+const EmptyState = memo(function EmptyState({ onSuggestionClick, graphStats }: EmptyStateProps) {
   const { t } = useTranslation();
 
   const suggestions = [
-    t('query.suggestions.0', 'What are the main entities in my knowledge graph?'),
-    t('query.suggestions.1', 'Summarize the key relationships between documents'),
-    t('query.suggestions.2', 'Find connections between people and organizations'),
-    t('query.suggestions.3', 'What topics are covered in my documents?'),
+    {
+      icon: <Search className="h-4 w-4" />,
+      text: t('query.suggestions.0', 'What are the main entities in my knowledge graph?'),
+      category: 'exploration',
+    },
+    {
+      icon: <Lightbulb className="h-4 w-4" />,
+      text: t('query.suggestions.1', 'Summarize the key relationships between documents'),
+      category: 'summary',
+    },
+    {
+      icon: <GitBranch className="h-4 w-4" />,
+      text: t('query.suggestions.2', 'Find connections between people and organizations'),
+      category: 'relationships',
+    },
+    {
+      icon: <BookOpen className="h-4 w-4" />,
+      text: t('query.suggestions.3', 'What topics are covered in my documents?'),
+      category: 'topics',
+    },
   ];
 
+  const hasData = graphStats && (graphStats.entities > 0 || graphStats.relationships > 0);
+
   return (
-    <div className="flex flex-col items-center justify-center h-full py-12 px-4">
-      <div className="relative mb-6">
-        <div className="absolute inset-0 bg-gradient-to-r from-violet-500 to-purple-600 rounded-full blur-xl opacity-20 animate-pulse" />
-        <div className="relative bg-gradient-to-br from-violet-500 to-purple-600 rounded-full p-4">
-          <MessageSquare className="h-8 w-8 text-white" />
+    <div className="flex flex-col items-center justify-center h-full py-12 px-4 animate-fade-in-up">
+      {/* Animated icon */}
+      <div className="relative mb-8">
+        <div className="absolute inset-0 bg-gradient-to-r from-violet-500 to-purple-600 rounded-2xl blur-2xl opacity-20 animate-pulse-soft" />
+        <div className="relative bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl p-5 shadow-lg">
+          <Sparkles className="h-10 w-10 text-white" />
         </div>
       </div>
       
-      <h2 className="text-xl font-semibold mb-2">{t('query.emptyTitle', 'Start a conversation')}</h2>
-      <p className="text-muted-foreground text-center mb-6 max-w-md">
-        {t('query.emptyDescription', 'Ask questions about your knowledge graph and documents. I can help you explore relationships and find insights.')}
+      {/* Title and description */}
+      <h2 className="text-2xl font-bold mb-2 text-center">
+        {t('query.emptyTitle', 'Ask about your knowledge graph')}
+      </h2>
+      <p className="text-muted-foreground text-center mb-8 max-w-lg leading-relaxed">
+        {t('query.emptyDescription', 'I can help you explore entities, find connections, and uncover insights from your documents.')}
       </p>
 
+      {/* Graph stats (if available) */}
+      {hasData && (
+        <div className="flex items-center gap-4 mb-8 px-6 py-3 bg-muted/30 rounded-full border border-border/50">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-green-500" />
+            <span className="text-sm font-medium">{graphStats.entities}</span>
+            <span className="text-xs text-muted-foreground">entities</span>
+          </div>
+          <div className="w-px h-4 bg-border" />
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-purple-500" />
+            <span className="text-sm font-medium">{graphStats.relationships}</span>
+            <span className="text-xs text-muted-foreground">relationships</span>
+          </div>
+          <div className="w-px h-4 bg-border" />
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-blue-500" />
+            <span className="text-sm font-medium">{graphStats.types}</span>
+            <span className="text-xs text-muted-foreground">types</span>
+          </div>
+        </div>
+      )}
+
+      {/* No data state */}
+      {!hasData && (
+        <div className="flex items-center gap-3 mb-8 px-5 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-xl">
+          <Info className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+          <div className="text-sm">
+            <p className="font-medium text-amber-700 dark:text-amber-300">
+              {t('query.noDocuments', 'No documents yet')}
+            </p>
+            <p className="text-amber-600/80 dark:text-amber-400/80 text-xs mt-0.5">
+              {t('query.noDocumentsHint', 'Upload documents to start building your knowledge graph')}
+            </p>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="shrink-0 border-amber-300 dark:border-amber-700"
+            asChild
+          >
+            <a href="/documents">
+              <Upload className="h-3.5 w-3.5 mr-1.5" />
+              Upload
+            </a>
+          </Button>
+        </div>
+      )}
+
+      {/* Suggestions */}
       {onSuggestionClick && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-w-2xl w-full">
-          {suggestions.map((suggestion, i) => (
-            <button
-              key={i}
-              onClick={() => onSuggestionClick(suggestion)}
-              className="text-left px-4 py-3 rounded-lg border bg-card hover:bg-accent transition-colors text-sm"
-            >
-              <span className="text-muted-foreground">→</span> {suggestion}
-            </button>
-          ))}
+        <div className="w-full max-w-2xl space-y-3">
+          <p className="text-sm font-medium text-muted-foreground text-center mb-3">
+            {t('query.tryAsking', 'Try asking:')}
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {suggestions.map((suggestion, i) => (
+              <button
+                key={i}
+                onClick={() => onSuggestionClick(suggestion.text)}
+                className="group flex items-start gap-3 text-left px-4 py-3.5 rounded-xl border bg-card hover:bg-muted/50 hover:border-primary/30 transition-all duration-150 hover:shadow-sm"
+              >
+                <div className="p-1.5 rounded-lg bg-muted group-hover:bg-primary/10 transition-colors shrink-0">
+                  {suggestion.icon}
+                </div>
+                <span className="text-sm leading-relaxed">{suggestion.text}</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>

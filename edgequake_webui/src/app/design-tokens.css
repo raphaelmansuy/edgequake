@@ -184,6 +184,42 @@
   --shadow-focus: 0 0 0 3px var(--ring);
 
   /* ============================================
+   * PANEL & NODE DETAILS TOKENS
+   * ============================================ */
+  
+  /* Panel Header */
+  --panel-header-padding: var(--space-5);
+  --panel-section-gap: var(--space-6);
+  
+  /* Property Display */
+  --property-label-width: 120px;
+  --property-row-gap: var(--space-2);
+  --property-value-max-height: 120px;
+  
+  /* Badges & Tags */
+  --badge-padding-x: var(--space-3);
+  --badge-padding-y: var(--space-1-5);
+  --badge-border-radius: var(--rounded-full);
+  
+  /* Interactive Elements */
+  --button-height-sm: 32px;
+  --button-height-md: 40px;
+  --button-height-lg: 48px;
+  
+  /* Upload Zone */
+  --upload-zone-height: 80px;
+  --upload-zone-height-active: 120px;
+  
+  /* Dialog Widths */
+  --dialog-width-sm: 400px;
+  --dialog-width-md: 500px;
+  --dialog-width-lg: 640px;
+  
+  /* Scroll Areas */
+  --scroll-area-max-height: 280px;
+  --scroll-area-relationship-height: 180px;
+
+  /* ============================================
    * BORDER RADIUS
    * ============================================ */
   
