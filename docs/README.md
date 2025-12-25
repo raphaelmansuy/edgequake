@@ -20,6 +20,7 @@
 | [Deployment Guide](0006-deployment-guide.md)               | Docker, Kubernetes, and production setup          |
 | [Configuration Reference](0007-configuration-reference.md) | All environment variables and options             |
 | [Multi-Tenancy](0008-multi-tenancy.md)                     | Tenant isolation and namespace management         |
+| [Algorithms Reference](0009-algorithms-reference.md)       | Detailed pipeline and query algorithms            |
 | [Production LLM](production-llm-integration.md)            | Real LLM provider integration guide               |
 
 ---

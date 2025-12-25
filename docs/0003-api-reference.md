@@ -12,14 +12,15 @@
 
 1. [Overview](#overview)
 2. [Health Endpoints](#health-endpoints)
-3. [Authentication](#authentication)
-4. [Document Endpoints](#document-endpoints)
-5. [Query Endpoints](#query-endpoints)
-6. [Graph Endpoints](#graph-endpoints)
-7. [Entity Endpoints](#entity-endpoints)
-8. [Relationship Endpoints](#relationship-endpoints)
-9. [Task Endpoints](#task-endpoints)
-10. [Error Handling](#error-handling)
+3. [Ollama Emulation API](#ollama-emulation-api)
+4. [Authentication](#authentication)
+5. [Document Endpoints](#document-endpoints)
+6. [Query Endpoints](#query-endpoints)
+7. [Graph Endpoints](#graph-endpoints)
+8. [Entity Endpoints](#entity-endpoints)
+9. [Relationship Endpoints](#relationship-endpoints)
+10. [Task Endpoints](#task-endpoints)
+11. [Error Handling](#error-handling)
 
 ---
 
@@ -33,6 +34,12 @@ http://localhost:8080
 ├── /ready           # Readiness check
 ├── /live            # Liveness check
 ├── /metrics         # Prometheus metrics
+├── /api/            # Ollama-compatible API
+│   ├── version      # Ollama version
+│   ├── tags         # List models
+│   ├── ps           # Running models
+│   ├── generate     # Text generation
+│   └── chat         # Chat completion
 └── /api/v1/         # API version 1
     ├── documents/   # Document management
     ├── query/       # Query execution
@@ -124,6 +131,159 @@ Prometheus metrics endpoint.
 ```http
 GET /metrics
 ```
+
+---
+
+## Ollama Emulation API
+
+EdgeQuake provides Ollama-compatible API endpoints, allowing it to work as a drop-in replacement for Ollama with tools like OpenWebUI.
+
+> **Code Reference**: [edgequake/crates/edgequake-api/src/handlers/ollama.rs](../edgequake/crates/edgequake-api/src/handlers/ollama.rs)
+
+### Query Mode Prefixes
+
+Chat messages can include a prefix to select the query mode:
+
+| Prefix | Mode | Description |
+|--------|------|-------------|
+| `/local` | Local | Entity-centric query |
+| `/global` | Global | Relationship-centric query |
+| `/naive` | Naive | Chunk-only vector search |
+| `/hybrid` | Hybrid | Combined local + global (default) |
+| `/mix` | Mix | All strategies combined |
+| `/bypass` | Bypass | Direct LLM (no RAG) |
+| `/context` | Context | Return context only |
+
+**Example:**
+```
+/local Who is Marie Curie?
+```
+
+### GET `/api/version`
+
+Get Ollama version information.
+
+```http
+GET /api/version
+```
+
+**Response**
+
+```json
+{
+  "version": "0.9.3"
+}
+```
+
+### GET `/api/tags`
+
+List available models.
+
+```http
+GET /api/tags
+```
+
+**Response**
+
+```json
+{
+  "models": [
+    {
+      "name": "edgequake:latest",
+      "model": "edgequake:latest",
+      "size": 7000000000,
+      "digest": "sha256:edgequake-rag-v1",
+      "modified_at": "2025-12-25T00:00:00Z",
+      "details": {
+        "format": "gguf",
+        "family": "edgequake",
+        "families": ["edgequake"],
+        "parameter_size": "7B",
+        "quantization_level": "Q4_0"
+      }
+    }
+  ]
+}
+```
+
+### GET `/api/ps`
+
+List running models.
+
+```http
+GET /api/ps
+```
+
+**Response**
+
+```json
+{
+  "models": [
+    {
+      "name": "edgequake:latest",
+      "model": "edgequake:latest",
+      "size": 7000000000,
+      "digest": "sha256:edgequake-rag-v1",
+      "expires_at": "2025-12-25T01:00:00Z"
+    }
+  ]
+}
+```
+
+### POST `/api/generate`
+
+Generate a text completion (Ollama-compatible).
+
+```http
+POST /api/generate
+Content-Type: application/json
+```
+
+**Request Body**
+
+```json
+{
+  "model": "edgequake",
+  "prompt": "What did Marie Curie discover?",
+  "stream": true
+}
+```
+
+**Streaming Response (NDJSON)**
+
+```json
+{"model":"edgequake","created_at":"2025-12-25T14:30:00Z","response":"Marie","done":false}
+{"model":"edgequake","created_at":"2025-12-25T14:30:00Z","response":" Curie","done":false}
+{"model":"edgequake","created_at":"2025-12-25T14:30:01Z","response":" discovered","done":false}
+{"model":"edgequake","created_at":"2025-12-25T14:30:01Z","response":" radium.","done":true,"total_duration":1500000000}
+```
+
+### POST `/api/chat`
+
+Chat completion with conversation history (Ollama-compatible).
+
+```http
+POST /api/chat
+Content-Type: application/json
+```
+
+**Request Body**
+
+```json
+{
+  "model": "edgequake",
+  "messages": [
+    {"role": "user", "content": "Who discovered radium?"},
+    {"role": "assistant", "content": "Marie Curie discovered radium."},
+    {"role": "user", "content": "/local Tell me more about her."}
+  ],
+  "stream": true
+}
+```
+
+**Response**
+
+Same format as `/api/generate` with `message` field containing the assistant's response.
 
 ---
 
@@ -406,6 +566,98 @@ Authorization: Bearer <token>
   },
   "is_complete": false,
   "latest_message": "Processing document 7 of 10..."
+}
+```
+
+### POST `/api/v1/documents/scan`
+
+Scan a directory for new documents and queue them for processing.
+
+> **Code Reference**: [edgequake/crates/edgequake-api/src/handlers/documents.rs](../edgequake/crates/edgequake-api/src/handlers/documents.rs) - `scan_directory`
+
+```http
+POST /api/v1/documents/scan
+Content-Type: application/json
+Authorization: Bearer <token>
+```
+
+**Request Body**
+
+```json
+{
+  "path": "/data/documents",
+  "recursive": true,
+  "extensions": ["txt", "md", "pdf"],
+  "max_files": 100,
+  "track_id": "scan-2024-001"
+}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `path` | string | ✅ | - | Directory path to scan |
+| `recursive` | bool | ❌ | false | Scan subdirectories |
+| `extensions` | string[] | ❌ | all | File extensions to include |
+| `max_files` | int | ❌ | 1000 | Maximum files to queue |
+| `track_id` | string | ❌ | auto | Batch tracking ID |
+
+**Response (200 OK)**
+
+```json
+{
+  "track_id": "scan-2024-001",
+  "files_found": 45,
+  "files_queued": 42,
+  "skipped_files": [
+    {
+      "path": "/data/documents/image.png",
+      "reason": "Extension .png not in filter list"
+    }
+  ],
+  "message": "Queued 42 files for processing"
+}
+```
+
+### POST `/api/v1/documents/reprocess`
+
+Reprocess all failed documents.
+
+> **Code Reference**: [edgequake/crates/edgequake-api/src/handlers/documents.rs](../edgequake/crates/edgequake-api/src/handlers/documents.rs) - `reprocess_failed`
+
+```http
+POST /api/v1/documents/reprocess
+Content-Type: application/json
+Authorization: Bearer <token>
+```
+
+**Request Body**
+
+```json
+{
+  "track_id": "batch-2024-001",
+  "max_documents": 50
+}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `track_id` | string | ❌ | all | Filter by original track ID |
+| `max_documents` | int | ❌ | 100 | Maximum documents to reprocess |
+
+**Response (200 OK)**
+
+```json
+{
+  "track_id": "reprocess_20251225_143000_abc123",
+  "count": 5,
+  "requeued_ids": [
+    "doc-001",
+    "doc-015",
+    "doc-023",
+    "doc-042",
+    "doc-056"
+  ],
+  "message": "Requeued 5 failed documents for processing"
 }
 ```
 
