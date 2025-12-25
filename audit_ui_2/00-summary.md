@@ -12,13 +12,13 @@ This comprehensive UI audit analyzed 6 key screens of the EdgeQuake WebUI based 
 
 ### Issue Distribution
 
-| Severity | Count | % |
-|----------|-------|---|
-| 🔴 Critical | 8 | 15% |
-| 🟠 High | 18 | 35% |
-| 🟡 Medium | 17 | 33% |
-| 🟢 Low | 9 | 17% |
-| **Total** | **52** | 100% |
+| Severity    | Count  | %    |
+| ----------- | ------ | ---- |
+| 🔴 Critical | 8      | 15%  |
+| 🟠 High     | 18     | 35%  |
+| 🟡 Medium   | 17     | 33%  |
+| 🟢 Low      | 9      | 17%  |
+| **Total**   | **52** | 100% |
 
 ### Top Issues by Impact
 
@@ -32,14 +32,14 @@ This comprehensive UI audit analyzed 6 key screens of the EdgeQuake WebUI based 
 
 ## Audit Documents
 
-| Document | Screen | Priority |
-|----------|--------|----------|
-| [01-node-details-panel.md](01-node-details-panel.md) | Entity/Node Details | High |
-| [02-knowledge-graph-page.md](02-knowledge-graph-page.md) | Knowledge Graph | High |
-| [03-sidebar-footer.md](03-sidebar-footer.md) | Sidebar Footer | Medium |
-| [04-edit-entity-dialog.md](04-edit-entity-dialog.md) | Edit Entity Dialog | High |
-| [05-documents-page.md](05-documents-page.md) | Documents Page | High |
-| [06-query-page.md](06-query-page.md) | Query Page | High |
+| Document                                                 | Screen              | Priority |
+| -------------------------------------------------------- | ------------------- | -------- |
+| [01-node-details-panel.md](01-node-details-panel.md)     | Entity/Node Details | High     |
+| [02-knowledge-graph-page.md](02-knowledge-graph-page.md) | Knowledge Graph     | High     |
+| [03-sidebar-footer.md](03-sidebar-footer.md)             | Sidebar Footer      | Medium   |
+| [04-edit-entity-dialog.md](04-edit-entity-dialog.md)     | Edit Entity Dialog  | High     |
+| [05-documents-page.md](05-documents-page.md)             | Documents Page      | High     |
+| [06-query-page.md](06-query-page.md)                     | Query Page          | High     |
 
 ---
 
@@ -49,12 +49,12 @@ This comprehensive UI audit analyzed 6 key screens of the EdgeQuake WebUI based 
 
 These issues can cause data loss or severely impact usability.
 
-| ID | Issue | Screen | Effort |
-|----|-------|--------|--------|
-| DOC-01/02 | Add confirmation dialog for "Clear All" with type-to-confirm | Documents | 4h |
-| NDP-01/02 | Add expandable property values with copy buttons | Node Details | 6h |
-| QRY-01/02 | Create empty state with graph stats and suggestions | Query | 4h |
-| EED-01/02 | Separate editable vs read-only fields, remove duplicates | Edit Dialog | 3h |
+| ID        | Issue                                                        | Screen       | Effort |
+| --------- | ------------------------------------------------------------ | ------------ | ------ |
+| DOC-01/02 | Add confirmation dialog for "Clear All" with type-to-confirm | Documents    | 4h     |
+| NDP-01/02 | Add expandable property values with copy buttons             | Node Details | 6h     |
+| QRY-01/02 | Create empty state with graph stats and suggestions          | Query        | 4h     |
+| EED-01/02 | Separate editable vs read-only fields, remove duplicates     | Edit Dialog  | 3h     |
 
 **Week 1 Total: ~17 hours**
 
@@ -62,14 +62,14 @@ These issues can cause data loss or severely impact usability.
 
 These issues significantly impact the user experience.
 
-| ID | Issue | Screen | Effort |
-|----|-------|--------|--------|
-| KG-03 | Remove duplicate toolbar controls | Knowledge Graph | 2h |
-| KG-02/05 | Improve entity browser visual hierarchy and selection | Knowledge Graph | 4h |
-| NDP-03/04 | Standardize section spacing, improve entity badge | Node Details | 3h |
-| DOC-03 | Compact upload zone (reduce height) | Documents | 2h |
-| EED-03/04 | Add form validation, loading states, dirty state handling | Edit Dialog | 4h |
-| SF-01/02 | Fix collapse button behavior in collapsed state | Sidebar | 2h |
+| ID        | Issue                                                     | Screen          | Effort |
+| --------- | --------------------------------------------------------- | --------------- | ------ |
+| KG-03     | Remove duplicate toolbar controls                         | Knowledge Graph | 2h     |
+| KG-02/05  | Improve entity browser visual hierarchy and selection     | Knowledge Graph | 4h     |
+| NDP-03/04 | Standardize section spacing, improve entity badge         | Node Details    | 3h     |
+| DOC-03    | Compact upload zone (reduce height)                       | Documents       | 2h     |
+| EED-03/04 | Add form validation, loading states, dirty state handling | Edit Dialog     | 4h     |
+| SF-01/02  | Fix collapse button behavior in collapsed state           | Sidebar         | 2h     |
 
 **Week 2 Total: ~17 hours**
 
@@ -77,14 +77,14 @@ These issues significantly impact the user experience.
 
 These issues improve consistency and refinement.
 
-| ID | Issue | Screen | Effort |
-|----|-------|--------|--------|
-| KG-04/11 | Improve legend positioning and toggle clarity | Knowledge Graph | 3h |
-| KG-07 | Consolidate search into single global search | Knowledge Graph | 4h |
-| NDP-05/06 | Clarify relationship direction, consistent section styling | Node Details | 2h |
-| DOC-08/09 | Improve table layout, clarify action icons | Documents | 3h |
-| QRY-03/04 | Add contextual loading states | Query | 2h |
-| SF-04/05 | Improve collapse button styling and alignment | Sidebar | 2h |
+| ID        | Issue                                                      | Screen          | Effort |
+| --------- | ---------------------------------------------------------- | --------------- | ------ |
+| KG-04/11  | Improve legend positioning and toggle clarity              | Knowledge Graph | 3h     |
+| KG-07     | Consolidate search into single global search               | Knowledge Graph | 4h     |
+| NDP-05/06 | Clarify relationship direction, consistent section styling | Node Details    | 2h     |
+| DOC-08/09 | Improve table layout, clarify action icons                 | Documents       | 3h     |
+| QRY-03/04 | Add contextual loading states                              | Query           | 2h     |
+| SF-04/05  | Improve collapse button styling and alignment              | Sidebar         | 2h     |
 
 **Week 3 Total: ~16 hours**
 
@@ -92,13 +92,13 @@ These issues improve consistency and refinement.
 
 These issues are nice-to-haves and visual polish.
 
-| ID | Issue | Screen | Effort |
-|----|-------|--------|--------|
-| NDP-12/13 | Larger entity name, explain dot indicator | Node Details | 1h |
-| KG-13/14/15 | Improve toggle styling, floating toolbar icons | Knowledge Graph | 2h |
-| EED-12/13 | Visual improvements to properties display | Edit Dialog | 2h |
-| DOC-14/15/16 | Clean up row actions, improve pagination | Documents | 2h |
-| QRY-09/10 | Branded loading animation, FAB elevation | Query | 2h |
+| ID           | Issue                                          | Screen          | Effort |
+| ------------ | ---------------------------------------------- | --------------- | ------ |
+| NDP-12/13    | Larger entity name, explain dot indicator      | Node Details    | 1h     |
+| KG-13/14/15  | Improve toggle styling, floating toolbar icons | Knowledge Graph | 2h     |
+| EED-12/13    | Visual improvements to properties display      | Edit Dialog     | 2h     |
+| DOC-14/15/16 | Clean up row actions, improve pagination       | Documents       | 2h     |
+| QRY-09/10    | Branded loading animation, FAB elevation       | Query           | 2h     |
 
 **Week 4 Total: ~9 hours**
 
@@ -148,14 +148,14 @@ These issues are nice-to-haves and visual polish.
 
 ### WCAG 2.1 AA Compliance Checklist
 
-| Requirement | Status | Action Needed |
-|-------------|--------|---------------|
-| Touch targets 44px | ⚠️ Partial | Fix sidebar buttons, table actions |
-| Color contrast 4.5:1 | ⚠️ Partial | Check muted text, relationship arrows |
-| Focus visible | ⚠️ Partial | Add focus rings to all interactive elements |
-| ARIA labels | ❌ Missing | Add to FAB, sidebar, dialogs |
-| Keyboard navigation | ⚠️ Partial | Add shortcuts, trap focus in dialogs |
-| Screen reader support | ❌ Missing | Add live regions, announcements |
+| Requirement           | Status     | Action Needed                               |
+| --------------------- | ---------- | ------------------------------------------- |
+| Touch targets 44px    | ⚠️ Partial | Fix sidebar buttons, table actions          |
+| Color contrast 4.5:1  | ⚠️ Partial | Check muted text, relationship arrows       |
+| Focus visible         | ⚠️ Partial | Add focus rings to all interactive elements |
+| ARIA labels           | ❌ Missing | Add to FAB, sidebar, dialogs                |
+| Keyboard navigation   | ⚠️ Partial | Add shortcuts, trap focus in dialogs        |
+| Screen reader support | ❌ Missing | Add live regions, announcements             |
 
 ### Priority A11y Fixes
 
@@ -177,7 +177,7 @@ gantt
     Property Value Expansion  :crit, c2, 2025-12-26, 2d
     Query Empty State         :crit, c3, 2025-12-27, 1d
     Edit Dialog Cleanup       :crit, c4, 2025-12-27, 1d
-    
+
     section High Priority
     Remove Duplicate Controls :h1, after c4, 1d
     Entity Browser Hierarchy  :h2, after h1, 1d
@@ -185,13 +185,13 @@ gantt
     Upload Zone Compact       :h4, after h3, 1d
     Form Validation           :h5, after h4, 1d
     Sidebar Collapse Fix      :h6, after h5, 1d
-    
+
     section Medium Priority
     Legend Improvements       :m1, after h6, 1d
     Unified Search            :m2, after m1, 2d
     Table Layout              :m3, after m2, 1d
     Loading States            :m4, after m3, 1d
-    
+
     section Low Priority
     Visual Polish             :l1, after m4, 2d
 ```
@@ -227,30 +227,30 @@ gantt
 
 ## Success Metrics
 
-| Metric | Current | Target | Measurement |
-|--------|---------|--------|-------------|
-| Critical issues | 8 | 0 | Manual audit |
-| WCAG AA compliance | ~60% | 100% | axe DevTools |
-| Component consistency | Low | High | Design review |
-| User task completion | Unknown | >90% | Usability testing |
-| Time to complete core tasks | Unknown | <30s | Analytics |
+| Metric                      | Current | Target | Measurement       |
+| --------------------------- | ------- | ------ | ----------------- |
+| Critical issues             | 8       | 0      | Manual audit      |
+| WCAG AA compliance          | ~60%    | 100%   | axe DevTools      |
+| Component consistency       | Low     | High   | Design review     |
+| User task completion        | Unknown | >90%   | Usability testing |
+| Time to complete core tasks | Unknown | <30s   | Analytics         |
 
 ---
 
 ## Files Modified (Estimated)
 
-| File | Changes |
-|------|---------|
-| `components/graph/node-details.tsx` | Property expansion, copy buttons |
-| `components/graph/graph-viewer.tsx` | Remove duplicate toolbar, improve legend |
-| `components/graph/entity-browser.tsx` | Visual hierarchy, selection state |
-| `components/documents/document-manager.tsx` | Compact upload, confirmation dialog |
-| `components/documents/clear-documents-dialog.tsx` | Type-to-confirm |
-| `components/query/query-interface.tsx` | Empty state, loading states |
-| `components/query/empty-query-state.tsx` | New component |
-| `components/graph/edit-entity-dialog.tsx` | Form validation, field separation |
-| `components/layout/sidebar.tsx` | Collapse button improvements |
-| `app/design-tokens.css` | New tokens |
+| File                                              | Changes                                  |
+| ------------------------------------------------- | ---------------------------------------- |
+| `components/graph/node-details.tsx`               | Property expansion, copy buttons         |
+| `components/graph/graph-viewer.tsx`               | Remove duplicate toolbar, improve legend |
+| `components/graph/entity-browser.tsx`             | Visual hierarchy, selection state        |
+| `components/documents/document-manager.tsx`       | Compact upload, confirmation dialog      |
+| `components/documents/clear-documents-dialog.tsx` | Type-to-confirm                          |
+| `components/query/query-interface.tsx`            | Empty state, loading states              |
+| `components/query/empty-query-state.tsx`          | New component                            |
+| `components/graph/edit-entity-dialog.tsx`         | Form validation, field separation        |
+| `components/layout/sidebar.tsx`                   | Collapse button improvements             |
+| `app/design-tokens.css`                           | New tokens                               |
 
 ---
 
@@ -267,11 +267,11 @@ gantt
 
 ## Appendix: Screenshot Reference
 
-| Screenshot | Description | Key Issues |
-|------------|-------------|------------|
-| Image 1 | Node details panel (mobile) | Truncated values, spacing |
-| Image 2 | Knowledge graph (desktop) | Duplicate controls, empty graph |
-| Image 3 | Sidebar footer | Collapse button UX |
-| Image 4 | Edit entity dialog | Form validation, duplicates |
-| Image 5 | Documents page | Clear All safety, upload height |
-| Image 6 | Query page | Empty state, FAB clarity |
+| Screenshot | Description                 | Key Issues                      |
+| ---------- | --------------------------- | ------------------------------- |
+| Image 1    | Node details panel (mobile) | Truncated values, spacing       |
+| Image 2    | Knowledge graph (desktop)   | Duplicate controls, empty graph |
+| Image 3    | Sidebar footer              | Collapse button UX              |
+| Image 4    | Edit entity dialog          | Form validation, duplicates     |
+| Image 5    | Documents page              | Clear All safety, upload height |
+| Image 6    | Query page                  | Empty state, FAB clarity        |

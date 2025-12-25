@@ -9,6 +9,7 @@
 ## Screenshot Analysis
 
 Query page header showing:
+
 - Breadcrumb navigation (EdgeQuake > Query)
 - Page title "Query"
 - Subtitle "Ask questions about your knowledge graph"
@@ -21,33 +22,33 @@ Query page header showing:
 
 ### Critical Issues
 
-| ID | Issue | Location | Severity |
-|----|-------|----------|----------|
+| ID     | Issue                                                                                     | Location          | Severity    |
+| ------ | ----------------------------------------------------------------------------------------- | ----------------- | ----------- |
 | QRY-01 | **Empty state unclear** - Large blank area with just a spinner, no guidance on what to do | Main content area | 🔴 Critical |
-| QRY-02 | **Floating button purpose unclear** - Purple sparkle FAB has no label or context | Bottom right | 🔴 Critical |
+| QRY-02 | **Floating button purpose unclear** - Purple sparkle FAB has no label or context          | Bottom right      | 🔴 Critical |
 
 ### High Priority Issues
 
-| ID | Issue | Location | Severity |
-|----|-------|----------|----------|
-| QRY-03 | **Spinner with no context** - Loading indicator (↻) appears but doesn't explain what's loading | Below title | 🟠 High |
-| QRY-04 | **No input visible** - Query input field not visible in screenshot, may be below fold | Content area | 🟠 High |
-| QRY-05 | **"+" button purpose unclear** - Plus button in sidebar without label | Left sidebar | 🟠 High |
+| ID     | Issue                                                                                          | Location     | Severity |
+| ------ | ---------------------------------------------------------------------------------------------- | ------------ | -------- |
+| QRY-03 | **Spinner with no context** - Loading indicator (↻) appears but doesn't explain what's loading | Below title  | 🟠 High  |
+| QRY-04 | **No input visible** - Query input field not visible in screenshot, may be below fold          | Content area | 🟠 High  |
+| QRY-05 | **"+" button purpose unclear** - Plus button in sidebar without label                          | Left sidebar | 🟠 High  |
 
 ### Medium Priority Issues
 
-| ID | Issue | Location | Severity |
-|----|-------|----------|----------|
-| QRY-06 | **Breadcrumb spacing** - "EdgeQuake > Query" has tight spacing | Breadcrumb | 🟡 Medium |
-| QRY-07 | **Title and subtitle styling** - Could use more visual hierarchy | Header | 🟡 Medium |
+| ID     | Issue                                                                                      | Location      | Severity  |
+| ------ | ------------------------------------------------------------------------------------------ | ------------- | --------- |
+| QRY-06 | **Breadcrumb spacing** - "EdgeQuake > Query" has tight spacing                             | Breadcrumb    | 🟡 Medium |
+| QRY-07 | **Title and subtitle styling** - Could use more visual hierarchy                           | Header        | 🟡 Medium |
 | QRY-08 | **No conversation history visible** - If there are past queries, they should be accessible | Sidebar/Panel | 🟡 Medium |
 
 ### Low Priority Issues
 
-| ID | Issue | Location | Severity |
-|----|-------|----------|----------|
-| QRY-09 | **Spinner icon generic** - Could use branded loading animation | Loading state | 🟢 Low |
-| QRY-10 | **FAB shadow/elevation** - Floating button could have more depth | FAB | 🟢 Low |
+| ID     | Issue                                                            | Location      | Severity |
+| ------ | ---------------------------------------------------------------- | ------------- | -------- |
+| QRY-09 | **Spinner icon generic** - Could use branded loading animation   | Loading state | 🟢 Low   |
+| QRY-10 | **FAB shadow/elevation** - Floating button could have more depth | FAB           | 🟢 Low   |
 
 ---
 
@@ -56,6 +57,7 @@ Query page header showing:
 ### Phase 1: Empty State Design (Week 1)
 
 #### 1.1 Guided Empty State
+
 ```
 Current:
 ┌─────────────────────────────────────────────────────────────┐
@@ -122,31 +124,30 @@ Proposed (no data):
 ```
 
 #### 1.2 Suggested Queries Component
+
 ```tsx
 const suggestedQueries = [
   {
     icon: <Search className="h-4 w-4" />,
     text: "What entities are related to Nemotron 3?",
-    category: "exploration"
+    category: "exploration",
   },
   {
     icon: <Lightbulb className="h-4 w-4" />,
     text: "Summarize the main technologies in my graph",
-    category: "summary"
+    category: "summary",
   },
   {
     icon: <GitBranch className="h-4 w-4" />,
     text: "How are NVIDIA products connected?",
-    category: "relationships"
-  }
+    category: "relationships",
+  },
 ];
 
 function SuggestedQueries({ onSelect }) {
   return (
     <div className="space-y-3">
-      <p className="text-sm font-medium text-muted-foreground">
-        Try asking:
-      </p>
+      <p className="text-sm font-medium text-muted-foreground">Try asking:</p>
       <div className="flex flex-col gap-2">
         {suggestedQueries.map((query, i) => (
           <Button
@@ -168,6 +169,7 @@ function SuggestedQueries({ onSelect }) {
 ### Phase 2: FAB Clarity (Week 1)
 
 #### 2.1 Replace FAB with Clear Actions
+
 ```
 Option A: Remove FAB, use inline actions
 ┌─────────────────────────────────────────────────────────────┐
@@ -188,6 +190,7 @@ Option B: Keep FAB but with tooltip
 ```
 
 #### 2.2 FAB Implementation (if keeping)
+
 ```tsx
 <TooltipProvider>
   <Tooltip>
@@ -216,6 +219,7 @@ Option B: Keep FAB but with tooltip
 ### Phase 3: Loading States (Week 2)
 
 #### 3.1 Contextual Loading
+
 ```tsx
 // Loading knowledge graph stats
 function LoadingState() {
@@ -263,6 +267,7 @@ function ThinkingState() {
 ### Phase 4: Conversation History (Week 2)
 
 #### 4.1 Sidebar History Panel
+
 ```
 ┌─ Conversations ─────────────────────────────────────────────┐
 │ [+ New]                                         [🔍 Search] │
@@ -288,10 +293,11 @@ function ThinkingState() {
 ```
 
 #### 4.2 History Component
+
 ```tsx
 function ConversationHistory({ conversations, onSelect }) {
   const grouped = groupByDate(conversations);
-  
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -301,7 +307,7 @@ function ConversationHistory({ conversations, onSelect }) {
           New
         </Button>
       </div>
-      
+
       <ScrollArea className="h-[calc(100vh-200px)]">
         {Object.entries(grouped).map(([date, convos]) => (
           <div key={date} className="mb-4">
@@ -309,7 +315,7 @@ function ConversationHistory({ conversations, onSelect }) {
               {date}
             </p>
             <div className="space-y-1">
-              {convos.map(convo => (
+              {convos.map((convo) => (
                 <Button
                   key={convo.id}
                   variant="ghost"
@@ -321,7 +327,8 @@ function ConversationHistory({ conversations, onSelect }) {
                       {convo.title}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {convo.messageCount} messages · {formatRelative(convo.updatedAt)}
+                      {convo.messageCount} messages ·{" "}
+                      {formatRelative(convo.updatedAt)}
                     </p>
                   </div>
                 </Button>
@@ -338,11 +345,12 @@ function ConversationHistory({ conversations, onSelect }) {
 ### Phase 5: Input Improvements (Week 2)
 
 #### 5.1 Enhanced Query Input
+
 ```tsx
 function QueryInput({ onSubmit, isLoading }) {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const textareaRef = useRef(null);
-  
+
   return (
     <div className="border-t bg-background p-4">
       <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
@@ -354,17 +362,17 @@ function QueryInput({ onSubmit, isLoading }) {
             placeholder="Ask a question about your knowledge graph..."
             className="min-h-[60px] max-h-[200px] resize-none pr-24 py-4"
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 handleSubmit(e);
               }
             }}
           />
-          
+
           <div className="absolute right-2 bottom-2 flex items-center gap-2">
             <QueryModeSelector />
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               size="sm"
               disabled={!query.trim() || isLoading}
             >
@@ -376,7 +384,7 @@ function QueryInput({ onSubmit, isLoading }) {
             </Button>
           </div>
         </div>
-        
+
         <p className="text-xs text-muted-foreground mt-2">
           Press Enter to send, Shift+Enter for new line
         </p>
@@ -396,7 +404,7 @@ function QueryPage() {
     <div className="flex h-full">
       {/* Conversation History Sidebar */}
       <aside className="w-72 border-r p-4 hidden lg:block">
-        <ConversationHistory 
+        <ConversationHistory
           conversations={conversations}
           onSelect={setActiveConversation}
         />
@@ -427,7 +435,7 @@ function QueryPage() {
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto">
           {messages.length === 0 ? (
-            <EmptyQueryState 
+            <EmptyQueryState
               graphStats={graphStats}
               onSuggestionClick={handleSuggestion}
             />
@@ -437,10 +445,7 @@ function QueryPage() {
         </div>
 
         {/* Input */}
-        <QueryInput 
-          onSubmit={handleSubmit}
-          isLoading={isLoading}
-        />
+        <QueryInput onSubmit={handleSubmit} isLoading={isLoading} />
       </main>
     </div>
   );
@@ -452,11 +457,13 @@ function QueryPage() {
 ## Accessibility Improvements
 
 1. **Screen Reader:**
+
    - "Query page. Your knowledge graph has 7 entities and 6 relationships."
    - "Suggested query: What entities are related to Nemotron 3?"
    - Announce when AI response begins and completes
 
 2. **Keyboard Navigation:**
+
    - ⌘N for new conversation
    - ⌘K for quick command palette
    - Arrow keys to navigate suggestions
@@ -470,9 +477,9 @@ function QueryPage() {
 
 ## Success Metrics
 
-| Metric | Current | Target |
-|--------|---------|--------|
-| Empty state guidance | None | Full onboarding |
-| FAB discoverability | Unclear | Labeled + tooltip |
-| Loading context | Generic spinner | Branded + explanatory |
-| Input accessibility | Basic | Full keyboard support |
+| Metric               | Current         | Target                |
+| -------------------- | --------------- | --------------------- |
+| Empty state guidance | None            | Full onboarding       |
+| FAB discoverability  | Unclear         | Labeled + tooltip     |
+| Loading context      | Generic spinner | Branded + explanatory |
+| Input accessibility  | Basic           | Full keyboard support |
