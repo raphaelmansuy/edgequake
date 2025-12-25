@@ -3,6 +3,7 @@
 ## Screen: Query Interface (`/query`)
 
 **Screenshot References:**
+
 - [`03-query-initial.png`](../audit_ui/screenshots/03-query-initial.png)
 - [`03-query-with-input.png`](../audit_ui/screenshots/03-query-with-input.png)
 - [`03-query-with-response.png`](../audit_ui/screenshots/03-query-with-response.png)
@@ -10,7 +11,8 @@
 - [`03-query-right-panel.png`](../audit_ui/screenshots/03-query-right-panel.png)
 
 **Component Files:**
-- Page: [`src/app/(dashboard)/query/page.tsx`](../edgequake_webui/src/app/(dashboard)/query/page.tsx)
+
+- Page: [`src/app/(dashboard)/query/page.tsx`](<../edgequake_webui/src/app/(dashboard)/query/page.tsx>)
 - Main Component: [`src/components/query/query-interface.tsx`](../edgequake_webui/src/components/query/query-interface.tsx)
 - Related: [`src/components/query/`](../edgequake_webui/src/components/query/)
 
@@ -19,6 +21,7 @@
 ## What I Reviewed
 
 ### UI Regions Analyzed:
+
 1. **Left Sidebar** - Standard navigation (shared layout)
 2. **Chat Area** (Main Content)
    - Message history scroll area
@@ -39,6 +42,7 @@
 5. **Empty State** - Initial view before first query
 
 ### Measurements:
+
 - Chat area: Takes most of horizontal space
 - Input area: Fixed at bottom (~100px height)
 - Right panel: ~400px width (when open - detected from screenshot)
@@ -51,19 +55,21 @@
 ### 🔴 Critical
 
 **C1. Right Panel Not Persistent/Collapsible**
+
 - **Location:** Right panel with source citations
 - **Issue:** Based on code review, right panel exists but:
   - Not independently collapsible (user can't hide it to get more chat space)
   - Always visible when context exists (can't toggle on/off)
   - No collapse button or toggle mechanism
-- **Impact:** 
+- **Impact:**
   - Wastes space when user doesn't need to see sources
   - Can't maximize chat area for reading long responses
   - Inconsistent with documents page (which lacks right panel entirely)
 
 **C2. Input Area Too Small for Long Queries**
+
 - **Location:** Bottom query textarea
-- **Issue:** 
+- **Issue:**
   - Textarea appears to be single or few lines
   - No auto-expand as user types
   - Can't resize manually (no resize handle)
@@ -71,12 +77,13 @@
 - **Evidence:** Common pattern in chat UIs (ChatGPT, Claude) - textarea expands
 
 **C3. No Chat History Persistence**
+
 - **Location:** Message history
 - **Issue:** Based on store implementation review:
   - Messages stored in Zustand but no indication of multi-conversation support
   - Clearing messages loses entire history
   - No "conversation threads" or "chat sessions"
-- **Impact:** 
+- **Impact:**
   - Can't return to previous conversations
   - Can't compare responses for different queries
   - Lost work if page refreshes
@@ -84,8 +91,9 @@
 ### 🟡 Major
 
 **M1. Empty State Too Minimal**
+
 - **Location:** Initial query page view
-- **Issue:** 
+- **Issue:**
   - Just shows input box at bottom
   - No example queries or suggestions
   - No onboarding hints
@@ -97,8 +105,9 @@
   - Quick start guide
 
 **M2. Mode Selector Buried and Unclear**
+
 - **Location:** Dropdown next to input
-- **Issue:** 
+- **Issue:**
   - Small dropdown (screenshot shows ~40px tall)
   - No explanation of modes without opening dropdown
   - No visual differentiation between modes
@@ -106,20 +115,22 @@
 - **Better UX:** Tab or segmented control with mode descriptions
 
 **M3. Source Citations UX Weak**
+
 - **Location:** Right panel collapsible sections
-- **Issue:** 
+- **Issue:**
   - Collapsed by default - users might not notice them
   - "Sources: X chunks · Y entities" text too compact
   - No preview of most relevant source
   - Entities/relationships not visually distinct from chunks
-- **Better UX:** 
+- **Better UX:**
   - Show top 1-2 most relevant sources expanded by default
   - Use cards/visual hierarchy
   - Highlight most relevant entity mentions
 
 **M4. No Conversation Management**
+
 - **Location:** Missing UI entirely
-- **Issue:** 
+- **Issue:**
   - No "New Chat" button
   - No conversation list/history sidebar
   - No way to name or organize chats
@@ -127,8 +138,9 @@
 - **Expected:** Left panel or dropdown with conversation list
 
 **M5. Loading State Not Informative Enough**
+
 - **Location:** While waiting for response
-- **Issue:** 
+- **Issue:**
   - LoadingMessage component exists (good!) but:
   - No indication of what step we're in (retrieving, thinking, generating)
   - No estimated time remaining
@@ -136,8 +148,9 @@
 - **Better UX:** Show progressive status (seen in advanced chat UIs)
 
 **M6. Message Actions Limited**
+
 - **Location:** Assistant message actions
-- **Issue:** 
+- **Issue:**
   - Only Copy and Regenerate actions
   - No Edit (user message)
   - No Share
@@ -146,19 +159,21 @@
 - **Expected:** More message actions in dropdown
 
 **M7. Settings/Advanced Options Hidden**
+
 - **Location:** Settings sheet (triggered by button)
-- **Issue:** 
+- **Issue:**
   - Advanced options (temperature, top_k, etc.) hidden in sheet
   - Users don't know these options exist
   - No indication that query can be customized
-- **Better UX:** 
+- **Better UX:**
   - Show common settings directly (temperature slider)
   - Use collapsible panel instead of full sheet
   - Add "Advanced" badge or hint
 
 **M8. No Keyboard Shortcuts**
+
 - **Location:** Query interface
-- **Issue:** 
+- **Issue:**
   - Enter to send query (probably implemented)
   - But no shortcuts for:
     - New chat
@@ -171,54 +186,64 @@
 ### 🟢 Minor
 
 **m1. User Avatar Generic**
+
 - **Location:** User message avatar
 - **Issue:** Just shows generic User icon
 - **Recommendation:** Show actual user initials or uploaded avatar
 
 **m2. Timestamp Format Inconsistent**
+
 - **Location:** Message timestamps
 - **Issue:** Only shows HH:MM time, not date
 - **Problem:** Can't tell if message from today or yesterday
 - **Recommendation:** Show relative time ("2 hours ago") with tooltip
 
 **m3. COT Thinking Section Styling**
+
 - **Location:** Chain-of-thought reasoning display
-- **Issue:** 
+- **Issue:**
   - Purple color scheme might not match overall design
   - Border styling different from rest of UI
 - **Recommendation:** Use theme colors (primary/muted) instead of hardcoded purple
 
 **m4. No Markdown Rendering Preview**
+
 - **Location:** User input area
 - **Issue:** User types raw markdown but can't preview before sending
 - **Recommendation:** Add "Preview" tab or side-by-side view
 
 **m5. Source Citations Don't Link to Graph**
+
 - **Location:** Entity mentions in right panel
 - **Issue:** Entities shown but no way to view them in graph visualization
 - **Recommendation:** Add "View in Graph" link for each entity
 
 **m6. No Query Suggestions/Autocomplete**
+
 - **Location:** Input textarea
 - **Issue:** No suggestions based on past queries or common patterns
 - **Recommendation:** Show query suggestions as user types
 
 **m7. Response Doesn't Highlight Cited Sources**
+
 - **Location:** Assistant response text
 - **Issue:** Response text doesn't indicate which sources it used
 - **Recommendation:** Add superscript citations [1] [2] that link to sources in right panel
 
 **m8. No Mobile Optimization Evident**
+
 - **Location:** Overall chat layout
 - **Issue:** Two-panel layout won't work well on mobile
 - **Recommendation:** Stack panels on mobile, make right panel a bottom sheet
 
 **m9. Settings Sheet Too Many Options at Once**
+
 - **Location:** Advanced settings sheet
 - **Issue:** All parameters shown at once (temperature, top_k, top_p, etc.)
 - **Recommendation:** Group into sections (Response Quality, Performance, Context)
 
 **m10. No Export Chat Option**
+
 - **Location:** Chat history
 - **Issue:** Can't export conversation as PDF, MD, or JSON
 - **Recommendation:** Add "Export" button in header
@@ -230,13 +255,14 @@
 ### For Right Panel
 
 **R1. Make Right Panel Independently Collapsible** ⭐ **PRIORITY**
+
 ```tsx
 // Add collapse button in right panel header
 <div className="flex items-center justify-between p-3 border-b">
   <h3 className="text-sm font-medium">Sources & Context</h3>
-  <Button 
-    variant="ghost" 
-    size="sm" 
+  <Button
+    variant="ghost"
+    size="sm"
     onClick={onTogglePanel}
     aria-label="Collapse panel"
   >
@@ -246,6 +272,7 @@
 ```
 
 **Default State:**
+
 - Open when query has context/sources
 - Collapsed when no context (empty)
 - State persists across queries
@@ -253,6 +280,7 @@
 **Keyboard Shortcut:** `Ctrl/Cmd + B` to toggle
 
 **R2. Improve Source Citations Display**
+
 ```tsx
 <div className="space-y-4 p-3">
   {/* Top Source - Always Visible */}
@@ -291,9 +319,9 @@
   <div>
     <h4 className="text-sm font-medium mb-2">Related Entities</h4>
     <div className="flex flex-wrap gap-2">
-      {entities.map(entity => (
-        <Badge 
-          key={entity.id} 
+      {entities.map((entity) => (
+        <Badge
+          key={entity.id}
           variant="secondary"
           className="cursor-pointer hover:bg-primary/10"
           onClick={() => handleEntityClick(entity.id)}
@@ -310,6 +338,7 @@
 ### For Input Area
 
 **R3. Auto-Expanding Textarea** ⭐ **PRIORITY**
+
 ```tsx
 <Textarea
   ref={textareaRef}
@@ -317,14 +346,14 @@
   onChange={(e) => {
     setQuery(e.target.value);
     // Auto-expand
-    e.target.style.height = 'auto';
+    e.target.style.height = "auto";
     e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
   }}
   placeholder="Ask a question about your documents..."
   className="min-h-[52px] max-h-[200px] resize-none"
   rows={1}
   onKeyDown={(e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
     }
@@ -333,6 +362,7 @@
 ```
 
 **Features:**
+
 - Starts at ~52px (1 line)
 - Expands as user types
 - Max height 200px (then scrolls)
@@ -340,9 +370,10 @@
 - Enter to send
 
 **R4. Mode Selector as Segmented Control**
+
 ```tsx
 <div className="flex gap-1 p-1 bg-muted rounded-lg mb-3">
-  {modes.map(mode => (
+  {modes.map((mode) => (
     <button
       key={mode.value}
       onClick={() => setMode(mode.value)}
@@ -357,21 +388,25 @@
       {mode.label}
     </button>
   ))}
-</div>
+</div>;
 
-{/* Mode description below segmented control */}
+{
+  /* Mode description below segmented control */
+}
 <p className="text-xs text-muted-foreground mb-2">
-  {modes.find(m => m.value === selectedMode)?.description}
-</p>
+  {modes.find((m) => m.value === selectedMode)?.description}
+</p>;
 ```
 
 **Modes:**
+
 - 🔍 **Search** - Quick keyword search
 - 🧠 **Understand** - Deep semantic analysis (default)
 - ⚡ **Fast** - Quick response, less context
 - 🎯 **Precise** - Exact citations, no inference
 
 **R5. Add Common Settings to Input Area**
+
 ```tsx
 <div className="flex items-center gap-2 mb-2">
   <div className="flex items-center gap-2 flex-1">
@@ -387,9 +422,9 @@
     />
     <span className="text-xs text-muted-foreground w-8">{temperature}</span>
   </div>
-  
-  <Button 
-    variant="ghost" 
+
+  <Button
+    variant="ghost"
     size="sm"
     onClick={() => setShowAdvanced(!showAdvanced)}
   >
@@ -402,6 +437,7 @@
 ### For Empty State
 
 **R6. Rich Empty State** ⭐ **PRIORITY**
+
 ```tsx
 <div className="flex-1 flex items-center justify-center">
   <div className="max-w-2xl mx-auto px-6 text-center space-y-8">
@@ -412,7 +448,8 @@
       </div>
       <h2 className="text-3xl font-bold">Ask Anything</h2>
       <p className="text-lg text-muted-foreground max-w-md mx-auto">
-        Search your documents using natural language. I'll find relevant information and explain it clearly.
+        Search your documents using natural language. I'll find relevant
+        information and explain it clearly.
       </p>
     </div>
 
@@ -457,27 +494,28 @@
 ```
 
 **Example Queries:**
+
 ```tsx
 const exampleQueries = [
   {
     icon: FileText,
     title: "Summarize a topic",
-    query: "What are the main features of EdgeQuake?"
+    query: "What are the main features of EdgeQuake?",
   },
   {
     icon: Search,
     title: "Find information",
-    query: "How do I configure the LLM provider?"
+    query: "How do I configure the LLM provider?",
   },
   {
     icon: Brain,
     title: "Compare concepts",
-    query: "What's the difference between local and naive search?"
+    query: "What's the difference between local and naive search?",
   },
   {
     icon: Network,
     title: "Explore relationships",
-    query: "Show me how documents are connected"
+    query: "Show me how documents are connected",
   },
 ];
 ```
@@ -487,6 +525,7 @@ const exampleQueries = [
 **R7. Add Conversation History** ⭐ **PRIORITY**
 
 **Option A: Sidebar Drawer**
+
 ```tsx
 <Sheet>
   <SheetTrigger asChild>
@@ -503,20 +542,20 @@ const exampleQueries = [
       </SheetDescription>
     </SheetHeader>
     <div className="mt-6 space-y-2">
-      <Button 
-        className="w-full justify-start" 
+      <Button
+        className="w-full justify-start"
         variant="outline"
         onClick={handleNewChat}
       >
         <Plus className="h-4 w-4 mr-2" />
         New Conversation
       </Button>
-      
+
       <Separator className="my-4" />
-      
+
       <ScrollArea className="h-[calc(100vh-200px)]">
         <div className="space-y-1">
-          {conversations.map(conv => (
+          {conversations.map((conv) => (
             <button
               key={conv.id}
               onClick={() => loadConversation(conv.id)}
@@ -537,19 +576,21 @@ const exampleQueries = [
 ```
 
 **Option B: Collapsible Left Section** (Like ChatGPT)
+
 - Push main sidebar slightly left
 - Show conversation list between main sidebar and chat
 - Can collapse to give more chat space
 
 **R8. Auto-Title Conversations**
+
 ```tsx
 // After first message, generate title using LLM or simple heuristic
 const generateTitle = (firstQuery: string) => {
   // Option 1: Use first 50 chars
-  return firstQuery.slice(0, 50) + (firstQuery.length > 50 ? '...' : '');
-  
+  return firstQuery.slice(0, 50) + (firstQuery.length > 50 ? "..." : "");
+
   // Option 2: Ask LLM to summarize (better)
-  // return await queryApi({ 
+  // return await queryApi({
   //   content: `Summarize this in 5 words: "${firstQuery}"`,
   //   mode: 'fast'
   // });
@@ -559,34 +600,36 @@ const generateTitle = (firstQuery: string) => {
 ### For Loading States
 
 **R9. Progressive Loading Indicator**
+
 ```tsx
-const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
+const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>("retrieving");
 
 <div className="flex items-center gap-3">
   <div className="relative">
-    {loadingPhase === 'retrieving' && <Search className="h-5 w-5 text-blue-500 animate-pulse" />}
-    {loadingPhase === 'thinking' && <Brain className="h-5 w-5 text-purple-500 animate-pulse" />}
-    {loadingPhase === 'generating' && <Sparkles className="h-5 w-5 text-primary animate-pulse" />}
+    {loadingPhase === "retrieving" && (
+      <Search className="h-5 w-5 text-blue-500 animate-pulse" />
+    )}
+    {loadingPhase === "thinking" && (
+      <Brain className="h-5 w-5 text-purple-500 animate-pulse" />
+    )}
+    {loadingPhase === "generating" && (
+      <Sparkles className="h-5 w-5 text-primary animate-pulse" />
+    )}
   </div>
-  
+
   <div className="flex-1">
-    <p className="text-sm font-medium">
-      {phaseLabels[loadingPhase]}
-    </p>
+    <p className="text-sm font-medium">{phaseLabels[loadingPhase]}</p>
     <Progress value={loadingProgress} className="h-1 mt-1" />
   </div>
-  
-  <Button 
-    variant="ghost" 
-    size="sm"
-    onClick={handleCancel}
-  >
+
+  <Button variant="ghost" size="sm" onClick={handleCancel}>
     <StopCircle className="h-4 w-4" />
   </Button>
-</div>
+</div>;
 ```
 
 **Phases:**
+
 1. **Retrieving** (0-30%) - Searching documents
 2. **Thinking** (30-60%) - COT reasoning (if enabled)
 3. **Generating** (60-100%) - LLM generating response
@@ -594,19 +637,24 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
 ### For Message Actions
 
 **R10. Comprehensive Message Actions**
+
 ```tsx
 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
   <TooltipProvider>
     <Tooltip>
       <TooltipTrigger asChild>
         <Button variant="ghost" size="sm" onClick={handleCopy}>
-          {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+          {copied ? (
+            <Check className="h-3 w-3" />
+          ) : (
+            <Copy className="h-3 w-3" />
+          )}
         </Button>
       </TooltipTrigger>
       <TooltipContent>Copy response</TooltipContent>
     </Tooltip>
   </TooltipProvider>
-  
+
   {isLast && (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -617,7 +665,7 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
       <TooltipContent>Regenerate response</TooltipContent>
     </Tooltip>
   )}
-  
+
   <Tooltip>
     <TooltipTrigger asChild>
       <Button variant="ghost" size="sm" onClick={handleFavorite}>
@@ -626,7 +674,7 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
     </TooltipTrigger>
     <TooltipContent>Bookmark this exchange</TooltipContent>
   </Tooltip>
-  
+
   <DropdownMenu>
     <DropdownMenuTrigger asChild>
       <Button variant="ghost" size="sm">
@@ -661,30 +709,35 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
 ## Rationale
 
 ### Why Collapsible Right Panel
+
 - **Flexibility:** User controls their workspace
 - **Focus:** Can hide when not needed, expand when investigating sources
 - **Reading long responses:** More horizontal space for text
 - **Consistency:** Matches pattern from other pages
 
 ### Why Auto-Expanding Textarea
+
 - **Usability:** See full query as you type
 - **Standard pattern:** Used by ChatGPT, Claude, Perplexity, etc.
 - **Better UX:** No manual resizing needed
 - **Accessibility:** Easier for users with visual impairments
 
 ### Why Rich Empty State
+
 - **Onboarding:** Helps new users understand what they can do
 - **Discoverability:** Shows features they might not know about
 - **Efficiency:** One-click example queries speed up first interaction
 - **Professionalism:** Empty white space feels unfinished
 
 ### Why Conversation Management
+
 - **Context switching:** Users work on multiple topics/projects
 - **Reference:** Return to previous conversations for comparison
 - **Organization:** Find past answers without re-querying
 - **Standard expectation:** All modern chat UIs have this (ChatGPT, Claude, etc.)
 
 ### Why Progressive Loading States
+
 - **Transparency:** User knows system is working and what it's doing
 - **Perceived performance:** Feels faster when you see progress
 - **Control:** Can cancel if taking too long
@@ -695,6 +748,7 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
 ## Acceptance Criteria
 
 ### AC1: Collapsible Right Panel
+
 - [ ] Right panel has collapse button (ChevronRight icon)
 - [ ] Panel slides out smoothly (200ms transition)
 - [ ] Collapsed state shows only thin bar with "Sources" label (vertically)
@@ -704,6 +758,7 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
 - [ ] Mobile: Right panel becomes bottom sheet
 
 ### AC2: Auto-Expanding Textarea
+
 - [ ] Input starts at 52px height (single line)
 - [ ] Expands automatically as user types
 - [ ] Max height 200px, then scrollbar appears
@@ -713,6 +768,7 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
 - [ ] Maintains cursor position during expansion
 
 ### AC3: Mode Selector as Segmented Control
+
 - [ ] Shows 4 modes: Search, Understand, Fast, Precise
 - [ ] Each mode has icon + label
 - [ ] Active mode has distinct background (shadow)
@@ -721,6 +777,7 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
 - [ ] Keyboard: Tab to focus, Arrow keys to navigate modes
 
 ### AC4: Rich Empty State
+
 - [ ] Large icon (64px) at top
 - [ ] "Ask Anything" headline (text-3xl)
 - [ ] Descriptive subtitle
@@ -730,6 +787,7 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
 - [ ] Responsive: Stack query cards on mobile
 
 ### AC5: Conversation History
+
 - [ ] "History" button in header
 - [ ] Opens left sidebar sheet with conversation list
 - [ ] "New Conversation" button at top
@@ -740,6 +798,7 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
 - [ ] Search bar at top to filter conversations
 
 ### AC6: Auto-Title Conversations
+
 - [ ] First user message becomes title (truncated to 50 chars)
 - [ ] Title editable (click to edit inline)
 - [ ] Default title format: "Chat from [Date]" if no messages yet
@@ -747,6 +806,7 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
 - [ ] Escape to cancel edit, Enter to save
 
 ### AC7: Progressive Loading Indicator
+
 - [ ] Shows current phase: Retrieving → Thinking → Generating
 - [ ] Progress bar indicates completion percentage
 - [ ] Icon changes per phase (Search, Brain, Sparkles)
@@ -755,6 +815,7 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
 - [ ] Loading message has animated dots (already implemented ✓)
 
 ### AC8: Enhanced Source Citations
+
 - [ ] Top source always visible (not collapsed)
 - [ ] Shows relevance score (e.g., "98% match")
 - [ ] "View Document" link opens document in Documents page
@@ -766,6 +827,7 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
   - Option C: Shows hover card with entity details
 
 ### AC9: Comprehensive Message Actions
+
 - [ ] Actions visible on message hover (opacity transition)
 - [ ] Copy button (with checkmark feedback)
 - [ ] Regenerate button (only on last assistant message)
@@ -776,6 +838,7 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
 - [ ] View in Graph: Navigates to /graph with related entities
 
 ### AC10: Common Settings Inline
+
 - [ ] Temperature slider visible below mode selector
 - [ ] Range: 0-1, step 0.1, default 0.7
 - [ ] Label shows current value
@@ -784,6 +847,7 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
 - [ ] Settings persist per conversation (local storage)
 
 ### AC11: Keyboard Shortcuts
+
 - [ ] `Ctrl/Cmd + N` - New conversation
 - [ ] `Ctrl/Cmd + K` - Focus input
 - [ ] `Ctrl/Cmd + B` - Toggle right panel
@@ -794,6 +858,7 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
 - [ ] `↓` (in input) - Navigate forward in query history
 
 ### AC12: Export Conversation
+
 - [ ] "Export" button in header or conversation context menu
 - [ ] Options: Markdown, PDF, JSON
 - [ ] Markdown: Includes timestamps, role labels, sources
@@ -806,6 +871,7 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
 ## ASCII Layout Diagrams
 
 ### Default State (Right Panel Open)
+
 ```
 ┌──────────┬─────────────────────────────────────┬──────────────────┐
 │ Sidebar  │         Chat Messages               │  Sources &       │
@@ -839,6 +905,7 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
 ```
 
 ### Right Panel Collapsed
+
 ```
 ┌──────────┬────────────────────────────────────────────────────┬─┐
 │ Sidebar  │         Chat Messages (Expanded)                   │S│
@@ -864,6 +931,7 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
 ```
 
 ### Empty State
+
 ```
 ┌──────────┬────────────────────────────────────────────────────┐
 │ Sidebar  │                                                    │
@@ -890,6 +958,7 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
 ```
 
 ### With Conversation History Open
+
 ```
 ┌──────────┬───────────────┬────────────────────────────┬───────┐
 │ Sidebar  │  History      │    Chat Messages           │Sources│
@@ -916,11 +985,13 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
 ## Related Files & Components
 
 ### Components to Modify:
+
 - ✏️ [`src/components/query/query-interface.tsx`](../edgequake_webui/src/components/query/query-interface.tsx) - Major refactor
 - ✏️ [`src/components/query/query-mode-selector.tsx`](../edgequake_webui/src/components/query/query-mode-selector.tsx) - Convert to segmented control
 - ✏️ [`src/components/query/source-citations.tsx`](../edgequake_webui/src/components/query/source-citations.tsx) - Improve display
 
 ### New Components to Create:
+
 - 🆕 `src/components/query/query-empty-state.tsx` - Rich empty state
 - 🆕 `src/components/query/conversation-list.tsx` - History sidebar
 - 🆕 `src/components/query/message-actions.tsx` - Reusable action bar
@@ -929,9 +1000,11 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
 - 🆕 `src/components/query/right-panel.tsx` - Collapsible context panel
 
 ### Store Updates:
+
 - ✏️ [`src/stores/use-query-store.ts`](../edgequake_webui/src/stores/use-query-store.ts) - Add conversation management
 
 ### API Changes:
+
 - Add conversation CRUD endpoints
 - Add cancel query endpoint
 - Add export conversation endpoint
@@ -941,21 +1014,12 @@ const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('retrieving');
 ## Priority Summary
 
 **🔥 Must Do (Quick Wins):**
+
 1. ✅ Auto-expanding textarea (R3) - 1 hour
 2. ✅ Rich empty state (R6) - 2-3 hours
 3. ✅ Collapsible right panel (R1) - 2 hours
 4. ✅ Mode selector as segmented control (R4) - 2 hours
 
-**📌 Should Do (Next Sprint):**
-5. Conversation management (R7, R8) - 4-6 hours
-6. Improved source citations (R2) - 3 hours
-7. Progressive loading states (R9) - 2 hours
-8. Comprehensive message actions (R10) - 3 hours
-9. Keyboard shortcuts - 2-3 hours
+**📌 Should Do (Next Sprint):** 5. Conversation management (R7, R8) - 4-6 hours 6. Improved source citations (R2) - 3 hours 7. Progressive loading states (R9) - 2 hours 8. Comprehensive message actions (R10) - 3 hours 9. Keyboard shortcuts - 2-3 hours
 
-**💡 Nice to Have (Later):**
-10. Export conversation
-11. Inline settings (temperature, etc.)
-12. Query history/autocomplete
-13. Cited sources in response text
-14. Mobile optimization (bottom sheet for sources)
+**💡 Nice to Have (Later):** 10. Export conversation 11. Inline settings (temperature, etc.) 12. Query history/autocomplete 13. Cited sources in response text 14. Mobile optimization (bottom sheet for sources)

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { test } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -54,7 +54,9 @@ test.describe("UX/UI Comprehensive Audit", () => {
       header: await page.locator("header").count(),
       sidebar: await page.locator("aside, nav, [data-sidebar]").count(),
       mainContent: await page.locator("main").count(),
-      breadcrumbs: await page.locator('[aria-label*="breadcrumb"], [data-breadcrumb]').count(),
+      breadcrumbs: await page
+        .locator('[aria-label*="breadcrumb"], [data-breadcrumb]')
+        .count(),
     };
     console.log("  ✅ Dashboard elements:", elements);
 
@@ -81,7 +83,9 @@ test.describe("UX/UI Comprehensive Audit", () => {
     });
 
     // Check for upload area
-    const uploadArea = page.locator('[type="file"], [data-upload], .dropzone').first();
+    const uploadArea = page
+      .locator('[type="file"], [data-upload], .dropzone')
+      .first();
     if ((await uploadArea.count()) > 0) {
       await uploadArea.screenshot({
         path: path.join(AUDIT_DIR, "02-documents-upload-area.png"),
@@ -89,7 +93,9 @@ test.describe("UX/UI Comprehensive Audit", () => {
     }
 
     // Check for document list/table
-    const documentList = page.locator("table, [data-table], .document-list").first();
+    const documentList = page
+      .locator("table, [data-table], .document-list")
+      .first();
     if ((await documentList.count()) > 0) {
       await documentList.screenshot({
         path: path.join(AUDIT_DIR, "02-documents-list.png"),
@@ -98,11 +104,12 @@ test.describe("UX/UI Comprehensive Audit", () => {
     }
 
     // Analyze empty state if no documents
-    const emptyState = page.locator('[data-empty], .empty-state').first();
+    const emptyState = page.locator("[data-empty], .empty-state").first();
     const emptyText = page.getByText(/no documents/i).first();
     if ((await emptyState.count()) > 0 || (await emptyText.count()) > 0) {
       console.log("  📭 Empty state detected");
-      const targetElement = (await emptyState.count()) > 0 ? emptyState : emptyText;
+      const targetElement =
+        (await emptyState.count()) > 0 ? emptyState : emptyText;
       await targetElement.screenshot({
         path: path.join(AUDIT_DIR, "02-documents-empty.png"),
       });
@@ -137,7 +144,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
     // Test with a query
     const testQuery = "What is EdgeQuake?";
     await queryInput.fill(testQuery);
-    
+
     // Screenshot with query
     await page.screenshot({
       path: path.join(AUDIT_DIR, "03-query-with-input.png"),
@@ -145,7 +152,9 @@ test.describe("UX/UI Comprehensive Audit", () => {
     });
 
     // Check for mode selector
-    const modeSelector = page.locator('select, [role="combobox"], [data-mode-selector]').first();
+    const modeSelector = page
+      .locator('select, [role="combobox"], [data-mode-selector]')
+      .first();
     if ((await modeSelector.count()) > 0) {
       console.log("  ✅ Mode selector found");
       await modeSelector.screenshot({
@@ -154,11 +163,13 @@ test.describe("UX/UI Comprehensive Audit", () => {
     }
 
     // Submit query
-    const submitButton = page.locator('button[type="submit"], button:has-text("Send")').first();
+    const submitButton = page
+      .locator('button[type="submit"], button:has-text("Send")')
+      .first();
     if ((await submitButton.count()) > 0) {
       await submitButton.click();
       await page.waitForTimeout(3000); // Wait for response
-      
+
       // Screenshot with response
       await page.screenshot({
         path: path.join(AUDIT_DIR, "03-query-with-response.png"),
@@ -166,12 +177,16 @@ test.describe("UX/UI Comprehensive Audit", () => {
       });
 
       // Check message structure
-      const messages = await page.locator('[data-message], .message, [data-role]').count();
+      const messages = await page
+        .locator("[data-message], .message, [data-role]")
+        .count();
       console.log("  💬 Message count:", messages);
     }
 
     // Check for right panel (context/sources)
-    const rightPanel = page.locator('[data-panel="right"], .right-panel, aside:last-of-type').first();
+    const rightPanel = page
+      .locator('[data-panel="right"], .right-panel, aside:last-of-type')
+      .first();
     if ((await rightPanel.count()) > 0) {
       console.log("  ✅ Right panel found");
       await rightPanel.screenshot({
@@ -194,7 +209,9 @@ test.describe("UX/UI Comprehensive Audit", () => {
     });
 
     // Check for graph canvas/container
-    const graphContainer = page.locator('canvas, [data-graph], .sigma-container').first();
+    const graphContainer = page
+      .locator("canvas, [data-graph], .sigma-container")
+      .first();
     if ((await graphContainer.count()) > 0) {
       console.log("  ✅ Graph container found");
       const box = await graphContainer.boundingBox();
@@ -202,12 +219,16 @@ test.describe("UX/UI Comprehensive Audit", () => {
     }
 
     // Check for graph controls
-    const controls = page.locator('[data-controls], .graph-controls, [data-zoom]');
+    const controls = page.locator(
+      "[data-controls], .graph-controls, [data-zoom]"
+    );
     const controlCount = await controls.count();
     console.log("  🎮 Control count:", controlCount);
 
     // Check for legend or node types
-    const legend = page.locator('[data-legend], .legend, [data-node-types]').first();
+    const legend = page
+      .locator("[data-legend], .legend, [data-node-types]")
+      .first();
     if ((await legend.count()) > 0) {
       console.log("  ✅ Legend found");
       await legend.screenshot({
@@ -235,11 +256,13 @@ test.describe("UX/UI Comprehensive Audit", () => {
     });
 
     // Check for settings sections
-    const sections = await page.locator('section, [data-settings-section], fieldset').count();
+    const sections = await page
+      .locator("section, [data-settings-section], fieldset")
+      .count();
     console.log("  📦 Settings sections:", sections);
 
     // Check for form inputs
-    const inputs = await page.locator('input, select, textarea').count();
+    const inputs = await page.locator("input, select, textarea").count();
     console.log("  📝 Form inputs:", inputs);
 
     // Check for tabs if present
@@ -266,13 +289,17 @@ test.describe("UX/UI Comprehensive Audit", () => {
     });
 
     // Check for code editor or request builder
-    const editor = page.locator('textarea, [data-editor], .monaco-editor, pre code').first();
+    const editor = page
+      .locator("textarea, [data-editor], .monaco-editor, pre code")
+      .first();
     if ((await editor.count()) > 0) {
       console.log("  ✅ Editor/code area found");
     }
 
     // Check for endpoint list
-    const endpoints = await page.locator('[data-endpoint], .endpoint, li').count();
+    const endpoints = await page
+      .locator("[data-endpoint], .endpoint, li")
+      .count();
     console.log("  🔗 Endpoint count:", endpoints);
   });
 
@@ -280,7 +307,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
     console.log("📱 Auditing Tablet View (768x1024)...");
 
     await page.setViewportSize({ width: 768, height: 1024 });
-    
+
     await page.goto("/");
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(1000);
@@ -300,7 +327,9 @@ test.describe("UX/UI Comprehensive Audit", () => {
     });
 
     // Check if sidebar is collapsible
-    const menuButton = page.locator('button[aria-label*="menu"], button[data-menu]').first();
+    const menuButton = page
+      .locator('button[aria-label*="menu"], button[data-menu]')
+      .first();
     if ((await menuButton.count()) > 0) {
       console.log("  ✅ Mobile menu button found");
     }
@@ -310,7 +339,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
     console.log("📱 Auditing Mobile View (375x667)...");
 
     await page.setViewportSize({ width: 375, height: 667 });
-    
+
     await page.goto("/");
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(1000);
@@ -337,20 +366,29 @@ test.describe("UX/UI Comprehensive Audit", () => {
     await page.waitForLoadState("networkidle");
 
     // Check for skip links
-    const skipLink = page.locator('a[href="#main-content"], [data-skip-link]').first();
+    const skipLink = page
+      .locator('a[href="#main-content"], [data-skip-link]')
+      .first();
     if ((await skipLink.count()) > 0) {
       console.log("  ✅ Skip link found");
     }
 
     // Check for aria-labels
-    const ariaLabels = await page.locator('[aria-label]').count();
+    const ariaLabels = await page.locator("[aria-label]").count();
     console.log("  🏷️  Aria-labeled elements:", ariaLabels);
 
     // Check for proper heading hierarchy
-    const h1Count = await page.locator('h1').count();
-    const h2Count = await page.locator('h2').count();
-    const h3Count = await page.locator('h3').count();
-    console.log("  📊 Heading hierarchy - H1:", h1Count, "H2:", h2Count, "H3:", h3Count);
+    const h1Count = await page.locator("h1").count();
+    const h2Count = await page.locator("h2").count();
+    const h3Count = await page.locator("h3").count();
+    console.log(
+      "  📊 Heading hierarchy - H1:",
+      h1Count,
+      "H2:",
+      h2Count,
+      "H3:",
+      h3Count
+    );
 
     // Test keyboard navigation
     await page.keyboard.press("Tab");
@@ -359,7 +397,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
     console.log("  ⌨️  First tab focus:", focused);
 
     // Check color contrast (simple check for common elements)
-    const buttons = page.locator('button').first();
+    const buttons = page.locator("button").first();
     if ((await buttons.count()) > 0) {
       const color = await buttons.evaluate((el) => {
         const styles = window.getComputedStyle(el);
@@ -377,23 +415,31 @@ test.describe("UX/UI Comprehensive Audit", () => {
 
     // Visit multiple pages to capture component usage
     const pages = ["/", "/documents", "/query", "/graph", "/settings"];
-    
+
     for (const url of pages) {
       await page.goto(url);
       await page.waitForLoadState("networkidle");
-      
+
       // Count button variants
-      const primaryButtons = await page.locator('button[data-variant="primary"], .btn-primary, button.primary').count();
-      const secondaryButtons = await page.locator('button[data-variant="secondary"], .btn-secondary, button.secondary').count();
-      
-      console.log(`  ${url} - Primary buttons: ${primaryButtons}, Secondary: ${secondaryButtons}`);
-      
+      const primaryButtons = await page
+        .locator('button[data-variant="primary"], .btn-primary, button.primary')
+        .count();
+      const secondaryButtons = await page
+        .locator(
+          'button[data-variant="secondary"], .btn-secondary, button.secondary'
+        )
+        .count();
+
+      console.log(
+        `  ${url} - Primary buttons: ${primaryButtons}, Secondary: ${secondaryButtons}`
+      );
+
       // Check card components
-      const cards = await page.locator('[data-card], .card, article').count();
+      const cards = await page.locator("[data-card], .card, article").count();
       console.log(`  ${url} - Card count: ${cards}`);
-      
+
       // Check for consistent spacing
-      const containers = await page.locator('main > *').count();
+      const containers = await page.locator("main > *").count();
       console.log(`  ${url} - Main children: ${containers}`);
     }
   });

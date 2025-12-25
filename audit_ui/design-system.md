@@ -16,29 +16,29 @@ Based on analysis of current implementation and best practices:
 /* globals.css or design-tokens.css */
 :root {
   /* Base */
-  --font-size-xs: 0.6875rem;    /* 11px */
-  --font-size-sm: 0.75rem;      /* 12px */
-  --font-size-base: 0.875rem;   /* 14px - body text */
-  --font-size-md: 1rem;         /* 16px */
-  --font-size-lg: 1.125rem;     /* 18px */
-  --font-size-xl: 1.25rem;      /* 20px */
-  --font-size-2xl: 1.5rem;      /* 24px */
-  --font-size-3xl: 1.875rem;    /* 30px - page titles */
-  --font-size-4xl: 2.25rem;     /* 36px - hero text */
-  
+  --font-size-xs: 0.6875rem; /* 11px */
+  --font-size-sm: 0.75rem; /* 12px */
+  --font-size-base: 0.875rem; /* 14px - body text */
+  --font-size-md: 1rem; /* 16px */
+  --font-size-lg: 1.125rem; /* 18px */
+  --font-size-xl: 1.25rem; /* 20px */
+  --font-size-2xl: 1.5rem; /* 24px */
+  --font-size-3xl: 1.875rem; /* 30px - page titles */
+  --font-size-4xl: 2.25rem; /* 36px - hero text */
+
   /* Line Heights */
   --line-height-tight: 1.25;
   --line-height-snug: 1.375;
   --line-height-normal: 1.5;
   --line-height-relaxed: 1.625;
   --line-height-loose: 2;
-  
+
   /* Font Weights */
   --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
-  
+
   /* Letter Spacing */
   --letter-spacing-tight: -0.025em;
   --letter-spacing-normal: 0;
@@ -50,35 +50,35 @@ Based on analysis of current implementation and best practices:
 
 ```tsx
 // Page Titles (H1)
-className="text-3xl font-bold tracking-tight"
+className = "text-3xl font-bold tracking-tight";
 // font-size: 30px, font-weight: 700, letter-spacing: -0.025em
 
 // Section Headers (H2)
-className="text-xl font-semibold tracking-tight"
+className = "text-xl font-semibold tracking-tight";
 // font-size: 20px, font-weight: 600
 
 // Subsection Headers (H3)
-className="text-lg font-medium"
+className = "text-lg font-medium";
 // font-size: 18px, font-weight: 500
 
 // Card Titles / Labels (H4)
-className="text-base font-medium"
+className = "text-base font-medium";
 // font-size: 16px, font-weight: 500
 
 // Body Text
-className="text-base"
+className = "text-base";
 // font-size: 14px (base)
 
 // Secondary/Helper Text
-className="text-sm text-muted-foreground"
+className = "text-sm text-muted-foreground";
 // font-size: 12px
 
 // Captions / Micro Copy
-className="text-xs text-muted-foreground"
+className = "text-xs text-muted-foreground";
 // font-size: 11px
 
 // Large Stats / Numbers
-className="text-4xl font-bold tabular-nums"
+className = "text-4xl font-bold tabular-nums";
 // font-size: 36px, font-weight: 700, monospace numerals
 ```
 
@@ -94,18 +94,18 @@ Progressive spacing system for consistent layouts:
 :root {
   /* Spacing scale (4px base unit) */
   --spacing-0: 0;
-  --spacing-1: 0.25rem;   /* 4px */
-  --spacing-2: 0.5rem;    /* 8px */
-  --spacing-3: 0.75rem;   /* 12px */
-  --spacing-4: 1rem;      /* 16px */
-  --spacing-5: 1.25rem;   /* 20px */
-  --spacing-6: 1.5rem;    /* 24px */
-  --spacing-8: 2rem;      /* 32px */
-  --spacing-10: 2.5rem;   /* 40px */
-  --spacing-12: 3rem;     /* 48px */
-  --spacing-16: 4rem;     /* 64px */
-  --spacing-20: 5rem;     /* 80px */
-  --spacing-24: 6rem;     /* 96px */
+  --spacing-1: 0.25rem; /* 4px */
+  --spacing-2: 0.5rem; /* 8px */
+  --spacing-3: 0.75rem; /* 12px */
+  --spacing-4: 1rem; /* 16px */
+  --spacing-5: 1.25rem; /* 20px */
+  --spacing-6: 1.5rem; /* 24px */
+  --spacing-8: 2rem; /* 32px */
+  --spacing-10: 2.5rem; /* 40px */
+  --spacing-12: 3rem; /* 48px */
+  --spacing-16: 4rem; /* 64px */
+  --spacing-20: 5rem; /* 80px */
+  --spacing-24: 6rem; /* 96px */
 }
 ```
 
@@ -113,47 +113,51 @@ Progressive spacing system for consistent layouts:
 
 ```tsx
 // Component padding/gaps
-'p-2'     // Very tight (8px) - badges, pills
-'p-3'     // Tight (12px) - buttons, form inputs
-'p-4'     // Comfortable (16px) - cards, panels
-'p-6'     // Spacious (24px) - page containers
+"p-2"; // Very tight (8px) - badges, pills
+"p-3"; // Tight (12px) - buttons, form inputs
+"p-4"; // Comfortable (16px) - cards, panels
+"p-6"; // Spacious (24px) - page containers
 
 // Between related items
-'gap-2'   // 8px - icon + text, inline elements
-'gap-3'   // 12px - form fields in a group
-'gap-4'   // 16px - cards in a grid, list items
+"gap-2"; // 8px - icon + text, inline elements
+"gap-3"; // 12px - form fields in a group
+"gap-4"; // 16px - cards in a grid, list items
 
 // Between sections
-'space-y-4'  // 16px - within a section
-'space-y-6'  // 24px - default section spacing
-'space-y-8'  // 32px - major section breaks
+"space-y-4"; // 16px - within a section
+"space-y-6"; // 24px - default section spacing
+"space-y-8"; // 32px - major section breaks
 
 // Margins for separation
-'mt-2'    // 8px - subtle separation
-'mt-4'    // 16px - related content
-'mt-6'    // 24px - unrelated content
-'mt-8'    // 32px - major breaks
+"mt-2"; // 8px - subtle separation
+"mt-4"; // 16px - related content
+"mt-6"; // 24px - unrelated content
+"mt-8"; // 32px - major breaks
 ```
 
 ### Layout Rhythm Example
 
 ```tsx
-<div className="p-6 space-y-8">  {/* Page container */}
-  <div className="space-y-2">    {/* Header group */}
+<div className="p-6 space-y-8">
+  {" "}
+  {/* Page container */}
+  <div className="space-y-2">
+    {" "}
+    {/* Header group */}
     <h1 className="text-3xl font-bold">Title</h1>
     <p className="text-sm text-muted-foreground">Description</p>
   </div>
-  
-  <div className="grid gap-4">   {/* Stats cards */}
+  <div className="grid gap-4">
+    {" "}
+    {/* Stats cards */}
     <StatsCard />
     <StatsCard />
   </div>
-  
-  <div className="space-y-4 mt-8">  {/* New section with gap */}
+  <div className="space-y-4 mt-8">
+    {" "}
+    {/* New section with gap */}
     <h2 className="text-xl font-semibold">Section Title</h2>
-    <div className="grid gap-4">
-      {/* Content */}
-    </div>
+    <div className="grid gap-4">{/* Content */}</div>
   </div>
 </div>
 ```
@@ -167,22 +171,22 @@ Progressive spacing system for consistent layouts:
 ```css
 :root {
   /* Sidebar */
-  --sidebar-width-collapsed: 4.5rem;    /* 72px */
-  --sidebar-width-expanded: 16rem;       /* 256px */
-  
+  --sidebar-width-collapsed: 4.5rem; /* 72px */
+  --sidebar-width-expanded: 16rem; /* 256px */
+
   /* Right Panels */
-  --right-panel-narrow: 20rem;           /* 320px - Dashboard insights */
-  --right-panel-wide: 25rem;             /* 400px - Document preview, Query sources */
-  
+  --right-panel-narrow: 20rem; /* 320px - Dashboard insights */
+  --right-panel-wide: 25rem; /* 400px - Document preview, Query sources */
+
   /* Content */
-  --content-max-width: 80rem;            /* 1280px - prevents text from being too wide */
-  --chat-message-max-width: 85%;         /* 85% - messages shouldn't span full width */
-  
+  --content-max-width: 80rem; /* 1280px - prevents text from being too wide */
+  --chat-message-max-width: 85%; /* 85% - messages shouldn't span full width */
+
   /* Modals/Dialogs */
-  --dialog-sm: 28rem;    /* 448px */
-  --dialog-md: 32rem;    /* 512px */
-  --dialog-lg: 48rem;    /* 768px */
-  --dialog-xl: 56rem;    /* 896px */
+  --dialog-sm: 28rem; /* 448px */
+  --dialog-md: 32rem; /* 512px */
+  --dialog-lg: 48rem; /* 768px */
+  --dialog-xl: 56rem; /* 896px */
 }
 ```
 
@@ -190,10 +194,10 @@ Progressive spacing system for consistent layouts:
 
 ```css
 :root {
-  --breakpoint-sm: 640px;   /* Mobile landscape */
-  --breakpoint-md: 768px;   /* Tablet portrait */
-  --breakpoint-lg: 1024px;  /* Tablet landscape / Small laptop */
-  --breakpoint-xl: 1280px;  /* Desktop */
+  --breakpoint-sm: 640px; /* Mobile landscape */
+  --breakpoint-md: 768px; /* Tablet portrait */
+  --breakpoint-lg: 1024px; /* Tablet landscape / Small laptop */
+  --breakpoint-xl: 1280px; /* Desktop */
   --breakpoint-2xl: 1536px; /* Large desktop */
 }
 ```
@@ -232,42 +236,42 @@ Based on `globals.css` analysis:
 ```css
 :root {
   /* Backgrounds */
-  --background: oklch(1 0 0);              /* Pure white */
-  --card: oklch(1 0 0);                    /* Card background */
-  --popover: oklch(1 0 0);                 /* Popover background */
-  --muted: oklch(0.97 0 0);                /* Muted background (gray-100) */
-  
+  --background: oklch(1 0 0); /* Pure white */
+  --card: oklch(1 0 0); /* Card background */
+  --popover: oklch(1 0 0); /* Popover background */
+  --muted: oklch(0.97 0 0); /* Muted background (gray-100) */
+
   /* Foregrounds */
-  --foreground: oklch(0.145 0 0);          /* Primary text (gray-900) */
-  --muted-foreground: oklch(0.556 0 0);    /* Secondary text (gray-600) */
-  --card-foreground: oklch(0.145 0 0);     /* Text on cards */
-  
+  --foreground: oklch(0.145 0 0); /* Primary text (gray-900) */
+  --muted-foreground: oklch(0.556 0 0); /* Secondary text (gray-600) */
+  --card-foreground: oklch(0.145 0 0); /* Text on cards */
+
   /* Interactive */
-  --primary: oklch(0.205 0 0);             /* Primary action color */
-  --primary-foreground: oklch(0.985 0 0);  /* Text on primary */
-  --secondary: oklch(0.97 0 0);            /* Secondary action */
-  --accent: oklch(0.97 0 0);               /* Accent elements */
-  
+  --primary: oklch(0.205 0 0); /* Primary action color */
+  --primary-foreground: oklch(0.985 0 0); /* Text on primary */
+  --secondary: oklch(0.97 0 0); /* Secondary action */
+  --accent: oklch(0.97 0 0); /* Accent elements */
+
   /* Feedback */
-  --destructive: oklch(0.577 0.245 27.325);/* Error/delete actions */
-  --success: oklch(0.646 0.222 41.116);    /* Success states */
-  --warning: oklch(0.828 0.189 84.429);    /* Warning states */
-  --info: oklch(0.6 0.118 184.704);        /* Info states */
-  
+  --destructive: oklch(0.577 0.245 27.325); /* Error/delete actions */
+  --success: oklch(0.646 0.222 41.116); /* Success states */
+  --warning: oklch(0.828 0.189 84.429); /* Warning states */
+  --info: oklch(0.6 0.118 184.704); /* Info states */
+
   /* Borders */
-  --border: oklch(0.922 0 0);              /* Default border (gray-200) */
-  --input: oklch(0.922 0 0);               /* Input borders */
-  --ring: oklch(0.708 0 0);                /* Focus ring */
+  --border: oklch(0.922 0 0); /* Default border (gray-200) */
+  --input: oklch(0.922 0 0); /* Input borders */
+  --ring: oklch(0.708 0 0); /* Focus ring */
 }
 
 .dark {
-  --background: oklch(0.145 0 0);          /* Dark gray */
-  --foreground: oklch(0.985 0 0);          /* Light text */
-  --card: oklch(0.205 0 0);                /* Slightly lighter */
-  --muted: oklch(0.269 0 0);               /* Muted dark */
-  --muted-foreground: oklch(0.708 0 0);    /* Gray-400 */
-  --primary: oklch(0.922 0 0);             /* Light primary */
-  --border: oklch(1 0 0 / 10%);            /* Subtle borders */
+  --background: oklch(0.145 0 0); /* Dark gray */
+  --foreground: oklch(0.985 0 0); /* Light text */
+  --card: oklch(0.205 0 0); /* Slightly lighter */
+  --muted: oklch(0.269 0 0); /* Muted dark */
+  --muted-foreground: oklch(0.708 0 0); /* Gray-400 */
+  --primary: oklch(0.922 0 0); /* Light primary */
+  --border: oklch(1 0 0 / 10%); /* Subtle borders */
   /* ... other dark mode colors */
 }
 ```
@@ -276,28 +280,28 @@ Based on `globals.css` analysis:
 
 ```tsx
 // Backgrounds
-'bg-background'        // Page background
-'bg-card'              // Card surfaces
-'bg-muted'             // Subtle backgrounds
-'bg-muted/50'          // Hover states (50% opacity)
+"bg-background"; // Page background
+"bg-card"; // Card surfaces
+"bg-muted"; // Subtle backgrounds
+"bg-muted/50"; // Hover states (50% opacity)
 
 // Text
-'text-foreground'      // Primary text
-'text-muted-foreground'// Secondary text, labels
-'text-sm text-muted-foreground' // Captions
+"text-foreground"; // Primary text
+"text-muted-foreground"; // Secondary text, labels
+"text-sm text-muted-foreground"; // Captions
 
 // Borders
-'border'               // Standard borders
-'border-2'             // Emphasized borders
-'border-dashed'        // Dropzones
-'border-primary'       // Active/selected states
+"border"; // Standard borders
+"border-2"; // Emphasized borders
+"border-dashed"; // Dropzones
+"border-primary"; // Active/selected states
 
 // Status Colors
-'bg-destructive'       // Error backgrounds
-'text-destructive'     // Error text
-'bg-green-500'         // Success (if not using semantic token)
-'bg-yellow-500'        // Warning
-'bg-blue-500'          // Info
+"bg-destructive"; // Error backgrounds
+"text-destructive"; // Error text
+"bg-green-500"; // Success (if not using semantic token)
+"bg-yellow-500"; // Warning
+"bg-blue-500"; // Info
 ```
 
 ---
@@ -407,15 +411,9 @@ Based on `globals.css` analysis:
       <TableCell>
         <Badge variant="outline">Status</Badge>
       </TableCell>
-      <TableCell className="text-sm text-muted-foreground">
-        {size}
-      </TableCell>
-      <TableCell className="text-sm text-muted-foreground">
-        {date}
-      </TableCell>
-      <TableCell className="text-right">
-        {/* Action buttons */}
-      </TableCell>
+      <TableCell className="text-sm text-muted-foreground">{size}</TableCell>
+      <TableCell className="text-sm text-muted-foreground">{date}</TableCell>
+      <TableCell className="text-right">{/* Action buttons */}</TableCell>
     </TableRow>
   </TableBody>
 </Table>
@@ -427,8 +425,8 @@ Based on `globals.css` analysis:
 // Standard Form Field
 <div className="space-y-2">
   <Label htmlFor="field">Field Label</Label>
-  <Input 
-    id="field" 
+  <Input
+    id="field"
     placeholder="Placeholder text"
     aria-describedby="field-description"
   />
@@ -442,8 +440,8 @@ Based on `globals.css` analysis:
   <Label htmlFor="field" className="text-destructive">
     Field Label
   </Label>
-  <Input 
-    id="field" 
+  <Input
+    id="field"
     className="border-destructive"
     aria-invalid="true"
     aria-describedby="field-error"
@@ -460,7 +458,7 @@ Based on `globals.css` analysis:
     <Label>Temperature</Label>
     <span className="text-sm text-muted-foreground">{value}</span>
   </div>
-  <Slider 
+  <Slider
     value={[value]}
     onValueChange={([v]) => setValue(v)}
     min={0}
@@ -573,7 +571,7 @@ toast.success("Upload complete!", { id: toastId });
   --duration-normal: 200ms;
   --duration-slow: 300ms;
   --duration-slower: 500ms;
-  
+
   /* Easings */
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
@@ -586,20 +584,20 @@ toast.success("Upload complete!", { id: toastId });
 
 ```tsx
 // Hover transitions
-'transition-colors duration-200'          // Button hover
-'transition-all duration-200'             // Layout changes
+"transition-colors duration-200"; // Button hover
+"transition-all duration-200"; // Layout changes
 
 // Panel slide
-'transition-transform duration-200 ease-out'
+"transition-transform duration-200 ease-out";
 
 // Fade in/out
-'transition-opacity duration-300'
+"transition-opacity duration-300";
 
 // Scale on click
-'active:scale-95 transition-transform duration-100'
+"active:scale-95 transition-transform duration-100";
 
 // Shimmer effect (loading)
-'animate-shimmer'  // Custom animation in tailwind.config
+"animate-shimmer"; // Custom animation in tailwind.config
 ```
 
 ---
@@ -633,19 +631,19 @@ toast.success("Upload complete!", { id: toastId });
 
 ```tsx
 // Primary icons
-'text-foreground'
+"text-foreground";
 
 // Secondary/muted icons
-'text-muted-foreground'
+"text-muted-foreground";
 
 // Interactive icons (buttons, links)
-'text-primary hover:text-primary/80'
+"text-primary hover:text-primary/80";
 
 // Status icons
-'text-destructive'  // Error
-'text-green-500'    // Success
-'text-yellow-500'   // Warning
-'text-blue-500'     // Info
+"text-destructive"; // Error
+"text-green-500"; // Success
+"text-yellow-500"; // Warning
+"text-blue-500"; // Info
 ```
 
 ---
@@ -658,9 +656,9 @@ toast.success("Upload complete!", { id: toastId });
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
   --focus-ring-color: var(--primary);
-  
+
   /* Touch targets */
-  --touch-target-min: 44px;  /* WCAG AAA: 44x44px */
+  --touch-target-min: 44px; /* WCAG AAA: 44x44px */
 }
 ```
 
@@ -671,7 +669,7 @@ toast.success("Upload complete!", { id: toastId });
 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2'
 
 // Skip link
-<a 
+<a
   href="#main-content"
   className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-lg"
 >
@@ -687,9 +685,9 @@ toast.success("Upload complete!", { id: toastId });
 </Button>
 
 // Live regions
-<div 
-  role="status" 
-  aria-live="polite" 
+<div
+  role="status"
+  aria-live="polite"
   aria-atomic="true"
   className="sr-only"
 >
@@ -716,6 +714,7 @@ toast.success("Upload complete!", { id: toastId });
 ```
 
 Usage:
+
 - Base content: `z-0`
 - Dropdowns: `z-[1000]`
 - Sticky elements: `z-[1020]`
@@ -729,6 +728,7 @@ Usage:
 When creating any new component, ensure:
 
 ### ✅ Visual
+
 - [ ] Uses design system tokens (no hardcoded values)
 - [ ] Consistent spacing (8px, 16px, 24px, 32px)
 - [ ] Proper typography scale
@@ -736,6 +736,7 @@ When creating any new component, ensure:
 - [ ] Responsive breakpoints
 
 ### ✅ Interaction
+
 - [ ] Hover states defined
 - [ ] Active/pressed states defined
 - [ ] Focus visible ring (keyboard navigation)
@@ -745,6 +746,7 @@ When creating any new component, ensure:
 - [ ] Disabled states
 
 ### ✅ Accessibility
+
 - [ ] Semantic HTML elements
 - [ ] ARIA labels where needed
 - [ ] Keyboard navigable
@@ -754,6 +756,7 @@ When creating any new component, ensure:
 - [ ] Screen reader tested
 
 ### ✅ Performance
+
 - [ ] Lazy loaded if large
 - [ ] Debounced inputs where applicable
 - [ ] Optimistic UI updates
@@ -766,8 +769,8 @@ When creating any new component, ensure:
 ### Example: Creating a New Stats Card
 
 ```tsx
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { TrendingUp } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { TrendingUp } from "lucide-react";
 
 export function StatsCard({ title, value, description, icon: Icon, trend }) {
   return (
@@ -777,20 +780,21 @@ export function StatsCard({ title, value, description, icon: Icon, trend }) {
           <CardTitle className="text-sm font-medium text-muted-foreground">
             {title}
           </CardTitle>
-          {Icon && <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />}
+          {Icon && (
+            <Icon
+              className="h-4 w-4 text-muted-foreground"
+              aria-hidden="true"
+            />
+          )}
         </div>
       </CardHeader>
       <CardContent>
         {/* Large value - uses tabular-nums for alignment */}
-        <div className="text-4xl font-bold tabular-nums">
-          {value}
-        </div>
-        
+        <div className="text-4xl font-bold tabular-nums">{value}</div>
+
         {/* Description and trend */}
         <div className="flex items-center gap-2 mt-1">
-          <p className="text-xs text-muted-foreground">
-            {description}
-          </p>
+          <p className="text-xs text-muted-foreground">{description}</p>
           {trend && (
             <div className="flex items-center gap-1 text-xs text-green-500">
               <TrendingUp className="h-3 w-3" />
@@ -812,18 +816,18 @@ export function DashboardLayout({ children }) {
     <div className="flex h-screen">
       {/* Sidebar - collapses on mobile */}
       <Sidebar className="hidden lg:flex w-64 xl:w-72" />
-      
+
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header />
-        
+
         <main className="flex-1 overflow-auto">
           <div className="p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8">
             {children}
           </div>
         </main>
       </div>
-      
+
       {/* Right panel - converts to bottom sheet on mobile */}
       <RightPanel className="hidden xl:flex w-80 2xl:w-96" />
     </div>
