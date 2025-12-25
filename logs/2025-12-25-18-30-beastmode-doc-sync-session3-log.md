@@ -42,3 +42,15 @@
 - routes.rs is the authoritative source for API endpoints (62 routes)
 - Always verify versions against source files (Cargo.toml, package.json)
 - Table of Contents should match actual section count
+
+## Delta - specs/update-doc-template.md edits (2025-12-25)
+
+- Added YAML front matter with `version: 1.0.0` and `process_version: 1.0.0`.
+- Inserted explicit `maintainers` metadata and `schema` field.
+- Added numbered gate headings and updated Mermaid diagrams to show numbered phases.
+- Added explicit Algorithms verification bullet in Final Verification Loop.
+
+## Actions This Turn
+
+- Inserted front matter into `specs/update-doc-template.md`.
+- Updated todo list to mark front-matter task completed.

@@ -1,3 +1,15 @@
+---
+title: "Documentation Sync - Process"
+description: "Process and gates for synchronizing docs with code"
+version: "1.0.0"
+process_version: "1.0.0"
+last_modified: "2025-12-25"
+maintainers:
+  - name: "Documentation Team"
+    contact: "docs@edgequake.dev"
+schema: "edgequake/docs/process-v1"
+---
+
 ## Critical: Session Persistence
 
 Maintain docs/craftpad.md as your working scratchpad throughout this task. Update it immediately upon each discovery—do not batch updates. Your session may be interrupted or context compressed at any time.
