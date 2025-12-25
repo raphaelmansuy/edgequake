@@ -206,8 +206,10 @@ echo "Examples: $(ls -1 examples/*.rs | wc -l)"
 ```
 
 **RECORD EXACT COUNTS** in craftpad header:
+
 ```markdown
 ## MANDATORY COUNTS (For Verification)
+
 - Total API Endpoints to Verify: [N]
 - Total Config Fields to Verify: [M]
 - Total Types to Verify: [P]
@@ -287,6 +289,7 @@ For each doc file:
    - Action needed
 
 **Example Findings Log Entry:**
+
 ```markdown
 | F023 | POST /api/v1/documents - accepts JSON with "content" field | routes.rs:85, handlers/documents.rs:34 | ✅ Verified | None |
 ```
@@ -332,6 +335,7 @@ For each config option documented:
 - [ ] **NO summary statements like "all verified" without the entries to prove it**
 
 ⛔ **AUDIT CHECKPOINT:**
+
 ```bash
 # Count your Findings Log entries
 grep -c "| F[0-9]" craftpad.md
@@ -357,6 +361,7 @@ grep -c "| F[0-9]" craftpad.md
 3. If NOT found: Mark ❌ + Add to Coverage Gaps with HIGH severity
 
 **Example Ground Truth Update:**
+
 ```markdown
 | Endpoint | POST /api/v1/documents | routes.rs:85 | ✅ | 0003-api-reference.md:L837 |
 ```
@@ -370,8 +375,8 @@ grep -c "| F[0-9]" craftpad.md
 1. Search docs: `grep -r "chunk_size" docs/`
 2. **UPDATE craftpad row** with documented status and location
 3. Flag any undocumented fields
-2. Mark documented status
-3. Flag missing configs
+4. Mark documented status
+5. Flag missing configs
 
 ### 3.3 Check Type Coverage
 
@@ -396,6 +401,7 @@ For each enum variant in Ground Truth Catalog:
 - [ ] Missing documentation prioritized by severity
 
 ⛔ **FINAL AUDIT:**
+
 ```bash
 # Count marked rows in Ground Truth
 marked=$(grep -c "✅\|❌" craftpad.md)
@@ -491,10 +497,11 @@ done
 
 ⛔ **PROVE COMPLETENESS - Show calculations:**
 
-```markdown
+````markdown
 ## PROOF OF COMPLETENESS
 
 ### Ground Truth Catalog Status
+
 - Total Features: [N]
 - Marked with ✅: [X]
 - Marked with ❌: [Y]
@@ -503,18 +510,22 @@ done
 **Coverage = (X + Y) / N × 100% = [must be ≥95%]**
 
 ### Findings Log Status
+
 - Total Claims Expected: [N+M+P from Phase 0]
 - Findings Log Entries: [count from craftpad]
 - Entry Coverage = Entries / Expected × 100% = [must be ≥90%]
 
 ### Verification Checksums
+
 ```bash
 # Run these commands and paste output
 echo "Ground Truth rows: $(grep -c '| Endpoint\|| Config' craftpad.md)"
 echo "Marked rows: $(grep -c '✅\|❌' craftpad.md)"
 echo "Findings entries: $(grep -c '| F[0-9]' craftpad.md)"
 ```
-```
+````
+
+````
 
 **Gate Check:**
 
@@ -540,21 +551,21 @@ Create summary:
 **Coverage:** [percentage]%
 
 **High Priority TODOs:** [list if any remain]
-```
+````
 
 ---
 
 ## 6. Key Improvements Over v3.0
 
-| Issue | v3.0 Problem | v4.0 Solution |
-| :--- | :--- | :--- |
-| Sampling | Allowed spot-checking | MANDATORY exhaustive verification |
-| Empty Tables | Could claim "complete" with ⏳ | MUST fill every row with ✅/❌ |
-| Fake Metrics | Made up "98% coverage" | MUST calculate from actual counts |
-| Bulk Assertions | "All verified ✅" without proof | One Findings entry per claim required |
-| Shortcuts | Checked 5%, claimed 100% | Row count audits enforce completeness |
-| Time Pressure | Unrealistic expectations | Explicit 4-6 hour budget stated |
-| Grep Existence | "Mentioned = documented" | Must verify accuracy, not just existence |
+| Issue           | v3.0 Problem                    | v4.0 Solution                            |
+| :-------------- | :------------------------------ | :--------------------------------------- |
+| Sampling        | Allowed spot-checking           | MANDATORY exhaustive verification        |
+| Empty Tables    | Could claim "complete" with ⏳  | MUST fill every row with ✅/❌           |
+| Fake Metrics    | Made up "98% coverage"          | MUST calculate from actual counts        |
+| Bulk Assertions | "All verified ✅" without proof | One Findings entry per claim required    |
+| Shortcuts       | Checked 5%, claimed 100%        | Row count audits enforce completeness    |
+| Time Pressure   | Unrealistic expectations        | Explicit 4-6 hour budget stated          |
+| Grep Existence  | "Mentioned = documented"        | Must verify accuracy, not just existence |
 
 **v4.0 Philosophy:** If you can't show the row-by-row proof, you didn't do the work.
 
@@ -565,7 +576,7 @@ Create summary:
 ⛔ **REALITY CHECK:** Proper execution takes 4-6 hours minimum.
 
 - Phase 0 (Code Discovery): 1-1.5 hours
-- Phase 1 (Doc Inventory): 30 minutes  
+- Phase 1 (Doc Inventory): 30 minutes
 - Phase 2 (Docs→Code Verify): 1.5-2 hours (100+ verifications)
 - Phase 3 (Code→Docs Coverage): 1-1.5 hours (mark every row)
 - Phase 4 (Reconciliation): 30 min - 1 hour (depends on errors found)
@@ -577,15 +588,15 @@ Create summary:
 
 ## 8. Troubleshooting
 
-| Issue                  | Protocol                                                        |
-| ---------------------- | --------------------------------------------------------------- |
-| **Too many features**  | Prioritize: API endpoints > Config > Types. Use severity levels. Split over multiple sessions if needed. |
-| **Complex code**       | Extract interface/public API only, not implementation           |
-| **Dynamic features**   | Document configuration mechanism, note dynamic nature           |
-| **Massive docs**       | Use grep to extract sections, process iteratively with counts   |
-| **Conflicting claims** | Code is always truth. Update docs to match code                 |
-| **Time pressure**      | This takes 4-6 hours. Budget appropriately or split work.       |
-| **Temptation to cheat**| Remember: Empty ⏳ rows = proof of incomplete work              |
+| Issue                   | Protocol                                                                                                 |
+| ----------------------- | -------------------------------------------------------------------------------------------------------- |
+| **Too many features**   | Prioritize: API endpoints > Config > Types. Use severity levels. Split over multiple sessions if needed. |
+| **Complex code**        | Extract interface/public API only, not implementation                                                    |
+| **Dynamic features**    | Document configuration mechanism, note dynamic nature                                                    |
+| **Massive docs**        | Use grep to extract sections, process iteratively with counts                                            |
+| **Conflicting claims**  | Code is always truth. Update docs to match code                                                          |
+| **Time pressure**       | This takes 4-6 hours. Budget appropriately or split work.                                                |
+| **Temptation to cheat** | Remember: Empty ⏳ rows = proof of incomplete work                                                       |
 
 ---
 
@@ -628,6 +639,7 @@ If you cannot answer these questions with specific numbers, you cheated:
 5. How long did this take? **[If <3 hours, likely incomplete]**
 
 **End of Process v4.0 - Anti-Cheating Edition.**
+
 - [ ] Phase 5: Final validation passed, links checked
 - [ ] craftpad.md documents entire audit trail
 - [ ] Coverage report shows >90% documentation coverage

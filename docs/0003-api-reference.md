@@ -155,17 +155,18 @@ EdgeQuake provides Ollama-compatible API endpoints, allowing it to work as a dro
 
 Chat messages can include a prefix to select the query mode:
 
-| Prefix | Mode | Description |
-|--------|------|-------------|
-| `/local` | Local | Entity-centric query |
-| `/global` | Global | Relationship-centric query |
-| `/naive` | Naive | Chunk-only vector search |
-| `/hybrid` | Hybrid | Combined local + global (default) |
-| `/mix` | Mix | All strategies combined |
-| `/bypass` | Bypass | Direct LLM (no RAG) |
-| `/context` | Context | Return context only |
+| Prefix     | Mode    | Description                       |
+| ---------- | ------- | --------------------------------- |
+| `/local`   | Local   | Entity-centric query              |
+| `/global`  | Global  | Relationship-centric query        |
+| `/naive`   | Naive   | Chunk-only vector search          |
+| `/hybrid`  | Hybrid  | Combined local + global (default) |
+| `/mix`     | Mix     | All strategies combined           |
+| `/bypass`  | Bypass  | Direct LLM (no RAG)               |
+| `/context` | Context | Return context only               |
 
 **Example:**
+
 ```
 /local Who is Marie Curie?
 ```
@@ -284,9 +285,9 @@ Content-Type: application/json
 {
   "model": "edgequake",
   "messages": [
-    {"role": "user", "content": "Who discovered radium?"},
-    {"role": "assistant", "content": "Marie Curie discovered radium."},
-    {"role": "user", "content": "/local Tell me more about her."}
+    { "role": "user", "content": "Who discovered radium?" },
+    { "role": "assistant", "content": "Marie Curie discovered radium." },
+    { "role": "user", "content": "/local Tell me more about her." }
   ],
   "stream": true
 }
@@ -396,12 +397,12 @@ Authorization: Bearer <token>
 }
 ```
 
-| Field      | Type   | Required | Default | Description                              |
-| ---------- | ------ | -------- | ------- | ---------------------------------------- |
-| `username` | string | ✅       | -       | Unique username                          |
-| `email`    | string | ✅       | -       | User email address                       |
-| `password` | string | ✅       | -       | User password                            |
-| `role`     | string | ❌       | `user`  | Role: `admin`, `user`, or `readonly`     |
+| Field      | Type   | Required | Default | Description                          |
+| ---------- | ------ | -------- | ------- | ------------------------------------ |
+| `username` | string | ✅       | -       | Unique username                      |
+| `email`    | string | ✅       | -       | User email address                   |
+| `password` | string | ✅       | -       | User password                        |
+| `role`     | string | ❌       | `user`  | Role: `admin`, `user`, or `readonly` |
 
 **Response (201 Created)**
 
@@ -427,10 +428,10 @@ Authorization: Bearer <token>
 
 **Query Parameters**
 
-| Parameter | Type | Default | Description      |
-| --------- | ---- | ------- | ---------------- |
-| `offset`  | int  | 0       | Pagination offset|
-| `limit`   | int  | 20      | Items per page   |
+| Parameter | Type | Default | Description       |
+| --------- | ---- | ------- | ----------------- |
+| `offset`  | int  | 0       | Pagination offset |
+| `limit`   | int  | 20      | Items per page    |
 
 **Response**
 
@@ -571,11 +572,11 @@ Authorization: Bearer <token>
 }
 ```
 
-| Field         | Type   | Required | Default | Description                              |
-| ------------- | ------ | -------- | ------- | ---------------------------------------- |
-| `name`        | string | ✅       | -       | Tenant name                              |
-| `slug`        | string | ❌       | auto    | URL-friendly identifier                  |
-| `description` | string | ❌       | null    | Tenant description                       |
+| Field         | Type   | Required | Default | Description                                |
+| ------------- | ------ | -------- | ------- | ------------------------------------------ |
+| `name`        | string | ✅       | -       | Tenant name                                |
+| `slug`        | string | ❌       | auto    | URL-friendly identifier                    |
+| `description` | string | ❌       | null    | Tenant description                         |
 | `plan`        | string | ❌       | `free`  | Plan: `free`, `basic`, `pro`, `enterprise` |
 
 **Response (201 Created)**
@@ -679,12 +680,12 @@ Authorization: Bearer <token>
 }
 ```
 
-| Field           | Type   | Required | Default | Description                |
-| --------------- | ------ | -------- | ------- | -------------------------- |
-| `name`          | string | ✅       | -       | Workspace name             |
-| `slug`          | string | ❌       | auto    | URL-friendly identifier    |
-| `description`   | string | ❌       | null    | Workspace description      |
-| `max_documents` | int    | ❌       | null    | Maximum documents allowed  |
+| Field           | Type   | Required | Default | Description               |
+| --------------- | ------ | -------- | ------- | ------------------------- |
+| `name`          | string | ✅       | -       | Workspace name            |
+| `slug`          | string | ❌       | auto    | URL-friendly identifier   |
+| `description`   | string | ❌       | null    | Workspace description     |
+| `max_documents` | int    | ❌       | null    | Maximum documents allowed |
 
 **Response (201 Created)**
 
@@ -888,10 +889,10 @@ Authorization: Bearer <token>
 
 **Query Parameters**
 
-| Parameter    | Type   | Default    | Description                                    |
-| ------------ | ------ | ---------- | ---------------------------------------------- |
-| `page`       | int    | 1          | Page number                                    |
-| `page_size`  | int    | 20         | Items per page (max 100)                       |
+| Parameter    | Type   | Default    | Description                                              |
+| ------------ | ------ | ---------- | -------------------------------------------------------- |
+| `page`       | int    | 1          | Page number                                              |
+| `page_size`  | int    | 20         | Items per page (max 100)                                 |
 | `status`     | string | -          | [PLANNED] Filter: pending, processing, processed, failed |
 | `sort_by`    | string | created_at | [PLANNED] Sort field                                     |
 | `sort_order` | string | desc       | [PLANNED] asc or desc                                    |
@@ -1008,13 +1009,13 @@ Authorization: Bearer <token>
 }
 ```
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `path` | string | ✅ | - | Directory path to scan |
-| `recursive` | bool | ❌ | false | Scan subdirectories |
-| `extensions` | string[] | ❌ | all | File extensions to include |
-| `max_files` | int | ❌ | 1000 | Maximum files to queue |
-| `track_id` | string | ❌ | auto | Batch tracking ID |
+| Field        | Type     | Required | Default | Description                |
+| ------------ | -------- | -------- | ------- | -------------------------- |
+| `path`       | string   | ✅       | -       | Directory path to scan     |
+| `recursive`  | bool     | ❌       | false   | Scan subdirectories        |
+| `extensions` | string[] | ❌       | all     | File extensions to include |
+| `max_files`  | int      | ❌       | 1000    | Maximum files to queue     |
+| `track_id`   | string   | ❌       | auto    | Batch tracking ID          |
 
 **Response (200 OK)**
 
@@ -1054,10 +1055,10 @@ Authorization: Bearer <token>
 }
 ```
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `track_id` | string | ❌ | all | Filter by original track ID |
-| `max_documents` | int | ❌ | 100 | Maximum documents to reprocess |
+| Field           | Type   | Required | Default | Description                    |
+| --------------- | ------ | -------- | ------- | ------------------------------ |
+| `track_id`      | string | ❌       | all     | Filter by original track ID    |
+| `max_documents` | int    | ❌       | 100     | Maximum documents to reprocess |
 
 **Response (200 OK)**
 
@@ -1065,13 +1066,7 @@ Authorization: Bearer <token>
 {
   "track_id": "reprocess_20251225_143000_abc123",
   "count": 5,
-  "requeued_ids": [
-    "doc-001",
-    "doc-015",
-    "doc-023",
-    "doc-042",
-    "doc-056"
-  ],
+  "requeued_ids": ["doc-001", "doc-015", "doc-023", "doc-042", "doc-056"],
   "message": "Requeued 5 failed documents for processing"
 }
 ```
@@ -1518,12 +1513,12 @@ Authorization: Bearer <token>
 
 **Query Parameters**
 
-| Parameter   | Type   | Default | Description      |
-| ----------- | ------ | ------- | ---------------- |
+| Parameter   | Type   | Default | Description                                             |
+| ----------- | ------ | ------- | ------------------------------------------------------- |
 | `status`    | string | -       | Filter: pending, processing, indexed, failed, cancelled |
-| `task_type` | string | -       | Filter: upload, insert, scan, reindex |
-| `page`      | int    | 1       | Page number      |
-| `page_size` | int    | 20      | Items per page   |
+| `task_type` | string | -       | Filter: upload, insert, scan, reindex                   |
+| `page`      | int    | 1       | Page number                                             |
+| `page_size` | int    | 20      | Items per page                                          |
 
 **Response**
 
