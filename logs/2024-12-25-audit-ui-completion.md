@@ -73,16 +73,16 @@ audit_ui/
 
 ## Key Metrics
 
-| Metric | Value |
-|--------|-------|
-| Overall Slickness Score | 4.1/5.0 |
-| Critical Issues | 3 |
-| Major Issues | 12 |
-| Minor Issues | 15+ |
-| Quick Wins | 8 items |
-| Estimated Total Effort | ~12 days |
-| Files Created | 14 |
+| Metric                  | Value    |
+| ----------------------- | -------- |
+| Overall Slickness Score | 4.1/5.0  |
+| Critical Issues         | 3        |
+| Major Issues            | 12       |
+| Minor Issues            | 15+      |
+| Quick Wins              | 8 items  |
+| Estimated Total Effort  | ~12 days |
+| Files Created           | 14       |
 
 ---
 
-*End of session log*
+_End of session log_

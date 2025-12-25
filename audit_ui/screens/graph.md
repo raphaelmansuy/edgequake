@@ -12,6 +12,7 @@
 ## What I Reviewed
 
 ### Layout Structure
+
 ```
 ┌─────────────────────────────────────────────────────────┐
 │ Header (fixed, h: 64px)                    │ API │ 🌐 ☀️ 👤│
@@ -40,13 +41,13 @@
 
 ## Slickness Score
 
-| Criterion | Score (1–5) | Notes |
-|-----------|-------------|-------|
-| Visual refinement | 3.8 | Good layout, empty state could be better |
-| Modern styling | 4.0 | Control toolbar is clean |
-| Smooth interactions | 3.5 | Need to test with actual graph data |
-| Professional polish | 3.8 | Empty state is clear but plain |
-| **Overall** | **3.8** | Good foundation, needs data to fully evaluate |
+| Criterion           | Score (1–5) | Notes                                         |
+| ------------------- | ----------- | --------------------------------------------- |
+| Visual refinement   | 3.8         | Good layout, empty state could be better      |
+| Modern styling      | 4.0         | Control toolbar is clean                      |
+| Smooth interactions | 3.5         | Need to test with actual graph data           |
+| Professional polish | 3.8         | Empty state is clear but plain                |
+| **Overall**         | **3.8**     | Good foundation, needs data to fully evaluate |
 
 ---
 
@@ -55,6 +56,7 @@
 ### 🟠 Major
 
 #### Entity Browser Panel Collapse Animation
+
 - **Severity:** 🟠 Major
 - **Location:** Left entity browser panel
 - **Viewport(s) affected:** Desktop
@@ -62,6 +64,7 @@
 - **Expected behavior:** Smooth 250ms collapse with content fade
 
 #### Graph Controls Not Visible on Empty State
+
 - **Severity:** 🟠 Major
 - **Location:** Graph toolbar
 - **Viewport(s) affected:** All
@@ -69,6 +72,7 @@
 - **Expected behavior:** Consider hiding non-functional controls or showing enabled state
 
 #### Duplicate Control Sets
+
 - **Severity:** 🟠 Major
 - **Location:** Top toolbar + floating controls on right
 - **Viewport(s) affected:** Desktop
@@ -80,6 +84,7 @@
 ### 🟡 Minor
 
 #### Empty State Could Be More Engaging
+
 - **Severity:** 🟡 Minor
 - **Location:** Graph canvas area
 - **Viewport(s) affected:** All
@@ -87,6 +92,7 @@
 - **Expected behavior:** Add illustration or animation suggesting graph visualization
 
 #### Entity Search Has No Results Indicator
+
 - **Severity:** 🟡 Minor
 - **Location:** Entity browser search
 - **Viewport(s) affected:** Desktop
@@ -94,6 +100,7 @@
 - **Expected behavior:** Differentiate between "no entities" and "no search results"
 
 #### Grouped/List Toggle Could Be More Obvious
+
 - **Severity:** 🟡 Minor
 - **Location:** Entity browser view toggle
 - **Viewport(s) affected:** Desktop
@@ -101,6 +108,7 @@
 - **Expected behavior:** Icon buttons with active state highlight
 
 #### Footer Stats Could Be More Prominent
+
 - **Severity:** 🟡 Minor
 - **Location:** Entity browser footer
 - **Viewport(s) affected:** Desktop
@@ -116,6 +124,7 @@
 **Change:** Add engaging empty state illustration
 
 **Specifications:**
+
 ```tsx
 <div className="flex flex-col items-center justify-center h-full text-center p-8">
   {/* Animated placeholder showing graph concept */}
@@ -126,10 +135,20 @@
         <circle cx="50%" cy="30%" r="20" className="fill-primary/20" />
         <circle cx="25%" cy="70%" r="15" className="fill-muted" />
         <circle cx="75%" cy="70%" r="15" className="fill-muted" />
-        <line x1="50%" y1="30%" x2="25%" y2="70%" 
-              className="stroke-muted-foreground/30 stroke-2 stroke-dasharray-4" />
-        <line x1="50%" y1="30%" x2="75%" y2="70%" 
-              className="stroke-muted-foreground/30 stroke-2 stroke-dasharray-4" />
+        <line
+          x1="50%"
+          y1="30%"
+          x2="25%"
+          y2="70%"
+          className="stroke-muted-foreground/30 stroke-2 stroke-dasharray-4"
+        />
+        <line
+          x1="50%"
+          y1="30%"
+          x2="75%"
+          y2="70%"
+          className="stroke-muted-foreground/30 stroke-2 stroke-dasharray-4"
+        />
       </svg>
     </div>
     <Network className="h-12 w-12 text-muted-foreground mx-auto mt-16" />
@@ -141,6 +160,7 @@
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Illustration suggests graph structure
 - [ ] Subtle animation (optional)
 - [ ] Clear CTA
@@ -152,23 +172,27 @@
 **Change:** Remove duplicate controls, use single toolbar
 
 **Specifications:**
+
 - **Option A:** Keep only top toolbar, remove floating controls
 - **Option B:** Keep floating controls on right, remove from top toolbar
 - **Recommended:** Option B - floating controls are more accessible during graph interaction
 
 **Top toolbar should contain:**
+
 - Search
 - Layout selector
 - Export button
 - Refresh button
 
 **Floating controls should contain:**
+
 - Zoom in/out
 - Rotate
 - Reset view
 - Fullscreen
 
 **Acceptance Criteria:**
+
 - [ ] No duplicate controls
 - [ ] Each control in single location
 - [ ] Clear visual grouping
@@ -180,9 +204,10 @@
 **Change:** Use icon-based toggle with clear active state
 
 **Specifications:**
+
 ```tsx
 <div className="inline-flex rounded-md border overflow-hidden">
-  <button 
+  <button
     className={cn(
       "p-2",
       isGrouped ? "bg-primary text-primary-foreground" : "bg-background"
@@ -191,7 +216,7 @@
   >
     <LayoutGrid className="h-4 w-4" />
   </button>
-  <button 
+  <button
     className={cn(
       "p-2",
       !isGrouped ? "bg-primary text-primary-foreground" : "bg-background"
@@ -204,6 +229,7 @@
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Icons clearly indicate view type
 - [ ] Active state is obvious
 - [ ] Meets touch target size
@@ -215,6 +241,7 @@
 **Change:** Show skeleton/placeholder while graph loads
 
 **Specifications:**
+
 ```tsx
 {isLoading ? (
   <div className="flex items-center justify-center h-full">
@@ -229,6 +256,7 @@
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Loading spinner while fetching
 - [ ] Message indicates loading
 - [ ] Smooth transition to graph
@@ -237,30 +265,33 @@
 
 ## Measurements
 
-| Element | Current | Recommended |
-|---------|---------|-------------|
-| Entity browser width | ~240px | Consider 280px for better readability |
-| Graph canvas | Flex (remaining) | ✅ Good |
-| Control button size | ~32px | Increase to 40px for touch |
-| Floating toolbar width | ~40px | ✅ Good |
-| Search input height | 40px | ✅ Good |
+| Element                | Current          | Recommended                           |
+| ---------------------- | ---------------- | ------------------------------------- |
+| Entity browser width   | ~240px           | Consider 280px for better readability |
+| Graph canvas           | Flex (remaining) | ✅ Good                               |
+| Control button size    | ~32px            | Increase to 40px for touch            |
+| Floating toolbar width | ~40px            | ✅ Good                               |
+| Search input height    | 40px             | ✅ Good                               |
 
 ---
 
 ## Responsive Behavior
 
 ### Mobile (320-428px)
+
 - ⚠️ Entity browser should be hidden/sheet-based
 - ✅ Graph should fill screen
 - ⚠️ Controls should be minimal or in bottom sheet
 - ⚠️ Search should be modal
 
 ### Tablet (768px)
+
 - ⚠️ Entity browser could be collapsible
 - ✅ Graph has enough space
 - ⚠️ Controls could be consolidated
 
 ### Desktop (1280px+)
+
 - ✅ Three-panel layout works
 - ⚠️ Consider right panel for entity details on selection
 - ✅ All controls visible
@@ -269,24 +300,25 @@
 
 ## Accessibility
 
-| Check | Status | Notes |
-|-------|--------|-------|
-| Canvas keyboard nav | ⚠️ Needs work | Add keyboard controls for graph |
-| Control buttons | ✅ Good | Have aria-labels |
-| Entity list | ✅ Good | Standard list navigation |
-| Zoom controls | ⚠️ Consider | Add keyboard shortcuts |
-| Graph ARIA | ⚠️ Needs work | Consider aria-live for node focus |
+| Check               | Status        | Notes                             |
+| ------------------- | ------------- | --------------------------------- |
+| Canvas keyboard nav | ⚠️ Needs work | Add keyboard controls for graph   |
+| Control buttons     | ✅ Good       | Have aria-labels                  |
+| Entity list         | ✅ Good       | Standard list navigation          |
+| Zoom controls       | ⚠️ Consider   | Add keyboard shortcuts            |
+| Graph ARIA          | ⚠️ Needs work | Consider aria-live for node focus |
 
 ### Recommended Keyboard Shortcuts
-| Shortcut | Action |
-|----------|--------|
-| `+` / `=` | Zoom in |
-| `-` | Zoom out |
-| `0` | Reset view |
-| `Arrow keys` | Pan graph |
-| `Tab` | Navigate nodes |
-| `Enter` | Select node |
-| `Escape` | Deselect |
+
+| Shortcut     | Action         |
+| ------------ | -------------- |
+| `+` / `=`    | Zoom in        |
+| `-`          | Zoom out       |
+| `0`          | Reset view     |
+| `Arrow keys` | Pan graph      |
+| `Tab`        | Navigate nodes |
+| `Enter`      | Select node    |
+| `Escape`     | Deselect       |
 
 ---
 
@@ -306,15 +338,15 @@ When data is present, verify:
 
 ## Screenshots Reference
 
-| State | Breakpoint | File |
-|-------|------------|------|
-| Empty | Desktop 1280px | `04-graph-desktop.png` |
-| Empty | Desktop L 1536px | `04-graph-desktop-l.png` |
-| Empty | Tablet 768px | `04-graph-tablet.png` |
-| Empty | Mobile L 428px | `04-graph-mobile-l.png` |
-| Canvas | Desktop | `04-graph-canvas.png` |
-| Search | Desktop | `04-graph-search.png` |
+| State  | Breakpoint       | File                     |
+| ------ | ---------------- | ------------------------ |
+| Empty  | Desktop 1280px   | `04-graph-desktop.png`   |
+| Empty  | Desktop L 1536px | `04-graph-desktop-l.png` |
+| Empty  | Tablet 768px     | `04-graph-tablet.png`    |
+| Empty  | Mobile L 428px   | `04-graph-mobile-l.png`  |
+| Canvas | Desktop          | `04-graph-canvas.png`    |
+| Search | Desktop          | `04-graph-search.png`    |
 
 ---
 
-*Last updated: December 25, 2025*
+_Last updated: December 25, 2025_

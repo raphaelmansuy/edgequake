@@ -12,6 +12,7 @@
 ## What I Reviewed
 
 ### Layout Structure
+
 ```
 ┌─────────────────────────────────────────────────────────┐
 │ Header (fixed, h: 64px)                    │ API │ 🌐 ☀️ 👤│
@@ -46,13 +47,13 @@
 
 ## Slickness Score
 
-| Criterion | Score (1–5) | Notes |
-|-----------|-------------|-------|
-| Visual refinement | 4.5 | Beautiful gradient avatar, clean cards |
-| Modern styling | 4.5 | Excellent chat-like interface |
-| Smooth interactions | 4.0 | Good loading animation, mode selector is smooth |
-| Professional polish | 4.5 | Great empty state, helpful prompts |
-| **Overall** | **4.4** | Best screen in the app, minor polish opportunities |
+| Criterion           | Score (1–5) | Notes                                              |
+| ------------------- | ----------- | -------------------------------------------------- |
+| Visual refinement   | 4.5         | Beautiful gradient avatar, clean cards             |
+| Modern styling      | 4.5         | Excellent chat-like interface                      |
+| Smooth interactions | 4.0         | Good loading animation, mode selector is smooth    |
+| Professional polish | 4.5         | Great empty state, helpful prompts                 |
+| **Overall**         | **4.4**     | Best screen in the app, minor polish opportunities |
 
 ---
 
@@ -61,6 +62,7 @@
 ### 🟡 Minor
 
 #### History Panel Search Has No Clear Indicator
+
 - **Severity:** 🟡 Minor
 - **Location:** Conversation history panel
 - **Viewport(s) affected:** Desktop
@@ -68,6 +70,7 @@
 - **Expected behavior:** Add search icon and clear button
 
 #### Mode Selector Buttons Could Be Grouped Better
+
 - **Severity:** 🟡 Minor
 - **Location:** Mode selector (Local | Global | Hybrid | Simple)
 - **Viewport(s) affected:** All
@@ -75,6 +78,7 @@
 - **Expected behavior:** Button group with connected borders
 
 #### Suggested Prompts Could Have Hover Animation
+
 - **Severity:** 🟡 Minor
 - **Location:** "Try asking" section
 - **Viewport(s) affected:** Desktop
@@ -82,6 +86,7 @@
 - **Expected behavior:** Subtle lift or background change
 
 #### History Panel Collapse Not Obvious
+
 - **Severity:** 🟡 Minor
 - **Location:** History panel header
 - **Viewport(s) affected:** Desktop
@@ -89,6 +94,7 @@
 - **Expected behavior:** More prominent toggle or drag handle
 
 #### Input Focus Ring Could Be More Prominent
+
 - **Severity:** 🟡 Minor
 - **Location:** Query textarea
 - **Viewport(s) affected:** All
@@ -117,6 +123,7 @@
 **Change:** Add interactive hover states to prompt suggestions
 
 **Specifications:**
+
 ```tsx
 <button
   className={cn(
@@ -130,11 +137,13 @@
 ```
 
 **Animation:**
+
 - Transform: translateY(-2px)
 - Shadow: Add subtle shadow
 - Duration: 200ms
 
 **Acceptance Criteria:**
+
 - [ ] Cards lift on hover
 - [ ] Border color changes
 - [ ] Smooth transition
@@ -146,13 +155,16 @@
 **Change:** Create a connected button group
 
 **Specifications:**
+
 ```tsx
 <div className="inline-flex rounded-lg border overflow-hidden">
-  <button className={cn(
-    "px-3 py-1.5 text-sm",
-    "border-r",  // Divider between buttons
-    isActive && "bg-primary text-primary-foreground"
-  )}>
+  <button
+    className={cn(
+      "px-3 py-1.5 text-sm",
+      "border-r", // Divider between buttons
+      isActive && "bg-primary text-primary-foreground"
+    )}
+  >
     Local
   </button>
   // ... more buttons, last one without border-r
@@ -162,6 +174,7 @@
 **Applies to:** Mode selector
 
 **Acceptance Criteria:**
+
 - [ ] Buttons appear connected
 - [ ] Active state clearly visible
 - [ ] Keyboard navigation works
@@ -173,6 +186,7 @@
 **Change:** Make focus state more prominent
 
 **Specifications:**
+
 ```tsx
 <Textarea
   className={cn(
@@ -187,6 +201,7 @@
 **Applies to:** Main query textarea
 
 **Acceptance Criteria:**
+
 - [ ] Focus ring is clearly visible
 - [ ] Uses brand color
 - [ ] Smooth transition
@@ -198,12 +213,14 @@
 **Change:** Improve history panel UX
 
 **Specifications:**
+
 - Add search icon to input
 - Add clear button when search has content
 - Make collapse button larger (44×44px)
 - Add tooltip to collapse button
 
 **Acceptance Criteria:**
+
 - [ ] Search has icon and clear button
 - [ ] Collapse button meets touch target size
 - [ ] Tooltip shows "Collapse history"
@@ -212,30 +229,33 @@
 
 ## Measurements
 
-| Element | Current | Recommended |
-|---------|---------|-------------|
-| History panel width | ~300px | ✅ Good |
-| Query input height | Auto (min ~80px) | ✅ Good |
-| Message max width | 85% | ✅ Good |
-| Prompt card padding | 16px | ✅ Good |
-| Section spacing | 16-24px | ✅ Good |
-| Avatar size | 32×32px | ✅ Good |
+| Element             | Current          | Recommended |
+| ------------------- | ---------------- | ----------- |
+| History panel width | ~300px           | ✅ Good     |
+| Query input height  | Auto (min ~80px) | ✅ Good     |
+| Message max width   | 85%              | ✅ Good     |
+| Prompt card padding | 16px             | ✅ Good     |
+| Section spacing     | 16-24px          | ✅ Good     |
+| Avatar size         | 32×32px          | ✅ Good     |
 
 ---
 
 ## Responsive Behavior
 
 ### Mobile (320-428px)
+
 - ⚠️ History panel should be hidden or sheet-based
 - ✅ Query input at bottom works well
 - ✅ Suggested prompts stack vertically
 - ⚠️ Mode selector might overflow
 
 ### Tablet (768px)
+
 - ✅ Good layout balance
 - ⚠️ History panel could be collapsible
 
 ### Desktop (1280px+)
+
 - ✅ Three-column layout works
 - ✅ Ample space for conversation
 - ✅ History visible and useful
@@ -244,13 +264,13 @@
 
 ## Accessibility
 
-| Check | Status | Notes |
-|-------|--------|-------|
-| Form labeling | ✅ Good | Textarea has aria-label |
-| Submit button | ✅ Good | Disabled when empty |
-| Loading states | ✅ Good | Uses aria-busy |
-| Conversation announced | ⚠️ Consider | Add aria-live for new messages |
-| Keyboard shortcuts | ✅ Documented | Enter to send, Shift+Enter newline |
+| Check                  | Status        | Notes                              |
+| ---------------------- | ------------- | ---------------------------------- |
+| Form labeling          | ✅ Good       | Textarea has aria-label            |
+| Submit button          | ✅ Good       | Disabled when empty                |
+| Loading states         | ✅ Good       | Uses aria-busy                     |
+| Conversation announced | ⚠️ Consider   | Add aria-live for new messages     |
+| Keyboard shortcuts     | ✅ Documented | Enter to send, Shift+Enter newline |
 
 ---
 
@@ -258,29 +278,29 @@
 
 The streaming implementation is excellent:
 
-| Feature | Status | Notes |
-|---------|--------|-------|
+| Feature            | Status       | Notes                         |
+| ------------------ | ------------ | ----------------------------- |
 | Thinking indicator | ✅ Excellent | Animated brain icon with ping |
-| Progress shimmer | ✅ Excellent | Three-line shimmer effect |
-| Cursor blink | ✅ Good | Shows streaming in progress |
-| Stop button | ✅ Present | Can cancel streaming |
-| Token count | ✅ Good | Shows tokens used |
+| Progress shimmer   | ✅ Excellent | Three-line shimmer effect     |
+| Cursor blink       | ✅ Good      | Shows streaming in progress   |
+| Stop button        | ✅ Present   | Can cancel streaming          |
+| Token count        | ✅ Good      | Shows tokens used             |
 
 ---
 
 ## Screenshots Reference
 
-| State | Breakpoint | File |
-|-------|------------|------|
-| Initial | Desktop 1280px | `03-query-initial-desktop.png` |
-| Initial | Desktop L 1536px | `03-query-initial-desktop-l.png` |
-| Initial | Tablet 768px | `03-query-initial-tablet.png` |
-| Initial | Mobile L 428px | `03-query-initial-mobile-l.png` |
-| With Input | Desktop | `03-query-with-input.png` |
-| Focus State | Desktop | `03-query-focus-state.png` |
-| Input Component | Desktop | `03-query-input.png` |
-| Right Panel | Desktop | `03-query-right-panel.png` |
+| State           | Breakpoint       | File                             |
+| --------------- | ---------------- | -------------------------------- |
+| Initial         | Desktop 1280px   | `03-query-initial-desktop.png`   |
+| Initial         | Desktop L 1536px | `03-query-initial-desktop-l.png` |
+| Initial         | Tablet 768px     | `03-query-initial-tablet.png`    |
+| Initial         | Mobile L 428px   | `03-query-initial-mobile-l.png`  |
+| With Input      | Desktop          | `03-query-with-input.png`        |
+| Focus State     | Desktop          | `03-query-focus-state.png`       |
+| Input Component | Desktop          | `03-query-input.png`             |
+| Right Panel     | Desktop          | `03-query-right-panel.png`       |
 
 ---
 
-*Last updated: December 25, 2025*
+_Last updated: December 25, 2025_

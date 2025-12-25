@@ -1,6 +1,7 @@
 # Breakpoint Issues & Cross-Cutting Concerns
 
-**Breakpoints Analyzed:**  
+**Breakpoints Analyzed:**
+
 - 320px (iPhone SE, small Android)
 - 375px (iPhone 12/13)
 - 428px (iPhone 12/13 Pro Max)
@@ -15,14 +16,14 @@
 
 ### Current Breakpoints (Tailwind Defaults)
 
-| Name | Min Width | CSS Class | Usage |
-|------|-----------|-----------|-------|
-| (base) | 0px | - | Mobile first |
-| sm | 640px | `sm:` | Large phones |
-| md | 768px | `md:` | Tablets |
-| lg | 1024px | `lg:` | Small laptops |
-| xl | 1280px | `xl:` | Desktops |
-| 2xl | 1536px | `2xl:` | Large screens |
+| Name   | Min Width | CSS Class | Usage         |
+| ------ | --------- | --------- | ------------- |
+| (base) | 0px       | -         | Mobile first  |
+| sm     | 640px     | `sm:`     | Large phones  |
+| md     | 768px     | `md:`     | Tablets       |
+| lg     | 1024px    | `lg:`     | Small laptops |
+| xl     | 1280px    | `xl:`     | Desktops      |
+| 2xl    | 1536px    | `2xl:`    | Large screens |
 
 ### Recommended Custom Breakpoints
 
@@ -31,12 +32,12 @@
 module.exports = {
   theme: {
     screens: {
-      'xs': '375px',    // iPhone 12
-      'sm': '640px',    // Large phones
-      'md': '768px',    // Tablets
-      'lg': '1024px',   // Laptops
-      'xl': '1280px',   // Desktops
-      '2xl': '1536px',  // Large displays
+      xs: "375px", // iPhone 12
+      sm: "640px", // Large phones
+      md: "768px", // Tablets
+      lg: "1024px", // Laptops
+      xl: "1280px", // Desktops
+      "2xl": "1536px", // Large displays
     },
   },
 };
@@ -49,17 +50,19 @@ module.exports = {
 ### 🔴 Critical
 
 #### Issue 1: Layout Shift at md (768px)
+
 - **Where:** Sidebar transition from hidden to visible
 - **Problem:** Content may jump when sidebar appears
 - **Impact:** Jarring experience, CLS issue
 
 **Fix:**
+
 ```tsx
 // Reserve space for sidebar even when hidden
 <div className="flex">
   {/* Sidebar placeholder on mobile */}
   <div className="hidden md:block w-64 shrink-0" />
-  
+
   {/* Or use consistent margin */}
   <main className="flex-1 md:ml-64">
 </div>
@@ -70,15 +73,18 @@ module.exports = {
 ### 🟠 Major
 
 #### Issue 2: Panel Visibility Transitions
+
 - **Where:** Right panels (Documents, Graph)
 - **Problem:** Panels may not transition smoothly between breakpoints
 - **Breakpoints affected:** 768px → 1024px
 
 **Current behavior:**
+
 - 768px: Panel may be hidden or sheet
 - 1024px: Panel is inline
 
 **Recommended behavior:**
+
 - Animate panel appearance
 - Maintain scroll position
 - Remember open/closed state
@@ -86,11 +92,13 @@ module.exports = {
 ---
 
 #### Issue 3: Navigation Mode Changes
+
 - **Where:** Mobile sheet ↔ Desktop sidebar
 - **Problem:** Navigation state may not sync
 - **Breakpoints affected:** < 768px ↔ ≥ 768px
 
 **Fix:**
+
 ```tsx
 // Sync mobile and desktop navigation state
 useEffect(() => {
@@ -99,18 +107,20 @@ useEffect(() => {
       setMobileMenuOpen(false);
     }
   };
-  window.addEventListener('resize', handleResize);
-  return () => window.removeEventListener('resize', handleResize);
+  window.addEventListener("resize", handleResize);
+  return () => window.removeEventListener("resize", handleResize);
 }, [mobileMenuOpen]);
 ```
 
 ---
 
 #### Issue 4: Form Element Sizing
+
 - **Where:** All inputs, selects, buttons
 - **Problem:** May be too small on mobile, too large on desktop
 
 **Recommended responsive sizing:**
+
 ```tsx
 // Input heights by breakpoint
 <Input className={cn(
@@ -130,10 +140,12 @@ useEffect(() => {
 ### 🟡 Minor
 
 #### Issue 5: Typography Scaling
+
 - **Where:** Headings, body text
 - **Problem:** Font sizes may not scale appropriately
 
 **Recommended fluid typography:**
+
 ```css
 /* Using clamp for fluid sizing */
 h1 {
@@ -152,10 +164,12 @@ p {
 ---
 
 #### Issue 6: Grid Column Jumps
+
 - **Where:** Dashboard cards, document grid
 - **Problem:** Abrupt column changes
 
 **Smoother grid transitions:**
+
 ```tsx
 <div className={cn(
   "grid gap-4",
@@ -171,10 +185,12 @@ p {
 ---
 
 #### Issue 7: Spacing Inconsistencies
+
 - **Where:** Various containers, cards
 - **Problem:** Padding/margins don't scale
 
 **Responsive spacing:**
+
 ```tsx
 // Container padding
 <div className={cn(
@@ -195,23 +211,25 @@ p {
 
 ## Breakpoint Transition Matrix
 
-| From → To | Element | Current | Recommended |
-|-----------|---------|---------|-------------|
-| 320 → 768 | Sidebar | Sheet → Inline | ✅ Good |
-| 320 → 768 | Right panel | Hidden → Visible | Add animation |
-| 768 → 1024 | Sidebar | Collapsed → Expanded | ✅ Good |
-| 768 → 1024 | Grid | 2 col → 3 col | Add 1 col step |
-| 1024 → 1280 | Layout | No change | Consider max-width |
-| 1280 → 1536 | Layout | No change | Add 2xl optimizations |
+| From → To   | Element     | Current              | Recommended           |
+| ----------- | ----------- | -------------------- | --------------------- |
+| 320 → 768   | Sidebar     | Sheet → Inline       | ✅ Good               |
+| 320 → 768   | Right panel | Hidden → Visible     | Add animation         |
+| 768 → 1024  | Sidebar     | Collapsed → Expanded | ✅ Good               |
+| 768 → 1024  | Grid        | 2 col → 3 col        | Add 1 col step        |
+| 1024 → 1280 | Layout      | No change            | Consider max-width    |
+| 1280 → 1536 | Layout      | No change            | Add 2xl optimizations |
 
 ---
 
 ## Container Width Strategy
 
 ### Problem
+
 Content may become too wide on large screens.
 
 ### Solution
+
 ```tsx
 // Global container constraint
 <main className={cn(
@@ -224,26 +242,28 @@ Content may become too wide on large screens.
 
 ### Screen-Specific Max Widths
 
-| Screen | Recommended Max Width |
-|--------|----------------------|
-| Dashboard | None (full width cards) |
-| Documents | 1400px (table readable) |
-| Query | 900px (chat optimal) |
-| Graph | None (need canvas space) |
-| Settings | 800px (form optimal) |
-| API Explorer | 1400px |
+| Screen       | Recommended Max Width    |
+| ------------ | ------------------------ |
+| Dashboard    | None (full width cards)  |
+| Documents    | 1400px (table readable)  |
+| Query        | 900px (chat optimal)     |
+| Graph        | None (need canvas space) |
+| Settings     | 800px (form optimal)     |
+| API Explorer | 1400px                   |
 
 ---
 
 ## CSS Media Query Best Practices
 
 ### Use Tailwind Classes (Preferred)
+
 ```tsx
 // Good: Tailwind responsive
 <div className="text-sm md:text-base lg:text-lg" />
 ```
 
 ### Custom Media Queries (When Needed)
+
 ```css
 /* In globals.css for complex responsive logic */
 @media (min-width: 768px) and (orientation: landscape) {
@@ -254,6 +274,7 @@ Content may become too wide on large screens.
 ```
 
 ### Container Queries (Future)
+
 ```css
 /* Coming to more browsers */
 @container (min-width: 400px) {
@@ -319,8 +340,8 @@ Consider dynamic spacing:
 // Hook for orientation
 function useOrientation() {
   const [isPortrait, setIsPortrait] = useState(
-    typeof window !== 'undefined' 
-      ? window.innerHeight > window.innerWidth 
+    typeof window !== "undefined"
+      ? window.innerHeight > window.innerWidth
       : true
   );
 
@@ -328,11 +349,11 @@ function useOrientation() {
     const handler = () => {
       setIsPortrait(window.innerHeight > window.innerWidth);
     };
-    window.addEventListener('resize', handler);
-    return () => window.removeEventListener('resize', handler);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
   }, []);
 
-  return isPortrait ? 'portrait' : 'landscape';
+  return isPortrait ? "portrait" : "landscape";
 }
 ```
 
@@ -341,25 +362,26 @@ function useOrientation() {
 ## Performance at Breakpoints
 
 ### Layout Thrashing
+
 Avoid recalculating layout on every resize:
 
 ```tsx
 // Debounce resize events
-import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 function useBreakpoint() {
   const [width, setWidth] = useState(
-    typeof window !== 'undefined' ? window.innerWidth : 1024
+    typeof window !== "undefined" ? window.innerWidth : 1024
   );
-  
+
   const debouncedWidth = useDebouncedValue(width, 100);
-  
+
   useEffect(() => {
     const handler = () => setWidth(window.innerWidth);
-    window.addEventListener('resize', handler);
-    return () => window.removeEventListener('resize', handler);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
   }, []);
-  
+
   return {
     isMobile: debouncedWidth < 768,
     isTablet: debouncedWidth >= 768 && debouncedWidth < 1024,
@@ -373,19 +395,23 @@ function useBreakpoint() {
 ## Summary: Priority Fixes
 
 ### Critical (Fix Immediately)
+
 1. ~~Layout shift at md breakpoint~~ → Reserve sidebar space
 
 ### High Priority
+
 2. Panel transition animations
 3. Close mobile menu on resize to desktop
 4. Form element sizing consistency
 
 ### Medium Priority
+
 5. Fluid typography implementation
 6. Smoother grid column transitions
 7. Container max-width on large screens
 
 ### Low Priority
+
 8. Breakpoint-specific CSS variables
 9. Orientation handling improvements
 10. Container query preparation
@@ -395,22 +421,23 @@ function useBreakpoint() {
 ## Testing Tools
 
 ### Browser DevTools
+
 - Chrome: Device toolbar, responsive mode
 - Firefox: Responsive design mode
 - Safari: Responsive design mode
 
 ### Recommended Devices to Test
 
-| Category | Device | Width |
-|----------|--------|-------|
-| Small phone | iPhone SE | 320px |
-| Standard phone | iPhone 14 | 390px |
-| Large phone | iPhone 14 Pro Max | 430px |
-| Tablet portrait | iPad | 768px |
-| Tablet landscape | iPad | 1024px |
-| Laptop | MacBook Air | 1280px |
-| Desktop | iMac | 1920px |
+| Category         | Device            | Width  |
+| ---------------- | ----------------- | ------ |
+| Small phone      | iPhone SE         | 320px  |
+| Standard phone   | iPhone 14         | 390px  |
+| Large phone      | iPhone 14 Pro Max | 430px  |
+| Tablet portrait  | iPad              | 768px  |
+| Tablet landscape | iPad              | 1024px |
+| Laptop           | MacBook Air       | 1280px |
+| Desktop          | iMac              | 1920px |
 
 ---
 
-*Last updated: December 25, 2025*
+_Last updated: December 25, 2025_

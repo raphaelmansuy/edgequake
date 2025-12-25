@@ -12,6 +12,7 @@
 ## What I Reviewed
 
 ### Layout Structure
+
 ```
 ┌─────────────────────────────────────────────────────────┐
 │ Header (fixed, h: 64px)                    │ API │ 🌐 ☀️ 👤│
@@ -42,13 +43,13 @@
 
 ## Slickness Score
 
-| Criterion | Score (1–5) | Notes |
-|-----------|-------------|-------|
-| Visual refinement | 4.2 | Clean layout, good use of cards |
-| Modern styling | 4.0 | Upload area is clear and inviting |
-| Smooth interactions | 3.5 | Preview panel needs animation |
-| Professional polish | 4.0 | Good empty state, clear actions |
-| **Overall** | **3.9** | Good foundation, preview panel needs work |
+| Criterion           | Score (1–5) | Notes                                     |
+| ------------------- | ----------- | ----------------------------------------- |
+| Visual refinement   | 4.2         | Clean layout, good use of cards           |
+| Modern styling      | 4.0         | Upload area is clear and inviting         |
+| Smooth interactions | 3.5         | Preview panel needs animation             |
+| Professional polish | 4.0         | Good empty state, clear actions           |
+| **Overall**         | **3.9**     | Good foundation, preview panel needs work |
 
 ---
 
@@ -57,6 +58,7 @@
 ### 🟠 Major
 
 #### Preview Panel Collapsed State Not Obvious
+
 - **Severity:** 🟠 Major
 - **Location:** Right edge of screen
 - **Viewport(s) affected:** Desktop
@@ -65,6 +67,7 @@
 - **Recommendation:** Add subtle pulse or tooltip on hover
 
 #### No Loading Skeleton for Document List
+
 - **Severity:** 🟠 Major
 - **Location:** Documents list section
 - **Viewport(s) affected:** All
@@ -76,6 +79,7 @@
 ### 🟡 Minor
 
 #### Upload Area Border Could Be More Prominent
+
 - **Severity:** 🟡 Minor
 - **Location:** Upload dropzone
 - **Viewport(s) affected:** All
@@ -83,6 +87,7 @@
 - **Expected behavior:** Slightly more prominent border or background
 
 #### Search Input Lacks Clear Button
+
 - **Severity:** 🟡 Minor
 - **Location:** Search input
 - **Viewport(s) affected:** All
@@ -90,6 +95,7 @@
 - **Expected behavior:** Show "×" button when search has content
 
 #### "Browse Files" Button Redundant
+
 - **Severity:** 🟡 Minor
 - **Location:** Upload area
 - **Viewport(s) affected:** All
@@ -97,6 +103,7 @@
 - **Expected behavior:** Either make it clearer or remove redundancy
 
 #### Sort Buttons Could Have Active State
+
 - **Severity:** 🟡 Minor
 - **Location:** Sort controls
 - **Viewport(s) affected:** Desktop
@@ -112,6 +119,7 @@
 **Change:** Make collapsed panel more discoverable
 
 **Specifications:**
+
 ```tsx
 // When collapsed, show:
 // - Expand icon (ChevronLeft)
@@ -121,16 +129,18 @@
   className={cn(
     "w-10 border-l bg-card/50 flex flex-col items-center py-4",
     "cursor-pointer hover:bg-muted transition-colors",
-    "hover:w-12"  // Slight expand on hover
+    "hover:w-12" // Slight expand on hover
   )}
 />
 ```
 
 **Animation:**
+
 - Width transition: 40px → 48px on hover
 - Duration: 150ms
 
 **Acceptance Criteria:**
+
 - [ ] Collapsed bar widens on hover
 - [ ] Clear expand icon visible
 - [ ] Tooltip appears after 500ms hover
@@ -142,6 +152,7 @@
 **Change:** Show loading skeleton while fetching documents
 
 **Specifications:**
+
 ```tsx
 {isLoading ? (
   <div className="space-y-2">
@@ -163,6 +174,7 @@
 **Applies to:** Document list area
 
 **Acceptance Criteria:**
+
 - [ ] Skeleton shows during load
 - [ ] 3 placeholder rows
 - [ ] Smooth transition to content
@@ -174,6 +186,7 @@
 **Change:** Add clear button to search input
 
 **Specifications:**
+
 ```tsx
 <div className="relative">
   <input ... />
@@ -190,6 +203,7 @@
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Clear button appears when search has value
 - [ ] Clicking clears input and results
 - [ ] Keyboard accessible (focus ring)
@@ -201,6 +215,7 @@
 **Change:** Make upload area more prominent
 
 **Specifications:**
+
 ```tsx
 <div className={cn(
   "border-2 border-dashed rounded-xl p-8",
@@ -212,6 +227,7 @@
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Upload area more visually distinct
 - [ ] Clear hover feedback
 - [ ] Drop state is obvious (border color change)
@@ -220,30 +236,33 @@
 
 ## Measurements
 
-| Element | Current | Recommended |
-|---------|---------|-------------|
-| Page padding | 24px | ✅ Good |
-| Upload area height | Auto (~100px) | ✅ Good |
-| Search input height | 40px | ✅ Good |
-| Document row height | ~64px | ✅ Good |
-| Preview panel width | 48px collapsed | Consider 56px for better tap target |
-| Gap between sections | 16px | ✅ Good |
+| Element              | Current        | Recommended                         |
+| -------------------- | -------------- | ----------------------------------- |
+| Page padding         | 24px           | ✅ Good                             |
+| Upload area height   | Auto (~100px)  | ✅ Good                             |
+| Search input height  | 40px           | ✅ Good                             |
+| Document row height  | ~64px          | ✅ Good                             |
+| Preview panel width  | 48px collapsed | Consider 56px for better tap target |
+| Gap between sections | 16px           | ✅ Good                             |
 
 ---
 
 ## Responsive Behavior
 
 ### Mobile (320-428px)
+
 - ✅ Layout stacks vertically
 - ✅ Upload area full width
 - ⚠️ Preview panel should be hidden on mobile
 - ⚠️ Filter controls could be in expandable section
 
 ### Tablet (768px)
+
 - ✅ Good layout
 - ✅ Search and filters side by side
 
 ### Desktop (1280px+)
+
 - ✅ Preview panel visible
 - ✅ Ample space for document list
 - ⚠️ Consider max-width for content area
@@ -252,28 +271,28 @@
 
 ## Accessibility
 
-| Check | Status | Notes |
-|-------|--------|-------|
-| File input accessible | ✅ Good | Has label association |
-| Drag and drop ARIA | ⚠️ Needs work | Add aria-dropeffect |
-| Search results announced | ⚠️ Needs work | Use aria-live region |
-| Empty state | ✅ Good | Clear messaging |
-| Keyboard navigation | ✅ Good | Can tab through |
+| Check                    | Status        | Notes                 |
+| ------------------------ | ------------- | --------------------- |
+| File input accessible    | ✅ Good       | Has label association |
+| Drag and drop ARIA       | ⚠️ Needs work | Add aria-dropeffect   |
+| Search results announced | ⚠️ Needs work | Use aria-live region  |
+| Empty state              | ✅ Good       | Clear messaging       |
+| Keyboard navigation      | ✅ Good       | Can tab through       |
 
 ---
 
 ## Screenshots Reference
 
-| State | Breakpoint | File |
-|-------|------------|------|
-| Default (Empty) | Desktop 1280px | `02-documents-desktop.png` |
-| Default | Desktop L 1536px | `02-documents-desktop-l.png` |
-| Default | Tablet 768px | `02-documents-tablet.png` |
-| Default | Mobile L 428px | `02-documents-mobile-l.png` |
-| Default | Mobile S 320px | `02-documents-mobile-s.png` |
-| Upload Area | Desktop | `02-documents-upload.png` |
-| Table | Desktop | `02-documents-table.png` |
+| State           | Breakpoint       | File                         |
+| --------------- | ---------------- | ---------------------------- |
+| Default (Empty) | Desktop 1280px   | `02-documents-desktop.png`   |
+| Default         | Desktop L 1536px | `02-documents-desktop-l.png` |
+| Default         | Tablet 768px     | `02-documents-tablet.png`    |
+| Default         | Mobile L 428px   | `02-documents-mobile-l.png`  |
+| Default         | Mobile S 320px   | `02-documents-mobile-s.png`  |
+| Upload Area     | Desktop          | `02-documents-upload.png`    |
+| Table           | Desktop          | `02-documents-table.png`     |
 
 ---
 
-*Last updated: December 25, 2025*
+_Last updated: December 25, 2025_

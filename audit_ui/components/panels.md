@@ -1,6 +1,7 @@
 # Panel Architecture Audit
 
-**Components Reviewed:**  
+**Components Reviewed:**
+
 - Right Panel (`src/components/layout/right-panel.tsx`)
 - Entity Browser Panel (Graph screen)
 - Conversation History Panel (Query screen)
@@ -13,18 +14,19 @@
 
 ## Panel Inventory
 
-| Panel | Screen | Position | Collapsible | Persistent | Mobile |
-|-------|--------|----------|-------------|------------|--------|
-| Right Panel | Multiple | Right | ✅ | ✅ | Sheet |
-| Entity Browser | Graph | Left | ✅ | ⚠️ | Hidden |
-| Conversation History | Query | Left | ❌ | N/A | Hidden |
-| Document Details | Documents | Right | ✅ | ✅ | Sheet |
+| Panel                | Screen    | Position | Collapsible | Persistent | Mobile |
+| -------------------- | --------- | -------- | ----------- | ---------- | ------ |
+| Right Panel          | Multiple  | Right    | ✅          | ✅         | Sheet  |
+| Entity Browser       | Graph     | Left     | ✅          | ⚠️         | Hidden |
+| Conversation History | Query     | Left     | ❌          | N/A        | Hidden |
+| Document Details     | Documents | Right    | ✅          | ✅         | Sheet  |
 
 ---
 
 ## Panel Structure Analysis
 
 ### Standard Right Panel Pattern
+
 ```
 ┌─────────────────────────────────────┐
 │ Panel Header           [─] [×]      │  ← 48-56px height
@@ -42,13 +44,13 @@
 
 ## Slickness Score
 
-| Criterion | Score (1–5) | Notes |
-|-----------|-------------|-------|
-| Visual consistency | 3.8 | Some variation in header styles |
-| Animation quality | 4.0 | Smooth collapse, could use spring |
-| State persistence | 3.5 | Some panels forget state |
-| Mobile adaptation | 4.0 | Sheet pattern works well |
-| **Overall** | **3.8** | Good foundation, needs standardization |
+| Criterion          | Score (1–5) | Notes                                  |
+| ------------------ | ----------- | -------------------------------------- |
+| Visual consistency | 3.8         | Some variation in header styles        |
+| Animation quality  | 4.0         | Smooth collapse, could use spring      |
+| State persistence  | 3.5         | Some panels forget state               |
+| Mobile adaptation  | 4.0         | Sheet pattern works well               |
+| **Overall**        | **3.8**     | Good foundation, needs standardization |
 
 ---
 
@@ -57,18 +59,21 @@
 ### 🟠 Major
 
 #### Inconsistent Panel Header Heights
+
 - **Severity:** 🟠 Major
 - **Location:** All panels
 - **Current behavior:** Headers vary between 48px, 56px, 64px
 - **Expected behavior:** Standardize at 48px or 56px
 
 #### Panel State Not Persisted
+
 - **Severity:** 🟠 Major
 - **Location:** Entity Browser, Right Panel
 - **Current behavior:** Collapse state may reset on navigation
 - **Expected behavior:** Remember open/closed state per panel per screen
 
 #### No Panel Resize
+
 - **Severity:** 🟠 Major
 - **Location:** All fixed-width panels
 - **Current behavior:** Fixed widths (256px, 320px, 400px)
@@ -79,18 +84,21 @@
 ### 🟡 Minor
 
 #### Collapse Animation Timing
+
 - **Severity:** 🟡 Minor
 - **Location:** All collapsible panels
 - **Current behavior:** Linear or basic ease
 - **Expected behavior:** Consistent spring animation (ease-out-cubic)
 
 #### Close Button Inconsistent
+
 - **Severity:** 🟡 Minor
 - **Location:** Panel headers
 - **Current behavior:** Some have [×], some have [−]
 - **Expected behavior:** Collapse vs Close should be visually distinct
 
 #### Panel Shadow on Light Theme
+
 - **Severity:** 🟡 Minor
 - **Location:** Right panels
 - **Current behavior:** May lack shadow separation
@@ -105,13 +113,14 @@
 **Change:** Extract reusable Panel component
 
 **Specifications:**
+
 ```tsx
 // src/components/ui/panel.tsx
 interface PanelProps {
   id: string;
   title: string;
   icon?: React.ReactNode;
-  position: 'left' | 'right';
+  position: "left" | "right";
   defaultWidth?: number;
   minWidth?: number;
   maxWidth?: number;
@@ -145,7 +154,7 @@ export function Panel({
     <motion.aside
       className={cn(
         "flex flex-col border-l bg-background",
-        position === 'left' && "border-r border-l-0"
+        position === "left" && "border-r border-l-0"
       )}
       animate={{ width: isCollapsed ? 0 : width }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
@@ -167,16 +176,10 @@ export function Panel({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto">
-        {children}
-      </div>
+      <div className="flex-1 overflow-auto">{children}</div>
 
       {/* Footer */}
-      {footer && (
-        <div className="shrink-0 border-t p-3">
-          {footer}
-        </div>
-      )}
+      {footer && <div className="shrink-0 border-t p-3">{footer}</div>}
 
       {/* Resize Handle */}
       {!isCollapsed && (
@@ -193,6 +196,7 @@ export function Panel({
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Single component for all panels
 - [ ] Consistent header height (48px)
 - [ ] State persistence in localStorage
@@ -206,13 +210,17 @@ export function Panel({
 **Change:** Use Zustand store for panel states
 
 **Specifications:**
+
 ```tsx
 // src/stores/panel-store.ts
 interface PanelState {
-  panels: Record<string, {
-    collapsed: boolean;
-    width: number;
-  }>;
+  panels: Record<
+    string,
+    {
+      collapsed: boolean;
+      width: number;
+    }
+  >;
   setPanelCollapsed: (id: string, collapsed: boolean) => void;
   setPanelWidth: (id: string, width: number) => void;
 }
@@ -237,7 +245,7 @@ export const usePanelStore = create<PanelState>()(
         })),
     }),
     {
-      name: 'panel-state',
+      name: "panel-state",
     }
   )
 );
@@ -246,7 +254,7 @@ export const usePanelStore = create<PanelState>()(
 export function usePanelState(id: string, defaultCollapsed: boolean) {
   const panel = usePanelStore((s) => s.panels[id]);
   const setCollapsed = usePanelStore((s) => s.setPanelCollapsed);
-  
+
   return [
     panel?.collapsed ?? defaultCollapsed,
     (collapsed: boolean) => setCollapsed(id, collapsed),
@@ -255,6 +263,7 @@ export function usePanelState(id: string, defaultCollapsed: boolean) {
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Panel state persists across sessions
 - [ ] Each panel has unique ID
 - [ ] Width and collapse state saved
@@ -267,13 +276,14 @@ export function usePanelState(id: string, defaultCollapsed: boolean) {
 **Change:** Draggable resize for panels
 
 **Specifications:**
+
 ```tsx
 // src/components/ui/resize-handle.tsx
 interface ResizeHandleProps {
   onResize: (width: number) => void;
   minWidth: number;
   maxWidth: number;
-  position: 'left' | 'right';
+  position: "left" | "right";
 }
 
 export function ResizeHandle({
@@ -290,7 +300,7 @@ export function ResizeHandle({
         "absolute top-0 bottom-0 w-1 cursor-col-resize",
         "hover:bg-primary/20 active:bg-primary/30",
         "transition-colors duration-150",
-        position === 'left' ? "right-0" : "left-0",
+        position === "left" ? "right-0" : "left-0",
         isDragging && "bg-primary/30"
       )}
       onMouseDown={handleMouseDown}
@@ -300,6 +310,7 @@ export function ResizeHandle({
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Visual indicator on hover
 - [ ] Smooth drag experience
 - [ ] Min/max constraints enforced
@@ -312,6 +323,7 @@ export function ResizeHandle({
 **Change:** Consistent sheet for all panels on mobile
 
 **Specifications:**
+
 ```tsx
 // src/components/ui/responsive-panel.tsx
 interface ResponsivePanelProps extends PanelProps {
@@ -331,20 +343,14 @@ export function ResponsivePanel({
   if (isMobile) {
     return (
       <Sheet>
-        <SheetTrigger asChild>
-          {mobileTrigger}
-        </SheetTrigger>
-        <SheetContent side={props.position === 'left' ? 'left' : 'right'}>
+        <SheetTrigger asChild>{mobileTrigger}</SheetTrigger>
+        <SheetContent side={props.position === "left" ? "left" : "right"}>
           <SheetHeader>
             <SheetTitle>{mobileTitle || props.title}</SheetTitle>
           </SheetHeader>
-          <div className="mt-4 overflow-auto flex-1">
-            {props.children}
-          </div>
+          <div className="mt-4 overflow-auto flex-1">{props.children}</div>
           {props.footer && (
-            <div className="mt-auto pt-4 border-t">
-              {props.footer}
-            </div>
+            <div className="mt-auto pt-4 border-t">{props.footer}</div>
           )}
         </SheetContent>
       </Sheet>
@@ -356,6 +362,7 @@ export function ResponsivePanel({
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Sheet on mobile < 768px
 - [ ] Proper accessibility (SheetTitle present)
 - [ ] Same content renders in both modes
@@ -367,48 +374,51 @@ export function ResponsivePanel({
 
 ### Dimensions
 
-| Property | Value | Notes |
-|----------|-------|-------|
-| Header height | 48px | Consistent across all |
-| Min width | 200px | Collapsed shows nothing |
-| Default width | 320px | Good for most content |
-| Max width | 600px | Prevent over-expansion |
-| Collapse width | 0px | Fully hidden |
-| Footer height | 48px | When present |
+| Property       | Value | Notes                   |
+| -------------- | ----- | ----------------------- |
+| Header height  | 48px  | Consistent across all   |
+| Min width      | 200px | Collapsed shows nothing |
+| Default width  | 320px | Good for most content   |
+| Max width      | 600px | Prevent over-expansion  |
+| Collapse width | 0px   | Fully hidden            |
+| Footer height  | 48px  | When present            |
 
 ### Animation
 
-| Property | Value |
-|----------|-------|
-| Duration | 250ms |
-| Easing | cubic-bezier(0.4, 0, 0.2, 1) |
-| Spring stiffness | 300 |
-| Spring damping | 30 |
+| Property         | Value                        |
+| ---------------- | ---------------------------- |
+| Duration         | 250ms                        |
+| Easing           | cubic-bezier(0.4, 0, 0.2, 1) |
+| Spring stiffness | 300                          |
+| Spring damping   | 30                           |
 
 ### Colors
 
-| Element | Token |
-|---------|-------|
-| Background | `--background` |
-| Border | `--border` |
-| Header text | `--foreground` |
+| Element        | Token                       |
+| -------------- | --------------------------- |
+| Background     | `--background`              |
+| Border         | `--border`                  |
+| Header text    | `--foreground`              |
 | Shadow (light) | `0 0 20px rgba(0,0,0,0.05)` |
-| Shadow (dark) | `0 0 20px rgba(0,0,0,0.2)` |
+| Shadow (dark)  | `0 0 20px rgba(0,0,0,0.2)`  |
 
 ---
 
 ## Panel Usage by Screen
 
 ### Dashboard
+
 - No panels (single content area)
 
 ### Documents
+
 - Right Panel: Document details
   - Width: 400px
   - Collapsible: Yes
   - Content: Document info, actions
 
 ### Query
+
 - Left Panel (optional): Conversation history
   - Width: 280px
   - Collapsible: Could be
@@ -416,6 +426,7 @@ export function ResponsivePanel({
   - Not implemented
 
 ### Graph
+
 - Left Panel: Entity browser
   - Width: 256px
   - Collapsible: Yes
@@ -424,22 +435,24 @@ export function ResponsivePanel({
   - Triggered by selection
 
 ### Settings
+
 - No panels (tabs in main content)
 
 ### API Explorer
+
 - Two-column layout (not panels)
 
 ---
 
 ## Accessibility Requirements
 
-| Requirement | Status |
-|-------------|--------|
-| `aria-expanded` on collapse toggle | ⚠️ Check |
-| `aria-label` on buttons | ⚠️ Check |
-| Focus trap in mobile sheets | ✅ shadcn handles |
-| Keyboard close (Escape) | ✅ shadcn handles |
-| Screen reader announcement | ⚠️ Add aria-live |
+| Requirement                        | Status            |
+| ---------------------------------- | ----------------- |
+| `aria-expanded` on collapse toggle | ⚠️ Check          |
+| `aria-label` on buttons            | ⚠️ Check          |
+| Focus trap in mobile sheets        | ✅ shadcn handles |
+| Keyboard close (Escape)            | ✅ shadcn handles |
+| Screen reader announcement         | ⚠️ Add aria-live  |
 
 ---
 
@@ -453,4 +466,4 @@ export function ResponsivePanel({
 
 ---
 
-*Last updated: December 25, 2025*
+_Last updated: December 25, 2025_
