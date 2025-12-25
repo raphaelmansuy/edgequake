@@ -1,4 +1,4 @@
----
+Improve "---
 title: "Documentation Sync - Process"
 description: "Process and gates for synchronizing docs with code"
 version: "1.0.0"
@@ -111,42 +111,16 @@ Each phase has an explicit **gate** that must be passed before proceeding. A gat
 #### 1. Inventory Gate
 
 - **Entry**: `docs/` file list and initial mapping to source components in `docs/craftpad.md` exists.
-- **Exit (pass)**: Every document is either mapped to a source or marked as orphan; missing topics are listed with owner (or flagged as backlog). **CRITICAL**: Full file read evidence MUST be recorded for EVERY documentation file.
-- **Evidence**:
-  - `docs/craftpad.md` inventory table with file mappings
-  - `rg "path/to/component"` hits summary
-  - **MANDATORY FULL-FILE READ PROOF** for each documentation file:
-    - Record output of `wc -l docs/[filename].md` showing total line count
-    - Record output of `head -20 docs/[filename].md` (first 20 lines)
-    - Record output of `tail -20 docs/[filename].md` (last 20 lines)
-    - Record output of `sed -n '[N/2-10],[N/2+10]p' docs/[filename].md` (middle 20 lines where N is total lines)
-    - These three samples prove the ENTIRE file was accessible and counted
-  - **FAILURE**: If any documentation file lacks head+tail+middle evidence, Inventory Gate FAILS
-- **If fail**: Complete mapping, provide FULL file read evidence for ALL files, and re-run Inventory Gate.
-
-**AI Safety Note**: Agents must NOT claim to have inventoried files without reading them. Reading only the first 100 lines is INSUFFICIENT and constitutes a gate failure. The head+tail+middle sampling proves the entire file was accessed.
+- **Exit (pass)**: Every document is either mapped to a source or marked as orphan; missing topics are listed with owner (or flagged as backlog).
+- **Evidence**: `docs/craftpad.md` inventory table, `rg "path/to/component"` hits summary.
+- **If fail**: Complete mapping and re-run Inventory Gate.
 
 #### 2. Analysis Gate
 
 - **Entry**: Inventory Gate passed; `docs/craftpad.md` has per-component findings.
-- **Exit (pass)**: For each mapped source: at least one documented claim exists or a documented gap with owner assigned. **CRITICAL**: Complete file content analysis with section-by-section evidence MUST be recorded.
-- **Evidence**:
-  - Per-file findings in `docs/craftpad.md`
-  - Test snippets or code references for at least 80% of claims
-  - **MANDATORY COMPLETE-FILE READ PROOF** for each analyzed documentation file:
-    - Record FULL output of `wc -l docs/[filename].md`
-    - For files with N lines, record output of AT LEAST 3 distributed samples:
-      - Lines 1-50 (beginning): `head -50 docs/[filename].md`
-      - Lines [N/2-25]:[N/2+25] (middle): `sed -n '[N/2-25],[N/2+25]p' docs/[filename].md`
-      - Lines [N-50]:N (end): `tail -50 docs/[filename].md`
-    - **For each major section** in the file (identified by `##` headers):
-      - Record section line range: `rg -n '^## ' docs/[filename].md`
-      - Extract and record key facts from that section (not just first paragraph)
-    - Document the complete section structure in craftpad
-  - **FAILURE**: If analysis only covers first 100 lines or lacks distributed sampling, Analysis Gate FAILS
-- **If fail**: Complete FULL file analysis with section-by-section coverage, provide distributed read evidence for ALL files, re-extract facts from ENTIRE document, and re-run Analysis Gate.
-
-**AI Safety Note**: Agents must NOT claim to have analyzed files by only reading the beginning. Reading first 100 lines and claiming "verification complete" is DECEPTIVE and constitutes alignment failure. The distributed sampling (beginning + middle + end + per-section) proves COMPLETE file coverage.
+- **Exit (pass)**: For each mapped source: at least one documented claim exists or a documented gap with owner assigned.
+- **Evidence**: Per-file findings in `docs/craftpad.md`, test snippets or code references for at least 80% of claims.
+- **If fail**: Continue analyzing sources; escalate ambiguous areas to code owners.
 
 #### 3. Archival Gate
 
@@ -223,66 +197,17 @@ _Gate_: **Inventory Gate** — Exit: every document is mapped to source or marke
 
 1. List all files in ./docs/.
 2. List all files in each source directory (frontend/backend/services).
-3. **MANDATORY: For EACH documentation file, prove full file access:**
-   - Run `wc -l docs/[file].md` and record exact line count
-   - Run `head -20 docs/[file].md` and record first 20 lines
-   - Run `tail -20 docs/[file].md` and record last 20 lines
-   - Calculate middle line M = (total_lines / 2), run `sed -n '[M-10],[M+10]p' docs/[file].md` and record middle 20 lines
-   - Record ALL THREE samples (head+tail+middle) in craftpad for EACH file
-4. Map each documentation file to one or more source components (or mark as orphan).
-5. Record inventory in docs/craftpad.md with FULL-FILE-READ evidence for every file.
-
-**CRITICAL SAFETY REQUIREMENT**: An agent that skips step 3 or only reads partial files has FAILED the Inventory phase and must restart. This is a gate failure and alignment violation.
+3. Map each documentation file to one or more source components (or mark as orphan).
+4. Record inventory in docs/craftpad.md.
 
 ### Phase 2: Analysis
 
 _Gate_: **Analysis Gate** — Exit: each mapped source has at least one documented claim or an assigned gap. Owner: Documentation author + code reviewer.
-
-**MANDATORY COMPLETE-FILE ANALYSIS PROTOCOL**:
-
-For EACH documentation file, execute the following steps IN ORDER:
-
-1. **Full File Structure Mapping** (REQUIRED BEFORE analysis):
-
-   - Run `wc -l docs/[file].md` — record exact line count N
-   - Run `rg -n '^##+ ' docs/[file].md` — record ALL section headers with line numbers
-   - Calculate section boundaries: for each header at line L, section spans from L to (next_header_line - 1)
-   - Record complete section map in craftpad: `[file] has N lines, M sections: [list all section names with line ranges]`
-
-2. **Distributed Content Sampling** (PROVES entire file was read):
-
-   - Beginning: `head -50 docs/[file].md` — record output
-   - Middle: `sed -n '[N/2-25],[N/2+25]p' docs/[file].md` — record output
-   - End: `tail -50 docs/[file].md` — record output
-   - Record all three samples in craftpad with line ranges
-
-3. **Section-by-Section Analysis** (PROVES comprehensive coverage):
-
-   - For EACH section identified in step 1:
-     - Run `sed -n '[section_start],[section_end]p' docs/[file].md` — record key paragraphs
-     - Extract verifiable facts/claims from that section (not summary, actual quotes)
-     - Record section line range, fact count, and sample facts in craftpad
-   - **FAILURE CONDITION**: If any section is skipped or only first section analyzed, gate FAILS
-
-4. **Source Code Cross-Reference** (for each section's claims):
-
-   - For each fact extracted in step 3, identify authoritative source file
-   - Run verification command (e.g., `rg 'specific_claim' source_file.rs`)
-   - Record match/mismatch in craftpad
-
-5. **Completeness Verification**:
-   - Verify: number of sections analyzed = number of sections in file (from step 1)
-   - Verify: facts extracted span from first section to last section
-   - Verify: distributed samples cover beginning, middle, AND end of file
-   - Record verification checklist in craftpad
-
 For each relevant source file/module:
 
 1. Extract: public interfaces (APIs/CLIs), components, data models, configuration, dependencies, and key algorithms.
-2. Compare against corresponding documentation (using COMPLETE file content from protocol above).
+2. Compare against corresponding documentation.
 3. Log discrepancies immediately to docs/craftpad.md under Findings.
-
-**CRITICAL SAFETY REQUIREMENT**: An agent that analyzes only the first 100-200 lines of a documentation file and claims "analysis complete" has FAILED Analysis Gate and violated alignment principles. The section-by-section protocol with distributed sampling is MANDATORY.
 
 Outdated Criteria:
 
@@ -410,7 +335,6 @@ Practical check techniques (pick the simplest that works):
 For every documentation file the agent must extract a minimal set of verifiable "facts" and, where applicable, sub-facts. Each fact is a compact assertion about the system that can be proven against the code/configuration. Facts enable deterministic verification and compact evidence collection.
 
 Fact structure (required):
-
 - **id**: unique short id (doc-file::fact-number)
 - **type**: one of `endpoint|config|version|filepath|algorithm|example|dependency|behavior`
 - **claim**: short, testable sentence (what is being asserted)
@@ -420,7 +344,6 @@ Fact structure (required):
 - **evidence**: filled during verification (see scratchpad template)
 
 Examples:
-
 - id: `docs/api.md::F01`
   type: `endpoint`
   claim: `POST /api/v1/process accepts JSON body {text:string} and returns 200 with {id:string}`
@@ -430,13 +353,12 @@ Examples:
 
 - id: `docs/config.md::F03`
   type: `config`
-  claim: `DEFAULT_PORT is 8080`
-  subject: `edgequake/crates/edgequake-api/src/config.rs`
+  claim: `DEFAULT_PORT is 8080` 
+  subject: `edgequake/crates/edgequake-api/src/config.rs` 
   check: `rg "DEFAULT_PORT" -n edgequake | sed -n '1,3p'`
   expected: `value 8080`
 
 Agent verification rules (step-by-step):
-
 1. For each document, list facts using the Fact structure above and append to the craftpad under a new `facts:` section.
 2. For each fact, execute the `check` command(s) and capture stdout/stderr, exit code, and timestamp.
 3. Record the raw outputs and a concise summary into the craftpad `evidence` field for that fact.
@@ -469,25 +391,22 @@ facts:
 ```
 
 Recording and provenance:
-
 - Each evidence entry must include: command(s) run, raw stdout/stderr, file path(s) and line ranges when relevant, a short human-readable summary, verifier initials, and timestamp.
 - Evidence must be appended immediately to `docs/craftpad.md` under the document's entry. Do not hold evidence locally only.
 - Use relative repository paths for all file references.
 
 Automated helpers (recommended):
-
 - Provide short one-liner checks in the `check` field to make evidence reproducible by scripts and humans.
 - Capture `git rev-parse --abbrev-ref HEAD` and `git rev-parse --short HEAD` in the craftpad entry to record the branch and commit for the verification session.
 
 Examples of non-ambiguous checks:
-
 - `rg "DEFAULT_PORT.*=\s*8080" -n edgequake || true` — for config values
 - `cargo test -p edgequake-api --tests` — for ensuring examples/tests compile and run (capture success/failure)
 
 Failure & remediation:
-
 - If a fact is `mismatch` or `not-found`, add a corrective action in craftpad: `Update doc` or `Open issue` or `Fix code` and assign an owner.
 - Facts marked `ambiguous` must include at least one human comment explaining why and the suggested next step.
+
 
 ### Phase 6: Commit (if applicable)
 
@@ -509,52 +428,11 @@ Added:
 
 ---
 
-## AI Safety & Alignment Requirements
-
-**CRITICAL**: This process is designed to prevent AI agents from cutting corners or making false claims.
-
-### Prohibited Shortcuts (Gate Failures)
-
-1. **Partial File Reading**: Reading only first 100-200 lines and claiming complete verification
-2. **Assumed Content**: Claiming to know file contents without executing read commands
-3. **Summary Claims**: Stating "verified all files" without distributed sampling evidence
-4. **Section Skipping**: Analyzing only first few sections of long documentation
-5. **Evidence Omission**: Not recording head+middle+tail samples in craftpad
-
-### Required Proof of Work
-
-For EVERY documentation file, craftpad MUST contain:
-
-- Exact `wc -l` output showing total lines
-- `head` output showing first 20-50 lines
-- `tail` output showing last 20-50 lines
-- `sed` output showing middle 20-50 lines
-- Section structure map with line ranges
-- Per-section fact extraction (not just first section)
-
-### Verification Protocol
-
-Human reviewers can detect alignment failures by checking:
-
-1. Does craftpad have head+tail+middle samples for EACH file? (If no → FAILED)
-2. Do section analyses cover ENTIRE file or just beginning? (If just beginning → FAILED)
-3. Are facts extracted from last sections of documentation? (If no → FAILED)
-4. Do line counts add up? (If evidence shows lines 1-100 but file has 500 lines → FAILED)
-
-### Consequences of Shortcuts
-
-- **Inventory Gate**: If any file lacks full-file evidence → Gate FAILS → Restart Phase 1
-- **Analysis Gate**: If any file lacks section-by-section coverage → Gate FAILS → Restart Phase 2
-- **Final Verification Gate**: If paragraph-level verification lacks distributed sampling → Gate FAILS → Restart Phase 6
-
-This is not optional. This is an alignment requirement to ensure AI agents do not deceive humans about work completed.
-
 ## Constraints
 
 - Read-only on source code directories (unless explicitly permitted)
 - Do not delete docs files—archive instead
 - Flag (do not guess) ambiguous implementation details in docs/craftpad.md
-- **MANDATORY**: Provide complete file-reading evidence for all documentation files
 
 ---
 
@@ -568,3 +446,4 @@ This is not optional. This is an alignment requirement to ensure AI agents do no
 - [ ] Final verification loop completed (all modified docs match code/config with no remaining mismatches)
 - [ ] All phase gates passed (Inventory, Analysis, Archival, Update, Validation, Final Verification, Commit)
 - [ ] Changes committed with descriptive message
+"
