@@ -1,23 +1,28 @@
 # EdgeQuake Documentation Sync - Working Notes
 
-## Last Updated: 2025-12-25T12:00:00Z
-## Current Phase: update
-## Current File: Phase 4 updates complete
+## Last Updated: 2025-12-25T16:00:00Z
+## Current Phase: validation
+## Current File: Final verification complete
 
 ### Completed
 - [x] Phase 1: Inventory - All source files and docs mapped
-- [x] Read all documentation files (0001-0008)
+- [x] Read all documentation files (0001-0009 + README + production-llm-integration)
 - [x] Read backend source code (orchestrator, query engine, pipeline, extractor, merger)
 - [x] Read WebUI API client and types
 - [x] Phase 2: Analysis complete
 - [x] Phase 3: No files to archive (all current)
 - [x] Phase 4: Documentation updates
+- [x] Phase 5: Validation complete
+- [x] Phase 6: Final verification loop complete
 
-### Updates Made
+### Updates Made (Session 2 - 2025-12-25T16:00:00Z)
 
 #### 0002-architecture-overview.md
-- Fixed Next.js version: "Next.js 16" → "Next.js 15" (Next.js doesn't have v16)
-- Fixed WebUI technology table: "Next.js 16" → "Next.js 15"
+- **CORRECTED**: Restored Next.js version to "Next.js 16" (package.json shows `"next": "16.1.0"`)
+- Previous session incorrectly changed 16→15 assuming Next.js 16 didn't exist
+- WebUI technology table now correctly shows "Next.js 16"
+
+### Previous Updates (Session 1)
 
 #### 0003-api-reference.md
 - Added Ollama Emulation API section with full documentation:
@@ -50,21 +55,48 @@ Created comprehensive algorithms documentation covering:
 - Performance Characteristics
 - Best Practices
 
-### Verified Findings
+### Verified (Final Verification Loop)
+
+#### Version Verification
+- **package.json**: `"next": "16.1.0"` ✅
+- **0002-architecture-overview.md**: "Next.js 16" ✅ (corrected)
+- **React version**: 19.2.3 ✅
 
 #### QueryMode Consistency
-- `edgequake-core/src/types/query.rs` has 6 modes (including Bypass) - CANONICAL
-- `edgequake-query/src/modes.rs` has 5 modes (missing Bypass) - NEEDS CODE FIX
-- Documentation is CORRECT - references core types which has all 6 modes
+- `edgequake-core/src/types/query.rs`: 6 modes (Naive, Local, Global, Hybrid, Mix, Bypass) ✅
+- `edgequake-query/src/strategies.rs`: 5 strategies (Bypass handled at higher level) ✅
+- `edgequake-core/src/query.rs`: All 6 modes including Bypass handler ✅
+- Documentation: Correctly documents all 6 modes ✅
+
+#### Environment Variables
+- `HOST` (default: 0.0.0.0) ✅
+- `PORT` (default: 8080) ✅
+- `WORKER_THREADS` (default: CPU count) ✅
+- `OPENAI_API_KEY` ✅
+- All EDGEQUAKE_* prefixed config variables ✅
+
+#### Chunk Defaults
+- `chunk_size`: 1200 tokens ✅
+- `chunk_overlap`: 100 tokens ✅
+- Source: edgequake-pipeline/src/chunker.rs ✅
+
+#### API Endpoints
+- Health: /health, /ready, /live, /metrics ✅
+- Ollama: /api/version, /api/tags, /api/ps, /api/generate, /api/chat ✅
+- Documents: /api/v1/documents, /api/v1/documents/scan, /api/v1/documents/reprocess ✅
+- Query: /api/v1/query, /api/v1/query/stream ✅
+- Graph: /api/v1/graph/* ✅
+- Source: edgequake-api/src/routes.rs ✅
 
 ### Pending Actions
-- [x] Fix Next.js version reference
-- [x] Add Ollama emulation API documentation
-- [x] Add document scan and reprocess endpoints
-- [x] Document gleaning algorithm in detail
-- [x] Document entity normalization algorithm
-- [x] Document context truncation algorithm
-- [x] Add conversation history support to query documentation
-- [x] Update algorithm documentation with precision
-- [ ] Note for code team: edgequake-query/src/modes.rs missing Bypass mode
+- [x] Fix Next.js version reference (15→16)
+- [x] Verify all 6 QueryModes documented
+- [x] Verify environment variables match code
+- [x] Verify chunk defaults match code
+- [x] Verify API endpoints exist in routes.rs
+- [x] Update craftpad with final status
+
+### Notes
+- edgequake-query `create_strategy` doesn't include Bypass because Bypass mode skips retrieval
+- Bypass is correctly handled in edgequake-core/src/query.rs at the orchestrator level
 
