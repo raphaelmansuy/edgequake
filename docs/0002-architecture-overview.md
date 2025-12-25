@@ -34,7 +34,7 @@ EdgeQuake is a **Graph-Enhanced Retrieval-Augmented Generation** framework imple
 | Query Modes | Single mode            | 6 modes (naive/local/global/hybrid/mix/bypass) |
 | Knowledge   | Implicit in embeddings | Explicit knowledge graph                       |
 | Performance | Standard               | High-performance, async                        |
-| WebUI       | Basic                  | Next.js 16 + React 19                          |
+| WebUI       | Basic                  | Next.js 16.1.0 + React 19.2.3                  |
 
 ### High-Level Architecture
 

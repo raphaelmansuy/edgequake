@@ -117,7 +117,7 @@ docker compose up -d
 | `mix`    | Full KG + vector integration      | Complex reasoning |
 | `bypass` | Skip RAG, direct LLM              | Testing/fallback  |
 
-> **Code Reference**: See [types/query.rs](../edgequake/crates/edgequake-core/src/types/query.rs#L4-L24)
+> **Code Reference**: See [types/query.rs](../edgequake/crates/edgequake-core/src/types/query.rs#L6-L24)
 
 ---
 
@@ -155,7 +155,7 @@ WORKER_THREADS=4  # Tokio worker threads
 DATABASE_URL=postgresql://user:pass@localhost:5432/edgequake
 ```
 
-> **Code Reference**: See [main.rs](../edgequake/src/main.rs#L69-L73) for environment variable loading.
+> **Code Reference**: See [main.rs](../edgequake/src/main.rs#L72-L76) for environment variable loading.
 
 See [Configuration Reference](0007-configuration-reference.md) for all options.
 
