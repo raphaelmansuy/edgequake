@@ -285,6 +285,32 @@ curl -X POST "http://localhost:8080/api/v1/query" \
 
 ---
 
+## RBAC and Permissions
+
+EdgeQuake implements a granular Role-Based Access Control (RBAC) system to manage access within and across tenants.
+
+### Roles
+
+| Role | Description |
+| :--- | :--- |
+| `admin` | Full system access, including tenant and user management. |
+| `user` | Regular user with read/write access to documents and graph. |
+| `readonly` | Read-only access to documents and graph. |
+
+### Permissions
+
+Permissions are grouped by resource type:
+
+| Resource | Permissions |
+| :--- | :--- |
+| **Documents** | `DocumentRead`, `DocumentCreate`, `DocumentUpdate`, `DocumentDelete` |
+| **Entities** | `EntityRead`, `EntityCreate`, `EntityUpdate`, `EntityDelete` |
+| **Relationships** | `RelationshipRead`, `RelationshipCreate`, `RelationshipUpdate`, `RelationshipDelete` |
+| **Query** | `QueryExecute`, `QueryAdvanced` |
+| **Admin** | `TenantManage`, `UserManage`, `SystemMaintenance` |
+
+---
+
 ## Best Practices
 
 ### 1. Consistent Namespace Naming

@@ -58,22 +58,28 @@ pub struct Config {
 ```rust
 pub struct ApiConfig {
     /// Server listen address
-    pub host: String,               // Default: "127.0.0.1"
+    pub host: String,               // Default: "0.0.0.0"
 
     /// Server listen port
     pub port: u16,                  // Default: 8080
 
+    /// Enable CORS
+    pub cors_enabled: bool,         // Default: true
+
     /// CORS allowed origins
     pub cors_origins: Vec<String>,  // Default: ["*"]
 
-    /// Request body size limit
-    pub max_body_size: usize,       // Default: 52_428_800 (50MB)
+    /// Enable API key authentication
+    pub auth_enabled: bool,         // Default: false
+
+    /// API keys for authentication
+    pub api_keys: Vec<String>,      // Default: []
+
+    /// Request body size limit in bytes
+    pub body_limit: usize,          // Default: 10_485_760 (10MB)
 
     /// Request timeout in seconds
-    pub request_timeout: u64,       // Default: 300
-
-    /// Enable request logging
-    pub enable_logging: bool,       // Default: true
+    pub timeout_secs: u64,          // Default: 300
 }
 ```
 
@@ -187,9 +193,6 @@ pub struct LlmConfig {
 
     /// Max retries for failed requests
     pub max_retries: u32,               // Default: 3
-
-    /// Retry delay (seconds)
-    pub retry_delay_secs: u64,          // Default: 1
 }
 ```
 

@@ -815,7 +815,7 @@ Authorization: Bearer <token>
 ```json
 {
   "document_id": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "completed",
+  "status": "processed",
   "track_id": "batch-2024-001",
   "chunk_count": 5,
   "entity_count": 12,
@@ -882,7 +882,7 @@ Authorization: Bearer <token>
 List all documents with pagination.
 
 ```http
-GET /api/v1/documents?page=1&page_size=20&status=completed
+GET /api/v1/documents?page=1&page_size=20&status=processed
 Authorization: Bearer <token>
 ```
 
@@ -892,9 +892,9 @@ Authorization: Bearer <token>
 | ------------ | ------ | ---------- | ---------------------------------------------- |
 | `page`       | int    | 1          | Page number                                    |
 | `page_size`  | int    | 20         | Items per page (max 100)                       |
-| `status`     | string | -          | Filter: pending, processing, completed, failed |
-| `sort_by`    | string | created_at | Sort field                                     |
-| `sort_order` | string | desc       | asc or desc                                    |
+| `status`     | string | -          | [PLANNED] Filter: pending, processing, processed, failed |
+| `sort_by`    | string | created_at | [PLANNED] Sort field                                     |
+| `sort_order` | string | desc       | [PLANNED] asc or desc                                    |
 
 **Response**
 
@@ -904,7 +904,7 @@ Authorization: Bearer <token>
     {
       "id": "550e8400-e29b-41d4-a716-446655440000",
       "title": "Marie Curie Biography",
-      "status": "completed",
+      "status": "processed",
       "content_summary": "Marie Curie was a physicist who discovered radium...",
       "content_length": 5432,
       "chunk_count": 5,
@@ -1520,8 +1520,8 @@ Authorization: Bearer <token>
 
 | Parameter   | Type   | Default | Description      |
 | ----------- | ------ | ------- | ---------------- |
-| `status`    | string | -       | Filter by status |
-| `task_type` | string | -       | Filter by type   |
+| `status`    | string | -       | Filter: pending, processing, indexed, failed, cancelled |
+| `task_type` | string | -       | Filter: upload, insert, scan, reindex |
 | `page`      | int    | 1       | Page number      |
 | `page_size` | int    | 20      | Items per page   |
 

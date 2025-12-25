@@ -409,7 +409,7 @@ impl Pipeline {
 │     │                                                                        │
 │     ▼                                                                        │
 │  OUTPUT                                                                      │
-│     { document_id, status: "completed", entity_count, relationship_count }  │
+│     { document_id, status: "processed", entity_count, relationship_count }  │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```

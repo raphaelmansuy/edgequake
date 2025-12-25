@@ -162,7 +162,7 @@ let response = eq.query("question", Some(params)).await?;
 // Best for: General-purpose queries
 let response = eq.query("question", None).await?;  // Default is Hybrid
 
-// MIX: Adaptive combination based on query type
+// MIX: Weighted combination of naive and graph-based search
 // Best for: Maximum flexibility
 let params = QueryParams::new().with_mode(QueryMode::Mix);
 let response = eq.query("question", Some(params)).await?;
@@ -406,6 +406,16 @@ cargo test --package edgequake-core --test e2e_pipeline
 cargo clippy
 cargo fmt --check
 ```
+
+---
+
+## More Examples
+
+Explore these examples in the `edgequake/examples/` directory:
+
+- **[Graph Exploration](../edgequake/examples/graph_exploration.rs)**: Advanced graph traversal and entity analysis.
+- **[Streaming Query](../edgequake/examples/streaming_query.rs)**: Real-time response streaming for interactive applications.
+- **[Multi-Tenant](../edgequake/examples/multi_tenant.rs)**: Setting up isolated namespaces for different users.
 
 ---
 
