@@ -182,10 +182,3 @@ Define reusable **design tokens**, including:
 - Optimize for **clarity, consistency, and long‑term scalability**
 
 ---
-
-If you want, I can also:
-
-- Make this prompt **shorter and more executive‑friendly**
-- Adapt it for **AI agents vs human designers**
-- Add a **scoring rubric** per screen
-- Add a **design QA checklist** engineers can reuse

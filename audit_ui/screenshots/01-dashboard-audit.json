@@ -1,0 +1,21 @@
+{
+  "route": "/",
+  "timestamp": "2025-12-25T15:20:26.618Z",
+  "viewport": {
+    "width": 1280,
+    "height": 800
+  },
+  "elements": {
+    "header": true,
+    "sidebar": true,
+    "mainContent": true,
+    "breadcrumbs": false,
+    "rightPanel": false
+  },
+  "measurements": {
+    "headerHeight": 64,
+    "sidebarWidth": 256,
+    "mainContentWidth": 1024
+  },
+  "issues": []
+}
