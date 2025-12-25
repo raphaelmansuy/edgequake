@@ -60,11 +60,11 @@ Synchronize documentation in docs/ with the current implementation of the codeba
 
 Fill in (and update as you discover more):
 
-| Component     | Stack    | Location            |
-| ------------- | -------- | ------------------- |
-| Frontend      | [stack]  | ./edgequake_webui   |
-| Backend       | [stack]  | ./edgequake         |
-| Documentation | Markdown | ./docs/             |
+| Component     | Stack    | Location          |
+| ------------- | -------- | ----------------- |
+| Frontend      | [stack]  | ./edgequake_webui |
+| Backend       | [stack]  | ./edgequake       |
+| Documentation | Markdown | ./docs/           |
 
 ---
 
@@ -287,38 +287,38 @@ To achieve absolute certitude that every document and every paragraph has been r
 
 1. Record the document in `docs/craftpad.md` using the following template (append a new entry per document):
 
-  - **Document**: [path/to/doc.md]
-  - **Total lines (wc -l)**: [N]  <-- run `wc -l [path/to/doc.md]` and record the output
-  - **Paragraphs read**:
-    - Paragraph 1: lines START-END — verifier initials — timestamp
-    - Paragraph 2: lines START-END — verifier initials — timestamp
-    - ...
-  - **Verification status**: [pending|partial|complete]
+- **Document**: [path/to/doc.md]
+- **Total lines (wc -l)**: [N] <-- run `wc -l [path/to/doc.md]` and record the output
+- **Paragraphs read**:
+  - Paragraph 1: lines START-END — verifier initials — timestamp
+  - Paragraph 2: lines START-END — verifier initials — timestamp
+  - ...
+- **Verification status**: [pending|partial|complete]
 
 2. For each paragraph you must explicitly read the paragraph content and record the exact line-range you read. Use a reliable command to extract and review the paragraph lines (examples):
 
-  - Show lines: `sed -n 'START,ENDp' path/to/doc.md`
-  - Or: `awk 'NR>=START && NR<=END {print}' path/to/doc.md`
+- Show lines: `sed -n 'START,ENDp' path/to/doc.md`
+- Or: `awk 'NR>=START && NR<=END {print}' path/to/doc.md`
 
-  After reading, update the corresponding paragraph line entry in `docs/craftpad.md` with verifier initials and timestamp.
+After reading, update the corresponding paragraph line entry in `docs/craftpad.md` with verifier initials and timestamp.
 
 3. Confirm the file total with `wc -l` and record the numeric result in the craftpad entry. Example:
 
-  - `wc -l path/to/doc.md` -> `123 path/to/doc.md`
+- `wc -l path/to/doc.md` -> `123 path/to/doc.md`
 
-  The recorded **Total lines (wc -l)** must match the sum coverage of all paragraph ranges listed for that file. If you used contiguous paragraph ranges, summing the ranges should equal the `wc -l` total. If ranges are non-contiguous, ensure all lines are accounted for and that no line is omitted.
+The recorded **Total lines (wc -l)** must match the sum coverage of all paragraph ranges listed for that file. If you used contiguous paragraph ranges, summing the ranges should equal the `wc -l` total. If ranges are non-contiguous, ensure all lines are accounted for and that no line is omitted.
 
 4. Paragraph-level completeness assertion (required): once all paragraph entries are recorded and the line-counts reconcile with `wc -l`, set **Verification status** to `complete` and add the following assertion line to the craftpad entry:
 
-  - **Assertion**: "I, [verifier], confirm that I have read every paragraph of [path/to/doc.md], lines 1-[N], verified by `wc -l` output `[N]`." — [verifier initials] — [timestamp]
+- **Assertion**: "I, [verifier], confirm that I have read every paragraph of [path/to/doc.md], lines 1-[N], verified by `wc -l` output `[N]`." — [verifier initials] — [timestamp]
 
 5. Failure handling: if any of the following occur, immediately mark the Final Verification Gate as **failed** for that document and route the work to the corrective gate (typically the Update Gate):
 
-  - `wc -l` output does not match the recorded total lines for the document
-  - any paragraph line-range is missing, ambiguous, or not recorded in the craftpad
-  - the verifier cannot assert the paragraph contents (e.g., unreadable encoding, truncated file)
+- `wc -l` output does not match the recorded total lines for the document
+- any paragraph line-range is missing, ambiguous, or not recorded in the craftpad
+- the verifier cannot assert the paragraph contents (e.g., unreadable encoding, truncated file)
 
-  In such cases, add an explicit craftpad entry explaining the failure and the corrective action required (e.g., re-download file, fix encoding, re-run inventory), then stop final verification for that document.
+In such cases, add an explicit craftpad entry explaining the failure and the corrective action required (e.g., re-download file, fix encoding, re-run inventory), then stop final verification for that document.
 
 6. Automation note: tooling may assist but cannot replace the manual per-paragraph assertion. Automated scripts should still produce a craftpad entry with `wc -l` output and the line ranges they validated; a human must sign the final assertion.
 
