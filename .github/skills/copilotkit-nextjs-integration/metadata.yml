@@ -1,0 +1,92 @@
+# Skill Metadata: CopilotKit Next.js Integration
+
+name: "copilotkit-nextjs-integration"
+version: "1.0.0"
+created: "2025-12-26"
+languages:
+  - typescript
+  - javascript
+categories:
+  - agentic-ui
+  - ai-integration
+  - nextjs
+  - frontend-tooling
+tags:
+  - copilotkit
+  - nextjs
+  - react
+  - agentic-ui
+  - llm-integration
+  - tools-actions
+  - streaming
+  - custom-adapters
+  - human-in-the-loop
+
+## Description
+
+Comprehensive skill for integrating CopilotKit (agentic UI framework) into Next.js applications. Covers runtime setup, readable state management, tool/action integration, custom adapters, and production patterns for context-aware, action-capable AI copilots.
+
+## Capabilities
+
+### Core Integration
+- Copilot Runtime endpoint setup
+- Next.js App Router configuration
+- CopilotKit provider wrapper patterns
+- Streaming and error handling
+
+### State & Actions
+- Readable state exposure via `useCopilotReadable`
+- Tool/action definition with `useCopilotAction`
+- Parameter validation and type safety
+- Human-in-the-loop workflows
+
+### Adapters & Providers
+- Built-in adapters: OpenAI, Groq, Google
+- Custom service adapter implementation
+- Self-hosted LLM integration
+- Provider flexibility patterns
+
+### UI Components & Patterns
+- CopilotPopup, CopilotSidebar
+- Headless chat implementations
+- Generative UI integration
+- Real-time state synchronization
+
+### Production Patterns
+- API authentication and security
+- Streaming timeout management
+- Tool parameter validation
+- Performance optimization
+- Observability and logging
+
+## Use Cases
+
+- Building context-aware chatbots in SaaS dashboards
+- Task automation with approval workflows
+- E-commerce copilots for cart/order management
+- Productivity tools with AI-suggested actions
+- Privacy-focused self-hosted LLM deployments
+
+## Prerequisites
+
+- Next.js 13+ (App Router)
+- React 18+
+- TypeScript (recommended)
+- Basic LLM API understanding (OpenAI, Groq, or custom)
+
+## Common Patterns
+
+- "Set up CopilotKit runtime endpoint in [path]"
+- "Add readable state for [data/feature]"
+- "Implement action [action-name] that [effect]"
+- "Create custom adapter for [llm-service]"
+- "Build [component-type] with copilot integration"
+
+## Quality Gates
+
+- Runtime endpoint accepts POST requests with proper headers
+- Readable state serializes to JSON
+- Actions define required parameters with validation
+- Custom adapters stream SSE format correctly
+- Timeouts configured for serverless deployment
+- API keys kept server-side only
