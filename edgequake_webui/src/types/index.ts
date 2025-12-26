@@ -46,15 +46,47 @@ export interface Document {
   mime_type?: string;
   chunk_count?: number;
   entity_count?: number;
+  /** Number of relationships extracted. */
+  relationship_count?: number;
   /** First 200 characters of document content (preview). */
   content_summary?: string;
   /** Total length of document content in characters. */
   content_length?: number;
+  /** Content hash for deduplication (SHA-256). */
+  content_hash?: string;
   /** Track ID for batch grouping. */
   track_id?: string;
+  /** Tenant ID for multi-tenancy. */
+  tenant_id?: string;
+  /** Workspace ID for multi-tenancy. */
+  workspace_id?: string;
   created_at?: string;
   updated_at?: string;
   processed_at?: string;
+  /** Extraction lineage information. */
+  lineage?: DocumentLineage;
+}
+
+/** Extraction lineage information for a document. */
+export interface DocumentLineage {
+  /** LLM model used for entity extraction. */
+  llm_model?: string;
+  /** Embedding model used for vector embeddings. */
+  embedding_model?: string;
+  /** Embedding dimensions. */
+  embedding_dimensions?: number;
+  /** List of keywords extracted. */
+  keywords?: string[];
+  /** Entity types extracted. */
+  entity_types?: string[];
+  /** Relationship types extracted. */
+  relationship_types?: string[];
+  /** Chunking strategy used. */
+  chunking_strategy?: string;
+  /** Average chunk size in characters. */
+  avg_chunk_size?: number;
+  /** Processing duration in milliseconds. */
+  processing_duration_ms?: number;
 }
 
 /** Status counts for document filtering. */

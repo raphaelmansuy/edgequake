@@ -3,6 +3,7 @@
 import { DynamicBreadcrumb } from '@/components/layout/dynamic-breadcrumb';
 import { Header } from '@/components/layout/header';
 import { Sidebar } from '@/components/layout/sidebar';
+import { TenantGuard } from '@/components/layout/tenant-guard';
 import { SkipLink } from '@/components/shared/skip-link';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 
@@ -24,12 +25,15 @@ export default function DashboardLayout({
         <div className="border-b px-4 py-2 bg-muted/20">
           <DynamicBreadcrumb />
         </div>
+        {/* Main content area - each page controls its own scrolling */}
         <main 
           id="main-content" 
-          className="flex-1 overflow-auto scroll-smooth" 
+          className="flex-1 min-h-0 overflow-hidden" 
           tabIndex={-1}
         >
-          {children}
+          <TenantGuard>
+            {children}
+          </TenantGuard>
         </main>
       </div>
     </div>

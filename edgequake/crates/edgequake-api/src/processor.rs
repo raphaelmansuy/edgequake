@@ -206,13 +206,11 @@ impl DocumentTaskProcessor {
         // Update task progress - indexing complete
         task.update_progress("indexing".to_string(), 4, 100);
 
-        // Update document status to completed with stats
+        // Update document status to completed with stats and lineage
         self.update_document_status_with_stats(
             &document_id,
             "completed",
-            result.stats.chunk_count,
-            result.stats.entity_count,
-            result.stats.relationship_count,
+            &result.stats,
         )
         .await?;
 
@@ -270,14 +268,12 @@ impl DocumentTaskProcessor {
         Ok(())
     }
 
-    /// Update document metadata with processing stats.
+    /// Update document metadata with processing stats and lineage information.
     async fn update_document_status_with_stats(
         &self,
         document_id: &str,
         status: &str,
-        chunk_count: usize,
-        entity_count: usize,
-        relationship_count: usize,
+        stats: &edgequake_pipeline::pipeline::ProcessingStats,
     ) -> TaskResult<()> {
         let metadata_key = format!("{}-metadata", document_id);
 
@@ -290,9 +286,43 @@ impl DocumentTaskProcessor {
                     "updated_at".to_string(),
                     json!(chrono::Utc::now().to_rfc3339()),
                 );
-                updated.insert("chunk_count".to_string(), json!(chunk_count));
-                updated.insert("entity_count".to_string(), json!(entity_count));
-                updated.insert("relationship_count".to_string(), json!(relationship_count));
+                updated.insert(
+                    "processed_at".to_string(),
+                    json!(chrono::Utc::now().to_rfc3339()),
+                );
+                
+                // Basic stats
+                updated.insert("chunk_count".to_string(), json!(stats.chunk_count));
+                updated.insert("entity_count".to_string(), json!(stats.entity_count));
+                updated.insert("relationship_count".to_string(), json!(stats.relationship_count));
+                updated.insert("processing_duration_ms".to_string(), json!(stats.processing_time_ms));
+                
+                // Lineage information
+                if let Some(ref llm_model) = stats.llm_model {
+                    updated.insert("llm_model".to_string(), json!(llm_model));
+                }
+                if let Some(ref embedding_model) = stats.embedding_model {
+                    updated.insert("embedding_model".to_string(), json!(embedding_model));
+                }
+                if let Some(ref embedding_dimensions) = stats.embedding_dimensions {
+                    updated.insert("embedding_dimensions".to_string(), json!(embedding_dimensions));
+                }
+                if let Some(ref entity_types) = stats.entity_types {
+                    updated.insert("entity_types".to_string(), json!(entity_types));
+                }
+                if let Some(ref relationship_types) = stats.relationship_types {
+                    updated.insert("relationship_types".to_string(), json!(relationship_types));
+                }
+                if let Some(ref keywords) = stats.keywords {
+                    updated.insert("keywords".to_string(), json!(keywords));
+                }
+                if let Some(ref chunking_strategy) = stats.chunking_strategy {
+                    updated.insert("chunking_strategy".to_string(), json!(chunking_strategy));
+                }
+                if let Some(ref avg_chunk_size) = stats.avg_chunk_size {
+                    updated.insert("avg_chunk_size".to_string(), json!(avg_chunk_size));
+                }
+                
                 updated.remove("error_message");
 
                 self.kv_storage

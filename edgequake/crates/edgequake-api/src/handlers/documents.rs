@@ -465,6 +465,8 @@ pub async fn list_documents(
     );
 
     let keys = state.kv_storage.keys().await?;
+    debug!(key_count = keys.len(), "Total keys in KV storage");
+    debug!(keys = ?keys, "All keys in KV storage");
 
     // Group by document and collect metadata keys
     let mut doc_chunks: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
@@ -472,6 +474,7 @@ pub async fn list_documents(
 
     for key in &keys {
         if key.ends_with("-metadata") {
+            debug!(metadata_key = %key, "Found metadata key");
             metadata_keys.push(key.clone());
         } else if key.contains("-chunk-") {
             // Only count actual chunk keys (e.g., "doc-id-chunk-0")
@@ -485,7 +488,9 @@ pub async fn list_documents(
     }
 
     // Fetch all metadata and store complete document info
+    debug!(metadata_keys_count = metadata_keys.len(), "Fetching metadata for keys");
     let metadata_values = state.kv_storage.get_by_ids(&metadata_keys).await?;
+    debug!(metadata_values_count = metadata_values.len(), "Metadata values retrieved");
 
     // Store complete document metadata, keyed by document ID
     #[derive(Default)]
@@ -508,8 +513,11 @@ pub async fn list_documents(
         std::collections::HashMap::new();
 
     for value in metadata_values {
+        debug!(value = ?value, "Processing metadata value");
         if let Some(obj) = value.as_object() {
             if let Some(id) = obj.get("id").and_then(|v| v.as_str()) {
+                let title_val = obj.get("title");
+                debug!(doc_id = %id, title = ?title_val, "Extracted ID and title from metadata");
                 let mut meta = DocMetadata::default();
 
                 // Get title from metadata
@@ -709,7 +717,7 @@ pub struct GetDocumentRequest {
     pub document_id: String,
 }
 
-/// Document details response.
+/// Document details response with full content.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct DocumentDetailResponse {
     /// Document ID.
@@ -718,14 +726,127 @@ pub struct DocumentDetailResponse {
     /// Document title.
     pub title: Option<String>,
 
+    /// Original file name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_name: Option<String>,
+
+    /// Full document content.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+
+    /// Content summary (first 200 chars).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_summary: Option<String>,
+
+    /// Total content length in characters.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_length: Option<usize>,
+
+    /// Content hash (SHA-256) for deduplication.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_hash: Option<String>,
+
     /// Number of chunks.
     pub chunk_count: usize,
 
-    /// Document status.
+    /// Number of entities extracted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entity_count: Option<usize>,
+
+    /// Number of relationships extracted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relationship_count: Option<usize>,
+
+    /// Document processing status.
     pub status: String,
 
-    /// Metadata.
+    /// Error message if processing failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+
+    /// Source type (file, text, url).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_type: Option<String>,
+
+    /// MIME type of the document.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+
+    /// File size in bytes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_size: Option<usize>,
+
+    /// Track ID for batch grouping.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub track_id: Option<String>,
+
+    /// Tenant ID for multi-tenancy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tenant_id: Option<String>,
+
+    /// Workspace ID for multi-tenancy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workspace_id: Option<String>,
+
+    /// Creation timestamp.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+
+    /// Last update timestamp.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+
+    /// Processing completed timestamp.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub processed_at: Option<String>,
+
+    /// Extraction lineage information.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lineage: Option<DocumentLineage>,
+
+    /// Additional custom metadata.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<serde_json::Value>,
+}
+
+/// Extraction lineage information for a document.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct DocumentLineage {
+    /// LLM model used for entity extraction.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub llm_model: Option<String>,
+
+    /// Embedding model used for vector embeddings.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_model: Option<String>,
+
+    /// Embedding dimensions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_dimensions: Option<usize>,
+
+    /// List of keywords extracted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keywords: Option<Vec<String>>,
+
+    /// Entity types extracted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entity_types: Option<Vec<String>>,
+
+    /// Relationship types extracted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relationship_types: Option<Vec<String>>,
+
+    /// Chunking strategy used.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chunking_strategy: Option<String>,
+
+    /// Average chunk size in characters.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avg_chunk_size: Option<usize>,
+
+    /// Processing duration in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub processing_duration_ms: Option<u64>,
 }
 
 /// Get a document by ID.
@@ -738,34 +859,271 @@ pub struct DocumentDetailResponse {
     ),
     responses(
         (status = 200, description = "Document found", body = DocumentDetailResponse),
-        (status = 404, description = "Document not found")
+        (status = 404, description = "Document not found"),
+        (status = 403, description = "Access denied - document belongs to different tenant")
     )
 )]
 pub async fn get_document(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     axum::extract::Path(document_id): axum::extract::Path<String>,
 ) -> ApiResult<Json<DocumentDetailResponse>> {
-    let keys = state.kv_storage.keys().await?;
+    debug!(
+        document_id = %document_id,
+        tenant_id = ?tenant_ctx.tenant_id,
+        workspace_id = ?tenant_ctx.workspace_id,
+        "Getting document by ID with tenant context"
+    );
 
-    // Find chunks belonging to this document
+    // Fetch document metadata
+    let metadata_key = format!("{}-metadata", document_id);
+    debug!(metadata_key = %metadata_key, "Looking up metadata key");
+    let metadata_values = state.kv_storage.get_by_ids(&[metadata_key.clone()]).await?;
+    debug!(metadata_count = metadata_values.len(), "Metadata values retrieved");
+
+    let metadata = metadata_values.into_iter().next();
+    debug!(has_metadata = metadata.is_some(), "Metadata value present");
+
+    // Check if document exists by metadata or chunks
+    let keys = state.kv_storage.keys().await?;
+    debug!(total_keys = keys.len(), "Total keys in storage");
+    let matching_keys: Vec<_> = keys.iter().filter(|k| k.contains(&document_id)).cloned().collect();
+    debug!(matching_keys = ?matching_keys, "Keys matching document ID");
     let chunk_count = keys
         .iter()
         .filter(|k| k.starts_with(&format!("{}-chunk-", document_id)))
         .count();
 
-    if chunk_count == 0 {
+    // Document must have either metadata or chunks
+    if metadata.is_none() && chunk_count == 0 {
         return Err(ApiError::NotFound(format!(
             "Document {} not found",
             document_id
         )));
     }
 
+    // Parse metadata if available
+    let meta_obj = metadata.as_ref().and_then(|v| v.as_object());
+
+    // Check tenant context (multi-tenancy)
+    if let Some(obj) = meta_obj {
+        let doc_tenant_id = obj.get("tenant_id").and_then(|v| v.as_str());
+        let doc_workspace_id = obj.get("workspace_id").and_then(|v| v.as_str());
+
+        // Verify tenant access
+        if let Some(ref filter_tid) = tenant_ctx.tenant_id {
+            if let Some(doc_tid) = doc_tenant_id {
+                if doc_tid != filter_tid {
+                    return Err(ApiError::Forbidden);
+                }
+            }
+        }
+
+        // Verify workspace access
+        if let Some(ref filter_ws) = tenant_ctx.workspace_id {
+            if let Some(doc_ws) = doc_workspace_id {
+                if doc_ws != filter_ws {
+                    return Err(ApiError::Forbidden);
+                }
+            }
+        }
+    }
+
+    // Fetch document content
+    let content_key = format!("{}-content", document_id);
+    let content_values = state.kv_storage.get_by_ids(&[content_key]).await?;
+    let content = content_values.into_iter().next().and_then(|v| {
+        v.get("content")
+            .and_then(|c| c.as_str())
+            .map(|s| s.to_string())
+    });
+
+    // Build response from metadata
+    let (
+        title,
+        file_name,
+        content_summary,
+        content_length,
+        content_hash,
+        entity_count,
+        relationship_count,
+        status,
+        error_message,
+        source_type,
+        mime_type,
+        file_size,
+        track_id,
+        tenant_id,
+        workspace_id,
+        created_at,
+        updated_at,
+        processed_at,
+        lineage,
+        custom_metadata,
+    ) = if let Some(obj) = meta_obj {
+        // Build lineage information from stored metadata
+        let lineage = {
+            let llm_model = obj.get("llm_model")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let embedding_model = obj.get("embedding_model")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let embedding_dimensions = obj.get("embedding_dimensions")
+                .and_then(|v| v.as_u64())
+                .map(|n| n as usize);
+            let keywords = obj.get("keywords")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect());
+            let entity_types = obj.get("entity_types")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect());
+            let relationship_types = obj.get("relationship_types")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect());
+            let chunking_strategy = obj.get("chunking_strategy")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let avg_chunk_size = obj.get("avg_chunk_size")
+                .and_then(|v| v.as_u64())
+                .map(|n| n as usize);
+            let processing_duration_ms = obj.get("processing_duration_ms")
+                .and_then(|v| v.as_u64());
+
+            // Only include lineage if we have at least one field
+            if llm_model.is_some() || embedding_model.is_some() || keywords.is_some() 
+                || entity_types.is_some() || relationship_types.is_some() 
+                || chunking_strategy.is_some() || processing_duration_ms.is_some() {
+                Some(DocumentLineage {
+                    llm_model,
+                    embedding_model,
+                    embedding_dimensions,
+                    keywords,
+                    entity_types,
+                    relationship_types,
+                    chunking_strategy,
+                    avg_chunk_size,
+                    processing_duration_ms,
+                })
+            } else {
+                None
+            }
+        };
+
+        (
+            obj.get("title")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            obj.get("file_name")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .or_else(|| {
+                    obj.get("title")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                }),
+            obj.get("content_summary")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            obj.get("content_length")
+                .and_then(|v| v.as_u64())
+                .map(|n| n as usize),
+            obj.get("content_hash")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            obj.get("entity_count")
+                .and_then(|v| v.as_u64())
+                .map(|n| n as usize),
+            obj.get("relationship_count")
+                .and_then(|v| v.as_u64())
+                .map(|n| n as usize),
+            obj.get("status")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "completed".to_string()),
+            obj.get("error_message")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            obj.get("source_type")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            obj.get("mime_type")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            obj.get("file_size")
+                .and_then(|v| v.as_u64())
+                .map(|n| n as usize),
+            obj.get("track_id")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            obj.get("tenant_id")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            obj.get("workspace_id")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            obj.get("created_at")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            obj.get("updated_at")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            obj.get("processed_at")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            lineage,
+            obj.get("custom_metadata").cloned(),
+        )
+    } else {
+        // Fallback for documents without metadata (legacy)
+        (
+            None, // title
+            None, // file_name
+            None, // content_summary
+            None, // content_length
+            None, // content_hash
+            None, // entity_count
+            None, // relationship_count
+            "completed".to_string(), // status
+            None, // error_message
+            None, // source_type
+            None, // mime_type
+            None, // file_size
+            None, // track_id
+            None, // tenant_id
+            None, // workspace_id
+            None, // created_at
+            None, // updated_at
+            None, // processed_at
+            None, // lineage
+            None, // custom_metadata
+        )
+    };
+
     Ok(Json(DocumentDetailResponse {
         id: document_id,
-        title: None,
+        title,
+        file_name,
+        content,
+        content_summary,
+        content_length,
+        content_hash,
         chunk_count,
-        status: "processed".to_string(),
-        metadata: None,
+        entity_count,
+        relationship_count,
+        status,
+        error_message,
+        source_type,
+        mime_type,
+        file_size,
+        track_id,
+        tenant_id,
+        workspace_id,
+        created_at,
+        updated_at,
+        processed_at,
+        lineage,
+        metadata: custom_metadata,
     }))
 }
 
@@ -814,7 +1172,14 @@ pub async fn delete_document(
         .cloned()
         .collect();
 
-    if chunk_ids.is_empty() {
+    // Also check for metadata and content keys
+    let metadata_key = format!("{}-metadata", document_id);
+    let content_key = format!("{}-content", document_id);
+    let has_metadata = keys.contains(&metadata_key);
+    let has_content = keys.contains(&content_key);
+
+    // Document must have either chunks, metadata, or content
+    if chunk_ids.is_empty() && !has_metadata && !has_content {
         return Err(ApiError::NotFound(format!(
             "Document {} not found",
             document_id
@@ -823,8 +1188,17 @@ pub async fn delete_document(
 
     let chunks_deleted = chunk_ids.len();
 
-    // Delete chunks from KV storage
-    state.kv_storage.delete(&chunk_ids).await?;
+    // Collect all keys to delete
+    let mut keys_to_delete = chunk_ids;
+    if has_metadata {
+        keys_to_delete.push(metadata_key);
+    }
+    if has_content {
+        keys_to_delete.push(content_key);
+    }
+
+    // Delete all document data from KV storage
+    state.kv_storage.delete(&keys_to_delete).await?;
 
     // TODO: Implement cascade deletion for entities and relationships
     // This would require updating the graph storage to remove orphaned entities
@@ -890,8 +1264,15 @@ pub struct FileUploadResponse {
 )]
 pub async fn upload_file(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     mut multipart: Multipart,
 ) -> ApiResult<Json<FileUploadResponse>> {
+    debug!(
+        tenant_id = ?tenant_ctx.tenant_id,
+        workspace_id = ?tenant_ctx.workspace_id,
+        "Uploading file with tenant context"
+    );
+
     let mut filename = String::new();
     let mut content = Vec::new();
     let mut metadata: Option<serde_json::Value> = None;
@@ -978,10 +1359,13 @@ pub async fn upload_file(
     let mut hasher = Sha256::new();
     hasher.update(&content);
     let content_hash = hex::encode(hasher.finalize());
+    debug!(content_hash = %content_hash, "Computed content hash");
 
     // Check for duplicate
     let hash_key = format!("doc:hash:{}", content_hash);
+    debug!(hash_key = %hash_key, "Checking for duplicate hash");
     if let Some(existing_doc_id) = state.kv_storage.get_by_id(&hash_key).await? {
+        debug!(existing_doc_id = ?existing_doc_id, "Found existing document for hash");
         if let Some(doc_id_str) = existing_doc_id.as_str() {
             return Ok(Json(FileUploadResponse {
                 document_id: doc_id_str.to_string(),
@@ -1006,18 +1390,74 @@ pub async fn upload_file(
         .upsert(&[(hash_key, serde_json::json!(document_id))])
         .await?;
 
-    // Store file metadata
-    let file_meta = serde_json::json!({
-        "filename": filename,
-        "size": content.len(),
+    // Generate content summary (first 200 chars)
+    let content_summary = if text_content.len() > 200 {
+        format!(
+            "{}...",
+            &text_content.chars().take(200).collect::<String>()
+        )
+    } else {
+        text_content.clone()
+    };
+
+    // Determine MIME type from extension
+    let mime_type = match extension.as_str() {
+        "txt" => "text/plain",
+        "md" => "text/markdown",
+        "json" => "application/json",
+        "csv" => "text/csv",
+        "html" | "htm" => "text/html",
+        "xml" => "application/xml",
+        "yaml" | "yml" => "application/x-yaml",
+        _ => "application/octet-stream",
+    };
+
+    // Generate track ID
+    let track_id = format!(
+        "upload_{}_{}",
+        Utc::now().format("%Y%m%d%H%M%S"),
+        &Uuid::new_v4().to_string()[..8]
+    );
+
+    // Extract tenant context for storage
+    let workspace_id_for_storage = tenant_ctx
+        .workspace_id
+        .clone()
+        .unwrap_or_else(|| "default".to_string());
+    let tenant_id_for_storage = tenant_ctx.tenant_id.clone();
+
+    // Store comprehensive document metadata
+    let doc_metadata_key = format!("{}-metadata", document_id);
+    let doc_metadata = serde_json::json!({
+        "id": document_id,
+        "title": filename,
+        "file_name": filename,
+        "file_size": content.len(),
+        "mime_type": mime_type,
+        "source_type": "file",
+        "content_summary": content_summary,
+        "content_length": text_content.len(),
         "content_hash": content_hash,
-        "extension": extension,
-        "metadata": metadata,
-        "uploaded_at": chrono::Utc::now().to_rfc3339(),
+        "track_id": track_id,
+        "created_at": Utc::now().to_rfc3339(),
+        "status": "processing",
+        "tenant_id": tenant_id_for_storage,
+        "workspace_id": workspace_id_for_storage,
+        "custom_metadata": metadata,
     });
     state
         .kv_storage
-        .upsert(&[(format!("doc:meta:{}", document_id), file_meta)])
+        .upsert(&[(doc_metadata_key.clone(), doc_metadata)])
+        .await?;
+
+    // Store document content
+    let doc_content_key = format!("{}-content", document_id);
+    let doc_content = serde_json::json!({
+        "content": text_content,
+    });
+    state
+        .kv_storage
+        .upsert(&[(doc_content_key, doc_content)])
         .await?;
 
     // Process through pipeline
@@ -1041,6 +1481,110 @@ pub async fn upload_file(
         .collect();
 
     state.kv_storage.upsert(&chunks).await?;
+
+    // Store entities and relationships in graph storage
+    tracing::info!(extraction_count = result.extractions.len(), "GRAPH STORAGE: Processing extractions");
+    for extraction in &result.extractions {
+        tracing::info!(entity_count = extraction.entities.len(), relationship_count = extraction.relationships.len(), "GRAPH STORAGE: Extraction content");
+        for entity in &extraction.entities {
+            tracing::info!(entity_name = %entity.name, entity_type = %entity.entity_type, "GRAPH STORAGE: Storing entity");
+            let mut properties = std::collections::HashMap::new();
+            properties.insert(
+                "entity_type".to_string(),
+                serde_json::json!(entity.entity_type),
+            );
+            properties.insert(
+                "description".to_string(),
+                serde_json::json!(entity.description),
+            );
+            properties.insert(
+                "importance".to_string(),
+                serde_json::json!(entity.importance),
+            );
+            properties.insert(
+                "source_ids".to_string(),
+                serde_json::json!(vec![&document_id]),
+            );
+            // Add tenant scoping
+            if let Some(ref tid) = tenant_id_for_storage {
+                properties.insert("tenant_id".to_string(), serde_json::json!(tid));
+            }
+            properties.insert("workspace_id".to_string(), serde_json::json!(&workspace_id_for_storage));
+
+            match state.graph_storage.upsert_node(&entity.name, properties).await {
+                Ok(_) => tracing::info!(entity_name = %entity.name, "GRAPH STORAGE: Entity stored OK"),
+                Err(e) => tracing::error!(entity_name = %entity.name, error = %e, "GRAPH STORAGE: Failed to store entity"),
+            }
+        }
+
+        for relationship in &extraction.relationships {
+            let mut properties = std::collections::HashMap::new();
+            properties.insert(
+                "relation_type".to_string(),
+                serde_json::json!(relationship.relation_type),
+            );
+            properties.insert(
+                "description".to_string(),
+                serde_json::json!(relationship.description),
+            );
+            properties.insert("weight".to_string(), serde_json::json!(relationship.weight));
+            properties.insert(
+                "keywords".to_string(),
+                serde_json::json!(relationship.keywords),
+            );
+            properties.insert(
+                "source_ids".to_string(),
+                serde_json::json!(vec![&document_id]),
+            );
+            // Add tenant scoping
+            if let Some(ref tid) = tenant_id_for_storage {
+                properties.insert("tenant_id".to_string(), serde_json::json!(tid));
+            }
+            properties.insert("workspace_id".to_string(), serde_json::json!(&workspace_id_for_storage));
+
+            let _ = state
+                .graph_storage
+                .upsert_edge(&relationship.source, &relationship.target, properties)
+                .await;
+        }
+    }
+
+    // Update document metadata with completion stats and lineage
+    let completed_metadata = serde_json::json!({
+        "id": document_id,
+        "title": filename,
+        "file_name": filename,
+        "file_size": content.len(),
+        "mime_type": mime_type,
+        "source_type": "file",
+        "content_summary": content_summary,
+        "content_length": text_content.len(),
+        "content_hash": content_hash,
+        "track_id": track_id,
+        "created_at": Utc::now().to_rfc3339(),
+        "processed_at": Utc::now().to_rfc3339(),
+        "status": "completed",
+        "chunk_count": result.stats.chunk_count,
+        "entity_count": result.stats.entity_count,
+        "relationship_count": result.stats.relationship_count,
+        "tenant_id": tenant_id_for_storage,
+        "workspace_id": workspace_id_for_storage,
+        "custom_metadata": metadata,
+        // Lineage information
+        "llm_model": result.stats.llm_model,
+        "embedding_model": result.stats.embedding_model,
+        "embedding_dimensions": result.stats.embedding_dimensions,
+        "entity_types": result.stats.entity_types,
+        "relationship_types": result.stats.relationship_types,
+        "keywords": result.stats.keywords,
+        "chunking_strategy": result.stats.chunking_strategy,
+        "avg_chunk_size": result.stats.avg_chunk_size,
+        "processing_duration_ms": result.stats.processing_time_ms,
+    });
+    state
+        .kv_storage
+        .upsert(&[(doc_metadata_key, completed_metadata)])
+        .await?;
 
     Ok(Json(FileUploadResponse {
         document_id,
@@ -2096,8 +2640,26 @@ mod tests {
         let response = DocumentDetailResponse {
             id: "doc-789".to_string(),
             title: Some("Test".to_string()),
+            file_name: None,
+            content: None,
+            content_summary: None,
+            content_length: None,
+            content_hash: None,
             chunk_count: 5,
+            entity_count: None,
+            relationship_count: None,
             status: "processed".to_string(),
+            error_message: None,
+            source_type: None,
+            mime_type: None,
+            file_size: None,
+            track_id: None,
+            tenant_id: None,
+            workspace_id: None,
+            created_at: None,
+            updated_at: None,
+            processed_at: None,
+            lineage: None,
             metadata: None,
         };
 

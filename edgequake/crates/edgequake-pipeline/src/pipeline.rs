@@ -92,6 +92,38 @@ pub struct ProcessingStats {
 
     /// Total tokens used.
     pub total_tokens: usize,
+
+    /// LLM model used for entity extraction.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub llm_model: Option<String>,
+
+    /// Embedding model used for vector embeddings.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_model: Option<String>,
+
+    /// Embedding dimensions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_dimensions: Option<usize>,
+
+    /// Entity types extracted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entity_types: Option<Vec<String>>,
+
+    /// Relationship types extracted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relationship_types: Option<Vec<String>>,
+
+    /// Keywords extracted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keywords: Option<Vec<String>>,
+
+    /// Chunking strategy used.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chunking_strategy: Option<String>,
+
+    /// Average chunk size in characters.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avg_chunk_size: Option<usize>,
 }
 
 /// Document processing pipeline.
@@ -140,24 +172,70 @@ impl Pipeline {
         // Step 1: Chunk the document
         let mut chunks = self.chunker.chunk(content, document_id)?;
         stats.chunk_count = chunks.len();
+        
+        // Track chunking strategy and average chunk size
+        stats.chunking_strategy = Some(format!("sliding_window_{}", self.config.chunker.chunk_size));
+        if !chunks.is_empty() {
+            let total_chars: usize = chunks.iter().map(|c| c.content.len()).sum();
+            stats.avg_chunk_size = Some(total_chars / chunks.len());
+        }
 
         // Step 2: Extract entities and relationships
         let mut extractions = Vec::new();
+        let mut entity_types_set = std::collections::HashSet::new();
+        let mut relationship_types_set = std::collections::HashSet::new();
+        let mut keywords_set = std::collections::HashSet::new();
 
         if self.config.enable_entity_extraction || self.config.enable_relationship_extraction {
             if let Some(extractor) = &self.extractor {
+                // Capture LLM model name
+                stats.llm_model = Some(extractor.model_name().to_string());
+                
                 for chunk in &chunks {
                     let extraction = extractor.extract(chunk).await?;
                     stats.entity_count += extraction.entities.len();
                     stats.relationship_count += extraction.relationships.len();
                     stats.llm_calls += 1;
+                    
+                    // Collect unique entity types
+                    for entity in &extraction.entities {
+                        entity_types_set.insert(entity.entity_type.clone());
+                    }
+                    
+                    // Collect unique relationship types and keywords
+                    for rel in &extraction.relationships {
+                        relationship_types_set.insert(rel.relation_type.clone());
+                        for keyword in &rel.keywords {
+                            keywords_set.insert(keyword.clone());
+                        }
+                    }
+                    
                     extractions.push(extraction);
                 }
             }
         }
+        
+        // Store collected types and keywords
+        if !entity_types_set.is_empty() {
+            stats.entity_types = Some(entity_types_set.into_iter().collect());
+        }
+        if !relationship_types_set.is_empty() {
+            stats.relationship_types = Some(relationship_types_set.into_iter().collect());
+        }
+        if !keywords_set.is_empty() {
+            let mut keywords: Vec<String> = keywords_set.into_iter().collect();
+            keywords.sort();
+            // Limit to top 50 keywords
+            keywords.truncate(50);
+            stats.keywords = Some(keywords);
+        }
 
         // Step 3: Generate embeddings
         if let Some(provider) = &self.embedding_provider {
+            // Capture embedding model info
+            stats.embedding_model = Some(provider.model().to_string());
+            stats.embedding_dimensions = Some(provider.dimension());
+            
             // Chunk embeddings
             if self.config.enable_chunk_embeddings {
                 let texts: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();

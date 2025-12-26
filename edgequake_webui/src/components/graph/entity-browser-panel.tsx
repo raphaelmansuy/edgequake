@@ -166,6 +166,8 @@ const EntityTypeGroup = memo(function EntityTypeGroup({
   defaultOpen = false,
 }: EntityTypeGroupProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const { t } = useTranslation();
+  const groupId = `entity-group-${type.toLowerCase().replace(/\s+/g, '-')}`;
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -173,36 +175,41 @@ const EntityTypeGroup = memo(function EntityTypeGroup({
         <Button
           variant="ghost"
           className="w-full justify-between px-3 py-2 h-auto"
+          aria-expanded={isOpen}
+          aria-controls={groupId}
         >
           <div className="flex items-center gap-2">
             <div
               className="w-3 h-3 rounded-full"
               style={{ backgroundColor: getEntityTypeColor(type) }}
+              aria-hidden="true"
             />
             <span className="text-sm font-medium">{type}</span>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-xs" aria-label={t("graph.entityBrowser.entityCount", "{{count}} entities", { count: nodes.length })}>
               {nodes.length}
             </Badge>
             {isOpen ? (
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="h-4 w-4" aria-hidden="true" />
             ) : (
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
             )}
           </div>
         </Button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="pl-2 space-y-1">
-        {nodes.map((node) => (
-          <EntityItem
-            key={node.id}
-            node={node}
-            isSelected={node.id === selectedNodeId}
-            isFocused={false}
-            onClick={() => onNodeClick(node.id)}
-          />
-        ))}
+      <CollapsibleContent className="pl-2 space-y-1" id={groupId}>
+        <div role="group" aria-label={`${type} ${t("graph.entityBrowser.entities", "entities")}`}>
+          {nodes.map((node) => (
+            <EntityItem
+              key={node.id}
+              node={node}
+              isSelected={node.id === selectedNodeId}
+              isFocused={false}
+              onClick={() => onNodeClick(node.id)}
+            />
+          ))}
+        </div>
       </CollapsibleContent>
     </Collapsible>
   );
@@ -420,19 +427,24 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
       {/* Search */}
       <div className="p-2 border-b shrink-0">
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" aria-hidden="true" />
           <Input
             placeholder={t("graph.entityBrowser.search", "Search entities...")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="h-7 pl-7 text-xs bg-muted/30 border-muted focus:bg-background transition-colors"
+            aria-label={t("graph.entityBrowser.searchLabel", "Search entities by name, type, or description")}
+            aria-describedby="entity-search-hint"
           />
+          <span id="entity-search-hint" className="sr-only">
+            {t("graph.entityBrowser.searchHint", "Type to filter the list of entities. Results update automatically.")}
+          </span>
         </div>
       </div>
 
       {/* Sort Controls */}
-      <div className="flex items-center gap-0.5 px-2 py-1.5 border-b shrink-0">
-        <span className="text-[10px] text-muted-foreground mr-1">
+      <div className="flex items-center gap-0.5 px-2 py-1.5 border-b shrink-0" role="group" aria-label={t("graph.entityBrowser.sortControls", "Sort controls")}>
+        <span className="text-[10px] text-muted-foreground mr-1" id="sort-label">
           {t("common.sortBy", "Sort:")}
         </span>
         <Button
@@ -440,6 +452,8 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
           size="sm"
           className="h-5 text-[10px] px-1.5"
           onClick={() => setSortBy("name")}
+          aria-pressed={sortBy === "name"}
+          aria-describedby="sort-label"
         >
           {t("common.name", "Name")}
         </Button>
@@ -448,6 +462,8 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
           size="sm"
           className="h-5 text-[10px] px-1.5"
           onClick={() => setSortBy("degree")}
+          aria-pressed={sortBy === "degree"}
+          aria-describedby="sort-label"
         >
           {t("graph.degree", "Degree")}
         </Button>
@@ -456,22 +472,28 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
           size="icon"
           className="h-5 w-5 ml-auto"
           onClick={toggleSortDirection}
+          aria-label={sortDirection === "asc" 
+            ? t("graph.entityBrowser.sortAscending", "Sort ascending, click to sort descending") 
+            : t("graph.entityBrowser.sortDescending", "Sort descending, click to sort ascending")}
         >
           {sortDirection === "asc" ? (
-            <SortAsc className="h-2.5 w-2.5" />
+            <SortAsc className="h-2.5 w-2.5" aria-hidden="true" />
           ) : (
-            <SortDesc className="h-2.5 w-2.5" />
+            <SortDesc className="h-2.5 w-2.5" aria-hidden="true" />
           )}
         </Button>
       </div>
 
       {/* View Mode Toggle */}
-      <div className="flex items-center gap-0.5 p-1.5 border-b shrink-0">
+      <div className="flex items-center gap-0.5 p-1.5 border-b shrink-0" role="tablist" aria-label={t("graph.entityBrowser.viewModeLabel", "View mode")}>
         <Button
           variant={viewMode === "grouped" ? "secondary" : "ghost"}
           size="sm"
           className="flex-1 h-6 text-[10px]"
           onClick={() => setViewMode("grouped")}
+          role="tab"
+          aria-selected={viewMode === "grouped"}
+          aria-controls="entity-panel-content"
         >
           {t("graph.entityBrowser.grouped", "Grouped")}
         </Button>
@@ -480,6 +502,9 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
           size="sm"
           className="flex-1 h-6 text-[10px]"
           onClick={() => setViewMode("list")}
+          role="tab"
+          aria-selected={viewMode === "list"}
+          aria-controls="entity-panel-content"
         >
           {t("graph.entityBrowser.list", "List")}
         </Button>
@@ -487,10 +512,10 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
 
       {/* Entity List */}
       <ScrollArea className="flex-1">
-        <div className="p-1.5">
+        <div className="p-1.5" id="entity-panel-content" role="tabpanel">
           {filteredNodes.length === 0 ? (
-            <div className="py-6 text-center">
-              <Network className="h-6 w-6 mx-auto text-muted-foreground/50 mb-1.5" />
+            <div className="py-6 text-center" role="status" aria-live="polite">
+              <Network className="h-6 w-6 mx-auto text-muted-foreground/50 mb-1.5" aria-hidden="true" />
               <p className="text-xs text-muted-foreground">
                 {searchQuery
                   ? t("graph.entityBrowser.noResults", "No entities found")

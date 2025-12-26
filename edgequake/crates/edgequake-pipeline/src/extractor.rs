@@ -177,6 +177,11 @@ pub trait EntityExtractor: Send + Sync {
 
     /// Get the name of this extractor.
     fn name(&self) -> &str;
+    
+    /// Get the model name used by this extractor (if applicable).
+    fn model_name(&self) -> &str {
+        "unknown"
+    }
 }
 
 /// Simple regex-based entity extractor for testing.
@@ -365,6 +370,10 @@ where
 
     fn name(&self) -> &str {
         "llm"
+    }
+    
+    fn model_name(&self) -> &str {
+        self.llm_provider.model()
     }
 }
 
@@ -658,6 +667,10 @@ where
 
     fn name(&self) -> &str {
         "gleaning"
+    }
+    
+    fn model_name(&self) -> &str {
+        self.llm_provider.model()
     }
 }
 

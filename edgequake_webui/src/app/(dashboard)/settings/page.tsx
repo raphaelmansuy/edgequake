@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
     Select,
     SelectContent,
@@ -119,14 +120,15 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="p-6 md:p-8 max-w-4xl mx-auto space-y-8">
-      {/* Header */}
-      <header className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-base text-muted-foreground">
-          Customize your EdgeQuake experience
-        </p>
-      </header>
+    <ScrollArea className="h-full">
+      <div className="p-6 md:p-8 max-w-4xl mx-auto space-y-8">
+        {/* Header */}
+        <header className="space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+          <p className="text-base text-muted-foreground">
+            Customize your EdgeQuake experience
+          </p>
+        </header>
 
       {/* Appearance */}
       <Card>
@@ -458,6 +460,7 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </ScrollArea>
   );
 }
