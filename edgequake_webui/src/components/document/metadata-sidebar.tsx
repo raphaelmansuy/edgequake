@@ -1,0 +1,76 @@
+// Smart metadata sidebar with collapsible sections
+'use client';
+
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Brain, FileText, Network, Settings } from 'lucide-react';
+import type { Document } from '@/types';
+import { KeyStats } from './key-stats';
+import { CollapsibleSection } from './collapsible-section';
+import { LineageTree } from './lineage-tree';
+import { SourceInfoGrid } from './source-info-grid';
+import { ProcessingDetails } from './processing-details';
+import { EntityRelationStats } from './entity-relation-stats';
+
+interface MetadataSidebarProps {
+  document: Document;
+}
+
+export function MetadataSidebar({ document }: MetadataSidebarProps) {
+  return (
+    <div className="h-full flex flex-col border-l bg-background">
+      {/* Sticky Stats - Always visible */}
+      <div className="sticky top-0 z-10 bg-background border-b p-4 shadow-sm">
+        <KeyStats document={document} />
+      </div>
+
+      {/* Scrollable sections */}
+      <ScrollArea className="flex-1">
+        <div className="p-4 space-y-4">
+          {/* Extraction Lineage */}
+          {document.lineage && (
+            <CollapsibleSection
+              title="Extraction Lineage"
+              icon={<Brain className="h-4 w-4" />}
+              defaultOpen
+            >
+              <LineageTree lineage={document.lineage} />
+            </CollapsibleSection>
+          )}
+
+          {/* Entity & Relationships */}
+          {(document.entity_count !== undefined || document.relationship_count !== undefined) && (
+            <CollapsibleSection
+              title="Knowledge Graph"
+              icon={<Network className="h-4 w-4" />}
+              defaultOpen
+            >
+              <EntityRelationStats
+                entities={document.entity_count}
+                relationships={document.relationship_count}
+                documentId={document.id}
+              />
+            </CollapsibleSection>
+          )}
+
+          {/* Source Information */}
+          <CollapsibleSection
+            title="Source Details"
+            icon={<FileText className="h-4 w-4" />}
+          >
+            <SourceInfoGrid document={document} />
+          </CollapsibleSection>
+
+          {/* Processing Details */}
+          {document.lineage && (
+            <CollapsibleSection
+              title="Processing Info"
+              icon={<Settings className="h-4 w-4" />}
+            >
+              <ProcessingDetails lineage={document.lineage} />
+            </CollapsibleSection>
+          )}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}

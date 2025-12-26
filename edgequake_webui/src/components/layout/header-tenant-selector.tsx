@@ -71,6 +71,8 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
     selectTenant,
     selectWorkspace,
     initializeFromStorage,
+    isInitialized,
+    setInitialized,
   } = useTenantStore();
 
   // Dialog states
@@ -93,15 +95,22 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
     staleTime: 60000,
   });
 
-  // Update store when tenants are fetched
+  // Update store when tenants are fetched - ENHANCED WITH AUTO-SELECTION
   useEffect(() => {
     if (tenantsData) {
       setTenants(tenantsData);
+      
+      // Auto-select logic: prioritize existing selection, then first available
       if (!selectedTenantId && tenantsData.length > 0) {
         selectTenant(tenantsData[0].id);
       }
+      
+      // Mark as initialized once we have tenant data
+      if (!isInitialized) {
+        setInitialized(true);
+      }
     }
-  }, [tenantsData, setTenants, selectedTenantId, selectTenant]);
+  }, [tenantsData, setTenants, selectedTenantId, selectTenant, isInitialized, setInitialized]);
 
   // Fetch workspaces for selected tenant
   const { data: workspacesData, isLoading: isLoadingWorkspaces } = useQuery({
@@ -111,15 +120,25 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
     staleTime: 60000,
   });
 
-  // Update store when workspaces are fetched
+  // Update store when workspaces are fetched - ENHANCED WITH AUTO-SELECTION
   useEffect(() => {
     if (workspacesData) {
       setWorkspaces(workspacesData);
+      
+      // Auto-select first workspace if none selected
       if (!selectedWorkspaceId && workspacesData.length > 0) {
         selectWorkspace(workspacesData[0].id);
+        
+        // Show success toast for first-time auto-selection
+        if (isInitialized && !localStorage.getItem('edgequake-workspace-initialized')) {
+          toast.success(t('workspace.autoSelected', `Workspace "${workspacesData[0].name}" selected`), {
+            description: t('workspace.autoSelectedDesc', 'You can change this anytime from the selector above'),
+          });
+          localStorage.setItem('edgequake-workspace-initialized', 'true');
+        }
       }
     }
-  }, [workspacesData, setWorkspaces, selectedWorkspaceId, selectWorkspace]);
+  }, [workspacesData, setWorkspaces, selectedWorkspaceId, selectWorkspace, isInitialized, t]);
 
   // Create tenant mutation
   const createTenantMutation = useMutation({

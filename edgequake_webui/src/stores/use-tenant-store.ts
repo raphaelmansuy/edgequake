@@ -12,6 +12,8 @@ interface TenantState {
   selectedWorkspaceId: string | null;
   isLoading: boolean;
   error: string | null;
+  isInitialized: boolean;
+  needsOnboarding: boolean;
 }
 
 interface TenantActions {
@@ -23,6 +25,8 @@ interface TenantActions {
   setError: (error: string | null) => void;
   reset: () => void;
   initializeFromStorage: () => void;
+  setInitialized: (initialized: boolean) => void;
+  setNeedsOnboarding: (needs: boolean) => void;
 }
 
 type TenantStore = TenantState & TenantActions;
@@ -34,6 +38,8 @@ const initialState: TenantState = {
   selectedWorkspaceId: null,
   isLoading: false,
   error: null,
+  isInitialized: false,
+  needsOnboarding: false,
 };
 
 export const useTenantStore = create<TenantStore>()(
@@ -65,6 +71,10 @@ export const useTenantStore = create<TenantStore>()(
       setLoading: (loading) => set({ isLoading: loading }),
 
       setError: (error) => set({ error }),
+
+      setInitialized: (initialized) => set({ isInitialized: initialized }),
+
+      setNeedsOnboarding: (needs) => set({ needsOnboarding: needs }),
 
       reset: () => set(initialState),
 

@@ -1,0 +1,66 @@
+// Source information grid
+'use client';
+
+import { format } from 'date-fns';
+import type { Document } from '@/types';
+
+interface SourceInfoGridProps {
+  document: Document;
+}
+
+export function SourceInfoGrid({ document }: SourceInfoGridProps) {
+  return (
+    <div className="grid gap-y-3 text-sm">
+      <InfoRow label="File Name" value={document.file_name || 'N/A'} />
+      <InfoRow label="MIME Type" value={document.mime_type || 'Unknown'} mono />
+      <InfoRow label="Source Type" value={document.source_type || 'Unknown'} className="capitalize" />
+      <InfoRow 
+        label="Content Length" 
+        value={document.content_length ? `${document.content_length.toLocaleString()} chars` : '-'} 
+      />
+      <InfoRow 
+        label="File Size" 
+        value={document.file_size ? formatFileSize(document.file_size) : '-'} 
+      />
+      {document.created_at && (
+        <InfoRow 
+          label="Created At" 
+          value={format(new Date(document.created_at), 'PPpp')} 
+        />
+      )}
+      {document.processed_at && (
+        <InfoRow 
+          label="Processed At" 
+          value={format(new Date(document.processed_at), 'PPpp')} 
+        />
+      )}
+      {document.track_id && (
+        <InfoRow label="Track ID" value={document.track_id} mono />
+      )}
+    </div>
+  );
+}
+
+interface InfoRowProps {
+  label: string;
+  value: string;
+  mono?: boolean;
+  className?: string;
+}
+
+function InfoRow({ label, value, mono, className }: InfoRowProps) {
+  return (
+    <div>
+      <span className="text-muted-foreground block text-xs mb-0.5">{label}</span>
+      <p className={`font-medium truncate ${mono ? 'font-mono text-xs' : ''} ${className || ''}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
