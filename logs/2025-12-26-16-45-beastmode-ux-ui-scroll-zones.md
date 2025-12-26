@@ -7,12 +7,14 @@
 2. **Created scroll-behavior-analysis.md** - Comprehensive documentation of fixed vs scrollable zones for each page
 
 3. **Document Page Scroll Restructure**
+
    - Changed main container to `flex flex-col h-full overflow-hidden`
    - Made header, filters, and dropzone use `shrink-0` (fixed)
    - Wrapped documents table in `ScrollArea` for independent scrolling
    - Pagination remains at bottom of scrollable area
 
 4. **Query Settings Sheet Polish**
+
    - Added flex column layout with `p-0` container
    - Header fixed with border-b separator
    - Content wrapped in `ScrollArea` for overflow
@@ -21,11 +23,13 @@
    - Section headers using uppercase tracking-wide style
 
 5. **Graph Page Fullscreen Dark Mode Fix**
+
    - Added `bg-background text-foreground` to graph container
    - Updated `handleFullscreen` in zoom-controls to sync dark class
    - Added fullscreenchange listener to maintain dark class state
 
 6. **Graph Page Refresh on Navigation**
+
    - Changed `staleTime` from 5 to 2 minutes
    - Added `refetchOnMount: 'always'` for fresh data on navigation
    - Added `refetchOnWindowFocus: true` for focus refresh

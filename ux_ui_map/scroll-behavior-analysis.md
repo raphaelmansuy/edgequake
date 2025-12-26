@@ -24,7 +24,7 @@ This document analyzes the scroll behavior of each page and defines what should 
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Source**: [layout.tsx](../edgequake_webui/src/app/(dashboard)/layout.tsx)
+**Source**: [layout.tsx](<../edgequake_webui/src/app/(dashboard)/layout.tsx>)
 
 ---
 
@@ -180,15 +180,15 @@ This document analyzes the scroll behavior of each page and defines what should 
 
 ## Key CSS Classes for Scroll Control
 
-| Class | Purpose | Use Case |
-|-------|---------|----------|
-| `h-full` | Full height of parent | Container that fills space |
-| `flex-1` | Grow to fill available space | Main content areas |
-| `shrink-0` | Don't shrink | Fixed headers/footers |
-| `overflow-hidden` | Hide overflow | Outer container to contain scroll |
-| `overflow-auto` | Auto scrollbars | Scrollable content |
-| `min-h-0` | Allow shrinking below content | Required for nested flex scroll |
-| `ScrollArea` | Custom scroll component | Consistent scroll styling |
+| Class             | Purpose                       | Use Case                          |
+| ----------------- | ----------------------------- | --------------------------------- |
+| `h-full`          | Full height of parent         | Container that fills space        |
+| `flex-1`          | Grow to fill available space  | Main content areas                |
+| `shrink-0`        | Don't shrink                  | Fixed headers/footers             |
+| `overflow-hidden` | Hide overflow                 | Outer container to contain scroll |
+| `overflow-auto`   | Auto scrollbars               | Scrollable content                |
+| `min-h-0`         | Allow shrinking below content | Required for nested flex scroll   |
+| `ScrollArea`      | Custom scroll component       | Consistent scroll styling         |
 
 ---
 

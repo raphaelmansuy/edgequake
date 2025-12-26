@@ -4,33 +4,32 @@ import { RightPanel } from '@/components/layout/right-panel';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
 } from '@/components/ui/table';
 import {
-  deleteAllDocuments,
-  deleteDocument,
-  getDocuments,
-  getPipelineStatus,
-  reprocessDocument,
-  uploadDocument,
+    deleteAllDocuments,
+    deleteDocument,
+    getDocuments,
+    getPipelineStatus,
+    reprocessDocument,
+    uploadDocument,
 } from '@/lib/api/edgequake';
 import { cn } from '@/lib/utils';
 import { useTenantStore } from '@/stores/use-tenant-store';
@@ -38,21 +37,21 @@ import type { Document } from '@/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import {
-  AlertCircle,
-  CheckCircle,
-  Clock,
-  Eye,
-  FileSearch,
-  FileText,
-  Loader2,
-  MoreVertical,
-  RefreshCw,
-  Search,
-  Sparkles,
-  Trash2,
-  Upload,
-  X,
-  XCircle,
+    AlertCircle,
+    CheckCircle,
+    Clock,
+    Eye,
+    FileSearch,
+    FileText,
+    Loader2,
+    MoreVertical,
+    RefreshCw,
+    Search,
+    Sparkles,
+    Trash2,
+    Upload,
+    X,
+    XCircle,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
@@ -637,7 +636,7 @@ export function DocumentManager() {
       {/* Main Content - Flex column for proper scroll zones */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Fixed Header Zone */}
-        <div className="shrink-0 p-4 pb-0 space-y-4 border-b bg-background/95 backdrop-blur-sm">
+        <div className="shrink-0 px-4 pt-4 space-y-3 bg-background">
           {/* Header - Compact */}
           <header className="flex items-center justify-between gap-3 flex-wrap">
             <div className="space-y-0.5">
@@ -687,14 +686,14 @@ export function DocumentManager() {
       </header>
       
       {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 pb-3 border-b">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={t('documents.search.placeholder', 'Search documents...')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-10"
+            className="pl-9 h-9"
           />
         </div>
         <DocumentFilters
@@ -707,358 +706,320 @@ export function DocumentManager() {
           statusCounts={statusCounts}
         />
       </div>
+
+      {/* Compact Upload Zone - Inline dropzone, no card wrapper */}
+      <div
+        {...getRootProps()}
+        className={cn(
+          "border-2 border-dashed rounded-lg cursor-pointer transition-all duration-200",
+          "flex items-center gap-4 px-4 py-3",
+          isDragActive
+            ? 'border-primary bg-primary/5'
+            : 'border-muted-foreground/20 hover:border-primary/50 hover:bg-muted/30'
+        )}
+      >
+        <input {...getInputProps()} />
+        <div className={cn(
+          "p-2 rounded-lg transition-all",
+          isDragActive ? "bg-primary/10" : "bg-muted/50"
+        )}>
+          <Upload className={cn(
+            "h-5 w-5 transition-all duration-200",
+            isDragActive ? "text-primary scale-110" : "text-muted-foreground"
+          )} />
+        </div>
+        <div className="flex-1 min-w-0">
+          {isDragActive ? (
+            <p className="text-sm font-medium text-primary">Drop files here</p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Drag & drop or <span className="text-primary font-medium">click to upload</span> • TXT, MD, JSON (max 10MB)
+            </p>
+          )}
+        </div>
+      </div>
       </div>
 
-      {/* Scrollable Content Zone */}
-      <ScrollArea className="flex-1">
-        <div className="p-4 pt-0 space-y-4">
-
-      {/* Bulk Actions Bar */}
+      {/* Bulk Actions Bar - Fixed below dropzone */}
       {selectedIds.size > 0 && (
-        <Card className="bg-muted/50">
-          <CardContent className="flex items-center justify-between py-3 px-4">
-            <span className="text-sm font-medium">
-              {t('documents.bulk.selected', { count: selectedIds.size }) || `${selectedIds.size} document(s) selected`}
-            </span>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={handleBulkReprocess}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                {t('documents.bulk.reprocess', 'Reprocess')}
-              </Button>
-              <Button variant="outline" size="sm" className="text-destructive" onClick={handleBulkDelete}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                {t('documents.bulk.delete', 'Delete')}
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
-                <X className="h-4 w-4 mr-2" />
-                {t('documents.bulk.clear', 'Clear')}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Upload Zone - Compact design per audit DOC-03 */}
-      <Card className="border-0 shadow-sm overflow-hidden">
-        <CardContent className="p-0">
-          <div
-            {...getRootProps()}
-            className={cn(
-              "border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200",
-              "flex items-center gap-4 px-6",
-              isDragActive
-                ? 'border-primary bg-primary/5 py-8'
-                : 'border-muted-foreground/20 hover:border-primary/50 hover:bg-muted/20 py-5'
-            )}
-          >
-            <input {...getInputProps()} />
-            <div className={cn(
-              "p-3 rounded-xl transition-all",
-              isDragActive ? "bg-primary/10" : "bg-muted/50"
-            )}>
-              <Upload className={cn(
-                "h-6 w-6 transition-all duration-200",
-                isDragActive ? "text-primary scale-110" : "text-muted-foreground"
-              )} />
-            </div>
-            <div className="flex-1 min-w-0">
-              {isDragActive ? (
-                <p className="text-base font-medium text-primary">Drop files here to upload</p>
-              ) : (
-                <>
-                  <p className="text-sm font-medium">
-                    Drag & drop files or <span className="text-primary">click to browse</span>
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    TXT, MD, JSON (max 10MB per file)
-                  </p>
-                </>
-              )}
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="shrink-0"
-              onClick={(e) => e.stopPropagation()}
-            >
-              Browse Files
+        <div className="shrink-0 px-4 py-2 bg-muted/50 border-b flex items-center justify-between">
+          <span className="text-sm font-medium">
+            {t('documents.bulk.selected', { count: selectedIds.size }) || `${selectedIds.size} document(s) selected`}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleBulkReprocess}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              {t('documents.bulk.reprocess', 'Reprocess')}
+            </Button>
+            <Button variant="outline" size="sm" className="text-destructive" onClick={handleBulkDelete}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              {t('documents.bulk.delete', 'Delete')}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+              <X className="h-4 w-4 mr-2" />
+              {t('documents.bulk.clear', 'Clear')}
             </Button>
           </div>
-          {/* Uploading Files List */}
-          {uploadingFiles.length > 0 && (
-            <div className="p-4 border-t space-y-3 bg-muted/10">
-              {/* Overall Progress Header */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <h4 className="text-sm font-semibold">
-                    {isUploading ? (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        {t('documents.upload.processing', 'Processing Files')}
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                        <CheckCircle className="h-4 w-4" />
-                        {t('documents.upload.complete', 'Upload Complete')}
-                      </span>
-                    )}
-                  </h4>
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  {uploadingFiles.filter(f => f.status === 'success').length}/{uploadingFiles.length} {t('documents.upload.filesComplete', 'files complete')}
-                </span>
-              </div>
-              
-              {/* Phase Legend */}
-              {isUploading && (
-                <div className="flex items-center gap-4 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-amber-500" />
-                    {t('documents.upload.phase.reading', 'Reading')}
-                  </span>
-                  <span className="text-muted-foreground/50">→</span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-blue-500" />
-                    {t('documents.upload.phase.uploading', 'Uploading')}
-                  </span>
-                  <span className="text-muted-foreground/50">→</span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-purple-500" />
-                    {t('documents.upload.phase.extracting', 'Extracting')}
-                  </span>
-                  <span className="text-muted-foreground/50">→</span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-green-500" />
-                    {t('documents.upload.phase.done', 'Done')}
-                  </span>
-                </div>
-              )}
-              
-              <ScrollArea className="max-h-48">
-                <div className="space-y-2">
-                  {uploadingFiles.map((uploadFile, index) => (
-                    <div
-                      key={`${uploadFile.file.name}-${index}`}
-                      className="flex items-center gap-3 p-3 rounded-lg border bg-card"
-                    >
-                      <div className="flex-shrink-0">
-                        {uploadFile.status === 'success' ? (
-                          <CheckCircle className="h-5 w-5 text-green-500" />
-                        ) : uploadFile.status === 'error' ? (
-                          <XCircle className="h-5 w-5 text-red-500" />
-                        ) : uploadFile.status === 'extracting' ? (
-                          <Sparkles className="h-5 w-5 text-purple-500 animate-pulse" />
-                        ) : uploadFile.status === 'uploading' ? (
-                          <Upload className="h-5 w-5 text-blue-500 animate-bounce" />
-                        ) : uploadFile.status === 'reading' ? (
-                          <FileSearch className="h-5 w-5 text-amber-500 animate-pulse" />
-                        ) : (
-                          <Clock className="h-5 w-5 text-muted-foreground" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{uploadFile.file.name}</p>
-                        <div className="flex items-center gap-2">
-                          <p className="text-xs text-muted-foreground">
-                            {(uploadFile.file.size / 1024).toFixed(1)} KB
-                          </p>
-                          {uploadFile.phase && uploadFile.status !== 'success' && uploadFile.status !== 'error' && (
-                            <span className={`text-xs font-medium ${
-                              uploadFile.status === 'reading' ? 'text-amber-500' :
-                              uploadFile.status === 'uploading' ? 'text-blue-500' :
-                              uploadFile.status === 'extracting' ? 'text-purple-500' :
-                              'text-muted-foreground'
-                            }`}>
-                              • {uploadFile.phase}
-                            </span>
-                          )}
-                        </div>
-                        {(uploadFile.status === 'reading' || uploadFile.status === 'uploading' || uploadFile.status === 'extracting') && (
-                          <div className="relative mt-1">
-                            <Progress value={uploadFile.progress} className="h-1.5" />
-                            <div className="absolute inset-0 overflow-hidden rounded-full">
-                              <div 
-                                className={`h-full transition-all duration-300 ${
-                                  uploadFile.status === 'reading' ? 'bg-amber-400/30' :
-                                  uploadFile.status === 'uploading' ? 'bg-blue-400/30' :
-                                  'bg-purple-400/30'
-                                }`}
-                                style={{ 
-                                  width: '30%',
-                                  animation: 'shimmer 1s ease-in-out infinite',
-                                  transform: `translateX(${uploadFile.progress * 3}%)`
-                                }}
-                              />
-                            </div>
-                          </div>
-                        )}
-                        {uploadFile.error && (
-                          <p className="text-xs text-red-500 mt-1">{uploadFile.error}</p>
-                        )}
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 flex-shrink-0"
-                        onClick={() => removeUploadingFile(index)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Batch Progress Card (Phase 2) - Async processing enabled */}
-      {activeTrackId && !isUploading && (
-        <BatchProgressCard
-          trackId={activeTrackId}
-          onClose={() => setActiveTrackId(null)}
-          onComplete={() => {
-            queryClient.invalidateQueries({ queryKey: ['documents'] });
-            setTimeout(() => setActiveTrackId(null), 5000);
-          }}
-        />
+        </div>
       )}
 
-      {/* Documents Table */}
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="py-3 px-4">
-          <CardTitle className="flex items-center gap-2 text-sm font-medium">
-            <FileText className="h-4 w-4" />
-            Documents ({documents.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
+      {/* Upload Progress - Fixed below dropzone when active */}
+      {uploadingFiles.length > 0 && (
+        <div className="shrink-0 px-4 py-3 border-b space-y-2 bg-muted/20">
+          {/* Overall Progress Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h4 className="text-sm font-semibold">
+                {isUploading ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {t('documents.upload.processing', 'Processing Files')}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                    <CheckCircle className="h-4 w-4" />
+                    {t('documents.upload.complete', 'Upload Complete')}
+                  </span>
+                )}
+              </h4>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {uploadingFiles.filter(f => f.status === 'success').length}/{uploadingFiles.length} {t('documents.upload.filesComplete', 'files complete')}
+            </span>
+          </div>
+          
+          {/* Phase Legend */}
+          {isUploading && (
+            <div className="flex items-center gap-4 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-amber-500" />
+                {t('documents.upload.phase.reading', 'Reading')}
+              </span>
+              <span className="text-muted-foreground/50">→</span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-blue-500" />
+                {t('documents.upload.phase.uploading', 'Uploading')}
+              </span>
+              <span className="text-muted-foreground/50">→</span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-purple-500" />
+                {t('documents.upload.phase.extracting', 'Extracting')}
+              </span>
+              <span className="text-muted-foreground/50">→</span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-green-500" />
+                {t('documents.upload.phase.done', 'Done')}
+              </span>
+            </div>
+          )}
+          
+          <ScrollArea className="max-h-32">
+            <div className="space-y-1">
+              {uploadingFiles.map((uploadFile, index) => (
+                <div
+                  key={`${uploadFile.file.name}-${index}`}
+                  className="flex items-center gap-3 p-2 rounded-lg border bg-card"
+                >
+                  <div className="flex-shrink-0">
+                    {uploadFile.status === 'success' ? (
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                    ) : uploadFile.status === 'error' ? (
+                      <XCircle className="h-4 w-4 text-red-500" />
+                    ) : uploadFile.status === 'extracting' ? (
+                      <Sparkles className="h-4 w-4 text-purple-500 animate-pulse" />
+                    ) : uploadFile.status === 'uploading' ? (
+                      <Upload className="h-4 w-4 text-blue-500 animate-bounce" />
+                    ) : uploadFile.status === 'reading' ? (
+                      <FileSearch className="h-4 w-4 text-amber-500 animate-pulse" />
+                    ) : (
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{uploadFile.file.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-muted-foreground">
+                        {(uploadFile.file.size / 1024).toFixed(1)} KB
+                      </p>
+                      {uploadFile.phase && uploadFile.status !== 'success' && uploadFile.status !== 'error' && (
+                        <span className={`text-xs font-medium ${
+                          uploadFile.status === 'reading' ? 'text-amber-500' :
+                          uploadFile.status === 'uploading' ? 'text-blue-500' :
+                          uploadFile.status === 'extracting' ? 'text-purple-500' :
+                          'text-muted-foreground'
+                        }`}>
+                          • {uploadFile.phase}
+                        </span>
+                      )}
+                    </div>
+                    {(uploadFile.status === 'reading' || uploadFile.status === 'uploading' || uploadFile.status === 'extracting') && (
+                      <Progress value={uploadFile.progress} className="h-1 mt-1" />
+                    )}
+                    {uploadFile.error && (
+                      <p className="text-xs text-red-500 mt-1">{uploadFile.error}</p>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 flex-shrink-0"
+                    onClick={() => removeUploadingFile(index)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
+
+      {/* Batch Progress Card (Phase 2) - Fixed zone when active */}
+      {activeTrackId && !isUploading && (
+        <div className="shrink-0 px-4 py-3 border-b">
+          <BatchProgressCard
+            trackId={activeTrackId}
+            onClose={() => setActiveTrackId(null)}
+            onComplete={() => {
+              queryClient.invalidateQueries({ queryKey: ['documents'] });
+              setTimeout(() => setActiveTrackId(null), 5000);
+            }}
+          />
+        </div>
+      )}
+
+      {/* Scrollable Documents Table Zone */}
+      <div className="flex-1 min-h-0 overflow-auto">
+        <div className="px-4 py-3">
+          {/* Table Header */}
+          <div className="flex items-center gap-2 mb-3">
+            <FileText className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Documents ({documents.length})</span>
+          </div>
+          
           {isLoading ? (
-            <div className="space-y-2 p-4">
-              {[...Array(3)].map((_, i) => (
+            <div className="space-y-2">
+              {[...Array(5)].map((_, i) => (
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
             </div>
           ) : documents.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground px-4">
+            <div className="text-center py-12 text-muted-foreground">
               <FileText className="h-10 w-10 mx-auto mb-3 opacity-50" />
               <p className="font-medium">No documents yet</p>
               <p className="text-sm mt-1">Upload documents to build your knowledge graph</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="border rounded-lg overflow-hidden">
               <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[40px]">
-                    <Checkbox
-                      checked={selectedIds.size === documents.length && documents.length > 0}
-                      onCheckedChange={(checked) => handleSelectAll(!!checked)}
-                      aria-label={t('documents.bulk.selectAll', 'Select all')}
-                    />
-                  </TableHead>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Entities</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="w-[100px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {documents.map((doc) => (
-                  <TableRow 
-                    key={doc.id}
-                    className={cn(
-                      "cursor-pointer hover:bg-muted/50",
-                      selectedDocument?.id === doc.id && "bg-muted"
-                    )}
-                    onClick={() => handleDocumentClick(doc)}
-                  >
-                    <TableCell onClick={(e) => e.stopPropagation()}>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[40px]">
                       <Checkbox
-                        checked={selectedIds.has(doc.id)}
-                        onCheckedChange={(checked) => handleSelectOne(doc.id, !!checked)}
-                        aria-label={t('documents.bulk.select', 'Select')}
+                        checked={selectedIds.size === documents.length && documents.length > 0}
+                        onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                        aria-label={t('documents.bulk.selectAll', 'Select all')}
                       />
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {doc.title || doc.file_name || `Document ${doc.id.slice(0, 8)}`}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={doc.status || 'completed'} />
-                    </TableCell>
-                    <TableCell>{doc.entity_count ?? doc.chunk_count ?? '-'}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {doc.created_at 
-                        ? formatDistanceToNow(new Date(doc.created_at), { addSuffix: true })
-                        : '-'}
-                    </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center gap-1 justify-end">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => handleDocumentClick(doc)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            {doc.status === 'failed' && (
-                              <DropdownMenuItem asChild>
-                                <div className="p-0">
-                                  <ResetDocumentStatusButton document={doc} iconOnly={false} size="sm" />
-                                </div>
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem onClick={() => reprocessMutation.mutate(doc.id)}>
-                              <RefreshCw className="h-4 w-4 mr-2" />
-                              {t('documents.actions.reprocess')}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => deleteMutation.mutate(doc.id)}
-                              className="text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              {t('documents.actions.delete')}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </TableCell>
+                    </TableHead>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Entities</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="w-[100px]"></TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {documents.map((doc) => (
+                    <TableRow 
+                      key={doc.id}
+                      className={cn(
+                        "cursor-pointer hover:bg-muted/50",
+                        selectedDocument?.id === doc.id && "bg-muted"
+                      )}
+                      onClick={() => handleDocumentClick(doc)}
+                    >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selectedIds.has(doc.id)}
+                          onCheckedChange={(checked) => handleSelectOne(doc.id, !!checked)}
+                          aria-label={t('documents.bulk.select', 'Select')}
+                        />
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {doc.title || doc.file_name || `Document ${doc.id.slice(0, 8)}`}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={doc.status || 'completed'} />
+                      </TableCell>
+                      <TableCell>{doc.entity_count ?? doc.chunk_count ?? '-'}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {doc.created_at 
+                          ? formatDistanceToNow(new Date(doc.created_at), { addSuffix: true })
+                          : '-'}
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-1 justify-end">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleDocumentClick(doc)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {doc.status === 'failed' && (
+                                <DropdownMenuItem asChild>
+                                  <div className="p-0">
+                                    <ResetDocumentStatusButton document={doc} iconOnly={false} size="sm" />
+                                  </div>
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem onClick={() => reprocessMutation.mutate(doc.id)}>
+                                <RefreshCw className="h-4 w-4 mr-2" />
+                                {t('documents.actions.reprocess')}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => deleteMutation.mutate(doc.id)}
+                                className="text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                {t('documents.actions.delete')}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           )}
-          
-          {/* Pagination */}
-          {documents.length > 0 && (
-            <div className="p-4 border-t">
-              <PaginationControls
-                currentPage={currentPage}
-                totalPages={totalPages}
-                pageSize={pageSize}
-                onPageChange={setCurrentPage}
-                onPageSizeChange={(newSize) => {
-                  setPageSize(newSize);
-                  setCurrentPage(1); // Reset to first page when changing page size
-                }}
-              />
-            </div>
-          )}
-        </CardContent>
-      </Card>
         </div>
-      </ScrollArea>
+      </div>
+          
+      {/* Fixed Pagination Footer */}
+      {documents.length > 0 && (
+        <div className="shrink-0 px-4 py-3 border-t bg-background">
+          <PaginationControls
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
+          />
+        </div>
+      )}
       </div>
 
       {/* Right Panel - Document Preview */}
