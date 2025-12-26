@@ -2,9 +2,10 @@
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { ResizablePanel } from '@/components/ui/resizable-panel';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { getGraph } from '@/lib/api/edgequake';
 import { focusCameraOnNode } from '@/lib/graph/camera-utils';
-import { cn } from '@/lib/utils';
 import { useGraphStore } from '@/stores/use-graph-store';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { GraphNode } from '@/types';
@@ -188,32 +189,33 @@ export function GraphViewer() {
 
       {/* Main Graph Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Toolbar - improved spacing */}
-        <header className="flex items-center justify-between border-b px-6 py-3 shrink-0">
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl font-semibold tracking-tight">Knowledge Graph</h2>
-            {isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+        {/* Toolbar - compact and slick */}
+        <header className="flex items-center justify-between border-b px-4 py-2 shrink-0 bg-card/50 backdrop-blur-sm">
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-base font-semibold tracking-tight">Knowledge Graph</h2>
+            {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
             {data?.metadata && (
-              <span className="text-sm text-muted-foreground">
+              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
                 {data.metadata.node_count.toLocaleString()} nodes · {data.metadata.edge_count.toLocaleString()} edges
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <GraphSearch />
             <LayoutControl />
             <GraphExport />
-            <Button variant="ghost" size="icon" onClick={() => refetch()} title="Refresh">
-              <RefreshCw className="h-4 w-4" />
+            <div className="w-px h-5 bg-border mx-1" />
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => refetch()} title="Refresh">
+              <RefreshCw className="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={handleZoomIn} title="Zoom In">
-              <ZoomIn className="h-4 w-4" />
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleZoomIn} title="Zoom In">
+              <ZoomIn className="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={handleZoomOut} title="Zoom Out">
-              <ZoomOut className="h-4 w-4" />
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleZoomOut} title="Zoom Out">
+              <ZoomOut className="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={handleResetZoom} title="Reset View">
-              <Maximize2 className="h-4 w-4" />
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleResetZoom} title="Reset View">
+              <Maximize2 className="h-3.5 w-3.5" />
             </Button>
           </div>
         </header>
@@ -309,22 +311,22 @@ export function GraphViewer() {
         </div>
       </div>
 
-      {/* Right Sidebar - Collapsible */}
+      {/* Right Sidebar - Resizable */}
       {rightPanelCollapsed ? (
-        <div className="flex flex-col items-center py-3 w-12 border-l bg-card/50 shrink-0 transition-all duration-200">
+        <div className="flex flex-col items-center py-2 w-10 border-l bg-card/80 backdrop-blur-sm shrink-0 transition-all duration-200">
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 hover:bg-muted"
+            className="h-7 w-7 hover:bg-muted"
             onClick={toggleRightPanel}
             aria-label="Expand details panel"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
-          <div className="mt-4 flex flex-col items-center gap-2">
-            <PanelRightClose className="h-4 w-4 text-muted-foreground" />
+          <div className="mt-3 flex flex-col items-center gap-1.5">
+            <PanelRightClose className="h-3.5 w-3.5 text-muted-foreground" />
             <span
-              className="text-xs text-muted-foreground"
+              className="text-[10px] text-muted-foreground font-medium"
               style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
             >
               Details
@@ -332,59 +334,68 @@ export function GraphViewer() {
           </div>
         </div>
       ) : (
-        <aside className={cn(
-          "border-l bg-card flex flex-col overflow-hidden shrink-0 transition-all duration-200",
-          "w-80"
-        )}>
-          {/* Panel Header */}
-          <div className="flex items-center justify-between p-3 border-b shrink-0">
-            <h3 className="text-sm font-semibold">Details & Filters</h3>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={toggleRightPanel}
-              aria-label="Collapse details panel"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-          
-          {/* Panel Content */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {/* Filters */}
-            <GraphFilters />
-
-            {/* Node Details - Full integration */}
-            {selectedNode && showNodeDetails && (
-              <div className="space-y-2">
-                <NodeDetails node={selectedNode} />
-              </div>
-            )}
-            
-            {/* Show details button when panel is hidden but node is selected */}
-            {selectedNode && !showNodeDetails && (
+        <ResizablePanel
+          side="right"
+          defaultWidth={320}
+          minWidth={280}
+          maxWidth={480}
+          className="border-l bg-card/95 backdrop-blur-sm"
+        >
+          <div className="flex flex-col h-full overflow-hidden">
+            {/* Panel Header */}
+            <div className="flex items-center justify-between px-3 py-2 border-b shrink-0 bg-muted/30">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Details & Filters</h3>
               <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={toggleNodeDetails}
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={toggleRightPanel}
+                aria-label="Collapse details panel"
               >
-                Show Node Details
+                <ChevronRight className="h-3.5 w-3.5" />
               </Button>
-            )}
+            </div>
             
-            {/* Empty state when no node selected */}
-            {!selectedNode && (
-              <div className="py-8 text-center">
-                <Network className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  Click on a node to view details
-                </p>
+            {/* Panel Content - Full height scroll */}
+            <ScrollArea className="flex-1">
+              <div className="p-3 space-y-4">
+                {/* Node Details - Primary content when selected */}
+                {selectedNode && showNodeDetails && (
+                  <NodeDetails node={selectedNode} />
+                )}
+                
+                {/* Show details button when panel is hidden but node is selected */}
+                {selectedNode && !showNodeDetails && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full h-8 text-xs"
+                    onClick={toggleNodeDetails}
+                  >
+                    Show Node Details
+                  </Button>
+                )}
+                
+                {/* Empty state when no node selected */}
+                {!selectedNode && (
+                  <div className="py-6 text-center">
+                    <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-muted/50 flex items-center justify-center">
+                      <Network className="h-5 w-5 text-muted-foreground/50" />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Click on a node to view details
+                    </p>
+                  </div>
+                )}
+                
+                {/* Filters Section */}
+                <div className="pt-2 border-t">
+                  <GraphFilters />
+                </div>
               </div>
-            )}
+            </ScrollArea>
           </div>
-        </aside>
+        </ResizablePanel>
       )}
     </div>
   );

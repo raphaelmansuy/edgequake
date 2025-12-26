@@ -7,56 +7,55 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger,
 } from '@/components/ui/sheet';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { query as queryApi, queryStream } from '@/lib/api/edgequake';
 import {
-  useActiveConversation,
-  useConversationStore,
-  type ConversationMessage,
+    useActiveConversation,
+    useConversationStore,
+    type ConversationMessage,
 } from '@/stores/use-conversation-store';
 import { useSettingsStore } from '@/stores/use-settings-store';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { QueryContext } from '@/types';
 import { useMutation } from '@tanstack/react-query';
 import {
-  BookOpen,
-  Brain,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Clock,
-  Copy,
-  Gauge,
-  GitBranch,
-  Info,
-  Lightbulb,
-  Plus,
-  RefreshCw,
-  Search,
-  Send,
-  Settings2,
-  Sliders,
-  Sparkles,
-  StopCircle,
-  Thermometer,
-  Upload,
-  User,
-  Zap
+    BookOpen,
+    Brain,
+    Check,
+    ChevronDown,
+    ChevronRight,
+    Clock,
+    Copy,
+    Gauge,
+    GitBranch,
+    Info,
+    Lightbulb,
+    Plus,
+    RefreshCw,
+    Search,
+    Send,
+    Settings2,
+    Sliders,
+    Sparkles,
+    StopCircle,
+    Thermometer,
+    User,
+    Zap
 } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -84,8 +83,8 @@ const LoadingMessage = memo(function LoadingMessage() {
     <div className="flex justify-start mb-4">
       <div className="flex items-start gap-3 max-w-[85%]">
         <Avatar className="h-8 w-8 shrink-0 mt-1">
-          <AvatarFallback className="bg-gradient-to-br from-violet-500 to-purple-600">
-            <Sparkles className="h-4 w-4 text-white animate-pulse" />
+          <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary">
+            <Sparkles className="h-4 w-4 text-primary-foreground animate-pulse" />
           </AvatarFallback>
         </Avatar>
 
@@ -94,10 +93,10 @@ const LoadingMessage = memo(function LoadingMessage() {
             <div className="flex items-center gap-3">
               {/* Animated brain icon */}
               <div className="relative">
-                <Brain className="h-5 w-5 text-purple-500" />
+                <Brain className="h-5 w-5 text-primary" />
                 <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500" />
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary/60 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
                 </span>
               </div>
               
@@ -109,15 +108,15 @@ const LoadingMessage = memo(function LoadingMessage() {
               {/* Animated dots */}
               <div className="flex gap-1 ml-2">
                 <span 
-                  className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" 
+                  className="w-2 h-2 bg-primary rounded-full animate-bounce" 
                   style={{ animationDelay: '0ms', animationDuration: '0.6s' }} 
                 />
                 <span 
-                  className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" 
+                  className="w-2 h-2 bg-primary/80 rounded-full animate-bounce" 
                   style={{ animationDelay: '150ms', animationDuration: '0.6s' }} 
                 />
                 <span 
-                  className="w-2 h-2 bg-purple-300 rounded-full animate-bounce" 
+                  className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" 
                   style={{ animationDelay: '300ms', animationDuration: '0.6s' }} 
                 />
               </div>
@@ -125,14 +124,14 @@ const LoadingMessage = memo(function LoadingMessage() {
             
             {/* Progress shimmer effect */}
             <div className="mt-3 space-y-2">
-              <div className="h-3 bg-gradient-to-r from-muted via-muted-foreground/10 to-muted rounded-full overflow-hidden">
-                <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-purple-200/40 to-transparent animate-shimmer" />
+              <div className="h-3 bg-muted rounded-full overflow-hidden">
+                <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-foreground/5 to-transparent animate-shimmer" />
               </div>
-              <div className="h-3 bg-gradient-to-r from-muted via-muted-foreground/10 to-muted rounded-full w-3/4 overflow-hidden">
-                <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-purple-200/40 to-transparent animate-shimmer" style={{ animationDelay: '150ms' }} />
+              <div className="h-3 bg-muted rounded-full w-3/4 overflow-hidden">
+                <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-foreground/5 to-transparent animate-shimmer" style={{ animationDelay: '150ms' }} />
               </div>
-              <div className="h-3 bg-gradient-to-r from-muted via-muted-foreground/10 to-muted rounded-full w-1/2 overflow-hidden">
-                <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-purple-200/40 to-transparent animate-shimmer" style={{ animationDelay: '300ms' }} />
+              <div className="h-3 bg-muted rounded-full w-1/2 overflow-hidden">
+                <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-foreground/5 to-transparent animate-shimmer" style={{ animationDelay: '300ms' }} />
               </div>
             </div>
           </div>
@@ -200,8 +199,8 @@ const ChatMessage = memo(function ChatMessage({
     <div className="flex justify-start mb-6 group">
       <div className="flex items-start gap-3 max-w-[85%] min-w-0">
         <Avatar className="h-8 w-8 shrink-0 mt-1 ring-2 ring-background shadow-sm">
-          <AvatarFallback className="bg-gradient-to-br from-violet-500 to-purple-600">
-            <Sparkles className="h-4 w-4 text-white" />
+          <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary">
+            <Sparkles className="h-4 w-4 text-primary-foreground" />
           </AvatarFallback>
         </Avatar>
 
@@ -217,30 +216,30 @@ const ChatMessage = memo(function ChatMessage({
           </div>
           {/* Thinking Section */}
           {hasThinking && (
-            <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/30">
+            <div className="rounded-lg border border-muted bg-muted/30">
               <button
                 onClick={() => setThinkingExpanded(!thinkingExpanded)}
-                className="flex items-center gap-2 w-full p-3 text-left hover:bg-purple-100/50 dark:hover:bg-purple-900/30 transition-colors rounded-t-lg"
+                className="flex items-center gap-2 w-full p-3 text-left hover:bg-muted/50 transition-colors rounded-t-lg"
               >
                 {thinkingExpanded ? (
-                  <ChevronDown className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 ) : (
-                  <ChevronRight className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 )}
-                <Brain className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                <Brain className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-foreground/80">
                   {t('query.reasoning', 'Reasoning')}
                 </span>
                 {message.thinkingTimeMs && (
-                  <span className="text-xs text-purple-500 dark:text-purple-400 ml-auto flex items-center gap-1">
+                  <span className="text-xs text-muted-foreground ml-auto flex items-center gap-1">
                     <Clock className="h-3 w-3" />
                     {(message.thinkingTimeMs / 1000).toFixed(1)}s
                   </span>
                 )}
               </button>
               {thinkingExpanded && (
-                <div className="p-3 pt-0 border-t border-purple-200/50 dark:border-purple-800/50">
-                  <div className="text-sm text-purple-800 dark:text-purple-200 whitespace-pre-wrap pl-4 border-l-2 border-purple-300 dark:border-purple-700">
+                <div className="p-3 pt-0 border-t border-muted">
+                  <div className="text-sm text-muted-foreground whitespace-pre-wrap pl-4 border-l-2 border-muted">
                     {parsed.thinking.join('\n\n')}
                   </div>
                 </div>
@@ -273,9 +272,9 @@ const ChatMessage = memo(function ChatMessage({
             <div className="bg-card border rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <div className="flex gap-1">
-                  <span className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-2 h-2 bg-primary/80 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
                 <span className="text-sm font-medium">{t('query.generating', 'Generating response...')}</span>
               </div>
@@ -410,9 +409,9 @@ const EmptyState = memo(function EmptyState({ onSuggestionClick, graphStats }: E
     <div className="flex flex-col items-center justify-center h-full py-12 px-4 animate-fade-in-up">
       {/* Animated icon */}
       <div className="relative mb-8">
-        <div className="absolute inset-0 bg-gradient-to-r from-violet-500 to-purple-600 rounded-2xl blur-2xl opacity-20 animate-pulse-soft" />
-        <div className="relative bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl p-5 shadow-lg">
-          <Sparkles className="h-10 w-10 text-white" />
+        <div className="absolute inset-0 bg-gradient-to-r from-primary/40 to-primary/60 rounded-2xl blur-2xl opacity-20 animate-pulse-soft" />
+        <div className="relative bg-gradient-to-br from-primary/80 to-primary rounded-2xl p-5 shadow-lg">
+          <Sparkles className="h-10 w-10 text-primary-foreground" />
         </div>
       </div>
       
@@ -434,7 +433,7 @@ const EmptyState = memo(function EmptyState({ onSuggestionClick, graphStats }: E
           </div>
           <div className="w-px h-4 bg-border" />
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-purple-500" />
+            <div className="w-2 h-2 rounded-full bg-amber-500" />
             <span className="text-sm font-medium">{graphStats.relationships}</span>
             <span className="text-xs text-muted-foreground">relationships</span>
           </div>
@@ -444,32 +443,6 @@ const EmptyState = memo(function EmptyState({ onSuggestionClick, graphStats }: E
             <span className="text-sm font-medium">{graphStats.types}</span>
             <span className="text-xs text-muted-foreground">types</span>
           </div>
-        </div>
-      )}
-
-      {/* No data state */}
-      {!hasData && (
-        <div className="flex items-center gap-3 mb-8 px-5 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-xl">
-          <Info className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
-          <div className="text-sm">
-            <p className="font-medium text-amber-700 dark:text-amber-300">
-              {t('query.noDocuments', 'No documents yet')}
-            </p>
-            <p className="text-amber-600/80 dark:text-amber-400/80 text-xs mt-0.5">
-              {t('query.noDocumentsHint', 'Upload documents to start building your knowledge graph')}
-            </p>
-          </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="shrink-0 border-amber-300 dark:border-amber-700"
-            asChild
-          >
-            <a href="/documents">
-              <Upload className="h-3.5 w-3.5 mr-1.5" />
-              Upload
-            </a>
-          </Button>
         </div>
       )}
 
@@ -809,13 +782,13 @@ export function QueryInterface() {
     <div className="flex h-full min-h-0">
       {/* Main Query Area */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        {/* Header - improved spacing */}
-        <header className="flex items-center justify-between border-b px-6 py-4 shrink-0 bg-background">
-          <div className="space-y-1">
-            <h1 className="text-xl font-semibold tracking-tight">{t('query.title', 'Query')}</h1>
-            <p className="text-sm text-muted-foreground">
+        {/* Header */}
+        <header className="flex items-center justify-between border-b px-5 py-3 shrink-0 bg-background/80 backdrop-blur-sm">
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg font-semibold tracking-tight">{t('query.title', 'Query')}</h1>
+            <span className="text-xs text-muted-foreground hidden sm:inline">
               {t('query.subtitle', 'Ask questions about your knowledge graph')}
-            </p>
+            </span>
           </div>
           <div className="flex items-center gap-3">
             {/* New Conversation Button */}
@@ -936,7 +909,7 @@ export function QueryInterface() {
                   {/* Generation Section */}
                   <div className="space-y-4">
                     <div className="flex items-center gap-2">
-                      <Brain className="h-4 w-4 text-purple-500" />
+                      <Brain className="h-4 w-4 text-muted-foreground" />
                       <h3 className="text-sm font-semibold">{t('query.settings.generation', 'Generation')}</h3>
                     </div>
                     

@@ -144,10 +144,10 @@
   --content-width-xl: 1280px; /* Full content */
   --content-width-2xl: 1536px; /* Maximum content */
   
-  /* Header & Footer */
-  --header-height: 56px;
-  --breadcrumb-height: 40px;
-  --footer-height: 48px;
+  /* Header & Footer - Compact */
+  --header-height: 48px;
+  --breadcrumb-height: 32px;
+  --footer-height: 40px;
 
   /* ============================================
    * ANIMATION TOKENS

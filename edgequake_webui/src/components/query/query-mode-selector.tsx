@@ -42,7 +42,7 @@ const modes: {
     name: 'Hybrid',
     description: 'Combines local and global search for balanced results. Recommended for most queries.',
     icon: Layers,
-    color: 'text-purple-500',
+    color: 'text-primary',
   },
   {
     id: 'naive',

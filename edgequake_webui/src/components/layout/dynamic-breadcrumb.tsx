@@ -92,22 +92,22 @@ export function DynamicBreadcrumb({ customSegments }: DynamicBreadcrumbProps) {
                   <BreadcrumbLink asChild>
                     <Link
                       href={item.href}
-                      className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                     >
-                      {Icon && <Icon className="h-3.5 w-3.5" />}
+                      {Icon && <Icon className="h-3 w-3" />}
                       <span>{item.label}</span>
                     </Link>
                   </BreadcrumbLink>
                 ) : (
-                  <BreadcrumbPage className="flex items-center gap-1.5 font-medium">
-                    {Icon && <Icon className="h-3.5 w-3.5" />}
+                  <BreadcrumbPage className="flex items-center gap-1 text-xs font-medium">
+                    {Icon && <Icon className="h-3 w-3" />}
                     <span>{item.label}</span>
                   </BreadcrumbPage>
                 )}
               </BreadcrumbItem>
               {!isLast && (
                 <BreadcrumbSeparator>
-                  <ChevronRight className="h-3.5 w-3.5" />
+                  <ChevronRight className="h-3 w-3" />
                 </BreadcrumbSeparator>
               )}
             </React.Fragment>

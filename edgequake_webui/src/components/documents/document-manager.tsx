@@ -67,7 +67,6 @@ import { PaginationControls } from './pagination-controls';
 import { PipelineStatusDialog } from './pipeline-status-dialog';
 import { ReprocessFailedButton } from './reprocess-failed-button';
 import { ResetDocumentStatusButton } from './reset-document-status-button';
-import { ScanDocumentsButton } from './scan-documents-button';
 
 // Track upload progress and errors for files
 interface UploadingFile {
@@ -636,12 +635,12 @@ export function DocumentManager() {
   return (
     <div className="flex h-full">
       {/* Main Content */}
-      <div className="flex-1 p-page space-y-6 overflow-auto">
-        {/* Header */}
-        <header className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-bold tracking-tight">{t('documents.title')}</h1>
-            <p className="text-base text-muted-foreground">
+      <div className="flex-1 p-page space-y-4 overflow-auto">
+        {/* Header - Compact */}
+        <header className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="space-y-0.5">
+            <h1 className="text-xl font-semibold tracking-tight">{t('documents.title')}</h1>
+            <p className="text-sm text-muted-foreground">
               {t('documents.subtitle')}
             </p>
           </div>
@@ -661,14 +660,6 @@ export function DocumentManager() {
             <PipelineStatusDialog
               open={pipelineDialogOpen}
               onOpenChange={setPipelineDialogOpen}
-            />
-            
-            {/* Scan Documents Button (GAP-UI-001) */}
-            <ScanDocumentsButton
-              onScanStarted={(trackId) => {
-                setActiveTrackId(trackId);
-                setPipelineDialogOpen(true);
-              }}
             />
             
             {/* Reprocess Failed Button (GAP-UI-002) */}
@@ -928,28 +919,29 @@ export function DocumentManager() {
       )}
 
       {/* Documents Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="py-3 px-4">
+          <CardTitle className="flex items-center gap-2 text-sm font-medium">
+            <FileText className="h-4 w-4" />
             Documents ({documents.length})
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {isLoading ? (
-            <div className="space-y-2">
+            <div className="space-y-2 p-4">
               {[...Array(3)].map((_, i) => (
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
             </div>
           ) : documents.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No documents yet</p>
-              <p className="text-sm">Upload documents to build your knowledge graph</p>
+            <div className="text-center py-8 text-muted-foreground px-4">
+              <FileText className="h-10 w-10 mx-auto mb-3 opacity-50" />
+              <p className="font-medium">No documents yet</p>
+              <p className="text-sm mt-1">Upload documents to build your knowledge graph</p>
             </div>
           ) : (
-            <Table>
+            <div className="overflow-x-auto">
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[40px]">
@@ -1038,11 +1030,12 @@ export function DocumentManager() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
           
           {/* Pagination */}
           {documents.length > 0 && (
-            <div className="mt-4">
+            <div className="p-4 border-t">
               <PaginationControls
                 currentPage={currentPage}
                 totalPages={totalPages}

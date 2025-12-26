@@ -353,12 +353,18 @@ export interface PipelineStatus {
 export interface HealthResponse {
   status: "healthy" | "degraded" | "unhealthy";
   version: string;
-  uptime_seconds: number;
+  uptime_seconds?: number;
+  workspace_id?: string;
   components: {
-    database: "up" | "down";
-    llm_provider: "up" | "down";
-    storage: "up" | "down";
+    database?: "up" | "down";
+    llm_provider: "up" | "down" | boolean;
+    storage: "up" | "down" | boolean;
+    kv_storage?: boolean;
+    vector_storage?: boolean;
+    graph_storage?: boolean;
   };
+  /** LLM provider name (e.g., "openai", "mock", "ollama") */
+  llm_provider_name?: string;
 }
 
 // Entity types

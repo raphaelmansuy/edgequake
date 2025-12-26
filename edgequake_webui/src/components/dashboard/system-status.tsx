@@ -86,30 +86,51 @@ export function SystemStatus() {
           )}
 
           {/* Storage Status */}
-          {isConnected && health?.components?.storage && (
+          {isConnected && (health?.components?.storage || health?.components?.graph_storage !== undefined) && (
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">
                 {t('dashboard.system.storage', 'Storage')}
               </span>
               <Badge variant="outline" className="gap-1">
-                <Circle className={`h-2 w-2 ${health.components.storage === 'up' ? 'fill-green-500 text-green-500' : 'fill-red-500 text-red-500'}`} />
-                {health.components.storage === 'up' ? 'Connected' : 'Disconnected'}
+                <Circle className={`h-2 w-2 ${
+                  health.components?.storage === 'up' || 
+                  health.components?.storage === true ||
+                  health.components?.graph_storage === true
+                    ? 'fill-green-500 text-green-500' 
+                    : 'fill-red-500 text-red-500'
+                }`} />
+                {health.components?.storage === 'up' || 
+                 health.components?.storage === true || 
+                 health.components?.graph_storage === true 
+                  ? 'Connected' 
+                  : 'Disconnected'}
               </Badge>
             </div>
           )}
 
           {/* LLM Status */}
-          {isConnected && health?.components?.llm_provider && (
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">
-                {t('dashboard.system.llmProvider', 'LLM Provider')}
-              </span>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">
+              {t('dashboard.system.llmProvider', 'LLM Provider')}
+            </span>
+            {isConnected && (health?.llm_provider_name || health?.components?.llm_provider) ? (
               <Badge variant="outline" className="gap-1">
-                <Circle className={`h-2 w-2 ${health.components.llm_provider === 'up' ? 'fill-green-500 text-green-500' : 'fill-red-500 text-red-500'}`} />
-                {health.components.llm_provider === 'up' ? 'Available' : 'Unavailable'}
+                <Circle className={`h-2 w-2 ${
+                  health.components?.llm_provider === 'up' || health.components?.llm_provider === true 
+                    ? 'fill-green-500 text-green-500' 
+                    : 'fill-red-500 text-red-500'
+                }`} />
+                {health.llm_provider_name 
+                  ? health.llm_provider_name.charAt(0).toUpperCase() + health.llm_provider_name.slice(1)
+                  : (health.components?.llm_provider === 'up' || health.components?.llm_provider === true ? 'Available' : 'Unavailable')}
               </Badge>
-            </div>
-          )}
+            ) : (
+              <Badge variant="outline" className="gap-1">
+                <Circle className="h-2 w-2 fill-red-500 text-red-500" />
+                Unavailable
+              </Badge>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>

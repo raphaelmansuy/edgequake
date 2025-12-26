@@ -1,14 +1,13 @@
 'use client';
 
 import { ClientOnly } from '@/components/client-only';
-import { TenantWorkspaceSelector } from '@/components/shared/tenant-workspace-selector';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useSettingsStore } from '@/stores/use-settings-store';
@@ -17,6 +16,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { HeaderTenantSelector } from './header-tenant-selector';
 
 const navItems = [
   { href: '/', icon: Home, labelKey: 'nav.dashboard' },
@@ -46,38 +46,22 @@ function SidebarContent({
       <div className="flex h-full flex-col">
         {/* Logo */}
         <div className={cn(
-          "flex h-16 items-center border-b",
-          collapsed ? "justify-center px-3" : "px-5"
+          "flex h-12 items-center border-b shrink-0",
+          collapsed ? "justify-center px-2" : "px-4"
         )}>
           <Link 
             href="/" 
-            className="flex items-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-lg"
+            className="flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-lg"
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary" aria-hidden="true">
-              <Network className="h-5 w-5 text-primary-foreground" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary" aria-hidden="true">
+              <Network className="h-4 w-4 text-primary-foreground" />
             </div>
-            {!collapsed && <span className="text-xl font-bold tracking-tight">EdgeQuake</span>}
+            {!collapsed && <span className="text-lg font-bold tracking-tight">EdgeQuake</span>}
           </Link>
         </div>
 
-        {/* Tenant/Workspace Selector */}
-        {!collapsed && (
-          <div className="px-3 py-3">
-            <ClientOnly fallback={null}>
-              <TenantWorkspaceSelector compact={false} />
-            </ClientOnly>
-          </div>
-        )}
-        {collapsed && (
-          <div className="px-2 py-3 flex justify-center">
-            <ClientOnly fallback={null}>
-              <TenantWorkspaceSelector compact={true} />
-            </ClientOnly>
-          </div>
-        )}
-
         {/* Navigation */}
-        <nav className="flex-1 space-y-1 px-3 py-2" aria-label={t('common.navigation', 'Main navigation')}>
+        <nav className="flex-1 space-y-0.5 px-2 py-3" aria-label={t('common.navigation', 'Main navigation')}>
           {navItems.map(({ href, icon: Icon, labelKey }) => {
             // Handle home page "/" specially to avoid matching all paths
             const isActive = href === '/' 
@@ -91,16 +75,16 @@ function SidebarContent({
                 onClick={onItemClick}
                 aria-current={isActive ? 'page' : undefined}
                 className={cn(
-                  'flex items-center rounded-xl px-3 py-3 text-sm font-medium transition-all duration-150',
-                  'min-h-[44px] touch-target', // WCAG touch target
+                  'flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
+                  'min-h-[40px]', // Slightly smaller touch target but still accessible
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
-                  collapsed ? 'justify-center' : 'gap-3',
+                  collapsed ? 'justify-center' : 'gap-2.5',
                   isActive
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 )}
               >
-                <Icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
+                <Icon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
                 {!collapsed && <span>{t(labelKey)}</span>}
               </Link>
             );
@@ -124,7 +108,7 @@ function SidebarContent({
 
         {/* Footer */}
         <div className={cn(
-          "border-t p-4 space-y-3 transition-all duration-200",
+          "border-t p-3 space-y-2 transition-all duration-200",
           collapsed && "p-2"
         )}>
           {showToggle && (
@@ -136,7 +120,7 @@ function SidebarContent({
                     size="sm"
                     onClick={onToggle}
                     className={cn(
-                      "w-full min-h-[40px] transition-all duration-200 hover:bg-muted",
+                      "w-full min-h-[36px] transition-all duration-200 hover:bg-muted",
                       collapsed ? "px-0 justify-center" : "justify-start"
                     )}
                     aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -146,7 +130,7 @@ function SidebarContent({
                     ) : (
                       <>
                         <ChevronLeft className="h-4 w-4 mr-2" />
-                        <span className="text-sm">Collapse</span>
+                        <span className="text-xs">Collapse</span>
                       </>
                     )}
                   </Button>
@@ -165,16 +149,16 @@ function SidebarContent({
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className={cn(
-                  "flex items-center gap-3 px-1 py-1 rounded-lg transition-colors hover:bg-muted/50 cursor-default",
+                  "flex items-center gap-2.5 px-1 py-1 rounded-lg transition-colors hover:bg-muted/50 cursor-default",
                   collapsed && "justify-center px-0"
                 )}>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary/80 to-primary shrink-0">
-                    <Network className="h-4 w-4 text-primary-foreground" />
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary/80 to-primary shrink-0">
+                    <Network className="h-3.5 w-3.5 text-primary-foreground" />
                   </div>
                   {!collapsed && (
                     <div className="flex flex-col min-w-0">
-                      <span className="text-sm font-semibold truncate">EdgeQuake</span>
-                      <span className="text-[10px] text-muted-foreground">v0.1.0</span>
+                      <span className="text-xs font-semibold truncate">EdgeQuake</span>
+                      <span className="text-[9px] text-muted-foreground">v0.1.0</span>
                     </div>
                   )}
                 </div>
@@ -225,12 +209,18 @@ export function MobileSidebar() {
             <span className="sr-only">Toggle menu</span>
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="w-64 p-0">
+        <SheetContent side="left" className="w-64 p-0 flex flex-col">
           <SheetHeader className="sr-only">
             <SheetTitle>Navigation Menu</SheetTitle>
             <SheetDescription>Main navigation for EdgeQuake application</SheetDescription>
           </SheetHeader>
-          <SidebarContent onItemClick={() => setOpen(false)} />
+          {/* Tenant Selector for Mobile */}
+          <div className="border-b p-3">
+            <HeaderTenantSelector className="w-full" />
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <SidebarContent onItemClick={() => setOpen(false)} />
+          </div>
         </SheetContent>
       </Sheet>
     </ClientOnly>

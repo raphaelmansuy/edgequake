@@ -90,7 +90,7 @@ export const ThinkingDisplay = memo(function ThinkingDisplay({
         ) : (
           <ChevronRight className="h-4 w-4 text-muted-foreground" />
         )}
-        <Brain className="h-4 w-4 text-purple-500" />
+        <Brain className="h-4 w-4 text-muted-foreground" />
         <span className="text-sm font-medium text-muted-foreground">
           {t('query.thinking', 'Reasoning Process')}
         </span>
@@ -105,7 +105,7 @@ export const ThinkingDisplay = memo(function ThinkingDisplay({
           {parsedContent.thinking.map((block, index) => (
             <div
               key={index}
-              className="pl-6 border-l-2 border-purple-300 dark:border-purple-700"
+              className="pl-6 border-l-2 border-muted-foreground/30"
             >
               <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                 {block}

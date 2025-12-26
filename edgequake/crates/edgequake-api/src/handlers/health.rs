@@ -1,7 +1,8 @@
 //! Health check handlers.
 
 use axum::{extract::State, Json};
-use edgequake_storage::{GraphStorage, KVStorage, VectorStorage};
+use edgequake_llm::traits::LLMProvider;
+use edgequake_storage::GraphStorage;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -22,6 +23,10 @@ pub struct HealthResponse {
 
     /// Component health.
     pub components: ComponentHealth,
+
+    /// LLM provider name (e.g., "openai", "mock", "ollama").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub llm_provider_name: Option<String>,
 }
 
 /// Component health status.
@@ -57,11 +62,15 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
         llm_provider: true, // Assume available, actual check would require API call
     };
 
+    // Get the LLM provider name from the configured provider
+    let llm_provider_name = Some(state.llm_provider.name().to_string());
+
     let response = HealthResponse {
         status: "healthy".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         workspace_id: state.config.workspace_id.clone(),
         components,
+        llm_provider_name,
     };
 
     Ok(Json(response))

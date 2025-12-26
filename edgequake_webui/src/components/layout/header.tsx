@@ -23,6 +23,7 @@ import { Circle, LogOut, Monitor, Moon, Sun, User } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import { HeaderTenantSelector } from './header-tenant-selector';
 import { MobileSidebar } from './sidebar';
 
 type ConnectionStatus = 'connected' | 'disconnected' | 'checking';
@@ -70,20 +71,27 @@ export function Header() {
   };
 
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-card px-4">
-      <div className="flex items-center gap-4">
+    <header className="flex h-12 items-center justify-between border-b bg-card/95 backdrop-blur-sm px-3 shrink-0">
+      <div className="flex items-center gap-3">
         <MobileSidebar />
-        <span className="text-lg font-semibold md:hidden" aria-hidden="true">EdgeQuake</span>
+        <span className="text-base font-semibold md:hidden" aria-hidden="true">EdgeQuake</span>
+        
+        {/* Tenant/Workspace Selector - Desktop only */}
+        <div className="hidden md:flex">
+          <ClientOnly fallback={null}>
+            <HeaderTenantSelector />
+          </ClientOnly>
+        </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1">
         {/* Connection Status */}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="flex items-center gap-1.5 text-sm text-muted-foreground px-2">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground px-2 py-1 rounded-md hover:bg-muted/50 transition-colors">
                 <Circle
-                  className={`h-2 w-2 fill-current ${
+                  className={`h-1.5 w-1.5 fill-current ${
                     connectionStatus === 'connected'
                       ? 'text-green-500'
                       : connectionStatus === 'disconnected'
@@ -91,12 +99,12 @@ export function Header() {
                       : 'text-yellow-500 animate-pulse'
                   }`}
                 />
-                <span className="hidden sm:inline">
+                <span className="hidden sm:inline font-medium">
                   {connectionStatus === 'connected'
-                    ? `API ${version}`
+                    ? `v${version}`
                     : connectionStatus === 'disconnected'
                     ? 'Offline'
-                    : 'Connecting...'}
+                    : '...'}
                 </span>
               </div>
             </TooltipTrigger>
@@ -116,12 +124,12 @@ export function Header() {
         </ClientOnly>
 
         {/* Theme Toggle */}
-        <ClientOnly fallback={<Button variant="ghost" size="icon"><Sun className="h-5 w-5" /></Button>}>
+        <ClientOnly fallback={<Button variant="ghost" size="icon" className="h-8 w-8"><Sun className="h-4 w-4" /></Button>}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-                <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
                 <span className="sr-only">Toggle theme</span>
               </Button>
             </DropdownMenuTrigger>
@@ -143,11 +151,11 @@ export function Header() {
         </ClientOnly>
 
         {/* User Menu */}
-        <ClientOnly fallback={<Button variant="ghost" size="icon"><User className="h-5 w-5" /></Button>}>
+        <ClientOnly fallback={<Button variant="ghost" size="icon" className="h-8 w-8"><User className="h-4 w-4" /></Button>}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <User className="h-5 w-5" />
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <User className="h-4 w-4" />
                 <span className="sr-only">User menu</span>
               </Button>
             </DropdownMenuTrigger>

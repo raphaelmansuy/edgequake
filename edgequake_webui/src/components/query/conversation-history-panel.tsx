@@ -261,7 +261,7 @@ export function ConversationHistoryPanel({ className }: ConversationHistoryPanel
     return (
       <div
         className={cn(
-          "flex flex-col items-center justify-start py-4 w-12 border-l bg-card/50 shrink-0 transition-all duration-200",
+          "hidden md:flex flex-col items-center justify-start py-4 w-12 border-l bg-card/50 shrink-0 transition-all duration-200",
           className
         )}
       >
@@ -290,7 +290,7 @@ export function ConversationHistoryPanel({ className }: ConversationHistoryPanel
   return (
     <aside
       className={cn(
-        "flex flex-col w-72 border-l bg-card/50 backdrop-blur-sm shrink-0 transition-all duration-200",
+        "hidden md:flex flex-col w-72 border-l bg-card/50 backdrop-blur-sm shrink-0 transition-all duration-200",
         className
       )}
       aria-label={t("query.history.title", "Conversation history")}
