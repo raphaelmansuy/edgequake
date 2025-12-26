@@ -107,7 +107,7 @@ export const RightPanel = forwardRef<HTMLDivElement, RightPanelProps>(
       >
         {/* Header */}
         {(title || onClose) && (
-          <div className="flex items-center justify-between border-b px-4 py-3 flex-shrink-0">
+          <div className="flex items-center justify-between border-b px-3 py-2 flex-shrink-0 bg-muted/20">
             <div className="flex items-center gap-2 min-w-0">
               {headerIcon && (
                 <div className="flex-shrink-0 text-muted-foreground">
@@ -116,32 +116,32 @@ export const RightPanel = forwardRef<HTMLDivElement, RightPanelProps>(
               )}
               <div className="min-w-0">
                 {title && (
-                  <h3 className="text-sm font-semibold truncate">{title}</h3>
+                  <h3 className="text-xs font-semibold truncate">{title}</h3>
                 )}
                 {subtitle && (
-                  <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">{subtitle}</p>
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-1 flex-shrink-0">
+            <div className="flex items-center gap-0.5 flex-shrink-0">
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
+                className="h-6 w-6"
                 onClick={onToggle}
                 aria-label="Collapse panel"
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-3.5 w-3.5" />
               </Button>
               {onClose && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7"
+                  className="h-6 w-6"
                   onClick={onClose}
                   aria-label="Close panel"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-3.5 w-3.5" />
                 </Button>
               )}
             </div>

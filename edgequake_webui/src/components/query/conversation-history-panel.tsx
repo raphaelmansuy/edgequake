@@ -100,10 +100,10 @@ const ConversationItem = memo(function ConversationItem({
   return (
     <div
       className={cn(
-        "group relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150",
+        "group relative flex items-center gap-2 px-2.5 py-2 rounded-md cursor-pointer transition-all duration-150",
         isActive 
-          ? "bg-primary/10 border border-primary/20 shadow-sm" 
-          : "hover:bg-muted/70 border border-transparent"
+          ? "bg-primary/10 border border-primary/20" 
+          : "hover:bg-muted/60 border border-transparent"
       )}
       onClick={onSelect}
       role="button"
@@ -117,11 +117,11 @@ const ConversationItem = memo(function ConversationItem({
       aria-pressed={isActive}
     >
       <div className={cn(
-        "w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors",
-        isActive ? "bg-primary/15" : "bg-muted/50"
+        "w-7 h-7 rounded-md flex items-center justify-center shrink-0 transition-colors",
+        isActive ? "bg-primary/15" : "bg-muted/40"
       )}>
         <MessageSquare className={cn(
-          "h-4 w-4",
+          "h-3.5 w-3.5",
           isActive ? "text-primary" : "text-muted-foreground"
         )} />
       </div>
@@ -133,14 +133,14 @@ const ConversationItem = memo(function ConversationItem({
             onChange={(e) => setEditTitle(e.target.value)}
             onBlur={handleSaveTitle}
             onKeyDown={handleKeyDown}
-            className="h-6 text-sm py-0 px-1"
+            className="h-5 text-xs py-0 px-1"
             autoFocus
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
           <>
-            <p className="text-sm font-medium truncate">{conversation.title}</p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs font-medium truncate leading-tight">{conversation.title}</p>
+            <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">
               {conversation.messages.length} {t("query.messages", "messages")} · {formattedDate}
             </p>
           </>
@@ -261,23 +261,23 @@ export function ConversationHistoryPanel({ className }: ConversationHistoryPanel
     return (
       <div
         className={cn(
-          "hidden md:flex flex-col items-center justify-start py-4 w-12 border-l bg-card/50 shrink-0 transition-all duration-200",
+          "hidden md:flex flex-col items-center justify-start py-3 w-10 border-l bg-card/50 shrink-0 transition-all duration-200",
           className
         )}
       >
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 hover:bg-muted"
+          className="h-7 w-7 hover:bg-muted"
           onClick={toggleHistoryPanel}
           aria-label={t("query.history.expand", "Expand history")}
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-3.5 w-3.5" />
         </Button>
-        <div className="mt-4 flex flex-col items-center gap-2">
-          <MessageSquare className="h-4 w-4 text-muted-foreground" />
+        <div className="mt-3 flex flex-col items-center gap-1.5">
+          <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
           <span
-            className="text-xs text-muted-foreground"
+            className="text-[10px] text-muted-foreground font-medium"
             style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
           >
             {t("query.history.title", "History")}
@@ -290,58 +290,60 @@ export function ConversationHistoryPanel({ className }: ConversationHistoryPanel
   return (
     <aside
       className={cn(
-        "hidden md:flex flex-col w-72 border-l bg-card/50 backdrop-blur-sm shrink-0 transition-all duration-200",
+        "hidden md:flex flex-col w-64 border-l bg-card/50 backdrop-blur-sm shrink-0 transition-all duration-200",
         className
       )}
       aria-label={t("query.history.title", "Conversation history")}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b bg-card/80 shrink-0">
-        <h2 className="text-sm font-semibold">{t("query.history.title", "History")}</h2>
-        <div className="flex items-center gap-1">
+      <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/20 shrink-0">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {t("query.history.title", "History")}
+        </h2>
+        <div className="flex items-center gap-0.5">
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 hover:bg-muted"
+            className="h-6 w-6 hover:bg-muted"
             onClick={handleNewConversation}
             aria-label={t("query.history.newConversation", "New conversation")}
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-3.5 w-3.5" />
           </Button>
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 hover:bg-muted"
+            className="h-6 w-6 hover:bg-muted"
             onClick={toggleHistoryPanel}
             aria-label={t("query.history.collapse", "Collapse history")}
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
 
       {/* Search */}
-      <div className="p-3 border-b shrink-0">
+      <div className="p-2 border-b shrink-0">
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
           <Input
             placeholder={t("query.history.search", "Search conversations...")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-9 pl-8 text-sm bg-muted/30 border-muted focus:bg-background transition-colors"
+            className="h-7 pl-7 text-xs bg-muted/30 border-muted focus:bg-background transition-colors"
           />
         </div>
       </div>
 
       {/* Conversation List */}
       <ScrollArea className="flex-1">
-        <div className="p-3 space-y-1">
+        <div className="p-2 space-y-0.5">
           {filteredConversations.length === 0 ? (
-            <div className="py-12 text-center">
-              <div className="w-12 h-12 mx-auto rounded-full bg-muted/50 flex items-center justify-center mb-3">
-                <MessageSquare className="h-6 w-6 text-muted-foreground/50" />
+            <div className="py-10 text-center">
+              <div className="w-10 h-10 mx-auto rounded-full bg-muted/50 flex items-center justify-center mb-2">
+                <MessageSquare className="h-5 w-5 text-muted-foreground/50" />
               </div>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {searchQuery
                   ? t("query.history.noResults", "No conversations found")
                   : t("query.history.empty", "No conversations yet")}
@@ -351,7 +353,7 @@ export function ConversationHistoryPanel({ className }: ConversationHistoryPanel
                   variant="link"
                   size="sm"
                   onClick={handleNewConversation}
-                  className="mt-2 text-primary"
+                  className="mt-1 text-xs text-primary"
                 >
                   {t("query.history.startFirst", "Start your first conversation")}
                 </Button>

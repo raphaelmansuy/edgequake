@@ -64,21 +64,21 @@ const EntityItem = memo(function EntityItem({
       aria-selected={isSelected}
       tabIndex={isFocused ? 0 : -1}
       className={cn(
-        "w-full text-left px-3 py-2.5 rounded-lg transition-all duration-150",
-        "flex items-center gap-2.5 group outline-none",
+        "w-full text-left px-2.5 py-1.5 rounded-md transition-all duration-150",
+        "flex items-center gap-2 group outline-none",
         "focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1",
         isSelected
-          ? "bg-primary text-primary-foreground shadow-sm border-l-4 border-primary"
+          ? "bg-primary text-primary-foreground shadow-sm border-l-3 border-primary"
           : isFocused
           ? "bg-muted ring-1 ring-primary/50"
-          : "hover:bg-muted/70 hover:translate-x-0.5"
+          : "hover:bg-muted/60"
       )}
     >
       <div
         className={cn(
-          "w-2.5 h-2.5 rounded-full shrink-0 ring-2 transition-transform",
+          "w-2 h-2 rounded-full shrink-0 ring-1.5 transition-transform",
           isSelected 
-            ? "ring-primary-foreground/30 scale-125" 
+            ? "ring-primary-foreground/30 scale-110" 
             : "ring-white dark:ring-gray-800"
         )}
         style={{
@@ -87,14 +87,14 @@ const EntityItem = memo(function EntityItem({
       />
       <div className="flex-1 min-w-0">
         <p className={cn(
-          "text-sm font-medium truncate",
+          "text-xs font-medium truncate leading-tight",
           isSelected && "font-semibold"
         )}>
           {node.label}
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 mt-0.5">
           <span className={cn(
-            "text-[10px] uppercase tracking-wider",
+            "text-[9px] uppercase tracking-wider",
             isSelected ? "text-primary-foreground/70" : "text-muted-foreground"
           )}>
             {node.node_type}
@@ -102,11 +102,11 @@ const EntityItem = memo(function EntityItem({
           {node.degree && node.degree > 0 && (
             <>
               <span className={cn(
-                "text-[10px]",
+                "text-[9px]",
                 isSelected ? "text-primary-foreground/50" : "text-muted-foreground/50"
               )}>·</span>
-              <div className="flex items-center gap-1">
-                <div className="w-12 h-1 bg-muted/50 rounded-full overflow-hidden">
+              <div className="flex items-center gap-0.5">
+                <div className="w-8 h-0.5 bg-muted/50 rounded-full overflow-hidden">
                   <div 
                     className={cn(
                       "h-full rounded-full transition-all",
@@ -116,7 +116,7 @@ const EntityItem = memo(function EntityItem({
                   />
                 </div>
                 <span className={cn(
-                  "text-[10px] font-medium",
+                  "text-[9px] font-medium tabular-nums",
                   isSelected ? "text-primary-foreground/70" : "text-muted-foreground"
                 )}>
                   {node.degree}
