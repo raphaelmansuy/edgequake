@@ -1,9 +1,9 @@
 // Key stats card (sticky at top of sidebar)
 'use client';
 
-import { Clock, FileText, Link2, Network } from 'lucide-react';
-import type { Document } from '@/types';
 import { cn } from '@/lib/utils';
+import type { Document } from '@/types';
+import { Clock, FileText, Link2, Network } from 'lucide-react';
 
 interface KeyStatsProps {
   document: Document;

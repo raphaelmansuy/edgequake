@@ -2,8 +2,8 @@
 'use client';
 
 import { Badge } from '@/components/ui/badge';
-import { Brain, Database, FileSearch, Network, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Brain, Database, FileSearch, Network, Upload } from 'lucide-react';
 
 interface LineageTreeProps {
   lineage: any; // DocumentLineage type

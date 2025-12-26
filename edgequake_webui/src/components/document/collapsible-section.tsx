@@ -1,9 +1,9 @@
 // Collapsible section component with smooth animations
 'use client';
 
-import { useState } from 'react';
-import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ChevronDown } from 'lucide-react';
+import { useState } from 'react';
 
 interface CollapsibleSectionProps {
   title: string;

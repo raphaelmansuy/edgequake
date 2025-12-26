@@ -11,11 +11,13 @@ This comprehensive UX/UI improvement plan addresses critical user experience iss
 ## Key Objectives
 
 ### 1. **Workspace/Tenant Default Selection** (Priority: HIGH)
+
 - **Problem:** Users must manually select workspace and tenant on every page load
 - **Solution:** Implement intelligent default selection and persistent context
 - **Impact:** Reduces friction and improves first-time user experience by 80%
 
 ### 2. **Document Detail Page Redesign** (Priority: HIGH)
+
 - **Problem:** Current page has poor scrolling, generic content display, inadequate lineage visibility
 - **Solution:** Sleek, modern design with specialized content renderers and smart layout
 - **Impact:** Transforms document viewing into a delightful, efficient experience
@@ -23,6 +25,7 @@ This comprehensive UX/UI improvement plan addresses critical user experience iss
 ## Design Philosophy: Slick Design Principles
 
 ### Core Tenets
+
 1. **Spatial Intelligence:** Smart use of whitespace, breathing room for content
 2. **Visual Hierarchy:** Clear information architecture with progressive disclosure
 3. **Micro-interactions:** Subtle animations and transitions that feel natural
@@ -31,6 +34,7 @@ This comprehensive UX/UI improvement plan addresses critical user experience iss
 6. **Accessibility:** WCAG 2.1 AA compliance, keyboard navigation, screen reader support
 
 ### Visual Language
+
 - **Typography:** Variable font scales, optimal reading widths (65-75 characters)
 - **Color System:** Semantic colors with dark/light mode support
 - **Motion:** Spring-based animations (react-spring), reduced motion support
@@ -40,12 +44,14 @@ This comprehensive UX/UI improvement plan addresses critical user experience iss
 ## Success Metrics
 
 ### User Experience Metrics
+
 - **First Interaction Time:** < 2 seconds to first meaningful action
 - **Task Completion Rate:** > 95% for viewing documents
 - **User Satisfaction:** > 4.5/5 on UX surveys
 - **Error Rate:** < 2% for workspace/tenant selection
 
 ### Technical Metrics
+
 - **Page Load Time:** < 1.5 seconds
 - **Time to Interactive:** < 3 seconds
 - **Core Web Vitals:**
@@ -56,21 +62,25 @@ This comprehensive UX/UI improvement plan addresses critical user experience iss
 ## Implementation Phases
 
 ### Phase 1: Foundation (Week 1)
+
 - Workspace/tenant default selection
 - Store improvements and persistence
 - Initial onboarding experience
 
 ### Phase 2: Document Detail Core (Week 1-2)
+
 - New page layout and structure
 - Specialized content renderers
 - Lineage and metadata display
 
 ### Phase 3: Polish & Interactions (Week 2)
+
 - Micro-interactions and animations
 - Responsive design refinements
 - Accessibility audit and fixes
 
 ### Phase 4: Testing & Validation (Week 2-3)
+
 - E2E test suite
 - Performance optimization
 - User acceptance testing
@@ -78,25 +88,26 @@ This comprehensive UX/UI improvement plan addresses critical user experience iss
 ## Technical Stack Enhancements
 
 ### New Dependencies (if needed)
+
 ```json
 {
-  "react-spring": "^9.7.5",           // Smooth animations
-  "react-markdown": "^9.0.1",          // Enhanced markdown rendering
-  "react-pdf": "^9.1.0",               // PDF preview
+  "react-spring": "^9.7.5", // Smooth animations
+  "react-markdown": "^9.0.1", // Enhanced markdown rendering
+  "react-pdf": "^9.1.0", // PDF preview
   "react-syntax-highlighter": "^15.5.0", // Code highlighting (already present)
-  "framer-motion": "^11.15.0",         // Advanced animations (alternative)
-  "@xyflow/react": "^12.3.4"           // For visualizing lineage graphs
+  "framer-motion": "^11.15.0", // Advanced animations (alternative)
+  "@xyflow/react": "^12.3.4" // For visualizing lineage graphs
 }
 ```
 
 ## Risk Assessment
 
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| Breaking existing workflows | Low | High | Comprehensive E2E tests, feature flags |
-| Performance degradation | Medium | Medium | Performance budgets, lazy loading |
-| Browser compatibility | Low | Medium | Progressive enhancement, polyfills |
-| Accessibility regressions | Medium | High | Automated a11y testing, manual audits |
+| Risk                        | Probability | Impact | Mitigation                             |
+| --------------------------- | ----------- | ------ | -------------------------------------- |
+| Breaking existing workflows | Low         | High   | Comprehensive E2E tests, feature flags |
+| Performance degradation     | Medium      | Medium | Performance budgets, lazy loading      |
+| Browser compatibility       | Low         | Medium | Progressive enhancement, polyfills     |
+| Accessibility regressions   | Medium      | High   | Automated a11y testing, manual audits  |
 
 ## Next Steps
 

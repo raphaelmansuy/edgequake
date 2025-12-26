@@ -1,10 +1,10 @@
 // Smart content renderer that adapts to document MIME type
 'use client';
 
-import { Suspense, useMemo } from 'react';
-import { Skeleton } from '@/components/ui/skeleton';
 import { MarkdownRenderer } from '@/components/query/markdown-renderer';
+import { Skeleton } from '@/components/ui/skeleton';
 import type { Document } from '@/types';
+import { Suspense, useMemo } from 'react';
 import { CodeRenderer } from './code-renderer';
 import { PlainTextRenderer } from './plain-text-renderer';
 

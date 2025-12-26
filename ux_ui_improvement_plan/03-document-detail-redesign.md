@@ -9,18 +9,21 @@
 ### Current Issues (from screenshot and code review)
 
 1. **Poor Scrolling Experience**
+
    - Fixed header takes too much vertical space
    - ScrollArea implementation causes nested scrolling issues
    - No sticky metadata cards during scroll
    - Lineage section buried at bottom
 
 2. **Generic Content Display**
+
    - All content types rendered identically
    - No specialized viewers for markdown, code, PDF, images
    - Poor syntax highlighting for code content
    - No MIME type-aware rendering
 
 3. **Information Architecture**
+
    - Metadata scattered across multiple cards
    - Lineage information hidden in collapsed section
    - No visual hierarchy for important vs. auxiliary info
@@ -68,7 +71,7 @@
   <main className="flex-1 min-w-0">
     <ContentRenderer document={document} />
   </main>
-  
+
   {/* Sticky Metadata Sidebar - 35% width on desktop */}
   <aside className="w-[35%] border-l">
     <MetadataSidebar document={document} />
@@ -110,12 +113,10 @@ export function ContentRenderer({ document }: { document: Document }) {
     // Detect content type and return appropriate renderer
     return getRendererForDocument(document);
   }, [document]);
-  
+
   return (
     <div className="p-8 max-w-4xl mx-auto">
-      <Suspense fallback={<ContentSkeleton />}>
-        {renderer}
-      </Suspense>
+      <Suspense fallback={<ContentSkeleton />}>{renderer}</Suspense>
     </div>
   );
 }
@@ -125,32 +126,34 @@ function getRendererForDocument(doc: Document): ReactNode {
   if (isMarkdown(doc.mime_type) || hasMarkdownSignature(doc.content)) {
     return <MarkdownRenderer content={doc.content} enhanced />;
   }
-  
+
   // Code files
   if (isCode(doc.mime_type)) {
-    return <CodeRenderer 
-      content={doc.content}
-      language={detectLanguage(doc.mime_type, doc.file_name)}
-      showLineNumbers
-      theme="github-dark"
-    />;
+    return (
+      <CodeRenderer
+        content={doc.content}
+        language={detectLanguage(doc.mime_type, doc.file_name)}
+        showLineNumbers
+        theme="github-dark"
+      />
+    );
   }
-  
+
   // PDF documents
-  if (doc.mime_type === 'application/pdf') {
+  if (doc.mime_type === "application/pdf") {
     return <PDFViewer url={doc.url} />;
   }
-  
+
   // Images
   if (isImage(doc.mime_type)) {
     return <ImageViewer src={doc.url} alt={doc.title} />;
   }
-  
+
   // JSON/Structured data
-  if (doc.mime_type === 'application/json') {
+  if (doc.mime_type === "application/json") {
     return <JSONTreeViewer data={JSON.parse(doc.content)} />;
   }
-  
+
   // Fallback: Plain text with smart formatting
   return <PlainTextRenderer content={doc.content} />;
 }
@@ -162,7 +165,8 @@ function getRendererForDocument(doc: Document): ReactNode {
 // components/document/enhanced-markdown-renderer.tsx
 export function EnhancedMarkdownRenderer({ content }: { content: string }) {
   return (
-    <article className="
+    <article
+      className="
       prose prose-lg dark:prose-invert max-w-none
       prose-headings:font-display prose-headings:font-semibold
       prose-h1:text-4xl prose-h1:mb-6 prose-h1:mt-8
@@ -182,25 +186,30 @@ export function EnhancedMarkdownRenderer({ content }: { content: string }) {
       prose-hr:border-border prose-hr:my-8
       prose-table:border prose-table:rounded-lg
       prose-thead:bg-muted
-    ">
+    "
+    >
       <ReactMarkdown
         remarkPlugins={[
-          remarkGfm,           // GitHub Flavored Markdown
-          remarkMath,          // Math support
-          remarkToc,           // Table of contents
+          remarkGfm, // GitHub Flavored Markdown
+          remarkMath, // Math support
+          remarkToc, // Table of contents
         ]}
         rehypePlugins={[
-          rehypeKatex,         // Math rendering
-          rehypeSlug,          // Add IDs to headings
+          rehypeKatex, // Math rendering
+          rehypeSlug, // Add IDs to headings
           rehypeAutolinkHeadings, // Add links to headings
-          [rehypePrettyCode, {  // Beautiful code blocks
-            theme: 'github-dark',
-            onVisitLine(node) {
-              if (node.children.length === 0) {
-                node.children = [{ type: 'text', value: ' ' }];
-              }
+          [
+            rehypePrettyCode,
+            {
+              // Beautiful code blocks
+              theme: "github-dark",
+              onVisitLine(node) {
+                if (node.children.length === 0) {
+                  node.children = [{ type: "text", value: " " }];
+                }
+              },
             },
-          }],
+          ],
         ]}
         components={{
           // Custom component rendering
@@ -210,10 +219,14 @@ export function EnhancedMarkdownRenderer({ content }: { content: string }) {
           table: ResponsiveTable,
           // Mermaid diagrams
           div: ({ node, className, children, ...props }) => {
-            if (className === 'mermaid') {
+            if (className === "mermaid") {
               return <MermaidDiagram chart={children} />;
             }
-            return <div className={className} {...props}>{children}</div>;
+            return (
+              <div className={className} {...props}>
+                {children}
+              </div>
+            );
           },
         }}
       >
@@ -228,14 +241,14 @@ export function EnhancedMarkdownRenderer({ content }: { content: string }) {
 
 ```tsx
 // components/document/code-renderer.tsx
-export function CodeRenderer({ 
-  content, 
-  language, 
+export function CodeRenderer({
+  content,
+  language,
   showLineNumbers = true,
-  theme = 'github-dark'
+  theme = "github-dark",
 }: CodeRendererProps) {
   const [copied, setCopied] = useState(false);
-  
+
   return (
     <div className="relative group">
       {/* Floating toolbar */}
@@ -245,8 +258,8 @@ export function CodeRenderer({
             {language}
           </Badge>
           <Separator orientation="vertical" className="h-4" />
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
             variant="ghost"
             onClick={() => handleCopy(content)}
             className="h-7 px-2"
@@ -257,8 +270,8 @@ export function CodeRenderer({
               <Copy className="h-3.5 w-3.5" />
             )}
           </Button>
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
             variant="ghost"
             onClick={handleDownload}
             className="h-7 px-2"
@@ -267,25 +280,25 @@ export function CodeRenderer({
           </Button>
         </div>
       </div>
-      
+
       {/* Code content with syntax highlighting */}
       <SyntaxHighlighter
         language={language}
-        style={theme === 'github-dark' ? githubDark : githubLight}
+        style={theme === "github-dark" ? githubDark : githubLight}
         showLineNumbers={showLineNumbers}
         wrapLines
         customStyle={{
           margin: 0,
-          borderRadius: '0.75rem',
-          fontSize: '0.875rem',
-          lineHeight: '1.6',
-          padding: '1.5rem',
+          borderRadius: "0.75rem",
+          fontSize: "0.875rem",
+          lineHeight: "1.6",
+          padding: "1.5rem",
         }}
         lineNumberStyle={{
-          minWidth: '3em',
-          paddingRight: '1em',
-          color: 'var(--muted-foreground)',
-          userSelect: 'none',
+          minWidth: "3em",
+          paddingRight: "1em",
+          color: "var(--muted-foreground)",
+          userSelect: "none",
         }}
       >
         {content}
@@ -314,7 +327,7 @@ export function MetadataSidebar({ document }: { document: Document }) {
       <div className="sticky top-0 z-10 bg-background border-b p-4">
         <KeyStats document={document} />
       </div>
-      
+
       {/* Scrollable sections */}
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-4">
@@ -327,7 +340,7 @@ export function MetadataSidebar({ document }: { document: Document }) {
             <LineageTree lineage={document.lineage} />
             <ExtractionTimeline lineage={document.lineage} />
           </CollapsibleSection>
-          
+
           {/* Entity & Relationships */}
           <CollapsibleSection
             title="Knowledge Graph"
@@ -340,7 +353,7 @@ export function MetadataSidebar({ document }: { document: Document }) {
               relationships={document.relationship_count}
             />
           </CollapsibleSection>
-          
+
           {/* Source Information */}
           <CollapsibleSection
             title="Source Details"
@@ -348,7 +361,7 @@ export function MetadataSidebar({ document }: { document: Document }) {
           >
             <SourceInfoGrid document={document} />
           </CollapsibleSection>
-          
+
           {/* Processing Details */}
           <CollapsibleSection
             title="Processing Info"
@@ -400,19 +413,24 @@ function KeyStats({ document }: { document: Document }) {
 
 function StatCard({ icon, label, value, color }: StatCardProps) {
   const colorClasses = {
-    blue: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-    purple: 'bg-purple-500/10 text-purple-600 dark:text-purple-400',
-    green: 'bg-green-500/10 text-green-600 dark:text-green-400',
-    orange: 'bg-orange-500/10 text-orange-600 dark:text-orange-400',
+    blue: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    purple: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
+    green: "bg-green-500/10 text-green-600 dark:text-green-400",
+    orange: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
   };
-  
+
   return (
     <div className="flex flex-col gap-1 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-      <div className={cn('flex items-center gap-1.5 text-xs font-medium', colorClasses[color])}>
+      <div
+        className={cn(
+          "flex items-center gap-1.5 text-xs font-medium",
+          colorClasses[color]
+        )}
+      >
         {icon}
         <span>{label}</span>
       </div>
-      <div className="text-2xl font-bold">{value ?? '-'}</div>
+      <div className="text-2xl font-bold">{value ?? "-"}</div>
     </div>
   );
 }
@@ -465,15 +483,23 @@ function LineageTree({ lineage }: { lineage: DocumentLineage }) {
   );
 }
 
-function LineageNode({ icon, label, details, duration, status }: LineageNodeProps) {
+function LineageNode({
+  icon,
+  label,
+  details,
+  duration,
+  status,
+}: LineageNodeProps) {
   return (
     <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-      <div className={cn(
-        'flex items-center justify-center w-8 h-8 rounded-full',
-        status === 'completed' && 'bg-green-500/10',
-        status === 'processing' && 'bg-blue-500/10',
-        status === 'failed' && 'bg-red-500/10'
-      )}>
+      <div
+        className={cn(
+          "flex items-center justify-center w-8 h-8 rounded-full",
+          status === "completed" && "bg-green-500/10",
+          status === "processing" && "bg-blue-500/10",
+          status === "failed" && "bg-red-500/10"
+        )}
+      >
         {icon}
       </div>
       <div className="flex-1 min-w-0">
@@ -485,9 +511,7 @@ function LineageNode({ icon, label, details, duration, status }: LineageNodeProp
             </Badge>
           )}
         </div>
-        {details && (
-          <p className="text-xs text-muted-foreground">{details}</p>
-        )}
+        {details && <p className="text-xs text-muted-foreground">{details}</p>}
       </div>
     </div>
   );
@@ -500,21 +524,17 @@ function LineageNode({ icon, label, details, duration, status }: LineageNodeProp
 
 ```tsx
 // Spring-based animations for natural feel
-import { useSpring, animated } from '@react-spring/web';
+import { useSpring, animated } from "@react-spring/web";
 
 function AnimatedCard({ children, delay = 0 }: AnimatedCardProps) {
   const styles = useSpring({
-    from: { opacity: 0, transform: 'translateY(20px)' },
-    to: { opacity: 1, transform: 'translateY(0px)' },
+    from: { opacity: 0, transform: "translateY(20px)" },
+    to: { opacity: 1, transform: "translateY(0px)" },
     delay,
-    config: { tension: 280, friction: 60 }
+    config: { tension: 280, friction: 60 },
   });
-  
-  return (
-    <animated.div style={styles}>
-      {children}
-    </animated.div>
-  );
+
+  return <animated.div style={styles}>{children}</animated.div>;
 }
 ```
 
@@ -561,7 +581,7 @@ function AnimatedCard({ children, delay = 0 }: AnimatedCardProps) {
       <MetadataSidebar document={document} />
     </TabsContent>
   </Tabs>
-  
+
   {/* Desktop: Side-by-side */}
   <div className="hidden lg:flex flex-1">
     <ContentRenderer document={document} />
@@ -573,28 +593,30 @@ function AnimatedCard({ children, delay = 0 }: AnimatedCardProps) {
 ## Performance Optimizations
 
 ### 1. **Lazy Loading**
+
 ```typescript
 // Lazy load heavy renderers
-const PDFViewer = lazy(() => import('./pdf-viewer'));
-const MermaidDiagram = lazy(() => import('./mermaid-diagram'));
-const JSONTreeViewer = lazy(() => import('./json-tree-viewer'));
+const PDFViewer = lazy(() => import("./pdf-viewer"));
+const MermaidDiagram = lazy(() => import("./mermaid-diagram"));
+const JSONTreeViewer = lazy(() => import("./json-tree-viewer"));
 ```
 
 ### 2. **Virtualized Lists**
+
 ```tsx
 // For documents with many entities/relationships
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 function EntityList({ entities }: { entities: Entity[] }) {
   const parentRef = useRef<HTMLDivElement>(null);
-  
+
   const virtualizer = useVirtualizer({
     count: entities.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 50,
     overscan: 5,
   });
-  
+
   return (
     <div ref={parentRef} className="h-96 overflow-auto">
       <div style={{ height: `${virtualizer.getTotalSize()}px` }}>
@@ -603,10 +625,10 @@ function EntityList({ entities }: { entities: Entity[] }) {
             key={virtualRow.key}
             entity={entities[virtualRow.index]}
             style={{
-              position: 'absolute',
+              position: "absolute",
               top: 0,
               left: 0,
-              width: '100%',
+              width: "100%",
               transform: `translateY(${virtualRow.start}px)`,
             }}
           />
@@ -618,6 +640,7 @@ function EntityList({ entities }: { entities: Entity[] }) {
 ```
 
 ### 3. **Memoization**
+
 ```typescript
 // Prevent unnecessary re-renders
 const renderedContent = useMemo(
@@ -634,6 +657,7 @@ const lineageTree = useMemo(
 ## Implementation Checklist
 
 ### Phase 1: Layout & Structure (Days 1-2)
+
 - [ ] Create two-column layout component
 - [ ] Implement compact header
 - [ ] Build metadata sidebar shell
@@ -641,6 +665,7 @@ const lineageTree = useMemo(
 - [ ] Create collapsible section component
 
 ### Phase 2: Content Renderers (Days 3-4)
+
 - [ ] Enhanced markdown renderer
 - [ ] Code syntax highlighter
 - [ ] PDF viewer integration
@@ -649,6 +674,7 @@ const lineageTree = useMemo(
 - [ ] Fallback plain text renderer
 
 ### Phase 3: Metadata Components (Days 4-5)
+
 - [ ] Key stats cards (sticky)
 - [ ] Interactive lineage tree
 - [ ] Mini graph preview
@@ -657,6 +683,7 @@ const lineageTree = useMemo(
 - [ ] Source info grid
 
 ### Phase 4: Interactions & Polish (Days 6-7)
+
 - [ ] Smooth animations (react-spring)
 - [ ] Hover effects
 - [ ] Copy/download actions
@@ -666,6 +693,7 @@ const lineageTree = useMemo(
 - [ ] Mobile optimization
 
 ### Phase 5: Performance (Day 7)
+
 - [ ] Lazy loading setup
 - [ ] Code splitting
 - [ ] Virtualization for long lists
@@ -675,6 +703,7 @@ const lineageTree = useMemo(
 ## Files to Create/Modify
 
 ### New Files
+
 ```
 src/components/document/
 ├── content-renderer.tsx
@@ -692,6 +721,7 @@ src/components/document/
 ```
 
 ### Modified Files
+
 ```
 src/app/(dashboard)/documents/[id]/page.tsx    (Complete rewrite)
 src/components/query/markdown-renderer.tsx      (Enhance)
@@ -701,6 +731,7 @@ src/types/index.ts                              (Add new types)
 ## Success Criteria
 
 ✅ **User Experience**
+
 - Content type automatically detected and rendered appropriately
 - Lineage information immediately visible without scrolling
 - Smooth, delightful animations (60fps)
@@ -708,6 +739,7 @@ src/types/index.ts                              (Add new types)
 - Mobile-friendly with no horizontal scroll
 
 ✅ **Technical**
+
 - Lighthouse score > 90 for all metrics
 - Bundle size increase < 50KB (gzipped)
 - Time to interactive < 3s
@@ -715,6 +747,7 @@ src/types/index.ts                              (Add new types)
 - 100% E2E test coverage
 
 ✅ **Design**
+
 - Passes design system audit
 - WCAG 2.1 AA compliant
 - Consistent with rest of application

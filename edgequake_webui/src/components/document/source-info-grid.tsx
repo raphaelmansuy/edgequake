@@ -1,8 +1,8 @@
 // Source information grid
 'use client';
 
-import { format } from 'date-fns';
 import type { Document } from '@/types';
+import { format } from 'date-fns';
 
 interface SourceInfoGridProps {
   document: Document;

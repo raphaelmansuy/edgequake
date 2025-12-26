@@ -15,6 +15,7 @@ Currently, users must manually select a workspace and tenant every time they use
 ## Current Behavior Analysis
 
 ### Existing Implementation
+
 ```typescript
 // From use-tenant-store.ts
 useEffect(() => {
@@ -29,6 +30,7 @@ useEffect(() => {
 ```
 
 ### Issues Identified
+
 1. **No automatic workspace selection:** Tenant is selected but not workspace
 2. **Modal blocking:** Create workspace dialog appears on empty state (screenshot shows this)
 3. **No persistence priority:** Last-used context not remembered across sessions
@@ -50,13 +52,13 @@ useEffect(() => {
 interface ContextSelectionStrategy {
   // Check localStorage for last context
   getLastUsedContext(): { tenantId: string; workspaceId: string } | null;
-  
+
   // Get user's preferred default
   getDefaultContext(): { tenantId: string; workspaceId: string } | null;
-  
+
   // Auto-select first available
   selectFirstAvailable(): void;
-  
+
   // Show onboarding for new users
   showOnboarding(): boolean;
 }
@@ -70,17 +72,17 @@ export const useTenantStore = create<TenantStore>()(
   persist(
     (set, get) => ({
       ...initialState,
-      
+
       // New: Auto-initialization flag
       isInitialized: false,
-      
+
       // New: Onboarding state
       needsOnboarding: false,
-      
+
       // Enhanced: Smart initialization
       initializeContext: async () => {
         const { tenants, workspaces } = get();
-        
+
         // 1. Try last used context
         const lastUsed = getLastUsedContext();
         if (lastUsed && validateContext(lastUsed)) {
@@ -91,7 +93,7 @@ export const useTenantStore = create<TenantStore>()(
           });
           return;
         }
-        
+
         // 2. Try default context from API
         const defaultContext = await fetchDefaultContext();
         if (defaultContext) {
@@ -102,12 +104,12 @@ export const useTenantStore = create<TenantStore>()(
           });
           return;
         }
-        
+
         // 3. Auto-select first available
         if (tenants.length > 0) {
           const tenant = tenants[0];
           const workspace = workspaces[0];
-          
+
           if (workspace) {
             set({
               selectedTenantId: tenant.id,
@@ -116,13 +118,13 @@ export const useTenantStore = create<TenantStore>()(
             });
             return;
           }
-          
+
           // Has tenant but no workspace -> create default
           const newWorkspace = await createWorkspace(tenant.id, {
-            name: 'Default Workspace',
-            description: 'Automatically created workspace'
+            name: "Default Workspace",
+            description: "Automatically created workspace",
           });
-          
+
           set({
             selectedTenantId: tenant.id,
             selectedWorkspaceId: newWorkspace.id,
@@ -130,22 +132,25 @@ export const useTenantStore = create<TenantStore>()(
           });
           return;
         }
-        
+
         // 4. No tenants/workspaces -> show onboarding
-        set({ 
+        set({
           needsOnboarding: true,
-          isInitialized: true 
+          isInitialized: true,
         });
       },
-      
+
       // Save last used context
       saveContextPreference: (tenantId: string, workspaceId: string) => {
-        localStorage.setItem('edgequake:last-context', JSON.stringify({
-          tenantId,
-          workspaceId,
-          timestamp: Date.now()
-        }));
-      }
+        localStorage.setItem(
+          "edgequake:last-context",
+          JSON.stringify({
+            tenantId,
+            workspaceId,
+            timestamp: Date.now(),
+          })
+        );
+      },
     }),
     {
       name: "edgequake-tenant",
@@ -153,7 +158,7 @@ export const useTenantStore = create<TenantStore>()(
         selectedTenantId: state.selectedTenantId,
         selectedWorkspaceId: state.selectedWorkspaceId,
         // New: Store last selection timestamp
-        lastSelectionTime: Date.now()
+        lastSelectionTime: Date.now(),
       }),
     }
   )
@@ -179,10 +184,10 @@ export function WorkspaceOnboarding() {
             Let's get you started by creating your first workspace
           </p>
         </div>
-        
+
         <div className="space-y-4">
           <QuickCreateWorkspaceForm onSuccess={handleWorkspaceCreated} />
-          
+
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <Separator />
@@ -193,7 +198,7 @@ export function WorkspaceOnboarding() {
               </span>
             </div>
           </div>
-          
+
           <Button variant="outline" onClick={handleSkipOnboarding}>
             I'll set this up later
           </Button>
@@ -210,17 +215,17 @@ export function WorkspaceOnboarding() {
 // Enhanced header-tenant-selector.tsx
 export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
   const { isInitialized, needsOnboarding } = useTenantStore();
-  
+
   // Show skeleton during initialization
   if (!isInitialized) {
     return <Skeleton className="h-8 w-32" />;
   }
-  
+
   // Show onboarding prompt if needed
   if (needsOnboarding) {
     return (
-      <Button 
-        variant="default" 
+      <Button
+        variant="default"
         size="sm"
         onClick={() => setShowOnboarding(true)}
         className="animate-pulse-soft"
@@ -230,7 +235,7 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
       </Button>
     );
   }
-  
+
   // Rest of existing implementation...
 }
 ```
@@ -238,6 +243,7 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
 ## Implementation Checklist
 
 ### Phase 1: Core Functionality
+
 - [ ] Add `isInitialized` and `needsOnboarding` to store
 - [ ] Implement `initializeContext()` method
 - [ ] Add last-used context persistence
@@ -245,6 +251,7 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
 - [ ] Update header selector loading states
 
 ### Phase 2: Onboarding
+
 - [ ] Create `WorkspaceOnboarding` component
 - [ ] Create `QuickCreateWorkspaceForm` component
 - [ ] Add onboarding routing logic
@@ -252,12 +259,14 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
 - [ ] Add welcome animations
 
 ### Phase 3: User Preferences
+
 - [ ] Add "Set as default" option in workspace selector
 - [ ] Create user preferences API endpoint
 - [ ] Implement default context API
 - [ ] Add preference management UI
 
 ### Phase 4: Testing
+
 - [ ] Unit tests for store logic
 - [ ] E2E tests for default selection
 - [ ] E2E tests for onboarding flow
@@ -266,31 +275,34 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
 
 ## Edge Cases & Handling
 
-| Scenario | Behavior |
-|----------|----------|
-| localStorage cleared | Fall back to first available workspace |
-| Last-used workspace deleted | Select first available in tenant |
-| Last-used tenant deleted | Select first available tenant |
-| No tenants exist | Show onboarding |
-| No workspaces in tenant | Auto-create default workspace |
-| Multiple browser tabs | Sync context across tabs (BroadcastChannel) |
-| API failure | Show cached context with error banner |
+| Scenario                    | Behavior                                    |
+| --------------------------- | ------------------------------------------- |
+| localStorage cleared        | Fall back to first available workspace      |
+| Last-used workspace deleted | Select first available in tenant            |
+| Last-used tenant deleted    | Select first available tenant               |
+| No tenants exist            | Show onboarding                             |
+| No workspaces in tenant     | Auto-create default workspace               |
+| Multiple browser tabs       | Sync context across tabs (BroadcastChannel) |
+| API failure                 | Show cached context with error banner       |
 
 ## Success Criteria
 
 ✅ **User Experience**
+
 - First-time users see onboarding, not empty state
 - Returning users automatically enter their last workspace
 - Single-tenant users never see tenant selector
 - Context selection completes in < 500ms
 
 ✅ **Technical**
+
 - 100% E2E test coverage for selection flows
 - Zero race conditions in initialization
 - Proper TypeScript types for all new code
 - Backward compatible with existing localStorage data
 
 ✅ **Metrics**
+
 - Time to first interaction: < 2s (down from 10s)
 - Onboarding completion rate: > 80%
 - Context selection errors: < 1%

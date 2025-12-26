@@ -2,14 +2,14 @@
 'use client';
 
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Brain, FileText, Network, Settings } from 'lucide-react';
 import type { Document } from '@/types';
-import { KeyStats } from './key-stats';
+import { Brain, FileText, Network, Settings } from 'lucide-react';
 import { CollapsibleSection } from './collapsible-section';
-import { LineageTree } from './lineage-tree';
-import { SourceInfoGrid } from './source-info-grid';
-import { ProcessingDetails } from './processing-details';
 import { EntityRelationStats } from './entity-relation-stats';
+import { KeyStats } from './key-stats';
+import { LineageTree } from './lineage-tree';
+import { ProcessingDetails } from './processing-details';
+import { SourceInfoGrid } from './source-info-grid';
 
 interface MetadataSidebarProps {
   document: Document;

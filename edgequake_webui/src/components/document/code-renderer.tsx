@@ -1,14 +1,14 @@
 // Code renderer with syntax highlighting and smart features
 'use client';
 
-import { useState } from 'react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Check, Copy, Download } from 'lucide-react';
 import { useTheme } from 'next-themes';
+import { useState } from 'react';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { toast } from 'sonner';
 
 interface CodeRendererProps {

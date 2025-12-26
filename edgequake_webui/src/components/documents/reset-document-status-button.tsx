@@ -76,9 +76,8 @@ export function ResetDocumentStatusButton({
         await retryTask(document.track_id);
         return { success: true };
       }
-      // Fall back to reprocess if no track_id
-      await reprocessDocument(document.id);
-      return { success: true };
+      // Fall back to reprocess if no track_id (shouldn't happen)
+      throw new Error('No track_id available for reprocessing');
     },
     onSuccess: () => {
       toast.success(
@@ -106,7 +105,12 @@ export function ResetDocumentStatusButton({
 
   // Full reprocess mutation
   const reprocessMutation = useMutation({
-    mutationFn: () => reprocessDocument(document.id),
+    mutationFn: () => {
+      if (!document.track_id) {
+        throw new Error('No track_id available for reprocessing');
+      }
+      return reprocessDocument(document.track_id);
+    },
     onSuccess: () => {
       toast.success(
         t('documents.reprocess.success', 'Document queued for reprocessing'),

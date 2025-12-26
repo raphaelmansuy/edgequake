@@ -226,10 +226,18 @@ export async function deleteAllDocuments(): Promise<{ deleted_count: number }> {
   return api.delete<{ deleted_count: number }>("/documents");
 }
 
+/**
+ * Reprocess a single document by its track ID.
+ * Uses the batch reprocess endpoint with track_id filter.
+ * @param trackId The track_id of the document to reprocess
+ */
 export async function reprocessDocument(
-  documentId: string
-): Promise<UploadDocumentResponse> {
-  return api.post<UploadDocumentResponse>(`/documents/${documentId}/reprocess`);
+  trackId: string
+): Promise<{ track_id: string; message: string; count: number }> {
+  return api.post<{ track_id: string; message: string; count: number }>(
+    "/documents/reprocess",
+    { track_id: trackId, max_documents: 1 }
+  );
 }
 
 /**

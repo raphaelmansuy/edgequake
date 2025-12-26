@@ -580,9 +580,17 @@ export function DocumentManager() {
     let successCount = 0;
     let errorCount = 0;
 
+    // Get documents to find their track_ids
+    const documents = data?.documents || [];
+    
     for (const id of idsToReprocess) {
       try {
-        await reprocessDocument(id);
+        const doc = documents.find(d => d.id === id);
+        if (!doc?.track_id) {
+          errorCount++;
+          continue;
+        }
+        await reprocessDocument(doc.track_id);
         successCount++;
       } catch {
         errorCount++;
@@ -597,7 +605,7 @@ export function DocumentManager() {
       toast.error(t('documents.bulk.reprocessFailed', { count: errorCount }) || `Failed to queue ${errorCount} document(s)`);
     }
     setSelectedIds(new Set());
-  }, [selectedIds, queryClient, t]);
+  }, [selectedIds, data, queryClient, t]);
 
   // Document selection for preview panel
   const handleDocumentClick = useCallback((doc: Document) => {
