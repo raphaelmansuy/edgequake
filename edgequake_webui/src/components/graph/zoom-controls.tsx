@@ -96,11 +96,20 @@ export function ZoomControls() {
     if (!container) return;
 
     if (!isFullscreen) {
+      // Copy dark class to container for proper theming in fullscreen
+      const isDark = document.documentElement.classList.contains('dark');
+      if (isDark) {
+        container.classList.add('dark');
+      }
+      
       if (container.requestFullscreen) {
         container.requestFullscreen();
         setIsFullscreen(true);
       }
     } else {
+      // Remove dark class when exiting fullscreen
+      container.classList.remove('dark');
+      
       if (document.exitFullscreen) {
         document.exitFullscreen();
         setIsFullscreen(false);
@@ -108,10 +117,22 @@ export function ZoomControls() {
     }
   }, [isFullscreen]);
 
-  // Listen for fullscreen changes
+  // Listen for fullscreen changes and sync dark mode
   if (typeof window !== 'undefined') {
     document.addEventListener('fullscreenchange', () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      const isNowFullscreen = !!document.fullscreenElement;
+      setIsFullscreen(isNowFullscreen);
+      
+      // Sync dark class with fullscreen element
+      const container = document.querySelector('[data-graph-container]');
+      if (container) {
+        const isDark = document.documentElement.classList.contains('dark');
+        if (isNowFullscreen && isDark) {
+          container.classList.add('dark');
+        } else {
+          container.classList.remove('dark');
+        }
+      }
     });
   }
 

@@ -50,3 +50,10 @@
 > - **action**: Created component inventory and request JSON files
 > - **result**: All 6 component files and 7 request JSON files created
 > - **next**: Update README and finalize
+
+> [Action] 2025-12-26 14:00 UTC
+>
+> - **actor**: Copilot
+> - **action**: UX/UI Improvement Phase - Scroll behavior analysis
+> - **result**: Created `scroll-behavior-analysis.md` documenting fixed vs scrollable zones for each page
+> - **next**: Implement Document page scroll fixes, tenant selection enforcement, query panel polish

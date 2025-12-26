@@ -817,33 +817,34 @@ export function QueryInterface() {
                   <Settings2 className="h-4 w-4" />
                 </Button>
               </SheetTrigger>
-              <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
-                <SheetHeader className="pb-2">
-                  <SheetTitle className="flex items-center gap-2">
-                    <Sliders className="h-5 w-5 text-primary" />
+              <SheetContent className="w-[400px] sm:w-[480px] flex flex-col p-0">
+                <SheetHeader className="px-6 py-4 border-b shrink-0">
+                  <SheetTitle className="flex items-center gap-2 text-base">
+                    <Sliders className="h-4 w-4 text-primary" />
                     {t('query.settings.title', 'Query Settings')}
                   </SheetTitle>
-                  <SheetDescription>
+                  <SheetDescription className="text-xs">
                     {t('query.settings.description', 'Configure how the AI processes and responds to your queries.')}
                   </SheetDescription>
                 </SheetHeader>
                 
-                <div className="mt-4 space-y-5 pb-6">
+                <ScrollArea className="flex-1">
+                  <div className="px-6 py-4 space-y-5">
                   {/* Response Mode Section */}
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div className="flex items-center gap-2">
-                      <Zap className="h-4 w-4 text-amber-500" />
-                      <h3 className="text-sm font-semibold">{t('query.settings.responseMode', 'Response Mode')}</h3>
+                      <Zap className="h-3.5 w-3.5 text-amber-500" />
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('query.settings.responseMode', 'Response Mode')}</h3>
                     </div>
                     
-                    <div className="rounded-lg border p-4 space-y-4 bg-muted/30">
+                    <div className="rounded-lg border p-3 space-y-3 bg-muted/20">
                       {/* Stream Toggle */}
                       <div className="flex items-center justify-between">
                         <div className="space-y-0.5">
                           <Label htmlFor="stream-toggle" className="text-sm font-medium cursor-pointer">
                             {t('query.settings.streaming', 'Streaming')}
                           </Label>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-[11px] text-muted-foreground leading-tight">
                             {t('query.settings.streamingDescription', 'Show response as it generates')}
                           </p>
                         </div>
@@ -859,24 +860,24 @@ export function QueryInterface() {
                   <Separator />
 
                   {/* Retrieval Section */}
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div className="flex items-center gap-2">
-                      <BookOpen className="h-4 w-4 text-blue-500" />
-                      <h3 className="text-sm font-semibold">{t('query.settings.retrieval', 'Retrieval')}</h3>
+                      <BookOpen className="h-3.5 w-3.5 text-blue-500" />
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('query.settings.retrieval', 'Retrieval')}</h3>
                     </div>
                     
-                    <div className="rounded-lg border p-4 space-y-4 bg-muted/30">
+                    <div className="rounded-lg border p-3 space-y-3 bg-muted/20">
                       {/* Top K */}
-                      <div className="space-y-3">
+                      <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <Label className="text-sm font-medium">
                               {t('query.settings.topK', 'Top K Results')}
                             </Label>
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger>
-                                  <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <Info className="h-3 w-3 text-muted-foreground" />
                                 </TooltipTrigger>
                                 <TooltipContent side="top" className="max-w-[200px]">
                                   <p className="text-xs">{t('query.settings.topKHint', 'Number of relevant chunks to retrieve from the knowledge graph')}</p>
@@ -884,7 +885,7 @@ export function QueryInterface() {
                               </Tooltip>
                             </TooltipProvider>
                           </div>
-                          <Badge variant="secondary" className="font-mono text-xs">
+                          <Badge variant="secondary" className="font-mono text-[10px] h-5 px-1.5">
                             {querySettings.topK}
                           </Badge>
                         </div>
@@ -896,7 +897,7 @@ export function QueryInterface() {
                           step={1}
                           className="w-full"
                         />
-                        <div className="flex justify-between text-xs text-muted-foreground">
+                        <div className="flex justify-between text-[10px] text-muted-foreground">
                           <span>1 (Precise)</span>
                           <span>50 (Comprehensive)</span>
                         </div>
@@ -907,25 +908,25 @@ export function QueryInterface() {
                   <Separator />
 
                   {/* Generation Section */}
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div className="flex items-center gap-2">
-                      <Brain className="h-4 w-4 text-muted-foreground" />
-                      <h3 className="text-sm font-semibold">{t('query.settings.generation', 'Generation')}</h3>
+                      <Brain className="h-3.5 w-3.5 text-purple-500" />
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('query.settings.generation', 'Generation')}</h3>
                     </div>
                     
-                    <div className="rounded-lg border p-4 space-y-5 bg-muted/30">
+                    <div className="rounded-lg border p-3 space-y-4 bg-muted/20">
                       {/* Temperature */}
-                      <div className="space-y-3">
+                      <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Thermometer className="h-3.5 w-3.5 text-muted-foreground" />
+                          <div className="flex items-center gap-1.5">
+                            <Thermometer className="h-3 w-3 text-muted-foreground" />
                             <Label className="text-sm font-medium">
                               {t('query.settings.temperature', 'Temperature')}
                             </Label>
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger>
-                                  <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <Info className="h-3 w-3 text-muted-foreground" />
                                 </TooltipTrigger>
                                 <TooltipContent side="top" className="max-w-[200px]">
                                   <p className="text-xs">{t('query.settings.temperatureHint', 'Controls randomness. Lower = more focused, higher = more creative')}</p>
@@ -933,7 +934,7 @@ export function QueryInterface() {
                               </Tooltip>
                             </TooltipProvider>
                           </div>
-                          <Badge variant="secondary" className="font-mono text-xs">
+                          <Badge variant="secondary" className="font-mono text-[10px] h-5 px-1.5">
                             {querySettings.temperature.toFixed(1)}
                           </Badge>
                         </div>
@@ -945,24 +946,24 @@ export function QueryInterface() {
                           step={0.1}
                           className="w-full"
                         />
-                        <div className="flex justify-between text-xs text-muted-foreground">
+                        <div className="flex justify-between text-[10px] text-muted-foreground">
                           <span>0 (Precise)</span>
                           <span>2 (Creative)</span>
                         </div>
                       </div>
 
                       {/* Max Tokens */}
-                      <div className="space-y-3">
+                      <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Gauge className="h-3.5 w-3.5 text-muted-foreground" />
+                          <div className="flex items-center gap-1.5">
+                            <Gauge className="h-3 w-3 text-muted-foreground" />
                             <Label className="text-sm font-medium">
                               {t('query.settings.maxTokens', 'Max Tokens')}
                             </Label>
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger>
-                                  <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <Info className="h-3 w-3 text-muted-foreground" />
                                 </TooltipTrigger>
                                 <TooltipContent side="top" className="max-w-[200px]">
                                   <p className="text-xs">{t('query.settings.maxTokensHint', 'Maximum length of the generated response')}</p>
@@ -970,7 +971,7 @@ export function QueryInterface() {
                               </Tooltip>
                             </TooltipProvider>
                           </div>
-                          <Badge variant="secondary" className="font-mono text-xs">
+                          <Badge variant="secondary" className="font-mono text-[10px] h-5 px-1.5">
                             {querySettings.maxTokens}
                           </Badge>
                         </div>
@@ -982,14 +983,15 @@ export function QueryInterface() {
                           step={256}
                           className="w-full"
                         />
-                        <div className="flex justify-between text-xs text-muted-foreground">
+                        <div className="flex justify-between text-[10px] text-muted-foreground">
                           <span>256 (Short)</span>
                           <span>4096 (Long)</span>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                  </div>
+                </ScrollArea>
               </SheetContent>
             </Sheet>
           </div>

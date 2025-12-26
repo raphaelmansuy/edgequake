@@ -83,7 +83,9 @@ export function GraphViewer() {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['graph', selectedTenantId, selectedWorkspaceId],
     queryFn: () => getGraph({ limit: 500 }),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    refetchOnMount: 'always', // Always refetch when component mounts (navigation)
+    refetchOnWindowFocus: true, // Refetch when window regains focus
   });
 
   useEffect(() => {
@@ -220,8 +222,11 @@ export function GraphViewer() {
           </div>
         </header>
 
-        {/* Graph Canvas */}
-        <div className="flex-1 relative overflow-hidden" data-graph-container>
+        {/* Graph Canvas - bg-background ensures proper theme in fullscreen */}
+        <div 
+          className="flex-1 relative overflow-hidden bg-background text-foreground" 
+          data-graph-container
+        >
           {isLoading && allNodes.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">

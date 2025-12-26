@@ -633,17 +633,19 @@ export function DocumentManager() {
   }
 
   return (
-    <div className="flex h-full">
-      {/* Main Content */}
-      <div className="flex-1 p-page space-y-4 overflow-auto">
-        {/* Header - Compact */}
-        <header className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="space-y-0.5">
-            <h1 className="text-xl font-semibold tracking-tight">{t('documents.title')}</h1>
-            <p className="text-sm text-muted-foreground">
-              {t('documents.subtitle')}
-            </p>
-          </div>
+    <div className="flex h-full overflow-hidden">
+      {/* Main Content - Flex column for proper scroll zones */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {/* Fixed Header Zone */}
+        <div className="shrink-0 p-4 pb-0 space-y-4 border-b bg-background/95 backdrop-blur-sm">
+          {/* Header - Compact */}
+          <header className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="space-y-0.5">
+              <h1 className="text-xl font-semibold tracking-tight">{t('documents.title')}</h1>
+              <p className="text-sm text-muted-foreground">
+                {t('documents.subtitle')}
+              </p>
+            </div>
           <div className="flex items-center gap-2 flex-wrap">
             {/* Pipeline Status */}
             {pipelineStatus?.is_busy && (
@@ -685,7 +687,7 @@ export function DocumentManager() {
       </header>
       
       {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 pb-4">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -705,6 +707,11 @@ export function DocumentManager() {
           statusCounts={statusCounts}
         />
       </div>
+      </div>
+
+      {/* Scrollable Content Zone */}
+      <ScrollArea className="flex-1">
+        <div className="p-4 pt-0 space-y-4">
 
       {/* Bulk Actions Bar */}
       {selectedIds.size > 0 && (
@@ -1050,6 +1057,8 @@ export function DocumentManager() {
           )}
         </CardContent>
       </Card>
+        </div>
+      </ScrollArea>
       </div>
 
       {/* Right Panel - Document Preview */}
