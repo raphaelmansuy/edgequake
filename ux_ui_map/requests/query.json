@@ -1,0 +1,21 @@
+{
+  "page": "query",
+  "route": "/query",
+  "screenshots": {
+    "desktop": "screenshots/query/query-desktop.png",
+    "tablet": "screenshots/query/query-tablet.png",
+    "mobile": "screenshots/query/query-mobile.png"
+  },
+  "documentation": "pages/query.md",
+  "source_files": [
+    "edgequake_webui/src/app/(dashboard)/query/page.tsx",
+    "edgequake_webui/src/components/query/query-mode-selector.tsx",
+    "edgequake_webui/src/components/query/conversation-history-panel.tsx"
+  ],
+  "captured_at": "2025-12-26",
+  "viewports": {
+    "desktop": { "width": 1440, "height": 900 },
+    "tablet": { "width": 768, "height": 1024 },
+    "mobile": { "width": 375, "height": 812 }
+  }
+}

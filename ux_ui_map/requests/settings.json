@@ -1,0 +1,21 @@
+{
+  "page": "settings",
+  "route": "/settings",
+  "screenshots": {
+    "desktop": "screenshots/settings/settings-desktop.png",
+    "tablet": "screenshots/settings/settings-tablet.png",
+    "mobile": "screenshots/settings/settings-mobile.png"
+  },
+  "documentation": "pages/settings.md",
+  "source_files": [
+    "edgequake_webui/src/app/(dashboard)/settings/page.tsx",
+    "edgequake_webui/src/stores/use-settings-store.ts",
+    "edgequake_webui/src/stores/use-query-store.ts"
+  ],
+  "captured_at": "2025-12-26",
+  "viewports": {
+    "desktop": { "width": 1440, "height": 900 },
+    "tablet": { "width": 768, "height": 1024 },
+    "mobile": { "width": 375, "height": 812 }
+  }
+}

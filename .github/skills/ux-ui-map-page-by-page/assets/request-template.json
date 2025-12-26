@@ -1,0 +1,28 @@
+{
+  "page": "{page}",
+  "route": "{route}",
+  "capturedAt": "{iso8601}",
+  "screenshots": {
+    "desktop": "ux_ui_map/screenshots/{page}/desktop.png",
+    "tablet": "ux_ui_map/screenshots/{page}/tablet.png",
+    "mobile": "ux_ui_map/screenshots/{page}/mobile.png"
+  },
+  "inputs": {
+    "domSnapshot": null,
+    "html": null
+  },
+  "instructions": {
+    "tone": "neutral-descriptive",
+    "focus": [
+      "page regions",
+      "containers",
+      "components",
+      "states visible in screenshot"
+    ],
+    "avoid": [
+      "recommendations",
+      "severity ratings",
+      "opinionated language"
+    ]
+  }
+}

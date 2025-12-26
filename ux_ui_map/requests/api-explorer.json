@@ -1,0 +1,21 @@
+{
+  "page": "api-explorer",
+  "route": "/api-explorer",
+  "screenshots": {
+    "desktop": "screenshots/api-explorer/api-explorer-desktop.png",
+    "desktop_with_endpoint": "screenshots/api-explorer/api-explorer-desktop-with-endpoint.png",
+    "tablet": "screenshots/api-explorer/api-explorer-tablet.png",
+    "mobile": "screenshots/api-explorer/api-explorer-mobile.png"
+  },
+  "documentation": "pages/api-explorer.md",
+  "source_files": [
+    "edgequake_webui/src/app/(dashboard)/api-explorer/page.tsx",
+    "edgequake_webui/src/components/shared/api-explorer.tsx"
+  ],
+  "captured_at": "2025-12-26",
+  "viewports": {
+    "desktop": { "width": 1440, "height": 900 },
+    "tablet": { "width": 768, "height": 1024 },
+    "mobile": { "width": 375, "height": 812 }
+  }
+}
