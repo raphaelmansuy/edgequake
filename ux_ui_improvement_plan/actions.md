@@ -1,6 +1,6 @@
 # UX/UI Improvement Actions
 
-## Status: In Progress 🔄
+## Status: Completed ✅
 
 ## Action Items
 
@@ -46,6 +46,30 @@
 - Subtle shadows
 - Refined typography
 - Consistent hover states
+
+### 8. ✅ Document Page Scroll Zones
+
+- **Current**: Entire page scrolls including header and dropzone
+- **Target**: Fixed header/search/dropzone, scrollable table only
+- **Files**: `document-manager.tsx`
+
+### 9. ✅ Query Settings Panel Polish
+
+- **Current**: Inconsistent padding, no ScrollArea
+- **Target**: Polished padding, proper ScrollArea for overflow
+- **Files**: `query-interface.tsx`
+
+### 10. ✅ Graph Page Fullscreen Dark Mode
+
+- **Current**: Dark mode not applied in fullscreen
+- **Target**: Dark class synced when entering fullscreen
+- **Files**: `zoom-controls.tsx`, `graph-viewer.tsx`
+
+### 11. ✅ Graph Page Refresh on Navigation
+
+- **Current**: Stale data when navigating to page
+- **Target**: Refetch on mount for fresh data
+- **Files**: `graph-viewer.tsx`
 
 ## Progress Log
 
