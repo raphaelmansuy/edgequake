@@ -40,15 +40,15 @@ export function QuickActions() {
   const { t } = useTranslation();
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">{t('dashboard.quickActions.title', 'Quick Actions')}</CardTitle>
-        <CardDescription>
+    <Card className="border-0 shadow-sm">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">{t('dashboard.quickActions.title', 'Quick Actions')}</CardTitle>
+        <CardDescription className="text-xs">
           {t('dashboard.quickActions.subtitle', 'Get started with common tasks')}
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="grid gap-4 sm:grid-cols-3">
+      <CardContent className="pt-0">
+        <div className="grid gap-3 sm:grid-cols-3">
           {actions.map((action) => {
             const Icon = action.icon;
             return (
@@ -56,17 +56,17 @@ export function QuickActions() {
                 key={action.id}
                 href={action.href}
                 className={cn(
-                  'flex flex-col items-center justify-center gap-3 rounded-lg border p-6 transition-all duration-200',
+                  'flex flex-col items-center justify-center gap-2 rounded-lg border p-4 transition-all duration-200',
                   action.bgColor,
                   'hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5'
                 )}
               >
-                <div className={cn('rounded-full p-3', action.bgColor)}>
-                  <Icon className={cn('h-6 w-6', action.color)} />
+                <div className={cn('rounded-full p-2.5', action.bgColor)}>
+                  <Icon className={cn('h-5 w-5', action.color)} />
                 </div>
                 <div className="text-center">
-                  <p className="font-medium">{t(action.labelKey)}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-sm font-medium">{t(action.labelKey)}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">
                     {t(action.descriptionKey)}
                   </p>
                 </div>

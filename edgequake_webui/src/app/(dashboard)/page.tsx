@@ -36,19 +36,19 @@ export default function DashboardPage() {
   const entityTypes = new Set(graphData?.nodes?.map(n => n.node_type) || []).size;
 
   return (
-    <div className="p-page space-y-8">
-      {/* Header Section */}
-      <header className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">
+    <div className="p-page space-y-6">
+      {/* Header Section - Compact */}
+      <header className="space-y-1">
+        <h1 className="text-2xl font-bold tracking-tight">
           {t('dashboard.title', 'Dashboard')}
         </h1>
-        <p className="text-base text-muted-foreground max-w-2xl">
+        <p className="text-sm text-muted-foreground max-w-2xl">
           {t('dashboard.welcome', 'Welcome to EdgeQuake - Your Knowledge Graph RAG Platform')}
         </p>
       </header>
 
-      {/* Stats Cards Grid */}
-      <section aria-label="Statistics" className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Stats Cards Grid - Responsive gaps */}
+      <section aria-label="Statistics" className="grid gap-4 sm:gap-5 lg:gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <StatsCard
           title={t('dashboard.stats.documents', 'Documents')}
           value={documentCount}

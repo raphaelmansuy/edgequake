@@ -58,15 +58,15 @@ export function StatsCard({
 }: StatsCardProps) {
   if (isLoading) {
     return (
-      <Card className={cn('relative overflow-hidden', className)}>
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between gap-4">
-            <div className="space-y-3 flex-1">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-9 w-20" />
-              {description && <Skeleton className="h-3.5 w-36" />}
+      <Card className={cn('relative overflow-hidden border-0 shadow-sm', className)}>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="space-y-2 flex-1">
+              <Skeleton className="h-3.5 w-20" />
+              <Skeleton className="h-8 w-16" />
+              {description && <Skeleton className="h-3 w-28" />}
             </div>
-            <Skeleton className="h-14 w-14 rounded-xl flex-shrink-0" />
+            <Skeleton className="h-11 w-11 rounded-lg flex-shrink-0" />
           </div>
         </CardContent>
       </Card>
@@ -78,21 +78,21 @@ export function StatsCard({
   return (
     <Card 
       className={cn(
-        'relative overflow-hidden transition-all duration-200',
+        'relative overflow-hidden transition-all duration-200 border-0 shadow-sm',
         'hover:shadow-md hover:-translate-y-0.5',
         'focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
         variantStyles[variant],
         className
       )}
     >
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div className="space-y-1.5 min-w-0 flex-1">
-            <p className="text-sm font-medium text-muted-foreground truncate">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="space-y-1 min-w-0 flex-1">
+            <p className="text-xs font-medium text-muted-foreground truncate">
               {title}
             </p>
-            <div className="flex items-baseline gap-3">
-              <p className="text-3xl font-bold tracking-tight tabular-nums">
+            <div className="flex items-baseline gap-2">
+              <p className="text-2xl font-bold tracking-tight tabular-nums">
                 {typeof value === 'number' ? value.toLocaleString() : value}
               </p>
               {trend && trend.value !== 0 && (
@@ -110,25 +110,25 @@ export function StatsCard({
               )}
             </div>
             {description && (
-              <p className="text-sm text-muted-foreground truncate">
+              <p className="text-[11px] text-muted-foreground truncate">
                 {description}
               </p>
             )}
           </div>
           <div 
             className={cn(
-              'flex h-14 w-14 items-center justify-center rounded-xl flex-shrink-0',
+              'flex h-11 w-11 items-center justify-center rounded-lg flex-shrink-0',
               'transition-transform duration-200 group-hover:scale-105',
               variantIconBg[variant]
             )}
           >
-            <Icon className={cn('h-7 w-7', variantIconColor[variant])} />
+            <Icon className={cn('h-5 w-5', variantIconColor[variant])} />
           </div>
         </div>
       </CardContent>
       {/* Decorative gradient - only show for non-default variants */}
       {variant !== 'default' && (
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-current to-transparent opacity-20" />
+        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-current to-transparent opacity-20" />
       )}
     </Card>
   );
