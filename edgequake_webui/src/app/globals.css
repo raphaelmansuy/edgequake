@@ -343,25 +343,9 @@ body.modal-open {
   animation: token-fade-in 0.15s ease-out forwards;
 }
 
-/* Streaming content indicator */
+/* Streaming content indicator removed - was causing black blinking horizontal line */
 .streaming-content {
   position: relative;
-}
-
-.streaming-content::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    var(--primary) 50%,
-    transparent 100%
-  );
-  animation: shimmer 1.5s ease-in-out infinite;
 }
 
 /* Enhanced shimmer for table loading */
