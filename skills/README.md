@@ -1,10 +1,22 @@
-# EdgeQuake Skills
+# EdgeQuake Skills (Legacy - Moved to .github/skills/)
 
-This directory contains specialized skills for AI assistants working with the EdgeQuake codebase.
+⚠️ **MIGRATION NOTICE**: All formal skill definitions have been moved to [`.github/skills/`](../.github/skills/). This directory is kept for historical reference only.
 
-## Available Skills
+For current skills and documentation, see the [.github/skills/](../.github/skills/) directory.
 
-### [Reverse Documentation](./reverse-documentation/)
+## Active Skills in .github/skills/
+
+- [Reverse Documentation Skill](../.github/skills/reverse-documentation/SKILL.md)
+- [Makefile Dev Workflow Skill](../.github/skills/makefile-dev-workflow/SKILL.md)
+- [Playwright UX/UI Capture Skill](../.github/skills/playwright-ux-ui-capture/SKILL.md)
+- [UX/UI Analysis Skills](../.github/skills/ux-ui-analyze-single-page/SKILL.md)
+- [CopilotKit Integration Skill](../.github/skills/copilotkit-nextjs-integration/SKILL.md)
+
+---
+
+## Legacy Content
+
+### [Reverse Documentation](./reverse-documentation/) (Moved to .github/skills/)
 
 Automatically generate comprehensive documentation for Rust and TypeScript codebases by analyzing code structure, patterns, and relationships.
 
