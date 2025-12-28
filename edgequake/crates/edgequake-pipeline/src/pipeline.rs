@@ -221,9 +221,10 @@ impl Pipeline {
         // Step 1: Chunk the document
         let mut chunks = self.chunker.chunk(content, document_id)?;
         stats.chunk_count = chunks.len();
-        
+
         // Track chunking strategy and average chunk size
-        stats.chunking_strategy = Some(format!("sliding_window_{}", self.config.chunker.chunk_size));
+        stats.chunking_strategy =
+            Some(format!("sliding_window_{}", self.config.chunker.chunk_size));
         if !chunks.is_empty() {
             let total_chars: usize = chunks.iter().map(|c| c.content.len()).sum();
             stats.avg_chunk_size = Some(total_chars / chunks.len());
@@ -241,10 +242,10 @@ impl Pipeline {
             if let Some(extractor) = &self.extractor {
                 // Capture LLM model name
                 stats.llm_model = Some(extractor.model_name().to_string());
-                
+
                 // Use parallel extraction for better performance
                 extractions = self.extract_parallel(&chunks, extractor).await?;
-                
+
                 // Aggregate statistics from all extractions
                 for extraction in &extractions {
                     stats.entity_count += extraction.entities.len();
@@ -252,12 +253,12 @@ impl Pipeline {
                     stats.llm_calls += 1;
                     total_input_tokens += extraction.input_tokens;
                     total_output_tokens += extraction.output_tokens;
-                    
+
                     // Collect unique entity types
                     for entity in &extraction.entities {
                         entity_types_set.insert(entity.entity_type.clone());
                     }
-                    
+
                     // Collect unique relationship types and keywords
                     for rel in &extraction.relationships {
                         relationship_types_set.insert(rel.relation_type.clone());
@@ -266,11 +267,11 @@ impl Pipeline {
                         }
                     }
                 }
-                
+
                 stats.total_tokens = total_input_tokens + total_output_tokens;
             }
         }
-        
+
         // Store collected types and keywords
         if !entity_types_set.is_empty() {
             stats.entity_types = Some(entity_types_set.into_iter().collect());
@@ -291,7 +292,7 @@ impl Pipeline {
             // Capture embedding model info
             stats.embedding_model = Some(provider.model().to_string());
             stats.embedding_dimensions = Some(provider.dimension());
-            
+
             // Chunk embeddings
             if self.config.enable_chunk_embeddings {
                 let texts: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
@@ -348,9 +349,10 @@ impl Pipeline {
                         .collect();
 
                     if !relationship_texts.is_empty() {
-                        let embeddings = provider.embed(&relationship_texts).await.map_err(|e| {
-                            crate::error::PipelineError::EmbeddingError(e.to_string())
-                        })?;
+                        let embeddings =
+                            provider.embed(&relationship_texts).await.map_err(|e| {
+                                crate::error::PipelineError::EmbeddingError(e.to_string())
+                            })?;
 
                         for (relationship, embedding) in
                             extraction.relationships.iter_mut().zip(embeddings)
@@ -371,9 +373,8 @@ impl Pipeline {
 
             // Record chunks with their line numbers
             for chunk in &chunks {
-                let metadata = ExtractionMetadata::new(
-                    stats.llm_model.as_deref().unwrap_or("unknown"),
-                );
+                let metadata =
+                    ExtractionMetadata::new(stats.llm_model.as_deref().unwrap_or("unknown"));
                 builder.record_chunk(
                     &chunk.id,
                     chunk.index,
@@ -400,7 +401,10 @@ impl Pipeline {
                 }
 
                 for rel in &extraction.relationships {
-                    let rel_id = format!("{}_{}_{}", extraction.source_chunk_id, rel.source, rel.target);
+                    let rel_id = format!(
+                        "{}_{}_{}",
+                        extraction.source_chunk_id, rel.source, rel.target
+                    );
                     let span = SourceSpan::new(0, 0, 0, 0);
                     builder.record_relationship(
                         &rel_id,

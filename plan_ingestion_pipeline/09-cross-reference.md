@@ -94,21 +94,21 @@
 
 ### 2.2 Key Concept Locations
 
-| Concept      | Primary Doc  | Related Docs             |
-| ------------ | ------------ | ------------------------ |
-| TextChunk    | DOC-03 §2.2  | DOC-05 §3.2, DOC-08 §2.1 |
-| Entity       | DOC-03 §2.3  | DOC-01 §3, DOC-08 §2.2   |
-| Relationship | DOC-03 §2.4  | DOC-01 §3                |
-| Pipeline     | DOC-01 §2    | DOC-05 §3, DOC-06 §3.1   |
-| MapReduce    | DOC-05 §4.2  | DOC-02 §3, DOC-08 §6.3   |
-| Gleaning     | DOC-02 §3    | DOC-07 §3                |
-| Lineage      | DOC-03 §4    | DOC-04 §5, DOC-05 §6     |
-| Progress     | DOC-03 §6    | DOC-04 §3, DOC-05 §5     |
-| Cost         | DOC-03 §5    | DOC-04 §5, DOC-05 §5     |
-| Prompts      | DOC-07       | DOC-02 §3, **DOC-05 §2** |
-| **SOTA Prompts** | **DOC-05 §2** | DOC-07, extractor.rs |
-| **TupleParser**  | **DOC-05 §2.4** | parser.rs          |
-| **Roadblocks**   | **DOC-05 §11**  | plan.md §2.3       |
+| Concept          | Primary Doc     | Related Docs             |
+| ---------------- | --------------- | ------------------------ |
+| TextChunk        | DOC-03 §2.2     | DOC-05 §3.2, DOC-08 §2.1 |
+| Entity           | DOC-03 §2.3     | DOC-01 §3, DOC-08 §2.2   |
+| Relationship     | DOC-03 §2.4     | DOC-01 §3                |
+| Pipeline         | DOC-01 §2       | DOC-05 §3, DOC-06 §3.1   |
+| MapReduce        | DOC-05 §4.2     | DOC-02 §3, DOC-08 §6.3   |
+| Gleaning         | DOC-02 §3       | DOC-07 §3                |
+| Lineage          | DOC-03 §4       | DOC-04 §5, DOC-05 §6     |
+| Progress         | DOC-03 §6       | DOC-04 §3, DOC-05 §5     |
+| Cost             | DOC-03 §5       | DOC-04 §5, DOC-05 §5     |
+| Prompts          | DOC-07          | DOC-02 §3, **DOC-05 §2** |
+| **SOTA Prompts** | **DOC-05 §2**   | DOC-07, extractor.rs     |
+| **TupleParser**  | **DOC-05 §2.4** | parser.rs                |
+| **Roadblocks**   | **DOC-05 §11**  | plan.md §2.3             |
 
 ---
 
@@ -174,28 +174,28 @@
 
 ### 3.6 Prompt Topics
 
-| Topic              | Documents      | Sections       |
-| ------------------ | -------------- | -------------- |
-| Entity Extraction  | DOC-07, DOC-05 | 07:§2, 05:§2.1 |
-| Gleaning           | DOC-07         | 07:§3          |
-| Summarization      | DOC-07         | 07:§4          |
-| Keywords           | DOC-07         | 07:§5          |
-| RAG Response       | DOC-07         | 07:§6          |
-| Gap Analysis       | DOC-07         | 07:§7          |
-| **SOTA Prompts**   | DOC-05         | 05:§2          |
-| **Tuple Parser**   | DOC-05         | 05:§2.4        |
-| **Hybrid Parser**  | DOC-05         | 05:§2.5        |
+| Topic             | Documents      | Sections       |
+| ----------------- | -------------- | -------------- |
+| Entity Extraction | DOC-07, DOC-05 | 07:§2, 05:§2.1 |
+| Gleaning          | DOC-07         | 07:§3          |
+| Summarization     | DOC-07         | 07:§4          |
+| Keywords          | DOC-07         | 07:§5          |
+| RAG Response      | DOC-07         | 07:§6          |
+| Gap Analysis      | DOC-07         | 07:§7          |
+| **SOTA Prompts**  | DOC-05         | 05:§2          |
+| **Tuple Parser**  | DOC-05         | 05:§2.4        |
+| **Hybrid Parser** | DOC-05         | 05:§2.5        |
 
 ### 3.7 Risk & Roadblock Topics
 
-| Topic                      | Documents | Sections |
-| -------------------------- | --------- | -------- |
-| LLM Non-Compliance         | DOC-05    | 05:§11.1 |
-| System Prompt Variability  | DOC-05    | 05:§11.2 |
-| Token Limits               | DOC-05    | 05:§11.3 |
-| Entity Name Normalization  | DOC-05    | 05:§11.4 |
-| Parallel Processing Races  | DOC-05    | 05:§11.5 |
-| WebSocket Connection Limits| DOC-05    | 05:§11.6 |
+| Topic                       | Documents | Sections |
+| --------------------------- | --------- | -------- |
+| LLM Non-Compliance          | DOC-05    | 05:§11.1 |
+| System Prompt Variability   | DOC-05    | 05:§11.2 |
+| Token Limits                | DOC-05    | 05:§11.3 |
+| Entity Name Normalization   | DOC-05    | 05:§11.4 |
+| Parallel Processing Races   | DOC-05    | 05:§11.5 |
+| WebSocket Connection Limits | DOC-05    | 05:§11.6 |
 
 ---
 
@@ -205,24 +205,24 @@
 
 **Source:** `specs/19-ingestion-pipeline.md`
 
-| Req ID   | Requirement                           | Primary Doc  | Implementation |
-| -------- | ------------------------------------- | ------------ | -------------- |
-| F001     | Document ingestion endpoint           | DOC-04 §2.1  | DOC-05 §7.1    |
-| F002     | Chunk-level lineage with line numbers | DOC-03 §4    | DOC-05 §3.1    |
-| F003     | MapReduce description summarization   | DOC-02 §3    | DOC-05 §4.2    |
-| F004     | Parallel chunk processing             | DOC-01 §3    | DOC-05 §3.3    |
-| F005     | LLM response caching                  | DOC-02 §3    | DOC-05 §4.3    |
-| F006     | Real-time progress tracking           | DOC-03 §6    | DOC-05 §5.3    |
-| F007     | Cost tracking per operation           | DOC-03 §5    | DOC-05 §5.4    |
-| F008     | Document suppression                  | DOC-04 §6    | DOC-05 §6.4    |
-| F009     | Entity CRUD operations                | DOC-04 §6    | DOC-05 §6.5    |
-| F010     | Gleaning multi-pass extraction        | DOC-07 §3    | DOC-08 §6.3    |
-| F011     | Multi-tenant isolation                | DOC-01 §5    | DOC-08 §5.2    |
-| F012     | WebSocket progress events             | DOC-04 §7    | DOC-05 §7.4    |
-| R001     | Line number tracking                  | DOC-03 §2.2  | DOC-05 §3.2    |
-| **F013** | **SOTA Prompt System**                | DOC-05 §2    | DOC-05 §4.P1-06|
-| **F014** | **Citation/Reference Tracking**       | DOC-05 §2    | DOC-05 §4.P1-11|
-| **R007** | **Multi-language extraction**         | DOC-05 §2.1  | DOC-05 §4.P1-07|
+| Req ID   | Requirement                           | Primary Doc | Implementation  |
+| -------- | ------------------------------------- | ----------- | --------------- |
+| F001     | Document ingestion endpoint           | DOC-04 §2.1 | DOC-05 §7.1     |
+| F002     | Chunk-level lineage with line numbers | DOC-03 §4   | DOC-05 §3.1     |
+| F003     | MapReduce description summarization   | DOC-02 §3   | DOC-05 §4.2     |
+| F004     | Parallel chunk processing             | DOC-01 §3   | DOC-05 §3.3     |
+| F005     | LLM response caching                  | DOC-02 §3   | DOC-05 §4.3     |
+| F006     | Real-time progress tracking           | DOC-03 §6   | DOC-05 §5.3     |
+| F007     | Cost tracking per operation           | DOC-03 §5   | DOC-05 §5.4     |
+| F008     | Document suppression                  | DOC-04 §6   | DOC-05 §6.4     |
+| F009     | Entity CRUD operations                | DOC-04 §6   | DOC-05 §6.5     |
+| F010     | Gleaning multi-pass extraction        | DOC-07 §3   | DOC-08 §6.3     |
+| F011     | Multi-tenant isolation                | DOC-01 §5   | DOC-08 §5.2     |
+| F012     | WebSocket progress events             | DOC-04 §7   | DOC-05 §7.4     |
+| R001     | Line number tracking                  | DOC-03 §2.2 | DOC-05 §3.2     |
+| **F013** | **SOTA Prompt System**                | DOC-05 §2   | DOC-05 §4.P1-06 |
+| **F014** | **Citation/Reference Tracking**       | DOC-05 §2   | DOC-05 §4.P1-11 |
+| **R007** | **Multi-language extraction**         | DOC-05 §2.1 | DOC-05 §4.P1-07 |
 
 ### 4.2 Data Model Traceability
 
@@ -271,18 +271,18 @@
 
 ### 5.3 New Files to Create (per DOC-05)
 
-| File                                             | Phase | Purpose                          | Reference   |
-| ------------------------------------------------ | ----- | -------------------------------- | ----------- |
-| `edgequake-pipeline/src/prompts/mod.rs`          | 1     | SOTA prompt templates module     | DOC-05 §2.1 |
-| `edgequake-pipeline/src/prompts/entity.rs`       | 1     | EntityExtractionPrompts struct   | DOC-05 §2.1 |
-| `edgequake-pipeline/src/prompts/parser.rs`       | 1     | TupleParser implementation       | DOC-05 §2.4 |
-| `edgequake-pipeline/src/prompts/hybrid.rs`       | 1     | HybridExtractionParser           | DOC-05 §2.5 |
-| `edgequake-pipeline/src/cache.rs`                | 2     | Pipeline-specific caching        | DOC-05 §4.3 |
-| `edgequake-core/src/progress.rs`                 | 3     | Progress tracking                | DOC-05 §5.3 |
-| `edgequake-core/src/cost.rs`                     | 3     | Cost calculation                 | DOC-05 §5.4 |
-| `edgequake-core/src/types/lineage.rs`            | 4     | Lineage types                    | DOC-05 §6.1 |
-| `edgequake-storage/src/adapters/lineage.rs`      | 4     | Lineage storage                  | DOC-05 §6.2 |
-| `edgequake-api/src/ws.rs`                        | 5     | WebSocket handler                | DOC-05 §7.4 |
+| File                                        | Phase | Purpose                        | Reference   |
+| ------------------------------------------- | ----- | ------------------------------ | ----------- |
+| `edgequake-pipeline/src/prompts/mod.rs`     | 1     | SOTA prompt templates module   | DOC-05 §2.1 |
+| `edgequake-pipeline/src/prompts/entity.rs`  | 1     | EntityExtractionPrompts struct | DOC-05 §2.1 |
+| `edgequake-pipeline/src/prompts/parser.rs`  | 1     | TupleParser implementation     | DOC-05 §2.4 |
+| `edgequake-pipeline/src/prompts/hybrid.rs`  | 1     | HybridExtractionParser         | DOC-05 §2.5 |
+| `edgequake-pipeline/src/cache.rs`           | 2     | Pipeline-specific caching      | DOC-05 §4.3 |
+| `edgequake-core/src/progress.rs`            | 3     | Progress tracking              | DOC-05 §5.3 |
+| `edgequake-core/src/cost.rs`                | 3     | Cost calculation               | DOC-05 §5.4 |
+| `edgequake-core/src/types/lineage.rs`       | 4     | Lineage types                  | DOC-05 §6.1 |
+| `edgequake-storage/src/adapters/lineage.rs` | 4     | Lineage storage                | DOC-05 §6.2 |
+| `edgequake-api/src/ws.rs`                   | 5     | WebSocket handler              | DOC-05 §7.4 |
 
 ---
 
@@ -300,17 +300,17 @@
 
 ### By Feature
 
-| Feature      | Design      | Implementation | Tests       | Code             |
-| ------------ | ----------- | -------------- | ----------- | ---------------- |
-| Line Numbers | DOC-03 §2.2 | DOC-05 §3.1-2  | DOC-06 §2.1 | chunker.rs       |
-| Parallel     | DOC-01 §3   | DOC-05 §3.3    | DOC-06 §3.1 | pipeline.rs      |
-| MapReduce    | DOC-02 §3   | DOC-05 §4.1-2  | DOC-06 §2.3 | summarizer.rs ✅ |
-| Caching      | DOC-02 §3   | DOC-05 §4.3-5  | DOC-06 §2.4 | cache.rs         |
-| Progress     | DOC-03 §6   | DOC-05 §5.3    | DOC-06 §3.1 | progress.rs      |
-| Cost         | DOC-03 §5   | DOC-05 §5.4    | DOC-06 §2.5 | cost.rs          |
-| Lineage      | DOC-03 §4   | DOC-05 §6      | DOC-06 §3.2 | lineage.rs       |
-| Prompts      | DOC-07      | DOC-07 §8      | DOC-06 §2.2 | extractor.rs     |
-| **SOTA Prompts** | DOC-05 §2 | DOC-05 §4.P1-06 | DOC-06 §2.2 | prompts/mod.rs |
+| Feature          | Design      | Implementation  | Tests       | Code             |
+| ---------------- | ----------- | --------------- | ----------- | ---------------- |
+| Line Numbers     | DOC-03 §2.2 | DOC-05 §3.1-2   | DOC-06 §2.1 | chunker.rs       |
+| Parallel         | DOC-01 §3   | DOC-05 §3.3     | DOC-06 §3.1 | pipeline.rs      |
+| MapReduce        | DOC-02 §3   | DOC-05 §4.1-2   | DOC-06 §2.3 | summarizer.rs ✅ |
+| Caching          | DOC-02 §3   | DOC-05 §4.3-5   | DOC-06 §2.4 | cache.rs         |
+| Progress         | DOC-03 §6   | DOC-05 §5.3     | DOC-06 §3.1 | progress.rs      |
+| Cost             | DOC-03 §5   | DOC-05 §5.4     | DOC-06 §2.5 | cost.rs          |
+| Lineage          | DOC-03 §4   | DOC-05 §6       | DOC-06 §3.2 | lineage.rs       |
+| Prompts          | DOC-07      | DOC-07 §8       | DOC-06 §2.2 | extractor.rs     |
+| **SOTA Prompts** | DOC-05 §2   | DOC-05 §4.P1-06 | DOC-06 §2.2 | prompts/mod.rs   |
 
 ---
 
@@ -318,23 +318,23 @@
 
 ### 7.1 Prompt System Components
 
-| Component               | Definition     | Implementation    | Purpose                            |
-| ----------------------- | -------------- | ----------------- | ---------------------------------- |
-| EntityExtractionPrompts | DOC-05 §2.1    | prompts/entity.rs | Tuple-based extraction templates   |
-| TupleParser             | DOC-05 §2.4    | prompts/parser.rs | `<\|#\|>` delimiter parsing        |
-| HybridExtractionParser  | DOC-05 §2.5    | prompts/hybrid.rs | JSON + Tuple fallback parsing      |
-| normalize_entity_name() | DOC-05 §11.4   | prompts/mod.rs    | Entity name normalization          |
+| Component               | Definition   | Implementation    | Purpose                          |
+| ----------------------- | ------------ | ----------------- | -------------------------------- |
+| EntityExtractionPrompts | DOC-05 §2.1  | prompts/entity.rs | Tuple-based extraction templates |
+| TupleParser             | DOC-05 §2.4  | prompts/parser.rs | `<\|#\|>` delimiter parsing      |
+| HybridExtractionParser  | DOC-05 §2.5  | prompts/hybrid.rs | JSON + Tuple fallback parsing    |
+| normalize_entity_name() | DOC-05 §11.4 | prompts/mod.rs    | Entity name normalization        |
 
 ### 7.2 Roadblock to Mitigation Mapping
 
-| Roadblock | Risk            | Mitigation Location | Implementation Priority |
-| --------- | --------------- | ------------------- | ----------------------- |
-| RB-001    | LLM Format      | DOC-05 §11.1        | P1-08                   |
-| RB-002    | System Prompt   | DOC-05 §11.2        | P1-07                   |
-| RB-003    | Token Limits    | DOC-05 §11.3        | P2-02                   |
-| RB-004    | Name Conflicts  | DOC-05 §11.4        | P1-09                   |
-| RB-005    | Race Conditions | DOC-05 §11.5        | P1-04                   |
-| RB-006    | WebSocket Limits| DOC-05 §11.6        | P5-04                   |
+| Roadblock | Risk             | Mitigation Location | Implementation Priority |
+| --------- | ---------------- | ------------------- | ----------------------- |
+| RB-001    | LLM Format       | DOC-05 §11.1        | P1-08                   |
+| RB-002    | System Prompt    | DOC-05 §11.2        | P1-07                   |
+| RB-003    | Token Limits     | DOC-05 §11.3        | P2-02                   |
+| RB-004    | Name Conflicts   | DOC-05 §11.4        | P1-09                   |
+| RB-005    | Race Conditions  | DOC-05 §11.5        | P1-04                   |
+| RB-006    | WebSocket Limits | DOC-05 §11.6        | P5-04                   |
 
 ### 7.3 SOTA Feature Checklist
 

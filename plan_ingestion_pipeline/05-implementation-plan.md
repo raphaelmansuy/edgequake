@@ -58,18 +58,18 @@ Week 5-6: Phase 5 - API & Integration
 
 The current EdgeQuake prompt system has significant gaps compared to LightRAG's SOTA implementation:
 
-| Feature                      | LightRAG (SOTA)                  | EdgeQuake (Current)   | Gap Severity |
-| ---------------------------- | -------------------------------- | --------------------- | ------------ |
-| **Extraction Format**        | Tuple with `<\|#\|>` delimiter   | JSON                  | 🔴 Critical  |
-| **Completion Signal**        | `<\|COMPLETE\|>` detection       | None                  | 🔴 Critical  |
-| **N-ary Decomposition**      | ✅ Explicit instructions         | ❌ Not mentioned      | 🔴 Critical  |
-| **Entity Naming**            | ✅ Title case, consistent naming | ❌ No guidance        | 🟡 High      |
-| **Multi-Language Support**   | ✅ `{language}` parameter        | ❌ English only       | 🟡 High      |
-| **Third Person Perspective** | ✅ Required                      | ❌ Not specified      | 🟡 Medium    |
-| **Citation System**          | ✅ Full reference tracking       | ❌ None               | 🔴 Critical  |
-| **Detailed Examples**        | ✅ 3 comprehensive examples      | ❌ None               | 🟡 High      |
-| **Relationship Direction**   | ✅ Undirected by default         | ❌ Not specified      | 🟡 Medium    |
-| **Gleaning Instructions**    | ✅ Focus on missed/malformed     | ⚠️ Basic              | 🟡 Medium    |
+| Feature                      | LightRAG (SOTA)                  | EdgeQuake (Current) | Gap Severity |
+| ---------------------------- | -------------------------------- | ------------------- | ------------ |
+| **Extraction Format**        | Tuple with `<\|#\|>` delimiter   | JSON                | 🔴 Critical  |
+| **Completion Signal**        | `<\|COMPLETE\|>` detection       | None                | 🔴 Critical  |
+| **N-ary Decomposition**      | ✅ Explicit instructions         | ❌ Not mentioned    | 🔴 Critical  |
+| **Entity Naming**            | ✅ Title case, consistent naming | ❌ No guidance      | 🟡 High      |
+| **Multi-Language Support**   | ✅ `{language}` parameter        | ❌ English only     | 🟡 High      |
+| **Third Person Perspective** | ✅ Required                      | ❌ Not specified    | 🟡 Medium    |
+| **Citation System**          | ✅ Full reference tracking       | ❌ None             | 🔴 Critical  |
+| **Detailed Examples**        | ✅ 3 comprehensive examples      | ❌ None             | 🟡 High      |
+| **Relationship Direction**   | ✅ Undirected by default         | ❌ Not specified    | 🟡 Medium    |
+| **Gleaning Instructions**    | ✅ Focus on missed/malformed     | ⚠️ Basic            | 🟡 Medium    |
 
 ### 2.2 SOTA Prompt Templates
 
@@ -99,7 +99,7 @@ impl EntityExtractionPrompts {
     /// Build the system prompt for entity extraction
     pub fn system_prompt(&self, entity_types: &[String], language: &str) -> String {
         let entity_types_str = entity_types.join(", ");
-        
+
         format!(
             r#"---Role---
 You are a Knowledge Graph Specialist responsible for extracting entities and relationships from the input text.
@@ -161,7 +161,7 @@ You are a Knowledge Graph Specialist responsible for extracting entities and rel
     /// Build the user prompt for extraction
     pub fn user_prompt(&self, input_text: &str, entity_types: &[String], language: &str) -> String {
         let entity_types_str = entity_types.join(", ");
-        
+
         format!(
             r#"---Task---
 Extract entities and relationships from the input text below.
@@ -178,7 +178,9 @@ Extract entities and relationships from the input text below.
 
 <Input Text>
 ```
+
 {input_text}
+
 ```
 
 <Output>"#,
@@ -275,7 +277,7 @@ impl TupleParser {
 
         for line in response.lines() {
             let line = line.trim();
-            
+
             // Check for completion signal
             if line.contains(&self.completion_delimiter) {
                 is_complete = true;
@@ -283,7 +285,7 @@ impl TupleParser {
             }
 
             let parts: Vec<&str> = line.split(&self.tuple_delimiter).collect();
-            
+
             match parts.first().map(|s| s.trim()) {
                 Some("entity") if parts.len() >= 4 => {
                     let entity = ExtractedEntity::new(
@@ -297,7 +299,7 @@ impl TupleParser {
                     let keywords: Vec<String> = parts.get(3)
                         .map(|s| s.split(',').map(|k| k.trim().to_string()).collect())
                         .unwrap_or_default();
-                    
+
                     let relationship = ExtractedRelationship::new(
                         normalize_entity_name(parts[1].trim()),
                         normalize_entity_name(parts[2].trim()),
@@ -305,7 +307,7 @@ impl TupleParser {
                     )
                     .with_description(parts.get(4).unwrap_or(&"").trim())
                     .with_keywords(keywords);
-                    
+
                     relationships.push(relationship);
                 }
                 _ => {
@@ -398,7 +400,7 @@ impl HybridExtractionParser {
         if response.contains("<|#|>") {
             return self.tuple_parser.parse(response);
         }
-        
+
         // Fall back to JSON parsing
         self.json_parser.parse(response)
     }
@@ -555,19 +557,19 @@ Phase 5: API & Integration
 
 ### 4.1 Task List
 
-| Task ID | Task                                   | File(s)                         | Effort | Dependencies |
-| ------- | -------------------------------------- | ------------------------------- | ------ | ------------ |
-| P1-01   | Add line number tracking to TextChunk  | chunker.rs                      | 2h     | None         |
-| P1-02   | Implement line number calculation      | chunker.rs                      | 3h     | P1-01        |
-| P1-03   | Add parallel chunk processing          | pipeline.rs                     | 4h     | None         |
-| P1-04   | Enhance token usage tracking           | extractor.rs                    | 2h     | None         |
-| P1-05   | Add processing metadata to extraction  | extractor.rs                    | 2h     | P1-04        |
-| P1-06   | **Create prompts module**              | prompts/mod.rs (NEW)            | 2h     | None         |
-| P1-07   | **Implement SOTA entity prompts**      | prompts/entity_extraction.rs    | 4h     | P1-06        |
-| P1-08   | **Implement tuple parser**             | prompts/parser.rs               | 3h     | P1-07        |
-| P1-09   | **Add hybrid parser for migration**    | prompts/parser.rs               | 2h     | P1-08        |
-| P1-10   | **Integrate prompts into extractor**   | extractor.rs                    | 3h     | P1-07, P1-08 |
-| P1-11   | Update tests for new fields + prompts  | tests/\*.rs                     | 4h     | P1-01..10    |
+| Task ID | Task                                  | File(s)                      | Effort | Dependencies |
+| ------- | ------------------------------------- | ---------------------------- | ------ | ------------ |
+| P1-01   | Add line number tracking to TextChunk | chunker.rs                   | 2h     | None         |
+| P1-02   | Implement line number calculation     | chunker.rs                   | 3h     | P1-01        |
+| P1-03   | Add parallel chunk processing         | pipeline.rs                  | 4h     | None         |
+| P1-04   | Enhance token usage tracking          | extractor.rs                 | 2h     | None         |
+| P1-05   | Add processing metadata to extraction | extractor.rs                 | 2h     | P1-04        |
+| P1-06   | **Create prompts module**             | prompts/mod.rs (NEW)         | 2h     | None         |
+| P1-07   | **Implement SOTA entity prompts**     | prompts/entity_extraction.rs | 4h     | P1-06        |
+| P1-08   | **Implement tuple parser**            | prompts/parser.rs            | 3h     | P1-07        |
+| P1-09   | **Add hybrid parser for migration**   | prompts/parser.rs            | 2h     | P1-08        |
+| P1-10   | **Integrate prompts into extractor**  | extractor.rs                 | 3h     | P1-07, P1-08 |
+| P1-11   | Update tests for new fields + prompts | tests/\*.rs                  | 4h     | P1-01..10    |
 
 ### 4.2 Prompt System Implementation
 
@@ -602,6 +604,7 @@ pub const SUPPORTED_LANGUAGES: &[&str] = &["English", "Chinese", "Japanese", "Ko
 See [Section 2.2.1](#221-entity-extraction-system-prompt-new) for full implementation.
 
 Key features:
+
 - System prompt with comprehensive instructions
 - User prompt with input text formatting
 - Continue extraction (gleaning) prompt
@@ -615,6 +618,7 @@ Key features:
 See [Section 2.2.3](#223-tuple-parser-implementation) for full implementation.
 
 Key features:
+
 - Robust line-by-line parsing
 - Entity/relationship detection by prefix
 - Completion signal detection for retry logic
@@ -623,7 +627,7 @@ Key features:
 
 #### P1-09: Hybrid Parser for Migration
 
-```rust
+````rust
 /// Hybrid parser supporting gradual migration from JSON to Tuple format
 pub struct HybridExtractionParser {
     json_parser: JsonExtractionParser,
@@ -644,9 +648,9 @@ impl HybridExtractionParser {
     pub fn parse(&self, response: &str, chunk_id: &str) -> Result<ExtractionResult> {
         // Detect format by content
         let has_tuple_markers = response.contains("<|#|>") || response.contains("entity<|");
-        let has_json_markers = response.trim_start().starts_with('{') 
+        let has_json_markers = response.trim_start().starts_with('{')
             || response.contains("```json");
-        
+
         if has_tuple_markers && (!has_json_markers || self.prefer_tuple) {
             self.tuple_parser.parse(response, chunk_id)
         } else {
@@ -654,7 +658,7 @@ impl HybridExtractionParser {
         }
     }
 }
-```
+````
 
 #### P1-10: Integrate Prompts into Extractor
 
@@ -1665,18 +1669,18 @@ impl CostCalculator {
 
 ### 9.2 New Files to Create
 
-| File                                        | Phase | Purpose              |
-| ------------------------------------------- | ----- | -------------------- |
-| edgequake-pipeline/src/prompts/mod.rs       | 1     | SOTA prompt module   |
-| edgequake-pipeline/src/prompts/entity.rs    | 1     | Entity prompts       |
-| edgequake-pipeline/src/prompts/parser.rs    | 1     | TupleParser          |
-| edgequake-pipeline/src/prompts/hybrid.rs    | 1     | HybridParser         |
-| edgequake-pipeline/src/cache.rs             | 2     | LLM caching          |
-| edgequake-core/src/progress.rs              | 3     | Progress tracking    |
-| edgequake-core/src/cost.rs                  | 3     | Cost calculation     |
-| edgequake-core/src/types/lineage.rs         | 4     | Lineage types        |
-| edgequake-storage/src/adapters/lineage.rs   | 4     | Lineage storage      |
-| edgequake-api/src/ws.rs                     | 5     | WebSocket handler    |
+| File                                      | Phase | Purpose            |
+| ----------------------------------------- | ----- | ------------------ |
+| edgequake-pipeline/src/prompts/mod.rs     | 1     | SOTA prompt module |
+| edgequake-pipeline/src/prompts/entity.rs  | 1     | Entity prompts     |
+| edgequake-pipeline/src/prompts/parser.rs  | 1     | TupleParser        |
+| edgequake-pipeline/src/prompts/hybrid.rs  | 1     | HybridParser       |
+| edgequake-pipeline/src/cache.rs           | 2     | LLM caching        |
+| edgequake-core/src/progress.rs            | 3     | Progress tracking  |
+| edgequake-core/src/cost.rs                | 3     | Cost calculation   |
+| edgequake-core/src/types/lineage.rs       | 4     | Lineage types      |
+| edgequake-storage/src/adapters/lineage.rs | 4     | Lineage storage    |
+| edgequake-api/src/ws.rs                   | 5     | WebSocket handler  |
 
 ---
 
@@ -1735,23 +1739,25 @@ CREATE TABLE llm_cache (...);
 **Description:** Some LLM models may not consistently follow the tuple-based output format, especially smaller models or when context is limited.
 
 **Indicators:**
+
 - Missing `<|COMPLETE|>` signal
 - Incorrect delimiter usage
 - Mixed JSON and tuple output
 - Truncated responses
 
 **Mitigation Strategy:**
+
 ```rust
 /// Robust extraction with retries and fallbacks
 async fn extract_with_retry(&self, chunk: &TextChunk) -> Result<ExtractionResult> {
     const MAX_RETRIES: usize = 3;
-    
+
     for attempt in 0..MAX_RETRIES {
         let response = self.llm_provider.complete(&self.prompt).await?;
-        
+
         // Check for completion signal
         let is_complete = response.content.contains("<|COMPLETE|>");
-        
+
         match self.parser.parse(&response.content, &chunk.id) {
             Ok(result) if !result.entities.is_empty() || is_complete => {
                 return Ok(result);
@@ -1772,7 +1778,7 @@ async fn extract_with_retry(&self, chunk: &TextChunk) -> Result<ExtractionResult
             result => return result,
         }
     }
-    
+
     // Return empty result rather than failing completely
     Ok(ExtractionResult::new(&chunk.id))
 }
@@ -1787,6 +1793,7 @@ async fn extract_with_retry(&self, chunk: &TextChunk) -> Result<ExtractionResult
 **Description:** Not all LLM providers/models support system prompts the same way. OpenAI has native support, but Ollama and some providers may not.
 
 **Mitigation Strategy:**
+
 ```rust
 /// LLMProvider trait extension for system prompt support
 #[async_trait]
@@ -1795,7 +1802,7 @@ pub trait LLMProviderExt: LLMProvider {
     fn supports_system_prompt(&self) -> bool {
         true // Default: assume support
     }
-    
+
     /// Complete with optional system prompt
     async fn complete_with_system(
         &self,
@@ -1823,6 +1830,7 @@ pub trait LLMProviderExt: LLMProvider {
 **Description:** When merging descriptions from multiple extractions, the combined text may exceed LLM context limits.
 
 **Mitigation Strategy:**
+
 - Already addressed by MapReduce summarization in Phase 2
 - Pre-flight token estimation before LLM calls
 - Configurable `force_llm_summary_on_merge` threshold
@@ -1833,8 +1841,8 @@ fn needs_mapreduce(&self, descriptions: &[String]) -> bool {
     let total_tokens: usize = descriptions.iter()
         .map(|d| estimate_tokens(d))
         .sum();
-    
-    total_tokens > self.config.context_size 
+
+    total_tokens > self.config.context_size
         || descriptions.len() >= self.config.force_llm_summary_on_merge
 }
 ```
@@ -1848,6 +1856,7 @@ fn needs_mapreduce(&self, descriptions: &[String]) -> bool {
 **Description:** Different extractions might produce slightly different entity names (e.g., "John Doe" vs "John D." vs "JOHN_DOE"), leading to fragmented graph nodes.
 
 **Mitigation Strategy:**
+
 ```rust
 /// Comprehensive entity name normalization
 pub fn normalize_entity_name(raw_name: &str) -> String {
@@ -1878,7 +1887,7 @@ pub fn normalize_entity_name(raw_name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_normalization_consistency() {
         assert_eq!(normalize_entity_name("John Doe"), "JOHN_DOE");
@@ -1898,6 +1907,7 @@ mod tests {
 **Description:** Concurrent chunk extraction could lead to race conditions when updating shared state.
 
 **Mitigation Strategy:**
+
 - Use `Arc<RwLock<>>` for shared state
 - Semaphore-based concurrency limiting
 - Stateless extraction (merge happens after all extractions complete)
@@ -1909,19 +1919,19 @@ pub async fn extract_parallel(
     chunks: &[TextChunk],
 ) -> Result<Vec<ExtractionResult>> {
     let semaphore = Arc::new(Semaphore::new(self.config.max_concurrent_extractions));
-    
+
     let futures = chunks.iter().map(|chunk| {
         let sem = semaphore.clone();
         let extractor = self.extractor.clone();
         let chunk = chunk.clone();
-        
+
         async move {
             // Acquire permit (automatically released on drop)
             let _permit = sem.acquire().await?;
             extractor.extract(&chunk).await
         }
     });
-    
+
     // Results collected in order, no shared mutable state during extraction
     futures::future::try_join_all(futures).await
 }
@@ -1936,6 +1946,7 @@ pub async fn extract_parallel(
 **Description:** Too many concurrent WebSocket connections for progress tracking could exhaust server resources.
 
 **Mitigation Strategy:**
+
 - Connection pooling per job ID
 - Maximum connections per client IP
 - Graceful degradation to polling
@@ -1953,13 +1964,13 @@ impl WsConnectionManager {
         let job_count = self.connections.get(job_id)
             .map(|v| v.len())
             .unwrap_or(0);
-        
+
         let ip_count = self.connections.iter()
             .flat_map(|r| r.value().iter())
             .filter(|c| c.client_ip == client_ip)
             .count();
-        
-        job_count < self.max_connections_per_job 
+
+        job_count < self.max_connections_per_job
             && ip_count < self.max_connections_per_ip
     }
 }

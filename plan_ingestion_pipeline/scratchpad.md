@@ -6,18 +6,18 @@
 
 ## Deliverables Completed
 
-| Document                                               | Status       | Description                                |
-| ------------------------------------------------------ | ------------ | ------------------------------------------ |
-| [01-architecture.md](01-architecture.md)               | ✅           | System architecture with ASCII diagrams    |
-| [02-comparison.md](02-comparison.md)                   | ✅           | Rust vs Python feature comparison          |
-| [03-data-models.md](03-data-models.md)                 | ✅           | Complete data model specifications         |
-| [04-api-contracts.md](04-api-contracts.md)             | ✅           | API endpoint definitions                   |
-| [05-implementation-plan.md](05-implementation-plan.md) | ✅ **v2.0**  | Phased implementation roadmap + SOTA       |
-| [06-testing-strategy.md](06-testing-strategy.md)       | ✅           | Test plans and strategies                  |
-| [07-prompt-comparison.md](07-prompt-comparison.md)     | ✅           | LightRAG vs EdgeQuake prompt analysis      |
-| [08-documentation-crosscheck.md](08-documentation-crosscheck.md) | ✅ | Doc-to-code validation                     |
-| [09-cross-reference.md](09-cross-reference.md)         | ✅ **v2.0**  | Cross-reference index                      |
-| [plan.md](plan.md)                                     | ✅ **v2.0**  | Master plan consolidating all deliverables |
+| Document                                                         | Status      | Description                                |
+| ---------------------------------------------------------------- | ----------- | ------------------------------------------ |
+| [01-architecture.md](01-architecture.md)                         | ✅          | System architecture with ASCII diagrams    |
+| [02-comparison.md](02-comparison.md)                             | ✅          | Rust vs Python feature comparison          |
+| [03-data-models.md](03-data-models.md)                           | ✅          | Complete data model specifications         |
+| [04-api-contracts.md](04-api-contracts.md)                       | ✅          | API endpoint definitions                   |
+| [05-implementation-plan.md](05-implementation-plan.md)           | ✅ **v2.0** | Phased implementation roadmap + SOTA       |
+| [06-testing-strategy.md](06-testing-strategy.md)                 | ✅          | Test plans and strategies                  |
+| [07-prompt-comparison.md](07-prompt-comparison.md)               | ✅          | LightRAG vs EdgeQuake prompt analysis      |
+| [08-documentation-crosscheck.md](08-documentation-crosscheck.md) | ✅          | Doc-to-code validation                     |
+| [09-cross-reference.md](09-cross-reference.md)                   | ✅ **v2.0** | Cross-reference index                      |
+| [plan.md](plan.md)                                               | ✅ **v2.0** | Master plan consolidating all deliverables |
 
 ---
 
@@ -26,6 +26,7 @@
 ### What Was Added
 
 1. **SOTA Prompt System Integration (DOC-05 §2)**
+
    - EntityExtractionPrompts struct with tuple delimiter `<|#|>`
    - Completion signal `<|COMPLETE|>` for reliable extraction
    - N-ary relationship decomposition instructions
@@ -35,18 +36,21 @@
    - Third-person style enforcement
 
 2. **TupleParser Implementation (DOC-05 §2.4)**
+
    - Robust parsing of tuple-based extraction output
    - Handles malformed responses gracefully
    - Extracts entities and relationships from `<|#|>` delimited text
 
 3. **HybridExtractionParser (DOC-05 §2.5)**
+
    - Migration path from JSON to Tuple format
    - Feature flags: `sota-prompts` and `legacy-prompts`
    - Automatic fallback for non-compliant LLM responses
 
 4. **Risk Assessment & Roadblock Analysis (DOC-05 §11)**
+
    - RB-001: LLM non-compliance → Retry + JSON fallback
-   - RB-002: System prompt variability → Concatenation fallback  
+   - RB-002: System prompt variability → Concatenation fallback
    - RB-003: Token limits → MapReduce summarization
    - RB-004: Entity name conflicts → Normalization function
    - RB-005: Parallel processing races → Stateless + semaphore
@@ -63,6 +67,7 @@
 ### Source of SOTA Patterns
 
 **LightRAG prompt.py** (fetched 2024-12-28):
+
 - `PROMPTS["entity_extraction"]` - Full entity extraction prompt
 - `PROMPTS["DEFAULT_TUPLE_DELIMITER"]` = `<|#|>`
 - `PROMPTS["DEFAULT_COMPLETION_DELIMITER"]` = `<|COMPLETE|>`
@@ -72,19 +77,23 @@
 ### Key Insights from Session
 
 1. **LightRAG's tuple format is ~3x more robust** than JSON for entity extraction
+
    - JSON parsing fails on minor syntax errors
    - Tuple format tolerates whitespace, partial output, errors
 
 2. **Completion signals prevent truncation issues**
+
    - Without `<|COMPLETE|>`, hard to know if LLM finished
    - Enables reliable detection of incomplete responses
 
 3. **N-ary decomposition is critical**
+
    - LLMs often output "A, B, C are related to D"
    - Must be decomposed to: A→D, B→D, C→D
    - Explicit instruction in prompt prevents this issue
 
 4. **Entity naming consistency matters**
+
    - "Sarah Chen" vs "SARAH_CHEN" vs "sarah chen"
    - Must normalize at extraction time, not merge time
    - Title case + uppercase storage = consistent graphs
@@ -96,14 +105,14 @@
 
 ### Files That Need Changes
 
-| File                                        | Changes                          | Priority |
-| ------------------------------------------- | -------------------------------- | -------- |
-| `edgequake-pipeline/src/prompts/mod.rs`     | NEW: SOTA prompt templates       | P0       |
-| `edgequake-pipeline/src/prompts/entity.rs`  | NEW: EntityExtractionPrompts     | P0       |
-| `edgequake-pipeline/src/prompts/parser.rs`  | NEW: TupleParser                 | P0       |
-| `edgequake-pipeline/src/prompts/hybrid.rs`  | NEW: HybridExtractionParser      | P0       |
-| `edgequake-pipeline/src/extractor.rs`       | UPDATE: Use new prompts          | P0       |
-| `edgequake-pipeline/src/lib.rs`             | UPDATE: Add prompts module       | P0       |
+| File                                       | Changes                      | Priority |
+| ------------------------------------------ | ---------------------------- | -------- |
+| `edgequake-pipeline/src/prompts/mod.rs`    | NEW: SOTA prompt templates   | P0       |
+| `edgequake-pipeline/src/prompts/entity.rs` | NEW: EntityExtractionPrompts | P0       |
+| `edgequake-pipeline/src/prompts/parser.rs` | NEW: TupleParser             | P0       |
+| `edgequake-pipeline/src/prompts/hybrid.rs` | NEW: HybridExtractionParser  | P0       |
+| `edgequake-pipeline/src/extractor.rs`      | UPDATE: Use new prompts      | P0       |
+| `edgequake-pipeline/src/lib.rs`            | UPDATE: Add prompts module   | P0       |
 
 ---
 

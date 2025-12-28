@@ -22,16 +22,16 @@ This document represents the complete design plan for upgrading EdgeQuake's inge
 
 ### Key Achievements
 
-| Deliverable                   | Status       | Document                                               |
-| ----------------------------- | ------------ | ------------------------------------------------------ |
-| Current Architecture Analysis | ✅           | [01-architecture.md](01-architecture.md)               |
-| Rust vs Python Comparison     | ✅           | [02-comparison.md](02-comparison.md)                   |
-| SOTA Data Models              | ✅           | [03-data-models.md](03-data-models.md)                 |
-| API Contracts                 | ✅           | [04-api-contracts.md](04-api-contracts.md)             |
-| Implementation Plan           | ✅ **v2.0**  | [05-implementation-plan.md](05-implementation-plan.md) |
-| Testing Strategy              | ✅           | [06-testing-strategy.md](06-testing-strategy.md)       |
-| Prompt Comparison             | ✅           | [07-prompt-comparison.md](07-prompt-comparison.md)     |
-| Documentation Crosscheck      | ✅           | [08-documentation-crosscheck.md](08-documentation-crosscheck.md) |
+| Deliverable                   | Status      | Document                                                         |
+| ----------------------------- | ----------- | ---------------------------------------------------------------- |
+| Current Architecture Analysis | ✅          | [01-architecture.md](01-architecture.md)                         |
+| Rust vs Python Comparison     | ✅          | [02-comparison.md](02-comparison.md)                             |
+| SOTA Data Models              | ✅          | [03-data-models.md](03-data-models.md)                           |
+| API Contracts                 | ✅          | [04-api-contracts.md](04-api-contracts.md)                       |
+| Implementation Plan           | ✅ **v2.0** | [05-implementation-plan.md](05-implementation-plan.md)           |
+| Testing Strategy              | ✅          | [06-testing-strategy.md](06-testing-strategy.md)                 |
+| Prompt Comparison             | ✅          | [07-prompt-comparison.md](07-prompt-comparison.md)               |
+| Documentation Crosscheck      | ✅          | [08-documentation-crosscheck.md](08-documentation-crosscheck.md) |
 
 ---
 
@@ -51,47 +51,47 @@ This document represents the complete design plan for upgrading EdgeQuake's inge
 
 ### 1.1 Functional Requirements (F-Series)
 
-| ID   | Requirement                           | Priority | Status      | Document Reference                                       |
-| ---- | ------------------------------------- | -------- | ----------- | -------------------------------------------------------- |
-| F001 | Document ingestion endpoint           | P0       | ✅ Designed | [04-api-contracts.md#21](04-api-contracts.md)            |
-| F002 | Chunk-level lineage with line numbers | P0       | ✅ Designed | [03-data-models.md#21](03-data-models.md)                |
-| F003 | MapReduce description summarization   | P0       | ✅ Designed | [05-implementation-plan.md#5](05-implementation-plan.md) |
-| F004 | Parallel chunk processing             | P0       | ✅ Designed | [05-implementation-plan.md#4](05-implementation-plan.md) |
-| F005 | LLM response caching                  | P0       | ✅ Designed | [05-implementation-plan.md#5](05-implementation-plan.md) |
-| F006 | Real-time progress tracking           | P0       | ✅ Designed | [03-data-models.md#3](03-data-models.md)                 |
-| F007 | Cost tracking per operation           | P0       | ✅ Designed | [03-data-models.md#4](03-data-models.md)                 |
-| F008 | Document suppression                  | P1       | ✅ Designed | [04-api-contracts.md#6](04-api-contracts.md)             |
-| F009 | Entity CRUD operations                | P1       | ✅ Designed | [04-api-contracts.md#6](04-api-contracts.md)             |
-| F010 | Gleaning multi-pass extraction        | P0       | ✅ Existing | [02-comparison.md](02-comparison.md)                     |
-| F011 | Multi-tenant isolation                | P0       | ✅ Existing | [01-architecture.md](01-architecture.md)                 |
-| F012 | WebSocket progress events             | P2       | ✅ Designed | [04-api-contracts.md#7](04-api-contracts.md)             |
-| **F013** | **SOTA Prompt System**            | **P0**   | **✅ NEW**  | [05-implementation-plan.md#2](05-implementation-plan.md) |
-| **F014** | **Citation/Reference Tracking**   | **P1**   | **✅ NEW**  | [05-implementation-plan.md#2](05-implementation-plan.md) |
+| ID       | Requirement                           | Priority | Status      | Document Reference                                       |
+| -------- | ------------------------------------- | -------- | ----------- | -------------------------------------------------------- |
+| F001     | Document ingestion endpoint           | P0       | ✅ Designed | [04-api-contracts.md#21](04-api-contracts.md)            |
+| F002     | Chunk-level lineage with line numbers | P0       | ✅ Designed | [03-data-models.md#21](03-data-models.md)                |
+| F003     | MapReduce description summarization   | P0       | ✅ Designed | [05-implementation-plan.md#5](05-implementation-plan.md) |
+| F004     | Parallel chunk processing             | P0       | ✅ Designed | [05-implementation-plan.md#4](05-implementation-plan.md) |
+| F005     | LLM response caching                  | P0       | ✅ Designed | [05-implementation-plan.md#5](05-implementation-plan.md) |
+| F006     | Real-time progress tracking           | P0       | ✅ Designed | [03-data-models.md#3](03-data-models.md)                 |
+| F007     | Cost tracking per operation           | P0       | ✅ Designed | [03-data-models.md#4](03-data-models.md)                 |
+| F008     | Document suppression                  | P1       | ✅ Designed | [04-api-contracts.md#6](04-api-contracts.md)             |
+| F009     | Entity CRUD operations                | P1       | ✅ Designed | [04-api-contracts.md#6](04-api-contracts.md)             |
+| F010     | Gleaning multi-pass extraction        | P0       | ✅ Existing | [02-comparison.md](02-comparison.md)                     |
+| F011     | Multi-tenant isolation                | P0       | ✅ Existing | [01-architecture.md](01-architecture.md)                 |
+| F012     | WebSocket progress events             | P2       | ✅ Designed | [04-api-contracts.md#7](04-api-contracts.md)             |
+| **F013** | **SOTA Prompt System**                | **P0**   | **✅ NEW**  | [05-implementation-plan.md#2](05-implementation-plan.md) |
+| **F014** | **Citation/Reference Tracking**       | **P1**   | **✅ NEW**  | [05-implementation-plan.md#2](05-implementation-plan.md) |
 
 ### 1.2 Non-Functional Requirements (R-Series)
 
-| ID   | Requirement                           | Status      | Implementation                            |
-| ---- | ------------------------------------- | ----------- | ----------------------------------------- |
-| R001 | Line number tracking in chunks        | ✅ Designed | Add `start_line`, `end_line` to TextChunk |
-| R002 | Performance: <5s for 10KB document    | ✅ Designed | Parallel processing                       |
-| R003 | Cost: <$0.01 per document average     | ✅ Designed | gpt-4o-mini, caching                      |
-| R004 | Observability: full trace correlation | ✅ Designed | Lineage chain                             |
-| R005 | Idempotent re-ingestion               | ✅ Designed | Content hash, upsert                      |
-| R006 | Graceful degradation                  | ✅ Designed | Retry with fallback                       |
-| **R007** | **Multi-language extraction**     | ✅ Designed | `{language}` parameter in prompts         |
+| ID       | Requirement                           | Status      | Implementation                            |
+| -------- | ------------------------------------- | ----------- | ----------------------------------------- |
+| R001     | Line number tracking in chunks        | ✅ Designed | Add `start_line`, `end_line` to TextChunk |
+| R002     | Performance: <5s for 10KB document    | ✅ Designed | Parallel processing                       |
+| R003     | Cost: <$0.01 per document average     | ✅ Designed | gpt-4o-mini, caching                      |
+| R004     | Observability: full trace correlation | ✅ Designed | Lineage chain                             |
+| R005     | Idempotent re-ingestion               | ✅ Designed | Content hash, upsert                      |
+| R006     | Graceful degradation                  | ✅ Designed | Retry with fallback                       |
+| **R007** | **Multi-language extraction**         | ✅ Designed | `{language}` parameter in prompts         |
 
 ### 1.3 Deliverables
 
-| Deliverable                      | Status | Location                                               |
-| -------------------------------- | ------ | ------------------------------------------------------ |
-| Architecture diagrams            | ✅     | [01-architecture.md](01-architecture.md)               |
-| Data model specifications        | ✅     | [03-data-models.md](03-data-models.md)                 |
-| API contract definitions         | ✅     | [04-api-contracts.md](04-api-contracts.md)             |
-| Implementation roadmap           | ✅     | [05-implementation-plan.md](05-implementation-plan.md) |
-| Testing strategy                 | ✅     | [06-testing-strategy.md](06-testing-strategy.md)       |
-| Comparison analysis              | ✅     | [02-comparison.md](02-comparison.md)                   |
-| **SOTA Prompt Templates**        | ✅     | [05-implementation-plan.md#2](05-implementation-plan.md) |
-| **Roadblock Analysis**           | ✅     | [05-implementation-plan.md#11](05-implementation-plan.md) |
+| Deliverable               | Status | Location                                                  |
+| ------------------------- | ------ | --------------------------------------------------------- |
+| Architecture diagrams     | ✅     | [01-architecture.md](01-architecture.md)                  |
+| Data model specifications | ✅     | [03-data-models.md](03-data-models.md)                    |
+| API contract definitions  | ✅     | [04-api-contracts.md](04-api-contracts.md)                |
+| Implementation roadmap    | ✅     | [05-implementation-plan.md](05-implementation-plan.md)    |
+| Testing strategy          | ✅     | [06-testing-strategy.md](06-testing-strategy.md)          |
+| Comparison analysis       | ✅     | [02-comparison.md](02-comparison.md)                      |
+| **SOTA Prompt Templates** | ✅     | [05-implementation-plan.md#2](05-implementation-plan.md)  |
+| **Roadblock Analysis**    | ✅     | [05-implementation-plan.md#11](05-implementation-plan.md) |
 
 ---
 
@@ -101,16 +101,16 @@ This document represents the complete design plan for upgrading EdgeQuake's inge
 
 The updated plan integrates LightRAG's SOTA prompt system with the following enhancements:
 
-| Feature                   | Before (JSON)                   | After (Tuple SOTA)                     |
-| ------------------------- | ------------------------------- | -------------------------------------- |
-| **Extraction Format**     | JSON with strict parsing        | Tuple `<\|#\|>` for robust parsing     |
-| **Completion Detection**  | None                            | `<\|COMPLETE\|>` signal                |
-| **Entity Naming**         | No guidance                     | Title case, consistent naming rules    |
-| **N-ary Relationships**   | Not addressed                   | Explicit decomposition instructions    |
-| **Multi-Language**        | English only                    | Configurable `{language}` parameter    |
-| **Third Person**          | Not enforced                    | Required in system prompt              |
-| **Examples**              | None                            | 3 comprehensive few-shot examples      |
-| **Error Recovery**        | Parse failure = error           | Hybrid parser with fallback            |
+| Feature                  | Before (JSON)            | After (Tuple SOTA)                  |
+| ------------------------ | ------------------------ | ----------------------------------- |
+| **Extraction Format**    | JSON with strict parsing | Tuple `<\|#\|>` for robust parsing  |
+| **Completion Detection** | None                     | `<\|COMPLETE\|>` signal             |
+| **Entity Naming**        | No guidance              | Title case, consistent naming rules |
+| **N-ary Relationships**  | Not addressed            | Explicit decomposition instructions |
+| **Multi-Language**       | English only             | Configurable `{language}` parameter |
+| **Third Person**         | Not enforced             | Required in system prompt           |
+| **Examples**             | None                     | 3 comprehensive few-shot examples   |
+| **Error Recovery**       | Parse failure = error    | Hybrid parser with fallback         |
 
 ### 2.2 Migration Strategy
 
@@ -143,14 +143,14 @@ The updated plan integrates LightRAG's SOTA prompt system with the following enh
 
 All identified roadblocks have mitigation strategies:
 
-| Roadblock ID | Description                     | Mitigation                          | Status     |
-| ------------ | ------------------------------- | ----------------------------------- | ---------- |
-| RB-001       | LLM non-compliance with format  | Retry + JSON fallback               | ✅ Planned |
-| RB-002       | System prompt variability       | Concatenation fallback              | ✅ Planned |
-| RB-003       | Token limits for descriptions   | MapReduce summarization             | ✅ Planned |
-| RB-004       | Entity name normalization       | Comprehensive normalization         | ✅ Planned |
-| RB-005       | Parallel processing races       | Stateless extraction + semaphore    | ✅ Planned |
-| RB-006       | WebSocket connection limits     | Connection pooling + limits         | ✅ Planned |
+| Roadblock ID | Description                    | Mitigation                       | Status     |
+| ------------ | ------------------------------ | -------------------------------- | ---------- |
+| RB-001       | LLM non-compliance with format | Retry + JSON fallback            | ✅ Planned |
+| RB-002       | System prompt variability      | Concatenation fallback           | ✅ Planned |
+| RB-003       | Token limits for descriptions  | MapReduce summarization          | ✅ Planned |
+| RB-004       | Entity name normalization      | Comprehensive normalization      | ✅ Planned |
+| RB-005       | Parallel processing races      | Stateless extraction + semaphore | ✅ Planned |
+| RB-006       | WebSocket connection limits    | Connection pooling + limits      | ✅ Planned |
 
 ---
 
@@ -335,19 +335,19 @@ See [05-implementation-plan.md](05-implementation-plan.md) for:
 
 ### 5.3 File Modification Summary
 
-| File            | Phase | Changes                                               |
-| --------------- | ----- | ----------------------------------------------------- |
-| `chunker.rs`    | 1     | +start_line, +end_line, +calculate_line_numbers()     |
-| `pipeline.rs`   | 1, 2  | +extract_parallel(), +caching integration             |
-| `extractor.rs`  | 1, 2  | +token tracking, +cache lookup, +SOTA prompts         |
-| `merger.rs`     | 2     | +MapReduce integration                                |
-| `summarizer.rs` | 2     | NEW: MapReduce summarizer                             |
-| `cache.rs`      | 2     | NEW: LLM caching                                      |
-| `progress.rs`   | 3     | NEW: Progress tracking                                |
-| `cost.rs`       | 3     | NEW: Cost calculation                                 |
-| `lineage.rs`    | 4     | NEW: Lineage storage                                  |
-| `ws.rs`         | 5     | NEW: WebSocket handler                                |
-| `prompts/`      | 1     | **NEW: SOTA prompt templates module**                 |
+| File            | Phase | Changes                                           |
+| --------------- | ----- | ------------------------------------------------- |
+| `chunker.rs`    | 1     | +start_line, +end_line, +calculate_line_numbers() |
+| `pipeline.rs`   | 1, 2  | +extract_parallel(), +caching integration         |
+| `extractor.rs`  | 1, 2  | +token tracking, +cache lookup, +SOTA prompts     |
+| `merger.rs`     | 2     | +MapReduce integration                            |
+| `summarizer.rs` | 2     | NEW: MapReduce summarizer                         |
+| `cache.rs`      | 2     | NEW: LLM caching                                  |
+| `progress.rs`   | 3     | NEW: Progress tracking                            |
+| `cost.rs`       | 3     | NEW: Cost calculation                             |
+| `lineage.rs`    | 4     | NEW: Lineage storage                              |
+| `ws.rs`         | 5     | NEW: WebSocket handler                            |
+| `prompts/`      | 1     | **NEW: SOTA prompt templates module**             |
 
 ---
 
