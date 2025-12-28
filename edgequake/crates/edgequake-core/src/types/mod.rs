@@ -27,7 +27,8 @@ pub use multitenancy::{
     UpdateWorkspaceRequest, Workspace, WorkspaceStats,
 };
 pub use query::{
-    ContextChunk, ContextEntity, ContextRelationship, DocumentInfo, GraphStats, InsertResult,
-    QueryContext, QueryMode, QueryParams, QueryResult, QueryStats,
+    ContextChunk, ContextEntity, ContextRelationship, DocumentDeletionResult, DocumentInfo,
+    EntityDeletionResult, GraphStats, InsertResult, QueryContext, QueryMode, QueryParams,
+    QueryResult, QueryStats,
 };
 pub use relationship::{GraphRelationship, RELATIONSHIP_SEP};

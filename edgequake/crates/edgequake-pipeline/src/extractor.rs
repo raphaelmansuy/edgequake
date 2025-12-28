@@ -1,6 +1,7 @@
 //! Entity and relationship extraction.
 
 use async_trait::async_trait;
+use edgequake_llm::traits::ChatMessage;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -21,6 +22,15 @@ pub struct ExtractionResult {
 
     /// Processing metadata.
     pub metadata: HashMap<String, serde_json::Value>,
+
+    /// Input tokens used for this extraction.
+    pub input_tokens: usize,
+
+    /// Output tokens generated for this extraction.
+    pub output_tokens: usize,
+
+    /// Extraction time in milliseconds.
+    pub extraction_time_ms: u64,
 }
 
 impl ExtractionResult {
@@ -31,6 +41,9 @@ impl ExtractionResult {
             relationships: Vec::new(),
             source_chunk_id: source_chunk_id.into(),
             metadata: HashMap::new(),
+            input_tokens: 0,
+            output_tokens: 0,
+            extraction_time_ms: 0,
         }
     }
 
@@ -42,6 +55,19 @@ impl ExtractionResult {
     /// Add a relationship.
     pub fn add_relationship(&mut self, rel: ExtractedRelationship) {
         self.relationships.push(rel);
+    }
+
+    /// Set token usage information.
+    pub fn with_token_usage(mut self, input_tokens: usize, output_tokens: usize) -> Self {
+        self.input_tokens = input_tokens;
+        self.output_tokens = output_tokens;
+        self
+    }
+
+    /// Set extraction timing.
+    pub fn with_timing(mut self, extraction_time_ms: u64) -> Self {
+        self.extraction_time_ms = extraction_time_ms;
+        self
     }
 }
 
@@ -398,6 +424,114 @@ fn extract_json_from_response(response: &str) -> String {
     }
 
     response.to_string()
+}
+
+/// SOTA LLM-based entity extractor using tuple-format prompts.
+///
+/// This extractor uses the SOTA prompt system ported from LightRAG,
+/// featuring tuple-based output format for more robust parsing.
+pub struct SOTAExtractor<L>
+where
+    L: edgequake_llm::LLMProvider + ?Sized,
+{
+    llm_provider: std::sync::Arc<L>,
+    entity_types: Vec<String>,
+    prompts: crate::prompts::EntityExtractionPrompts,
+    parser: crate::prompts::HybridExtractionParser,
+    language: String,
+}
+
+impl<L> SOTAExtractor<L>
+where
+    L: edgequake_llm::LLMProvider + ?Sized,
+{
+    /// Create a new SOTA extractor with default settings.
+    pub fn new(llm_provider: std::sync::Arc<L>) -> Self {
+        Self {
+            llm_provider,
+            entity_types: crate::prompts::default_entity_types(),
+            prompts: crate::prompts::EntityExtractionPrompts::default(),
+            parser: crate::prompts::HybridExtractionParser::new(true),
+            language: "English".to_string(),
+        }
+    }
+
+    /// Set custom entity types.
+    pub fn with_entity_types(mut self, types: Vec<String>) -> Self {
+        self.entity_types = types;
+        self
+    }
+
+    /// Set output language.
+    pub fn with_language(mut self, language: impl Into<String>) -> Self {
+        self.language = language.into();
+        self
+    }
+
+    /// Set custom prompts.
+    pub fn with_prompts(mut self, prompts: crate::prompts::EntityExtractionPrompts) -> Self {
+        self.prompts = prompts;
+        self
+    }
+}
+
+#[async_trait]
+impl<L> EntityExtractor for SOTAExtractor<L>
+where
+    L: edgequake_llm::LLMProvider + Send + Sync + ?Sized,
+{
+    async fn extract(&self, chunk: &TextChunk) -> Result<ExtractionResult> {
+        let start = std::time::Instant::now();
+
+        // Build system and user prompts
+        let system_prompt = self.prompts.system_prompt(&self.entity_types, &self.language);
+        let user_prompt = self.prompts.user_prompt(&chunk.content, &self.entity_types, &self.language);
+
+        // Create chat messages for system + user prompt
+        let messages = vec![
+            ChatMessage::system(system_prompt),
+            ChatMessage::user(user_prompt),
+        ];
+
+        // Make LLM call using chat interface
+        let response = self
+            .llm_provider
+            .chat(&messages, None)
+            .await
+            .map_err(|e| PipelineError::ExtractionError(format!("LLM error: {}", e)))?;
+
+        // Parse response using hybrid parser
+        let mut result = self.parser.parse(&response.content, &chunk.id)?;
+
+        // Add token usage from response
+        result.input_tokens = response.prompt_tokens;
+        result.output_tokens = response.completion_tokens;
+        result.extraction_time_ms = start.elapsed().as_millis() as u64;
+
+        // Add source chunk line info to metadata
+        result.metadata.insert(
+            "extractor".to_string(),
+            serde_json::json!("sota"),
+        );
+        result.metadata.insert(
+            "language".to_string(),
+            serde_json::json!(self.language),
+        );
+        result.metadata.insert(
+            "model".to_string(),
+            serde_json::json!(response.model),
+        );
+
+        Ok(result)
+    }
+
+    fn name(&self) -> &str {
+        "sota"
+    }
+
+    fn model_name(&self) -> &str {
+        self.llm_provider.model()
+    }
 }
 
 /// Configuration for gleaning (re-extraction).

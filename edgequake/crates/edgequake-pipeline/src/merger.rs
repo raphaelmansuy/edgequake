@@ -513,7 +513,7 @@ fn merge_descriptions(existing: &str, new: &str, max_length: usize) -> String {
     }
 
     // Check if new content adds meaningful information
-    let new_sentences: Vec<&str> = new.split(|c| c == '.' || c == '!' || c == '?').collect();
+    let new_sentences: Vec<&str> = new.split(['.', '!', '?']).collect();
     let mut additions = Vec::new();
 
     for sentence in new_sentences {

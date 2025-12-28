@@ -17,6 +17,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/live", get(handlers::liveness_check))
         // Metrics endpoint (Phase 3)
         .route("/metrics", get(handlers::get_metrics))
+        // WebSocket endpoints (Phase 5)
+        .route("/ws/pipeline/progress", get(handlers::ws_pipeline_progress))
         // Ollama Emulation API (GAP-038)
         .nest("/api", ollama_api_routes())
         // API v1 endpoints
@@ -100,6 +102,11 @@ fn api_v1_routes() -> Router<AppState> {
         .route("/documents/scan", post(handlers::scan_directory))
         // Reprocess Failed Documents (GAP-039) - MUST come before /documents/{document_id}
         .route("/documents/reprocess", post(handlers::reprocess_failed))
+        // Document deletion impact analysis - MUST come before /documents/{document_id}
+        .route(
+            "/documents/{document_id}/deletion-impact",
+            get(handlers::analyze_deletion_impact),
+        )
         // Document by ID - comes last because {document_id} matches any path segment
         .route("/documents/{document_id}", get(handlers::get_document))
         .route(
@@ -200,6 +207,18 @@ fn api_v1_routes() -> Router<AppState> {
         // Pipeline (Phase 3)
         .route("/pipeline/status", get(handlers::get_pipeline_status))
         .route("/pipeline/cancel", post(handlers::cancel_pipeline))
+        // Cost Tracking (Phase 5)
+        .route("/pipeline/costs/pricing", get(handlers::get_model_pricing))
+        .route("/pipeline/costs/estimate", post(handlers::estimate_cost))
+        // Lineage (Phase 5)
+        .route(
+            "/lineage/entities/{entity_name}",
+            get(handlers::get_entity_lineage),
+        )
+        .route(
+            "/lineage/documents/{document_id}",
+            get(handlers::get_document_lineage),
+        )
 }
 
 #[cfg(test)]

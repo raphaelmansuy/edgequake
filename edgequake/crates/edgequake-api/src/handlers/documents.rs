@@ -488,9 +488,15 @@ pub async fn list_documents(
     }
 
     // Fetch all metadata and store complete document info
-    debug!(metadata_keys_count = metadata_keys.len(), "Fetching metadata for keys");
+    debug!(
+        metadata_keys_count = metadata_keys.len(),
+        "Fetching metadata for keys"
+    );
     let metadata_values = state.kv_storage.get_by_ids(&metadata_keys).await?;
-    debug!(metadata_values_count = metadata_values.len(), "Metadata values retrieved");
+    debug!(
+        metadata_values_count = metadata_values.len(),
+        "Metadata values retrieved"
+    );
 
     // Store complete document metadata, keyed by document ID
     #[derive(Default)]
@@ -879,7 +885,10 @@ pub async fn get_document(
     let metadata_key = format!("{}-metadata", document_id);
     debug!(metadata_key = %metadata_key, "Looking up metadata key");
     let metadata_values = state.kv_storage.get_by_ids(&[metadata_key.clone()]).await?;
-    debug!(metadata_count = metadata_values.len(), "Metadata values retrieved");
+    debug!(
+        metadata_count = metadata_values.len(),
+        "Metadata values retrieved"
+    );
 
     let metadata = metadata_values.into_iter().next();
     debug!(has_metadata = metadata.is_some(), "Metadata value present");
@@ -887,7 +896,11 @@ pub async fn get_document(
     // Check if document exists by metadata or chunks
     let keys = state.kv_storage.keys().await?;
     debug!(total_keys = keys.len(), "Total keys in storage");
-    let matching_keys: Vec<_> = keys.iter().filter(|k| k.contains(&document_id)).cloned().collect();
+    let matching_keys: Vec<_> = keys
+        .iter()
+        .filter(|k| k.contains(&document_id))
+        .cloned()
+        .collect();
     debug!(matching_keys = ?matching_keys, "Keys matching document ID");
     let chunk_count = keys
         .iter()
@@ -963,37 +976,58 @@ pub async fn get_document(
     ) = if let Some(obj) = meta_obj {
         // Build lineage information from stored metadata
         let lineage = {
-            let llm_model = obj.get("llm_model")
+            let llm_model = obj
+                .get("llm_model")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
-            let embedding_model = obj.get("embedding_model")
+            let embedding_model = obj
+                .get("embedding_model")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
-            let embedding_dimensions = obj.get("embedding_dimensions")
+            let embedding_dimensions = obj
+                .get("embedding_dimensions")
                 .and_then(|v| v.as_u64())
                 .map(|n| n as usize);
-            let keywords = obj.get("keywords")
+            let keywords = obj.get("keywords").and_then(|v| v.as_array()).map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect()
+            });
+            let entity_types = obj
+                .get("entity_types")
                 .and_then(|v| v.as_array())
-                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect());
-            let entity_types = obj.get("entity_types")
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect()
+                });
+            let relationship_types = obj
+                .get("relationship_types")
                 .and_then(|v| v.as_array())
-                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect());
-            let relationship_types = obj.get("relationship_types")
-                .and_then(|v| v.as_array())
-                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect());
-            let chunking_strategy = obj.get("chunking_strategy")
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect()
+                });
+            let chunking_strategy = obj
+                .get("chunking_strategy")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
-            let avg_chunk_size = obj.get("avg_chunk_size")
+            let avg_chunk_size = obj
+                .get("avg_chunk_size")
                 .and_then(|v| v.as_u64())
                 .map(|n| n as usize);
-            let processing_duration_ms = obj.get("processing_duration_ms")
-                .and_then(|v| v.as_u64());
+            let processing_duration_ms = obj.get("processing_duration_ms").and_then(|v| v.as_u64());
 
             // Only include lineage if we have at least one field
-            if llm_model.is_some() || embedding_model.is_some() || keywords.is_some() 
-                || entity_types.is_some() || relationship_types.is_some() 
-                || chunking_strategy.is_some() || processing_duration_ms.is_some() {
+            if llm_model.is_some()
+                || embedding_model.is_some()
+                || keywords.is_some()
+                || entity_types.is_some()
+                || relationship_types.is_some()
+                || chunking_strategy.is_some()
+                || processing_duration_ms.is_some()
+            {
                 Some(DocumentLineage {
                     llm_model,
                     embedding_model,
@@ -1077,26 +1111,26 @@ pub async fn get_document(
     } else {
         // Fallback for documents without metadata (legacy)
         (
-            None, // title
-            None, // file_name
-            None, // content_summary
-            None, // content_length
-            None, // content_hash
-            None, // entity_count
-            None, // relationship_count
+            None,                    // title
+            None,                    // file_name
+            None,                    // content_summary
+            None,                    // content_length
+            None,                    // content_hash
+            None,                    // entity_count
+            None,                    // relationship_count
             "completed".to_string(), // status
-            None, // error_message
-            None, // source_type
-            None, // mime_type
-            None, // file_size
-            None, // track_id
-            None, // tenant_id
-            None, // workspace_id
-            None, // created_at
-            None, // updated_at
-            None, // processed_at
-            None, // lineage
-            None, // custom_metadata
+            None,                    // error_message
+            None,                    // source_type
+            None,                    // mime_type
+            None,                    // file_size
+            None,                    // track_id
+            None,                    // tenant_id
+            None,                    // workspace_id
+            None,                    // created_at
+            None,                    // updated_at
+            None,                    // processed_at
+            None,                    // lineage
+            None,                    // custom_metadata
         )
     };
 
@@ -1166,9 +1200,10 @@ pub async fn delete_document(
     let keys = state.kv_storage.keys().await?;
 
     // Find chunks belonging to this document
+    let chunk_prefix = format!("{}-chunk-", document_id);
     let chunk_ids: Vec<String> = keys
         .iter()
-        .filter(|k| k.starts_with(&format!("{}-chunk-", document_id)))
+        .filter(|k| k.starts_with(&chunk_prefix))
         .cloned()
         .collect();
 
@@ -1187,6 +1222,85 @@ pub async fn delete_document(
     }
 
     let chunks_deleted = chunk_ids.len();
+    let mut entities_removed = 0usize;
+    let mut entities_updated = 0usize;
+    let mut relationships_removed = 0usize;
+    let mut relationships_updated = 0usize;
+
+    // Cascade delete: Process graph entities - remove document sources
+    let all_nodes = state.graph_storage.get_all_nodes().await?;
+    for node in all_nodes {
+        if let Some(source_id) = node.properties.get("source_id").and_then(|v| v.as_str()) {
+            let sources: Vec<&str> = source_id.split('|').collect();
+            let remaining_sources: Vec<&str> = sources
+                .into_iter()
+                .filter(|s| !s.starts_with(&chunk_prefix) && !s.starts_with(&document_id))
+                .collect();
+
+            if remaining_sources.is_empty() {
+                // No sources left - delete the entity entirely
+                // First delete all connected edges
+                let edges = state.graph_storage.get_node_edges(&node.id).await?;
+                for edge in edges {
+                    state
+                        .graph_storage
+                        .delete_edge(&edge.source, &edge.target)
+                        .await?;
+                    relationships_removed += 1;
+                }
+                // Then delete the node
+                state.graph_storage.delete_node(&node.id).await?;
+                // Also delete from vector storage
+                let _ = state.vector_storage.delete_entity(&node.id).await;
+                entities_removed += 1;
+            } else if remaining_sources.len() < source_id.split('|').count() {
+                // Some sources were removed - update the entity
+                let mut updated_props = node.properties.clone();
+                updated_props.insert(
+                    "source_id".to_string(),
+                    serde_json::json!(remaining_sources.join("|")),
+                );
+                state
+                    .graph_storage
+                    .upsert_node(&node.id, updated_props)
+                    .await?;
+                entities_updated += 1;
+            }
+        }
+    }
+
+    // Process graph edges - remove document sources
+    let all_edges = state.graph_storage.get_all_edges().await?;
+    for edge in all_edges {
+        if let Some(source_id) = edge.properties.get("source_id").and_then(|v| v.as_str()) {
+            let sources: Vec<&str> = source_id.split('|').collect();
+            let remaining_sources: Vec<&str> = sources
+                .into_iter()
+                .filter(|s| !s.starts_with(&chunk_prefix) && !s.starts_with(&document_id))
+                .collect();
+
+            if remaining_sources.is_empty() {
+                // No sources left - delete the relationship
+                state
+                    .graph_storage
+                    .delete_edge(&edge.source, &edge.target)
+                    .await?;
+                relationships_removed += 1;
+            } else if remaining_sources.len() < source_id.split('|').count() {
+                // Some sources were removed - update the relationship
+                let mut updated_props = edge.properties.clone();
+                updated_props.insert(
+                    "source_id".to_string(),
+                    serde_json::json!(remaining_sources.join("|")),
+                );
+                state
+                    .graph_storage
+                    .upsert_edge(&edge.source, &edge.target, updated_props)
+                    .await?;
+                relationships_updated += 1;
+            }
+        }
+    }
 
     // Collect all keys to delete
     let mut keys_to_delete = chunk_ids;
@@ -1200,15 +1314,145 @@ pub async fn delete_document(
     // Delete all document data from KV storage
     state.kv_storage.delete(&keys_to_delete).await?;
 
-    // TODO: Implement cascade deletion for entities and relationships
-    // This would require updating the graph storage to remove orphaned entities
+    tracing::info!(
+        document_id = %document_id,
+        chunks = chunks_deleted,
+        entities_removed = entities_removed,
+        entities_updated = entities_updated,
+        relationships_removed = relationships_removed,
+        relationships_updated = relationships_updated,
+        "Document suppression complete"
+    );
 
     Ok(Json(DeleteDocumentResponse {
         document_id,
         deleted: true,
         chunks_deleted,
-        entities_affected: 0,
-        relationships_affected: 0,
+        entities_affected: entities_removed + entities_updated,
+        relationships_affected: relationships_removed + relationships_updated,
+    }))
+}
+
+/// Document deletion impact analysis response.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct DeletionImpactResponse {
+    /// Document ID.
+    pub document_id: String,
+
+    /// Number of chunks that would be deleted.
+    pub chunks_to_delete: usize,
+
+    /// Number of entities that would be completely removed (no other sources).
+    pub entities_to_remove: usize,
+
+    /// Number of entities that would be updated (some sources remaining).
+    pub entities_to_update: usize,
+
+    /// Number of relationships that would be completely removed.
+    pub relationships_to_remove: usize,
+
+    /// Number of relationships that would be updated.
+    pub relationships_to_update: usize,
+
+    /// Preview is read-only; document NOT deleted.
+    pub preview_only: bool,
+}
+
+/// Analyze the impact of deleting a document before actually deleting it.
+///
+/// This endpoint allows users to preview what would be affected by a document deletion
+/// without actually performing the deletion. This is useful for understanding the
+/// cascade effects before committing to a destructive operation.
+#[utoipa::path(
+    get,
+    path = "/api/v1/documents/{document_id}/deletion-impact",
+    tag = "Documents",
+    params(
+        ("document_id" = String, Path, description = "Document ID to analyze")
+    ),
+    responses(
+        (status = 200, description = "Deletion impact analysis", body = DeletionImpactResponse),
+        (status = 404, description = "Document not found")
+    )
+)]
+pub async fn analyze_deletion_impact(
+    State(state): State<AppState>,
+    axum::extract::Path(document_id): axum::extract::Path<String>,
+) -> ApiResult<Json<DeletionImpactResponse>> {
+    let keys = state.kv_storage.keys().await?;
+
+    // Find chunks belonging to this document
+    let chunk_prefix = format!("{}-chunk-", document_id);
+    let chunk_ids: Vec<String> = keys
+        .iter()
+        .filter(|k| k.starts_with(&chunk_prefix))
+        .cloned()
+        .collect();
+
+    // Also check for metadata and content keys
+    let metadata_key = format!("{}-metadata", document_id);
+    let content_key = format!("{}-content", document_id);
+    let has_metadata = keys.contains(&metadata_key);
+    let has_content = keys.contains(&content_key);
+
+    // Document must have either chunks, metadata, or content
+    if chunk_ids.is_empty() && !has_metadata && !has_content {
+        return Err(ApiError::NotFound(format!(
+            "Document {} not found",
+            document_id
+        )));
+    }
+
+    let chunks_to_delete = chunk_ids.len();
+    let mut entities_to_remove = 0usize;
+    let mut entities_to_update = 0usize;
+    let mut relationships_to_remove = 0usize;
+    let mut relationships_to_update = 0usize;
+
+    // Analyze entities (read-only)
+    let all_nodes = state.graph_storage.get_all_nodes().await?;
+    for node in all_nodes {
+        if let Some(source_id) = node.properties.get("source_id").and_then(|v| v.as_str()) {
+            let sources: Vec<&str> = source_id.split('|').collect();
+            let remaining = sources
+                .iter()
+                .filter(|s| !s.starts_with(&chunk_prefix) && !s.starts_with(&document_id))
+                .count();
+
+            if remaining == 0 {
+                entities_to_remove += 1;
+            } else if remaining < sources.len() {
+                entities_to_update += 1;
+            }
+        }
+    }
+
+    // Analyze edges (read-only)
+    let all_edges = state.graph_storage.get_all_edges().await?;
+    for edge in all_edges {
+        if let Some(source_id) = edge.properties.get("source_id").and_then(|v| v.as_str()) {
+            let sources: Vec<&str> = source_id.split('|').collect();
+            let remaining = sources
+                .iter()
+                .filter(|s| !s.starts_with(&chunk_prefix) && !s.starts_with(&document_id))
+                .count();
+
+            if remaining == 0 {
+                relationships_to_remove += 1;
+            } else if remaining < sources.len() {
+                relationships_to_update += 1;
+            }
+        }
+    }
+
+    Ok(Json(DeletionImpactResponse {
+        document_id,
+        chunks_to_delete,
+        entities_to_remove,
+        entities_to_update,
+        relationships_to_remove,
+        relationships_to_update,
+        preview_only: true,
     }))
 }
 
@@ -1392,10 +1636,7 @@ pub async fn upload_file(
 
     // Generate content summary (first 200 chars)
     let content_summary = if text_content.len() > 200 {
-        format!(
-            "{}...",
-            &text_content.chars().take(200).collect::<String>()
-        )
+        format!("{}...", &text_content.chars().take(200).collect::<String>())
     } else {
         text_content.clone()
     };
@@ -1483,9 +1724,16 @@ pub async fn upload_file(
     state.kv_storage.upsert(&chunks).await?;
 
     // Store entities and relationships in graph storage
-    tracing::info!(extraction_count = result.extractions.len(), "GRAPH STORAGE: Processing extractions");
+    tracing::info!(
+        extraction_count = result.extractions.len(),
+        "GRAPH STORAGE: Processing extractions"
+    );
     for extraction in &result.extractions {
-        tracing::info!(entity_count = extraction.entities.len(), relationship_count = extraction.relationships.len(), "GRAPH STORAGE: Extraction content");
+        tracing::info!(
+            entity_count = extraction.entities.len(),
+            relationship_count = extraction.relationships.len(),
+            "GRAPH STORAGE: Extraction content"
+        );
         for entity in &extraction.entities {
             tracing::info!(entity_name = %entity.name, entity_type = %entity.entity_type, "GRAPH STORAGE: Storing entity");
             let mut properties = std::collections::HashMap::new();
@@ -1509,11 +1757,22 @@ pub async fn upload_file(
             if let Some(ref tid) = tenant_id_for_storage {
                 properties.insert("tenant_id".to_string(), serde_json::json!(tid));
             }
-            properties.insert("workspace_id".to_string(), serde_json::json!(&workspace_id_for_storage));
+            properties.insert(
+                "workspace_id".to_string(),
+                serde_json::json!(&workspace_id_for_storage),
+            );
 
-            match state.graph_storage.upsert_node(&entity.name, properties).await {
-                Ok(_) => tracing::info!(entity_name = %entity.name, "GRAPH STORAGE: Entity stored OK"),
-                Err(e) => tracing::error!(entity_name = %entity.name, error = %e, "GRAPH STORAGE: Failed to store entity"),
+            match state
+                .graph_storage
+                .upsert_node(&entity.name, properties)
+                .await
+            {
+                Ok(_) => {
+                    tracing::info!(entity_name = %entity.name, "GRAPH STORAGE: Entity stored OK")
+                }
+                Err(e) => {
+                    tracing::error!(entity_name = %entity.name, error = %e, "GRAPH STORAGE: Failed to store entity")
+                }
             }
         }
 
@@ -1540,7 +1799,10 @@ pub async fn upload_file(
             if let Some(ref tid) = tenant_id_for_storage {
                 properties.insert("tenant_id".to_string(), serde_json::json!(tid));
             }
-            properties.insert("workspace_id".to_string(), serde_json::json!(&workspace_id_for_storage));
+            properties.insert(
+                "workspace_id".to_string(),
+                serde_json::json!(&workspace_id_for_storage),
+            );
 
             let _ = state
                 .graph_storage

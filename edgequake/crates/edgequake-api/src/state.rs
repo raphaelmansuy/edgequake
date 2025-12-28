@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use crate::cache_manager::CacheManager;
+use crate::handlers::ProgressBroadcaster;
 use edgequake_auth::{AuthConfig, JwtService, PasswordService, RbacService};
 use edgequake_core::{
     ConversationService, InMemoryConversationService, InMemoryWorkspaceService, WorkspaceService,
@@ -63,6 +64,9 @@ pub struct AppState {
 
     /// Pipeline state for real-time progress tracking (Phase 3).
     pub pipeline_state: PipelineState,
+
+    /// Progress broadcaster for WebSocket clients (Phase 5).
+    pub progress_broadcaster: ProgressBroadcaster,
 
     /// Workspace service for tenant/workspace management.
     pub workspace_service: SharedWorkspaceService,
@@ -148,6 +152,7 @@ impl AppState {
             task_storage,
             task_queue,
             pipeline_state: PipelineState::new(),
+            progress_broadcaster: ProgressBroadcaster::default(),
             workspace_service,
             conversation_service,
             config: AppConfig::default(),
@@ -221,6 +226,7 @@ impl AppState {
             task_storage,
             task_queue,
             pipeline_state: PipelineState::new(),
+            progress_broadcaster: ProgressBroadcaster::default(),
             workspace_service,
             conversation_service,
             config: AppConfig::default(),
@@ -284,6 +290,7 @@ impl AppState {
             task_storage,
             task_queue,
             pipeline_state: PipelineState::new(),
+            progress_broadcaster: ProgressBroadcaster::default(),
             workspace_service,
             conversation_service,
             config: AppConfig::default(),
@@ -403,6 +410,7 @@ impl AppState {
             task_storage,
             task_queue,
             pipeline_state: PipelineState::new(),
+            progress_broadcaster: ProgressBroadcaster::default(),
             workspace_service,
             conversation_service,
             config: AppConfig::default(),

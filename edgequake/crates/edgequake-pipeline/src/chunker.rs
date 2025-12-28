@@ -109,6 +109,12 @@ pub struct TextChunk {
     /// Character offset to the end of the chunk.
     pub end_offset: usize,
 
+    /// Starting line number (1-based) in the original document.
+    pub start_line: usize,
+
+    /// Ending line number (1-based, inclusive) in the original document.
+    pub end_line: usize,
+
     /// Approximate token count.
     pub token_count: usize,
 
@@ -133,10 +139,65 @@ impl TextChunk {
             index,
             start_offset,
             end_offset,
+            start_line: 1,  // Default, should be set via with_line_numbers()
+            end_line: 1,    // Default, should be set via with_line_numbers()
             token_count,
             embedding: None,
         }
     }
+
+    /// Create a new text chunk with line numbers.
+    pub fn with_line_numbers(
+        id: impl Into<String>,
+        content: impl Into<String>,
+        index: usize,
+        start_offset: usize,
+        end_offset: usize,
+        start_line: usize,
+        end_line: usize,
+    ) -> Self {
+        let content = content.into();
+        let token_count = estimate_tokens(&content);
+        Self {
+            id: id.into(),
+            content,
+            index,
+            start_offset,
+            end_offset,
+            start_line,
+            end_line,
+            token_count,
+            embedding: None,
+        }
+    }
+
+    /// Set line numbers after creation.
+    pub fn set_line_numbers(&mut self, start_line: usize, end_line: usize) {
+        self.start_line = start_line;
+        self.end_line = end_line;
+    }
+}
+
+/// Calculate line numbers for a chunk based on character offsets.
+///
+/// # Arguments
+/// * `full_text` - The complete document text
+/// * `start_offset` - Starting character offset of the chunk
+/// * `end_offset` - Ending character offset of the chunk
+///
+/// # Returns
+/// A tuple of (start_line, end_line), both 1-based
+pub fn calculate_line_numbers(full_text: &str, start_offset: usize, end_offset: usize) -> (usize, usize) {
+    // Count newlines before the start offset to get start line
+    let before_chunk = &full_text[..start_offset.min(full_text.len())];
+    let start_line = before_chunk.chars().filter(|&c| c == '\n').count() + 1;
+
+    // Count newlines within the chunk to get end line
+    let chunk_text = &full_text[start_offset.min(full_text.len())..end_offset.min(full_text.len())];
+    let lines_in_chunk = chunk_text.chars().filter(|&c| c == '\n').count();
+    let end_line = start_line + lines_in_chunk;
+
+    (start_line, end_line)
 }
 
 /// Estimate token count (rough approximation: 1 token ≈ 4 chars).
@@ -353,20 +414,27 @@ impl Chunker {
     pub async fn chunk_async(&self, text: &str, doc_id: &str) -> Result<Vec<TextChunk>> {
         let results = self.strategy.chunk(text, &self.config).await?;
 
+        // Track cumulative offset for line number calculation
+        let mut cumulative_offset = 0;
+        
         Ok(results
             .into_iter()
-            .enumerate()
-            .map(|(_, result)| {
+            .map(|result| {
                 let id = format!("{}-chunk-{}", doc_id, result.chunk_order_index);
-                TextChunk {
+                let start_offset = cumulative_offset;
+                let end_offset = cumulative_offset + result.content.len();
+                let (start_line, end_line) = calculate_line_numbers(text, start_offset, end_offset);
+                cumulative_offset = end_offset;
+                
+                TextChunk::with_line_numbers(
                     id,
-                    content: result.content.clone(),
-                    index: result.chunk_order_index,
-                    start_offset: 0, // TODO: Track offsets in ChunkResult
-                    end_offset: result.content.len(),
-                    token_count: result.tokens,
-                    embedding: None,
-                }
+                    result.content.clone(),
+                    result.chunk_order_index,
+                    start_offset,
+                    end_offset,
+                    start_line,
+                    end_line,
+                )
             })
             .collect())
     }
@@ -388,7 +456,8 @@ impl Chunker {
             .enumerate()
             .map(|(index, (content, start, end))| {
                 let id = format!("{}-chunk-{}", doc_id, index);
-                TextChunk::new(id, content, index, start, end)
+                let (start_line, end_line) = calculate_line_numbers(text, start, end);
+                TextChunk::with_line_numbers(id, content, index, start, end, start_line, end_line)
             })
             .collect())
     }
@@ -502,5 +571,58 @@ mod tests {
     fn test_token_estimation() {
         assert_eq!(estimate_tokens("test"), 1);
         assert_eq!(estimate_tokens("hello world"), 3); // 11 chars / 4 ≈ 3
+    }
+
+    #[test]
+    fn test_line_number_calculation() {
+        // Test single line
+        let text = "Hello world";
+        let (start, end) = calculate_line_numbers(text, 0, text.len());
+        assert_eq!(start, 1);
+        assert_eq!(end, 1);
+
+        // Test multiple lines
+        let text = "Line 1\nLine 2\nLine 3";
+        let (start, end) = calculate_line_numbers(text, 0, text.len());
+        assert_eq!(start, 1);
+        assert_eq!(end, 3);
+
+        // Test middle portion
+        let text = "Line 1\nLine 2\nLine 3\nLine 4";
+        let line2_start = 7; // After "Line 1\n"
+        let line3_end = 20;  // End of "Line 3"
+        let (start, end) = calculate_line_numbers(text, line2_start, line3_end);
+        assert_eq!(start, 2);
+        assert_eq!(end, 3);
+    }
+
+    #[test]
+    fn test_chunks_have_line_numbers() {
+        let chunker = Chunker::default_chunker();
+        let text = "Line one.\nLine two.\nLine three.";
+        let chunks = chunker.chunk(text, "doc1").unwrap();
+
+        assert!(!chunks.is_empty());
+        assert_eq!(chunks[0].start_line, 1);
+        assert!(chunks[0].end_line >= 1);
+    }
+
+    #[test]
+    fn test_multiline_chunk_line_numbers() {
+        let config = ChunkerConfig {
+            chunk_size: 10,
+            chunk_overlap: 2,
+            min_chunk_size: 5,
+            ..Default::default()
+        };
+        let chunker = Chunker::new(config);
+
+        let text = "Line 1 here.\nLine 2 here.\nLine 3 here.\nLine 4 here.\nLine 5 here.";
+        let chunks = chunker.chunk(text, "doc1").unwrap();
+
+        // First chunk should start at line 1
+        if !chunks.is_empty() {
+            assert_eq!(chunks[0].start_line, 1);
+        }
     }
 }

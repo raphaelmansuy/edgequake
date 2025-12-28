@@ -4,11 +4,18 @@
 //! using LLMs or rule-based approaches. Supports map-reduce style
 //! summarization for merging multiple entity descriptions.
 //!
+//! # MapReduce Summarization
+//!
+//! For large description sets, we use a two-phase approach:
+//! 1. **Map Phase**: Chunk descriptions into groups, summarize each
+//! 2. **Reduce Phase**: Recursively combine summaries until one remains
+//!
 //! Based on LightRAG's summarization: `lightrag/operate.py:_handle_entity_relation_summary()`
 
 use std::sync::Arc;
 
 use crate::error::{PipelineError, Result};
+use crate::prompts::SummarizationPrompts;
 
 /// Configuration for the summarizer.
 #[derive(Debug, Clone)]
@@ -95,7 +102,7 @@ impl DescriptionSummarizer for SimpleSummarizer {
 
         // Split into sentences
         let sentences: Vec<&str> = description
-            .split(|c| c == '.' || c == '!' || c == '?')
+            .split(['.', '!', '?'])
             .filter(|s| !s.trim().is_empty())
             .collect();
 
@@ -127,6 +134,7 @@ where
 {
     llm_provider: Arc<L>,
     config: SummarizerConfig,
+    prompts: SummarizationPrompts,
 }
 
 impl<L> LLMSummarizer<L>
@@ -138,23 +146,28 @@ where
         Self {
             llm_provider,
             config,
+            prompts: SummarizationPrompts,
+        }
+    }
+
+    /// Create with custom prompts.
+    pub fn with_prompts(llm_provider: Arc<L>, config: SummarizerConfig, prompts: SummarizationPrompts) -> Self {
+        Self {
+            llm_provider,
+            config,
+            prompts,
         }
     }
 
     /// Build the summarization prompt.
     fn build_prompt(&self, description: &str) -> String {
-        let target_words = self.config.target_length / 6; // Rough word estimate
+        self.prompts.simple_summary_prompt(description)
+    }
 
-        format!(
-            r#"Summarize the following text in approximately {target_words} words or fewer.
-Keep the most important facts and relationships.
-Maintain a factual, descriptive tone.
-
-Text:
-{description}
-
-Summary:"#
-        )
+    /// Estimate token count from text (rough approximation).
+    fn estimate_tokens(&self, text: &str) -> usize {
+        // Average ~4 chars per token for English
+        text.len() / 4
     }
 
     /// Merge multiple entity descriptions into a coherent summary.
@@ -267,30 +280,8 @@ Summary:"#
 
     /// Summarize a single chunk of descriptions.
     async fn summarize_chunk(&self, entity_name: &str, descriptions: &[String]) -> Result<String> {
-        let descriptions_text = descriptions
-            .iter()
-            .enumerate()
-            .map(|(i, d)| format!("{}. {}", i + 1, d))
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        let prompt = format!(
-            r#"You are a helpful assistant responsible for generating a comprehensive summary of the data provided below.
-
-Given one or more descriptions of an entity, generate a single comprehensive description that:
-1. Captures all unique information from the input descriptions
-2. Resolves any contradictions by preferring more specific information
-3. Is written in a clear, coherent style
-4. Does not exceed 500 words
-
-# Entity: {entity_name}
-
-# Descriptions:
-{descriptions_text}
-
-# Comprehensive Summary:
-"#
-        );
+        let descriptions_refs: Vec<&str> = descriptions.iter().map(|s| s.as_str()).collect();
+        let prompt = self.prompts.entity_summary_prompt(entity_name, &descriptions_refs);
 
         let response = self
             .llm_provider
@@ -316,30 +307,30 @@ Given one or more descriptions of an entity, generate a single comprehensive des
             return Ok(descriptions[0].clone());
         }
 
-        let descriptions_text = descriptions
-            .iter()
-            .enumerate()
-            .map(|(i, d)| format!("{}. {}", i + 1, d))
-            .collect::<Vec<_>>()
-            .join("\n");
+        let descriptions_refs: Vec<&str> = descriptions.iter().map(|s| s.as_str()).collect();
+        let prompt = self.prompts.relationship_summary_prompt(source, target, &descriptions_refs);
 
-        let prompt = format!(
-            r#"You are a helpful assistant responsible for generating a comprehensive summary of the relationship between two entities.
+        let response = self
+            .llm_provider
+            .complete(&prompt)
+            .await
+            .map_err(|e| PipelineError::ExtractionError(format!("LLM error: {}", e)))?;
 
-Given one or more descriptions of a relationship between "{source}" and "{target}", generate a single comprehensive description that:
-1. Captures all unique information about their relationship
-2. Resolves any contradictions by preferring more specific information
-3. Is written in a clear, coherent style
-4. Does not exceed 200 words
+        Ok(response.content.trim().to_string())
+    }
 
-# Relationship: {source} → {target}
+    /// Reduce multiple summaries into one (for MapReduce reduce phase).
+    pub async fn reduce_summaries(&self, summaries: &[String]) -> Result<String> {
+        if summaries.is_empty() {
+            return Ok(String::new());
+        }
 
-# Descriptions:
-{descriptions_text}
+        if summaries.len() == 1 {
+            return Ok(summaries[0].clone());
+        }
 
-# Comprehensive Summary:
-"#
-        );
+        let summaries_refs: Vec<&str> = summaries.iter().map(|s| s.as_str()).collect();
+        let prompt = self.prompts.reduce_summary_prompt(&summaries_refs);
 
         let response = self
             .llm_provider

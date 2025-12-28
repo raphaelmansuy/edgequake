@@ -43,44 +43,44 @@ Represents an ingested document.
 pub struct Document {
     /// Unique identifier
     pub id: String,
-    
+
     /// Original filename
     pub filename: String,
-    
+
     /// Document content (raw text)
     pub content: String,
-    
+
     /// Content hash for deduplication
     pub content_hash: String,
-    
+
     /// MIME type (e.g., "text/plain", "application/pdf")
     pub mime_type: String,
-    
+
     /// File size in bytes
     pub size_bytes: usize,
-    
+
     /// Character count
     pub char_count: usize,
-    
+
     /// Estimated token count
     pub token_count: usize,
-    
+
     /// Tenant context
     pub tenant_id: String,
-    
+
     /// Workspace context
     pub workspace_id: String,
-    
+
     /// Processing status
     pub status: DocumentStatus,
-    
+
     /// Custom metadata
     pub metadata: HashMap<String, serde_json::Value>,
-    
+
     /// Timestamps
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    
+
     /// Soft delete marker
     pub deleted_at: Option<DateTime<Utc>>,
 }
@@ -105,44 +105,44 @@ Represents a chunk of text with full lineage information.
 pub struct TextChunk {
     /// Unique identifier (format: "{doc_id}-chunk-{index}")
     pub id: String,
-    
+
     /// Chunk content
     pub content: String,
-    
+
     /// Zero-based index within document
     pub index: usize,
-    
+
     // === Character Position (existing) ===
     /// Character offset from document start
     pub start_offset: usize,
     /// Character offset to chunk end
     pub end_offset: usize,
-    
+
     // === Line Position (NEW - R001) ===
     /// Starting line number (1-based)
     pub start_line: usize,
     /// Ending line number (1-based, inclusive)
     pub end_line: usize,
-    
+
     // === Token Information ===
     /// Estimated token count
     pub token_count: usize,
-    
+
     // === Source Reference ===
     /// Parent document ID
     pub document_id: String,
     /// Document filename for citations
     pub document_name: Option<String>,
-    
+
     // === Processing Metadata ===
     /// Chunking strategy used
     pub chunking_strategy: String,
     /// Overlap with previous chunk (in tokens)
     pub overlap_tokens: usize,
-    
+
     // === Embedding ===
     pub embedding: Option<Vec<f32>>,
-    
+
     // === Lineage (NEW) ===
     /// IDs of entities extracted from this chunk
     pub entity_ids: Vec<String>,
@@ -150,7 +150,7 @@ pub struct TextChunk {
     pub relationship_ids: Vec<String>,
     /// LLM cache entries used for extraction
     pub llm_cache_ids: Vec<String>,
-    
+
     // === Timestamps ===
     pub created_at: DateTime<Utc>,
 }
@@ -166,22 +166,22 @@ Represents a knowledge graph entity with full provenance.
 pub struct Entity {
     /// Normalized entity key (UPPERCASE_WITH_UNDERSCORES)
     pub id: String,
-    
+
     /// Display name (original casing)
     pub name: String,
-    
+
     /// Entity type (PERSON, ORGANIZATION, etc.)
     pub entity_type: String,
-    
+
     /// Merged description from all sources
     pub description: String,
-    
+
     /// Importance score (0.0 to 1.0)
     pub importance: f32,
-    
+
     /// Entity embedding
     pub embedding: Option<Vec<f32>>,
-    
+
     // === Provenance (NEW - R001) ===
     /// Source document IDs
     pub source_document_ids: Vec<String>,
@@ -189,17 +189,17 @@ pub struct Entity {
     pub source_chunk_ids: Vec<String>,
     /// Original text spans where entity was found
     pub source_spans: Vec<SourceSpan>,
-    
+
     // === Multi-tenancy ===
     pub tenant_id: String,
     pub workspace_id: String,
-    
+
     // === Statistics ===
     /// Number of times this entity was extracted
     pub extraction_count: usize,
     /// Number of relationships involving this entity
     pub relationship_count: usize,
-    
+
     // === Timestamps ===
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -230,28 +230,28 @@ Represents a knowledge graph relationship with full provenance.
 pub struct Relationship {
     /// Unique relationship ID
     pub id: String,
-    
+
     /// Source entity ID (normalized)
     pub source_id: String,
-    
+
     /// Target entity ID (normalized)
     pub target_id: String,
-    
+
     /// Relationship type/label
     pub relation_type: String,
-    
+
     /// Relationship description
     pub description: String,
-    
+
     /// Keywords associated with relationship
     pub keywords: Vec<String>,
-    
+
     /// Relationship strength/weight (0.0 to 1.0)
     pub weight: f32,
-    
+
     /// Relationship embedding
     pub embedding: Option<Vec<f32>>,
-    
+
     // === Provenance (NEW - R001) ===
     /// Source document IDs
     pub source_document_ids: Vec<String>,
@@ -259,15 +259,15 @@ pub struct Relationship {
     pub source_chunk_ids: Vec<String>,
     /// Original text spans where relationship was found
     pub source_spans: Vec<SourceSpan>,
-    
+
     // === Multi-tenancy ===
     pub tenant_id: String,
     pub workspace_id: String,
-    
+
     // === Statistics ===
     /// Number of times this relationship was extracted
     pub extraction_count: usize,
-    
+
     // === Timestamps ===
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -289,33 +289,33 @@ Represents a complete ingestion job.
 pub struct IngestionJob {
     /// Job ID (also used as track_id)
     pub id: String,
-    
+
     /// Document being processed
     pub document_id: String,
-    
+
     /// Job configuration
     pub config: IngestionConfig,
-    
+
     /// Current status
     pub status: JobStatus,
-    
+
     /// Processing result (if completed)
     pub result: Option<IngestionResult>,
-    
+
     /// Error details (if failed)
     pub error: Option<IngestionError>,
-    
+
     /// Cost tracking
     pub cost: IngestionCost,
-    
+
     /// Progress tracking
     pub progress: IngestionProgress,
-    
+
     // === Context ===
     pub tenant_id: String,
     pub workspace_id: String,
     pub user_id: Option<String>,
-    
+
     // === Timestamps ===
     pub created_at: DateTime<Utc>,
     pub started_at: Option<DateTime<Utc>>,
@@ -349,7 +349,7 @@ pub struct IngestionConfig {
     pub min_chunk_size: usize,
     /// Chunking strategy name
     pub chunking_strategy: ChunkingStrategy,
-    
+
     // === Extraction ===
     /// LLM model for extraction
     pub extraction_model: String,
@@ -359,7 +359,7 @@ pub struct IngestionConfig {
     pub max_gleaning: usize,
     /// Maximum concurrent extraction tasks
     pub max_concurrent_extractions: usize,
-    
+
     // === Embedding ===
     /// Embedding model
     pub embedding_model: String,
@@ -367,7 +367,7 @@ pub struct IngestionConfig {
     pub embedding_dim: usize,
     /// Batch size for embedding generation
     pub embedding_batch_size: usize,
-    
+
     // === Summarization ===
     /// Enable MapReduce summarization
     pub enable_mapreduce_summary: bool,
@@ -377,7 +377,7 @@ pub struct IngestionConfig {
     pub force_llm_summary_on_merge: usize,
     /// Target summary length
     pub summary_length: usize,
-    
+
     // === Feature Flags ===
     pub enable_entity_extraction: bool,
     pub enable_relationship_extraction: bool,
@@ -385,7 +385,7 @@ pub struct IngestionConfig {
     pub enable_entity_embeddings: bool,
     pub enable_relationship_embeddings: bool,
     pub enable_caching: bool,
-    
+
     // === Language ===
     pub extraction_language: String,
 }
@@ -444,41 +444,41 @@ Result of a completed ingestion job.
 pub struct IngestionResult {
     /// Job ID
     pub job_id: String,
-    
+
     /// Document ID
     pub document_id: String,
-    
+
     // === Chunk Statistics ===
     pub chunk_count: usize,
     pub total_chunk_tokens: usize,
     pub avg_chunk_size: usize,
-    
+
     // === Entity Statistics ===
     pub entity_count: usize,
     pub entities_created: usize,
     pub entities_updated: usize,
     pub unique_entity_types: Vec<String>,
-    
+
     // === Relationship Statistics ===
     pub relationship_count: usize,
     pub relationships_created: usize,
     pub relationships_updated: usize,
     pub unique_relationship_types: Vec<String>,
-    
+
     // === Keyword Statistics ===
     pub keywords: Vec<String>,
     pub keyword_count: usize,
-    
+
     // === Processing Info ===
     pub processing_time_ms: u64,
     pub llm_calls: usize,
     pub embedding_calls: usize,
-    
+
     // === Model Info ===
     pub extraction_model: String,
     pub embedding_model: String,
     pub chunking_strategy: String,
-    
+
     // === Lineage ===
     pub chunk_ids: Vec<String>,
     pub entity_ids: Vec<String>,
@@ -496,26 +496,26 @@ Result from entity/relationship extraction.
 pub struct ExtractionResult {
     /// Source chunk ID
     pub chunk_id: String,
-    
+
     /// Extracted entities
     pub entities: Vec<ExtractedEntity>,
-    
+
     /// Extracted relationships
     pub relationships: Vec<ExtractedRelationship>,
-    
+
     // === Extraction Metadata ===
     pub extraction_model: String,
     pub gleaning_iterations: usize,
     pub extraction_time_ms: u64,
-    
+
     // === Token Usage ===
     pub input_tokens: usize,
     pub output_tokens: usize,
-    
+
     // === Cache Info ===
     pub cache_hit: bool,
     pub cache_id: Option<String>,
-    
+
     /// Additional metadata
     pub metadata: HashMap<String, serde_json::Value>,
 }
@@ -577,30 +577,30 @@ Complete lineage tracking for a document.
 pub struct DocumentLineage {
     /// Document ID
     pub document_id: String,
-    
+
     /// Document filename
     pub document_name: String,
-    
+
     /// Ingestion job that created this lineage
     pub job_id: String,
-    
+
     /// Ingestion configuration used
     pub config: IngestionConfig,
-    
+
     /// All chunks from this document
     pub chunks: Vec<ChunkLineage>,
-    
+
     /// All entities extracted from this document
     pub entities: Vec<EntityLineage>,
-    
+
     /// All relationships extracted from this document
     pub relationships: Vec<RelationshipLineage>,
-    
+
     // === Statistics ===
     pub total_chunks: usize,
     pub total_entities: usize,
     pub total_relationships: usize,
-    
+
     // === Timestamps ===
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -617,22 +617,22 @@ Lineage information for a single chunk.
 pub struct ChunkLineage {
     /// Chunk ID
     pub chunk_id: String,
-    
+
     /// Chunk index in document
     pub chunk_index: usize,
-    
+
     // === Position ===
     pub start_line: usize,
     pub end_line: usize,
     pub start_offset: usize,
     pub end_offset: usize,
-    
+
     // === Entities extracted from this chunk ===
     pub entity_ids: Vec<String>,
-    
+
     // === Relationships extracted from this chunk ===
     pub relationship_ids: Vec<String>,
-    
+
     // === Extraction info ===
     pub extraction_metadata: ExtractionMetadata,
 }
@@ -659,16 +659,16 @@ Lineage information for an entity across all sources.
 pub struct EntityLineage {
     /// Entity ID
     pub entity_id: String,
-    
+
     /// Entity name
     pub entity_name: String,
-    
+
     /// All documents where this entity was found
     pub sources: Vec<EntitySource>,
-    
+
     /// Total extraction count
     pub extraction_count: usize,
-    
+
     /// Description history (for audit)
     pub description_history: Vec<DescriptionVersion>,
 }
@@ -704,19 +704,19 @@ Complete cost tracking for an ingestion job.
 pub struct IngestionCost {
     /// Job ID
     pub job_id: String,
-    
+
     /// Document ID
     pub document_id: String,
-    
+
     /// Total cost in USD
     pub total_cost_usd: f64,
-    
+
     /// Cost breakdown by operation
     pub breakdown: CostBreakdown,
-    
+
     /// Token usage summary
     pub token_usage: TokenUsageSummary,
-    
+
     /// Timestamps
     pub calculated_at: DateTime<Utc>,
 }
@@ -725,16 +725,16 @@ pub struct IngestionCost {
 pub struct CostBreakdown {
     // === Extraction ===
     pub extraction: OperationCost,
-    
+
     // === Gleaning ===
     pub gleaning: OperationCost,
-    
+
     // === Summarization ===
     pub summarization: OperationCost,
-    
+
     // === Embedding ===
     pub embedding: OperationCost,
-    
+
     // === Total ===
     pub total_usd: f64,
 }
@@ -743,16 +743,16 @@ pub struct CostBreakdown {
 pub struct OperationCost {
     /// Number of API calls
     pub api_calls: usize,
-    
+
     /// Input tokens
     pub input_tokens: usize,
-    
+
     /// Output tokens
     pub output_tokens: usize,
-    
+
     /// Cost in USD
     pub cost_usd: f64,
-    
+
     /// Model used
     pub model: String,
 }
@@ -776,10 +776,10 @@ Cost configuration for different models.
 pub struct CostConfig {
     /// Cost per 1K input tokens
     pub input_cost_per_1k: f64,
-    
+
     /// Cost per 1K output tokens
     pub output_cost_per_1k: f64,
-    
+
     /// Cost per 1K embedding tokens
     pub embedding_cost_per_1k: f64,
 }
@@ -793,7 +793,7 @@ impl CostConfig {
             embedding_cost_per_1k: 0.0,
         }
     }
-    
+
     /// text-embedding-3-small pricing
     pub fn text_embedding_3_small() -> Self {
         Self {
@@ -819,34 +819,34 @@ Real-time progress tracking.
 pub struct IngestionProgress {
     /// Job ID
     pub job_id: String,
-    
+
     /// Document ID
     pub document_id: String,
-    
+
     /// Overall status
     pub status: IngestionStatus,
-    
+
     /// Current stage
     pub current_stage: PipelineStage,
-    
+
     /// Stage progress details
     pub stages: Vec<StageProgress>,
-    
+
     /// Overall completion percentage (0-100)
     pub completion_percentage: f32,
-    
+
     /// Estimated time remaining (seconds)
     pub eta_seconds: Option<u64>,
-    
+
     /// Latest status message
     pub latest_message: String,
-    
+
     /// Message history
     pub history_messages: Vec<ProgressMessage>,
-    
+
     /// Error details (if any)
     pub errors: Vec<IngestionError>,
-    
+
     // === Timestamps ===
     pub started_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -921,25 +921,25 @@ Error tracking for ingestion.
 pub struct IngestionError {
     /// Error code (e.g., "E001", "E002")
     pub code: String,
-    
+
     /// Human-readable error message
     pub message: String,
-    
+
     /// Error details (for debugging)
     pub details: Option<String>,
-    
+
     /// Stage where error occurred
     pub stage: PipelineStage,
-    
+
     /// Item that caused error (chunk_id, entity_name, etc.)
     pub item_id: Option<String>,
-    
+
     /// Whether error is recoverable
     pub recoverable: bool,
-    
+
     /// Retry count
     pub retry_count: usize,
-    
+
     /// Timestamp
     pub occurred_at: DateTime<Utc>,
 }
@@ -969,7 +969,7 @@ CREATE TABLE documents (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMPTZ,
-    
+
     INDEX idx_documents_tenant_workspace (tenant_id, workspace_id),
     INDEX idx_documents_status (status),
     INDEX idx_documents_content_hash (content_hash)
@@ -993,7 +993,7 @@ CREATE TABLE chunks (
     relationship_ids TEXT[] DEFAULT '{}',
     llm_cache_ids TEXT[] DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    
+
     INDEX idx_chunks_document (document_id),
     INDEX idx_chunks_embedding USING ivfflat (embedding vector_cosine_ops)
 );
@@ -1009,7 +1009,7 @@ CREATE TABLE document_lineage (
     total_relationships INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    
+
     INDEX idx_lineage_document (document_id),
     INDEX idx_lineage_job (job_id)
 );
@@ -1030,7 +1030,7 @@ CREATE TABLE ingestion_jobs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     started_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
-    
+
     INDEX idx_jobs_tenant_workspace (tenant_id, workspace_id),
     INDEX idx_jobs_status (status),
     INDEX idx_jobs_document (document_id)
@@ -1045,7 +1045,7 @@ CREATE TABLE ingestion_costs (
     breakdown JSONB NOT NULL,
     token_usage JSONB NOT NULL,
     calculated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    
+
     INDEX idx_costs_job (job_id),
     INDEX idx_costs_document (document_id)
 );
@@ -1061,7 +1061,7 @@ CREATE TABLE llm_cache (
     output_tokens INTEGER NOT NULL,
     model VARCHAR(100) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    
+
     INDEX idx_cache_type (cache_type),
     INDEX idx_cache_chunk (chunk_id),
     INDEX idx_cache_prompt_hash (prompt_hash)

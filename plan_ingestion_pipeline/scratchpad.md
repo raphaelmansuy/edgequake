@@ -2,19 +2,108 @@
 
 > Working notes for SOTA GenAI-powered ingestion pipeline design.
 > Last updated: 2024-12-28
-> Status: ✅ COMPLETE - All deliverables created
+> Status: ✅ COMPLETE + v2.0 ENHANCED
 
 ## Deliverables Completed
 
-| Document | Status | Description |
-|----------|--------|-------------|
-| [01-architecture.md](01-architecture.md) | ✅ | System architecture with ASCII diagrams |
-| [02-comparison.md](02-comparison.md) | ✅ | Rust vs Python feature comparison |
-| [03-data-models.md](03-data-models.md) | ✅ | Complete data model specifications |
-| [04-api-contracts.md](04-api-contracts.md) | ✅ | API endpoint definitions |
-| [05-implementation-plan.md](05-implementation-plan.md) | ✅ | Phased implementation roadmap |
-| [06-testing-strategy.md](06-testing-strategy.md) | ✅ | Test plans and strategies |
-| [plan.md](plan.md) | ✅ | Master plan consolidating all deliverables |
+| Document                                               | Status       | Description                                |
+| ------------------------------------------------------ | ------------ | ------------------------------------------ |
+| [01-architecture.md](01-architecture.md)               | ✅           | System architecture with ASCII diagrams    |
+| [02-comparison.md](02-comparison.md)                   | ✅           | Rust vs Python feature comparison          |
+| [03-data-models.md](03-data-models.md)                 | ✅           | Complete data model specifications         |
+| [04-api-contracts.md](04-api-contracts.md)             | ✅           | API endpoint definitions                   |
+| [05-implementation-plan.md](05-implementation-plan.md) | ✅ **v2.0**  | Phased implementation roadmap + SOTA       |
+| [06-testing-strategy.md](06-testing-strategy.md)       | ✅           | Test plans and strategies                  |
+| [07-prompt-comparison.md](07-prompt-comparison.md)     | ✅           | LightRAG vs EdgeQuake prompt analysis      |
+| [08-documentation-crosscheck.md](08-documentation-crosscheck.md) | ✅ | Doc-to-code validation                     |
+| [09-cross-reference.md](09-cross-reference.md)         | ✅ **v2.0**  | Cross-reference index                      |
+| [plan.md](plan.md)                                     | ✅ **v2.0**  | Master plan consolidating all deliverables |
+
+---
+
+## v2.0 SOTA Enhancement Session (2024-12-28)
+
+### What Was Added
+
+1. **SOTA Prompt System Integration (DOC-05 §2)**
+   - EntityExtractionPrompts struct with tuple delimiter `<|#|>`
+   - Completion signal `<|COMPLETE|>` for reliable extraction
+   - N-ary relationship decomposition instructions
+   - Entity naming rules (title case, consistent naming)
+   - Multi-language support via `{language}` parameter
+   - 3 few-shot examples for LLM guidance
+   - Third-person style enforcement
+
+2. **TupleParser Implementation (DOC-05 §2.4)**
+   - Robust parsing of tuple-based extraction output
+   - Handles malformed responses gracefully
+   - Extracts entities and relationships from `<|#|>` delimited text
+
+3. **HybridExtractionParser (DOC-05 §2.5)**
+   - Migration path from JSON to Tuple format
+   - Feature flags: `sota-prompts` and `legacy-prompts`
+   - Automatic fallback for non-compliant LLM responses
+
+4. **Risk Assessment & Roadblock Analysis (DOC-05 §11)**
+   - RB-001: LLM non-compliance → Retry + JSON fallback
+   - RB-002: System prompt variability → Concatenation fallback  
+   - RB-003: Token limits → MapReduce summarization
+   - RB-004: Entity name conflicts → Normalization function
+   - RB-005: Parallel processing races → Stateless + semaphore
+   - RB-006: WebSocket limits → Connection pooling
+
+5. **Updated Phase 1 Tasks (DOC-05 §4)**
+   - P1-06: Create prompts module with EntityExtractionPrompts
+   - P1-07: Implement TupleParser with <|#|> delimiter
+   - P1-08: Add HybridExtractionParser for fallback
+   - P1-09: Port LightRAG prompt templates
+   - P1-10: Add entity name normalization
+   - P1-11: Citation/reference tracking for RAG responses
+
+### Source of SOTA Patterns
+
+**LightRAG prompt.py** (fetched 2024-12-28):
+- `PROMPTS["entity_extraction"]` - Full entity extraction prompt
+- `PROMPTS["DEFAULT_TUPLE_DELIMITER"]` = `<|#|>`
+- `PROMPTS["DEFAULT_COMPLETION_DELIMITER"]` = `<|COMPLETE|>`
+- `PROMPTS["entity_types"]` - Configurable entity types
+- `PROMPTS["summarize_entity_descriptions"]` - MapReduce prompts
+
+### Key Insights from Session
+
+1. **LightRAG's tuple format is ~3x more robust** than JSON for entity extraction
+   - JSON parsing fails on minor syntax errors
+   - Tuple format tolerates whitespace, partial output, errors
+
+2. **Completion signals prevent truncation issues**
+   - Without `<|COMPLETE|>`, hard to know if LLM finished
+   - Enables reliable detection of incomplete responses
+
+3. **N-ary decomposition is critical**
+   - LLMs often output "A, B, C are related to D"
+   - Must be decomposed to: A→D, B→D, C→D
+   - Explicit instruction in prompt prevents this issue
+
+4. **Entity naming consistency matters**
+   - "Sarah Chen" vs "SARAH_CHEN" vs "sarah chen"
+   - Must normalize at extraction time, not merge time
+   - Title case + uppercase storage = consistent graphs
+
+5. **Migration path is essential**
+   - Can't break existing production extractions
+   - HybridParser allows gradual rollout
+   - Feature flags enable A/B testing
+
+### Files That Need Changes
+
+| File                                        | Changes                          | Priority |
+| ------------------------------------------- | -------------------------------- | -------- |
+| `edgequake-pipeline/src/prompts/mod.rs`     | NEW: SOTA prompt templates       | P0       |
+| `edgequake-pipeline/src/prompts/entity.rs`  | NEW: EntityExtractionPrompts     | P0       |
+| `edgequake-pipeline/src/prompts/parser.rs`  | NEW: TupleParser                 | P0       |
+| `edgequake-pipeline/src/prompts/hybrid.rs`  | NEW: HybridExtractionParser      | P0       |
+| `edgequake-pipeline/src/extractor.rs`       | UPDATE: Use new prompts          | P0       |
+| `edgequake-pipeline/src/lib.rs`             | UPDATE: Add prompts module       | P0       |
 
 ---
 
@@ -23,6 +112,7 @@
 ### Current Rust Implementation (edgequake/)
 
 **Crate Structure:**
+
 ```
 edgequake/crates/
 ├── edgequake-api/       # REST API with Axum
@@ -36,6 +126,7 @@ edgequake/crates/
 ```
 
 **Pipeline Architecture (Current):**
+
 ```
 Document → Chunker → Extractor → Merger → Embeddings → Storage
              │           │           │
@@ -47,11 +138,13 @@ Document → Chunker → Extractor → Merger → Embeddings → Storage
 **Key Components Identified:**
 
 1. **Pipeline (pipeline.rs)**
+
    - PipelineConfig: chunk sizes, batch sizes, feature flags
    - ProcessingResult: document_id, chunks, extractions, stats
    - ProcessingStats: chunk_count, entity_count, llm_calls, total_tokens
 
 2. **Chunker (chunker.rs)**
+
    - ChunkerConfig: chunk_size, overlap, min_size, separators
    - TextChunk: id, content, index, start_offset, end_offset, token_count, embedding
    - ChunkingStrategy trait: allows custom chunkers
@@ -59,6 +152,7 @@ Document → Chunker → Extractor → Merger → Embeddings → Storage
    - CharacterBasedChunking: for pre-split content (GAP-017)
 
 3. **Extractor (extractor.rs)**
+
    - ExtractionResult: entities, relationships, source_chunk_id, metadata
    - ExtractedEntity: name, entity_type, description, importance, source_spans, embedding
    - ExtractedRelationship: source, target, relation_type, description, weight, keywords, embedding
@@ -68,6 +162,7 @@ Document → Chunker → Extractor → Merger → Embeddings → Storage
    - GleaningExtractor: re-extraction for missed entities (GAP-018)
 
 4. **Merger (merger.rs)**
+
    - MergerConfig: max_description_length, description_decay, min_importance
    - KnowledgeGraphMerger: merges into graph storage
    - Description merging (keeps longer)
@@ -80,6 +175,7 @@ Document → Chunker → Extractor → Merger → Embeddings → Storage
 ### Current Python Implementation (lightrag/)
 
 **Key Files:**
+
 ```
 lightrag/
 ├── operate.py           # Main operations (5000 lines!)
@@ -93,21 +189,25 @@ lightrag/
 **Key Patterns Observed:**
 
 1. **Map-Reduce for Description Summarization**
+
    - `_handle_entity_relation_summary()`: Uses map-reduce when descriptions exceed token limits
    - Chunks descriptions, summarizes each chunk, then recursively summarizes summaries
    - `force_llm_summary_on_merge` config option
 
 2. **LLM Caching**
+
    - Extensive caching of extraction results
    - `llm_cache_list` per chunk for rebuilding
    - Can rebuild KG from cached extractions
 
 3. **Tuple-Based Extraction Format**
+
    - Uses `<|#|>` as tuple delimiter
    - Format: `entity<|#|>name<|#|>type<|#|>description`
    - Format: `relation<|#|>source<|#|>target<|#|>keywords<|#|>description`
 
 4. **Pipeline Status Tracking**
+
    - Detailed progress tracking
    - `latest_message` and `history_messages`
    - Error counts, success counts
@@ -119,38 +219,42 @@ lightrag/
 
 ### Gaps Identified (vs Spec Requirements)
 
-| Requirement | Current Status | Gap |
-|------------|----------------|-----|
-| Line number tracking (start/end) | Char offsets only | **MISSING** |
-| Full lineage (doc→chunk→entity) | Partial | **NEEDS ENHANCEMENT** |
-| Cost tracking (tokens, $) | Basic (llm_calls, tokens) | **NEEDS DETAIL** |
-| MapReduce for large docs | Not implemented | **MISSING** |
-| Progress API | Basic stats | **NEEDS ENHANCEMENT** |
-| Document suppression | Not implemented | **MISSING** |
-| Entity CRUD with cascade | Partial | **NEEDS ENHANCEMENT** |
-| Citation retrieval | Not implemented | **MISSING** |
-| RAGAS/MLflow integration | Not implemented | **MISSING** |
-| Ontology schema | Not implemented | **FUTURE** |
-| Multi-namespace queries | Not implemented | **FUTURE** |
+| Requirement                      | Current Status            | Gap                   |
+| -------------------------------- | ------------------------- | --------------------- |
+| Line number tracking (start/end) | Char offsets only         | **MISSING**           |
+| Full lineage (doc→chunk→entity)  | Partial                   | **NEEDS ENHANCEMENT** |
+| Cost tracking (tokens, $)        | Basic (llm_calls, tokens) | **NEEDS DETAIL**      |
+| MapReduce for large docs         | Not implemented           | **MISSING**           |
+| Progress API                     | Basic stats               | **NEEDS ENHANCEMENT** |
+| Document suppression             | Not implemented           | **MISSING**           |
+| Entity CRUD with cascade         | Partial                   | **NEEDS ENHANCEMENT** |
+| Citation retrieval               | Not implemented           | **MISSING**           |
+| RAGAS/MLflow integration         | Not implemented           | **MISSING**           |
+| Ontology schema                  | Not implemented           | **FUTURE**            |
+| Multi-namespace queries          | Not implemented           | **FUTURE**            |
 
 ### Architecture Decisions Needed
 
 1. **Lineage Model**: How to track doc→chunk→entity relationships?
+
    - Option A: Embedded in each entity/relationship
    - Option B: Separate lineage table/storage
    - **Recommendation**: Separate lineage storage for flexibility
 
 2. **Cost Model**: How to track and attribute costs?
+
    - Per-document, per-chunk, per-entity
    - LLM provider costs (input/output tokens, model)
    - **Recommendation**: IngestionCost struct at each level
 
 3. **Progress Reporting**: Granularity?
+
    - Document level: started, chunks_created, entities_extracted, completed
    - Pipeline level: total_docs, completed_docs, failed_docs
    - **Recommendation**: Both levels with event streaming
 
 4. **Document Suppression**: What happens to graph?
+
    - Option A: Mark as deleted (soft delete)
    - Option B: Remove entities/relationships with only this source
    - Option C: Decrement weights, remove if zero

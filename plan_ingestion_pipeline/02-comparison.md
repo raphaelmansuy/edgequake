@@ -14,55 +14,55 @@ This document provides a detailed comparison between the EdgeQuake Rust implemen
 
 ### 1.1 Core Pipeline Features
 
-| Feature | EdgeQuake (Rust) | LightRAG (Python) | Gap Analysis |
-|---------|------------------|-------------------|--------------|
-| **Document Chunking** | ✅ Token-based with overlap | ✅ Token-based with overlap | Parity |
-| **Character-based Split** | ✅ (GAP-017) | ✅ | Parity |
-| **Line Number Tracking** | ❌ Char offsets only | ❌ Not tracked | Both need enhancement |
-| **Entity Extraction** | ✅ LLM-based | ✅ LLM-based | Parity |
-| **Relationship Extraction** | ✅ Same-pass as entities | ✅ Same-pass | Parity |
-| **Gleaning/Re-extraction** | ✅ (GAP-018) | ✅ Continue extraction | Parity |
-| **Description Summarization** | ✅ Basic | ✅ MapReduce | Rust needs enhancement |
-| **Deduplication** | ✅ Name normalization | ✅ Name normalization | Parity |
-| **Description Merging** | ✅ Keep longer | ✅ Keep longer + LLM merge | Python more advanced |
+| Feature                       | EdgeQuake (Rust)            | LightRAG (Python)           | Gap Analysis           |
+| ----------------------------- | --------------------------- | --------------------------- | ---------------------- |
+| **Document Chunking**         | ✅ Token-based with overlap | ✅ Token-based with overlap | Parity                 |
+| **Character-based Split**     | ✅ (GAP-017)                | ✅                          | Parity                 |
+| **Line Number Tracking**      | ❌ Char offsets only        | ❌ Not tracked              | Both need enhancement  |
+| **Entity Extraction**         | ✅ LLM-based                | ✅ LLM-based                | Parity                 |
+| **Relationship Extraction**   | ✅ Same-pass as entities    | ✅ Same-pass                | Parity                 |
+| **Gleaning/Re-extraction**    | ✅ (GAP-018)                | ✅ Continue extraction      | Parity                 |
+| **Description Summarization** | ✅ Basic                    | ✅ MapReduce                | Rust needs enhancement |
+| **Deduplication**             | ✅ Name normalization       | ✅ Name normalization       | Parity                 |
+| **Description Merging**       | ✅ Keep longer              | ✅ Keep longer + LLM merge  | Python more advanced   |
 
 ### 1.2 Storage & Persistence
 
-| Feature | EdgeQuake (Rust) | LightRAG (Python) | Gap Analysis |
-|---------|------------------|-------------------|--------------|
-| **Graph Storage** | ✅ Apache AGE/Memory | ✅ Neo4j/NetworkX | Different backends |
-| **Vector Storage** | ✅ pgvector/Memory | ✅ Milvus/ChromaDB/Qdrant | Different backends |
-| **KV Storage** | ✅ PostgreSQL/Memory | ✅ Various backends | Parity |
-| **LLM Response Caching** | ⚠️ Basic | ✅ Comprehensive | Rust needs enhancement |
-| **Chunk Cache Tracking** | ❌ Not tracked | ✅ llm_cache_list per chunk | Rust needs this |
-| **Rebuild from Cache** | ❌ Not implemented | ✅ Full rebuild support | Rust needs this |
+| Feature                  | EdgeQuake (Rust)     | LightRAG (Python)           | Gap Analysis           |
+| ------------------------ | -------------------- | --------------------------- | ---------------------- |
+| **Graph Storage**        | ✅ Apache AGE/Memory | ✅ Neo4j/NetworkX           | Different backends     |
+| **Vector Storage**       | ✅ pgvector/Memory   | ✅ Milvus/ChromaDB/Qdrant   | Different backends     |
+| **KV Storage**           | ✅ PostgreSQL/Memory | ✅ Various backends         | Parity                 |
+| **LLM Response Caching** | ⚠️ Basic             | ✅ Comprehensive            | Rust needs enhancement |
+| **Chunk Cache Tracking** | ❌ Not tracked       | ✅ llm_cache_list per chunk | Rust needs this        |
+| **Rebuild from Cache**   | ❌ Not implemented   | ✅ Full rebuild support     | Rust needs this        |
 
 ### 1.3 Multi-Tenancy & Isolation
 
-| Feature | EdgeQuake (Rust) | LightRAG (Python) | Gap Analysis |
-|---------|------------------|-------------------|--------------|
-| **Tenant Isolation** | ✅ TenantManager | ✅ TenantRAGManager | Parity |
-| **Workspace Support** | ✅ Per-workspace instances | ✅ Per-workspace | Parity |
-| **Namespace-based Queries** | ✅ Filter by namespace | ✅ Filter by namespace | Parity |
-| **Cross-namespace Query** | ❌ Not implemented | ❌ Not implemented | Future feature |
+| Feature                     | EdgeQuake (Rust)           | LightRAG (Python)      | Gap Analysis   |
+| --------------------------- | -------------------------- | ---------------------- | -------------- |
+| **Tenant Isolation**        | ✅ TenantManager           | ✅ TenantRAGManager    | Parity         |
+| **Workspace Support**       | ✅ Per-workspace instances | ✅ Per-workspace       | Parity         |
+| **Namespace-based Queries** | ✅ Filter by namespace     | ✅ Filter by namespace | Parity         |
+| **Cross-namespace Query**   | ❌ Not implemented         | ❌ Not implemented     | Future feature |
 
 ### 1.4 Progress & Monitoring
 
-| Feature | EdgeQuake (Rust) | LightRAG (Python) | Gap Analysis |
-|---------|------------------|-------------------|--------------|
-| **Progress Tracking** | ⚠️ Basic stats | ✅ Detailed status | Rust needs enhancement |
-| **History Messages** | ❌ Not tracked | ✅ history_messages list | Rust needs this |
-| **Error Tracking** | ⚠️ Basic | ✅ Detailed error counts | Rust needs enhancement |
-| **Stage-level Progress** | ❌ Not implemented | ✅ Per-stage tracking | Rust needs this |
+| Feature                  | EdgeQuake (Rust)   | LightRAG (Python)        | Gap Analysis           |
+| ------------------------ | ------------------ | ------------------------ | ---------------------- |
+| **Progress Tracking**    | ⚠️ Basic stats     | ✅ Detailed status       | Rust needs enhancement |
+| **History Messages**     | ❌ Not tracked     | ✅ history_messages list | Rust needs this        |
+| **Error Tracking**       | ⚠️ Basic           | ✅ Detailed error counts | Rust needs enhancement |
+| **Stage-level Progress** | ❌ Not implemented | ✅ Per-stage tracking    | Rust needs this        |
 
 ### 1.5 Cost Management
 
-| Feature | EdgeQuake (Rust) | LightRAG (Python) | Gap Analysis |
-|---------|------------------|-------------------|--------------|
-| **LLM Call Counting** | ✅ llm_calls field | ✅ Tracked | Parity |
-| **Token Counting** | ✅ total_tokens | ✅ Input/output separate | Python more detailed |
-| **Cost in USD** | ❌ Not tracked | ⚠️ Partial | Both need enhancement |
-| **Per-operation Breakdown** | ❌ Not tracked | ❌ Not tracked | Both need enhancement |
+| Feature                     | EdgeQuake (Rust)   | LightRAG (Python)        | Gap Analysis          |
+| --------------------------- | ------------------ | ------------------------ | --------------------- |
+| **LLM Call Counting**       | ✅ llm_calls field | ✅ Tracked               | Parity                |
+| **Token Counting**          | ✅ total_tokens    | ✅ Input/output separate | Python more detailed  |
+| **Cost in USD**             | ❌ Not tracked     | ⚠️ Partial               | Both need enhancement |
+| **Per-operation Breakdown** | ❌ Not tracked     | ❌ Not tracked           | Both need enhancement |
 
 ---
 
@@ -71,6 +71,7 @@ This document provides a detailed comparison between the EdgeQuake Rust implemen
 ### 2.1 Extraction Prompt Format
 
 **EdgeQuake (Rust) - JSON-based:**
+
 ```
 Extract entities and relationships from the following text.
 
@@ -83,6 +84,7 @@ Respond with valid JSON in this exact format:
 ```
 
 **LightRAG (Python) - Tuple-based:**
+
 ```
 entity<|#|>entity_name<|#|>entity_type<|#|>entity_description
 relation<|#|>source_entity<|#|>target_entity<|#|>keywords<|#|>description
@@ -102,6 +104,7 @@ relation<|#|>source_entity<|#|>target_entity<|#|>keywords<|#|>description
 ### 2.2 Description Summarization
 
 **EdgeQuake (Rust):**
+
 ```rust
 fn merge_descriptions(existing: &str, new: &str, max_length: usize) -> String {
     // Simple concatenation with separator
@@ -110,6 +113,7 @@ fn merge_descriptions(existing: &str, new: &str, max_length: usize) -> String {
 ```
 
 **LightRAG (Python):**
+
 ```python
 async def _handle_entity_relation_summary():
     # 1. If total_tokens < limit: just concatenate
@@ -133,12 +137,14 @@ async def _handle_entity_relation_summary():
 ### 2.3 Caching Strategy
 
 **EdgeQuake (Rust):**
+
 ```rust
 // Basic cache check (not fully implemented)
 pub enable_cache: bool,
 ```
 
 **LightRAG (Python):**
+
 ```python
 # Comprehensive caching
 chunk_data = {
@@ -192,10 +198,12 @@ LightRAG (Python):
 ### 3.2 Keyword Extraction
 
 **EdgeQuake (Rust):**
+
 - Keywords extracted as part of relationship
 - Stored in `ExtractedRelationship.keywords`
 
 **LightRAG (Python):**
+
 - Separate keyword extraction for queries
 - `PROMPTS["keywords_extraction"]` for query processing
 - High-level and low-level keyword separation
@@ -205,6 +213,7 @@ LightRAG (Python):
 ### 3.3 Parallel Processing
 
 **EdgeQuake (Rust):**
+
 ```rust
 // Sequential processing in process()
 for chunk in &chunks {
@@ -214,6 +223,7 @@ for chunk in &chunks {
 ```
 
 **LightRAG (Python):**
+
 ```python
 # Parallel processing with semaphore control
 graph_max_async = global_config.get("llm_model_max_async", 4) * 2
@@ -236,6 +246,7 @@ await asyncio.wait(tasks)
 ### 4.1 EdgeQuake (Rust)
 
 **Pros:**
+
 - ✅ Type safety and compile-time guarantees
 - ✅ Memory safety without garbage collection
 - ✅ Lower runtime overhead
@@ -245,6 +256,7 @@ await asyncio.wait(tasks)
 - ✅ Native multi-tenancy support
 
 **Cons:**
+
 - ❌ Less mature extraction logic
 - ❌ No MapReduce for descriptions
 - ❌ Limited caching implementation
@@ -255,6 +267,7 @@ await asyncio.wait(tasks)
 ### 4.2 LightRAG (Python)
 
 **Pros:**
+
 - ✅ Mature extraction with tuple format
 - ✅ MapReduce description summarization
 - ✅ Comprehensive LLM caching
@@ -264,6 +277,7 @@ await asyncio.wait(tasks)
 - ✅ Battle-tested in production
 
 **Cons:**
+
 - ❌ Higher memory usage
 - ❌ GIL limitations for true parallelism
 - ❌ Larger codebase (5000 lines in operate.py)
@@ -276,26 +290,26 @@ await asyncio.wait(tasks)
 
 ### 5.1 Features to Port from Python to Rust
 
-| Priority | Feature | Effort | Impact |
-|----------|---------|--------|--------|
-| **P0** | MapReduce summarization | Medium | High |
-| **P0** | Comprehensive caching | Medium | High |
-| **P0** | Parallel chunk processing | Low | High |
-| **P0** | Progress tracking enhancement | Low | Medium |
-| **P1** | Tuple-based extraction format | Medium | Medium |
-| **P1** | Keyword extraction for queries | Low | Medium |
-| **P1** | Rebuild from cache | Medium | Medium |
-| **P2** | Line number tracking | Low | Medium |
-| **P2** | Cost breakdown tracking | Low | Low |
+| Priority | Feature                        | Effort | Impact |
+| -------- | ------------------------------ | ------ | ------ |
+| **P0**   | MapReduce summarization        | Medium | High   |
+| **P0**   | Comprehensive caching          | Medium | High   |
+| **P0**   | Parallel chunk processing      | Low    | High   |
+| **P0**   | Progress tracking enhancement  | Low    | Medium |
+| **P1**   | Tuple-based extraction format  | Medium | Medium |
+| **P1**   | Keyword extraction for queries | Low    | Medium |
+| **P1**   | Rebuild from cache             | Medium | Medium |
+| **P2**   | Line number tracking           | Low    | Medium |
+| **P2**   | Cost breakdown tracking        | Low    | Low    |
 
 ### 5.2 Features Unique to Rust to Preserve
 
-| Feature | Reason to Preserve |
-|---------|-------------------|
-| Type-safe configurations | Compile-time validation |
-| Trait-based storage abstraction | Flexibility |
-| Modular crate structure | Maintainability |
-| Axum-based API | Performance |
+| Feature                         | Reason to Preserve      |
+| ------------------------------- | ----------------------- |
+| Type-safe configurations        | Compile-time validation |
+| Trait-based storage abstraction | Flexibility             |
+| Modular crate structure         | Maintainability         |
+| Axum-based API                  | Performance             |
 
 ### 5.3 Hybrid Best Practices
 
@@ -355,15 +369,15 @@ pub fn parse_extraction_tuples(response: &str) -> Result<ExtractionResult> {
     let mut result = ExtractionResult::default();
     let delimiter = "<|#|>";
     let completion = "<|COMPLETE|>";
-    
+
     for line in response.lines() {
         let line = line.trim();
         if line.is_empty() || line == completion {
             continue;
         }
-        
+
         let parts: Vec<&str> = line.split(delimiter).collect();
-        
+
         match parts.get(0).map(|s| s.to_lowercase()).as_deref() {
             Some("entity") if parts.len() >= 4 => {
                 result.entities.push(ExtractedEntity {
@@ -387,7 +401,7 @@ pub fn parse_extraction_tuples(response: &str) -> Result<ExtractionResult> {
             }
         }
     }
-    
+
     Ok(result)
 }
 ```
@@ -405,21 +419,21 @@ pub async fn summarize_descriptions_mapreduce<L: LLMProvider>(
     if descriptions.len() == 1 {
         return Ok(descriptions[0].clone());
     }
-    
+
     // Calculate total tokens
     let total_tokens: usize = descriptions.iter()
         .map(|d| estimate_tokens(d))
         .sum();
-    
+
     // If within limit, concatenate
     if total_tokens <= config.context_size && descriptions.len() < config.force_llm_threshold {
         return Ok(descriptions.join("\n\n"));
     }
-    
+
     // MAP: Split into chunks and summarize each
     let chunks = split_into_chunks(&descriptions, config.context_size);
     let mut summaries = Vec::new();
-    
+
     for chunk in chunks {
         if chunk.len() == 1 {
             summaries.push(chunk[0].clone());
@@ -428,7 +442,7 @@ pub async fn summarize_descriptions_mapreduce<L: LLMProvider>(
             summaries.push(summary);
         }
     }
-    
+
     // REDUCE: Recursively summarize summaries
     Box::pin(summarize_descriptions_mapreduce(llm, summaries, config)).await
 }

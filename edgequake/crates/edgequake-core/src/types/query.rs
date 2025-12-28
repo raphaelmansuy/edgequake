@@ -288,3 +288,38 @@ pub struct GraphStats {
     /// Top relationship types by count.
     pub top_relationship_types: Vec<(String, usize)>,
 }
+
+/// Result of document deletion with cascade impact.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct DocumentDeletionResult {
+    /// The deleted document ID.
+    pub document_id: String,
+
+    /// Number of chunks deleted.
+    pub chunks_deleted: usize,
+
+    /// Number of entities completely removed (all sources gone).
+    pub entities_removed: usize,
+
+    /// Number of entities updated (some sources removed).
+    pub entities_updated: usize,
+
+    /// Number of relationships completely removed.
+    pub relationships_removed: usize,
+
+    /// Number of relationships updated.
+    pub relationships_updated: usize,
+}
+
+/// Result of entity deletion.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EntityDeletionResult {
+    /// The deleted entity name.
+    pub entity_name: String,
+
+    /// Whether the entity was deleted.
+    pub deleted: bool,
+
+    /// Number of relationships deleted.
+    pub relationships_deleted: usize,
+}

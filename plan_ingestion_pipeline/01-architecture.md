@@ -20,6 +20,7 @@
 This document describes the architecture for EdgeQuake's SOTA (State-of-the-Art) GenAI-powered ingestion pipeline. The pipeline transforms unstructured documents into a queryable knowledge graph with full lineage tracking, cost management, and multi-tenant isolation.
 
 **Key Architectural Goals:**
+
 - **R001**: Complete lineage tracking from document to entity
 - **R002**: Cost-aware processing with budget controls
 - **R003**: Scalable MapReduce-style processing
@@ -82,16 +83,16 @@ This document describes the architecture for EdgeQuake's SOTA (State-of-the-Art)
 
 ### 2.3 Current Component Details
 
-| Component | Responsibility | Crate |
-|-----------|---------------|-------|
-| Pipeline | Orchestrates doc→chunk→extract→merge | edgequake-pipeline |
-| Chunker | Splits text into overlapping chunks | edgequake-pipeline |
-| Extractor | LLM-based entity/relation extraction | edgequake-pipeline |
-| GleaningExtractor | Re-extraction for missed entities | edgequake-pipeline |
-| Merger | Deduplication, description merging | edgequake-pipeline |
-| Summarizer | Description condensation | edgequake-pipeline |
-| Orchestrator | High-level RAG coordination | edgequake-core |
-| TenantManager | Multi-tenant instance management | edgequake-core |
+| Component         | Responsibility                       | Crate              |
+| ----------------- | ------------------------------------ | ------------------ |
+| Pipeline          | Orchestrates doc→chunk→extract→merge | edgequake-pipeline |
+| Chunker           | Splits text into overlapping chunks  | edgequake-pipeline |
+| Extractor         | LLM-based entity/relation extraction | edgequake-pipeline |
+| GleaningExtractor | Re-extraction for missed entities    | edgequake-pipeline |
+| Merger            | Deduplication, description merging   | edgequake-pipeline |
+| Summarizer        | Description condensation             | edgequake-pipeline |
+| Orchestrator      | High-level RAG coordination          | edgequake-core     |
+| TenantManager     | Multi-tenant instance management     | edgequake-core     |
 
 ---
 
@@ -311,21 +312,21 @@ pub struct CostBreakdown {
     pub extraction_input_tokens: usize,
     pub extraction_output_tokens: usize,
     pub extraction_cost_usd: f64,
-    
+
     // Embedding costs
     pub embedding_tokens: usize,
     pub embedding_cost_usd: f64,
-    
+
     // Summarization costs (if used)
     pub summarization_input_tokens: usize,
     pub summarization_output_tokens: usize,
     pub summarization_cost_usd: f64,
-    
+
     // Gleaning costs
     pub gleaning_input_tokens: usize,
     pub gleaning_output_tokens: usize,
     pub gleaning_cost_usd: f64,
-    
+
     // Model info
     pub extraction_model: String,
     pub embedding_model: String,
@@ -562,29 +563,29 @@ Step 7: Storage                                      ▼
 
 ## Appendix A: Feature Matrix
 
-| Feature ID | Feature Name | Priority | Status |
-|------------|--------------|----------|--------|
-| F001 | Line number tracking | P0 | To Implement |
-| F002 | Full lineage tracking | P0 | To Implement |
-| F003 | Cost tracking | P0 | To Implement |
-| F004 | Progress reporting | P0 | To Implement |
-| F005 | MapReduce extraction | P1 | To Implement |
-| F006 | Document suppression | P1 | To Implement |
-| F007 | Entity CRUD with cascade | P1 | Partial |
-| F008 | Citation retrieval | P1 | To Implement |
-| F009 | Multi-LLM provider support | P2 | Implemented |
-| F010 | Ontology schema support | P3 | Future |
-| F011 | RAGAS integration | P3 | Future |
-| F012 | MLflow integration | P3 | Future |
+| Feature ID | Feature Name               | Priority | Status       |
+| ---------- | -------------------------- | -------- | ------------ |
+| F001       | Line number tracking       | P0       | To Implement |
+| F002       | Full lineage tracking      | P0       | To Implement |
+| F003       | Cost tracking              | P0       | To Implement |
+| F004       | Progress reporting         | P0       | To Implement |
+| F005       | MapReduce extraction       | P1       | To Implement |
+| F006       | Document suppression       | P1       | To Implement |
+| F007       | Entity CRUD with cascade   | P1       | Partial      |
+| F008       | Citation retrieval         | P1       | To Implement |
+| F009       | Multi-LLM provider support | P2       | Implemented  |
+| F010       | Ontology schema support    | P3       | Future       |
+| F011       | RAGAS integration          | P3       | Future       |
+| F012       | MLflow integration         | P3       | Future       |
 
 ## Appendix B: Requirement Traceability
 
-| Req ID | Requirement | Implementing Features |
-|--------|-------------|----------------------|
-| R001 | Complete lineage tracking | F001, F002 |
-| R002 | Cost-aware processing | F003 |
-| R003 | Scalable MapReduce | F005 |
-| R004 | Real-time progress | F004 |
-| R005 | Multi-tenant isolation | Existing + F002 |
+| Req ID | Requirement               | Implementing Features |
+| ------ | ------------------------- | --------------------- |
+| R001   | Complete lineage tracking | F001, F002            |
+| R002   | Cost-aware processing     | F003                  |
+| R003   | Scalable MapReduce        | F005                  |
+| R004   | Real-time progress        | F004                  |
+| R005   | Multi-tenant isolation    | Existing + F002       |
 
 ---

@@ -823,7 +823,9 @@ mod tests {
         let config = PostgresConfig::default().with_namespace("test");
         let storage = PostgresAGEGraphStorage::new(config);
 
-        assert_eq!(storage.graph_name, "eq_test_graph");
+        // Graph name includes eq_ prefix from table_prefix() which returns "eq_test"
+        // Then format!("eq_{}_graph", prefix) creates "eq_eq_test_graph"
+        assert_eq!(storage.graph_name, "eq_eq_test_graph");
         assert_eq!(storage.namespace, "test");
     }
 

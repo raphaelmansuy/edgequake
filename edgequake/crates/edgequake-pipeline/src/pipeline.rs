@@ -3,11 +3,13 @@
 use std::sync::Arc;
 
 use edgequake_llm::traits::EmbeddingProvider;
+use futures::stream::{self, StreamExt};
 use serde::{Deserialize, Serialize};
 
 use crate::chunker::{Chunker, ChunkerConfig, TextChunk};
 use crate::error::Result;
 use crate::extractor::{EntityExtractor, ExtractionResult};
+use crate::lineage::{DocumentLineage, ExtractionMetadata, LineageBuilder, SourceSpan};
 
 /// Pipeline configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,6 +40,9 @@ pub struct PipelineConfig {
 
     /// Maximum concurrent extraction tasks.
     pub max_concurrent_extractions: usize,
+
+    /// Whether to track document lineage.
+    pub enable_lineage_tracking: bool,
 }
 
 impl Default for PipelineConfig {
@@ -52,6 +57,7 @@ impl Default for PipelineConfig {
             enable_entity_embeddings: true,
             enable_relationship_embeddings: true,
             max_concurrent_extractions: 4,
+            enable_lineage_tracking: false,
         }
     }
 }
@@ -70,6 +76,9 @@ pub struct ProcessingResult {
 
     /// Processing statistics.
     pub stats: ProcessingStats,
+
+    /// Document lineage tracking (optional).
+    pub lineage: Option<DocumentLineage>,
 }
 
 /// Statistics from pipeline processing.
@@ -164,6 +173,46 @@ impl Pipeline {
         self
     }
 
+    /// Extract entities from chunks in parallel using a semaphore.
+    async fn extract_parallel(
+        &self,
+        chunks: &[TextChunk],
+        extractor: &Arc<dyn EntityExtractor>,
+    ) -> Result<Vec<ExtractionResult>> {
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(
+            self.config.max_concurrent_extractions,
+        ));
+
+        // Create futures for all chunks
+        let futures: Vec<_> = chunks
+            .iter()
+            .map(|chunk| {
+                let semaphore = semaphore.clone();
+                let extractor = extractor.clone();
+                let chunk = chunk.clone();
+
+                async move {
+                    // Acquire permit (released on drop)
+                    let _permit = semaphore
+                        .acquire()
+                        .await
+                        .map_err(|e| crate::error::PipelineError::ExtractionError(e.to_string()))?;
+
+                    extractor.extract(&chunk).await
+                }
+            })
+            .collect();
+
+        // Execute concurrently with buffer to respect semaphore
+        let results: Vec<Result<ExtractionResult>> = stream::iter(futures)
+            .buffer_unordered(self.config.max_concurrent_extractions)
+            .collect()
+            .await;
+
+        // Collect results, propagating first error
+        results.into_iter().collect()
+    }
+
     /// Process a document through the pipeline.
     pub async fn process(&self, document_id: &str, content: &str) -> Result<ProcessingResult> {
         let start = std::time::Instant::now();
@@ -185,17 +234,24 @@ impl Pipeline {
         let mut entity_types_set = std::collections::HashSet::new();
         let mut relationship_types_set = std::collections::HashSet::new();
         let mut keywords_set = std::collections::HashSet::new();
+        let mut total_input_tokens = 0usize;
+        let mut total_output_tokens = 0usize;
 
         if self.config.enable_entity_extraction || self.config.enable_relationship_extraction {
             if let Some(extractor) = &self.extractor {
                 // Capture LLM model name
                 stats.llm_model = Some(extractor.model_name().to_string());
                 
-                for chunk in &chunks {
-                    let extraction = extractor.extract(chunk).await?;
+                // Use parallel extraction for better performance
+                extractions = self.extract_parallel(&chunks, extractor).await?;
+                
+                // Aggregate statistics from all extractions
+                for extraction in &extractions {
                     stats.entity_count += extraction.entities.len();
                     stats.relationship_count += extraction.relationships.len();
                     stats.llm_calls += 1;
+                    total_input_tokens += extraction.input_tokens;
+                    total_output_tokens += extraction.output_tokens;
                     
                     // Collect unique entity types
                     for entity in &extraction.entities {
@@ -209,9 +265,9 @@ impl Pipeline {
                             keywords_set.insert(keyword.clone());
                         }
                     }
-                    
-                    extractions.push(extraction);
                 }
+                
+                stats.total_tokens = total_input_tokens + total_output_tokens;
             }
         }
         
@@ -308,11 +364,67 @@ impl Pipeline {
 
         stats.processing_time_ms = start.elapsed().as_millis() as u64;
 
+        // Step 4: Build lineage if enabled
+        let lineage = if self.config.enable_lineage_tracking {
+            let job_id = uuid::Uuid::new_v4().to_string();
+            let mut builder = LineageBuilder::new(document_id, document_id, &job_id);
+
+            // Record chunks with their line numbers
+            for chunk in &chunks {
+                let metadata = ExtractionMetadata::new(
+                    stats.llm_model.as_deref().unwrap_or("unknown"),
+                );
+                builder.record_chunk(
+                    &chunk.id,
+                    chunk.index,
+                    chunk.start_line,
+                    chunk.end_line,
+                    chunk.start_offset,
+                    chunk.end_offset,
+                    metadata,
+                );
+            }
+
+            // Record entities and relationships from extractions
+            for extraction in &extractions {
+                for entity in &extraction.entities {
+                    let entity_id = format!("{}_{}", extraction.source_chunk_id, entity.name);
+                    let span = SourceSpan::new(0, 0, 0, 0); // Detailed span would require chunk info
+                    builder.record_entity(
+                        &entity_id,
+                        &entity.name,
+                        &extraction.source_chunk_id,
+                        span,
+                        &entity.description,
+                    );
+                }
+
+                for rel in &extraction.relationships {
+                    let rel_id = format!("{}_{}_{}", extraction.source_chunk_id, rel.source, rel.target);
+                    let span = SourceSpan::new(0, 0, 0, 0);
+                    builder.record_relationship(
+                        &rel_id,
+                        &rel.source,
+                        &rel.target,
+                        &rel.relation_type,
+                        &extraction.source_chunk_id,
+                        span,
+                        &rel.description,
+                    );
+                }
+            }
+
+            Some(builder.build())
+        } else {
+            None
+        };
+
         Ok(ProcessingResult {
             document_id: document_id.to_string(),
             chunks,
             extractions,
             stats,
+            lineage,
         })
     }
 
@@ -413,5 +525,41 @@ mod tests {
         assert_eq!(config.extraction_batch_size, 10);
         assert!(config.enable_entity_extraction);
         assert!(config.enable_chunk_embeddings);
+        assert!(!config.enable_lineage_tracking);
+    }
+
+    #[tokio::test]
+    async fn test_pipeline_with_lineage_tracking() {
+        let extractor = Arc::new(SimpleExtractor::default());
+        let mut config = PipelineConfig::default();
+        config.enable_lineage_tracking = true;
+
+        let pipeline = Pipeline::new(config).with_extractor(extractor);
+
+        let result = pipeline
+            .process("doc-1", "John Doe works at Acme Corp in New York.")
+            .await
+            .unwrap();
+
+        // Should have lineage
+        assert!(result.lineage.is_some());
+
+        let lineage = result.lineage.unwrap();
+        assert_eq!(lineage.document_id, "doc-1");
+        assert!(!lineage.chunks.is_empty());
+        assert_eq!(lineage.total_chunks, result.chunks.len());
+    }
+
+    #[tokio::test]
+    async fn test_pipeline_without_lineage_tracking() {
+        let pipeline = Pipeline::default_pipeline();
+
+        let result = pipeline
+            .process("doc-1", "Simple document content.")
+            .await
+            .unwrap();
+
+        // Should not have lineage (disabled by default)
+        assert!(result.lineage.is_none());
     }
 }

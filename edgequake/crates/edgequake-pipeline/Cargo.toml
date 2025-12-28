@@ -12,12 +12,14 @@ edgequake-storage = { path = "../edgequake-storage" }
 edgequake-llm = { path = "../edgequake-llm" }
 
 async-trait.workspace = true
+chrono = { version = "0.4", features = ["serde"] }
 tokio = { workspace = true, features = ["full"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
+sha2 = "0.10"
 thiserror.workspace = true
 tracing.workspace = true
-uuid.workspace = true
+uuid = { workspace = true, features = ["v4"] }
 futures = "0.3"
 regex = "1.10"
 

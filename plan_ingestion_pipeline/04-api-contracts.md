@@ -27,6 +27,7 @@ https://api.edgequake.io/api/v1
 ### 1.2 Authentication
 
 All endpoints require Bearer token authentication:
+
 ```
 Authorization: Bearer <access_token>
 ```
@@ -64,6 +65,7 @@ Upload a document for ingestion via text content.
 **Endpoint:** `POST /documents`
 
 **Request:**
+
 ```json
 {
   "content": "Document text content...",
@@ -84,6 +86,7 @@ Upload a document for ingestion via text content.
 ```
 
 **Response (202 Accepted):**
+
 ```json
 {
   "document_id": "doc_abc123",
@@ -107,6 +110,7 @@ Upload a document via multipart form.
 **Endpoint:** `POST /documents/upload`
 
 **Request:**
+
 ```
 Content-Type: multipart/form-data
 
@@ -116,6 +120,7 @@ metadata: {"source": "file_upload"}
 ```
 
 **Response (202 Accepted):**
+
 ```json
 {
   "document_id": "doc_abc123",
@@ -135,6 +140,7 @@ Upload multiple documents at once.
 **Endpoint:** `POST /documents/upload/batch`
 
 **Request:**
+
 ```
 Content-Type: multipart/form-data
 
@@ -144,6 +150,7 @@ config: {"chunk_size": 1200, ...}
 ```
 
 **Response (202 Accepted):**
+
 ```json
 {
   "batch_id": "batch_def456",
@@ -173,6 +180,7 @@ Re-process an existing document with new configuration.
 **Endpoint:** `POST /documents/{document_id}/reingest`
 
 **Request:**
+
 ```json
 {
   "config": {
@@ -184,6 +192,7 @@ Re-process an existing document with new configuration.
 ```
 
 **Response (202 Accepted):**
+
 ```json
 {
   "document_id": "doc_abc123",
@@ -205,6 +214,7 @@ Get detailed status of an ingestion job.
 **Endpoint:** `GET /documents/track/{track_id}`
 
 **Response (200 OK):**
+
 ```json
 {
   "track_id": "track_xyz789",
@@ -260,6 +270,7 @@ Get detailed status of an ingestion job.
 Status response when ingestion is completed.
 
 **Response (200 OK):**
+
 ```json
 {
   "track_id": "track_xyz789",
@@ -298,7 +309,7 @@ Status response when ingestion is completed.
         "api_calls": 10,
         "input_tokens": 15000,
         "output_tokens": 3000,
-        "cost_usd": 0.0040
+        "cost_usd": 0.004
       },
       "gleaning": {
         "api_calls": 2,
@@ -326,11 +337,13 @@ Get all active ingestion jobs for the workspace.
 **Endpoint:** `GET /tasks`
 
 **Query Parameters:**
+
 - `status`: Filter by status (pending, running, completed, failed)
 - `limit`: Maximum results (default: 50)
 - `offset`: Pagination offset
 
 **Response (200 OK):**
+
 ```json
 {
   "tasks": [
@@ -364,6 +377,7 @@ Cancel a running or pending ingestion job.
 **Endpoint:** `POST /tasks/{track_id}/cancel`
 
 **Response (200 OK):**
+
 ```json
 {
   "track_id": "track_xyz789",
@@ -380,6 +394,7 @@ Retry a failed ingestion job.
 **Endpoint:** `POST /tasks/{track_id}/retry`
 
 **Request (optional):**
+
 ```json
 {
   "config_overrides": {
@@ -389,6 +404,7 @@ Retry a failed ingestion job.
 ```
 
 **Response (202 Accepted):**
+
 ```json
 {
   "track_id": "track_new456",
@@ -409,6 +425,7 @@ Get complete lineage for a document.
 **Endpoint:** `GET /documents/{document_id}/lineage`
 
 **Response (200 OK):**
+
 ```json
 {
   "document_id": "doc_abc123",
@@ -463,6 +480,7 @@ Get lineage for a specific entity across all documents.
 **Endpoint:** `GET /graph/entities/{entity_id}/lineage`
 
 **Response (200 OK):**
+
 ```json
 {
   "entity_id": "JOHN_DOE",
@@ -519,6 +537,7 @@ Get details for a specific chunk including entities and relationships.
 **Endpoint:** `GET /chunks/{chunk_id}`
 
 **Response (200 OK):**
+
 ```json
 {
   "chunk_id": "doc_abc123-chunk-0",
@@ -576,6 +595,7 @@ Get cost details for a specific ingestion job.
 **Endpoint:** `GET /costs/{track_id}`
 
 **Response (200 OK):**
+
 ```json
 {
   "track_id": "track_xyz789",
@@ -586,7 +606,7 @@ Get cost details for a specific ingestion job.
       "api_calls": 10,
       "input_tokens": 15000,
       "output_tokens": 3000,
-      "cost_usd": 0.0040,
+      "cost_usd": 0.004,
       "model": "gpt-4o-mini"
     },
     "gleaning": {
@@ -628,11 +648,13 @@ Get aggregated cost summary for a workspace.
 **Endpoint:** `GET /costs/summary`
 
 **Query Parameters:**
+
 - `start_date`: Start of date range (ISO 8601)
 - `end_date`: End of date range (ISO 8601)
 - `group_by`: Grouping (day, week, month)
 
 **Response (200 OK):**
+
 ```json
 {
   "workspace_id": "ws_123",
@@ -647,20 +669,20 @@ Get aggregated cost summary for a workspace.
     "average_cost_per_document": 0.103
   },
   "breakdown_by_operation": {
-    "extraction": 12.50,
-    "gleaning": 1.80,
-    "summarization": 0.90,
+    "extraction": 12.5,
+    "gleaning": 1.8,
+    "summarization": 0.9,
     "embedding": 0.25
   },
   "breakdown_by_period": [
     {
       "period": "2024-12-01",
-      "cost_usd": 5.20,
+      "cost_usd": 5.2,
       "documents": 50
     },
     {
       "period": "2024-12-08",
-      "cost_usd": 4.80,
+      "cost_usd": 4.8,
       "documents": 45
     }
   ]
@@ -678,10 +700,12 @@ Mark a document as deleted and clean up its graph contributions.
 **Endpoint:** `DELETE /documents/{document_id}`
 
 **Query Parameters:**
+
 - `cascade`: Whether to remove orphaned entities (default: true)
 - `hard_delete`: Whether to permanently delete (default: false)
 
 **Response (200 OK):**
+
 ```json
 {
   "document_id": "doc_abc123",
@@ -705,6 +729,7 @@ Preview the impact of deleting a document before actually deleting.
 **Endpoint:** `GET /documents/{document_id}/impact`
 
 **Response (200 OK):**
+
 ```json
 {
   "document_id": "doc_abc123",
@@ -744,6 +769,7 @@ Batch reprocess all failed documents.
 **Endpoint:** `POST /documents/reprocess`
 
 **Request:**
+
 ```json
 {
   "max_documents": 100,
@@ -754,6 +780,7 @@ Batch reprocess all failed documents.
 ```
 
 **Response (202 Accepted):**
+
 ```json
 {
   "batch_id": "batch_reprocess_123",
@@ -779,6 +806,7 @@ Connect to the WebSocket for real-time updates.
 **Endpoint:** `wss://api.edgequake.io/ws`
 
 **Authentication:**
+
 ```json
 {
   "type": "auth",
@@ -791,6 +819,7 @@ Connect to the WebSocket for real-time updates.
 Subscribe to updates for a specific ingestion job.
 
 **Client Message:**
+
 ```json
 {
   "type": "subscribe",
@@ -804,6 +833,7 @@ Subscribe to updates for a specific ingestion job.
 Server pushes progress updates.
 
 **Server Message:**
+
 ```json
 {
   "type": "progress",
@@ -820,6 +850,7 @@ Server pushes progress updates.
 Server notifies when a stage completes.
 
 **Server Message:**
+
 ```json
 {
   "type": "stage_completed",
@@ -839,6 +870,7 @@ Server notifies when a stage completes.
 Server notifies when job completes.
 
 **Server Message:**
+
 ```json
 {
   "type": "completed",
@@ -862,6 +894,7 @@ Server notifies when job completes.
 Server notifies of errors.
 
 **Server Message:**
+
 ```json
 {
   "type": "error",
@@ -880,26 +913,26 @@ Server notifies of errors.
 
 ## Appendix A: Error Codes
 
-| Code | Description | HTTP Status | Recoverable |
-|------|-------------|-------------|-------------|
-| E001 | Invalid request format | 400 | No |
-| E002 | Authentication failed | 401 | No |
-| E003 | Rate limit exceeded | 429 | Yes |
-| E004 | Document not found | 404 | No |
-| E005 | Ingestion job not found | 404 | No |
-| E006 | Document too large | 413 | No |
-| E007 | LLM provider error | 502 | Yes |
-| E008 | Storage error | 500 | Yes |
-| E009 | Extraction failed | 500 | Yes |
-| E010 | Embedding failed | 500 | Yes |
+| Code | Description             | HTTP Status | Recoverable |
+| ---- | ----------------------- | ----------- | ----------- |
+| E001 | Invalid request format  | 400         | No          |
+| E002 | Authentication failed   | 401         | No          |
+| E003 | Rate limit exceeded     | 429         | Yes         |
+| E004 | Document not found      | 404         | No          |
+| E005 | Ingestion job not found | 404         | No          |
+| E006 | Document too large      | 413         | No          |
+| E007 | LLM provider error      | 502         | Yes         |
+| E008 | Storage error           | 500         | Yes         |
+| E009 | Extraction failed       | 500         | Yes         |
+| E010 | Embedding failed        | 500         | Yes         |
 
 ## Appendix B: Rate Limits
 
-| Endpoint | Rate Limit | Window |
-|----------|------------|--------|
-| POST /documents | 100/hour | 1 hour |
-| POST /documents/upload | 50/hour | 1 hour |
-| GET /documents/track/* | 1000/hour | 1 hour |
-| WebSocket connections | 10/user | Concurrent |
+| Endpoint                | Rate Limit | Window     |
+| ----------------------- | ---------- | ---------- |
+| POST /documents         | 100/hour   | 1 hour     |
+| POST /documents/upload  | 50/hour    | 1 hour     |
+| GET /documents/track/\* | 1000/hour  | 1 hour     |
+| WebSocket connections   | 10/user    | Concurrent |
 
 ---

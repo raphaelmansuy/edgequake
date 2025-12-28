@@ -21,14 +21,14 @@
 
 ### Prompt Categories Comparison
 
-| Category | LightRAG (Python) | EdgeQuake (Rust) | Status |
-|----------|-------------------|------------------|--------|
-| Entity Extraction | ✅ Comprehensive (100+ lines) | ⚠️ Basic (30 lines) | **Gap** |
-| Gleaning/Continue | ✅ Detailed | ⚠️ Basic | **Gap** |
-| Description Summary | ✅ With constraints | ✅ Similar | OK |
-| Keyword Extraction | ✅ With examples | ✅ Similar | OK |
-| RAG Response | ✅ Full with references | ⚠️ Basic | **Gap** |
-| Tuple Delimiter | ✅ `<\|#\|>` | ❌ Uses JSON | **Gap** |
+| Category            | LightRAG (Python)             | EdgeQuake (Rust)    | Status  |
+| ------------------- | ----------------------------- | ------------------- | ------- |
+| Entity Extraction   | ✅ Comprehensive (100+ lines) | ⚠️ Basic (30 lines) | **Gap** |
+| Gleaning/Continue   | ✅ Detailed                   | ⚠️ Basic            | **Gap** |
+| Description Summary | ✅ With constraints           | ✅ Similar          | OK      |
+| Keyword Extraction  | ✅ With examples              | ✅ Similar          | OK      |
+| RAG Response        | ✅ Full with references       | ⚠️ Basic            | **Gap** |
+| Tuple Delimiter     | ✅ `<\|#\|>`                  | ❌ Uses JSON        | **Gap** |
 
 ### Key Findings
 
@@ -103,17 +103,22 @@ You are a Knowledge Graph Specialist responsible for extracting entities and rel
 Entity_types: [{entity_types}]
 Text:
 ```
+
 {input_text}
+
 ```
+
 ```
 
 **Delimiter Constants:**
+
 ```python
 PROMPTS["DEFAULT_TUPLE_DELIMITER"] = "<|#|>"
 PROMPTS["DEFAULT_COMPLETION_DELIMITER"] = "<|COMPLETE|>"
 ```
 
 **Example Output Format:**
+
 ```
 entity<|#|>Alex<|#|>person<|#|>Alex is a character who experiences frustration and is observant.
 entity<|#|>Taylor<|#|>person<|#|>Taylor is portrayed with authoritarian certainty.
@@ -160,18 +165,18 @@ Respond with valid JSON in this exact format:
 
 ### 2.3 Comparison Table: Entity Extraction
 
-| Feature | LightRAG | EdgeQuake | Impact |
-|---------|----------|-----------|--------|
-| Output Format | Tuple with `<\|#\|>` delimiter | JSON | LightRAG more robust for partial outputs |
-| N-ary Decomposition | ✅ Explicitly instructed | ❌ Not mentioned | May miss complex relationships |
-| Entity Naming | ✅ Title case, consistent naming | ❌ No guidance | Inconsistent entity names |
-| Relationship Direction | ✅ Undirected by default | ❌ Not specified | May have duplicate edges |
-| Priority Ordering | ✅ Most significant first | ❌ Not specified | Less optimal retrieval |
-| Third Person | ✅ Required | ❌ Not specified | May have pronouns |
-| Language Support | ✅ Multi-language with `{language}` | ❌ Not supported | English only |
-| Completion Signal | ✅ `<\|COMPLETE\|>` | ❌ Not supported | Harder to detect incomplete |
-| Examples | ✅ 3 detailed examples | ❌ None | Less accurate extraction |
-| Lines of Code | ~100 lines | ~20 lines | - |
+| Feature                | LightRAG                            | EdgeQuake        | Impact                                   |
+| ---------------------- | ----------------------------------- | ---------------- | ---------------------------------------- |
+| Output Format          | Tuple with `<\|#\|>` delimiter      | JSON             | LightRAG more robust for partial outputs |
+| N-ary Decomposition    | ✅ Explicitly instructed            | ❌ Not mentioned | May miss complex relationships           |
+| Entity Naming          | ✅ Title case, consistent naming    | ❌ No guidance   | Inconsistent entity names                |
+| Relationship Direction | ✅ Undirected by default            | ❌ Not specified | May have duplicate edges                 |
+| Priority Ordering      | ✅ Most significant first           | ❌ Not specified | Less optimal retrieval                   |
+| Third Person           | ✅ Required                         | ❌ Not specified | May have pronouns                        |
+| Language Support       | ✅ Multi-language with `{language}` | ❌ Not supported | English only                             |
+| Completion Signal      | ✅ `<\|COMPLETE\|>`                 | ❌ Not supported | Harder to detect incomplete              |
+| Examples               | ✅ 3 detailed examples              | ❌ None          | Less accurate extraction                 |
+| Lines of Code          | ~100 lines                          | ~20 lines        | -                                        |
 
 ---
 
@@ -209,7 +214,7 @@ fn build_gleaning_prompt(&self, text: &str, previous_entities: &[String]) -> Str
     let prev_entities_str = previous_entities.join(", ");
 
     format!(
-        r#"MANY entities and relationships were missed in the last extraction. 
+        r#"MANY entities and relationships were missed in the last extraction.
 Please identify any ADDITIONAL entities and relationships that were not already captured.
 
 ## Already Identified Entities
@@ -245,13 +250,13 @@ Respond with valid JSON in this exact format:
 
 ### 3.3 Comparison Table: Gleaning
 
-| Feature | LightRAG | EdgeQuake | Impact |
-|---------|----------|-----------|--------|
-| Deduplication | ✅ Explicit "don't re-output" | ⚠️ "Already identified" list | EdgeQuake still lists entities |
-| Error Correction | ✅ Fix truncated/malformed | ❌ Not mentioned | May propagate errors |
-| Format Adherence | ✅ Strict adherence | ⚠️ Same format request | - |
-| Implicit Entities | ❌ Not specifically mentioned | ✅ Explicitly requested | EdgeQuake better here |
-| Contextual Entities | ❌ Not mentioned | ✅ Dates, locations, concepts | EdgeQuake better here |
+| Feature             | LightRAG                      | EdgeQuake                     | Impact                         |
+| ------------------- | ----------------------------- | ----------------------------- | ------------------------------ |
+| Deduplication       | ✅ Explicit "don't re-output" | ⚠️ "Already identified" list  | EdgeQuake still lists entities |
+| Error Correction    | ✅ Fix truncated/malformed    | ❌ Not mentioned              | May propagate errors           |
+| Format Adherence    | ✅ Strict adherence           | ⚠️ Same format request        | -                              |
+| Implicit Entities   | ❌ Not specifically mentioned | ✅ Explicitly requested       | EdgeQuake better here          |
+| Contextual Entities | ❌ Not mentioned              | ✅ Dates, locations, concepts | EdgeQuake better here          |
 
 ---
 
@@ -288,7 +293,9 @@ Your task is to synthesize a list of descriptions of a given entity or relation 
 
 Description List:
 ```
+
 {description_list}
+
 ```
 
 ---Output---
@@ -301,6 +308,7 @@ Description List:
 **File:** `edgequake/crates/edgequake-pipeline/src/summarizer.rs`
 
 **Entity Summary:**
+
 ```rust
 let prompt = format!(
     r#"You are a helpful assistant responsible for generating a comprehensive summary of the data provided below.
@@ -322,6 +330,7 @@ Given one or more descriptions of an entity, generate a single comprehensive des
 ```
 
 **Relationship Summary:**
+
 ```rust
 let prompt = format!(
     r#"You are a helpful assistant responsible for generating a comprehensive summary of the relationship between two entities.
@@ -346,14 +355,14 @@ Given one or more descriptions of a relationship between "{source}" and "{target
 
 ### 4.3 Comparison Table: Summarization
 
-| Feature | LightRAG | EdgeQuake | Impact |
-|---------|----------|-----------|--------|
-| Conflict Handling | ✅ Detect same-name entities | ⚠️ "Prefer more specific" | May merge different entities |
-| Third Person | ✅ Required | ❌ Not specified | Style inconsistency |
-| Length Constraint | ✅ Token-based `{summary_length}` | ✅ Word-based (500/200) | Both acceptable |
-| Language Support | ✅ Multi-language | ❌ English only | Limitation |
-| JSON Input | ✅ Structured input | ✅ Numbered list | Both acceptable |
-| Entity Name at Start | ✅ Required | ❌ Not specified | Context clarity |
+| Feature              | LightRAG                          | EdgeQuake                 | Impact                       |
+| -------------------- | --------------------------------- | ------------------------- | ---------------------------- |
+| Conflict Handling    | ✅ Detect same-name entities      | ⚠️ "Prefer more specific" | May merge different entities |
+| Third Person         | ✅ Required                       | ❌ Not specified          | Style inconsistency          |
+| Length Constraint    | ✅ Token-based `{summary_length}` | ✅ Word-based (500/200)   | Both acceptable              |
+| Language Support     | ✅ Multi-language                 | ❌ English only           | Limitation                   |
+| JSON Input           | ✅ Structured input               | ✅ Numbered list          | Both acceptable              |
+| Entity Name at Start | ✅ Required                       | ❌ Not specified          | Context clarity              |
 
 ---
 
@@ -363,7 +372,7 @@ Given one or more descriptions of a relationship between "{source}" and "{target
 
 **File:** `lightrag/prompt.py` - `PROMPTS["keywords_extraction"]`
 
-```python
+````python
 ---Role---
 You are an expert keyword extractor, specializing in analyzing user queries for a Retrieval-Augmented Generation (RAG) system. Your purpose is to identify both high-level and low-level keywords in the user's query that will be used for effective document retrieval.
 
@@ -386,7 +395,7 @@ User Query: {query}
 
 ---Output---
 Output:
-```
+````
 
 ---
 
@@ -439,13 +448,13 @@ Now extract keywords from the query above. Respond with JSON only:"#
 
 ### 5.3 Comparison Table: Keywords
 
-| Feature | LightRAG | EdgeQuake | Impact |
-|---------|----------|-----------|--------|
-| Role Definition | ✅ "Expert keyword extractor" | ❌ None | Less context |
-| Multi-word Phrases | ✅ Explicitly instructed | ❌ Not mentioned | May split phrases |
-| Edge Cases | ✅ "hello", "ok" = empty | ❌ Not handled | May return garbage |
-| Examples | ✅ 3 examples | ✅ 3 examples | Both good |
-| JSON Strictness | ✅ "No code fences" | ✅ "JSON only" | Both good |
+| Feature            | LightRAG                      | EdgeQuake        | Impact             |
+| ------------------ | ----------------------------- | ---------------- | ------------------ |
+| Role Definition    | ✅ "Expert keyword extractor" | ❌ None          | Less context       |
+| Multi-word Phrases | ✅ Explicitly instructed      | ❌ Not mentioned | May split phrases  |
+| Edge Cases         | ✅ "hello", "ok" = empty      | ❌ Not handled   | May return garbage |
+| Examples           | ✅ 3 examples                 | ✅ 3 examples    | Both good          |
+| JSON Strictness    | ✅ "No code fences"           | ✅ "JSON only"   | Both good          |
 
 ---
 
@@ -492,11 +501,13 @@ Consider the conversation history if provided to maintain conversational flow an
 
 5. Reference Section Example:
 ```
+
 ### References
 
 - [1] Document Title One
 - [2] Document Title Two
 - [3] Document Title Three
+
 ```
 
 6. Additional Instructions: {user_prompt}
@@ -534,18 +545,18 @@ Provide a clear, accurate answer based on the context above. If the context does
 
 ### 6.3 Comparison Table: RAG Response
 
-| Feature | LightRAG | EdgeQuake | Impact |
-|---------|----------|-----------|--------|
-| Role Definition | ✅ "Expert AI assistant" | ⚠️ "Helpful assistant" | Less authoritative |
-| Grounding Instructions | ✅ "ONLY context, no external" | ⚠️ Implicit | May hallucinate |
-| References/Citations | ✅ Full citation system | ❌ None | No traceability |
-| Conversation History | ✅ Supported | ❌ Not mentioned | Stateless |
-| Markdown Formatting | ✅ Required | ❌ Not specified | Inconsistent output |
-| Language Match | ✅ "Same language as query" | ❌ Not specified | English only |
-| Knowledge Graph Context | ✅ Entities + Relationships | ✅ Context string | Both included |
-| Max Citations | ✅ 5 max | ❌ N/A | - |
-| Response Type | ✅ Configurable `{response_type}` | ❌ Not configurable | - |
-| Lines of Code | ~60 lines | ~15 lines | - |
+| Feature                 | LightRAG                          | EdgeQuake              | Impact              |
+| ----------------------- | --------------------------------- | ---------------------- | ------------------- |
+| Role Definition         | ✅ "Expert AI assistant"          | ⚠️ "Helpful assistant" | Less authoritative  |
+| Grounding Instructions  | ✅ "ONLY context, no external"    | ⚠️ Implicit            | May hallucinate     |
+| References/Citations    | ✅ Full citation system           | ❌ None                | No traceability     |
+| Conversation History    | ✅ Supported                      | ❌ Not mentioned       | Stateless           |
+| Markdown Formatting     | ✅ Required                       | ❌ Not specified       | Inconsistent output |
+| Language Match          | ✅ "Same language as query"       | ❌ Not specified       | English only        |
+| Knowledge Graph Context | ✅ Entities + Relationships       | ✅ Context string      | Both included       |
+| Max Citations           | ✅ 5 max                          | ❌ N/A                 | -                   |
+| Response Type           | ✅ Configurable `{response_type}` | ❌ Not configurable    | -                   |
+| Lines of Code           | ~60 lines                         | ~15 lines              | -                   |
 
 ---
 
@@ -553,25 +564,25 @@ Provide a clear, accurate answer based on the context above. If the context does
 
 ### 7.1 Critical Gaps
 
-| Gap ID | Description | Severity | Recommendation |
-|--------|-------------|----------|----------------|
-| GAP-P01 | No tuple delimiter extraction format | 🔴 High | Implement tuple parser |
-| GAP-P02 | No completion signal detection | 🔴 High | Add `<\|COMPLETE\|>` support |
-| GAP-P03 | No reference/citation system | 🔴 High | Add reference tracking |
-| GAP-P04 | No multi-language support | 🟡 Medium | Add `{language}` parameter |
-| GAP-P05 | No entity naming conventions | 🟡 Medium | Add title case instructions |
-| GAP-P06 | No N-ary relationship decomposition | 🟡 Medium | Add to extraction prompt |
-| GAP-P07 | No conversation history | 🟡 Medium | Add history parameter |
-| GAP-P08 | No edge case handling for keywords | 🟢 Low | Add empty list fallback |
+| Gap ID  | Description                          | Severity  | Recommendation               |
+| ------- | ------------------------------------ | --------- | ---------------------------- |
+| GAP-P01 | No tuple delimiter extraction format | 🔴 High   | Implement tuple parser       |
+| GAP-P02 | No completion signal detection       | 🔴 High   | Add `<\|COMPLETE\|>` support |
+| GAP-P03 | No reference/citation system         | 🔴 High   | Add reference tracking       |
+| GAP-P04 | No multi-language support            | 🟡 Medium | Add `{language}` parameter   |
+| GAP-P05 | No entity naming conventions         | 🟡 Medium | Add title case instructions  |
+| GAP-P06 | No N-ary relationship decomposition  | 🟡 Medium | Add to extraction prompt     |
+| GAP-P07 | No conversation history              | 🟡 Medium | Add history parameter        |
+| GAP-P08 | No edge case handling for keywords   | 🟢 Low    | Add empty list fallback      |
 
 ### 7.2 Strengths of EdgeQuake
 
-| Feature | Description |
-|---------|-------------|
-| JSON Parsing | More structured, easier to validate |
+| Feature               | Description                                          |
+| --------------------- | ---------------------------------------------------- |
+| JSON Parsing          | More structured, easier to validate                  |
 | Implicit Entity Focus | Gleaning prompt explicitly targets implicit entities |
-| Contextual Entities | Gleaning requests dates, locations, concepts |
-| Simpler Prompts | Easier to modify and maintain |
+| Contextual Entities   | Gleaning requests dates, locations, concepts         |
+| Simpler Prompts       | Easier to modify and maintain                        |
 
 ---
 
@@ -580,9 +591,9 @@ Provide a clear, accurate answer based on the context above. If the context does
 ### 8.1 High Priority (Implement in Phase 1)
 
 1. **Add Tuple-Based Extraction Format**
-   
+
    Create a new extraction format using `<|#|>` delimiter for more robust parsing:
-   
+
    ```rust
    // New prompt format
    entity<|#|>ALICE_CHEN<|#|>person<|#|>A software engineer at TechCorp
@@ -591,21 +602,23 @@ Provide a clear, accurate answer based on the context above. If the context does
    ```
 
 2. **Add Reference/Citation System**
-   
+
    Track source chunks and generate citations in RAG responses.
 
 3. **Add Completion Signal Detection**
-   
+
    Check for `<|COMPLETE|>` to detect incomplete extractions.
 
 ### 8.2 Medium Priority (Implement in Phase 2)
 
 1. **Add Entity Naming Conventions**
+
    - Title case for names
    - Consistent naming across extraction
    - Third person perspective
 
 2. **Add Multi-Language Support**
+
    - `language` parameter in prompts
    - Proper noun preservation
 
@@ -615,6 +628,7 @@ Provide a clear, accurate answer based on the context above. If the context does
 ### 8.3 Low Priority (Implement in Phase 3)
 
 1. **Add Conversation History**
+
    - Support for multi-turn conversations
    - Context carry-over
 
@@ -657,27 +671,27 @@ relation<|#|>Global Tech Index<|#|>Market Selloff<|#|>market performance<|#|>The
 
 ### LightRAG Variables
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `{tuple_delimiter}` | Field separator | `<\|#\|>` |
-| `{completion_delimiter}` | End signal | `<\|COMPLETE\|>` |
-| `{entity_types}` | Allowed types | `person, organization, location` |
-| `{language}` | Output language | `English` |
-| `{input_text}` | Text to process | Document content |
-| `{examples}` | Few-shot examples | 3 detailed examples |
-| `{summary_length}` | Max tokens | `500` |
-| `{response_type}` | Answer format | `detailed paragraphs` |
-| `{context_data}` | RAG context | Entities + chunks |
+| Variable                 | Description       | Example                          |
+| ------------------------ | ----------------- | -------------------------------- |
+| `{tuple_delimiter}`      | Field separator   | `<\|#\|>`                        |
+| `{completion_delimiter}` | End signal        | `<\|COMPLETE\|>`                 |
+| `{entity_types}`         | Allowed types     | `person, organization, location` |
+| `{language}`             | Output language   | `English`                        |
+| `{input_text}`           | Text to process   | Document content                 |
+| `{examples}`             | Few-shot examples | 3 detailed examples              |
+| `{summary_length}`       | Max tokens        | `500`                            |
+| `{response_type}`        | Answer format     | `detailed paragraphs`            |
+| `{context_data}`         | RAG context       | Entities + chunks                |
 
 ### EdgeQuake Variables
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `{entity_types_str}` | Allowed types | `PERSON, ORGANIZATION` |
-| `{text}` | Text to process | Document content |
-| `{query}` | User question | Query string |
-| `{context_text}` | RAG context | Formatted context |
-| `{entity_name}` | Entity being summarized | `ALICE_CHEN` |
-| `{prev_entities_str}` | Already extracted | `ALICE, BOB` |
+| Variable              | Description             | Example                |
+| --------------------- | ----------------------- | ---------------------- |
+| `{entity_types_str}`  | Allowed types           | `PERSON, ORGANIZATION` |
+| `{text}`              | Text to process         | Document content       |
+| `{query}`             | User question           | Query string           |
+| `{context_text}`      | RAG context             | Formatted context      |
+| `{entity_name}`       | Entity being summarized | `ALICE_CHEN`           |
+| `{prev_entities_str}` | Already extracted       | `ALICE, BOB`           |
 
 ---

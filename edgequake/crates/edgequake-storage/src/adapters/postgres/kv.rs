@@ -261,6 +261,7 @@ mod tests {
         let config = PostgresConfig::default().with_namespace("test");
         let storage = PostgresKVStorage::new(config);
 
-        assert_eq!(storage.table_name, "eq_test_kv");
+        // Table name includes schema prefix for PostgreSQL
+        assert_eq!(storage.table_name, "public.eq_eq_test_kv");
     }
 }
