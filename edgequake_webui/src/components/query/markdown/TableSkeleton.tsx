@@ -30,7 +30,6 @@ export const TableSkeleton = memo(function TableSkeleton({
     <div 
       className={cn(
         'my-4 overflow-hidden rounded-lg border border-zinc-700',
-        'animate-pulse',
         className
       )}
       role="status"

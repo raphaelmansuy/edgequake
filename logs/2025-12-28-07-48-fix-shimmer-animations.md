@@ -18,8 +18,10 @@
 ## Technical Changes
 
 ### File 1: `edgequake_webui/src/components/query/query-interface.tsx`
+
 **Lines Modified:** 177-181  
 **Change:** Replaced shimmer overlay div with simple pulse animation
+
 ```tsx
 // BEFORE: Had shimmer animation overlay
 <div className="absolute inset-0 -translate-x-full animate-shimmer..." />
@@ -29,8 +31,10 @@
 ```
 
 ### File 2: `edgequake_webui/src/components/query/markdown/TableSkeleton.tsx`
+
 **Lines Modified:** 47-57  
 **Change:** Removed shimmer div from header skeleton cells
+
 ```tsx
 // BEFORE: Had nested shimmer div
 <div className="...relative overflow-hidden">
