@@ -1,4 +1,20 @@
+// ============================================================================
+// Re-export Types from Modules
+// ============================================================================
+
+// Ingestion types for real-time progress tracking
+export * from "./ingestion";
+
+// Cost tracking types for LLM cost monitoring
+export * from "./cost";
+
+// Lineage types for document provenance tracking
+export * from "./lineage";
+
+// ============================================================================
 // Graph types
+// ============================================================================
+
 export interface GraphNode {
   id: string;
   label: string;

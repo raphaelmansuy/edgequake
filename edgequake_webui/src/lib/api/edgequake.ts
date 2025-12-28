@@ -508,6 +508,171 @@ export async function getTrackStatus(
 }
 
 // ============================================================================
+// Ingestion Progress (WebUI Spec WEBUI-005)
+// ============================================================================
+
+/**
+ * Get real-time progress for a specific track ID.
+ * Used as fallback when WebSocket is unavailable.
+ */
+export interface TrackProgressResponse {
+  track_id: string;
+  document_id: string;
+  document_name: string;
+  status: import("@/types/ingestion").IngestionStatus;
+  progress: import("@/types/ingestion").ProgressDetail;
+  started_at?: string;
+  updated_at?: string;
+  completed_at?: string;
+}
+
+export async function getTrackProgress(
+  trackId: string
+): Promise<TrackProgressResponse> {
+  return api.get<TrackProgressResponse>(`/ingestion/${trackId}/progress`);
+}
+
+/**
+ * Get progress for multiple tracks at once.
+ */
+export async function getMultipleTrackProgress(
+  trackIds: string[]
+): Promise<TrackProgressResponse[]> {
+  return api.post<TrackProgressResponse[]>("/ingestion/progress", {
+    track_ids: trackIds,
+  });
+}
+
+// ============================================================================
+// Lineage API (WebUI Spec WEBUI-006)
+// ============================================================================
+
+/**
+ * Get document lineage showing all chunks extracted from a document.
+ */
+export async function getDocumentLineage(
+  documentId: string
+): Promise<import("@/types/lineage").DocumentLineageResponse> {
+  return api.get<import("@/types/lineage").DocumentLineageResponse>(
+    `/documents/${documentId}/lineage`
+  );
+}
+
+/**
+ * Get chunk detail including entities and relationships extracted from it.
+ */
+export async function getChunkDetail(
+  chunkId: string
+): Promise<import("@/types/lineage").ChunkDetail> {
+  return api.get<import("@/types/lineage").ChunkDetail>(`/chunks/${chunkId}`);
+}
+
+/**
+ * Get entity provenance showing which chunks contributed to an entity.
+ */
+export async function getEntityProvenance(
+  entityId: string
+): Promise<import("@/types/lineage").EntityProvenanceResponse> {
+  return api.get<import("@/types/lineage").EntityProvenanceResponse>(
+    `/entities/${entityId}/provenance`
+  );
+}
+
+/**
+ * Get lineage for a specific chunk.
+ */
+export async function getChunkLineage(
+  chunkId: string
+): Promise<import("@/types/lineage").ChunkLineage> {
+  return api.get<import("@/types/lineage").ChunkLineage>(
+    `/chunks/${chunkId}/lineage`
+  );
+}
+
+// ============================================================================
+// Cost API (WebUI Spec WEBUI-007)
+// ============================================================================
+
+/**
+ * Get cost summary for the current workspace.
+ */
+export async function getWorkspaceCostSummary(): Promise<
+  import("@/types/cost").CostSummary
+> {
+  return api.get<import("@/types/cost").CostSummary>("/costs/summary");
+}
+
+/**
+ * Get detailed cost breakdown for a specific document.
+ */
+export async function getDocumentCost(
+  documentId: string
+): Promise<import("@/types/cost").CostBreakdown> {
+  return api.get<import("@/types/cost").CostBreakdown>(
+    `/documents/${documentId}/cost`
+  );
+}
+
+/**
+ * Get cost breakdown for a specific ingestion track.
+ */
+export async function getIngestionCost(
+  trackId: string
+): Promise<import("@/types/cost").CostBreakdown> {
+  return api.get<import("@/types/cost").CostBreakdown>(
+    `/ingestion/${trackId}/cost`
+  );
+}
+
+/**
+ * Get budget status and limits.
+ */
+export async function getBudgetStatus(): Promise<
+  import("@/types/cost").BudgetInfo
+> {
+  return api.get<import("@/types/cost").BudgetInfo>("/costs/budget");
+}
+
+/**
+ * Update budget limits.
+ */
+export async function updateBudget(
+  budget: Partial<import("@/types/cost").BudgetInfo>
+): Promise<import("@/types/cost").BudgetInfo> {
+  return api.patch<import("@/types/cost").BudgetInfo>("/costs/budget", budget);
+}
+
+/**
+ * Get cost history for a time period.
+ */
+export interface CostHistoryParams {
+  start_date?: string;
+  end_date?: string;
+  granularity?: "hour" | "day" | "week" | "month";
+}
+
+export interface CostHistoryPoint {
+  timestamp: string;
+  total_cost: number;
+  total_tokens: number;
+  document_count: number;
+}
+
+export async function getCostHistory(
+  params?: CostHistoryParams
+): Promise<CostHistoryPoint[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.start_date) searchParams.set("start_date", params.start_date);
+  if (params?.end_date) searchParams.set("end_date", params.end_date);
+  if (params?.granularity) searchParams.set("granularity", params.granularity);
+
+  const query = searchParams.toString();
+  return api.get<CostHistoryPoint[]>(
+    `/costs/history${query ? `?${query}` : ""}`
+  );
+}
+
+// ============================================================================
 // Enhanced Pipeline Status (Phase 3)
 // ============================================================================
 
@@ -632,6 +797,24 @@ export const edgequakeApi = {
   // Enhanced Pipeline (Phase 3)
   getEnhancedPipelineStatus,
   requestPipelineCancellation,
+
+  // Ingestion Progress (WebUI Spec WEBUI-005)
+  getTrackProgress,
+  getMultipleTrackProgress,
+
+  // Lineage API (WebUI Spec WEBUI-006)
+  getDocumentLineage,
+  getChunkDetail,
+  getEntityProvenance,
+  getChunkLineage,
+
+  // Cost API (WebUI Spec WEBUI-007)
+  getWorkspaceCostSummary,
+  getDocumentCost,
+  getIngestionCost,
+  getBudgetStatus,
+  updateBudget,
+  getCostHistory,
 };
 
 export default edgequakeApi;

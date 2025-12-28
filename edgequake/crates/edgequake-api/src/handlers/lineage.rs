@@ -117,6 +117,415 @@ pub struct ExtractionStatsResponse {
     pub processing_time_ms: Option<u64>,
 }
 
+// ============================================================================
+// Chunk Detail Endpoint (WebUI Spec WEBUI-006)
+// ============================================================================
+
+/// Chunk detail response.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ChunkDetailResponse {
+    /// Chunk ID.
+    pub chunk_id: String,
+    /// Document ID this chunk belongs to.
+    pub document_id: String,
+    /// Document name.
+    pub document_name: Option<String>,
+    /// Full chunk content.
+    pub content: String,
+    /// Chunk index in document.
+    pub index: usize,
+    /// Character offset range.
+    pub char_range: CharRange,
+    /// Token count.
+    pub token_count: usize,
+    /// Entities extracted from this chunk.
+    pub entities: Vec<ExtractedEntityInfo>,
+    /// Relationships extracted from this chunk.
+    pub relationships: Vec<ExtractedRelationshipInfo>,
+    /// Extraction metadata.
+    pub extraction_metadata: Option<ExtractionMetadataInfo>,
+}
+
+/// Character range for chunk position.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct CharRange {
+    /// Start offset.
+    pub start: usize,
+    /// End offset.
+    pub end: usize,
+}
+
+/// Entity extracted from chunk.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ExtractedEntityInfo {
+    /// Entity ID/name.
+    pub id: String,
+    /// Entity name.
+    pub name: String,
+    /// Entity type.
+    pub entity_type: String,
+    /// Description.
+    pub description: Option<String>,
+}
+
+/// Relationship extracted from chunk.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ExtractedRelationshipInfo {
+    /// Source entity.
+    pub source_name: String,
+    /// Target entity.
+    pub target_name: String,
+    /// Relationship type/keywords.
+    pub relation_type: String,
+    /// Description.
+    pub description: Option<String>,
+}
+
+/// Extraction metadata.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ExtractionMetadataInfo {
+    /// LLM model used.
+    pub model: String,
+    /// Gleaning iterations.
+    pub gleaning_iterations: usize,
+    /// Extraction duration in ms.
+    pub duration_ms: u64,
+    /// Input tokens.
+    pub input_tokens: usize,
+    /// Output tokens.
+    pub output_tokens: usize,
+    /// Whether cached.
+    pub cached: bool,
+}
+
+/// Get chunk detail.
+#[utoipa::path(
+    get,
+    path = "/api/v1/chunks/{chunk_id}",
+    tag = "Lineage",
+    params(
+        ("chunk_id" = String, Path, description = "Chunk ID to query")
+    ),
+    responses(
+        (status = 200, description = "Chunk detail", body = ChunkDetailResponse),
+        (status = 404, description = "Chunk not found")
+    )
+)]
+pub async fn get_chunk_detail(
+    State(state): State<AppState>,
+    Path(chunk_id): Path<String>,
+) -> ApiResult<Json<ChunkDetailResponse>> {
+    // Look up chunk in KV storage
+    let chunk_data = state
+        .kv_storage
+        .get_by_id(&chunk_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound(format!("Chunk '{}' not found", chunk_id)))?;
+
+    // Parse chunk data
+    let content = chunk_data
+        .get("content")
+        .and_then(|v: &serde_json::Value| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    let chunk_index = chunk_data
+        .get("chunk_index")
+        .and_then(|v: &serde_json::Value| v.as_u64())
+        .unwrap_or(0) as usize;
+
+    let token_count = chunk_data
+        .get("token_count")
+        .and_then(|v: &serde_json::Value| v.as_u64())
+        .unwrap_or(0) as usize;
+
+    let start_offset = chunk_data
+        .get("start_offset")
+        .and_then(|v: &serde_json::Value| v.as_u64())
+        .unwrap_or(0) as usize;
+
+    let end_offset = chunk_data
+        .get("end_offset")
+        .and_then(|v: &serde_json::Value| v.as_u64())
+        .unwrap_or(0) as usize;
+
+    // Extract document ID from chunk ID (format: doc_id-chunk-N)
+    let document_id = if chunk_id.contains("-chunk-") {
+        chunk_id
+            .split("-chunk-")
+            .next()
+            .unwrap_or(&chunk_id)
+            .to_string()
+    } else {
+        chunk_id.clone()
+    };
+
+    // Get document name from metadata
+    let metadata_key = format!("{}-metadata", document_id);
+    let doc_name = if let Ok(Some(metadata)) = state.kv_storage.get_by_id(&metadata_key).await {
+        metadata
+            .get("title")
+            .and_then(|v: &serde_json::Value| v.as_str())
+            .map(|s| s.to_string())
+    } else {
+        None
+    };
+
+    // Find entities extracted from this chunk
+    let all_nodes = state.graph_storage.get_all_nodes().await?;
+    let mut entities: Vec<ExtractedEntityInfo> = Vec::new();
+
+    for node in &all_nodes {
+        if let Some(source_id) = node.properties.get("source_id").and_then(|v| v.as_str()) {
+            if source_id.contains(&chunk_id) {
+                let entity_type = node
+                    .properties
+                    .get("entity_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+                let description = node
+                    .properties
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
+                entities.push(ExtractedEntityInfo {
+                    id: node.id.clone(),
+                    name: node.id.clone(),
+                    entity_type,
+                    description,
+                });
+            }
+        }
+    }
+
+    // Find relationships from this chunk
+    let all_edges = state.graph_storage.get_all_edges().await?;
+    let mut relationships: Vec<ExtractedRelationshipInfo> = Vec::new();
+
+    for edge in all_edges {
+        if let Some(source_id) = edge.properties.get("source_id").and_then(|v| v.as_str()) {
+            if source_id.contains(&chunk_id) {
+                let relation_type = edge
+                    .properties
+                    .get("keywords")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("related_to")
+                    .to_string();
+                let description = edge
+                    .properties
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
+                relationships.push(ExtractedRelationshipInfo {
+                    source_name: edge.source.clone(),
+                    target_name: edge.target.clone(),
+                    relation_type,
+                    description,
+                });
+            }
+        }
+    }
+
+    Ok(Json(ChunkDetailResponse {
+        chunk_id,
+        document_id,
+        document_name: doc_name,
+        content,
+        index: chunk_index,
+        char_range: CharRange {
+            start: start_offset,
+            end: end_offset,
+        },
+        token_count,
+        entities,
+        relationships,
+        extraction_metadata: None, // Would need to be stored during extraction
+    }))
+}
+
+/// Entity provenance response.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct EntityProvenanceResponse {
+    /// Entity ID.
+    pub entity_id: String,
+    /// Entity name.
+    pub entity_name: String,
+    /// Entity type.
+    pub entity_type: String,
+    /// Description.
+    pub description: Option<String>,
+    /// Source documents and chunks.
+    pub sources: Vec<EntitySourceInfo>,
+    /// Total extraction count.
+    pub total_extraction_count: usize,
+    /// Related entities.
+    pub related_entities: Vec<RelatedEntityInfo>,
+}
+
+/// Entity source information.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct EntitySourceInfo {
+    /// Document ID.
+    pub document_id: String,
+    /// Document name.
+    pub document_name: Option<String>,
+    /// Chunks containing this entity.
+    pub chunks: Vec<ChunkSourceInfo>,
+    /// When first extracted.
+    pub first_extracted_at: Option<String>,
+}
+
+/// Chunk source info.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ChunkSourceInfo {
+    /// Chunk ID.
+    pub chunk_id: String,
+    /// Start line.
+    pub start_line: Option<usize>,
+    /// End line.
+    pub end_line: Option<usize>,
+    /// Source text excerpt.
+    pub source_text: Option<String>,
+}
+
+/// Related entity info.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct RelatedEntityInfo {
+    /// Entity ID.
+    pub entity_id: String,
+    /// Entity name.
+    pub entity_name: String,
+    /// Relationship type.
+    pub relationship_type: String,
+    /// Shared document count.
+    pub shared_documents: usize,
+}
+
+/// Get entity provenance.
+#[utoipa::path(
+    get,
+    path = "/api/v1/entities/{entity_id}/provenance",
+    tag = "Lineage",
+    params(
+        ("entity_id" = String, Path, description = "Entity ID to query")
+    ),
+    responses(
+        (status = 200, description = "Entity provenance", body = EntityProvenanceResponse),
+        (status = 404, description = "Entity not found")
+    )
+)]
+pub async fn get_entity_provenance(
+    State(state): State<AppState>,
+    Path(entity_id): Path<String>,
+) -> ApiResult<Json<EntityProvenanceResponse>> {
+    // Normalize entity ID
+    let normalized_id = entity_id.to_uppercase().replace(' ', "_");
+
+    // Look up entity
+    let node = state
+        .graph_storage
+        .get_node(&normalized_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound(format!("Entity '{}' not found", entity_id)))?;
+
+    let entity_type = node
+        .properties
+        .get("entity_type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown")
+        .to_string();
+
+    let description = node
+        .properties
+        .get("description")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    // Parse source_id to find all source documents
+    let source_id = node
+        .properties
+        .get("source_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    let sources: Vec<String> = source_id.split('|').map(|s| s.to_string()).collect();
+    let sources_count = sources.len();
+    let mut doc_map: std::collections::HashMap<String, Vec<ChunkSourceInfo>> =
+        std::collections::HashMap::new();
+
+    for source in &sources {
+        if source.contains("-chunk-") {
+            if let Some(pos) = source.find("-chunk-") {
+                let doc_id = &source[..pos];
+                doc_map
+                    .entry(doc_id.to_string())
+                    .or_default()
+                    .push(ChunkSourceInfo {
+                        chunk_id: source.clone(),
+                        start_line: None,
+                        end_line: None,
+                        source_text: None,
+                    });
+            }
+        }
+    }
+
+    let entity_sources: Vec<EntitySourceInfo> = doc_map
+        .into_iter()
+        .map(|(doc_id, chunks)| EntitySourceInfo {
+            document_id: doc_id,
+            document_name: None,
+            chunks,
+            first_extracted_at: None,
+        })
+        .collect();
+
+    // Find related entities
+    let all_edges = state.graph_storage.get_all_edges().await?;
+    let mut related: Vec<RelatedEntityInfo> = Vec::new();
+
+    for edge in all_edges {
+        if edge.source == normalized_id {
+            related.push(RelatedEntityInfo {
+                entity_id: edge.target.clone(),
+                entity_name: edge.target.clone(),
+                relationship_type: edge
+                    .properties
+                    .get("keywords")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("related_to")
+                    .to_string(),
+                shared_documents: 1,
+            });
+        } else if edge.target == normalized_id {
+            related.push(RelatedEntityInfo {
+                entity_id: edge.source.clone(),
+                entity_name: edge.source.clone(),
+                relationship_type: edge
+                    .properties
+                    .get("keywords")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("related_to")
+                    .to_string(),
+                shared_documents: 1,
+            });
+        }
+    }
+
+    Ok(Json(EntityProvenanceResponse {
+        entity_id: normalized_id.clone(),
+        entity_name: normalized_id,
+        entity_type,
+        description,
+        sources: entity_sources,
+        total_extraction_count: sources_count,
+        related_entities: related,
+    }))
+}
+
 /// Get lineage for an entity (all source documents).
 #[utoipa::path(
     get,

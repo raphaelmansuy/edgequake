@@ -60,6 +60,7 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { BatchProgressCard } from './batch-progress-card';
 import { ClearDocumentsDialog } from './clear-documents-dialog';
+import { CostBadge } from './cost-badge';
 import { DocumentFilters, type DocStatus, type SortDirection, type SortField } from './document-filters';
 import { DocumentPreviewPanel } from './document-preview-panel';
 import { PaginationControls } from './pagination-controls';
@@ -932,6 +933,7 @@ export function DocumentManager() {
                     <TableHead>Title</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Entities</TableHead>
+                    <TableHead className="hidden lg:table-cell">Cost</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="w-[100px]"></TableHead>
                   </TableRow>
@@ -960,6 +962,12 @@ export function DocumentManager() {
                         <StatusBadge status={doc.status || 'completed'} />
                       </TableCell>
                       <TableCell>{doc.entity_count ?? doc.chunk_count ?? '-'}</TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <CostBadge 
+                          cost={doc.lineage?.processing_duration_ms ? (doc.lineage.processing_duration_ms / 1000) * 0.0001 : 0} 
+                          size="sm" 
+                        />
+                      </TableCell>
                       <TableCell className="text-muted-foreground">
                         {doc.created_at 
                           ? formatDistanceToNow(new Date(doc.created_at), { addSuffix: true })

@@ -233,6 +233,10 @@ pub async fn upload_document(
         }))
     } else {
         // Synchronous processing (original behavior)
+        // Broadcast job started
+        let start_time = std::time::Instant::now();
+        state.progress_broadcaster.job_started(&document_id, 1, 1);
+
         let result = state
             .pipeline
             .process(&document_id, &request.content)
@@ -255,6 +259,11 @@ pub async fn upload_document(
             .collect();
 
         state.kv_storage.upsert(&chunks).await?;
+
+        // Broadcast document progress (chunking complete)
+        state
+            .progress_broadcaster
+            .document_progress(&document_id, 0, 1, 3);
 
         // Store entities and relationships in graph storage
         for extraction in &result.extractions {
@@ -310,6 +319,11 @@ pub async fn upload_document(
             }
         }
 
+        // Broadcast document progress (extraction complete)
+        state
+            .progress_broadcaster
+            .document_progress(&document_id, result.stats.entity_count, 2, 3);
+
         // Update document status to completed (preserve content_summary, content_length, track_id, tenant context)
         let doc_metadata = serde_json::json!({
             "id": document_id,
@@ -330,6 +344,15 @@ pub async fn upload_document(
             .kv_storage
             .upsert(&[(doc_metadata_key, doc_metadata)])
             .await?;
+
+        // Broadcast job finished
+        let duration = start_time.elapsed();
+        state
+            .progress_broadcaster
+            .document_progress(&document_id, result.stats.entity_count, 3, 3);
+        state
+            .progress_broadcaster
+            .job_finished(1, duration.as_millis() as u64);
 
         Ok(Json(UploadDocumentResponse {
             document_id,

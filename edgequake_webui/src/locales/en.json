@@ -45,6 +45,7 @@
     "graph": "Knowledge Graph",
     "documents": "Documents",
     "query": "Query",
+    "costs": "Costs",
     "apiExplorer": "API Explorer",
     "settings": "Settings"
   },

@@ -5,9 +5,9 @@
  */
 'use client';
 
-import type { Token, Tokens } from 'marked';
-import { memo, lazy, Suspense } from 'react';
 import { cn } from '@/lib/utils';
+import type { Token, Tokens } from 'marked';
+import { lazy, memo, Suspense } from 'react';
 
 // Lazy load KaTeX for performance
 const KatexMath = lazy(() => import('./KatexMath'));
@@ -132,6 +132,14 @@ export const MarkdownInlineTokens = memo(function MarkdownInlineTokens({
 
           case 'image': {
             const imgToken = token as Tokens.Image;
+            // Skip rendering if href is empty or undefined to avoid browser warnings
+            if (!imgToken.href) {
+              return (
+                <span key={tokenId} className="text-muted-foreground italic">
+                  [Image: {imgToken.text || 'no alt text'}]
+                </span>
+              );
+            }
             return (
               <img
                 key={tokenId}

@@ -142,6 +142,135 @@ pub async fn estimate_cost(
     }))
 }
 
+// ============================================================================
+// Cost Summary Endpoint (WebUI Spec WEBUI-007)
+// ============================================================================
+
+/// Workspace cost summary response.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct WorkspaceCostSummaryResponse {
+    /// Workspace ID.
+    pub workspace_id: String,
+    /// Total cost in USD.
+    pub total_cost: f64,
+    /// Total document count.
+    pub document_count: usize,
+    /// Total tokens used.
+    pub total_tokens: usize,
+    /// Average cost per document.
+    pub average_cost_per_document: f64,
+    /// Period start (ISO date).
+    pub period_start: Option<String>,
+    /// Period end (ISO date).
+    pub period_end: Option<String>,
+    /// Cost breakdown by operation.
+    pub by_operation: Vec<OperationBreakdown>,
+    /// Budget info if configured.
+    pub budget: Option<BudgetInfo>,
+}
+
+/// Operation cost breakdown.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct OperationBreakdown {
+    /// Operation name.
+    pub operation: String,
+    /// Cost in USD.
+    pub cost: f64,
+    /// Percentage of total cost.
+    pub percentage: f64,
+}
+
+/// Budget information.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct BudgetInfo {
+    /// Monthly budget limit in USD.
+    pub monthly_budget_usd: f64,
+    /// Amount spent so far.
+    pub spent_usd: f64,
+    /// Remaining budget.
+    pub remaining_usd: f64,
+    /// Alert threshold percentage (0-100).
+    pub alert_threshold: f64,
+    /// Whether budget is exceeded.
+    pub is_over_budget: bool,
+}
+
+/// Get workspace cost summary.
+#[utoipa::path(
+    get,
+    path = "/api/v1/costs/summary",
+    tag = "Costs",
+    responses(
+        (status = 200, description = "Workspace cost summary", body = WorkspaceCostSummaryResponse)
+    )
+)]
+pub async fn get_cost_summary(
+    State(_state): State<AppState>,
+) -> ApiResult<Json<WorkspaceCostSummaryResponse>> {
+    // For now, return a placeholder response
+    // In production, this would query accumulated costs from the database
+    Ok(Json(WorkspaceCostSummaryResponse {
+        workspace_id: "default".to_string(),
+        total_cost: 0.0,
+        document_count: 0,
+        total_tokens: 0,
+        average_cost_per_document: 0.0,
+        period_start: None,
+        period_end: None,
+        by_operation: vec![
+            OperationBreakdown {
+                operation: "extraction".to_string(),
+                cost: 0.0,
+                percentage: 0.0,
+            },
+            OperationBreakdown {
+                operation: "embedding".to_string(),
+                cost: 0.0,
+                percentage: 0.0,
+            },
+        ],
+        budget: None,
+    }))
+}
+
+/// Get budget status.
+#[utoipa::path(
+    get,
+    path = "/api/v1/costs/budget",
+    tag = "Costs",
+    responses(
+        (status = 200, description = "Budget status", body = BudgetInfo)
+    )
+)]
+pub async fn get_budget_status(State(_state): State<AppState>) -> ApiResult<Json<BudgetInfo>> {
+    // Return default budget info (no budget configured by default)
+    Ok(Json(BudgetInfo {
+        monthly_budget_usd: 100.0,
+        spent_usd: 0.0,
+        remaining_usd: 100.0,
+        alert_threshold: 80.0,
+        is_over_budget: false,
+    }))
+}
+
+/// Update budget settings.
+#[utoipa::path(
+    patch,
+    path = "/api/v1/costs/budget",
+    tag = "Costs",
+    request_body = BudgetInfo,
+    responses(
+        (status = 200, description = "Updated budget", body = BudgetInfo)
+    )
+)]
+pub async fn update_budget(
+    State(_state): State<AppState>,
+    Json(budget): Json<BudgetInfo>,
+) -> ApiResult<Json<BudgetInfo>> {
+    // In production, this would persist budget settings
+    Ok(Json(budget))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

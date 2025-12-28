@@ -210,6 +210,10 @@ fn api_v1_routes() -> Router<AppState> {
         // Cost Tracking (Phase 5)
         .route("/pipeline/costs/pricing", get(handlers::get_model_pricing))
         .route("/pipeline/costs/estimate", post(handlers::estimate_cost))
+        // Cost Summary (WebUI Spec WEBUI-007)
+        .route("/costs/summary", get(handlers::get_cost_summary))
+        .route("/costs/budget", get(handlers::get_budget_status))
+        .route("/costs/budget", patch(handlers::update_budget))
         // Lineage (Phase 5)
         .route(
             "/lineage/entities/{entity_name}",
@@ -218,6 +222,13 @@ fn api_v1_routes() -> Router<AppState> {
         .route(
             "/lineage/documents/{document_id}",
             get(handlers::get_document_lineage),
+        )
+        // Chunk Detail (WebUI Spec WEBUI-006)
+        .route("/chunks/{chunk_id}", get(handlers::get_chunk_detail))
+        // Entity Provenance (WebUI Spec WEBUI-006)
+        .route(
+            "/entities/{entity_id}/provenance",
+            get(handlers::get_entity_provenance),
         )
 }
 

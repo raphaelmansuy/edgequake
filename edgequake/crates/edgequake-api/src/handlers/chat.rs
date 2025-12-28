@@ -312,6 +312,23 @@ pub async fn chat_completion(
         .map_err(|e| ApiError::Internal(format!("Failed to ensure user exists: {}", e)))?;
     }
 
+    // Validate workspace_id exists in database (may be stale from localStorage)
+    let workspace_id = if let Some(ws_id) = workspace_id {
+        match state.workspace_service.get_workspace(ws_id).await {
+            Ok(Some(_)) => Some(ws_id),
+            Ok(None) => {
+                warn!(workspace_id = %ws_id, "Workspace not found, ignoring stale workspace_id");
+                None
+            }
+            Err(e) => {
+                warn!(workspace_id = %ws_id, error = %e, "Failed to validate workspace, ignoring");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     let mode = parse_mode(&request.mode);
     let query_mode = parse_query_mode(&request.mode);
 
@@ -519,6 +536,23 @@ pub async fn chat_completion_stream(
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to ensure user exists: {}", e)))?;
     }
+
+    // Validate workspace_id exists in database (may be stale from localStorage)
+    let workspace_id = if let Some(ws_id) = workspace_id {
+        match state.workspace_service.get_workspace(ws_id).await {
+            Ok(Some(_)) => Some(ws_id),
+            Ok(None) => {
+                warn!(workspace_id = %ws_id, "Workspace not found in streaming handler, ignoring stale workspace_id");
+                None
+            }
+            Err(e) => {
+                warn!(workspace_id = %ws_id, error = %e, "Failed to validate workspace in streaming handler, ignoring");
+                None
+            }
+        }
+    } else {
+        None
+    };
 
     let mode = parse_mode(&request.mode);
     let query_mode = parse_query_mode(&request.mode);

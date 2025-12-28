@@ -1,0 +1,104 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e6] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=e7]:
+      - img [ref=e8]
+    - generic [ref=e11]:
+      - button "Open issues overlay" [ref=e12]:
+        - generic [ref=e13]:
+          - generic [ref=e14]: "0"
+          - generic [ref=e15]: "1"
+        - generic [ref=e16]: Issue
+      - button "Collapse issues badge" [ref=e17]:
+        - img [ref=e18]
+  - alert [ref=e20]
+  - generic [ref=e21]:
+    - link "Skip to main content" [ref=e22] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary "Sidebar navigation" [ref=e23]:
+      - generic [ref=e24]:
+        - link "EdgeQuake" [ref=e26] [cursor=pointer]:
+          - /url: /
+          - img [ref=e28]
+          - generic [ref=e33]: EdgeQuake
+        - navigation "Navigation" [ref=e34]:
+          - link "Dashboard" [ref=e35] [cursor=pointer]:
+            - /url: /
+            - img [ref=e36]
+            - generic [ref=e39]: Dashboard
+          - link "Knowledge Graph" [ref=e40] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e41]
+            - generic [ref=e46]: Knowledge Graph
+          - link "Documents" [ref=e47] [cursor=pointer]:
+            - /url: /documents
+            - img [ref=e48]
+            - generic [ref=e51]: Documents
+          - link "Query" [ref=e52] [cursor=pointer]:
+            - /url: /query
+            - img [ref=e53]
+            - generic [ref=e55]: Query
+          - link "Costs" [ref=e56] [cursor=pointer]:
+            - /url: /costs
+            - img [ref=e57]
+            - generic [ref=e59]: Costs
+          - link "API Explorer" [ref=e60] [cursor=pointer]:
+            - /url: /api-explorer
+            - img [ref=e61]
+            - generic [ref=e63]: API Explorer
+          - link "Settings" [ref=e64] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e65]
+            - generic [ref=e68]: Settings
+        - generic [ref=e69]:
+          - button "Collapse sidebar" [ref=e70]:
+            - img
+            - generic [ref=e71]: Collapse
+          - generic [ref=e72]:
+            - img [ref=e74]
+            - generic [ref=e79]:
+              - generic [ref=e80]: EdgeQuake
+              - generic [ref=e81]: v0.1.0
+    - generic [ref=e82]:
+      - banner [ref=e83]:
+        - button "Select Context" [ref=e86]:
+          - img
+          - generic [ref=e87]: Select Context
+          - img
+        - generic [ref=e88]:
+          - generic [ref=e89]:
+            - img [ref=e90]
+            - generic [ref=e92]: Offline
+          - button "Change language" [ref=e93]:
+            - img
+            - generic [ref=e94]: Change language
+          - button "Toggle theme" [ref=e95]:
+            - img
+            - generic [ref=e96]: Toggle theme
+          - button "User menu" [ref=e97]:
+            - img
+            - generic [ref=e98]: User menu
+      - navigation "breadcrumb" [ref=e100]:
+        - list [ref=e101]:
+          - listitem [ref=e102]:
+            - link "EdgeQuake" [ref=e103] [cursor=pointer]:
+              - /url: /
+              - img [ref=e104]
+              - generic [ref=e107]: EdgeQuake
+          - listitem [ref=e108]:
+            - img [ref=e109]
+          - listitem [ref=e111]:
+            - link "Documents" [disabled] [ref=e112]:
+              - img [ref=e113]
+              - generic [ref=e116]: Documents
+      - main [ref=e117]:
+        - generic [ref=e119]:
+          - generic [ref=e120]:
+            - img [ref=e122]
+            - generic [ref=e124]: Connection Error
+            - generic [ref=e125]: Unable to connect to the server. Please check your connection and try again.
+          - button "Retry" [ref=e127]
+  - region "Notifications alt+T"
+```
