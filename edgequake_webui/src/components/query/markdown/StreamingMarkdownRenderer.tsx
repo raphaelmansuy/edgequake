@@ -433,13 +433,7 @@ export const StreamingMarkdownRenderer = memo(function StreamingMarkdownRenderer
         </Suspense>
       )}
       
-      {/* Streaming cursor - theme-aware, subtle blinking */}
-      {isStreaming && !hasPendingTable && (
-        <span 
-          className="inline-block w-0.5 h-4 ml-0.5 bg-primary/70 align-middle animate-pulse" 
-          aria-hidden="true"
-        />
-      )}
+      {/* Streaming cursor removed - was causing visual artifacts */}
     </div>
   );
 });

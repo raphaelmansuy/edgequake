@@ -4,6 +4,97 @@
 
 Implementing streaming improvements for EdgeQuake as per the 7 planning documents.
 
+## 🔧 ROUND 7: Fix Shimmer Blink (2025-12-28)
+
+### User Report
+
+**Issue**: Black blinking horizontal line during streaming queries (visible in screenshot)
+
+### Investigation
+
+1. **Screenshot Analysis**:
+
+   - Shows loading state with progress bar
+   - Horizontal line moves across the bar
+   - Creates distracting visual effect
+
+2. **Code Location**:
+
+   - `query-interface.tsx:179` - DetailedLoadingMessage
+   - Uses `animate-shimmer` class
+   - Shimmer defined in `globals.css:142-149`
+
+3. **Root Cause**:
+
+   ```tsx
+   // This creates the blinking line:
+   <div className="animate-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
+   ```
+
+   The shimmer animation:
+
+   - Translates gradient from -100% to 400%
+   - Creates visible "sweep" effect
+   - Too prominent for loading indicator
+
+4. **Why it's problematic**:
+   - High contrast gradient movement
+   - Draws attention away from content
+   - Appears as "glitch" or "error"
+   - Doesn't match modern minimal UX patterns
+
+### Solution Options
+
+A) **Remove shimmer, use simple pulse** ✅ CHOSEN
+
+- Cleaner, more subtle
+- Standard pattern for indeterminate progress
+- No distracting motion
+
+B) Keep shimmer, reduce contrast
+
+- Still has motion
+- May still be distracting
+
+C) Replace with dots animation
+
+- More work
+- May not fit design system
+
+### Implementation
+
+Replace in `query-interface.tsx`:
+
+```tsx
+// OLD (lines 177-181):
+<div className="mt-2 h-1 w-full bg-muted rounded-full overflow-hidden relative">
+  <div
+    className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/60 to-transparent rounded-full animate-shimmer"
+  />
+</div>
+
+// NEW:
+<div className="mt-2 h-1 w-full bg-muted rounded-full overflow-hidden">
+  <div className="h-full w-full bg-gradient-to-r from-primary/40 via-primary to-primary/40 rounded-full animate-pulse" />
+</div>
+```
+
+**Changes**:
+
+- Removed `relative` positioning and `absolute` child
+- Removed `animate-shimmer`
+- Added simple `animate-pulse` (standard Tailwind)
+- Gradient now static, only opacity pulses
+- Much more subtle and professional
+
+### Verification Checklist
+
+- [ ] No horizontal blinking line visible
+- [ ] Loading indicator still clearly shows activity
+- [ ] No performance issues
+- [ ] Consistent with overall design
+- [ ] E2E tests still pass
+
 ## 🔴 ROUND 6: Deep Investigation - Build Process + Remaining Issues (2025-12-28)
 
 ### Issues Still Present (from user screenshots)
