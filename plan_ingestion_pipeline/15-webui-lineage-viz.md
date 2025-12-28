@@ -48,15 +48,15 @@ This document specifies the lineage visualization system that enables users to t
 
 ### 1.3 Requirements
 
-| Requirement | Description |
-|-------------|-------------|
+| Requirement | Description                                 |
+| ----------- | ------------------------------------------- |
 | REQ-LIN-001 | Tree view with expandable/collapsible nodes |
-| REQ-LIN-002 | Graph view with force-directed layout |
-| REQ-LIN-003 | Click-through to chunk and entity details |
-| REQ-LIN-004 | Search/filter by entity name or type |
-| REQ-LIN-005 | Highlight provenance path on hover |
-| REQ-LIN-006 | Export lineage as JSON/SVG |
-| REQ-LIN-007 | Support 1000+ nodes with virtualization |
+| REQ-LIN-002 | Graph view with force-directed layout       |
+| REQ-LIN-003 | Click-through to chunk and entity details   |
+| REQ-LIN-004 | Search/filter by entity name or type        |
+| REQ-LIN-005 | Highlight provenance path on hover          |
+| REQ-LIN-006 | Export lineage as JSON/SVG                  |
+| REQ-LIN-007 | Support 1000+ nodes with virtualization     |
 
 ---
 
@@ -86,8 +86,8 @@ interface ChunkLineage {
   content_preview: string;
   token_count: number;
   char_range: { start: number; end: number };
-  extracted_entities: string[];  // Entity IDs
-  extracted_relationships: string[];  // Relationship IDs
+  extracted_entities: string[]; // Entity IDs
+  extracted_relationships: string[]; // Relationship IDs
   extraction_metadata: {
     model: string;
     duration_ms: number;
@@ -103,8 +103,8 @@ interface EntityLineage {
   name: string;
   entity_type: string;
   description: string;
-  source_chunks: string[];  // Chunk IDs
-  merged_from?: string[];   // Original entity names before merge
+  source_chunks: string[]; // Chunk IDs
+  merged_from?: string[]; // Original entity names before merge
   extraction_count: number;
   confidence?: number;
 }
@@ -125,14 +125,10 @@ interface RelationshipLineage {
 ```typescript
 // Graph visualization node types
 
-type LineageNode =
-  | DocumentNode
-  | ChunkNode
-  | EntityNode
-  | RelationshipNode;
+type LineageNode = DocumentNode | ChunkNode | EntityNode | RelationshipNode;
 
 interface DocumentNode {
-  type: 'document';
+  type: "document";
   id: string;
   label: string;
   status: DocumentStatus;
@@ -141,10 +137,10 @@ interface DocumentNode {
 }
 
 interface ChunkNode {
-  type: 'chunk';
+  type: "chunk";
   id: string;
   index: number;
-  label: string;  // "Chunk 1"
+  label: string; // "Chunk 1"
   preview: string;
   tokenCount: number;
   entityCount: number;
@@ -152,7 +148,7 @@ interface ChunkNode {
 }
 
 interface EntityNode {
-  type: 'entity';
+  type: "entity";
   id: string;
   name: string;
   entityType: string;
@@ -162,7 +158,7 @@ interface EntityNode {
 }
 
 interface RelationshipNode {
-  type: 'relationship';
+  type: "relationship";
   id: string;
   label: string;
   sourceEntity: string;
@@ -175,7 +171,7 @@ interface LineageEdge {
   id: string;
   source: string;
   target: string;
-  type: 'contains' | 'extracted' | 'merged' | 'relates';
+  type: "contains" | "extracted" | "merged" | "relates";
   weight?: number;
 }
 ```
@@ -191,7 +187,7 @@ interface LineageEdge {
 
 interface LineageExplorerProps {
   documentId: string;
-  initialView?: 'tree' | 'graph' | 'table';
+  initialView?: "tree" | "graph" | "table";
   onChunkClick?: (chunkId: string) => void;
   onEntityClick?: (entityId: string) => void;
   className?: string;
@@ -199,19 +195,19 @@ interface LineageExplorerProps {
 
 export function LineageExplorer({
   documentId,
-  initialView = 'tree',
+  initialView = "tree",
   onChunkClick,
   onEntityClick,
   className,
 }: LineageExplorerProps) {
   const [view, setView] = useState(initialView);
-  const [filter, setFilter] = useState('');
+  const [filter, setFilter] = useState("");
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
-  
+
   const { data: lineage, isLoading, error } = useDocumentLineage(documentId);
-  
+
   return (
-    <div className={cn('flex flex-col h-full', className)}>
+    <div className={cn("flex flex-col h-full", className)}>
       {/* Toolbar */}
       <div className="flex items-center justify-between p-4 border-b">
         <div className="flex gap-2">
@@ -232,7 +228,7 @@ export function LineageExplorer({
             </TabsList>
           </Tabs>
         </div>
-        
+
         <div className="flex gap-2">
           <Input
             placeholder="Filter entities..."
@@ -243,10 +239,10 @@ export function LineageExplorer({
           <ExportButton lineage={lineage} />
         </div>
       </div>
-      
+
       {/* View Content */}
       <div className="flex-1 overflow-hidden">
-        {view === 'tree' && (
+        {view === "tree" && (
           <LineageTreeView
             lineage={lineage}
             filter={filter}
@@ -256,7 +252,7 @@ export function LineageExplorer({
             onEntityClick={onEntityClick}
           />
         )}
-        {view === 'graph' && (
+        {view === "graph" && (
           <LineageGraphView
             lineage={lineage}
             filter={filter}
@@ -266,7 +262,7 @@ export function LineageExplorer({
             onEntityClick={onEntityClick}
           />
         )}
-        {view === 'table' && (
+        {view === "table" && (
           <LineageTableView
             lineage={lineage}
             filter={filter}
@@ -275,7 +271,7 @@ export function LineageExplorer({
           />
         )}
       </div>
-      
+
       {/* Statistics Footer */}
       <LineageStatisticsBar statistics={lineage?.statistics} />
     </div>
@@ -306,25 +302,26 @@ export function LineageTreeView({
   onEntityClick,
 }: LineageTreeViewProps) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
-  
+
   if (!lineage) return <Skeleton />;
-  
+
   const filteredChunks = useMemo(() => {
     if (!filter) return lineage.chunks;
     const lowerFilter = filter.toLowerCase();
-    return lineage.chunks.filter(chunk => {
-      const entities = lineage.entities.filter(e => 
+    return lineage.chunks.filter((chunk) => {
+      const entities = lineage.entities.filter((e) =>
         chunk.extracted_entities.includes(e.id)
       );
-      return entities.some(e => 
-        e.name.toLowerCase().includes(lowerFilter) ||
-        e.entity_type.toLowerCase().includes(lowerFilter)
+      return entities.some(
+        (e) =>
+          e.name.toLowerCase().includes(lowerFilter) ||
+          e.entity_type.toLowerCase().includes(lowerFilter)
       );
     });
   }, [lineage, filter]);
-  
+
   const toggleNode = (nodeId: string) => {
-    setExpandedNodes(prev => {
+    setExpandedNodes((prev) => {
       const next = new Set(prev);
       if (next.has(nodeId)) {
         next.delete(nodeId);
@@ -334,7 +331,7 @@ export function LineageTreeView({
       return next;
     });
   };
-  
+
   return (
     <div className="p-4 overflow-auto h-full">
       <Tree>
@@ -367,8 +364,8 @@ export function LineageTreeView({
             >
               {/* Entities in this chunk */}
               {lineage.entities
-                .filter(e => chunk.extracted_entities.includes(e.id))
-                .map(entity => (
+                .filter((e) => chunk.extracted_entities.includes(e.id))
+                .map((entity) => (
                   <TreeNode
                     key={entity.id}
                     icon={<EntityIcon type={entity.entity_type} />}
@@ -376,7 +373,7 @@ export function LineageTreeView({
                     badge={entity.entity_type}
                     onClick={() => onEntityClick?.(entity.id)}
                     isSelected={selectedNode === entity.id}
-                    className={entity.merged_from ? 'text-amber-600' : ''}
+                    className={entity.merged_from ? "text-amber-600" : ""}
                   >
                     {entity.merged_from && (
                       <MergedFromIndicator names={entity.merged_from} />
@@ -419,7 +416,7 @@ export function LineageTreeView({
 ```tsx
 // src/components/lineage/lineage-graph-view.tsx
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from "react";
 import ReactFlow, {
   Node,
   Edge,
@@ -429,8 +426,8 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   MarkerType,
-} from 'reactflow';
-import 'reactflow/dist/style.css';
+} from "reactflow";
+import "reactflow/dist/style.css";
 
 interface LineageGraphViewProps {
   lineage: DocumentLineageResponse | null;
@@ -458,25 +455,31 @@ export function LineageGraphView({
 }: LineageGraphViewProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  
+
   // Transform lineage data to React Flow format
   useEffect(() => {
     if (!lineage) return;
-    
-    const { nodes: graphNodes, edges: graphEdges } = transformLineageToGraph(lineage, filter);
+
+    const { nodes: graphNodes, edges: graphEdges } = transformLineageToGraph(
+      lineage,
+      filter
+    );
     setNodes(graphNodes);
     setEdges(graphEdges);
   }, [lineage, filter, setNodes, setEdges]);
-  
-  const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
-    onNodeSelect(node.id);
-    if (node.type === 'chunk') {
-      onChunkClick?.(node.id);
-    } else if (node.type === 'entity') {
-      onEntityClick?.(node.id);
-    }
-  }, [onNodeSelect, onChunkClick, onEntityClick]);
-  
+
+  const onNodeClick = useCallback(
+    (_: React.MouseEvent, node: Node) => {
+      onNodeSelect(node.id);
+      if (node.type === "chunk") {
+        onChunkClick?.(node.id);
+      } else if (node.type === "entity") {
+        onEntityClick?.(node.id);
+      }
+    },
+    [onNodeSelect, onChunkClick, onEntityClick]
+  );
+
   return (
     <div className="h-full w-full">
       <ReactFlow
@@ -494,10 +497,14 @@ export function LineageGraphView({
         <MiniMap
           nodeColor={(node) => {
             switch (node.type) {
-              case 'document': return '#3b82f6';
-              case 'chunk': return '#22c55e';
-              case 'entity': return '#f59e0b';
-              default: return '#9ca3af';
+              case "document":
+                return "#3b82f6";
+              case "chunk":
+                return "#22c55e";
+              case "entity":
+                return "#f59e0b";
+              default:
+                return "#9ca3af";
             }
           }}
         />
@@ -513,11 +520,11 @@ function transformLineageToGraph(
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = [];
   const edges: Edge[] = [];
-  
+
   // Document node at center
   nodes.push({
     id: lineage.document.id,
-    type: 'document',
+    type: "document",
     position: { x: 400, y: 50 },
     data: {
       label: lineage.document.name,
@@ -525,15 +532,15 @@ function transformLineageToGraph(
       chunkCount: lineage.chunks.length,
     },
   });
-  
+
   // Chunk nodes in a row below document
   const chunkSpacing = 150;
   const startX = 400 - ((lineage.chunks.length - 1) * chunkSpacing) / 2;
-  
+
   lineage.chunks.forEach((chunk, index) => {
     nodes.push({
       id: chunk.id,
-      type: 'chunk',
+      type: "chunk",
       position: { x: startX + index * chunkSpacing, y: 200 },
       data: {
         index: chunk.index,
@@ -542,39 +549,43 @@ function transformLineageToGraph(
         cached: chunk.extraction_metadata.cached,
       },
     });
-    
+
     // Edge from document to chunk
     edges.push({
       id: `doc-${chunk.id}`,
       source: lineage.document.id,
       target: chunk.id,
-      type: 'smoothstep',
+      type: "smoothstep",
       animated: false,
-      style: { stroke: '#94a3b8' },
+      style: { stroke: "#94a3b8" },
     });
   });
-  
+
   // Entity nodes below chunks
   const entityPositions = new Map<string, { x: number; y: number }>();
   let entityY = 400;
-  
+
   lineage.entities.forEach((entity, index) => {
     // Filter by search term
     if (filter && !entity.name.toLowerCase().includes(filter.toLowerCase())) {
       return;
     }
-    
+
     // Calculate position based on connected chunks
     const connectedChunks = entity.source_chunks;
-    const avgX = connectedChunks.reduce((sum, chunkId) => {
-      const chunkNode = nodes.find(n => n.id === chunkId);
-      return sum + (chunkNode?.position.x ?? 0);
-    }, 0) / connectedChunks.length || 400;
-    
+    const avgX =
+      connectedChunks.reduce((sum, chunkId) => {
+        const chunkNode = nodes.find((n) => n.id === chunkId);
+        return sum + (chunkNode?.position.x ?? 0);
+      }, 0) / connectedChunks.length || 400;
+
     nodes.push({
       id: entity.id,
-      type: 'entity',
-      position: { x: avgX + (index % 3 - 1) * 80, y: entityY + Math.floor(index / 3) * 100 },
+      type: "entity",
+      position: {
+        x: avgX + ((index % 3) - 1) * 80,
+        y: entityY + Math.floor(index / 3) * 100,
+      },
       data: {
         name: entity.name,
         entityType: entity.entity_type,
@@ -582,21 +593,21 @@ function transformLineageToGraph(
         sourceCount: entity.source_chunks.length,
       },
     });
-    
+
     // Edges from chunks to entity
-    entity.source_chunks.forEach(chunkId => {
+    entity.source_chunks.forEach((chunkId) => {
       edges.push({
         id: `${chunkId}-${entity.id}`,
         source: chunkId,
         target: entity.id,
-        type: 'smoothstep',
+        type: "smoothstep",
         animated: false,
-        style: { stroke: '#f59e0b', strokeWidth: 2 },
+        style: { stroke: "#f59e0b", strokeWidth: 2 },
         markerEnd: { type: MarkerType.ArrowClosed },
       });
     });
   });
-  
+
   return { nodes, edges };
 }
 ```
@@ -636,7 +647,7 @@ function transformLineageToGraph(
 ```tsx
 // src/components/lineage/graph-nodes/document-node.tsx
 
-import { Handle, Position } from 'reactflow';
+import { Handle, Position } from "reactflow";
 
 interface DocumentNodeData {
   label: string;
@@ -674,10 +685,17 @@ export function ChunkGraphNode({ data }: { data: ChunkNodeData }) {
       <Handle type="target" position={Position.Top} className="w-2 h-2" />
       <div className="flex items-center gap-2">
         <BoxIcon className="h-4 w-4 text-green-600" />
-        <span className="font-medium text-green-900">Chunk {data.index + 1}</span>
-        {data.cached && <span className="text-xs bg-green-200 px-1 rounded">⚡</span>}
+        <span className="font-medium text-green-900">
+          Chunk {data.index + 1}
+        </span>
+        {data.cached && (
+          <span className="text-xs bg-green-200 px-1 rounded">⚡</span>
+        )}
       </div>
-      <div className="text-xs text-green-700 truncate max-w-[120px]" title={data.preview}>
+      <div
+        className="text-xs text-green-700 truncate max-w-[120px]"
+        title={data.preview}
+      >
         {data.preview}
       </div>
       <div className="text-xs text-green-600 mt-1">
@@ -699,12 +717,14 @@ interface EntityNodeData {
 
 export function EntityGraphNode({ data }: { data: EntityNodeData }) {
   return (
-    <div className={cn(
-      "px-3 py-2 rounded-lg border-2 shadow-sm",
-      data.merged 
-        ? "bg-amber-100 border-amber-500" 
-        : "bg-yellow-100 border-yellow-500"
-    )}>
+    <div
+      className={cn(
+        "px-3 py-2 rounded-lg border-2 shadow-sm",
+        data.merged
+          ? "bg-amber-100 border-amber-500"
+          : "bg-yellow-100 border-yellow-500"
+      )}
+    >
       <Handle type="target" position={Position.Top} className="w-2 h-2" />
       <div className="flex items-center gap-2">
         <EntityIcon type={data.entityType} className="h-4 w-4" />
@@ -729,8 +749,8 @@ export function EntityGraphNode({ data }: { data: EntityNodeData }) {
 ```tsx
 // src/components/lineage/lineage-table-view.tsx
 
-import { DataTable } from '@/components/ui/data-table';
-import { ColumnDef } from '@tanstack/react-table';
+import { DataTable } from "@/components/ui/data-table";
+import { ColumnDef } from "@tanstack/react-table";
 
 export function LineageTableView({
   lineage,
@@ -740,13 +760,15 @@ export function LineageTableView({
 }: LineageTableViewProps) {
   const tableData = useMemo(() => {
     if (!lineage) return [];
-    
+
     // Flatten to rows: one per entity with chunk info
     return lineage.entities
-      .filter(e => !filter || e.name.toLowerCase().includes(filter.toLowerCase()))
-      .flatMap(entity => 
-        entity.source_chunks.map(chunkId => {
-          const chunk = lineage.chunks.find(c => c.id === chunkId);
+      .filter(
+        (e) => !filter || e.name.toLowerCase().includes(filter.toLowerCase())
+      )
+      .flatMap((entity) =>
+        entity.source_chunks.map((chunkId) => {
+          const chunk = lineage.chunks.find((c) => c.id === chunkId);
           return {
             entityId: entity.id,
             entityName: entity.name,
@@ -759,11 +781,11 @@ export function LineageTableView({
         })
       );
   }, [lineage, filter]);
-  
-  const columns: ColumnDef<typeof tableData[0]>[] = [
+
+  const columns: ColumnDef<(typeof tableData)[0]>[] = [
     {
-      accessorKey: 'entityName',
-      header: 'Entity',
+      accessorKey: "entityName",
+      header: "Entity",
       cell: ({ row }) => (
         <button
           onClick={() => onEntityClick?.(row.original.entityId)}
@@ -776,25 +798,27 @@ export function LineageTableView({
       ),
     },
     {
-      accessorKey: 'entityType',
-      header: 'Type',
+      accessorKey: "entityType",
+      header: "Type",
       cell: ({ getValue }) => <Badge>{getValue() as string}</Badge>,
     },
     {
-      accessorKey: 'chunkIndex',
-      header: 'Source Chunk',
+      accessorKey: "chunkIndex",
+      header: "Source Chunk",
       cell: ({ row }) => (
         <button
           onClick={() => onChunkClick?.(row.original.chunkId)}
           className="hover:underline"
         >
           Chunk {row.original.chunkIndex + 1}
-          {row.original.cached && <span className="ml-1 text-green-500">⚡</span>}
+          {row.original.cached && (
+            <span className="ml-1 text-green-500">⚡</span>
+          )}
         </button>
       ),
     },
   ];
-  
+
   return (
     <div className="p-4">
       <DataTable columns={columns} data={tableData} />
@@ -814,25 +838,24 @@ export function LineageTableView({
 
 function useProvenanceHighlight(lineage: DocumentLineageResponse | null) {
   const [highlightedPath, setHighlightedPath] = useState<string[]>([]);
-  
-  const highlightEntity = useCallback((entityId: string) => {
-    if (!lineage) return;
-    
-    const entity = lineage.entities.find(e => e.id === entityId);
-    if (!entity) return;
-    
-    const path = [
-      lineage.document.id,
-      ...entity.source_chunks,
-      entityId,
-    ];
-    setHighlightedPath(path);
-  }, [lineage]);
-  
+
+  const highlightEntity = useCallback(
+    (entityId: string) => {
+      if (!lineage) return;
+
+      const entity = lineage.entities.find((e) => e.id === entityId);
+      if (!entity) return;
+
+      const path = [lineage.document.id, ...entity.source_chunks, entityId];
+      setHighlightedPath(path);
+    },
+    [lineage]
+  );
+
   const clearHighlight = useCallback(() => {
     setHighlightedPath([]);
   }, []);
-  
+
   return { highlightedPath, highlightEntity, clearHighlight };
 }
 ```
@@ -858,7 +881,7 @@ export function ChunkDetailModal({
   onEntityClick,
 }: ChunkDetailModalProps) {
   if (!chunk) return null;
-  
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl max-h-[80vh] overflow-auto">
@@ -871,29 +894,36 @@ export function ChunkDetailModal({
             )}
           </DialogTitle>
         </DialogHeader>
-        
+
         {/* Extraction Metadata */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-muted rounded-lg">
           <div>
             <div className="text-xs text-muted-foreground">Model</div>
-            <div className="font-mono text-sm">{chunk.extraction_metadata.model}</div>
+            <div className="font-mono text-sm">
+              {chunk.extraction_metadata.model}
+            </div>
           </div>
           <div>
             <div className="text-xs text-muted-foreground">Duration</div>
-            <div className="font-mono text-sm">{chunk.extraction_metadata.duration_ms}ms</div>
+            <div className="font-mono text-sm">
+              {chunk.extraction_metadata.duration_ms}ms
+            </div>
           </div>
           <div>
             <div className="text-xs text-muted-foreground">Tokens</div>
             <div className="font-mono text-sm">
-              {chunk.extraction_metadata.prompt_tokens} / {chunk.extraction_metadata.completion_tokens}
+              {chunk.extraction_metadata.prompt_tokens} /{" "}
+              {chunk.extraction_metadata.completion_tokens}
             </div>
           </div>
           <div>
             <div className="text-xs text-muted-foreground">Cost</div>
-            <div className="font-mono text-sm">${chunk.extraction_metadata.cost_usd.toFixed(4)}</div>
+            <div className="font-mono text-sm">
+              ${chunk.extraction_metadata.cost_usd.toFixed(4)}
+            </div>
           </div>
         </div>
-        
+
         {/* Chunk Content */}
         <div>
           <h4 className="font-medium mb-2">Content</h4>
@@ -901,15 +931,18 @@ export function ChunkDetailModal({
             {chunk.content_preview}
           </div>
           <div className="text-xs text-muted-foreground mt-1">
-            Characters {chunk.char_range.start} - {chunk.char_range.end} | {chunk.token_count} tokens
+            Characters {chunk.char_range.start} - {chunk.char_range.end} |{" "}
+            {chunk.token_count} tokens
           </div>
         </div>
-        
+
         {/* Extracted Entities */}
         <div>
-          <h4 className="font-medium mb-2">Extracted Entities ({entities.length})</h4>
+          <h4 className="font-medium mb-2">
+            Extracted Entities ({entities.length})
+          </h4>
           <div className="space-y-2">
-            {entities.map(entity => (
+            {entities.map((entity) => (
               <button
                 key={entity.id}
                 onClick={() => onEntityClick(entity.id)}
@@ -918,7 +951,9 @@ export function ChunkDetailModal({
                 <div className="flex items-center gap-2">
                   <EntityIcon type={entity.entity_type} />
                   <span>{entity.name}</span>
-                  {entity.merged_from && <span className="text-amber-500">⚠️ merged</span>}
+                  {entity.merged_from && (
+                    <span className="text-amber-500">⚠️ merged</span>
+                  )}
                 </div>
                 <Badge variant="outline">{entity.entity_type}</Badge>
               </button>
@@ -945,11 +980,14 @@ export function EntityProvenancePanel({
   entityId,
   documentId,
 }: EntityProvenancePanelProps) {
-  const { data: provenance, isLoading } = useEntityProvenance(entityId, documentId);
-  
+  const { data: provenance, isLoading } = useEntityProvenance(
+    entityId,
+    documentId
+  );
+
   if (isLoading) return <Skeleton />;
   if (!provenance) return null;
-  
+
   return (
     <Card>
       <CardHeader>
@@ -959,14 +997,16 @@ export function EntityProvenancePanel({
         </CardTitle>
         <CardDescription>{provenance.entity_type}</CardDescription>
       </CardHeader>
-      
+
       <CardContent className="space-y-4">
         {/* Description */}
         <div>
           <h4 className="text-sm font-medium mb-1">Description</h4>
-          <p className="text-sm text-muted-foreground">{provenance.description}</p>
+          <p className="text-sm text-muted-foreground">
+            {provenance.description}
+          </p>
         </div>
-        
+
         {/* Merged Entities */}
         {provenance.merged_from && provenance.merged_from.length > 0 && (
           <Alert>
@@ -975,11 +1015,11 @@ export function EntityProvenancePanel({
               Merged Entity
             </AlertTitle>
             <AlertDescription>
-              This entity was merged from: {provenance.merged_from.join(', ')}
+              This entity was merged from: {provenance.merged_from.join(", ")}
             </AlertDescription>
           </Alert>
         )}
-        
+
         {/* Source Chunks */}
         <div>
           <h4 className="text-sm font-medium mb-2">
@@ -996,7 +1036,7 @@ export function EntityProvenancePanel({
             ))}
           </div>
         </div>
-        
+
         {/* Relationships */}
         {provenance.relationships.length > 0 && (
           <div>
@@ -1051,70 +1091,76 @@ export function calculateHierarchicalLayout(
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = [];
   const edges: Edge[] = [];
-  
+
   // Level 0: Document
   const docX = 400;
   nodes.push({
     id: lineage.document.id,
-    type: 'document',
+    type: "document",
     position: { x: docX, y: 0 },
     data: { label: lineage.document.name },
   });
-  
+
   // Level 1: Chunks (evenly distributed)
   const chunkCount = lineage.chunks.length;
-  const totalChunkWidth = chunkCount * options.nodeWidth + (chunkCount - 1) * options.horizontalSpacing;
+  const totalChunkWidth =
+    chunkCount * options.nodeWidth +
+    (chunkCount - 1) * options.horizontalSpacing;
   const chunkStartX = docX - totalChunkWidth / 2 + options.nodeWidth / 2;
-  
+
   lineage.chunks.forEach((chunk, i) => {
     const x = chunkStartX + i * (options.nodeWidth + options.horizontalSpacing);
     const y = options.verticalSpacing;
-    
+
     nodes.push({
       id: chunk.id,
-      type: 'chunk',
+      type: "chunk",
       position: { x, y },
       data: { index: chunk.index },
     });
-    
+
     edges.push({
       id: `doc-${chunk.id}`,
       source: lineage.document.id,
       target: chunk.id,
     });
   });
-  
+
   // Level 2: Entities (grouped by connected chunk)
   const entityRowY = options.verticalSpacing * 2;
   const chunkEntityMap = new Map<string, EntityLineage[]>();
-  
-  lineage.entities.forEach(entity => {
+
+  lineage.entities.forEach((entity) => {
     const primaryChunk = entity.source_chunks[0];
     const list = chunkEntityMap.get(primaryChunk) || [];
     list.push(entity);
     chunkEntityMap.set(primaryChunk, list);
   });
-  
+
   chunkEntityMap.forEach((entities, chunkId) => {
-    const chunkNode = nodes.find(n => n.id === chunkId);
+    const chunkNode = nodes.find((n) => n.id === chunkId);
     if (!chunkNode) return;
-    
+
     const baseX = chunkNode.position.x;
-    const totalWidth = entities.length * (options.nodeWidth * 0.8) + (entities.length - 1) * (options.horizontalSpacing * 0.5);
+    const totalWidth =
+      entities.length * (options.nodeWidth * 0.8) +
+      (entities.length - 1) * (options.horizontalSpacing * 0.5);
     const startX = baseX - totalWidth / 2 + (options.nodeWidth * 0.8) / 2;
-    
+
     entities.forEach((entity, i) => {
-      const x = startX + i * (options.nodeWidth * 0.8 + options.horizontalSpacing * 0.5);
-      
+      const x =
+        startX +
+        i * (options.nodeWidth * 0.8 + options.horizontalSpacing * 0.5);
+
       nodes.push({
         id: entity.id,
-        type: 'entity',
+        type: "entity",
         position: { x, y: entityRowY },
         data: { name: entity.name, entityType: entity.entity_type },
       });
-      
+
       // Edges from all source chunks
-      entity.source_chunks.forEach(srcChunkId => {
+      entity.source_chunks.forEach((srcChunkId) => {
         edges.push({
           id: `${srcChunkId}-${entity.id}`,
           source: srcChunkId,
@@ -1123,7 +1169,7 @@ export function calculateHierarchicalLayout(
       });
     });
   });
-  
+
   return { nodes, edges };
 }
 ```
@@ -1137,18 +1183,18 @@ export function calculateHierarchicalLayout(
 ```typescript
 // Use viewport culling for nodes outside view
 
-import { useViewport } from 'reactflow';
+import { useViewport } from "reactflow";
 
 function useVisibleNodes(nodes: Node[], viewport: Viewport) {
   return useMemo(() => {
     const { x, y, zoom } = viewport;
     const visibleWidth = window.innerWidth / zoom;
     const visibleHeight = window.innerHeight / zoom;
-    
-    return nodes.filter(node => {
+
+    return nodes.filter((node) => {
       const nodeX = node.position.x;
       const nodeY = node.position.y;
-      
+
       return (
         nodeX >= x - 200 &&
         nodeX <= x + visibleWidth + 200 &&
@@ -1166,10 +1212,10 @@ function useVisibleNodes(nodes: Node[], viewport: Viewport) {
 // For documents with 1000+ entities, paginate the API response
 
 const { data, hasNextPage, fetchNextPage } = useInfiniteQuery({
-  queryKey: ['document-lineage', documentId],
-  queryFn: ({ pageParam = 0 }) => 
+  queryKey: ["document-lineage", documentId],
+  queryFn: ({ pageParam = 0 }) =>
     getDocumentLineage(documentId, { offset: pageParam, limit: 100 }),
-  getNextPageParam: (lastPage, pages) => 
+  getNextPageParam: (lastPage, pages) =>
     lastPage.hasMore ? pages.length * 100 : undefined,
 });
 ```
@@ -1182,7 +1228,7 @@ const { data, hasNextPage, fetchNextPage } = useInfiniteQuery({
 const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
 
 const { data: entityDetails } = useQuery({
-  queryKey: ['entity-provenance', selectedEntityId],
+  queryKey: ["entity-provenance", selectedEntityId],
   queryFn: () => getEntityProvenance(selectedEntityId!),
   enabled: !!selectedEntityId,
 });
@@ -1199,28 +1245,31 @@ const { data: entityDetails } = useQuery({
 
 function useTreeKeyboardNav(nodes: TreeNodeData[]) {
   const [focusedIndex, setFocusedIndex] = useState(0);
-  
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    switch (e.key) {
-      case 'ArrowDown':
-        setFocusedIndex(prev => Math.min(prev + 1, nodes.length - 1));
-        break;
-      case 'ArrowUp':
-        setFocusedIndex(prev => Math.max(prev - 1, 0));
-        break;
-      case 'ArrowRight':
-        // Expand node
-        break;
-      case 'ArrowLeft':
-        // Collapse node
-        break;
-      case 'Enter':
-      case ' ':
-        // Select/activate node
-        break;
-    }
-  }, [nodes]);
-  
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      switch (e.key) {
+        case "ArrowDown":
+          setFocusedIndex((prev) => Math.min(prev + 1, nodes.length - 1));
+          break;
+        case "ArrowUp":
+          setFocusedIndex((prev) => Math.max(prev - 1, 0));
+          break;
+        case "ArrowRight":
+          // Expand node
+          break;
+        case "ArrowLeft":
+          // Collapse node
+          break;
+        case "Enter":
+        case " ":
+          // Select/activate node
+          break;
+      }
+    },
+    [nodes]
+  );
+
   return { focusedIndex, handleKeyDown };
 }
 ```
@@ -1231,13 +1280,13 @@ function useTreeKeyboardNav(nodes: TreeNodeData[]) {
 // Announce graph state changes
 
 <div role="status" aria-live="polite" className="sr-only">
-  {selectedNode 
-    ? `Selected ${selectedNode.type}: ${selectedNode.data.label}` 
+  {selectedNode
+    ? `Selected ${selectedNode.type}: ${selectedNode.data.label}`
     : 'No node selected'}
 </div>
 
 <div role="status" aria-live="polite" className="sr-only">
-  Showing {visibleNodes.length} of {totalNodes} nodes. 
+  Showing {visibleNodes.length} of {totalNodes} nodes.
   {filter && `Filtered by: ${filter}`}
 </div>
 ```

@@ -24,23 +24,23 @@
 
 ## Files Created
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| `10-webui-spec-architecture.md` | ~350 | Architecture overview, component hierarchy, state management |
-| `11-webui-screen-flows.md` | ~450 | 7 screen wireframes with ASCII diagrams |
-| `12-webui-api-integration.md` | ~500 | TypeScript types, React Query hooks, WebSocket client |
-| `13-webui-components.md` | ~400 | 12 new/updated component specifications |
-| `14-webui-websocket-progress.md` | ~450 | WebSocket protocol, state management, testing |
-| `15-webui-lineage-viz.md` | ~500 | Tree/graph/table views, interactive features |
-| `16-webui-cost-monitoring.md` | ~400 | Cost dashboard, budget management, export |
-| `17-webui-implementation-plan.md` | ~500 | 4-phase implementation, task breakdown, risks |
+| File                              | Lines | Purpose                                                      |
+| --------------------------------- | ----- | ------------------------------------------------------------ |
+| `10-webui-spec-architecture.md`   | ~350  | Architecture overview, component hierarchy, state management |
+| `11-webui-screen-flows.md`        | ~450  | 7 screen wireframes with ASCII diagrams                      |
+| `12-webui-api-integration.md`     | ~500  | TypeScript types, React Query hooks, WebSocket client        |
+| `13-webui-components.md`          | ~400  | 12 new/updated component specifications                      |
+| `14-webui-websocket-progress.md`  | ~450  | WebSocket protocol, state management, testing                |
+| `15-webui-lineage-viz.md`         | ~500  | Tree/graph/table views, interactive features                 |
+| `16-webui-cost-monitoring.md`     | ~400  | Cost dashboard, budget management, export                    |
+| `17-webui-implementation-plan.md` | ~500  | 4-phase implementation, task breakdown, risks                |
 
 ## Files Modified
 
-| File | Changes |
-|------|---------|
-| `scratchpad.md` | Added Session 3 WebUI analysis |
-| `plan.md` | Added Section 7 WebUI, updated ToC, achievements, document index |
+| File            | Changes                                                          |
+| --------------- | ---------------------------------------------------------------- |
+| `scratchpad.md` | Added Session 3 WebUI analysis                                   |
+| `plan.md`       | Added Section 7 WebUI, updated ToC, achievements, document index |
 
 ## Next Steps
 

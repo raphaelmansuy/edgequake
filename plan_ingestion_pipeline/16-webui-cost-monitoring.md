@@ -65,15 +65,15 @@ This document specifies the cost monitoring UI for EdgeQuake WebUI. It enables u
 
 ### 1.3 Requirements
 
-| Requirement | Description |
-|-------------|-------------|
-| REQ-COST-001 | Display cost with $0.0001 precision |
+| Requirement  | Description                             |
+| ------------ | --------------------------------------- |
+| REQ-COST-001 | Display cost with $0.0001 precision     |
 | REQ-COST-002 | Real-time cost updates during ingestion |
-| REQ-COST-003 | Cost breakdown by operation type |
-| REQ-COST-004 | Budget thresholds with alerts |
-| REQ-COST-005 | Historical cost trends (7d/30d/90d) |
-| REQ-COST-006 | Export cost reports (CSV/JSON) |
-| REQ-COST-007 | Show estimated vs actual costs |
+| REQ-COST-003 | Cost breakdown by operation type        |
+| REQ-COST-004 | Budget thresholds with alerts           |
+| REQ-COST-005 | Historical cost trends (7d/30d/90d)     |
+| REQ-COST-006 | Export cost reports (CSV/JSON)          |
+| REQ-COST-007 | Show estimated vs actual costs          |
 
 ---
 
@@ -113,7 +113,7 @@ interface StageCostBreakdown {
 
 // Aggregated cost summary
 interface CostSummary {
-  period: 'day' | 'week' | 'month' | 'all';
+  period: "day" | "week" | "month" | "all";
   start_date: string;
   end_date: string;
   total_cost_usd: number;
@@ -126,7 +126,7 @@ interface CostSummary {
 }
 
 interface OperationCost {
-  operation: string;  // 'extraction', 'gleaning', 'summarization', 'embedding'
+  operation: string; // 'extraction', 'gleaning', 'summarization', 'embedding'
   cost_usd: number;
   percentage: number;
 }
@@ -149,14 +149,14 @@ interface BudgetConfig {
   enabled: boolean;
   daily_limit_usd?: number;
   monthly_limit_usd?: number;
-  alert_threshold_percent: number;  // e.g., 80
+  alert_threshold_percent: number; // e.g., 80
 }
 
 interface BudgetStatus {
   current_usage_usd: number;
   limit_usd: number;
   percentage_used: number;
-  period: 'daily' | 'monthly';
+  period: "daily" | "monthly";
   reset_at: string;
   alert_triggered: boolean;
 }
@@ -167,15 +167,15 @@ interface BudgetStatus {
 ```typescript
 // src/lib/stores/use-cost-store.ts
 
-import { create } from 'zustand';
+import { create } from "zustand";
 
 interface CostState {
   // Real-time tracking during ingestion
-  activeIngestionCosts: Map<string, number>;  // trackId -> cumulative cost
-  
+  activeIngestionCosts: Map<string, number>; // trackId -> cumulative cost
+
   // Budget status
   budgetStatus: BudgetStatus | null;
-  
+
   // Actions
   updateIngestionCost: (trackId: string, cost: number) => void;
   clearIngestionCost: (trackId: string) => void;
@@ -185,7 +185,7 @@ interface CostState {
 export const useCostStore = create<CostState>((set) => ({
   activeIngestionCosts: new Map(),
   budgetStatus: null,
-  
+
   updateIngestionCost: (trackId, cost) => {
     set((state) => {
       const updated = new Map(state.activeIngestionCosts);
@@ -193,7 +193,7 @@ export const useCostStore = create<CostState>((set) => ({
       return { activeIngestionCosts: updated };
     });
   },
-  
+
   clearIngestionCost: (trackId) => {
     set((state) => {
       const updated = new Map(state.activeIngestionCosts);
@@ -201,7 +201,7 @@ export const useCostStore = create<CostState>((set) => ({
       return { activeIngestionCosts: updated };
     });
   },
-  
+
   setBudgetStatus: (status) => {
     set({ budgetStatus: status });
   },
@@ -220,7 +220,7 @@ export const useCostStore = create<CostState>((set) => ({
 interface CostBadgeProps {
   cost: number;
   estimated?: number;
-  size?: 'sm' | 'md' | 'lg';
+  size?: "sm" | "md" | "lg";
   showTooltip?: boolean;
   breakdown?: StageCostBreakdown[];
   className?: string;
@@ -229,21 +229,21 @@ interface CostBadgeProps {
 export function CostBadge({
   cost,
   estimated,
-  size = 'md',
+  size = "md",
   showTooltip = true,
   breakdown,
   className,
 }: CostBadgeProps) {
   const formattedCost = formatCost(cost);
   const formattedEstimate = estimated ? formatCost(estimated) : null;
-  
+
   const badge = (
     <Badge
-      variant={cost > (estimated ?? cost) ? 'destructive' : 'secondary'}
+      variant={cost > (estimated ?? cost) ? "destructive" : "secondary"}
       className={cn(
-        size === 'sm' && 'text-xs px-1.5 py-0',
-        size === 'md' && 'text-sm px-2 py-0.5',
-        size === 'lg' && 'text-base px-3 py-1',
+        size === "sm" && "text-xs px-1.5 py-0",
+        size === "md" && "text-sm px-2 py-0.5",
+        size === "lg" && "text-base px-3 py-1",
         className
       )}
     >
@@ -255,11 +255,11 @@ export function CostBadge({
       )}
     </Badge>
   );
-  
+
   if (!showTooltip || !breakdown) {
     return badge;
   }
-  
+
   return (
     <TooltipProvider>
       <Tooltip>
@@ -272,7 +272,11 @@ export function CostBadge({
   );
 }
 
-function CostBreakdownTooltip({ breakdown }: { breakdown: StageCostBreakdown[] }) {
+function CostBreakdownTooltip({
+  breakdown,
+}: {
+  breakdown: StageCostBreakdown[];
+}) {
   return (
     <div className="p-3 space-y-2 min-w-48">
       <div className="font-medium text-sm">Cost Breakdown</div>
@@ -356,23 +360,23 @@ export function CostSummaryCard({ summary, className }: CostSummaryCardProps) {
             </div>
             <div className="text-xs text-muted-foreground">Total Cost</div>
           </div>
-          
+
           {/* Documents Processed */}
           <div>
-            <div className="text-2xl font-bold">
-              {summary.document_count}
-            </div>
+            <div className="text-2xl font-bold">{summary.document_count}</div>
             <div className="text-xs text-muted-foreground">Documents</div>
           </div>
-          
+
           {/* Average Cost */}
           <div>
             <div className="text-lg font-medium">
               ${summary.average_cost_per_document.toFixed(4)}
             </div>
-            <div className="text-xs text-muted-foreground">Avg per Document</div>
+            <div className="text-xs text-muted-foreground">
+              Avg per Document
+            </div>
           </div>
-          
+
           {/* Total Tokens */}
           <div>
             <div className="text-lg font-medium">
@@ -409,7 +413,14 @@ export function CostSummaryCard({ summary, className }: CostSummaryCardProps) {
 ```tsx
 // src/components/cost/cost-breakdown-chart.tsx
 
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  Legend,
+} from "recharts";
 
 interface CostBreakdownChartProps {
   breakdown: OperationCost[];
@@ -419,10 +430,10 @@ interface CostBreakdownChartProps {
 }
 
 const COLORS = {
-  extraction: '#3b82f6',    // blue
-  gleaning: '#22c55e',      // green
-  summarization: '#f59e0b', // amber
-  embedding: '#8b5cf6',     // purple
+  extraction: "#3b82f6", // blue
+  gleaning: "#22c55e", // green
+  summarization: "#f59e0b", // amber
+  embedding: "#8b5cf6", // purple
 };
 
 export function CostBreakdownChart({
@@ -431,15 +442,15 @@ export function CostBreakdownChart({
   showLegend = true,
   className,
 }: CostBreakdownChartProps) {
-  const data = breakdown.map(item => ({
+  const data = breakdown.map((item) => ({
     name: item.operation.charAt(0).toUpperCase() + item.operation.slice(1),
     value: item.cost_usd,
     percentage: item.percentage,
-    color: COLORS[item.operation as keyof typeof COLORS] || '#9ca3af',
+    color: COLORS[item.operation as keyof typeof COLORS] || "#9ca3af",
   }));
-  
+
   return (
-    <div className={cn('w-full', className)} style={{ height }}>
+    <div className={cn("w-full", className)} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
@@ -450,14 +461,16 @@ export function CostBreakdownChart({
             outerRadius={70}
             paddingAngle={2}
             dataKey="value"
-            label={({ name, percentage }) => `${name} ${percentage.toFixed(0)}%`}
+            label={({ name, percentage }) =>
+              `${name} ${percentage.toFixed(0)}%`
+            }
           >
             {data.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={entry.color} />
             ))}
           </Pie>
           <Tooltip
-            formatter={(value: number) => [`$${value.toFixed(4)}`, 'Cost']}
+            formatter={(value: number) => [`$${value.toFixed(4)}`, "Cost"]}
           />
           {showLegend && <Legend />}
         </PieChart>
@@ -490,7 +503,7 @@ export function TokenUsageTable({ stages, className }: TokenUsageTableProps) {
       { prompt: 0, completion: 0, cost: 0, calls: 0, cached: 0 }
     );
   }, [stages]);
-  
+
   return (
     <Table className={className}>
       <TableHeader>
@@ -507,7 +520,9 @@ export function TokenUsageTable({ stages, className }: TokenUsageTableProps) {
       <TableBody>
         {stages.map((stage) => (
           <TableRow key={stage.stage}>
-            <TableCell className="capitalize font-medium">{stage.stage}</TableCell>
+            <TableCell className="capitalize font-medium">
+              {stage.stage}
+            </TableCell>
             <TableCell className="font-mono text-xs">{stage.model}</TableCell>
             <TableCell className="text-right font-mono">
               {stage.token_usage.prompt_tokens.toLocaleString()}
@@ -527,7 +542,9 @@ export function TokenUsageTable({ stages, className }: TokenUsageTableProps) {
       </TableBody>
       <TableFooter>
         <TableRow>
-          <TableCell colSpan={2} className="font-bold">Total</TableCell>
+          <TableCell colSpan={2} className="font-bold">
+            Total
+          </TableCell>
           <TableCell className="text-right font-mono font-bold">
             {totals.prompt.toLocaleString()}
           </TableCell>
@@ -570,49 +587,55 @@ export function TokenUsageTable({ stages, className }: TokenUsageTableProps) {
 
 interface BudgetIndicatorProps {
   status: BudgetStatus | null;
-  variant?: 'compact' | 'full';
+  variant?: "compact" | "full";
   className?: string;
 }
 
 export function BudgetIndicator({
   status,
-  variant = 'compact',
+  variant = "compact",
   className,
 }: BudgetIndicatorProps) {
   if (!status) return null;
-  
+
   const percentUsed = status.percentage_used;
-  const variant = percentUsed >= 100 ? 'destructive' : 
-                  percentUsed >= 80 ? 'warning' : 'default';
-  
-  if (variant === 'compact') {
+  const variant =
+    percentUsed >= 100
+      ? "destructive"
+      : percentUsed >= 80
+      ? "warning"
+      : "default";
+
+  if (variant === "compact") {
     return (
-      <div className={cn('flex items-center gap-2', className)}>
+      <div className={cn("flex items-center gap-2", className)}>
         <Progress value={percentUsed} className="w-24 h-2" />
-        <span className={cn(
-          'text-sm font-mono',
-          percentUsed >= 100 && 'text-destructive',
-          percentUsed >= 80 && percentUsed < 100 && 'text-amber-500'
-        )}>
+        <span
+          className={cn(
+            "text-sm font-mono",
+            percentUsed >= 100 && "text-destructive",
+            percentUsed >= 80 && percentUsed < 100 && "text-amber-500"
+          )}
+        >
           {percentUsed.toFixed(0)}%
         </span>
       </div>
     );
   }
-  
+
   return (
-    <Card className={cn(
-      'border-2',
-      percentUsed >= 100 && 'border-destructive',
-      percentUsed >= 80 && percentUsed < 100 && 'border-amber-500',
-      className
-    )}>
+    <Card
+      className={cn(
+        "border-2",
+        percentUsed >= 100 && "border-destructive",
+        percentUsed >= 80 && percentUsed < 100 && "border-amber-500",
+        className
+      )}
+    >
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
-          {status.period === 'daily' ? 'Daily Budget' : 'Monthly Budget'}
-          {status.alert_triggered && (
-            <Badge variant="destructive">Alert</Badge>
-          )}
+          {status.period === "daily" ? "Daily Budget" : "Monthly Budget"}
+          {status.alert_triggered && <Badge variant="destructive">Alert</Badge>}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -620,14 +643,15 @@ export function BudgetIndicator({
           <Progress
             value={Math.min(percentUsed, 100)}
             className={cn(
-              'h-3',
-              percentUsed >= 100 && '[&>div]:bg-destructive',
-              percentUsed >= 80 && percentUsed < 100 && '[&>div]:bg-amber-500'
+              "h-3",
+              percentUsed >= 100 && "[&>div]:bg-destructive",
+              percentUsed >= 80 && percentUsed < 100 && "[&>div]:bg-amber-500"
             )}
           />
           <div className="flex justify-between text-sm">
             <span>
-              ${status.current_usage_usd.toFixed(2)} / ${status.limit_usd.toFixed(2)}
+              ${status.current_usage_usd.toFixed(2)} / $
+              {status.limit_usd.toFixed(2)}
             </span>
             <span className="text-muted-foreground">
               Resets {formatRelativeTime(status.reset_at)}
@@ -650,11 +674,11 @@ export function BudgetIndicator({
 // src/app/cost/page.tsx
 
 export default function CostDashboardPage() {
-  const [period, setPeriod] = useState<'day' | 'week' | 'month'>('week');
-  
+  const [period, setPeriod] = useState<"day" | "week" | "month">("week");
+
   const { data: summary, isLoading } = useCostSummary(period);
   const { data: budget } = useBudgetStatus();
-  
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -673,26 +697,27 @@ export default function CostDashboardPage() {
           <ExportCostReportButton period={period} />
         </div>
       </div>
-      
+
       {/* Budget Alert */}
       {budget?.alert_triggered && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Budget Alert</AlertTitle>
           <AlertDescription>
-            You have used {budget.percentage_used.toFixed(0)}% of your {budget.period} budget.
+            You have used {budget.percentage_used.toFixed(0)}% of your{" "}
+            {budget.period} budget.
           </AlertDescription>
         </Alert>
       )}
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Summary Card */}
         <CostSummaryCard summary={summary} className="lg:col-span-2" />
-        
+
         {/* Budget Status */}
         <BudgetIndicator status={budget} variant="full" />
       </div>
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Cost by Operation */}
         <Card>
@@ -703,7 +728,7 @@ export default function CostDashboardPage() {
             <CostBreakdownChart breakdown={summary?.by_operation ?? []} />
           </CardContent>
         </Card>
-        
+
         {/* Daily Trend */}
         <Card>
           <CardHeader>
@@ -714,7 +739,7 @@ export default function CostDashboardPage() {
           </CardContent>
         </Card>
       </div>
-      
+
       {/* Recent Documents */}
       <Card>
         <CardHeader>
@@ -782,7 +807,14 @@ export default function CostDashboardPage() {
 ```tsx
 // src/components/cost/cost-trend-chart.tsx
 
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 interface CostTrendChartProps {
   data: DailyCost[];
@@ -797,24 +829,24 @@ export function CostTrendChart({
   showDocumentCount = false,
   className,
 }: CostTrendChartProps) {
-  const formattedData = data.map(d => ({
+  const formattedData = data.map((d) => ({
     ...d,
-    date: format(new Date(d.date), 'MMM d'),
+    date: format(new Date(d.date), "MMM d"),
   }));
-  
+
   return (
-    <div className={cn('w-full', className)} style={{ height }}>
+    <div className={cn("w-full", className)} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={formattedData}>
           <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-          <YAxis 
-            tick={{ fontSize: 12 }} 
+          <YAxis
+            tick={{ fontSize: 12 }}
             tickFormatter={(value) => `$${value.toFixed(2)}`}
           />
           <Tooltip
             formatter={(value: number, name: string) => [
-              name === 'cost_usd' ? `$${value.toFixed(4)}` : value,
-              name === 'cost_usd' ? 'Cost' : 'Documents'
+              name === "cost_usd" ? `$${value.toFixed(4)}` : value,
+              name === "cost_usd" ? "Cost" : "Documents",
             ]}
           />
           <Line
@@ -857,10 +889,16 @@ interface BudgetSettingsProps {
 
 export function BudgetSettings({ config, onSave }: BudgetSettingsProps) {
   const [enabled, setEnabled] = useState(config.enabled);
-  const [dailyLimit, setDailyLimit] = useState(config.daily_limit_usd?.toString() ?? '');
-  const [monthlyLimit, setMonthlyLimit] = useState(config.monthly_limit_usd?.toString() ?? '');
-  const [alertThreshold, setAlertThreshold] = useState(config.alert_threshold_percent);
-  
+  const [dailyLimit, setDailyLimit] = useState(
+    config.daily_limit_usd?.toString() ?? ""
+  );
+  const [monthlyLimit, setMonthlyLimit] = useState(
+    config.monthly_limit_usd?.toString() ?? ""
+  );
+  const [alertThreshold, setAlertThreshold] = useState(
+    config.alert_threshold_percent
+  );
+
   const handleSave = () => {
     onSave({
       enabled,
@@ -869,14 +907,12 @@ export function BudgetSettings({ config, onSave }: BudgetSettingsProps) {
       alert_threshold_percent: alertThreshold,
     });
   };
-  
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Budget Settings</CardTitle>
-        <CardDescription>
-          Configure spending limits and alerts
-        </CardDescription>
+        <CardDescription>Configure spending limits and alerts</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between">
@@ -887,7 +923,7 @@ export function BudgetSettings({ config, onSave }: BudgetSettingsProps) {
             onCheckedChange={setEnabled}
           />
         </div>
-        
+
         {enabled && (
           <>
             <div className="grid grid-cols-2 gap-4">
@@ -914,7 +950,7 @@ export function BudgetSettings({ config, onSave }: BudgetSettingsProps) {
                 />
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="alert-threshold">
                 Alert Threshold ({alertThreshold}%)
@@ -928,12 +964,13 @@ export function BudgetSettings({ config, onSave }: BudgetSettingsProps) {
                 onValueChange={([value]) => setAlertThreshold(value)}
               />
               <p className="text-xs text-muted-foreground">
-                You'll be notified when usage reaches this percentage of your limit.
+                You'll be notified when usage reaches this percentage of your
+                limit.
               </p>
             </div>
           </>
         )}
-        
+
         <Button onClick={handleSave}>Save Settings</Button>
       </CardContent>
     </Card>
@@ -953,7 +990,7 @@ Cost updates are received via WebSocket during ingestion:
 // Handle cost_update events from WebSocket
 
 interface CostUpdate {
-  type: 'cost_update';
+  type: "cost_update";
   track_id: string;
   stage: IngestionStage;
   operation: string;
@@ -967,7 +1004,7 @@ interface CostUpdate {
 
 // In the ingestion store
 updateProgress: (message) => {
-  if (message.type === 'cost_update') {
+  if (message.type === "cost_update") {
     set((state) => {
       const track = state.tracks.get(message.track_id);
       if (track) {
@@ -986,10 +1023,10 @@ updateProgress: (message) => {
 function LiveCostDisplay({ trackId }: { trackId: string }) {
   const tracks = useIngestionStore((state) => state.tracks);
   const track = tracks.get(trackId);
-  
+
   const cost = track?.cost_usd ?? 0;
   const estimated = track?.estimated_cost_usd;
-  
+
   return (
     <div className="flex items-center gap-2">
       <CostBadge cost={cost} estimated={estimated} size="md" />
@@ -1013,37 +1050,46 @@ function LiveCostDisplay({ trackId }: { trackId: string }) {
 // src/components/cost/export-cost-report-button.tsx
 
 interface ExportCostReportButtonProps {
-  period: 'day' | 'week' | 'month';
+  period: "day" | "week" | "month";
 }
 
-export function ExportCostReportButton({ period }: ExportCostReportButtonProps) {
+export function ExportCostReportButton({
+  period,
+}: ExportCostReportButtonProps) {
   const [isExporting, setIsExporting] = useState(false);
-  
-  const handleExport = async (format: 'csv' | 'json') => {
+
+  const handleExport = async (format: "csv" | "json") => {
     setIsExporting(true);
     try {
       const data = await getCostReport(period, format);
-      
-      const filename = `cost-report-${period}-${format(new Date(), 'yyyy-MM-dd')}.${format}`;
-      downloadFile(data, filename, format === 'csv' ? 'text/csv' : 'application/json');
+
+      const filename = `cost-report-${period}-${format(
+        new Date(),
+        "yyyy-MM-dd"
+      )}.${format}`;
+      downloadFile(
+        data,
+        filename,
+        format === "csv" ? "text/csv" : "application/json"
+      );
     } finally {
       setIsExporting(false);
     }
   };
-  
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" disabled={isExporting}>
           <DownloadIcon className="h-4 w-4 mr-2" />
-          {isExporting ? 'Exporting...' : 'Export'}
+          {isExporting ? "Exporting..." : "Export"}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
-        <DropdownMenuItem onClick={() => handleExport('csv')}>
+        <DropdownMenuItem onClick={() => handleExport("csv")}>
           Export as CSV
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handleExport('json')}>
+        <DropdownMenuItem onClick={() => handleExport("json")}>
           Export as JSON
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -1055,6 +1101,7 @@ export function ExportCostReportButton({ period }: ExportCostReportButtonProps) 
 ### 7.2 Export Format Examples
 
 **CSV Format:**
+
 ```csv
 date,document_id,document_name,total_cost_usd,extraction_cost,gleaning_cost,embedding_cost,prompt_tokens,completion_tokens
 2024-12-28,doc-1,research.pdf,0.0045,0.0040,0.0004,0.0001,12450,3200
@@ -1062,6 +1109,7 @@ date,document_id,document_name,total_cost_usd,extraction_cost,gleaning_cost,embe
 ```
 
 **JSON Format:**
+
 ```json
 {
   "period": "week",
@@ -1090,18 +1138,18 @@ date,document_id,document_name,total_cost_usd,extraction_cost,gleaning_cost,embe
 ```typescript
 // src/lib/hooks/use-cost-queries.ts
 
-export function useCostSummary(period: 'day' | 'week' | 'month') {
+export function useCostSummary(period: "day" | "week" | "month") {
   return useQuery({
-    queryKey: ['cost-summary', period],
+    queryKey: ["cost-summary", period],
     queryFn: () => getCostSummary(period),
-    staleTime: 60000,  // 1 minute
+    staleTime: 60000, // 1 minute
     refetchInterval: 60000,
   });
 }
 
 export function useDocumentCost(documentId: string) {
   return useQuery({
-    queryKey: ['document-cost', documentId],
+    queryKey: ["document-cost", documentId],
     queryFn: () => getDocumentCost(documentId),
     enabled: !!documentId,
   });
@@ -1109,20 +1157,20 @@ export function useDocumentCost(documentId: string) {
 
 export function useBudgetStatus() {
   return useQuery({
-    queryKey: ['budget-status'],
+    queryKey: ["budget-status"],
     queryFn: getBudgetStatus,
-    staleTime: 30000,  // 30 seconds
+    staleTime: 30000, // 30 seconds
     refetchInterval: 30000,
   });
 }
 
 export function useBudgetConfigMutation() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: updateBudgetConfig,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['budget-status'] });
+      queryClient.invalidateQueries({ queryKey: ["budget-status"] });
     },
   });
 }

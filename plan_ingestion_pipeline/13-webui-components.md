@@ -22,20 +22,20 @@
 
 ### 1.1 Component Inventory
 
-| Component | Category | Status | Priority |
-|-----------|----------|--------|----------|
-| `IngestionProgressPanel` | Progress | NEW | P0 |
-| `StageIndicator` | Progress | NEW | P0 |
-| `CostBadge` | Cost | NEW | P0 |
-| `CostBreakdownChart` | Cost | NEW | P1 |
-| `ChunkExplorer` | Lineage | NEW | P0 |
-| `LineageGraph` | Lineage | NEW | P1 |
-| `EntityProvenance` | Lineage | NEW | P1 |
-| `WebSocketStatus` | Shared | NEW | P0 |
-| `DocumentManager` | Documents | UPDATE | P0 |
-| `DocumentDetailPanel` | Documents | UPDATE | P0 |
-| `LineageTree` | Document | UPDATE | P0 |
-| `BatchProgressCard` | Documents | UPDATE | P0 |
+| Component                | Category  | Status | Priority |
+| ------------------------ | --------- | ------ | -------- |
+| `IngestionProgressPanel` | Progress  | NEW    | P0       |
+| `StageIndicator`         | Progress  | NEW    | P0       |
+| `CostBadge`              | Cost      | NEW    | P0       |
+| `CostBreakdownChart`     | Cost      | NEW    | P1       |
+| `ChunkExplorer`          | Lineage   | NEW    | P0       |
+| `LineageGraph`           | Lineage   | NEW    | P1       |
+| `EntityProvenance`       | Lineage   | NEW    | P1       |
+| `WebSocketStatus`        | Shared    | NEW    | P0       |
+| `DocumentManager`        | Documents | UPDATE | P0       |
+| `DocumentDetailPanel`    | Documents | UPDATE | P0       |
+| `LineageTree`            | Document  | UPDATE | P0       |
+| `BatchProgressCard`      | Documents | UPDATE | P0       |
 
 ### 1.2 Component Hierarchy
 
@@ -104,7 +104,7 @@ interface IngestionProgressPanelProps {
 
 /**
  * Displays real-time ingestion progress for a document.
- * 
+ *
  * Features:
  * - Stage-by-stage progress visualization
  * - Live cost tracking
@@ -157,23 +157,23 @@ Pipeline stage visualization with progress.
 interface Stage {
   id: string;
   label: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  progress?: number;  // 0-100 for running stage
-  duration?: number;  // ms
+  status: "pending" | "running" | "completed" | "failed";
+  progress?: number; // 0-100 for running stage
+  duration?: number; // ms
   message?: string;
 }
 
 interface StageIndicatorProps {
   stages: Stage[];
   currentStage: string;
-  variant?: 'horizontal' | 'vertical';
+  variant?: "horizontal" | "vertical";
   showDetails?: boolean;
   className?: string;
 }
 
 /**
  * Displays pipeline stages with status indicators.
- * 
+ *
  * Variants:
  * - horizontal: Timeline view for desktop
  * - vertical: Stacked view for mobile/sidebar
@@ -181,7 +181,7 @@ interface StageIndicatorProps {
 export function StageIndicator({
   stages,
   currentStage,
-  variant = 'horizontal',
+  variant = "horizontal",
   showDetails = true,
   className,
 }: StageIndicatorProps) {
@@ -227,11 +227,11 @@ Inline cost display with optional breakdown tooltip.
 // src/components/documents/cost-badge.tsx
 
 interface CostBadgeProps {
-  cost: number;  // USD
-  estimated?: number;  // Estimated final cost
+  cost: number; // USD
+  estimated?: number; // Estimated final cost
   showBreakdown?: boolean;
   breakdown?: CostBreakdown;
-  size?: 'sm' | 'md' | 'lg';
+  size?: "sm" | "md" | "lg";
   className?: string;
 }
 
@@ -243,7 +243,7 @@ export function CostBadge({
   estimated,
   showBreakdown = false,
   breakdown,
-  size = 'md',
+  size = "md",
   className,
 }: CostBadgeProps) {
   // Format: $0.0045 or $0.00 (0) / $0.01 (est)
@@ -334,7 +334,7 @@ Visual cost breakdown with pie or bar chart.
 
 interface CostBreakdownChartProps {
   breakdown: CostBreakdown;
-  type?: 'pie' | 'bar';
+  type?: "pie" | "bar";
   showLegend?: boolean;
   showValues?: boolean;
   height?: number;
@@ -347,7 +347,7 @@ interface CostBreakdownChartProps {
  */
 export function CostBreakdownChart({
   breakdown,
-  type = 'pie',
+  type = "pie",
   showLegend = true,
   showValues = true,
   height = 200,
@@ -370,7 +370,7 @@ export function CostBreakdownChart({
         │   ╲   12%   ╱      │
         │    ╲───────╱       │
         └────────────────────┘
-        
+
         Legend:
         ■ Extraction  $12.50 (81%)
         ■ Gleaning    $1.80  (12%)
@@ -387,7 +387,7 @@ Connection status indicator.
 
 interface WebSocketStatusProps {
   showLabel?: boolean;
-  size?: 'sm' | 'md';
+  size?: "sm" | "md";
   className?: string;
 }
 
@@ -397,11 +397,11 @@ interface WebSocketStatusProps {
  */
 export function WebSocketStatus({
   showLabel = true,
-  size = 'sm',
+  size = "sm",
   className,
 }: WebSocketStatusProps) {
   const { connected, reconnecting } = useWebSocket();
-  
+
   // Visual: ● Connected / ◐ Reconnecting / ○ Disconnected
 }
 ```
@@ -419,8 +419,8 @@ export function WebSocketStatus({
 const columns = [
   // ... existing columns ...
   {
-    id: 'cost',
-    header: 'Cost',
+    id: "cost",
+    header: "Cost",
     cell: ({ row }) => <CostBadge cost={row.original.cost ?? 0} size="sm" />,
     sortable: true,
   },
@@ -435,7 +435,7 @@ useEffect(() => {
 
 // ADD: Processing status with progress bar in status cell
 const StatusCell = ({ document }: { document: Document }) => {
-  if (document.status === 'processing' && document.track_id) {
+  if (document.status === "processing" && document.track_id) {
     return <InlineProgress trackId={document.track_id} />;
   }
   return <StatusBadge status={document.status} />;
@@ -469,7 +469,9 @@ interface LineageTreeProps {
 const { progress, isLive } = useIngestionProgress(trackId);
 
 // ADD: Live indicator when using WebSocket
-{isLive && <WebSocketStatus showLabel={false} />}
+{
+  isLive && <WebSocketStatus showLabel={false} />;
+}
 
 // ADD: Per-document progress within batch
 // ADD: Cost accumulation display
@@ -487,11 +489,11 @@ Smooth animated progress bar.
 // src/components/shared/animated-progress.tsx
 
 interface AnimatedProgressProps {
-  value: number;  // 0-100
+  value: number; // 0-100
   max?: number;
   showValue?: boolean;
-  variant?: 'default' | 'success' | 'warning' | 'error';
-  size?: 'sm' | 'md' | 'lg';
+  variant?: "default" | "success" | "warning" | "error";
+  size?: "sm" | "md" | "lg";
   animated?: boolean;
   className?: string;
 }
@@ -504,8 +506,8 @@ export function AnimatedProgress({
   value,
   max = 100,
   showValue = false,
-  variant = 'default',
-  size = 'md',
+  variant = "default",
+  size = "md",
   animated = true,
   className,
 }: AnimatedProgressProps) {
@@ -523,7 +525,7 @@ Streaming message display.
 interface LiveMessageProps {
   message: string;
   timestamp?: string;
-  level?: 'info' | 'success' | 'warning' | 'error';
+  level?: "info" | "success" | "warning" | "error";
   showIcon?: boolean;
   className?: string;
 }
@@ -534,7 +536,7 @@ interface LiveMessageProps {
 export function LiveMessage({
   message,
   timestamp,
-  level = 'info',
+  level = "info",
   showIcon = true,
   className,
 }: LiveMessageProps) {
@@ -579,7 +581,7 @@ export function EtaDisplay({
 // Base props for all components
 interface BaseComponentProps {
   className?: string;
-  'data-testid'?: string;
+  "data-testid"?: string;
 }
 
 // Loading state pattern
@@ -597,17 +599,17 @@ interface InteractiveProps {
 
 ### 5.2 Component Prop Summary
 
-| Component | Key Props | Events |
-|-----------|-----------|--------|
-| IngestionProgressPanel | trackId, documentName | onComplete, onCancel |
-| StageIndicator | stages, currentStage, variant | — |
-| CostBadge | cost, estimated, breakdown | — |
-| ChunkExplorer | documentId, chunks | onChunkSelect |
-| CostBreakdownChart | breakdown, type | — |
-| WebSocketStatus | showLabel, size | — |
-| AnimatedProgress | value, variant, animated | — |
-| LiveMessage | message, level | — |
-| EtaDisplay | etaSeconds, startedAt | — |
+| Component              | Key Props                     | Events               |
+| ---------------------- | ----------------------------- | -------------------- |
+| IngestionProgressPanel | trackId, documentName         | onComplete, onCancel |
+| StageIndicator         | stages, currentStage, variant | —                    |
+| CostBadge              | cost, estimated, breakdown    | —                    |
+| ChunkExplorer          | documentId, chunks            | onChunkSelect        |
+| CostBreakdownChart     | breakdown, type               | —                    |
+| WebSocketStatus        | showLabel, size               | —                    |
+| AnimatedProgress       | value, variant, animated      | —                    |
+| LiveMessage            | message, level                | —                    |
+| EtaDisplay             | etaSeconds, startedAt         | —                    |
 
 ---
 
@@ -615,13 +617,13 @@ interface InteractiveProps {
 
 ### 6.1 WCAG 2.1 AA Compliance
 
-| Requirement | Implementation |
-|-------------|----------------|
+| Requirement             | Implementation                                        |
+| ----------------------- | ----------------------------------------------------- |
 | **Keyboard Navigation** | All interactive elements focusable, logical tab order |
-| **Screen Reader** | ARIA labels on all icons, progress announcements |
-| **Color Contrast** | 4.5:1 minimum for text, 3:1 for UI elements |
-| **Focus Indicators** | Visible focus rings on all interactive elements |
-| **Motion** | Respect `prefers-reduced-motion` preference |
+| **Screen Reader**       | ARIA labels on all icons, progress announcements      |
+| **Color Contrast**      | 4.5:1 minimum for text, 3:1 for UI elements           |
+| **Focus Indicators**    | Visible focus rings on all interactive elements       |
+| **Motion**              | Respect `prefers-reduced-motion` preference           |
 
 ### 6.2 ARIA Patterns
 

@@ -54,13 +54,13 @@ Milestones:
 
 ### 1.3 Effort Summary
 
-| Phase | Focus | Effort | New Files | Modified Files |
-|-------|-------|--------|-----------|----------------|
-| W1 | Foundation | 3 days | 8 | 4 |
-| W2 | Progress Components | 4 days | 6 | 3 |
-| W3 | Lineage Visualization | 5 days | 9 | 2 |
-| W4 | Cost Monitoring | 4 days | 8 | 2 |
-| **Total** | | **16 days** | **31** | **11** |
+| Phase     | Focus                 | Effort      | New Files | Modified Files |
+| --------- | --------------------- | ----------- | --------- | -------------- |
+| W1        | Foundation            | 3 days      | 8         | 4              |
+| W2        | Progress Components   | 4 days      | 6         | 3              |
+| W3        | Lineage Visualization | 5 days      | 9         | 2              |
+| W4        | Cost Monitoring       | 4 days      | 8         | 2              |
+| **Total** |                       | **16 days** | **31**    | **11**         |
 
 ---
 
@@ -354,15 +354,15 @@ src/
 
 ### 3.2 Modified Files
 
-| File | Changes |
-|------|---------|
-| `src/types/index.ts` | Add exports for new types |
-| `src/lib/api/edgequake.ts` | Add lineage, cost, progress API functions |
-| `src/app/layout.tsx` | Wrap with WebSocketProvider |
-| `src/components/documents/document-manager.tsx` | Add cost column, WebSocket |
-| `src/components/documents/batch-progress-card.tsx` | WebSocket integration |
-| `src/components/document/lineage-tree.tsx` | Interactive, expandable |
-| `src/app/(dashboard)/layout.tsx` | Add navigation link to cost dashboard |
+| File                                               | Changes                                   |
+| -------------------------------------------------- | ----------------------------------------- |
+| `src/types/index.ts`                               | Add exports for new types                 |
+| `src/lib/api/edgequake.ts`                         | Add lineage, cost, progress API functions |
+| `src/app/layout.tsx`                               | Wrap with WebSocketProvider               |
+| `src/components/documents/document-manager.tsx`    | Add cost column, WebSocket                |
+| `src/components/documents/batch-progress-card.tsx` | WebSocket integration                     |
+| `src/components/document/lineage-tree.tsx`         | Interactive, expandable                   |
+| `src/app/(dashboard)/layout.tsx`                   | Add navigation link to cost dashboard     |
 
 ---
 
@@ -370,11 +370,11 @@ src/
 
 ### 4.1 Task Priority Matrix
 
-| Priority | Description | Tasks |
-|----------|-------------|-------|
-| P0 | Critical path, blocks other work | W1-001, W1-002, W1-004, W2-002 |
-| P1 | Important, needed for full functionality | W1-005, W2-001, W3-006, W4-008 |
-| P2 | Nice to have, can defer | W3-008, W4-007, W4-009 |
+| Priority | Description                              | Tasks                          |
+| -------- | ---------------------------------------- | ------------------------------ |
+| P0       | Critical path, blocks other work         | W1-001, W1-002, W1-004, W2-002 |
+| P1       | Important, needed for full functionality | W1-005, W2-001, W3-006, W4-008 |
+| P2       | Nice to have, can defer                  | W3-008, W4-007, W4-009         |
 
 ### 4.2 Dependency Graph
 
@@ -430,13 +430,13 @@ W3-005 (LineageExplorer) ◀── W3-004, W3-006, W3-008
 
 ### 5.2 Backend Dependencies
 
-| API Endpoint | Required For | Backend Ticket |
-|--------------|--------------|----------------|
-| `GET /api/v1/documents/{id}/lineage` | Lineage visualization | Phase 4 |
-| `GET /api/v1/entities/{id}/provenance` | Entity provenance | Phase 4 |
-| `GET /api/v1/costs/summary` | Cost dashboard | Phase 3 |
-| `GET /api/v1/progress/{track_id}` | Progress polling | Phase 3 |
-| `WS /api/v1/ws/progress` | Real-time updates | Phase 5 |
+| API Endpoint                           | Required For          | Backend Ticket |
+| -------------------------------------- | --------------------- | -------------- |
+| `GET /api/v1/documents/{id}/lineage`   | Lineage visualization | Phase 4        |
+| `GET /api/v1/entities/{id}/provenance` | Entity provenance     | Phase 4        |
+| `GET /api/v1/costs/summary`            | Cost dashboard        | Phase 3        |
+| `GET /api/v1/progress/{track_id}`      | Progress polling      | Phase 3        |
+| `WS /api/v1/ws/progress`               | Real-time updates     | Phase 5        |
 
 ---
 
@@ -471,67 +471,73 @@ __tests__/
 
 ```typescript
 // e2e/ingestion-progress.spec.ts
-test('displays real-time progress during upload', async ({ page }) => {
-  await page.goto('/documents');
-  
+test("displays real-time progress during upload", async ({ page }) => {
+  await page.goto("/documents");
+
   // Upload a document
-  await page.setInputFiles('input[type="file"]', 'test-document.txt');
-  
+  await page.setInputFiles('input[type="file"]', "test-document.txt");
+
   // Verify progress panel appears
-  await expect(page.locator('[data-testid="ingestion-progress-panel"]')).toBeVisible();
-  
+  await expect(
+    page.locator('[data-testid="ingestion-progress-panel"]')
+  ).toBeVisible();
+
   // Verify stages are shown
   await expect(page.locator('[data-testid="stage-indicator"]')).toBeVisible();
-  
+
   // Wait for completion
-  await expect(page.locator('text=completed')).toBeVisible({ timeout: 60000 });
+  await expect(page.locator("text=completed")).toBeVisible({ timeout: 60000 });
 });
 
 // e2e/lineage-visualization.spec.ts
-test('displays document lineage graph', async ({ page }) => {
-  await page.goto('/documents/doc-1');
-  
+test("displays document lineage graph", async ({ page }) => {
+  await page.goto("/documents/doc-1");
+
   // Navigate to lineage tab
   await page.click('[data-testid="lineage-tab"]');
-  
+
   // Verify graph is rendered
-  await expect(page.locator('.react-flow')).toBeVisible();
-  
+  await expect(page.locator(".react-flow")).toBeVisible();
+
   // Click on a chunk node
   await page.click('[data-testid="chunk-node-1"]');
-  
+
   // Verify chunk detail modal
-  await expect(page.locator('[data-testid="chunk-detail-modal"]')).toBeVisible();
+  await expect(
+    page.locator('[data-testid="chunk-detail-modal"]')
+  ).toBeVisible();
 });
 
 // e2e/cost-dashboard.spec.ts
-test('displays cost dashboard with breakdown', async ({ page }) => {
-  await page.goto('/cost');
-  
+test("displays cost dashboard with breakdown", async ({ page }) => {
+  await page.goto("/cost");
+
   // Verify summary card
   await expect(page.locator('[data-testid="cost-summary-card"]')).toBeVisible();
-  
+
   // Verify breakdown chart
-  await expect(page.locator('[data-testid="cost-breakdown-chart"]')).toBeVisible();
-  
+  await expect(
+    page.locator('[data-testid="cost-breakdown-chart"]')
+  ).toBeVisible();
+
   // Export CSV
   await page.click('[data-testid="export-button"]');
-  await page.click('text=Export as CSV');
-  
+  await page.click("text=Export as CSV");
+
   // Verify download started
-  const download = await page.waitForEvent('download');
+  const download = await page.waitForEvent("download");
   expect(download.suggestedFilename()).toMatch(/cost-report.*\.csv/);
 });
 ```
 
 ### 6.3 Test Coverage Targets
 
-| Category | Target |
-|----------|--------|
-| Unit tests | 80% |
-| Component tests | 70% |
-| E2E tests | Critical paths |
-| Visual regression | Key screens |
+| Category          | Target         |
+| ----------------- | -------------- |
+| Unit tests        | 80%            |
+| Component tests   | 70%            |
+| E2E tests         | Critical paths |
+| Visual regression | Key screens    |
 
 ---
 
@@ -544,16 +550,16 @@ test('displays cost dashboard with breakdown', async ({ page }) => {
 
 export const featureFlags = {
   // Phase W1
-  'webui-websocket-progress': true,
-  
+  "webui-websocket-progress": true,
+
   // Phase W2
-  'webui-progress-panel': true,
-  
+  "webui-progress-panel": true,
+
   // Phase W3
-  'webui-lineage-graph': false,  // Enable after Phase W3
-  
+  "webui-lineage-graph": false, // Enable after Phase W3
+
   // Phase W4
-  'webui-cost-dashboard': false,  // Enable after Phase W4
+  "webui-cost-dashboard": false, // Enable after Phase W4
 };
 ```
 
@@ -585,27 +591,30 @@ Stage 3: General Availability (Week 12)
 
 ### 8.1 Risk Matrix
 
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| WebSocket connection instability | Medium | High | Polling fallback, reconnection logic |
-| Large lineage graphs slow | Medium | Medium | Virtualization, pagination |
-| Backend API delays | High | High | Mock data for parallel development |
-| React Flow bundle size | Low | Low | Dynamic import, code splitting |
-| Cost calculation discrepancies | Medium | Medium | Reconciliation with backend |
+| Risk                             | Probability | Impact | Mitigation                           |
+| -------------------------------- | ----------- | ------ | ------------------------------------ |
+| WebSocket connection instability | Medium      | High   | Polling fallback, reconnection logic |
+| Large lineage graphs slow        | Medium      | Medium | Virtualization, pagination           |
+| Backend API delays               | High        | High   | Mock data for parallel development   |
+| React Flow bundle size           | Low         | Low    | Dynamic import, code splitting       |
+| Cost calculation discrepancies   | Medium      | Medium | Reconciliation with backend          |
 
 ### 8.2 Mitigation Strategies
 
 **WebSocket Instability:**
+
 - Implement exponential backoff reconnection
 - Provide visual indicator of connection state
 - Fall back to polling when WebSocket unavailable
 
 **Large Lineage Graphs:**
+
 - Use viewport culling in React Flow
 - Paginate API responses
 - Lazy load entity details
 
 **Backend API Delays:**
+
 - Create comprehensive mock data
 - Use MSW for API mocking in development
 - Develop features in parallel with backend
@@ -631,11 +640,11 @@ export function {ComponentName}({
   className,
 }: {ComponentName}Props) {
   // Hooks
-  
+
   // Derived state
-  
+
   // Handlers
-  
+
   return (
     <div className={cn('', className)}>
       {/* Component content */}
@@ -653,7 +662,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export function use{HookName}(/* params */) {
   const queryClient = useQueryClient();
-  
+
   // Query
   const query = useQuery({
     queryKey: ['key'],
@@ -661,7 +670,7 @@ export function use{HookName}(/* params */) {
       // Fetch logic
     },
   });
-  
+
   // Mutation
   const mutation = useMutation({
     mutationFn: async (/* data */) => {
@@ -671,7 +680,7 @@ export function use{HookName}(/* params */) {
       queryClient.invalidateQueries({ queryKey: ['key'] });
     },
   });
-  
+
   return {
     ...query,
     mutate: mutation.mutate,
@@ -689,14 +698,14 @@ import { immer } from 'zustand/middleware/immer';
 
 interface {StoreName}State {
   // State properties
-  
+
   // Actions
 }
 
 export const use{StoreName} = create<{StoreName}State>()(
   immer((set, get) => ({
     // Initial state
-    
+
     // Actions
     action: () => {
       set((state) => {

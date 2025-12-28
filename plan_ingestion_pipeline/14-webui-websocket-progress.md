@@ -60,14 +60,14 @@ This document specifies the WebSocket-based real-time progress tracking system f
 
 ### 1.3 Requirements
 
-| Requirement | Description |
-|-------------|-------------|
-| REQ-WS-001 | WebSocket connection with auto-reconnect |
-| REQ-WS-002 | Fallback to polling when WebSocket unavailable |
-| REQ-WS-003 | Multi-track subscription support |
-| REQ-WS-004 | Connection state indicators in UI |
-| REQ-WS-005 | Graceful handling of disconnections |
-| REQ-WS-006 | Memory-efficient message buffering |
+| Requirement | Description                                    |
+| ----------- | ---------------------------------------------- |
+| REQ-WS-001  | WebSocket connection with auto-reconnect       |
+| REQ-WS-002  | Fallback to polling when WebSocket unavailable |
+| REQ-WS-003  | Multi-track subscription support               |
+| REQ-WS-004  | Connection state indicators in UI              |
+| REQ-WS-005  | Graceful handling of disconnections            |
+| REQ-WS-006  | Memory-efficient message buffering             |
 
 ---
 
@@ -101,7 +101,7 @@ type WebSocketMessage =
   | Heartbeat;
 
 interface IngestionStarted {
-  type: 'ingestion_started';
+  type: "ingestion_started";
   track_id: string;
   document_id: string;
   document_name: string;
@@ -110,24 +110,24 @@ interface IngestionStarted {
 }
 
 interface StageStarted {
-  type: 'stage_started';
+  type: "stage_started";
   track_id: string;
   stage: IngestionStage;
   started_at: string;
 }
 
 interface StageProgress {
-  type: 'stage_progress';
+  type: "stage_progress";
   track_id: string;
   stage: IngestionStage;
-  progress: number;  // 0-100
+  progress: number; // 0-100
   message?: string;
   current_item?: number;
   total_items?: number;
 }
 
 interface StageCompleted {
-  type: 'stage_completed';
+  type: "stage_completed";
   track_id: string;
   stage: IngestionStage;
   completed_at: string;
@@ -140,7 +140,7 @@ interface StageCompleted {
 }
 
 interface CostUpdate {
-  type: 'cost_update';
+  type: "cost_update";
   track_id: string;
   stage: IngestionStage;
   operation: string;
@@ -153,7 +153,7 @@ interface CostUpdate {
 }
 
 interface IngestionCompleted {
-  type: 'ingestion_completed';
+  type: "ingestion_completed";
   track_id: string;
   document_id: string;
   completed_at: string;
@@ -167,7 +167,7 @@ interface IngestionCompleted {
 }
 
 interface IngestionFailed {
-  type: 'ingestion_failed';
+  type: "ingestion_failed";
   track_id: string;
   document_id?: string;
   stage: IngestionStage;
@@ -181,7 +181,7 @@ interface IngestionFailed {
 }
 
 interface Heartbeat {
-  type: 'heartbeat';
+  type: "heartbeat";
   timestamp: string;
   server_time: string;
 }
@@ -191,29 +191,25 @@ interface Heartbeat {
 
 ```typescript
 // Client commands
-type ClientMessage =
-  | Subscribe
-  | Unsubscribe
-  | CancelIngestion
-  | Ping;
+type ClientMessage = Subscribe | Unsubscribe | CancelIngestion | Ping;
 
 interface Subscribe {
-  type: 'subscribe';
+  type: "subscribe";
   track_ids: string[];
 }
 
 interface Unsubscribe {
-  type: 'unsubscribe';
+  type: "unsubscribe";
   track_ids: string[];
 }
 
 interface CancelIngestion {
-  type: 'cancel';
+  type: "cancel";
   track_id: string;
 }
 
 interface Ping {
-  type: 'ping';
+  type: "ping";
   client_time: string;
 }
 ```
@@ -253,7 +249,7 @@ t+45  │ ingestion_completed  │ chunks=10, entities=18, cost=$0.0045
 ```typescript
 // src/lib/websocket/progress-websocket.ts
 
-import { EventEmitter } from 'events';
+import { EventEmitter } from "events";
 
 export interface WebSocketClientOptions {
   url: string;
@@ -267,11 +263,11 @@ export class ProgressWebSocket extends EventEmitter {
   private reconnectAttempts = 0;
   private heartbeatTimer?: NodeJS.Timer;
   private reconnectTimer?: NodeJS.Timer;
-  
+
   public readonly options: Required<WebSocketClientOptions>;
   public connected = false;
   public reconnecting = false;
-  
+
   constructor(options: WebSocketClientOptions) {
     super();
     this.options = {
@@ -281,12 +277,12 @@ export class ProgressWebSocket extends EventEmitter {
       ...options,
     };
   }
-  
+
   connect(): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       return;
     }
-    
+
     try {
       this.ws = new WebSocket(this.options.url);
       this.setupEventHandlers();
@@ -294,115 +290,115 @@ export class ProgressWebSocket extends EventEmitter {
       this.handleError(error as Error);
     }
   }
-  
+
   private setupEventHandlers(): void {
     if (!this.ws) return;
-    
+
     this.ws.onopen = () => {
       this.connected = true;
       this.reconnecting = false;
       this.reconnectAttempts = 0;
       this.startHeartbeat();
-      this.emit('connected');
+      this.emit("connected");
     };
-    
+
     this.ws.onmessage = (event) => {
       try {
         const message: WebSocketMessage = JSON.parse(event.data);
         this.handleMessage(message);
       } catch (error) {
-        console.error('Failed to parse WebSocket message:', error);
+        console.error("Failed to parse WebSocket message:", error);
       }
     };
-    
+
     this.ws.onclose = (event) => {
       this.connected = false;
       this.stopHeartbeat();
-      this.emit('disconnected', { code: event.code, reason: event.reason });
-      
+      this.emit("disconnected", { code: event.code, reason: event.reason });
+
       if (!event.wasClean) {
         this.attemptReconnect();
       }
     };
-    
+
     this.ws.onerror = (error) => {
-      this.handleError(new Error('WebSocket error'));
+      this.handleError(new Error("WebSocket error"));
     };
   }
-  
+
   private handleMessage(message: WebSocketMessage): void {
     switch (message.type) {
-      case 'heartbeat':
+      case "heartbeat":
         // No action needed, just confirms connection is alive
         break;
-      case 'ingestion_started':
-      case 'stage_started':
-      case 'stage_progress':
-      case 'stage_completed':
-      case 'cost_update':
-      case 'ingestion_completed':
-      case 'ingestion_failed':
-        this.emit('progress', message);
+      case "ingestion_started":
+      case "stage_started":
+      case "stage_progress":
+      case "stage_completed":
+      case "cost_update":
+      case "ingestion_completed":
+      case "ingestion_failed":
+        this.emit("progress", message);
         break;
       default:
-        console.warn('Unknown message type:', (message as any).type);
+        console.warn("Unknown message type:", (message as any).type);
     }
   }
-  
+
   private startHeartbeat(): void {
     this.heartbeatTimer = setInterval(() => {
-      this.send({ type: 'ping', client_time: new Date().toISOString() });
+      this.send({ type: "ping", client_time: new Date().toISOString() });
     }, this.options.heartbeatInterval);
   }
-  
+
   private stopHeartbeat(): void {
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = undefined;
     }
   }
-  
+
   private attemptReconnect(): void {
     if (this.reconnectAttempts >= this.options.maxReconnectAttempts) {
-      this.emit('max_reconnects_reached');
+      this.emit("max_reconnects_reached");
       return;
     }
-    
+
     this.reconnecting = true;
     this.reconnectAttempts++;
-    
-    this.emit('reconnecting', { attempt: this.reconnectAttempts });
-    
+
+    this.emit("reconnecting", { attempt: this.reconnectAttempts });
+
     this.reconnectTimer = setTimeout(() => {
       this.connect();
     }, this.options.reconnectInterval * Math.pow(2, this.reconnectAttempts - 1));
   }
-  
+
   private handleError(error: Error): void {
-    this.emit('error', error);
+    this.emit("error", error);
   }
-  
+
   send(message: ClientMessage): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     } else {
-      console.warn('WebSocket not connected, queuing message');
+      console.warn("WebSocket not connected, queuing message");
       // Could implement message queue here
     }
   }
-  
+
   subscribe(trackIds: string[]): void {
-    this.send({ type: 'subscribe', track_ids: trackIds });
+    this.send({ type: "subscribe", track_ids: trackIds });
   }
-  
+
   unsubscribe(trackIds: string[]): void {
-    this.send({ type: 'unsubscribe', track_ids: trackIds });
+    this.send({ type: "unsubscribe", track_ids: trackIds });
   }
-  
+
   cancel(trackId: string): void {
-    this.send({ type: 'cancel', track_id: trackId });
+    this.send({ type: "cancel", track_id: trackId });
   }
-  
+
   disconnect(): void {
     this.stopHeartbeat();
     if (this.reconnectTimer) {
@@ -420,8 +416,8 @@ export class ProgressWebSocket extends EventEmitter {
 ```typescript
 // src/lib/websocket/websocket-manager.ts
 
-import { ProgressWebSocket } from './progress-websocket';
-import { getWebSocketUrl } from '../config';
+import { ProgressWebSocket } from "./progress-websocket";
+import { getWebSocketUrl } from "../config";
 
 let instance: ProgressWebSocket | null = null;
 
@@ -452,20 +448,28 @@ export function disconnectWebSocket(): void {
 ```typescript
 // src/lib/stores/use-ingestion-store.ts
 
-import { create } from 'zustand';
-import { immer } from 'zustand/middleware/immer';
-import type { WebSocketMessage, IngestionProgress, IngestionStage } from '@/types';
+import { create } from "zustand";
+import { immer } from "zustand/middleware/immer";
+import type {
+  WebSocketMessage,
+  IngestionProgress,
+  IngestionStage,
+} from "@/types";
 
 interface IngestionState {
   // Active ingestion tracks
   tracks: Map<string, IngestionProgress>;
-  
+
   // WebSocket connection status
   wsConnected: boolean;
   wsReconnecting: boolean;
-  
+
   // Actions
-  startTracking: (trackId: string, documentId: string, documentName: string) => void;
+  startTracking: (
+    trackId: string,
+    documentId: string,
+    documentName: string
+  ) => void;
   updateProgress: (message: WebSocketMessage) => void;
   stopTracking: (trackId: string) => void;
   setWsStatus: (connected: boolean, reconnecting?: boolean) => void;
@@ -473,11 +477,11 @@ interface IngestionState {
 }
 
 const initialStageState = (): Record<IngestionStage, StageProgress> => ({
-  preprocessing: { status: 'pending', progress: 0 },
-  chunking: { status: 'pending', progress: 0 },
-  extracting: { status: 'pending', progress: 0 },
-  merging: { status: 'pending', progress: 0 },
-  indexing: { status: 'pending', progress: 0 },
+  preprocessing: { status: "pending", progress: 0 },
+  chunking: { status: "pending", progress: 0 },
+  extracting: { status: "pending", progress: 0 },
+  merging: { status: "pending", progress: 0 },
+  indexing: { status: "pending", progress: 0 },
 });
 
 export const useIngestionStore = create<IngestionState>()(
@@ -485,14 +489,14 @@ export const useIngestionStore = create<IngestionState>()(
     tracks: new Map(),
     wsConnected: false,
     wsReconnecting: false,
-    
+
     startTracking: (trackId, documentId, documentName) => {
       set((state) => {
         state.tracks.set(trackId, {
           track_id: trackId,
           document_id: documentId,
           document_name: documentName,
-          status: 'queued',
+          status: "queued",
           overall_progress: 0,
           stages: initialStageState(),
           cost_usd: 0,
@@ -500,15 +504,15 @@ export const useIngestionStore = create<IngestionState>()(
         });
       });
     },
-    
+
     updateProgress: (message) => {
       set((state) => {
         const track = state.tracks.get(message.track_id);
         if (!track) return;
-        
+
         switch (message.type) {
-          case 'ingestion_started':
-            track.status = 'processing';
+          case "ingestion_started":
+            track.status = "processing";
             track.started_at = message.started_at;
             if (message.estimated_duration_ms) {
               track.estimated_completion = new Date(
@@ -516,62 +520,62 @@ export const useIngestionStore = create<IngestionState>()(
               ).toISOString();
             }
             break;
-            
-          case 'stage_started':
+
+          case "stage_started":
             track.current_stage = message.stage;
-            track.stages[message.stage].status = 'running';
+            track.stages[message.stage].status = "running";
             break;
-            
-          case 'stage_progress':
+
+          case "stage_progress":
             track.stages[message.stage].progress = message.progress;
             track.stages[message.stage].message = message.message;
             track.overall_progress = calculateOverallProgress(track.stages);
             break;
-            
-          case 'stage_completed':
-            track.stages[message.stage].status = 'completed';
+
+          case "stage_completed":
+            track.stages[message.stage].status = "completed";
             track.stages[message.stage].progress = 100;
             track.stages[message.stage].duration_ms = message.duration_ms;
             break;
-            
-          case 'cost_update':
+
+          case "cost_update":
             track.cost_usd = message.cumulative_cost_usd;
             break;
-            
-          case 'ingestion_completed':
-            track.status = 'completed';
+
+          case "ingestion_completed":
+            track.status = "completed";
             track.overall_progress = 100;
             track.completed_at = message.completed_at;
             track.summary = message.summary;
             break;
-            
-          case 'ingestion_failed':
-            track.status = 'failed';
-            track.stages[message.stage].status = 'failed';
+
+          case "ingestion_failed":
+            track.status = "failed";
+            track.stages[message.stage].status = "failed";
             track.stages[message.stage].error = message.error;
             track.error = message.error;
             break;
         }
       });
     },
-    
+
     stopTracking: (trackId) => {
       set((state) => {
         state.tracks.delete(trackId);
       });
     },
-    
+
     setWsStatus: (connected, reconnecting = false) => {
       set((state) => {
         state.wsConnected = connected;
         state.wsReconnecting = reconnecting;
       });
     },
-    
+
     clearCompleted: () => {
       set((state) => {
         for (const [id, track] of state.tracks) {
-          if (track.status === 'completed' || track.status === 'failed') {
+          if (track.status === "completed" || track.status === "failed") {
             state.tracks.delete(id);
           }
         }
@@ -580,7 +584,9 @@ export const useIngestionStore = create<IngestionState>()(
   }))
 );
 
-function calculateOverallProgress(stages: Record<IngestionStage, StageProgress>): number {
+function calculateOverallProgress(
+  stages: Record<IngestionStage, StageProgress>
+): number {
   const weights: Record<IngestionStage, number> = {
     preprocessing: 5,
     chunking: 10,
@@ -588,16 +594,16 @@ function calculateOverallProgress(stages: Record<IngestionStage, StageProgress>)
     merging: 15,
     indexing: 10,
   };
-  
+
   let totalWeight = 0;
   let weightedProgress = 0;
-  
+
   for (const [stage, data] of Object.entries(stages)) {
     const weight = weights[stage as IngestionStage];
     totalWeight += weight;
     weightedProgress += (data.progress / 100) * weight;
   }
-  
+
   return Math.round((weightedProgress / totalWeight) * 100);
 }
 ```
@@ -611,62 +617,66 @@ function calculateOverallProgress(stages: Record<IngestionStage, StageProgress>)
 ```typescript
 // src/lib/hooks/use-websocket.ts
 
-import { useEffect, useCallback } from 'react';
-import { getWebSocketClient, disconnectWebSocket } from '../websocket/websocket-manager';
-import { useIngestionStore } from '../stores/use-ingestion-store';
+import { useEffect, useCallback } from "react";
+import {
+  getWebSocketClient,
+  disconnectWebSocket,
+} from "../websocket/websocket-manager";
+import { useIngestionStore } from "../stores/use-ingestion-store";
 
 export function useWebSocket() {
-  const { setWsStatus, updateProgress, wsConnected, wsReconnecting } = useIngestionStore();
-  
+  const { setWsStatus, updateProgress, wsConnected, wsReconnecting } =
+    useIngestionStore();
+
   useEffect(() => {
     const client = getWebSocketClient();
-    
+
     const handleConnected = () => {
       setWsStatus(true, false);
     };
-    
+
     const handleDisconnected = () => {
       setWsStatus(false, false);
     };
-    
+
     const handleReconnecting = () => {
       setWsStatus(false, true);
     };
-    
+
     const handleProgress = (message: WebSocketMessage) => {
       updateProgress(message);
     };
-    
-    client.on('connected', handleConnected);
-    client.on('disconnected', handleDisconnected);
-    client.on('reconnecting', handleReconnecting);
-    client.on('progress', handleProgress);
-    
+
+    client.on("connected", handleConnected);
+    client.on("disconnected", handleDisconnected);
+    client.on("reconnecting", handleReconnecting);
+    client.on("progress", handleProgress);
+
     // Connect if not already connected
     if (!client.connected) {
       client.connect();
     }
-    
+
     return () => {
-      client.off('connected', handleConnected);
-      client.off('disconnected', handleDisconnected);
-      client.off('reconnecting', handleReconnecting);
-      client.off('progress', handleProgress);
+      client.off("connected", handleConnected);
+      client.off("disconnected", handleDisconnected);
+      client.off("reconnecting", handleReconnecting);
+      client.off("progress", handleProgress);
     };
   }, [setWsStatus, updateProgress]);
-  
+
   const subscribe = useCallback((trackIds: string[]) => {
     getWebSocketClient().subscribe(trackIds);
   }, []);
-  
+
   const unsubscribe = useCallback((trackIds: string[]) => {
     getWebSocketClient().unsubscribe(trackIds);
   }, []);
-  
+
   const cancel = useCallback((trackId: string) => {
     getWebSocketClient().cancel(trackId);
   }, []);
-  
+
   return {
     connected: wsConnected,
     reconnecting: wsReconnecting,
@@ -682,15 +692,15 @@ export function useWebSocket() {
 ```typescript
 // src/lib/hooks/use-ingestion-progress.ts
 
-import { useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useIngestionStore } from '../stores/use-ingestion-store';
-import { useWebSocket } from './use-websocket';
-import { getIngestionProgress } from '../api/edgequake';
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useIngestionStore } from "../stores/use-ingestion-store";
+import { useWebSocket } from "./use-websocket";
+import { getIngestionProgress } from "../api/edgequake";
 
 interface UseIngestionProgressOptions {
-  pollingInterval?: number;  // Fallback polling interval
-  enablePolling?: boolean;   // Force polling instead of WebSocket
+  pollingInterval?: number; // Fallback polling interval
+  enablePolling?: boolean; // Force polling instead of WebSocket
 }
 
 export function useIngestionProgress(
@@ -698,10 +708,10 @@ export function useIngestionProgress(
   options: UseIngestionProgressOptions = {}
 ) {
   const { pollingInterval = 3000, enablePolling = false } = options;
-  
+
   const { connected, subscribe, unsubscribe } = useWebSocket();
   const { tracks, startTracking } = useIngestionStore();
-  
+
   // Subscribe to WebSocket updates
   useEffect(() => {
     if (connected && !enablePolling) {
@@ -709,25 +719,29 @@ export function useIngestionProgress(
       return () => unsubscribe([trackId]);
     }
   }, [connected, trackId, subscribe, unsubscribe, enablePolling]);
-  
+
   // Fallback polling when WebSocket unavailable
   const shouldPoll = enablePolling || !connected;
-  
-  const { data: polledData, isLoading, error } = useQuery({
-    queryKey: ['ingestion-progress', trackId],
+
+  const {
+    data: polledData,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["ingestion-progress", trackId],
     queryFn: () => getIngestionProgress(trackId),
     enabled: shouldPoll,
     refetchInterval: shouldPoll ? pollingInterval : false,
     staleTime: 1000,
   });
-  
+
   // Merge WebSocket and polled data
   const wsData = tracks.get(trackId);
   const progress = wsData ?? polledData ?? null;
-  
+
   return {
     progress,
-    isLive: connected && !enablePolling,  // Using WebSocket
+    isLive: connected && !enablePolling, // Using WebSocket
     isPolling: shouldPoll,
     isLoading,
     error,
@@ -740,26 +754,26 @@ export function useIngestionProgress(
 ```typescript
 // src/lib/hooks/use-batch-progress.ts
 
-import { useMemo } from 'react';
-import { useIngestionStore } from '../stores/use-ingestion-store';
+import { useMemo } from "react";
+import { useIngestionStore } from "../stores/use-ingestion-store";
 
 export function useBatchProgress(trackIds: string[]) {
   const { tracks } = useIngestionStore();
-  
+
   return useMemo(() => {
     const items = trackIds
-      .map(id => tracks.get(id))
+      .map((id) => tracks.get(id))
       .filter((item): item is IngestionProgress => item !== undefined);
-    
-    const completed = items.filter(i => i.status === 'completed').length;
-    const failed = items.filter(i => i.status === 'failed').length;
-    const processing = items.filter(i => i.status === 'processing').length;
-    
+
+    const completed = items.filter((i) => i.status === "completed").length;
+    const failed = items.filter((i) => i.status === "failed").length;
+    const processing = items.filter((i) => i.status === "processing").length;
+
     const totalProgress = items.reduce((sum, i) => sum + i.overall_progress, 0);
     const averageProgress = items.length > 0 ? totalProgress / items.length : 0;
-    
+
     const totalCost = items.reduce((sum, i) => sum + (i.cost_usd || 0), 0);
-    
+
     return {
       items,
       total: trackIds.length,
@@ -783,10 +797,10 @@ export function useBatchProgress(trackIds: string[]) {
 ```typescript
 // src/providers/websocket-provider.tsx
 
-'use client';
+"use client";
 
-import { useEffect, createContext, useContext, ReactNode } from 'react';
-import { useWebSocket } from '@/lib/hooks/use-websocket';
+import { useEffect, createContext, useContext, ReactNode } from "react";
+import { useWebSocket } from "@/lib/hooks/use-websocket";
 
 interface WebSocketContextValue {
   connected: boolean;
@@ -800,18 +814,18 @@ const WebSocketContext = createContext<WebSocketContextValue | null>(null);
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
   const ws = useWebSocket();
-  
+
   return (
-    <WebSocketContext.Provider value={ws}>
-      {children}
-    </WebSocketContext.Provider>
+    <WebSocketContext.Provider value={ws}>{children}</WebSocketContext.Provider>
   );
 }
 
 export function useWebSocketContext(): WebSocketContextValue {
   const ctx = useContext(WebSocketContext);
   if (!ctx) {
-    throw new Error('useWebSocketContext must be used within WebSocketProvider');
+    throw new Error(
+      "useWebSocketContext must be used within WebSocketProvider"
+    );
   }
   return ctx;
 }
@@ -822,7 +836,7 @@ export function useWebSocketContext(): WebSocketContextValue {
 ```typescript
 // src/app/layout.tsx
 
-import { WebSocketProvider } from '@/providers/websocket-provider';
+import { WebSocketProvider } from "@/providers/websocket-provider";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
@@ -846,24 +860,29 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 ```typescript
 // src/components/documents/ingestion-progress-panel.tsx
 
-import { useIngestionProgress } from '@/lib/hooks/use-ingestion-progress';
-import { StageIndicator } from '@/components/progress/stage-indicator';
-import { CostBadge } from './cost-badge';
-import { EtaDisplay } from '@/components/progress/eta-display';
+import { useIngestionProgress } from "@/lib/hooks/use-ingestion-progress";
+import { StageIndicator } from "@/components/progress/stage-indicator";
+import { CostBadge } from "./cost-badge";
+import { EtaDisplay } from "@/components/progress/eta-display";
 
-export function IngestionProgressPanel({ trackId, documentName, onComplete, onCancel }: Props) {
+export function IngestionProgressPanel({
+  trackId,
+  documentName,
+  onComplete,
+  onCancel,
+}: Props) {
   const { progress, isLive, error } = useIngestionProgress(trackId);
-  
+
   useEffect(() => {
-    if (progress?.status === 'completed') {
+    if (progress?.status === "completed") {
       onComplete?.();
     }
   }, [progress?.status, onComplete]);
-  
+
   if (!progress) {
     return <Skeleton className="h-48" />;
   }
-  
+
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between">
@@ -877,7 +896,7 @@ export function IngestionProgressPanel({ trackId, documentName, onComplete, onCa
           </Button>
         </div>
       </CardHeader>
-      
+
       <CardContent>
         <div className="space-y-4">
           {/* Overall progress */}
@@ -888,7 +907,7 @@ export function IngestionProgressPanel({ trackId, documentName, onComplete, onCa
             </div>
             <AnimatedProgress value={progress.overall_progress} />
           </div>
-          
+
           {/* Stage breakdown */}
           <StageIndicator
             stages={Object.entries(progress.stages).map(([id, data]) => ({
@@ -899,14 +918,17 @@ export function IngestionProgressPanel({ trackId, documentName, onComplete, onCa
               duration: data.duration_ms,
               message: data.message,
             }))}
-            currentStage={progress.current_stage || 'preprocessing'}
+            currentStage={progress.current_stage || "preprocessing"}
             variant="vertical"
           />
-          
+
           {/* Cost and ETA */}
           <div className="flex justify-between items-center">
             <CostBadge cost={progress.cost_usd || 0} />
-            <EtaDisplay etaSeconds={progress.eta_seconds} startedAt={progress.started_at} />
+            <EtaDisplay
+              etaSeconds={progress.eta_seconds}
+              startedAt={progress.started_at}
+            />
           </div>
         </div>
       </CardContent>
@@ -967,19 +989,19 @@ interface ConnectionErrorProps {
 
 export function ConnectionError({ onRetry, className }: ConnectionErrorProps) {
   const { reconnecting, connected } = useWebSocket();
-  
+
   if (connected) return null;
-  
+
   return (
     <Alert variant="warning" className={className}>
       <AlertCircle className="h-4 w-4" />
       <AlertTitle>
-        {reconnecting ? 'Reconnecting...' : 'Connection Lost'}
+        {reconnecting ? "Reconnecting..." : "Connection Lost"}
       </AlertTitle>
       <AlertDescription>
-        {reconnecting 
-          ? 'Attempting to reconnect to live updates...'
-          : 'Live updates are unavailable. Using polling fallback.'}
+        {reconnecting
+          ? "Attempting to reconnect to live updates..."
+          : "Live updates are unavailable. Using polling fallback."}
       </AlertDescription>
       {!reconnecting && (
         <Button variant="outline" size="sm" onClick={onRetry}>
@@ -1002,59 +1024,65 @@ export function ConnectionError({ onRetry, className }: ConnectionErrorProps) {
 
 export class MockWebSocketServer {
   private clients: Set<MockWebSocketClient> = new Set();
-  
+
   addClient(client: MockWebSocketClient): void {
     this.clients.add(client);
   }
-  
+
   removeClient(client: MockWebSocketClient): void {
     this.clients.delete(client);
   }
-  
+
   broadcast(message: WebSocketMessage): void {
     for (const client of this.clients) {
       client.receive(message);
     }
   }
-  
+
   // Simulate progress for testing
   simulateIngestion(trackId: string, durationMs: number): void {
-    const stages: IngestionStage[] = ['preprocessing', 'chunking', 'extracting', 'merging', 'indexing'];
+    const stages: IngestionStage[] = [
+      "preprocessing",
+      "chunking",
+      "extracting",
+      "merging",
+      "indexing",
+    ];
     const stageDelay = durationMs / stages.length;
-    
+
     this.broadcast({
-      type: 'ingestion_started',
+      type: "ingestion_started",
       track_id: trackId,
-      document_id: 'doc-1',
-      document_name: 'test.txt',
+      document_id: "doc-1",
+      document_name: "test.txt",
       started_at: new Date().toISOString(),
       estimated_duration_ms: durationMs,
     });
-    
+
     stages.forEach((stage, index) => {
       setTimeout(() => {
         this.broadcast({
-          type: 'stage_started',
+          type: "stage_started",
           track_id: trackId,
           stage,
           started_at: new Date().toISOString(),
         });
-        
+
         // Simulate progress
         for (let p = 10; p <= 100; p += 10) {
           setTimeout(() => {
             this.broadcast({
-              type: 'stage_progress',
+              type: "stage_progress",
               track_id: trackId,
               stage,
               progress: p,
             });
           }, (p / 100) * (stageDelay - 100));
         }
-        
+
         setTimeout(() => {
           this.broadcast({
-            type: 'stage_completed',
+            type: "stage_completed",
             track_id: trackId,
             stage,
             completed_at: new Date().toISOString(),
@@ -1063,12 +1091,12 @@ export class MockWebSocketServer {
         }, stageDelay - 50);
       }, index * stageDelay);
     });
-    
+
     setTimeout(() => {
       this.broadcast({
-        type: 'ingestion_completed',
+        type: "ingestion_completed",
         track_id: trackId,
-        document_id: 'doc-1',
+        document_id: "doc-1",
         completed_at: new Date().toISOString(),
         total_duration_ms: durationMs,
         summary: {
@@ -1088,50 +1116,50 @@ export class MockWebSocketServer {
 ```typescript
 // __tests__/components/ingestion-progress-panel.test.tsx
 
-import { render, screen, waitFor } from '@testing-library/react';
-import { IngestionProgressPanel } from '@/components/documents/ingestion-progress-panel';
-import { MockWebSocketServer } from '@/lib/websocket/__mocks__/mock-websocket';
+import { render, screen, waitFor } from "@testing-library/react";
+import { IngestionProgressPanel } from "@/components/documents/ingestion-progress-panel";
+import { MockWebSocketServer } from "@/lib/websocket/__mocks__/mock-websocket";
 
-describe('IngestionProgressPanel', () => {
+describe("IngestionProgressPanel", () => {
   let mockServer: MockWebSocketServer;
-  
+
   beforeEach(() => {
     mockServer = new MockWebSocketServer();
     // Inject mock server
   });
-  
-  it('displays real-time progress updates', async () => {
+
+  it("displays real-time progress updates", async () => {
     render(
-      <IngestionProgressPanel
-        trackId="test-track"
-        documentName="test.txt"
-      />
+      <IngestionProgressPanel trackId="test-track" documentName="test.txt" />
     );
-    
+
     // Simulate ingestion
-    mockServer.simulateIngestion('test-track', 5000);
-    
+    mockServer.simulateIngestion("test-track", 5000);
+
     // Check initial state
-    expect(screen.getByText('test.txt')).toBeInTheDocument();
-    
+    expect(screen.getByText("test.txt")).toBeInTheDocument();
+
     // Wait for progress
     await waitFor(() => {
       expect(screen.getByText(/preprocessing/i)).toBeInTheDocument();
     });
-    
+
     // Wait for completion
-    await waitFor(() => {
-      expect(screen.getByText('100%')).toBeInTheDocument();
-    }, { timeout: 6000 });
+    await waitFor(
+      () => {
+        expect(screen.getByText("100%")).toBeInTheDocument();
+      },
+      { timeout: 6000 }
+    );
   });
-  
-  it('handles connection loss gracefully', async () => {
+
+  it("handles connection loss gracefully", async () => {
     // Simulate disconnect and reconnect
   });
-  
-  it('calls onComplete when ingestion finishes', async () => {
+
+  it("calls onComplete when ingestion finishes", async () => {
     const onComplete = vi.fn();
-    
+
     render(
       <IngestionProgressPanel
         trackId="test-track"
@@ -1139,12 +1167,15 @@ describe('IngestionProgressPanel', () => {
         onComplete={onComplete}
       />
     );
-    
-    mockServer.simulateIngestion('test-track', 1000);
-    
-    await waitFor(() => {
-      expect(onComplete).toHaveBeenCalledTimes(1);
-    }, { timeout: 2000 });
+
+    mockServer.simulateIngestion("test-track", 1000);
+
+    await waitFor(
+      () => {
+        expect(onComplete).toHaveBeenCalledTimes(1);
+      },
+      { timeout: 2000 }
+    );
   });
 });
 ```
@@ -1169,7 +1200,8 @@ NEXT_PUBLIC_WS_HEARTBEAT_INTERVAL=30000
 // src/lib/config.ts
 
 export function getWebSocketUrl(): string {
-  const baseUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:9621/api/v1/ws';
+  const baseUrl =
+    process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:9621/api/v1/ws";
   const tenant = getCurrentTenant();
   return `${baseUrl}/progress?tenant=${tenant}`;
 }

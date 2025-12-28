@@ -62,13 +62,13 @@
 
 ### 1.2 Endpoint Categories
 
-| Category | Base Path | Purpose |
-|----------|-----------|---------|
-| Documents | `/documents` | Document CRUD, upload, reprocess |
-| Lineage | `/documents/{id}/lineage`, `/chunks` | Lineage tracking |
-| Progress | `/documents/track/{id}`, WebSocket | Real-time status |
-| Cost | `/costs` | Cost tracking and summaries |
-| Entities | `/entities/{id}/provenance` | Entity source tracking |
+| Category  | Base Path                            | Purpose                          |
+| --------- | ------------------------------------ | -------------------------------- |
+| Documents | `/documents`                         | Document CRUD, upload, reprocess |
+| Lineage   | `/documents/{id}/lineage`, `/chunks` | Lineage tracking                 |
+| Progress  | `/documents/track/{id}`, WebSocket   | Real-time status                 |
+| Cost      | `/costs`                             | Cost tracking and summaries      |
+| Entities  | `/entities/{id}/provenance`          | Entity source tracking           |
 
 ---
 
@@ -103,8 +103,8 @@ interface ChunkLineage {
   start_offset: number;
   end_offset: number;
   token_count: number;
-  entities: string[];  // Entity IDs
-  relationships: string[];  // Relationship keys
+  entities: string[]; // Entity IDs
+  relationships: string[]; // Relationship keys
   extraction_metadata: ExtractionMetadata;
 }
 
@@ -233,7 +233,7 @@ interface CostSummaryResponse {
 }
 
 interface PeriodCost {
-  period: string;  // ISO date
+  period: string; // ISO date
   cost_usd: number;
   documents: number;
 }
@@ -273,12 +273,12 @@ interface ChunkSource {
   chunk_id: string;
   start_line: number;
   end_line: number;
-  source_text: string;  // Excerpt
+  source_text: string; // Excerpt
 }
 
 interface DescriptionHistoryEntry {
   description: string;
-  source: 'extraction' | 'merge' | 'manual';
+  source: "extraction" | "merge" | "manual";
   created_at: string;
 }
 
@@ -311,7 +311,7 @@ interface EntityImpact {
   entity_id: string;
   entity_name: string;
   other_source_count: number;
-  action: 'update' | 'remove';
+  action: "update" | "remove";
 }
 
 interface RelationshipImpact {
@@ -319,7 +319,7 @@ interface RelationshipImpact {
   source_name: string;
   target_name: string;
   other_source_count: number;
-  action: 'update' | 'remove';
+  action: "update" | "remove";
 }
 ```
 
@@ -452,17 +452,17 @@ export interface IngestionProgress {
   completed_at?: string;
 }
 
-export type IngestionStatus = 
-  | 'pending' 
-  | 'preprocessing' 
-  | 'chunking' 
-  | 'extracting' 
-  | 'merging' 
-  | 'embedding' 
-  | 'indexing' 
-  | 'completed' 
-  | 'failed' 
-  | 'cancelled';
+export type IngestionStatus =
+  | "pending"
+  | "preprocessing"
+  | "chunking"
+  | "extracting"
+  | "merging"
+  | "embedding"
+  | "indexing"
+  | "completed"
+  | "failed"
+  | "cancelled";
 
 export interface ProgressDetail {
   current_stage: IngestionStatus;
@@ -474,7 +474,7 @@ export interface ProgressDetail {
 
 export interface StageProgress {
   stage: IngestionStatus;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: "pending" | "running" | "completed" | "failed";
   total_items: number;
   completed_items: number;
   started_at?: string;
@@ -501,16 +501,47 @@ export interface IngestionError {
 // ============================================================================
 
 export type WebSocketMessage =
-  | { type: 'auth'; token: string }
-  | { type: 'auth_ok' }
-  | { type: 'subscribe'; channel: 'ingestion'; track_id: string }
-  | { type: 'subscribed'; channel: string; track_id: string }
-  | { type: 'unsubscribe'; channel: string; track_id: string }
-  | { type: 'progress'; track_id: string; stage: string; completion_percentage: number; message: string; timestamp: string }
-  | { type: 'cost_update'; track_id: string; cost: Partial<IngestionCost>; timestamp: string }
-  | { type: 'stage_completed'; track_id: string; stage: string; result: Record<string, unknown>; next_stage?: string; timestamp: string }
-  | { type: 'completed'; track_id: string; document_id: string; result: Record<string, unknown>; cost: IngestionCost; timestamp: string }
-  | { type: 'error'; track_id: string; error: IngestionError; timestamp: string };
+  | { type: "auth"; token: string }
+  | { type: "auth_ok" }
+  | { type: "subscribe"; channel: "ingestion"; track_id: string }
+  | { type: "subscribed"; channel: string; track_id: string }
+  | { type: "unsubscribe"; channel: string; track_id: string }
+  | {
+      type: "progress";
+      track_id: string;
+      stage: string;
+      completion_percentage: number;
+      message: string;
+      timestamp: string;
+    }
+  | {
+      type: "cost_update";
+      track_id: string;
+      cost: Partial<IngestionCost>;
+      timestamp: string;
+    }
+  | {
+      type: "stage_completed";
+      track_id: string;
+      stage: string;
+      result: Record<string, unknown>;
+      next_stage?: string;
+      timestamp: string;
+    }
+  | {
+      type: "completed";
+      track_id: string;
+      document_id: string;
+      result: Record<string, unknown>;
+      cost: IngestionCost;
+      timestamp: string;
+    }
+  | {
+      type: "error";
+      track_id: string;
+      error: IngestionError;
+      timestamp: string;
+    };
 
 export interface WebSocketState {
   connected: boolean;
@@ -529,9 +560,13 @@ export interface WebSocketState {
 ```typescript
 // src/hooks/use-lineage.ts
 
-import { useQuery } from '@tanstack/react-query';
-import { getDocumentLineage, getChunkDetail, getEntityProvenance } from '@/lib/api/edgequake';
-import { queryKeys } from '@/lib/api/query-keys';
+import { useQuery } from "@tanstack/react-query";
+import {
+  getDocumentLineage,
+  getChunkDetail,
+  getEntityProvenance,
+} from "@/lib/api/edgequake";
+import { queryKeys } from "@/lib/api/query-keys";
 
 export function useDocumentLineage(documentId: string) {
   return useQuery({
@@ -575,9 +610,9 @@ export function useDocumentImpact(documentId: string, enabled = false) {
 ```typescript
 // src/hooks/use-cost.ts
 
-import { useQuery } from '@tanstack/react-query';
-import { getIngestionCost, getCostSummary } from '@/lib/api/edgequake';
-import { queryKeys } from '@/lib/api/query-keys';
+import { useQuery } from "@tanstack/react-query";
+import { getIngestionCost, getCostSummary } from "@/lib/api/edgequake";
+import { queryKeys } from "@/lib/api/query-keys";
 
 export function useIngestionCost(trackId: string) {
   return useQuery({
@@ -591,7 +626,7 @@ export function useIngestionCost(trackId: string) {
 export function useCostSummary(options?: {
   startDate?: string;
   endDate?: string;
-  groupBy?: 'day' | 'week' | 'month';
+  groupBy?: "day" | "week" | "month";
 }) {
   return useQuery({
     queryKey: queryKeys.costs.summary(options),
@@ -602,13 +637,13 @@ export function useCostSummary(options?: {
 
 export function useBudgetStatus() {
   const { data: summary } = useCostSummary();
-  
+
   return {
     budget: summary?.budget ?? null,
     isOverBudget: summary?.budget?.is_over_budget ?? false,
     remainingBudget: summary?.budget?.remaining_usd ?? 0,
-    spentPercent: summary?.budget 
-      ? (summary.budget.spent_usd / summary.budget.monthly_budget_usd) * 100 
+    spentPercent: summary?.budget
+      ? (summary.budget.spent_usd / summary.budget.monthly_budget_usd) * 100
       : 0,
   };
 }
@@ -619,17 +654,18 @@ export function useBudgetStatus() {
 ```typescript
 // src/hooks/use-ingestion-progress.ts
 
-import { useEffect, useCallback } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getTrackStatus } from '@/lib/api/edgequake';
-import { useIngestionStore } from '@/stores/use-ingestion-store';
-import { useWebSocket } from './use-websocket';
-import { queryKeys } from '@/lib/api/query-keys';
-import type { IngestionProgress, WebSocketMessage } from '@/types';
+import { useEffect, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getTrackStatus } from "@/lib/api/edgequake";
+import { useIngestionStore } from "@/stores/use-ingestion-store";
+import { useWebSocket } from "./use-websocket";
+import { queryKeys } from "@/lib/api/query-keys";
+import type { IngestionProgress, WebSocketMessage } from "@/types";
 
 export function useIngestionProgress(trackId: string) {
   const queryClient = useQueryClient();
-  const { activeJobs, updateProgress, completeJob, failJob } = useIngestionStore();
+  const { activeJobs, updateProgress, completeJob, failJob } =
+    useIngestionStore();
   const { subscribe, unsubscribe, connected } = useWebSocket();
 
   // Fallback polling when WebSocket not available
@@ -649,31 +685,41 @@ export function useIngestionProgress(trackId: string) {
     if (!trackId || !connected) return;
 
     const handleMessage = (message: WebSocketMessage) => {
-      if (message.type === 'progress' && message.track_id === trackId) {
+      if (message.type === "progress" && message.track_id === trackId) {
         updateProgress(trackId, {
           stage: message.stage,
           percentage: message.completion_percentage,
           message: message.message,
         });
-      } else if (message.type === 'completed' && message.track_id === trackId) {
+      } else if (message.type === "completed" && message.track_id === trackId) {
         completeJob(trackId, message.result);
         queryClient.invalidateQueries({ queryKey: queryKeys.documents.list() });
-      } else if (message.type === 'error' && message.track_id === trackId) {
+      } else if (message.type === "error" && message.track_id === trackId) {
         failJob(trackId, message.error);
       }
     };
 
-    subscribe('ingestion', trackId, handleMessage);
-    return () => unsubscribe('ingestion', trackId);
-  }, [trackId, connected, subscribe, unsubscribe, updateProgress, completeJob, failJob, queryClient]);
+    subscribe("ingestion", trackId, handleMessage);
+    return () => unsubscribe("ingestion", trackId);
+  }, [
+    trackId,
+    connected,
+    subscribe,
+    unsubscribe,
+    updateProgress,
+    completeJob,
+    failJob,
+    queryClient,
+  ]);
 
   // Return real-time data from store or polled data as fallback
   const liveProgress = activeJobs.get(trackId);
-  
+
   return {
     progress: liveProgress ?? polledStatus,
     isLive: connected && !!liveProgress,
-    isComplete: polledStatus?.is_complete ?? liveProgress?.status === 'completed',
+    isComplete:
+      polledStatus?.is_complete ?? liveProgress?.status === "completed",
   };
 }
 
@@ -690,28 +736,29 @@ export function useActiveIngestions() {
 
 export const queryKeys = {
   // ... existing keys ...
-  
+
   lineage: {
-    document: (id: string) => ['lineage', 'document', id] as const,
-    chunk: (id: string) => ['lineage', 'chunk', id] as const,
-    chunks: (docId: string) => ['lineage', 'chunks', docId] as const,
+    document: (id: string) => ["lineage", "document", id] as const,
+    chunk: (id: string) => ["lineage", "chunk", id] as const,
+    chunks: (docId: string) => ["lineage", "chunks", docId] as const,
   },
-  
+
   costs: {
-    ingestion: (trackId: string) => ['costs', 'ingestion', trackId] as const,
-    summary: (options?: Record<string, unknown>) => ['costs', 'summary', options] as const,
-    document: (docId: string) => ['costs', 'document', docId] as const,
+    ingestion: (trackId: string) => ["costs", "ingestion", trackId] as const,
+    summary: (options?: Record<string, unknown>) =>
+      ["costs", "summary", options] as const,
+    document: (docId: string) => ["costs", "document", docId] as const,
   },
-  
+
   entities: {
     // ... existing keys ...
-    provenance: (id: string) => ['entities', id, 'provenance'] as const,
+    provenance: (id: string) => ["entities", id, "provenance"] as const,
   },
-  
+
   documents: {
     // ... existing keys ...
-    track: (trackId: string) => ['documents', 'track', trackId] as const,
-    impact: (id: string) => ['documents', id, 'impact'] as const,
+    track: (trackId: string) => ["documents", "track", trackId] as const,
+    impact: (id: string) => ["documents", id, "impact"] as const,
   },
 };
 ```
@@ -729,19 +776,27 @@ export const queryKeys = {
 // Lineage
 // ============================================================================
 
-export async function getDocumentLineage(documentId: string): Promise<DocumentLineageResponse> {
+export async function getDocumentLineage(
+  documentId: string
+): Promise<DocumentLineageResponse> {
   return api.get<DocumentLineageResponse>(`/documents/${documentId}/lineage`);
 }
 
-export async function getChunkDetail(chunkId: string): Promise<ChunkDetailResponse> {
+export async function getChunkDetail(
+  chunkId: string
+): Promise<ChunkDetailResponse> {
   return api.get<ChunkDetailResponse>(`/chunks/${chunkId}`);
 }
 
-export async function getEntityProvenance(entityId: string): Promise<EntityProvenanceResponse> {
+export async function getEntityProvenance(
+  entityId: string
+): Promise<EntityProvenanceResponse> {
   return api.get<EntityProvenanceResponse>(`/entities/${entityId}/provenance`);
 }
 
-export async function getDocumentImpact(documentId: string): Promise<DocumentImpactResponse> {
+export async function getDocumentImpact(
+  documentId: string
+): Promise<DocumentImpactResponse> {
   return api.get<DocumentImpactResponse>(`/documents/${documentId}/impact`);
 }
 
@@ -749,35 +804,44 @@ export async function getDocumentImpact(documentId: string): Promise<DocumentImp
 // Costs
 // ============================================================================
 
-export async function getIngestionCost(trackId: string): Promise<IngestionCostResponse> {
+export async function getIngestionCost(
+  trackId: string
+): Promise<IngestionCostResponse> {
   return api.get<IngestionCostResponse>(`/costs/${trackId}`);
 }
 
 export async function getCostSummary(options?: {
   startDate?: string;
   endDate?: string;
-  groupBy?: 'day' | 'week' | 'month';
+  groupBy?: "day" | "week" | "month";
 }): Promise<CostSummaryResponse> {
   const params = new URLSearchParams();
-  if (options?.startDate) params.set('start_date', options.startDate);
-  if (options?.endDate) params.set('end_date', options.endDate);
-  if (options?.groupBy) params.set('group_by', options.groupBy);
-  
+  if (options?.startDate) params.set("start_date", options.startDate);
+  if (options?.endDate) params.set("end_date", options.endDate);
+  if (options?.groupBy) params.set("group_by", options.groupBy);
+
   const query = params.toString();
-  return api.get<CostSummaryResponse>(`/costs/summary${query ? `?${query}` : ''}`);
+  return api.get<CostSummaryResponse>(
+    `/costs/summary${query ? `?${query}` : ""}`
+  );
 }
 
 // ============================================================================
 // Ingestion Control
 // ============================================================================
 
-export async function cancelIngestion(trackId: string): Promise<{ message: string }> {
+export async function cancelIngestion(
+  trackId: string
+): Promise<{ message: string }> {
   return api.post<{ message: string }>(`/tasks/${trackId}/cancel`);
 }
 
-export async function retryIngestion(trackId: string, options?: {
-  configOverrides?: Partial<IngestionConfig>;
-}): Promise<{ track_id: string; message: string }> {
+export async function retryIngestion(
+  trackId: string,
+  options?: {
+    configOverrides?: Partial<IngestionConfig>;
+  }
+): Promise<{ track_id: string; message: string }> {
   return api.post<{ track_id: string; message: string }>(
     `/tasks/${trackId}/retry`,
     options
@@ -790,7 +854,7 @@ export async function retryIngestion(trackId: string, options?: {
 ```typescript
 // src/lib/api/websocket.ts (NEW)
 
-import type { WebSocketMessage, WebSocketState } from '@/types';
+import type { WebSocketMessage, WebSocketState } from "@/types";
 
 type MessageHandler = (message: WebSocketMessage) => void;
 
@@ -810,7 +874,7 @@ class WebSocketClient {
   private stateListeners = new Set<(state: WebSocketState) => void>();
 
   constructor(baseUrl: string) {
-    const wsUrl = baseUrl.replace(/^http/, 'ws');
+    const wsUrl = baseUrl.replace(/^http/, "ws");
     this.url = `${wsUrl}/api/v1/ws/progress`;
   }
 
@@ -819,20 +883,24 @@ class WebSocketClient {
     return new Promise((resolve, reject) => {
       try {
         this.ws = new WebSocket(this.url);
-        
+
         this.ws.onopen = () => {
-          this.send({ type: 'auth', token: this.token! });
+          this.send({ type: "auth", token: this.token! });
         };
 
         this.ws.onmessage = (event) => {
           const message = JSON.parse(event.data) as WebSocketMessage;
-          
-          if (message.type === 'auth_ok') {
+
+          if (message.type === "auth_ok") {
             this.updateState({ connected: true, reconnecting: false });
             this.reconnectAttempts = 0;
             // Resubscribe to previous subscriptions
-            this.state.subscriptions.forEach(trackId => {
-              this.send({ type: 'subscribe', channel: 'ingestion', track_id: trackId });
+            this.state.subscriptions.forEach((trackId) => {
+              this.send({
+                type: "subscribe",
+                channel: "ingestion",
+                track_id: trackId,
+              });
             });
             resolve();
           } else {
@@ -846,7 +914,7 @@ class WebSocketClient {
         };
 
         this.ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
+          console.error("WebSocket error:", error);
           reject(error);
         };
       } catch (error) {
@@ -857,13 +925,16 @@ class WebSocketClient {
 
   private attemptReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts || !this.token) {
-      this.updateState({ reconnecting: false, error: 'Max reconnect attempts reached' });
+      this.updateState({
+        reconnecting: false,
+        error: "Max reconnect attempts reached",
+      });
       return;
     }
 
     this.updateState({ reconnecting: true });
     this.reconnectAttempts++;
-    
+
     setTimeout(() => {
       this.connect(this.token!).catch(() => {
         this.attemptReconnect();
@@ -873,16 +944,16 @@ class WebSocketClient {
 
   subscribe(channel: string, trackId: string, handler: MessageHandler) {
     const key = `${channel}:${trackId}`;
-    
+
     if (!this.messageHandlers.has(key)) {
       this.messageHandlers.set(key, new Set());
     }
     this.messageHandlers.get(key)!.add(handler);
-    
+
     this.state.subscriptions.add(trackId);
-    
+
     if (this.state.connected) {
-      this.send({ type: 'subscribe', channel, track_id: trackId });
+      this.send({ type: "subscribe", channel, track_id: trackId });
     }
   }
 
@@ -890,22 +961,22 @@ class WebSocketClient {
     const key = `${channel}:${trackId}`;
     this.messageHandlers.delete(key);
     this.state.subscriptions.delete(trackId);
-    
+
     if (this.state.connected) {
-      this.send({ type: 'unsubscribe', channel, track_id: trackId });
+      this.send({ type: "unsubscribe", channel, track_id: trackId });
     }
   }
 
   private handleMessage(message: WebSocketMessage) {
-    if ('track_id' in message) {
+    if ("track_id" in message) {
       const key = `ingestion:${message.track_id}`;
       const handlers = this.messageHandlers.get(key);
-      handlers?.forEach(handler => handler(message));
+      handlers?.forEach((handler) => handler(message));
     }
-    
+
     // Also notify global handlers
-    const globalHandlers = this.messageHandlers.get('*');
-    globalHandlers?.forEach(handler => handler(message));
+    const globalHandlers = this.messageHandlers.get("*");
+    globalHandlers?.forEach((handler) => handler(message));
   }
 
   private send(message: object) {
@@ -916,7 +987,7 @@ class WebSocketClient {
 
   private updateState(partial: Partial<WebSocketState>) {
     this.state = { ...this.state, ...partial };
-    this.stateListeners.forEach(listener => listener(this.state));
+    this.stateListeners.forEach((listener) => listener(this.state));
   }
 
   onStateChange(listener: (state: WebSocketState) => void) {
@@ -940,7 +1011,7 @@ let wsClient: WebSocketClient | null = null;
 
 export function getWebSocketClient(): WebSocketClient {
   if (!wsClient) {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
     wsClient = new WebSocketClient(baseUrl);
   }
   return wsClient;
@@ -976,25 +1047,25 @@ export class ApiError extends Error {
     public details?: Record<string, unknown>
   ) {
     super(message);
-    this.name = 'ApiError';
+    this.name = "ApiError";
   }
 
   get isRetryable(): boolean {
-    return ['E003', 'E007', 'E008', 'E009', 'E010'].includes(this.code);
+    return ["E003", "E007", "E008", "E009", "E010"].includes(this.code);
   }
 
   get userMessage(): string {
     const messages: Record<string, string> = {
-      E001: 'Invalid request. Please check your input.',
-      E002: 'Authentication failed. Please log in again.',
-      E003: 'Rate limit exceeded. Please wait a moment.',
-      E004: 'Document not found.',
-      E005: 'Ingestion job not found.',
-      E006: 'Document is too large. Maximum size is 10MB.',
-      E007: 'LLM service temporarily unavailable.',
-      E008: 'Storage error. Please try again.',
-      E009: 'Extraction failed. The document may not be processable.',
-      E010: 'Embedding failed. Please try again.',
+      E001: "Invalid request. Please check your input.",
+      E002: "Authentication failed. Please log in again.",
+      E003: "Rate limit exceeded. Please wait a moment.",
+      E004: "Document not found.",
+      E005: "Ingestion job not found.",
+      E006: "Document is too large. Maximum size is 10MB.",
+      E007: "LLM service temporarily unavailable.",
+      E008: "Storage error. Please try again.",
+      E009: "Extraction failed. The document may not be processable.",
+      E010: "Embedding failed. Please try again.",
     };
     return messages[this.code] || this.message;
   }
@@ -1004,13 +1075,17 @@ export function handleApiError(error: unknown): ApiError {
   if (error instanceof ApiError) {
     return error;
   }
-  
+
   if (error instanceof Response) {
     // Will be parsed from response
-    return new ApiError('UNKNOWN', 'An unexpected error occurred', error.status);
+    return new ApiError(
+      "UNKNOWN",
+      "An unexpected error occurred",
+      error.status
+    );
   }
-  
-  return new ApiError('UNKNOWN', String(error), 500);
+
+  return new ApiError("UNKNOWN", String(error), 500);
 }
 ```
 
@@ -1019,10 +1094,10 @@ export function handleApiError(error: unknown): ApiError {
 ```typescript
 // src/components/shared/api-error-boundary.tsx
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { AlertCircle, RefreshCw } from 'lucide-react';
-import type { ApiError } from '@/lib/api/errors';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { AlertCircle, RefreshCw } from "lucide-react";
+import type { ApiError } from "@/lib/api/errors";
 
 interface ApiErrorDisplayProps {
   error: ApiError;
@@ -1061,22 +1136,22 @@ export function ApiErrorDisplay({ error, onRetry }: ApiErrorDisplayProps) {
 // Complete query keys reference
 export const QUERY_KEYS = {
   documents: {
-    all: ['documents'],
-    list: (filters) => ['documents', 'list', filters],
-    detail: (id) => ['documents', id],
-    track: (trackId) => ['documents', 'track', trackId],
-    impact: (id) => ['documents', id, 'impact'],
+    all: ["documents"],
+    list: (filters) => ["documents", "list", filters],
+    detail: (id) => ["documents", id],
+    track: (trackId) => ["documents", "track", trackId],
+    impact: (id) => ["documents", id, "impact"],
   },
   lineage: {
-    document: (id) => ['lineage', 'document', id],
-    chunk: (id) => ['lineage', 'chunk', id],
+    document: (id) => ["lineage", "document", id],
+    chunk: (id) => ["lineage", "chunk", id],
   },
   costs: {
-    ingestion: (trackId) => ['costs', 'ingestion', trackId],
-    summary: (options) => ['costs', 'summary', options],
+    ingestion: (trackId) => ["costs", "ingestion", trackId],
+    summary: (options) => ["costs", "summary", options],
   },
   entities: {
-    provenance: (id) => ['entities', id, 'provenance'],
+    provenance: (id) => ["entities", id, "provenance"],
   },
 } as const;
 ```
