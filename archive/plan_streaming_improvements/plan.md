@@ -18,13 +18,12 @@ User reports a black blinking horizontal line during query streaming visible in 
 ```tsx
 // Current problematic code:
 <div className="mt-2 h-1 w-full bg-muted rounded-full overflow-hidden relative">
-  <div 
-    className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/60 to-transparent rounded-full animate-shimmer"
-  />
+  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/60 to-transparent rounded-full animate-shimmer" />
 </div>
 ```
 
 **The shimmer animation**:
+
 - Moves a gradient from left to right across the progress bar
 - Creates a visible "line" effect that's distracting
 - Animation defined in `globals.css` with `translateX(-100%)` to `translateX(400%)`
@@ -34,11 +33,13 @@ User reports a black blinking horizontal line during query streaming visible in 
 Replace the shimmer animation with a simpler, more subtle indeterminate progress indicator:
 
 **Option 1: Simple pulse (CHOSEN)**
+
 - Remove the shimmer overlay entirely
 - Use a simple pulsing progress bar with gradient
 - Less distracting, still shows activity
 
 **Option 2: Determinate dots**
+
 - Use animated dots pattern
 - More discrete, less motion
 

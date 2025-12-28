@@ -13,22 +13,26 @@ Implementing streaming improvements for EdgeQuake as per the 7 planning document
 ### Investigation
 
 1. **Screenshot Analysis**:
+
    - Shows loading state with progress bar
    - Horizontal line moves across the bar
    - Creates distracting visual effect
 
 2. **Code Location**:
+
    - `query-interface.tsx:179` - DetailedLoadingMessage
    - Uses `animate-shimmer` class
    - Shimmer defined in `globals.css:142-149`
 
 3. **Root Cause**:
+
    ```tsx
    // This creates the blinking line:
    <div className="animate-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
    ```
-   
+
    The shimmer animation:
+
    - Translates gradient from -100% to 400%
    - Creates visible "sweep" effect
    - Too prominent for loading indicator
@@ -42,17 +46,20 @@ Implementing streaming improvements for EdgeQuake as per the 7 planning document
 ### Solution Options
 
 A) **Remove shimmer, use simple pulse** ✅ CHOSEN
-   - Cleaner, more subtle
-   - Standard pattern for indeterminate progress
-   - No distracting motion
+
+- Cleaner, more subtle
+- Standard pattern for indeterminate progress
+- No distracting motion
 
 B) Keep shimmer, reduce contrast
-   - Still has motion
-   - May still be distracting
+
+- Still has motion
+- May still be distracting
 
 C) Replace with dots animation
-   - More work
-   - May not fit design system
+
+- More work
+- May not fit design system
 
 ### Implementation
 
@@ -61,7 +68,7 @@ Replace in `query-interface.tsx`:
 ```tsx
 // OLD (lines 177-181):
 <div className="mt-2 h-1 w-full bg-muted rounded-full overflow-hidden relative">
-  <div 
+  <div
     className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/60 to-transparent rounded-full animate-shimmer"
   />
 </div>
@@ -73,6 +80,7 @@ Replace in `query-interface.tsx`:
 ```
 
 **Changes**:
+
 - Removed `relative` positioning and `absolute` child
 - Removed `animate-shimmer`
 - Added simple `animate-pulse` (standard Tailwind)

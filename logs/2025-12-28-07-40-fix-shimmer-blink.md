@@ -18,13 +18,12 @@ The issue was caused by the `animate-shimmer` CSS animation on the progress bar:
 ```tsx
 // BEFORE (problematic code):
 <div className="mt-2 h-1 w-full bg-muted rounded-full overflow-hidden relative">
-  <div 
-    className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/60 to-transparent rounded-full animate-shimmer"
-  />
+  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/60 to-transparent rounded-full animate-shimmer" />
 </div>
 ```
 
 **What the shimmer did**:
+
 - CSS animation defined in `globals.css` that translates a gradient from `-100%` to `400%`
 - Created a visible "sweep" effect across the progress bar
 - Appeared as a black horizontal line moving left to right
@@ -43,6 +42,7 @@ Replaced the shimmer animation with a simple, subtle pulse:
 ```
 
 **Changes**:
+
 1. Removed `relative` positioning from parent
 2. Removed `absolute` positioned child overlay
 3. Removed `animate-shimmer` class
@@ -53,9 +53,11 @@ Replaced the shimmer animation with a simple, subtle pulse:
 ## Files Modified
 
 1. **edgequake_webui/src/components/query/query-interface.tsx**
+
    - Replaced shimmer animation with pulse on progress bar
 
 2. **archive/plan_streaming_improvements/plan.md**
+
    - Added Round 7 documentation
    - Detailed root cause and solution
 
@@ -73,6 +75,7 @@ Replaced the shimmer animation with a simple, subtle pulse:
 ## Next Steps
 
 1. User should test the fix manually:
+
    ```bash
    git checkout fix/remove-shimmer-blink
    make rebuild

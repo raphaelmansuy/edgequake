@@ -46,16 +46,13 @@ export const TableSkeleton = memo(function TableSkeleton({
             <div 
               className={cn(
                 'h-4 rounded bg-zinc-700',
-                'relative overflow-hidden',
                 // Varying widths for natural look
                 i === 0 && 'w-24',
                 i === 1 && 'w-32',
                 i === 2 && 'w-28',
                 i >= 3 && 'w-20',
               )}
-            >
-              <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-zinc-600/30 to-transparent" />
-            </div>
+            />
           </div>
         ))}
       </div>
@@ -83,16 +80,7 @@ export const TableSkeleton = memo(function TableSkeleton({
                   (rowIndex + colIndex) % 3 === 1 && 'w-1/2',
                   (rowIndex + colIndex) % 3 === 2 && 'w-2/3',
                 )}
-                style={{
-                  animationDelay: `${(rowIndex * columns + colIndex) * 50}ms`,
-                }}
               >
-                <div 
-                  className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-zinc-700/30 to-transparent"
-                  style={{
-                    animationDelay: `${(rowIndex * columns + colIndex) * 100}ms`,
-                  }}
-                />
               </div>
             </div>
           ))}
