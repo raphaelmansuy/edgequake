@@ -90,6 +90,8 @@ config.ini
 *.pem
 *.key
 
+open-webui/
+
 # OS files
 Thumbs.db
 ehthumbs.db

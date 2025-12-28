@@ -89,9 +89,33 @@ export function clearTokens(): void {
   }
 }
 
-// Current tenant/workspace context
+// Current tenant/workspace/user context
 let currentTenantId: string | null = null;
 let currentWorkspaceId: string | null = null;
+let currentUserId: string | null = null;
+
+// Generate a UUID v4 for anonymous users
+function generateUUID(): string {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+// Get or create anonymous user ID
+export function getOrCreateUserId(): string {
+  if (typeof window !== "undefined") {
+    let userId = localStorage.getItem("userId");
+    if (!userId) {
+      userId = generateUUID();
+      localStorage.setItem("userId", userId);
+    }
+    return userId;
+  }
+  // For server-side, generate a temporary ID
+  return generateUUID();
+}
 
 export function setTenantContext(tenantId: string, workspaceId?: string): void {
   currentTenantId = tenantId;
@@ -107,12 +131,18 @@ export function setTenantContext(tenantId: string, workspaceId?: string): void {
 export function getTenantContext(): {
   tenantId: string | null;
   workspaceId: string | null;
+  userId: string | null;
 } {
   if (typeof window !== "undefined" && !currentTenantId) {
     currentTenantId = localStorage.getItem("tenantId");
     currentWorkspaceId = localStorage.getItem("workspaceId");
+    currentUserId = getOrCreateUserId();
   }
-  return { tenantId: currentTenantId, workspaceId: currentWorkspaceId };
+  return {
+    tenantId: currentTenantId,
+    workspaceId: currentWorkspaceId,
+    userId: currentUserId,
+  };
 }
 
 // Headers builder
@@ -128,13 +158,16 @@ function buildHeaders(customHeaders?: HeadersInit): Headers {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const { tenantId, workspaceId } = getTenantContext();
+  const { tenantId, workspaceId, userId } = getTenantContext();
   if (tenantId) {
     headers.set("X-Tenant-ID", tenantId);
   }
   if (workspaceId) {
     headers.set("X-Workspace-ID", workspaceId);
   }
+  // Always include user ID for conversation APIs
+  const effectiveUserId = userId || getOrCreateUserId();
+  headers.set("X-User-ID", effectiveUserId);
 
   return headers;
 }
@@ -309,6 +342,8 @@ export async function* streamClient<T>(
 
 // Parse SSE data line(s) and return the content
 // SSE format: "data: <content>" or multiple "data: " lines for multiline content
+// Note: SSE spec says "data:" followed by optional space, then content
+// We need to remove the SSE-mandated space but preserve content-internal spaces
 function parseSSEData(event: string): unknown {
   const lines = event.split("\n");
   const dataChunks: string[] = [];
@@ -316,8 +351,14 @@ function parseSSEData(event: string): unknown {
   for (const line of lines) {
     const trimmed = line.trim();
     if (trimmed.startsWith("data:")) {
-      // Extract content after "data: " - preserve leading space for word separation
-      const content = trimmed.slice(5); // Don't trim start to preserve spaces!
+      // Extract content after "data:"
+      // SSE format allows "data:<content>" or "data: <content>" (with optional space)
+      let content = trimmed.slice(5);
+      // Remove the single SSE-mandated space if present at the start
+      // But preserve the actual token content (which may have its own leading space)
+      if (content.startsWith(" ")) {
+        content = content.slice(1);
+      }
       if (content) {
         dataChunks.push(content);
       }

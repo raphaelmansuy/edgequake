@@ -27,8 +27,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "placeholder-key".to_string()
     });
 
-    // Create application state
-    let state = AppState::new_memory(&api_key);
+    // Create application state - use PostgreSQL if DATABASE_URL is set
+    let state = if let Ok(database_url) = std::env::var("DATABASE_URL") {
+        info!("Using PostgreSQL storage with conversation persistence");
+        AppState::new_postgres(&database_url, &api_key)
+            .await
+            .expect("Failed to initialize PostgreSQL storage")
+    } else {
+        info!("Using in-memory storage (conversations will not persist across restarts)");
+        AppState::new_memory(&api_key)
+    };
 
     // Initialize default tenant and workspace for non-authenticated mode
     if let Err(e) = state.initialize_defaults().await {

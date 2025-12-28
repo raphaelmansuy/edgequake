@@ -1,7 +1,7 @@
 //! API routes.
 
 use axum::{
-    routing::{delete, get, post, put},
+    routing::{delete, get, patch, post, put},
     Router,
 };
 
@@ -109,6 +109,57 @@ fn api_v1_routes() -> Router<AppState> {
         // Query
         .route("/query", post(handlers::execute_query))
         .route("/query/stream", post(handlers::stream_query))
+        // Chat (Unified chat completions API - preferred for client applications)
+        .route("/chat/completions", post(handlers::chat_completion))
+        .route(
+            "/chat/completions/stream",
+            post(handlers::chat_completion_stream),
+        )
+        // Conversations
+        .route("/conversations", get(handlers::list_conversations))
+        .route("/conversations", post(handlers::create_conversation))
+        .route(
+            "/conversations/import",
+            post(handlers::import_conversations),
+        )
+        .route(
+            "/conversations/bulk/delete",
+            post(handlers::bulk_delete_conversations),
+        )
+        .route(
+            "/conversations/bulk/archive",
+            post(handlers::bulk_archive_conversations),
+        )
+        .route(
+            "/conversations/bulk/move",
+            post(handlers::bulk_move_conversations),
+        )
+        .route("/conversations/{id}", get(handlers::get_conversation))
+        .route("/conversations/{id}", patch(handlers::update_conversation))
+        .route("/conversations/{id}", delete(handlers::delete_conversation))
+        .route("/conversations/{id}/messages", get(handlers::list_messages))
+        .route(
+            "/conversations/{id}/messages",
+            post(handlers::create_message),
+        )
+        .route(
+            "/conversations/{id}/share",
+            post(handlers::share_conversation),
+        )
+        .route(
+            "/conversations/{id}/share",
+            delete(handlers::unshare_conversation),
+        )
+        // Messages
+        .route("/messages/{message_id}", patch(handlers::update_message))
+        .route("/messages/{message_id}", delete(handlers::delete_message))
+        // Folders
+        .route("/folders", get(handlers::list_folders))
+        .route("/folders", post(handlers::create_folder))
+        .route("/folders/{folder_id}", patch(handlers::update_folder))
+        .route("/folders/{folder_id}", delete(handlers::delete_folder))
+        // Shared conversations (public access)
+        .route("/shared/{share_id}", get(handlers::get_shared_conversation))
         // Graph
         .route("/graph", get(handlers::get_graph))
         .route("/graph/nodes/{node_id}", get(handlers::get_node))

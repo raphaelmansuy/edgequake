@@ -310,6 +310,123 @@ body.modal-open {
 .stagger-children > *:nth-child(5) { animation-delay: 200ms; }
 
 /* ============================================
+ * STREAMING TEXT ANIMATIONS
+ * ============================================ */
+
+/* Cursor blink animation for streaming */
+@keyframes cursor-blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+.animate-cursor-blink {
+  animation: cursor-blink 0.8s step-end infinite;
+}
+
+/* Token fade-in animation for streaming text */
+@keyframes token-fade-in {
+  from {
+    opacity: 0;
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+.animate-token-fade {
+  animation: token-fade-in 0.15s ease-out forwards;
+}
+
+/* Streaming content indicator */
+.streaming-content {
+  position: relative;
+}
+
+.streaming-content::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--primary) 50%,
+    transparent 100%
+  );
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Enhanced shimmer for table loading */
+@keyframes table-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+.animate-table-shimmer {
+  animation: table-shimmer 1.2s ease-in-out infinite;
+}
+
+/* Thinking section pulse */
+@keyframes thinking-pulse {
+  0%, 100% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+.animate-thinking-pulse {
+  animation: thinking-pulse 2s ease-in-out infinite;
+}
+
+/* Slide in from right for user messages */
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out forwards;
+}
+
+/* Slide in from left for AI messages */
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.3s ease-out forwards;
+}
+
+/* ============================================
  * SLICK UI UTILITIES
  * ============================================ */
 
@@ -618,4 +735,451 @@ select:focus,
 .query-input:focus {
   border-color: oklch(0.65 0.2 290);
   box-shadow: 0 0 0 3px oklch(0.65 0.2 290 / 0.15);
+}
+
+/* ============================================
+ * SYNTAX HIGHLIGHTING - highlight.js integration
+ * Beautiful code block syntax colors
+ * ============================================ */
+
+/* Base code styling */
+code[class*="language-"],
+pre[class*="language-"],
+.hljs {
+  color: oklch(0.88 0.02 265);
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, 'Courier New', monospace;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  text-shadow: none;
+  direction: ltr;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  tab-size: 2;
+  hyphens: none;
+}
+
+/* Light mode syntax colors */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-title.class_,
+.hljs-type {
+  color: oklch(0.55 0.2 280);
+  font-weight: 500;
+}
+
+.hljs-built_in,
+.hljs-builtin-name {
+  color: oklch(0.55 0.18 195);
+}
+
+.hljs-string,
+.hljs-attr,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+  color: oklch(0.52 0.15 145);
+}
+
+.hljs-number,
+.hljs-literal {
+  color: oklch(0.6 0.18 45);
+}
+
+.hljs-comment,
+.hljs-quote,
+.hljs-deletion,
+.hljs-meta {
+  color: oklch(0.5 0 0);
+  font-style: italic;
+}
+
+.hljs-function,
+.hljs-title.function_,
+.hljs-section {
+  color: oklch(0.52 0.18 250);
+}
+
+.hljs-variable,
+.hljs-template-variable,
+.hljs-name {
+  color: oklch(0.55 0.16 15);
+}
+
+.hljs-attribute,
+.hljs-attr-name,
+.hljs-tag {
+  color: oklch(0.55 0.16 195);
+}
+
+.hljs-operator,
+.hljs-punctuation {
+  color: oklch(0.55 0.12 320);
+}
+
+.hljs-regexp,
+.hljs-link {
+  color: oklch(0.55 0.15 35);
+}
+
+.hljs-params {
+  color: oklch(0.6 0.1 265);
+}
+
+.hljs-property {
+  color: oklch(0.52 0.14 210);
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: bold;
+}
+
+/* Dark mode syntax colors - enhanced for readability */
+.dark .hljs-keyword,
+.dark .hljs-selector-tag,
+.dark .hljs-title.class_,
+.dark .hljs-type {
+  color: oklch(0.75 0.18 280);
+  font-weight: 500;
+}
+
+.dark .hljs-built_in,
+.dark .hljs-builtin-name {
+  color: oklch(0.75 0.15 195);
+}
+
+.dark .hljs-string,
+.dark .hljs-attr,
+.dark .hljs-symbol,
+.dark .hljs-bullet,
+.dark .hljs-addition {
+  color: oklch(0.75 0.14 145);
+}
+
+.dark .hljs-number,
+.dark .hljs-literal {
+  color: oklch(0.8 0.16 45);
+}
+
+.dark .hljs-comment,
+.dark .hljs-quote,
+.dark .hljs-deletion,
+.dark .hljs-meta {
+  color: oklch(0.55 0 0);
+  font-style: italic;
+}
+
+.dark .hljs-function,
+.dark .hljs-title.function_,
+.dark .hljs-section {
+  color: oklch(0.78 0.15 210);
+}
+
+.dark .hljs-variable,
+.dark .hljs-template-variable,
+.dark .hljs-name {
+  color: oklch(0.78 0.14 15);
+}
+
+.dark .hljs-attribute,
+.dark .hljs-attr-name,
+.dark .hljs-tag {
+  color: oklch(0.75 0.14 195);
+}
+
+.dark .hljs-operator,
+.dark .hljs-punctuation {
+  color: oklch(0.75 0.1 320);
+}
+
+.dark .hljs-regexp,
+.dark .hljs-link {
+  color: oklch(0.75 0.14 35);
+}
+
+.dark .hljs-params {
+  color: oklch(0.7 0.08 265);
+}
+
+.dark .hljs-property {
+  color: oklch(0.75 0.12 210);
+}
+
+/* ============================================
+ * MARKDOWN PROSE STYLING
+ * Beautiful typography for markdown content
+ * ============================================ */
+
+.markdown-content {
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  font-size: 1rem;
+  line-height: 1.75;
+  color: var(--foreground);
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Headings hierarchy */
+.markdown-content h1 {
+  font-size: 1.875rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  line-height: 1.3;
+}
+
+.markdown-content h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-top: 1.75rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.35;
+}
+
+.markdown-content h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+.markdown-content h4 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.45;
+}
+
+.markdown-content h5,
+.markdown-content h6 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.5;
+}
+
+.markdown-content h6 {
+  color: var(--muted-foreground);
+}
+
+/* Paragraphs */
+.markdown-content p {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  line-height: 1.75;
+}
+
+.markdown-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* Lists with nice markers */
+.markdown-content ul,
+.markdown-content ol {
+  margin: 1rem 0;
+  padding-left: 1.5rem;
+}
+
+.markdown-content ul {
+  list-style-type: disc;
+}
+
+.markdown-content ol {
+  list-style-type: decimal;
+}
+
+.markdown-content li {
+  margin-bottom: 0.375rem;
+  line-height: 1.65;
+  padding-left: 0.25rem;
+}
+
+.markdown-content li::marker {
+  color: var(--muted-foreground);
+}
+
+.markdown-content li > p {
+  margin-bottom: 0.5rem;
+}
+
+/* Nested lists */
+.markdown-content ul ul,
+.markdown-content ol ol,
+.markdown-content ul ol,
+.markdown-content ol ul {
+  margin: 0.5rem 0;
+}
+
+/* Task lists (GFM) */
+.markdown-content input[type="checkbox"] {
+  margin-right: 0.5rem;
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--primary);
+  border-radius: 0.25rem;
+}
+
+/* Blockquotes with accent */
+.markdown-content blockquote {
+  margin: 1.25rem 0;
+  padding: 0.75rem 1rem;
+  border-left: 4px solid var(--primary);
+  background: oklch(from var(--primary) l c h / 0.05);
+  border-radius: 0 0.5rem 0.5rem 0;
+  color: var(--foreground);
+  font-style: normal;
+}
+
+.markdown-content blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-content blockquote blockquote {
+  margin-top: 0.75rem;
+  margin-bottom: 0;
+}
+
+/* Links */
+.markdown-content a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+
+.markdown-content a:hover {
+  color: oklch(from var(--primary) calc(l - 0.1) c h);
+}
+
+/* Strong and emphasis */
+.markdown-content strong {
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.markdown-content em {
+  font-style: italic;
+}
+
+.markdown-content del {
+  text-decoration: line-through;
+  color: var(--muted-foreground);
+}
+
+/* Inline code */
+.markdown-content code:not(pre code) {
+  padding: 0.125rem 0.375rem;
+  background: oklch(0.94 0.01 265);
+  border: 1px solid oklch(0.9 0.01 265);
+  border-radius: 0.375rem;
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+  font-size: 0.875em;
+  color: oklch(0.45 0.1 280);
+  white-space: nowrap;
+}
+
+.dark .markdown-content code:not(pre code) {
+  background: oklch(0.22 0.01 265);
+  border-color: oklch(0.3 0.01 265);
+  color: oklch(0.8 0.08 280);
+}
+
+/* Horizontal rule */
+.markdown-content hr {
+  margin: 2rem 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+/* Images */
+.markdown-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  box-shadow: 0 2px 8px oklch(0 0 0 / 0.1);
+}
+
+/* Tables */
+.markdown-content table {
+  width: 100%;
+  margin: 1rem 0;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.markdown-content thead {
+  background: var(--muted);
+}
+
+.markdown-content th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+
+.markdown-content td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.markdown-content tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.markdown-content tbody tr:hover {
+  background: var(--muted);
+}
+
+/* First child margin fix */
+.markdown-content > *:first-child {
+  margin-top: 0;
+}
+
+/* ============================================
+ * KATEX MATH STYLING
+ * ============================================ */
+
+.katex {
+  font-size: 1.1em !important;
+}
+
+.katex-display {
+  margin: 1.25rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.5rem 0;
+}
+
+.katex-display > .katex {
+  white-space: nowrap;
+}
+
+/* Improve math equation display */
+.markdown-content .math-display {
+  margin: 1rem 0;
+  padding: 1rem;
+  background: var(--muted);
+  border-radius: 0.5rem;
+  overflow-x: auto;
+}
+
+.dark .katex {
+  color: oklch(0.9 0.02 265);
 }

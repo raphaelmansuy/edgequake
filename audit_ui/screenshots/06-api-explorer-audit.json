@@ -1,6 +1,6 @@
 {
   "route": "/api-explorer",
-  "timestamp": "2025-12-25T15:20:18.097Z",
+  "timestamp": "2025-12-27T11:46:25.868Z",
   "viewport": {
     "width": 1280,
     "height": 800
@@ -13,7 +13,7 @@
     "rightPanel": false
   },
   "measurements": {
-    "headerHeight": 64,
+    "headerHeight": 48,
     "sidebarWidth": 256,
     "mainContentWidth": 1024
   },

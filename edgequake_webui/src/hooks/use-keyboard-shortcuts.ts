@@ -50,6 +50,24 @@ export const KEYBOARD_SHORTCUTS: ShortcutDefinition[] = [
     description: "Show keyboard shortcuts",
     modifiers: ["meta"],
   },
+  {
+    key: "n",
+    label: "⌘/Ctrl + N",
+    description: "New conversation",
+    modifiers: ["meta"],
+  },
+  {
+    key: "h",
+    label: "⌘/Ctrl + H",
+    description: "Toggle history panel",
+    modifiers: ["meta"],
+  },
+  {
+    key: "e",
+    label: "⌘/Ctrl + E",
+    description: "Export conversation",
+    modifiers: ["meta"],
+  },
   { key: "?", label: "?", description: "Show keyboard shortcuts help" },
   { key: "Escape", label: "Esc", description: "Close dialogs and modals" },
 ];
@@ -57,6 +75,9 @@ export const KEYBOARD_SHORTCUTS: ShortcutDefinition[] = [
 interface UseKeyboardShortcutsOptions {
   onHelpOpen?: () => void;
   onSearchOpen?: () => void;
+  onNewConversation?: () => void;
+  onToggleHistory?: () => void;
+  onExport?: () => void;
 }
 
 /**

@@ -53,11 +53,7 @@ impl RlsContext {
     ///
     /// # Returns
     /// A guard that will clear the context when dropped.
-    pub async fn new(
-        pool: &PgPool,
-        tenant_id: Uuid,
-        workspace_id: Option<Uuid>,
-    ) -> Result<Self> {
+    pub async fn new(pool: &PgPool, tenant_id: Uuid, workspace_id: Option<Uuid>) -> Result<Self> {
         set_tenant_context(pool, tenant_id, workspace_id).await?;
 
         Ok(Self {
@@ -136,17 +132,15 @@ pub async fn set_tenant_context(
     tenant_id: Uuid,
     workspace_id: Option<Uuid>,
 ) -> Result<()> {
-    let query = if let Some(ws_id) = workspace_id {
-        format!(
-            "SELECT set_tenant_context('{}', '{}')",
-            tenant_id, ws_id
-        )
-    } else {
-        format!(
-            "SELECT set_tenant_context('{}')",
-            tenant_id
-        )
-    };
+    // Always use the 3-parameter form to avoid ambiguity with function overloads
+    let workspace_str = workspace_id
+        .map(|id| format!("'{}'::UUID", id))
+        .unwrap_or_else(|| "NULL::UUID".to_string());
+
+    let query = format!(
+        "SELECT set_tenant_context('{}'::UUID, {}, NULL::UUID)",
+        tenant_id, workspace_str
+    );
 
     sqlx::query(&query)
         .execute(pool)
@@ -179,24 +173,20 @@ pub async fn clear_tenant_context(pool: &PgPool) -> Result<()> {
 
 /// Get the current tenant ID from the session.
 pub async fn get_current_tenant_id(pool: &PgPool) -> Result<Option<Uuid>> {
-    let result: Option<(Option<Uuid>,)> = sqlx::query_as(
-        "SELECT current_tenant_id()"
-    )
-    .fetch_optional(pool)
-    .await
-    .map_err(|e| StorageError::Database(format!("Failed to get tenant ID: {}", e)))?;
+    let result: Option<(Option<Uuid>,)> = sqlx::query_as("SELECT current_tenant_id()")
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| StorageError::Database(format!("Failed to get tenant ID: {}", e)))?;
 
     Ok(result.and_then(|r| r.0))
 }
 
 /// Get the current workspace ID from the session.
 pub async fn get_current_workspace_id(pool: &PgPool) -> Result<Option<Uuid>> {
-    let result: Option<(Option<Uuid>,)> = sqlx::query_as(
-        "SELECT current_workspace_id()"
-    )
-    .fetch_optional(pool)
-    .await
-    .map_err(|e| StorageError::Database(format!("Failed to get workspace ID: {}", e)))?;
+    let result: Option<(Option<Uuid>,)> = sqlx::query_as("SELECT current_workspace_id()")
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| StorageError::Database(format!("Failed to get workspace ID: {}", e)))?;
 
     Ok(result.and_then(|r| r.0))
 }

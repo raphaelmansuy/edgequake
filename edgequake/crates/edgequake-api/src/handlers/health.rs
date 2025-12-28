@@ -1,8 +1,6 @@
 //! Health check handlers.
 
 use axum::{extract::State, Json};
-use edgequake_llm::traits::LLMProvider;
-use edgequake_storage::GraphStorage;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 

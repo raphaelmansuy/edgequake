@@ -1,6 +1,40 @@
 # Documentation Sync - Working Notes
 
-**Status**: Phase 0: Code Discovery | **Last Updated**: 2025-12-25
+**Status**: Phase 0: Code Discovery | **Last Updated**: 2025-12-28
+
+## Recent E2E Testing Notes (2025-12-28)
+
+### Query Page Validation Complete
+
+Successfully tested the EdgeQuake WebUI Query page with Playwright browser automation:
+
+**Bug Fixes Applied:**
+
+1. **API Client Authentication** (`src/lib/api/client.ts`):
+
+   - Added anonymous user ID generation and persistence
+   - Fixed: Conversation APIs require X-User-ID header
+
+2. **Folders API Response** (`src/lib/api/folders.ts`):
+   - Fixed response type mismatch (array vs object wrapper)
+
+**Verified Working:**
+
+- Conversation creation via "New" button
+- Message sending with Enter key
+- Streaming response display
+- History panel conversation list
+- Switching between conversations
+- Query mode selector (Local/Global/Hybrid/Simple)
+- Markdown rendering with token-based approach
+
+**Architecture Confirmed:**
+
+- Backend: Rust Axum API on port 8080 with InMemory storage
+- Frontend: Next.js 16.1.0 with React Query + Zustand
+- Markdown: StreamingMarkdownRenderer using marked.lexer()
+
+---
 
 ## MANDATORY COUNTS (For Verification)
 

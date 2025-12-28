@@ -22,6 +22,7 @@ edgequake-llm.workspace = true
 edgequake-storage.workspace = true
 edgequake-pipeline.workspace = true
 async-trait.workspace = true
+lru = "0.12"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }

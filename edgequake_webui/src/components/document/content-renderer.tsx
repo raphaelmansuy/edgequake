@@ -1,7 +1,7 @@
 // Smart content renderer that adapts to document MIME type
 'use client';
 
-import { MarkdownRenderer } from '@/components/query/markdown-renderer';
+import { StreamingMarkdownRenderer } from '@/components/query/markdown';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Document } from '@/types';
 import { Suspense, useMemo } from 'react';
@@ -61,10 +61,8 @@ function getRendererForDocument(doc: Document) {
         prose-table:border prose-table:rounded-lg
         prose-thead:bg-muted
       ">
-        <MarkdownRenderer
+        <StreamingMarkdownRenderer
           content={content}
-          enableMath={true}
-          enableMermaid={true}
           className="text-sm leading-relaxed"
         />
       </article>

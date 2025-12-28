@@ -1,0 +1,813 @@
+'use client';
+
+import { cn } from '@/lib/utils';
+import { AlertTriangle, Maximize2, Minimize2, ZoomIn, ZoomOut } from 'lucide-react';
+import { Component, ErrorInfo, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { Components } from 'react-markdown';
+import ReactMarkdown from 'react-markdown';
+import { PrismAsyncLight as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+
+// Import CodeBlock component
+import { CodeBlock } from './code-block';
+
+// Lazy load KaTeX
+let rehypeKatexModule: typeof import('rehype-katex').default | null = null;
+let katexCssLoaded = false;
+
+interface MarkdownRendererProps {
+  content: string;
+  className?: string;
+  enableMath?: boolean;
+  enableMermaid?: boolean;
+  isStreaming?: boolean;
+}
+
+/**
+ * Error boundary for markdown rendering
+ */
+class MarkdownErrorBoundary extends Component<
+  { children: ReactNode; fallback: ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode; fallback: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(): { hasError: boolean } {
+    return { hasError: true };
+  }
+
+  componentDidCatch(_error: Error, _errorInfo: ErrorInfo): void {
+    // Silently handle - fallback will render
+  }
+
+  componentDidUpdate(prevProps: { children: ReactNode; fallback: ReactNode }): void {
+    if (prevProps.children !== this.props.children && this.state.hasError) {
+      this.setState({ hasError: false });
+    }
+  }
+
+  render(): ReactNode {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
+
+/**
+ * Enhanced Mermaid diagram component with zoom controls
+ */
+const MermaidDiagram = memo(function MermaidDiagram({ code }: { code: string }) {
+  const [svg, setSvg] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const renderDiagram = async () => {
+      try {
+        const { default: mermaid } = await import('mermaid');
+
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
+          securityLevel: 'loose',
+          fontFamily: 'inherit',
+        });
+
+        const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
+        const { svg: renderedSvg } = await mermaid.render(id, code);
+
+        if (isMounted) {
+          setSvg(renderedSvg);
+          setError(null);
+        }
+      } catch (err) {
+        console.error('Mermaid render error:', err);
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Failed to render diagram');
+        }
+      }
+    };
+
+    if (code) {
+      renderDiagram();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [code]);
+
+  const handleZoomIn = useCallback(() => {
+    setZoom(z => Math.min(z + 0.25, 3));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setZoom(z => Math.max(z - 0.25, 0.5));
+  }, []);
+
+  const handleZoomReset = useCallback(() => {
+    setZoom(1);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    setIsFullscreen(prev => !prev);
+  }, []);
+
+  if (error) {
+    return (
+      <div 
+        className={cn(
+          'my-4 p-4 rounded-xl border',
+          'bg-red-50 dark:bg-red-900/20',
+          'border-red-200 dark:border-red-800'
+        )}
+      >
+        <div className="flex items-center gap-2 mb-2">
+          <AlertTriangle className="h-4 w-4 text-red-500" />
+          <span className="text-sm font-medium text-red-600 dark:text-red-400">
+            Failed to render Mermaid diagram
+          </span>
+        </div>
+        <p className="text-xs text-red-500 dark:text-red-400 mb-2">{error}</p>
+        <CodeBlock code={code} language="mermaid" showLineNumbers={false} />
+      </div>
+    );
+  }
+
+  if (!svg) {
+    return (
+      <div className="my-4 p-6 bg-muted rounded-xl animate-pulse">
+        <div className="h-32 bg-muted-foreground/10 rounded-lg" />
+      </div>
+    );
+  }
+
+  const DiagramContent = (
+    <div
+      ref={containerRef}
+      className={cn(
+        'mermaid-container my-4 rounded-xl overflow-hidden',
+        'bg-card border border-border',
+        'shadow-sm',
+        isFullscreen && 'fixed inset-4 z-50 my-0 bg-background'
+      )}
+    >
+      {/* Header with controls */}
+      <div 
+        className={cn(
+          'flex items-center justify-between px-4 py-2',
+          'bg-muted/50 border-b border-border'
+        )}
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Mermaid
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleZoomOut}
+            className="p-1.5 rounded hover:bg-muted transition-colors"
+            title="Zoom out"
+            aria-label="Zoom out"
+          >
+            <ZoomOut className="h-4 w-4 text-muted-foreground" />
+          </button>
+          <button
+            onClick={handleZoomReset}
+            className="px-2 py-1 rounded hover:bg-muted transition-colors text-xs text-muted-foreground"
+            title="Reset zoom"
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+          <button
+            onClick={handleZoomIn}
+            className="p-1.5 rounded hover:bg-muted transition-colors"
+            title="Zoom in"
+            aria-label="Zoom in"
+          >
+            <ZoomIn className="h-4 w-4 text-muted-foreground" />
+          </button>
+          <div className="w-px h-4 bg-border mx-1" />
+          <button
+            onClick={toggleFullscreen}
+            className="p-1.5 rounded hover:bg-muted transition-colors"
+            title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+          >
+            {isFullscreen ? (
+              <Minimize2 className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <Maximize2 className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Diagram content */}
+      <div 
+        className={cn(
+          'overflow-auto p-4',
+          isFullscreen && 'h-[calc(100%-48px)]'
+        )}
+      >
+        <div
+          className="flex justify-center transition-transform duration-200"
+          style={{ transform: `scale(${zoom})`, transformOrigin: 'center top' }}
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+      </div>
+    </div>
+  );
+
+  if (isFullscreen) {
+    return (
+      <>
+        {/* Backdrop */}
+        <div 
+          className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm"
+          onClick={toggleFullscreen}
+        />
+        {DiagramContent}
+      </>
+    );
+  }
+
+  return DiagramContent;
+});
+
+/**
+ * Inline code styling
+ */
+const InlineCode = memo(function InlineCode({ 
+  children, 
+  className 
+}: { 
+  children: ReactNode; 
+  className?: string;
+}) {
+  return (
+    <code 
+      className={cn(
+        'px-1.5 py-0.5 rounded-md text-sm font-mono',
+        'bg-[oklch(0.94_0.01_265)] dark:bg-[oklch(0.22_0.01_265)]',
+        'text-[oklch(0.4_0.1_280)] dark:text-[oklch(0.8_0.08_280)]',
+        'border border-[oklch(0.9_0.01_265)] dark:border-[oklch(0.3_0.01_265)]',
+        className
+      )}
+    >
+      {children}
+    </code>
+  );
+});
+
+/**
+ * Enhanced Markdown renderer with beautiful typography
+ */
+export const MarkdownRenderer = memo(function MarkdownRenderer({
+  content,
+  className = '',
+  enableMath = false,  // Temporarily disable math to debug
+  enableMermaid = true,
+  isStreaming = false,
+}: MarkdownRendererProps) {
+  const [rehypeKatex, setRehypeKatex] = useState<typeof import('rehype-katex').default | null>(
+    rehypeKatexModule
+  );
+
+  // Lazy load rehype-katex and CSS
+  useEffect(() => {
+    if (enableMath && !rehypeKatexModule) {
+      if (!katexCssLoaded && typeof document !== 'undefined') {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.27/dist/katex.min.css';
+        link.crossOrigin = 'anonymous';
+        document.head.appendChild(link);
+        katexCssLoaded = true;
+      }
+      
+      import('rehype-katex').then((module) => {
+        rehypeKatexModule = module.default;
+        setRehypeKatex(() => module.default);
+      });
+    }
+  }, [enableMath]);
+
+  // Refs for stable component creation
+  const isStreamingRef = useRef(isStreaming);
+  const enableMermaidRef = useRef(enableMermaid);
+  
+  useEffect(() => {
+    isStreamingRef.current = isStreaming;
+  }, [isStreaming]);
+  
+  useEffect(() => {
+    enableMermaidRef.current = enableMermaid;
+  }, [enableMermaid]);
+
+  // Build plugins
+  const rehypePlugins = useMemo(() => {
+    const plugins: any[] = [];
+    if (enableMath && rehypeKatex && !isStreaming) {
+      plugins.push(rehypeKatex);
+    }
+    return plugins;
+  }, [enableMath, rehypeKatex, isStreaming]);
+
+  const remarkPlugins = useMemo(() => {
+    const plugins: any[] = [remarkGfm];
+    if (enableMath && !isStreaming) {
+      plugins.push(remarkMath);
+    }
+    return plugins;
+  }, [enableMath, isStreaming]);
+
+  // Custom components with beautiful styling
+  const components: any = useMemo(() => ({
+    // Code blocks
+    code(props: any) {
+      if (!props) return null;
+      
+      try {
+        const { className: codeClassName, children } = props;
+        
+        if (!children) return null;
+        
+        const childContent = String(children);
+        const codeContent = childContent.replace(/\n$/, '');
+        
+        const match = /language-(\w+)/.exec(codeClassName || '');
+        const language = match ? match[1] : '';
+
+        // Mermaid diagram (only when not streaming)
+        if (enableMermaidRef.current && language === 'mermaid' && !isStreamingRef.current) {
+          return <MermaidDiagram code={codeContent} />;
+        }
+
+        // Block code with syntax highlighting
+        if (language) {
+          return (
+            <CodeBlock language={language} code={codeContent}>
+              <SyntaxHighlighter
+                style={oneDark as any}
+                language={language}
+                PreTag="div"
+                customStyle={{
+                  margin: 0,
+                  padding: 0,
+                  background: 'transparent',
+                  fontSize: '0.875rem',
+                  lineHeight: '1.6',
+                }}
+                codeTagProps={{
+                  style: {
+                    fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace",
+                  }
+                }}
+              >
+                {codeContent}
+              </SyntaxHighlighter>
+            </CodeBlock>
+          );
+        }
+
+        // Inline code
+        return <InlineCode>{children}</InlineCode>;
+      } catch {
+        return null;
+      }
+    },
+
+    // Paragraphs
+    p(props: any) {
+      if (!props) return null;
+      return (
+        <p className="my-3 leading-7 text-foreground/90">
+          {props.children}
+        </p>
+      );
+    },
+
+    // Headings with proper hierarchy
+    h1(props: any) {
+      if (!props) return null;
+      return (
+        <h1 className="text-2xl font-bold mt-6 mb-3 text-foreground border-b border-border pb-2">
+          {props.children}
+        </h1>
+      );
+    },
+    h2(props: any) {
+      if (!props) return null;
+      return (
+        <h2 className="text-xl font-semibold mt-5 mb-2.5 text-foreground">
+          {props.children}
+        </h2>
+      );
+    },
+    h3(props: any) {
+      if (!props) return null;
+      return (
+        <h3 className="text-lg font-semibold mt-4 mb-2 text-foreground">
+          {props.children}
+        </h3>
+      );
+    },
+    h4(props: any) {
+      if (!props) return null;
+      return (
+        <h4 className="text-base font-semibold mt-4 mb-2 text-foreground">
+          {props.children}
+        </h4>
+      );
+    },
+    h5(props: any) {
+      if (!props) return null;
+      return (
+        <h5 className="text-sm font-semibold mt-3 mb-1.5 text-foreground">
+          {props.children}
+        </h5>
+      );
+    },
+    h6(props: any) {
+      if (!props) return null;
+      return (
+        <h6 className="text-sm font-medium mt-3 mb-1.5 text-muted-foreground">
+          {props.children}
+        </h6>
+      );
+    },
+
+    // Lists with proper spacing
+    ul(props: any) {
+      if (!props) return null;
+      return (
+        <ul className="my-3 ml-6 space-y-1.5 list-disc marker:text-muted-foreground">
+          {props.children}
+        </ul>
+      );
+    },
+    ol(props: any) {
+      if (!props) return null;
+      return (
+        <ol className="my-3 ml-6 space-y-1.5 list-decimal marker:text-muted-foreground">
+          {props.children}
+        </ol>
+      );
+    },
+    li(props: any) {
+      if (!props) return null;
+      return (
+        <li className="pl-1 leading-7">
+          {props.children}
+        </li>
+      );
+    },
+
+    // Blockquotes with accent
+    blockquote(props: any) {
+      if (!props) return null;
+      return (
+        <blockquote 
+          className={cn(
+            'my-4 pl-4 py-2',
+            'border-l-4 border-primary/40',
+            'bg-muted/30 rounded-r-lg',
+            'italic text-muted-foreground'
+          )}
+        >
+          {props.children}
+        </blockquote>
+      );
+    },
+
+    // Tables with proper styling
+    table(props: any) {
+      if (!props) return null;
+      return (
+        <div className="my-4 overflow-x-auto rounded-lg border border-border">
+          <table className="min-w-full divide-y divide-border">
+            {props.children}
+          </table>
+        </div>
+      );
+    },
+    thead(props: any) {
+      if (!props) return null;
+      return (
+        <thead className="bg-muted/50">
+          {props.children}
+        </thead>
+      );
+    },
+    tbody(props: any) {
+      if (!props) return null;
+      return (
+        <tbody className="divide-y divide-border bg-card">
+          {props.children}
+        </tbody>
+      );
+    },
+    tr(props: any) {
+      if (!props) return null;
+      return (
+        <tr className="hover:bg-muted/30 transition-colors">
+          {props.children}
+        </tr>
+      );
+    },
+    th(props: any) {
+      if (!props) return null;
+      return (
+        <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">
+          {props.children}
+        </th>
+      );
+    },
+    td(props: any) {
+      if (!props) return null;
+      return (
+        <td className="px-4 py-3 text-sm text-foreground/90">
+          {props.children}
+        </td>
+      );
+    },
+
+    // Pre (code container)
+    pre(props: any) {
+      if (!props) return null;
+      return (
+        <pre className="overflow-x-auto !bg-transparent !p-0 !m-0">
+          {props.children}
+        </pre>
+      );
+    },
+
+    // Text formatting
+    strong(props: any) {
+      if (!props) return null;
+      return (
+        <strong className="font-semibold text-foreground">
+          {props.children}
+        </strong>
+      );
+    },
+    em(props: any) {
+      if (!props) return null;
+      return <em className="italic">{props.children}</em>;
+    },
+    del(props: any) {
+      if (!props) return null;
+      return (
+        <del className="line-through text-muted-foreground">
+          {props.children}
+        </del>
+      );
+    },
+
+    // Links
+    a(props: any) {
+      if (!props) return null;
+      const { href, children, ...rest } = props;
+      return (
+        <a 
+          href={href} 
+          className={cn(
+            'text-primary underline underline-offset-2',
+            'hover:text-primary/80 transition-colors',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded'
+          )}
+          target="_blank" 
+          rel="noopener noreferrer"
+          {...rest}
+        >
+          {children}
+        </a>
+      );
+    },
+
+    // Horizontal rule
+    hr(props: any) {
+      if (!props) return null;
+      return (
+        <hr 
+          className="my-6 border-t border-border"
+          {...props} 
+        />
+      );
+    },
+
+    // Images
+    img(props: any) {
+      if (!props) return null;
+      const { src, alt, ...rest } = props;
+      return (
+        <img 
+          src={src} 
+          alt={alt ?? ''} 
+          className="max-w-full h-auto rounded-lg my-4 shadow-sm"
+          loading="lazy"
+          {...rest} 
+        />
+      );
+    },
+
+    // Task lists (GFM)
+    input(props: any) {
+      if (!props) return null;
+      return (
+        <input
+          type="checkbox"
+          disabled
+          className="mr-2 h-4 w-4 rounded border-border accent-primary"
+          {...props}
+        />
+      );
+    },
+
+    span(props: any) {
+      if (!props) return null;
+      return <span {...props}>{props.children}</span>;
+    },
+  }), []);
+
+  // Don't render empty content
+  if (!content || typeof content !== 'string') {
+    return null;
+  }
+
+  // Normalize markdown artifacts from streaming/tokenized LLM output
+  // This handles cases where the LLM sends tokens with extra spaces
+  const normalizeMarkdown = (text: string): string => {
+    let result = text;
+    
+    // First, fix common punctuation spacing issues from tokenization
+    // These patterns fix spaces around punctuation that shouldn't have spaces
+    result = result
+      // Fix spaces around periods (but preserve ellipsis)
+      .replace(/\s+\.\s+(?!\.)/g, '. ')
+      // Fix spaces around commas
+      .replace(/\s+,\s+/g, ', ')
+      // Fix spaces around colons (but not in URLs)
+      .replace(/(?<!https?)\s*:\s+/g, ': ')
+      // Fix spaces around semicolons
+      .replace(/\s+;\s+/g, '; ')
+      // Fix spaces around question marks
+      .replace(/\s+\?\s+/g, '? ')
+      // Fix spaces around exclamation marks
+      .replace(/\s+!\s+/g, '! ')
+      // Fix double quotes with internal spaces
+      .replace(/"\s+([^"]+)\s+"/g, '"$1"')
+      .replace(/"\s+/g, '"')
+      .replace(/\s+"/g, '"')
+      // Fix single quotes
+      .replace(/'\s+([^']+)\s+'/g, "'$1'")
+      // Fix parentheses
+      .replace(/\(\s+/g, '(')
+      .replace(/\s+\)/g, ')');
+
+    // Fix code blocks (```language ... ```)
+    result = result
+      .replace(/```\s*(\w+)\s*\n/g, '```$1\n')
+      .replace(/\n\s*```/g, '\n```')
+      // Fix inline code with spaces
+      .replace(/`\s+/g, '`')
+      .replace(/\s+`/g, '`');
+    
+    // Fix headers (### should stay ### )
+    result = result
+      .replace(/^(#+)\s+/gm, '$1 ')
+      .replace(/(\n)(#+)\s+/g, '$1$2 ');
+    
+    // Fix list items - ordered lists (1. 2. 3.)
+    result = result
+      .replace(/^(\d+)\s*\.\s+/gm, '$1. ')
+      .replace(/(\n)(\d+)\s*\.\s+/g, '$1$2. ')
+      // Fix ". " at start of line (likely missing number)
+      .replace(/^(\.\s+)(\S)/gm, '• $2')
+      .replace(/(\n)(\.\s+)(\S)/g, '$1• $3');
+    
+    // Fix unordered lists (- or *)
+    result = result
+      .replace(/^-\s+/gm, '- ')
+      .replace(/(\n)-\s+/g, '$1- ')
+      .replace(/^\*\s+(?!\*)/gm, '- ')
+      .replace(/(\n)\*\s+(?!\*)/g, '$1- ');
+    
+    // Fix blockquotes (> at start of line)
+    result = result
+      .replace(/^>\s+/gm, '> ')
+      .replace(/(\n)>\s+/g, '$1> ');
+    
+    // Fix bold markers
+    result = result
+      .replace(/([.,;:!?]?)\*\*\s+/g, '$1**')
+      .replace(/\s+\*\*([.,;:!?\-]?)/g, '**$1')
+      .replace(/\*\*\s+/g, '**')
+      .replace(/\s+\*\*/g, '**');
+    
+    // Fix italic markers
+    result = result
+      .replace(/(\*)\s+(\S)/g, '$1$2')
+      .replace(/(\S)\s+(\*)/g, '$1$2');
+    
+    // Fix strikethrough
+    result = result
+      .replace(/~~\s+/g, '~~')
+      .replace(/\s+~~/g, '~~');
+    
+    // Fix underscores in identifiers/URLs
+    result = result
+      .replace(/_\s+/g, '_')
+      .replace(/\s+_/g, '_');
+    
+    // Fix URLs
+    result = result
+      .replace(/https\s*:\s*\/\s*\/\s*/g, 'https://')
+      .replace(/http\s*:\s*\/\s*\/\s*/g, 'http://');
+    
+    // Fix entity names in bold (join spaces between capital letters)
+    result = result.replace(/\*\*([^*]+)\*\*/g, (match, content) => {
+      const fixed = content
+        .replace(/\s+-\s*/g, '-')
+        .replace(/\s*-\s+/g, '-')
+        .replace(/([A-Z])\s+([A-Z])/g, '$1$2');
+      return `**${fixed}**`;
+    });
+    
+    // Fix common tokenized words (RAG, API, etc.)
+    result = result
+      .replace(/R\s+A\s+G/gi, 'RAG')
+      .replace(/A\s+P\s+I/gi, 'API')
+      .replace(/U\s+R\s+L/gi, 'URL')
+      .replace(/H\s+T\s+T\s+P/gi, 'HTTP')
+      .replace(/J\s+S\s+O\s+N/gi, 'JSON')
+      .replace(/H\s+T\s+M\s+L/gi, 'HTML')
+      .replace(/C\s+S\s+S/gi, 'CSS')
+      .replace(/S\s+Q\s+L/gi, 'SQL');
+    
+    return result;
+  };
+
+  const safeContent = normalizeMarkdown(content.trim());
+  if (!safeContent) {
+    return null;
+  }
+
+  const contentKey = `md-${safeContent.length}-${safeContent.slice(0, 20).replace(/\W/g, '')}`;
+
+  // Fallback for errors
+  const fallback = (
+    <div className={cn('markdown-content', className)}>
+      <p className="whitespace-pre-wrap break-words leading-7">{safeContent}</p>
+    </div>
+  );
+
+  // During streaming, use fallback for partial content
+  if (isStreaming) {
+    const hasUnclosedBold = (safeContent.match(/\*\*/g) || []).length % 2 !== 0;
+    const hasUnclosedItalic = (safeContent.match(/(?<!\*)\*(?!\*)/g) || []).length % 2 !== 0;
+    const hasUnclosedCode = (safeContent.match(/`/g) || []).length % 2 !== 0;
+    const hasUnclosedCodeBlock = (safeContent.match(/```/g) || []).length % 2 !== 0;
+    
+    if (safeContent.length < 50 || hasUnclosedBold || hasUnclosedItalic || hasUnclosedCode || hasUnclosedCodeBlock) {
+      return fallback;
+    }
+  }
+
+  return (
+    <MarkdownErrorBoundary key={contentKey} fallback={fallback}>
+      <div 
+        className={cn(
+          'markdown-content',
+          // Beautiful prose styling
+          'text-foreground/90',
+          // Proper word breaks
+          'break-words overflow-wrap-anywhere hyphens-auto',
+          className
+        )}
+      >
+        <ReactMarkdown
+          remarkPlugins={remarkPlugins}
+          rehypePlugins={rehypePlugins}
+          components={components}
+        >
+          {safeContent}
+        </ReactMarkdown>
+      </div>
+    </MarkdownErrorBoundary>
+  );
+});
+
+export default MarkdownRenderer;

@@ -1,6 +1,8 @@
 //! API request handlers.
 
 pub mod auth;
+pub mod chat;
+pub mod conversations;
 pub mod documents;
 pub mod entities;
 pub mod graph;
@@ -14,6 +16,8 @@ pub mod tasks;
 pub mod workspaces;
 
 pub use auth::*;
+pub use chat::*;
+pub use conversations::*;
 pub use documents::*;
 pub use entities::*;
 pub use graph::*;

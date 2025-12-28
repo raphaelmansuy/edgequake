@@ -7,6 +7,10 @@ license.workspace = true
 repository.workspace = true
 description = "REST API server for EdgeQuake"
 
+[features]
+default = []
+postgres = ["edgequake-storage/postgres", "dep:sqlx"]
+
 [dependencies]
 edgequake-core = { path = "../edgequake-core" }
 edgequake-storage = { path = "../edgequake-storage" }
@@ -38,6 +42,8 @@ uuid.workspace = true
 futures.workspace = true
 chrono = { version = "0.4", features = ["serde"] }
 async-trait.workspace = true
+sqlx = { workspace = true, optional = true }
+url = "2.5"
 
 # File handling
 sha2 = "0.10"

@@ -10,7 +10,7 @@ repository.workspace = true
 
 [features]
 default = []
-postgres = ["dep:sqlx"]
+postgres = ["dep:sqlx", "dep:chrono"]
 # Enable all storage backends
 full = ["postgres"]
 
@@ -21,9 +21,11 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+uuid = { workspace = true }
 
 # Optional PostgreSQL dependencies
 sqlx = { workspace = true, optional = true }
+chrono = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio-test = { workspace = true }

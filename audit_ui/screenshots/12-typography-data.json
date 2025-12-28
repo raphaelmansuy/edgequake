@@ -1,10 +1,5 @@
 {
   "H1-0": {
-    "fontSize": "18px",
-    "lineHeight": "28px",
-    "fontWeight": "600"
-  },
-  "H1-1": {
     "fontSize": "24px",
     "lineHeight": "32px",
     "fontWeight": "700"

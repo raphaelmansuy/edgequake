@@ -264,17 +264,19 @@ impl QueryEngine {
         stats.context_tokens = context.token_count;
 
         // Step 3: Generate answer (if not context-only or prompt-only)
-        let answer = if request.context_only {
-            String::new()
+        let (answer, generated_tokens) = if request.context_only {
+            (String::new(), 0)
         } else if request.prompt_only {
             // Return the formatted prompt without calling the LLM
-            self.build_prompt(&request.query, &context)
+            (self.build_prompt(&request.query, &context), 0)
         } else {
             let gen_start = std::time::Instant::now();
-            let answer = self.generate_answer(&request.query, &context).await?;
+            let (answer, tokens) = self.generate_answer_with_tokens(&request.query, &context).await?;
             stats.generation_time_ms = gen_start.elapsed().as_millis() as u64;
-            answer
+            (answer, tokens)
         };
+        
+        stats.generated_tokens = generated_tokens;
 
         stats.total_time_ms = start.elapsed().as_millis() as u64;
 
@@ -507,10 +509,10 @@ Provide a clear, accurate answer based on the context above. If the context does
         )
     }
 
-    /// Generate an answer using the LLM.
-    async fn generate_answer(&self, query: &str, context: &QueryContext) -> Result<String> {
+    /// Generate an answer using the LLM and return the token count.
+    async fn generate_answer_with_tokens(&self, query: &str, context: &QueryContext) -> Result<(String, usize)> {
         if context.is_empty() {
-            return Ok("I'm sorry, but I couldn't find any relevant information in my knowledge base to answer your question.".to_string());
+            return Ok(("I'm sorry, but I couldn't find any relevant information in my knowledge base to answer your question.".to_string(), 0));
         }
 
         let context_text = context.to_context_string();
@@ -530,7 +532,7 @@ Provide a clear, accurate answer based on the context above. If the context does
 
         let response = self.llm_provider.complete(&prompt).await?;
 
-        Ok(response.content)
+        Ok((response.content, response.completion_tokens))
     }
 
     /// Get the engine configuration.

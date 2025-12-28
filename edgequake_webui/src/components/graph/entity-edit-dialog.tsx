@@ -247,13 +247,13 @@ export function EntityEditDialog({
     description !== (node?.description || '') ||
     entityType !== ('entity_type' in (node || {}) ? (node as Entity).entity_type : (node as GraphNode)?.node_type);
 
-  if (!node) return null;
-
   // Helper function for copying values
   const handleCopyValue = useCallback(async (value: string, label: string) => {
     await navigator.clipboard.writeText(value);
     toast.success(`${label} copied to clipboard`);
   }, []);
+
+  if (!node) return null;
 
   return (
     <>

@@ -9,6 +9,86 @@
 
 :root {
   /* ============================================
+   * CHAT MESSAGE SYSTEM
+   * ============================================ */
+  
+  /* Message container constraints */
+  --chat-message-max-width: 800px;
+  --chat-message-gap: var(--space-4);
+  
+  /* User message bubble */
+  --chat-user-bg: oklch(0.95 0.02 265);
+  --chat-user-bg-dark: oklch(0.25 0.02 265);
+  --chat-user-text: var(--foreground);
+  --chat-user-radius: var(--rounded-xl);
+  
+  /* Assistant message bubble */
+  --chat-assistant-bg: transparent;
+  --chat-assistant-bg-dark: transparent;
+  --chat-assistant-text: var(--foreground);
+  --chat-assistant-radius: var(--rounded-xl);
+  --chat-assistant-border: oklch(0.9 0.01 265);
+  --chat-assistant-border-dark: oklch(0.3 0.01 265);
+  
+  /* Message shadow (depth) */
+  --chat-message-shadow: 0 1px 3px oklch(0 0 0 / 0.08);
+  --chat-message-shadow-dark: 0 1px 3px oklch(0 0 0 / 0.2);
+  --chat-message-shadow-hover: 0 2px 6px oklch(0 0 0 / 0.12);
+  
+  /* Avatar */
+  --chat-avatar-size: 32px;
+  --chat-avatar-bg: var(--primary);
+  --chat-avatar-text: var(--primary-foreground);
+  
+  /* Metadata footer */
+  --chat-metadata-text: var(--muted-foreground);
+  --chat-metadata-font-size: var(--text-xs);
+  
+  /* Thinking/reasoning section */
+  --chat-thinking-bg: oklch(0.97 0.01 280);
+  --chat-thinking-bg-dark: oklch(0.18 0.01 280);
+  --chat-thinking-border: oklch(0.9 0.02 280);
+  --chat-thinking-border-dark: oklch(0.3 0.02 280);
+
+  /* ============================================
+   * CODE BLOCK SYSTEM
+   * ============================================ */
+  
+  /* Container */
+  --code-block-bg: oklch(0.15 0.01 265);
+  --code-block-bg-dark: oklch(0.12 0.01 265);
+  --code-block-radius: var(--rounded-xl);
+  --code-block-border: oklch(0.25 0.01 265);
+  
+  /* Header bar */
+  --code-header-bg: oklch(0.2 0.01 265);
+  --code-header-bg-dark: oklch(0.16 0.01 265);
+  --code-header-text: oklch(0.7 0.01 265);
+  --code-header-height: 40px;
+  
+  /* Line numbers */
+  --code-line-number-width: 48px;
+  --code-line-number-bg: oklch(0.12 0.01 265);
+  --code-line-number-color: oklch(0.45 0.01 265);
+  
+  /* Code text */
+  --code-font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+  --code-font-size: 0.875rem;
+  --code-line-height: 1.6;
+  --code-text-color: oklch(0.9 0.01 265);
+  
+  /* Copy button */
+  --code-copy-bg: oklch(0.25 0.01 265);
+  --code-copy-bg-hover: oklch(0.35 0.01 265);
+  --code-copy-text: oklch(0.7 0.01 265);
+  
+  /* Inline code */
+  --code-inline-bg: oklch(0.94 0.01 265);
+  --code-inline-bg-dark: oklch(0.22 0.01 265);
+  --code-inline-padding: 0.125em 0.375em;
+  --code-inline-radius: var(--rounded-sm);
+
+  /* ============================================
    * SPACING SCALE (4px base unit)
    * ============================================ */
   --space-0: 0;

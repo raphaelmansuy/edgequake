@@ -5,7 +5,7 @@ use axum::{
     Json,
 };
 use chrono::Utc;
-use edgequake_storage::{GraphEdge, GraphStorage};
+use edgequake_storage::GraphEdge;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use utoipa::ToSchema;

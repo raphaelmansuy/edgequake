@@ -635,3 +635,11 @@ export const edgequakeApi = {
 };
 
 export default edgequakeApi;
+
+// ============================================================================
+// Re-export Conversations API
+// ============================================================================
+
+export * from "./conversations";
+export * from "./folders";
+export * from "./query-keys";

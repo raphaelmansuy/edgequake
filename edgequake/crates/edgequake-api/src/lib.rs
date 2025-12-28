@@ -19,6 +19,7 @@
 //! - `GET /api/v1/graph` - Explore knowledge graph
 //! - `GET /api/v1/health` - Health check
 
+pub mod cache_manager;
 pub mod error;
 pub mod handlers;
 pub mod middleware;
@@ -27,6 +28,10 @@ pub mod processor;
 pub mod routes;
 pub mod server;
 pub mod state;
+pub mod streaming;
+
+#[cfg(feature = "postgres")]
+pub mod postgres_conversation_service;
 
 // Re-export commonly used types
 pub use middleware::TenantContext;
@@ -37,3 +42,6 @@ pub use processor::DocumentTaskProcessor;
 pub use routes::create_router;
 pub use server::{Server, ServerConfig};
 pub use state::AppState;
+
+#[cfg(feature = "postgres")]
+pub use postgres_conversation_service::PostgresConversationService;

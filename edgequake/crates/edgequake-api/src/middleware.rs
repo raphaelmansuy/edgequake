@@ -238,7 +238,7 @@ impl Default for RateLimitConfig {
 
 /// Tenant context extracted from request headers.
 ///
-/// Extracts `X-Tenant-ID` and `X-Workspace-ID` headers from the request.
+/// Extracts `X-Tenant-ID`, `X-Workspace-ID`, and `X-User-ID` headers from the request.
 /// These headers are set by the frontend when a user selects a tenant/workspace.
 #[derive(Debug, Clone, Default)]
 pub struct TenantContext {
@@ -246,6 +246,8 @@ pub struct TenantContext {
     pub tenant_id: Option<String>,
     /// The workspace ID from X-Workspace-ID header.
     pub workspace_id: Option<String>,
+    /// The user ID from X-User-ID header.
+    pub user_id: Option<String>,
 }
 
 impl TenantContext {
@@ -261,9 +263,15 @@ impl TenantContext {
             .and_then(|v| v.to_str().ok())
             .map(|s| s.to_string());
 
+        let user_id = headers
+            .get("x-user-id")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+
         Self {
             tenant_id,
             workspace_id,
+            user_id,
         }
     }
 
@@ -275,6 +283,26 @@ impl TenantContext {
     /// Check if workspace context is set.
     pub fn has_workspace(&self) -> bool {
         self.workspace_id.is_some()
+    }
+
+    /// Check if user context is set.
+    pub fn has_user(&self) -> bool {
+        self.user_id.is_some()
+    }
+
+    /// Get tenant ID as UUID.
+    pub fn tenant_id_uuid(&self) -> Option<uuid::Uuid> {
+        self.tenant_id.as_ref().and_then(|s| uuid::Uuid::parse_str(s).ok())
+    }
+
+    /// Get workspace ID as UUID.
+    pub fn workspace_id_uuid(&self) -> Option<uuid::Uuid> {
+        self.workspace_id.as_ref().and_then(|s| uuid::Uuid::parse_str(s).ok())
+    }
+
+    /// Get user ID as UUID.
+    pub fn user_id_uuid(&self) -> Option<uuid::Uuid> {
+        self.user_id.as_ref().and_then(|s| uuid::Uuid::parse_str(s).ok())
     }
 }
 

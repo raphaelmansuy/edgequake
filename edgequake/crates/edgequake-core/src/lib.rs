@@ -23,7 +23,9 @@
 //! assert_eq!(doc.status, DocumentStatus::Pending);
 //! ```
 
+pub mod cache;
 pub mod config;
+pub mod conversation_service;
 pub mod error;
 pub mod keyword_extractor;
 pub mod orchestrator;
@@ -43,6 +45,9 @@ pub use tenant_manager::{TenantConfig, TenantKBKey, TenantRAGManager, TenantServ
 // Re-export workspace service
 pub use workspace_service::{InMemoryWorkspaceService, WorkspaceService, WorkspaceServiceFactory};
 
+// Re-export conversation service
+pub use conversation_service::{ConversationService, InMemoryConversationService};
+
 // Re-export token budget
 pub use token_budget::{BudgetAllocation, BudgetSource, ContextSource, TokenBudget};
 
@@ -52,9 +57,13 @@ pub use error::{Error, Result};
 pub use orchestrator::{EdgeQuake, EdgeQuakeConfig, StorageBackend, StorageConfig};
 pub use query::QueryEngine;
 pub use types::{
-    Chunk, ContextChunk, ContextEntity, ContextRelationship, CreateWorkspaceRequest, Document,
-    DocumentInfo, DocumentStatus, Embedding, EmbeddingConfig, GraphEntity, GraphRelationship,
-    GraphStats, InsertResult, Membership, MembershipRole, QueryContext, QueryMode, QueryParams,
-    QueryResult, QueryStats, Tenant, TenantContext, TenantPlan, UpdateWorkspaceRequest, Workspace,
-    WorkspaceStats,
+    Chunk, ContextChunk, ContextEntity, ContextRelationship, Conversation, ConversationFilter,
+    ConversationMode, ConversationSortField, CreateConversationRequest, CreateFolderRequest,
+    CreateMessageRequest, CreateWorkspaceRequest, Document, DocumentInfo, DocumentStatus,
+    Embedding, EmbeddingConfig, Folder, GraphEntity, GraphRelationship, GraphStats, ImportError,
+    ImportResult, InsertResult, Membership, MembershipRole, Message, MessageContext, MessageRole,
+    MessageSource, PaginatedConversations, PaginatedMessages, PaginationMeta, QueryContext,
+    QueryMode, QueryParams, QueryResult, QueryStats, Tenant, TenantContext, TenantPlan,
+    UpdateConversationRequest, UpdateFolderRequest, UpdateMessageRequest, UpdateWorkspaceRequest,
+    Workspace, WorkspaceStats,
 };

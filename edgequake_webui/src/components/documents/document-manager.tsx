@@ -581,7 +581,7 @@ export function DocumentManager() {
     let errorCount = 0;
 
     // Get documents to find their track_ids
-    const documents = data?.documents || [];
+    const documents = data?.items || [];
     
     for (const id of idsToReprocess) {
       try {

@@ -23,30 +23,26 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { query as queryApi, queryStream } from '@/lib/api/edgequake';
 import {
-    useActiveConversation,
-    useConversationStore,
-    type ConversationMessage,
-} from '@/stores/use-conversation-store';
+    useConversation,
+    useConversations,
+} from '@/hooks/use-conversations';
+import { chatCompletion, chatCompletionStream } from '@/lib/api/chat';
+import { deleteMessage } from '@/lib/api/conversations';
+import { conversationKeys } from '@/lib/api/query-keys';
+import { useActiveConversationId, useQueryUIStore } from '@/stores/use-query-ui-store';
 import { useSettingsStore } from '@/stores/use-settings-store';
 import { useTenantStore } from '@/stores/use-tenant-store';
-import type { QueryContext } from '@/types';
-import { useMutation } from '@tanstack/react-query';
+import type { QueryContext, ServerMessage } from '@/types';
+import { useQueryClient } from '@tanstack/react-query';
 import {
     BookOpen,
     Brain,
-    Check,
-    ChevronDown,
-    ChevronRight,
-    Clock,
-    Copy,
     Gauge,
     GitBranch,
     Info,
     Lightbulb,
     Plus,
-    RefreshCw,
     Search,
     Send,
     Settings2,
@@ -54,84 +50,63 @@ import {
     Sparkles,
     StopCircle,
     Thermometer,
-    User,
     Zap
 } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { ConversationHistoryPanel } from './conversation-history-panel';
-import { MarkdownRenderer } from './markdown-renderer';
+import { ChatMessage } from './chat-message';
+import { ConversationHistoryPanelV2 } from './conversation-history-panel-v2';
+import { MobileHistoryPanel } from './mobile-history-panel';
 import { QueryModeSelector } from './query-mode-selector';
-import { SourceCitations } from './source-citations';
 import { parseCOTContent } from './thinking-display';
 
 // Streaming state for better UX
 type StreamingState = 'idle' | 'thinking' | 'generating' | 'complete' | 'error';
 
-// Use ConversationMessage from store for local Message type alias
-type Message = ConversationMessage;
+// Query mode type
+type QueryModeType = 'local' | 'global' | 'hybrid' | 'naive';
+
+// Message type compatible with ChatMessageData
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  mode?: QueryModeType;
+  tokensUsed?: number;
+  durationMs?: number;
+  thinkingTimeMs?: number;
+  context?: QueryContext;
+  isError?: boolean;
+  isStreaming?: boolean;
+  timestamp?: number;
+}
 
 // ============================================================================
-// Delightful Loading Indicator - Shows animated placeholder while waiting
+// Delightful Loading Indicator - Shows minimal, smooth placeholder while waiting
 // ============================================================================
 
 const LoadingMessage = memo(function LoadingMessage() {
   const { t } = useTranslation();
   
   return (
-    <div className="flex justify-start mb-4">
+    <div className="flex justify-start mb-4 animate-fade-in">
       <div className="flex items-start gap-3 max-w-[85%]">
         <Avatar className="h-8 w-8 shrink-0 mt-1">
           <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary">
-            <Sparkles className="h-4 w-4 text-primary-foreground animate-pulse" />
+            <Sparkles className="h-4 w-4 text-primary-foreground" />
           </AvatarFallback>
         </Avatar>
 
-        <div className="space-y-3 min-w-0 flex-1">
-          <div className="bg-card border rounded-2xl rounded-tl-sm px-4 py-4">
+        <div className="min-w-0 flex-1">
+          <div className="bg-card border rounded-2xl rounded-tl-sm px-4 py-3">
             <div className="flex items-center gap-3">
-              {/* Animated brain icon */}
-              <div className="relative">
-                <Brain className="h-5 w-5 text-primary" />
-                <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary/60 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+              {/* Simple status indicator - subtle dot that pulses */}
+              <div className="relative flex items-center gap-2">
+                <span className="inline-flex h-2 w-2 rounded-full bg-primary animate-pulse" />
+                <span className="text-sm text-muted-foreground">
+                  {t('query.processing', 'Processing your query...')}
                 </span>
-              </div>
-              
-              {/* Loading text with pulse */}
-              <span className="text-sm text-muted-foreground">
-                {t('query.processing', 'Processing your query...')}
-              </span>
-              
-              {/* Animated dots */}
-              <div className="flex gap-1 ml-2">
-                <span 
-                  className="w-2 h-2 bg-primary rounded-full animate-bounce" 
-                  style={{ animationDelay: '0ms', animationDuration: '0.6s' }} 
-                />
-                <span 
-                  className="w-2 h-2 bg-primary/80 rounded-full animate-bounce" 
-                  style={{ animationDelay: '150ms', animationDuration: '0.6s' }} 
-                />
-                <span 
-                  className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" 
-                  style={{ animationDelay: '300ms', animationDuration: '0.6s' }} 
-                />
-              </div>
-            </div>
-            
-            {/* Progress shimmer effect */}
-            <div className="mt-3 space-y-2">
-              <div className="h-3 bg-muted rounded-full overflow-hidden">
-                <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-foreground/5 to-transparent animate-shimmer" />
-              </div>
-              <div className="h-3 bg-muted rounded-full w-3/4 overflow-hidden">
-                <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-foreground/5 to-transparent animate-shimmer" style={{ animationDelay: '150ms' }} />
-              </div>
-              <div className="h-3 bg-muted rounded-full w-1/2 overflow-hidden">
-                <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-foreground/5 to-transparent animate-shimmer" style={{ animationDelay: '300ms' }} />
               </div>
             </div>
           </div>
@@ -142,226 +117,87 @@ const LoadingMessage = memo(function LoadingMessage() {
 });
 
 // ============================================================================
-// Chat Message Component - SOTA UX with thinking states, copy, actions
+// Non-Streaming Loading Indicator - Delightful multi-phase animation
+// Shows a sophisticated loading experience with visual progression
 // ============================================================================
 
-const ChatMessage = memo(function ChatMessage({
-  message,
-  onCopy,
-  onRegenerate,
-  isLast,
-}: {
-  message: Message;
-  onCopy?: () => void;
-  onRegenerate?: () => void;
-  isLast?: boolean;
-}) {
+const NonStreamingLoadingIndicator = memo(function NonStreamingLoadingIndicator() {
   const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
-  const [thinkingExpanded, setThinkingExpanded] = useState(false);
+  const [phase, setPhase] = useState(0);
+  
+  const phases = [
+    { icon: Search, text: t('query.loading.searching', 'Searching knowledge graph...') },
+    { icon: Brain, text: t('query.loading.analyzing', 'Analyzing relevant context...') },
+    { icon: Sparkles, text: t('query.loading.generating', 'Generating response...') },
+  ];
 
-  const handleCopy = useCallback(async () => {
-    const parsed = parseCOTContent(message.content);
-    const textToCopy = parsed.response || message.content;
-    try {
-      await navigator.clipboard.writeText(textToCopy);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-      onCopy?.();
-    } catch (err) {
-      console.error('Copy failed:', err);
-    }
-  }, [message.content, onCopy]);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPhase((prev) => (prev + 1) % phases.length);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [phases.length]);
 
-  const parsed = parseCOTContent(message.content);
-  const hasThinking = parsed.thinking.length > 0;
-  const displayContent = parsed.response;
+  const CurrentIcon = phases[phase].icon;
+  const currentText = phases[phase].text;
 
-  if (message.role === 'user') {
-    return (
-      <div className="flex justify-end mb-6">
-        <div className="flex items-start gap-3 max-w-[85%]">
-          <div className="bg-primary text-primary-foreground rounded-2xl rounded-tr-sm px-4 py-3 shadow-sm">
-            <p className="whitespace-pre-wrap break-words overflow-wrap-anywhere">{message.content}</p>
-          </div>
-          <Avatar className="h-8 w-8 shrink-0 ring-2 ring-background shadow-sm">
-            <AvatarFallback className="bg-primary/10">
-              <User className="h-4 w-4" />
-            </AvatarFallback>
-          </Avatar>
-        </div>
-      </div>
-    );
-  }
-
-  // Assistant message
   return (
-    <div className="flex justify-start mb-6 group">
-      <div className="flex items-start gap-3 max-w-[85%] min-w-0">
-        <Avatar className="h-8 w-8 shrink-0 mt-1 ring-2 ring-background shadow-sm">
+    <div className="flex justify-start mb-4 animate-fade-in">
+      <div className="flex items-start gap-3 max-w-[85%]">
+        <Avatar className="h-9 w-9 shrink-0 mt-1 ring-2 ring-primary/20 shadow-sm">
           <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary">
             <Sparkles className="h-4 w-4 text-primary-foreground" />
           </AvatarFallback>
         </Avatar>
 
-        <div className="space-y-2 min-w-0 flex-1">
-          {/* Model name like OpenWebUI */}
+        <div className="min-w-0 flex-1 space-y-3">
+          {/* Header */}
           <div className="flex items-center gap-2 text-sm">
             <span className="font-medium text-foreground">EdgeQuake</span>
-            {message.timestamp && (
-              <span className="text-xs text-muted-foreground">
-                {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            )}
           </div>
-          {/* Thinking Section */}
-          {hasThinking && (
-            <div className="rounded-lg border border-muted bg-muted/30">
-              <button
-                onClick={() => setThinkingExpanded(!thinkingExpanded)}
-                className="flex items-center gap-2 w-full p-3 text-left hover:bg-muted/50 transition-colors rounded-t-lg"
-              >
-                {thinkingExpanded ? (
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                )}
-                <Brain className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-foreground/80">
-                  {t('query.reasoning', 'Reasoning')}
-                </span>
-                {message.thinkingTimeMs && (
-                  <span className="text-xs text-muted-foreground ml-auto flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    {(message.thinkingTimeMs / 1000).toFixed(1)}s
-                  </span>
-                )}
-              </button>
-              {thinkingExpanded && (
-                <div className="p-3 pt-0 border-t border-muted">
-                  <div className="text-sm text-muted-foreground whitespace-pre-wrap pl-4 border-l-2 border-muted">
-                    {parsed.thinking.join('\n\n')}
-                  </div>
+          
+          {/* Loading Card */}
+          <div className="bg-card border border-border/60 rounded-2xl rounded-tl-sm px-4 py-4 shadow-[0_1px_4px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_4px_rgba(0,0,0,0.1)]">
+            {/* Phase indicator with smooth transition */}
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                {/* Animated ring around icon */}
+                <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-primary/30 to-primary/10 animate-pulse" />
+                <div className="relative flex items-center justify-center h-8 w-8 rounded-full bg-primary/10">
+                  <CurrentIcon className="h-4 w-4 text-primary animate-pulse" />
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* Main Response */}
-          {(displayContent || message.isStreaming) && (
-            <div className="bg-card border rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
-              {message.isError ? (
-                <p className="text-destructive break-words overflow-wrap-anywhere">{displayContent}</p>
-              ) : displayContent ? (
-                <div className="break-words overflow-wrap-anywhere hyphens-auto">
-                  <MarkdownRenderer
-                    content={displayContent}
-                    isStreaming={message.isStreaming}
-                    className="break-words prose prose-sm max-w-none"
+              </div>
+              
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-foreground transition-all duration-300">
+                  {currentText}
+                </div>
+                
+                {/* Progress bar with shimmer animation */}
+                <div className="mt-2 h-1 w-full bg-muted rounded-full overflow-hidden relative">
+                  <div 
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/60 to-transparent rounded-full animate-shimmer"
                   />
                 </div>
-              ) : null}
-              {message.isStreaming && (
-                <span className="inline-block w-2 h-4 bg-foreground animate-pulse ml-1" />
-              )}
-            </div>
-          )}
-
-          {/* Streaming indicator when in thinking phase */}
-          {message.isStreaming && !displayContent && hasThinking && (
-            <div className="bg-card border rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <div className="flex gap-1">
-                  <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-2 h-2 bg-primary/80 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
-                <span className="text-sm font-medium">{t('query.generating', 'Generating response...')}</span>
               </div>
             </div>
-          )}
 
-          {/* Metadata & Actions */}
-          {!message.isStreaming && displayContent && (
-            <div className={`flex items-center gap-2 transition-opacity ${isLast ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-              {/* Stats */}
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                {message.mode && (
-                  <Badge variant="outline" className="text-xs font-normal">
-                    {message.mode}
-                  </Badge>
-                )}
-                {message.tokensUsed && (
-                  <span className="flex items-center gap-1">
-                    <Zap className="h-3 w-3" />
-                    {message.tokensUsed}
-                  </span>
-                )}
-                {message.durationMs && (
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    {(message.durationMs / 1000).toFixed(1)}s
-                  </span>
-                )}
-              </div>
-
-              {/* Action buttons */}
-              <div className="flex items-center gap-1 ml-auto">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 hover:bg-muted"
-                        onClick={handleCopy}
-                      >
-                        {copied ? (
-                          <Check className="h-3.5 w-3.5 text-green-500" />
-                        ) : (
-                          <Copy className="h-3.5 w-3.5" />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">{t('common.copy', 'Copy')}</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-
-                {isLast && onRegenerate && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 hover:bg-muted"
-                          onClick={onRegenerate}
-                        >
-                          <RefreshCw className="h-3.5 w-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">{t('query.regenerate', 'Regenerate')}</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-              </div>
+            {/* Phase dots */}
+            <div className="flex items-center justify-center gap-2 mt-3">
+              {phases.map((_, i) => (
+                <span
+                  key={i}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    i === phase 
+                      ? 'w-4 bg-primary' 
+                      : i < phase 
+                        ? 'w-1.5 bg-primary/40' 
+                        : 'w-1.5 bg-muted-foreground/20'
+                  }`}
+                />
+              ))}
             </div>
-          )}
-
-          {/* Source Citations */}
-          {message.context && !message.isStreaming && (
-            <div className="mt-2">
-              <SourceCitations
-                context={message.context}
-                onEntityClick={(entityId) => {
-                  window.location.href = `/graph?entity=${encodeURIComponent(entityId)}`;
-                }}
-                onDocumentClick={(documentId) => {
-                  window.location.href = `/documents?id=${encodeURIComponent(documentId)}`;
-                }}
-              />
-            </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
@@ -481,44 +317,114 @@ export function QueryInterface() {
   const [input, setInput] = useState('');
   const [streamingState, setStreamingState] = useState<StreamingState>('idle');
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  const [pendingMessage, setPendingMessage] = useState<Message | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollAnchorRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const thinkingStartRef = useRef<number | null>(null);
+  const hasInitializedRef = useRef(false);
 
+  const queryClient = useQueryClient();
   const { querySettings, setQuerySettings } = useSettingsStore();
   const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
   
-  // Use the new conversation store
-  const {
-    activeConversationId,
-    createConversation,
-    addMessage,
-    updateMessage,
-    autoTitleConversation,
-    clearActiveConversation,
-  } = useConversationStore();
+  // Use the new server-synced state
+  const store = useQueryUIStore();
+  const activeConversationId = useActiveConversationId();
   
-  const activeConversation = useActiveConversation();
+  // Server state for active conversation
+  const { data: activeConversation, isLoading: isLoadingConversation } = useConversation(activeConversationId);
   
-  // Memoize messages to avoid dependency issues with hooks
-  const messages = useMemo(() => activeConversation?.messages ?? [], [activeConversation?.messages]);
-
-  // Wrapper to maintain API compatibility
-  const setMessages = useCallback((msgs: Message[]) => {
-    // For setMessages, we need to clear and re-add
-    // This is less efficient but maintains compatibility
-    clearActiveConversation();
-    msgs.forEach(m => addMessage(m));
-  }, [clearActiveConversation, addMessage]);
-
-  // Handle tenant/workspace change - create a new conversation
+  // List conversations to auto-load most recent one if none is active
+  const { data: conversationsData } = useConversations({
+    sort: 'updated_at', // Get most recent first
+  });
+  
+  // Auto-load most recent conversation on mount if none is active
+  // Only do this once on initial mount, not when user clicks "New"
   useEffect(() => {
-    // Only handle context change if there are messages
-    if (messages.length > 0) {
-      // Create a new conversation for the new context
-      createConversation(selectedTenantId ?? undefined, selectedWorkspaceId ?? undefined);
+    // Skip auto-loading if already initialized (e.g., user clicked "New" button)
+    if (hasInitializedRef.current) {
+      return;
+    }
+    
+    // Mark as initialized to prevent future auto-loads
+    hasInitializedRef.current = true;
+    
+    // Only auto-load if we have conversations and no active conversation
+    const firstPage = conversationsData?.pages?.[0];
+    if (!activeConversationId && firstPage?.items && firstPage.items.length > 0) {
+      const mostRecentConversation = firstPage.items[0];
+      console.log('Auto-loading most recent conversation:', mostRecentConversation.id);
+      store.setActiveConversation(mostRecentConversation.id);
+    }
+  }, [activeConversationId, conversationsData, store]);
+  
+  // Convert ServerMessage to local Message format
+  const convertServerMessage = useCallback((msg: ServerMessage): Message => {
+    // Convert ServerMessageContext to QueryContext format
+    let context: QueryContext | undefined;
+    if (msg.context) {
+      context = {
+        chunks: msg.context.sources?.map(s => ({
+          content: s.content,
+          document_id: s.id,
+          score: s.score,
+        })) ?? [],
+        entities: msg.context.entities?.map(e => ({
+          id: e,
+          label: e,
+          relevance: 1,
+        })) ?? [],
+        relationships: msg.context.relationships?.map(r => ({
+          source: r,
+          target: r,
+          type: 'related',
+          relevance: 1,
+        })) ?? [],
+      };
+    }
+    
+    return {
+      id: msg.id,
+      role: msg.role as 'user' | 'assistant',
+      content: msg.content,
+      mode: (msg.mode as QueryModeType) ?? undefined,
+      tokensUsed: msg.tokens_used ?? undefined,
+      durationMs: msg.duration_ms ?? undefined,
+      thinkingTimeMs: msg.thinking_time_ms ?? undefined,
+      context,
+      isError: msg.is_error,
+      isStreaming: false,
+      timestamp: new Date(msg.created_at).getTime(),
+    };
+  }, []);
+
+  // Combine real messages with pending message (only when it has content)
+  const messages = useMemo(() => {
+    const serverMessages = (activeConversation?.messages ?? []).map(convertServerMessage);
+    console.log('📨 Messages loaded:', {
+      conversationId: activeConversationId,
+      serverMessageCount: serverMessages.length,
+      hasPending: !!pendingMessage,
+      pendingHasContent: !!(pendingMessage?.content)
+    });
+    // Only include pendingMessage when it has actual content to avoid two bubbles
+    // (LoadingMessage handles the empty "thinking" state)
+    if (pendingMessage && pendingMessage.content) {
+      return [...serverMessages, pendingMessage];
+    }
+    return serverMessages;
+  }, [activeConversation?.messages, pendingMessage, convertServerMessage, activeConversationId]);
+
+  // Handle tenant/workspace change - start fresh
+  useEffect(() => {
+    // Only handle context change if there's an active conversation
+    if (activeConversationId && messages.length > 0) {
+      // Clear active conversation to start fresh
+      store.setActiveConversation(null);
+      setPendingMessage(null);
       toast(t('query.conversationCleared', 'New conversation started'), {
         description: t('query.conversationClearedDesc', 'Context has changed. Starting a fresh conversation.'),
       });
@@ -571,13 +477,13 @@ export function QueryInterface() {
     setStreamingState('idle');
   }, []);
 
-  const handleStreamQuery = useCallback(async (queryText: string) => {
+  const handleStreamQuery = useCallback(async (queryText: string, conversationId: string | null) => {
     const messageId = crypto.randomUUID();
     setStreamingState('thinking');
     thinkingStartRef.current = Date.now();
     abortControllerRef.current = new AbortController();
 
-    // Add placeholder message using store action
+    // Add placeholder pending message
     const assistantMessage: Message = {
       id: messageId,
       role: 'assistant',
@@ -586,7 +492,7 @@ export function QueryInterface() {
       isStreaming: true,
       timestamp: Date.now(),
     };
-    addMessage(assistantMessage);
+    setPendingMessage(assistantMessage);
 
     try {
       let fullContent = '';
@@ -594,58 +500,99 @@ export function QueryInterface() {
       let durationMs = 0;
       let context: QueryContext | undefined;
       let thinkingTimeMs: number | undefined;
+      let newConversationId = conversationId;
+      let assistantMessageId: string | undefined;
 
-      for await (const chunk of queryStream({
-        query: queryText,
+      // Use the unified chat API - server handles message persistence
+      for await (const chunk of chatCompletionStream({
+        conversation_id: conversationId || undefined,
+        message: queryText,
         mode: querySettings.mode,
-        top_k: querySettings.topK,
         max_tokens: querySettings.maxTokens,
         temperature: querySettings.temperature,
+        top_k: querySettings.topK,
         stream: true,
       })) {
         if (abortControllerRef.current?.signal.aborted) {
           break;
         }
 
-        if (chunk.type === 'token' && chunk.content) {
-          fullContent += chunk.content;
+        switch (chunk.type) {
+          case 'conversation':
+            // Server created/confirmed conversation and saved user message
+            newConversationId = chunk.conversation_id;
+            console.log('✓ Conversation created/confirmed:', newConversationId);
+            if (!conversationId && newConversationId) {
+              // New conversation was created - update UI
+              store.setActiveConversation(newConversationId);
+              console.log('✓ Active conversation set:', newConversationId);
+            }
+            break;
 
-          // Check if we transitioned from thinking to generating
-          const parsed = parseCOTContent(fullContent);
-          if (parsed.response && !thinkingTimeMs && thinkingStartRef.current) {
-            thinkingTimeMs = Date.now() - thinkingStartRef.current;
-            setStreamingState('generating');
-          }
+          case 'context':
+            // Sources retrieved - could display inline
+            // context = ...; // Convert from ChatStreamEvent sources to QueryContext
+            break;
 
-          updateMessage(messageId, { content: fullContent, thinkingTimeMs });
-        } else if (chunk.type === 'context' && chunk.context) {
-          context = chunk.context;
-        } else if (chunk.type === 'done') {
-          tokensUsed = chunk.tokens_used || 0;
-          durationMs = chunk.duration_ms || 0;
-        } else if (chunk.type === 'error') {
-          throw new Error(chunk.error || 'Streaming failed');
+          case 'token':
+            fullContent += chunk.content;
+
+            // Check if we transitioned from thinking to generating
+            const parsed = parseCOTContent(fullContent);
+            if (parsed.response && !thinkingTimeMs && thinkingStartRef.current) {
+              thinkingTimeMs = Date.now() - thinkingStartRef.current;
+              setStreamingState('generating');
+            }
+
+            // Update pending message
+            setPendingMessage({
+              ...assistantMessage,
+              content: fullContent,
+              thinkingTimeMs,
+            });
+            break;
+
+          case 'thinking':
+            // Thinking phase content - could display separately
+            break;
+
+          case 'done':
+            // Server has saved the assistant message
+            assistantMessageId = chunk.assistant_message_id;
+            tokensUsed = chunk.tokens_used || 0;
+            durationMs = chunk.duration_ms || 0;
+            console.log('✓ Message saved on server:', assistantMessageId, {tokensUsed, durationMs});
+            break;
+
+          case 'error':
+            throw new Error(chunk.message || 'Streaming failed');
         }
       }
 
-      // Finalize message using store action
-      updateMessage(messageId, {
-        content: fullContent,
-        isStreaming: false,
-        tokensUsed,
-        durationMs,
-        thinkingTimeMs,
-        context,
-      });
-
-      // Auto-title the conversation after first exchange
-      if (activeConversationId && messages.length <= 1) {
-        autoTitleConversation(activeConversationId);
+      // Clear pending message
+      setPendingMessage(null);
+      
+      // Server already saved both user and assistant messages!
+      // Just refresh the conversation data from server
+      if (newConversationId) {
+        // Force refetch the conversation to get updated messages
+        await queryClient.invalidateQueries({ 
+          queryKey: conversationKeys.detail(newConversationId) 
+        });
+        await queryClient.invalidateQueries({ 
+          queryKey: conversationKeys.lists() 
+        });
+        
+        // Give React Query a moment to refetch
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        console.log('✓ Conversation data refreshed:', newConversationId);
       }
 
       setStreamingState('complete');
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
+        setPendingMessage(null);
         setStreamingState('idle');
         return;
       }
@@ -660,62 +607,27 @@ export function QueryInterface() {
         },
       });
 
-      // Update error message using store action
-      updateMessage(messageId, { content: errorMessage, isStreaming: false, isError: true });
+      // Show error in pending message
+      setPendingMessage({
+        ...assistantMessage,
+        content: errorMessage,
+        isStreaming: false,
+        isError: true,
+      });
 
       setStreamingState('error');
     } finally {
       abortControllerRef.current = null;
       thinkingStartRef.current = null;
     }
-  }, [querySettings, addMessage, updateMessage, activeConversationId, messages.length, autoTitleConversation, t]);
-
-  const queryMutation = useMutation({
-    mutationFn: async (queryText: string) => {
-      return queryApi({
-        query: queryText,
-        mode: querySettings.mode,
-        top_k: querySettings.topK,
-        max_tokens: querySettings.maxTokens,
-        temperature: querySettings.temperature,
-        stream: false,
-      });
-    },
-    onSuccess: (data) => {
-      // Add assistant response using store action
-      addMessage({
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: data.answer,
-        mode: data.mode,
-        tokensUsed: data.tokens_used,
-        durationMs: data.duration_ms,
-        context: data.context,
-        timestamp: Date.now(),
-      });
-
-      // Auto-title the conversation after first exchange
-      if (activeConversationId && messages.length <= 1) {
-        autoTitleConversation(activeConversationId);
-      }
-    },
-    onError: (error) => {
-      toast.error(t('query.failed', 'Query failed'), {
-        description: error instanceof Error ? error.message : t('common.unknownError', 'Unknown error'),
-        action: {
-          label: t('common.retry', 'Retry'),
-          onClick: () => {
-            // User can retry from the UI
-          },
-        },
-      });
-    },
-  });
+  }, [querySettings, queryClient, store, t]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!input.trim() || streamingState !== 'idle' && streamingState !== 'complete' && streamingState !== 'error') return;
-    if (queryMutation.isPending) return;
+    
+    // Guard against empty input or double-submission while loading
+    const isStreamingOrLoading = streamingState === 'thinking' || streamingState === 'generating';
+    if (!input.trim() || isStreamingOrLoading) return;
 
     const queryText = input.trim();
     setInput('');
@@ -725,43 +637,93 @@ export function QueryInterface() {
       inputRef.current.style.height = 'auto';
     }
 
-    // Create a new conversation if none exists
-    if (!activeConversationId) {
-      createConversation(selectedTenantId ?? undefined, selectedWorkspaceId ?? undefined);
-    }
-
-    // Add user message using store action
-    addMessage({
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: queryText,
-      timestamp: Date.now(),
-    });
+    // The unified chat API handles conversation creation and message persistence
+    // We just pass the current conversation ID (or null for a new one)
+    const conversationId = activeConversationId;
 
     // Use streaming or regular query
+    // The chat API will create a conversation if conversationId is null
     if (querySettings.stream) {
-      await handleStreamQuery(queryText);
+      await handleStreamQuery(queryText, conversationId);
     } else {
-      queryMutation.mutate(queryText);
+      // Non-streaming: use the unified chat API
+      // Server handles conversation creation and message persistence
+      setStreamingState('generating');
+      try {
+        const response = await chatCompletion({
+          conversation_id: conversationId || undefined,
+          message: queryText,
+          mode: querySettings.mode,
+          max_tokens: querySettings.maxTokens,
+          temperature: querySettings.temperature,
+          top_k: querySettings.topK,
+          stream: false,
+        });
+
+        // Update active conversation if a new one was created
+        if (!conversationId && response.conversation_id) {
+          store.setActiveConversation(response.conversation_id);
+        }
+
+        // Refresh conversation data from server
+        await queryClient.invalidateQueries({
+          queryKey: conversationKeys.detail(response.conversation_id),
+        });
+        await queryClient.invalidateQueries({
+          queryKey: conversationKeys.all,
+        });
+        setStreamingState('complete');
+      } catch (error) {
+        toast.error(t('query.failed', 'Query failed'), {
+          description: error instanceof Error ? error.message : t('common.unknownError', 'Unknown error'),
+        });
+        setStreamingState('error');
+      }
     }
   };
 
-  // Handle regenerate
-  const handleRegenerate = useCallback(() => {
-    if (messages.length < 2) return;
+  // Handle regenerate - delete old assistant AND user message, then generate fresh pair
+  const handleRegenerate = useCallback(async () => {
+    if (!activeConversationId || messages.length < 2) return;
+    
+    // Find the last user message and the last assistant message
     const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user');
+    const lastAssistantMessage = [...messages].reverse().find((m) => m.role === 'assistant');
+    
     if (!lastUserMessage) return;
 
-    // Remove last assistant message
-    const filteredMessages = messages.slice(0, -1);
-    setMessages(filteredMessages);
+    // Save the query text before deleting
+    const queryText = lastUserMessage.content;
 
-    // Defer the regeneration to next tick to ensure state is updated
-    // This prevents race conditions between state update and new message creation
-    setTimeout(() => {
-      handleStreamQuery(lastUserMessage.content);
-    }, 0);
-  }, [messages, setMessages, handleStreamQuery]);
+    // Clear pending message immediately
+    setPendingMessage(null);
+
+    try {
+      // Delete BOTH the old assistant AND user messages from server
+      // This prevents duplicate user messages since handleStreamQuery will create a fresh pair
+      const deletePromises = [];
+      
+      if (lastAssistantMessage && !lastAssistantMessage.isStreaming) {
+        deletePromises.push(deleteMessage(lastAssistantMessage.id));
+      }
+      if (lastUserMessage) {
+        deletePromises.push(deleteMessage(lastUserMessage.id));
+      }
+      
+      await Promise.all(deletePromises);
+      
+      // Invalidate the conversation cache to remove the old messages from UI
+      await queryClient.invalidateQueries({ 
+        queryKey: conversationKeys.detail(activeConversationId) 
+      });
+    } catch (error) {
+      console.error('Failed to delete old messages:', error);
+      // Continue with regeneration even if delete fails
+    }
+
+    // Regenerate with the same user query - server will create fresh user+assistant pair
+    handleStreamQuery(queryText, activeConversationId);
+  }, [messages, activeConversationId, handleStreamQuery, queryClient]);
 
   // Handle suggestion click
   const handleSuggestionClick = useCallback((text: string) => {
@@ -771,12 +733,13 @@ export function QueryInterface() {
 
   // Handle new conversation
   const handleNewConversation = useCallback(() => {
-    createConversation(selectedTenantId ?? undefined, selectedWorkspaceId ?? undefined);
+    store.setActiveConversation(null);
+    setPendingMessage(null);
     setInput('');
     setStreamingState('idle');
-  }, [createConversation, selectedTenantId, selectedWorkspaceId]);
+  }, [store]);
 
-  const isLoading = streamingState === 'thinking' || streamingState === 'generating' || queryMutation.isPending;
+  const isLoading = streamingState === 'thinking' || streamingState === 'generating' || isLoadingConversation;
 
   return (
     <div className="flex h-full min-h-0">
@@ -785,6 +748,8 @@ export function QueryInterface() {
         {/* Header */}
         <header className="flex items-center justify-between border-b px-5 py-3 shrink-0 bg-background/80 backdrop-blur-sm">
           <div className="flex items-center gap-3">
+            {/* Mobile History Panel Toggle */}
+            <MobileHistoryPanel />
             <h1 className="text-lg font-semibold tracking-tight">{t('query.title', 'Query')}</h1>
             <span className="text-xs text-muted-foreground hidden sm:inline">
               {t('query.subtitle', 'Ask questions about your knowledge graph')}
@@ -1001,7 +966,7 @@ export function QueryInterface() {
         <div className="flex-1 min-h-0 overflow-hidden">
           <ScrollArea ref={scrollRef} className="h-full">
             <div className="max-w-3xl mx-auto px-6 py-6">
-              {messages.length === 0 && !queryMutation.isPending ? (
+              {messages.length === 0 && !isLoading ? (
                 <EmptyState onSuggestionClick={handleSuggestionClick} />
               ) : (
                 <>
@@ -1017,12 +982,15 @@ export function QueryInterface() {
                       isLast={index === messages.length - 1}
                     />
                   ))}
-                  {/* Show loading message for non-streaming queries */}
-                  {queryMutation.isPending && <LoadingMessage />}
+                  {/* Show loading message only during thinking phase AND when pending has no content yet */}
+                  {/* Once content arrives in pendingMessage, the ChatMessage component will render it */}
+                  {isLoading && streamingState === 'thinking' && (!pendingMessage || !pendingMessage.content) && <LoadingMessage />}
+                  {/* Show loading during non-streaming mode (when generating without pending content) */}
+                  {isLoading && streamingState === 'generating' && !pendingMessage && <NonStreamingLoadingIndicator />}
                 </>
               )}
-              {/* Scroll anchor for auto-scroll */}
-              <div ref={scrollAnchorRef} className="h-6" />
+              {/* Scroll anchor for auto-scroll - height matches input area to ensure visibility */}
+              <div ref={scrollAnchorRef} className="h-32" />
             </div>
           </ScrollArea>
         </div>
@@ -1084,8 +1052,8 @@ export function QueryInterface() {
         </div>
       </div>
 
-      {/* Conversation History Panel - New collapsible component */}
-      <ConversationHistoryPanel />
+      {/* Conversation History Panel - Server-synced V2 component */}
+      <ConversationHistoryPanelV2 />
     </div>
   );
 }

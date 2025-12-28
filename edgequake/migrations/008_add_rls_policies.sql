@@ -27,10 +27,10 @@ ALTER TABLE chunks
 ADD COLUMN IF NOT EXISTS tenant_id UUID,
 ADD COLUMN IF NOT EXISTS workspace_id UUID;
 
--- Embeddings table
-ALTER TABLE embeddings
-ADD COLUMN IF NOT EXISTS tenant_id UUID,
-ADD COLUMN IF NOT EXISTS workspace_id UUID;
+-- Embeddings table (COMMENTED OUT - table does not exist, embeddings are in chunks table)
+-- ALTER TABLE embeddings
+-- ADD COLUMN IF NOT EXISTS tenant_id UUID,
+-- ADD COLUMN IF NOT EXISTS workspace_id UUID;
 
 -- Conversation history table
 ALTER TABLE conversation_history
@@ -54,8 +54,8 @@ CREATE INDEX IF NOT EXISTS idx_relationships_tenant_workspace
     ON relationships(tenant_id, workspace_id);
 CREATE INDEX IF NOT EXISTS idx_chunks_tenant_workspace 
     ON chunks(tenant_id, workspace_id);
-CREATE INDEX IF NOT EXISTS idx_embeddings_tenant_workspace 
-    ON embeddings(tenant_id, workspace_id);
+-- CREATE INDEX IF NOT EXISTS idx_embeddings_tenant_workspace 
+--     ON embeddings(tenant_id, workspace_id);
 CREATE INDEX IF NOT EXISTS idx_conversation_history_tenant_workspace 
     ON conversation_history(tenant_id, workspace_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_tenant_workspace 
@@ -111,7 +111,7 @@ ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE entities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE relationships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chunks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE embeddings ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE embeddings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversation_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 
@@ -195,23 +195,23 @@ CREATE POLICY chunks_tenant_isolation ON chunks
         tenant_id IS NULL OR tenant_id = current_tenant_id()
     );
 
--- Embeddings policies
-DROP POLICY IF EXISTS embeddings_tenant_isolation ON embeddings;
-CREATE POLICY embeddings_tenant_isolation ON embeddings
-    FOR ALL
-    USING (
-        tenant_id IS NULL 
-        OR (
-            tenant_id = current_tenant_id()
-            AND (
-                current_workspace_id() IS NULL 
-                OR workspace_id = current_workspace_id()
-            )
-        )
-    )
-    WITH CHECK (
-        tenant_id IS NULL OR tenant_id = current_tenant_id()
-    );
+-- Embeddings policies (COMMENTED OUT - table does not exist)
+-- DROP POLICY IF EXISTS embeddings_tenant_isolation ON embeddings;
+-- CREATE POLICY embeddings_tenant_isolation ON embeddings
+--     FOR ALL
+--     USING (
+--         tenant_id IS NULL 
+--         OR (
+--             tenant_id = current_tenant_id()
+--             AND (
+--                 current_workspace_id() IS NULL 
+--                 OR workspace_id = current_workspace_id()
+--             )
+--         )
+--     )
+--     WITH CHECK (
+--         tenant_id IS NULL OR tenant_id = current_tenant_id()
+--     );
 
 -- Conversation history policies
 DROP POLICY IF EXISTS conversation_history_tenant_isolation ON conversation_history;

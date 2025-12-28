@@ -47,15 +47,15 @@ pub trait WorkspaceService: Send + Sync {
         request: CreateWorkspaceRequest,
     ) -> Result<Workspace>;
 
+    /// Insert a workspace with a specific ID (for syncing from external storage).
+    async fn insert_workspace(&self, workspace: Workspace) -> Result<Workspace>;
+
     /// Get a workspace by ID.
     async fn get_workspace(&self, workspace_id: Uuid) -> Result<Option<Workspace>>;
 
     /// Get a workspace by tenant and slug.
-    async fn get_workspace_by_slug(
-        &self,
-        tenant_id: Uuid,
-        slug: &str,
-    ) -> Result<Option<Workspace>>;
+    async fn get_workspace_by_slug(&self, tenant_id: Uuid, slug: &str)
+        -> Result<Option<Workspace>>;
 
     /// Update a workspace.
     async fn update_workspace(
@@ -101,7 +101,8 @@ pub trait WorkspaceService: Send + Sync {
     async fn check_workspace_access(&self, user_id: Uuid, workspace_id: Uuid) -> Result<bool>;
 
     /// Get user's role in a tenant.
-    async fn get_user_role(&self, user_id: Uuid, tenant_id: Uuid) -> Result<Option<MembershipRole>>;
+    async fn get_user_role(&self, user_id: Uuid, tenant_id: Uuid)
+        -> Result<Option<MembershipRole>>;
 
     // ============ Context Operations ============
 
@@ -135,8 +136,7 @@ impl InMemoryWorkspaceService {
     pub async fn with_default_tenant() -> Self {
         let service = Self::new();
 
-        let tenant = Tenant::new("Default Tenant", "default")
-            .with_plan(TenantPlan::Pro);
+        let tenant = Tenant::new("Default Tenant", "default").with_plan(TenantPlan::Pro);
 
         service.create_tenant(tenant).await.ok();
 
@@ -220,12 +220,7 @@ impl WorkspaceService for InMemoryWorkspaceService {
 
     async fn list_tenants(&self, limit: usize, offset: usize) -> Result<Vec<Tenant>> {
         let tenants = self.tenants.read().await;
-        Ok(tenants
-            .values()
-            .skip(offset)
-            .take(limit)
-            .cloned()
-            .collect())
+        Ok(tenants.values().skip(offset).take(limit).cloned().collect())
     }
 
     async fn create_workspace(
@@ -236,9 +231,9 @@ impl WorkspaceService for InMemoryWorkspaceService {
         // Check tenant exists
         {
             let tenants = self.tenants.read().await;
-            let tenant = tenants.get(&tenant_id).ok_or_else(|| {
-                Error::not_found(format!("Tenant {} not found", tenant_id))
-            })?;
+            let tenant = tenants
+                .get(&tenant_id)
+                .ok_or_else(|| Error::not_found(format!("Tenant {} not found", tenant_id)))?;
 
             // Check workspace limit
             let workspaces = self.workspaces.read().await;
@@ -295,6 +290,45 @@ impl WorkspaceService for InMemoryWorkspaceService {
         Ok(workspace)
     }
 
+    async fn insert_workspace(&self, workspace: Workspace) -> Result<Workspace> {
+        // Validate tenant exists
+        {
+            let tenants = self.tenants.read().await;
+            if !tenants.contains_key(&workspace.tenant_id) {
+                return Err(Error::not_found(format!(
+                    "Tenant {} not found",
+                    workspace.tenant_id
+                )));
+            }
+        }
+
+        // Check slug uniqueness within tenant
+        {
+            let workspaces = self.workspaces.read().await;
+            if workspaces.values().any(|ws| {
+                ws.tenant_id == workspace.tenant_id
+                    && ws.slug == workspace.slug
+                    && ws.workspace_id != workspace.workspace_id
+            }) {
+                return Err(Error::validation(format!(
+                    "Workspace with slug '{}' already exists in this tenant",
+                    workspace.slug
+                )));
+            }
+        }
+
+        let mut workspaces = self.workspaces.write().await;
+        workspaces.insert(workspace.workspace_id, workspace.clone());
+
+        tracing::info!(
+            workspace_id = %workspace.workspace_id,
+            tenant_id = %workspace.tenant_id,
+            "Inserted workspace with specific ID"
+        );
+
+        Ok(workspace)
+    }
+
     async fn get_workspace(&self, workspace_id: Uuid) -> Result<Option<Workspace>> {
         let workspaces = self.workspaces.read().await;
         Ok(workspaces.get(&workspace_id).cloned())
@@ -319,9 +353,9 @@ impl WorkspaceService for InMemoryWorkspaceService {
     ) -> Result<Workspace> {
         let mut workspaces = self.workspaces.write().await;
 
-        let workspace = workspaces.get_mut(&workspace_id).ok_or_else(|| {
-            Error::not_found(format!("Workspace {} not found", workspace_id))
-        })?;
+        let workspace = workspaces
+            .get_mut(&workspace_id)
+            .ok_or_else(|| Error::not_found(format!("Workspace {} not found", workspace_id)))?;
 
         if let Some(name) = request.name {
             workspace.name = name;
@@ -429,9 +463,9 @@ impl WorkspaceService for InMemoryWorkspaceService {
     ) -> Result<Membership> {
         let mut memberships = self.memberships.write().await;
 
-        let membership = memberships.get_mut(&membership_id).ok_or_else(|| {
-            Error::not_found(format!("Membership {} not found", membership_id))
-        })?;
+        let membership = memberships
+            .get_mut(&membership_id)
+            .ok_or_else(|| Error::not_found(format!("Membership {} not found", membership_id)))?;
 
         membership.role = role;
 
@@ -446,9 +480,9 @@ impl WorkspaceService for InMemoryWorkspaceService {
 
     async fn check_tenant_access(&self, user_id: Uuid, tenant_id: Uuid) -> Result<bool> {
         let memberships = self.memberships.read().await;
-        Ok(memberships.values().any(|m| {
-            m.user_id == user_id && m.tenant_id == tenant_id && m.is_active
-        }))
+        Ok(memberships
+            .values()
+            .any(|m| m.user_id == user_id && m.tenant_id == tenant_id && m.is_active))
     }
 
     async fn check_workspace_access(&self, user_id: Uuid, workspace_id: Uuid) -> Result<bool> {
@@ -467,7 +501,11 @@ impl WorkspaceService for InMemoryWorkspaceService {
         }))
     }
 
-    async fn get_user_role(&self, user_id: Uuid, tenant_id: Uuid) -> Result<Option<MembershipRole>> {
+    async fn get_user_role(
+        &self,
+        user_id: Uuid,
+        tenant_id: Uuid,
+    ) -> Result<Option<MembershipRole>> {
         let memberships = self.memberships.read().await;
         Ok(memberships
             .values()
@@ -536,8 +574,7 @@ mod tests {
     async fn test_create_tenant() {
         let service = InMemoryWorkspaceService::new();
 
-        let tenant = Tenant::new("Test Tenant", "test-tenant")
-            .with_plan(TenantPlan::Basic);
+        let tenant = Tenant::new("Test Tenant", "test-tenant").with_plan(TenantPlan::Basic);
 
         let created = service.create_tenant(tenant).await.unwrap();
         assert_eq!(created.name, "Test Tenant");
@@ -561,7 +598,10 @@ mod tests {
             max_documents: Some(1000),
         };
 
-        let workspace = service.create_workspace(tenant.tenant_id, request).await.unwrap();
+        let workspace = service
+            .create_workspace(tenant.tenant_id, request)
+            .await
+            .unwrap();
         assert_eq!(workspace.name, "My Knowledge Base");
         assert_eq!(workspace.slug, "my-kb");
         assert_eq!(workspace.max_documents(), Some(1000));
@@ -584,7 +624,10 @@ mod tests {
                 description: None,
                 max_documents: None,
             };
-            service.create_workspace(tenant.tenant_id, request).await.unwrap();
+            service
+                .create_workspace(tenant.tenant_id, request)
+                .await
+                .unwrap();
         }
 
         // Third workspace should fail
@@ -608,14 +651,20 @@ mod tests {
         let user_id = Uuid::new_v4();
 
         // No access initially
-        assert!(!service.check_tenant_access(user_id, tenant.tenant_id).await.unwrap());
+        assert!(!service
+            .check_tenant_access(user_id, tenant.tenant_id)
+            .await
+            .unwrap());
 
         // Add membership
         let membership = Membership::new(user_id, tenant.tenant_id, MembershipRole::Member);
         service.add_membership(membership).await.unwrap();
 
         // Now has access
-        assert!(service.check_tenant_access(user_id, tenant.tenant_id).await.unwrap());
+        assert!(service
+            .check_tenant_access(user_id, tenant.tenant_id)
+            .await
+            .unwrap());
     }
 
     #[tokio::test]
@@ -636,7 +685,10 @@ mod tests {
         service.add_membership(membership).await.unwrap();
 
         // Now should succeed
-        let ctx = service.build_context(user_id, tenant.tenant_id, None).await.unwrap();
+        let ctx = service
+            .build_context(user_id, tenant.tenant_id, None)
+            .await
+            .unwrap();
         assert!(ctx.is_valid());
         assert_eq!(ctx.tenant_id, Some(tenant.tenant_id));
         assert!(ctx.can_write());

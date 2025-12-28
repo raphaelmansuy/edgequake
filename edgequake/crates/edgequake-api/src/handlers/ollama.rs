@@ -31,7 +31,6 @@ use axum::{
     Json,
 };
 use chrono::Utc;
-use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 use tokio_stream::wrappers::ReceiverStream;
@@ -487,33 +486,30 @@ pub async fn ollama_generate(
 
         tokio::spawn(async move {
             let start = Instant::now();
-            let mut total_response = String::new();
 
             // Execute query based on mode
             let response_result = if mode == OllamaSearchMode::Bypass {
                 // For bypass mode, we'd need direct LLM access
                 // For now, fall back to hybrid query
-                let engine_request = EngineQueryRequest::new(&cleaned_query)
-                    .with_mode(QueryMode::Hybrid);
+                let engine_request =
+                    EngineQueryRequest::new(&cleaned_query).with_mode(QueryMode::Hybrid);
                 engine.query(engine_request).await
             } else if let Some(query_mode) = mode.to_query_mode() {
-                let mut engine_request = EngineQueryRequest::new(&cleaned_query)
-                    .with_mode(query_mode);
+                let mut engine_request =
+                    EngineQueryRequest::new(&cleaned_query).with_mode(query_mode);
                 if context_only {
                     engine_request = engine_request.context_only();
                 }
                 engine.query(engine_request).await
             } else {
                 // Fallback to hybrid
-                let engine_request = EngineQueryRequest::new(&cleaned_query)
-                    .with_mode(QueryMode::Hybrid);
+                let engine_request =
+                    EngineQueryRequest::new(&cleaned_query).with_mode(QueryMode::Hybrid);
                 engine.query(engine_request).await
             };
 
             match response_result {
                 Ok(response) => {
-                    total_response = response.answer.clone();
-
                     // Send content chunk
                     let chunk = serde_json::json!({
                         "model": model,
@@ -525,7 +521,7 @@ pub async fn ollama_generate(
 
                     // Send final chunk with stats
                     let elapsed = start.elapsed().as_nanos() as u64;
-                    let completion_tokens = estimate_tokens(&total_response);
+                    let completion_tokens = estimate_tokens(&response.answer);
                     let final_chunk = serde_json::json!({
                         "model": model,
                         "created_at": current_timestamp(),
@@ -671,7 +667,6 @@ pub async fn ollama_chat(
 
         tokio::spawn(async move {
             let start = Instant::now();
-            let mut total_response = String::new();
 
             // Execute query based on mode
             let response_result = if mode == OllamaSearchMode::Bypass {
@@ -697,8 +692,6 @@ pub async fn ollama_chat(
 
             match response_result {
                 Ok(response) => {
-                    total_response = response.answer.clone();
-
                     // Send content chunk
                     let chunk = serde_json::json!({
                         "model": model,
@@ -714,7 +707,7 @@ pub async fn ollama_chat(
 
                     // Send final chunk with stats
                     let elapsed = start.elapsed().as_nanos() as u64;
-                    let completion_tokens = estimate_tokens(&total_response);
+                    let completion_tokens = estimate_tokens(&response.answer);
                     let final_chunk = serde_json::json!({
                         "model": model,
                         "created_at": current_timestamp(),

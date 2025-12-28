@@ -118,3 +118,45 @@ The system now supports real LLM providers for production deployment:
 - Validate changes by running relevant test suite
 - Keep generated code idiomatic Rust (use Result<T>, avoid unwrap() in production)
 - Follow the LightRAG entity extraction algorithm for consistency
+
+## Claude Skills
+
+This repository includes reusable SKILL definitions in `.github/skills/` for common development workflows:
+
+### Available Skills
+
+| Skill                             | Location                                                                                                       | Purpose                                                                                                                                                                                                  |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **makefile-dev-workflow**         | [.github/skills/makefile-dev-workflow/SKILL.md](.github/skills/makefile-dev-workflow/SKILL.md)                 | Unified development workflow using Makefile commands. Use for starting services, running E2E tests, and managing the full development stack (database, backend, frontend). **Start here for dev setup.** |
+| **playwright-ux-ui-capture**      | [.github/skills/playwright-ux-ui-capture/SKILL.md](.github/skills/playwright-ux-ui-capture/SKILL.md)           | Capture EdgeQuake WebUI routes with Playwright and write artifacts (screenshots + request JSON). Use when automating UI screenshot collection or updating E2E capture specs.                             |
+| **ux-ui-analyze-single-page**     | [.github/skills/ux-ui-analyze-single-page/SKILL.md](.github/skills/ux-ui-analyze-single-page/SKILL.md)         | Analyze individual pages with Playwright for UX/UI improvements. Use when evaluating specific routes or components.                                                                                      |
+| **ux-ui-map-page-by-page**        | [.github/skills/ux-ui-map-page-by-page/SKILL.md](.github/skills/ux-ui-map-page-by-page/SKILL.md)               | Map entire application UI across all pages with Playwright. Use when auditing complete application UX/UI.                                                                                                |
+| **copilotkit-nextjs-integration** | [.github/skills/copilotkit-nextjs-integration/SKILL.md](.github/skills/copilotkit-nextjs-integration/SKILL.md) | Integrate CopilotKit AI components into Next.js frontend. Use when adding AI-powered UI features.                                                                                                        |
+
+### Quick reference for common tasks
+
+**Getting started with development:**
+
+```bash
+make dev              # Start full stack (database + backend + frontend)
+make status           # Check service health
+make stop             # Stop all services
+```
+
+See: [makefile-dev-workflow SKILL](.github/skills/makefile-dev-workflow/SKILL.md)
+
+**Running E2E tests:**
+
+```bash
+cd edgequake_webui && pnpm exec playwright test markdown-test.spec.ts
+```
+
+See: [makefile-dev-workflow SKILL](.github/skills/makefile-dev-workflow/SKILL.md) → E2E Testing section
+
+**Capturing UI screenshots:**
+
+```bash
+cd edgequake_webui && npx playwright test e2e/<spec>.spec.ts
+```
+
+See: [playwright-ux-ui-capture SKILL](.github/skills/playwright-ux-ui-capture/SKILL.md)

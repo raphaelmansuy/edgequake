@@ -121,6 +121,10 @@ dev: check-deps ## Start full development stack (DB + Backend + Frontend)
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🚀 Starting EdgeQuake Development Stack$(RESET)"
 	@echo ""
+	@echo "$(YELLOW)→ Stopping any existing services...$(RESET)"
+	@$(MAKE) stop --no-print-directory 2>/dev/null || true
+	@sleep 2
+	@echo ""
 	@echo "$(YELLOW)→ Starting PostgreSQL...$(RESET)"
 	@$(MAKE) db-start --no-print-directory
 	@echo ""
@@ -129,11 +133,15 @@ dev: check-deps ## Start full development stack (DB + Backend + Frontend)
 	@echo "  $(BLUE)Frontend$(RESET): http://localhost:3000"
 	@echo "  $(BLUE)Swagger$(RESET):  http://localhost:8080/swagger-ui"
 	@echo ""
+	@echo "$(GREEN)✓ Services starting...$(RESET)"
 	@echo "$(YELLOW)Press Ctrl+C to stop all services$(RESET)"
 	@echo ""
 	@trap 'echo ""; echo "$(YELLOW)Stopping services...$(RESET)"; $(MAKE) stop --no-print-directory; exit 0' INT; \
-	(cd $(BACKEND_DIR) && cargo run 2>&1 | sed 's/^/[backend] /') & \
-	(sleep 3 && cd $(FRONTEND_DIR) && (bun run dev 2>/dev/null || npm run dev) 2>&1 | sed 's/^/[frontend] /') & \
+	(cd $(BACKEND_DIR) && DATABASE_URL="postgresql://edgequake:edgequake_secret@localhost:5432/edgequake" cargo run 2>&1 | sed 's/^/[backend] /') & \
+	BACKEND_PID=$$!; \
+	(sleep 5 && cd $(FRONTEND_DIR) && (bun run dev 2>/dev/null || npm run dev) 2>&1 | sed 's/^/[frontend] /') & \
+	FRONTEND_PID=$$!; \
+	echo "$(GREEN)✓ Backend PID: $$BACKEND_PID, Frontend PID: $$FRONTEND_PID$(RESET)"; \
 	wait
 
 dev-frontend: ## Start only frontend dev server
@@ -145,10 +153,16 @@ dev-backend: ## Start only backend dev server
 
 stop: ## Stop all development services
 	@echo "$(YELLOW)Stopping services...$(RESET)"
+	@echo "$(BLUE)→ Stopping backend processes...$(RESET)"
 	@-pkill -f "cargo run" 2>/dev/null || true
+	@-pkill -9 -f "edgequake-api" 2>/dev/null || true
+	@echo "$(BLUE)→ Stopping frontend processes...$(RESET)"
 	@-pkill -f "next dev" 2>/dev/null || true
 	@-pkill -f "node.*edgequake_webui" 2>/dev/null || true
+	@-pkill -9 -f "bun.*dev" 2>/dev/null || true
+	@echo "$(BLUE)→ Stopping database...$(RESET)"
 	@$(MAKE) db-stop --no-print-directory 2>/dev/null || true
+	@sleep 1
 	@echo "$(GREEN)✓ All services stopped$(RESET)"
 
 # ============================================================================
@@ -300,6 +314,22 @@ clean-all: clean ## Clean everything including node_modules
 	@echo "$(BLUE)Cleaning all dependencies...$(RESET)"
 	@rm -rf $(FRONTEND_DIR)/node_modules
 	@echo "$(GREEN)✓ All cleaned$(RESET)"
+
+rebuild: ## Full rebuild: stop + clean + dev (ensures latest code is running)
+	@echo ""
+	@echo "$(BOLD)$(BLUE)🔄 Full Rebuild - Ensuring Latest Code$(RESET)"
+	@echo ""
+	@$(MAKE) stop --no-print-directory 2>/dev/null || true
+	@echo "$(YELLOW)→ Killing any stale processes...$(RESET)"
+	@-pkill -9 -f "target/debug/edgequake" 2>/dev/null || true
+	@-pkill -9 -f "target/release/edgequake" 2>/dev/null || true
+	@-lsof -ti:8080 | xargs kill -9 2>/dev/null || true
+	@-lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+	@sleep 2
+	@echo "$(YELLOW)→ Cleaning build artifacts...$(RESET)"
+	@$(MAKE) clean --no-print-directory
+	@echo "$(YELLOW)→ Starting fresh development environment...$(RESET)"
+	@$(MAKE) dev --no-print-directory
 
 # ============================================================================
 # Utilities

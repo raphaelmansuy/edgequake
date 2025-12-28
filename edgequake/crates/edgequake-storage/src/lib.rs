@@ -30,8 +30,7 @@ pub mod traits;
 
 // Re-export community detection
 pub use community::{
-    Community, CommunityAlgorithm, CommunityConfig, CommunityDetectionResult,
-    detect_communities,
+    detect_communities, Community, CommunityAlgorithm, CommunityConfig, CommunityDetectionResult,
 };
 
 // Re-export traits
@@ -47,5 +46,6 @@ pub use adapters::memory::{MemoryGraphStorage, MemoryKVStorage, MemoryVectorStor
 // Conditionally export PostgreSQL adapters
 #[cfg(feature = "postgres")]
 pub use adapters::postgres::{
-    PostgresAGEGraphStorage, PostgresConfig, PostgresKVStorage, PostgresPool, PgVectorStorage,
+    ConversationRow, FolderRow, MessageRow, PgVectorStorage, PostgresAGEGraphStorage,
+    PostgresConfig, PostgresConversationStorage, PostgresKVStorage, PostgresPool,
 };
