@@ -22,16 +22,24 @@ This document represents the complete design plan for upgrading EdgeQuake's inge
 
 ### Key Achievements
 
-| Deliverable                   | Status      | Document                                                         |
-| ----------------------------- | ----------- | ---------------------------------------------------------------- |
-| Current Architecture Analysis | ✅          | [01-architecture.md](01-architecture.md)                         |
-| Rust vs Python Comparison     | ✅          | [02-comparison.md](02-comparison.md)                             |
-| SOTA Data Models              | ✅          | [03-data-models.md](03-data-models.md)                           |
-| API Contracts                 | ✅          | [04-api-contracts.md](04-api-contracts.md)                       |
-| Implementation Plan           | ✅ **v2.0** | [05-implementation-plan.md](05-implementation-plan.md)           |
-| Testing Strategy              | ✅          | [06-testing-strategy.md](06-testing-strategy.md)                 |
-| Prompt Comparison             | ✅          | [07-prompt-comparison.md](07-prompt-comparison.md)               |
-| Documentation Crosscheck      | ✅          | [08-documentation-crosscheck.md](08-documentation-crosscheck.md) |
+| Deliverable                   | Status      | Document                                                           |
+| ----------------------------- | ----------- | ------------------------------------------------------------------ |
+| Current Architecture Analysis | ✅          | [01-architecture.md](01-architecture.md)                           |
+| Rust vs Python Comparison     | ✅          | [02-comparison.md](02-comparison.md)                               |
+| SOTA Data Models              | ✅          | [03-data-models.md](03-data-models.md)                             |
+| API Contracts                 | ✅          | [04-api-contracts.md](04-api-contracts.md)                         |
+| Implementation Plan           | ✅ **v2.0** | [05-implementation-plan.md](05-implementation-plan.md)             |
+| Testing Strategy              | ✅          | [06-testing-strategy.md](06-testing-strategy.md)                   |
+| Prompt Comparison             | ✅          | [07-prompt-comparison.md](07-prompt-comparison.md)                 |
+| Documentation Crosscheck      | ✅          | [08-documentation-crosscheck.md](08-documentation-crosscheck.md)   |
+| **WebUI Architecture**        | ✅ **NEW**  | [10-webui-spec-architecture.md](10-webui-spec-architecture.md)     |
+| **WebUI Screen Flows**        | ✅ **NEW**  | [11-webui-screen-flows.md](11-webui-screen-flows.md)               |
+| **WebUI API Integration**     | ✅ **NEW**  | [12-webui-api-integration.md](12-webui-api-integration.md)         |
+| **WebUI Components**          | ✅ **NEW**  | [13-webui-components.md](13-webui-components.md)                   |
+| **WebUI WebSocket Progress**  | ✅ **NEW**  | [14-webui-websocket-progress.md](14-webui-websocket-progress.md)   |
+| **WebUI Lineage Viz**         | ✅ **NEW**  | [15-webui-lineage-viz.md](15-webui-lineage-viz.md)                 |
+| **WebUI Cost Monitoring**     | ✅ **NEW**  | [16-webui-cost-monitoring.md](16-webui-cost-monitoring.md)         |
+| **WebUI Implementation Plan** | ✅ **NEW**  | [17-webui-implementation-plan.md](17-webui-implementation-plan.md) |
 
 ---
 
@@ -43,7 +51,9 @@ This document represents the complete design plan for upgrading EdgeQuake's inge
 4. [Critical Gap Analysis](#4-critical-gap-analysis)
 5. [Implementation Roadmap](#5-implementation-roadmap)
 6. [Quick Reference](#6-quick-reference)
-7. [Next Steps](#7-next-steps)
+7. [WebUI Specification](#7-webui-specification)
+8. [Layout Architecture Verification](#8-layout-architecture-verification-v21)
+9. [Next Steps](#9-next-steps)
 
 ---
 
@@ -421,16 +431,176 @@ alert_threshold_usd = 10.0
 
 ---
 
-## 7. Next Steps
+## 7. WebUI Specification
 
-### 7.1 Immediate Actions
+### 7.1 Overview
+
+The WebUI specification covers the frontend implementation required to expose the new ingestion pipeline features to end users. This includes real-time progress tracking, lineage visualization, and cost monitoring.
+
+### 7.2 Specification Documents
+
+| Document                                                         | Purpose               | Key Features                                            |
+| ---------------------------------------------------------------- | --------------------- | ------------------------------------------------------- |
+| [10-webui-spec-architecture.md](10-webui-spec-architecture.md)   | Overall architecture  | Component hierarchy, state management, technology stack |
+| [11-webui-screen-flows.md](11-webui-screen-flows.md)             | UI wireframes         | 7 main screens with ASCII wireframes                    |
+| [12-webui-api-integration.md](12-webui-api-integration.md)       | API integration       | TypeScript types, React Query hooks, WebSocket client   |
+| [13-webui-components.md](13-webui-components.md)                 | Component specs       | 12 new/updated components with props                    |
+| [14-webui-websocket-progress.md](14-webui-websocket-progress.md) | Real-time progress    | WebSocket protocol, state management, reconnection      |
+| [15-webui-lineage-viz.md](15-webui-lineage-viz.md)               | Lineage visualization | Tree/graph/table views, interactive features            |
+| [16-webui-cost-monitoring.md](16-webui-cost-monitoring.md)       | Cost tracking UI      | Dashboard, budget management, reporting                 |
+
+### 7.3 Key WebUI Features
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     WEBUI FEATURE MATRIX                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────┬───────────────────────────────────────────────────┐
+│ Feature                 │ Description                                       │
+├─────────────────────────┼───────────────────────────────────────────────────┤
+│ Real-Time Progress      │ WebSocket-powered stage-by-stage progress        │
+│                         │ Live ETA, cancel/pause controls                  │
+├─────────────────────────┼───────────────────────────────────────────────────┤
+│ Lineage Visualization   │ Tree, graph, and table views                     │
+│                         │ Document → Chunk → Entity provenance chain       │
+├─────────────────────────┼───────────────────────────────────────────────────┤
+│ Cost Monitoring         │ Per-document and aggregate cost tracking         │
+│                         │ Budget alerts, cost breakdown by operation       │
+├─────────────────────────┼───────────────────────────────────────────────────┤
+│ Chunk Explorer          │ Browse individual chunks with entity highlights  │
+│                         │ Extraction metadata, cache hit indicators        │
+├─────────────────────────┼───────────────────────────────────────────────────┤
+│ Entity Provenance       │ Drill down to entity sources                     │
+│                         │ Merge history, relationship graph                │
+└─────────────────────────┴───────────────────────────────────────────────────┘
+```
+
+### 7.4 New Components Summary
+
+| Component                | Category | Priority | Lines |
+| ------------------------ | -------- | -------- | ----- |
+| `IngestionProgressPanel` | Progress | P0       | ~300  |
+| `StageIndicator`         | Progress | P0       | ~200  |
+| `CostBadge`              | Cost     | P0       | ~80   |
+| `CostBreakdownChart`     | Cost     | P1       | ~150  |
+| `ChunkExplorer`          | Lineage  | P0       | ~250  |
+| `LineageGraph`           | Lineage  | P1       | ~400  |
+| `EntityProvenance`       | Lineage  | P1       | ~200  |
+| `WebSocketStatus`        | Shared   | P0       | ~50   |
+
+### 7.5 WebUI Implementation Phases
+
+```
+Phase W1 (Week 6-7): Foundation
+  ├── WebSocket client implementation
+  ├── Ingestion store (Zustand)
+  ├── Updated TypeScript types
+  └── WebSocketProvider
+
+Phase W2 (Week 7-8): Progress Components
+  ├── IngestionProgressPanel
+  ├── StageIndicator
+  ├── BatchProgressCard updates
+  └── DocumentManager updates
+
+Phase W3 (Week 8-9): Lineage Visualization
+  ├── ChunkExplorer
+  ├── LineageTreeView (update)
+  ├── LineageGraphView (new)
+  └── EntityProvenance
+
+Phase W4 (Week 9-10): Cost Monitoring
+  ├── CostBadge
+  ├── CostDashboard page
+  ├── CostBreakdownChart
+  └── BudgetIndicator
+```
+
+---
+
+## 8. Layout Architecture Verification (v2.1)
+
+> **Added 2024-12-28**: Deep reflection on UI layout patterns, container behavior, and integration roadblocks.
+
+### 8.1 Layout Architecture Pattern
+
+The EdgeQuake WebUI follows a **3-tier layout architecture** that is compatible with the planned ingestion UI:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ TIER 1: APP SHELL                                                           │
+│ ┌─────────┬─────────────────────────────────────────────────────────────┐  │
+│ │ SIDEBAR │ HEADER (fixed h-12) + BREADCRUMB (fixed py-2)               │  │
+│ │ (fixed  │ ┌─────────────────────────────────────────────────────────┐ │  │
+│ │  w-56)  │ │ MAIN CONTENT (flex-1 min-h-0 overflow-hidden)          │ │  │
+│ │         │ │   → Each page controls its own scrolling                │ │  │
+│ │         │ └─────────────────────────────────────────────────────────┘ │  │
+│ └─────────┴─────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Key Pattern**: `min-h-0 overflow-hidden` on `<main>` allows each page to manage its own scrolling.
+
+### 8.2 Container Behavior Matrix
+
+| Container Type | CSS Pattern                    | Use Case                                 |
+| -------------- | ------------------------------ | ---------------------------------------- |
+| **FIXED**      | `shrink-0`                     | Always visible headers, footers, filters |
+| **ATTACHED**   | `shrink-0` + conditional       | Progress panels, upload zones            |
+| **EXPANDABLE** | `w-[Npx]` + collapse           | Side panels, modals                      |
+| **SCROLLABLE** | `flex-1 min-h-0 overflow-auto` | Tables, lists, content areas             |
+
+### 8.3 Roadblocks & Mitigation
+
+| ID        | Roadblock              | Risk | Mitigation                       |
+| --------- | ---------------------- | :--: | -------------------------------- |
+| RB-UI-001 | WebSocket Provider     | LOW  | Add to AppProviders chain        |
+| RB-UI-002 | Progress Fixed Zone    | LOW  | Follow BatchProgressCard pattern |
+| RB-UI-003 | Panel Content Overflow | MED  | Use tabs with independent scroll |
+| RB-UI-004 | LineageGraph Viewport  | MED  | Create two variants (full/panel) |
+| RB-UI-005 | Mobile Responsive      | MED  | Use Sheet/Drawer patterns        |
+| RB-UI-006 | Animation Performance  | LOW  | React.memo, useMemo patterns     |
+| RB-UI-007 | State Complexity       | LOW  | Add Zustand stores               |
+| RB-UI-008 | Table Crowding         | LOW  | Responsive-hidden columns        |
+
+### 8.4 Accessibility Enhancements Required
+
+| Requirement    | Current | Action                     |
+| -------------- | ------- | -------------------------- |
+| Touch Targets  | 32px    | Increase to 44px min       |
+| Reduced Motion | Missing | Add prefers-reduced-motion |
+| Screen Reader  | Partial | Add ARIA to new components |
+| Keyboard Nav   | Good    | Extend to new components   |
+
+### 8.5 Verification Result
+
+**✅ VERIFIED**: The WebUI specification is **fully compatible** with the existing codebase architecture.
+
+| Aspect            | Status | Notes                                            |
+| ----------------- | :----: | ------------------------------------------------ |
+| Layout Patterns   |   ✅   | Uses established flex patterns                   |
+| Component Library |   ✅   | shadcn/ui, Tailwind, Radix                       |
+| State Management  |   ✅   | Zustand pattern established                      |
+| API Integration   |   ✅   | React Query pattern established                  |
+| Responsive Design |   ✅   | Mobile patterns exist                            |
+| Design Tokens     |   ✅   | design-tokens.css established                    |
+| Accessibility     |   ⚠️   | Needs touch target & reduced-motion enhancements |
+
+> **See**: [scratchpad.md - Session 4](scratchpad.md) for detailed container behavior matrix and code-level analysis.
+
+---
+
+## 9. Next Steps
+
+### 9.1 Immediate Actions
 
 1. **Review and approve** this design plan
 2. **Create feature branch** `feat/sota-ingestion-pipeline`
 3. **Begin Phase 1** implementation
 4. **Set up CI** for new test coverage requirements
 
-### 7.2 Implementation Checklist
+### 9.2 Implementation Checklist
 
 ```
 Phase 1: Core Enhancements + SOTA Prompts
@@ -472,9 +642,35 @@ Phase 5: API & Integration
 - [ ] Implement WebSocket
 - [ ] Create E2E tests
 - [ ] Update documentation
+
+Phase W1: WebUI Foundation
+- [ ] Create WebSocket client (progress-websocket.ts)
+- [ ] Create Zustand ingestion store
+- [ ] Add new TypeScript types
+- [ ] Create WebSocketProvider
+- [ ] Add WebSocketStatus component
+
+Phase W2: Progress Components
+- [ ] Create IngestionProgressPanel
+- [ ] Create StageIndicator
+- [ ] Update BatchProgressCard
+- [ ] Update DocumentManager with cost column
+
+Phase W3: Lineage Visualization
+- [ ] Create ChunkExplorer
+- [ ] Update LineageTree (interactive)
+- [ ] Create LineageGraphView (React Flow)
+- [ ] Create EntityProvenance panel
+
+Phase W4: Cost Monitoring
+- [ ] Create CostBadge component
+- [ ] Create CostDashboard page
+- [ ] Create CostBreakdownChart
+- [ ] Create BudgetIndicator
+- [ ] Add export/reporting
 ```
 
-### 7.3 Success Metrics
+### 9.3 Success Metrics
 
 | Metric               | Target | Validation        |
 | -------------------- | ------ | ----------------- |
@@ -488,15 +684,23 @@ Phase 5: API & Integration
 
 ## Appendix A: Document Index
 
-| Document                                               | Purpose                                 | Lines |
-| ------------------------------------------------------ | --------------------------------------- | ----- |
-| [01-architecture.md](01-architecture.md)               | System architecture with ASCII diagrams | ~400  |
-| [02-comparison.md](02-comparison.md)                   | Rust vs Python feature comparison       | ~300  |
-| [03-data-models.md](03-data-models.md)                 | Complete data model specifications      | ~500  |
-| [04-api-contracts.md](04-api-contracts.md)             | API endpoint definitions                | ~400  |
-| [05-implementation-plan.md](05-implementation-plan.md) | Phased implementation roadmap           | ~600  |
-| [06-testing-strategy.md](06-testing-strategy.md)       | Test plans and strategies               | ~500  |
-| [plan.md](plan.md)                                     | This document - master plan             | ~400  |
+| Document                                                           | Purpose                                 | Lines |
+| ------------------------------------------------------------------ | --------------------------------------- | ----- |
+| [01-architecture.md](01-architecture.md)                           | System architecture with ASCII diagrams | ~400  |
+| [02-comparison.md](02-comparison.md)                               | Rust vs Python feature comparison       | ~300  |
+| [03-data-models.md](03-data-models.md)                             | Complete data model specifications      | ~500  |
+| [04-api-contracts.md](04-api-contracts.md)                         | API endpoint definitions                | ~400  |
+| [05-implementation-plan.md](05-implementation-plan.md)             | Phased implementation roadmap           | ~600  |
+| [06-testing-strategy.md](06-testing-strategy.md)                   | Test plans and strategies               | ~500  |
+| [plan.md](plan.md)                                                 | This document - master plan             | ~600  |
+| [10-webui-spec-architecture.md](10-webui-spec-architecture.md)     | WebUI architecture overview             | ~350  |
+| [11-webui-screen-flows.md](11-webui-screen-flows.md)               | WebUI wireframes and screen flows       | ~450  |
+| [12-webui-api-integration.md](12-webui-api-integration.md)         | WebUI API integration layer             | ~500  |
+| [13-webui-components.md](13-webui-components.md)                   | WebUI component specifications          | ~400  |
+| [14-webui-websocket-progress.md](14-webui-websocket-progress.md)   | WebSocket real-time progress            | ~450  |
+| [15-webui-lineage-viz.md](15-webui-lineage-viz.md)                 | Lineage visualization design            | ~500  |
+| [16-webui-cost-monitoring.md](16-webui-cost-monitoring.md)         | Cost monitoring UI                      | ~400  |
+| [17-webui-implementation-plan.md](17-webui-implementation-plan.md) | WebUI implementation roadmap            | ~500  |
 
 ---
 

@@ -2,7 +2,92 @@
 
 > Working notes for SOTA GenAI-powered ingestion pipeline design.
 > Last updated: 2024-12-28
-> Status: ✅ COMPLETE + v2.0 ENHANCED
+> Status: ✅ COMPLETE + v2.0 ENHANCED + WebUI SPEC IN PROGRESS
+
+---
+
+## Session 3: WebUI Specification (2024-12-28)
+
+### WebUI Analysis - Current State
+
+**Current Components Identified:**
+
+1. **DocumentManager** (`src/components/documents/document-manager.tsx`)
+
+   - Main document upload and management interface
+   - Drag-and-drop file upload with progress tracking
+   - Batch processing support (track_id grouping)
+   - Status polling every 5 seconds
+   - Basic status display (pending, processing, completed, failed)
+
+2. **BatchProgressCard** (`src/components/documents/batch-progress-card.tsx`)
+
+   - Real-time batch progress tracking
+   - Polls `getTrackStatus(trackId)` every 2 seconds
+   - Shows document status summary
+
+3. **LineageTree** (`src/components/document/lineage-tree.tsx`)
+
+   - Basic pipeline visualization
+   - Shows: Upload → Content Extraction → Entity Extraction → Relationship Mapping → Graph Indexing
+   - Static completion status (always "completed")
+
+4. **PipelineStatusDialog** (`src/components/documents/pipeline-status-dialog.tsx`)
+
+   - Shows global pipeline status
+   - Pending/processing/completed/failed task counts
+
+5. **API Functions** (`src/lib/api/edgequake.ts`)
+
+   - `getDocuments`, `uploadDocument`, `deleteDocument`
+   - `reprocessDocument`, `reprocessFailedDocuments`
+   - `getTrackStatus` for batch progress
+   - `getPipelineStatus` for global status
+   - No WebSocket implementation yet
+
+6. **Types** (`src/types/index.ts`)
+   - `Document` with `DocumentLineage`
+   - `TrackStatusResponse`, `PipelineStatus`
+   - Basic `TaskResponse` with error info
+
+### Gaps Identified for WebUI Update
+
+| Feature                   | Current State         | Required Enhancement             |
+| ------------------------- | --------------------- | -------------------------------- |
+| **Real-time Progress**    | Polling every 2-5s    | WebSocket streaming              |
+| **Lineage Visualization** | Static tree           | Interactive drill-down           |
+| **Cost Tracking**         | None                  | Cost breakdown per doc/batch     |
+| **Stage Progress**        | Binary (complete/not) | Granular % per stage             |
+| **Chunk-Level Lineage**   | None                  | Click to see entities from chunk |
+| **Entity Provenance**     | None                  | Click entity → source docs/lines |
+| **Error Details**         | Basic message         | Stage, reason, suggestion        |
+| **Cancel Ingestion**      | None                  | Cancel running jobs              |
+| **Re-ingest**             | Basic                 | With config overrides            |
+
+### Design Principles for WebUI Spec
+
+1. **SLICK & Minimalist**: Clean UI, no visual clutter
+2. **Real-time First**: WebSocket for live updates, fallback to polling
+3. **Progressive Disclosure**: Overview → Details on demand
+4. **Actionable Data**: Every metric has a purpose
+5. **Dark/Light Mode**: Consistent with existing design tokens
+6. **Mobile Responsive**: Core flows work on mobile
+7. **Accessibility**: WCAG 2.1 AA compliance
+
+### WebUI Spec Document Structure
+
+```
+10-webui-spec-architecture.md    - Overall architecture & data flow
+11-webui-screen-flows.md         - Screen-by-screen wireframes
+12-webui-api-integration.md      - API hooks & WebSocket implementation
+13-webui-components.md           - Component specifications
+14-webui-websocket-progress.md   - Real-time progress implementation
+15-webui-lineage-viz.md          - Lineage visualization design
+16-webui-cost-monitoring.md      - Cost tracking UI
+17-webui-implementation-plan.md  - Implementation tasks & timeline
+```
+
+---
 
 ## Deliverables Completed
 
@@ -299,5 +384,312 @@ lightrag/
 2. Map-reduce is essential for large documents (>100 chunks)
 3. Caching enables efficient rebuilding without re-extraction
 4. Progress tracking should be event-driven for real-time updates
+
+---
+
+## Session 4: Deep Layout Architecture Verification (2024-12-28)
+
+> **Goal**: Verify WebUI integration plan against existing codebase, identify roadblocks,
+> and ensure SLICK, responsive, accessible interface design.
+
+### 4.1 Current Layout Architecture Analysis
+
+The EdgeQuake WebUI follows a sophisticated **3-tier layout architecture**:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ TIER 1: APP SHELL (Dashboard Layout)                                       │
+│ Location: src/app/(dashboard)/layout.tsx                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   <div className="flex h-screen overflow-hidden bg-background">            │
+│     <Sidebar />                          ← FIXED: w-56 or w-16 (collapsed)  │
+│     <div className="flex flex-1 flex-col overflow-hidden">                 │
+│       <Header />                         ← FIXED: h-12                     │
+│       <Breadcrumb />                     ← FIXED: py-2                     │
+│       <main className="flex-1 min-h-0 overflow-hidden">                    │
+│         {children}                       ← PAGES CONTROL OWN SCROLLING     │
+│       </main>                                                              │
+│     </div>                                                                 │
+│   </div>                                                                   │
+│                                                                             │
+│   KEY INSIGHT: min-h-0 overflow-hidden on <main> allows each page to       │
+│   manage its own scrolling. This is CRITICAL for proper layout behavior.   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ TIER 2: PAGE-LEVEL LAYOUT                                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│ DOCUMENTS PAGE (document-manager.tsx) - 1063 lines                         │
+│ ─────────────────────────────────────────────────                          │
+│ ┌─────────────────────────────────────────────────────────────────────┐    │
+│ │ flex flex-col h-full (root container)                               │    │
+│ ├─────────────────────────────────────────────────────────────────────┤    │
+│ │ shrink-0: Filters Bar (always visible)                              │    │
+│ ├─────────────────────────────────────────────────────────────────────┤    │
+│ │ shrink-0 CONDITIONAL: Upload Zone (on drag/upload active)          │    │
+│ ├─────────────────────────────────────────────────────────────────────┤    │
+│ │ shrink-0 CONDITIONAL: BatchProgressCard (on active track)          │    │
+│ ├─────────────────────────────────────────────────────────────────────┤    │
+│ │ flex-1 min-h-0 overflow-auto: Document Table (SCROLLABLE)          │    │
+│ ├─────────────────────────────────────────────────────────────────────┤    │
+│ │ shrink-0: Pagination Footer (always visible)                        │    │
+│ └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                             │
+│ ┌─────────────────────────────────────────────────────────────────────┐    │
+│ │ RightPanel: Document Preview (COLLAPSIBLE, w-[400px])               │    │
+│ │   - Collapsible with animation                                      │    │
+│ │   - ScrollArea for content                                          │    │
+│ └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                             │
+│ QUERY PAGE (query-interface.tsx) - 1060 lines                              │
+│ ───────────────────────────────────────────                                │
+│   - Chat-style layout with ScrollArea                                      │
+│   - Fixed input at bottom                                                  │
+│   - Messages scroll independently                                          │
+│   - ConversationHistoryPanelV2 as side panel (Sheet on mobile)            │
+│                                                                             │
+│ GRAPH PAGE (graph-viewer.tsx)                                              │
+│ ────────────────────────────                                               │
+│   - h-full overflow-hidden (full viewport)                                 │
+│   - Sigma.js canvas fills available space                                  │
+│   - Right panel for node details (RightPanel component)                    │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 4.2 Container Behavior Matrix
+
+**Classification Legend:**
+
+- **FIXED**: Always visible, never scrolls, fixed dimensions
+- **ATTACHED**: Fixed position but conditional (appears/disappears)
+- **EXPANDABLE**: Can grow/shrink based on content or user action
+- **SCROLLABLE**: Content can exceed container, enables scrolling
+
+| Component          | Fixed | Attached | Expandable | Scrollable | CSS Pattern                    |
+| ------------------ | :---: | :------: | :--------: | :--------: | ------------------------------ |
+| **APP SHELL**      |
+| Sidebar            |   ✓   |    -     |     ✓      |     ✓      | `w-56 or w-16` collapsed       |
+| Header             |   ✓   |    -     |     -      |     -      | `h-12` always visible          |
+| Breadcrumb         |   ✓   |    -     |     -      |     -      | `py-2` always visible          |
+| **DOCUMENTS PAGE** |
+| Filters Bar        |   ✓   |    -     |     -      |     -      | `shrink-0`                     |
+| Upload Zone        |   -   |    ✓     |     ✓      |     -      | `shrink-0` conditional         |
+| Batch Progress     |   -   |    ✓     |     ✓      |     -      | `shrink-0` conditional         |
+| Document Table     |   -   |    -     |     -      |     ✓      | `flex-1 min-h-0 overflow-auto` |
+| Pagination         |   ✓   |    -     |     -      |     -      | `shrink-0 border-t`            |
+| Right Panel        |   -   |    ✓     |     ✓      |     ✓      | `w-[400px]` collapsible        |
+| **QUERY PAGE**     |
+| History Panel      |   -   |    ✓     |     ✓      |     ✓      | Sheet on mobile                |
+| Messages Area      |   -   |    -     |     -      |     ✓      | `flex-1` auto-scroll           |
+| Input Area         |   ✓   |    -     |     ✓      |     -      | Fixed bottom                   |
+| **GRAPH PAGE**     |
+| Canvas             |   -   |    -     |     -      |     -      | `h-full` no scroll             |
+| Controls           |   ✓   |    -     |     -      |     -      | Overlay buttons                |
+| Node Panel         |   -   |    ✓     |     ✓      |     ✓      | RightPanel component           |
+
+### 4.3 NEW Components Container Behavior (From Plan)
+
+| Component              | Fixed | Attached | Expandable | Scrollable | Integration Point                 |
+| ---------------------- | :---: | :------: | :--------: | :--------: | --------------------------------- |
+| IngestionProgressPanel |   -   |    ✓     |     ✓      |     -      | Replace/enhance BatchProgressCard |
+| StageIndicator         |   -   |    -     |     -      |     -      | Inside progress panel             |
+| CostBadge              |   -   |    -     |     -      |     -      | Inline in table row               |
+| CostBreakdownChart     |   -   |    -     |     ✓      |     -      | Detail panel, Cost tab            |
+| ChunkExplorer          |   -   |    ✓     |     ✓      |     ✓      | Detail panel, Lineage tab         |
+| LineageGraph           |   -   |    -     |     ✓      |     -      | Full viewport (like Graph page)   |
+| EntityProvenance       |   -   |    ✓     |     ✓      |     ✓      | Side panel from graph/detail      |
+| WebSocketStatus        |   ✓   |    -     |     -      |     -      | Header indicator                  |
+
+### 4.4 Roadblocks & Mitigation Strategies
+
+#### 🚨 CRITICAL ROADBLOCKS
+
+| ID            | Roadblock                         | Risk   | Mitigation                                                      |
+| ------------- | --------------------------------- | ------ | --------------------------------------------------------------- |
+| **RB-UI-001** | WebSocket Provider Integration    | LOW    | Add to existing AppProviders chain, standard React pattern      |
+| **RB-UI-002** | Real-Time Progress Fixed Zone     | LOW    | Follow BatchProgressCard `shrink-0` pattern already established |
+| **RB-UI-003** | Detail Panel Content Overflow     | MEDIUM | Use tabs (spec'd), each tab independently scrollable            |
+| **RB-UI-004** | LineageGraph Full-Screen vs Panel | MEDIUM | Create two variants: FullPageLineageGraph + PanelLineageGraph   |
+
+#### ⚠️ MODERATE ROADBLOCKS
+
+| ID            | Roadblock                  | Risk   | Mitigation                                              |
+| ------------- | -------------------------- | ------ | ------------------------------------------------------- |
+| **RB-UI-005** | Mobile Responsive          | MEDIUM | Use Sheet/Drawer for progress, simplify lineage to tree |
+| **RB-UI-006** | Animation Performance      | LOW    | Continue React.memo, useMemo/useCallback patterns       |
+| **RB-UI-007** | State Management           | LOW    | Add 2-3 Zustand stores following existing patterns      |
+| **RB-UI-008** | Cost Column Table Crowding | LOW    | Responsive-hidden: `hidden lg:table-cell`               |
+
+### 4.5 Accessibility Compliance Verification
+
+#### WCAG 2.1 AA Checklist
+
+| Requirement                  | Current Status           | Gap           | Action Required            |
+| ---------------------------- | ------------------------ | ------------- | -------------------------- |
+| **Touch Targets (2.5.5)**    | 32px buttons             | ⚠️ Below 44px | Increase to min 44px       |
+| **Keyboard Nav (2.1.1)**     | useKeyboardShortcuts     | ✅ Good       | Extend to new components   |
+| **Focus Indicators (2.4.7)** | focus-visible:ring-2     | ✅ Good       | Apply to new components    |
+| **Color Contrast (1.4.3)**   | oklch colors             | ✅ Good       | Verify new components      |
+| **Screen Reader (4.1.2)**    | aria-label, aria-current | ⚠️ Partial    | Add ARIA to new components |
+| **Reduced Motion**           | No implementation        | ❌ Missing    | Add prefers-reduced-motion |
+
+#### Recommended CSS Addition for Reduced Motion
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse,
+  .animate-spin,
+  .animate-shimmer,
+  .animate-bounce {
+    animation: none !important;
+  }
+}
+```
+
+### 4.6 Enhanced Layout Specification for Documents Page
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ DOCUMENTS PAGE - ENHANCED LAYOUT (POST-INTEGRATION)                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+<div className="flex h-full">
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │ LEFT SECTION: Main Content (flex-1)                                     │
+  ├─────────────────────────────────────────────────────────────────────────┤
+  │                                                                         │
+  │ ┌─────────────────────────────────────────────────────────────────────┐ │
+  │ │ FIXED: Filters Bar (shrink-0)                                       │ │
+  │ │ - Search, Status filter, Sort, Refresh button                       │ │
+  │ │ - Status Summary with CostBadge for total                          │ │
+  │ └─────────────────────────────────────────────────────────────────────┘ │
+  │                                                                         │
+  │ ┌─────────────────────────────────────────────────────────────────────┐ │
+  │ │ ATTACHED: Upload Zone (shrink-0, v-if="isDragActive || uploading") │ │
+  │ │ - Drag-drop area                                                    │ │
+  │ │ - File progress list                                                │ │
+  │ └─────────────────────────────────────────────────────────────────────┘ │
+  │                                                                         │
+  │ ┌─────────────────────────────────────────────────────────────────────┐ │
+  │ │ ATTACHED: IngestionProgressPanel (shrink-0, v-if="hasActiveJobs") │ │
+  │ │ ┌─────────────────────────────────────────────────────────────────┐ │ │
+  │ │ │ StageIndicator (horizontal variant)                             │ │ │
+  │ │ │ [✓ Pre] ─▶ [✓ Chunk] ─▶ [◐ Extract 45%] ─▶ [○ Merge] ─▶ [○ Index] │ │
+  │ │ └─────────────────────────────────────────────────────────────────┘ │ │
+  │ │ ┌─────────────────────────────────────────────────────────────────┐ │ │
+  │ │ │ Live Message + ETA + CostBadge (live)                           │ │ │
+  │ │ └─────────────────────────────────────────────────────────────────┘ │ │
+  │ └─────────────────────────────────────────────────────────────────────┘ │
+  │                                                                         │
+  │ ┌─────────────────────────────────────────────────────────────────────┐ │
+  │ │ SCROLLABLE: Document Table (flex-1 min-h-0 overflow-auto)          │ │
+  │ │                                                                     │ │
+  │ │ ┌────┬──────────┬─────────┬──────────┬────────┬────────┬─────────┐ │ │
+  │ │ │ ☐  │ Title    │ Status  │ Entities │ Cost   │ Date   │ Actions │ │ │
+  │ │ │    │          │ (badge) │          │(badge) │        │         │ │ │
+  │ │ ├────┼──────────┼─────────┼──────────┼────────┼────────┼─────────┤ │ │
+  │ │ │ ☐  │ doc.pdf  │ ● Done  │ 25 | 15  │ $0.004 │ 2h ago │ 👁⟳🗑  │ │ │
+  │ │ │ ☐  │ data.txt │ ◐ 45%   │ -- | --  │ $0.002 │ 1h ago │ 👁⊘🗑  │ │ │
+  │ │ └────┴──────────┴─────────┴──────────┴────────┴────────┴─────────┘ │ │
+  │ │                                                                     │ │
+  │ │ Note: Cost column uses "hidden lg:table-cell" for responsive       │ │
+  │ └─────────────────────────────────────────────────────────────────────┘ │
+  │                                                                         │
+  │ ┌─────────────────────────────────────────────────────────────────────┐ │
+  │ │ FIXED: Pagination Footer (shrink-0 border-t bg-background)         │ │
+  │ └─────────────────────────────────────────────────────────────────────┘ │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │ RIGHT SECTION: Detail Panel (RightPanel, w-[400px], collapsible)        │
+  ├─────────────────────────────────────────────────────────────────────────┤
+  │                                                                         │
+  │ ┌─────────────────────────────────────────────────────────────────────┐ │
+  │ │ FIXED: Panel Header (shrink-0)                                      │ │
+  │ │ - Document title, status badge, close/collapse buttons              │ │
+  │ └─────────────────────────────────────────────────────────────────────┘ │
+  │                                                                         │
+  │ ┌─────────────────────────────────────────────────────────────────────┐ │
+  │ │ FIXED: Tab Navigation (shrink-0)                                    │ │
+  │ │ [Overview] [Lineage] [Entities] [Cost]                              │ │
+  │ └─────────────────────────────────────────────────────────────────────┘ │
+  │                                                                         │
+  │ ┌─────────────────────────────────────────────────────────────────────┐ │
+  │ │ SCROLLABLE: Tab Content (flex-1 overflow-auto)                      │ │
+  │ │                                                                     │ │
+  │ │ [Overview Tab]                                                      │ │
+  │ │ - Key stats grid (chunks, entities, relationships, cost)           │ │
+  │ │ - Content preview                                                   │ │
+  │ │ - Processing details (LLM model, embedding model, etc.)            │ │
+  │ │                                                                     │ │
+  │ │ [Lineage Tab] ← NEW                                                 │ │
+  │ │ - Interactive LineageTree (enhanced from current)                   │ │
+  │ │ - ChunkExplorer (scrollable list of chunks)                        │ │
+  │ │ - Click chunk → show entities extracted                            │ │
+  │ │                                                                     │ │
+  │ │ [Entities Tab]                                                      │ │
+  │ │ - Entity list with type badges                                     │ │
+  │ │ - Click entity → EntityProvenance                                  │ │
+  │ │                                                                     │ │
+  │ │ [Cost Tab] ← NEW                                                    │ │
+  │ │ - CostBreakdownChart (pie/bar)                                     │ │
+  │ │ - TokenUsageTable                                                   │ │
+  │ │ - Model info                                                        │ │
+  │ │                                                                     │ │
+  │ └─────────────────────────────────────────────────────────────────────┘ │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+</div>
+```
+
+### 4.7 Integration Verification Summary
+
+#### ✅ VERIFIED: Plan is compatible with existing architecture
+
+| Aspect            | Verification Status  | Notes                             |
+| ----------------- | :------------------: | --------------------------------- |
+| Layout Patterns   |    ✅ Compatible     | Uses established flex patterns    |
+| Component Library |    ✅ Compatible     | shadcn/ui, Tailwind, Radix        |
+| State Management  |    ✅ Compatible     | Zustand pattern established       |
+| API Integration   |    ✅ Compatible     | React Query pattern established   |
+| Responsive Design |    ✅ Compatible     | Mobile patterns exist             |
+| Accessibility     | ⚠️ Needs Enhancement | Add reduced-motion, touch targets |
+| Animation         |    ✅ Compatible     | CSS keyframes in globals.css      |
+| Design Tokens     |    ✅ Compatible     | design-tokens.css established     |
+
+#### Key Files to Modify (Cross-Referenced)
+
+| Spec Component          | Existing File           | Modification Type |
+| ----------------------- | ----------------------- | ----------------- |
+| IngestionProgressPanel  | batch-progress-card.tsx | REPLACE/ENHANCE   |
+| Cost column             | document-manager.tsx    | ADD column        |
+| LineageTree interactive | lineage-tree.tsx        | UPDATE            |
+| WebSocket client        | NEW file                | CREATE            |
+| Ingestion store         | NEW file                | CREATE            |
+| Cost store              | NEW file                | CREATE            |
+| ChunkExplorer           | NEW file                | CREATE            |
+| CostBadge               | NEW file                | CREATE            |
+
+### 4.8 SOTA Interface Quality Checklist
+
+| Quality                    | Implementation                   | Status |
+| -------------------------- | -------------------------------- | :----: |
+| **SLICK**                  | Minimal clutter, clean hierarchy |   ✅   |
+| **Real-Time**              | WebSocket + polling fallback     |   ✅   |
+| **Progressive Disclosure** | Tabs, expandable panels          |   ✅   |
+| **Actionable Data**        | Every metric drives action       |   ✅   |
+| **Responsive**             | Mobile-first, adaptive layout    |   ✅   |
+| **Accessible**             | WCAG 2.1 AA (with enhancements)  |   ⚠️   |
+| **Consistent**             | Design tokens, pattern library   |   ✅   |
+| **Dark/Light Mode**        | oklch colors, theme support      |   ✅   |
 
 ---
