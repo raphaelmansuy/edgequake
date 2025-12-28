@@ -173,9 +173,9 @@ const NonStreamingLoadingIndicator = memo(function NonStreamingLoadingIndicator(
                   {currentText}
                 </div>
                 
-                {/* Progress bar with subtle pulse animation */}
+                {/* Progress bar - no animation to avoid visual artifacts */}
                 <div className="mt-2 h-1 w-full bg-muted rounded-full overflow-hidden">
-                  <div className="h-full w-full bg-gradient-to-r from-primary/40 via-primary to-primary/40 rounded-full animate-pulse" />
+                  <div className="h-full w-full bg-gradient-to-r from-primary/40 via-primary to-primary/40 rounded-full" />
                 </div>
               </div>
             </div>

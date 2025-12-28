@@ -401,10 +401,7 @@ const AssistantMessage = memo(function AssistantMessage({
                 </div>
               ) : null}
               
-              {/* Streaming cursor */}
-              {message.isStreaming && displayContent && (
-                <span className="inline-block w-0.5 h-5 bg-primary animate-pulse ml-0.5 -mb-1" />
-              )}
+              {/* Streaming cursor removed - was causing visual artifacts */}
             </div>
           )}
 
