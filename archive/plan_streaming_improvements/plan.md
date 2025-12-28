@@ -1,7 +1,68 @@
 # Streaming Improvements Implementation Plan
 
 **Last Updated**: 2025-12-28
-**Status**: ✅ ROUND 6 - COMPLETE (ALL TESTS PASSING)
+**Status**: ✅ ROUND 7 - FIXING SHIMMER BLINK
+
+## 🔧 Round 7: Fix Black Blinking Horizontal Line (2025-12-28)
+
+### Issue Reported
+
+User reports a black blinking horizontal line during query streaming visible in screenshot.
+
+### Root Cause Analysis
+
+**Problem**: The `animate-shimmer` animation on the progress bar creates a distracting black horizontal line that moves across.
+
+**Location**: `query-interface.tsx:179` - DetailedLoadingMessage component
+
+```tsx
+// Current problematic code:
+<div className="mt-2 h-1 w-full bg-muted rounded-full overflow-hidden relative">
+  <div 
+    className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/60 to-transparent rounded-full animate-shimmer"
+  />
+</div>
+```
+
+**The shimmer animation**:
+- Moves a gradient from left to right across the progress bar
+- Creates a visible "line" effect that's distracting
+- Animation defined in `globals.css` with `translateX(-100%)` to `translateX(400%)`
+
+### ✅ Solution Implemented
+
+Replace the shimmer animation with a simpler, more subtle indeterminate progress indicator:
+
+**Option 1: Simple pulse (CHOSEN)**
+- Remove the shimmer overlay entirely
+- Use a simple pulsing progress bar with gradient
+- Less distracting, still shows activity
+
+**Option 2: Determinate dots**
+- Use animated dots pattern
+- More discrete, less motion
+
+### ✅ Fix Applied
+
+Replaced shimmer with subtle pulse animation:
+
+```tsx
+// After: Simple pulsing gradient bar
+<div className="mt-2 h-1 w-full bg-muted rounded-full overflow-hidden">
+  <div className="h-full w-full bg-gradient-to-r from-primary/40 via-primary to-primary/40 rounded-full animate-pulse" />
+</div>
+```
+
+### Testing
+
+- Visual check: No more horizontal blinking line
+- UX: Loading indicator still visible and subtle
+- Performance: No animation jank
+
+---
+
+**Last Updated**: 2025-12-28
+**Previous Status**: ✅ ROUND 6 - COMPLETE (ALL TESTS PASSING)
 
 ## ✅ Round 6: Deep Investigation - Build + Remaining Issues (2025-12-28)
 
