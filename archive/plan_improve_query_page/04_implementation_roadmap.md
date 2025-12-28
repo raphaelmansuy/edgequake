@@ -1,374 +1,343 @@
-# Phase 4: Implementation Roadmap
+# Phase 4: Implementation Roadmap - Query Page UX/UI Improvement
 
-**Document**: `04_implementation_roadmap.md`  
-**Created**: 2024-12-27  
-**Status**: Complete
-
----
-
-## 1. Executive Summary
-
-This roadmap outlines a **12-week implementation plan** organized into 3 sprints of 4 weeks each. The plan prioritizes critical fixes first (P0), followed by core improvements (P1), and concludes with enhancements (P2).
-
-**Key Milestones**:
-
-- **Week 4**: Streaming markdown rendering fixed, no more raw text display
-- **Week 8**: Server-side persistence live, localStorage migration complete
-- **Week 12**: Full feature parity with competitive products
+> **Date**: December 27, 2025  
+> **Dependencies**: [Technical Spec](./03_technical_spec.md), [Design Strategy](./02_design_strategy.md)  
+> **Timeline**: 3 Sprint Cycles (6 weeks)
 
 ---
 
-## 2. Prioritization Matrix
+## 1. Prioritization Matrix
 
-### 2.1 Priority Definitions
+### 1.1 Priority Definitions
 
-| Priority | Impact | Urgency      | Description                             |
-| -------- | ------ | ------------ | --------------------------------------- |
-| **P0**   | High   | Critical     | Broken functionality causing user churn |
-| **P1**   | High   | Important    | Core experience improvements            |
-| **P2**   | Medium | Nice-to-have | Competitive feature parity              |
-| **P3**   | Low    | Future       | Innovation and delight                  |
+| Priority | Label    | Definition                                                | Timeline   |
+| -------- | -------- | --------------------------------------------------------- | ---------- |
+| **P0**   | Critical | Blocking production use, security risk, or data integrity | Sprint 1   |
+| **P1**   | High     | Significant UX degradation, frequently encountered issues | Sprint 1-2 |
+| **P2**   | Medium   | Notable improvement, quality of life enhancement          | Sprint 2-3 |
+| **P3**   | Low      | Nice-to-have, polish, future consideration                | Backlog    |
 
-### 2.2 Issue Prioritization
+### 1.2 Feature Prioritization
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         PRIORITY MATRIX                                      │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  IMPACT                                                                      │
-│    ▲                                                                         │
-│    │                                                                         │
-│  HIGH │  P1: Server Persistence     │  P0: Streaming Markdown              │
-│    │      Pagination/Filters        │      Code Block Rendering            │
-│    │      Share/Export              │      KaTeX Math Support              │
-│    │                                │                                       │
-│    │─────────────────────────────────────────────────────────────────────── │
-│    │                                │                                       │
-│  MED │  P3: Keyboard Shortcuts      │  P2: Conversation Folders            │
-│    │      Custom Themes             │      Batch Operations                │
-│    │      AI Title Gen              │      Responsive Mobile               │
-│    │                                │                                       │
-│    └───────────────────────────────────────────────────────────────▶        │
-│                        LOW                              HIGH                 │
-│                                  URGENCY                                     │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+| ID         | Feature                         | Priority | Effort | Dependencies | User Impact                       |
+| ---------- | ------------------------------- | -------- | ------ | ------------ | --------------------------------- |
+| **MD-01**  | Table streaming buffering       | P0       | M      | None         | 🔴 Tables break during generation |
+| **MD-02**  | DOMPurify HTML sanitization     | P0       | S      | None         | 🔴 Security vulnerability         |
+| **MD-03**  | Auto-scroll optimization        | P1       | S      | None         | 🟠 Scroll jank during streaming   |
+| **MD-04**  | GitHub-style alerts extension   | P1       | M      | MD-02        | 🟡 Missing standard markdown      |
+| **MD-05**  | Footnotes extension             | P2       | M      | MD-02        | 🟡 Academic content support       |
+| **MD-06**  | Enhanced citations with preview | P2       | L      | API changes  | 🟡 Source discoverability         |
+| **MD-07**  | Collapsible details blocks      | P3       | S      | MD-04        | 🟢 Long response handling         |
+| **DB-01**  | Materialized message counts     | P1       | M      | Migration    | 🟠 List query performance         |
+| **DB-02**  | Message versioning table        | P2       | M      | Migration    | 🟡 Edit history tracking          |
+| **DB-03**  | Conversation tags               | P3       | M      | Migration    | 🟢 Organization feature           |
+| **API-01** | Message pagination endpoint     | P1       | M      | DB-01        | 🟠 Long conversation support      |
+| **API-02** | Enhanced conversation search    | P2       | M      | DB-01        | 🟡 Find past queries faster       |
+| **UI-01**  | Streaming text animations       | P2       | S      | MD-03        | 🟡 Visual polish                  |
+| **UI-02**  | Thinking section animations     | P2       | S      | None         | 🟡 Visual polish                  |
+| **UI-03**  | Empty state enhancement         | P2       | S      | None         | 🟡 Onboarding improvement         |
+| **UI-04**  | Mobile history panel sheet      | P1       | M      | None         | 🟠 Mobile usability               |
+| **UI-05**  | Conversation filters UI         | P1       | M      | API-02       | 🟠 Find conversations             |
+| **UI-06**  | Keyboard shortcuts              | P3       | S      | None         | 🟢 Power user feature             |
 
----
-
-## 3. Sprint Breakdown
-
-### 3.1 Sprint 1: Foundation (Weeks 1-4)
-
-**Theme**: Fix Critical Rendering Issues
+### 1.3 Dependency Graph
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ SPRINT 1: FOUNDATION                                           Weeks 1-4    │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│ Week 1: Streaming Markdown Architecture                                      │
-│ ─────────────────────────────────────────                                    │
-│ [ ] Install marked.js + marked-katex-extension                               │
-│ [ ] Create StreamingMarkdownParser class                                     │
-│ [ ] Implement buffer management with safe split points                       │
-│ [ ] Write unit tests for streaming parser                                    │
-│                                                                              │
-│ Week 2: Token-Based Rendering                                                │
-│ ─────────────────────────────────                                            │
-│ [ ] Create TokenRenderer component                                           │
-│ [ ] Implement individual token components (Paragraph, Heading, Code, etc.)   │
-│ [ ] Migrate from react-markdown to marked-based approach                     │
-│ [ ] Add partial text display for incomplete blocks                           │
-│                                                                              │
-│ Week 3: Code Block & Mermaid Improvements                                    │
-│ ────────────────────────────────────────                                     │
-│ [ ] Replace prism with shiki for syntax highlighting                         │
-│ [ ] Add copy-to-clipboard with toast notification                            │
-│ [ ] Fix Mermaid rendering during streaming (show placeholder)                │
-│ [ ] Implement lazy loading for Mermaid component                             │
-│                                                                              │
-│ Week 4: KaTeX & Testing                                                      │
-│ ─────────────────────────                                                    │
-│ [ ] Enable KaTeX support via marked extension                                │
-│ [ ] Add error boundaries for malformed math                                  │
-│ [ ] Comprehensive E2E tests for markdown rendering                           │
-│ [ ] Performance profiling and optimization                                   │
-│                                                                              │
-│ DELIVERABLES:                                                                │
-│ ✓ Streaming markdown renders correctly (no raw text fallback)                │
-│ ✓ Code blocks with syntax highlighting + copy button                         │
-│ ✓ KaTeX math equations enabled                                               │
-│ ✓ Mermaid diagrams render after streaming complete                           │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### 3.2 Sprint 2: Persistence (Weeks 5-8)
-
-**Theme**: Server-Side Storage & Sync
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ SPRINT 2: PERSISTENCE                                          Weeks 5-8    │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│ Week 5: Database Schema & API                                                │
-│ ─────────────────────────────────                                            │
-│ [ ] Create PostgreSQL migration for conversations/messages tables            │
-│ [ ] Implement CRUD handlers in Axum                                          │
-│ [ ] Add cursor-based pagination                                              │
-│ [ ] Write API integration tests                                              │
-│                                                                              │
-│ Week 6: React Query Integration                                              │
-│ ───────────────────────────────                                              │
-│ [ ] Create API client with fetch + error handling                            │
-│ [ ] Set up React Query providers                                             │
-│ [ ] Implement useConversations, useConversation hooks                        │
-│ [ ] Add optimistic updates for messages                                      │
-│                                                                              │
-│ Week 7: Conversation List Refactor                                           │
-│ ────────────────────────────────                                             │
-│ [ ] Replace localStorage-based ConversationHistoryPanel                      │
-│ [ ] Implement virtualized list with @tanstack/react-virtual                  │
-│ [ ] Add filter bar (mode, date range, search)                                │
-│ [ ] Implement infinite scroll pagination                                     │
-│                                                                              │
-│ Week 8: Migration & Sync                                                     │
-│ ──────────────────────────                                                   │
-│ [ ] Build localStorage → server migration wizard                             │
-│ [ ] Implement conflict resolution UI                                         │
-│ [ ] Add sync status indicator                                                │
-│ [ ] Clean up old localStorage code                                           │
-│                                                                              │
-│ DELIVERABLES:                                                                │
-│ ✓ Conversations persist to PostgreSQL                                        │
-│ ✓ Paginated history with filters                                             │
-│ ✓ One-time migration from localStorage                                       │
-│ ✓ Cross-device conversation access                                           │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### 3.3 Sprint 3: Polish (Weeks 9-12)
-
-**Theme**: UX Refinement & Feature Parity
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ SPRINT 3: POLISH                                               Weeks 9-12   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│ Week 9: Organization Features                                                │
-│ ─────────────────────────────                                                │
-│ [ ] Implement folder system for conversations                                │
-│ [ ] Add pin/archive functionality                                            │
-│ [ ] Create batch selection + bulk operations                                 │
-│ [ ] Add rename conversation inline editing                                   │
-│                                                                              │
-│ Week 10: Sharing & Export                                                    │
-│ ────────────────────────────                                                 │
-│ [ ] Generate shareable links (public read-only)                              │
-│ [ ] Export to Markdown format                                                │
-│ [ ] Export to JSON format                                                    │
-│ [ ] Add print-friendly view                                                  │
-│                                                                              │
-│ Week 11: Responsive & Mobile                                                 │
-│ ────────────────────────────                                                 │
-│ [ ] Implement slide-over panels for mobile                                   │
-│ [ ] Add swipe gestures for history panel                                     │
-│ [ ] Optimize touch targets for mobile                                        │
-│ [ ] Test on various device sizes                                             │
-│                                                                              │
-│ Week 12: Accessibility & Final Polish                                        │
-│ ─────────────────────────────────────                                        │
-│ [ ] ARIA labels and keyboard navigation                                      │
-│ [ ] Screen reader testing                                                    │
-│ [ ] Performance audit (Lighthouse)                                           │
-│ [ ] Documentation and release notes                                          │
-│                                                                              │
-│ DELIVERABLES:                                                                │
-│ ✓ Folder organization for conversations                                      │
-│ ✓ Share and export functionality                                             │
-│ ✓ Mobile-responsive design                                                   │
-│ ✓ WCAG 2.1 AA compliance                                                     │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+                                    ┌─────────────────┐
+                                    │    Sprint 1     │
+                                    └────────┬────────┘
+                                             │
+           ┌─────────────────────────────────┼─────────────────────────────────┐
+           │                                 │                                 │
+           ▼                                 ▼                                 ▼
+    ┌──────────────┐                 ┌──────────────┐                 ┌──────────────┐
+    │    MD-01     │                 │    MD-02     │                 │    DB-01     │
+    │   Table      │                 │  DOMPurify   │                 │  Materialized│
+    │  Buffering   │                 │ Sanitization │                 │   Counts     │
+    └──────────────┘                 └──────┬───────┘                 └──────┬───────┘
+                                            │                                 │
+                                            │                                 │
+                                    ┌───────┴───────┐                         │
+                                    │               │                         │
+                                    ▼               ▼                         ▼
+                             ┌──────────────┐ ┌──────────────┐         ┌──────────────┐
+                             │    MD-04     │ │    MD-05     │         │   API-01     │
+                             │   Alerts     │ │  Footnotes   │         │  Pagination  │
+                             └──────────────┘ └──────────────┘         └──────────────┘
+                                    │                                         │
+                                    │                                         │
+                                    ▼                                         ▼
+                             ┌──────────────┐                         ┌──────────────┐
+                             │    MD-07     │                         │   API-02     │
+                             │   Details    │                         │   Search     │
+                             └──────────────┘                         └──────────────┘
+                                                                              │
+                                                                              │
+                                                                              ▼
+                                                                       ┌──────────────┐
+                                                                       │    UI-05     │
+                                                                       │   Filters    │
+                                                                       └──────────────┘
 ```
 
 ---
 
-## 4. Detailed Task Breakdown
+## 2. Sprint-by-Sprint Plan
 
-### 4.1 Sprint 1 Tasks (Weeks 1-4)
+### Sprint 1: Foundation & Critical Fixes (2 weeks)
 
-| Task                           | Estimate | Owner | Dependencies  | Acceptance Criteria                  |
-| ------------------------------ | -------- | ----- | ------------- | ------------------------------------ |
-| Install marked.js + extensions | 2h       | FE    | None          | Packages in package.json             |
-| StreamingMarkdownParser class  | 8h       | FE    | marked.js     | Buffer splits at safe points         |
-| Token type definitions         | 2h       | FE    | marked.js     | TypeScript interfaces defined        |
-| TokenRenderer component        | 4h       | FE    | Types         | Switch dispatches all token types    |
-| ParagraphToken                 | 2h       | FE    | TokenRenderer | Renders inline tokens                |
-| HeadingToken                   | 1h       | FE    | TokenRenderer | h1-h6 with anchors                   |
-| CodeToken                      | 6h       | FE    | TokenRenderer | Syntax highlighting + copy           |
-| TableToken                     | 4h       | FE    | TokenRenderer | GFM tables render                    |
-| ListToken                      | 4h       | FE    | TokenRenderer | Nested lists render                  |
-| BlockquoteToken                | 2h       | FE    | TokenRenderer | Styled blockquotes                   |
-| MermaidToken                   | 8h       | FE    | TokenRenderer | Lazy load, placeholder during stream |
-| KaTeX integration              | 6h       | FE    | marked.js     | Math equations render                |
-| Shiki integration              | 6h       | FE    | CodeToken     | 20+ language themes                  |
-| Migrate MarkdownRenderer       | 8h       | FE    | All tokens    | Old component replaced               |
-| Unit tests (parser)            | 8h       | FE    | Parser        | >90% coverage                        |
-| E2E tests (rendering)          | 8h       | FE    | All           | 10+ test scenarios                   |
-| **Total Sprint 1**             | **~80h** |       |               |                                      |
+**Theme**: Fix breaking issues, establish performance baseline
 
-### 4.2 Sprint 2 Tasks (Weeks 5-8)
+#### Week 1: Core Fixes
 
-| Task                        | Estimate  | Owner | Dependencies | Acceptance Criteria         |
-| --------------------------- | --------- | ----- | ------------ | --------------------------- |
-| DB migration file           | 4h        | BE    | None         | Tables created in Postgres  |
-| Conversation CRUD handlers  | 12h       | BE    | Migration    | All endpoints working       |
-| Message handlers            | 8h        | BE    | Conversation | Messages persist            |
-| Cursor pagination           | 4h        | BE    | Handlers     | Cursor encodes timestamp+id |
-| API client (TypeScript)     | 6h        | FE    | BE API       | Typed fetch functions       |
-| React Query setup           | 4h        | FE    | Client       | QueryClient configured      |
-| useConversations hook       | 4h        | FE    | RQ setup     | List with filters           |
-| useConversation hook        | 4h        | FE    | RQ setup     | Single with messages        |
-| useSendMessage hook         | 6h        | FE    | RQ setup     | Optimistic updates          |
-| VirtualizedConversationList | 8h        | FE    | Hooks        | 1000+ items smooth          |
-| FilterBar component         | 6h        | FE    | Hooks        | Mode, date, search filters  |
-| InfiniteScroll trigger      | 4h        | FE    | Pagination   | Load more on scroll         |
-| Migration wizard UI         | 8h        | FE    | All          | Step-by-step migration      |
-| Conflict resolution         | 6h        | FE    | Wizard       | Manual merge UI             |
-| Sync status indicator       | 4h        | FE    | Hooks        | Saved/Syncing/Error states  |
-| Remove old localStorage     | 4h        | FE    | Migration    | Dead code removed           |
-| API integration tests       | 8h        | BE    | All BE       | >80% coverage               |
-| E2E persistence tests       | 8h        | FE    | All          | Create/Read/Update/Delete   |
-| **Total Sprint 2**          | **~108h** |       |              |                             |
+| Task                                       | Assignee | Days | Acceptance Criteria                                              |
+| ------------------------------------------ | -------- | ---- | ---------------------------------------------------------------- |
+| **MD-01**: Implement table buffering logic | Frontend | 2    | Tables render only when complete; show skeleton during buffering |
+| **MD-02**: Integrate DOMPurify             | Frontend | 1    | All HTML tokens sanitized; XSS test suite passes                 |
+| **MD-03**: Optimize auto-scroll            | Frontend | 1    | 60fps scroll during streaming; user scroll disables auto-scroll  |
+| **DB-01**: Add message_count migration     | Backend  | 1    | Migration runs in <30s on 10k conversations                      |
 
-### 4.3 Sprint 3 Tasks (Weeks 9-12)
+#### Week 2: UI Foundations
 
-| Task                  | Estimate  | Owner | Dependencies | Acceptance Criteria        |
-| --------------------- | --------- | ----- | ------------ | -------------------------- |
-| Folders table + API   | 6h        | BE    | S2 complete  | CRUD for folders           |
-| Folder tree component | 8h        | FE    | Folders API  | Drag-drop reorder          |
-| Pin/archive API       | 4h        | BE    | S2 complete  | Update endpoints           |
-| Pin/archive UI        | 4h        | FE    | API          | Toggle icons work          |
-| Batch selection       | 6h        | FE    | List         | Checkbox multi-select      |
-| Bulk operations       | 6h        | FE/BE | Selection    | Delete/Move/Archive        |
-| Inline rename         | 4h        | FE    | List         | Double-click to edit       |
-| Share link API        | 6h        | BE    | S2 complete  | Generate/revoke share IDs  |
-| Share dialog UI       | 4h        | FE    | Share API    | Copy link button           |
-| Export to Markdown    | 4h        | FE    | Conversation | Download .md file          |
-| Export to JSON        | 2h        | FE    | Conversation | Download .json file        |
-| Print view            | 4h        | FE    | Conversation | @media print styles        |
-| Slide-over panels     | 6h        | FE    | None         | Mobile drawer component    |
-| Swipe gestures        | 4h        | FE    | Panels       | Left/right to open/close   |
-| Touch targets         | 4h        | FE    | All          | Min 44px tap areas         |
-| Device testing        | 8h        | QA    | All          | iOS Safari, Android Chrome |
-| ARIA labels           | 6h        | FE    | All          | All interactive elements   |
-| Keyboard nav          | 6h        | FE    | All          | Full keyboard access       |
-| Screen reader testing | 8h        | QA    | ARIA         | VoiceOver/NVDA tested      |
-| Lighthouse audit      | 4h        | FE    | All          | >90 all categories         |
-| Documentation         | 8h        | All   | All          | User guide + API docs      |
-| **Total Sprint 3**    | **~112h** |       |              |                            |
+| Task                            | Assignee | Days | Acceptance Criteria                                                     |
+| ------------------------------- | -------- | ---- | ----------------------------------------------------------------------- |
+| **UI-04**: Mobile history sheet | Frontend | 3    | Sheet slides from left; touch gestures work; < 200ms open time          |
+| **API-01**: Message pagination  | Backend  | 2    | Cursor-based pagination; returns 50 messages default; includes has_more |
+
+#### Sprint 1 Deliverables Checklist
+
+- [ ] Tables render correctly during streaming (no broken HTML)
+- [ ] All HTML content sanitized via DOMPurify
+- [ ] Auto-scroll smooth at 60fps
+- [ ] Mobile users can access conversation history
+- [ ] Long conversations paginate properly
+- [ ] Database includes message_count column with backfill
+
+#### Sprint 1 Demo Script
+
+1. Start streaming a query with table → Table appears only when complete ✓
+2. Inject XSS payload `<img onerror="alert('xss')">` → Sanitized, no alert ✓
+3. Stream 500+ tokens → No scroll stutter ✓
+4. Open on mobile → Swipe left for history ✓
+5. Load conversation with 100+ messages → Only 50 loaded initially ✓
 
 ---
 
-## 5. Risk Register
+### Sprint 2: Markdown Extensions & Polish (2 weeks)
 
-| Risk                                | Likelihood | Impact   | Mitigation                                    | Contingency                     |
-| ----------------------------------- | ---------- | -------- | --------------------------------------------- | ------------------------------- |
-| marked.js streaming edge cases      | Medium     | High     | Extensive unit tests, fuzz testing            | Keep react-markdown as fallback |
-| PostgreSQL migration data loss      | Low        | Critical | Backup before migration, transaction rollback | Restore from backup             |
-| React Query cache invalidation bugs | Medium     | Medium   | Clear cache invalidation strategy             | Manual cache management         |
-| Mermaid lazy load failures          | Low        | Medium   | Retry mechanism, graceful fallback            | Static placeholder              |
-| Mobile gesture conflicts            | Medium     | Low      | Test early on real devices                    | Disable gestures, use buttons   |
-| Bundle size increase (shiki)        | High       | Medium   | Use shiki/compat, lazy load                   | Keep prism as fallback          |
-| Cross-device sync conflicts         | Medium     | High     | Clear conflict resolution UX                  | Last-write-wins with history    |
+**Theme**: Feature parity with OpenWebUI, visual refinement
+
+#### Week 3: Markdown Extensions
+
+| Task                                 | Assignee | Days | Acceptance Criteria                                                 |
+| ------------------------------------ | -------- | ---- | ------------------------------------------------------------------- |
+| **MD-04**: GitHub alerts extension   | Frontend | 2    | NOTE, TIP, WARNING, CAUTION, IMPORTANT render with icons and colors |
+| **MD-05**: Footnotes extension       | Frontend | 2    | `[^1]` renders as superscript; definitions render at bottom         |
+| **UI-01**: Streaming text animations | Frontend | 1    | Tokens fade in with 100ms stagger; cursor pulses smoothly           |
+
+#### Week 4: Performance & Search
+
+| Task                           | Assignee | Days | Acceptance Criteria                                                           |
+| ------------------------------ | -------- | ---- | ----------------------------------------------------------------------------- |
+| **API-02**: Enhanced search    | Backend  | 2    | Full-text search in title + content; returns in < 100ms for 10k conversations |
+| **UI-05**: Filter/sort UI      | Frontend | 2    | Mode filter chips; date picker; sort dropdown; immediate application          |
+| **UI-02**: Thinking animations | Frontend | 1    | Brain icon pulses; shimmer bars animate; smooth collapse transition           |
+
+#### Sprint 2 Deliverables Checklist
+
+- [ ] GitHub-style alerts render with appropriate styling
+- [ ] Footnotes appear as superscripts with hover preview
+- [ ] Streaming text has visible fade-in animation
+- [ ] Thinking section has polish animations
+- [ ] Search finds conversations by content
+- [ ] Filter by mode/date works with immediate feedback
+
+#### Sprint 2 Demo Script
+
+1. Query returns `> [!WARNING]\n> Be careful!` → Yellow warning box renders ✓
+2. Response includes `See footnote[^1]` → Superscript with tooltip ✓
+3. Stream response → Watch tokens fade in smoothly ✓
+4. Search "entity graph" → Find matching conversations quickly ✓
+5. Filter by "hybrid" mode → Only hybrid conversations shown ✓
 
 ---
 
-## 6. Gantt Chart
+### Sprint 3: Advanced Features & Quality (2 weeks)
 
+**Theme**: Edge cases, documentation, launch preparation
+
+#### Week 5: Advanced Markdown & Versioning
+
+| Task                          | Assignee | Days | Acceptance Criteria                                          |
+| ----------------------------- | -------- | ---- | ------------------------------------------------------------ |
+| **MD-06**: Enhanced citations | Frontend | 2    | Hover shows source preview; click scrolls to source          |
+| **DB-02**: Message versioning | Backend  | 2    | Store initial + edit versions; expose via API                |
+| **UI-03**: Empty state polish | Frontend | 1    | Animated icon; graph stats display; suggestion hover effects |
+
+#### Week 6: Final Polish & Testing
+
+| Task              | Assignee | Days | Acceptance Criteria                                    |
+| ----------------- | -------- | ---- | ------------------------------------------------------ |
+| E2E test suite    | QA       | 2    | 90%+ coverage on query page; all critical paths tested |
+| Performance audit | Frontend | 1    | Lighthouse score > 90; Core Web Vitals green           |
+| Documentation     | All      | 1    | Updated README; API docs; component storybook          |
+| Bug bash & fixes  | All      | 1    | All P0/P1 bugs resolved; P2 triaged for future         |
+
+#### Sprint 3 Deliverables Checklist
+
+- [ ] Citations show rich previews on hover
+- [ ] Message edit history accessible
+- [ ] Empty state feels premium and helpful
+- [ ] E2E tests pass on CI
+- [ ] Performance metrics meet targets
+- [ ] Documentation complete
+
+#### Sprint 3 Demo Script
+
+1. Hover citation → Preview card shows source content ✓
+2. Regenerate message → Original version preserved in history ✓
+3. Open fresh page → Beautiful empty state with stats ✓
+4. Run full test suite → All green ✓
+5. Lighthouse audit → 90+ performance score ✓
+
+---
+
+## 3. Risk Register
+
+### 3.1 Technical Risks
+
+| ID     | Risk                                            | Probability | Impact | Mitigation                                         | Contingency                                    |
+| ------ | ----------------------------------------------- | ----------- | ------ | -------------------------------------------------- | ---------------------------------------------- |
+| **R1** | Table buffering breaks other markdown elements  | Medium      | High   | Comprehensive test suite; edge case analysis       | Roll back to current behavior; fix iteratively |
+| **R2** | DOMPurify bundle size impact (+25kb gzipped)    | Low         | Medium | Dynamic import; load only when HTML tokens present | Use lighter alternative (xss library)          |
+| **R3** | Message pagination breaks existing UI state     | Medium      | Medium | Feature flag; A/B test with subset                 | Keep unlimited loading as fallback             |
+| **R4** | Search performance degrades with scale          | Medium      | High   | EXPLAIN ANALYZE in CI; monitor query times         | Add Redis cache layer for frequent queries     |
+| **R5** | Mobile sheet conflicts with iOS scroll behavior | Medium      | Medium | Test on real devices; Safari-specific fixes        | Use native dialog on iOS                       |
+
+### 3.2 Design Risks
+
+| ID     | Risk                                    | Probability | Impact | Mitigation                                   | Contingency            |
+| ------ | --------------------------------------- | ----------- | ------ | -------------------------------------------- | ---------------------- |
+| **R6** | Animations distract rather than delight | Medium      | Low    | User testing; toggle option in settings      | Make animations opt-in |
+| **R7** | New filter UI takes too much space      | Low         | Medium | Collapsible filter bar; hide when not active | Move to popover        |
+
+### 3.3 Timeline Risks
+
+| ID      | Risk                                       | Probability | Impact | Mitigation                                | Contingency                                        |
+| ------- | ------------------------------------------ | ----------- | ------ | ----------------------------------------- | -------------------------------------------------- |
+| **R8**  | Backend changes take longer than estimated | Medium      | High   | Start DB work early; parallel development | Defer API-02 to next cycle; ship with basic search |
+| **R9**  | Scope creep from stakeholder feedback      | High        | Medium | Strict change control; defer to P3        | Lock scope at sprint boundaries                    |
+| **R10** | Key developer unavailable                  | Low         | High   | Cross-training; documented specs          | Redistribute tasks; extend sprint if needed        |
+
+---
+
+## 4. Acceptance Criteria Summary
+
+### 4.1 Performance Requirements
+
+| Metric                         | Current | Target  | Measurement     |
+| ------------------------------ | ------- | ------- | --------------- |
+| Time to First Contentful Paint | ~300ms  | < 200ms | Lighthouse      |
+| Time to Interactive            | ~800ms  | < 500ms | Lighthouse      |
+| Streaming token latency        | ~100ms  | < 50ms  | Custom timing   |
+| Conversation list load         | ~120ms  | < 80ms  | Network panel   |
+| Search response time           | N/A     | < 100ms | Server logs     |
+| Scroll FPS during streaming    | 45-50   | 60      | Chrome DevTools |
+
+### 4.2 Quality Requirements
+
+| Metric                      | Target  | Measurement             |
+| --------------------------- | ------- | ----------------------- |
+| E2E test coverage           | > 85%   | Istanbul                |
+| Unit test coverage          | > 70%   | Vitest                  |
+| Accessibility score         | 100     | Lighthouse              |
+| TypeScript strict mode      | Enabled | tsconfig                |
+| Zero console errors         | Yes     | E2E runner              |
+| Zero markdown render errors | Yes     | Error boundary tracking |
+
+### 4.3 User Experience Requirements
+
+| Requirement                              | Validation Method                    |
+| ---------------------------------------- | ------------------------------------ |
+| Tables render correctly during streaming | Manual test with various table sizes |
+| Code blocks preserve syntax highlighting | Screenshot comparison                |
+| Math formulas render without errors      | KaTeX error count = 0                |
+| Mobile history panel accessible          | Touch gesture testing                |
+| Keyboard navigation complete             | Tab through all interactive elements |
+| Screen reader friendly                   | VoiceOver/NVDA testing               |
+
+---
+
+## 5. Definition of Done
+
+### For Each Task
+
+- [ ] Code reviewed and approved
+- [ ] Unit tests written and passing
+- [ ] Integration tests (if applicable) passing
+- [ ] No TypeScript errors
+- [ ] No ESLint warnings
+- [ ] Storybook story created (for UI components)
+- [ ] Documentation updated
+- [ ] Deployed to staging and verified
+- [ ] Product owner sign-off
+
+### For Each Sprint
+
+- [ ] All P0 and P1 tasks complete
+- [ ] Demo to stakeholders
+- [ ] Retrospective conducted
+- [ ] Sprint metrics documented
+- [ ] Technical debt logged
+- [ ] Next sprint planned
+
+### For Overall Project
+
+- [ ] All acceptance criteria met
+- [ ] Performance targets achieved
+- [ ] Documentation complete
+- [ ] Training materials (if needed)
+- [ ] Deployment runbook updated
+- [ ] Monitoring dashboards configured
+- [ ] Feature flag cleanup planned
+
+---
+
+## 6. Post-Launch Monitoring
+
+### 6.1 Key Metrics to Track
+
+| Metric                            | Source         | Alert Threshold    |
+| --------------------------------- | -------------- | ------------------ |
+| Error rate (markdown render)      | Sentry         | > 0.1%             |
+| P95 streaming latency             | Custom metrics | > 200ms            |
+| API error rate                    | Server logs    | > 1%               |
+| Conversation load time P95        | RUM            | > 500ms            |
+| User engagement (queries/session) | Analytics      | -20% from baseline |
+
+### 6.2 Feature Flag Strategy
+
+```typescript
+// Feature flags for gradual rollout
+const queryPageFeatures = {
+  "query.markdown.table-buffering": true, // Sprint 1, 100%
+  "query.markdown.github-alerts": true, // Sprint 2, 100%
+  "query.markdown.footnotes": 0.5, // Sprint 2, 50% rollout
+  "query.ui.streaming-animations": true, // Sprint 2, 100%
+  "query.ui.enhanced-search": 0.2, // Sprint 2, 20% rollout
+  "query.api.message-pagination": true, // Sprint 1, 100%
+};
 ```
-┌────────────────────────────────────────────────────────────────────────────┐
-│                              12-WEEK GANTT CHART                            │
-├────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│ TASK                          │ W1  W2  W3  W4 │ W5  W6  W7  W8 │ W9 W10 W11 W12 │
-│ ─────────────────────────────────────────────────────────────────────────── │
-│                                                                             │
-│ SPRINT 1: FOUNDATION                                                        │
-│ ├─ Streaming Parser           │ ████            │               │               │
-│ ├─ Token Components           │     ████████    │               │               │
-│ ├─ Code/Mermaid/KaTeX         │         ████████│               │               │
-│ └─ Testing & Optimization     │             ████│               │               │
-│                                                                             │
-│ SPRINT 2: PERSISTENCE                                                       │
-│ ├─ DB Schema & API            │               │ ████            │               │
-│ ├─ React Query Integration    │               │     ████        │               │
-│ ├─ History Panel Refactor     │               │         ████    │               │
-│ └─ Migration & Sync           │               │             ████│               │
-│                                                                             │
-│ SPRINT 3: POLISH                                                            │
-│ ├─ Folders & Organization     │               │               │ ████           │
-│ ├─ Sharing & Export           │               │               │     ████       │
-│ ├─ Mobile & Responsive        │               │               │         ████   │
-│ └─ A11y & Final Polish        │               │               │             ████│
-│                                                                             │
-│ ────────────────────────────────────────────────────────────────────────── │
-│ MILESTONES:                                                                 │
-│ ⬥ W4: Streaming markdown live                                               │
-│ ⬥ W8: Server persistence live                                               │
-│ ⬥ W12: Feature parity complete                                              │
-│                                                                             │
-└────────────────────────────────────────────────────────────────────────────┘
-```
 
 ---
 
-## 7. Resource Requirements
+## References
 
-### 7.1 Team Allocation
-
-| Role               | Sprint 1 | Sprint 2 | Sprint 3 | Notes                |
-| ------------------ | -------- | -------- | -------- | -------------------- |
-| Frontend Developer | 100%     | 80%      | 100%     | Lead on all UI work  |
-| Backend Developer  | 10%      | 60%      | 30%      | DB, API, share links |
-| QA Engineer        | 20%      | 30%      | 40%      | Testing ramp-up      |
-| UX Designer        | 10%      | 10%      | 20%      | Mobile patterns      |
-
-### 7.2 Dependencies
-
-- **marked.js v12+**: Latest stable version for streaming support
-- **@tanstack/react-query v5**: Already in use, no upgrade needed
-- **@tanstack/react-virtual v3**: New dependency for virtualization
-- **shiki v1.0+**: New dependency for syntax highlighting
-- **PostgreSQL 15+**: Existing, ensure GIN index support
+- [Audit Findings](./01_audit_findings.md)
+- [Design Strategy](./02_design_strategy.md)
+- [Technical Specification](./03_technical_spec.md)
+- [Design Mockups](./05_design_mockups.md)
 
 ---
 
-## 8. Success Metrics
-
-| Metric                             | Current | Target | Measurement           |
-| ---------------------------------- | ------- | ------ | --------------------- |
-| Markdown rendering accuracy        | ~70%    | 99%    | Manual test suite     |
-| Time to render 1000 chars          | ~500ms  | <100ms | Performance profiling |
-| Conversation load time (100 items) | N/A     | <500ms | Lighthouse            |
-| Bundle size (query page)           | ~450KB  | <300KB | Webpack analyzer      |
-| Accessibility score                | ~65     | >90    | Lighthouse            |
-| Mobile usability score             | ~60     | >95    | Lighthouse            |
-
----
-
-## 9. Next Steps
-
-1. **Phase 5**: Design mockups → [05_design_mockups.md](05_design_mockups.md)
-2. **Final**: Summary README → [README.md](README.md)
-
----
-
-_Last updated: 2024-12-27_
+_Document Version: 1.0 | Last Updated: December 27, 2025_

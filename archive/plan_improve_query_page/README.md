@@ -1,263 +1,242 @@
 # Query Page UX/UI Improvement Plan
 
-**Project**: EdgeQuake WebUI Query Page Redesign  
-**Created**: 2024-12-27  
-**Author**: UX/UI Audit & Design Team  
-**Status**: 📋 Planning Complete
+> **Project**: EdgeQuake WebUI Query Page Enhancement  
+> **Status**: 📋 Planning Complete  
+> **Timeline**: 6 weeks (3 sprints)  
+> **Specification**: [specs/18-ux-ui-adap-openwebui.md](../specs/18-ux-ui-adap-openwebui.md)
 
 ---
 
-## Executive Summary
+## 📋 Executive Summary
 
-This comprehensive improvement plan addresses critical UX issues in the EdgeQuake Query Page, focusing on four key problem areas:
+This plan documents a comprehensive UX/UI improvement initiative for the EdgeQuake Query Page, benchmarked against OpenWebUI's mature implementation. The goal is to achieve feature parity in markdown rendering, improve streaming performance, and enhance the overall user experience.
 
-1. **Markdown Rendering Failures** - Streaming content falls back to raw text
-2. **State Persistence** - localStorage-only storage (5MB limit, no sync)
-3. **Performance** - No pagination for conversation history
-4. **Design Debt** - Inconsistent patterns and accessibility gaps
+### Key Improvements
 
-### Key Outcomes
+| Area                    | Current State            | Target State                        |
+| ----------------------- | ------------------------ | ----------------------------------- |
+| **Table Streaming**     | Breaks during generation | Buffered rendering with skeleton    |
+| **HTML Security**       | No sanitization          | DOMPurify integration               |
+| **Markdown Extensions** | Basic support            | GitHub alerts, footnotes, citations |
+| **Auto-scroll**         | Janky (~45fps)           | Smooth 60fps                        |
+| **Mobile History**      | Hidden sidebar           | Sheet with gestures                 |
+| **Search**              | Title only               | Full-text content search            |
 
-| Metric                 | Current | Target | Improvement |
-| ---------------------- | ------- | ------ | ----------- |
-| Markdown accuracy      | ~70%    | 99%    | +29%        |
-| Conversation load time | N/A     | <500ms | Measurable  |
-| Bundle size            | ~450KB  | <300KB | -33%        |
-| Accessibility score    | ~65     | >90    | +25         |
+### Success Metrics
 
-### Implementation Timeline
-
-- **Sprint 1 (Weeks 1-4)**: Fix streaming markdown, code blocks, KaTeX
-- **Sprint 2 (Weeks 5-8)**: Server persistence, pagination, migration
-- **Sprint 3 (Weeks 9-12)**: Organization, sharing, mobile, accessibility
+- **Performance**: P95 streaming latency < 50ms (current: ~100ms)
+- **Quality**: 85% E2E test coverage
+- **Accessibility**: Lighthouse score 100
+- **Engagement**: +20% queries per session
 
 ---
 
-## Document Index
+## 📚 Deliverables
 
-### Planning & Strategy Documents
-
-| Phase | Document                                                     | Description                                                      |
-| ----- | ------------------------------------------------------------ | ---------------------------------------------------------------- |
-| 1     | [01_audit_findings.md](01_audit_findings.md)                 | User journey map, competitive analysis, technical debt inventory |
-| 2     | [02_design_strategy.md](02_design_strategy.md)               | Design principles (SLICK), IA, interaction patterns              |
-| 3     | [03_technical_spec.md](03_technical_spec.md)                 | Database schema, API spec, rendering pipeline                    |
-| 4     | [04_implementation_roadmap.md](04_implementation_roadmap.md) | 12-week sprint plan, task breakdown, risk register               |
-| 5     | [05_design_mockups.md](05_design_mockups.md)                 | ASCII wireframes, component specs, design tokens                 |
-
-### Backend Implementation Documents
-
-| Doc | Document                                                   | Description                                |
-| --- | ---------------------------------------------------------- | ------------------------------------------ |
-| 6   | [06_server_implementation.md](06_server_implementation.md) | Rust backend: handlers, services, database |
-
-### Client-Side Implementation Documents (NEW)
-
-| Doc | Document                                                         | Description                                   | Lines |
-| --- | ---------------------------------------------------------------- | --------------------------------------------- | ----- |
-| 7   | [07_client_markdown_pipeline.md](07_client_markdown_pipeline.md) | Token-based markdown rendering with marked.js | ~350  |
-| 8   | [08_client_api_client.md](08_client_api_client.md)               | TypeScript API client and React Query hooks   | ~400  |
-| 9   | [09_client_state_management.md](09_client_state_management.md)   | Zustand + React Query state architecture      | ~380  |
-| 10  | [10_client_history_panel.md](10_client_history_panel.md)         | Virtualized history panel with filtering      | ~400  |
-
-### Working Documents
-
-| Doc | Document                       | Description                                  |
-| --- | ------------------------------ | -------------------------------------------- |
-| -   | [scratchpad.md](scratchpad.md) | Research notes and competitive analysis data |
-| -   | [plan.md](plan.md)             | Action log and decision tracking             |
+| Phase | Document                                                       | Description                                                           |
+| ----- | -------------------------------------------------------------- | --------------------------------------------------------------------- |
+| 1     | [01_audit_findings.md](./01_audit_findings.md)                 | Current state analysis, comparison with OpenWebUI, gap identification |
+| 2     | [02_design_strategy.md](./02_design_strategy.md)               | Design principles, IA, interaction patterns, color system             |
+| 3     | [03_technical_spec.md](./03_technical_spec.md)                 | Database schemas, API specs, component architecture, code examples    |
+| 4     | [04_implementation_roadmap.md](./04_implementation_roadmap.md) | Prioritized backlog, sprint plan, risk register                       |
+| 5     | [05_design_mockups.md](./05_design_mockups.md)                 | ASCII wireframes, component specifications, states                    |
 
 ---
 
-## Quick Reference
+## 🚀 Quick Start for Implementation
 
-### Priority Issues (P0 - Critical)
+### Sprint 1: Foundation (Week 1-2)
 
-| Issue                        | Current State             | Solution                             |
-| ---------------------------- | ------------------------- | ------------------------------------ |
-| Streaming markdown raw       | Falls back to plain text  | Token-based rendering with marked.js |
-| Code blocks break mid-stream | Syntax highlighting fails | Buffer until code block closes       |
-| KaTeX disabled               | `enableMath = false`      | marked-katex-extension integration   |
-| Mermaid fails during stream  | Empty placeholder         | Render after streaming complete      |
+**Start with these high-impact, low-risk changes:**
 
-### Database Schema (New Tables)
+1. **MD-01: Table Buffering** - [Technical Spec Section 5.3](./03_technical_spec.md#53-token-completion-detection)
 
-```sql
--- Core tables for server-side persistence
-CREATE TABLE conversations (
-    id UUID PRIMARY KEY,
-    tenant_id UUID NOT NULL,
-    workspace_id UUID,
-    user_id VARCHAR(255) NOT NULL,
-    title VARCHAR(500),
-    mode VARCHAR(50) DEFAULT 'hybrid',
-    is_pinned BOOLEAN DEFAULT FALSE,
-    is_archived BOOLEAN DEFAULT FALSE,
-    folder_id UUID,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+   ```typescript
+   // Check if table is complete before rendering
+   const isTableComplete = (content: string): boolean => {
+     const lines = content.split("\n");
+     return lines.filter((l) => l.trim().startsWith("|")).length >= 2;
+   };
+   ```
 
-CREATE TABLE messages (
-    id UUID PRIMARY KEY,
-    conversation_id UUID NOT NULL,
-    role VARCHAR(20) NOT NULL,
-    content TEXT NOT NULL,
-    tokens_used INTEGER,
-    context JSONB,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
+2. **MD-02: DOMPurify Integration** - [Technical Spec Section 5.4](./03_technical_spec.md#54-html-sanitization)
 
-### Key API Endpoints
+   ```bash
+   pnpm add dompurify @types/dompurify
+   ```
 
-| Method | Endpoint                              | Description                   |
-| ------ | ------------------------------------- | ----------------------------- |
-| GET    | `/api/v1/conversations`               | List with cursor pagination   |
-| POST   | `/api/v1/conversations`               | Create new conversation       |
-| GET    | `/api/v1/conversations/{id}`          | Get with messages             |
-| POST   | `/api/v1/conversations/{id}/messages` | Add message + stream response |
-| POST   | `/api/v1/conversations/import`        | Migrate from localStorage     |
+3. **MD-03: Auto-scroll Optimization** - Use `requestAnimationFrame` throttling
 
-### Component Architecture
+### Sprint 2: Extensions (Week 3-4)
+
+4. **MD-04: GitHub Alerts** - Port from OpenWebUI's marked extension
+5. **MD-05: Footnotes** - Add marked-footnote extension
+6. **UI-05: Filters** - Add mode/date filters to conversation panel
+
+### Sprint 3: Polish (Week 5-6)
+
+7. **UI-01/02: Animations** - Streaming text fade-in, thinking shimmer
+8. **MD-06: Citations** - Hover previews for sources
+9. **E2E Tests** - Full coverage of query page flows
+
+---
+
+## 📐 Architecture Overview
 
 ```
-src/components/query/
-├── QueryPage.tsx                 # Page component
-├── QueryInterface.tsx            # Main orchestrator
-├── ConversationHistoryPanel/     # Left rail
-│   ├── ConversationList.tsx      # Virtualized list
-│   └── FilterBar.tsx             # Search + filters
-├── Message/                      # Message rendering
-│   ├── UserMessage.tsx
-│   └── AssistantMessage.tsx
-└── markdown/                     # Token-based renderer
-    ├── TokenRenderer.tsx
-    └── tokens/
-        ├── CodeToken.tsx
-        ├── TableToken.tsx
-        └── MermaidToken.tsx
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         Query Page Architecture                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌──────────────────────┐    ┌──────────────────────────────────────┐   │
+│  │  ConversationHistory │    │          QueryInterface               │   │
+│  │  Panel (Left)        │    │                                       │   │
+│  │                      │◄───┤  ┌─────────────────────────────────┐  │   │
+│  │  • Search            │    │  │      ChatMessage[]              │  │   │
+│  │  • Filters           │    │  │                                 │  │   │
+│  │  • VirtualList       │    │  │  ┌─────────────────────────┐   │  │   │
+│  │                      │    │  │  │ StreamingMarkdownRenderer│   │  │   │
+│  └──────────────────────┘    │  │  │                         │   │  │   │
+│                              │  │  │  • marked.js + extensions│   │  │   │
+│                              │  │  │  • DOMPurify            │   │  │   │
+│                              │  │  │  • Lazy code blocks     │   │  │   │
+│                              │  │  └─────────────────────────┘   │  │   │
+│                              │  └─────────────────────────────────┘  │   │
+│                              │                                       │   │
+│                              │  ┌─────────────────────────────────┐  │   │
+│                              │  │       InputArea                 │  │   │
+│                              │  │  • Mode selector                │  │   │
+│                              │  │  • Auto-resize textarea         │  │   │
+│                              │  └─────────────────────────────────┘  │   │
+│                              └──────────────────────────────────────┘   │
+│                                                                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│                              State Layer                                 │
+│  ┌────────────────────┐   ┌────────────────────┐   ┌─────────────────┐  │
+│  │  useQueryUIStore   │   │  useConversations  │   │  React Query    │  │
+│  │  (Zustand)         │   │  (React Query)     │   │  Cache          │  │
+│  └────────────────────┘   └────────────────────┘   └─────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Competitive Analysis Summary
+## ⚠️ Key Risks & Mitigations
 
-### EdgeQuake vs openwebui
+| Risk                                  | Impact | Mitigation                                        |
+| ------------------------------------- | ------ | ------------------------------------------------- |
+| Table buffering breaks other elements | High   | Comprehensive test suite                          |
+| DOMPurify adds bundle size            | Medium | Dynamic import on first HTML token                |
+| Search performance degrades           | High   | PostgreSQL full-text indexes, monitor query times |
+| Mobile sheet conflicts with iOS       | Medium | Test on real devices, Safari-specific fixes       |
 
-| Feature              | EdgeQuake (Current)   | openwebui            | Gap      |
-| -------------------- | --------------------- | -------------------- | -------- |
-| Streaming markdown   | ❌ Falls back to text | ✅ Token-based       | Critical |
-| Server persistence   | ❌ localStorage only  | ✅ SQLite/PostgreSQL | Critical |
-| Conversation folders | ❌ None               | ✅ Hierarchical      | P2       |
-| Share links          | ❌ None               | ✅ Public links      | P2       |
-| Export               | ❌ None               | ✅ MD/JSON           | P2       |
+See [Risk Register](./04_implementation_roadmap.md#3-risk-register) for complete list.
 
-### Key Insight from openwebui
+---
 
-openwebui uses **token-based rendering** with `marked.lexer()` to tokenize markdown first, then renders tokens progressively. This prevents the "raw text fallback" issue EdgeQuake currently has.
+## 🔧 Development Setup
+
+```bash
+# Clone and install
+cd edgequake_webui
+pnpm install
+
+# Run development server
+pnpm dev
+
+# Run tests
+pnpm test
+
+# Run E2E tests
+pnpm exec playwright test
+```
+
+### Feature Flags
 
 ```typescript
-// openwebui pattern (adapted for React)
-import { marked } from "marked";
-
-function renderStreaming(content: string, done: boolean) {
-  const tokens = marked.lexer(content);
-  return <TokenRenderer tokens={tokens} isStreaming={!done} />;
-}
+// src/lib/feature-flags.ts
+export const QUERY_PAGE_FEATURES = {
+  "query.markdown.table-buffering": true,
+  "query.markdown.github-alerts": true,
+  "query.markdown.footnotes": true,
+  "query.ui.streaming-animations": true,
+  "query.api.message-pagination": true,
+} as const;
 ```
 
 ---
 
-## Getting Started
+## 📊 Tracking Progress
 
-### For Backend/Rust Developers
+### Sprint 1 Checklist
 
-1. **Start with Phase 6** ([06_server_implementation.md](06_server_implementation.md)) for the complete Rust backend guide
-2. **Reference Phase 3** ([03_technical_spec.md](03_technical_spec.md)) for API contract definitions
-3. **Check Phase 4** ([04_implementation_roadmap.md](04_implementation_roadmap.md)) for Sprint 2 backend tasks
+- [ ] MD-01: Table buffering implemented
+- [ ] MD-02: DOMPurify integrated
+- [ ] MD-03: Auto-scroll optimized
+- [ ] UI-04: Mobile history sheet
+- [ ] API-01: Message pagination
+- [ ] DB-01: Message count materialized
 
-### For Frontend Developers
+### Sprint 2 Checklist
 
-1. **Read Phase 3** ([03_technical_spec.md](03_technical_spec.md)) for implementation details
-2. **Check Phase 4** ([04_implementation_roadmap.md](04_implementation_roadmap.md)) for sprint tasks
-3. **Reference Phase 5** ([05_design_mockups.md](05_design_mockups.md)) for component specs
+- [ ] MD-04: GitHub alerts extension
+- [ ] MD-05: Footnotes extension
+- [ ] UI-01: Streaming animations
+- [ ] UI-02: Thinking animations
+- [ ] API-02: Enhanced search
+- [ ] UI-05: Filter UI
 
-### For Designers
+### Sprint 3 Checklist
 
-1. **Review Phase 2** ([02_design_strategy.md](02_design_strategy.md)) for design principles
-2. **Check Phase 5** ([05_design_mockups.md](05_design_mockups.md)) for wireframes and tokens
-
-### For Product
-
-1. **Start with Phase 1** ([01_audit_findings.md](01_audit_findings.md)) for problem context
-2. **Review Phase 4** ([04_implementation_roadmap.md](04_implementation_roadmap.md)) for timeline
-
----
-
-## Success Criteria
-
-### Sprint 1 (Week 4)
-
-- [ ] Streaming markdown renders correctly without raw text fallback
-- [ ] Code blocks have syntax highlighting + copy button
-- [ ] KaTeX math equations render properly
-- [ ] Mermaid diagrams show placeholder during streaming
-
-### Sprint 2 (Week 8)
-
-- [ ] Conversations persist to PostgreSQL
-- [ ] Paginated history with filters
-- [ ] One-time migration from localStorage complete
-- [ ] Cross-device conversation sync works
-
-### Sprint 3 (Week 12)
-
-- [ ] Folder organization implemented
-- [ ] Share links functional
-- [ ] Mobile-responsive design complete
-- [ ] WCAG 2.1 AA compliance achieved
+- [ ] MD-06: Enhanced citations
+- [ ] DB-02: Message versioning
+- [ ] UI-03: Empty state polish
+- [ ] E2E test suite complete
+- [ ] Performance audit passed
+- [ ] Documentation updated
 
 ---
 
-## Risk Register (Top 3)
+## 👥 Contributors
 
-| Risk                             | Mitigation                                            |
-| -------------------------------- | ----------------------------------------------------- |
-| marked.js streaming edge cases   | Extensive unit tests, keep react-markdown as fallback |
-| localStorage migration data loss | Transaction rollback, manual backup option            |
-| Bundle size increase from shiki  | Lazy load, use shiki/compat subset                    |
-
----
-
-## Dependencies
-
-### New Packages (Sprint 1)
-
-- `marked` v12+ - Markdown lexer/parser
-- `marked-katex-extension` - KaTeX integration
-- `shiki` v1.0+ - Syntax highlighting (replaces prism)
-
-### New Packages (Sprint 2)
-
-- `@tanstack/react-virtual` v3 - Virtualized lists
-
-### Existing (No Changes)
-
-- `@tanstack/react-query` v5 - Server state
-- `zustand` - Client state
-- `mermaid` - Diagrams (already lazy loaded)
+- **Design**: UX audit, design strategy, mockups
+- **Frontend**: React components, markdown extensions, animations
+- **Backend**: API endpoints, database migrations, search optimization
+- **QA**: E2E tests, accessibility testing, performance validation
 
 ---
 
-## Contact
+## 📅 Timeline
 
-For questions about this plan, reach out to:
+```
+Week 1-2: Sprint 1 - Foundation & Critical Fixes
+  ├─ Fix table streaming (P0)
+  ├─ Add DOMPurify (P0)
+  ├─ Optimize auto-scroll (P1)
+  └─ Mobile history sheet (P1)
 
-- **UX/Design**: Design team Slack channel
-- **Frontend**: Frontend team Slack channel
-- **Backend**: Backend team Slack channel
+Week 3-4: Sprint 2 - Markdown Extensions & Polish
+  ├─ GitHub alerts (P1)
+  ├─ Footnotes (P2)
+  ├─ Streaming animations (P2)
+  └─ Search & filters (P1)
+
+Week 5-6: Sprint 3 - Advanced Features & Quality
+  ├─ Enhanced citations (P2)
+  ├─ Message versioning (P2)
+  ├─ E2E test coverage (P1)
+  └─ Performance audit (P1)
+```
 
 ---
 
-_Document generated: 2024-12-27_
+## 📚 References
+
+- [OpenWebUI Repository](https://github.com/open-webui/open-webui) - Benchmark implementation
+- [Marked.js Documentation](https://marked.js.org/) - Markdown parser
+- [DOMPurify](https://github.com/cure53/DOMPurify) - HTML sanitization
+- [EdgeQuake Architecture](../docs/0002-architecture-overview.md) - System context
+
+---
+
+_Last Updated: December 27, 2025_

@@ -1,344 +1,233 @@
-# Phase 3: Technical Specification
+# Phase 3: Technical Specification - Query Page UX/UI Improvement
 
-**Document**: `03_technical_spec.md`  
-**Created**: 2024-12-27  
-**Status**: Complete
-
----
-
-## 1. Overview
-
-This document provides the implementation blueprint for the Query Page improvements, including database schema, API specifications, markdown rendering pipeline, and frontend architecture.
-
-**Prerequisites**:
-
-- [01_audit_findings.md](01_audit_findings.md) - Understanding of current issues
-- [02_design_strategy.md](02_design_strategy.md) - Design principles and IA
+> **Date**: December 27, 2025  
+> **Dependencies**: [Audit Findings](./01_audit_findings.md), [Design Strategy](./02_design_strategy.md)  
+> **Objective**: Implementation blueprint for developers
 
 ---
 
-## 2. System Architecture
+## 1. Database Schema Design
 
-### 2.1 High-Level Architecture
+### 1.1 Enhanced Schema Overview
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                            EdgeQuake Query System                            │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                         Frontend (Next.js)                           │    │
-│  │  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────────┐  │    │
-│  │  │ Query Page  │  │ State Stores │  │ Services                   │  │    │
-│  │  │ Components  │◀▶│ (Zustand)    │◀▶│ (React Query + WebSocket)  │  │    │
-│  │  └─────────────┘  └──────────────┘  └────────────────────────────┘  │    │
-│  └────────────────────────────▲────────────────────────────────────────┘    │
-│                               │ HTTP/WebSocket                               │
-│  ┌────────────────────────────▼────────────────────────────────────────┐    │
-│  │                         Backend (Axum)                               │    │
-│  │  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────────┐  │    │
-│  │  │ API Router  │─▶│ Handlers     │─▶│ Services                   │  │    │
-│  │  │ /api/v1/*   │  │ Query/Conv   │  │ Persistence + LLM          │  │    │
-│  │  └─────────────┘  └──────────────┘  └────────────────────────────┘  │    │
-│  └────────────────────────────▲────────────────────────────────────────┘    │
-│                               │ SQL                                          │
-│  ┌────────────────────────────▼────────────────────────────────────────┐    │
-│  │                         Database (PostgreSQL)                        │    │
-│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────┐  │    │
-│  │  │ conversations   │  │ messages        │  │ tenants/workspaces  │  │    │
-│  │  └─────────────────┘  └─────────────────┘  └─────────────────────┘  │    │
-│  └──────────────────────────────────────────────────────────────────────┘    │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### 2.2 Data Flow for Query Submission
-
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                           Query Submission Flow                               │
-├──────────────────────────────────────────────────────────────────────────────┤
-│                                                                               │
-│  1. User types query         2. Frontend creates        3. API receives       │
-│  ┌─────────────────┐        message + sends          ┌─────────────────┐     │
-│  │ QueryInterface  │────────────────────────────────▶│ POST /messages  │     │
-│  │ handleSubmit()  │        to server               │ with conv_id    │     │
-│  └─────────────────┘                                 └────────┬────────┘     │
-│                                                               │              │
-│  4. Server persists         5. LLM streaming         6. Tokens sent         │
-│  ┌─────────────────┐        response generated       via SSE/WebSocket      │
-│  │ INSERT INTO     │◀───────────────────────────────┌────────▼────────┐     │
-│  │ messages        │        ┌────────────────┐      │ EventSource     │     │
-│  └─────────────────┘        │ LLM Provider   │─────▶│ data: {token}   │     │
-│                             └────────────────┘      └────────┬────────┘     │
-│                                                               │              │
-│  7. Frontend updates        8. Markdown rendered    9. Complete response    │
-│  ┌─────────────────┐        progressively           saved to DB             │
-│  │ updateMessage() │◀───────────────────────────────┌────────▼────────┐     │
-│  │ in store        │        tokens ──▶ lexer       │ UPDATE messages │     │
-│  └─────────────────┘        ──▶ render             │ SET content=... │     │
-│                                                     └─────────────────┘     │
-│                                                                               │
-└──────────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 3. Database Schema Design
-
-### 3.1 Entity Relationship Diagram
-
-```
-┌─────────────────────┐       ┌─────────────────────┐
-│      tenants        │       │    workspaces       │
-├─────────────────────┤       ├─────────────────────┤
-│ id (PK)             │──┐    │ id (PK)             │
-│ name                │  │    │ tenant_id (FK)      │──┐
-│ created_at          │  │    │ name                │  │
-│ updated_at          │  │    │ created_at          │  │
-└─────────────────────┘  │    └─────────────────────┘  │
-                         │                             │
-                         │    ┌─────────────────────┐  │
-                         └───▶│   conversations     │◀─┘
-                              ├─────────────────────┤
-                              │ id (PK)             │
-                              │ tenant_id (FK)      │
-                              │ workspace_id (FK)   │
-                              │ user_id             │
-                              │ title               │
-                              │ mode                │
-                              │ is_pinned           │
-                              │ is_archived         │
-                              │ folder_id (FK)      │──┐
-                              │ meta (JSONB)        │  │
-                              │ created_at          │  │
-                              │ updated_at          │  │
-                              └──────────┬──────────┘  │
-                                         │             │
-                         ┌───────────────┘             │
-                         │                             │
-                         ▼                             │
-            ┌─────────────────────┐     ┌──────────────▼────────┐
-            │      messages       │     │       folders         │
-            ├─────────────────────┤     ├───────────────────────┤
-            │ id (PK)             │     │ id (PK)               │
-            │ conversation_id (FK)│     │ tenant_id (FK)        │
-            │ parent_id (FK)      │──┐  │ workspace_id (FK)     │
-            │ role                │  │  │ name                  │
-            │ content             │  │  │ parent_id (FK)        │──┐
-            │ mode                │  │  │ created_at            │  │
-            │ tokens_used         │  │  │ updated_at            │  │
-            │ duration_ms         │  │  └───────────────────────┘  │
-            │ thinking_time_ms    │  │                             │
-            │ context (JSONB)     │  └─────────────────────────────┘
-            │ is_error            │
-            │ created_at          │
-            │ updated_at          │
-            └─────────────────────┘
-```
-
-### 3.2 DDL Statements
+The current schema is solid. We propose minimal additions for advanced features.
 
 ```sql
--- ===========================================================================
--- CONVERSATIONS TABLE
--- Stores conversation metadata, one row per chat session
--- ===========================================================================
-CREATE TABLE conversations (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    workspace_id    UUID REFERENCES workspaces(id) ON DELETE SET NULL,
-    user_id         VARCHAR(255) NOT NULL,  -- Auth user ID
-    title           VARCHAR(500) NOT NULL DEFAULT 'New Conversation',
-    mode            VARCHAR(50) NOT NULL DEFAULT 'hybrid',  -- local|global|hybrid|naive
-    is_pinned       BOOLEAN NOT NULL DEFAULT FALSE,
-    is_archived     BOOLEAN NOT NULL DEFAULT FALSE,
-    folder_id       UUID REFERENCES folders(id) ON DELETE SET NULL,
-    share_id        VARCHAR(64) UNIQUE,  -- For public sharing
-    meta            JSONB NOT NULL DEFAULT '{}',
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+-- ============================================================================
+-- SCHEMA ENHANCEMENT: Message Versioning
+-- Purpose: Track message edits and regenerations
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS message_versions (
+    version_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    message_id UUID NOT NULL REFERENCES messages(message_id) ON DELETE CASCADE,
+    version_number INTEGER NOT NULL DEFAULT 1,
+    content TEXT NOT NULL,
+    reason VARCHAR(50) NOT NULL DEFAULT 'edit',  -- 'edit', 'regenerate', 'retry'
+    created_by UUID REFERENCES users(user_id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT unique_message_version UNIQUE(message_id, version_number),
+    CONSTRAINT valid_reason CHECK (reason IN ('edit', 'regenerate', 'retry', 'initial'))
 );
 
--- Indexes for common queries
-CREATE INDEX idx_conversations_tenant_user
-    ON conversations(tenant_id, user_id, updated_at DESC);
-CREATE INDEX idx_conversations_workspace
-    ON conversations(workspace_id, updated_at DESC)
-    WHERE workspace_id IS NOT NULL;
-CREATE INDEX idx_conversations_folder
-    ON conversations(folder_id)
-    WHERE folder_id IS NOT NULL;
-CREATE INDEX idx_conversations_archived
-    ON conversations(tenant_id, user_id, is_archived, updated_at DESC);
-CREATE INDEX idx_conversations_pinned
-    ON conversations(tenant_id, user_id, is_pinned)
-    WHERE is_pinned = TRUE;
-CREATE INDEX idx_conversations_share
-    ON conversations(share_id)
-    WHERE share_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_message_versions_message ON message_versions(message_id, version_number);
 
--- Full-text search index
-CREATE INDEX idx_conversations_title_search
-    ON conversations USING gin(to_tsvector('english', title));
+-- ============================================================================
+-- SCHEMA ENHANCEMENT: Conversation Tags
+-- Purpose: User-defined labels for organization
+-- ============================================================================
 
--- ===========================================================================
--- MESSAGES TABLE
--- Stores individual messages within conversations
--- ===========================================================================
-CREATE TABLE messages (
-    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    conversation_id     UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-    parent_id           UUID REFERENCES messages(id) ON DELETE SET NULL,
-    role                VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
-    content             TEXT NOT NULL,
-    mode                VARCHAR(50),  -- Query mode used for this specific message
-    tokens_used         INTEGER,
-    duration_ms         INTEGER,
-    thinking_time_ms    INTEGER,
-    context             JSONB,  -- Source citations, entities, etc.
-    is_error            BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS conversation_tags (
+    tag_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    name VARCHAR(50) NOT NULL,
+    color VARCHAR(7) NOT NULL DEFAULT '#6366f1',  -- Hex color
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT unique_tag_name UNIQUE(tenant_id, user_id, name)
 );
 
--- Indexes for message retrieval
-CREATE INDEX idx_messages_conversation
-    ON messages(conversation_id, created_at ASC);
-CREATE INDEX idx_messages_parent
-    ON messages(parent_id)
-    WHERE parent_id IS NOT NULL;
+CREATE TABLE IF NOT EXISTS conversation_tag_assignments (
+    conversation_id UUID NOT NULL REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    tag_id UUID NOT NULL REFERENCES conversation_tags(tag_id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
--- Full-text search on message content
-CREATE INDEX idx_messages_content_search
-    ON messages USING gin(to_tsvector('english', content));
-
--- ===========================================================================
--- FOLDERS TABLE
--- Hierarchical folder structure for organizing conversations
--- ===========================================================================
-CREATE TABLE folders (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    workspace_id    UUID REFERENCES workspaces(id) ON DELETE SET NULL,
-    user_id         VARCHAR(255) NOT NULL,
-    name            VARCHAR(255) NOT NULL,
-    parent_id       UUID REFERENCES folders(id) ON DELETE CASCADE,
-    position        INTEGER NOT NULL DEFAULT 0,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    UNIQUE(tenant_id, user_id, parent_id, name)
+    PRIMARY KEY (conversation_id, tag_id)
 );
 
-CREATE INDEX idx_folders_parent
-    ON folders(parent_id);
-CREATE INDEX idx_folders_user
-    ON folders(tenant_id, user_id, position);
+CREATE INDEX IF NOT EXISTS idx_tag_assignments_tag ON conversation_tag_assignments(tag_id);
 
--- ===========================================================================
--- ROW-LEVEL SECURITY POLICIES
--- ===========================================================================
-ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE folders ENABLE ROW LEVEL SECURITY;
+-- ============================================================================
+-- PERFORMANCE: Materialized Message Count
+-- Purpose: Avoid COUNT(*) subqueries on conversation list
+-- ============================================================================
 
--- Conversations: Users can only see their own or shared
-CREATE POLICY conversations_tenant_isolation ON conversations
-    FOR ALL
-    USING (
-        tenant_id = current_setting('app.tenant_id')::UUID
-        AND (
-            user_id = current_setting('app.user_id')
-            OR share_id IS NOT NULL
-        )
-    );
+-- Add column to conversations table
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS message_count INTEGER DEFAULT 0;
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMPTZ;
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS last_message_preview TEXT;
 
--- Messages: Inherit from conversation access
-CREATE POLICY messages_conversation_access ON messages
-    FOR ALL
-    USING (
-        EXISTS (
-            SELECT 1 FROM conversations c
-            WHERE c.id = messages.conversation_id
-            AND c.tenant_id = current_setting('app.tenant_id')::UUID
-            AND (
-                c.user_id = current_setting('app.user_id')
-                OR c.share_id IS NOT NULL
-            )
-        )
-    );
-
--- Folders: Users can only see their own
-CREATE POLICY folders_user_access ON folders
-    FOR ALL
-    USING (
-        tenant_id = current_setting('app.tenant_id')::UUID
-        AND user_id = current_setting('app.user_id')
-    );
-```
-
-### 3.3 Migration Plan
-
-```sql
--- Migration: 001_create_conversation_tables
--- Run after existing schema is in place
-
--- Step 1: Create new tables (non-destructive)
--- DDL from above...
-
--- Step 2: Migrate existing localStorage data via API
--- This happens client-side, calling POST /api/v1/conversations/import
-
--- Step 3: Add trigger for updated_at
-CREATE OR REPLACE FUNCTION update_updated_at_column()
+-- Trigger to maintain counts
+CREATE OR REPLACE FUNCTION update_conversation_message_stats()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = NOW();
+    IF TG_OP = 'INSERT' THEN
+        UPDATE conversations
+        SET message_count = message_count + 1,
+            last_message_at = NEW.created_at,
+            last_message_preview = LEFT(NEW.content, 100)
+        WHERE conversation_id = NEW.conversation_id;
+    ELSIF TG_OP = 'DELETE' THEN
+        UPDATE conversations
+        SET message_count = GREATEST(0, message_count - 1)
+        WHERE conversation_id = OLD.conversation_id;
+        -- Recalculate last_message_preview on delete
+        UPDATE conversations c
+        SET last_message_preview = (
+            SELECT LEFT(content, 100)
+            FROM messages
+            WHERE conversation_id = c.conversation_id
+            ORDER BY created_at DESC LIMIT 1
+        ),
+        last_message_at = (
+            SELECT created_at
+            FROM messages
+            WHERE conversation_id = c.conversation_id
+            ORDER BY created_at DESC LIMIT 1
+        )
+        WHERE conversation_id = OLD.conversation_id;
+    END IF;
     RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$ LANGUAGE plpgsql;
 
-CREATE TRIGGER update_conversations_updated_at
-    BEFORE UPDATE ON conversations
+DROP TRIGGER IF EXISTS trigger_message_stats ON messages;
+CREATE TRIGGER trigger_message_stats
+    AFTER INSERT OR DELETE ON messages
     FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
+    EXECUTE FUNCTION update_conversation_message_stats();
+```
 
-CREATE TRIGGER update_messages_updated_at
-    BEFORE UPDATE ON messages
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
+### 1.2 Index Strategy
+
+```sql
+-- ============================================================================
+-- EXPLAIN ANALYZE SCENARIOS
+-- ============================================================================
+
+-- Scenario 1: List conversations with filters
+-- Query pattern: GET /conversations?filter[mode]=hybrid&sort=updated_at
+EXPLAIN ANALYZE
+SELECT c.*,
+       c.message_count,
+       c.last_message_preview
+FROM conversations c
+WHERE c.tenant_id = '...'
+  AND c.user_id = '...'
+  AND c.mode = 'hybrid'
+  AND c.is_archived = false
+ORDER BY c.updated_at DESC
+LIMIT 20;
+
+-- Recommended compound index:
+CREATE INDEX IF NOT EXISTS idx_conversations_list_optimized
+    ON conversations(tenant_id, user_id, is_archived, mode, updated_at DESC)
+    INCLUDE (title, is_pinned, folder_id, message_count, last_message_preview);
+
+-- Scenario 2: Full-text search in conversations
+-- Query pattern: GET /conversations?filter[search]=entity+graph
+EXPLAIN ANALYZE
+SELECT c.*
+FROM conversations c
+WHERE c.tenant_id = '...'
+  AND c.user_id = '...'
+  AND to_tsvector('english', c.title) @@ plainto_tsquery('english', 'entity graph')
+ORDER BY c.updated_at DESC
+LIMIT 20;
+
+-- Already have GIN index on title, add combined search:
+CREATE INDEX IF NOT EXISTS idx_conversations_search_combined
+    ON conversations USING GIN (
+        (to_tsvector('english', title) || to_tsvector('english', COALESCE(last_message_preview, '')))
+    );
+
+-- Scenario 3: Load messages for a conversation (paginated)
+-- Query pattern: GET /conversations/{id}/messages?cursor={id}&limit=50
+EXPLAIN ANALYZE
+SELECT m.*
+FROM messages m
+WHERE m.conversation_id = '...'
+  AND m.created_at < '...'  -- cursor position
+ORDER BY m.created_at DESC
+LIMIT 50;
+
+-- Already have idx_messages_conversation, which covers this pattern
+```
+
+### 1.3 Migration Plan
+
+```sql
+-- Migration: 010_enhance_conversations_for_ux.sql
+-- This is a NON-BREAKING migration (all changes are additive)
+
+-- Step 1: Add new columns (nullable first)
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS message_count INTEGER;
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMPTZ;
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS last_message_preview TEXT;
+
+-- Step 2: Backfill existing data
+UPDATE conversations c
+SET
+    message_count = (SELECT COUNT(*) FROM messages WHERE conversation_id = c.conversation_id),
+    last_message_at = (SELECT MAX(created_at) FROM messages WHERE conversation_id = c.conversation_id),
+    last_message_preview = (
+        SELECT LEFT(content, 100)
+        FROM messages
+        WHERE conversation_id = c.conversation_id
+        ORDER BY created_at DESC LIMIT 1
+    );
+
+-- Step 3: Set defaults and constraints
+ALTER TABLE conversations ALTER COLUMN message_count SET DEFAULT 0;
+ALTER TABLE conversations ALTER COLUMN message_count SET NOT NULL;
+
+-- Step 4: Create triggers (from section 1.1)
+-- Step 5: Create new indexes (from section 1.2)
+-- Step 6: Create new tables (message_versions, tags) - optional for phase 2
 ```
 
 ---
 
-## 4. API Specification
+## 2. API Specification
 
-### 4.1 OpenAPI 3.0 Specification
+### 2.1 RESTful Endpoints
+
+#### Conversations API
 
 ```yaml
 openapi: 3.0.3
 info:
-  title: EdgeQuake Query API
-  description: API for managing query conversations and messages
-  version: 1.0.0
-
-servers:
-  - url: /api/v1
+  title: EdgeQuake Conversations API
+  version: 2.0.0
 
 paths:
   /conversations:
     get:
-      summary: List conversations
-      description: Retrieve paginated list of conversations for the authenticated user
-      operationId: listConversations
-      tags:
-        - Conversations
+      summary: List conversations with pagination and filtering
       parameters:
-        - $ref: "#/components/parameters/TenantHeader"
-        - $ref: "#/components/parameters/WorkspaceHeader"
-        - $ref: "#/components/parameters/Cursor"
-        - $ref: "#/components/parameters/Limit"
+        - name: cursor
+          in: query
+          schema:
+            type: string
+          description: Cursor for pagination (conversation ID)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
         - name: filter[mode]
           in: query
           schema:
@@ -346,6 +235,8 @@ paths:
             items:
               type: string
               enum: [local, global, hybrid, naive]
+          style: form
+          explode: true
         - name: filter[archived]
           in: query
           schema:
@@ -364,16 +255,17 @@ paths:
           in: query
           schema:
             type: string
+          description: Full-text search in title and last message
         - name: filter[date_from]
           in: query
           schema:
             type: string
-            format: date-time
+            format: date
         - name: filter[date_to]
           in: query
           schema:
             type: string
-            format: date-time
+            format: date
         - name: sort
           in: query
           schema:
@@ -394,269 +286,105 @@ paths:
               schema:
                 $ref: "#/components/schemas/PaginatedConversations"
 
-    post:
-      summary: Create conversation
-      operationId: createConversation
-      tags:
-        - Conversations
-      parameters:
-        - $ref: "#/components/parameters/TenantHeader"
-        - $ref: "#/components/parameters/WorkspaceHeader"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateConversationRequest"
-      responses:
-        "201":
-          description: Conversation created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Conversation"
-
   /conversations/{id}:
     get:
-      summary: Get conversation by ID
-      operationId: getConversation
-      tags:
-        - Conversations
+      summary: Get conversation with messages
       parameters:
-        - $ref: "#/components/parameters/ConversationId"
-        - $ref: "#/components/parameters/TenantHeader"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: message_limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+          description: Number of recent messages to include
+        - name: include_metadata
+          in: query
+          schema:
+            type: boolean
+            default: true
       responses:
         "200":
-          description: Conversation details with messages
+          description: Conversation with messages
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ConversationWithMessages"
 
-    patch:
-      summary: Update conversation
-      operationId: updateConversation
-      tags:
-        - Conversations
-      parameters:
-        - $ref: "#/components/parameters/ConversationId"
-        - $ref: "#/components/parameters/TenantHeader"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateConversationRequest"
-      responses:
-        "200":
-          description: Conversation updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Conversation"
-
-    delete:
-      summary: Delete conversation
-      operationId: deleteConversation
-      tags:
-        - Conversations
-      parameters:
-        - $ref: "#/components/parameters/ConversationId"
-        - $ref: "#/components/parameters/TenantHeader"
-      responses:
-        "204":
-          description: Conversation deleted
-
   /conversations/{id}/messages:
     get:
-      summary: Get messages in conversation
-      operationId: listMessages
-      tags:
-        - Messages
+      summary: List messages with cursor pagination
       parameters:
-        - $ref: "#/components/parameters/ConversationId"
-        - $ref: "#/components/parameters/TenantHeader"
-        - $ref: "#/components/parameters/Cursor"
-        - $ref: "#/components/parameters/Limit"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: cursor
+          in: query
+          schema:
+            type: string
+          description: Message ID for cursor-based pagination
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+        - name: direction
+          in: query
+          schema:
+            type: string
+            enum: [before, after]
+            default: before
+          description: Load messages before or after cursor
       responses:
         "200":
-          description: Paginated list of messages
+          description: Paginated messages
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/PaginatedMessages"
 
-    post:
-      summary: Add message to conversation
-      operationId: createMessage
-      tags:
-        - Messages
-      parameters:
-        - $ref: "#/components/parameters/ConversationId"
-        - $ref: "#/components/parameters/TenantHeader"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateMessageRequest"
-      responses:
-        "201":
-          description: Message created and AI response started
-          headers:
-            X-Stream-URL:
-              description: WebSocket URL for streaming response
-              schema:
-                type: string
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Message"
-
-  /conversations/{id}/messages/{messageId}:
-    patch:
-      summary: Update message
-      operationId: updateMessage
-      tags:
-        - Messages
-      parameters:
-        - $ref: "#/components/parameters/ConversationId"
-        - $ref: "#/components/parameters/MessageId"
-        - $ref: "#/components/parameters/TenantHeader"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateMessageRequest"
-      responses:
-        "200":
-          description: Message updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Message"
-
-  /conversations/import:
-    post:
-      summary: Import conversations from client
-      description: Migrate localStorage conversations to server
-      operationId: importConversations
-      tags:
-        - Conversations
-      parameters:
-        - $ref: "#/components/parameters/TenantHeader"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ImportConversationsRequest"
-      responses:
-        "200":
-          description: Import results
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ImportConversationsResponse"
-
-  /conversations/{id}/share:
-    post:
-      summary: Generate share link
-      operationId: shareConversation
-      tags:
-        - Conversations
-      parameters:
-        - $ref: "#/components/parameters/ConversationId"
-        - $ref: "#/components/parameters/TenantHeader"
-      responses:
-        "200":
-          description: Share link generated
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  share_id:
-                    type: string
-                  share_url:
-                    type: string
-
-    delete:
-      summary: Remove share link
-      operationId: unshareConversation
-      tags:
-        - Conversations
-      parameters:
-        - $ref: "#/components/parameters/ConversationId"
-        - $ref: "#/components/parameters/TenantHeader"
-      responses:
-        "204":
-          description: Share link removed
-
 components:
-  parameters:
-    TenantHeader:
-      name: X-Tenant-ID
-      in: header
-      required: true
-      schema:
-        type: string
-        format: uuid
-
-    WorkspaceHeader:
-      name: X-Workspace-ID
-      in: header
-      schema:
-        type: string
-        format: uuid
-
-    ConversationId:
-      name: id
-      in: path
-      required: true
-      schema:
-        type: string
-        format: uuid
-
-    MessageId:
-      name: messageId
-      in: path
-      required: true
-      schema:
-        type: string
-        format: uuid
-
-    Cursor:
-      name: cursor
-      in: query
-      description: Opaque cursor for pagination
-      schema:
-        type: string
-
-    Limit:
-      name: limit
-      in: query
-      schema:
-        type: integer
-        minimum: 1
-        maximum: 100
-        default: 20
-
   schemas:
+    PaginatedConversations:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Conversation"
+        pagination:
+          $ref: "#/components/schemas/CursorPagination"
+
+    CursorPagination:
+      type: object
+      properties:
+        next_cursor:
+          type: string
+          nullable: true
+        prev_cursor:
+          type: string
+          nullable: true
+        has_more:
+          type: boolean
+        total:
+          type: integer
+          description: Optional total count (expensive, may be null)
+
     Conversation:
       type: object
       properties:
         id:
           type: string
           format: uuid
-        tenant_id:
-          type: string
-          format: uuid
-        workspace_id:
-          type: string
-          format: uuid
-          nullable: true
         title:
           type: string
         mode:
@@ -669,9 +397,6 @@ components:
         folder_id:
           type: string
           format: uuid
-          nullable: true
-        share_id:
-          type: string
           nullable: true
         message_count:
           type: integer
@@ -694,6 +419,8 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/Message"
+            has_more_messages:
+              type: boolean
 
     Message:
       type: object
@@ -701,13 +428,6 @@ components:
         id:
           type: string
           format: uuid
-        conversation_id:
-          type: string
-          format: uuid
-        parent_id:
-          type: string
-          format: uuid
-          nullable: true
         role:
           type: string
           enum: [user, assistant, system]
@@ -726,33 +446,20 @@ components:
           type: integer
           nullable: true
         context:
-          $ref: "#/components/schemas/QueryContext"
+          $ref: "#/components/schemas/MessageContext"
         is_error:
           type: boolean
         created_at:
           type: string
           format: date-time
-        updated_at:
-          type: string
-          format: date-time
 
-    QueryContext:
+    MessageContext:
       type: object
-      nullable: true
       properties:
         sources:
           type: array
           items:
-            type: object
-            properties:
-              id:
-                type: string
-              title:
-                type: string
-              content:
-                type: string
-              score:
-                type: number
+            $ref: "#/components/schemas/Source"
         entities:
           type: array
           items:
@@ -762,714 +469,879 @@ components:
           items:
             type: string
 
-    PaginatedConversations:
+    Source:
       type: object
       properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/Conversation"
-        pagination:
-          $ref: "#/components/schemas/PaginationMeta"
-
-    PaginatedMessages:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/Message"
-        pagination:
-          $ref: "#/components/schemas/PaginationMeta"
-
-    PaginationMeta:
-      type: object
-      properties:
-        next_cursor:
+        id:
           type: string
-          nullable: true
-        prev_cursor:
-          type: string
-          nullable: true
-        total:
-          type: integer
-        has_more:
-          type: boolean
-
-    CreateConversationRequest:
-      type: object
-      properties:
-        title:
-          type: string
-          default: "New Conversation"
-        mode:
-          type: string
-          enum: [local, global, hybrid, naive]
-          default: hybrid
-        folder_id:
-          type: string
-          format: uuid
-          nullable: true
-
-    UpdateConversationRequest:
-      type: object
-      properties:
-        title:
-          type: string
-        mode:
-          type: string
-          enum: [local, global, hybrid, naive]
-        is_pinned:
-          type: boolean
-        is_archived:
-          type: boolean
-        folder_id:
-          type: string
-          format: uuid
-          nullable: true
-
-    CreateMessageRequest:
-      type: object
-      required:
-        - content
-        - role
-      properties:
         content:
           type: string
-        role:
+        score:
+          type: number
+        document_id:
           type: string
-          enum: [user]
-        parent_id:
-          type: string
-          format: uuid
           nullable: true
-        stream:
-          type: boolean
-          default: true
-
-    UpdateMessageRequest:
-      type: object
-      properties:
-        content:
-          type: string
-        tokens_used:
-          type: integer
-        duration_ms:
-          type: integer
-        thinking_time_ms:
-          type: integer
-        context:
-          $ref: "#/components/schemas/QueryContext"
-        is_error:
-          type: boolean
-
-    ImportConversationsRequest:
-      type: object
-      required:
-        - conversations
-      properties:
-        conversations:
-          type: array
-          items:
-            type: object
-            properties:
-              id:
-                type: string
-              title:
-                type: string
-              messages:
-                type: array
-                items:
-                  type: object
-              created_at:
-                type: integer
-              updated_at:
-                type: integer
-
-    ImportConversationsResponse:
-      type: object
-      properties:
-        imported:
-          type: integer
-        failed:
-          type: integer
-        errors:
-          type: array
-          items:
-            type: object
-            properties:
-              id:
-                type: string
-              error:
-                type: string
 ```
 
-### 4.2 Cursor-Based Pagination
+### 2.2 Streaming API (SSE)
 
 ```typescript
-// Server-side cursor encoding
-interface CursorPayload {
-  updated_at: number; // Unix timestamp
-  id: string; // UUID for tie-breaking
-}
+/**
+ * Chat Completion Stream
+ * Endpoint: POST /chat/completions/stream
+ * Content-Type: text/event-stream
+ */
 
-function encodeCursor(payload: CursorPayload): string {
-  return Buffer.from(JSON.stringify(payload)).toString("base64url");
-}
+// Event Types (expanded from current implementation)
+type StreamEvent =
+  | { type: 'conversation'; conversation_id: string; user_message_id: string }
+  | { type: 'context'; sources: Source[]; entities: string[]; relationships: string[] }
+  | { type: 'thinking'; content: string }  // Chain-of-thought content
+  | { type: 'token'; content: string }     // Response token
+  | { type: 'done';
+      assistant_message_id: string;
+      tokens_used: number;
+      duration_ms: number;
+      thinking_time_ms?: number;
+    }
+  | { type: 'error'; code: string; message: string; retryable: boolean }
+  | { type: 'heartbeat' }  // Keep-alive every 15s
 
-function decodeCursor(cursor: string): CursorPayload {
-  return JSON.parse(Buffer.from(cursor, "base64url").toString());
-}
+// Example stream for a query
+data: {"type":"conversation","conversation_id":"abc-123","user_message_id":"msg-001"}
 
-// SQL query with cursor
-const query = `
-  SELECT * FROM conversations
-  WHERE tenant_id = $1
-    AND user_id = $2
-    AND (updated_at, id) < ($3, $4)  -- Cursor comparison
-  ORDER BY updated_at DESC, id DESC
-  LIMIT $5
-`;
+data: {"type":"context","sources":[{"id":"doc-1","score":0.92}],"entities":["SARAH"],"relationships":["COLLABORATES_WITH"]}
+
+data: {"type":"thinking","content":"Let me analyze the relationships..."}
+
+data: {"type":"token","content":"##"}
+data: {"type":"token","content":" Key"}
+data: {"type":"token","content":" Rel"}
+data: {"type":"token","content":"ationships"}
+data: {"type":"token","content":"\n\n"}
+data: {"type":"token","content":"Sarah"}
+...
+
+data: {"type":"done","assistant_message_id":"msg-002","tokens_used":234,"duration_ms":2345}
 ```
 
 ---
 
-## 5. Markdown Rendering Pipeline
+## 3. Markdown Rendering Pipeline
 
-### 5.1 Architecture Overview
+### 3.1 Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                    Token-Based Markdown Pipeline                             │
+│                     STREAMING MARKDOWN PIPELINE                             │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌─────────────┐    ┌──────────────┐    ┌─────────────────────────────────┐ │
-│  │ Raw Content │───▶│ Lexer        │───▶│ Token[]                         │ │
-│  │ (string)    │    │ (marked.js)  │    │ [{type: 'paragraph', text:...}] │ │
-│  └─────────────┘    └──────────────┘    └───────────────┬─────────────────┘ │
-│                                                          │                   │
-│                     ┌────────────────────────────────────┘                   │
-│                     ▼                                                        │
-│  ┌─────────────────────────────────────────────────────────────────────────┐│
-│  │                         TokenRenderer                                    ││
-│  │  ┌─────────────────────────────────────────────────────────────────┐    ││
-│  │  │ switch(token.type) {                                            │    ││
-│  │  │   case 'paragraph': return <ParagraphToken {...} />             │    ││
-│  │  │   case 'heading':   return <HeadingToken {...} />               │    ││
-│  │  │   case 'code':      return <CodeToken {...} />                  │    ││
-│  │  │   case 'table':     return <TableToken {...} />                 │    ││
-│  │  │   case 'list':      return <ListToken {...} />                  │    ││
-│  │  │   case 'blockquote': return <BlockquoteToken {...} />           │    ││
-│  │  │   case 'hr':        return <HorizontalRule />                   │    ││
-│  │  │   case 'html':      return <HtmlToken {...} />                  │    ││
-│  │  │   default:          return <FallbackToken {...} />              │    ││
-│  │  │ }                                                               │    ││
-│  │  └─────────────────────────────────────────────────────────────────┘    ││
-│  └─────────────────────────────────────────────────────────────────────────┘│
-│                                                                              │
+│                                                                             │
+│  ┌─────────────┐   ┌──────────────┐   ┌─────────────┐   ┌───────────────┐  │
+│  │ SSE Stream  │──►│ Accumulator  │──►│ Normalizer  │──►│ marked.lexer  │  │
+│  │  (tokens)   │   │   Buffer     │   │             │   │               │  │
+│  └─────────────┘   └──────────────┘   └─────────────┘   └───────┬───────┘  │
+│                                                                   │         │
+│                                                                   ▼         │
+│  ┌─────────────┐   ┌──────────────┐   ┌─────────────┐   ┌───────────────┐  │
+│  │   React     │◄──│ Token Render │◄──│ Completion  │◄──│   Token[]     │  │
+│  │   Tree      │   │  Components  │   │   Checker   │   │               │  │
+│  └─────────────┘   └──────────────┘   └─────────────┘   └───────────────┘  │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
+
+COMPONENTS:
+─────────────
+1. Accumulator Buffer: Concatenates incoming tokens
+2. Normalizer: Fixes streaming artifacts (spaces around **)
+3. marked.lexer: Tokenizes complete markdown
+4. Completion Checker: Determines if tokens are renderable
+5. Token Render Components: React components per token type
 ```
 
-### 5.2 Component Structure
+### 3.2 Marked Extensions to Add
 
 ```typescript
-// src/components/query/markdown/types.ts
-import type { Token } from "marked";
+// src/lib/markdown/extensions/index.ts
 
-export interface TokenRendererProps {
-  token: Token;
-  isStreaming: boolean;
-  onComplete?: () => void;
-}
-
-export interface InlineTokenRendererProps {
-  tokens: Token[];
-  isStreaming: boolean;
-}
-```
-
-```typescript
-// src/components/query/markdown/TokenRenderer.tsx
-import { memo } from "react";
-import type { Token } from "marked";
-import { ParagraphToken } from "./tokens/ParagraphToken";
-import { HeadingToken } from "./tokens/HeadingToken";
-import { CodeToken } from "./tokens/CodeToken";
-import { TableToken } from "./tokens/TableToken";
-import { ListToken } from "./tokens/ListToken";
-import { BlockquoteToken } from "./tokens/BlockquoteToken";
-
-interface Props {
-  tokens: Token[];
-  isStreaming: boolean;
-}
-
-export const TokenRenderer = memo(function TokenRenderer({
-  tokens,
-  isStreaming,
-}: Props) {
-  return (
-    <>
-      {tokens.map((token, idx) => {
-        const key = `${token.type}-${idx}`;
-        const isLast = idx === tokens.length - 1;
-
-        switch (token.type) {
-          case "paragraph":
-            return (
-              <ParagraphToken
-                key={key}
-                token={token}
-                isStreaming={isStreaming && isLast}
-              />
-            );
-          case "heading":
-            return <HeadingToken key={key} token={token} />;
-          case "code":
-            return (
-              <CodeToken
-                key={key}
-                token={token}
-                isStreaming={isStreaming && isLast}
-              />
-            );
-          case "table":
-            return <TableToken key={key} token={token} />;
-          case "list":
-            return (
-              <ListToken key={key} token={token} isStreaming={isStreaming} />
-            );
-          case "blockquote":
-            return <BlockquoteToken key={key} token={token} />;
-          case "hr":
-            return <hr key={key} className="my-6 border-t border-border" />;
-          case "space":
-            return <div key={key} className="my-2" />;
-          default:
-            return <FallbackToken key={key} token={token} />;
-        }
-      })}
-    </>
-  );
-});
-```
-
-### 5.3 Streaming Buffer Strategy
-
-````typescript
-// src/lib/markdown/streaming-parser.ts
 import { marked } from "marked";
 
-export class StreamingMarkdownParser {
-  private buffer = "";
-  private completeTokens: marked.Token[] = [];
-
-  constructor() {
-    // Configure marked for streaming
-    marked.use({
-      breaks: true,
-      gfm: true,
-    });
-  }
-
-  /**
-   * Process incoming chunk and return renderable tokens
-   */
-  processChunk(chunk: string): {
-    tokens: marked.Token[];
-    partialText: string;
-    isPartial: boolean;
-  } {
-    this.buffer += chunk;
-
-    // Find safe split point (complete blocks/paragraphs)
-    const { complete, remainder } = this.splitAtSafeBoundary(this.buffer);
-
-    if (complete) {
-      const newTokens = marked.lexer(complete);
-      this.completeTokens.push(...newTokens);
-      this.buffer = remainder;
-    }
-
-    return {
-      tokens: [...this.completeTokens],
-      partialText: this.buffer,
-      isPartial: this.buffer.length > 0,
-    };
-  }
-
-  /**
-   * Finalize parsing - flush remaining buffer
-   */
-  finalize(): marked.Token[] {
-    if (this.buffer) {
-      const finalTokens = marked.lexer(this.buffer);
-      this.completeTokens.push(...finalTokens);
-      this.buffer = "";
-    }
-    return this.completeTokens;
-  }
-
-  /**
-   * Find a safe boundary to split content
-   * Safe boundaries: double newlines, end of code blocks, etc.
-   */
-  private splitAtSafeBoundary(text: string): {
-    complete: string;
-    remainder: string;
-  } {
-    // Check for unclosed code blocks
-    const codeBlockCount = (text.match(/```/g) || []).length;
-    if (codeBlockCount % 2 !== 0) {
-      // Code block is open, don't split
-      return { complete: "", remainder: text };
-    }
-
-    // Check for unclosed inline elements
-    const boldCount = (text.match(/\*\*/g) || []).length;
-    const italicCount = (text.match(/(?<!\*)\*(?!\*)/g) || []).length;
-
-    if (boldCount % 2 !== 0 || italicCount % 2 !== 0) {
-      // Find last complete paragraph
-      const lastDoubleNewline = text.lastIndexOf("\n\n");
-      if (lastDoubleNewline > 0) {
-        return {
-          complete: text.slice(0, lastDoubleNewline + 2),
-          remainder: text.slice(lastDoubleNewline + 2),
-        };
-      }
-      return { complete: "", remainder: text };
-    }
-
-    // Find last paragraph boundary
-    const lastDoubleNewline = text.lastIndexOf("\n\n");
-    if (lastDoubleNewline > 0) {
+// 1. GitHub-style Alerts Extension
+export const alertExtension = {
+  name: "alert",
+  level: "block",
+  start(src: string) {
+    return src.match(/^> \[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/)?.index;
+  },
+  tokenizer(src: string) {
+    const rule =
+      /^> \[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\n((?:> .*(?:\n|$))*)/;
+    const match = rule.exec(src);
+    if (match) {
       return {
-        complete: text.slice(0, lastDoubleNewline + 2),
-        remainder: text.slice(lastDoubleNewline + 2),
+        type: "alert",
+        raw: match[0],
+        alertType: match[1] as
+          | "NOTE"
+          | "TIP"
+          | "IMPORTANT"
+          | "WARNING"
+          | "CAUTION",
+        text: match[2].replace(/^> ?/gm, ""),
+        tokens: [],
       };
     }
+  },
+  renderer(token: any) {
+    // Placeholder - actual rendering in React component
+    return `<div data-alert="${token.alertType}">${token.text}</div>`;
+  },
+};
 
-    return { complete: "", remainder: text };
+// 2. Footnotes Extension
+export const footnoteExtension = {
+  name: "footnote",
+  level: "inline",
+  start(src: string) {
+    return src.match(/\[\^/)?.index;
+  },
+  tokenizer(src: string) {
+    const rule = /^\[\^(\w+)\]/;
+    const match = rule.exec(src);
+    if (match) {
+      return {
+        type: "footnote",
+        raw: match[0],
+        id: match[1],
+      };
+    }
+  },
+  renderer(token: any) {
+    return `<sup class="footnote-ref">[${token.id}]</sup>`;
+  },
+};
+
+// 3. Citation Extension (enhanced)
+export const citationExtension = {
+  name: "citation",
+  level: "inline",
+  start(src: string) {
+    return src.match(/\[source:/)?.index;
+  },
+  tokenizer(src: string) {
+    const rule = /^\[source:(\d+)(?::([^\]]+))?\]/;
+    const match = rule.exec(src);
+    if (match) {
+      return {
+        type: "citation",
+        raw: match[0],
+        sourceId: match[1],
+        label: match[2] || match[1],
+      };
+    }
+  },
+  renderer(token: any) {
+    return `<cite data-source-id="${token.sourceId}">[${token.label}]</cite>`;
+  },
+};
+
+// 4. Details/Collapsible Extension
+export const detailsExtension = {
+  name: "details",
+  level: "block",
+  start(src: string) {
+    return src.match(/<details>/)?.index;
+  },
+  tokenizer(src: string) {
+    const rule =
+      /^<details>\s*\n<summary>(.*?)<\/summary>\s*\n([\s\S]*?)\n<\/details>/;
+    const match = rule.exec(src);
+    if (match) {
+      return {
+        type: "details",
+        raw: match[0],
+        summary: match[1],
+        text: match[2],
+        tokens: [],
+      };
+    }
+  },
+  renderer(token: any) {
+    return `<details><summary>${token.summary}</summary>${token.text}</details>`;
+  },
+};
+
+// Configure marked with all extensions
+export function configureMarked() {
+  const options = { breaks: true, gfm: true };
+
+  marked.use({
+    extensions: [
+      alertExtension,
+      footnoteExtension,
+      citationExtension,
+      detailsExtension,
+      // Existing: katex block/inline from current implementation
+    ],
+    ...options,
+  });
+}
+```
+
+### 3.3 Token Completion Detection
+
+````typescript
+// src/lib/markdown/completion-checker.ts
+
+import type { Token } from "marked";
+
+interface CompletionResult {
+  isComplete: boolean;
+  pendingType?: string;
+  requiresMore?: string;
+}
+
+/**
+ * Checks if the last token in the stream is complete and renderable.
+ * Incomplete tokens should be held in a buffer until complete.
+ */
+export function checkTokenCompletion(
+  tokens: Token[],
+  rawContent: string
+): CompletionResult {
+  if (tokens.length === 0) {
+    return { isComplete: true };
   }
 
-  reset(): void {
-    this.buffer = "";
-    this.completeTokens = [];
+  const lastToken = tokens[tokens.length - 1];
+
+  switch (lastToken.type) {
+    case "code": {
+      // Code blocks need closing ```
+      const codeContent = (lastToken as any).raw || "";
+      const hasClosing = codeContent.trim().endsWith("```");
+      if (!hasClosing) {
+        return {
+          isComplete: false,
+          pendingType: "code",
+          requiresMore: "Waiting for closing ```",
+        };
+      }
+      break;
+    }
+
+    case "table": {
+      // Tables need complete row (ending with |)
+      const lastLine = rawContent.split("\n").pop() || "";
+      if (lastLine.includes("|") && !lastLine.trim().endsWith("|")) {
+        return {
+          isComplete: false,
+          pendingType: "table",
+          requiresMore: "Waiting for row completion",
+        };
+      }
+      break;
+    }
+
+    case "blockKatex": {
+      // Math blocks need closing $$
+      if (!rawContent.trimEnd().endsWith("$$")) {
+        return {
+          isComplete: false,
+          pendingType: "math_block",
+          requiresMore: "Waiting for closing $$",
+        };
+      }
+      break;
+    }
+
+    case "paragraph": {
+      // Check for incomplete inline elements in paragraph
+      const text = (lastToken as any).text || "";
+
+      // Incomplete bold
+      if ((text.match(/\*\*/g) || []).length % 2 !== 0) {
+        return {
+          isComplete: false,
+          pendingType: "bold",
+          requiresMore: "Waiting for closing **",
+        };
+      }
+
+      // Incomplete inline code
+      if ((text.match(/`/g) || []).length % 2 !== 0) {
+        return {
+          isComplete: false,
+          pendingType: "inline_code",
+          requiresMore: "Waiting for closing `",
+        };
+      }
+
+      // Incomplete inline math
+      if ((text.match(/\$/g) || []).length % 2 !== 0) {
+        return {
+          isComplete: false,
+          pendingType: "inline_math",
+          requiresMore: "Waiting for closing $",
+        };
+      }
+      break;
+    }
   }
+
+  return { isComplete: true };
+}
+
+/**
+ * Get a safe subset of tokens that can be rendered.
+ * Holds back incomplete tokens.
+ */
+export function getSafeTokens(
+  tokens: Token[],
+  rawContent: string
+): {
+  renderableTokens: Token[];
+  pendingContent: string;
+} {
+  const result = checkTokenCompletion(tokens, rawContent);
+
+  if (result.isComplete) {
+    return { renderableTokens: tokens, pendingContent: "" };
+  }
+
+  // Hold back last token if incomplete
+  const renderableTokens = tokens.slice(0, -1);
+  const lastToken = tokens[tokens.length - 1];
+  const pendingContent = (lastToken as any).raw || "";
+
+  return { renderableTokens, pendingContent };
 }
 ````
 
-### 5.4 Library Recommendations
+### 3.4 HTML Sanitization
 
-| Feature             | Library                            | Rationale                                          |
-| ------------------- | ---------------------------------- | -------------------------------------------------- |
-| Markdown parsing    | `marked` (v12+)                    | Fastest lexer, extensible, used by openwebui       |
-| Syntax highlighting | `shiki` or `prism-react-renderer`  | Better theme support than react-syntax-highlighter |
-| KaTeX               | `katex` + `marked-katex-extension` | Direct integration with marked                     |
-| Mermaid             | `mermaid` (dynamic import)         | Standard, lazy-load for performance                |
-| Sanitization        | `dompurify`                        | For HTML token handling                            |
+```typescript
+// src/lib/markdown/sanitize.ts
+
+import DOMPurify from "dompurify";
+
+// Configure DOMPurify for our needs
+const purifyConfig: DOMPurify.Config = {
+  ALLOWED_TAGS: [
+    // Structure
+    "div",
+    "span",
+    "p",
+    "br",
+    "hr",
+    // Headings
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    // Lists
+    "ul",
+    "ol",
+    "li",
+    // Tables
+    "table",
+    "thead",
+    "tbody",
+    "tr",
+    "th",
+    "td",
+    // Text formatting
+    "strong",
+    "em",
+    "del",
+    "s",
+    "code",
+    "pre",
+    // Quotes and citations
+    "blockquote",
+    "cite",
+    "q",
+    // Links and media
+    "a",
+    "img",
+    // Details/summary
+    "details",
+    "summary",
+    // Semantic
+    "sup",
+    "sub",
+    "mark",
+  ],
+  ALLOWED_ATTR: [
+    "class",
+    "id",
+    "href",
+    "src",
+    "alt",
+    "title",
+    "data-*", // Allow data attributes for our components
+    "target",
+    "rel", // For links
+    "colspan",
+    "rowspan", // For tables
+    "open", // For details
+  ],
+  ALLOW_DATA_ATTR: true,
+  ADD_ATTR: ["target"], // Add target="_blank" to links
+  ADD_TAGS: ["iframe"], // Allow iframes for embeds (with strict sanitization)
+};
+
+// Hooks for link security
+DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+  if (node.tagName === "A") {
+    node.setAttribute("target", "_blank");
+    node.setAttribute("rel", "noopener noreferrer");
+  }
+  if (node.tagName === "IFRAME") {
+    node.setAttribute("sandbox", "allow-scripts allow-same-origin");
+  }
+});
+
+export function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html, purifyConfig);
+}
+
+export function sanitizeHtmlToken(html: string): string {
+  // Stricter sanitization for inline HTML tokens
+  return DOMPurify.sanitize(html, {
+    ...purifyConfig,
+    ALLOWED_TAGS: ["br", "span", "strong", "em", "code", "a", "sup", "sub"],
+  });
+}
+```
 
 ---
 
-## 6. Frontend Architecture
+## 4. Frontend Architecture
 
-### 6.1 State Management
+### 4.1 State Management
 
 ```typescript
-// src/stores/use-conversation-store.ts (refactored)
+// src/stores/use-query-store.ts
+
 import { create } from "zustand";
-import { subscribeWithSelector } from "zustand/middleware";
+import { persist, subscribeWithSelector } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 
-interface ConversationState {
-  // Server-synced state
-  conversations: Map<string, Conversation>;
+// ============================================================================
+// Types
+// ============================================================================
+
+export type StreamingPhase =
+  | "idle"
+  | "thinking"
+  | "retrieving"
+  | "generating"
+  | "complete"
+  | "error";
+
+export interface StreamingState {
+  phase: StreamingPhase;
+  content: string;
+  thinkingContent: string;
+  tokensGenerated: number;
+  startTime: number;
+  thinkingDuration?: number;
+  sources?: Source[];
+  error?: { code: string; message: string; retryable: boolean };
+}
+
+export interface QueryFilters {
+  modes: ConversationMode[];
+  archived: boolean;
+  pinned: boolean | null;
+  folderId: string | null;
+  search: string;
+  dateRange: { from: string | null; to: string | null };
+}
+
+export interface QueryUIState {
+  // Active conversation
   activeConversationId: string | null;
 
-  // UI state (not persisted to server)
+  // Panel state
   historyPanelOpen: boolean;
-  filterState: FilterState;
+  historyPanelWidth: number;
 
-  // Sync status
-  syncStatus: "idle" | "syncing" | "error";
-  lastSyncedAt: number | null;
-  pendingChanges: PendingChange[];
+  // Streaming
+  streaming: StreamingState;
+  abortController: AbortController | null;
+
+  // Filters & sort
+  filters: QueryFilters;
+  sort: { field: "updated_at" | "created_at" | "title"; order: "asc" | "desc" };
+
+  // Selection for batch operations
+  selectedConversationIds: Set<string>;
+  isSelectionMode: boolean;
+
+  // UI preferences (persisted)
+  showThinking: boolean;
+  showSources: boolean;
+  showMetadata: boolean;
 }
 
-interface ConversationActions {
-  // Remote operations (API calls)
-  fetchConversations: (filters?: FilterParams) => Promise<void>;
-  fetchConversation: (id: string) => Promise<void>;
-  createConversation: () => Promise<string>;
-  updateConversation: (
-    id: string,
-    updates: Partial<Conversation>
-  ) => Promise<void>;
-  deleteConversation: (id: string) => Promise<void>;
+// ============================================================================
+// Store Implementation
+// ============================================================================
 
-  // Message operations
-  addMessage: (
-    conversationId: string,
-    message: Omit<Message, "id">
-  ) => Promise<string>;
-  updateMessage: (
-    conversationId: string,
-    messageId: string,
-    updates: Partial<Message>
-  ) => void;
-
-  // Optimistic updates
-  optimisticAddMessage: (conversationId: string, message: Message) => void;
-  rollbackMessage: (conversationId: string, messageId: string) => void;
-
-  // UI actions
-  setActiveConversation: (id: string | null) => void;
-  toggleHistoryPanel: () => void;
-  setFilters: (filters: Partial<FilterState>) => void;
-
-  // Sync
-  syncPendingChanges: () => Promise<void>;
-  importFromLocalStorage: () => Promise<void>;
-}
-
-export const useConversationStore = create<
-  ConversationState & ConversationActions
->()(
+export const useQueryStore = create<QueryUIState & QueryUIActions>()(
   subscribeWithSelector(
-    immer((set, get) => ({
-      // Initial state
-      conversations: new Map(),
-      activeConversationId: null,
-      historyPanelOpen: true,
-      filterState: { mode: [], archived: false, search: "" },
-      syncStatus: "idle",
-      lastSyncedAt: null,
-      pendingChanges: [],
+    persist(
+      immer((set, get) => ({
+        // Initial state
+        activeConversationId: null,
+        historyPanelOpen: true,
+        historyPanelWidth: 280,
+        streaming: {
+          phase: "idle",
+          content: "",
+          thinkingContent: "",
+          tokensGenerated: 0,
+          startTime: 0,
+        },
+        abortController: null,
+        filters: {
+          modes: [],
+          archived: false,
+          pinned: null,
+          folderId: null,
+          search: "",
+          dateRange: { from: null, to: null },
+        },
+        sort: { field: "updated_at", order: "desc" },
+        selectedConversationIds: new Set(),
+        isSelectionMode: false,
+        showThinking: true,
+        showSources: true,
+        showMetadata: true,
 
-      // Implementation of actions...
-    }))
+        // Actions
+        setActiveConversation: (id) => set({ activeConversationId: id }),
+
+        toggleHistoryPanel: () =>
+          set((state) => {
+            state.historyPanelOpen = !state.historyPanelOpen;
+          }),
+
+        startStreaming: () => {
+          const controller = new AbortController();
+          set({
+            abortController: controller,
+            streaming: {
+              phase: "thinking",
+              content: "",
+              thinkingContent: "",
+              tokensGenerated: 0,
+              startTime: Date.now(),
+            },
+          });
+          return controller;
+        },
+
+        appendStreamContent: (token) =>
+          set((state) => {
+            if (state.streaming.phase === "thinking") {
+              state.streaming.phase = "generating";
+              state.streaming.thinkingDuration =
+                Date.now() - state.streaming.startTime;
+            }
+            state.streaming.content += token;
+            state.streaming.tokensGenerated += 1;
+          }),
+
+        setStreamPhase: (phase) =>
+          set((state) => {
+            state.streaming.phase = phase;
+          }),
+
+        setStreamError: (error) =>
+          set((state) => {
+            state.streaming.phase = "error";
+            state.streaming.error = error;
+          }),
+
+        completeStreaming: () =>
+          set((state) => {
+            state.streaming.phase = "complete";
+            state.abortController = null;
+          }),
+
+        abortStreaming: () => {
+          const { abortController } = get();
+          abortController?.abort();
+          set((state) => {
+            state.streaming.phase = "idle";
+            state.abortController = null;
+          });
+        },
+
+        setFilters: (filters) =>
+          set((state) => {
+            Object.assign(state.filters, filters);
+          }),
+
+        resetFilters: () =>
+          set((state) => {
+            state.filters = {
+              modes: [],
+              archived: false,
+              pinned: null,
+              folderId: null,
+              search: "",
+              dateRange: { from: null, to: null },
+            };
+          }),
+      })),
+      {
+        name: "edgequake-query-ui",
+        partialize: (state) => ({
+          historyPanelOpen: state.historyPanelOpen,
+          historyPanelWidth: state.historyPanelWidth,
+          showThinking: state.showThinking,
+          showSources: state.showSources,
+          showMetadata: state.showMetadata,
+        }),
+      }
+    )
   )
 );
 ```
 
-### 6.2 React Query Integration
-
-```typescript
-// src/hooks/use-conversations.ts
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { conversationsApi } from "@/lib/api/conversations";
-
-export function useConversations(filters: FilterParams) {
-  return useQuery({
-    queryKey: ["conversations", filters],
-    queryFn: () => conversationsApi.list(filters),
-    staleTime: 30_000, // 30 seconds
-    refetchOnWindowFocus: true,
-  });
-}
-
-export function useConversation(id: string) {
-  return useQuery({
-    queryKey: ["conversation", id],
-    queryFn: () => conversationsApi.get(id),
-    staleTime: 60_000, // 1 minute
-  });
-}
-
-export function useCreateConversation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: conversationsApi.create,
-    onSuccess: (newConversation) => {
-      queryClient.invalidateQueries({ queryKey: ["conversations"] });
-      return newConversation;
-    },
-  });
-}
-
-export function useSendMessage(conversationId: string) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (content: string) =>
-      conversationsApi.sendMessage(conversationId, content),
-    onMutate: async (content) => {
-      // Optimistic update
-      await queryClient.cancelQueries({
-        queryKey: ["conversation", conversationId],
-      });
-
-      const previousConversation = queryClient.getQueryData([
-        "conversation",
-        conversationId,
-      ]);
-
-      queryClient.setQueryData(
-        ["conversation", conversationId],
-        (old: any) => ({
-          ...old,
-          messages: [
-            ...old.messages,
-            {
-              id: `temp-${Date.now()}`,
-              role: "user",
-              content,
-              created_at: new Date().toISOString(),
-            },
-          ],
-        })
-      );
-
-      return { previousConversation };
-    },
-    onError: (err, content, context) => {
-      // Rollback on error
-      if (context?.previousConversation) {
-        queryClient.setQueryData(
-          ["conversation", conversationId],
-          context.previousConversation
-        );
-      }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["conversation", conversationId],
-      });
-    },
-  });
-}
-```
-
-### 6.3 Component Structure
+### 4.2 Component Structure
 
 ```
 src/components/query/
-├── QueryPage.tsx                 # Page component
-├── QueryInterface.tsx            # Main interface (refactored)
-├── ConversationHeader.tsx        # Title, mode, actions
-├── MessageThread.tsx             # Message list
-├── MessageInput.tsx              # Query input
-├── ConversationHistoryPanel/
-│   ├── index.tsx                 # Panel container
-│   ├── ConversationList.tsx      # Virtualized list
-│   ├── ConversationItem.tsx      # Single item
-│   ├── FilterBar.tsx             # Search + filters
-│   └── Pagination.tsx            # Load more trigger
-├── Message/
-│   ├── index.tsx                 # Message wrapper
-│   ├── UserMessage.tsx           # User bubble
-│   ├── AssistantMessage.tsx      # AI bubble
-│   ├── ThinkingSection.tsx       # COT display
-│   └── SourceCitations.tsx       # Expandable sources
+├── index.ts                          # Public exports
+├── QueryPage.tsx                     # Page layout container
+├── QueryInterface.tsx                # Main interface logic
+├── history/
+│   ├── ConversationList.tsx          # Virtualized list
+│   ├── ConversationItem.tsx          # Single item
+│   ├── ConversationFilters.tsx       # Filter controls
+│   ├── FolderTree.tsx               # Folder sidebar
+│   └── HistoryPanel.tsx             # Panel container
+├── chat/
+│   ├── ChatArea.tsx                  # Scrollable message area
+│   ├── ChatMessage.tsx               # Message container
+│   ├── UserMessage.tsx               # User bubble
+│   ├── AssistantMessage.tsx          # Assistant bubble
+│   ├── MessageMetadata.tsx           # Tokens, time, mode
+│   ├── ThinkingSection.tsx           # Collapsible COT
+│   └── SourceCitations.tsx           # Source references
+├── input/
+│   ├── QueryInput.tsx                # Text input area
+│   ├── ModeSelector.tsx              # Query mode picker
+│   └── SendButton.tsx                # Submit button
 ├── markdown/
-│   ├── MarkdownRenderer.tsx      # Main renderer (refactored)
-│   ├── TokenRenderer.tsx         # Token dispatcher
-│   ├── StreamingParser.ts        # Buffer logic
-│   └── tokens/
-│       ├── ParagraphToken.tsx
-│       ├── HeadingToken.tsx
-│       ├── CodeToken.tsx
-│       ├── TableToken.tsx
-│       ├── ListToken.tsx
-│       ├── BlockquoteToken.tsx
-│       ├── InlineTokens.tsx
-│       └── MermaidToken.tsx
-└── shared/
-    ├── Skeleton.tsx              # Loading states
-    ├── ErrorBoundary.tsx         # Error handling
-    └── SyncIndicator.tsx         # Save status
+│   ├── StreamingMarkdownRenderer.tsx # Main entry
+│   ├── MarkdownTokens.tsx            # Block renderer
+│   ├── MarkdownInlineTokens.tsx      # Inline renderer
+│   ├── tokens/
+│   │   ├── HeadingToken.tsx
+│   │   ├── ParagraphToken.tsx
+│   │   ├── CodeBlockToken.tsx
+│   │   ├── TableToken.tsx
+│   │   ├── AlertToken.tsx            # NEW
+│   │   ├── DetailsToken.tsx          # NEW
+│   │   └── FootnoteToken.tsx         # NEW
+│   ├── extensions/
+│   │   ├── alert-extension.ts
+│   │   ├── citation-extension.ts
+│   │   ├── details-extension.ts
+│   │   ├── footnote-extension.ts
+│   │   └── katex-extension.ts
+│   └── utils/
+│       ├── configure-marked.ts
+│       ├── completion-checker.ts
+│       └── sanitize.ts
+├── loading/
+│   ├── ThinkingIndicator.tsx         # Brain animation
+│   ├── StreamingSkeleton.tsx         # Content skeleton
+│   ├── MessageSkeleton.tsx           # List item skeleton
+│   └── StreamingCursor.tsx           # Blinking cursor
+└── dialogs/
+    ├── ExportDialog.tsx
+    ├── ShareDialog.tsx
+    └── DeleteConfirmDialog.tsx
+```
+
+### 4.3 React Query Configuration
+
+```typescript
+// src/lib/query-client.ts
+
+import { QueryClient, QueryCache, MutationCache } from "@tanstack/react-query";
+import { toast } from "sonner";
+
+export const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      // Only show toast for queries that have been retried
+      if (query.state.fetchFailureCount > 0) {
+        toast.error(`Failed to load data: ${error.message}`);
+      }
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error) => {
+      toast.error(`Operation failed: ${error.message}`);
+    },
+  }),
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000, // 30 seconds
+      gcTime: 5 * 60_000, // 5 minutes
+      retry: 2,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      refetchOnWindowFocus: false,
+    },
+    mutations: {
+      retry: 1,
+    },
+  },
+});
+
+// Query keys factory
+export const queryKeys = {
+  conversations: {
+    all: ["conversations"] as const,
+    list: (filters: Record<string, unknown>) =>
+      ["conversations", "list", filters] as const,
+    detail: (id: string) => ["conversations", "detail", id] as const,
+    messages: (id: string, cursor?: string) =>
+      ["conversations", "messages", id, cursor] as const,
+  },
+  folders: {
+    all: ["folders"] as const,
+    list: () => ["folders", "list"] as const,
+  },
+};
 ```
 
 ---
 
-## 7. Performance Optimizations
+## 5. Performance Optimizations
 
-### 7.1 Virtualized Conversation List
+### 5.1 Virtualization Strategy
 
 ```typescript
-// Using @tanstack/react-virtual
+// src/hooks/use-virtual-conversations.ts
+
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { useRef, useMemo } from "react";
 
-function VirtualizedConversationList({ conversations }: Props) {
-  const parentRef = useRef<HTMLDivElement>(null);
-
-  const virtualizer = useVirtualizer({
+export function useVirtualConversations(
+  conversations: Conversation[],
+  parentRef: React.RefObject<HTMLElement>
+) {
+  const rowVirtualizer = useVirtualizer({
     count: conversations.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 72, // Estimated item height
+    estimateSize: () => 64, // Estimated row height
     overscan: 5, // Render 5 extra items above/below viewport
+    measureElement: (el) => el.getBoundingClientRect().height,
   });
 
-  return (
-    <div ref={parentRef} className="h-full overflow-auto">
-      <div
-        style={{
-          height: `${virtualizer.getTotalSize()}px`,
-          position: "relative",
-        }}
-      >
-        {virtualizer.getVirtualItems().map((virtualItem) => (
-          <div
-            key={virtualItem.key}
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "100%",
-              transform: `translateY(${virtualItem.start}px)`,
-            }}
-          >
-            <ConversationItem conversation={conversations[virtualItem.index]} />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  return {
+    virtualRows: rowVirtualizer.getVirtualItems(),
+    totalSize: rowVirtualizer.getTotalSize(),
+    measureElement: rowVirtualizer.measureElement,
+  };
 }
 ```
 
-### 7.2 Message Memoization
+### 5.2 Auto-scroll Optimization
 
 ```typescript
-// Memoize messages to prevent re-renders during streaming
-const MemoizedMessage = memo(
-  function Message({ message, isLast }: Props) {
-    // ...
-  },
-  (prevProps, nextProps) => {
-    // Only re-render if content changed or streaming state changed
-    return (
-      prevProps.message.id === nextProps.message.id &&
-      prevProps.message.content === nextProps.message.content &&
-      prevProps.message.isStreaming === nextProps.message.isStreaming &&
-      prevProps.isLast === nextProps.isLast
-    );
-  }
-);
-```
+// src/hooks/use-auto-scroll.ts
 
-### 7.3 Lazy Loading
+import { useRef, useCallback, useEffect } from "react";
+import { useThrottledCallback } from "use-debounce";
 
-```typescript
-// Lazy load heavy components
-const MermaidDiagram = lazy(() => import("./tokens/MermaidToken"));
-const KatexRenderer = lazy(() => import("./tokens/KatexRenderer"));
+interface UseAutoScrollOptions {
+  enabled: boolean;
+  behavior?: ScrollBehavior;
+  threshold?: number;
+}
 
-// Usage with Suspense
-<Suspense fallback={<Skeleton className="h-32" />}>
-  <MermaidDiagram code={token.text} />
-</Suspense>;
+export function useAutoScroll(
+  scrollRef: React.RefObject<HTMLElement>,
+  options: UseAutoScrollOptions
+) {
+  const { enabled, behavior = "smooth", threshold = 100 } = options;
+  const isUserScrollingRef = useRef(false);
+  const wasAtBottomRef = useRef(true);
+
+  const scrollToBottom = useThrottledCallback(
+    () => {
+      if (!scrollRef.current || isUserScrollingRef.current) return;
+
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior,
+      });
+    },
+    16, // ~60fps
+    { leading: true, trailing: true }
+  );
+
+  const handleScroll = useCallback(() => {
+    if (!scrollRef.current) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < threshold;
+
+    // User scrolled up - disable auto-scroll
+    if (!isAtBottom && wasAtBottomRef.current) {
+      isUserScrollingRef.current = true;
+    }
+
+    // User scrolled back to bottom - re-enable auto-scroll
+    if (isAtBottom && !wasAtBottomRef.current) {
+      isUserScrollingRef.current = false;
+    }
+
+    wasAtBottomRef.current = isAtBottom;
+  }, [threshold]);
+
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+
+    element.addEventListener("scroll", handleScroll, { passive: true });
+    return () => element.removeEventListener("scroll", handleScroll);
+  }, [handleScroll]);
+
+  return {
+    scrollToBottom: enabled ? scrollToBottom : () => {},
+    isAtBottom: wasAtBottomRef.current,
+    isUserScrolling: isUserScrollingRef.current,
+    resetScroll: () => {
+      isUserScrollingRef.current = false;
+      wasAtBottomRef.current = true;
+    },
+  };
+}
 ```
 
 ---
 
-## 8. Next Steps
+## References
 
-1. **Phase 4**: Create implementation roadmap → [04_implementation_roadmap.md](04_implementation_roadmap.md)
-2. **Phase 5**: Design mockups → [05_design_mockups.md](05_design_mockups.md)
+- [Audit Findings](./01_audit_findings.md)
+- [Design Strategy](./02_design_strategy.md)
+- [Implementation Roadmap](./04_implementation_roadmap.md)
+- [OpenWebUI Source](https://github.com/open-webui/open-webui)
+- [marked.js Documentation](https://marked.js.org/)
+- [TanStack Query Docs](https://tanstack.com/query/latest)
 
 ---
 
-_Last updated: 2024-12-27_
+_Document Version: 1.0 | Last Updated: December 27, 2025_

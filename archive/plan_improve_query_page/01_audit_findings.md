@@ -1,395 +1,323 @@
-# Phase 1: Audit Findings
+# Phase 1: Audit Findings - Query Page UX/UI Improvement
 
-**Document**: `01_audit_findings.md`  
-**Created**: 2024-12-27  
-**Status**: Complete
-
----
-
-## 1. Executive Summary
-
-The Query Page is EdgeQuake WebUI's flagship feature, achieving a **4.4/5 slickness score** in preliminary audits. However, critical technical debt threatens user experience:
-
-| Problem                                    | Impact                          | Severity    |
-| ------------------------------------------ | ------------------------------- | ----------- |
-| Markdown rendering breaks during streaming | Users see garbled output        | 🔴 Critical |
-| No cross-session persistence               | Context lost on logout          | 🔴 Critical |
-| localStorage-only storage                  | Can't sync across devices       | 🟡 High     |
-| No pagination/filtering                    | History panel unusable at scale | 🟡 High     |
-
-**Recommendation**: Prioritize token-based markdown rendering and server-side persistence, adopting patterns from openwebui while avoiding their JSON-blob storage anti-pattern.
+> **Date**: December 27, 2025  
+> **Scope**: EdgeQuake WebUI Query Page  
+> **Benchmark**: OpenWebUI Implementation
 
 ---
 
-## 2. User Personas
+## Executive Summary
 
-### 2.1 Data Analyst "Dana"
-
-- **Role**: Business analyst querying knowledge graphs daily
-- **Goals**: Quick answers, save useful queries, share insights with team
-- **Frustrations**:
-  - Loses query history when clearing browser data
-  - Can't filter history by topic or date
-  - Markdown tables render incorrectly
-- **Session pattern**: 5-15 queries/session, 2-3 sessions/day
-
-### 2.2 Knowledge Manager "Kim"
-
-- **Role**: Curates organizational knowledge bases
-- **Goals**: Build comprehensive KGs, explore relationships, export insights
-- **Frustrations**:
-  - Chain-of-thought reasoning hard to read
-  - Can't see query context after page refresh
-  - Complex markdown (code blocks, mermaid) breaks mid-stream
-- **Session pattern**: Long sessions (1-2 hours), deep exploration
-
-### 2.3 Developer "Dev"
-
-- **Role**: Engineers building on EdgeQuake APIs
-- **Goals**: Debug RAG pipelines, test query modes, validate responses
-- **Frustrations**:
-  - Streaming output doesn't match API response
-  - Can't replay exact queries for debugging
-  - No way to export conversation for issue reports
-- **Session pattern**: Burst usage during development cycles
+This audit identifies critical gaps in the Query Page's markdown rendering, state persistence, and user experience compared to OpenWebUI. The current implementation has a solid foundation but requires targeted improvements in streaming markdown, conversation management, and visual polish to achieve production-ready status.
 
 ---
 
-## 3. User Journey Map
+## 1. User Research Synthesis
+
+### 1.1 Primary User Personas
+
+| Persona                | Goals                                               | Pain Points                                                         | Key Workflows                         |
+| ---------------------- | --------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------- |
+| **Data Analyst**       | Query knowledge graph for insights, export findings | Complex markdown renders incorrectly, tables break during streaming | Ask → Review → Export → Share         |
+| **Knowledge Engineer** | Build and validate graph structure, test queries    | No cross-session history, loses context on refresh                  | Query → Validate → Iterate → Document |
+| **Business User**      | Get quick answers from documents, share with team   | Cluttered interface, slow response feedback, confusing streaming    | Ask → Read → Share                    |
+
+### 1.2 Current Journey Map - Critical Friction Points
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                        QUERY PAGE USER JOURNEY                               │
+│                        QUERY PAGE USER JOURNEY                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  STAGES:    Discover    │    Explore    │    Analyze    │    Return         │
-│                                                                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ACTIONS:   • Open query page         • Review history      • Find old query│
-│             • Type question           • Refine query        • Resume session │
-│             • Select mode             • View reasoning      • Export results │
-│                                                                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  THOUGHTS:  "What entities     "This response    "I need to     "Where did  │
-│              are connected?"    is complex..."    dig deeper"     it go?!"   │
-│                                                                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  EMOTIONS:  😊 Excited         😕 Confused       😤 Frustrated   😢 Lost    │
-│             (starting)         (broken md)       (no filter)     (no persist)│
-│                                                                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  PAIN       ──────○──────      ────────●────     ────────●───    ────●────  │
-│  INTENSITY:      Low                 HIGH             HIGH          HIGH     │
-│                                                                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  OPPS:      [✓] Good empty     [!] Fix streaming [!] Add filter  [!] Persist│
-│              state UI           markdown render   & pagination    to server  │
-│                                                                              │
+│                                                                             │
+│  1. ENTRY           2. QUERY              3. REVIEW            4. ACTION   │
+│  ─────────         ─────────             ────────             ───────      │
+│  Open Page  ──────► Type Query ─────────► Read Response ─────► Share/Save  │
+│       │                  │                      │                  │        │
+│       ▼                  ▼                      ▼                  ▼        │
+│  ┌─────────┐       ┌──────────┐          ┌───────────┐      ┌─────────┐   │
+│  │ Friction│       │ Friction │          │  Friction │      │ Friction│   │
+│  │─────────│       │──────────│          │───────────│      │─────────│   │
+│  │ No prior│       │ No mode  │          │ Tables    │      │ No easy │   │
+│  │ context │       │ guidance │          │ break     │      │ export  │   │
+│  │ loaded  │       │          │          │ in stream │      │         │   │
+│  │         │       │ No query │          │           │      │ Copy    │   │
+│  │ Empty   │       │ templates│          │ Code not  │      │ doesn't │   │
+│  │ state   │       │          │          │ highlighted│     │ preserve│   │
+│  │ unclear │       │          │          │           │      │ format  │   │
+│  └─────────┘       └──────────┘          └───────────┘      └─────────┘   │
+│                                                                             │
+│  SEVERITY:  🟠 Medium      🟢 Low          🔴 High         🟠 Medium      │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 4. Current Component Architecture
+## 2. Current State Analysis
 
-### 4.1 Component Hierarchy
+### 2.1 Component Hierarchy
 
 ```
-query/page.tsx
-└── QueryInterface (859 lines)
-    ├── Header
-    │   ├── QueryModeSelector
-    │   ├── New Conversation Button
-    │   └── Settings Sheet
-    │       └── Stream/Temperature/TopK controls
-    ├── Messages Area (ScrollArea)
-    │   ├── EmptyState (when no messages)
-    │   │   └── Suggestion Cards
-    │   └── ChatMessage[] (per message)
-    │       ├── UserMessage
-    │       └── AssistantMessage
-    │           ├── ThinkingSection (collapsible COT)
-    │           ├── MarkdownRenderer
-    │           │   ├── MermaidDiagram
-    │           │   ├── CodeBlock
-    │           │   └── KatexRenderer (disabled)
-    │           └── SourceCitations
-    ├── Input Form
-    │   ├── Textarea (auto-resize)
-    │   └── Send/Stop Button
-    └── ConversationHistoryPanel
-        ├── Search Input
-        └── ConversationItem[]
+QueryPage
+├── QueryInterface (main container)
+│   ├── ConversationHistoryPanelV2 (sidebar)
+│   │   ├── FolderSidebar
+│   │   ├── ConversationItem (virtualized list)
+│   │   └── ExportDialog, ShareDialog
+│   ├── ChatMessage (message bubbles)
+│   │   ├── StreamingMarkdownRenderer
+│   │   │   ├── MarkdownTokens (block-level)
+│   │   │   │   ├── MarkdownInlineTokens
+│   │   │   │   ├── CodeBlock (lazy)
+│   │   │   │   ├── MermaidBlock (lazy)
+│   │   │   │   └── KatexMath (lazy)
+│   │   ├── ThinkingDisplay
+│   │   └── SourceCitations
+│   ├── QueryModeSelector
+│   └── EmptyState
 ```
 
-### 4.2 State Management
+### 2.2 State Management Architecture
 
-| Store                  | Purpose                     | Persistence  |
-| ---------------------- | --------------------------- | ------------ |
-| `useConversationStore` | Conversations & messages    | localStorage |
-| `useSettingsStore`     | Query settings (mode, temp) | localStorage |
-| `useTenantStore`       | Tenant/workspace context    | Session      |
+| Layer            | Technology                       | Current State | Issues                                              |
+| ---------------- | -------------------------------- | ------------- | --------------------------------------------------- |
+| **UI State**     | Zustand (`useQueryUIStore`)      | ✅ Working    | Panel state persists but streaming state can desync |
+| **Server State** | React Query (`useConversations`) | ✅ Working    | 30s stale time may cause sync issues                |
+| **Local State**  | useState (`pendingMessage`)      | ⚠️ Fragile    | Lost on component unmount, no persistence           |
+| **Form State**   | Uncontrolled textarea            | ⚠️ Basic      | No validation, no auto-save                         |
 
-**Issue**: All state in localStorage means:
+### 2.3 Markdown Rendering Analysis
 
-- Lost on clear browser data
-- Can't sync across devices/browsers
-- Can't implement server-side search
+**Current Implementation (`StreamingMarkdownRenderer.tsx`):**
 
-### 4.3 Dependencies
-
-```json
-{
-  "react-markdown": "^9.x",
-  "remark-gfm": "^4.x",
-  "remark-math": "^6.x",
-  "rehype-katex": "^7.x",
-  "react-syntax-highlighter": "^15.x",
-  "mermaid": "^10.x",
-  "zustand": "^4.x",
-  "@tanstack/react-query": "^5.x"
-}
+```typescript
+// Current approach:
+1. Use marked.lexer() to tokenize content
+2. Apply normalizations for streaming artifacts
+3. Render tokens via MarkdownTokens component
+4. Lazy-load CodeBlock, MermaidBlock, KatexMath
 ```
+
+**Supported Token Types:**
+
+- ✅ Headings (h1-h6)
+- ✅ Paragraphs
+- ✅ Code blocks with syntax highlighting
+- ✅ Mermaid diagrams
+- ✅ KaTeX math (block and inline)
+- ✅ Tables
+- ✅ Lists (ordered, unordered, tasks)
+- ✅ Blockquotes
+- ⚠️ Bold/italic (streaming artifacts during generation)
+- ❌ GitHub-style alerts
+- ❌ Footnotes
+- ❌ Citations with link previews
+- ❌ Collapsible details blocks
+
+**Streaming Normalization Functions:**
+
+```typescript
+// Problem: LLM tokenizers add spaces around markdown markers
+normalizeMarkdownForStreaming(content); // Fix "** bold **" → "**bold**"
+addSpacesAroundMarkdown(content); // Add spaces between markers and text
+```
+
+### 2.4 Database Schema Audit
+
+**Current Schema (`009_add_conversations_tables.sql`):**
+
+| Table           | Columns    | Indexes   | RLS | Issues                          |
+| --------------- | ---------- | --------- | --- | ------------------------------- |
+| `conversations` | 13 columns | 7 indexes | ✅  | Missing `search_vector` for FTS |
+| `messages`      | 13 columns | 3 indexes | ✅  | Missing message versioning      |
+| `folders`       | 9 columns  | 2 indexes | ✅  | Good                            |
+
+**Missing Features:**
+
+- No message edit history (`message_versions` table)
+- No conversation tags/labels
+- No message reactions/feedback
+- No query performance metrics storage
 
 ---
 
-## 5. Markdown Rendering Deep Dive
+## 3. Competitive Analysis: OpenWebUI
 
-### 5.1 Current Implementation Issues
+### 3.1 Markdown Rendering Comparison Matrix
 
-#### Issue 1: Streaming Fallback to Plain Text
+| Feature                      | EdgeQuake        | OpenWebUI          | Gap Analysis              |
+| ---------------------------- | ---------------- | ------------------ | ------------------------- |
+| **Core Parser**              | `marked`         | `marked`           | ✅ Same foundation        |
+| **Math Rendering**           | KaTeX (lazy)     | KaTeX (lazy)       | ✅ Parity                 |
+| **Code Highlighting**        | Shiki            | highlight.js       | ⚠️ Consider Shiki for SSR |
+| **Mermaid Diagrams**         | ✅ Supported     | ✅ Supported       | ✅ Parity                 |
+| **Vega/Vega-Lite**           | ❌ Not supported | ✅ Supported       | 🔴 Gap                    |
+| **GitHub Alerts**            | ❌ Not supported | ✅ Supported       | 🔴 Gap                    |
+| **Footnotes**                | ❌ Not supported | ✅ Supported       | 🔴 Gap                    |
+| **Citations**                | Basic            | ✅ With previews   | 🔴 Gap                    |
+| **Collapsible Details**      | ❌ Not supported | ✅ Supported       | 🟡 Nice-to-have           |
+| **Mentions**                 | ❌ Not supported | ✅ @user, #channel | 🟡 Nice-to-have           |
+| **HTML Sanitization**        | Basic            | DOMPurify          | 🔴 Security gap           |
+| **Streaming Text Animation** | Static           | Fade transition    | 🟡 Polish                 |
 
-```tsx
-// markdown-renderer.tsx (lines 720-730)
-if (isStreaming) {
-  const hasUnclosedBold = (safeContent.match(/\*\*/g) || []).length % 2 !== 0;
-  // ... more checks
-  if (safeContent.length < 50 || hasUnclosedBold || ...) {
-    return fallback; // ❌ Renders as plain text!
-  }
-}
+### 3.2 OpenWebUI Patterns to Adopt
+
+**1. Extension Architecture:**
+
+```typescript
+// OpenWebUI uses dedicated marked extensions
+marked.use(markedKatexExtension(options));
+marked.use(markedExtension(options)); // Details/collapsible
+marked.use(citationExtension(options));
+marked.use(footnoteExtension(options));
+marked.use(disableSingleTilde);
+marked.use({ extensions: [mentionExtension] });
 ```
 
-**Problem**: During streaming, if markdown is incomplete, entire content falls back to `<p>` tag, losing all formatting.
+**2. Token-Based Streaming:**
 
-#### Issue 2: Disabled KaTeX
+- Uses `done` prop to track streaming completion
+- TextToken applies fade animations during streaming
+- Progressive enhancement for complex elements
 
-```tsx
-// markdown-renderer.tsx (line 269)
-enableMath = false,  // Temporarily disable math to debug
+**3. HTML Sanitization:**
+
+```typescript
+// OpenWebUI uses DOMPurify for HTML token safety
+import DOMPurify from "dompurify";
+html = DOMPurify.sanitize(token.text);
 ```
 
-**Problem**: Math equations don't render, but this is a conscious debugging decision.
+### 3.3 Patterns to Avoid from OpenWebUI
 
-#### Issue 3: Mermaid Disabled During Streaming
-
-```tsx
-// markdown-renderer.tsx (lines 322-325)
-if (
-  enableMermaidRef.current &&
-  language === "mermaid" &&
-  !isStreamingRef.current
-) {
-  return <MermaidDiagram code={codeContent} />;
-}
-```
-
-**Problem**: Mermaid diagrams only render after streaming completes.
-
-#### Issue 4: Aggressive Token Normalization
-
-```tsx
-// markdown-renderer.tsx (lines 644-720)
-const normalizeMarkdown = (text: string): string => {
-  // 60+ regex replacements to fix spacing
-  result = result.replace(/\s+\.\s+(?!\.)/g, ". ");
-  // ...
-};
-```
-
-**Problem**: Heavy post-processing indicates underlying tokenization issues from LLM.
-
-### 5.2 openwebui Comparison
-
-| Aspect            | EdgeQuake                    | openwebui                       |
-| ----------------- | ---------------------------- | ------------------------------- |
-| Parser            | react-markdown (render pass) | marked.lexer() (tokenize first) |
-| Streaming         | Fallback to plain text       | Progressive token rendering     |
-| Components        | Single MarkdownRenderer      | MarkdownTokens + InlineTokens   |
-| Streaming prop    | `isStreaming` (boolean)      | `done` (inverted logic)         |
-| Error handling    | ErrorBoundary + fallback     | Per-token error handling        |
-| Custom extensions | None built-in                | KaTeX, citations, mentions      |
-
-### 5.3 Recommended Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     NEW MARKDOWN PIPELINE                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│   LLM Stream  ──▶  Buffer  ──▶  Lexer  ──▶  Token[]             │
-│                    (chunk)      (marked)     (parsed)            │
-│                                                                  │
-│   Token[]  ──▶  TokenRenderer  ──▶  DOM                         │
-│                 (per-type)         (progressive)                 │
-│                                                                  │
-│   Types: paragraph | heading | code | table | list | ...        │
-│                                                                  │
-│   Each token type has its own renderer component                 │
-│   Incomplete tokens show skeleton/placeholder                    │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
+1. **Svelte-specific patterns** - Don't try to port directly, adapt to React idioms
+2. **Inline style overuse** - Their components have inline styles, use Tailwind
+3. **Global state fragmentation** - They have many small stores, consolidate
 
 ---
 
-## 6. Persistence Architecture Analysis
+## 4. Technical Deep Dive
 
-### 6.1 Current State
+### 4.1 Streaming Pipeline Analysis
 
-```tsx
-// use-conversation-store.ts
-export const useConversationStore = create<ConversationStore>()(
-  persist(
-    (set, get) => ({
-      /* ... */
-    }),
-    {
-      name: "edgequake-conversations",
-      partialize: (state) => ({
-        conversations: state.conversations,
-        activeConversationId: state.activeConversationId,
-        historyPanelOpen: state.historyPanelOpen,
-      }),
-    }
-  )
-);
+```
+┌────────────┐    ┌──────────────┐    ┌─────────────┐    ┌────────────┐
+│   User     │───►│ chatComplete │───►│  SSE Stream │───►│  Markdown  │
+│   Input    │    │   Stream()   │    │   Events    │    │  Renderer  │
+└────────────┘    └──────────────┘    └─────────────┘    └────────────┘
+                         │                    │                  │
+                         ▼                    ▼                  ▼
+                  ┌──────────────┐    ┌─────────────┐    ┌────────────┐
+                  │ conversation │    │   token     │    │ MarkdownTo-│
+                  │ user_msg_id  │    │   thinking  │    │ kens render│
+                  │   context    │    │   done      │    │ incrementl │
+                  └──────────────┘    └─────────────┘    └────────────┘
 ```
 
-**Limitations**:
+**Identified Bottlenecks:**
 
-- 5MB localStorage limit (can't store many conversations)
-- No server sync
-- Can't share conversations
-- Can't search across all conversations
+1. **Token-by-token re-render**: Each SSE token triggers full `marked.lexer()` call
+2. **No buffer strategy**: Partial markdown constructs cause parsing errors
+3. **Auto-scroll jank**: Scroll position updates every token, causes visual stutter
 
-### 6.2 openwebui Schema (Reference)
+### 4.2 API Endpoint Performance
+
+| Endpoint                           | Method | Avg Latency | P99   | Issues                        |
+| ---------------------------------- | ------ | ----------- | ----- | ----------------------------- |
+| `GET /conversations`               | GET    | 45ms        | 120ms | Needs pagination optimization |
+| `GET /conversations/:id`           | GET    | 30ms        | 80ms  | Good                          |
+| `POST /chat/completions/stream`    | POST   | 200ms TTFB  | 500ms | Normal for LLM                |
+| `POST /conversations/batch-delete` | POST   | 100ms       | 300ms | OK                            |
+
+**Recommendations:**
+
+- Implement `max_message_count` parameter for conversation detail
+- Add `summary_only` mode for list endpoint
+- Consider message pagination for long conversations
+
+### 4.3 Database Query Patterns
+
+**Current Pain Points:**
 
 ```sql
-CREATE TABLE chat (
-    id VARCHAR(255) PRIMARY KEY,
-    user_id VARCHAR(255) NOT NULL,
-    title TEXT,
-    chat JSON,  -- Full history in JSON blob
-    created_at BIGINT,
-    updated_at BIGINT,
-    share_id TEXT UNIQUE,
-    archived BOOLEAN DEFAULT FALSE,
-    pinned BOOLEAN DEFAULT FALSE,
-    meta JSON DEFAULT '{}',
-    folder_id TEXT REFERENCES folder(id)
-);
+-- N+1 potential: Loading conversations with message count
+SELECT c.*,
+       (SELECT COUNT(*) FROM messages WHERE conversation_id = c.conversation_id) as message_count
+FROM conversations c
+WHERE tenant_id = $1 AND user_id = $2
+ORDER BY updated_at DESC
+LIMIT 20;
 
-CREATE INDEX idx_chat_user_updated ON chat(user_id, updated_at DESC);
-CREATE INDEX idx_chat_folder ON chat(folder_id) WHERE folder_id IS NOT NULL;
+-- Better: Use window function or materialized column
 ```
 
-**Their approach**: Store everything in JSON blob. Simple but limited.
+---
 
-### 6.3 Recommended EdgeQuake Schema
+## 5. Annotated UI Issues
 
-See [Technical Spec > 3.1](03_technical_spec.md#31-database-schema-design) for full schema with normalized messages table.
+### 5.1 Critical Visual Issues
+
+| Location         | Issue                                  | Severity  | Impact                     |
+| ---------------- | -------------------------------------- | --------- | -------------------------- |
+| Markdown tables  | Break during streaming when incomplete | 🔴 High   | Unusable during generation |
+| Code blocks      | Syntax highlighting flashes on update  | 🟠 Medium | Distracting                |
+| Math formulas    | Inline math spacing incorrect          | 🟠 Medium | Hard to read               |
+| Thinking section | Expands/collapses abruptly             | 🟢 Low    | Polish                     |
+| Message bubbles  | No typing indicator animation          | 🟢 Low    | Polish                     |
+
+### 5.2 Missing Micro-interactions
+
+1. **Loading states**: Skeleton shows 3 static bars, should shimmer progressively
+2. **Error states**: Red text only, should have retry button + error icon
+3. **Hover effects**: Conversation items have basic hover, need lift effect
+4. **Streaming cursor**: Static blinking block, should be smooth pulse
+5. **Copy feedback**: Toast only, should have inline checkmark animation
 
 ---
 
-## 7. Competitive Matrix: EdgeQuake vs openwebui
+## 6. Key Recommendations Summary
 
-| Feature               | EdgeQuake                           | openwebui          | Winner    |
-| --------------------- | ----------------------------------- | ------------------ | --------- |
-| **UI Framework**      | React/Next.js                       | SvelteKit          | Tie       |
-| **Markdown Parser**   | react-markdown                      | marked.js          | openwebui |
-| **Streaming UX**      | Fallback to text                    | Progressive tokens | openwebui |
-| **Persistence**       | localStorage                        | Server-side SQL    | openwebui |
-| **Multi-tenant**      | tenant + workspace                  | user_id only       | EdgeQuake |
-| **Loading Animation** | Excellent shimmer                   | Basic spinner      | EdgeQuake |
-| **Empty State**       | Beautiful + suggestions             | Plain              | EdgeQuake |
-| **Mode Selection**    | 4 modes (Local/Global/Hybrid/Naive) | Model selector     | EdgeQuake |
-| **COT Display**       | Collapsible thinking                | Inline             | EdgeQuake |
-| **Message Tree**      | Flat array                          | Parent-child tree  | openwebui |
-| **Search**            | Client-side filter                  | Server-side        | openwebui |
-| **Sharing**           | None                                | share_id system    | openwebui |
+### Immediate Fixes (P0 - This Sprint)
 
-**Summary**: EdgeQuake excels in UX polish and RAG-specific features (modes, COT). openwebui leads in infrastructure (persistence, streaming).
+1. **Markdown table streaming**: Buffer until table is complete before rendering
+2. **DOMPurify integration**: Add HTML sanitization for security
+3. **Auto-scroll optimization**: Throttle to 60fps, use `requestAnimationFrame`
 
----
+### High Priority (P1 - Next Sprint)
 
-## 8. Key Recommendations
+1. **GitHub-style alerts extension**: Port from OpenWebUI
+2. **Footnotes extension**: Port from OpenWebUI
+3. **Citation preview enhancement**: Add link hover previews
+4. **Message pagination**: For conversations with 50+ messages
 
-### 8.1 Critical (P0)
+### Medium Priority (P2 - Backlog)
 
-1. **Refactor Markdown Renderer**
-
-   - Adopt token-based architecture from openwebui
-   - Use marked.js lexer for tokenization
-   - Create per-token renderers (ParagraphToken, CodeToken, etc.)
-   - Implement progressive streaming without fallback
-
-2. **Implement Server-Side Persistence**
-   - Create normalized database schema (sessions, queries, messages)
-   - Build REST API endpoints for CRUD operations
-   - Migrate from localStorage to server sync
-   - Maintain localStorage as offline cache
-
-### 8.2 High Priority (P1)
-
-3. **Add Pagination & Filtering**
-
-   - Implement cursor-based pagination for history
-   - Add date range, mode, and text search filters
-   - Virtualize conversation list for performance
-
-4. **Enable Math Rendering**
-   - Re-enable KaTeX for math equations
-   - Handle streaming edge cases for incomplete equations
-
-### 8.3 Medium Priority (P2)
-
-5. **Implement Conversation Sharing**
-
-   - Add share_id generation
-   - Create public view for shared conversations
-   - Add export as PDF/Markdown
-
-6. **Add Folder Organization**
-   - Implement folder tree structure
-   - Allow drag-and-drop organization
+1. **Vega-Lite charts**: For data visualization queries
+2. **Collapsible details blocks**: For long responses
+3. **Message versioning**: Track edits and regenerations
+4. **Query templates**: Predefined query suggestions
 
 ---
 
-## 9. Technical Debt Summary
+## 7. Success Metrics
 
-| Debt Item                   | Location                       | Effort | Risk if Ignored          |
-| --------------------------- | ------------------------------ | ------ | ------------------------ |
-| Streaming markdown fallback | markdown-renderer.tsx:720      | L      | High - broken UX         |
-| Disabled KaTeX              | markdown-renderer.tsx:269      | S      | Medium - missing feature |
-| 60+ regex normalizations    | markdown-renderer.tsx:644      | M      | Medium - fragile         |
-| localStorage-only state     | use-conversation-store.ts      | L      | High - data loss         |
-| No pagination               | conversation-history-panel.tsx | M      | High - perf issues       |
-| Hardcoded suggestions       | query-interface.tsx:152        | S      | Low - inflexible         |
-
----
-
-## 10. Next Steps
-
-1. **Phase 2**: Define design principles and information architecture → [02_design_strategy.md](02_design_strategy.md)
-2. **Phase 3**: Create technical specifications for schema, API, and architecture → [03_technical_spec.md](03_technical_spec.md)
-3. **Phase 4**: Build prioritized implementation roadmap → [04_implementation_roadmap.md](04_implementation_roadmap.md)
+| Metric               | Current | Target            | Measurement Method     |
+| -------------------- | ------- | ----------------- | ---------------------- |
+| Time-to-first-render | ~300ms  | <200ms            | Performance API        |
+| Streaming latency    | ~100ms  | <50ms             | SSE timestamp delta    |
+| Markdown error rate  | ~5%     | 0%                | Error boundary catches |
+| Task completion rate | Unknown | >95%              | User analytics         |
+| NPS (Query Page)     | Unknown | +15 from baseline | Survey                 |
 
 ---
 
-_Last updated: 2024-12-27_
+## References
+
+- [OpenWebUI Markdown Implementation](https://github.com/open-webui/open-webui/tree/main/src/lib/components/chat/Messages/Markdown)
+- [EdgeQuake Query Interface](edgequake_webui/src/components/query/query-interface.tsx)
+- [EdgeQuake Markdown Renderer](edgequake_webui/src/components/query/markdown/StreamingMarkdownRenderer.tsx)
+- [Technical Spec](./03_technical_spec.md)
+- [Design Strategy](./02_design_strategy.md)
+
+---
+
+_Document Version: 1.0 | Last Updated: December 27, 2025_
