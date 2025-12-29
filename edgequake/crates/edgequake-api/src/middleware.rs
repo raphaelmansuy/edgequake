@@ -304,10 +304,9 @@ pub async fn tenant_rate_limit(
                 HeaderValue::from_str(&retry.to_string()).unwrap(),
             );
         }
-        response.headers_mut().insert(
-            "X-RateLimit-Remaining",
-            HeaderValue::from_static("0"),
-        );
+        response
+            .headers_mut()
+            .insert("X-RateLimit-Remaining", HeaderValue::from_static("0"));
 
         return response;
     }
@@ -391,17 +390,23 @@ impl TenantContext {
 
     /// Get tenant ID as UUID.
     pub fn tenant_id_uuid(&self) -> Option<uuid::Uuid> {
-        self.tenant_id.as_ref().and_then(|s| uuid::Uuid::parse_str(s).ok())
+        self.tenant_id
+            .as_ref()
+            .and_then(|s| uuid::Uuid::parse_str(s).ok())
     }
 
     /// Get workspace ID as UUID.
     pub fn workspace_id_uuid(&self) -> Option<uuid::Uuid> {
-        self.workspace_id.as_ref().and_then(|s| uuid::Uuid::parse_str(s).ok())
+        self.workspace_id
+            .as_ref()
+            .and_then(|s| uuid::Uuid::parse_str(s).ok())
     }
 
     /// Get user ID as UUID.
     pub fn user_id_uuid(&self) -> Option<uuid::Uuid> {
-        self.user_id.as_ref().and_then(|s| uuid::Uuid::parse_str(s).ok())
+        self.user_id
+            .as_ref()
+            .and_then(|s| uuid::Uuid::parse_str(s).ok())
     }
 }
 

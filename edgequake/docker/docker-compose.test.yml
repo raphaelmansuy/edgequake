@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   postgres-test:
@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: test_password_123
       POSTGRES_HOST_AUTH_METHOD: md5
     ports:
-      - "5433:5432"  # Use 5433 to avoid conflicts with local postgres
+      - "5433:5432" # Use 5433 to avoid conflicts with local postgres
     volumes:
       - postgres_test_data:/var/lib/postgresql/data
       - ./migrations:/docker-entrypoint-initdb.d
@@ -31,7 +31,7 @@ services:
       POSTGRES_USER: edgequake_test
       POSTGRES_PASSWORD: test_password_123
     ports:
-      - "5434:5432"  # Use 5434 for AGE
+      - "5434:5432" # Use 5434 for AGE
     volumes:
       - postgres_age_test_data:/var/lib/postgresql/data
       - ./migrations:/docker-entrypoint-initdb.d

@@ -37,7 +37,7 @@ pub mod postgres_conversation_service;
 pub use middleware::TenantContext;
 
 pub use error::{ApiError, ApiResult};
-pub use middleware::{AuthConfig, AuthState, RateLimitConfig, RateLimitState, tenant_rate_limit};
+pub use middleware::{tenant_rate_limit, AuthConfig, AuthState, RateLimitConfig, RateLimitState};
 pub use processor::DocumentTaskProcessor;
 pub use routes::create_router;
 pub use server::{Server, ServerConfig};

@@ -56,4 +56,9 @@ bytes = "1.9"
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }
 tower = { version = "0.5", features = ["util"] }
-sqlx = { workspace = true, features = ["runtime-tokio", "postgres", "uuid", "chrono"] }
+sqlx = { workspace = true, features = [
+    "runtime-tokio",
+    "postgres",
+    "uuid",
+    "chrono",
+] }

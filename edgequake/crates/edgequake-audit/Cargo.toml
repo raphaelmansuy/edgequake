@@ -8,7 +8,13 @@ edition = "2021"
 tokio = { version = "1.40", features = ["full", "sync"] }
 
 # Database
-sqlx = { version = "0.8", features = ["runtime-tokio-native-tls", "postgres", "uuid", "chrono", "json"] }
+sqlx = { version = "0.8", features = [
+    "runtime-tokio-native-tls",
+    "postgres",
+    "uuid",
+    "chrono",
+    "json",
+] }
 
 # Time handling
 chrono = { version = "0.4", features = ["serde"] }

@@ -19,15 +19,15 @@
 
 ## Test Results
 
-| Test | Status |
-|------|--------|
-| test_postgres_rls_basic_isolation | ✅ PASS |
+| Test                                         | Status  |
+| -------------------------------------------- | ------- |
+| test_postgres_rls_basic_isolation            | ✅ PASS |
 | test_postgres_rls_cross_tenant_query_blocked | ✅ PASS |
-| test_postgres_update_isolation | ✅ PASS |
-| test_postgres_delete_isolation | ✅ PASS |
-| test_rls_insert_isolation | ✅ PASS |
+| test_postgres_update_isolation               | ✅ PASS |
+| test_postgres_delete_isolation               | ✅ PASS |
+| test_rls_insert_isolation                    | ✅ PASS |
 | test_tenant_isolation_with_concurrent_access | ✅ PASS |
-| test_rls_performance_overhead | ✅ PASS |
+| test_rls_performance_overhead                | ✅ PASS |
 
 **All 7 RLS tests PASS!**
 

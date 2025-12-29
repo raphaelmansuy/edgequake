@@ -30,18 +30,21 @@ Building upon the **PRODUCTION READY** status achieved in Session 4 (12 E2E test
 **Indexes Created** (20 total):
 
 1. **Vector Storage Indexes** (4):
+
    - `idx_chunks_tenant_workspace` - Fast tenant + workspace filtering
    - `idx_chunks_created_at_brin` - Time-series queries (efficient for large tables)
    - `idx_chunks_tenant_only` - Tenant-only filtering optimization
    - `idx_chunks_tenant_metadata` - Covering index (no table access needed)
 
 2. **Graph Storage Indexes** (8):
+
    - Entity indexes: `idx_entities_tenant_id_gin`, `idx_entities_workspace_id_gin`
    - Composite: `idx_entities_tenant_workspace`, `idx_entities_tenant_type`
    - Edge indexes: `idx_edges_tenant_id_gin`, `idx_edges_workspace_id_gin`
    - Relationship: `idx_edges_tenant_workspace`, `idx_edges_tenant_relationship`
 
 3. **Document Metadata Indexes** (3):
+
    - `idx_documents_tenant_workspace` - Primary composite index
    - `idx_documents_tenant_status` - Status filtering with INCLUDE
    - `idx_documents_tenant_title_search` - Full-text search scoped to tenant
@@ -69,6 +72,7 @@ Building upon the **PRODUCTION READY** status achieved in Session 4 (12 E2E test
 ### Rollback Plan
 
 Complete rollback script included in migration:
+
 ```sql
 DROP INDEX CONCURRENTLY IF EXISTS idx_chunks_tenant_workspace;
 -- ... (19 more DROP statements)
@@ -83,16 +87,19 @@ DROP INDEX CONCURRENTLY IF EXISTS idx_chunks_tenant_workspace;
 **Migration File**: `V004__audit_logs_table.sql` (400+ lines)
 
 **Enums Created**:
+
 - `audit_event_type` - 11 types (Authentication, DocumentUpload, SecurityViolation, etc.)
 - `audit_result` - Success, Failure, Blocked, Warning
 - `audit_severity` - Low, Medium, High, Critical
 
 **Partitioned Table**:
+
 - Monthly partitions (reduces query overhead, simplifies archival)
 - Pre-created 6 months of partitions (2024-12 through 2025-05)
 - Automatic partition creation function
 
 **Indexes** (7):
+
 - Primary: `idx_audit_logs_tenant_timestamp` (tenant + time DESC)
 - Security: `idx_audit_logs_security` (failed/blocked events only)
 - User: `idx_audit_logs_user_activity` (user_id + time)
@@ -102,11 +109,13 @@ DROP INDEX CONCURRENTLY IF EXISTS idx_chunks_tenant_workspace;
 - Metadata: `idx_audit_logs_metadata_gin` (flexible JSONB queries)
 
 **Views** (3):
+
 - `recent_security_events` - Last 24 hours of security events
 - `tenant_activity_summary` - 7-day activity by tenant
 - `rate_limit_violations` - Recent rate limit violations (>5 in 1 hour)
 
 **Functions** (2):
+
 - `mark_audit_logs_for_archival()` - Mark logs older than retention period
 - `create_next_audit_log_partition()` - Auto-create next month's partition
 
@@ -115,6 +124,7 @@ DROP INDEX CONCURRENTLY IF EXISTS idx_chunks_tenant_workspace;
 **Crate**: `edgequake-audit`
 
 **Core Types**:
+
 ```rust
 pub struct AuditEvent {
     pub id: Uuid,
@@ -141,12 +151,14 @@ pub struct AuditEvent {
 ```
 
 **Logger**:
+
 - `AuditLogger` - Async logger with background worker
 - Non-blocking writes (channel-based communication)
 - PostgreSQL-backed storage
 - Query API for audit log retrieval
 
 **Builder API**:
+
 ```rust
 AuditEventBuilder::new(tenant_id, event_type, action)
     .workspace(workspace_id)
@@ -183,12 +195,14 @@ AuditEventBuilder::new(tenant_id, event_type, action)
 ### Core Algorithm: Token Bucket
 
 **Why Token Bucket?**
+
 - Smooth rate limiting (no spiky behavior)
 - Burst allowance (handle legitimate traffic spikes)
 - Simple mental model (tokens = requests)
 - Efficient implementation (O(1) per request)
 
 **How It Works**:
+
 1. Each tenant/workspace gets a bucket with N tokens
 2. Each request consumes 1 token (or custom cost)
 3. Tokens refill at constant rate (e.g., 100 tokens/60 seconds = 1.67 tokens/second)
@@ -198,21 +212,25 @@ AuditEventBuilder::new(tenant_id, event_type, action)
 ### Configuration
 
 **Basic Config**:
+
 ```rust
 RateLimitConfig::new(100, 60)  // 100 requests per 60 seconds
 ```
 
 **Strict Mode** (no burst):
+
 ```rust
 RateLimitConfig::strict(100, 60)  // Exactly 100 requests
 ```
 
 **Lenient Mode** (50% burst):
+
 ```rust
 RateLimitConfig::lenient(100, 60)  // 150 requests (100 + 50)
 ```
 
 **Tiered Configs**:
+
 ```rust
 TierConfig::default()  // Free, Basic, Premium, Enterprise
 ```
@@ -220,6 +238,7 @@ TierConfig::default()  // Free, Basic, Premium, Enterprise
 ### Limiter Implementation
 
 **Core Structure**:
+
 ```rust
 pub struct RateLimiter {
     buckets: Arc<DashMap<String, TokenBucket>>,
@@ -228,6 +247,7 @@ pub struct RateLimiter {
 ```
 
 **Key Features**:
+
 - `check_rate_limit(key)` - Check if request allowed
 - `check_rate_limit_with_cost(key, cost)` - Custom cost operations
 - `get_state(key)` - Inspect current bucket state
@@ -238,6 +258,7 @@ pub struct RateLimiter {
 ### Middleware Integration
 
 **Axum Middleware**:
+
 ```rust
 pub async fn rate_limit_middleware(
     State(limiter): State<Arc<RateLimiter>>,
@@ -247,6 +268,7 @@ pub async fn rate_limit_middleware(
 ```
 
 **Features**:
+
 - Automatic tenant/workspace extraction from headers
 - HTTP 429 responses with Retry-After header
 - Rate limit headers (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset)
@@ -255,6 +277,7 @@ pub async fn rate_limit_middleware(
 ### Testing
 
 **Unit Tests** (20+ in `limiter.rs` and `middleware.rs`):
+
 - Basic rate limiting (quota exhaustion)
 - Token refill over time
 - Burst allowance
@@ -266,6 +289,7 @@ pub async fn rate_limit_middleware(
 - Bucket cleanup
 
 **Integration Tests** (16 in `integration_tests.rs`):
+
 - Rapid-fire requests (1000 req/min)
 - Concurrent multi-tenant scenarios
 - Background cleanup task
@@ -289,10 +313,12 @@ pub async fn rate_limit_middleware(
 **File**: `docker/docker-compose.test.yml`
 
 **Services**:
+
 - `postgres-test` - PostgreSQL 16 (port 5433)
 - `postgres-age-test` - Apache AGE graph database (port 5434)
 
 **Features**:
+
 - Health checks (5s interval, 5 retries)
 - Named volumes (persistent data)
 - Isolated network (edgequake-test)
@@ -305,30 +331,35 @@ pub async fn rate_limit_middleware(
 **Tests** (6):
 
 1. **test_postgres_rls_basic_isolation**:
+
    - Insert documents for 2 tenants
    - Set tenant context (set_config)
    - Verify each tenant sees only their data
    - ✅ Basic RLS verification
 
 2. **test_postgres_rls_update_isolation**:
+
    - Tenant A tries to update Tenant B's document
    - Verify 0 rows affected (RLS blocks silently)
    - Confirm document unchanged
    - ✅ Prevent cross-tenant updates
 
 3. **test_postgres_rls_delete_isolation**:
+
    - Tenant A tries to delete Tenant B's document
    - Verify 0 rows affected
    - Confirm document still exists
    - ✅ Prevent cross-tenant deletes
 
 4. **test_postgres_rls_bypass_attempt**:
+
    - Try SQL injection in WHERE clause
    - Try setting context to 'admin'
    - Verify RLS prevents all bypass attempts
    - ✅ Verify bypass attempts fail
 
 5. **test_postgres_rls_concurrent_contexts**:
+
    - 10 tenants, 1 document each
    - 10 concurrent tasks with different contexts
    - Each task queries documents
@@ -364,14 +395,17 @@ cd docker && docker compose -f docker-compose.test.yml down
 ### Completed ✅
 
 1. **Database Migrations** (2 files):
-   - V003__tenant_performance_indexes.sql (20 indexes)
-   - V004__audit_logs_table.sql (partitioned table + functions)
+
+   - V003\_\_tenant_performance_indexes.sql (20 indexes)
+   - V004\_\_audit_logs_table.sql (partitioned table + functions)
 
 2. **New Crates** (2):
+
    - `edgequake-rate-limiter` (config, limiter, middleware)
    - `edgequake-audit` (event, logger)
 
 3. **Test Suites** (2):
+
    - Rate limiter integration tests (16 tests)
    - PostgreSQL RLS tests (6 tests)
 
@@ -382,6 +416,7 @@ cd docker && docker compose -f docker-compose.test.yml down
 ### In Progress ⏳
 
 1. **Compilation**:
+
    - ✅ Fixed middleware signature for Axum 0.8
    - ⏳ Running tests to verify compilation
 
@@ -393,17 +428,20 @@ cd docker && docker compose -f docker-compose.test.yml down
 ### Pending Tasks
 
 1. **API Integration**:
+
    - Add rate limiting middleware to Axum app
    - Add audit logging to all API handlers
    - Update AppState with rate limiter and audit logger
 
 2. **Performance Benchmarking**:
+
    - Measure database index impact (before/after)
    - Measure rate limiting overhead
    - Measure audit logging overhead
    - Full E2E performance test
 
 3. **Advanced E2E Scenarios**:
+
    - Concurrency: 100 concurrent uploads
    - Attack: Rate limit exhaustion attempt
    - Attack: Audit log overflow
@@ -411,6 +449,7 @@ cd docker && docker compose -f docker-compose.test.yml down
    - Edge case: Malformed UUIDs
 
 4. **Documentation**:
+
    - API integration guide
    - Performance tuning guide
    - Security best practices
@@ -428,48 +467,48 @@ cd docker && docker compose -f docker-compose.test.yml down
 
 ### Functional Requirements
 
-| Requirement | Status | Evidence |
-|-------------|--------|----------|
-| Database indexes applied | ✅ | Migration created, SQL verified |
-| Rate limiting blocks excess | ⏳ | Tests written, compilation in progress |
-| Audit logs capture events | ✅ | Logger implemented, tests pending |
-| PostgreSQL RLS isolation | ✅ | Tests written, execution pending |
-| Middleware integration | ⏳ | Code written, integration pending |
-| Attack vectors tested | ⏳ | Tests written, execution pending |
+| Requirement                 | Status | Evidence                               |
+| --------------------------- | ------ | -------------------------------------- |
+| Database indexes applied    | ✅     | Migration created, SQL verified        |
+| Rate limiting blocks excess | ⏳     | Tests written, compilation in progress |
+| Audit logs capture events   | ✅     | Logger implemented, tests pending      |
+| PostgreSQL RLS isolation    | ✅     | Tests written, execution pending       |
+| Middleware integration      | ⏳     | Code written, integration pending      |
+| Attack vectors tested       | ⏳     | Tests written, execution pending       |
 
 ### Performance Requirements
 
-| Requirement | Target | Status | Evidence |
-|-------------|--------|--------|----------|
-| Document list latency | <50ms | ⏳ | Benchmark pending |
-| Graph query latency | <100ms | ⏳ | Benchmark pending |
-| Hybrid query latency | <200ms | ⏳ | Benchmark pending |
-| Rate limiting overhead | <1ms | ⏳ | Benchmark pending |
-| Audit logging overhead | <2ms | ⏳ | Benchmark pending |
-| RLS overhead | <50ms | ✅ | Test includes benchmark |
+| Requirement            | Target | Status | Evidence                |
+| ---------------------- | ------ | ------ | ----------------------- |
+| Document list latency  | <50ms  | ⏳     | Benchmark pending       |
+| Graph query latency    | <100ms | ⏳     | Benchmark pending       |
+| Hybrid query latency   | <200ms | ⏳     | Benchmark pending       |
+| Rate limiting overhead | <1ms   | ⏳     | Benchmark pending       |
+| Audit logging overhead | <2ms   | ⏳     | Benchmark pending       |
+| RLS overhead           | <50ms  | ✅     | Test includes benchmark |
 
 ### Security Requirements
 
-| Requirement | Status | Evidence |
-|-------------|--------|----------|
-| SQL injection blocked | ✅ | Previous tests + new RLS tests |
-| Header spoofing blocked | ✅ | Previous tests (12 passing) |
-| Unicode injection blocked | ✅ | Previous tests (12 passing) |
-| Path traversal blocked | ✅ | Previous tests (12 passing) |
-| Rate limit bypass prevented | ⏳ | Tests written, execution pending |
-| RLS bypass prevented | ✅ | Test written, execution pending |
-| Audit log tampering prevented | ✅ | RLS policies on audit_logs |
-| Complete audit trail | ⏳ | Implementation pending |
+| Requirement                   | Status | Evidence                         |
+| ----------------------------- | ------ | -------------------------------- |
+| SQL injection blocked         | ✅     | Previous tests + new RLS tests   |
+| Header spoofing blocked       | ✅     | Previous tests (12 passing)      |
+| Unicode injection blocked     | ✅     | Previous tests (12 passing)      |
+| Path traversal blocked        | ✅     | Previous tests (12 passing)      |
+| Rate limit bypass prevented   | ⏳     | Tests written, execution pending |
+| RLS bypass prevented          | ✅     | Test written, execution pending  |
+| Audit log tampering prevented | ✅     | RLS policies on audit_logs       |
+| Complete audit trail          | ⏳     | Implementation pending           |
 
 ### Reliability Requirements
 
-| Requirement | Status | Evidence |
-|-------------|--------|----------|
-| 100% test pass rate | ⏳ | Tests compiling |
-| No memory leaks | ⏳ | Cleanup tasks implemented, testing pending |
-| Graceful degradation | ⏳ | Implementation pending |
-| Rollback procedures | ✅ | Documented in migrations |
-| Health checks | ✅ | Docker health checks defined |
+| Requirement          | Status | Evidence                                   |
+| -------------------- | ------ | ------------------------------------------ |
+| 100% test pass rate  | ⏳     | Tests compiling                            |
+| No memory leaks      | ⏳     | Cleanup tasks implemented, testing pending |
+| Graceful degradation | ⏳     | Implementation pending                     |
+| Rollback procedures  | ✅     | Documented in migrations                   |
+| Health checks        | ✅     | Docker health checks defined               |
 
 ---
 
@@ -478,11 +517,13 @@ cd docker && docker compose -f docker-compose.test.yml down
 ### High Priority Risks
 
 1. **Test Failures** (Likelihood: Medium, Impact: High)
+
    - **Risk**: New tests may fail during execution
    - **Mitigation**: Comprehensive testing at each layer
    - **Status**: Tests being executed
 
 2. **Performance Regression** (Likelihood: Low, Impact: High)
+
    - **Risk**: New indexes/middleware may slow queries
    - **Mitigation**: Benchmarks with before/after comparison
    - **Status**: Benchmarks planned
@@ -495,6 +536,7 @@ cd docker && docker compose -f docker-compose.test.yml down
 ### Medium Priority Risks
 
 4. **Memory Leaks** (Likelihood: Low, Impact: Medium)
+
    - **Risk**: Rate limiter buckets may accumulate
    - **Mitigation**: Background cleanup task implemented
    - **Status**: Cleanup tasks ready, testing pending
@@ -526,12 +568,14 @@ cd docker && docker compose -f docker-compose.test.yml down
 ## Timeline Estimate
 
 **Completed (Session 5 so far)**: ~4 hours
+
 - Phase 1: Database indexes (1 hour)
 - Phase 2: Audit logging (1.5 hours)
 - Phase 3: Rate limiting (1.5 hours)
 - Phase 4: PostgreSQL setup (0.5 hours)
 
 **Remaining Work**: ~3-4 hours
+
 - Testing & debugging (1 hour)
 - API integration (1 hour)
 - Performance benchmarking (30 minutes)
@@ -556,6 +600,7 @@ We have successfully completed Phases 1-4 (infrastructure) and are now in the te
 **Confidence Level**: **HIGH** (85%)
 
 The implementation is solid, and the test suites are comprehensive. Once tests pass and integration is complete, we will have achieved true SOTA status with:
+
 - Database-level isolation and performance
 - Attack-resistant rate limiting
 - Complete audit trail for compliance

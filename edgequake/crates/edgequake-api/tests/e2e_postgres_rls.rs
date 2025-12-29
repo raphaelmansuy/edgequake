@@ -55,18 +55,16 @@ where
 {
     // Get a dedicated connection from the pool
     let mut conn = pool.acquire().await?;
-    
+
     // Set tenant context
     sqlx::query("SELECT set_config('app.current_tenant_id', $1, false)")
         .bind(tenant_id.to_string())
         .execute(&mut *conn)
         .await?;
-    
+
     // Execute query on same connection
-    let result = sqlx::query_as::<_, T>(query)
-        .fetch_one(&mut *conn)
-        .await?;
-    
+    let result = sqlx::query_as::<_, T>(query).fetch_one(&mut *conn).await?;
+
     Ok(result)
 }
 
@@ -76,16 +74,16 @@ async fn count_documents_as_tenant(
     tenant_id: Uuid,
 ) -> Result<i64, sqlx::Error> {
     let mut conn = pool.acquire().await?;
-    
+
     sqlx::query("SELECT set_config('app.current_tenant_id', $1, false)")
         .bind(tenant_id.to_string())
         .execute(&mut *conn)
         .await?;
-    
+
     let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM documents")
         .fetch_one(&mut *conn)
         .await?;
-    
+
     Ok(count.0)
 }
 
@@ -97,17 +95,14 @@ async fn update_as_tenant(
     bind_id: Uuid,
 ) -> Result<u64, sqlx::Error> {
     let mut conn = pool.acquire().await?;
-    
+
     sqlx::query("SELECT set_config('app.current_tenant_id', $1, false)")
         .bind(tenant_id.to_string())
         .execute(&mut *conn)
         .await?;
-    
-    let result = sqlx::query(query)
-        .bind(bind_id)
-        .execute(&mut *conn)
-        .await?;
-    
+
+    let result = sqlx::query(query).bind(bind_id).execute(&mut *conn).await?;
+
     Ok(result.rows_affected())
 }
 
@@ -118,17 +113,17 @@ async fn delete_as_tenant(
     doc_id: Uuid,
 ) -> Result<u64, sqlx::Error> {
     let mut conn = pool.acquire().await?;
-    
+
     sqlx::query("SELECT set_config('app.current_tenant_id', $1, false)")
         .bind(tenant_id.to_string())
         .execute(&mut *conn)
         .await?;
-    
+
     let result = sqlx::query("DELETE FROM documents WHERE id = $1")
         .bind(doc_id)
         .execute(&mut *conn)
         .await?;
-    
+
     Ok(result.rows_affected())
 }
 
@@ -139,17 +134,17 @@ async fn get_document_title_as_tenant(
     doc_id: Uuid,
 ) -> Result<Option<String>, sqlx::Error> {
     let mut conn = pool.acquire().await?;
-    
+
     sqlx::query("SELECT set_config('app.current_tenant_id', $1, false)")
         .bind(tenant_id.to_string())
         .execute(&mut *conn)
         .await?;
-    
+
     let result: Option<(String,)> = sqlx::query_as("SELECT title FROM documents WHERE id = $1")
         .bind(doc_id)
         .fetch_optional(&mut *conn)
         .await?;
-    
+
     Ok(result.map(|r| r.0))
 }
 
@@ -162,29 +157,37 @@ async fn insert_as_tenant(
     title: &str,
 ) -> Result<(), sqlx::Error> {
     let mut conn = pool.acquire().await?;
-    
+
     sqlx::query("SELECT set_config('app.current_tenant_id', $1, false)")
         .bind(tenant_id.to_string())
         .execute(&mut *conn)
         .await?;
-    
-    sqlx::query("INSERT INTO documents (id, tenant_id, title, content) VALUES ($1, $2, $3, 'Content')")
-        .bind(doc_id)
-        .bind(insert_tenant_id)
-        .bind(title)
-        .execute(&mut *conn)
-        .await?;
-    
+
+    sqlx::query(
+        "INSERT INTO documents (id, tenant_id, title, content) VALUES ($1, $2, $3, 'Content')",
+    )
+    .bind(doc_id)
+    .bind(insert_tenant_id)
+    .bind(title)
+    .execute(&mut *conn)
+    .await?;
+
     Ok(())
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_postgres_rls_basic_isolation() {
-    let admin_pool = create_admin_pool().await.expect("Failed to create admin pool");
-    let test_pool = create_test_pool().await.expect("Failed to create test pool");
-    
-    clean_test_data(&admin_pool).await.expect("Failed to clean data");
+    let admin_pool = create_admin_pool()
+        .await
+        .expect("Failed to create admin pool");
+    let test_pool = create_test_pool()
+        .await
+        .expect("Failed to create test pool");
+
+    clean_test_data(&admin_pool)
+        .await
+        .expect("Failed to clean data");
 
     let tenant_a = Uuid::new_v4();
     let tenant_b = Uuid::new_v4();
@@ -210,26 +213,40 @@ async fn test_postgres_rls_basic_isolation() {
     let count_a = count_documents_as_tenant(&test_pool, tenant_a)
         .await
         .expect("Failed to count as tenant A");
-    
-    assert_eq!(count_a, 1, "Tenant A should see exactly 1 document with RLS");
+
+    assert_eq!(
+        count_a, 1,
+        "Tenant A should see exactly 1 document with RLS"
+    );
 
     // Test: As tenant B, should only see 1 document
     let count_b = count_documents_as_tenant(&test_pool, tenant_b)
         .await
         .expect("Failed to count as tenant B");
-    
-    assert_eq!(count_b, 1, "Tenant B should see exactly 1 document with RLS");
 
-    clean_test_data(&admin_pool).await.expect("Failed to clean data");
+    assert_eq!(
+        count_b, 1,
+        "Tenant B should see exactly 1 document with RLS"
+    );
+
+    clean_test_data(&admin_pool)
+        .await
+        .expect("Failed to clean data");
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_postgres_rls_cross_tenant_query_blocked() {
-    let admin_pool = create_admin_pool().await.expect("Failed to create admin pool");
-    let test_pool = create_test_pool().await.expect("Failed to create test pool");
-    
-    clean_test_data(&admin_pool).await.expect("Failed to clean data");
+    let admin_pool = create_admin_pool()
+        .await
+        .expect("Failed to create admin pool");
+    let test_pool = create_test_pool()
+        .await
+        .expect("Failed to create test pool");
+
+    clean_test_data(&admin_pool)
+        .await
+        .expect("Failed to clean data");
 
     let tenant_a = Uuid::new_v4();
     let tenant_b = Uuid::new_v4();
@@ -247,27 +264,38 @@ async fn test_postgres_rls_cross_tenant_query_blocked() {
     let result = get_document_title_as_tenant(&test_pool, tenant_a, doc_b)
         .await
         .expect("Query failed");
-    
-    assert!(result.is_none(), "RLS should block tenant A from seeing tenant B's document");
+
+    assert!(
+        result.is_none(),
+        "RLS should block tenant A from seeing tenant B's document"
+    );
 
     // Verify tenant B can see their own document
     let result_b = get_document_title_as_tenant(&test_pool, tenant_b, doc_b)
         .await
         .expect("Query failed");
-    
+
     assert!(result_b.is_some(), "Tenant B should see their own document");
     assert_eq!(result_b.unwrap(), "Secret B");
 
-    clean_test_data(&admin_pool).await.expect("Failed to clean data");
+    clean_test_data(&admin_pool)
+        .await
+        .expect("Failed to clean data");
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_postgres_update_isolation() {
-    let admin_pool = create_admin_pool().await.expect("Failed to create admin pool");
-    let test_pool = create_test_pool().await.expect("Failed to create test pool");
-    
-    clean_test_data(&admin_pool).await.expect("Failed to clean data");
+    let admin_pool = create_admin_pool()
+        .await
+        .expect("Failed to create admin pool");
+    let test_pool = create_test_pool()
+        .await
+        .expect("Failed to create test pool");
+
+    clean_test_data(&admin_pool)
+        .await
+        .expect("Failed to clean data");
 
     let tenant_a = Uuid::new_v4();
     let tenant_b = Uuid::new_v4();
@@ -290,8 +318,11 @@ async fn test_postgres_update_isolation() {
     )
     .await
     .expect("Update query failed");
-    
-    assert_eq!(rows_affected, 0, "RLS should block tenant A from updating tenant B's document");
+
+    assert_eq!(
+        rows_affected, 0,
+        "RLS should block tenant A from updating tenant B's document"
+    );
 
     // Verify document is unchanged (check with admin)
     let title: (String,) = sqlx::query_as("SELECT title FROM documents WHERE id = $1")
@@ -299,19 +330,27 @@ async fn test_postgres_update_isolation() {
         .fetch_one(&admin_pool)
         .await
         .expect("Failed to fetch doc B");
-    
+
     assert_eq!(title.0, "Original B", "Document B should be unchanged");
 
-    clean_test_data(&admin_pool).await.expect("Failed to clean data");
+    clean_test_data(&admin_pool)
+        .await
+        .expect("Failed to clean data");
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_postgres_delete_isolation() {
-    let admin_pool = create_admin_pool().await.expect("Failed to create admin pool");
-    let test_pool = create_test_pool().await.expect("Failed to create test pool");
-    
-    clean_test_data(&admin_pool).await.expect("Failed to clean data");
+    let admin_pool = create_admin_pool()
+        .await
+        .expect("Failed to create admin pool");
+    let test_pool = create_test_pool()
+        .await
+        .expect("Failed to create test pool");
+
+    clean_test_data(&admin_pool)
+        .await
+        .expect("Failed to clean data");
 
     let tenant_a = Uuid::new_v4();
     let tenant_b = Uuid::new_v4();
@@ -329,8 +368,11 @@ async fn test_postgres_delete_isolation() {
     let rows_affected = delete_as_tenant(&test_pool, tenant_a, doc_b)
         .await
         .expect("Delete query failed");
-    
-    assert_eq!(rows_affected, 0, "RLS should block tenant A from deleting tenant B's document");
+
+    assert_eq!(
+        rows_affected, 0,
+        "RLS should block tenant A from deleting tenant B's document"
+    );
 
     // Verify document still exists (check with admin)
     let exists: (bool,) = sqlx::query_as("SELECT EXISTS(SELECT 1 FROM documents WHERE id = $1)")
@@ -338,19 +380,30 @@ async fn test_postgres_delete_isolation() {
         .fetch_one(&admin_pool)
         .await
         .expect("Failed to check existence");
-    
-    assert!(exists.0, "Document B should still exist after failed delete");
 
-    clean_test_data(&admin_pool).await.expect("Failed to clean data");
+    assert!(
+        exists.0,
+        "Document B should still exist after failed delete"
+    );
+
+    clean_test_data(&admin_pool)
+        .await
+        .expect("Failed to clean data");
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_rls_insert_isolation() {
-    let admin_pool = create_admin_pool().await.expect("Failed to create admin pool");
-    let test_pool = create_test_pool().await.expect("Failed to create test pool");
-    
-    clean_test_data(&admin_pool).await.expect("Failed to clean data");
+    let admin_pool = create_admin_pool()
+        .await
+        .expect("Failed to create admin pool");
+    let test_pool = create_test_pool()
+        .await
+        .expect("Failed to create test pool");
+
+    clean_test_data(&admin_pool)
+        .await
+        .expect("Failed to clean data");
 
     let tenant_a = Uuid::new_v4();
     let tenant_b = Uuid::new_v4();
@@ -358,8 +411,11 @@ async fn test_rls_insert_isolation() {
 
     // Test: Tenant A tries to insert a document with Tenant B's ID
     let result = insert_as_tenant(&test_pool, tenant_a, doc_id, tenant_b, "Sneaky").await;
-    
-    assert!(result.is_err(), "RLS WITH CHECK should prevent inserting documents with wrong tenant_id");
+
+    assert!(
+        result.is_err(),
+        "RLS WITH CHECK should prevent inserting documents with wrong tenant_id"
+    );
 
     // Verify no document was inserted (check with admin)
     let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM documents WHERE id = $1")
@@ -367,25 +423,40 @@ async fn test_rls_insert_isolation() {
         .fetch_one(&admin_pool)
         .await
         .expect("Failed to count");
-    
-    assert_eq!(count.0, 0, "No document should have been inserted with wrong tenant_id");
+
+    assert_eq!(
+        count.0, 0,
+        "No document should have been inserted with wrong tenant_id"
+    );
 
     // Test: Tenant A can insert with their own tenant_id
     let doc_id_valid = Uuid::new_v4();
-    let result_valid = insert_as_tenant(&test_pool, tenant_a, doc_id_valid, tenant_a, "Valid").await;
-    
-    assert!(result_valid.is_ok(), "Tenant A should be able to insert with their own tenant_id");
+    let result_valid =
+        insert_as_tenant(&test_pool, tenant_a, doc_id_valid, tenant_a, "Valid").await;
 
-    clean_test_data(&admin_pool).await.expect("Failed to clean data");
+    assert!(
+        result_valid.is_ok(),
+        "Tenant A should be able to insert with their own tenant_id"
+    );
+
+    clean_test_data(&admin_pool)
+        .await
+        .expect("Failed to clean data");
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_tenant_isolation_with_concurrent_access() {
-    let admin_pool = create_admin_pool().await.expect("Failed to create admin pool");
-    let test_pool = create_test_pool().await.expect("Failed to create test pool");
-    
-    clean_test_data(&admin_pool).await.expect("Failed to clean data");
+    let admin_pool = create_admin_pool()
+        .await
+        .expect("Failed to create admin pool");
+    let test_pool = create_test_pool()
+        .await
+        .expect("Failed to create test pool");
+
+    clean_test_data(&admin_pool)
+        .await
+        .expect("Failed to clean data");
 
     // Create 5 tenants with 3 documents each
     let tenants: Vec<Uuid> = (0..5).map(|_| Uuid::new_v4()).collect();
@@ -394,14 +465,16 @@ async fn test_tenant_isolation_with_concurrent_access() {
     for (i, tenant) in tenants.iter().enumerate() {
         for j in 0..3 {
             let doc_id = Uuid::new_v4();
-            sqlx::query("INSERT INTO documents (id, tenant_id, title, content) VALUES ($1, $2, $3, $4)")
-                .bind(doc_id)
-                .bind(tenant)
-                .bind(format!("Doc {} for Tenant {}", j, i))
-                .bind(format!("Content {} for Tenant {}", j, i))
-                .execute(&admin_pool)
-                .await
-                .expect("Failed to insert document");
+            sqlx::query(
+                "INSERT INTO documents (id, tenant_id, title, content) VALUES ($1, $2, $3, $4)",
+            )
+            .bind(doc_id)
+            .bind(tenant)
+            .bind(format!("Doc {} for Tenant {}", j, i))
+            .bind(format!("Content {} for Tenant {}", j, i))
+            .execute(&admin_pool)
+            .await
+            .expect("Failed to insert document");
         }
     }
 
@@ -431,16 +504,24 @@ async fn test_tenant_isolation_with_concurrent_access() {
         );
     }
 
-    clean_test_data(&admin_pool).await.expect("Failed to clean data");
+    clean_test_data(&admin_pool)
+        .await
+        .expect("Failed to clean data");
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_rls_performance_overhead() {
-    let admin_pool = create_admin_pool().await.expect("Failed to create admin pool");
-    let test_pool = create_test_pool().await.expect("Failed to create test pool");
-    
-    clean_test_data(&admin_pool).await.expect("Failed to clean data");
+    let admin_pool = create_admin_pool()
+        .await
+        .expect("Failed to create admin pool");
+    let test_pool = create_test_pool()
+        .await
+        .expect("Failed to create test pool");
+
+    clean_test_data(&admin_pool)
+        .await
+        .expect("Failed to clean data");
 
     let tenant_id = Uuid::new_v4();
     let num_docs = 100;
@@ -448,19 +529,24 @@ async fn test_rls_performance_overhead() {
     // Insert using admin pool
     for i in 0..num_docs {
         let doc_id = Uuid::new_v4();
-        sqlx::query("INSERT INTO documents (id, tenant_id, title, content) VALUES ($1, $2, $3, $4)")
-            .bind(doc_id)
-            .bind(tenant_id)
-            .bind(format!("Perf Test Doc {}", i))
-            .bind(format!("Content for performance testing document {}", i))
-            .execute(&admin_pool)
-            .await
-            .expect("Failed to insert document");
+        sqlx::query(
+            "INSERT INTO documents (id, tenant_id, title, content) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(doc_id)
+        .bind(tenant_id)
+        .bind(format!("Perf Test Doc {}", i))
+        .bind(format!("Content for performance testing document {}", i))
+        .execute(&admin_pool)
+        .await
+        .expect("Failed to insert document");
     }
 
     // Test with RLS enforcement
-    let mut conn = test_pool.acquire().await.expect("Failed to acquire connection");
-    
+    let mut conn = test_pool
+        .acquire()
+        .await
+        .expect("Failed to acquire connection");
+
     sqlx::query("SELECT set_config('app.current_tenant_id', $1, false)")
         .bind(tenant_id.to_string())
         .execute(&mut *conn)
@@ -491,5 +577,7 @@ async fn test_rls_performance_overhead() {
         avg_ms
     );
 
-    clean_test_data(&admin_pool).await.expect("Failed to clean data");
+    clean_test_data(&admin_pool)
+        .await
+        .expect("Failed to clean data");
 }

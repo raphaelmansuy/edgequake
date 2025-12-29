@@ -1,6 +1,6 @@
+use dashmap::DashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use dashmap::DashMap;
 use tokio::time;
 use tracing::{debug, warn};
 
@@ -29,17 +29,17 @@ impl TokenBucket {
             last_refill: Instant::now(),
         }
     }
-    
+
     /// Refill tokens based on elapsed time
     fn refill(&mut self) {
         let now = Instant::now();
         let elapsed = now.duration_since(self.last_refill).as_secs_f64();
-        
+
         // Calculate new tokens
         let new_tokens = elapsed * self.refill_rate;
         self.tokens = (self.tokens + new_tokens).min(self.capacity);
         self.last_refill = now;
-        
+
         debug!(
             tokens = self.tokens,
             capacity = self.capacity,
@@ -47,12 +47,12 @@ impl TokenBucket {
             "Refilled token bucket"
         );
     }
-    
+
     /// Try to consume tokens
     /// Returns true if successful, false if insufficient tokens
     fn try_consume(&mut self, amount: f64) -> bool {
         self.refill();
-        
+
         if self.tokens >= amount {
             self.tokens -= amount;
             debug!(
@@ -70,7 +70,7 @@ impl TokenBucket {
             false
         }
     }
-    
+
     /// Get time until next token is available
     fn time_until_available(&self, amount: f64) -> Duration {
         let deficit = (amount - self.tokens).max(0.0);
@@ -96,22 +96,23 @@ impl RateLimiter {
             config: Arc::new(config),
         }
     }
-    
+
     /// Check if a request is allowed for the given key
     /// Returns (allowed, retry_after_seconds)
     pub fn check_rate_limit(&self, key: &str) -> (bool, Option<u64>) {
         self.check_rate_limit_with_cost(key, 1.0)
     }
-    
+
     /// Check rate limit with custom cost
     /// Some operations may cost more tokens than others
     pub fn check_rate_limit_with_cost(&self, key: &str, cost: f64) -> (bool, Option<u64>) {
-        let mut entry = self.buckets
+        let mut entry = self
+            .buckets
             .entry(key.to_string())
             .or_insert_with(|| TokenBucket::new(&self.config));
-        
+
         let bucket = entry.value_mut();
-        
+
         if bucket.try_consume(cost) {
             (true, None)
         } else {
@@ -119,7 +120,7 @@ impl RateLimiter {
             (false, Some(retry_after.as_secs()))
         }
     }
-    
+
     /// Get current state for a key (for monitoring/debugging)
     pub fn get_state(&self, key: &str) -> Option<RateLimitState> {
         self.buckets.get(key).map(|entry| {
@@ -131,19 +132,19 @@ impl RateLimiter {
             }
         })
     }
-    
+
     /// Reset rate limit for a key (admin operation)
     pub fn reset(&self, key: &str) {
         self.buckets.remove(key);
         debug!(key = key, "Reset rate limit");
     }
-    
+
     /// Clear old buckets that haven't been used recently
     /// Should be called periodically to prevent memory leaks
     pub fn cleanup_stale_buckets(&self, max_age: Duration) {
         let now = Instant::now();
         let mut removed = 0;
-        
+
         self.buckets.retain(|_key, bucket| {
             let age = now.duration_since(bucket.last_refill);
             let keep = age < max_age;
@@ -152,12 +153,12 @@ impl RateLimiter {
             }
             keep
         });
-        
+
         if removed > 0 {
             debug!(removed = removed, "Cleaned up stale rate limit buckets");
         }
     }
-    
+
     /// Start background task to cleanup stale buckets
     pub fn start_cleanup_task(self, interval: Duration, max_age: Duration) {
         tokio::spawn(async move {
@@ -181,41 +182,41 @@ pub struct RateLimitState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_token_bucket_basic() {
         let config = RateLimitConfig::strict(10, 10); // 10 requests, NO BURST
         let limiter = RateLimiter::new(config);
-        
+
         // First 10 requests should succeed
         for i in 0..10 {
             let (allowed, _) = limiter.check_rate_limit("test-key");
             assert!(allowed, "Request {} should be allowed", i);
         }
-        
+
         // 11th request should fail
         let (allowed, retry_after) = limiter.check_rate_limit("test-key");
         assert!(!allowed, "Request 11 should be blocked");
         assert!(retry_after.is_some());
     }
-    
+
     #[tokio::test]
     async fn test_token_refill() {
         let config = RateLimitConfig::new(2, 1); // 2 requests per second
         let limiter = RateLimiter::new(config);
-        
+
         // Consume all tokens
         assert!(limiter.check_rate_limit("test-key").0);
         assert!(limiter.check_rate_limit("test-key").0);
         assert!(!limiter.check_rate_limit("test-key").0);
-        
+
         // Wait for refill
         tokio::time::sleep(Duration::from_millis(600)).await;
-        
+
         // Should have ~1 token now
         assert!(limiter.check_rate_limit("test-key").0);
     }
-    
+
     #[tokio::test]
     async fn test_burst_allowance() {
         let config = RateLimitConfig {
@@ -225,70 +226,70 @@ mod tests {
             refill_rate: 1.0,
         };
         let limiter = RateLimiter::new(config);
-        
+
         // Should allow up to 15 requests (10 + 5 burst)
         for i in 0..15 {
             let (allowed, _) = limiter.check_rate_limit("test-key");
             assert!(allowed, "Request {} should be allowed", i);
         }
-        
+
         // 16th should fail
         let (allowed, _) = limiter.check_rate_limit("test-key");
         assert!(!allowed);
     }
-    
+
     #[tokio::test]
     async fn test_tenant_isolation() {
         let config = RateLimitConfig::strict(5, 10); // 5 requests, NO BURST
         let limiter = RateLimiter::new(config);
-        
+
         // Tenant A consumes all tokens
         for _ in 0..5 {
             assert!(limiter.check_rate_limit("tenant-a").0);
         }
         assert!(!limiter.check_rate_limit("tenant-a").0);
-        
+
         // Tenant B should still have full quota
         for i in 0..5 {
             let (allowed, _) = limiter.check_rate_limit("tenant-b");
             assert!(allowed, "Tenant B request {} should be allowed", i);
         }
     }
-    
+
     #[tokio::test]
     async fn test_custom_cost() {
         let config = RateLimitConfig::strict(100, 60); // 100 tokens, NO BURST
         let limiter = RateLimiter::new(config);
-        
+
         // Expensive operation costs 5 tokens
         assert!(limiter.check_rate_limit_with_cost("test-key", 5.0).0);
-        
+
         // Should have 95 tokens left (100 - 5)
         // Use 95 more tokens with 1-token requests
         for _ in 0..95 {
             assert!(limiter.check_rate_limit("test-key").0);
         }
-        
+
         // No tokens left
         assert!(!limiter.check_rate_limit("test-key").0);
     }
-    
+
     #[test]
     fn test_cleanup_stale_buckets() {
         let config = RateLimitConfig::new(10, 60);
         let limiter = RateLimiter::new(config);
-        
+
         // Create some buckets
         limiter.check_rate_limit("key-1");
         limiter.check_rate_limit("key-2");
         limiter.check_rate_limit("key-3");
-        
+
         assert_eq!(limiter.buckets.len(), 3);
-        
+
         // Cleanup with very short max age (nothing should be removed yet)
         limiter.cleanup_stale_buckets(Duration::from_secs(3600));
         assert_eq!(limiter.buckets.len(), 3);
-        
+
         // Cleanup with zero max age (everything should be removed)
         limiter.cleanup_stale_buckets(Duration::from_secs(0));
         assert_eq!(limiter.buckets.len(), 0);

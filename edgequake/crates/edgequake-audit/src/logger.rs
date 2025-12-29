@@ -1,7 +1,7 @@
+use anyhow::Result;
 use sqlx::{Pool, Postgres};
 use tokio::sync::mpsc;
 use tracing::{debug, error, warn};
-use anyhow::Result;
 
 use crate::event::AuditEvent;
 
@@ -16,20 +16,20 @@ impl AuditLogger {
     /// Create a new audit logger with background worker
     pub fn new(pool: Pool<Postgres>) -> Self {
         let (sender, receiver) = mpsc::unbounded_channel();
-        
+
         // Spawn background worker
         tokio::spawn(audit_worker(pool, receiver));
-        
+
         Self { sender }
     }
-    
+
     /// Log an audit event (non-blocking)
     pub fn log(&self, event: AuditEvent) {
         if let Err(e) = self.sender.send(event) {
             error!(error = %e, "Failed to send audit event to worker");
         }
     }
-    
+
     /// Log an audit event and wait for confirmation (blocking)
     pub async fn log_sync(&self, pool: &Pool<Postgres>, event: AuditEvent) -> Result<()> {
         write_audit_event(pool, &event).await
@@ -37,12 +37,9 @@ impl AuditLogger {
 }
 
 /// Background worker that processes audit events asynchronously
-async fn audit_worker(
-    pool: Pool<Postgres>,
-    mut receiver: mpsc::UnboundedReceiver<AuditEvent>,
-) {
+async fn audit_worker(pool: Pool<Postgres>, mut receiver: mpsc::UnboundedReceiver<AuditEvent>) {
     debug!("Audit worker started");
-    
+
     while let Some(event) = receiver.recv().await {
         if let Err(e) = write_audit_event(&pool, &event).await {
             error!(
@@ -53,7 +50,7 @@ async fn audit_worker(
             );
         }
     }
-    
+
     warn!("Audit worker stopped");
 }
 
@@ -62,7 +59,7 @@ async fn write_audit_event(pool: &Pool<Postgres>, event: &AuditEvent) -> Result<
     let event_type = format!("{:?}", event.event_type).to_lowercase();
     let result = format!("{:?}", event.result).to_lowercase();
     let severity = format!("{:?}", event.severity).to_lowercase();
-    
+
     sqlx::query(
         r#"
         INSERT INTO audit_logs (
@@ -108,14 +105,14 @@ async fn write_audit_event(pool: &Pool<Postgres>, event: &AuditEvent) -> Result<
     .bind(&event.duration_ms)
     .execute(pool)
     .await?;
-    
+
     debug!(
         event_id = %event.id,
         tenant_id = %event.tenant_id,
         event_type = ?event.event_type,
         "Wrote audit event"
     );
-    
+
     Ok(())
 }
 
@@ -164,7 +161,7 @@ pub async fn query_audit_logs(
         WHERE 1=1
         "#,
     );
-    
+
     if query.tenant_id.is_some() {
         sql.push_str(" AND tenant_id = $1");
     }
@@ -183,9 +180,9 @@ pub async fn query_audit_logs(
     if query.severity.is_some() {
         sql.push_str(" AND severity::text = $6");
     }
-    
+
     sql.push_str(" ORDER BY timestamp DESC LIMIT $7");
-    
+
     // TODO: Implement actual query execution with dynamic parameters
     // For now, return empty vec as placeholder
     Ok(Vec::new())
@@ -195,13 +192,13 @@ pub async fn query_audit_logs(
 mod tests {
     use super::*;
     use crate::event::{AuditEventType, AuditResult, AuditSeverity};
-    
+
     #[tokio::test]
     async fn test_audit_logger_creation() {
         // This test requires a real database connection
         // Skip for now - will be tested in integration tests
     }
-    
+
     #[test]
     fn test_audit_query_default() {
         let query = AuditQuery::default();
