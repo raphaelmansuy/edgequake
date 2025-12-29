@@ -47,6 +47,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let processor = Arc::new(DocumentTaskProcessor::new(
         Arc::clone(&state.pipeline),
         Arc::clone(&state.kv_storage),
+        Arc::clone(&state.vector_storage),
         Arc::clone(&state.graph_storage),
         state.pipeline_state.clone(),
     ));

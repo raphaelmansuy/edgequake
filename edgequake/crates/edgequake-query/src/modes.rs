@@ -64,7 +64,8 @@ impl QueryMode {
 
     /// Whether this mode uses vector search.
     pub fn uses_vector_search(&self) -> bool {
-        matches!(self, Self::Naive | Self::Local | Self::Mix)
+        // Hybrid should use BOTH vector search AND graph traversal
+        matches!(self, Self::Naive | Self::Local | Self::Hybrid | Self::Mix)
     }
 
     /// Whether this mode uses graph traversal.
@@ -107,8 +108,9 @@ mod tests {
         assert!(QueryMode::Naive.uses_vector_search());
         assert!(!QueryMode::Naive.uses_graph());
 
+        // Hybrid uses BOTH graph AND vector search for comprehensive retrieval
         assert!(QueryMode::Hybrid.uses_graph());
-        assert!(!QueryMode::Hybrid.uses_vector_search());
+        assert!(QueryMode::Hybrid.uses_vector_search());
 
         assert!(QueryMode::Mix.uses_vector_search());
         assert!(QueryMode::Mix.uses_graph());

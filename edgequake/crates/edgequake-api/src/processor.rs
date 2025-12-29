@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use edgequake_pipeline::Pipeline;
-use edgequake_storage::traits::{GraphStorage, KVStorage};
+use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage};
 use edgequake_tasks::{PipelineState, Task, TaskProcessor, TaskResult, TaskType, TextInsertData};
 use serde_json::json;
 use tracing::{error, info, warn};
@@ -17,6 +17,8 @@ pub struct DocumentTaskProcessor {
     pipeline: Arc<Pipeline>,
     /// KV storage for document metadata and chunks.
     kv_storage: Arc<dyn KVStorage>,
+    /// Vector storage for chunk embeddings.
+    vector_storage: Arc<dyn VectorStorage>,
     /// Graph storage for entities and relationships.
     graph_storage: Arc<dyn GraphStorage>,
     /// Pipeline state for progress tracking.
@@ -28,12 +30,14 @@ impl DocumentTaskProcessor {
     pub fn new(
         pipeline: Arc<Pipeline>,
         kv_storage: Arc<dyn KVStorage>,
+        vector_storage: Arc<dyn VectorStorage>,
         graph_storage: Arc<dyn GraphStorage>,
         pipeline_state: PipelineState,
     ) -> Self {
         Self {
             pipeline,
             kv_storage,
+            vector_storage,
             graph_storage,
             pipeline_state,
         }
@@ -125,13 +129,7 @@ impl DocumentTaskProcessor {
             return Err(edgequake_tasks::TaskError::Storage(error_msg));
         }
 
-        // Update task progress - extraction
-        task.update_progress("extraction".to_string(), 4, 60);
-        self.pipeline_state
-            .info(format!("Extracting entities from {}...", document_id))
-            .await;
-
-        // Extract tenant_id and workspace_id from metadata for graph scoping
+        // Extract tenant_id and workspace_id from metadata for scoping
         let tenant_id = data
             .metadata
             .as_ref()
@@ -146,6 +144,43 @@ impl DocumentTaskProcessor {
             .map(|s| s.to_string())
             .unwrap_or_else(|| data.workspace_id.clone());
 
+        // Store chunk embeddings in vector storage for semantic search
+        let mut chunk_embeddings_stored = 0;
+        for chunk in &result.chunks {
+            if let Some(embedding) = &chunk.embedding {
+                let mut metadata = json!({
+                    "type": "chunk",
+                    "document_id": document_id,
+                    "index": chunk.index,
+                    "content": chunk.content,
+                });
+
+                // Add tenant and workspace IDs if present
+                if let Some(ref tid) = tenant_id {
+                    metadata["tenant_id"] = json!(tid);
+                }
+                metadata["workspace_id"] = json!(&workspace_id_meta);
+
+                if let Ok(_) = self
+                    .vector_storage
+                    .upsert(&[(chunk.id.clone(), embedding.clone(), metadata)])
+                    .await
+                {
+                    chunk_embeddings_stored += 1;
+                }
+            }
+        }
+        info!(
+            "Stored {} chunk embeddings in vector storage for document {}",
+            chunk_embeddings_stored, document_id
+        );
+
+        // Update task progress - extraction
+        task.update_progress("extraction".to_string(), 4, 60);
+        self.pipeline_state
+            .info(format!("Extracting entities from {}...", document_id))
+            .await;
+
         info!(
             "Storing entities with tenant_id={:?}, workspace_id={:?}",
             tenant_id, workspace_id_meta
@@ -153,8 +188,13 @@ impl DocumentTaskProcessor {
 
         // Store entities and relationships in graph storage using batch operations
         // Collect all nodes for batch upsert
-        let mut nodes_batch: Vec<(String, std::collections::HashMap<String, serde_json::Value>)> = Vec::new();
-        let mut edges_batch: Vec<(String, String, std::collections::HashMap<String, serde_json::Value>)> = Vec::new();
+        let mut nodes_batch: Vec<(String, std::collections::HashMap<String, serde_json::Value>)> =
+            Vec::new();
+        let mut edges_batch: Vec<(
+            String,
+            String,
+            std::collections::HashMap<String, serde_json::Value>,
+        )> = Vec::new();
 
         for extraction in &result.extractions {
             for entity in &extraction.entities {
@@ -199,7 +239,11 @@ impl DocumentTaskProcessor {
         // Batch upsert nodes
         if !nodes_batch.is_empty() {
             if let Err(e) = self.graph_storage.upsert_nodes_batch(&nodes_batch).await {
-                warn!("Failed to batch store {} entities: {}", nodes_batch.len(), e);
+                warn!(
+                    "Failed to batch store {} entities: {}",
+                    nodes_batch.len(),
+                    e
+                );
             } else {
                 info!("Batch stored {} entities", nodes_batch.len());
             }
@@ -208,7 +252,11 @@ impl DocumentTaskProcessor {
         // Batch upsert edges
         if !edges_batch.is_empty() {
             if let Err(e) = self.graph_storage.upsert_edges_batch(&edges_batch).await {
-                warn!("Failed to batch store {} relationships: {}", edges_batch.len(), e);
+                warn!(
+                    "Failed to batch store {} relationships: {}",
+                    edges_batch.len(),
+                    e
+                );
             } else {
                 info!("Batch stored {} relationships", edges_batch.len());
             }
@@ -218,12 +266,8 @@ impl DocumentTaskProcessor {
         task.update_progress("indexing".to_string(), 4, 100);
 
         // Update document status to completed with stats and lineage
-        self.update_document_status_with_stats(
-            &document_id,
-            "completed",
-            &result.stats,
-        )
-        .await?;
+        self.update_document_status_with_stats(&document_id, "completed", &result.stats)
+            .await?;
 
         // Log success
         self.pipeline_state
@@ -301,13 +345,19 @@ impl DocumentTaskProcessor {
                     "processed_at".to_string(),
                     json!(chrono::Utc::now().to_rfc3339()),
                 );
-                
+
                 // Basic stats
                 updated.insert("chunk_count".to_string(), json!(stats.chunk_count));
                 updated.insert("entity_count".to_string(), json!(stats.entity_count));
-                updated.insert("relationship_count".to_string(), json!(stats.relationship_count));
-                updated.insert("processing_duration_ms".to_string(), json!(stats.processing_time_ms));
-                
+                updated.insert(
+                    "relationship_count".to_string(),
+                    json!(stats.relationship_count),
+                );
+                updated.insert(
+                    "processing_duration_ms".to_string(),
+                    json!(stats.processing_time_ms),
+                );
+
                 // Lineage information
                 if let Some(ref llm_model) = stats.llm_model {
                     updated.insert("llm_model".to_string(), json!(llm_model));
@@ -316,7 +366,10 @@ impl DocumentTaskProcessor {
                     updated.insert("embedding_model".to_string(), json!(embedding_model));
                 }
                 if let Some(ref embedding_dimensions) = stats.embedding_dimensions {
-                    updated.insert("embedding_dimensions".to_string(), json!(embedding_dimensions));
+                    updated.insert(
+                        "embedding_dimensions".to_string(),
+                        json!(embedding_dimensions),
+                    );
                 }
                 if let Some(ref entity_types) = stats.entity_types {
                     updated.insert("entity_types".to_string(), json!(entity_types));
@@ -333,7 +386,7 @@ impl DocumentTaskProcessor {
                 if let Some(ref avg_chunk_size) = stats.avg_chunk_size {
                     updated.insert("avg_chunk_size".to_string(), json!(avg_chunk_size));
                 }
-                
+
                 updated.remove("error_message");
 
                 self.kv_storage

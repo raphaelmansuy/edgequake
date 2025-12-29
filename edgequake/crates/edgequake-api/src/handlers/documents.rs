@@ -260,6 +260,44 @@ pub async fn upload_document(
 
         state.kv_storage.upsert(&chunks).await?;
 
+        // Store chunk embeddings in vector storage for semantic search
+        let mut chunk_embeddings_stored = 0;
+        for chunk in &result.chunks {
+            if let Some(embedding) = &chunk.embedding {
+                let mut metadata = serde_json::json!({
+                    "type": "chunk",
+                    "document_id": document_id,
+                    "index": chunk.index,
+                    "content": chunk.content,
+                });
+
+                // Add tenant and workspace IDs if present
+                if let Some(ref tid) = tenant_id_for_storage {
+                    metadata["tenant_id"] = serde_json::json!(tid);
+                }
+                metadata["workspace_id"] = serde_json::json!(&workspace_id_for_storage);
+
+                match state
+                    .vector_storage
+                    .upsert(&[(chunk.id.clone(), embedding.clone(), metadata)])
+                    .await
+                {
+                    Ok(_) => {
+                        chunk_embeddings_stored += 1;
+                        tracing::info!(chunk_id = %chunk.id, "VECTOR STORAGE: Chunk embedding stored OK");
+                    }
+                    Err(e) => {
+                        tracing::error!(chunk_id = %chunk.id, error = %e, "VECTOR STORAGE: Failed to store chunk embedding");
+                    }
+                }
+            }
+        }
+        tracing::info!(
+            chunk_embeddings_stored = chunk_embeddings_stored,
+            total_chunks = result.chunks.len(),
+            "VECTOR STORAGE: Chunk embedding storage complete"
+        );
+
         // Broadcast document progress (chunking complete)
         state
             .progress_broadcaster
@@ -1746,6 +1784,45 @@ pub async fn upload_file(
 
     state.kv_storage.upsert(&chunks).await?;
 
+    // Store chunk embeddings in vector storage for semantic search
+    let mut chunk_embeddings_stored = 0;
+    for chunk in &result.chunks {
+        if let Some(embedding) = &chunk.embedding {
+            let mut metadata = serde_json::json!({
+                "type": "chunk",
+                "document_id": document_id,
+                "index": chunk.index,
+                "content": chunk.content,
+                "source_file": filename,
+            });
+
+            // Add tenant and workspace IDs if present
+            if let Some(ref tid) = tenant_id_for_storage {
+                metadata["tenant_id"] = serde_json::json!(tid);
+            }
+            metadata["workspace_id"] = serde_json::json!(&workspace_id_for_storage);
+
+            match state
+                .vector_storage
+                .upsert(&[(chunk.id.clone(), embedding.clone(), metadata)])
+                .await
+            {
+                Ok(_) => {
+                    chunk_embeddings_stored += 1;
+                    tracing::info!(chunk_id = %chunk.id, "VECTOR STORAGE: Chunk embedding stored OK");
+                }
+                Err(e) => {
+                    tracing::error!(chunk_id = %chunk.id, error = %e, "VECTOR STORAGE: Failed to store chunk embedding");
+                }
+            }
+        }
+    }
+    tracing::info!(
+        chunk_embeddings_stored = chunk_embeddings_stored,
+        total_chunks = result.chunks.len(),
+        "VECTOR STORAGE: Chunk embedding storage complete"
+    );
+
     // Store entities and relationships in graph storage
     tracing::info!(
         extraction_count = result.extractions.len(),
@@ -2091,6 +2168,24 @@ async fn process_single_file(
         .collect();
 
     state.kv_storage.upsert(&chunks).await?;
+
+    // Store chunk embeddings in vector storage for semantic search
+    for chunk in &result.chunks {
+        if let Some(embedding) = &chunk.embedding {
+            let metadata = serde_json::json!({
+                "type": "chunk",
+                "document_id": document_id,
+                "index": chunk.index,
+                "content": chunk.content,
+                "source_file": filename,
+            });
+
+            let _ = state
+                .vector_storage
+                .upsert(&[(chunk.id.clone(), embedding.clone(), metadata)])
+                .await;
+        }
+    }
 
     Ok((document_id, false))
 }
@@ -2917,10 +3012,7 @@ pub async fn recover_stuck(
 
                     if is_stuck {
                         if let Some(id) = doc_id {
-                            stuck_docs.push((
-                                id.to_string(),
-                                title.unwrap_or(id).to_string(),
-                            ));
+                            stuck_docs.push((id.to_string(), title.unwrap_or(id).to_string()));
                         }
                     }
                 }
@@ -2994,10 +3086,7 @@ pub async fn recover_stuck(
                 requeued_ids.push(doc_id.clone());
                 requeued_titles.push(doc_title.clone());
 
-                tracing::info!(
-                    "Recovered stuck document: {} ({})",
-                    doc_id, doc_title
-                );
+                tracing::info!("Recovered stuck document: {} ({})", doc_id, doc_title);
             }
         }
     }
