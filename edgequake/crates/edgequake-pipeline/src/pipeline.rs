@@ -133,6 +133,50 @@ pub struct ProcessingStats {
     /// Average chunk size in characters.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avg_chunk_size: Option<usize>,
+
+    /// Input tokens used (for LLM calls).
+    #[serde(default)]
+    pub input_tokens: usize,
+
+    /// Output tokens used (for LLM calls).
+    #[serde(default)]
+    pub output_tokens: usize,
+
+    /// Total cost in USD (calculated from token usage).
+    #[serde(default)]
+    pub cost_usd: f64,
+
+    /// Cost breakdown by operation (extraction, embedding, etc.).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost_breakdown: Option<CostBreakdownStats>,
+}
+
+/// Cost breakdown by operation.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CostBreakdownStats {
+    /// Cost for entity extraction.
+    #[serde(default)]
+    pub extraction_cost_usd: f64,
+
+    /// Cost for embedding generation.
+    #[serde(default)]
+    pub embedding_cost_usd: f64,
+
+    /// Cost for summarization.
+    #[serde(default)]
+    pub summarization_cost_usd: f64,
+
+    /// Extraction input tokens.
+    #[serde(default)]
+    pub extraction_input_tokens: usize,
+
+    /// Extraction output tokens.
+    #[serde(default)]
+    pub extraction_output_tokens: usize,
+
+    /// Embedding tokens.
+    #[serde(default)]
+    pub embedding_tokens: usize,
 }
 
 /// Document processing pipeline.
@@ -269,6 +313,26 @@ impl Pipeline {
                 }
 
                 stats.total_tokens = total_input_tokens + total_output_tokens;
+                stats.input_tokens = total_input_tokens;
+                stats.output_tokens = total_output_tokens;
+
+                // Calculate extraction cost using model pricing
+                let model_name = extractor.model_name();
+                let pricing = crate::progress::default_model_pricing();
+                let model_pricing = pricing.get(model_name).cloned().unwrap_or_else(|| {
+                    crate::progress::ModelPricing::new("gpt-4o-mini", 0.00015, 0.0006)
+                });
+
+                let extraction_cost =
+                    model_pricing.calculate_cost(total_input_tokens, total_output_tokens);
+                stats.cost_usd += extraction_cost;
+
+                // Initialize cost breakdown
+                let mut cost_breakdown = CostBreakdownStats::default();
+                cost_breakdown.extraction_cost_usd = extraction_cost;
+                cost_breakdown.extraction_input_tokens = total_input_tokens;
+                cost_breakdown.extraction_output_tokens = total_output_tokens;
+                stats.cost_breakdown = Some(cost_breakdown);
             }
         }
 
@@ -323,12 +387,15 @@ impl Pipeline {
 
                 if !all_entity_texts.is_empty() {
                     // Single batch call for all entities
-                    let all_embeddings = provider.embed(&all_entity_texts).await.map_err(|e| {
-                        crate::error::PipelineError::EmbeddingError(e.to_string())
-                    })?;
+                    let all_embeddings = provider
+                        .embed(&all_entity_texts)
+                        .await
+                        .map_err(|e| crate::error::PipelineError::EmbeddingError(e.to_string()))?;
 
                     // Reassign embeddings to their respective entities
-                    for (embedding, (ext_idx, ent_idx)) in all_embeddings.into_iter().zip(entity_indices) {
+                    for (embedding, (ext_idx, ent_idx)) in
+                        all_embeddings.into_iter().zip(entity_indices)
+                    {
                         extractions[ext_idx].entities[ent_idx].embedding = Some(embedding);
                     }
                 }
@@ -357,15 +424,68 @@ impl Pipeline {
 
                 if !all_relationship_texts.is_empty() {
                     // Single batch call for all relationships
-                    let all_embeddings = provider.embed(&all_relationship_texts).await.map_err(|e| {
-                        crate::error::PipelineError::EmbeddingError(e.to_string())
-                    })?;
+                    let all_embeddings = provider
+                        .embed(&all_relationship_texts)
+                        .await
+                        .map_err(|e| crate::error::PipelineError::EmbeddingError(e.to_string()))?;
 
                     // Reassign embeddings to their respective relationships
-                    for (embedding, (ext_idx, rel_idx)) in all_embeddings.into_iter().zip(relationship_indices) {
+                    for (embedding, (ext_idx, rel_idx)) in
+                        all_embeddings.into_iter().zip(relationship_indices)
+                    {
                         extractions[ext_idx].relationships[rel_idx].embedding = Some(embedding);
                     }
                 }
+            }
+
+            // Calculate embedding costs
+            // Estimate token count based on text length (approx 4 chars per token)
+            let mut total_embed_tokens = 0usize;
+
+            // Chunk tokens
+            if self.config.enable_chunk_embeddings {
+                let chunk_text_len: usize = chunks.iter().map(|c| c.content.len()).sum();
+                total_embed_tokens += chunk_text_len / 4;
+            }
+
+            // Entity tokens
+            if self.config.enable_entity_embeddings {
+                for extraction in &extractions {
+                    for entity in &extraction.entities {
+                        total_embed_tokens += (entity.name.len() + entity.description.len()) / 4;
+                    }
+                }
+            }
+
+            // Relationship tokens
+            if self.config.enable_relationship_embeddings {
+                for extraction in &extractions {
+                    for rel in &extraction.relationships {
+                        total_embed_tokens +=
+                            (rel.source.len() + rel.target.len() + rel.description.len()) / 4;
+                    }
+                }
+            }
+
+            // Calculate embedding cost
+            let embed_model_name = provider.model();
+            let pricing = crate::progress::default_model_pricing();
+            let embed_pricing = pricing.get(embed_model_name).cloned().unwrap_or_else(|| {
+                crate::progress::ModelPricing::new("text-embedding-3-small", 0.00002, 0.0)
+            });
+
+            let embedding_cost = embed_pricing.calculate_cost(total_embed_tokens, 0);
+            stats.cost_usd += embedding_cost;
+
+            // Update cost breakdown
+            if let Some(ref mut breakdown) = stats.cost_breakdown {
+                breakdown.embedding_cost_usd = embedding_cost;
+                breakdown.embedding_tokens = total_embed_tokens;
+            } else {
+                let mut breakdown = CostBreakdownStats::default();
+                breakdown.embedding_cost_usd = embedding_cost;
+                breakdown.embedding_tokens = total_embed_tokens;
+                stats.cost_breakdown = Some(breakdown);
             }
         }
 

@@ -57,7 +57,9 @@ pub use lineage::{
     ExtractionMetadata, LineageBuilder, RelationshipLineage, SourceSpan,
 };
 pub use merger::{KnowledgeGraphMerger, MergeStats, MergerConfig};
-pub use pipeline::{Pipeline, PipelineConfig, ProcessingResult, ProcessingStats};
+pub use pipeline::{
+    CostBreakdownStats, Pipeline, PipelineConfig, ProcessingResult, ProcessingStats,
+};
 pub use progress::{
     default_model_pricing, CostBreakdown, CostTracker, IngestionError, IngestionProgress,
     IngestionStatus, MessageLevel, ModelPricing, OperationCost, PipelineStage, ProgressMessage,

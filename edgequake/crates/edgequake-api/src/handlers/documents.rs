@@ -68,6 +68,37 @@ pub struct UploadDocumentResponse {
     /// Number of relationships extracted (only set for sync processing).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub relationship_count: Option<usize>,
+
+    /// Cost information (only set for sync processing).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost: Option<DocumentCostInfo>,
+}
+
+/// Cost information for a processed document.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct DocumentCostInfo {
+    /// Total cost in USD.
+    pub total_cost_usd: f64,
+
+    /// Formatted cost string (e.g., "$0.0045").
+    pub formatted_cost: String,
+
+    /// Total input tokens used.
+    pub input_tokens: usize,
+
+    /// Total output tokens used.
+    pub output_tokens: usize,
+
+    /// Total tokens (input + output).
+    pub total_tokens: usize,
+
+    /// LLM model used.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub llm_model: Option<String>,
+
+    /// Embedding model used.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_model: Option<String>,
 }
 
 /// Upload a document for processing.
@@ -230,6 +261,7 @@ pub async fn upload_document(
             chunk_count: None,
             entity_count: None,
             relationship_count: None,
+            cost: None, // Cost will be calculated when processing completes
         }))
     } else {
         // Synchronous processing (original behavior)
@@ -392,6 +424,17 @@ pub async fn upload_document(
             .progress_broadcaster
             .job_finished(1, duration.as_millis() as u64);
 
+        // Build cost info from stats
+        let cost = Some(DocumentCostInfo {
+            total_cost_usd: result.stats.cost_usd,
+            formatted_cost: format!("${:.6}", result.stats.cost_usd),
+            input_tokens: result.stats.input_tokens,
+            output_tokens: result.stats.output_tokens,
+            total_tokens: result.stats.total_tokens,
+            llm_model: result.stats.llm_model.clone(),
+            embedding_model: result.stats.embedding_model.clone(),
+        });
+
         Ok(Json(UploadDocumentResponse {
             document_id,
             status: "processed".to_string(),
@@ -401,6 +444,7 @@ pub async fn upload_document(
             chunk_count: Some(result.stats.chunk_count),
             entity_count: Some(result.stats.entity_count),
             relationship_count: Some(result.stats.relationship_count),
+            cost,
         }))
     }
 }
@@ -3152,11 +3196,22 @@ mod tests {
             chunk_count: Some(5),
             entity_count: Some(3),
             relationship_count: Some(2),
+            cost: Some(DocumentCostInfo {
+                total_cost_usd: 0.0045,
+                formatted_cost: "$0.004500".to_string(),
+                input_tokens: 1000,
+                output_tokens: 500,
+                total_tokens: 1500,
+                llm_model: Some("gpt-4o-mini".to_string()),
+                embedding_model: Some("text-embedding-3-small".to_string()),
+            }),
         };
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("doc-123"));
         assert!(json.contains("processed"));
+        assert!(json.contains("cost"));
+        assert!(json.contains("0.0045"));
     }
 
     #[test]
