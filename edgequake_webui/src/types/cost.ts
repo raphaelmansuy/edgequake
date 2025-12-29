@@ -128,6 +128,10 @@ export interface CostSummary {
     operation: string;
     cost: number;
     percentage: number;
+    input_tokens?: number;
+    output_tokens?: number;
+    total_tokens?: number;
+    call_count?: number;
   }>;
   by_model?: ModelCost[];
   budget?: BudgetInfo | null;

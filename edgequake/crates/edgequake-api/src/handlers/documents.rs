@@ -409,6 +409,12 @@ pub async fn upload_document(
             "relationship_count": result.stats.relationship_count,
             "tenant_id": tenant_id_for_storage,
             "workspace_id": workspace_id_for_storage,
+            "cost_usd": result.stats.cost_usd,
+            "input_tokens": result.stats.input_tokens,
+            "output_tokens": result.stats.output_tokens,
+            "total_tokens": result.stats.total_tokens,
+            "llm_model": result.stats.llm_model,
+            "embedding_model": result.stats.embedding_model,
         });
         state
             .kv_storage
@@ -548,6 +554,30 @@ pub struct DocumentSummary {
     /// Last update timestamp (ISO 8601 format).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
+
+    /// Total cost in USD for processing this document.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost_usd: Option<f64>,
+
+    /// Input tokens used for processing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_tokens: Option<usize>,
+
+    /// Output tokens used for processing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_tokens: Option<usize>,
+
+    /// Total tokens (input + output).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_tokens: Option<usize>,
+
+    /// LLM model used for processing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub llm_model: Option<String>,
+
+    /// Embedding model used for processing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_model: Option<String>,
 }
 
 /// List all documents.
@@ -618,6 +648,12 @@ pub async fn list_documents(
         entity_count: Option<usize>,
         tenant_id: Option<String>,
         workspace_id: Option<String>,
+        cost_usd: Option<f64>,
+        input_tokens: Option<usize>,
+        output_tokens: Option<usize>,
+        total_tokens: Option<usize>,
+        llm_model: Option<String>,
+        embedding_model: Option<String>,
     }
 
     let mut doc_metadata: std::collections::HashMap<String, DocMetadata> =
@@ -704,6 +740,39 @@ pub async fn list_documents(
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
 
+                // Get cost_usd
+                meta.cost_usd = obj.get("cost_usd").and_then(|v| v.as_f64());
+
+                // Get input_tokens
+                meta.input_tokens = obj
+                    .get("input_tokens")
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as usize);
+
+                // Get output_tokens
+                meta.output_tokens = obj
+                    .get("output_tokens")
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as usize);
+
+                // Get total_tokens
+                meta.total_tokens = obj
+                    .get("total_tokens")
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as usize);
+
+                // Get llm_model
+                meta.llm_model = obj
+                    .get("llm_model")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
+                // Get embedding_model
+                meta.embedding_model = obj
+                    .get("embedding_model")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
                 doc_metadata.insert(id.to_string(), meta);
             }
         }
@@ -754,6 +823,12 @@ pub async fn list_documents(
                 track_id: meta.track_id,
                 created_at: meta.created_at,
                 updated_at: meta.updated_at,
+                cost_usd: meta.cost_usd,
+                input_tokens: meta.input_tokens,
+                output_tokens: meta.output_tokens,
+                total_tokens: meta.total_tokens,
+                llm_model: meta.llm_model,
+                embedding_model: meta.embedding_model,
             })
         })
         .collect();
@@ -777,6 +852,12 @@ pub async fn list_documents(
             track_id: meta.track_id,
             created_at: meta.created_at,
             updated_at: meta.updated_at,
+            cost_usd: meta.cost_usd,
+            input_tokens: meta.input_tokens,
+            output_tokens: meta.output_tokens,
+            total_tokens: meta.total_tokens,
+            llm_model: meta.llm_model,
+            embedding_model: meta.embedding_model,
         });
     }
 
@@ -958,6 +1039,22 @@ pub struct DocumentLineage {
     /// Processing duration in milliseconds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub processing_duration_ms: Option<u64>,
+
+    /// Input tokens consumed during LLM processing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_tokens: Option<usize>,
+
+    /// Output tokens generated during LLM processing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_tokens: Option<usize>,
+
+    /// Total tokens (input + output).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_tokens: Option<usize>,
+
+    /// Estimated cost in USD.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost_usd: Option<f64>,
 }
 
 /// Get a document by ID.
@@ -1124,6 +1221,21 @@ pub async fn get_document(
                 .map(|n| n as usize);
             let processing_duration_ms = obj.get("processing_duration_ms").and_then(|v| v.as_u64());
 
+            // Token usage and cost fields
+            let input_tokens = obj
+                .get("input_tokens")
+                .and_then(|v| v.as_u64())
+                .map(|n| n as usize);
+            let output_tokens = obj
+                .get("output_tokens")
+                .and_then(|v| v.as_u64())
+                .map(|n| n as usize);
+            let total_tokens = obj
+                .get("total_tokens")
+                .and_then(|v| v.as_u64())
+                .map(|n| n as usize);
+            let cost_usd = obj.get("cost_usd").and_then(|v| v.as_f64());
+
             // Only include lineage if we have at least one field
             if llm_model.is_some()
                 || embedding_model.is_some()
@@ -1132,6 +1244,8 @@ pub async fn get_document(
                 || relationship_types.is_some()
                 || chunking_strategy.is_some()
                 || processing_duration_ms.is_some()
+                || input_tokens.is_some()
+                || cost_usd.is_some()
             {
                 Some(DocumentLineage {
                     llm_model,
@@ -1143,6 +1257,10 @@ pub async fn get_document(
                     chunking_strategy,
                     avg_chunk_size,
                     processing_duration_ms,
+                    input_tokens,
+                    output_tokens,
+                    total_tokens,
+                    cost_usd,
                 })
             } else {
                 None
@@ -2358,6 +2476,27 @@ pub async fn get_track_status(
                         .map(String::from),
                     updated_at: obj
                         .get("updated_at")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    cost_usd: obj.get("cost_usd").and_then(|v| v.as_f64()),
+                    input_tokens: obj
+                        .get("input_tokens")
+                        .and_then(|v| v.as_u64())
+                        .map(|n| n as usize),
+                    output_tokens: obj
+                        .get("output_tokens")
+                        .and_then(|v| v.as_u64())
+                        .map(|n| n as usize),
+                    total_tokens: obj
+                        .get("total_tokens")
+                        .and_then(|v| v.as_u64())
+                        .map(|n| n as usize),
+                    llm_model: obj
+                        .get("llm_model")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    embedding_model: obj
+                        .get("embedding_model")
                         .and_then(|v| v.as_str())
                         .map(String::from),
                 });

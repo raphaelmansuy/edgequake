@@ -14,6 +14,7 @@ use async_openai::{
 };
 use async_trait::async_trait;
 use std::collections::HashMap;
+use tracing::debug;
 
 use crate::error::{LlmError, Result};
 use crate::traits::{
@@ -99,27 +100,21 @@ impl OpenAIProvider {
             .iter()
             .map(|msg| {
                 match msg.role {
-                    ChatRole::System => {
-                        ChatCompletionRequestSystemMessageArgs::default()
-                            .content(msg.content.as_str())
-                            .build()
-                            .map(Into::into)
-                            .map_err(|e| LlmError::InvalidRequest(e.to_string()))
-                    }
-                    ChatRole::User => {
-                        ChatCompletionRequestUserMessageArgs::default()
-                            .content(msg.content.as_str())
-                            .build()
-                            .map(Into::into)
-                            .map_err(|e| LlmError::InvalidRequest(e.to_string()))
-                    }
-                    ChatRole::Assistant => {
-                        ChatCompletionRequestAssistantMessageArgs::default()
-                            .content(msg.content.as_str())
-                            .build()
-                            .map(Into::into)
-                            .map_err(|e| LlmError::InvalidRequest(e.to_string()))
-                    }
+                    ChatRole::System => ChatCompletionRequestSystemMessageArgs::default()
+                        .content(msg.content.as_str())
+                        .build()
+                        .map(Into::into)
+                        .map_err(|e| LlmError::InvalidRequest(e.to_string())),
+                    ChatRole::User => ChatCompletionRequestUserMessageArgs::default()
+                        .content(msg.content.as_str())
+                        .build()
+                        .map(Into::into)
+                        .map_err(|e| LlmError::InvalidRequest(e.to_string())),
+                    ChatRole::Assistant => ChatCompletionRequestAssistantMessageArgs::default()
+                        .content(msg.content.as_str())
+                        .build()
+                        .map(Into::into)
+                        .map_err(|e| LlmError::InvalidRequest(e.to_string())),
                     ChatRole::Function => {
                         // Function messages are handled as user messages in simplified API
                         ChatCompletionRequestUserMessageArgs::default()
@@ -209,24 +204,29 @@ impl LLMProvider for OpenAIProvider {
 
         let response = self.client.chat().create(request).await?;
 
+        // Debug logging for token tracking
+        debug!(
+            "OpenAI response - usage: {:?}, model: {}",
+            response.usage, response.model
+        );
+
         let choice = response
             .choices
             .first()
             .ok_or_else(|| LlmError::ApiError("No choices in response".to_string()))?;
 
-        let content = choice
-            .message
-            .content
-            .clone()
-            .unwrap_or_default();
+        let content = choice.message.content.clone().unwrap_or_default();
 
-        let usage = response.usage.unwrap_or_default();
+        let usage = response.usage.clone().unwrap_or_default();
+
+        // Log extracted token counts
+        debug!(
+            "OpenAI token usage - prompt: {}, completion: {}, total: {}",
+            usage.prompt_tokens, usage.completion_tokens, usage.total_tokens
+        );
 
         let mut metadata = HashMap::new();
-        metadata.insert(
-            "response_id".to_string(),
-            serde_json::json!(response.id),
-        );
+        metadata.insert("response_id".to_string(), serde_json::json!(response.id));
 
         Ok(LLMResponse {
             content,
@@ -239,9 +239,12 @@ impl LLMProvider for OpenAIProvider {
         })
     }
 
-    async fn stream(&self, prompt: &str) -> Result<futures::stream::BoxStream<'static, Result<String>>> {
+    async fn stream(
+        &self,
+        prompt: &str,
+    ) -> Result<futures::stream::BoxStream<'static, Result<String>>> {
         use futures::StreamExt;
-        
+
         let request = ChatCompletionRequestUserMessageArgs::default()
             .content(prompt)
             .build()
@@ -257,16 +260,16 @@ impl LLMProvider for OpenAIProvider {
 
         let stream = self.client.chat().create_stream(request).await?;
 
-        let mapped_stream = stream.map(|res| {
-            match res {
-                Ok(response) => {
-                    let content = response.choices.first()
-                        .and_then(|c| c.delta.content.clone())
-                        .unwrap_or_default();
-                    Ok(content)
-                }
-                Err(e) => Err(LlmError::ApiError(e.to_string())),
+        let mapped_stream = stream.map(|res| match res {
+            Ok(response) => {
+                let content = response
+                    .choices
+                    .first()
+                    .and_then(|c| c.delta.content.clone())
+                    .unwrap_or_default();
+                Ok(content)
             }
+            Err(e) => Err(LlmError::ApiError(e.to_string())),
         });
 
         Ok(mapped_stream.boxed())
@@ -314,11 +317,7 @@ impl EmbeddingProvider for OpenAIProvider {
 
         let response = self.client.embeddings().create(request).await?;
 
-        let embeddings: Vec<Vec<f32>> = response
-            .data
-            .into_iter()
-            .map(|e| e.embedding)
-            .collect();
+        let embeddings: Vec<Vec<f32>> = response.data.into_iter().map(|e| e.embedding).collect();
 
         Ok(embeddings)
     }

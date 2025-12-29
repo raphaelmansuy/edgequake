@@ -164,8 +164,12 @@ export default function CostDashboardPage() {
                 by_stage: summary.by_operation?.map(op => ({
                   stage: op.operation,
                   cost: op.cost,
-                  tokens: { input: 0, output: 0, total: 0 },
-                  call_count: 0,
+                  tokens: { 
+                    input: op.input_tokens ?? 0, 
+                    output: op.output_tokens ?? 0, 
+                    total: op.total_tokens ?? 0 
+                  },
+                  call_count: op.call_count ?? 0,
                   cached_calls: 0,
                 })) ?? [],
                 tokens: { input: 0, output: 0, total: summary.total_tokens },
@@ -201,8 +205,12 @@ export default function CostDashboardPage() {
             stages={summary?.by_operation?.map(op => ({
               stage: op.operation,
               cost: op.cost,
-              tokens: { input: 0, output: 0, total: 0 },
-              call_count: 0,
+              tokens: { 
+                input: op.input_tokens ?? 0, 
+                output: op.output_tokens ?? 0, 
+                total: op.total_tokens ?? 0 
+              },
+              call_count: op.call_count ?? 0,
               cached_calls: 0,
             })) ?? null}
             isLoading={isSummaryLoading}

@@ -214,6 +214,7 @@ fn api_v1_routes() -> Router<AppState> {
         .route("/pipeline/costs/estimate", post(handlers::estimate_cost))
         // Cost Summary (WebUI Spec WEBUI-007)
         .route("/costs/summary", get(handlers::get_cost_summary))
+        .route("/costs/history", get(handlers::get_cost_history))
         .route("/costs/budget", get(handlers::get_budget_status))
         .route("/costs/budget", patch(handlers::update_budget))
         // Lineage (Phase 5)

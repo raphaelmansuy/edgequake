@@ -203,7 +203,7 @@ pub trait EntityExtractor: Send + Sync {
 
     /// Get the name of this extractor.
     fn name(&self) -> &str;
-    
+
     /// Get the model name used by this extractor (if applicable).
     fn model_name(&self) -> &str {
         "unknown"
@@ -391,13 +391,19 @@ where
             .await
             .map_err(|e| PipelineError::ExtractionError(format!("LLM error: {}", e)))?;
 
-        self.parse_response(&response.content, &chunk.id)
+        let mut result = self.parse_response(&response.content, &chunk.id)?;
+
+        // Set token usage from the LLM response
+        result.input_tokens = response.prompt_tokens;
+        result.output_tokens = response.completion_tokens;
+
+        Ok(result)
     }
 
     fn name(&self) -> &str {
         "llm"
     }
-    
+
     fn model_name(&self) -> &str {
         self.llm_provider.model()
     }
@@ -484,8 +490,12 @@ where
         let start = std::time::Instant::now();
 
         // Build system and user prompts
-        let system_prompt = self.prompts.system_prompt(&self.entity_types, &self.language);
-        let user_prompt = self.prompts.user_prompt(&chunk.content, &self.entity_types, &self.language);
+        let system_prompt = self
+            .prompts
+            .system_prompt(&self.entity_types, &self.language);
+        let user_prompt =
+            self.prompts
+                .user_prompt(&chunk.content, &self.entity_types, &self.language);
 
         // Create chat messages for system + user prompt
         let messages = vec![
@@ -509,18 +519,15 @@ where
         result.extraction_time_ms = start.elapsed().as_millis() as u64;
 
         // Add source chunk line info to metadata
-        result.metadata.insert(
-            "extractor".to_string(),
-            serde_json::json!("sota"),
-        );
-        result.metadata.insert(
-            "language".to_string(),
-            serde_json::json!(self.language),
-        );
-        result.metadata.insert(
-            "model".to_string(),
-            serde_json::json!(response.model),
-        );
+        result
+            .metadata
+            .insert("extractor".to_string(), serde_json::json!("sota"));
+        result
+            .metadata
+            .insert("language".to_string(), serde_json::json!(self.language));
+        result
+            .metadata
+            .insert("model".to_string(), serde_json::json!(response.model));
 
         Ok(result)
     }
@@ -763,6 +770,10 @@ where
                     PipelineError::ExtractionError(format!("Gleaning LLM error: {}", e))
                 })?;
 
+            // Accumulate token usage from gleaning iterations
+            result.input_tokens += response.prompt_tokens;
+            result.output_tokens += response.completion_tokens;
+
             // Parse gleaning results
             match self.parse_gleaning_response(&response.content) {
                 Ok((glean_entities, glean_relationships)) => {
@@ -802,7 +813,7 @@ where
     fn name(&self) -> &str {
         "gleaning"
     }
-    
+
     fn model_name(&self) -> &str {
         self.llm_provider.model()
     }

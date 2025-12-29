@@ -81,6 +81,18 @@ export interface Document {
   processed_at?: string;
   /** Extraction lineage information. */
   lineage?: DocumentLineage;
+  /** Total processing cost in USD. */
+  cost_usd?: number;
+  /** Input tokens used for processing. */
+  input_tokens?: number;
+  /** Output tokens used for processing. */
+  output_tokens?: number;
+  /** Total tokens (input + output). */
+  total_tokens?: number;
+  /** LLM model used for processing. */
+  llm_model?: string;
+  /** Embedding model used for processing. */
+  embedding_model?: string;
 }
 
 /** Extraction lineage information for a document. */

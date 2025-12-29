@@ -60,7 +60,7 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { BatchProgressCard } from './batch-progress-card';
 import { ClearDocumentsDialog } from './clear-documents-dialog';
-import { CostBadge } from './cost-badge';
+import { CostCell } from './cost-cell';
 import { DocumentFilters, type DocStatus, type SortDirection, type SortField } from './document-filters';
 import { DocumentPreviewPanel } from './document-preview-panel';
 import { PaginationControls } from './pagination-controls';
@@ -919,10 +919,10 @@ export function DocumentManager() {
               <p className="text-sm mt-1">Upload documents to build your knowledge graph</p>
             </div>
           ) : (
-            <div className="border rounded-lg overflow-hidden">
+            <div className="border rounded-lg overflow-hidden shadow-sm">
               <Table>
-                <TableHeader>
-                  <TableRow>
+                <TableHeader className="bg-muted/50 sticky top-0 z-10">
+                  <TableRow className="hover:bg-transparent">
                     <TableHead className="w-[40px]">
                       <Checkbox
                         checked={selectedIds.size === documents.length && documents.length > 0}
@@ -932,19 +932,21 @@ export function DocumentManager() {
                     </TableHead>
                     <TableHead>Title</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Entities</TableHead>
-                    <TableHead className="hidden lg:table-cell">Cost</TableHead>
+                    <TableHead className="text-center">Entities</TableHead>
+                    <TableHead className="text-center">Cost</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="w-[100px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {documents.map((doc) => (
+                  {documents.map((doc, index) => (
                     <TableRow 
                       key={doc.id}
                       className={cn(
-                        "cursor-pointer hover:bg-muted/50",
-                        selectedDocument?.id === doc.id && "bg-muted"
+                        "cursor-pointer transition-colors duration-150",
+                        "hover:bg-primary/5 dark:hover:bg-primary/10",
+                        selectedDocument?.id === doc.id && "bg-primary/10 dark:bg-primary/15 ring-1 ring-primary/20",
+                        index % 2 === 0 ? "bg-background" : "bg-muted/20"
                       )}
                       onClick={() => handleDocumentClick(doc)}
                     >
@@ -961,10 +963,10 @@ export function DocumentManager() {
                       <TableCell>
                         <StatusBadge status={doc.status || 'completed'} />
                       </TableCell>
-                      <TableCell>{doc.entity_count ?? doc.chunk_count ?? '-'}</TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        <CostBadge 
-                          cost={doc.lineage?.processing_duration_ms ? (doc.lineage.processing_duration_ms / 1000) * 0.0001 : 0} 
+                      <TableCell className="text-center">{doc.entity_count ?? doc.chunk_count ?? '-'}</TableCell>
+                      <TableCell className="text-center">
+                        <CostCell 
+                          document={doc}
                           size="sm" 
                         />
                       </TableCell>

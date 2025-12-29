@@ -2,7 +2,10 @@
 //!
 //! Provides endpoints for querying LLM API costs and token usage.
 
-use axum::{extract::State, Json};
+use axum::{
+    extract::{Query, State},
+    Json,
+};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -178,6 +181,14 @@ pub struct OperationBreakdown {
     pub cost: f64,
     /// Percentage of total cost.
     pub percentage: f64,
+    /// Input tokens for this operation.
+    pub input_tokens: usize,
+    /// Output tokens for this operation.
+    pub output_tokens: usize,
+    /// Total tokens for this operation.
+    pub total_tokens: usize,
+    /// Number of API calls for this operation.
+    pub call_count: usize,
 }
 
 /// Budget information.
@@ -205,28 +216,100 @@ pub struct BudgetInfo {
     )
 )]
 pub async fn get_cost_summary(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
 ) -> ApiResult<Json<WorkspaceCostSummaryResponse>> {
-    // For now, return a placeholder response
-    // In production, this would query accumulated costs from the database
+    // Query all document metadata to aggregate costs
+    let keys = state.kv_storage.keys().await?;
+
+    // Find all metadata keys
+    let metadata_keys: Vec<String> = keys
+        .iter()
+        .filter(|k| k.ends_with("-metadata"))
+        .cloned()
+        .collect();
+
+    let mut total_cost = 0.0;
+    let mut total_input_tokens = 0usize;
+    let mut total_output_tokens = 0usize;
+    let mut document_count = 0usize;
+    let mut extraction_cost = 0.0;
+    let mut embedding_cost = 0.0;
+
+    if !metadata_keys.is_empty() {
+        let values = state.kv_storage.get_by_ids(&metadata_keys).await?;
+
+        for value in values {
+            if let Some(obj) = value.as_object() {
+                // Only count completed documents
+                let status = obj.get("status").and_then(|v| v.as_str()).unwrap_or("");
+                if status == "completed" || status == "indexed" {
+                    document_count += 1;
+
+                    // Aggregate cost
+                    if let Some(cost) = obj.get("cost_usd").and_then(|v| v.as_f64()) {
+                        total_cost += cost;
+                        // For now, assume extraction is ~90% of cost
+                        extraction_cost += cost * 0.9;
+                        embedding_cost += cost * 0.1;
+                    }
+
+                    // Aggregate tokens
+                    if let Some(input) = obj.get("input_tokens").and_then(|v| v.as_u64()) {
+                        total_input_tokens += input as usize;
+                    }
+                    if let Some(output) = obj.get("output_tokens").and_then(|v| v.as_u64()) {
+                        total_output_tokens += output as usize;
+                    }
+                }
+            }
+        }
+    }
+
+    let total_tokens = total_input_tokens + total_output_tokens;
+    let average_cost = if document_count > 0 {
+        total_cost / document_count as f64
+    } else {
+        0.0
+    };
+
+    // Calculate percentages
+    let extraction_percentage = if total_cost > 0.0 {
+        (extraction_cost / total_cost) * 100.0
+    } else {
+        0.0
+    };
+    let embedding_percentage = if total_cost > 0.0 {
+        (embedding_cost / total_cost) * 100.0
+    } else {
+        0.0
+    };
+
     Ok(Json(WorkspaceCostSummaryResponse {
         workspace_id: "default".to_string(),
-        total_cost: 0.0,
-        document_count: 0,
-        total_tokens: 0,
-        average_cost_per_document: 0.0,
+        total_cost,
+        document_count,
+        total_tokens,
+        average_cost_per_document: average_cost,
         period_start: None,
         period_end: None,
         by_operation: vec![
             OperationBreakdown {
                 operation: "extraction".to_string(),
-                cost: 0.0,
-                percentage: 0.0,
+                cost: extraction_cost,
+                percentage: extraction_percentage,
+                input_tokens: total_input_tokens,
+                output_tokens: total_output_tokens,
+                total_tokens: total_input_tokens + total_output_tokens,
+                call_count: document_count,
             },
             OperationBreakdown {
                 operation: "embedding".to_string(),
-                cost: 0.0,
-                percentage: 0.0,
+                cost: embedding_cost,
+                percentage: embedding_percentage,
+                input_tokens: 0,
+                output_tokens: 0,
+                total_tokens: 0,
+                call_count: document_count,
             },
         ],
         budget: None,
@@ -269,6 +352,140 @@ pub async fn update_budget(
 ) -> ApiResult<Json<BudgetInfo>> {
     // In production, this would persist budget settings
     Ok(Json(budget))
+}
+
+// ============================================================================
+// Cost History Endpoint (WebUI Spec WEBUI-007)
+// ============================================================================
+
+/// Query parameters for cost history.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct CostHistoryQuery {
+    /// Start date (ISO 8601).
+    pub start_date: Option<String>,
+    /// End date (ISO 8601).
+    pub end_date: Option<String>,
+    /// Granularity: hour, day, week, month.
+    pub granularity: Option<String>,
+}
+
+/// Cost history data point.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct CostHistoryPoint {
+    /// Timestamp (ISO 8601).
+    pub timestamp: String,
+    /// Total cost in USD for this period.
+    pub total_cost: f64,
+    /// Total tokens for this period.
+    pub total_tokens: usize,
+    /// Document count for this period.
+    pub document_count: usize,
+}
+
+/// Get cost history over time.
+#[utoipa::path(
+    get,
+    path = "/api/v1/costs/history",
+    tag = "Costs",
+    params(
+        ("start_date" = Option<String>, Query, description = "Start date (ISO 8601)"),
+        ("end_date" = Option<String>, Query, description = "End date (ISO 8601)"),
+        ("granularity" = Option<String>, Query, description = "Granularity: hour, day, week, month")
+    ),
+    responses(
+        (status = 200, description = "Cost history", body = Vec<CostHistoryPoint>)
+    )
+)]
+pub async fn get_cost_history(
+    State(state): State<AppState>,
+    Query(params): Query<CostHistoryQuery>,
+) -> ApiResult<Json<Vec<CostHistoryPoint>>> {
+    use chrono::{DateTime, Datelike, Duration, Utc};
+    use std::collections::BTreeMap;
+
+    let granularity = params.granularity.as_deref().unwrap_or("day");
+
+    // Query all document metadata
+    let keys = state.kv_storage.keys().await?;
+    let metadata_keys: Vec<String> = keys
+        .iter()
+        .filter(|k| k.ends_with("-metadata"))
+        .cloned()
+        .collect();
+
+    // Group costs by time period
+    let mut period_data: BTreeMap<String, (f64, usize, usize)> = BTreeMap::new();
+
+    if !metadata_keys.is_empty() {
+        let values = state.kv_storage.get_by_ids(&metadata_keys).await?;
+
+        for value in values {
+            if let Some(obj) = value.as_object() {
+                // Only count completed documents
+                let status = obj.get("status").and_then(|v| v.as_str()).unwrap_or("");
+                if status != "completed" && status != "indexed" {
+                    continue;
+                }
+
+                // Get processed_at or created_at timestamp
+                let timestamp_str = obj
+                    .get("processed_at")
+                    .or_else(|| obj.get("created_at"))
+                    .and_then(|v| v.as_str());
+
+                if let Some(ts) = timestamp_str {
+                    // Parse timestamp and truncate to period
+                    if let Ok(dt) = DateTime::parse_from_rfc3339(ts) {
+                        let dt_utc = dt.with_timezone(&Utc);
+                        let period_key = match granularity {
+                            "hour" => dt_utc.format("%Y-%m-%dT%H:00:00Z").to_string(),
+                            "week" => {
+                                let week_start = dt_utc
+                                    - Duration::days(dt_utc.weekday().num_days_from_monday() as i64);
+                                week_start.format("%Y-%m-%dT00:00:00Z").to_string()
+                            }
+                            "month" => dt_utc.format("%Y-%m-01T00:00:00Z").to_string(),
+                            _ => dt_utc.format("%Y-%m-%dT00:00:00Z").to_string(), // day
+                        };
+
+                        let entry = period_data.entry(period_key).or_insert((0.0, 0, 0));
+
+                        // Add cost
+                        if let Some(cost) = obj.get("cost_usd").and_then(|v| v.as_f64()) {
+                            entry.0 += cost;
+                        }
+
+                        // Add tokens
+                        let input = obj
+                            .get("input_tokens")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0);
+                        let output = obj
+                            .get("output_tokens")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0);
+                        entry.1 += (input + output) as usize;
+
+                        // Increment document count
+                        entry.2 += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    // Convert to response
+    let history: Vec<CostHistoryPoint> = period_data
+        .into_iter()
+        .map(|(timestamp, (cost, tokens, count))| CostHistoryPoint {
+            timestamp,
+            total_cost: cost,
+            total_tokens: tokens,
+            document_count: count,
+        })
+        .collect();
+
+    Ok(Json(history))
 }
 
 #[cfg(test)]

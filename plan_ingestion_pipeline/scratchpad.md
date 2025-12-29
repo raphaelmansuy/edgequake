@@ -2,7 +2,73 @@
 
 > Working notes for SOTA GenAI-powered ingestion pipeline design.
 > Last updated: 2024-12-29
-> Status: ✅ COMPLETE + v2.0 ENHANCED + CRITICAL BUG FIXES
+> Status: 🔄 INVESTIGATING TOKEN & COST DISPLAY ISSUES
+
+---
+
+## Session 5: Token & Cost Display Issues (2024-12-29)
+
+### Problems Identified (from user screenshots)
+
+1. **Token counts show 0** in tooltip and detail pane
+
+   - Input: 0, Output: 0, Total: 0
+   - But cost shows $0.00086 - tokens ARE being used!
+
+2. **Cost Dashboard empty**
+
+   - Total Cost: $0.00
+   - Documents: 0
+   - "No cost breakdown data available"
+   - "No historical data available"
+   - Filtering/Export not working
+
+3. **Tooltip contrast may be suboptimal**
+   - Dark background tooltip
+
+### Investigation Completed ✅
+
+**Token Flow Analysis:**
+
+- [x] `openai.rs` - Correctly extracts `prompt_tokens`, `completion_tokens` from response
+- [x] `extractor.rs` - Correctly sets `result.input_tokens = response.prompt_tokens`
+- [x] `pipeline.rs` - Correctly aggregates into `stats.input_tokens`, `stats.output_tokens`
+- [x] `processor.rs` - Correctly stores in metadata: `input_tokens`, `output_tokens`, `cost_usd`
+- [x] `documents.rs` - Correctly reads from metadata and populates DocumentSummary
+- [x] Frontend types - All fields present
+
+**ROOT CAUSES IDENTIFIED:**
+
+1. **Cost Dashboard Empty** - `costs.rs:get_cost_summary()` returns **placeholder data**!
+
+   ```rust
+   // For now, return a placeholder response
+   // In production, this would query accumulated costs from the database
+   Ok(Json(WorkspaceCostSummaryResponse {
+       total_cost: 0.0,
+       document_count: 0,
+       ...
+   }))
+   ```
+
+2. **Token showing 0** - Need to verify with browser inspection:
+
+   - Token flow in backend is correct
+   - May be issue with specific document not having tokens stored
+   - Cost calculation may use tokens but not store them
+
+3. **Cost History Empty** - No `/api/v1/costs/history` endpoint exists!
+
+### Implementation Plan
+
+```markdown
+- [ ] 1. Implement real `get_cost_summary()` - aggregate from documents
+- [ ] 2. Implement `get_cost_history()` endpoint - query document costs by date
+- [ ] 3. Add cost breakdown by operation (extraction vs embedding tokens)
+- [ ] 4. Verify token storage in documents via API call
+- [ ] 5. Test contrast and fix tooltip if needed
+- [ ] 6. Browser test all features
+```
 
 ---
 

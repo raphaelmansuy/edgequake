@@ -358,6 +358,12 @@ impl DocumentTaskProcessor {
                     json!(stats.processing_time_ms),
                 );
 
+                // Cost tracking fields
+                updated.insert("cost_usd".to_string(), json!(stats.cost_usd));
+                updated.insert("input_tokens".to_string(), json!(stats.input_tokens));
+                updated.insert("output_tokens".to_string(), json!(stats.output_tokens));
+                updated.insert("total_tokens".to_string(), json!(stats.total_tokens));
+
                 // Lineage information
                 if let Some(ref llm_model) = stats.llm_model {
                     updated.insert("llm_model".to_string(), json!(llm_model));

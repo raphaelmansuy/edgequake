@@ -23,6 +23,7 @@ import {
     ChevronUp,
     Clock,
     Copy,
+    DollarSign,
     ExternalLink,
     Eye,
     FileText,
@@ -32,6 +33,7 @@ import {
     RefreshCw,
     Trash2,
     XCircle,
+    Zap,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -69,6 +71,29 @@ function formatFileSize(bytes: number | undefined): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function formatCost(cost: number | undefined): string {
+  if (cost === undefined || cost === null) return '-';
+  if (cost === 0) return 'Free';
+  if (cost < 0.0001) return '< $0.0001';
+  if (cost < 0.01) return `$${cost.toFixed(4)}`;
+  return `$${cost.toFixed(2)}`;
+}
+
+function formatTokens(tokens: number | undefined): string {
+  if (tokens === undefined || tokens === null) return '-';
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
+  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}K`;
+  return tokens.toLocaleString();
+}
+
+function getCostColor(cost: number | undefined): string {
+  if (cost === undefined || cost === null || cost === 0) return 'text-muted-foreground';
+  if (cost < 0.001) return 'text-green-500';
+  if (cost < 0.01) return 'text-blue-500';
+  if (cost < 0.1) return 'text-yellow-500';
+  return 'text-orange-500';
 }
 
 export function DocumentPreviewPanel({
@@ -241,6 +266,84 @@ export function DocumentPreviewPanel({
           )}
         </div>
       </div>
+
+      {/* Cost Information */}
+      {(document.cost_usd !== undefined || document.total_tokens !== undefined) && (
+        <>
+          <Separator />
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <DollarSign className="h-3.5 w-3.5" />
+              {t('documents.preview.processingCost', 'Processing Cost')}
+            </h4>
+            
+            <Card className="bg-muted/30 border-none">
+              <CardContent className="p-3 space-y-2">
+                {/* Total Cost */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Total Cost</span>
+                  <span className={`text-sm font-semibold ${getCostColor(document.cost_usd)}`}>
+                    {formatCost(document.cost_usd)}
+                  </span>
+                </div>
+
+                {/* Tokens */}
+                {document.total_tokens !== undefined && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground flex items-center gap-1">
+                      <Zap className="h-3 w-3" />
+                      Total Tokens
+                    </span>
+                    <span className="text-sm font-medium">
+                      {formatTokens(document.total_tokens)}
+                    </span>
+                  </div>
+                )}
+
+                {/* Token Breakdown */}
+                {(document.input_tokens !== undefined || document.output_tokens !== undefined) && (
+                  <div className="pt-1 border-t border-border/50 space-y-1">
+                    {document.input_tokens !== undefined && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Input Tokens</span>
+                        <span className="font-mono">{formatTokens(document.input_tokens)}</span>
+                      </div>
+                    )}
+                    {document.output_tokens !== undefined && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Output Tokens</span>
+                        <span className="font-mono">{formatTokens(document.output_tokens)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Model Info */}
+                {(document.llm_model || document.embedding_model) && (
+                  <div className="pt-1 border-t border-border/50 space-y-1">
+                    {document.llm_model && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">LLM Model</span>
+                        <code className="bg-muted px-1.5 py-0.5 rounded text-[10px]">
+                          {document.llm_model}
+                        </code>
+                      </div>
+                    )}
+                    {document.embedding_model && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Embedding</span>
+                        <code className="bg-muted px-1.5 py-0.5 rounded text-[10px]">
+                          {document.embedding_model}
+                        </code>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
 
       <Separator />
 
