@@ -2,54 +2,54 @@
 
 import { Button } from '@/components/ui/button';
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog';
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuGroup,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
-    createTenant,
-    createWorkspace,
-    getTenants,
-    getWorkspaces,
+  createTenant,
+  createWorkspace,
+  getTenants,
+  getWorkspaces,
 } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { Tenant, Workspace } from '@/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-    Building2,
-    Check,
-    FolderKanban,
-    Loader2,
-    Plus,
-    RefreshCw
+  Building2,
+  Check,
+  FolderKanban,
+  Loader2,
+  Plus,
+  RefreshCw
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -332,7 +332,7 @@ export function TenantWorkspaceSelector({
   // Full mode - show selectors stacked vertically for sidebar
   return (
     <>
-      <div className="flex flex-col gap-3 p-3 bg-muted/50 rounded-lg border border-border/50 overflow-hidden">
+      <div data-testid="workspace-selector" className="flex flex-col gap-3 p-3 bg-muted/50 rounded-lg border border-border/50 overflow-hidden">
         {/* Tenant Selector */}
         <div className="flex flex-col gap-1.5 min-w-0">
           <Label className="text-xs font-semibold text-muted-foreground">
@@ -346,7 +346,7 @@ export function TenantWorkspaceSelector({
                 value={selectedTenantId || ''}
                 onValueChange={handleTenantSelect}
               >
-                <SelectTrigger className="h-8 text-xs flex-1 min-w-0 max-w-[160px]">
+                <SelectTrigger data-testid="tenant-select" className="h-8 text-xs flex-1 min-w-0 max-w-[160px]">
                   <SelectValue
                     placeholder={t('tenant.selectTenant', 'Select tenant...')}
                   />
@@ -398,7 +398,7 @@ export function TenantWorkspaceSelector({
                 onValueChange={handleWorkspaceSelect}
                 disabled={!selectedTenantId}
               >
-                <SelectTrigger className="h-8 text-xs flex-1 min-w-0 max-w-[160px]">
+                <SelectTrigger data-testid="workspace-select" className="h-8 text-xs flex-1 min-w-0 max-w-[160px]">
                   <SelectValue
                     placeholder={
                       selectedTenantId

@@ -82,6 +82,18 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
   const [newTenantDescription, setNewTenantDescription] = useState('');
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [newWorkspaceDescription, setNewWorkspaceDescription] = useState('');
+  const [newWorkspaceSlug, setNewWorkspaceSlug] = useState('');
+
+  // Generate URL-safe slug from name
+  const generateSlug = useCallback((name: string): string => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .substring(0, 50)
+      .replace(/^-|-$/g, '');
+  }, []);
 
   // Initialize from storage on mount
   useEffect(() => {
@@ -160,7 +172,7 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
 
   // Create workspace mutation
   const createWorkspaceMutation = useMutation({
-    mutationFn: (data: { name: string; description?: string }) =>
+    mutationFn: (data: { name: string; description?: string; slug?: string }) =>
       selectedTenantId
         ? createWorkspace(selectedTenantId, data)
         : Promise.reject(new Error('No tenant selected')),
@@ -171,6 +183,7 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
       setShowCreateWorkspace(false);
       setNewWorkspaceName('');
       setNewWorkspaceDescription('');
+      setNewWorkspaceSlug('');
     },
     onError: (error) => {
       toast.error(t('workspace.createFailed', 'Failed to create workspace'), {
@@ -202,6 +215,7 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button 
+                  data-testid="workspace-selector"
                   variant="ghost" 
                   size="sm"
                   className={cn(
@@ -397,9 +411,33 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
               <Input
                 id="workspace-name"
                 value={newWorkspaceName}
-                onChange={(e) => setNewWorkspaceName(e.target.value)}
+                onChange={(e) => {
+                  setNewWorkspaceName(e.target.value);
+                  // Auto-generate slug from name if user hasn't manually edited it
+                  if (!newWorkspaceSlug || newWorkspaceSlug === generateSlug(newWorkspaceName)) {
+                    setNewWorkspaceSlug(generateSlug(e.target.value));
+                  }
+                }}
                 placeholder={t('workspace.namePlaceholder', 'My Project')}
               />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="workspace-slug">
+                {t('workspace.slug', 'URL Slug')}
+                <span className="text-muted-foreground text-xs ml-2">
+                  {t('workspace.slugHint', '(optional, auto-generated)')}
+                </span>
+              </Label>
+              <Input
+                id="workspace-slug"
+                value={newWorkspaceSlug}
+                onChange={(e) => setNewWorkspaceSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
+                placeholder="my-project"
+                pattern="[a-z0-9-]+"
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('workspace.slugDescription', 'Used in URLs: /query?workspace={slug}')}
+              </p>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="workspace-description">{t('common.description', 'Description')}</Label>
@@ -416,7 +454,11 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
               {t('common.cancel', 'Cancel')}
             </Button>
             <Button
-              onClick={() => createWorkspaceMutation.mutate({ name: newWorkspaceName, description: newWorkspaceDescription || undefined })}
+              onClick={() => createWorkspaceMutation.mutate({ 
+                name: newWorkspaceName, 
+                description: newWorkspaceDescription || undefined,
+                slug: newWorkspaceSlug.trim() || undefined,
+              })}
               disabled={!newWorkspaceName.trim() || createWorkspaceMutation.isPending}
             >
               {createWorkspaceMutation.isPending ? (

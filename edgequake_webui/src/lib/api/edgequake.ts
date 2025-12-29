@@ -142,6 +142,17 @@ export async function getWorkspace(
   return api.get<Workspace>(`/tenants/${tenantId}/workspaces/${workspaceId}`);
 }
 
+/**
+ * Get a workspace by its URL-friendly slug.
+ * Useful for URL-based workspace routing.
+ */
+export async function getWorkspaceBySlug(
+  tenantId: string,
+  slug: string
+): Promise<Workspace> {
+  return api.get<Workspace>(`/tenants/${tenantId}/workspaces/by-slug/${slug}`);
+}
+
 export async function getWorkspaceStats(
   workspaceId: string
 ): Promise<WorkspaceStats> {

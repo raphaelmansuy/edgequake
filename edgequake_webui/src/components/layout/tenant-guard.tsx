@@ -2,23 +2,23 @@
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { getTenants, getWorkspaces, createTenant, createWorkspace } from '@/lib/api/edgequake';
-import { useTenantStore } from '@/stores/use-tenant-store';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FolderKanban, Building2, Loader2, Plus, AlertTriangle } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { createTenant, createWorkspace, getTenants, getWorkspaces } from '@/lib/api/edgequake';
+import { useTenantStore } from '@/stores/use-tenant-store';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AlertTriangle, Building2, FolderKanban, Loader2, Plus } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 
 interface TenantGuardProps {
   children: React.ReactNode;
@@ -28,6 +28,12 @@ interface TenantGuardProps {
  * TenantGuard ensures a tenant and workspace are always selected.
  * If none exist, it prompts the user to create one.
  * If they exist but none are selected, it auto-selects them.
+ * 
+ * IMPORTANT: This component handles the race condition between
+ * mutation success and query cache invalidation by:
+ * 1. Using optimistic updates
+ * 2. Awaiting invalidation before allowing children to render
+ * 3. Tracking context readiness explicitly
  */
 export function TenantGuard({ children }: TenantGuardProps) {
   const { t } = useTranslation();
@@ -48,6 +54,10 @@ export function TenantGuard({ children }: TenantGuardProps) {
   const [showCreateWorkspace, setShowCreateWorkspace] = useState(false);
   const [newTenantName, setNewTenantName] = useState('EdgeQuake');
   const [newWorkspaceName, setNewWorkspaceName] = useState('Default Workspace');
+  const [newWorkspaceSlug, setNewWorkspaceSlug] = useState('');
+  
+  // Track if we're in the middle of context setup (prevents premature children render)
+  const [isSettingUpContext, setIsSettingUpContext] = useState(false);
 
   // Initialize from localStorage on mount
   useEffect(() => {
@@ -86,54 +96,109 @@ export function TenantGuard({ children }: TenantGuardProps) {
       if (!selectedWorkspaceId) {
         selectWorkspace(workspacesData[0].id);
       }
+      // Context setup is complete once we have a workspace selected
+      setIsSettingUpContext(false);
     }
   }, [workspacesData, setWorkspaces, selectedWorkspaceId, selectWorkspace]);
+
+  // Generate slug from name
+  const generateSlug = useCallback((name: string): string => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .substring(0, 50)
+      .replace(/^-|-$/g, '');
+  }, []);
 
   // Create tenant mutation
   const createTenantMutation = useMutation({
     mutationFn: (data: { name: string }) => createTenant(data),
-    onSuccess: (newTenant) => {
-      toast.success(t('tenant.createSuccess', 'Tenant created'));
-      queryClient.invalidateQueries({ queryKey: ['tenants'] });
-      selectTenant(newTenant.id);
-      setShowCreateTenant(false);
-    },
-    onError: (error) => {
-      toast.error(t('tenant.createFailed', 'Failed to create tenant'), {
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
-    },
   });
 
   // Create workspace mutation
   const createWorkspaceMutation = useMutation({
-    mutationFn: (data: { name: string }) =>
+    mutationFn: (data: { name: string; slug?: string }) =>
       selectedTenantId
         ? createWorkspace(selectedTenantId, data)
         : Promise.reject(new Error('No tenant selected')),
-    onSuccess: (newWorkspace) => {
+  });
+
+  // Handle tenant creation with proper async flow
+  const handleCreateTenant = useCallback(async () => {
+    if (!newTenantName.trim()) return;
+    
+    setIsSettingUpContext(true);
+    try {
+      const newTenant = await createTenantMutation.mutateAsync({ name: newTenantName });
+      toast.success(t('tenant.createSuccess', 'Tenant created'));
+      
+      // Select the new tenant
+      selectTenant(newTenant.id);
+      
+      // Invalidate and wait for tenants to refetch
+      await queryClient.invalidateQueries({ queryKey: ['tenants'] });
+      
+      // The backend auto-creates a default workspace, so refetch workspaces
+      await queryClient.invalidateQueries({ queryKey: ['workspaces', newTenant.id] });
+      
+      setShowCreateTenant(false);
+      setNewTenantName('EdgeQuake');
+    } catch (error) {
+      setIsSettingUpContext(false);
+      toast.error(t('tenant.createFailed', 'Failed to create tenant'), {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }, [newTenantName, createTenantMutation, selectTenant, queryClient, t]);
+
+  // Handle workspace creation with proper async flow
+  const handleCreateWorkspace = useCallback(async () => {
+    if (!newWorkspaceName.trim() || !selectedTenantId) return;
+    
+    setIsSettingUpContext(true);
+    try {
+      const workspaceData: { name: string; slug?: string } = { name: newWorkspaceName };
+      if (newWorkspaceSlug.trim()) {
+        workspaceData.slug = newWorkspaceSlug.trim();
+      }
+      
+      const newWorkspace = await createWorkspaceMutation.mutateAsync(workspaceData);
       toast.success(t('workspace.createSuccess', 'Workspace created'));
-      queryClient.invalidateQueries({ queryKey: ['workspaces', selectedTenantId] });
+      
+      // Optimistically update the store with the new workspace
+      setWorkspaces([...(workspacesData || []), newWorkspace]);
       selectWorkspace(newWorkspace.id);
+      
+      // Invalidate and wait for workspaces to refetch
+      await queryClient.invalidateQueries({ queryKey: ['workspaces', selectedTenantId] });
+      
       setShowCreateWorkspace(false);
-    },
-    onError: (error) => {
+      setNewWorkspaceName('Default Workspace');
+      setNewWorkspaceSlug('');
+      setIsSettingUpContext(false);
+    } catch (error) {
+      setIsSettingUpContext(false);
       toast.error(t('workspace.createFailed', 'Failed to create workspace'), {
         description: error instanceof Error ? error.message : 'Unknown error',
       });
-    },
-  });
+    }
+  }, [newWorkspaceName, newWorkspaceSlug, selectedTenantId, createWorkspaceMutation, 
+      selectWorkspace, setWorkspaces, workspacesData, queryClient, t]);
 
-  const isLoading = isLoadingTenants || (selectedTenantId && isLoadingWorkspaces);
+  const isLoading = isLoadingTenants || (selectedTenantId && isLoadingWorkspaces) || isSettingUpContext;
 
-  // Loading state
+  // Loading state (including context setup after tenant/workspace creation)
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground mb-3" />
           <p className="text-sm text-muted-foreground">
-            {t('tenant.loading', 'Loading workspace...')}
+            {isSettingUpContext 
+              ? t('tenant.settingUp', 'Setting up your workspace...')
+              : t('tenant.loading', 'Loading workspace...')}
           </p>
         </div>
       </div>
@@ -212,7 +277,7 @@ export function TenantGuard({ children }: TenantGuardProps) {
                 {t('common.cancel', 'Cancel')}
               </Button>
               <Button
-                onClick={() => createTenantMutation.mutate({ name: newTenantName })}
+                onClick={handleCreateTenant}
                 disabled={!newTenantName.trim() || createTenantMutation.isPending}
               >
                 {createTenantMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -263,9 +328,33 @@ export function TenantGuard({ children }: TenantGuardProps) {
                 <Input
                   id="workspace-name"
                   value={newWorkspaceName}
-                  onChange={(e) => setNewWorkspaceName(e.target.value)}
+                  onChange={(e) => {
+                    setNewWorkspaceName(e.target.value);
+                    // Auto-generate slug if user hasn't manually edited it
+                    if (!newWorkspaceSlug || newWorkspaceSlug === generateSlug(newWorkspaceName)) {
+                      setNewWorkspaceSlug(generateSlug(e.target.value));
+                    }
+                  }}
                   placeholder="My Project"
                 />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="workspace-slug">
+                  {t('workspace.slug', 'URL Slug')}
+                  <span className="text-muted-foreground text-xs ml-2">
+                    {t('workspace.slugHint', '(optional, auto-generated)')}
+                  </span>
+                </Label>
+                <Input
+                  id="workspace-slug"
+                  value={newWorkspaceSlug}
+                  onChange={(e) => setNewWorkspaceSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
+                  placeholder="my-project"
+                  pattern="[a-z0-9-]+"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('workspace.slugDescription', 'Used in URLs: /w/{slug}/query')}
+                </p>
               </div>
             </div>
             <DialogFooter>
@@ -273,7 +362,7 @@ export function TenantGuard({ children }: TenantGuardProps) {
                 {t('common.cancel', 'Cancel')}
               </Button>
               <Button
-                onClick={() => createWorkspaceMutation.mutate({ name: newWorkspaceName })}
+                onClick={handleCreateWorkspace}
                 disabled={!newWorkspaceName.trim() || createWorkspaceMutation.isPending}
               >
                 {createWorkspaceMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

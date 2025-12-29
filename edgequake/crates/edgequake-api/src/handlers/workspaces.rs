@@ -214,6 +214,33 @@ pub async fn create_tenant(
         .await
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
+    // Auto-create a default workspace for the new tenant (R004)
+    // This ensures users always have at least one workspace available
+    let default_workspace_request = edgequake_core::CreateWorkspaceRequest {
+        name: "Default Workspace".to_string(),
+        slug: Some("default".to_string()),
+        description: Some("Automatically created default workspace".to_string()),
+        max_documents: None,
+    };
+
+    if let Err(e) = state
+        .workspace_service
+        .create_workspace(created_tenant.tenant_id, default_workspace_request)
+        .await
+    {
+        tracing::warn!(
+            tenant_id = %created_tenant.tenant_id,
+            error = %e,
+            "Failed to auto-create default workspace"
+        );
+        // Continue anyway - tenant was created successfully
+    } else {
+        tracing::info!(
+            tenant_id = %created_tenant.tenant_id,
+            "Auto-created default workspace for tenant"
+        );
+    }
+
     let response = TenantResponse {
         id: created_tenant.tenant_id,
         name: created_tenant.name.clone(),
@@ -561,6 +588,48 @@ pub async fn get_workspace(
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?
         .ok_or_else(|| ApiError::NotFound(format!("Workspace {} not found", workspace_id)))?;
+
+    let response = WorkspaceResponse {
+        id: workspace.workspace_id,
+        tenant_id: workspace.tenant_id,
+        name: workspace.name.clone(),
+        slug: workspace.slug.clone(),
+        description: workspace.description.clone(),
+        is_active: workspace.is_active,
+        max_documents: workspace.max_documents(),
+        created_at: workspace.created_at.to_rfc3339(),
+        updated_at: workspace.updated_at.to_rfc3339(),
+    };
+
+    Ok(Json(response))
+}
+
+/// Get a workspace by slug (for URL-based routing).
+///
+/// GET /api/v1/tenants/{tenant_id}/workspaces/by-slug/{slug}
+#[utoipa::path(
+    get,
+    path = "/api/v1/tenants/{tenant_id}/workspaces/by-slug/{slug}",
+    params(
+        ("tenant_id" = Uuid, Path, description = "Tenant ID"),
+        ("slug" = String, Path, description = "Workspace slug")
+    ),
+    responses(
+        (status = 200, description = "Workspace found", body = WorkspaceResponse),
+        (status = 404, description = "Workspace not found"),
+    ),
+    tags = ["workspaces"]
+)]
+pub async fn get_workspace_by_slug(
+    State(state): State<AppState>,
+    Path((tenant_id, slug)): Path<(Uuid, String)>,
+) -> Result<Json<WorkspaceResponse>, ApiError> {
+    let workspace = state
+        .workspace_service
+        .get_workspace_by_slug(tenant_id, &slug)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .ok_or_else(|| ApiError::NotFound(format!("Workspace with slug '{}' not found", slug)))?;
 
     let response = WorkspaceResponse {
         id: workspace.workspace_id,

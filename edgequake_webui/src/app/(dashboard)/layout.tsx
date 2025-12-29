@@ -6,6 +6,14 @@ import { Sidebar } from '@/components/layout/sidebar';
 import { TenantGuard } from '@/components/layout/tenant-guard';
 import { SkipLink } from '@/components/shared/skip-link';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
+import { useWorkspaceUrl } from '@/hooks/use-workspace-url';
+import { Suspense } from 'react';
+
+// Wrap the workspace URL hook in a component for Suspense boundary
+function WorkspaceUrlSync() {
+  useWorkspaceUrl();
+  return null;
+}
 
 export default function DashboardLayout({
   children,
@@ -19,6 +27,10 @@ export default function DashboardLayout({
     <div className="flex h-screen overflow-hidden bg-background">
       <SkipLink />
       <Sidebar />
+      {/* Workspace URL sync - wrapped in Suspense for useSearchParams */}
+      <Suspense fallback={null}>
+        <WorkspaceUrlSync />
+      </Suspense>
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header />
         {/* Breadcrumb Navigation - compact */}

@@ -71,6 +71,11 @@ fn api_v1_routes() -> Router<AppState> {
             "/tenants/{tenant_id}/workspaces",
             get(handlers::list_workspaces),
         )
+        // Get workspace by slug (for URL-based routing)
+        .route(
+            "/tenants/{tenant_id}/workspaces/by-slug/{slug}",
+            get(handlers::get_workspace_by_slug),
+        )
         .route("/workspaces/{workspace_id}", get(handlers::get_workspace))
         .route(
             "/workspaces/{workspace_id}",

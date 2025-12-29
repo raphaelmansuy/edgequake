@@ -28,6 +28,7 @@ import {
     useConversations,
 } from '@/hooks/use-conversations';
 import { chatCompletion, chatCompletionStream } from '@/lib/api/chat';
+import { ApiRequestError } from '@/lib/api/client';
 import { deleteMessage } from '@/lib/api/conversations';
 import { conversationKeys } from '@/lib/api/query-keys';
 import { useActiveConversationId, useQueryUIStore } from '@/stores/use-query-ui-store';
@@ -595,6 +596,29 @@ export function QueryInterface() {
         return;
       }
 
+      // Handle stale conversation ID (404 - Conversation not found)
+      // This occurs when backend restarts (in-memory storage) or conversation was deleted
+      const isConversationNotFound = 
+        (error instanceof ApiRequestError && error.status === 404) ||
+        (error instanceof Error && error.message.includes('not found') && error.message.toLowerCase().includes('conversation'));
+      
+      if (isConversationNotFound && conversationId) {
+        console.log('⚠️ Stale conversation detected, starting fresh:', conversationId);
+        
+        // Clear the stale conversation and retry with a new one
+        store.setActiveConversation(null);
+        setPendingMessage(null);
+        setStreamingState('idle');
+        
+        toast.warning(t('query.conversationExpired', 'Conversation expired'), {
+          description: t('query.startingNewConversation', 'Starting a new conversation. Please submit your query again.'),
+        });
+        
+        // Set the input back so user can easily retry
+        // Note: We don't auto-retry to avoid potential loops
+        return;
+      }
+
       const errorMessage = error instanceof Error ? error.message : 'Query failed';
       toast.error(errorMessage, {
         action: {
@@ -672,6 +696,21 @@ export function QueryInterface() {
         });
         setStreamingState('complete');
       } catch (error) {
+        // Handle stale conversation ID (404 - Conversation not found)
+        const isConversationNotFound = 
+          (error instanceof ApiRequestError && error.status === 404) ||
+          (error instanceof Error && error.message.includes('not found') && error.message.toLowerCase().includes('conversation'));
+        
+        if (isConversationNotFound && conversationId) {
+          console.log('⚠️ Stale conversation detected (non-streaming), starting fresh:', conversationId);
+          store.setActiveConversation(null);
+          toast.warning(t('query.conversationExpired', 'Conversation expired'), {
+            description: t('query.startingNewConversation', 'Starting a new conversation. Please submit your query again.'),
+          });
+          setStreamingState('idle');
+          return;
+        }
+        
         toast.error(t('query.failed', 'Query failed'), {
           description: error instanceof Error ? error.message : t('common.unknownError', 'Unknown error'),
         });
