@@ -19,7 +19,9 @@ test.describe("Stale Conversation Recovery", () => {
     await page.evaluate(() => localStorage.clear());
   });
 
-  test("handles loading when no active conversation exists", async ({ page }) => {
+  test("handles loading when no active conversation exists", async ({
+    page,
+  }) => {
     // Navigate to query page with no conversation
     await page.goto(`/query`);
 
@@ -69,7 +71,7 @@ test.describe("Stale Conversation Recovery", () => {
     // Navigate to the query page
     await page.goto("/query");
     await page.waitForLoadState("networkidle");
-    
+
     // Wait for the auto-recovery to complete
     await page.waitForTimeout(2000);
 
