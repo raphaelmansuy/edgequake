@@ -333,12 +333,44 @@ export function QueryInterface() {
   const activeConversationId = useActiveConversationId();
   
   // Server state for active conversation
-  const { data: activeConversation, isLoading: isLoadingConversation } = useConversation(activeConversationId);
+  // Capture error/isError to handle stale conversation IDs gracefully
+  const { 
+    data: activeConversation, 
+    isLoading: isLoadingConversation,
+    error: conversationError,
+    isError: isConversationError,
+  } = useConversation(activeConversationId);
   
   // List conversations to auto-load most recent one if none is active
   const { data: conversationsData } = useConversations({
     sort: 'updated_at', // Get most recent first
   });
+  
+  // Handle stale conversation error (404) - auto-recover by clearing the stale ID
+  // This happens when localStorage has a conversation ID that no longer exists on the server
+  // (e.g., after backend restart with in-memory storage, or conversation was deleted)
+  useEffect(() => {
+    if (!isConversationError || !activeConversationId) return;
+    
+    // Check if this is a 404 "not found" error
+    const is404Error = 
+      (conversationError instanceof ApiRequestError && conversationError.status === 404) ||
+      (conversationError instanceof Error && 
+        conversationError.message.toLowerCase().includes('not found') && 
+        conversationError.message.toLowerCase().includes('conversation'));
+    
+    if (is404Error) {
+      console.log('⚠️ Stale conversation detected on load, clearing:', activeConversationId);
+      
+      // Clear the stale conversation ID
+      store.setActiveConversation(null);
+      
+      // Show a friendly notification (not an error toast)
+      toast(t('query.conversationExpired', 'Previous conversation not available'), {
+        description: t('query.startingFreshSession', 'Starting a fresh session.'),
+      });
+    }
+  }, [isConversationError, conversationError, activeConversationId, store, t]);
   
   // Auto-load most recent conversation on mount if none is active
   // Only do this once on initial mount, not when user clicks "New"
