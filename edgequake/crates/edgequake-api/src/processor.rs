@@ -151,7 +151,11 @@ impl DocumentTaskProcessor {
             tenant_id, workspace_id_meta
         );
 
-        // Store entities and relationships in graph storage
+        // Store entities and relationships in graph storage using batch operations
+        // Collect all nodes for batch upsert
+        let mut nodes_batch: Vec<(String, std::collections::HashMap<String, serde_json::Value>)> = Vec::new();
+        let mut edges_batch: Vec<(String, String, std::collections::HashMap<String, serde_json::Value>)> = Vec::new();
+
         for extraction in &result.extractions {
             for entity in &extraction.entities {
                 let mut properties = std::collections::HashMap::new();
@@ -165,13 +169,7 @@ impl DocumentTaskProcessor {
                 }
                 properties.insert("workspace_id".to_string(), json!(&workspace_id_meta));
 
-                if let Err(e) = self
-                    .graph_storage
-                    .upsert_node(&entity.name, properties)
-                    .await
-                {
-                    warn!("Failed to store entity {}: {}", entity.name, e);
-                }
+                nodes_batch.push((entity.name.clone(), properties));
             }
 
             for relationship in &extraction.relationships {
@@ -190,16 +188,29 @@ impl DocumentTaskProcessor {
                 }
                 properties.insert("workspace_id".to_string(), json!(&workspace_id_meta));
 
-                if let Err(e) = self
-                    .graph_storage
-                    .upsert_edge(&relationship.source, &relationship.target, properties)
-                    .await
-                {
-                    warn!(
-                        "Failed to store relationship {}->{}: {}",
-                        relationship.source, relationship.target, e
-                    );
-                }
+                edges_batch.push((
+                    relationship.source.clone(),
+                    relationship.target.clone(),
+                    properties,
+                ));
+            }
+        }
+
+        // Batch upsert nodes
+        if !nodes_batch.is_empty() {
+            if let Err(e) = self.graph_storage.upsert_nodes_batch(&nodes_batch).await {
+                warn!("Failed to batch store {} entities: {}", nodes_batch.len(), e);
+            } else {
+                info!("Batch stored {} entities", nodes_batch.len());
+            }
+        }
+
+        // Batch upsert edges
+        if !edges_batch.is_empty() {
+            if let Err(e) = self.graph_storage.upsert_edges_batch(&edges_batch).await {
+                warn!("Failed to batch store {} relationships: {}", edges_batch.len(), e);
+            } else {
+                info!("Batch stored {} relationships", edges_batch.len());
             }
         }
 

@@ -139,8 +139,8 @@ impl TextChunk {
             index,
             start_offset,
             end_offset,
-            start_line: 1,  // Default, should be set via with_line_numbers()
-            end_line: 1,    // Default, should be set via with_line_numbers()
+            start_line: 1, // Default, should be set via with_line_numbers()
+            end_line: 1,   // Default, should be set via with_line_numbers()
             token_count,
             embedding: None,
         }
@@ -187,13 +187,21 @@ impl TextChunk {
 ///
 /// # Returns
 /// A tuple of (start_line, end_line), both 1-based
-pub fn calculate_line_numbers(full_text: &str, start_offset: usize, end_offset: usize) -> (usize, usize) {
+pub fn calculate_line_numbers(
+    full_text: &str,
+    start_offset: usize,
+    end_offset: usize,
+) -> (usize, usize) {
+    // Ensure offsets are on valid char boundaries
+    let safe_start = floor_char_boundary(full_text, start_offset.min(full_text.len()));
+    let safe_end = floor_char_boundary(full_text, end_offset.min(full_text.len()));
+
     // Count newlines before the start offset to get start line
-    let before_chunk = &full_text[..start_offset.min(full_text.len())];
+    let before_chunk = &full_text[..safe_start];
     let start_line = before_chunk.chars().filter(|&c| c == '\n').count() + 1;
 
     // Count newlines within the chunk to get end line
-    let chunk_text = &full_text[start_offset.min(full_text.len())..end_offset.min(full_text.len())];
+    let chunk_text = &full_text[safe_start..safe_end];
     let lines_in_chunk = chunk_text.chars().filter(|&c| c == '\n').count();
     let end_line = start_line + lines_in_chunk;
 
@@ -309,6 +317,32 @@ impl ChunkingStrategy for CharacterBasedChunking {
     }
 }
 
+/// Find the nearest valid UTF-8 char boundary at or before the given byte position.
+fn floor_char_boundary(s: &str, index: usize) -> usize {
+    if index >= s.len() {
+        return s.len();
+    }
+    // Walk backwards to find a valid char boundary
+    let mut i = index;
+    while i > 0 && !s.is_char_boundary(i) {
+        i -= 1;
+    }
+    i
+}
+
+/// Find the nearest valid UTF-8 char boundary at or after the given byte position.
+fn ceil_char_boundary(s: &str, index: usize) -> usize {
+    if index >= s.len() {
+        return s.len();
+    }
+    // Walk forward to find a valid char boundary
+    let mut i = index;
+    while i < s.len() && !s.is_char_boundary(i) {
+        i += 1;
+    }
+    i
+}
+
 /// Internal function to split text.
 fn split_text_internal(
     text: &str,
@@ -325,6 +359,9 @@ fn split_text_internal(
     let mut current_pos = 0;
 
     while current_pos < text.len() {
+        // Ensure current_pos is on a char boundary
+        current_pos = ceil_char_boundary(text, current_pos);
+
         let remaining = &text[current_pos..];
 
         if remaining.len() <= target_size {
@@ -332,11 +369,13 @@ fn split_text_internal(
             break;
         }
 
-        let end_pos = current_pos + target_size;
+        // Calculate end position, ensuring it's on a char boundary
+        let end_pos = floor_char_boundary(text, current_pos + target_size);
         let chunk_text = &text[current_pos..end_pos.min(text.len())];
 
         let split_point = find_split_point_internal(chunk_text, target_size, separators);
-        let actual_end = current_pos + split_point;
+        // Ensure actual_end is on a char boundary
+        let actual_end = floor_char_boundary(text, current_pos + split_point);
 
         let chunk_content = text[current_pos..actual_end].to_string();
 
@@ -344,7 +383,9 @@ fn split_text_internal(
             chunks.push((chunk_content, current_pos, actual_end));
         }
 
-        current_pos = actual_end.saturating_sub(overlap);
+        // Calculate overlap position, ensuring it's on a char boundary
+        let overlap_pos = actual_end.saturating_sub(overlap);
+        current_pos = ceil_char_boundary(text, overlap_pos);
 
         if current_pos >= actual_end {
             current_pos = actual_end;
@@ -356,8 +397,14 @@ fn split_text_internal(
 
 /// Internal function to find split point.
 fn find_split_point_internal(text: &str, target: usize, separators: &[String]) -> usize {
-    let search_start = target.saturating_sub(target / 4);
-    let search_end = target.min(text.len());
+    // Ensure search boundaries are on valid char boundaries
+    let search_start = floor_char_boundary(text, target.saturating_sub(target / 4));
+    let search_end = floor_char_boundary(text, target.min(text.len()));
+
+    // Only search if we have a valid range
+    if search_start >= search_end {
+        return floor_char_boundary(text, target.min(text.len()));
+    }
 
     for separator in separators {
         if let Some(pos) = text[search_start..search_end].rfind(separator.as_str()) {
@@ -365,7 +412,7 @@ fn find_split_point_internal(text: &str, target: usize, separators: &[String]) -
         }
     }
 
-    target.min(text.len())
+    floor_char_boundary(text, target.min(text.len()))
 }
 
 /// Text chunker for splitting documents.
@@ -416,7 +463,7 @@ impl Chunker {
 
         // Track cumulative offset for line number calculation
         let mut cumulative_offset = 0;
-        
+
         Ok(results
             .into_iter()
             .map(|result| {
@@ -425,7 +472,7 @@ impl Chunker {
                 let end_offset = cumulative_offset + result.content.len();
                 let (start_line, end_line) = calculate_line_numbers(text, start_offset, end_offset);
                 cumulative_offset = end_offset;
-                
+
                 TextChunk::with_line_numbers(
                     id,
                     result.content.clone(),
@@ -590,7 +637,7 @@ mod tests {
         // Test middle portion
         let text = "Line 1\nLine 2\nLine 3\nLine 4";
         let line2_start = 7; // After "Line 1\n"
-        let line3_end = 20;  // End of "Line 3"
+        let line3_end = 20; // End of "Line 3"
         let (start, end) = calculate_line_numbers(text, line2_start, line3_end);
         assert_eq!(start, 2);
         assert_eq!(end, 3);
@@ -624,5 +671,51 @@ mod tests {
         if !chunks.is_empty() {
             assert_eq!(chunks[0].start_line, 1);
         }
+    }
+
+    #[test]
+    fn test_utf8_multibyte_chars_in_chunking() {
+        // Test with multi-byte UTF-8 characters: smart quotes, bullets, emojis
+        // Using raw bytes to include smart quotes without Rust parser issues
+        let text = "Quality. Compared with state-of-the-art FR-IQA models, \
+the \u{201C}proposed GMSD model\u{201D} performs better \u{2022} in terms of both accuracy \
+and efficiency, making GMSD an ideal choice for high-performance IQA applications.\n\n\
+This work is supported by \u{7814}\u{7A76} and \u{5F00}\u{53D1} funding.";
+
+        let config = ChunkerConfig {
+            chunk_size: 50, // Force chunking within the multi-byte section
+            chunk_overlap: 10,
+            min_chunk_size: 20,
+            ..Default::default()
+        };
+        let chunker = Chunker::new(config);
+
+        // This should not panic even with multi-byte characters
+        let chunks = chunker.chunk(text, "utf8-test").unwrap();
+
+        assert!(!chunks.is_empty());
+        // All chunks should be valid UTF-8 strings
+        for chunk in &chunks {
+            assert!(chunk.content.is_char_boundary(0));
+            assert!(chunk.content.is_char_boundary(chunk.content.len()));
+        }
+    }
+
+    #[test]
+    fn test_floor_and_ceil_char_boundary() {
+        // Test with multi-byte character: " (LEFT DOUBLE QUOTATION MARK, 3 bytes: E2 80 9C)
+        let text = "ab\u{201C}cd";
+
+        // "ab" is 2 bytes, then " is 3 bytes (positions 2, 3, 4), then "cd" is 2 more
+        // So: a=0, b=1, "=2,3,4, c=5, d=6
+
+        assert_eq!(floor_char_boundary(text, 2), 2); // Start of "
+        assert_eq!(floor_char_boundary(text, 3), 2); // Inside " -> back to 2
+        assert_eq!(floor_char_boundary(text, 4), 2); // Inside " -> back to 2
+        assert_eq!(floor_char_boundary(text, 5), 5); // Start of c
+
+        assert_eq!(ceil_char_boundary(text, 2), 2); // Start of "
+        assert_eq!(ceil_char_boundary(text, 3), 5); // Inside " -> forward to 5
+        assert_eq!(ceil_char_boundary(text, 4), 5); // Inside " -> forward to 5
     }
 }

@@ -102,6 +102,8 @@ fn api_v1_routes() -> Router<AppState> {
         .route("/documents/scan", post(handlers::scan_directory))
         // Reprocess Failed Documents (GAP-039) - MUST come before /documents/{document_id}
         .route("/documents/reprocess", post(handlers::reprocess_failed))
+        // Recover Stuck Processing Documents - MUST come before /documents/{document_id}
+        .route("/documents/recover-stuck", post(handlers::recover_stuck))
         // Document deletion impact analysis - MUST come before /documents/{document_id}
         .route(
             "/documents/{document_id}/deletion-impact",

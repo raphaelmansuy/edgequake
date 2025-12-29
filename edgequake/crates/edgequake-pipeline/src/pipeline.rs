@@ -56,7 +56,7 @@ impl Default for PipelineConfig {
             enable_chunk_embeddings: true,
             enable_entity_embeddings: true,
             enable_relationship_embeddings: true,
-            max_concurrent_extractions: 4,
+            max_concurrent_extractions: 16,
             enable_lineage_tracking: false,
         }
     }
@@ -308,57 +308,62 @@ impl Pipeline {
                 }
             }
 
-            // Entity embeddings
+            // Entity embeddings - OPTIMIZED: Batch all entities together
             if self.config.enable_entity_embeddings {
-                for extraction in &mut extractions {
-                    let entity_texts: Vec<String> = extraction
-                        .entities
-                        .iter()
-                        .map(|e| format!("{}: {}", e.name, e.description))
-                        .collect();
+                // Collect all entity texts with their indices for reassignment
+                let mut all_entity_texts: Vec<String> = Vec::new();
+                let mut entity_indices: Vec<(usize, usize)> = Vec::new(); // (extraction_idx, entity_idx)
 
-                    if !entity_texts.is_empty() {
-                        let embeddings = provider.embed(&entity_texts).await.map_err(|e| {
-                            crate::error::PipelineError::EmbeddingError(e.to_string())
-                        })?;
+                for (ext_idx, extraction) in extractions.iter().enumerate() {
+                    for (ent_idx, entity) in extraction.entities.iter().enumerate() {
+                        all_entity_texts.push(format!("{}: {}", entity.name, entity.description));
+                        entity_indices.push((ext_idx, ent_idx));
+                    }
+                }
 
-                        for (entity, embedding) in extraction.entities.iter_mut().zip(embeddings) {
-                            entity.embedding = Some(embedding);
-                        }
+                if !all_entity_texts.is_empty() {
+                    // Single batch call for all entities
+                    let all_embeddings = provider.embed(&all_entity_texts).await.map_err(|e| {
+                        crate::error::PipelineError::EmbeddingError(e.to_string())
+                    })?;
+
+                    // Reassign embeddings to their respective entities
+                    for (embedding, (ext_idx, ent_idx)) in all_embeddings.into_iter().zip(entity_indices) {
+                        extractions[ext_idx].entities[ent_idx].embedding = Some(embedding);
                     }
                 }
             }
 
-            // Relationship embeddings (as per LightRAG spec)
+            // Relationship embeddings - OPTIMIZED: Batch all relationships together
             if self.config.enable_relationship_embeddings {
-                for extraction in &mut extractions {
-                    let relationship_texts: Vec<String> = extraction
-                        .relationships
-                        .iter()
-                        .map(|r| {
-                            // Format: "keywords\tsource->target\ndescription"
-                            // Matches LightRAG's relationship embedding format
-                            format!(
-                                "{}\t{}->{}\n{}",
-                                r.keywords.join(", "),
-                                r.source,
-                                r.target,
-                                r.description
-                            )
-                        })
-                        .collect();
+                // Collect all relationship texts with their indices for reassignment
+                let mut all_relationship_texts: Vec<String> = Vec::new();
+                let mut relationship_indices: Vec<(usize, usize)> = Vec::new(); // (extraction_idx, rel_idx)
 
-                    if !relationship_texts.is_empty() {
-                        let embeddings =
-                            provider.embed(&relationship_texts).await.map_err(|e| {
-                                crate::error::PipelineError::EmbeddingError(e.to_string())
-                            })?;
+                for (ext_idx, extraction) in extractions.iter().enumerate() {
+                    for (rel_idx, r) in extraction.relationships.iter().enumerate() {
+                        // Format: "keywords\tsource->target\ndescription"
+                        // Matches LightRAG's relationship embedding format
+                        all_relationship_texts.push(format!(
+                            "{}\t{}->{}\n{}",
+                            r.keywords.join(", "),
+                            r.source,
+                            r.target,
+                            r.description
+                        ));
+                        relationship_indices.push((ext_idx, rel_idx));
+                    }
+                }
 
-                        for (relationship, embedding) in
-                            extraction.relationships.iter_mut().zip(embeddings)
-                        {
-                            relationship.embedding = Some(embedding);
-                        }
+                if !all_relationship_texts.is_empty() {
+                    // Single batch call for all relationships
+                    let all_embeddings = provider.embed(&all_relationship_texts).await.map_err(|e| {
+                        crate::error::PipelineError::EmbeddingError(e.to_string())
+                    })?;
+
+                    // Reassign embeddings to their respective relationships
+                    for (embedding, (ext_idx, rel_idx)) in all_embeddings.into_iter().zip(relationship_indices) {
+                        extractions[ext_idx].relationships[rel_idx].embedding = Some(embedding);
                     }
                 }
             }
@@ -432,19 +437,31 @@ impl Pipeline {
         })
     }
 
-    /// Process multiple documents.
+    /// Process multiple documents in parallel.
+    ///
+    /// Uses concurrent processing with a configurable limit based on
+    /// `max_concurrent_extractions` to process multiple documents simultaneously.
     pub async fn process_batch(
         &self,
         documents: &[(String, String)],
     ) -> Result<Vec<ProcessingResult>> {
-        let mut results = Vec::with_capacity(documents.len());
+        // Use the same concurrency limit as extraction for document processing
+        let max_concurrent_docs = self.config.max_concurrent_extractions.max(4);
 
-        for (doc_id, content) in documents {
-            let result = self.process(doc_id, content).await?;
-            results.push(result);
-        }
+        // Create futures for all documents
+        let futures: Vec<_> = documents
+            .iter()
+            .map(|(doc_id, content)| self.process(doc_id, content))
+            .collect();
 
-        Ok(results)
+        // Execute concurrently with buffer to limit parallelism
+        let results: Vec<Result<ProcessingResult>> = stream::iter(futures)
+            .buffer_unordered(max_concurrent_docs)
+            .collect()
+            .await;
+
+        // Collect results, propagating first error
+        results.into_iter().collect()
     }
 
     /// Get the pipeline configuration.

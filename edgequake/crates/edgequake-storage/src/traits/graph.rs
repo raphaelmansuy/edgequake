@@ -25,7 +25,10 @@ impl GraphNode {
     }
 
     /// Create a node with properties.
-    pub fn with_properties(id: impl Into<String>, properties: HashMap<String, serde_json::Value>) -> Self {
+    pub fn with_properties(
+        id: impl Into<String>,
+        properties: HashMap<String, serde_json::Value>,
+    ) -> Self {
         Self {
             id: id.into(),
             properties,
@@ -177,6 +180,20 @@ pub trait GraphStorage: Send + Sync {
         properties: HashMap<String, serde_json::Value>,
     ) -> Result<()>;
 
+    /// Insert or update multiple nodes in batch.
+    ///
+    /// Default implementation calls `upsert_node` sequentially.
+    /// Implementations should override this for better performance.
+    async fn upsert_nodes_batch(
+        &self,
+        nodes: &[(String, HashMap<String, serde_json::Value>)],
+    ) -> Result<()> {
+        for (node_id, properties) in nodes {
+            self.upsert_node(node_id, properties.clone()).await?;
+        }
+        Ok(())
+    }
+
     /// Delete a node and its connected edges.
     async fn delete_node(&self, node_id: &str) -> Result<()>;
 
@@ -204,6 +221,20 @@ pub trait GraphStorage: Send + Sync {
         target: &str,
         properties: HashMap<String, serde_json::Value>,
     ) -> Result<()>;
+
+    /// Insert or update multiple edges in batch.
+    ///
+    /// Default implementation calls `upsert_edge` sequentially.
+    /// Implementations should override this for better performance.
+    async fn upsert_edges_batch(
+        &self,
+        edges: &[(String, String, HashMap<String, serde_json::Value>)],
+    ) -> Result<()> {
+        for (source, target, properties) in edges {
+            self.upsert_edge(source, target, properties.clone()).await?;
+        }
+        Ok(())
+    }
 
     /// Delete an edge.
     async fn delete_edge(&self, source: &str, target: &str) -> Result<()>;
