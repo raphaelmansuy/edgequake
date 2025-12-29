@@ -54,7 +54,7 @@ END $$;
 -- AUDIT LOGS TABLE (Partitioned by time)
 -- ============================================================================
 
-CREATE TABLE audit_logs (
+CREATE TABLE IF NOT EXISTS audit_logs (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
     
     -- Temporal information
@@ -105,60 +105,84 @@ CREATE TABLE audit_logs (
 -- ============================================================================
 
 -- Current month
-CREATE TABLE audit_logs_2024_12 PARTITION OF audit_logs
-FOR VALUES FROM ('2024-12-01') TO ('2025-01-01');
+DO $$ BEGIN
+    CREATE TABLE audit_logs_2024_12 PARTITION OF audit_logs
+    FOR VALUES FROM ('2024-12-01') TO ('2025-01-01');
+EXCEPTION WHEN duplicate_table THEN
+    NULL;
+END $$;
 
 -- Next 5 months
-CREATE TABLE audit_logs_2025_01 PARTITION OF audit_logs
-FOR VALUES FROM ('2025-01-01') TO ('2025-02-01');
+DO $$ BEGIN
+    CREATE TABLE audit_logs_2025_01 PARTITION OF audit_logs
+    FOR VALUES FROM ('2025-01-01') TO ('2025-02-01');
+EXCEPTION WHEN duplicate_table THEN
+    NULL;
+END $$;
 
-CREATE TABLE audit_logs_2025_02 PARTITION OF audit_logs
-FOR VALUES FROM ('2025-02-01') TO ('2025-03-01');
+DO $$ BEGIN
+    CREATE TABLE audit_logs_2025_02 PARTITION OF audit_logs
+    FOR VALUES FROM ('2025-02-01') TO ('2025-03-01');
+EXCEPTION WHEN duplicate_table THEN
+    NULL;
+END $$;
 
-CREATE TABLE audit_logs_2025_03 PARTITION OF audit_logs
-FOR VALUES FROM ('2025-03-01') TO ('2025-04-01');
+DO $$ BEGIN
+    CREATE TABLE audit_logs_2025_03 PARTITION OF audit_logs
+    FOR VALUES FROM ('2025-03-01') TO ('2025-04-01');
+EXCEPTION WHEN duplicate_table THEN
+    NULL;
+END $$;
 
-CREATE TABLE audit_logs_2025_04 PARTITION OF audit_logs
-FOR VALUES FROM ('2025-04-01') TO ('2025-05-01');
+DO $$ BEGIN
+    CREATE TABLE audit_logs_2025_04 PARTITION OF audit_logs
+    FOR VALUES FROM ('2025-04-01') TO ('2025-05-01');
+EXCEPTION WHEN duplicate_table THEN
+    NULL;
+END $$;
 
-CREATE TABLE audit_logs_2025_05 PARTITION OF audit_logs
-FOR VALUES FROM ('2025-05-01') TO ('2025-06-01');
+DO $$ BEGIN
+    CREATE TABLE audit_logs_2025_05 PARTITION OF audit_logs
+    FOR VALUES FROM ('2025-05-01') TO ('2025-06-01');
+EXCEPTION WHEN duplicate_table THEN
+    NULL;
+END $$;
 
 -- ============================================================================
 -- INDEXES ON PARTITIONED TABLE
 -- ============================================================================
 
 -- Primary lookup index (tenant + time)
-CREATE INDEX idx_audit_logs_tenant_timestamp 
+CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant_timestamp 
 ON audit_logs(tenant_id, timestamp DESC);
 
 -- Security investigation index
-CREATE INDEX idx_audit_logs_security 
+CREATE INDEX IF NOT EXISTS idx_audit_logs_security 
 ON audit_logs(event_type, result, timestamp DESC)
 WHERE result IN ('Failure', 'Blocked') OR severity IN ('High', 'Critical');
 
 -- User activity index
-CREATE INDEX idx_audit_logs_user_activity 
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user_activity 
 ON audit_logs(user_id, timestamp DESC)
 WHERE user_id IS NOT NULL;
 
 -- Resource access index
-CREATE INDEX idx_audit_logs_resource 
+CREATE INDEX IF NOT EXISTS idx_audit_logs_resource 
 ON audit_logs(resource_type, resource_id, timestamp DESC)
 WHERE resource_id IS NOT NULL;
 
 -- Workspace activity index
-CREATE INDEX idx_audit_logs_workspace 
+CREATE INDEX IF NOT EXISTS idx_audit_logs_workspace 
 ON audit_logs(workspace_id, timestamp DESC)
 WHERE workspace_id IS NOT NULL;
 
 -- Request correlation index
-CREATE INDEX idx_audit_logs_request_id 
+CREATE INDEX IF NOT EXISTS idx_audit_logs_request_id 
 ON audit_logs(request_id)
 WHERE request_id IS NOT NULL;
 
 -- JSONB metadata index for flexible queries
-CREATE INDEX idx_audit_logs_metadata_gin 
+CREATE INDEX IF NOT EXISTS idx_audit_logs_metadata_gin 
 ON audit_logs USING GIN (metadata);
 
 -- ============================================================================
@@ -169,14 +193,22 @@ ON audit_logs USING GIN (metadata);
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Users can only see logs for their tenant
-CREATE POLICY audit_logs_tenant_isolation ON audit_logs
-    FOR SELECT
-    USING (tenant_id = current_setting('app.tenant_id', TRUE));
+DO $$ BEGIN
+    CREATE POLICY audit_logs_tenant_isolation ON audit_logs
+        FOR SELECT
+        USING (tenant_id = current_setting('app.tenant_id', TRUE));
+EXCEPTION WHEN duplicate_object THEN
+    NULL;
+END $$;
 
 -- Policy: Only admins can insert audit logs (via application service)
-CREATE POLICY audit_logs_insert_admin ON audit_logs
-    FOR INSERT
-    WITH CHECK (current_setting('app.is_admin', TRUE) = 'true');
+DO $$ BEGIN
+    CREATE POLICY audit_logs_insert_admin ON audit_logs
+        FOR INSERT
+        WITH CHECK (current_setting('app.is_admin', TRUE) = 'true');
+EXCEPTION WHEN duplicate_object THEN
+    NULL;
+END $$;
 
 -- ============================================================================
 -- AUTOMATIC ARCHIVAL FUNCTION
@@ -245,7 +277,7 @@ $$ LANGUAGE plpgsql;
 -- ============================================================================
 
 -- View: Recent security events
-CREATE VIEW recent_security_events AS
+CREATE OR REPLACE VIEW recent_security_events AS
 SELECT 
     timestamp,
     tenant_id,
@@ -262,7 +294,7 @@ WHERE timestamp > NOW() - INTERVAL '24 hours'
 ORDER BY timestamp DESC;
 
 -- View: Tenant activity summary
-CREATE VIEW tenant_activity_summary AS
+CREATE OR REPLACE VIEW tenant_activity_summary AS
 SELECT 
     tenant_id,
     workspace_id,
@@ -276,7 +308,7 @@ GROUP BY tenant_id, workspace_id, event_type, result
 ORDER BY tenant_id, event_count DESC;
 
 -- View: Rate limit violations
-CREATE VIEW rate_limit_violations AS
+CREATE OR REPLACE VIEW rate_limit_violations AS
 SELECT 
     tenant_id,
     workspace_id,
