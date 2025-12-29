@@ -766,11 +766,13 @@ The EdgeQuake WebUI follows a sophisticated **3-tier layout architecture**:
 | **Dark/Light Mode**        | oklch colors, theme support      |   ✅   |
 
 ---
+
 ## Session 5: Tenant/Workspace Isolation Verification (2024-12-29)
 
 ### Objective
 
 Comprehensive verification that the multi-tenant system correctly:
+
 1. Persists tenant/workspace context with data
 2. Isolates data from ingestion to query
 3. Optimizes queries via early filtering
@@ -797,6 +799,7 @@ pub struct TenantContext {
 #### ✅ Document Ingestion Scoping (processor.rs)
 
 All data (chunks, entities, relationships) tagged with:
+
 - `tenant_id` in metadata/properties
 - `workspace_id` in metadata/properties
 
@@ -816,19 +819,19 @@ let matches_tenant = |properties| {
 
 ### Test Coverage Created
 
-| Test | Description | Status |
-|------|-------------|--------|
-| test_document_isolation_between_tenants | Tenant A can't see Tenant B docs | ✅ |
-| test_workspace_isolation_within_tenant | WS1 can't see WS2 within tenant | ✅ |
-| test_query_isolation_between_tenants | Query results filtered | ✅ |
-| test_missing_tenant_headers | No headers = no scoped data | ✅ |
-| test_header_spoofing_attack | Attackers blocked | ✅ |
-| test_sql_injection_in_tenant_headers | SQL injection handled | ✅ |
-| test_path_traversal_in_workspace | Path traversal handled | ✅ |
-| test_unicode_injection_in_headers | Unicode handled | ✅ |
-| test_entity_isolation_between_tenants | Graph entities filtered | ✅ |
-| test_graph_traversal_isolation | Graph traversal isolated | ✅ |
-| test_tenant_context_persisted_in_document_metadata | Metadata stored | ✅ |
+| Test                                               | Description                      | Status |
+| -------------------------------------------------- | -------------------------------- | ------ |
+| test_document_isolation_between_tenants            | Tenant A can't see Tenant B docs | ✅     |
+| test_workspace_isolation_within_tenant             | WS1 can't see WS2 within tenant  | ✅     |
+| test_query_isolation_between_tenants               | Query results filtered           | ✅     |
+| test_missing_tenant_headers                        | No headers = no scoped data      | ✅     |
+| test_header_spoofing_attack                        | Attackers blocked                | ✅     |
+| test_sql_injection_in_tenant_headers               | SQL injection handled            | ✅     |
+| test_path_traversal_in_workspace                   | Path traversal handled           | ✅     |
+| test_unicode_injection_in_headers                  | Unicode handled                  | ✅     |
+| test_entity_isolation_between_tenants              | Graph entities filtered          | ✅     |
+| test_graph_traversal_isolation                     | Graph traversal isolated         | ✅     |
+| test_tenant_context_persisted_in_document_metadata | Metadata stored                  | ✅     |
 
 ### Files Created
 
@@ -837,16 +840,17 @@ let matches_tenant = |properties| {
 
 ### Storage Mode Comparison
 
-| Mode | Persistence | Isolation | Production Use |
-|------|-------------|-----------|----------------|
-| In-Memory | ❌ Lost on restart | ✅ Metadata filtering | Development only |
-| PostgreSQL | ✅ Persistent | ✅ RLS + Metadata | Production ready |
+| Mode       | Persistence        | Isolation             | Production Use   |
+| ---------- | ------------------ | --------------------- | ---------------- |
+| In-Memory  | ❌ Lost on restart | ✅ Metadata filtering | Development only |
+| PostgreSQL | ✅ Persistent      | ✅ RLS + Metadata     | Production ready |
 
 ### SOTA Status
 
 **VERDICT: ✅ PRODUCTION READY**
 
 The tenant/workspace isolation system is:
+
 - Correctly implemented at all layers
 - Properly tested with 12 E2E tests (11 new + 1 existing)
 - Attack-resistant for common vectors

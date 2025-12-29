@@ -77,6 +77,7 @@ pub struct TenantContext {
 ```
 
 **Headers:**
+
 - `X-Tenant-ID` → `tenant_ctx.tenant_id`
 - `X-Workspace-ID` → `tenant_ctx.workspace_id`
 - `X-User-ID` → `tenant_ctx.user_id`
@@ -163,9 +164,9 @@ let matches_tenant_context = |meta: &DocMetadata| -> bool {
 
 ### Unit Tests
 
-| Test File | Tests | Status |
-|-----------|-------|--------|
-| e2e_multi_tenancy.rs | 1 test | ✅ PASS |
+| Test File               | Tests    | Status      |
+| ----------------------- | -------- | ----------- |
+| e2e_multi_tenancy.rs    | 1 test   | ✅ PASS     |
 | e2e_tenant_isolation.rs | 11 tests | ✅ ALL PASS |
 
 ### Tenant Isolation Tests Created
@@ -249,14 +250,14 @@ The system optimizes queries by filtering early:
 
 ### Attack Vectors Tested
 
-| Attack | Status | Details |
-|--------|--------|---------|
-| Cross-Tenant Data Access | ✅ BLOCKED | Different tenant_id = no access |
-| Header Spoofing | ✅ BLOCKED | Only sees own tenant's data |
-| Missing Headers | ✅ SAFE | No access to scoped data |
-| SQL Injection | ✅ BLOCKED | Headers sanitized, no SQL execution |
-| Path Traversal | ✅ BLOCKED | Headers treated as opaque IDs |
-| Unicode Injection | ✅ BLOCKED | No special handling issues |
+| Attack                   | Status     | Details                             |
+| ------------------------ | ---------- | ----------------------------------- |
+| Cross-Tenant Data Access | ✅ BLOCKED | Different tenant_id = no access     |
+| Header Spoofing          | ✅ BLOCKED | Only sees own tenant's data         |
+| Missing Headers          | ✅ SAFE    | No access to scoped data            |
+| SQL Injection            | ✅ BLOCKED | Headers sanitized, no SQL execution |
+| Path Traversal           | ✅ BLOCKED | Headers treated as opaque IDs       |
+| Unicode Injection        | ✅ BLOCKED | No special handling issues          |
 
 ### Recommendations
 
@@ -271,12 +272,12 @@ The system optimizes queries by filtering early:
 
 ### Verified Behavior
 
-| Scenario | In-Memory | PostgreSQL |
-|----------|-----------|------------|
-| Upload document | ✅ Stored | ✅ Stored |
-| Restart server | ❌ Lost | ✅ Persisted |
-| Query after restart | ❌ Empty | ✅ Returns data |
-| Tenant context preserved | ✅ | ✅ |
+| Scenario                 | In-Memory | PostgreSQL      |
+| ------------------------ | --------- | --------------- |
+| Upload document          | ✅ Stored | ✅ Stored       |
+| Restart server           | ❌ Lost   | ✅ Persisted    |
+| Query after restart      | ❌ Empty  | ✅ Returns data |
+| Tenant context preserved | ✅        | ✅              |
 
 ### How to Enable PostgreSQL
 
@@ -309,18 +310,18 @@ The EdgeQuake tenant/workspace isolation system is:
 
 ### Production Readiness
 
-| Criteria | Status |
-|----------|--------|
-| Data Isolation | ✅ |
-| Query Filtering | ✅ |
-| Persistence | ✅ (with PostgreSQL) |
-| Security | ✅ |
-| Test Coverage | ✅ |
-| Documentation | ✅ |
+| Criteria        | Status               |
+| --------------- | -------------------- |
+| Data Isolation  | ✅                   |
+| Query Filtering | ✅                   |
+| Persistence     | ✅ (with PostgreSQL) |
+| Security        | ✅                   |
+| Test Coverage   | ✅                   |
+| Documentation   | ✅                   |
 
 **VERDICT: Ready for Production Deployment**
 
 ---
 
-*Report generated: 2025-12-29*
-*Verified by: EdgeQuake Verification Suite*
+_Report generated: 2025-12-29_
+_Verified by: EdgeQuake Verification Suite_

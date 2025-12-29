@@ -16,7 +16,7 @@
 
 use axum::{
     body::Body,
-    http::{Request, StatusCode, header},
+    http::{header, Request, StatusCode},
 };
 use edgequake_api::{AppState, Server, ServerConfig};
 use serde_json::{json, Value};
@@ -430,7 +430,10 @@ mod attack_vector_tests {
 
         // Log upload response for debugging
         let (upload_status, upload_json) = extract_status_and_json(upload_response).await;
-        println!("Upload response: status={:?}, body={:?}", upload_status, upload_json);
+        println!(
+            "Upload response: status={:?}, body={:?}",
+            upload_status, upload_json
+        );
 
         // Request without tenant headers
         let list_response = app
@@ -459,7 +462,10 @@ mod attack_vector_tests {
             // Only assert if the document has a title that indicates confidential data
             if title.contains("Confidential") {
                 // Check if it has the protected tenant's workspace
-                let workspace = doc.get("workspace_id").and_then(|v| v.as_str()).unwrap_or("");
+                let workspace = doc
+                    .get("workspace_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
                 assert!(
                     workspace != "protected-ws",
                     "Request without tenant headers should NOT access protected data: {}",
