@@ -16,6 +16,37 @@ use edgequake_storage::adapters::memory::{
     MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
 };
 use edgequake_tasks::{PipelineState, SharedTaskQueue, SharedTaskStorage};
+use serde::{Deserialize, Serialize};
+
+/// Storage mode indicator for the application.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum StorageMode {
+    /// In-memory storage (data lost on restart).
+    Memory,
+    /// PostgreSQL persistent storage.
+    PostgreSQL,
+}
+
+impl StorageMode {
+    /// Get the storage mode as a string.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            StorageMode::Memory => "memory",
+            StorageMode::PostgreSQL => "postgresql",
+        }
+    }
+
+    /// Check if using PostgreSQL storage.
+    pub fn is_postgresql(&self) -> bool {
+        matches!(self, StorageMode::PostgreSQL)
+    }
+
+    /// Check if using in-memory storage.
+    pub fn is_memory(&self) -> bool {
+        matches!(self, StorageMode::Memory)
+    }
+}
 
 #[cfg(feature = "postgres")]
 use crate::PostgresConversationService;
@@ -96,6 +127,9 @@ pub struct AppState {
     /// Rate limiter for tenant-based rate limiting.
     pub rate_limiter: RateLimiter,
 
+    /// Storage mode indicator (memory or postgresql).
+    pub storage_mode: StorageMode,
+
     /// PostgreSQL pool (only available when using postgres feature).
     #[cfg(feature = "postgres")]
     pub pg_pool: Option<PgPool>,
@@ -166,6 +200,7 @@ impl AppState {
             rbac_service,
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
+            storage_mode: StorageMode::Memory, // Default to memory for generic constructor
             #[cfg(feature = "postgres")]
             pg_pool: None,
         }
@@ -241,6 +276,7 @@ impl AppState {
             rbac_service,
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
+            storage_mode: StorageMode::Memory,
             #[cfg(feature = "postgres")]
             pg_pool: None,
         }
@@ -306,6 +342,7 @@ impl AppState {
             rbac_service,
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::strict(100, 60)), // Strict limits for testing
+            storage_mode: StorageMode::Memory,
             #[cfg(feature = "postgres")]
             pg_pool: None,
         }
@@ -346,8 +383,40 @@ impl AppState {
             .connect(&database_url)
             .await?;
 
+        // Ensure required extensions are available (these should be created in Docker init.sql,
+        // but we check and log if they're missing)
+        tracing::info!("Checking required PostgreSQL extensions...");
+
+        // Check if essential extensions exist (don't create them - that requires superuser)
+        let extensions_result = sqlx::query_scalar::<_, String>(
+            "SELECT extname FROM pg_extension WHERE extname IN ('vector', 'uuid-ossp')",
+        )
+        .fetch_all(&pool)
+        .await;
+
+        match extensions_result {
+            Ok(exts) => {
+                if exts.contains(&"vector".to_string()) {
+                    tracing::info!("✓ pgvector extension available");
+                } else {
+                    tracing::warn!("⚠ pgvector extension not found - vector search may not work");
+                }
+                if exts.contains(&"uuid-ossp".to_string()) {
+                    tracing::info!("✓ uuid-ossp extension available");
+                } else {
+                    tracing::warn!("⚠ uuid-ossp extension not found");
+                }
+            }
+            Err(e) => {
+                tracing::warn!("Could not check extensions: {}", e);
+            }
+        }
+
         // Run migrations from the workspace root migrations directory
+        // SQLx migrations will create all required tables automatically
+        tracing::info!("Running database migrations...");
         sqlx::migrate!("../../migrations").run(&pool).await?;
+        tracing::info!("✓ Database migrations completed successfully");
 
         // Create PostgreSQL-backed storages
         let kv_storage = Arc::new(PostgresKVStorage::new(pg_config.clone()));
@@ -427,6 +496,7 @@ impl AppState {
             rbac_service,
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
+            storage_mode: StorageMode::PostgreSQL,
             pg_pool: Some(pool),
         })
     }

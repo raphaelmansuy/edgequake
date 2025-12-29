@@ -16,6 +16,9 @@ pub struct HealthResponse {
     /// Service version.
     pub version: String,
 
+    /// Storage mode: "memory" or "postgresql".
+    pub storage_mode: String,
+
     /// Workspace ID.
     pub workspace_id: String,
 
@@ -66,6 +69,7 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
     let response = HealthResponse {
         status: "healthy".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
+        storage_mode: state.storage_mode.as_str().to_string(),
         workspace_id: state.config.workspace_id.clone(),
         components,
         llm_provider_name,
@@ -112,5 +116,6 @@ mod tests {
 
         let response = result.unwrap().0;
         assert_eq!(response.status, "healthy");
+        assert_eq!(response.storage_mode, "memory"); // test_state uses memory
     }
 }

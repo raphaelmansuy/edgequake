@@ -15,12 +15,12 @@
 #
 # ============================================================================
 
-.PHONY: help install dev stop clean build test lint format \
-        backend-dev backend-build backend-test backend-run \
+.PHONY: help install dev dev-bg dev-memory stop clean build test lint format \
+        backend-dev backend-db backend-memory backend-bg backend-build backend-test backend-run \
         frontend-dev frontend-build frontend-test frontend-lint \
-        db-start db-stop db-logs db-shell \
+        db-start db-stop db-wait db-logs db-shell \
         docker-build docker-up docker-down docker-logs \
-        check-deps
+        check-deps status
 
 # Colors for terminal output
 BLUE := \033[34m
@@ -50,14 +50,19 @@ help: ## Show this help message
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🚀 Quick Start$(RESET)"
 	@echo "  $(GREEN)make install$(RESET)      Install all dependencies"
-	@echo "  $(GREEN)make dev$(RESET)          Start full development stack"
+	@echo "  $(GREEN)make dev$(RESET)          Start full development stack (PostgreSQL)"
+	@echo "  $(GREEN)make dev-bg$(RESET)       Start full stack in BACKGROUND (for agents)"
+	@echo "  $(GREEN)make dev-memory$(RESET)   Start with in-memory storage (for testing)"
 	@echo "  $(GREEN)make stop$(RESET)         Stop all services"
+	@echo "  $(GREEN)make status$(RESET)       Check status of all services"
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🔧 Backend (Rust)$(RESET)"
-	@echo "  $(GREEN)make backend-dev$(RESET)  Run backend in dev mode"
+	@echo "  $(GREEN)make backend-dev$(RESET)  Run backend with PostgreSQL (DEFAULT)"
+	@echo "  $(GREEN)make backend-db$(RESET)   Run backend with PostgreSQL (explicit)"
+	@echo "  $(GREEN)make backend-memory$(RESET) Run backend with in-memory (testing)"
+	@echo "  $(GREEN)make backend-bg$(RESET)   Run backend in background"
 	@echo "  $(GREEN)make backend-build$(RESET) Build backend release"
 	@echo "  $(GREEN)make backend-test$(RESET) Run backend tests"
-	@echo "  $(GREEN)make backend-run$(RESET)  Run compiled backend"
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🎨 Frontend (Next.js)$(RESET)"
 	@echo "  $(GREEN)make frontend-dev$(RESET)  Start frontend dev server"
@@ -67,6 +72,7 @@ help: ## Show this help message
 	@echo "$(BOLD)$(BLUE)🗄️  Database$(RESET)"
 	@echo "  $(GREEN)make db-start$(RESET)     Start PostgreSQL container"
 	@echo "  $(GREEN)make db-stop$(RESET)      Stop PostgreSQL container"
+	@echo "  $(GREEN)make db-wait$(RESET)      Wait for database to be ready"
 	@echo "  $(GREEN)make db-logs$(RESET)      View database logs"
 	@echo "  $(GREEN)make db-shell$(RESET)     Open psql shell"
 	@echo ""
@@ -147,9 +153,58 @@ dev: check-deps ## Start full development stack (DB + Backend + Frontend)
 dev-frontend: ## Start only frontend dev server
 	@$(MAKE) frontend-dev --no-print-directory
 
-dev-backend: ## Start only backend dev server
+dev-backend: ## Start only backend dev server (with database)
 	@$(MAKE) db-start --no-print-directory
 	@$(MAKE) backend-dev --no-print-directory
+
+dev-memory: check-deps ## Start development with in-memory storage (for testing)
+	@echo ""
+	@echo "$(BOLD)$(YELLOW)⚠️  Starting EdgeQuake with IN-MEMORY Storage$(RESET)"
+	@echo "$(YELLOW)Data will NOT persist across restarts!$(RESET)"
+	@echo ""
+	@trap 'echo ""; echo "$(YELLOW)Stopping services...$(RESET)"; $(MAKE) stop --no-print-directory; exit 0' INT; \
+	(cd $(BACKEND_DIR) && cargo run 2>&1 | sed 's/^/[backend] /') & \
+	BACKEND_PID=$$!; \
+	(sleep 5 && cd $(FRONTEND_DIR) && (bun run dev 2>/dev/null || npm run dev) 2>&1 | sed 's/^/[frontend] /') & \
+	FRONTEND_PID=$$!; \
+	echo "$(GREEN)✓ Backend PID: $$BACKEND_PID, Frontend PID: $$FRONTEND_PID$(RESET)"; \
+	wait
+
+dev-bg: check-deps ## Start full development stack in BACKGROUND (agentic mode)
+	@echo ""
+	@echo "$(BOLD)$(BLUE)🤖 Starting EdgeQuake in Background Mode (Agentic)$(RESET)"
+	@echo ""
+	@$(MAKE) stop --no-print-directory 2>/dev/null || true
+	@sleep 1
+	@echo "$(YELLOW)→ Starting PostgreSQL...$(RESET)"
+	@$(MAKE) db-start --no-print-directory
+	@echo ""
+	@echo "$(YELLOW)→ Waiting for database...$(RESET)"
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+		docker exec edgequake-postgres pg_isready -U edgequake -d edgequake 2>/dev/null && break || sleep 2; \
+	done
+	@echo ""
+	@echo "$(YELLOW)→ Starting backend in background...$(RESET)"
+	@cd $(BACKEND_DIR) && DATABASE_URL="$(DATABASE_URL)" nohup cargo run > /tmp/edgequake-backend.log 2>&1 &
+	@echo "$(GREEN)✓ Backend starting (log: /tmp/edgequake-backend.log)$(RESET)"
+	@echo ""
+	@echo "$(YELLOW)→ Waiting for backend to start...$(RESET)"
+	@sleep 8
+	@echo ""
+	@echo "$(YELLOW)→ Starting frontend in background...$(RESET)"
+	@cd $(FRONTEND_DIR) && nohup sh -c 'bun run dev 2>/dev/null || npm run dev' > /tmp/edgequake-frontend.log 2>&1 &
+	@echo "$(GREEN)✓ Frontend starting (log: /tmp/edgequake-frontend.log)$(RESET)"
+	@echo ""
+	@sleep 3
+	@echo "$(BOLD)$(GREEN)✅ EdgeQuake Background Stack Started$(RESET)"
+	@echo ""
+	@echo "  $(BLUE)Backend$(RESET):  http://localhost:8080"
+	@echo "  $(BLUE)Frontend$(RESET): http://localhost:3000"
+	@echo "  $(BLUE)Swagger$(RESET):  http://localhost:8080/swagger-ui"
+	@echo ""
+	@echo "  Use $(BOLD)make status$(RESET) to check service health"
+	@echo "  Use $(BOLD)make stop$(RESET) to stop all services"
+	@echo ""
 
 stop: ## Stop all development services
 	@echo "$(YELLOW)Stopping services...$(RESET)"
@@ -169,9 +224,25 @@ stop: ## Stop all development services
 # Backend
 # ============================================================================
 
-backend-dev: ## Run backend in development mode with hot reload
-	@echo "$(BLUE)Starting backend development server...$(RESET)"
+# Database URL for PostgreSQL mode
+DATABASE_URL := postgresql://edgequake:edgequake_secret@localhost:5432/edgequake
+
+backend-dev: db-wait ## Run backend in development mode with PostgreSQL (DEFAULT)
+	@echo "$(BLUE)Starting backend with PostgreSQL storage...$(RESET)"
+	@cd $(BACKEND_DIR) && DATABASE_URL="$(DATABASE_URL)" cargo run
+
+backend-db: db-wait ## Run backend with PostgreSQL storage (explicit)
+	@echo "$(BLUE)Starting backend with PostgreSQL storage (explicit)...$(RESET)"
+	@cd $(BACKEND_DIR) && DATABASE_URL="$(DATABASE_URL)" cargo run
+
+backend-memory: ## Run backend with in-memory storage (for testing only)
+	@echo "$(YELLOW)⚠️  Starting backend with IN-MEMORY storage (data will not persist)$(RESET)"
 	@cd $(BACKEND_DIR) && cargo run
+
+backend-bg: db-wait ## Run backend in background with PostgreSQL
+	@echo "$(BLUE)Starting backend in background...$(RESET)"
+	@cd $(BACKEND_DIR) && DATABASE_URL="$(DATABASE_URL)" nohup cargo run > /tmp/edgequake-backend.log 2>&1 &
+	@echo "$(GREEN)✓ Backend starting in background. Log: /tmp/edgequake-backend.log$(RESET)"
 
 backend-build: ## Build backend for release
 	@echo "$(BLUE)Building backend...$(RESET)"
@@ -222,6 +293,15 @@ frontend-test: ## Run frontend tests
 # ============================================================================
 # Database
 # ============================================================================
+
+db-wait: db-start ## Wait for database to be ready (used by other targets)
+	@echo "$(YELLOW)Waiting for database to be ready...$(RESET)"
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+		docker exec edgequake-postgres pg_isready -U edgequake -d edgequake 2>/dev/null && break || sleep 2; \
+	done
+	@docker exec edgequake-postgres pg_isready -U edgequake -d edgequake 2>/dev/null && \
+		echo "$(GREEN)✓ Database is ready$(RESET)" || \
+		(echo "$(RED)✗ Database failed to start$(RESET)" && exit 1)
 
 db-start: ## Start PostgreSQL container
 	@echo "$(BLUE)Starting PostgreSQL...$(RESET)"

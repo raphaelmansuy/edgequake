@@ -41,7 +41,7 @@ pub use middleware::{tenant_rate_limit, AuthConfig, AuthState, RateLimitConfig, 
 pub use processor::DocumentTaskProcessor;
 pub use routes::create_router;
 pub use server::{Server, ServerConfig};
-pub use state::AppState;
+pub use state::{AppState, StorageMode};
 
 #[cfg(feature = "postgres")]
 pub use postgres_conversation_service::PostgresConversationService;

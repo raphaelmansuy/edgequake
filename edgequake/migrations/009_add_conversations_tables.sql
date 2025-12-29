@@ -219,6 +219,9 @@ CREATE POLICY folders_access ON folders
     );
 
 -- Update set_tenant_context to also set user_id
+-- First drop the old function with the old signature to avoid ambiguity
+DROP FUNCTION IF EXISTS set_tenant_context(UUID, UUID);
+
 CREATE OR REPLACE FUNCTION set_tenant_context(
     p_tenant_id UUID,
     p_workspace_id UUID DEFAULT NULL,

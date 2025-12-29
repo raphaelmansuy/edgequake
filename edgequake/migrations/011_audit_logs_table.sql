@@ -4,46 +4,58 @@
 -- Created: 2024-12-29
 
 -- ============================================================================
--- AUDIT LOG ENUMS
+-- AUDIT LOG ENUMS (Idempotent creation)
 -- ============================================================================
 
 -- Event types that can be audited
-CREATE TYPE audit_event_type AS ENUM (
-    'Authentication',
-    'Authorization',
-    'DocumentUpload',
-    'DocumentQuery',
-    'GraphTraversal',
-    'TenantAccess',
-    'WorkspaceAccess',
-    'RateLimitExceeded',
-    'SecurityViolation',
-    'DataExport',
-    'ConfigChange'
-);
+DO $$ BEGIN
+    CREATE TYPE audit_event_type AS ENUM (
+        'Authentication',
+        'Authorization',
+        'DocumentUpload',
+        'DocumentQuery',
+        'GraphTraversal',
+        'TenantAccess',
+        'WorkspaceAccess',
+        'RateLimitExceeded',
+        'SecurityViolation',
+        'DataExport',
+        'ConfigChange'
+    );
+EXCEPTION WHEN duplicate_object THEN
+    NULL;
+END $$;
 
 -- Event result status
-CREATE TYPE audit_result AS ENUM (
-    'Success',
-    'Failure',
-    'Blocked',
-    'Warning'
-);
+DO $$ BEGIN
+    CREATE TYPE audit_result AS ENUM (
+        'Success',
+        'Failure',
+        'Blocked',
+        'Warning'
+    );
+EXCEPTION WHEN duplicate_object THEN
+    NULL;
+END $$;
 
 -- Severity levels
-CREATE TYPE audit_severity AS ENUM (
-    'Low',
-    'Medium',
-    'High',
-    'Critical'
-);
+DO $$ BEGIN
+    CREATE TYPE audit_severity AS ENUM (
+        'Low',
+        'Medium',
+        'High',
+        'Critical'
+    );
+EXCEPTION WHEN duplicate_object THEN
+    NULL;
+END $$;
 
 -- ============================================================================
 -- AUDIT LOGS TABLE (Partitioned by time)
 -- ============================================================================
 
 CREATE TABLE audit_logs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
     
     -- Temporal information
     timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -80,6 +92,9 @@ CREATE TABLE audit_logs (
     
     -- Performance tracking
     duration_ms INTEGER,  -- Time taken for the operation
+    
+    -- Primary key must include partition column for partitioned tables
+    PRIMARY KEY (id, timestamp),
     
     -- Indexing hints
     CONSTRAINT audit_logs_tenant_not_null CHECK (tenant_id IS NOT NULL)

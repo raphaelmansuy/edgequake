@@ -27,6 +27,31 @@ EdgeQuake is an advanced Retrieval-Augmented Generation (RAG) framework implemen
 - `cargo fmt`: Format Rust code
 - `bun install`, `bun run dev`, `bun run build`, `bun test`: Manage web UI workflow
 
+### Background Testing (Agentic Mode)
+
+For automated testing or continuous integration, use background mode to run services non-interactively:
+
+```bash
+# Start full stack in background (database + backend + frontend)
+make dev-bg
+
+# Check service health
+make status
+
+# View logs
+tail -f /tmp/edgequake-backend.log
+tail -f /tmp/edgequake-frontend.log
+
+# Stop all services
+make stop
+```
+
+**Alternative commands:**
+- `make backend-bg`: Start backend only in background with PostgreSQL
+- `make backend-memory`: Start backend with ephemeral in-memory storage (testing only)
+
+Storage mode is automatically selected: PostgreSQL if `DATABASE_URL` is set, Memory otherwise.
+
 ## LLM Provider Configuration
 
 EdgeQuake supports multiple LLM providers with automatic environment-based selection:

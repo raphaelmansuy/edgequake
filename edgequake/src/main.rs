@@ -2,11 +2,39 @@
 //!
 //! This is the main entry point for the EdgeQuake server.
 
-use edgequake_api::{AppState, DocumentTaskProcessor, Server, ServerConfig};
+use edgequake_api::{AppState, DocumentTaskProcessor, Server, ServerConfig, StorageMode};
 use edgequake_tasks::{WorkerPool, WorkerPoolConfig};
 use std::sync::Arc;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+
+/// Print the EdgeQuake startup banner with storage mode information.
+fn print_startup_banner(version: &str, storage_mode: &StorageMode, host: &str, port: u16) {
+    let storage_label = match storage_mode {
+        StorageMode::Memory => "MEMORY (ephemeral - data lost on restart)",
+        StorageMode::PostgreSQL => "POSTGRESQL (persistent)",
+    };
+
+    let storage_icon = match storage_mode {
+        StorageMode::Memory => "💾",
+        StorageMode::PostgreSQL => "🐘",
+    };
+
+    println!();
+    println!("╔══════════════════════════════════════════════════════════════╗");
+    println!("║                                                              ║");
+    println!("║   ⚡ EdgeQuake v{:<44} ║", version);
+    println!("║                                                              ║");
+    println!("║   {} Storage: {:<40} ║", storage_icon, storage_label);
+    println!("║   🌐 Server:  http://{}:{:<30} ║", host, port);
+    println!(
+        "║   📚 Swagger: http://{}:{}/swagger-ui/{:<15} ║",
+        host, port, ""
+    );
+    println!("║                                                              ║");
+    println!("╚══════════════════════════════════════════════════════════════╝");
+    println!();
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -29,12 +57,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create application state - use PostgreSQL if DATABASE_URL is set
     let state = if let Ok(database_url) = std::env::var("DATABASE_URL") {
-        info!("Using PostgreSQL storage with conversation persistence");
+        info!("🐘 DATABASE_URL detected - using PostgreSQL storage");
         AppState::new_postgres(&database_url, &api_key)
             .await
             .expect("Failed to initialize PostgreSQL storage")
     } else {
-        info!("Using in-memory storage (conversations will not persist across restarts)");
+        info!("💾 No DATABASE_URL set - using in-memory storage (data will not persist)");
         AppState::new_memory(&api_key)
     };
 
@@ -87,6 +115,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         enable_compression: true,
         enable_swagger: true,
     };
+
+    // Print startup banner with storage mode
+    print_startup_banner(
+        env!("CARGO_PKG_VERSION"),
+        &state.storage_mode,
+        &config.host,
+        config.port,
+    );
 
     // Run server (this blocks until shutdown)
     let server = Server::new(config, state);

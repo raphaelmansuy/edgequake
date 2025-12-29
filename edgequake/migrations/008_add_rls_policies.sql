@@ -399,6 +399,6 @@ CREATE TRIGGER check_document_quota
 -- ============================================================================
 -- MIGRATION COMPLETE
 -- ============================================================================
-COMMENT ON FUNCTION set_tenant_context IS 'Sets the current tenant and workspace context for RLS policies';
-COMMENT ON FUNCTION current_tenant_id IS 'Returns the current tenant ID from session context';
-COMMENT ON FUNCTION current_workspace_id IS 'Returns the current workspace ID from session context';
+COMMENT ON FUNCTION set_tenant_context(UUID, UUID) IS 'Sets the current tenant and workspace context for RLS policies';
+COMMENT ON FUNCTION current_tenant_id() IS 'Returns the current tenant ID from session context';
+COMMENT ON FUNCTION current_workspace_id() IS 'Returns the current workspace ID from session context';
