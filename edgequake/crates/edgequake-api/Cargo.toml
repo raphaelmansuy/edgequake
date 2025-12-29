@@ -19,6 +19,8 @@ edgequake-pipeline = { path = "../edgequake-pipeline" }
 edgequake-query = { path = "../edgequake-query" }
 edgequake-tasks = { path = "../edgequake-tasks", features = ["postgres"] }
 edgequake-auth = { path = "../edgequake-auth" }
+edgequake-rate-limiter = { path = "../edgequake-rate-limiter" }
+edgequake-audit = { path = "../edgequake-audit" }
 
 axum.workspace = true
 axum-extra = { version = "0.10", features = ["multipart"] }
@@ -54,3 +56,4 @@ bytes = "1.9"
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }
 tower = { version = "0.5", features = ["util"] }
+sqlx = { workspace = true, features = ["runtime-tokio", "postgres", "uuid", "chrono"] }

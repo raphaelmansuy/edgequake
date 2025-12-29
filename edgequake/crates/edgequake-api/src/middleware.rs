@@ -1,12 +1,14 @@
 //! HTTP middleware.
 
 use axum::{
+    body::Body,
     extract::Request,
     http::{HeaderValue, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
     Json,
 };
+use edgequake_rate_limiter::RateLimiter;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Instant;
@@ -230,6 +232,103 @@ impl Default for RateLimitConfig {
             window_seconds: 60,
         }
     }
+}
+
+/// Rate limiting middleware state.
+#[derive(Clone)]
+pub struct RateLimitState {
+    pub limiter: RateLimiter,
+    pub enabled: bool,
+}
+
+impl RateLimitState {
+    /// Create a new rate limit state.
+    pub fn new(limiter: RateLimiter, enabled: bool) -> Self {
+        Self { limiter, enabled }
+    }
+}
+
+/// Rate limiting error response.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RateLimitError {
+    pub error: String,
+    pub message: String,
+    pub retry_after_seconds: Option<u64>,
+}
+
+/// Tenant-based rate limiting middleware.
+///
+/// Extracts tenant ID from `X-Tenant-ID` header and applies rate limiting per tenant.
+/// Returns 429 Too Many Requests when rate limit is exceeded.
+pub async fn tenant_rate_limit(
+    axum::extract::State(rate_state): axum::extract::State<RateLimitState>,
+    request: Request<Body>,
+    next: Next,
+) -> Response {
+    // Skip if rate limiting is disabled
+    if !rate_state.enabled {
+        return next.run(request).await;
+    }
+
+    // Extract tenant ID from header
+    let tenant_id = request
+        .headers()
+        .get("x-tenant-id")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("anonymous");
+
+    // Check rate limit
+    let (allowed, retry_after) = rate_state.limiter.check_rate_limit(tenant_id);
+
+    if !allowed {
+        warn!(
+            tenant_id = tenant_id,
+            retry_after = ?retry_after,
+            "Rate limit exceeded"
+        );
+
+        let mut response = (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(RateLimitError {
+                error: "rate_limit_exceeded".to_string(),
+                message: format!("Too many requests for tenant '{}'", tenant_id),
+                retry_after_seconds: retry_after,
+            }),
+        )
+            .into_response();
+
+        // Add rate limit headers
+        if let Some(retry) = retry_after {
+            response.headers_mut().insert(
+                "Retry-After",
+                HeaderValue::from_str(&retry.to_string()).unwrap(),
+            );
+        }
+        response.headers_mut().insert(
+            "X-RateLimit-Remaining",
+            HeaderValue::from_static("0"),
+        );
+
+        return response;
+    }
+
+    // Get remaining tokens for headers
+    let state = rate_state.limiter.get_state(tenant_id);
+    let mut response = next.run(request).await;
+
+    // Add rate limit headers to successful responses
+    if let Some(s) = state {
+        response.headers_mut().insert(
+            "X-RateLimit-Limit",
+            HeaderValue::from_str(&s.capacity.to_string()).unwrap(),
+        );
+        response.headers_mut().insert(
+            "X-RateLimit-Remaining",
+            HeaderValue::from_str(&(s.available_tokens as u64).to_string()).unwrap(),
+        );
+    }
+
+    response
 }
 
 // ============================================================================

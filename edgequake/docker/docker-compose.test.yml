@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: edgequake-postgres-test
+    environment:
+      POSTGRES_DB: edgequake_test
+      POSTGRES_USER: edgequake_test
+      POSTGRES_PASSWORD: test_password_123
+      POSTGRES_HOST_AUTH_METHOD: md5
+    ports:
+      - "5433:5432"  # Use 5433 to avoid conflicts with local postgres
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U edgequake_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - edgequake-test
+
+  # PostgreSQL with AGE extension for graph database
+  postgres-age-test:
+    image: apache/age:latest
+    container_name: edgequake-postgres-age-test
+    environment:
+      POSTGRES_DB: edgequake_test_age
+      POSTGRES_USER: edgequake_test
+      POSTGRES_PASSWORD: test_password_123
+    ports:
+      - "5434:5432"  # Use 5434 for AGE
+    volumes:
+      - postgres_age_test_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U edgequake_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - edgequake-test
+
+volumes:
+  postgres_test_data:
+  postgres_age_test_data:
+
+networks:
+  edgequake-test:
+    driver: bridge

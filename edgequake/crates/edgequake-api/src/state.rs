@@ -11,6 +11,7 @@ use edgequake_core::{
 use edgequake_llm::OpenAIProvider;
 use edgequake_pipeline::Pipeline;
 use edgequake_query::{QueryEngine, QueryEngineConfig};
+use edgequake_rate_limiter::{RateLimitConfig as TokenBucketConfig, RateLimiter};
 use edgequake_storage::adapters::memory::{
     MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
 };
@@ -92,6 +93,9 @@ pub struct AppState {
     /// Cache manager for conversations and messages.
     pub cache_manager: CacheManager,
 
+    /// Rate limiter for tenant-based rate limiting.
+    pub rate_limiter: RateLimiter,
+
     /// PostgreSQL pool (only available when using postgres feature).
     #[cfg(feature = "postgres")]
     pub pg_pool: Option<PgPool>,
@@ -161,6 +165,7 @@ impl AppState {
             password_service,
             rbac_service,
             cache_manager: CacheManager::with_defaults(),
+            rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
             #[cfg(feature = "postgres")]
             pg_pool: None,
         }
@@ -235,6 +240,7 @@ impl AppState {
             password_service,
             rbac_service,
             cache_manager: CacheManager::with_defaults(),
+            rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
             #[cfg(feature = "postgres")]
             pg_pool: None,
         }
@@ -299,6 +305,7 @@ impl AppState {
             password_service,
             rbac_service,
             cache_manager: CacheManager::with_defaults(),
+            rate_limiter: RateLimiter::new(TokenBucketConfig::strict(100, 60)), // Strict limits for testing
             #[cfg(feature = "postgres")]
             pg_pool: None,
         }
@@ -419,6 +426,7 @@ impl AppState {
             password_service,
             rbac_service,
             cache_manager: CacheManager::with_defaults(),
+            rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
             pg_pool: Some(pool),
         })
     }

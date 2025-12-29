@@ -9,6 +9,8 @@ members = [
     "crates/edgequake-api",
     "crates/edgequake-tasks",
     "crates/edgequake-auth",
+    "crates/edgequake-rate-limiter",
+    "crates/edgequake-audit",
 ]
 
 [package]
