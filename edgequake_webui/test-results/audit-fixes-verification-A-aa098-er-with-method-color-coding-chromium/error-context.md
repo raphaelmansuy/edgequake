@@ -1,0 +1,92 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+  - alert [ref=e11]
+  - generic [ref=e12]:
+    - link "Skip to main content" [ref=e13] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary "Sidebar navigation" [ref=e14]:
+      - generic [ref=e15]:
+        - link "EdgeQuake" [ref=e17] [cursor=pointer]:
+          - /url: /
+          - img [ref=e19]
+          - generic [ref=e24]: EdgeQuake
+        - navigation "Navigation" [ref=e25]:
+          - link "Dashboard" [ref=e26] [cursor=pointer]:
+            - /url: /
+            - img [ref=e27]
+            - generic [ref=e30]: Dashboard
+          - link "Knowledge Graph" [ref=e31] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e32]
+            - generic [ref=e37]: Knowledge Graph
+          - link "Documents" [ref=e38] [cursor=pointer]:
+            - /url: /documents
+            - img [ref=e39]
+            - generic [ref=e42]: Documents
+          - link "Query" [ref=e43] [cursor=pointer]:
+            - /url: /query
+            - img [ref=e44]
+            - generic [ref=e46]: Query
+          - link "Costs" [ref=e47] [cursor=pointer]:
+            - /url: /costs
+            - img [ref=e48]
+            - generic [ref=e50]: Costs
+          - link "API Explorer" [ref=e51] [cursor=pointer]:
+            - /url: /api-explorer
+            - img [ref=e52]
+            - generic [ref=e54]: API Explorer
+          - link "Settings" [ref=e55] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e56]
+            - generic [ref=e59]: Settings
+        - generic [ref=e60]:
+          - button "Collapse sidebar" [ref=e61]:
+            - img
+            - generic [ref=e62]: Collapse
+          - generic [ref=e63]:
+            - img [ref=e65]
+            - generic [ref=e70]:
+              - generic [ref=e71]: EdgeQuake
+              - generic [ref=e72]: v0.1.0
+    - generic [ref=e73]:
+      - banner [ref=e74]:
+        - button "Select Context" [ref=e77]:
+          - img
+          - generic [ref=e78]: Select Context
+          - img
+        - generic [ref=e79]:
+          - generic [ref=e80]:
+            - img [ref=e81]
+            - generic [ref=e83]: ...
+          - button "Change language" [ref=e84]:
+            - img
+            - generic [ref=e85]: Change language
+          - button "Toggle theme" [ref=e86]:
+            - img
+            - generic [ref=e87]: Toggle theme
+          - button "User menu" [ref=e88]:
+            - img
+            - generic [ref=e89]: User menu
+      - navigation "breadcrumb" [ref=e91]:
+        - list [ref=e92]:
+          - listitem [ref=e93]:
+            - link "EdgeQuake" [ref=e94] [cursor=pointer]:
+              - /url: /
+              - img [ref=e95]
+              - generic [ref=e98]: EdgeQuake
+          - listitem [ref=e99]:
+            - img [ref=e100]
+          - listitem [ref=e102]:
+            - link "API Explorer" [disabled] [ref=e103]:
+              - img [ref=e104]
+              - generic [ref=e106]: API Explorer
+      - main [ref=e107]:
+        - generic [ref=e109]:
+          - img [ref=e110]
+          - paragraph [ref=e112]: Loading workspace...
+  - region "Notifications alt+T"
+```
