@@ -926,14 +926,14 @@ Running 20 tests using 8 workers
 
 ### Implementation Summary
 
-| Feature | Status | Implementation Details |
-|---------|--------|------------------------|
+| Feature                | Status      | Implementation Details                            |
+| ---------------------- | ----------- | ------------------------------------------------- |
 | Responsive Layout (P0) | ✅ Complete | `isSmallScreen` logic hides right panel on tablet |
-| Labels Visible (P0) | ✅ Complete | `labelDensity: 0.7`, `threshold: 6` |
-| Curved Edges | ✅ Complete | `@sigma/edge-curve` with `EdgeCurvedArrowProgram` |
-| Node Borders | ✅ Complete | `@sigma/node-border` with `NodeBorderProgram` |
-| Layout Animations | ✅ Complete | `animateNodes` with 300ms transitions |
-| Theme-aware Labels | ✅ Complete | Dynamic label colors for light/dark mode |
+| Labels Visible (P0)    | ✅ Complete | `labelDensity: 0.7`, `threshold: 6`               |
+| Curved Edges           | ✅ Complete | `@sigma/edge-curve` with `EdgeCurvedArrowProgram` |
+| Node Borders           | ✅ Complete | `@sigma/node-border` with `NodeBorderProgram`     |
+| Layout Animations      | ✅ Complete | `animateNodes` with 300ms transitions             |
+| Theme-aware Labels     | ✅ Complete | Dynamic label colors for light/dark mode          |
 
 ---
 
@@ -953,7 +953,7 @@ Running 20 tests using 8 workers
 
 ```tsx
 // layout-controller.tsx
-import FA2Layout from 'graphology-layout-forceatlas2/worker';
+import FA2Layout from "graphology-layout-forceatlas2/worker";
 
 // Start the layout
 fa2LayoutRef.current = new FA2Layout(graph, {
@@ -977,6 +977,7 @@ setTimeout(() => {
 ```
 
 **UI Features:**
+
 - Play/Pause button for ForceAtlas2 animation
 - Instant layout button with 300ms animated transitions
 - Auto-stop after 5 seconds to prevent infinite animation
@@ -1013,6 +1014,7 @@ interface GraphActions {
 **Created `hooks/use-graph-expansion.ts`:**
 
 1. **Expand Node:**
+
    - Fetches neighborhood from API: `getEntityNeighborhood(nodeId, 1)`
    - Filters duplicates (existing nodes/edges)
    - Positions new nodes in a circle around the expanded node
@@ -1028,6 +1030,7 @@ interface GraphActions {
    - Removes from store
 
 **Key Code Pattern:**
+
 ```typescript
 // Listen for expand trigger
 useEffect(() => {
@@ -1051,17 +1054,21 @@ interface NodeContextMenuProps {
 }
 
 // Prune Node button
-{onPruneNode && (
-  <button onClick={() => onPruneNode(node)}>
-    <Minimize2 className="h-4 w-4" />
-    <span>Prune Node</span>
-  </button>
-)}
+{
+  onPruneNode && (
+    <button onClick={() => onPruneNode(node)}>
+      <Minimize2 className="h-4 w-4" />
+      <span>Prune Node</span>
+    </button>
+  );
+}
 
 // Checkmark for already-expanded nodes
-{isExpanded && (
-  <span className="ml-auto text-xs text-muted-foreground">✓</span>
-)}
+{
+  isExpanded && (
+    <span className="ml-auto text-xs text-muted-foreground">✓</span>
+  );
+}
 ```
 
 ---
@@ -1095,18 +1102,21 @@ const handlePruneNode = useCallback((node: GraphNode) => {
 ### Entry 25: Final Verification
 
 **TypeScript Check:**
+
 ```
 > tsc --noEmit
 (no errors)
 ```
 
 **E2E Tests:**
+
 ```
 Running 20 tests using 8 workers
   20 passed (5.9s)
 ```
 
 **ESLint:**
+
 - No errors in new code
 - Pre-existing warnings in E2E test files (unrelated)
 
@@ -1114,14 +1124,14 @@ Running 20 tests using 8 workers
 
 ### Final Implementation Summary (Session 2)
 
-| Feature | Status | Files Created/Modified |
-|---------|--------|------------------------|
-| Web Worker FA2 (P1) | ✅ Complete | `layout-controller.tsx` (NEW) |
-| Expand Node (P2) | ✅ Complete | `use-graph-expansion.ts` (NEW) |
-| Prune Node (P2) | ✅ Complete | `use-graph-expansion.ts` (NEW) |
-| Store Updates | ✅ Complete | `use-graph-store.ts` |
-| Context Menu | ✅ Complete | `node-context-menu.tsx` |
-| Integration | ✅ Complete | `graph-viewer.tsx` |
+| Feature             | Status      | Files Created/Modified         |
+| ------------------- | ----------- | ------------------------------ |
+| Web Worker FA2 (P1) | ✅ Complete | `layout-controller.tsx` (NEW)  |
+| Expand Node (P2)    | ✅ Complete | `use-graph-expansion.ts` (NEW) |
+| Prune Node (P2)     | ✅ Complete | `use-graph-expansion.ts` (NEW) |
+| Store Updates       | ✅ Complete | `use-graph-store.ts`           |
+| Context Menu        | ✅ Complete | `node-context-menu.tsx`        |
+| Integration         | ✅ Complete | `graph-viewer.tsx`             |
 
 ### Files Created
 

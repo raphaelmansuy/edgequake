@@ -134,40 +134,44 @@
 
 ## Implementation Progress
 
-| Issue                   | Status           | Notes                                                |
-| ----------------------- | ---------------- | ---------------------------------------------------- |
-| Responsive Layout (P0)  | ✅ Fixed         | Right panel hides on tablet, tests passing           |
-| Labels Not Visible      | ✅ Fixed         | labelDensity: 0.1 → 0.7, threshold: 12 → 6           |
-| Curved Edges            | ✅ Implemented   | Using @sigma/edge-curve                              |
-| Node Borders            | ✅ Implemented   | Using @sigma/node-border                             |
-| Layout Animations       | ✅ Implemented   | 300ms transitions via animateNodes                   |
-| Theme-aware Labels      | ✅ Implemented   | Dynamic light/dark label colors                      |
-| Web Worker FA2 (P1)     | ✅ Implemented   | LayoutController with Play/Pause and auto-stop       |
-| Expand Node (P2)        | ✅ Implemented   | Right-click menu + API integration                   |
-| Prune Node (P2)         | ✅ Implemented   | Right-click menu with orphan cleanup                 |
-| E2E Tests               | ✅ 20/20 Passing | Responsive layout verified                           |
+| Issue                  | Status           | Notes                                          |
+| ---------------------- | ---------------- | ---------------------------------------------- |
+| Responsive Layout (P0) | ✅ Fixed         | Right panel hides on tablet, tests passing     |
+| Labels Not Visible     | ✅ Fixed         | labelDensity: 0.1 → 0.7, threshold: 12 → 6     |
+| Curved Edges           | ✅ Implemented   | Using @sigma/edge-curve                        |
+| Node Borders           | ✅ Implemented   | Using @sigma/node-border                       |
+| Layout Animations      | ✅ Implemented   | 300ms transitions via animateNodes             |
+| Theme-aware Labels     | ✅ Implemented   | Dynamic light/dark label colors                |
+| Web Worker FA2 (P1)    | ✅ Implemented   | LayoutController with Play/Pause and auto-stop |
+| Expand Node (P2)       | ✅ Implemented   | Right-click menu + API integration             |
+| Prune Node (P2)        | ✅ Implemented   | Right-click menu with orphan cleanup           |
+| E2E Tests              | ✅ 20/20 Passing | Responsive layout verified                     |
 
 ---
 
 ## New Components Added (Session 2)
 
 ### 1. LayoutController (`layout-controller.tsx`)
+
 - Play/Pause button for continuous ForceAtlas2 Web Worker animation
 - Instant layout apply button with animated transitions
 - Auto-stops after 5 seconds to prevent infinite running
 - Uses `graphology-layout-forceatlas2/worker` for non-blocking computation
 
 ### 2. useGraphExpansion Hook (`use-graph-expansion.ts`)
+
 - Handles Expand Node: fetches neighborhood data from API, adds to graph
 - Handles Prune Node: removes node and orphaned neighbors
 - Integrates with Sigma graph for real-time visual updates
 - Runs ForceAtlas2 to settle newly added nodes
 
 ### 3. Updated Graph Store (`use-graph-store.ts`)
+
 - New state: `nodeToExpand`, `nodeToPrune`, `isExpanding`, `isPruning`, `expandedNodes`
 - New actions: `triggerNodeExpand`, `triggerNodePrune`, `addNodesToGraph`, `removeNodeFromGraph`
 
 ### 4. Updated NodeContextMenu (`node-context-menu.tsx`)
+
 - Added "Prune Node" option with Minimize2 icon
 - Added checkmark indicator for already-expanded nodes
 - Props: `onPruneNode`, `isExpanded`
@@ -184,6 +188,7 @@
 ## SOTA Features Added (Session 3)
 
 ### 1. Graph Minimap (`graph-minimap.tsx`)
+
 - Custom canvas-based minimap showing scaled-down graph overview
 - Viewport rectangle showing current camera view
 - Click-to-navigate functionality
@@ -192,12 +197,14 @@
 - Positioned above graph controls in bottom-left
 
 ### 2. Edge Hover Highlight
+
 - Added `enterEdge` and `leaveEdge` event handlers in graph-renderer.tsx
 - Edges highlight with increased size and blue color on hover
 - Connected source/target nodes also highlighted
 - Original attributes restored on leave
 
 ### 3. Fullscreen Mode (Already Implemented)
+
 - Toggle button in ZoomControls with keyboard shortcut `F`
 - Dark mode sync when entering/exiting fullscreen
 - Proper theme inheritance via `data-graph-container` attribute

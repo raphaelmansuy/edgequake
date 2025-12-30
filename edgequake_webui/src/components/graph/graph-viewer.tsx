@@ -23,11 +23,11 @@ import { AlertCircle, ChevronLeft, ChevronRight, Filter, Loader2, Maximize2, Men
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { GraphEmptyIllustration } from '../illustrations/graph-empty-illustration';
+import { BookmarksPanel } from './bookmarks-panel';
 import { EntityBrowserPanel } from './entity-browser-panel';
 import { GraphControls } from './graph-controls';
 import { GraphExport } from './graph-export';
 import { GraphFilters } from './graph-filters';
-import { BookmarksPanel } from './bookmarks-panel';
 import { GraphLegend } from './graph-legend';
 import { GraphMinimap } from './graph-minimap';
 import { GraphRenderer } from './graph-renderer';

@@ -1,17 +1,17 @@
 'use client';
 
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useGraphStore } from '@/stores/use-graph-store';
 import { useSettingsStore } from '@/stores/use-settings-store';
+import forceAtlas2 from 'graphology-layout-forceatlas2';
+import FA2Layout from 'graphology-layout-forceatlas2/worker';
+import circular from 'graphology-layout/circular';
+import random from 'graphology-layout/random';
 import { Pause, Play, RotateCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { animateNodes } from 'sigma/utils';
-import FA2Layout from 'graphology-layout-forceatlas2/worker';
-import forceAtlas2 from 'graphology-layout-forceatlas2';
-import circular from 'graphology-layout/circular';
-import random from 'graphology-layout/random';
-import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface LayoutControllerProps {
   className?: string;

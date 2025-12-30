@@ -15,15 +15,15 @@
 
 ## Implementation Summary
 
-| Feature | Status |
-|---------|--------|
-| Responsive Layout (P0) | ✅ Complete |
-| Labels Visible (P0) | ✅ Complete |
-| Curved Edges | ✅ Complete |
-| Node Borders | ✅ Complete |
-| Layout Animations | ✅ Complete |
-| Theme-aware Labels | ✅ Complete |
-| E2E Tests | ✅ 20/20 Passing |
+| Feature                | Status           |
+| ---------------------- | ---------------- |
+| Responsive Layout (P0) | ✅ Complete      |
+| Labels Visible (P0)    | ✅ Complete      |
+| Curved Edges           | ✅ Complete      |
+| Node Borders           | ✅ Complete      |
+| Layout Animations      | ✅ Complete      |
+| Theme-aware Labels     | ✅ Complete      |
+| E2E Tests              | ✅ 20/20 Passing |
 
 ## Decisions
 

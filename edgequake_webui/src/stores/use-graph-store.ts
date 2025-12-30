@@ -47,7 +47,7 @@ interface GraphState {
   visibleEntityTypes: Set<string>;
   visibleRelationshipTypes: Set<string>;
   searchQuery: string;
-  
+
   // Time-based filtering
   timeFilterEnabled: boolean;
   timeFilterStart: Date | null;
@@ -70,7 +70,7 @@ interface GraphState {
   // Loading state
   isLoading: boolean;
   error: string | null;
-  
+
   // Bookmarks for saving graph views
   bookmarks: GraphBookmark[];
 }
@@ -102,7 +102,7 @@ interface GraphActions {
   setVisibleRelationshipTypes: (types: string[]) => void;
   setSearchQuery: (query: string) => void;
   resetFilters: () => void;
-  
+
   // Time filter actions
   setTimeFilterEnabled: (enabled: boolean) => void;
   setTimeFilterRange: (start: Date | null, end: Date | null) => void;
@@ -128,7 +128,7 @@ interface GraphActions {
   // Loading
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
-  
+
   // Bookmark actions
   saveBookmark: (name: string) => GraphBookmark | null;
   loadBookmark: (bookmarkId: string) => void;
@@ -174,9 +174,9 @@ const initialState: GraphState = {
 
 // Load bookmarks from localStorage
 const loadBookmarksFromStorage = (): GraphBookmark[] => {
-  if (typeof window === 'undefined') return [];
+  if (typeof window === "undefined") return [];
   try {
-    const stored = localStorage.getItem('graph-bookmarks');
+    const stored = localStorage.getItem("graph-bookmarks");
     if (stored) {
       const parsed = JSON.parse(stored);
       // Restore Date objects
@@ -188,7 +188,7 @@ const loadBookmarksFromStorage = (): GraphBookmark[] => {
       }));
     }
   } catch (e) {
-    console.warn('Failed to load bookmarks from localStorage:', e);
+    console.warn("Failed to load bookmarks from localStorage:", e);
   }
   return [];
 };
@@ -214,7 +214,7 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
     // Index nodes
     for (const node of graph.nodes) {
       nodeMap.set(node.id, node);
-      
+
       // Index by type
       if (!nodesByType.has(node.node_type)) {
         nodesByType.set(node.node_type, new Set());
@@ -273,9 +273,9 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
 
   // Indexed lookup helpers (O(1) access)
   getNodeById: (nodeId: string) => get().nodeMap.get(nodeId),
-  
+
   getEdgeById: (edgeId: string) => get().edgeMap.get(edgeId),
-  
+
   getNodesByType: (type: string) => {
     const state = get();
     const nodeIds = state.nodesByType.get(type);
@@ -284,7 +284,7 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
       .map((id) => state.nodeMap.get(id))
       .filter((node): node is GraphNode => node !== undefined);
   },
-  
+
   getEdgesForNode: (nodeId: string) => {
     const state = get();
     const sourceEdgeIds = state.edgesBySource.get(nodeId) ?? new Set();
@@ -392,18 +392,20 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
 
   // Time filter actions
   setTimeFilterEnabled: (enabled) => set({ timeFilterEnabled: enabled }),
-  
-  setTimeFilterRange: (start, end) => set({ 
-    timeFilterStart: start, 
-    timeFilterEnd: end,
-    timeFilterEnabled: start !== null || end !== null 
-  }),
-  
-  clearTimeFilter: () => set({ 
-    timeFilterEnabled: false, 
-    timeFilterStart: null, 
-    timeFilterEnd: null 
-  }),
+
+  setTimeFilterRange: (start, end) =>
+    set({
+      timeFilterStart: start,
+      timeFilterEnd: end,
+      timeFilterEnabled: start !== null || end !== null,
+    }),
+
+  clearTimeFilter: () =>
+    set({
+      timeFilterEnabled: false,
+      timeFilterStart: null,
+      timeFilterEnd: null,
+    }),
 
   // Display settings
   setColorMode: (mode) => set({ colorMode: mode }),
@@ -418,20 +420,20 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
 
   // Expand/Prune actions
   triggerNodeExpand: (nodeId) => set({ nodeToExpand: nodeId }),
-  
+
   triggerNodePrune: (nodeId) => set({ nodeToPrune: nodeId }),
-  
+
   setIsExpanding: (isExpanding) => set({ isExpanding }),
-  
+
   setIsPruning: (isPruning) => set({ isPruning }),
-  
+
   addExpandedNode: (nodeId) =>
     set((state) => {
       const newExpandedNodes = new Set(state.expandedNodes);
       newExpandedNodes.add(nodeId);
       return { expandedNodes: newExpandedNodes };
     }),
-  
+
   removeExpandedNode: (nodeId) =>
     set((state) => {
       const newExpandedNodes = new Set(state.expandedNodes);
@@ -450,7 +452,8 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
       // Filter out duplicates
       const nodesToAdd = newNodes.filter((n) => !existingNodeIds.has(n.id));
       const edgesToAdd = newEdges.filter(
-        (e) => !existingEdgeIds.has(`${e.source}-${e.target}-${e.relationship_type}`)
+        (e) =>
+          !existingEdgeIds.has(`${e.source}-${e.target}-${e.relationship_type}`)
       );
 
       // Update entity types if needed
@@ -471,7 +474,7 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
       // Index new nodes
       for (const node of nodesToAdd) {
         nodeMap.set(node.id, node);
-        const nodeType = node.node_type || 'unknown';
+        const nodeType = node.node_type || "unknown";
         if (!nodesByType.has(nodeType)) {
           nodesByType.set(nodeType, new Set());
         }
@@ -509,20 +512,20 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
     set((state) => {
       // Find the node to get its type for index cleanup
       const nodeToRemove = state.nodeMap.get(nodeId);
-      
+
       // Remove the node
       const nodes = state.nodes.filter((n) => n.id !== nodeId);
-      
+
       // Find edges to remove (those connected to this node)
       const edgesToRemove = state.edges.filter(
         (e) => e.source === nodeId || e.target === nodeId
       );
-      
+
       // Remove all edges connected to this node
       const edges = state.edges.filter(
         (e) => e.source !== nodeId && e.target !== nodeId
       );
-      
+
       // Update indexed data structures
       const nodeMap = new Map(state.nodeMap);
       const edgeMap = new Map(state.edgeMap);
@@ -533,7 +536,7 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
       // Remove node from indexes
       nodeMap.delete(nodeId);
       if (nodeToRemove) {
-        const nodeType = nodeToRemove.node_type || 'unknown';
+        const nodeType = nodeToRemove.node_type || "unknown";
         const typeSet = nodesByType.get(nodeType);
         if (typeSet) {
           typeSet.delete(nodeId);
@@ -547,7 +550,7 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
       for (const edge of edgesToRemove) {
         const edgeId = `${edge.source}-${edge.target}-${edge.relationship_type}`;
         edgeMap.delete(edgeId);
-        
+
         const sourceSet = edgesBySource.get(edge.source);
         if (sourceSet) {
           sourceSet.delete(edgeId);
@@ -555,7 +558,7 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
             edgesBySource.delete(edge.source);
           }
         }
-        
+
         const targetSet = edgesByTarget.get(edge.target);
         if (targetSet) {
           targetSet.delete(edgeId);
@@ -564,11 +567,11 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
           }
         }
       }
-      
+
       // Clear selection if the removed node was selected
       const selectedNodeId =
         state.selectedNodeId === nodeId ? null : state.selectedNodeId;
-      
+
       // Update selected nodes set
       const selectedNodes = new Set(state.selectedNodes);
       selectedNodes.delete(nodeId);
@@ -595,19 +598,19 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
   // Loading
   setLoading: (loading) => set({ isLoading: loading }),
   setError: (error) => set({ error, isLoading: false }),
-  
+
   // Bookmark actions
   saveBookmark: (name: string) => {
     const state = get();
     if (!state.sigmaInstance) return null;
-    
+
     const camera = state.sigmaInstance.getCamera();
     const cameraState = {
       x: camera.x,
       y: camera.y,
       ratio: camera.ratio,
     };
-    
+
     const bookmark: GraphBookmark = {
       id: `bookmark-${Date.now()}`,
       name,
@@ -621,24 +624,24 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
       timeFilterStart: state.timeFilterStart,
       timeFilterEnd: state.timeFilterEnd,
     };
-    
+
     // Save to localStorage
     const updatedBookmarks = [...state.bookmarks, bookmark];
     try {
-      localStorage.setItem('graph-bookmarks', JSON.stringify(updatedBookmarks));
+      localStorage.setItem("graph-bookmarks", JSON.stringify(updatedBookmarks));
     } catch (e) {
-      console.warn('Failed to save bookmarks to localStorage:', e);
+      console.warn("Failed to save bookmarks to localStorage:", e);
     }
-    
+
     set({ bookmarks: updatedBookmarks });
     return bookmark;
   },
-  
+
   loadBookmark: (bookmarkId: string) => {
     const state = get();
     const bookmark = state.bookmarks.find((b) => b.id === bookmarkId);
     if (!bookmark) return;
-    
+
     // Restore filters
     set({
       visibleEntityTypes: new Set(bookmark.visibleEntityTypes),
@@ -648,7 +651,7 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
       timeFilterStart: bookmark.timeFilterStart,
       timeFilterEnd: bookmark.timeFilterEnd,
     });
-    
+
     // Restore camera position
     if (bookmark.cameraState && state.sigmaInstance) {
       state.sigmaInstance.getCamera().setState({
@@ -658,32 +661,32 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
       });
     }
   },
-  
+
   deleteBookmark: (bookmarkId: string) => {
     const state = get();
     const updatedBookmarks = state.bookmarks.filter((b) => b.id !== bookmarkId);
-    
+
     try {
-      localStorage.setItem('graph-bookmarks', JSON.stringify(updatedBookmarks));
+      localStorage.setItem("graph-bookmarks", JSON.stringify(updatedBookmarks));
     } catch (e) {
-      console.warn('Failed to save bookmarks to localStorage:', e);
+      console.warn("Failed to save bookmarks to localStorage:", e);
     }
-    
+
     set({ bookmarks: updatedBookmarks });
   },
-  
+
   renameBookmark: (bookmarkId: string, newName: string) => {
     const state = get();
     const updatedBookmarks = state.bookmarks.map((b) =>
       b.id === bookmarkId ? { ...b, name: newName } : b
     );
-    
+
     try {
-      localStorage.setItem('graph-bookmarks', JSON.stringify(updatedBookmarks));
+      localStorage.setItem("graph-bookmarks", JSON.stringify(updatedBookmarks));
     } catch (e) {
-      console.warn('Failed to save bookmarks to localStorage:', e);
+      console.warn("Failed to save bookmarks to localStorage:", e);
     }
-    
+
     set({ bookmarks: updatedBookmarks });
   },
 }));
@@ -700,14 +703,14 @@ export const useFilteredNodes = () => {
   // Filter nodes based on visibility, search query, and time range
   return nodes.filter((node) => {
     if (!visibleEntityTypes.has(node.node_type)) return false;
-    
+
     // Time-based filtering
     if (timeFilterEnabled && node.created_at) {
       const nodeDate = new Date(node.created_at);
       if (timeFilterStart && nodeDate < timeFilterStart) return false;
       if (timeFilterEnd && nodeDate > timeFilterEnd) return false;
     }
-    
+
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       return (
@@ -736,14 +739,14 @@ export const useFilteredEdges = () => {
     nodes
       .filter((node) => {
         if (!visibleEntityTypes.has(node.node_type)) return false;
-        
+
         // Time-based filtering
         if (timeFilterEnabled && node.created_at) {
           const nodeDate = new Date(node.created_at);
           if (timeFilterStart && nodeDate < timeFilterStart) return false;
           if (timeFilterEnd && nodeDate > timeFilterEnd) return false;
         }
-        
+
         if (searchQuery) {
           const query = searchQuery.toLowerCase();
           return (
