@@ -10,11 +10,11 @@ This guide documents best practices for state management in EdgeQuake WebUI.
 
 ### 1.1 Store Types
 
-| Type | Persistence | SSR Safe | Use Case |
-|------|-------------|----------|----------|
-| **Persisted Store** | localStorage | Requires handling | User preferences, saved state |
-| **Session Store** | None | Yes | Current session state |
-| **Derived Store** | From other stores | Depends | Computed state |
+| Type                | Persistence       | SSR Safe          | Use Case                      |
+| ------------------- | ----------------- | ----------------- | ----------------------------- |
+| **Persisted Store** | localStorage      | Requires handling | User preferences, saved state |
+| **Session Store**   | None              | Yes               | Current session state         |
+| **Derived Store**   | From other stores | Depends           | Computed state                |
 
 ### 1.2 When to Use What
 
@@ -36,10 +36,7 @@ Transient State → Session Store (loading, errors)
 ```typescript
 "use client";
 
-import {
-  STORE_VERSIONS,
-  ZUSTAND_STORAGE_KEYS,
-} from "@/lib/storage-keys";
+import { STORE_VERSIONS, ZUSTAND_STORAGE_KEYS } from "@/lib/storage-keys";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -50,7 +47,7 @@ import { persist } from "zustand/middleware";
 interface MyState {
   // State fields
   someValue: string;
-  
+
   // Hydration tracking
   _hasHydrated: boolean;
 }
@@ -83,34 +80,34 @@ export const useMyStore = create<MyStore>()(
       ...initialState,
 
       setSomeValue: (value) => set({ someValue: value }),
-      
+
       reset: () => set(initialState),
-      
+
       setHasHydrated: (hydrated) => set({ _hasHydrated: hydrated }),
     }),
     {
       // Use centralized key
       name: ZUSTAND_STORAGE_KEYS.MY_STORE, // Add to storage-keys.ts
-      
+
       // Use centralized version
       version: STORE_VERSIONS[ZUSTAND_STORAGE_KEYS.MY_STORE],
-      
+
       // Only persist necessary fields (never _hasHydrated)
       partialize: (state) => ({
         someValue: state.someValue,
       }),
-      
+
       // Handle version migrations
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<MyState>;
-        
+
         if (version === 0) {
           // Handle migration from v0 to v1
         }
-        
+
         return state as MyState;
       },
-      
+
       // Track hydration for SSR
       onRehydrateStorage: () => {
         return (state, error) => {
@@ -163,6 +160,7 @@ Client Hydrate: localStorage = { selectedTenantId: "abc123" }
 ### 3.2 The Solution
 
 1. **Track Hydration State:**
+
 ```typescript
 interface State {
   _hasHydrated: boolean;
@@ -170,15 +168,16 @@ interface State {
 
 onRehydrateStorage: () => (state) => {
   state?.setHasHydrated(true);
-}
+};
 ```
 
 2. **Gate Rendering:**
+
 ```tsx
 // Option A: Use HydrationProvider (preferred)
 <HydrationProvider>
   <MyComponent />
-</HydrationProvider>
+</HydrationProvider>;
 
 // Option B: Check in component
 const hydrated = useMyStoreHydrated();
@@ -186,6 +185,7 @@ if (!hydrated) return <Skeleton />;
 ```
 
 3. **SSR-Safe Selectors:**
+
 ```tsx
 // Returns undefined until hydrated
 const value = useHydratedStore(useMyStore, (s) => s.value);
@@ -216,12 +216,12 @@ import { ZUSTAND_STORAGE_KEYS } from "@/lib/storage-keys";
 
 persist({
   name: ZUSTAND_STORAGE_KEYS.TENANT_STORE,
-})
+});
 
 // ❌ WRONG - Magic string
 persist({
   name: "edgequake-tenant",
-})
+});
 ```
 
 ### 4.2 Document New Keys
@@ -251,19 +251,19 @@ When adding a new storage key:
   version: 2, // Bump from 1 to 2
   migrate: (persistedState, version) => {
     const state = persistedState as any;
-    
+
     if (version === 0) {
       // v0 → v1: Legacy migration
       state.newField = state.oldField;
       delete state.oldField;
     }
-    
+
     if (version === 1) {
       // v1 → v2: New migration
       state.renamedField = state.originalField;
       delete state.originalField;
     }
-    
+
     return state;
   },
 }
@@ -275,14 +275,17 @@ When adding a new storage key:
 // In test file
 it("migrates from v0 to v1", () => {
   // Set up v0 data
-  localStorage.setItem("store-key", JSON.stringify({
-    state: { oldField: "value" },
-    version: 0,
-  }));
-  
+  localStorage.setItem(
+    "store-key",
+    JSON.stringify({
+      state: { oldField: "value" },
+      version: 0,
+    })
+  );
+
   // Create store (triggers migration)
   const { getState } = useMyStore;
-  
+
   // Verify migration
   expect(getState().newField).toBe("value");
   expect(getState().oldField).toBeUndefined();
@@ -300,8 +303,8 @@ it("migrates from v0 to v1", () => {
 ```typescript
 // ❌ BAD - Dual storage
 const selectTenant = (id) => {
-  set({ selectedTenantId: id });  // Zustand
-  localStorage.setItem("tenantId", id);  // Manual
+  set({ selectedTenantId: id }); // Zustand
+  localStorage.setItem("tenantId", id); // Manual
 };
 ```
 
@@ -332,7 +335,7 @@ state: {
 ```typescript
 partialize: (state) => ({
   myMapEntries: Array.from(state.myMap.entries()),
-})
+});
 ```
 
 **Solution B:** Don't persist (use for transient data only)
@@ -341,7 +344,7 @@ partialize: (state) => ({
 partialize: (state) => ({
   // Don't include myMap - it's transient
   otherField: state.otherField,
-})
+});
 ```
 
 ### 6.3 Circular Dependencies
@@ -389,7 +392,7 @@ import { useCrossTabSync } from "@/hooks/use-store-hydration";
 function App() {
   // Rehydrates when localStorage changes in another tab
   useCrossTabSync(useMyStore, ZUSTAND_STORAGE_KEYS.MY_STORE);
-  
+
   return <Children />;
 }
 ```
@@ -403,7 +406,7 @@ useEffect(() => {
       useMyStore.persist.rehydrate();
     }
   };
-  
+
   window.addEventListener("storage", handler);
   return () => window.removeEventListener("storage", handler);
 }, []);
@@ -427,21 +430,21 @@ beforeEach(() => {
 
 it("updates state", () => {
   const { result } = renderHook(() => useMyStore());
-  
+
   act(() => {
     result.current.setSomeValue("test");
   });
-  
+
   expect(result.current.someValue).toBe("test");
 });
 
 it("persists to localStorage", () => {
   const { result } = renderHook(() => useMyStore());
-  
+
   act(() => {
     result.current.setSomeValue("test");
   });
-  
+
   const stored = JSON.parse(localStorage.getItem("store-key")!);
   expect(stored.state.someValue).toBe("test");
 });
@@ -459,10 +462,10 @@ test.beforeEach(async ({ page }) => {
 test("persists selection across reload", async ({ page }) => {
   // Select something
   await page.click('[data-testid="option-1"]');
-  
+
   // Reload
   await page.reload();
-  
+
   // Verify still selected
   await expect(page.locator('[data-testid="selected"]')).toHaveText("Option 1");
 });
@@ -474,41 +477,41 @@ test("persists selection across reload", async ({ page }) => {
 
 ### Store Configuration Options
 
-| Option | Purpose | Required |
-|--------|---------|----------|
-| `name` | localStorage key | Yes |
-| `version` | Schema version for migrations | Yes |
-| `partialize` | Select fields to persist | Yes |
-| `migrate` | Handle schema changes | Yes |
-| `onRehydrateStorage` | Track hydration | Yes |
-| `merge` | Custom merge for nested objects | If needed |
-| `storage` | Custom storage engine | No |
-| `skipHydration` | Manual hydration control | No |
+| Option               | Purpose                         | Required  |
+| -------------------- | ------------------------------- | --------- |
+| `name`               | localStorage key                | Yes       |
+| `version`            | Schema version for migrations   | Yes       |
+| `partialize`         | Select fields to persist        | Yes       |
+| `migrate`            | Handle schema changes           | Yes       |
+| `onRehydrateStorage` | Track hydration                 | Yes       |
+| `merge`              | Custom merge for nested objects | If needed |
+| `storage`            | Custom storage engine           | No        |
+| `skipHydration`      | Manual hydration control        | No        |
 
 ### Hydration Hooks
 
-| Hook | Purpose |
-|------|---------|
-| `useStoreHydrated(store)` | Boolean: is store hydrated? |
-| `useHydratedStore(store, selector)` | SSR-safe selector (undefined until hydrated) |
-| `useSyncStore(store, selector, fallback)` | React 18 optimal pattern |
-| `useAllStoresHydrated([stores])` | Wait for multiple stores |
-| `useCrossTabSync(store, key)` | Sync across tabs |
-| `useRehydrateStore(store)` | Manual rehydration |
+| Hook                                      | Purpose                                      |
+| ----------------------------------------- | -------------------------------------------- |
+| `useStoreHydrated(store)`                 | Boolean: is store hydrated?                  |
+| `useHydratedStore(store, selector)`       | SSR-safe selector (undefined until hydrated) |
+| `useSyncStore(store, selector, fallback)` | React 18 optimal pattern                     |
+| `useAllStoresHydrated([stores])`          | Wait for multiple stores                     |
+| `useCrossTabSync(store, key)`             | Sync across tabs                             |
+| `useRehydrateStore(store)`                | Manual rehydration                           |
 
 ### Storage Key Categories
 
-| Category | Purpose |
-|----------|---------|
-| `ZUSTAND_STORAGE_KEYS` | Zustand persist keys |
-| `LEGACY_STORAGE_KEYS` | Deprecated, for migration |
-| `FLAG_STORAGE_KEYS` | One-time flags |
-| `CACHE_STORAGE_KEYS` | Clearable cache |
+| Category               | Purpose                   |
+| ---------------------- | ------------------------- |
+| `ZUSTAND_STORAGE_KEYS` | Zustand persist keys      |
+| `LEGACY_STORAGE_KEYS`  | Deprecated, for migration |
+| `FLAG_STORAGE_KEYS`    | One-time flags            |
+| `CACHE_STORAGE_KEYS`   | Clearable cache           |
 
 ---
 
 ## 10. Changelog
 
-| Date | Version | Changes |
-|------|---------|---------|
-| 2025-01-XX | 1.0 | Initial guide |
+| Date       | Version | Changes       |
+| ---------- | ------- | ------------- |
+| 2025-01-XX | 1.0     | Initial guide |

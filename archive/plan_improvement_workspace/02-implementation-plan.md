@@ -15,11 +15,13 @@ This document details the implementation steps for fixing Zustand and localStora
 **File Created:** [edgequake_webui/src/lib/storage-keys.ts](../edgequake_webui/src/lib/storage-keys.ts)
 
 **Purpose:**
+
 - Single source of truth for all localStorage keys
 - Prevents typos and enables refactoring
 - Documents all persistent state
 
 **Key Features:**
+
 - `ZUSTAND_STORAGE_KEYS` - Keys for Zustand persisted stores
 - `LEGACY_STORAGE_KEYS` - Deprecated keys for migration
 - `FLAG_STORAGE_KEYS` - One-time flags
@@ -29,15 +31,18 @@ This document details the implementation steps for fixing Zustand and localStora
 ### 1.2 Create Hydration Utilities
 
 **Files Created:**
+
 - [edgequake_webui/src/hooks/use-store-hydration.ts](../edgequake_webui/src/hooks/use-store-hydration.ts)
 - [edgequake_webui/src/providers/hydration-provider.tsx](../edgequake_webui/src/providers/hydration-provider.tsx)
 
 **Purpose:**
+
 - Safe access to persisted store data in SSR
 - Prevent hydration mismatches
 - Gate app rendering until critical stores hydrate
 
 **Key Features:**
+
 - `useStoreHydrated()` - Track single store hydration
 - `useHydratedStore()` - SSR-safe selector access
 - `useSyncStore()` - React 18+ optimal pattern
@@ -54,6 +59,7 @@ This document details the implementation steps for fixing Zustand and localStora
 **File Modified:** [edgequake_webui/src/stores/use-tenant-store.ts](../edgequake_webui/src/stores/use-tenant-store.ts)
 
 **Changes:**
+
 - ✅ Added `_hasHydrated` state field
 - ✅ Added `setHasHydrated()` action
 - ✅ Use centralized `ZUSTAND_STORAGE_KEYS.TENANT_STORE`
@@ -64,16 +70,17 @@ This document details the implementation steps for fixing Zustand and localStora
 - ✅ Added `useHasValidContext()` selector
 
 **Migration Logic:**
+
 ```typescript
 migrate: (persistedState, version) => {
   if (version === 0) {
     // Migrate from legacy localStorage keys
-    const legacyTenantId = localStorage.getItem('tenantId');
-    const legacyWorkspaceId = localStorage.getItem('workspaceId');
+    const legacyTenantId = localStorage.getItem("tenantId");
+    const legacyWorkspaceId = localStorage.getItem("workspaceId");
     // Apply to state...
   }
   return state;
-}
+};
 ```
 
 ### 2.2 useAuthStore
@@ -81,6 +88,7 @@ migrate: (persistedState, version) => {
 **File Modified:** [edgequake_webui/src/stores/use-auth-store.ts](../edgequake_webui/src/stores/use-auth-store.ts)
 
 **Changes:**
+
 - ✅ Added `_hasHydrated` state field
 - ✅ Added `setHasHydrated()` action
 - ✅ Use centralized `ZUSTAND_STORAGE_KEYS.AUTH_STORE`
@@ -94,6 +102,7 @@ migrate: (persistedState, version) => {
 **File Modified:** [edgequake_webui/src/stores/use-settings-store.ts](../edgequake_webui/src/stores/use-settings-store.ts)
 
 **Changes:**
+
 - ✅ Added `_hasHydrated` state field
 - ✅ Added `setHasHydrated()` action
 - ✅ Use centralized `ZUSTAND_STORAGE_KEYS.SETTINGS_STORE`
@@ -107,6 +116,7 @@ migrate: (persistedState, version) => {
 **File Modified:** [edgequake_webui/src/stores/use-cost-store.ts](../edgequake_webui/src/stores/use-cost-store.ts)
 
 **Changes:**
+
 - ✅ Use centralized `ZUSTAND_STORAGE_KEYS.COST_STORE`
 - ✅ Added `version: 1` for migrations
 - Note: Map types are NOT persisted (intentionally - they're transient state)
@@ -120,16 +130,19 @@ migrate: (persistedState, version) => {
 **File Modified:** [edgequake_webui/src/providers/index.tsx](../edgequake_webui/src/providers/index.tsx)
 
 **Changes:**
+
 - ✅ Added `HydrationProvider` import
 - ✅ Added `HydrationProvider` to provider hierarchy
 - ✅ Documented provider order and rationale
 
 **Provider Order:**
+
 ```
 QueryProvider → ThemeProvider → HydrationProvider → I18nProvider → TenantProvider → ...
 ```
 
 **Rationale:**
+
 1. `QueryProvider` - Must be first (React Query context)
 2. `ThemeProvider` - Before hydration to prevent theme flash
 3. `HydrationProvider` - Gates until Zustand hydrates
@@ -144,10 +157,12 @@ QueryProvider → ThemeProvider → HydrationProvider → I18nProvider → Tenan
 **Status:** DOCUMENTED - Not blocking, stores sync on hydration
 
 The dual storage pattern (Zustand + manual localStorage) still exists but is mitigated by:
+
 - `onRehydrateStorage` syncs store → API client after hydration
 - Migration function imports legacy keys into Zustand store
 
 **Full Solution (Deferred):**
+
 1. Refactor `client.ts` to subscribe to Zustand stores
 2. Remove manual `setTenantContext()` calls from stores
 3. Clean up legacy keys after migration period
@@ -159,6 +174,7 @@ The dual storage pattern (Zustand + manual localStorage) still exists but is mit
 `useQueryStore.conversationMessages` duplicates `useConversationStore.conversations`.
 
 **Solution (Deferred):**
+
 1. Mark `conversationMessages` as deprecated
 2. Migrate usage to `useConversationStore`
 3. Remove from persistence after migration
@@ -166,6 +182,7 @@ The dual storage pattern (Zustand + manual localStorage) still exists but is mit
 ### 4.3 Update Remaining Stores
 
 **Stores to Update:**
+
 - [ ] `useQueryStore` - Add version, hydration
 - [ ] `useQueryUIStore` - Add version, hydration
 - [ ] `useConversationStore` - Add version, hydration
@@ -198,10 +215,12 @@ The dual storage pattern (Zustand + manual localStorage) still exists but is mit
 If issues occur:
 
 1. **Revert HydrationProvider:**
+
    - Remove from `providers/index.tsx`
    - App will work but may have hydration warnings
 
 2. **Revert Store Changes:**
+
    - Store changes are backward compatible
    - Old localStorage format still works
    - Migration only adds data, doesn't delete
