@@ -414,6 +414,12 @@ impl AppState {
             }
         }
 
+        // CRITICAL: Set search_path to public BEFORE running migrations
+        // This ensures _sqlx_migrations table is created in public schema, not user's default schema
+        sqlx::query("SET search_path TO public")
+            .execute(&pool)
+            .await?;
+
         // Run migrations from the workspace root migrations directory
         // SQLx migrations will create all required tables automatically
         tracing::info!("Running database migrations...");

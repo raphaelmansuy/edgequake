@@ -151,7 +151,11 @@ where
     }
 
     /// Create with custom prompts.
-    pub fn with_prompts(llm_provider: Arc<L>, config: SummarizerConfig, prompts: SummarizationPrompts) -> Self {
+    pub fn with_prompts(
+        llm_provider: Arc<L>,
+        config: SummarizerConfig,
+        prompts: SummarizationPrompts,
+    ) -> Self {
         Self {
             llm_provider,
             config,
@@ -249,7 +253,10 @@ where
             intermediate_summaries = new_summaries;
         }
 
-        Ok(intermediate_summaries.into_iter().next().unwrap_or_default())
+        Ok(intermediate_summaries
+            .into_iter()
+            .next()
+            .unwrap_or_default())
     }
 
     /// Chunk descriptions to fit within token limit.
@@ -282,7 +289,9 @@ where
     /// Summarize a single chunk of descriptions.
     async fn summarize_chunk(&self, entity_name: &str, descriptions: &[String]) -> Result<String> {
         let descriptions_refs: Vec<&str> = descriptions.iter().map(|s| s.as_str()).collect();
-        let prompt = self.prompts.entity_summary_prompt(entity_name, &descriptions_refs);
+        let prompt = self
+            .prompts
+            .entity_summary_prompt(entity_name, &descriptions_refs);
 
         let response = self
             .llm_provider
@@ -309,7 +318,9 @@ where
         }
 
         let descriptions_refs: Vec<&str> = descriptions.iter().map(|s| s.as_str()).collect();
-        let prompt = self.prompts.relationship_summary_prompt(source, target, &descriptions_refs);
+        let prompt = self
+            .prompts
+            .relationship_summary_prompt(source, target, &descriptions_refs);
 
         let response = self
             .llm_provider
@@ -476,7 +487,7 @@ mod tests {
             ..Default::default()
         };
         let summarizer = SimpleSummarizer::new(config);
-        
+
         let text = "Wow! Amazing! Incredible! Fantastic!";
         let result = summarizer.summarize(text).await.unwrap();
         assert!(!result.is_empty());
@@ -489,7 +500,7 @@ mod tests {
             ..Default::default()
         };
         let summarizer = SimpleSummarizer::new(config);
-        
+
         let text = "What is this? How does it work? Why does it matter?";
         let result = summarizer.summarize(text).await.unwrap();
         assert!(!result.is_empty());
@@ -505,35 +516,47 @@ mod tests {
     #[tokio::test]
     async fn test_summarize_entity_description_both_empty() {
         let summarizer = SimpleSummarizer::default();
-        let result = summarize_entity_description(&summarizer, "", "", 1000).await.unwrap();
+        let result = summarize_entity_description(&summarizer, "", "", 1000)
+            .await
+            .unwrap();
         assert!(result.is_empty());
     }
 
     #[tokio::test]
     async fn test_summarize_entity_description_existing_empty() {
         let summarizer = SimpleSummarizer::default();
-        let result = summarize_entity_description(&summarizer, "", "new content", 1000).await.unwrap();
+        let result = summarize_entity_description(&summarizer, "", "new content", 1000)
+            .await
+            .unwrap();
         assert_eq!(result, "new content");
     }
 
     #[tokio::test]
     async fn test_summarize_entity_description_new_empty() {
         let summarizer = SimpleSummarizer::default();
-        let result = summarize_entity_description(&summarizer, "existing content", "", 1000).await.unwrap();
+        let result = summarize_entity_description(&summarizer, "existing content", "", 1000)
+            .await
+            .unwrap();
         assert_eq!(result, "existing content");
     }
 
     #[tokio::test]
     async fn test_summarize_entity_description_duplicate() {
         let summarizer = SimpleSummarizer::default();
-        let result = summarize_entity_description(&summarizer, "same content", "same content", 1000).await.unwrap();
+        let result =
+            summarize_entity_description(&summarizer, "same content", "same content", 1000)
+                .await
+                .unwrap();
         assert_eq!(result, "same content");
     }
 
     #[tokio::test]
     async fn test_summarize_entity_description_contains() {
         let summarizer = SimpleSummarizer::default();
-        let result = summarize_entity_description(&summarizer, "existing content here", "content", 1000).await.unwrap();
+        let result =
+            summarize_entity_description(&summarizer, "existing content here", "content", 1000)
+                .await
+                .unwrap();
         assert_eq!(result, "existing content here");
     }
 }

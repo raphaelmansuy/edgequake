@@ -132,7 +132,10 @@ pub trait KVStorageExt: KVStorage {
     }
 
     /// Retrieve multiple records and deserialize them.
-    async fn get_jsons<T: serde::de::DeserializeOwned + Send>(&self, ids: &[String]) -> Result<Vec<T>> {
+    async fn get_jsons<T: serde::de::DeserializeOwned + Send>(
+        &self,
+        ids: &[String],
+    ) -> Result<Vec<T>> {
         let vals = self.get_by_ids(ids).await?;
         let mut results = Vec::new();
         for v in vals {
@@ -144,7 +147,10 @@ pub trait KVStorageExt: KVStorage {
     }
 
     /// Upsert multiple records after serializing them.
-    async fn upsert_json<T: serde::Serialize + Send + Sync>(&self, data: &[(String, T)]) -> Result<()> {
+    async fn upsert_json<T: serde::Serialize + Send + Sync>(
+        &self,
+        data: &[(String, T)],
+    ) -> Result<()> {
         let mut json_data = Vec::new();
         for (id, val) in data {
             json_data.push((id.clone(), serde_json::to_value(val)?));

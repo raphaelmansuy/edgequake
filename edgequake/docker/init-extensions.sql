@@ -2,6 +2,10 @@
 -- This script only creates required extensions, NOT tables.
 -- Tables are created by SQLx migrations in the Rust application.
 
+-- CRITICAL: Set the default search_path for the edgequake user to public ONLY
+-- This prevents SQLx from creating _sqlx_migrations in a user-specific schema
+ALTER USER edgequake SET search_path TO public;
+
 -- UUID generation
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
