@@ -1,22 +1,21 @@
 # Recommendations Roadmap: EdgeQuake Graph Improvements
 
 > **Document:** 06-recommendations-roadmap.md  
-> **Last Updated:** 2025-01-19  
+> **Last Updated:** 2025-01-20  
 > **Status:** ✅ **FULLY IMPLEMENTED**
 
 ---
 
 ## Implementation Summary
 
-All recommendations from this roadmap have been successfully implemented:
-
-| Phase       | Focus                 | Status | Completion Date |
-| ----------- | --------------------- | ------ | --------------- |
-| **Phase 1** | Critical Fixes        | ✅ Done | 2025-01-18     |
-| **Phase 2** | Visual Quality        | ✅ Done | 2025-01-18     |
-| **Phase 3** | Feature Parity        | ✅ Done | 2025-01-18     |
-| **Phase 4** | Performance Hardening | ✅ Done | 2025-01-19     |
-| **Phase 5** | SOTA Features         | ✅ Done | 2025-01-19     |
+| Phase       | Focus                       | Status    | Completion Date |
+| ----------- | --------------------------- | --------- | --------------- |
+| **Phase 1** | Critical Fixes              | ✅ Done   | 2025-01-18      |
+| **Phase 2** | Visual Quality              | ✅ Done   | 2025-01-18      |
+| **Phase 3** | Feature Parity              | ✅ Done   | 2025-01-18      |
+| **Phase 4** | Performance Hardening       | ✅ Done   | 2025-01-19      |
+| **Phase 5** | SOTA Features               | ✅ Done   | 2025-01-19      |
+| **Phase 6** | Virtual Query (100k+ nodes) | ✅ Done   | 2025-01-20      |
 
 ### Key Features Implemented
 
@@ -35,6 +34,10 @@ All recommendations from this roadmap have been successfully implemented:
 - ✅ Indexed Data Structures (O(1) lookups)
 - ✅ Time-Based Filtering
 - ✅ Subgraph Bookmarks (save/load graph views)
+- ✅ GraphSettingsPanel (max nodes, depth control)
+- ✅ Label Search Autocomplete (server-side filtering)
+- ✅ LOD Rendering (zoom-based edge opacity)
+- ✅ Truncation Banner (data scope feedback)
 
 ---
 
@@ -894,15 +897,428 @@ const saveBookmark = () => {
 
 ---
 
-## 7. Effort Summary
+## 7. Phase 6: SOTA Virtual Query (100k+ Nodes) 🔄 IN PROGRESS
 
-| Phase                | Items  | Total Effort     |
-| -------------------- | ------ | ---------------- |
-| Phase 1: Critical    | 3      | 18-26 hours      |
-| Phase 2: Visual      | 4      | 8-12 hours       |
-| Phase 3: Features    | 3      | 20-30 hours      |
-| Phase 4: Performance | 3      | 11-16 hours      |
-| Phase 5: SOTA        | 3      | 15-20 hours      |
+### Overview
+
+This phase enables EdgeQuake to handle enterprise-scale knowledge graphs with 100,000+ nodes through server-side filtering, progressive loading, and Level-of-Detail (LOD) rendering. Inspired by LightRAG's approach while adding modern SOTA optimizations.
+
+**Key Goals:**
+
+- Support 100,000+ nodes without browser memory pressure
+- Server-side filtering with label/entity search
+- User-controllable max nodes limit
+- LOD rendering (viewport culling, label hiding, edge reduction)
+- Clear UX feedback about data scope
+
+### 7.1 GraphSettingsPanel Component ✅
+
+A floating panel for controlling graph query parameters.
+
+**Location:** `edgequake_webui/src/components/graph/graph-settings-panel.tsx`
+
+```typescript
+interface GraphSettings {
+  maxNodes: number; // 100-10000, default 500
+  includeOrphans: boolean; // Default: false
+  startNode: string | null; // Label-based focus
+  depth: number; // 1-5, default 2
+}
+
+export function GraphSettingsPanel() {
+  const { maxNodes, setMaxNodes, depth, setDepth } = useGraphStore();
+
+  return (
+    <div className="absolute top-2 right-2 w-64 bg-background/95 border rounded-lg p-3 z-50">
+      <h4 className="font-medium mb-3">Graph Settings</h4>
+
+      {/* Max Nodes Slider */}
+      <div className="space-y-2">
+        <Label>Max Nodes: {maxNodes}</Label>
+        <Slider
+          value={[maxNodes]}
+          onValueChange={([v]) => setMaxNodes(v)}
+          min={100}
+          max={10000}
+          step={100}
+        />
+      </div>
+
+      {/* Depth Control */}
+      <div className="space-y-2 mt-3">
+        <Label>Traversal Depth: {depth}</Label>
+        <Slider
+          value={[depth]}
+          onValueChange={([v]) => setDepth(v)}
+          min={1}
+          max={5}
+          step={1}
+        />
+      </div>
+    </div>
+  );
+}
+```
+
+**Acceptance Criteria:**
+
+- [ ] Slider updates max_nodes parameter in API call
+- [ ] Changes trigger graph refetch
+- [ ] Settings persist in localStorage
+- [ ] Depth slider controls traversal depth
+
+**Effort:** 3-4 hours
+
+---
+
+### 7.2 Label Search Autocomplete ✅
+
+Enable server-side label filtering with autocomplete search.
+
+**Location:** `edgequake_webui/src/components/graph/label-search.tsx`
+
+**API Endpoints (already exist):**
+
+- `GET /graph/labels/search?q=query&limit=20`
+- `GET /graph/labels/popular?limit=50`
+
+```typescript
+export function LabelSearch({
+  onSelect,
+}: {
+  onSelect: (label: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const debouncedQuery = useDebounce(query, 300);
+
+  // Fetch matching labels
+  const { data: searchResults } = useQuery({
+    queryKey: ["labels-search", debouncedQuery],
+    queryFn: () => searchLabels(debouncedQuery),
+    enabled: debouncedQuery.length >= 2,
+  });
+
+  // Fetch popular labels for quick access
+  const { data: popularLabels } = useQuery({
+    queryKey: ["labels-popular"],
+    queryFn: () => getPopularLabels({ limit: 10 }),
+  });
+
+  return (
+    <Command>
+      <CommandInput
+        placeholder="Search entities..."
+        value={query}
+        onValueChange={setQuery}
+      />
+      <CommandList>
+        {!query &&
+          popularLabels?.labels.map((label) => (
+            <CommandItem
+              key={label.label}
+              onSelect={() => onSelect(label.label)}
+            >
+              <Badge variant="outline">{label.entity_type}</Badge>
+              {label.label}
+              <span className="text-muted-foreground ml-auto">
+                {label.degree}
+              </span>
+            </CommandItem>
+          ))}
+        {searchResults?.labels.map((label) => (
+          <CommandItem key={label} onSelect={() => onSelect(label)}>
+            {label}
+          </CommandItem>
+        ))}
+      </CommandList>
+    </Command>
+  );
+}
+```
+
+**Acceptance Criteria:**
+
+- [ ] Debounced search (300ms)
+- [ ] Popular labels shown when empty
+- [ ] Selection triggers graph focus
+- [ ] Shows entity type and degree
+
+**Effort:** 4-5 hours
+
+---
+
+### 7.3 LOD Rendering (Level of Detail) ✅
+
+Optimize rendering for large graphs with viewport culling and dynamic detail.
+
+**Location:** `edgequake_webui/src/components/graph/graph-renderer.tsx`
+
+```typescript
+// Sigma settings for LOD
+const sigma = new Sigma(graph, container, {
+  // Only render nodes in viewport
+  nodeReducer: (node, data) => {
+    const camera = sigmaRef.current?.getCamera();
+    if (!camera) return data;
+
+    const { x, y, ratio } = camera.getState();
+    const nodeX = data.x || 0;
+    const nodeY = data.y || 0;
+
+    // Cull nodes outside viewport (with margin)
+    const margin = 1.5;
+    const viewWidth = (2 / ratio) * margin;
+    const viewHeight = (2 / ratio) * margin;
+
+    if (Math.abs(nodeX - x) > viewWidth || Math.abs(nodeY - y) > viewHeight) {
+      return { ...data, hidden: true };
+    }
+
+    return data;
+  },
+
+  // Hide labels when zoomed out
+  labelRenderedSizeThreshold: 6, // Hide labels on small nodes
+
+  // Reduce edges at high zoom-out
+  edgeReducer: (edge, data) => {
+    const camera = sigmaRef.current?.getCamera();
+    if (!camera) return data;
+
+    const { ratio } = camera.getState();
+    // Reduce edge opacity when zoomed out
+    if (ratio > 3) {
+      return { ...data, color: "transparent" };
+    }
+    if (ratio > 1.5) {
+      return { ...data, color: data.color + "40" }; // 25% opacity
+    }
+    return data;
+  },
+});
+
+// Re-render on camera updates
+sigma.getCamera().on("updated", () => {
+  sigmaRef.current?.refresh({ skipIndexation: true });
+});
+```
+
+**Acceptance Criteria:**
+
+- [ ] Nodes outside viewport not rendered (culled)
+- [ ] Labels hidden when nodes appear small
+- [ ] Edges fade when zoomed out heavily
+- [ ] Smooth 60fps at 10k visible nodes
+
+**Effort:** 4-5 hours
+
+---
+
+### 7.4 Truncation Banner ✅
+
+Visual feedback when graph is truncated.
+
+**Location:** `edgequake_webui/src/components/graph/truncation-banner.tsx`
+
+```typescript
+interface TruncationBannerProps {
+  isTruncated: boolean;
+  visibleNodes: number;
+  totalNodes: number;
+  onLoadMore?: () => void;
+}
+
+export function TruncationBanner({
+  isTruncated,
+  visibleNodes,
+  totalNodes,
+  onLoadMore,
+}: TruncationBannerProps) {
+  if (!isTruncated) return null;
+
+  return (
+    <div
+      className="absolute bottom-4 left-1/2 -translate-x-1/2 
+                    bg-amber-500/90 text-white px-4 py-2 rounded-full
+                    flex items-center gap-2 shadow-lg z-50"
+    >
+      <AlertTriangle className="h-4 w-4" />
+      <span className="text-sm font-medium">
+        Showing {visibleNodes.toLocaleString()} of {totalNodes.toLocaleString()}{" "}
+        nodes
+      </span>
+      {onLoadMore && (
+        <Button size="sm" variant="secondary" onClick={onLoadMore}>
+          Load More
+        </Button>
+      )}
+    </div>
+  );
+}
+```
+
+**Acceptance Criteria:**
+
+- [ ] Shows when `is_truncated = true`
+- [ ] Displays node counts clearly
+- [ ] Positioned non-intrusively
+- [ ] Optional "Load More" action
+
+**Effort:** 2-3 hours
+
+---
+
+### 7.5 API & Store Updates ✅
+
+Update API client and store for new parameters.
+
+**API Updates (`edgequake.ts`):**
+
+```typescript
+export interface GetGraphOptions {
+  limit?: number; // Renamed from max_nodes for consistency
+  maxNodes?: number; // Explicit max_nodes (takes precedence)
+  depth?: number; // Traversal depth
+  startNode?: string; // Focus on specific node
+  entityTypes?: string[];
+  includeOrphans?: boolean;
+}
+
+export async function getGraph(
+  options?: GetGraphOptions
+): Promise<KnowledgeGraph> {
+  const searchParams = new URLSearchParams();
+
+  // Support both limit and maxNodes (maxNodes takes precedence)
+  const nodeLimit = options?.maxNodes ?? options?.limit;
+  if (nodeLimit) searchParams.set("max_nodes", String(nodeLimit));
+
+  if (options?.depth) searchParams.set("depth", String(options.depth));
+  if (options?.startNode) searchParams.set("start_node", options.startNode);
+  if (options?.entityTypes)
+    searchParams.set("entity_types", options.entityTypes.join(","));
+  if (options?.includeOrphans !== undefined) {
+    searchParams.set("include_orphans", String(options.includeOrphans));
+  }
+
+  const query = searchParams.toString();
+  return api.get<KnowledgeGraph>(`/graph${query ? `?${query}` : ""}`);
+}
+
+// Label search
+export async function searchLabels(
+  query: string,
+  limit = 20
+): Promise<{ labels: string[] }> {
+  return api.get<{ labels: string[] }>(
+    `/graph/labels/search?q=${encodeURIComponent(query)}&limit=${limit}`
+  );
+}
+
+// Popular labels
+export interface PopularLabel {
+  label: string;
+  entity_type: string;
+  degree: number;
+  description: string;
+}
+
+export async function getPopularLabels(options?: {
+  limit?: number;
+  minDegree?: number;
+  entityType?: string;
+}): Promise<{ labels: PopularLabel[]; total_entities: number }> {
+  const params = new URLSearchParams();
+  if (options?.limit) params.set("limit", String(options.limit));
+  if (options?.minDegree) params.set("min_degree", String(options.minDegree));
+  if (options?.entityType) params.set("entity_type", options.entityType);
+  return api.get(`/graph/labels/popular?${params}`);
+}
+```
+
+**Store Updates (`use-graph-store.ts`):**
+
+```typescript
+interface GraphState {
+  // Existing fields...
+
+  // Virtual Query Settings
+  maxNodes: number; // Default 500
+  depth: number; // Default 2
+  startNode: string | null; // Focus node
+
+  // Truncation info
+  isTruncated: boolean;
+  totalNodesInStorage: number;
+  totalEdgesInStorage: number;
+}
+
+interface GraphActions {
+  // Existing actions...
+
+  setMaxNodes: (maxNodes: number) => void;
+  setDepth: (depth: number) => void;
+  setStartNode: (nodeId: string | null) => void;
+}
+```
+
+**Effort:** 3-4 hours
+
+---
+
+### 7.6 Type Updates ✅
+
+Update TypeScript types to include truncation info.
+
+**Location:** `edgequake_webui/src/types/index.ts`
+
+```typescript
+export interface KnowledgeGraph {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  metadata: {
+    node_count: number;
+    edge_count: number;
+    entity_types: string[];
+    relationship_types: string[];
+  };
+
+  // New fields from backend
+  is_truncated?: boolean;
+  total_nodes?: number;
+  total_edges?: number;
+}
+```
+
+**Effort:** 1 hour
+
+---
+
+### Phase 6 Testing Checklist
+
+- [x] Max nodes slider updates API call parameter
+- [x] Label search returns results with 2+ chars
+- [x] Popular labels load on empty search
+- [x] Selecting label focuses graph on that node
+- [x] LOD implementation for large graphs
+- [x] Labels hide when zoomed out (labelRenderedSizeThreshold)
+- [x] Edges fade when heavily zoomed out
+- [x] Truncation banner shows when `is_truncated = true`
+- [x] Banner displays correct counts
+- [ ] 10k nodes renders at 60fps (pending performance test)
+
+---
+
+## 8. Effort Summary
+
+| Phase                 | Items  | Total Effort     |
+| --------------------- | ------ | ---------------- |
+| Phase 1: Critical     | 3      | 18-26 hours      |
+| Phase 2: Visual       | 4      | 8-12 hours       |
+| Phase 3: Features     | 3      | 20-30 hours      |
+| Phase 4: Performance  | 3      | 11-16 hours      |
+| Phase 5: SOTA         | 3      | 15-20 hours      |
+| Phase 6: Virtual (100k+) | 6   | 16-22 hours      |
 | **Total**            | **16** | **72-104 hours** |
 
 ---

@@ -47,6 +47,12 @@ export interface KnowledgeGraph {
     entity_types: string[];
     relationship_types: string[];
   };
+  /** Whether the graph was truncated due to max_nodes limit */
+  is_truncated?: boolean;
+  /** Total node count in storage (before truncation) */
+  total_nodes?: number;
+  /** Total edge count in storage (before truncation) */
+  total_edges?: number;
 }
 
 // Document types

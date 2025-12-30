@@ -300,13 +300,36 @@ export async function* queryStream(
 // Knowledge Graph
 // ============================================================================
 
-export async function getGraph(options?: {
+/**
+ * Options for fetching the knowledge graph.
+ * Supports server-side filtering for 100k+ node graphs.
+ */
+export interface GetGraphOptions {
+  /** Maximum number of nodes to return (default: 500) */
   limit?: number;
+  /** Explicit max_nodes parameter (takes precedence over limit) */
+  maxNodes?: number;
+  /** Maximum traversal depth from start_node (default: 2) */
+  depth?: number;
+  /** Focus on a specific node and its neighborhood */
+  startNode?: string;
+  /** Filter by entity types */
   entity_types?: string[];
+  /** Include orphan nodes with no connections */
   include_orphans?: boolean;
-}): Promise<KnowledgeGraph> {
+}
+
+export async function getGraph(
+  options?: GetGraphOptions
+): Promise<KnowledgeGraph> {
   const searchParams = new URLSearchParams();
-  if (options?.limit) searchParams.set("limit", String(options.limit));
+
+  // Support both limit and maxNodes (maxNodes takes precedence)
+  const nodeLimit = options?.maxNodes ?? options?.limit;
+  if (nodeLimit) searchParams.set("max_nodes", String(nodeLimit));
+
+  if (options?.depth) searchParams.set("depth", String(options.depth));
+  if (options?.startNode) searchParams.set("start_node", options.startNode);
   if (options?.entity_types)
     searchParams.set("entity_types", options.entity_types.join(","));
   if (options?.include_orphans !== undefined) {
@@ -338,6 +361,46 @@ export async function getGraphStats(): Promise<{
     entity_type_counts: Record<string, number>;
     relationship_type_counts: Record<string, number>;
   }>("/graph/stats");
+}
+
+/**
+ * Search for labels/entities by query string.
+ * Used for autocomplete in label search.
+ */
+export async function searchLabels(
+  query: string,
+  limit = 20
+): Promise<{ labels: string[] }> {
+  return api.get<{ labels: string[] }>(
+    `/graph/labels/search?q=${encodeURIComponent(query)}&limit=${limit}`
+  );
+}
+
+/**
+ * Popular label with metadata.
+ */
+export interface PopularLabel {
+  label: string;
+  entity_type: string;
+  degree: number;
+  description: string;
+}
+
+/**
+ * Get popular entities/labels sorted by connection count.
+ * Useful for quick access to high-connectivity nodes.
+ */
+export async function getPopularLabels(options?: {
+  limit?: number;
+  minDegree?: number;
+  entityType?: string;
+}): Promise<{ labels: PopularLabel[]; total_entities: number }> {
+  const params = new URLSearchParams();
+  if (options?.limit) params.set("limit", String(options.limit));
+  if (options?.minDegree) params.set("min_degree", String(options.minDegree));
+  if (options?.entityType) params.set("entity_type", options.entityType);
+  const query = params.toString();
+  return api.get(`/graph/labels/popular${query ? `?${query}` : ""}`);
 }
 
 // ============================================================================
@@ -779,6 +842,8 @@ export const edgequakeApi = {
   getGraph,
   getGraphLabels,
   getGraphStats,
+  searchLabels,
+  getPopularLabels,
 
   // Entities
   getEntities,

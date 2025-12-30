@@ -32,13 +32,16 @@ import { GraphLegend } from './graph-legend';
 import { GraphMinimap } from './graph-minimap';
 import { GraphRenderer } from './graph-renderer';
 import { GraphSearch } from './graph-search';
+import { GraphSettingsPanel } from './graph-settings-panel';
 import { GraphTourTrigger } from './graph-tour-wrapper';
 import { KeyboardShortcutsHelp } from './keyboard-shortcuts-help';
+import { LabelSearch } from './label-search';
 import { LayoutControl } from './layout-control';
 import { LayoutController } from './layout-controller';
 import { NodeContextMenu, useNodeContextMenu } from './node-context-menu';
 import { NodeDetails } from './node-details';
 import { TimeFilter } from './time-filter';
+import { TruncationBanner, TruncationIndicator } from './truncation-banner';
 import { ZoomControls } from './zoom-controls';
 
 export function GraphViewer() {
@@ -112,6 +115,13 @@ export function GraphViewer() {
   // Get expand/prune triggers from store
   const triggerNodeExpand = useGraphStore((s) => s.triggerNodeExpand);
   const triggerNodePrune = useGraphStore((s) => s.triggerNodePrune);
+  
+  // Virtual query settings for SOTA 100k+ node support
+  const maxNodes = useGraphStore((s) => s.maxNodes);
+  const depth = useGraphStore((s) => s.depth);
+  const startNode = useGraphStore((s) => s.startNode);
+  const setStartNode = useGraphStore((s) => s.setStartNode);
+  const setTruncationInfo = useGraphStore((s) => s.setTruncationInfo);
 
   // Enable keyboard navigation for graph
   useGraphKeyboardNavigation({
@@ -125,8 +135,12 @@ export function GraphViewer() {
   });
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['graph', selectedTenantId, selectedWorkspaceId],
-    queryFn: () => getGraph({ limit: 500 }),
+    queryKey: ['graph', selectedTenantId, selectedWorkspaceId, maxNodes, depth, startNode],
+    queryFn: () => getGraph({ 
+      maxNodes,
+      depth,
+      startNode: startNode || undefined,
+    }),
     staleTime: 2 * 60 * 1000, // 2 minutes
     refetchOnMount: 'always', // Always refetch when component mounts (navigation)
     refetchOnWindowFocus: true, // Refetch when window regains focus
@@ -135,8 +149,14 @@ export function GraphViewer() {
   useEffect(() => {
     if (data) {
       setGraph(data);
+      // Update truncation info from server response
+      setTruncationInfo(
+        data.is_truncated ?? false,
+        data.total_nodes ?? data.nodes.length,
+        data.total_edges ?? data.edges.length
+      );
     }
-  }, [data, setGraph]);
+  }, [data, setGraph, setTruncationInfo]);
 
   useEffect(() => {
     setLoading(isLoading);
@@ -216,6 +236,37 @@ export function GraphViewer() {
     toast.success(`Copied entity ID: ${node.id}`);
   }, []);
 
+  // Handle label selection from LabelSearch
+  const handleLabelSelect = useCallback((label: string) => {
+    setStartNode(label);
+    // Focus camera on the node if it exists in the current graph
+    if (sigmaInstance) {
+      const graph = sigmaInstance.getGraph();
+      if (graph.hasNode(label)) {
+        focusCameraOnNode(sigmaInstance, label, {
+          ratio: 0.5,
+          duration: 500,
+          highlight: true,
+        });
+      }
+    }
+    // If startNode changed, the query will refetch automatically
+  }, [setStartNode, sigmaInstance]);
+
+  // Handle clearing label selection
+  const handleLabelClear = useCallback(() => {
+    setStartNode(null);
+    // Reset camera view when clearing focus
+    if (sigmaInstance) {
+      sigmaInstance.getCamera().animatedReset({ duration: 300 });
+    }
+  }, [setStartNode, sigmaInstance]);
+
+  // Handle settings change (triggers refetch)
+  const handleSettingsChange = useCallback(() => {
+    // Refetch is automatic via queryKey change when settings update the store
+  }, []);
+
   const selectedNode = allNodes.find((n) => n.id === selectedNodeId);
 
   if (isError) {
@@ -284,9 +335,24 @@ export function GraphViewer() {
               </Button>
             )}
             <div data-tour="graph-search"><GraphSearch /></div>
+            {/* Label search for focusing on specific entities */}
+            {!isMobile && (
+              <LabelSearch 
+                onSelect={handleLabelSelect}
+                selectedLabel={startNode}
+                onClear={handleLabelClear}
+                placeholder="Focus entity..."
+              />
+            )}
+            {/* Truncation indicator (compact) */}
+            {!isMobile && <TruncationIndicator />}
             <div data-tour="layout-control"><LayoutControl /></div>
             <LayoutController />
             {!isMobile && <GraphExport />}
+            {/* Graph settings panel for virtual query */}
+            {!isMobile && (
+              <GraphSettingsPanel onSettingsChange={handleSettingsChange} />
+            )}
             {!isMobile && <div data-tour="keyboard-help"><KeyboardShortcutsHelp /></div>}
             {!isMobile && <GraphTourTrigger />}
             {!isMobile && <div className="w-px h-5 bg-border mx-1" />}
@@ -360,6 +426,16 @@ export function GraphViewer() {
                 onNodeClick={selectNode}
                 onNodeHover={hoverNode}
                 onNodeRightClick={handleNodeRightClick}
+              />
+              
+              {/* Truncation Banner - Shows when graph is truncated */}
+              <TruncationBanner 
+                onLoadMore={() => {
+                  // Increase max nodes and refetch
+                  const currentMax = useGraphStore.getState().maxNodes;
+                  useGraphStore.getState().setMaxNodes(Math.min(currentMax * 1.5, 10000));
+                }}
+                isLoading={isLoading}
               />
               
               {/* Loading Overlay */}

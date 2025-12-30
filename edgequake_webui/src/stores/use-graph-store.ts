@@ -73,6 +73,16 @@ interface GraphState {
 
   // Bookmarks for saving graph views
   bookmarks: GraphBookmark[];
+
+  // Virtual Query Settings (Phase 6: SOTA 100k+ nodes)
+  maxNodes: number; // Max nodes to fetch (default: 500)
+  depth: number; // Traversal depth (default: 2)
+  startNode: string | null; // Focus on specific node neighborhood
+
+  // Truncation info from server
+  isTruncated: boolean;
+  totalNodesInStorage: number;
+  totalEdgesInStorage: number;
 }
 
 interface GraphActions {
@@ -134,6 +144,16 @@ interface GraphActions {
   loadBookmark: (bookmarkId: string) => void;
   deleteBookmark: (bookmarkId: string) => void;
   renameBookmark: (bookmarkId: string, newName: string) => void;
+
+  // Virtual Query actions (Phase 6: SOTA 100k+ nodes)
+  setMaxNodes: (maxNodes: number) => void;
+  setDepth: (depth: number) => void;
+  setStartNode: (nodeId: string | null) => void;
+  setTruncationInfo: (
+    isTruncated: boolean,
+    totalNodes: number,
+    totalEdges: number
+  ) => void;
 }
 
 type GraphStore = GraphState & GraphActions;
@@ -170,6 +190,13 @@ const initialState: GraphState = {
   isLoading: false,
   error: null,
   bookmarks: [],
+  // Virtual Query defaults (Phase 6)
+  maxNodes: 500,
+  depth: 2,
+  startNode: null,
+  isTruncated: false,
+  totalNodesInStorage: 0,
+  totalEdgesInStorage: 0,
 };
 
 // Load bookmarks from localStorage
@@ -688,6 +715,42 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
     }
 
     set({ bookmarks: updatedBookmarks });
+  },
+
+  // Virtual Query actions (Phase 6: SOTA 100k+ nodes)
+  setMaxNodes: (maxNodes: number) => {
+    // Persist to localStorage for session persistence
+    try {
+      localStorage.setItem("graph-max-nodes", String(maxNodes));
+    } catch (e) {
+      console.warn("Failed to save maxNodes to localStorage:", e);
+    }
+    set({ maxNodes });
+  },
+
+  setDepth: (depth: number) => {
+    try {
+      localStorage.setItem("graph-depth", String(depth));
+    } catch (e) {
+      console.warn("Failed to save depth to localStorage:", e);
+    }
+    set({ depth });
+  },
+
+  setStartNode: (nodeId: string | null) => {
+    set({ startNode: nodeId });
+  },
+
+  setTruncationInfo: (
+    isTruncated: boolean,
+    totalNodes: number,
+    totalEdges: number
+  ) => {
+    set({
+      isTruncated,
+      totalNodesInStorage: totalNodes,
+      totalEdgesInStorage: totalEdges,
+    });
   },
 }));
 
