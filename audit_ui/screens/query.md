@@ -69,38 +69,40 @@
 - **Viewport(s) affected:** Desktop
 - **Discovered:** December 30, 2025 (scroll audit)
 
-| Issue | Current State | Recommended Fix |
-|-------|---------------|-----------------|
-| Container padding | `0px` | Add `p-2` (8px) for breathing room |
-| Scroll area padding | `0px` | Add `px-2` for list items |
-| Conversation item padding | `6px 12px` | Increase to `8px 16px` for better touch target |
-| List role | Missing | Add `role="listbox"` for accessibility |
-| Item role | Missing | Add `role="option"` on each conversation |
-| Keyboard navigation | Tab only | Add arrow key navigation between items |
-| Mouse wheel scroll | ✅ Works | Scroll container has `overflow-auto` |
+| Issue                     | Current State | Recommended Fix                                |
+| ------------------------- | ------------- | ---------------------------------------------- |
+| Container padding         | `0px`         | Add `p-2` (8px) for breathing room             |
+| Scroll area padding       | `0px`         | Add `px-2` for list items                      |
+| Conversation item padding | `6px 12px`    | Increase to `8px 16px` for better touch target |
+| List role                 | Missing       | Add `role="listbox"` for accessibility         |
+| Item role                 | Missing       | Add `role="option"` on each conversation       |
+| Keyboard navigation       | Tab only      | Add arrow key navigation between items         |
+| Mouse wheel scroll        | ✅ Works      | Scroll container has `overflow-auto`           |
 
 **Impact:**
+
 - Items feel cramped with minimal padding
 - No keyboard navigation beyond Tab
 - Accessibility issues (missing ARIA roles)
 
 **Recommended Fix:**
+
 ```tsx
 // Improve conversation list
-<div 
-  role="listbox" 
+<div
+  role="listbox"
   aria-label="Conversation history"
-  className="flex-1 overflow-auto p-2"  // Add padding
+  className="flex-1 overflow-auto p-2" // Add padding
   onKeyDown={(e) => {
-    if (e.key === 'ArrowDown') selectNext();
-    if (e.key === 'ArrowUp') selectPrevious();
+    if (e.key === "ArrowDown") selectNext();
+    if (e.key === "ArrowUp") selectPrevious();
   }}
 >
-  {conversations.map(conv => (
+  {conversations.map((conv) => (
     <button
       role="option"
       aria-selected={isSelected}
-      className="w-full px-4 py-2 mb-1 rounded-md"  // Better spacing
+      className="w-full px-4 py-2 mb-1 rounded-md" // Better spacing
     >
       {conv.name}
     </button>

@@ -39,25 +39,26 @@
 
 ## Files Modified This Session
 
-| File | Change |
-|------|--------|
-| `scroll-area.tsx` | Added `showShadows` prop with gradient overlays |
-| `use-ui-preferences-store.ts` | NEW - Zustand store for panel persistence |
-| `entity-browser-panel.tsx` | Added showShadows, integrated UI preferences |
-| `graph-viewer.tsx` | Added showShadows to Details Panel |
-| `right-panel.tsx` | Added showShadows to ScrollArea |
-| `graph-controls.tsx` | Enhanced button hover effects |
-| `zoom-controls.tsx` | Enhanced panel backdrop/shadow |
-| `button.tsx` | Added `icon-touch` size variant |
-| `conversation-history-panel.tsx` | Improved touch targets |
-| `storage-keys.ts` | Added UI_PREFERENCES key |
-| `summary.md` | Updated scores and Phase 2 status |
+| File                             | Change                                          |
+| -------------------------------- | ----------------------------------------------- |
+| `scroll-area.tsx`                | Added `showShadows` prop with gradient overlays |
+| `use-ui-preferences-store.ts`    | NEW - Zustand store for panel persistence       |
+| `entity-browser-panel.tsx`       | Added showShadows, integrated UI preferences    |
+| `graph-viewer.tsx`               | Added showShadows to Details Panel              |
+| `right-panel.tsx`                | Added showShadows to ScrollArea                 |
+| `graph-controls.tsx`             | Enhanced button hover effects                   |
+| `zoom-controls.tsx`              | Enhanced panel backdrop/shadow                  |
+| `button.tsx`                     | Added `icon-touch` size variant                 |
+| `conversation-history-panel.tsx` | Improved touch targets                          |
+| `storage-keys.ts`                | Added UI_PREFERENCES key                        |
+| `summary.md`                     | Updated scores and Phase 2 status               |
 
 ---
 
 ## Verification Results
 
 ### Panel Persistence (Playwright)
+
 ```json
 {
   "graphEntityBrowserCollapsed": true,
@@ -69,10 +70,12 @@
 ```
 
 ### Touch Targets
+
 - Conversation history item height: **71px** (exceeds 44px WCAG)
 - Icon buttons: **44px** via `icon-touch` variant
 
 ### Scroll Shadows
+
 - Working at top/middle positions
 - Minor timing issue at bottom (cosmetic, doesn't affect functionality)
 

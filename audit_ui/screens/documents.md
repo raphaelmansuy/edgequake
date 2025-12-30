@@ -73,12 +73,13 @@
   - Action buttons (View Details, Graph, Reprocess, Delete) may be cut off
   - Processing cost breakdown may be hidden
 - **Fix Required:**
+
 ```tsx
 // CURRENT (BUG)
 <aside className="w-[400px] border-l bg-card flex flex-col ...">
   <div className="header">...</div>
   <div className="relative flex-1">  // ← overflow: visible
-  
+
 // SHOULD BE
 <aside className="w-[400px] border-l bg-card flex flex-col ...">
   <div className="header shrink-0">...</div>
@@ -398,6 +399,7 @@ Tested with 2 indexed documents (AI safety research papers):
 #### 🔴 Issues Found
 
 1. **Status Column Not Showing Filter Count**
+
    - Status dropdown shows "All Status (0)" even with 2 completed documents
    - Expected: "All Status (2)" or proper count by status
 
@@ -431,14 +433,14 @@ Tested with 2 indexed documents (AI safety research papers):
 
 ### Updated Score (Revised after scroll bug discovery)
 
-| Criterion           | Previous | Current  | Change    |
-| ------------------- | -------- | -------- | --------- |
-| Visual refinement   | 4.2      | 4.4      | +0.2      |
-| Modern styling      | 4.0      | 4.3      | +0.3      |
-| Smooth interactions | 3.5      | 4.0      | +0.5      |
-| Professional polish | 4.0      | 4.3      | +0.3      |
-| **Scroll/Overflow** | **N/A**  | **2.5**  | **NEW**   |
-| **Overall**         | **3.9**  | **3.9**  | **0.0**   |
+| Criterion           | Previous | Current | Change  |
+| ------------------- | -------- | ------- | ------- |
+| Visual refinement   | 4.2      | 4.4     | +0.2    |
+| Modern styling      | 4.0      | 4.3     | +0.3    |
+| Smooth interactions | 3.5      | 4.0     | +0.5    |
+| Professional polish | 4.0      | 4.3     | +0.3    |
+| **Scroll/Overflow** | **N/A**  | **2.5** | **NEW** |
+| **Overall**         | **3.9**  | **3.9** | **0.0** |
 
 **Score Revision Note:** Initial testing showed 4.25, but scroll audit revealed preview panel has `overflow: visible` preventing scroll when content exceeds viewport. This is a P0 bug that must be fixed.
 

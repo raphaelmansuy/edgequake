@@ -8,12 +8,12 @@
 
 ## 🚨 CRITICAL BUGS SUMMARY
 
-| Bug | Location | Root Cause | Hidden Content |
-|-----|----------|------------|----------------|
-| Entity Browser NOT scrollable | Graph page | `overflow: hidden` | 71% hidden |
-| Details Panel NOT scrollable | Graph page | `overflow: hidden` | 161px hidden |
-| Preview Panel NOT scrollable | Documents page | `overflow: visible` | 46% hidden |
-| Mobile Legend overlay | Graph page | Not responsive | Blocks canvas |
+| Bug                           | Location       | Root Cause          | Hidden Content |
+| ----------------------------- | -------------- | ------------------- | -------------- |
+| Entity Browser NOT scrollable | Graph page     | `overflow: hidden`  | 71% hidden     |
+| Details Panel NOT scrollable  | Graph page     | `overflow: hidden`  | 161px hidden   |
+| Preview Panel NOT scrollable  | Documents page | `overflow: visible` | 46% hidden     |
+| Mobile Legend overlay         | Graph page     | Not responsive      | Blocks canvas  |
 
 **Scroll Score: 2.0/5.0** (was 4.5/5.0)
 
@@ -72,10 +72,10 @@ This audit documents the scroll behavior and fixed zone architecture across Edge
 └────────────────────────────────────────────────────────┘
 ```
 
-| Scroll Container | Behavior                                | Status |
-| ---------------- | --------------------------------------- | ------ |
+| Scroll Container | Behavior                                | Status    |
+| ---------------- | --------------------------------------- | --------- |
 | Entity List      | Internal scroll with `overflow-y: auto` | ❌ BROKEN |
-| Graph Canvas     | Pan/zoom (not traditional scroll)       | ✅     |
+| Graph Canvas     | Pan/zoom (not traditional scroll)       | ✅        |
 | Details Panel    | Internal scroll when content overflows  | ❌ BROKEN |
 
 **🔴 Issue 1:** Entity Browser has `overflow: hidden` - mouse wheel and keyboard navigation blocked.
@@ -97,11 +97,11 @@ This audit documents the scroll behavior and fixed zone architecture across Edge
 └────────────────────────────────────────────────────────┘
 ```
 
-| Scroll Container | Behavior                                            | Status |
-| ---------------- | --------------------------------------------------- | ------ |
-| Message List     | Scrolls with auto-scroll-to-bottom during streaming | ✅     |
+| Scroll Container | Behavior                                            | Status     |
+| ---------------- | --------------------------------------------------- | ---------- |
+| Message List     | Scrolls with auto-scroll-to-bottom during streaming | ✅         |
 | History Panel    | Internal scroll for conversation list               | ⚠️ UX POOR |
-| Input Area       | Fixed at bottom, expands with textarea              | ✅     |
+| Input Area       | Fixed at bottom, expands with textarea              | ✅         |
 
 **✅ Excellent:** Input area remains fixed during conversation scroll. Auto-scroll during streaming works flawlessly.
 **🟡 Issue:** History Panel has 0px padding, cramped items, missing ARIA roles, no keyboard navigation.
@@ -128,11 +128,11 @@ Preview Panel (Right):
 └────────────────────────────────────────────────────────┘
 ```
 
-| Scroll Container | Behavior                           | Status |
-| ---------------- | ---------------------------------- | ------ |
-| Document List    | Scrolls when list exceeds viewport | ✅     |
+| Scroll Container | Behavior                           | Status    |
+| ---------------- | ---------------------------------- | --------- |
+| Document List    | Scrolls when list exceeds viewport | ✅        |
 | Preview Panel    | Internal scroll for metadata       | ❌ BROKEN |
-| Filters          | Fixed, always visible              | ✅     |
+| Filters          | Fixed, always visible              | ✅        |
 
 **🔴 Issue:** Preview Panel has `overflow: visible` - content overflows, 46% hidden.
 
@@ -246,16 +246,17 @@ Preview Panel (Right):
 **Priority:** P0 - CRITICAL  
 **Severity:** Blocks usability completely
 
-| Attribute | Value |
-|-----------|-------|
-| Location | Graph page → Entity Browser (left panel) |
-| Container | `aside[aria-label="Entity browser"]` |
-| Root Cause | Parent container has `overflow: hidden` |
-| Content Height | 2147px |
-| Visible Height | 619px |
+| Attribute          | Value                                    |
+| ------------------ | ---------------------------------------- |
+| Location           | Graph page → Entity Browser (left panel) |
+| Container          | `aside[aria-label="Entity browser"]`     |
+| Root Cause         | Parent container has `overflow: hidden`  |
+| Content Height     | 2147px                                   |
+| Visible Height     | 619px                                    |
 | **Hidden Content** | **1528px (71% of content inaccessible)** |
 
 **Technical Analysis:**
+
 ```css
 /* CURRENT (BUG) */
 .entity-browser-container {
@@ -270,6 +271,7 @@ Preview Panel (Right):
 ```
 
 **Impact:**
+
 - Mouse wheel scroll does NOT work
 - Keyboard navigation (arrow keys, Page Up/Down) does NOT work
 - Users cannot see 51 UNKNOWN entities, many PRODUCT entities, etc.
@@ -285,16 +287,17 @@ Change the Entity Browser container from `overflow-hidden` to `overflow-y-auto`.
 **Priority:** P0 - CRITICAL  
 **Severity:** Blocks usability when entity has many relationships
 
-| Attribute | Value |
-|-----------|-------|
-| Location | Graph page → Details & Filters (right panel) |
-| Container | `div.flex.flex-col.h-full.overflow-hidden` |
-| Root Cause | Container has `overflow: hidden` |
-| Content Height | 780px |
-| Visible Height | 619px |
+| Attribute          | Value                                        |
+| ------------------ | -------------------------------------------- |
+| Location           | Graph page → Details & Filters (right panel) |
+| Container          | `div.flex.flex-col.h-full.overflow-hidden`   |
+| Root Cause         | Container has `overflow: hidden`             |
+| Content Height     | 780px                                        |
+| Visible Height     | 619px                                        |
 | **Hidden Content** | **161px (Edit/Merge/Delete buttons hidden)** |
 
 **Technical Analysis:**
+
 ```css
 /* CURRENT (BUG) */
 .details-panel {
@@ -308,6 +311,7 @@ Change the Entity Browser container from `overflow-hidden` to `overflow-y-auto`.
 ```
 
 **Impact:**
+
 - Cannot scroll to see all entity properties
 - Action buttons (Edit, Merge, Delete) may be cut off
 - Long relationship lists truncated
@@ -319,16 +323,17 @@ Change the Entity Browser container from `overflow-hidden` to `overflow-y-auto`.
 **Priority:** P0 - CRITICAL  
 **Severity:** Blocks access to document actions
 
-| Attribute | Value |
-|-----------|-------|
-| Location | Documents page → Preview Panel (right panel) |
-| Container | `aside[aria-label="document-name"]` |
-| Root Cause | Container has `overflow: visible` (not scrollable) |
-| Content Height | 1149px |
-| Visible Height | 619px |
-| **Hidden Content** | **530px (Action buttons potentially hidden)** |
+| Attribute          | Value                                              |
+| ------------------ | -------------------------------------------------- |
+| Location           | Documents page → Preview Panel (right panel)       |
+| Container          | `aside[aria-label="document-name"]`                |
+| Root Cause         | Container has `overflow: visible` (not scrollable) |
+| Content Height     | 1149px                                             |
+| Visible Height     | 619px                                              |
+| **Hidden Content** | **530px (Action buttons potentially hidden)**      |
 
 **Technical Analysis:**
+
 ```css
 /* CURRENT (BUG) */
 .preview-panel {
@@ -343,6 +348,7 @@ Change the Entity Browser container from `overflow-hidden` to `overflow-y-auto`.
 ```
 
 **Impact:**
+
 - Cannot scroll to see full content preview
 - Action buttons (View Details, Graph, Reprocess, Delete) may be hidden
 - Processing cost details may be cut off
@@ -366,24 +372,25 @@ Change the Entity Browser container from `overflow-hidden` to `overflow-y-auto`.
 **Priority:** P1 - Major  
 **Location:** Query page → History Panel (right side)
 
-| Issue | Current | Recommended |
-|-------|---------|-------------|
-| Scroll container | `overflow-auto` (✅ works) | No change needed |
-| Container padding | `0px` | `8px` or `12px` for breathing room |
-| Conversation item padding | `6px 12px` | `8px 16px` for better touch target |
-| List role | Missing | Add `role="listbox"` |
-| Item role | Missing | Add `role="option"` |
-| Keyboard navigation | Tab only | Add arrow key navigation |
+| Issue                     | Current                    | Recommended                        |
+| ------------------------- | -------------------------- | ---------------------------------- |
+| Scroll container          | `overflow-auto` (✅ works) | No change needed                   |
+| Container padding         | `0px`                      | `8px` or `12px` for breathing room |
+| Conversation item padding | `6px 12px`                 | `8px 16px` for better touch target |
+| List role                 | Missing                    | Add `role="listbox"`               |
+| Item role                 | Missing                    | Add `role="option"`                |
+| Keyboard navigation       | Tab only                   | Add arrow key navigation           |
 
 **Recommended Fix:**
+
 ```tsx
 // Add proper ARIA roles and keyboard handling
-<div 
-  role="listbox" 
+<div
+  role="listbox"
   aria-label="Conversation history"
   onKeyDown={handleArrowNavigation}
 >
-  {conversations.map(conv => (
+  {conversations.map((conv) => (
     <button
       role="option"
       aria-selected={isSelected}

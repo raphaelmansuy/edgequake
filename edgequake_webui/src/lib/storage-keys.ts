@@ -12,28 +12,28 @@
  */
 export const ZUSTAND_STORAGE_KEYS = {
   /** Tenant and workspace selection state */
-  TENANT_STORE: 'edgequake-tenant',
+  TENANT_STORE: "edgequake-tenant",
 
   /** Authentication state (user info, expiry - NOT tokens) */
-  AUTH_STORE: 'edgequake-auth',
+  AUTH_STORE: "edgequake-auth",
 
   /** Application settings (theme, language, graph/query settings) */
-  SETTINGS_STORE: 'edgequake-settings',
+  SETTINGS_STORE: "edgequake-settings",
 
   /** Query history and favorites */
-  QUERY_STORE: 'edgequake-query',
+  QUERY_STORE: "edgequake-query",
 
   /** Query UI state (panel visibility, filters, streaming) */
-  QUERY_UI_STORE: 'edgequake-query-ui',
+  QUERY_UI_STORE: "edgequake-query-ui",
 
   /** Conversation history with messages */
-  CONVERSATION_STORE: 'edgequake-conversations',
+  CONVERSATION_STORE: "edgequake-conversations",
 
   /** Cost tracking and budget status */
-  COST_STORE: 'edgequake-cost',
-  
+  COST_STORE: "edgequake-cost",
+
   /** UI preferences (panel states, view modes, widths) */
-  UI_PREFERENCES: 'edgequake-ui-preferences',
+  UI_PREFERENCES: "edgequake-ui-preferences",
 } as const;
 
 /**
@@ -47,22 +47,22 @@ export const ZUSTAND_STORAGE_KEYS = {
  */
 export const LEGACY_STORAGE_KEYS = {
   /** @deprecated Use ZUSTAND_STORAGE_KEYS.TENANT_STORE */
-  TENANT_ID: 'tenantId',
+  TENANT_ID: "tenantId",
 
   /** @deprecated Use ZUSTAND_STORAGE_KEYS.TENANT_STORE */
-  WORKSPACE_ID: 'workspaceId',
+  WORKSPACE_ID: "workspaceId",
 
   /** @deprecated Use ZUSTAND_STORAGE_KEYS.AUTH_STORE */
-  ACCESS_TOKEN: 'accessToken',
+  ACCESS_TOKEN: "accessToken",
 
   /** @deprecated Use ZUSTAND_STORAGE_KEYS.AUTH_STORE */
-  REFRESH_TOKEN: 'refreshToken',
+  REFRESH_TOKEN: "refreshToken",
 
   /** Anonymous user identifier - still used directly */
-  USER_ID: 'userId',
+  USER_ID: "userId",
 
   /** Old conversations format before server-side storage */
-  OLD_CONVERSATIONS: 'edgequake-conversations',
+  OLD_CONVERSATIONS: "edgequake-conversations",
 } as const;
 
 /**
@@ -72,13 +72,13 @@ export const LEGACY_STORAGE_KEYS = {
  */
 export const FLAG_STORAGE_KEYS = {
   /** Tracks if workspace auto-selection toast has been shown */
-  WORKSPACE_INITIALIZED: 'edgequake-workspace-initialized',
+  WORKSPACE_INITIALIZED: "edgequake-workspace-initialized",
 
   /** Tracks if conversation migration from localStorage to server has completed */
-  CONVERSATIONS_MIGRATED: 'edgequake-conversations-migrated',
+  CONVERSATIONS_MIGRATED: "edgequake-conversations-migrated",
 
   /** Storage version for detecting schema changes */
-  STORAGE_VERSION: 'edgequake-storage-version',
+  STORAGE_VERSION: "edgequake-storage-version",
 } as const;
 
 /**
@@ -86,7 +86,7 @@ export const FLAG_STORAGE_KEYS = {
  */
 export const INTEGRATION_STORAGE_KEYS = {
   /** i18next language preference */
-  LANGUAGE: 'edgequake-language',
+  LANGUAGE: "edgequake-language",
 } as const;
 
 /**
@@ -94,10 +94,10 @@ export const INTEGRATION_STORAGE_KEYS = {
  */
 export const CACHE_STORAGE_KEYS = {
   /** Graph visualization cache */
-  GRAPH_CACHE: 'edgequake-graph-cache',
+  GRAPH_CACHE: "edgequake-graph-cache",
 
   /** Query history cache */
-  QUERY_HISTORY: 'edgequake-query-history',
+  QUERY_HISTORY: "edgequake-query-history",
 } as const;
 
 /**
@@ -157,17 +157,14 @@ export function getLogoutClearKeys(): string[] {
  * Get all keys that can be safely cleared as cache
  */
 export function getCacheClearKeys(): string[] {
-  return [
-    CACHE_STORAGE_KEYS.GRAPH_CACHE,
-    CACHE_STORAGE_KEYS.QUERY_HISTORY,
-  ];
+  return [CACHE_STORAGE_KEYS.GRAPH_CACHE, CACHE_STORAGE_KEYS.QUERY_HISTORY];
 }
 
 /**
  * Clear all application storage (for reset functionality)
  */
 export function clearAllStorage(): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
 
   const allKeys = [
     ...Object.values(ZUSTAND_STORAGE_KEYS),

@@ -1,9 +1,9 @@
 "use client"
 
-import * as React from "react"
-import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
+import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
+import * as React from "react";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 interface ScrollAreaProps extends React.ComponentProps<typeof ScrollAreaPrimitive.Root> {
   /** Show gradient shadow indicators when content is scrollable */
@@ -133,4 +133,5 @@ function ScrollBar({
   )
 }
 
-export { ScrollArea, ScrollBar }
+export { ScrollArea, ScrollBar };
+

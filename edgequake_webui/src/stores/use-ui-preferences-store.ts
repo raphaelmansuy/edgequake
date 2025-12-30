@@ -2,11 +2,11 @@
 
 import { ZUSTAND_STORAGE_KEYS } from "@/lib/storage-keys";
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 /**
  * UI Preferences Store
- * 
+ *
  * Persists user interface preferences to localStorage, including:
  * - Panel collapsed states
  * - Layout preferences
@@ -19,15 +19,15 @@ interface UIPanelState {
   graphDetailsPanelCollapsed: boolean;
   graphEntityBrowserWidth: number;
   graphDetailsPanelWidth: number;
-  
+
   // Documents page
   documentsPreviewCollapsed: boolean;
   documentsPreviewWidth: number;
-  
+
   // Query page
   queryHistoryCollapsed: boolean;
   queryHistoryWidth: number;
-  
+
   // Entity browser view mode
   entityBrowserViewMode: "grouped" | "list";
   entityBrowserSortBy: "name" | "degree";
@@ -36,26 +36,26 @@ interface UIPanelState {
 
 interface UIPreferencesState extends UIPanelState {
   _hasHydrated: boolean;
-  
+
   // Actions
   setGraphEntityBrowserCollapsed: (collapsed: boolean) => void;
   setGraphDetailsPanelCollapsed: (collapsed: boolean) => void;
   setGraphEntityBrowserWidth: (width: number) => void;
   setGraphDetailsPanelWidth: (width: number) => void;
-  
+
   setDocumentsPreviewCollapsed: (collapsed: boolean) => void;
   setDocumentsPreviewWidth: (width: number) => void;
-  
+
   setQueryHistoryCollapsed: (collapsed: boolean) => void;
   setQueryHistoryWidth: (width: number) => void;
-  
+
   setEntityBrowserViewMode: (mode: "grouped" | "list") => void;
   setEntityBrowserSortBy: (sortBy: "name" | "degree") => void;
   setEntityBrowserSortAsc: (asc: boolean) => void;
-  
+
   // Hydration
   setHasHydrated: (hydrated: boolean) => void;
-  
+
   // Reset
   resetUIPreferences: () => void;
 }
@@ -66,20 +66,20 @@ const initialState: UIPanelState & { _hasHydrated: boolean } = {
   graphDetailsPanelCollapsed: false,
   graphEntityBrowserWidth: 256, // w-64
   graphDetailsPanelWidth: 320,
-  
+
   // Documents page
   documentsPreviewCollapsed: true,
   documentsPreviewWidth: 400,
-  
+
   // Query page
   queryHistoryCollapsed: false,
   queryHistoryWidth: 280,
-  
+
   // Entity browser defaults
   entityBrowserViewMode: "grouped",
   entityBrowserSortBy: "name",
   entityBrowserSortAsc: true,
-  
+
   _hasHydrated: false,
 };
 
@@ -87,40 +87,36 @@ export const useUIPreferencesStore = create<UIPreferencesState>()(
   persist(
     (set) => ({
       ...initialState,
-      
+
       // Graph page
-      setGraphEntityBrowserCollapsed: (collapsed) => 
+      setGraphEntityBrowserCollapsed: (collapsed) =>
         set({ graphEntityBrowserCollapsed: collapsed }),
-      setGraphDetailsPanelCollapsed: (collapsed) => 
+      setGraphDetailsPanelCollapsed: (collapsed) =>
         set({ graphDetailsPanelCollapsed: collapsed }),
-      setGraphEntityBrowserWidth: (width) => 
+      setGraphEntityBrowserWidth: (width) =>
         set({ graphEntityBrowserWidth: width }),
-      setGraphDetailsPanelWidth: (width) => 
+      setGraphDetailsPanelWidth: (width) =>
         set({ graphDetailsPanelWidth: width }),
-      
+
       // Documents page
-      setDocumentsPreviewCollapsed: (collapsed) => 
+      setDocumentsPreviewCollapsed: (collapsed) =>
         set({ documentsPreviewCollapsed: collapsed }),
-      setDocumentsPreviewWidth: (width) => 
+      setDocumentsPreviewWidth: (width) =>
         set({ documentsPreviewWidth: width }),
-      
+
       // Query page
-      setQueryHistoryCollapsed: (collapsed) => 
+      setQueryHistoryCollapsed: (collapsed) =>
         set({ queryHistoryCollapsed: collapsed }),
-      setQueryHistoryWidth: (width) => 
-        set({ queryHistoryWidth: width }),
-      
+      setQueryHistoryWidth: (width) => set({ queryHistoryWidth: width }),
+
       // Entity browser
-      setEntityBrowserViewMode: (mode) => 
-        set({ entityBrowserViewMode: mode }),
-      setEntityBrowserSortBy: (sortBy) => 
-        set({ entityBrowserSortBy: sortBy }),
-      setEntityBrowserSortAsc: (asc) => 
-        set({ entityBrowserSortAsc: asc }),
-      
+      setEntityBrowserViewMode: (mode) => set({ entityBrowserViewMode: mode }),
+      setEntityBrowserSortBy: (sortBy) => set({ entityBrowserSortBy: sortBy }),
+      setEntityBrowserSortAsc: (asc) => set({ entityBrowserSortAsc: asc }),
+
       // Hydration
       setHasHydrated: (hydrated) => set({ _hasHydrated: hydrated }),
-      
+
       // Reset
       resetUIPreferences: () => set(initialState),
     }),

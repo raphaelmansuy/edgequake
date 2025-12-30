@@ -410,10 +410,11 @@ Testing performed with actual document data (794 entities, 576 relations from an
      - Keyboard navigation (arrow keys, Page Up/Down) does NOT work
      - Users cannot access entities beyond visible area (~30 of 100)
    - **Fix Required:**
+
      ```tsx
      // CURRENT (BUG)
      <aside className="overflow-hidden ...">
-     
+
      // SHOULD BE
      <aside className="overflow-y-auto overflow-x-hidden ...">
      ```
@@ -431,10 +432,11 @@ Testing performed with actual document data (794 entities, 576 relations from an
      - Cannot scroll to see all entity properties
      - Action buttons may be hidden for entities with many relationships
    - **Fix Required:**
+
      ```tsx
      // CURRENT (BUG)
      <div className="flex flex-col h-full overflow-hidden">
-     
+
      // SHOULD BE
      <div className="flex flex-col h-full">
        <div className="flex-1 overflow-y-auto">
@@ -469,16 +471,17 @@ Testing performed with actual document data (794 entities, 576 relations from an
 
 ### Updated Score (Revised after scroll bug discovery)
 
-| Criterion           | Previous | Current  | Change     |
-| ------------------- | -------- | -------- | ---------- |
-| Visual refinement   | 3.8      | 4.2      | +0.4       |
-| Modern styling      | 4.0      | 4.2      | +0.2       |
-| Smooth interactions | 3.5      | 4.0      | +0.5       |
-| Professional polish | 3.8      | 4.2      | +0.4       |
-| **Scroll/Overflow** | **N/A**  | **2.0**  | **NEW**    |
-| **Overall**         | **3.8**  | **3.7**  | **-0.1**   |
+| Criterion           | Previous | Current | Change   |
+| ------------------- | -------- | ------- | -------- |
+| Visual refinement   | 3.8      | 4.2     | +0.4     |
+| Modern styling      | 4.0      | 4.2     | +0.2     |
+| Smooth interactions | 3.5      | 4.0     | +0.5     |
+| Professional polish | 3.8      | 4.2     | +0.4     |
+| **Scroll/Overflow** | **N/A**  | **2.0** | **NEW**  |
+| **Overall**         | **3.8**  | **3.7** | **-0.1** |
 
 **Score Revision Note:** Initial testing showed 4.15, but deeper scroll testing revealed 2 P0-critical bugs:
+
 - Entity Browser panel: `overflow: hidden` blocks all scrolling (71% content hidden)
 - Details panel: `overflow: hidden` blocks scrolling (action buttons may be cut off)
 

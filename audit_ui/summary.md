@@ -15,29 +15,32 @@
 
 ### SCROLL ISSUES - ALL RESOLVED
 
-| Bug | Page | Fix Applied | Status |
-|-----|------|-------------|--------|
-| **Entity Browser scroll** | Graph | Added `min-h-0` to ScrollArea | ✅ FIXED |
-| **Details Panel scroll** | Graph | Added `overflow-hidden` + `min-h-0` | ✅ FIXED |
-| **Preview Panel scroll** | Documents | Added `min-h-0` to ScrollArea | ✅ FIXED |
-| **Mobile Legend overlay** | Graph | Added `hidden md:block` | ✅ FIXED |
-| **History Panel UX** | Query | Updated padding, ARIA roles | ✅ FIXED |
+| Bug                       | Page      | Fix Applied                         | Status   |
+| ------------------------- | --------- | ----------------------------------- | -------- |
+| **Entity Browser scroll** | Graph     | Added `min-h-0` to ScrollArea       | ✅ FIXED |
+| **Details Panel scroll**  | Graph     | Added `overflow-hidden` + `min-h-0` | ✅ FIXED |
+| **Preview Panel scroll**  | Documents | Added `min-h-0` to ScrollArea       | ✅ FIXED |
+| **Mobile Legend overlay** | Graph     | Added `hidden md:block`             | ✅ FIXED |
+| **History Panel UX**      | Query     | Updated padding, ARIA roles         | ✅ FIXED |
 
 ### Verification Results (Playwright E2E Testing)
 
 **Entity Browser (1280x700 viewport):**
+
 - scrollViewportHeight: 417px (properly constrained)
 - scrollHeight: 1945px (content)
 - canScroll: true ✅
 - scrollDiff: 1528px accessible
 
 **Details Panel (with entity selected):**
+
 - scrollViewportHeight: 578px
-- scrollHeight: 739px  
+- scrollHeight: 739px
 - canScroll: true ✅
 - scrollDiff: 161px accessible
 
 **Mobile Legend:**
+
 - 375px viewport: parentDisplay="none" ✅ Hidden
 - 1280px viewport: parentDisplay="block" ✅ Visible
 
@@ -87,14 +90,41 @@ Comprehensive live testing performed using Playwright browser automation with re
 
 ### ✅ Phase 2 UX Improvements - COMPLETED (December 30, 2025)
 
-| Item                                 | Status     | Verification                                     |
-| ------------------------------------ | ---------- | ------------------------------------------------ |
-| Scroll shadow indicators             | ✅ Done    | Gradient overlays in ScrollArea (top/bottom)     |
-| Graph controls visibility            | ✅ Done    | Enhanced hover effects, backdrop blur            |
-| Mobile touch targets (44px WCAG)     | ✅ Done    | Added `icon-touch` button variant                |
-| Panel persistence (localStorage)     | ✅ Done    | `use-ui-preferences-store.ts` with Zustand       |
-| Conversation history touch targets   | ✅ Done    | `min-h-[44px]` and responsive padding            |
-| Zoom controls panel styling          | ✅ Done    | Enhanced backdrop and shadow on hover            |
+| Item                               | Status  | Verification                                 |
+| ---------------------------------- | ------- | -------------------------------------------- |
+| Scroll shadow indicators           | ✅ Done | Gradient overlays in ScrollArea (top/bottom) |
+| Graph controls visibility          | ✅ Done | Enhanced hover effects, backdrop blur        |
+| Mobile touch targets (44px WCAG)   | ✅ Done | Added `icon-touch` button variant            |
+| Panel persistence (localStorage)   | ✅ Done | `use-ui-preferences-store.ts` with Zustand   |
+| Conversation history touch targets | ✅ Done | `min-h-[44px]` and responsive padding        |
+| Zoom controls panel styling        | ✅ Done | Enhanced backdrop and shadow on hover        |
+
+### ✅ Document Detail Page Audit - COMPLETED (December 30, 2025)
+
+Comprehensive audit of the document detail page (`/documents/[id]`) performed with Playwright testing:
+
+| Feature                         | Desktop        | Mobile          | Status                       |
+| ------------------------------- | -------------- | --------------- | ---------------------------- |
+| Two-column layout (65%/35%)     | ✅ Excellent   | N/A (stacked)   | Responsive breakpoint works  |
+| Tabbed interface (mobile)       | N/A            | ✅ Working      | Content/Details tabs         |
+| Markdown rendering              | ✅ Beautiful   | ✅ Beautiful    | Prose styling applied        |
+| Key Stats display               | ✅ 2x2 grid    | ✅ 2x2 grid     | Chunks/Entities/Relations/Processed |
+| Collapsible metadata sections   | ✅ All working | ✅ All working  | Extraction Lineage, Knowledge Graph, Source Details, Processing Info |
+| "View in Graph" navigation      | ✅ Working     | ✅ Working      | Navigates with ?highlight=documentId |
+| Back button state preservation  | ✅ Working     | ✅ Working      | Full page state preserved    |
+| Long content scrolling          | ✅ No jank     | ✅ No jank      | 134K+ character document tested |
+| Document header with status     | ✅ Completed badge | ✅ Completed badge | Green status indicator   |
+
+**Test Document:** Academic paper on LLM safety (miss_2512_21110v2.md)
+- 794 entities, 576 relations, 134,621 characters, 32 chunks
+- Authors: KTH Royal Institute of Technology researchers
+
+**Screenshots captured:**
+- `document-detail-page-desktop.png` - Full desktop layout
+- `document-detail-page-mobile.png` - Mobile Content tab
+- `document-detail-page-mobile-details.png` - Mobile Details tab
+- `document-to-graph-navigation.png` - Graph view with document entities
+- `document-detail-page-back-navigation.png` - Post-navigation state
 
 **Implementation Details:**
 
@@ -116,37 +146,37 @@ EdgeQuake WebUI presents a **professional, modern interface** with solid fundame
 
 ### Score Breakdown (Updated December 30 - Phase 2 Complete)
 
-| Criterion           | Score | Notes                                                          |
-| ------------------- | ----- | -------------------------------------------------------------- |
-| Visual Refinement   | 4.5   | Clean design, scroll shadows add polish, entity colors verified |
-| Modern Styling      | 4.4   | Contemporary UI patterns, streaming markdown excellent         |
-| Smooth Interactions | 4.4   | Panel animations smooth (300ms), scroll shadows working        |
-| Professional Polish | 4.5   | Well-organized, panel persistence, good empty states           |
-| Responsive Design   | 4.2   | Works well on tablet, mobile touch targets improved (44px)     |
-| **Scroll Areas**    | **4.5** | **✅ All panels scrollable, shadow indicators for visual feedback** |
-| Modern Styling      | 4.3   | Contemporary UI patterns, streaming markdown excellent         |
-| Smooth Interactions | 4.1   | Panel collapse animations smooth (300ms), needs scroll shadows |
-| Professional Polish | 4.4   | Well-organized, clear hierarchy, good empty states             |
-| Responsive Design   | 4.0   | Works well on tablet, mobile Legend overlay is critical issue  |
+| Criterion           | Score   | Notes                                                                  |
+| ------------------- | ------- | ---------------------------------------------------------------------- |
+| Visual Refinement   | 4.5     | Clean design, scroll shadows add polish, entity colors verified        |
+| Modern Styling      | 4.4     | Contemporary UI patterns, streaming markdown excellent                 |
+| Smooth Interactions | 4.4     | Panel animations smooth (300ms), scroll shadows working                |
+| Professional Polish | 4.5     | Well-organized, panel persistence, good empty states                   |
+| Responsive Design   | 4.2     | Works well on tablet, mobile touch targets improved (44px)             |
+| **Scroll Areas**    | **4.5** | **✅ All panels scrollable, shadow indicators for visual feedback**    |
+| Modern Styling      | 4.3     | Contemporary UI patterns, streaming markdown excellent                 |
+| Smooth Interactions | 4.1     | Panel collapse animations smooth (300ms), needs scroll shadows         |
+| Professional Polish | 4.4     | Well-organized, clear hierarchy, good empty states                     |
+| Responsive Design   | 4.0     | Works well on tablet, mobile Legend overlay is critical issue          |
 | **Scroll Areas**    | **2.0** | **🚨 P0 CRITICAL - 3 panels have broken scroll, content inaccessible** |
 
 ### Verified Working (December 30)
 
-| Feature                 | Test                   | Result                |
-| ----------------------- | ---------------------- | --------------------- |
-| Graph with 794 entities | Pan, zoom, select      | ✅ Smooth             |
-| Entity Browser collapse | Click collapse button  | ✅ 300ms transition   |
-| Details Panel collapse  | Click collapse button  | ✅ 300ms transition   |
-| **Entity Browser scroll** | **Mouse wheel, keyboard** | **❌ BROKEN - overflow:hidden** |
-| **Details Panel scroll** | **Mouse wheel, keyboard** | **❌ BROKEN - overflow:hidden** |
-| Query streaming         | Submit query           | ✅ Flawless rendering |
-| History Panel collapse  | Click collapse button  | ✅ Smooth             |
-| **History Panel scroll** | **Padding, UX**       | **⚠️ POOR - 0px padding, no ARIA** |
-| Document preview        | Click document row     | ✅ Panel slides in    |
-| **Preview Panel scroll** | **Mouse wheel**       | **❌ BROKEN - overflow:visible** |
-| Document detail scroll  | Scroll 66K+ px content | ✅ No jank            |
-| Fixed header            | Scroll any page        | ✅ Stays fixed        |
-| Fixed sidebar           | Scroll any page        | ✅ Stays fixed        |
+| Feature                   | Test                      | Result                             |
+| ------------------------- | ------------------------- | ---------------------------------- |
+| Graph with 794 entities   | Pan, zoom, select         | ✅ Smooth                          |
+| Entity Browser collapse   | Click collapse button     | ✅ 300ms transition                |
+| Details Panel collapse    | Click collapse button     | ✅ 300ms transition                |
+| **Entity Browser scroll** | **Mouse wheel, keyboard** | **❌ BROKEN - overflow:hidden**    |
+| **Details Panel scroll**  | **Mouse wheel, keyboard** | **❌ BROKEN - overflow:hidden**    |
+| Query streaming           | Submit query              | ✅ Flawless rendering              |
+| History Panel collapse    | Click collapse button     | ✅ Smooth                          |
+| **History Panel scroll**  | **Padding, UX**           | **⚠️ POOR - 0px padding, no ARIA** |
+| Document preview          | Click document row        | ✅ Panel slides in                 |
+| **Preview Panel scroll**  | **Mouse wheel**           | **❌ BROKEN - overflow:visible**   |
+| Document detail scroll    | Scroll 66K+ px content    | ✅ No jank                         |
+| Fixed header              | Scroll any page           | ✅ Stays fixed                     |
+| Fixed sidebar             | Scroll any page           | ✅ Stays fixed                     |
 
 ---
 

@@ -18,17 +18,17 @@ Perform a comprehensive UX/UI audit of EdgeQuake WebUI focusing on:
 
 ### P0 - All Fixed ✅
 
-| Bug | Page | Status | Fix Applied |
-|-----|------|--------|-------------|
-| **Entity Browser scroll** | Graph | ✅ FIXED | Added `min-h-0` to ScrollArea, kept `overflow-hidden` on parent |
-| **Details Panel scroll** | Graph | ✅ FIXED | Added `overflow-hidden` + `min-h-0` to ScrollArea |
-| **Preview Panel scroll** | Documents | ✅ FIXED | Added `overflow-hidden` + `min-h-0` to ScrollArea |
-| **Mobile Legend Overlay** | Graph | ✅ FIXED | Added `hidden md:block` to hide on mobile |
+| Bug                       | Page      | Status   | Fix Applied                                                     |
+| ------------------------- | --------- | -------- | --------------------------------------------------------------- |
+| **Entity Browser scroll** | Graph     | ✅ FIXED | Added `min-h-0` to ScrollArea, kept `overflow-hidden` on parent |
+| **Details Panel scroll**  | Graph     | ✅ FIXED | Added `overflow-hidden` + `min-h-0` to ScrollArea               |
+| **Preview Panel scroll**  | Documents | ✅ FIXED | Added `overflow-hidden` + `min-h-0` to ScrollArea               |
+| **Mobile Legend Overlay** | Graph     | ✅ FIXED | Added `hidden md:block` to hide on mobile                       |
 
 ### P1 - Fixed ✅
 
-| Bug | Page | Status | Fix Applied |
-|-----|------|--------|-------------|
+| Bug                  | Page  | Status   | Fix Applied                                                     |
+| -------------------- | ----- | -------- | --------------------------------------------------------------- |
 | **History Panel UX** | Query | ✅ FIXED | Updated padding `px-3 py-2.5`, `role="option"`, `aria-selected` |
 
 ---
@@ -36,6 +36,7 @@ Perform a comprehensive UX/UI audit of EdgeQuake WebUI focusing on:
 ## Verified Fix Results (E2E Testing)
 
 ### Entity Browser Panel (Graph Page)
+
 ```
 Test: 1280x700 viewport
 Results:
@@ -47,6 +48,7 @@ Results:
 ```
 
 ### Details Panel (Graph Page)
+
 ```
 Test: 1280x700 viewport with entity selected
 Results:
@@ -58,6 +60,7 @@ Results:
 ```
 
 ### Mobile Legend (Graph Page)
+
 ```
 Test: 375x800 viewport (mobile)
 Results:
@@ -75,15 +78,14 @@ Results:
 ## Fix Pattern Applied
 
 **Key Discovery:** Flexbox scroll requires BOTH constraints:
+
 1. Parent container: `overflow-hidden` to clip children
 2. Child ScrollArea: `min-h-0` to reset minimum height from content
 
 ```tsx
 // Correct pattern:
 <aside className="flex flex-col h-full overflow-hidden">
-  <ScrollArea className="flex-1 min-h-0">
-    {/* Content */}
-  </ScrollArea>
+  <ScrollArea className="flex-1 min-h-0">{/* Content */}</ScrollArea>
 </aside>
 ```
 
@@ -149,7 +151,7 @@ Results:
 - [x] Update components/panels.md with detailed findings
 - [x] Update components/navigation.md
 - [x] Create components/scroll-areas.md (NEW - critical) - **MAJOR FINDINGS**
-- [x] Update responsive/*.md files
+- [x] Update responsive/\*.md files
 
 ### Phase 6: Synthesis ✅ COMPLETE
 
@@ -199,22 +201,22 @@ December 30, 2025 - **IMPLEMENTATION COMPLETE** - All bugs fixed and verified
 
 ### Implementation Summary
 
-| Metric | Value |
-|--------|-------|
-| Pages Audited | 6 (Graph, Documents, Query, Dashboard, Costs, Settings) |
-| P0 Bugs Fixed | 4/4 (Entity Browser, Details Panel, Preview Panel, Mobile Legend) |
-| P1 Bugs Fixed | 1/1 (History Panel UX) |
-| Files Modified | 4 |
-| E2E Tests | ✅ All passing |
+| Metric         | Value                                                             |
+| -------------- | ----------------------------------------------------------------- |
+| Pages Audited  | 6 (Graph, Documents, Query, Dashboard, Costs, Settings)           |
+| P0 Bugs Fixed  | 4/4 (Entity Browser, Details Panel, Preview Panel, Mobile Legend) |
+| P1 Bugs Fixed  | 1/1 (History Panel UX)                                            |
+| Files Modified | 4                                                                 |
+| E2E Tests      | ✅ All passing                                                    |
 
 ### Files Changed
 
-| File | Changes |
-|------|---------|
-| `entity-browser-panel.tsx` | Added `min-h-0` to ScrollArea |
-| `graph-viewer.tsx` | Added `overflow-hidden` + `min-h-0` to Details Panel, `hidden md:block` to Legend |
-| `right-panel.tsx` | Added `min-h-0` to ScrollArea |
-| `conversation-history-panel.tsx` | Updated padding, added `role="option"` and `aria-selected` |
+| File                             | Changes                                                                           |
+| -------------------------------- | --------------------------------------------------------------------------------- |
+| `entity-browser-panel.tsx`       | Added `min-h-0` to ScrollArea                                                     |
+| `graph-viewer.tsx`               | Added `overflow-hidden` + `min-h-0` to Details Panel, `hidden md:block` to Legend |
+| `right-panel.tsx`                | Added `min-h-0` to ScrollArea                                                     |
+| `conversation-history-panel.tsx` | Updated padding, added `role="option"` and `aria-selected`                        |
 
 ### Verification Complete
 
