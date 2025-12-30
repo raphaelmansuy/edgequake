@@ -15,7 +15,6 @@ import {
 } from '@/components/ui/tooltip';
 import { useGraphStore } from '@/stores/use-graph-store';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
-import forceLayout from 'graphology-layout-force';
 import noverlap from 'graphology-layout-noverlap';
 import circlepack from 'graphology-layout/circlepack';
 import circular from 'graphology-layout/circular';
@@ -112,6 +111,50 @@ export function LayoutControl() {
             circlepack.assign(tempGraph, {
               hierarchyAttributes: ['node_type', 'entityType'],
               scale: 100,
+            });
+            break;
+            
+          case 'force-directed':
+            // Force-directed layout with different parameters than ForceAtlas2
+            // More spread out, less clustering
+            forceAtlas2.assign(tempGraph, {
+              iterations: 150,
+              settings: {
+                gravity: 0.5,
+                scalingRatio: 5,
+                strongGravityMode: false,
+                barnesHutOptimize: graph.order > 100,
+                linLogMode: true,
+                outboundAttractionDistribution: true,
+              },
+            });
+            break;
+            
+          case 'hierarchical':
+            // Hierarchical layout: organize by node types in levels
+            // First, group by entity type
+            const nodesByType: Record<string, string[]> = {};
+            tempGraph.forEachNode((node) => {
+              const nodeType = tempGraph.getNodeAttribute(node, 'node_type') || 'unknown';
+              if (!nodesByType[nodeType]) {
+                nodesByType[nodeType] = [];
+              }
+              nodesByType[nodeType].push(node);
+            });
+            
+            const typeOrder = Object.keys(nodesByType).sort();
+            const levelHeight = 200;
+            const nodeSpacing = 100;
+            
+            typeOrder.forEach((type, levelIndex) => {
+              const nodesInType = nodesByType[type];
+              const levelWidth = nodesInType.length * nodeSpacing;
+              nodesInType.forEach((node, nodeIndex) => {
+                const x = (nodeIndex - nodesInType.length / 2) * nodeSpacing;
+                const y = levelIndex * levelHeight;
+                tempGraph.setNodeAttribute(node, 'x', x);
+                tempGraph.setNodeAttribute(node, 'y', y);
+              });
             });
             break;
         }
