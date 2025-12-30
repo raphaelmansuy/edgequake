@@ -5,6 +5,7 @@ import {
     Copy,
     Eye,
     FileText,
+    Minimize2,
     Network,
     Search,
     Trash2
@@ -23,10 +24,12 @@ interface NodeContextMenuProps {
   onClose: () => void;
   onViewDetails: (node: GraphNode) => void;
   onExpandNeighborhood: (node: GraphNode) => void;
+  onPruneNode?: (node: GraphNode) => void;
   onFindRelated: (node: GraphNode) => void;
   onViewDocuments: (node: GraphNode) => void;
   onCopyId: (node: GraphNode) => void;
   onDelete?: (node: GraphNode) => void;
+  isExpanded?: boolean;
 }
 
 export function NodeContextMenu({
@@ -35,10 +38,12 @@ export function NodeContextMenu({
   onClose,
   onViewDetails,
   onExpandNeighborhood,
+  onPruneNode,
   onFindRelated,
   onViewDocuments,
   onCopyId,
   onDelete,
+  isExpanded = false,
 }: NodeContextMenuProps) {
   const { t } = useTranslation();
 
@@ -80,7 +85,23 @@ export function NodeContextMenu({
         >
           <Network className="h-4 w-4" />
           <span>{t('graph.contextMenu.expandNeighborhood', 'Expand Neighborhood')}</span>
+          {isExpanded && (
+            <span className="ml-auto text-xs text-muted-foreground">✓</span>
+          )}
         </button>
+
+        {onPruneNode && (
+          <button
+            className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+            onClick={() => {
+              onPruneNode(node);
+              handleClose();
+            }}
+          >
+            <Minimize2 className="h-4 w-4" />
+            <span>{t('graph.contextMenu.pruneNode', 'Prune Node')}</span>
+          </button>
+        )}
 
         <button
           className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground transition-colors"

@@ -4,12 +4,16 @@ import { detectCommunities, getCommunityColor } from '@/lib/graph/clustering';
 import { useGraphStore } from '@/stores/use-graph-store';
 import { useSettingsStore } from '@/stores/use-settings-store';
 import type { GraphEdge, GraphNode } from '@/types';
+import { EdgeCurvedArrowProgram, createEdgeCurveProgram } from '@sigma/edge-curve';
+import { NodeBorderProgram } from '@sigma/node-border';
 import Graph from 'graphology';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
 import circular from 'graphology-layout/circular';
 import random from 'graphology-layout/random';
+import { useTheme } from 'next-themes';
 import { useCallback, useEffect, useRef } from 'react';
 import Sigma from 'sigma';
+import { animateNodes } from 'sigma/utils';
 
 // Color palette for entity types
 const TYPE_COLORS: Record<string, string> = {
@@ -29,6 +33,12 @@ const NODE_SIZES: Record<string, number> = {
   large: 14,
 };
 
+// Theme-aware label colors
+const LABEL_COLORS = {
+  light: '#374151', // gray-700
+  dark: '#e2e8f0',  // slate-200
+};
+
 function getNodeColor(entityType: string | undefined): string {
   if (!entityType) return TYPE_COLORS.DEFAULT;
   return TYPE_COLORS[entityType.toUpperCase()] || TYPE_COLORS.DEFAULT;
@@ -45,9 +55,13 @@ interface GraphRendererProps {
 export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRightClick }: GraphRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sigmaRef = useRef<Sigma | null>(null);
+  const graphRef = useRef<Graph | null>(null);
+  const previousLayoutRef = useRef<string | null>(null);
   const setSigmaInstance = useGraphStore((s) => s.setSigmaInstance);
   const colorMode = useGraphStore((s) => s.colorMode);
   const { graphSettings } = useSettingsStore();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
 
   // Get settings with defaults
   const showLabels = graphSettings.showLabels ?? true;
@@ -69,8 +83,12 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
 
     // Create graphology graph
     const graph = new Graph();
+    graphRef.current = graph;
 
-    // Add nodes
+    // Add nodes with border styling
+    const nodeColor = (type: string | undefined) => getNodeColor(type);
+    const borderColor = isDark ? '#374151' : '#ffffff';
+    
     nodes.forEach((node, index) => {
       const angle = (2 * Math.PI * index) / nodes.length;
       const radius = 100;
@@ -80,21 +98,24 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
         x: Math.cos(angle) * radius,
         y: Math.sin(angle) * radius,
         size: nodeSize,
-        color: getNodeColor(node.node_type),
+        color: nodeColor(node.node_type),
+        borderColor: borderColor,
+        borderSize: 0.15, // Border width as ratio of node size
         entityType: node.node_type,
         description: node.description,
       });
     });
 
-    // Add edges
+    // Add edges with curved arrow styling
     edges.forEach((edge) => {
       if (graph.hasNode(edge.source) && graph.hasNode(edge.target)) {
         try {
           graph.addEdge(edge.source, edge.target, {
             label: edge.relationship_type,
-            size: Math.max(1, edge.weight * 2),
-            color: '#94a3b8',
-            type: 'arrow',
+            size: Math.max(1, Math.min(edge.weight * 2, 5)),
+            color: isDark ? '#4b5563' : '#94a3b8',
+            type: 'curvedArrow',
+            curvature: 0.25,
           });
         } catch {
           // Edge already exists or invalid
@@ -120,41 +141,79 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
       }
     }
 
-    // Apply layout based on settings
-    if (graph.order > 0) {
+    // Apply layout based on settings (calculate positions first, then animate)
+    const calculateLayoutPositions = () => {
+      const positions: Record<string, { x: number; y: number }> = {};
+      
+      // First calculate positions in a temporary graph
+      const tempGraph = graph.copy();
+      
       switch (layout) {
         case 'circular':
-          circular.assign(graph);
+          circular.assign(tempGraph);
           break;
         case 'random':
-          random.assign(graph);
+          random.assign(tempGraph);
           break;
         case 'force':
         default:
-          forceAtlas2.assign(graph, {
+          forceAtlas2.assign(tempGraph, {
             iterations: 100,
             settings: {
               gravity: 1,
               scalingRatio: 2,
               strongGravityMode: true,
-              barnesHutOptimize: graph.order > 100,
+              barnesHutOptimize: tempGraph.order > 100,
             },
           });
           break;
       }
+      
+      // Extract positions
+      tempGraph.forEachNode((nodeId) => {
+        positions[nodeId] = {
+          x: tempGraph.getNodeAttribute(nodeId, 'x'),
+          y: tempGraph.getNodeAttribute(nodeId, 'y'),
+        };
+      });
+      
+      return positions;
+    };
+
+    // Apply initial layout
+    if (graph.order > 0) {
+      const positions = calculateLayoutPositions();
+      // Apply positions directly for initial load (no animation yet)
+      Object.entries(positions).forEach(([nodeId, pos]) => {
+        graph.setNodeAttribute(nodeId, 'x', pos.x);
+        graph.setNodeAttribute(nodeId, 'y', pos.y);
+      });
     }
 
-    // Create Sigma instance with settings
+    // Create Sigma instance with visual quality settings
     const sigma = new Sigma(graph, containerRef.current, {
       renderLabels: showLabels,
       renderEdgeLabels: showEdgeLabels,
       labelSize: 12,
-      labelColor: { color: '#374151' },
-      labelFont: 'Inter, sans-serif',
+      labelColor: { color: isDark ? LABEL_COLORS.dark : LABEL_COLORS.light },
+      labelFont: 'Inter, ui-sans-serif, system-ui, sans-serif',
+      labelGridCellSize: 120,           // Larger cells = fewer labels, 120 is balanced
+      labelRenderedSizeThreshold: 6,     // Show labels for smaller nodes (was 12)
+      labelDensity: 0.7,                 // Higher density = more labels visible (was 0.1)
       defaultNodeColor: '#64748b',
-      defaultEdgeColor: '#94a3b8',
+      defaultEdgeColor: isDark ? '#4b5563' : '#94a3b8',
+      defaultNodeType: 'border',
+      defaultEdgeType: 'curvedArrow',
+      nodeProgramClasses: {
+        border: NodeBorderProgram,
+      },
+      edgeProgramClasses: {
+        curvedArrow: EdgeCurvedArrowProgram,
+        curved: createEdgeCurveProgram(),
+      },
       minCameraRatio: 0.1,
       maxCameraRatio: 10,
+      enableEdgeEvents: true,
     });
 
     // Event handlers
@@ -262,15 +321,111 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
       }
     });
 
+    // Edge hover - highlight edge and connected nodes
+    sigma.on('enterEdge', ({ edge }) => {
+      const source = graph.source(edge);
+      const target = graph.target(edge);
+      
+      // Store original edge attributes for restoration
+      const originalSize = graph.getEdgeAttribute(edge, 'size') || 2;
+      const originalColor = graph.getEdgeAttribute(edge, 'color');
+      
+      // Highlight the edge
+      graph.setEdgeAttribute(edge, 'size', originalSize * 2);
+      graph.setEdgeAttribute(edge, 'color', isDark ? '#60a5fa' : '#3b82f6');
+      graph.setEdgeAttribute(edge, 'originalSize', originalSize);
+      graph.setEdgeAttribute(edge, 'originalColor', originalColor);
+      
+      // Highlight connected nodes
+      graph.setNodeAttribute(source, 'highlighted', true);
+      graph.setNodeAttribute(target, 'highlighted', true);
+      
+      sigma.refresh();
+    });
+
+    sigma.on('leaveEdge', ({ edge }) => {
+      // Restore original edge attributes
+      const originalSize = graph.getEdgeAttribute(edge, 'originalSize');
+      const originalColor = graph.getEdgeAttribute(edge, 'originalColor');
+      
+      if (originalSize !== undefined) {
+        graph.setEdgeAttribute(edge, 'size', originalSize);
+        graph.removeEdgeAttribute(edge, 'originalSize');
+      }
+      if (originalColor !== undefined) {
+        graph.setEdgeAttribute(edge, 'color', originalColor);
+        graph.removeEdgeAttribute(edge, 'originalColor');
+      }
+      
+      // Reset connected nodes
+      const source = graph.source(edge);
+      const target = graph.target(edge);
+      graph.removeNodeAttribute(source, 'highlighted');
+      graph.removeNodeAttribute(target, 'highlighted');
+      
+      sigma.refresh();
+    });
+
     sigmaRef.current = sigma;
     setSigmaInstance(sigma);
+    previousLayoutRef.current = layout;
 
     return () => {
       sigma.kill();
       sigmaRef.current = null;
+      graphRef.current = null;
       setSigmaInstance(null);
     };
-  }, [nodes, edges, colorMode, layout, nodeSize, showLabels, showEdgeLabels, enableNodeDrag, highlightNeighbors, hideUnselectedEdges, onNodeClick, onNodeHover, onNodeRightClick, setSigmaInstance]);
+  }, [nodes, edges, colorMode, layout, nodeSize, showLabels, showEdgeLabels, enableNodeDrag, highlightNeighbors, hideUnselectedEdges, isDark, onNodeClick, onNodeHover, onNodeRightClick, setSigmaInstance]);
+
+  // Animate layout changes (when layout prop changes after initial render)
+  useEffect(() => {
+    const graph = graphRef.current;
+    const sigma = sigmaRef.current;
+    
+    // Only animate if we have an existing graph and the layout actually changed
+    if (!graph || !sigma || !previousLayoutRef.current || previousLayoutRef.current === layout) {
+      return;
+    }
+    
+    // Calculate new positions
+    const tempGraph = graph.copy();
+    
+    switch (layout) {
+      case 'circular':
+        circular.assign(tempGraph);
+        break;
+      case 'random':
+        random.assign(tempGraph);
+        break;
+      case 'force':
+      default:
+        forceAtlas2.assign(tempGraph, {
+          iterations: 100,
+          settings: {
+            gravity: 1,
+            scalingRatio: 2,
+            strongGravityMode: true,
+            barnesHutOptimize: tempGraph.order > 100,
+          },
+        });
+        break;
+    }
+    
+    // Extract new positions
+    const newPositions: Record<string, { x: number; y: number }> = {};
+    tempGraph.forEachNode((nodeId) => {
+      newPositions[nodeId] = {
+        x: tempGraph.getNodeAttribute(nodeId, 'x'),
+        y: tempGraph.getNodeAttribute(nodeId, 'y'),
+      };
+    });
+    
+    // Animate to new positions (300ms transition)
+    animateNodes(graph, newPositions, { duration: 300, easing: 'quadraticInOut' });
+    
+    previousLayoutRef.current = layout;
+  }, [layout]);
 
   useEffect(() => {
     const cleanup = initializeGraph();

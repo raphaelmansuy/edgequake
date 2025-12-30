@@ -30,7 +30,7 @@ interface UIPanelState {
 
   // Entity browser view mode
   entityBrowserViewMode: "grouped" | "list";
-  entityBrowserSortBy: "name" | "degree";
+  entityBrowserSortBy: "name" | "degree" | "type";
   entityBrowserSortAsc: boolean;
 }
 
@@ -50,7 +50,7 @@ interface UIPreferencesState extends UIPanelState {
   setQueryHistoryWidth: (width: number) => void;
 
   setEntityBrowserViewMode: (mode: "grouped" | "list") => void;
-  setEntityBrowserSortBy: (sortBy: "name" | "degree") => void;
+  setEntityBrowserSortBy: (sortBy: "name" | "degree" | "type") => void;
   setEntityBrowserSortAsc: (asc: boolean) => void;
 
   // Hydration
