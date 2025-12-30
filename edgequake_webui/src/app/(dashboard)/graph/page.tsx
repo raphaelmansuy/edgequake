@@ -35,10 +35,18 @@ const GraphViewer = dynamic(
   }
 );
 
+// Dynamic import for tour wrapper (client-only)
+const GraphTourWrapper = dynamic(
+  () => import('@/components/graph/graph-tour-wrapper'),
+  { ssr: false }
+);
+
 export default function GraphPage() {
   return (
     <div className="h-full overflow-hidden">
-      <GraphViewer />
+      <GraphTourWrapper>
+        <GraphViewer />
+      </GraphTourWrapper>
     </div>
   );
 }

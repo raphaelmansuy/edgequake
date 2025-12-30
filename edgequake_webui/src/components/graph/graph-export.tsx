@@ -8,6 +8,11 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useGraphStore } from '@/stores/use-graph-store';
 import { Download, FileCode, FileJson, ImageIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -113,17 +118,27 @@ export function GraphExport() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          title={t('graph.export.title', 'Export graph')}
-          disabled={isGraphEmpty}
-        >
-          <Download className="h-4 w-4" />
-          <span className="sr-only">{t('graph.export.title', 'Export graph')}</span>
-        </Button>
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              aria-label={t('graph.export.title', 'Export graph')}
+              disabled={isGraphEmpty}
+            >
+              <Download className="h-4 w-4" />
+              <span className="sr-only">{t('graph.export.title', 'Export graph')}</span>
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          <div className="space-y-1">
+            <div className="font-medium text-xs">{t('graph.export.title', 'Export Graph')}</div>
+            <p className="text-[10px] opacity-80">Save as PNG, SVG, or JSON</p>
+          </div>
+        </TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={exportAsPNG}>
           <ImageIcon className="h-4 w-4 mr-2" />

@@ -4,6 +4,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { ResizablePanel } from '@/components/ui/resizable-panel';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useGraphKeyboardNavigation } from '@/hooks/use-graph-keyboard-navigation';
 import { getGraph } from '@/lib/api/edgequake';
 import { focusCameraOnNode } from '@/lib/graph/camera-utils';
 import { useGraphStore } from '@/stores/use-graph-store';
@@ -13,6 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2, Maximize2, Network, PanelRightClose, RefreshCw, Upload, ZoomIn, ZoomOut } from 'lucide-react';
 import { useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
+import { GraphEmptyIllustration } from '../illustrations/graph-empty-illustration';
 import { EntityBrowserPanel } from './entity-browser-panel';
 import { GraphControls } from './graph-controls';
 import { GraphExport } from './graph-export';
@@ -20,6 +22,8 @@ import { GraphFilters } from './graph-filters';
 import { GraphLegend } from './graph-legend';
 import { GraphRenderer } from './graph-renderer';
 import { GraphSearch } from './graph-search';
+import { GraphTourTrigger } from './graph-tour-wrapper';
+import { KeyboardShortcutsHelp } from './keyboard-shortcuts-help';
 import { LayoutControl } from './layout-control';
 import { NodeContextMenu, useNodeContextMenu } from './node-context-menu';
 import { NodeDetails } from './node-details';
@@ -79,6 +83,17 @@ export function GraphViewer() {
     openContextMenu,
     closeContextMenu,
   } = useNodeContextMenu();
+
+  // Enable keyboard navigation for graph
+  useGraphKeyboardNavigation({
+    enabled: true,
+    onNodeFocus: (nodeId) => {
+      // Node focus is handled by the hook itself
+    },
+    onDeselect: () => {
+      // Deselection is handled by the hook
+    },
+  });
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['graph', selectedTenantId, selectedWorkspaceId],
@@ -192,7 +207,10 @@ export function GraphViewer() {
       {/* Main Graph Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Toolbar - compact and slick */}
-        <header className="flex items-center justify-between border-b px-4 py-2 shrink-0 bg-card/50 backdrop-blur-sm">
+        <header 
+          className="flex items-center justify-between border-b px-4 py-2 shrink-0 bg-card/50 backdrop-blur-sm"
+          data-tour="graph-header"
+        >
           <div className="flex items-center gap-2.5">
             <h2 className="text-base font-semibold tracking-tight">Knowledge Graph</h2>
             {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
@@ -203,9 +221,11 @@ export function GraphViewer() {
             )}
           </div>
           <div className="flex items-center gap-1">
-            <GraphSearch />
-            <LayoutControl />
+            <div data-tour="graph-search"><GraphSearch /></div>
+            <div data-tour="layout-control"><LayoutControl /></div>
             <GraphExport />
+            <div data-tour="keyboard-help"><KeyboardShortcutsHelp /></div>
+            <GraphTourTrigger />
             <div className="w-px h-5 bg-border mx-1" />
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => refetch()} title="Refresh">
               <RefreshCw className="h-3.5 w-3.5" />
@@ -226,6 +246,7 @@ export function GraphViewer() {
         <div 
           className="flex-1 relative overflow-hidden bg-background text-foreground" 
           data-graph-container
+          data-tour="graph-canvas"
         >
           {isLoading && allNodes.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center">
@@ -237,15 +258,14 @@ export function GraphViewer() {
           ) : allNodes.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center max-w-md px-4">
-                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                  <Network className="h-8 w-8 text-muted-foreground" />
+                <div className="w-48 h-40 mx-auto mb-6">
+                  <GraphEmptyIllustration animate={true} />
                 </div>
                 <h3 className="text-lg font-medium">No knowledge graph yet</h3>
-                <p className="text-sm text-muted-foreground mt-2">
+                <p className="text-sm text-muted-foreground mt-2 mb-6">
                   Your knowledge graph is empty. Upload documents to automatically extract entities and relationships.
                 </p>
                 <Button
-                  className="mt-4"
                   onClick={() => window.location.href = '/documents'}
                 >
                   <Upload className="h-4 w-4 mr-2" />
@@ -256,8 +276,8 @@ export function GraphViewer() {
           ) : filteredNodes.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center max-w-md px-4">
-                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                  <Network className="h-8 w-8 text-muted-foreground" />
+                <div className="w-40 h-32 mx-auto mb-4 opacity-50">
+                  <GraphEmptyIllustration animate={false} />
                 </div>
                 <h3 className="text-lg font-medium">No visible nodes</h3>
                 <p className="text-sm text-muted-foreground mt-2">
@@ -345,8 +365,10 @@ export function GraphViewer() {
           minWidth={280}
           maxWidth={480}
           className="border-l bg-card/95 backdrop-blur-sm"
+          storageKey="edgequake.graph.rightPanelWidth"
+          ariaLabel="Resize details panel"
         >
-          <div className="flex flex-col h-full overflow-hidden">
+          <div className="flex flex-col h-full overflow-hidden" data-tour="details-panel">
             {/* Panel Header */}
             <div className="flex items-center justify-between px-3 py-2 border-b shrink-0 bg-muted/30">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Details & Filters</h3>

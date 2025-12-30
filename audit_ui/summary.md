@@ -103,23 +103,25 @@ Comprehensive live testing performed using Playwright browser automation with re
 
 Comprehensive audit of the document detail page (`/documents/[id]`) performed with Playwright testing:
 
-| Feature                         | Desktop        | Mobile          | Status                       |
-| ------------------------------- | -------------- | --------------- | ---------------------------- |
-| Two-column layout (65%/35%)     | ✅ Excellent   | N/A (stacked)   | Responsive breakpoint works  |
-| Tabbed interface (mobile)       | N/A            | ✅ Working      | Content/Details tabs         |
-| Markdown rendering              | ✅ Beautiful   | ✅ Beautiful    | Prose styling applied        |
-| Key Stats display               | ✅ 2x2 grid    | ✅ 2x2 grid     | Chunks/Entities/Relations/Processed |
-| Collapsible metadata sections   | ✅ All working | ✅ All working  | Extraction Lineage, Knowledge Graph, Source Details, Processing Info |
-| "View in Graph" navigation      | ✅ Working     | ✅ Working      | Navigates with ?highlight=documentId |
-| Back button state preservation  | ✅ Working     | ✅ Working      | Full page state preserved    |
-| Long content scrolling          | ✅ No jank     | ✅ No jank      | 134K+ character document tested |
-| Document header with status     | ✅ Completed badge | ✅ Completed badge | Green status indicator   |
+| Feature                        | Desktop            | Mobile             | Status                                                               |
+| ------------------------------ | ------------------ | ------------------ | -------------------------------------------------------------------- |
+| Two-column layout (65%/35%)    | ✅ Excellent       | N/A (stacked)      | Responsive breakpoint works                                          |
+| Tabbed interface (mobile)      | N/A                | ✅ Working         | Content/Details tabs                                                 |
+| Markdown rendering             | ✅ Beautiful       | ✅ Beautiful       | Prose styling applied                                                |
+| Key Stats display              | ✅ 2x2 grid        | ✅ 2x2 grid        | Chunks/Entities/Relations/Processed                                  |
+| Collapsible metadata sections  | ✅ All working     | ✅ All working     | Extraction Lineage, Knowledge Graph, Source Details, Processing Info |
+| "View in Graph" navigation     | ✅ Working         | ✅ Working         | Navigates with ?highlight=documentId                                 |
+| Back button state preservation | ✅ Working         | ✅ Working         | Full page state preserved                                            |
+| Long content scrolling         | ✅ No jank         | ✅ No jank         | 134K+ character document tested                                      |
+| Document header with status    | ✅ Completed badge | ✅ Completed badge | Green status indicator                                               |
 
 **Test Document:** Academic paper on LLM safety (miss_2512_21110v2.md)
+
 - 794 entities, 576 relations, 134,621 characters, 32 chunks
 - Authors: KTH Royal Institute of Technology researchers
 
 **Screenshots captured:**
+
 - `document-detail-page-desktop.png` - Full desktop layout
 - `document-detail-page-mobile.png` - Mobile Content tab
 - `document-detail-page-mobile-details.png` - Mobile Details tab

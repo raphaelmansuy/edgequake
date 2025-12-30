@@ -19,7 +19,7 @@ import {
     ZoomIn,
     ZoomOut,
 } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 /**
@@ -118,8 +118,8 @@ export function ZoomControls() {
   }, [isFullscreen]);
 
   // Listen for fullscreen changes and sync dark mode
-  if (typeof window !== 'undefined') {
-    document.addEventListener('fullscreenchange', () => {
+  useEffect(() => {
+    const handleFullscreenChange = () => {
       const isNowFullscreen = !!document.fullscreenElement;
       setIsFullscreen(isNowFullscreen);
       
@@ -133,8 +133,11 @@ export function ZoomControls() {
           container.classList.remove('dark');
         }
       }
-    });
-  }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   return (
     <TooltipProvider>
@@ -142,6 +145,7 @@ export function ZoomControls() {
         className="flex flex-col gap-1 bg-background/95 backdrop-blur-sm rounded-lg border border-border/50 shadow-lg p-1 hover:shadow-xl transition-shadow duration-200"
         role="toolbar"
         aria-label={t('graph.controls.title', 'Graph controls')}
+        data-tour="zoom-controls"
       >
         {/* Zoom Controls */}
         <Tooltip>
@@ -156,8 +160,9 @@ export function ZoomControls() {
               <ZoomIn className="h-4 w-4" aria-hidden="true" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="left">
-            {t('graph.zoomIn', 'Zoom In')}
+          <TooltipContent side="left" className="flex items-center gap-2">
+            <span>{t('graph.zoomIn', 'Zoom In')}</span>
+            <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-background/20 rounded border border-background/10">+</kbd>
           </TooltipContent>
         </Tooltip>
 
@@ -173,8 +178,9 @@ export function ZoomControls() {
               <ZoomOut className="h-4 w-4" aria-hidden="true" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="left">
-            {t('graph.zoomOut', 'Zoom Out')}
+          <TooltipContent side="left" className="flex items-center gap-2">
+            <span>{t('graph.zoomOut', 'Zoom Out')}</span>
+            <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-background/20 rounded border border-background/10">-</kbd>
           </TooltipContent>
         </Tooltip>
 
@@ -231,8 +237,9 @@ export function ZoomControls() {
                 <Focus className="h-4 w-4" aria-hidden="true" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="left">
-              {t('graph.focusOnNode', 'Focus on Selected Node')}
+            <TooltipContent side="left" className="flex items-center gap-2">
+              <span>{t('graph.focusOnNode', 'Focus on Selected')}</span>
+              <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-background/20 rounded border border-background/10">Enter</kbd>
             </TooltipContent>
           </Tooltip>
         )}
@@ -250,8 +257,9 @@ export function ZoomControls() {
               <Maximize2 className="h-4 w-4" aria-hidden="true" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="left">
-            {t('graph.resetZoom', 'Reset View')}
+          <TooltipContent side="left" className="flex items-center gap-2">
+            <span>{t('graph.resetZoom', 'Reset View')}</span>
+            <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-background/20 rounded border border-background/10">0</kbd>
           </TooltipContent>
         </Tooltip>
 
@@ -274,10 +282,11 @@ export function ZoomControls() {
               )}
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="left">
-            {isFullscreen
+          <TooltipContent side="left" className="flex items-center gap-2">
+            <span>{isFullscreen
               ? t('graph.exitFullscreen', 'Exit Fullscreen')
-              : t('graph.enterFullscreen', 'Fullscreen')}
+              : t('graph.enterFullscreen', 'Fullscreen')}</span>
+            <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-background/20 rounded border border-background/10">F</kbd>
           </TooltipContent>
         </Tooltip>
       </div>

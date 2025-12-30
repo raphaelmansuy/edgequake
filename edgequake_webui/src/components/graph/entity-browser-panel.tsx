@@ -421,6 +421,7 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
         className
       )}
       aria-label={t("graph.entityBrowser.title", "Entity browser")}
+      data-tour="entity-browser"
     >
       {/* Header - More compact */}
       <div className="flex items-center justify-between px-3 py-2 border-b shrink-0 bg-muted/20">

@@ -7,6 +7,11 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useGraphStore } from '@/stores/use-graph-store';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
 import circular from 'graphology-layout/circular';
@@ -87,20 +92,30 @@ export function LayoutControl() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          title={t('graph.layouts.title')}
-          disabled={isApplying}
-        >
-          {isApplying ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <LayoutGrid className="h-4 w-4" />
-          )}
-        </Button>
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              aria-label={t('graph.layouts.title', 'Change layout')}
+              disabled={isApplying}
+            >
+              {isApplying ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <LayoutGrid className="h-4 w-4" />
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          <div className="space-y-1">
+            <div className="font-medium text-xs">{t('graph.layouts.title', 'Graph Layout')}</div>
+            <p className="text-[10px] opacity-80">Rearrange nodes with different algorithms</p>
+          </div>
+        </TooltipContent>
+      </Tooltip>
       <DropdownMenuContent>
         <DropdownMenuItem 
           onClick={() => applyLayout('force')}

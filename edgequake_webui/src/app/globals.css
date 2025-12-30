@@ -183,6 +183,96 @@ html.theme-switching *::after {
 }
 
 /* ============================================
+ * ILLUSTRATION ANIMATIONS
+ * ============================================ */
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes dash {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -12;
+  }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.02);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-dash {
+  animation: dash 2s linear infinite;
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s ease-in-out infinite;
+}
+
+/* ============================================
+ * REDUCED MOTION SUPPORT (WCAG 2.1)
+ * ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  
+  /* Keep essential transforms but remove animations */
+  .animate-float,
+  .animate-dash,
+  .animate-pulse-subtle,
+  .animate-shimmer,
+  .animate-pulse-soft,
+  .animate-gradient-shift,
+  .animate-spin,
+  .animate-ping,
+  .animate-pulse,
+  .animate-bounce {
+    animation: none !important;
+  }
+  
+  /* Disable transitions on panels and modals */
+  [data-state="open"],
+  [data-state="closed"] {
+    transition: none !important;
+  }
+}
+
+/* Class-based reduced motion override */
+.motion-reduce,
+.motion-reduce *,
+.motion-reduce *::before,
+.motion-reduce *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* ============================================
  * SCROLL AREA ENHANCEMENTS
  * ============================================ */
 
