@@ -27,6 +27,7 @@
 ## Current State
 
 ### Backend
+
 - ✅ Running on http://localhost:8080
 - ✅ Health check passing
 - ✅ Document processing working (entities extracted successfully)
@@ -34,11 +35,13 @@
 - ✅ `/api/v1/graph?start_node=X` returns immediately (0ms)
 
 ### Frontend
+
 - ✅ Running on http://localhost:3000
 - ✅ Environment variables loaded (.env.local)
 - ❓ Not yet verified in browser
 
 ### Database
+
 - ✅ PostgreSQL running in Docker (edgequake-postgres)
 - ✅ Graph exists: `eq_eq_default_graph`
 - ✅ Contains 1090 vertices
@@ -47,9 +50,11 @@
 ## Root Cause Analysis
 
 ### Problem
+
 The `/api/v1/graph` endpoint hangs indefinitely when called without a `start_node` parameter.
 
 ### Evidence
+
 ```
 Backend log at 14:28:06:
 - Request started: /api/v1/graph?max_nodes=10
@@ -62,7 +67,9 @@ With start_node parameter:
 ```
 
 ### Root Cause
+
 When `start_node` is NOT provided, the handler calls:
+
 ```rust
 // Line ~230 in graph.rs
 let nodes_with_degrees = state
@@ -80,7 +87,9 @@ let nodes_with_degrees = state
 This query is performing a full table scan or expensive JOIN on 1090 nodes, causing timeout.
 
 ### Why start_node Works
+
 When `start_node` IS provided (line ~164):
+
 ```rust
 let kg = state
     .graph_storage
@@ -93,7 +102,9 @@ This uses a targeted graph traversal starting from a specific node, which is muc
 ## Next Steps
 
 ### Immediate (Critical)
+
 1. ⏳ **Fix Database Query Performance**
+
    - Add index on node properties for tenant/workspace filtering
    - Optimize `get_popular_nodes_with_degree` query
    - Add query timeout to prevent indefinite hangs
@@ -104,14 +115,17 @@ This uses a targeted graph traversal starting from a specific node, which is muc
    - Confirm error message displayed
 
 ### Short Term
+
 3. ⏳ **Implement Query Timeout**
+
    - Add 5s timeout to graph queries
    - Return partial results if timeout exceeded
    - Log slow queries for optimization
 
 4. ⏳ **Add Database Indexes**
+
    ```sql
-   CREATE INDEX IF NOT EXISTS idx_node_tenant_workspace 
+   CREATE INDEX IF NOT EXISTS idx_node_tenant_workspace
    ON eq_eq_default_graph._ag_label_vertex ((properties->>'tenant_id'), (properties->>'workspace_id'));
    ```
 
@@ -131,6 +145,7 @@ This uses a targeted graph traversal starting from a specific node, which is muc
 ## Technical Insights
 
 ### Database State
+
 ```
 Graph: eq_eq_default_graph
 Vertices: 1090
@@ -140,23 +155,27 @@ Sample nodes: "KTH Royal Institute of Technology", "Intent-First Architecture", 
 ```
 
 ### API Behavior
-| Endpoint | Parameters | Status | Response Time |
-|----------|-----------|--------|---------------|
-| /api/v1/graph | max_nodes=10 | ⏳ Hangs | >30s (timeout) |
-| /api/v1/graph | max_nodes=5, start_node=ALICE_CHEN | ✅ Works | <100ms |
-| /api/v1/documents | POST with content | ✅ Works | ~2s (LLM processing) |
-| /api/v1/health | None | ✅ Works | <5ms |
+
+| Endpoint          | Parameters                         | Status   | Response Time        |
+| ----------------- | ---------------------------------- | -------- | -------------------- |
+| /api/v1/graph     | max_nodes=10                       | ⏳ Hangs | >30s (timeout)       |
+| /api/v1/graph     | max_nodes=5, start_node=ALICE_CHEN | ✅ Works | <100ms               |
+| /api/v1/documents | POST with content                  | ✅ Works | ~2s (LLM processing) |
+| /api/v1/health    | None                               | ✅ Works | <5ms                 |
 
 ### Code Changes Made
+
 - [graph-viewer.tsx](../edgequake_webui/src/components/graph/graph-viewer.tsx): Fixed streaming initialization
 - [use-graph-store.ts](../edgequake_webui/src/stores/use-graph-store.ts): Disabled streaming by default
 
 ## Blockers
 
 ### Current Blocker
+
 ❌ **Cannot load graph in UI**: Backend hangs on graph query without start_node
 
 ### Resolution Path
+
 1. Fix `get_popular_nodes_with_degree` performance
 2. Add database indexes
 3. Implement query timeout fallback
@@ -176,6 +195,7 @@ Sample nodes: "KTH Royal Institute of Technology", "Intent-First Architecture", 
 ## Next Action
 
 **User should**:
+
 1. Open browser DevTools (Network tab)
 2. Navigate to http://localhost:3000/graph
 3. Observe network request to `/api/v1/graph`
@@ -189,6 +209,7 @@ Sample nodes: "KTH Royal Institute of Technology", "Intent-First Architecture", 
 **OR**
 
 **I will**:
+
 1. Implement database index for performance
 2. Add query timeout with fallback
 3. Restart backend and test

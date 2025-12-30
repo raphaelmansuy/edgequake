@@ -19,6 +19,7 @@ With 1090 nodes in the database, this query created a massive join that never co
 ## Solution Implemented
 
 ### 1. Handler-Level Timeout (5 seconds)
+
 **File**: `edgequake/crates/edgequake-api/src/handlers/graph.rs`
 
 Added `tokio::time::timeout` wrapper around the slow query with automatic fallback:
@@ -35,7 +36,7 @@ let nodes_with_degrees = match tokio::time::timeout(
     Ok(result) => result?,
     Err(_) => {
         warn!("Graph query timed out, falling back to simple node fetch");
-        
+
         // Fallback: Use get_all_nodes with limit (no degree calculation)
         let all_nodes = state.graph_storage.get_all_nodes().await?;
         filtered_nodes
@@ -48,11 +49,13 @@ let nodes_with_degrees = match tokio::time::timeout(
 ```
 
 **Benefits**:
+
 - Guarantees response within 5 seconds
 - Graceful degradation to simple node list
 - User still gets data instead of infinite hang
 
 ### 2. Database-Level Statement Timeout (10 seconds)
+
 **File**: `edgequake/crates/edgequake-storage/src/adapters/postgres/graph.rs`
 
 Added PostgreSQL statement timeout to both `cypher_query` and `get_popular_nodes_with_degree`:
@@ -65,20 +68,24 @@ sqlx::query("SET statement_timeout = '10s'")
 ```
 
 **Benefits**:
+
 - Database-level protection against runaway queries
 - Prevents connection pool exhaustion
 - Applies to all Cypher queries
 
 ### 3. Added Tracing
+
 **File**: `edgequake/crates/edgequake-api/src/handlers/graph.rs`
 
 Added imports:
+
 ```rust
 use std::time::Duration;
 use tracing::{debug, warn};
 ```
 
 Added warning log when fallback is triggered:
+
 ```rust
 warn!(
     timeout_secs = QUERY_TIMEOUT_SECS,
@@ -90,16 +97,18 @@ warn!(
 ## Test Results
 
 ### Before Fix
+
 - **Status**: Hanging indefinitely (>30 seconds)
 - **User Experience**: "Failed to fetch" error in UI
 - **Backend Logs**: Request started but never completed
 - **Multiple Requests**: All queued requests blocked
 
 ### After Fix
+
 - **Status**: ✅ Working
 - **Response Time**: ~5 seconds (timeout duration)
 - **Result**: `{"nodes":10,"edges":8}`
-- **Backend Logs**: 
+- **Backend Logs**:
   ```
   WARN Graph query timed out, falling back to simple node fetch timeout_secs=5 max_nodes=10
   INFO Request completed method=GET uri=/api/v1/graph?max_nodes=10 status=200 duration_ms=5073
@@ -108,9 +117,9 @@ warn!(
 
 ### Performance Metrics
 
-| Request | Before | After | Improvement |
-|---------|--------|-------|-------------|
-| `/api/v1/graph?max_nodes=10` | ⏳ >30s (hang) | ✅ 5.07s | **100% success rate** |
+| Request                       | Before         | After    | Improvement           |
+| ----------------------------- | -------------- | -------- | --------------------- |
+| `/api/v1/graph?max_nodes=10`  | ⏳ >30s (hang) | ✅ 5.07s | **100% success rate** |
 | `/api/v1/graph?max_nodes=200` | ⏳ >30s (hang) | ✅ 5.13s | **100% success rate** |
 | `/api/v1/graph?max_nodes=750` | ⏳ >30s (hang) | ✅ 5.17s | **100% success rate** |
 
@@ -119,7 +128,6 @@ warn!(
 1. **`edgequake/crates/edgequake-api/src/handlers/graph.rs`**
    - Added timeout wrapper with fallback logic (~60 lines)
    - Added imports: `Duration`, `warn`
-   
 2. **`edgequake/crates/edgequake-storage/src/adapters/postgres/graph.rs`**
    - Added statement timeout to `cypher_query` (line ~110)
    - Added statement timeout to `get_popular_nodes_with_degree` (line ~835)
@@ -129,6 +137,7 @@ warn!(
 The streaming implementation from earlier work is **100% correct** ✅. The "Failed to fetch" error was entirely due to the backend performance issue, not the streaming code.
 
 ### Streaming Features Ready
+
 - ✅ `useGraphStream` hook with lifecycle management
 - ✅ `StreamingIndicator` progress component
 - ✅ Store integration with `useStreaming` flag
@@ -138,7 +147,9 @@ The streaming implementation from earlier work is **100% correct** ✅. The "Fai
 - ✅ Disabled by default (`useStreaming: false`)
 
 ### To Enable Streaming
+
 Once the SSE endpoint is verified:
+
 1. Change `useStreaming: false` to `true` in `use-graph-store.ts`
 2. Test `/api/v1/graph/stream` endpoint
 3. Measure first-batch render time
@@ -146,6 +157,7 @@ Once the SSE endpoint is verified:
 ## Production Readiness
 
 ### ✅ Ready for Production
+
 - Backend handles large graphs without hanging
 - Graceful degradation with timeout fallback
 - Database protection with statement timeout
@@ -153,6 +165,7 @@ Once the SSE endpoint is verified:
 - Frontend loads graph successfully
 
 ### 🔄 Future Optimizations (Optional)
+
 1. **Add Database Index**: Create index on node properties for faster filtering
 2. **Optimize Degree Calculation**: Use materialized view or cached degrees
 3. **Implement Query Caching**: Cache popular nodes for 5 minutes
@@ -161,18 +174,21 @@ Once the SSE endpoint is verified:
 ## Verification Steps
 
 ### Backend Health
+
 ```bash
 curl -s http://localhost:8080/health | jq -r '.status'
 # Output: healthy
 ```
 
 ### Graph Endpoint
+
 ```bash
 curl -s 'http://localhost:8080/api/v1/graph?max_nodes=10' | jq '{nodes: .nodes | length, edges: .edges | length}'
 # Output: {"nodes":10,"edges":8}
 ```
 
 ### Frontend
+
 ```bash
 open http://localhost:3000/graph
 # Graph visualizes successfully with nodes and edges
@@ -181,16 +197,19 @@ open http://localhost:3000/graph
 ## Logs Analysis
 
 **Timeout Triggered** (expected behavior):
+
 ```
 WARN Graph query timed out, falling back to simple node fetch timeout_secs=5 max_nodes=10
 ```
 
 **Request Completed Successfully**:
+
 ```
 INFO Request completed method=GET uri=/api/v1/graph?max_nodes=10 status=200 duration_ms=5073
 ```
 
 **Pattern Observed**:
+
 - All requests that previously hung now complete in ~5 seconds
 - Fallback to simple node fetch works correctly
 - Users get data instead of errors
@@ -213,28 +232,33 @@ The performance fix is **complete and working in production**. The system now:
 ## Quick Reference
 
 ### Start Services
+
 ```bash
 cd /Users/raphaelmansuy/Github/03-working/edgequake
 make dev-bg
 ```
 
 ### Check Health
+
 ```bash
 curl http://localhost:8080/health
 ```
 
 ### Test Graph
+
 ```bash
 curl 'http://localhost:8080/api/v1/graph?max_nodes=10'
 ```
 
 ### View Logs
+
 ```bash
 tail -f /tmp/edgequake-backend.log
 tail -f /tmp/edgequake-frontend.log
 ```
 
 ### Stop Services
+
 ```bash
 make stop
 ```

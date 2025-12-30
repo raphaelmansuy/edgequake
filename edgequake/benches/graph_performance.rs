@@ -5,8 +5,7 @@
 /// - node_degree: <50ms
 /// - node_degrees_batch: <100ms for 100 nodes
 /// - get_popular_nodes_with_degree: <100ms for 1000 nodes
-
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use edgequake_storage::adapters::memory::MemoryGraphStorage;
 use edgequake_storage::traits::GraphStorage;
 use std::collections::HashMap;
@@ -17,9 +16,15 @@ async fn setup_benchmark_graph(storage: &impl GraphStorage, node_count: usize) {
     // Create nodes
     for i in 0..node_count {
         let mut props = HashMap::new();
-        props.insert("node_id".to_string(), serde_json::json!(format!("NODE_{}", i)));
+        props.insert(
+            "node_id".to_string(),
+            serde_json::json!(format!("NODE_{}", i)),
+        );
         props.insert("entity_type".to_string(), serde_json::json!("test"));
-        storage.upsert_node(&format!("NODE_{}", i), props).await.unwrap();
+        storage
+            .upsert_node(&format!("NODE_{}", i), props)
+            .await
+            .unwrap();
     }
 
     // Create edges to form a connected graph
@@ -68,18 +73,25 @@ fn bench_node_degrees_batch(c: &mut Criterion) {
     });
 
     let mut group = c.benchmark_group("node_degrees_batch");
-    
+
     for size in [10, 50, 100, 200].iter() {
         let node_ids: Vec<String> = (0..*size).map(|i| format!("NODE_{}", i)).collect();
-        
-        group.bench_with_input(BenchmarkId::from_parameter(size), &node_ids, |b, node_ids| {
-            b.to_async(&rt).iter(|| async {
-                let degrees = storage.node_degrees_batch(black_box(node_ids)).await.unwrap();
-                black_box(degrees);
-            });
-        });
+
+        group.bench_with_input(
+            BenchmarkId::from_parameter(size),
+            &node_ids,
+            |b, node_ids| {
+                b.to_async(&rt).iter(|| async {
+                    let degrees = storage
+                        .node_degrees_batch(black_box(node_ids))
+                        .await
+                        .unwrap();
+                    black_box(degrees);
+                });
+            },
+        );
     }
-    
+
     group.finish();
 }
 
@@ -93,25 +105,19 @@ fn bench_get_popular_nodes(c: &mut Criterion) {
     });
 
     let mut group = c.benchmark_group("get_popular_nodes_with_degree");
-    
+
     for limit in [10, 50, 100, 500, 1000].iter() {
         group.bench_with_input(BenchmarkId::from_parameter(limit), limit, |b, &limit| {
             b.to_async(&rt).iter(|| async {
                 let nodes = storage
-                    .get_popular_nodes_with_degree(
-                        black_box(limit),
-                        None,
-                        None,
-                        None,
-                        None,
-                    )
+                    .get_popular_nodes_with_degree(black_box(limit), None, None, None, None)
                     .await
                     .unwrap();
                 black_box(nodes);
             });
         });
     }
-    
+
     group.finish();
 }
 
@@ -142,9 +148,9 @@ fn bench_comparison_batch_vs_individual(c: &mut Criterion) {
     });
 
     let node_ids: Vec<String> = (0..100).map(|i| format!("NODE_{}", i)).collect();
-    
+
     let mut group = c.benchmark_group("batch_vs_individual");
-    
+
     // Individual queries (N separate calls)
     group.bench_function("individual_100_queries", |b| {
         b.to_async(&rt).iter(|| async {
@@ -156,15 +162,18 @@ fn bench_comparison_batch_vs_individual(c: &mut Criterion) {
             black_box(degrees);
         });
     });
-    
+
     // Batch query (single call)
     group.bench_function("batch_100_queries", |b| {
         b.to_async(&rt).iter(|| async {
-            let degrees = storage.node_degrees_batch(black_box(&node_ids)).await.unwrap();
+            let degrees = storage
+                .node_degrees_batch(black_box(&node_ids))
+                .await
+                .unwrap();
             black_box(degrees);
         });
     });
-    
+
     group.finish();
 }
 

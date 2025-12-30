@@ -382,7 +382,7 @@ async fn test_degrees_batch_e2e() {
     upload_document(
         &server,
         "Alice works with Bob. Bob collaborates with Charlie. \
-         Charlie leads the project team with Alice."
+         Charlie leads the project team with Alice.",
     )
     .await;
 
@@ -410,14 +410,18 @@ async fn test_degrees_batch_e2e() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = extract_json(response).await;
-    
+
     // Verify response structure
     assert!(body.get("degrees").is_some());
     assert!(body.get("count").is_some());
-    
+
     let degrees = body["degrees"].as_array().unwrap();
-    assert_eq!(degrees.len(), 4, "Should return degrees for all requested nodes");
-    
+    assert_eq!(
+        degrees.len(),
+        4,
+        "Should return degrees for all requested nodes"
+    );
+
     // Verify each degree has node_id and degree fields
     for degree_obj in degrees {
         assert!(degree_obj.get("node_id").is_some());
@@ -435,7 +439,7 @@ async fn test_degrees_batch_performance_e2e() {
         &server,
         "Alice, Bob, Charlie, David, Eve, Frank, Grace, Henry, Ivy, Jack, \
          Kate, Leo, Mary, Nancy, Oscar, Paul, Quinn, Rachel, Steve, Tom, \
-         Uma, Victor, Wendy, Xavier, Yara, Zoe all work together on projects."
+         Uma, Victor, Wendy, Xavier, Yara, Zoe all work together on projects.",
     )
     .await;
 
@@ -443,9 +447,8 @@ async fn test_degrees_batch_performance_e2e() {
 
     // Create list of 20 node IDs
     let node_ids: Vec<String> = vec![
-        "ALICE", "BOB", "CHARLIE", "DAVID", "EVE", "FRANK", "GRACE", "HENRY",
-        "IVY", "JACK", "KATE", "LEO", "MARY", "NANCY", "OSCAR", "PAUL",
-        "QUINN", "RACHEL", "STEVE", "TOM"
+        "ALICE", "BOB", "CHARLIE", "DAVID", "EVE", "FRANK", "GRACE", "HENRY", "IVY", "JACK",
+        "KATE", "LEO", "MARY", "NANCY", "OSCAR", "PAUL", "QUINN", "RACHEL", "STEVE", "TOM",
     ]
     .iter()
     .map(|s| s.to_string())
@@ -456,7 +459,7 @@ async fn test_degrees_batch_performance_e2e() {
     });
 
     let start = std::time::Instant::now();
-    
+
     let app = server.build_router();
     let response = app
         .oneshot(
@@ -495,7 +498,7 @@ async fn test_popular_labels_optimized_e2e() {
         &server,
         "Sarah Chen is a software engineer at Microsoft. \
          She works with John Smith and Alice Johnson. \
-         They collaborate on Azure and cloud computing projects."
+         They collaborate on Azure and cloud computing projects.",
     )
     .await;
 
@@ -516,12 +519,12 @@ async fn test_popular_labels_optimized_e2e() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = extract_json(response).await;
-    
+
     assert!(body.get("labels").is_some());
     assert!(body.get("total_entities").is_some());
-    
+
     let labels = body["labels"].as_array().unwrap();
-    
+
     // Verify labels are sorted by degree (descending)
     for i in 1..labels.len() {
         let prev_degree = labels[i - 1]["degree"].as_u64().unwrap();
@@ -531,7 +534,7 @@ async fn test_popular_labels_optimized_e2e() {
             "Labels should be sorted by degree descending"
         );
     }
-    
+
     // Verify each label has required fields
     for label in labels {
         assert!(label.get("label").is_some());
@@ -549,7 +552,7 @@ async fn test_search_labels_fuzzy_e2e() {
     upload_document(
         &server,
         "Sarah Chen works on machine learning. \
-         Machine learning models require training data."
+         Machine learning models require training data.",
     )
     .await;
 
@@ -570,10 +573,10 @@ async fn test_search_labels_fuzzy_e2e() {
 
     assert_eq!(response.status(), StatusCode::OK);
     let body = extract_json(response).await;
-    
+
     // Just verify structure (entity extraction depends on LLM)
     assert!(body["labels"].is_array());
-    
+
     // Test 2: Prefix match
     let app2 = server.build_router();
     let response = app2
@@ -589,7 +592,7 @@ async fn test_search_labels_fuzzy_e2e() {
 
     assert_eq!(response.status(), StatusCode::OK);
     let body = extract_json(response).await;
-    
+
     // Verify response structure
     assert!(body["labels"].is_array());
 }

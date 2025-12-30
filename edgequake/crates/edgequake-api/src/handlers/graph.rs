@@ -224,9 +224,9 @@ pub async fn get_graph(
         // OPTIMIZED: Use batch query to get popular nodes with degrees
         // This eliminates the N+1 query pattern (was 400+ queries, now 2)
         // Added 5-second timeout to prevent indefinite hangs on large graphs
-        
+
         const QUERY_TIMEOUT_SECS: u64 = 5;
-        
+
         let query_future = state.graph_storage.get_popular_nodes_with_degree(
             params.max_nodes,
             None, // No min_degree filter
@@ -234,84 +234,94 @@ pub async fn get_graph(
             tenant_ctx.tenant_id.as_deref(),
             tenant_ctx.workspace_id.as_deref(),
         );
-        
-        let nodes_with_degrees = match tokio::time::timeout(
-            Duration::from_secs(QUERY_TIMEOUT_SECS),
-            query_future,
-        )
-        .await
-        {
-            Ok(Ok(nodes)) => nodes,
-            Ok(Err(e)) => {
-                // Check if this is a statement timeout - if so, fall back
-                let error_msg = format!("{}", e);
-                if error_msg.contains("statement timeout") || error_msg.contains("canceling statement") {
+
+        let nodes_with_degrees =
+            match tokio::time::timeout(Duration::from_secs(QUERY_TIMEOUT_SECS), query_future).await
+            {
+                Ok(Ok(nodes)) => nodes,
+                Ok(Err(e)) => {
+                    // Check if this is a statement timeout - if so, fall back
+                    let error_msg = format!("{}", e);
+                    if error_msg.contains("statement timeout")
+                        || error_msg.contains("canceling statement")
+                    {
+                        warn!(
+                            max_nodes = params.max_nodes,
+                            "Database query timed out, falling back to simple node fetch"
+                        );
+
+                        // Fall back to simple node list
+                        state
+                            .graph_storage
+                            .get_all_nodes()
+                            .await?
+                            .into_iter()
+                            .filter(|n| {
+                                let mut matches = true;
+                                if let Some(ref tid) = tenant_ctx.tenant_id {
+                                    if let Some(node_tid) =
+                                        n.properties.get("tenant_id").and_then(|v| v.as_str())
+                                    {
+                                        matches = matches && (node_tid == tid);
+                                    }
+                                }
+                                if let Some(ref wid) = tenant_ctx.workspace_id {
+                                    if let Some(node_wid) =
+                                        n.properties.get("workspace_id").and_then(|v| v.as_str())
+                                    {
+                                        matches = matches && (node_wid == wid);
+                                    }
+                                }
+                                matches
+                            })
+                            .take(params.max_nodes)
+                            .map(|n| (n, 0usize)) // Degree unknown in fallback
+                            .collect()
+                    } else {
+                        return Err(e.into());
+                    }
+                }
+                Err(_) => {
+                    // Tokio timeout: Fall back to simple node list without degree calculation
                     warn!(
+                        timeout_secs = QUERY_TIMEOUT_SECS,
                         max_nodes = params.max_nodes,
-                        "Database query timed out, falling back to simple node fetch"
+                        "Graph query timed out (tokio), falling back to simple node fetch"
                     );
-                    
-                    // Fall back to simple node list
-                    state.graph_storage.get_all_nodes().await?
+
+                    // Use get_all_nodes with limit as fallback (no degree calculation)
+                    let all_nodes = state.graph_storage.get_all_nodes().await?;
+                    let filtered_nodes: Vec<_> = all_nodes
                         .into_iter()
                         .filter(|n| {
-                            let mut matches = true;
+                            // Apply tenant/workspace filtering
                             if let Some(ref tid) = tenant_ctx.tenant_id {
-                                if let Some(node_tid) = n.properties.get("tenant_id").and_then(|v| v.as_str()) {
-                                    matches = matches && (node_tid == tid);
+                                if let Some(node_tid) =
+                                    n.properties.get("tenant_id").and_then(|v| v.as_str())
+                                {
+                                    if node_tid != tid {
+                                        return false;
+                                    }
                                 }
                             }
                             if let Some(ref wid) = tenant_ctx.workspace_id {
-                                if let Some(node_wid) = n.properties.get("workspace_id").and_then(|v| v.as_str()) {
-                                    matches = matches && (node_wid == wid);
+                                if let Some(node_wid) =
+                                    n.properties.get("workspace_id").and_then(|v| v.as_str())
+                                {
+                                    if node_wid != wid {
+                                        return false;
+                                    }
                                 }
                             }
-                            matches
+                            true
                         })
                         .take(params.max_nodes)
-                        .map(|n| (n, 0usize)) // Degree unknown in fallback
-                        .collect()
-                } else {
-                    return Err(e.into());
+                        .map(|n| (n, 0usize)) // Degree unknown, use 0
+                        .collect();
+
+                    filtered_nodes
                 }
-            }
-            Err(_) => {
-                // Tokio timeout: Fall back to simple node list without degree calculation
-                warn!(
-                    timeout_secs = QUERY_TIMEOUT_SECS,
-                    max_nodes = params.max_nodes,
-                    "Graph query timed out (tokio), falling back to simple node fetch"
-                );
-                
-                // Use get_all_nodes with limit as fallback (no degree calculation)
-                let all_nodes = state.graph_storage.get_all_nodes().await?;
-                let filtered_nodes: Vec<_> = all_nodes
-                    .into_iter()
-                    .filter(|n| {
-                        // Apply tenant/workspace filtering
-                        if let Some(ref tid) = tenant_ctx.tenant_id {
-                            if let Some(node_tid) = n.properties.get("tenant_id").and_then(|v| v.as_str()) {
-                                if node_tid != tid {
-                                    return false;
-                                }
-                            }
-                        }
-                        if let Some(ref wid) = tenant_ctx.workspace_id {
-                            if let Some(node_wid) = n.properties.get("workspace_id").and_then(|v| v.as_str()) {
-                                if node_wid != wid {
-                                    return false;
-                                }
-                            }
-                        }
-                        true
-                    })
-                    .take(params.max_nodes)
-                    .map(|n| (n, 0usize)) // Degree unknown, use 0
-                    .collect();
-                
-                filtered_nodes
-            }
-        };
+            };
 
         // Convert to response format
         let nodes: Vec<GraphNodeResponse> = nodes_with_degrees
@@ -601,7 +611,7 @@ pub struct BatchDegreeRequest {
 pub struct NodeDegree {
     /// Node ID.
     pub node_id: String,
-    
+
     /// Number of connections.
     pub degree: usize,
 }
@@ -611,7 +621,7 @@ pub struct NodeDegree {
 pub struct BatchDegreeResponse {
     /// Degrees for each requested node.
     pub degrees: Vec<NodeDegree>,
-    
+
     /// Number of nodes queried.
     pub count: usize,
 }
@@ -793,9 +803,9 @@ pub async fn stream_graph(
 
         // Get nodes with degrees (optimized batch query with timeout)
         const QUERY_TIMEOUT_SECS: u64 = 5;
-        
+
         debug!("About to query nodes with timeout wrapper");
-        
+
         let query_future = state_clone.graph_storage.get_popular_nodes_with_degree(
             params_clone.max_nodes,
             None,
@@ -803,41 +813,104 @@ pub async fn stream_graph(
             tenant_ctx_clone.tenant_id.as_deref(),
             tenant_ctx_clone.workspace_id.as_deref(),
         );
-        
-        let nodes_with_degrees = match tokio::time::timeout(
-            Duration::from_secs(QUERY_TIMEOUT_SECS),
-            query_future,
-        )
-        .await
-        {
-            Ok(Ok(nodes)) => {
-                debug!("Query succeeded with {} nodes", nodes.len());
-                nodes
-            }
-            Ok(Err(e)) => {
-                // Check if this is a statement timeout error - if so, fall back
-                let error_msg = format!("{}", e);
-                debug!("Query returned error: {}", error_msg);
-                if error_msg.contains("statement timeout") || error_msg.contains("canceling statement") {
+
+        let nodes_with_degrees =
+            match tokio::time::timeout(Duration::from_secs(QUERY_TIMEOUT_SECS), query_future).await
+            {
+                Ok(Ok(nodes)) => {
+                    debug!("Query succeeded with {} nodes", nodes.len());
+                    nodes
+                }
+                Ok(Err(e)) => {
+                    // Check if this is a statement timeout error - if so, fall back
+                    let error_msg = format!("{}", e);
+                    debug!("Query returned error: {}", error_msg);
+                    if error_msg.contains("statement timeout")
+                        || error_msg.contains("canceling statement")
+                    {
+                        warn!(
+                            max_nodes = params_clone.max_nodes,
+                            "Database query timed out, falling back to simple node fetch"
+                        );
+
+                        match state_clone.graph_storage.get_all_nodes().await {
+                            Ok(all_nodes) => all_nodes
+                                .into_iter()
+                                .filter(|n| {
+                                    // Apply tenant/workspace filtering
+                                    if let Some(ref tid) = tenant_ctx_clone.tenant_id {
+                                        if let Some(node_tid) =
+                                            n.properties.get("tenant_id").and_then(|v| v.as_str())
+                                        {
+                                            if node_tid != tid {
+                                                return false;
+                                            }
+                                        }
+                                    }
+                                    if let Some(ref wid) = tenant_ctx_clone.workspace_id {
+                                        if let Some(node_wid) = n
+                                            .properties
+                                            .get("workspace_id")
+                                            .and_then(|v| v.as_str())
+                                        {
+                                            if node_wid != wid {
+                                                return false;
+                                            }
+                                        }
+                                    }
+                                    true
+                                })
+                                .take(params_clone.max_nodes)
+                                .map(|n| (n, 0usize)) // Degree unknown, use 0
+                                .collect(),
+                            Err(e) => {
+                                let _ = tx
+                                    .send(GraphStreamEvent::Error {
+                                        message: format!(
+                                            "Failed to fetch nodes after timeout: {}",
+                                            e
+                                        ),
+                                    })
+                                    .await;
+                                return;
+                            }
+                        }
+                    } else {
+                        // Some other error, not a timeout
+                        let _ = tx
+                            .send(GraphStreamEvent::Error {
+                                message: format!("Failed to fetch nodes: {}", e),
+                            })
+                            .await;
+                        return;
+                    }
+                }
+                Err(_) => {
+                    // Timeout: Fall back to simple node list
                     warn!(
+                        timeout_secs = QUERY_TIMEOUT_SECS,
                         max_nodes = params_clone.max_nodes,
-                        "Database query timed out, falling back to simple node fetch"
+                        "Stream query timed out, falling back to simple node fetch"
                     );
-                    
+
                     match state_clone.graph_storage.get_all_nodes().await {
                         Ok(all_nodes) => all_nodes
                             .into_iter()
                             .filter(|n| {
                                 // Apply tenant/workspace filtering
                                 if let Some(ref tid) = tenant_ctx_clone.tenant_id {
-                                    if let Some(node_tid) = n.properties.get("tenant_id").and_then(|v| v.as_str()) {
+                                    if let Some(node_tid) =
+                                        n.properties.get("tenant_id").and_then(|v| v.as_str())
+                                    {
                                         if node_tid != tid {
                                             return false;
                                         }
                                     }
                                 }
                                 if let Some(ref wid) = tenant_ctx_clone.workspace_id {
-                                    if let Some(node_wid) = n.properties.get("workspace_id").and_then(|v| v.as_str()) {
+                                    if let Some(node_wid) =
+                                        n.properties.get("workspace_id").and_then(|v| v.as_str())
+                                    {
                                         if node_wid != wid {
                                             return false;
                                         }
@@ -857,59 +930,8 @@ pub async fn stream_graph(
                             return;
                         }
                     }
-                } else {
-                    // Some other error, not a timeout
-                    let _ = tx
-                        .send(GraphStreamEvent::Error {
-                            message: format!("Failed to fetch nodes: {}", e),
-                        })
-                        .await;
-                    return;
                 }
-            }
-            Err(_) => {
-                // Timeout: Fall back to simple node list
-                warn!(
-                    timeout_secs = QUERY_TIMEOUT_SECS,
-                    max_nodes = params_clone.max_nodes,
-                    "Stream query timed out, falling back to simple node fetch"
-                );
-                
-                match state_clone.graph_storage.get_all_nodes().await {
-                    Ok(all_nodes) => all_nodes
-                        .into_iter()
-                        .filter(|n| {
-                            // Apply tenant/workspace filtering
-                            if let Some(ref tid) = tenant_ctx_clone.tenant_id {
-                                if let Some(node_tid) = n.properties.get("tenant_id").and_then(|v| v.as_str()) {
-                                    if node_tid != tid {
-                                        return false;
-                                    }
-                                }
-                            }
-                            if let Some(ref wid) = tenant_ctx_clone.workspace_id {
-                                if let Some(node_wid) = n.properties.get("workspace_id").and_then(|v| v.as_str()) {
-                                    if node_wid != wid {
-                                        return false;
-                                    }
-                                }
-                            }
-                            true
-                        })
-                        .take(params_clone.max_nodes)
-                        .map(|n| (n, 0usize)) // Degree unknown, use 0
-                        .collect(),
-                    Err(e) => {
-                        let _ = tx
-                            .send(GraphStreamEvent::Error {
-                                message: format!("Failed to fetch nodes after timeout: {}", e),
-                            })
-                            .await;
-                        return;
-                    }
-                }
-            }
-        };
+            };
 
         let nodes_to_stream = nodes_with_degrees.len();
         let total_batches =

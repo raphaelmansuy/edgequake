@@ -112,7 +112,9 @@ impl PostgresAGEGraphStorage {
         sqlx::query("SET statement_timeout = '4s'")
             .execute(&mut *conn)
             .await
-            .map_err(|e| StorageError::Database(format!("Failed to set statement timeout: {}", e)))?;
+            .map_err(|e| {
+                StorageError::Database(format!("Failed to set statement timeout: {}", e))
+            })?;
 
         // Build AS clause with all columns as agtype
         let as_clause = columns
@@ -513,7 +515,11 @@ impl GraphStorage for PostgresAGEGraphStorage {
             SELECT node_id, degree FROM edge_counts",
             self.graph_name,
             self.graph_name,
-            ids_list.iter().map(|id| format!("'{}'", id)).collect::<Vec<_>>().join(", ")
+            ids_list
+                .iter()
+                .map(|id| format!("'{}'", id))
+                .collect::<Vec<_>>()
+                .join(", ")
         );
 
         let rows = sqlx::query(&sql)
@@ -523,7 +529,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
 
         let mut results = Vec::new();
         let mut found_ids = std::collections::HashSet::new();
-        
+
         for row in rows {
             let node_id: String = row.get("node_id");
             let degree: i64 = row.get("degree");
@@ -857,9 +863,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
             escaped_query, self.graph_name, escaped_query, limit
         );
 
-        let fts_rows = sqlx::query(&fts_sql)
-            .fetch_all(&mut *conn)
-            .await;
+        let fts_rows = sqlx::query(&fts_sql).fetch_all(&mut *conn).await;
 
         // If full-text search finds results, return them
         if let Ok(rows) = fts_rows {
@@ -868,7 +872,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
                     .iter()
                     .filter_map(|row| row.get::<Option<String>, _>("label"))
                     .collect();
-                
+
                 if !labels.is_empty() {
                     return Ok(labels);
                 }
@@ -890,9 +894,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
             escaped_query, self.graph_name, escaped_query, limit
         );
 
-        let trgm_rows = sqlx::query(&trgm_sql)
-            .fetch_all(&mut *conn)
-            .await;
+        let trgm_rows = sqlx::query(&trgm_sql).fetch_all(&mut *conn).await;
 
         // If trigram search finds results, return them
         if let Ok(rows) = trgm_rows {
@@ -901,7 +903,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
                     .iter()
                     .filter_map(|row| row.get::<Option<String>, _>("label"))
                     .collect();
-                
+
                 if !labels.is_empty() {
                     return Ok(labels);
                 }
@@ -1058,11 +1060,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
             WHERE degree >= 0 {} \
             ORDER BY degree DESC \
             LIMIT {}",
-            self.graph_name,
-            self.graph_name,
-            where_clause,
-            min_degree_filter,
-            limit
+            self.graph_name, self.graph_name, where_clause, min_degree_filter, limit
         );
 
         let rows = sqlx::query(&sql)
@@ -1075,12 +1073,15 @@ impl GraphStorage for PostgresAGEGraphStorage {
         for row in rows {
             let json_value: serde_json::Value = row.get("node_props");
             let degree: i64 = row.get("degree");
-            
+
             // Parse node properties
-            if let Ok(properties_map) = serde_json::from_value::<serde_json::Map<String, serde_json::Value>>(json_value) {
+            if let Ok(properties_map) =
+                serde_json::from_value::<serde_json::Map<String, serde_json::Value>>(json_value)
+            {
                 // Convert Map to HashMap
-                let properties: HashMap<String, serde_json::Value> = properties_map.into_iter().collect();
-                
+                let properties: HashMap<String, serde_json::Value> =
+                    properties_map.into_iter().collect();
+
                 let node = GraphNode {
                     id: properties
                         .get("node_id")

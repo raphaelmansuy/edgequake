@@ -8,36 +8,42 @@
 ## Actions
 
 1. **Analyzed LightRAG Implementation**
+
    - Examined `lightrag/base.py` BaseGraphStorage abstract class (367-700 lines)
    - Reviewed `lightrag/kg/neo4j_impl.py` Neo4j implementation
    - Identified slow patterns: OPTIONAL MATCH for degree calculation
    - Found useful patterns: UNWIND for batch operations, full-text search
 
 2. **Created SOTA Comparison Document**
+
    - Wrote 400+ line analysis in `docs/sota-graph-query-comparison.md`
    - Documented 100-300x performance advantage over LightRAG
    - Created feature comparison matrix
    - Identified gaps in EdgeQuake implementation
 
 3. **Optimized node_degree() Method**
+
    - Replaced slow Cypher OPTIONAL MATCH with SQL CTE
    - File: `edgequake/crates/edgequake-storage/src/adapters/postgres/graph.rs`
    - Performance: 500ms+ → <50ms (10x improvement)
    - Used indexed property lookup for fast node identification
 
 4. **Implemented node_degrees_batch()**
+
    - Added method to GraphStorage trait with default implementation
    - Implemented optimized version in PostgreSQL adapter using SQL IN + GROUP BY
    - Implemented efficient version in Memory adapter using adjacency list
    - Performance: 5000ms+ (N queries) → <100ms (1 query) for 100 nodes
 
 5. **Created Full-Text Search Migration**
+
    - File: `edgequake/migrations/015_add_fulltext_search.sql`
    - Added GIN index for ts_vector full-text search
    - Added pg_trgm extension and trigram index for fuzzy matching
    - Enables ranking, similarity scoring, typo tolerance
 
 6. **Enhanced search_labels() Method**
+
    - Implemented three-tier search strategy:
      1. Full-text search with ts_rank (best for word matching)
      2. Trigram similarity with score (handles typos)
@@ -46,6 +52,7 @@
    - Graceful fallback if indexes not created
 
 7. **Created Comprehensive Test Suite**
+
    - File: `edgequake/crates/edgequake-storage/tests/graph_sota_tests.rs`
    - 11 tests covering all new functionality
    - Performance tests with assertions (<50ms, <100ms targets)
@@ -96,12 +103,12 @@
 
 ## Performance Results
 
-| Operation | Before | After | Improvement |
-|-----------|--------|-------|-------------|
-| node_degree | 500ms+ | <50ms | **10x** |
-| node_degrees_batch (100) | 5000ms+ | <100ms | **50x** |
+| Operation                | Before          | After    | Improvement |
+| ------------------------ | --------------- | -------- | ----------- |
+| node_degree              | 500ms+          | <50ms    | **10x**     |
+| node_degrees_batch (100) | 5000ms+         | <100ms   | **50x**     |
 | get_popular_nodes (1000) | 4000ms+ timeout | 13-100ms | **40-300x** |
-| search_labels (fuzzy) | N/A | <100ms | **NEW** |
+| search_labels (fuzzy)    | N/A             | <100ms   | **NEW**     |
 
 ## Test Results
 

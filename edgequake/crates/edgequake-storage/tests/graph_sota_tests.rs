@@ -21,12 +21,12 @@ mod tests {
         // Create entities with different types and connections
         let entities = vec![
             ("ALICE_CHEN", "person", 5),      // 5 connections
-            ("BOB_SMITH", "person", 3),        // 3 connections
-            ("CHARLIE_WANG", "person", 2),     // 2 connections
-            ("PROJECT_ALPHA", "project", 4),   // 4 connections
-            ("ACME_CORP", "organization", 6),  // 6 connections (most connected)
-            ("TECH_STACK", "technology", 1),   // 1 connection
-            ("DATA_ANALYSIS", "skill", 2),     // 2 connections
+            ("BOB_SMITH", "person", 3),       // 3 connections
+            ("CHARLIE_WANG", "person", 2),    // 2 connections
+            ("PROJECT_ALPHA", "project", 4),  // 4 connections
+            ("ACME_CORP", "organization", 6), // 6 connections (most connected)
+            ("TECH_STACK", "technology", 1),  // 1 connection
+            ("DATA_ANALYSIS", "skill", 2),    // 2 connections
         ];
 
         // Insert nodes
@@ -65,7 +65,10 @@ mod tests {
         ];
 
         for (source, target) in edges {
-            storage.upsert_edge(source, target, HashMap::new()).await.unwrap();
+            storage
+                .upsert_edge(source, target, HashMap::new())
+                .await
+                .unwrap();
         }
     }
 
@@ -153,20 +156,28 @@ mod tests {
         let mut props3 = HashMap::new();
         props3.insert("node_id".to_string(), serde_json::json!("OTHER_NODE"));
         storage.upsert_node("OTHER_NODE", props3).await.unwrap();
-        
-        storage.upsert_edge("CONNECTED_NODE", "OTHER_NODE", HashMap::new()).await.unwrap();
+
+        storage
+            .upsert_edge("CONNECTED_NODE", "OTHER_NODE", HashMap::new())
+            .await
+            .unwrap();
 
         // Test batch with mixed degrees
-        let node_ids = vec![
-            "ISOLATED_NODE".to_string(),
-            "CONNECTED_NODE".to_string(),
-        ];
+        let node_ids = vec!["ISOLATED_NODE".to_string(), "CONNECTED_NODE".to_string()];
 
         let results = storage.node_degrees_batch(&node_ids).await.unwrap();
         let degrees: HashMap<String, usize> = results.into_iter().collect();
 
-        assert_eq!(degrees.get("ISOLATED_NODE"), Some(&0), "Isolated node should have degree 0");
-        assert_eq!(degrees.get("CONNECTED_NODE"), Some(&1), "Connected node should have degree 1");
+        assert_eq!(
+            degrees.get("ISOLATED_NODE"),
+            Some(&0),
+            "Isolated node should have degree 0"
+        );
+        assert_eq!(
+            degrees.get("CONNECTED_NODE"),
+            Some(&1),
+            "Connected node should have degree 1"
+        );
     }
 
     #[tokio::test]
@@ -185,7 +196,7 @@ mod tests {
 
         // Verify ordering by degree
         assert!(results.len() <= 5, "Should return at most 5 results");
-        
+
         // Check descending order
         for i in 1..results.len() {
             assert!(
@@ -224,7 +235,12 @@ mod tests {
 
         // All results should be persons
         for (node, _degree) in &results {
-            let entity_type = node.properties.get("entity_type").unwrap().as_str().unwrap();
+            let entity_type = node
+                .properties
+                .get("entity_type")
+                .unwrap()
+                .as_str()
+                .unwrap();
             assert_eq!(entity_type, "person");
         }
 
@@ -248,7 +264,7 @@ mod tests {
 
         // Exact match search
         let results = storage.search_labels("ALICE_CHEN", 10).await.unwrap();
-        
+
         assert!(!results.is_empty(), "Should find exact match");
         assert!(
             results.contains(&"ALICE_CHEN".to_string()),
@@ -264,7 +280,7 @@ mod tests {
 
         // Prefix search
         let results = storage.search_labels("ALICE", 10).await.unwrap();
-        
+
         assert!(!results.is_empty(), "Should find prefix match");
         assert!(
             results.iter().any(|r| r.contains("ALICE")),
@@ -280,7 +296,7 @@ mod tests {
 
         // Case-insensitive search
         let results = storage.search_labels("alice", 10).await.unwrap();
-        
+
         assert!(!results.is_empty(), "Should find case-insensitive match");
     }
 
@@ -310,10 +326,7 @@ mod tests {
         let _ = storage.node_degrees_batch(&node_ids).await.unwrap();
         let batch_elapsed = start.elapsed();
 
-        println!(
-            "Performance comparison for {} nodes:",
-            node_ids.len()
-        );
+        println!("Performance comparison for {} nodes:", node_ids.len());
         println!(
             "  Individual queries: {}ms ({} queries)",
             individual_elapsed.as_millis(),
@@ -352,7 +365,11 @@ mod tests {
         assert!(node.is_some(), "Node should exist");
         let node = node.unwrap();
         assert_eq!(
-            node.properties.get("entity_type").unwrap().as_str().unwrap(),
+            node.properties
+                .get("entity_type")
+                .unwrap()
+                .as_str()
+                .unwrap(),
             "person"
         );
 

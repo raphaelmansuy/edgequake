@@ -370,7 +370,7 @@ async fn test_graph_degrees_batch_empty() {
         .await
         .unwrap();
     let result: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    
+
     assert_eq!(result["count"], 0);
     assert_eq!(result["degrees"].as_array().unwrap().len(), 0);
 }
@@ -402,12 +402,12 @@ async fn test_graph_degrees_batch_nonexistent_nodes() {
         .await
         .unwrap();
     let result: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    
+
     // Should return zero degrees for non-existent nodes
     assert_eq!(result["count"], 3);
     let degrees = result["degrees"].as_array().unwrap();
     assert_eq!(degrees.len(), 3);
-    
+
     // All should have degree 0
     for degree_obj in degrees {
         assert_eq!(degree_obj["degree"], 0);
@@ -436,7 +436,7 @@ async fn test_graph_popular_labels_optimized() {
         .await
         .unwrap();
     let result: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    
+
     assert!(result["labels"].is_array());
     assert!(result["total_entities"].is_number());
 }
@@ -463,9 +463,9 @@ async fn test_graph_popular_labels_with_filters() {
         .await
         .unwrap();
     let result: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    
+
     let labels = result["labels"].as_array().unwrap();
-    
+
     // Verify all returned labels have degree >= 2
     for label in labels {
         let degree = label["degree"].as_u64().unwrap();
