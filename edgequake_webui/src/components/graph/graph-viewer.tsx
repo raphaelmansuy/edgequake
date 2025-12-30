@@ -35,7 +35,6 @@ import { GraphSearch } from './graph-search';
 import { GraphSettingsPanel } from './graph-settings-panel';
 import { GraphTourTrigger } from './graph-tour-wrapper';
 import { KeyboardShortcutsHelp } from './keyboard-shortcuts-help';
-import { LabelSearch } from './label-search';
 import { LayoutControl } from './layout-control';
 import { LayoutController } from './layout-controller';
 import { NodeContextMenu, useNodeContextMenu } from './node-context-menu';
@@ -141,9 +140,8 @@ export function GraphViewer() {
       depth,
       startNode: startNode || undefined,
     }),
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    refetchOnMount: 'always', // Always refetch when component mounts (navigation)
-    refetchOnWindowFocus: true, // Refetch when window regains focus
+    staleTime: 5 * 60 * 1000, // 5 minutes - longer cache for better perf
+    refetchOnWindowFocus: false, // Disable auto-refetch for better performance
   });
 
   useEffect(() => {
@@ -236,32 +234,6 @@ export function GraphViewer() {
     toast.success(`Copied entity ID: ${node.id}`);
   }, []);
 
-  // Handle label selection from LabelSearch
-  const handleLabelSelect = useCallback((label: string) => {
-    setStartNode(label);
-    // Focus camera on the node if it exists in the current graph
-    if (sigmaInstance) {
-      const graph = sigmaInstance.getGraph();
-      if (graph.hasNode(label)) {
-        focusCameraOnNode(sigmaInstance, label, {
-          ratio: 0.5,
-          duration: 500,
-          highlight: true,
-        });
-      }
-    }
-    // If startNode changed, the query will refetch automatically
-  }, [setStartNode, sigmaInstance]);
-
-  // Handle clearing label selection
-  const handleLabelClear = useCallback(() => {
-    setStartNode(null);
-    // Reset camera view when clearing focus
-    if (sigmaInstance) {
-      sigmaInstance.getCamera().animatedReset({ duration: 300 });
-    }
-  }, [setStartNode, sigmaInstance]);
-
   // Handle settings change (triggers refetch)
   const handleSettingsChange = useCallback(() => {
     // Refetch is automatic via queryKey change when settings update the store
@@ -335,15 +307,6 @@ export function GraphViewer() {
               </Button>
             )}
             <div data-tour="graph-search"><GraphSearch /></div>
-            {/* Label search for focusing on specific entities */}
-            {!isMobile && (
-              <LabelSearch 
-                onSelect={handleLabelSelect}
-                selectedLabel={startNode}
-                onClear={handleLabelClear}
-                placeholder="Focus entity..."
-              />
-            )}
             {/* Truncation indicator (compact) */}
             {!isMobile && <TruncationIndicator />}
             <div data-tour="layout-control"><LayoutControl /></div>

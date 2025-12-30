@@ -1,12 +1,16 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
+import { useDebounce } from '@/hooks/use-debounce';
+import { searchLabels } from '@/lib/api/edgequake';
 import { useGraphStore } from '@/stores/use-graph-store';
-import { Settings2, X } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Search, Settings2, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 interface GraphSettingsPanelProps {
@@ -29,14 +33,28 @@ export function GraphSettingsPanel({ onSettingsChange }: GraphSettingsPanelProps
   const { 
     maxNodes, 
     depth,
+    startNode,
     setMaxNodes,
     setDepth,
+    setStartNode,
   } = useGraphStore();
 
   // Local state for sliders (only update store on release)
   const [localMaxNodes, setLocalMaxNodes] = useState(maxNodes);
   const [localDepth, setLocalDepth] = useState(depth);
   const [includeOrphans, setIncludeOrphans] = useState(false);
+  
+  // Focus entity search state
+  const [focusQuery, setFocusQuery] = useState(startNode || '');
+  const debouncedFocusQuery = useDebounce(focusQuery, 300);
+
+  // Search for matching labels
+  const { data: searchResults } = useQuery({
+    queryKey: ['labels-search', debouncedFocusQuery],
+    queryFn: () => searchLabels(debouncedFocusQuery, 5),
+    enabled: debouncedFocusQuery.length >= 2,
+    staleTime: 30000,
+  });
 
   // Sync local state with store
   useEffect(() => {
@@ -94,6 +112,20 @@ export function GraphSettingsPanel({ onSettingsChange }: GraphSettingsPanelProps
     onSettingsChange?.();
   }, [onSettingsChange]);
 
+  // Handle focus entity selection
+  const handleFocusSelect = useCallback((label: string) => {
+    setFocusQuery(label);
+    setStartNode(label);
+    onSettingsChange?.();
+  }, [setStartNode, onSettingsChange]);
+
+  // Handle clearing focus
+  const handleClearFocus = useCallback(() => {
+    setFocusQuery('');
+    setStartNode(null);
+    onSettingsChange?.();
+  }, [setStartNode, onSettingsChange]);
+
   // Format large numbers with commas
   const formatNumber = (num: number) => num.toLocaleString();
 
@@ -127,6 +159,47 @@ export function GraphSettingsPanel({ onSettingsChange }: GraphSettingsPanelProps
             >
               <X className="h-3 w-3" />
             </Button>
+          </div>
+
+          {/* Focus Entity Input */}
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Focus Entity</Label>
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={focusQuery}
+                onChange={(e) => setFocusQuery(e.target.value)}
+                placeholder="Search entity to focus..."
+                className="h-8 pl-7 pr-7 text-xs"
+              />
+              {focusQuery && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-8 w-8"
+                  onClick={handleClearFocus}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+            {/* Search suggestions */}
+            {searchResults?.labels && searchResults.labels.length > 0 && debouncedFocusQuery.length >= 2 && (
+              <div className="border rounded-md divide-y max-h-32 overflow-y-auto">
+                {searchResults.labels.map((label: string) => (
+                  <button
+                    key={label}
+                    className="w-full px-2 py-1.5 text-left text-xs hover:bg-muted"
+                    onClick={() => handleFocusSelect(label)}
+                  >
+                    <span className="truncate">{label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <p className="text-[10px] text-muted-foreground">
+              {startNode ? `Focused on: ${startNode}` : 'Leave empty to show most connected nodes.'}
+            </p>
           </div>
 
           {/* Max Nodes Slider */}
@@ -195,9 +268,9 @@ export function GraphSettingsPanel({ onSettingsChange }: GraphSettingsPanelProps
                 size="sm"
                 className="flex-1 h-7 text-xs"
                 onClick={() => {
-                  setLocalMaxNodes(500);
+                  setLocalMaxNodes(200);
                   setLocalDepth(2);
-                  setMaxNodes(500);
+                  setMaxNodes(200);
                   setDepth(2);
                   onSettingsChange?.();
                 }}

@@ -191,7 +191,7 @@ const initialState: GraphState = {
   error: null,
   bookmarks: [],
   // Virtual Query defaults (Phase 6)
-  maxNodes: 500,
+  maxNodes: 200, // Reduced from 500 for faster initial load
   depth: 2,
   startNode: null,
   isTruncated: false,

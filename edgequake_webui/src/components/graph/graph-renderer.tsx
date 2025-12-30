@@ -214,47 +214,6 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
       minCameraRatio: 0.1,
       maxCameraRatio: 10,
       enableEdgeEvents: true,
-      
-      // LOD Rendering: Node reducer for viewport culling at extreme zoom out
-      // Only apply when graph is large (1000+ nodes) for performance benefit
-      nodeReducer: nodes.length > 1000 
-        ? (_node, data) => {
-            // Skip hidden nodes
-            if (data.hidden) return { ...data, hidden: true };
-            return data;
-          }
-        : undefined,
-      
-      // LOD Rendering: Edge reducer for zoom-based opacity
-      // Reduces edge visibility when zoomed out on large graphs
-      edgeReducer: nodes.length > 500
-        ? (edge: string, data: Record<string, unknown>) => {
-            // Skip hidden edges
-            if (data.hidden) return { ...data, hidden: true };
-            
-            // Get camera ratio for zoom-based LOD
-            const camera = sigma.getCamera();
-            const ratio = camera.ratio;
-            
-            // When heavily zoomed out (ratio > 2), reduce edge visibility
-            if (ratio > 3) {
-              // Very zoomed out: hide most edges
-              return { ...data, hidden: true };
-            }
-            if (ratio > 2) {
-              // Moderately zoomed out: make edges very transparent
-              const originalColor = (data.color as string) || (isDark ? '#4b5563' : '#94a3b8');
-              return { ...data, color: originalColor + '20' }; // 12% opacity
-            }
-            if (ratio > 1.5) {
-              // Slightly zoomed out: make edges semi-transparent
-              const originalColor = (data.color as string) || (isDark ? '#4b5563' : '#94a3b8');
-              return { ...data, color: originalColor + '60' }; // 37% opacity
-            }
-            
-            return data;
-          }
-        : undefined,
     });
 
     // Event handlers
@@ -406,22 +365,6 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
       
       sigma.refresh();
     });
-
-    // LOD: Camera update listener for zoom-based rendering optimization
-    // Only refresh on significant zoom changes to avoid excessive updates
-    if (nodes.length > 500) {
-      let lastRatio = sigma.getCamera().ratio;
-      const LOD_THRESHOLD = 0.3; // Only refresh when ratio changes by 30%+
-      
-      sigma.getCamera().on('updated', ({ ratio }) => {
-        const ratioChange = Math.abs(ratio - lastRatio) / lastRatio;
-        if (ratioChange > LOD_THRESHOLD) {
-          lastRatio = ratio;
-          // Use skipIndexation for performance - we're only changing visual properties
-          sigma.refresh({ skipIndexation: true });
-        }
-      });
-    }
 
     sigmaRef.current = sigma;
     setSigmaInstance(sigma);
