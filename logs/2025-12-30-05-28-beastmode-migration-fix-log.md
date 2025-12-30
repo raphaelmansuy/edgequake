@@ -34,4 +34,4 @@
 - The table is created using the connection's current `search_path`
 - PostgreSQL user's default `search_path = "$user", public` can cause schema conflicts
 - Always ensure `search_path = public` is set before SQLx migrations run
-- SQLx requires migration versions > 0 (000_ files are invalid)
+- SQLx requires migration versions > 0 (000\_ files are invalid)

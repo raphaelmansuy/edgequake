@@ -20,19 +20,24 @@ export default function Home() {
 
   // Get tenant context for query keys
   const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
+  
+  // Check if context is ready for API calls
+  const hasContext = !!selectedTenantId && !!selectedWorkspaceId;
 
-  // Fetch document count
+  // Fetch document count - only when context is available
   const { data: documentsData, isLoading: isLoadingDocs } = useQuery({
     queryKey: ['documents', selectedTenantId, selectedWorkspaceId, 1, 10],
     queryFn: () => getDocuments({ page: 1, page_size: 10 }),
     staleTime: 30000,
+    enabled: hasContext,
   });
 
-  // Fetch graph stats
+  // Fetch graph stats - only when context is available
   const { data: graphData, isLoading: isLoadingGraph } = useQuery({
     queryKey: ['graph', selectedTenantId, selectedWorkspaceId],
     queryFn: () => getGraph({ limit: 1 }),
     staleTime: 30000,
+    enabled: hasContext,
   });
 
   const documentCount = documentsData?.total || documentsData?.items?.length || 0;

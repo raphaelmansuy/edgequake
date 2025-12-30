@@ -174,7 +174,7 @@ Instead of full timestamp refactor, simply renumber:
 
 ```
 All 13 migrations tracked correctly:
- version |          description           | success 
+ version |          description           | success
 ---------+--------------------------------+---------
        1 | init database                  | t
        2 | add tasks table                | t
@@ -191,4 +191,4 @@ All 13 migrations tracked correctly:
       13 | add age graph                  | t
 ```
 
-**Commit:** 65c9261 - "Fix SQLx migration crash: rename 000_ to 001_, fix user search_path to public"
+**Commit:** 65c9261 - "Fix SQLx migration crash: rename 000* to 001*, fix user search_path to public"
