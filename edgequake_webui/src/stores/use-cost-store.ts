@@ -5,6 +5,10 @@
  * Based on WebUI Specification Document WEBUI-007 (16-webui-cost-monitoring.md)
  */
 
+import {
+  STORE_VERSIONS,
+  ZUSTAND_STORAGE_KEYS,
+} from "@/lib/storage-keys";
 import type {
   BudgetAlert,
   BudgetStatus,
@@ -216,8 +220,9 @@ export const useCostStore = create<CostStore>()(
         },
       }),
       {
-        name: "cost-store",
-        // Only persist certain fields
+        name: ZUSTAND_STORAGE_KEYS.COST_STORE,
+        version: STORE_VERSIONS[ZUSTAND_STORAGE_KEYS.COST_STORE],
+        // Only persist certain fields (Map types are NOT persisted as they don't serialize)
         partialize: (state) => ({
           budgetAlerts: state.budgetAlerts,
         }),

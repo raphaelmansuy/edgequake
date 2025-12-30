@@ -13,6 +13,21 @@ interface AppProvidersProps {
   children: ReactNode;
 }
 
+/**
+ * Root provider that wraps the entire application.
+ * 
+ * Provider order is important:
+ * 1. QueryProvider - React Query for server state
+ * 2. ThemeProvider - Theme must be available early to prevent flash
+ * 3. I18nProvider - Internationalization
+ * 4. TenantProvider - Tenant/workspace context initialization (handles hydration internally)
+ * 5. WebSocketProvider - Real-time updates
+ * 6. KeyboardShortcutsProvider - Keyboard shortcuts
+ * 
+ * Note: HydrationProvider is available but not used in the main hierarchy
+ * because TenantGuard and individual stores handle hydration states.
+ * Use HydrationProvider if you need app-wide hydration gating.
+ */
 export function AppProviders({ children }: AppProvidersProps) {
   return (
     <QueryProvider>
@@ -37,6 +52,7 @@ export function AppProviders({ children }: AppProvidersProps) {
   );
 }
 
+export { HydrationProvider } from './hydration-provider';
 export { TenantProvider } from './tenant-provider';
 export { WebSocketProvider } from './websocket-provider';
 export default AppProviders;

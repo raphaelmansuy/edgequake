@@ -1,25 +1,37 @@
 "use client";
 
 import { clearTokens, getTokens, setTokens } from "@/lib/api/client";
+import {
+  STORE_VERSIONS,
+  ZUSTAND_STORAGE_KEYS,
+} from "@/lib/storage-keys";
 import type { AuthState, LoginResponse } from "@/types";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-interface AuthStore extends AuthState {
-  // Actions
+interface AuthStoreState extends AuthState {
+  /** Tracks if store has been hydrated from localStorage */
+  _hasHydrated: boolean;
+}
+
+interface AuthStoreActions {
   login: (response: LoginResponse) => void;
   logout: () => void;
   updateUser: (user: Partial<LoginResponse["user"]>) => void;
   isTokenExpired: () => boolean;
   initializeFromStorage: () => void;
+  setHasHydrated: (hydrated: boolean) => void;
 }
 
-const initialState: AuthState = {
+type AuthStore = AuthStoreState & AuthStoreActions;
+
+const initialState: AuthStoreState = {
   isAuthenticated: false,
   user: null,
   accessToken: null,
   refreshToken: null,
   expiresAt: null,
+  _hasHydrated: false,
 };
 
 export const useAuthStore = create<AuthStore>()(
@@ -70,16 +82,52 @@ export const useAuthStore = create<AuthStore>()(
           });
         }
       },
+
+      setHasHydrated: (hydrated) => set({ _hasHydrated: hydrated }),
     }),
     {
-      name: "edgequake-auth",
+      name: ZUSTAND_STORAGE_KEYS.AUTH_STORE,
+      version: STORE_VERSIONS[ZUSTAND_STORAGE_KEYS.AUTH_STORE],
       partialize: (state) => ({
         isAuthenticated: state.isAuthenticated,
         user: state.user,
         expiresAt: state.expiresAt,
       }),
+      /**
+       * Migration function for handling schema changes
+       */
+      migrate: (persistedState: unknown, version: number) => {
+        const state = persistedState as Partial<AuthStoreState>;
+        
+        if (version === 0) {
+          // Future migrations go here
+        }
+        
+        return state as AuthStoreState;
+      },
+      /**
+       * Callback when hydration finishes
+       */
+      onRehydrateStorage: () => {
+        return (state, error) => {
+          if (error) {
+            console.error("[AuthStore] Hydration failed:", error);
+          }
+          state?.setHasHydrated(true);
+          
+          // Sync tokens to API client after hydration
+          state?.initializeFromStorage();
+        };
+      },
     }
   )
 );
+
+/**
+ * Selector for hydration state
+ */
+export const useAuthStoreHydrated = () => {
+  return useAuthStore((state) => state._hasHydrated);
+};
 
 export default useAuthStore;

@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  STORE_VERSIONS,
+  ZUSTAND_STORAGE_KEYS,
+} from "@/lib/storage-keys";
 import type {
   AppSettings,
   GraphSettings,
@@ -32,6 +36,8 @@ const defaultQuerySettings: QuerySettings = {
 interface SettingsState extends AppSettings {
   // Sidebar state
   sidebarCollapsed: boolean;
+  /** Tracks if store has been hydrated from localStorage */
+  _hasHydrated: boolean;
   // Actions
   setTheme: (theme: AppSettings["theme"]) => void;
   setLanguage: (language: AppSettings["language"]) => void;
@@ -40,17 +46,19 @@ interface SettingsState extends AppSettings {
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebar: () => void;
   resetSettings: () => void;
+  setHasHydrated: (hydrated: boolean) => void;
   // Import/Export
   exportSettings: () => string;
   importSettings: (jsonString: string) => { success: boolean; error?: string };
 }
 
-const initialState: AppSettings & { sidebarCollapsed: boolean } = {
+const initialState: AppSettings & { sidebarCollapsed: boolean; _hasHydrated: boolean } = {
   theme: "system",
   language: "en",
   graphSettings: defaultGraphSettings,
   querySettings: defaultQuerySettings,
   sidebarCollapsed: false,
+  _hasHydrated: false,
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -78,6 +86,8 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 
       resetSettings: () => set(initialState),
+
+      setHasHydrated: (hydrated) => set({ _hasHydrated: hydrated }),
 
       exportSettings: () => {
         const state = get();
@@ -137,7 +147,8 @@ export const useSettingsStore = create<SettingsState>()(
       },
     }),
     {
-      name: "edgequake-settings",
+      name: ZUSTAND_STORAGE_KEYS.SETTINGS_STORE,
+      version: STORE_VERSIONS[ZUSTAND_STORAGE_KEYS.SETTINGS_STORE],
       partialize: (state) => ({
         theme: state.theme,
         language: state.language,
@@ -145,8 +156,44 @@ export const useSettingsStore = create<SettingsState>()(
         querySettings: state.querySettings,
         sidebarCollapsed: state.sidebarCollapsed,
       }),
+      /**
+       * Merge function for deep merging nested objects
+       */
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<SettingsState>;
+        return {
+          ...currentState,
+          ...persisted,
+          graphSettings: {
+            ...defaultGraphSettings,
+            ...persisted.graphSettings,
+          },
+          querySettings: {
+            ...defaultQuerySettings,
+            ...persisted.querySettings,
+          },
+        };
+      },
+      /**
+       * Callback when hydration finishes
+       */
+      onRehydrateStorage: () => {
+        return (state, error) => {
+          if (error) {
+            console.error("[SettingsStore] Hydration failed:", error);
+          }
+          state?.setHasHydrated(true);
+        };
+      },
     }
   )
 );
+
+/**
+ * Selector for hydration state
+ */
+export const useSettingsStoreHydrated = () => {
+  return useSettingsStore((state) => state._hasHydrated);
+};
 
 export default useSettingsStore;

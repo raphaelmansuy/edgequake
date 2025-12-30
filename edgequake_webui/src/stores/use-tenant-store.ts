@@ -1,6 +1,11 @@
 "use client";
 
 import { getTenantContext, setTenantContext } from "@/lib/api/client";
+import {
+  LEGACY_STORAGE_KEYS,
+  STORE_VERSIONS,
+  ZUSTAND_STORAGE_KEYS,
+} from "@/lib/storage-keys";
 import type { Tenant, Workspace } from "@/types";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -14,6 +19,8 @@ interface TenantState {
   error: string | null;
   isInitialized: boolean;
   needsOnboarding: boolean;
+  /** Tracks if store has been hydrated from localStorage */
+  _hasHydrated: boolean;
 }
 
 interface TenantActions {
@@ -27,6 +34,7 @@ interface TenantActions {
   initializeFromStorage: () => void;
   setInitialized: (initialized: boolean) => void;
   setNeedsOnboarding: (needs: boolean) => void;
+  setHasHydrated: (hydrated: boolean) => void;
 }
 
 type TenantStore = TenantState & TenantActions;
@@ -40,6 +48,7 @@ const initialState: TenantState = {
   error: null,
   isInitialized: false,
   needsOnboarding: false,
+  _hasHydrated: false,
 };
 
 export const useTenantStore = create<TenantStore>()(
@@ -76,6 +85,8 @@ export const useTenantStore = create<TenantStore>()(
 
       setNeedsOnboarding: (needs) => set({ needsOnboarding: needs }),
 
+      setHasHydrated: (hydrated) => set({ _hasHydrated: hydrated }),
+
       reset: () => set(initialState),
 
       initializeFromStorage: () => {
@@ -89,11 +100,59 @@ export const useTenantStore = create<TenantStore>()(
       },
     }),
     {
-      name: "edgequake-tenant",
+      name: ZUSTAND_STORAGE_KEYS.TENANT_STORE,
+      version: STORE_VERSIONS[ZUSTAND_STORAGE_KEYS.TENANT_STORE],
       partialize: (state) => ({
         selectedTenantId: state.selectedTenantId,
         selectedWorkspaceId: state.selectedWorkspaceId,
       }),
+      /**
+       * Migration function for handling schema changes
+       * 
+       * Version 0 -> 1: Migrate from legacy localStorage keys
+       */
+      migrate: (persistedState: unknown, version: number) => {
+        const state = persistedState as Partial<TenantState>;
+        
+        if (version === 0) {
+          // Migrate from legacy keys if they exist
+          if (typeof window !== "undefined") {
+            const legacyTenantId = localStorage.getItem(LEGACY_STORAGE_KEYS.TENANT_ID);
+            const legacyWorkspaceId = localStorage.getItem(LEGACY_STORAGE_KEYS.WORKSPACE_ID);
+            
+            if (legacyTenantId && !state.selectedTenantId) {
+              state.selectedTenantId = legacyTenantId;
+            }
+            if (legacyWorkspaceId && !state.selectedWorkspaceId) {
+              state.selectedWorkspaceId = legacyWorkspaceId;
+            }
+            
+            // Clean up legacy keys after migration
+            // Note: We keep them for now to maintain backward compat with client.ts
+            // TODO: Remove once client.ts dual storage is fixed
+          }
+        }
+        
+        return state as TenantState;
+      },
+      /**
+       * Callback when hydration starts/finishes
+       * Used to track hydration state for SSR safety
+       */
+      onRehydrateStorage: () => {
+        return (state, error) => {
+          if (error) {
+            console.error("[TenantStore] Hydration failed:", error);
+          }
+          // Mark as hydrated even on error (to prevent infinite loading)
+          state?.setHasHydrated(true);
+          
+          // Sync to API client after hydration
+          if (state?.selectedTenantId) {
+            setTenantContext(state.selectedTenantId, state.selectedWorkspaceId ?? undefined);
+          }
+        };
+      },
     }
   )
 );
@@ -107,6 +166,23 @@ export const useSelectedTenant = () => {
 export const useSelectedWorkspace = () => {
   const { workspaces, selectedWorkspaceId } = useTenantStore();
   return workspaces.find((w) => w.id === selectedWorkspaceId) || null;
+};
+
+/**
+ * Selector for hydration state
+ * Returns true once the store has hydrated from localStorage
+ */
+export const useTenantStoreHydrated = () => {
+  return useTenantStore((state) => state._hasHydrated);
+};
+
+/**
+ * Check if a valid context is selected
+ * Useful for gating API calls that require tenant/workspace context
+ */
+export const useHasValidContext = () => {
+  const { selectedTenantId, selectedWorkspaceId, _hasHydrated } = useTenantStore();
+  return _hasHydrated && !!selectedTenantId && !!selectedWorkspaceId;
 };
 
 export default useTenantStore;
