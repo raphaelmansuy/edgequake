@@ -139,7 +139,7 @@ export function ZoomControls() {
   return (
     <TooltipProvider>
       <div 
-        className="flex flex-col gap-1 bg-background/80 backdrop-blur-sm rounded-lg border shadow-lg p-1"
+        className="flex flex-col gap-1 bg-background/95 backdrop-blur-sm rounded-lg border border-border/50 shadow-lg p-1 hover:shadow-xl transition-shadow duration-200"
         role="toolbar"
         aria-label={t('graph.controls.title', 'Graph controls')}
       >

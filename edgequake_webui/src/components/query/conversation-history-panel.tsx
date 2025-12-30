@@ -100,13 +100,14 @@ const ConversationItem = memo(function ConversationItem({
   return (
     <div
       className={cn(
-        "group relative flex items-center gap-2 px-2.5 py-2 rounded-md cursor-pointer transition-all duration-150",
+        "group relative flex items-center gap-2.5 px-3 py-3 md:py-2.5 rounded-md cursor-pointer transition-all duration-150 min-h-[44px]",
         isActive 
           ? "bg-primary/10 border border-primary/20" 
           : "hover:bg-muted/60 border border-transparent"
       )}
       onClick={onSelect}
-      role="button"
+      role="option"
+      aria-selected={isActive}
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {

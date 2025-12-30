@@ -365,6 +365,91 @@ module.exports = {
 | Date       | Version | Changes                            |
 | ---------- | ------- | ---------------------------------- |
 | 2025-12-25 | 1.0.0   | Initial design token documentation |
+| 2025-12-30 | 1.1.0   | Updated after live testing audit   |
+
+---
+
+## December 30, 2025 Updates (v1.1.0)
+
+### Verified Token Values
+
+After live testing with real data, the following tokens have been verified as working correctly:
+
+| Token                     | Expected | Actual | Status |
+| ------------------------- | -------- | ------ | ------ |
+| Sidebar Width (expanded)  | 256px    | 256px  | ✅     |
+| Sidebar Width (collapsed) | 64px     | 64px   | ✅     |
+| Header Height             | 64px     | 64px   | ✅     |
+| Panel Collapse Animation  | 250ms    | ~300ms | ⚠️     |
+| Card Border Radius        | 10px     | 10px   | ✅     |
+
+### New Token Recommendations
+
+#### Entity Type Colors (Verified from Graph)
+
+Based on live graph visualization testing:
+
+| Entity Type  | Hex Code  | Usage        |
+| ------------ | --------- | ------------ |
+| PERSON       | `#8B5CF6` | Purple nodes |
+| ORGANIZATION | `#06B6D4` | Cyan nodes   |
+| TECHNOLOGY   | `#F59E0B` | Amber nodes  |
+| CONCEPT      | `#10B981` | Green nodes  |
+| LOCATION     | `#3B82F6` | Blue nodes   |
+| PRODUCT      | `#EC4899` | Pink nodes   |
+| EVENT        | `#EF4444` | Red nodes    |
+
+#### Processing Cost Colors
+
+From Documents page cost display:
+
+| Cost Range           | Color                   | Usage                |
+| -------------------- | ----------------------- | -------------------- |
+| Free ($0)            | `text-muted-foreground` | No cost queries      |
+| Low (<$0.01)         | `text-green-600`        | Cheap operations     |
+| Medium ($0.01-$0.10) | `text-amber-600`        | Normal processing    |
+| High (>$0.10)        | `text-red-600`          | Expensive operations |
+
+### Scroll Shadow Tokens (New - Recommended)
+
+```css
+:root {
+  --scroll-shadow-top: inset 0 10px 10px -10px rgba(0, 0, 0, 0.1);
+  --scroll-shadow-bottom: inset 0 -10px 10px -10px rgba(0, 0, 0, 0.1);
+}
+
+.dark {
+  --scroll-shadow-top: inset 0 10px 10px -10px rgba(255, 255, 255, 0.05);
+  --scroll-shadow-bottom: inset 0 -10px 10px -10px rgba(255, 255, 255, 0.05);
+}
+```
+
+### Panel Animation Refinements
+
+Current sidebar animation is 300ms. Recommend reducing to 250ms for snappier feel:
+
+```tsx
+// Current
+"transition-all duration-300";
+
+// Recommended
+"transition-all duration-250";
+
+// Or with custom token
+"transition-panel"; // Uses --duration-normal (250ms)
+```
+
+### Mobile Legend Token
+
+For the Graph page mobile legend overlay fix:
+
+```css
+:root {
+  --legend-mobile-offset: 48px; /* Bottom offset from controls */
+  --legend-mobile-max-height: 120px;
+  --legend-mobile-opacity: 0.95;
+}
+```
 
 ---
 

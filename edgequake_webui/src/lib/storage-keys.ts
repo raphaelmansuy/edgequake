@@ -31,6 +31,9 @@ export const ZUSTAND_STORAGE_KEYS = {
 
   /** Cost tracking and budget status */
   COST_STORE: 'edgequake-cost',
+  
+  /** UI preferences (panel states, view modes, widths) */
+  UI_PREFERENCES: 'edgequake-ui-preferences',
 } as const;
 
 /**

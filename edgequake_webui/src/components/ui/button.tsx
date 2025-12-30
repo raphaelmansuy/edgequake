@@ -27,6 +27,8 @@ const buttonVariants = cva(
         icon: "size-9",
         "icon-sm": "size-8",
         "icon-lg": "size-10",
+        // Mobile-optimized icon with 44px touch target (WCAG compliant)
+        "icon-touch": "size-11",
       },
     },
     defaultVariants: {

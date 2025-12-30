@@ -59,7 +59,58 @@
 
 ## Issues
 
-### 🟡 Minor
+### � Major (P1)
+
+#### History Panel UX Improvements Needed
+
+- **Priority:** P1 - Major
+- **Severity:** 🟠 Major
+- **Location:** Conversation History Panel (right side)
+- **Viewport(s) affected:** Desktop
+- **Discovered:** December 30, 2025 (scroll audit)
+
+| Issue | Current State | Recommended Fix |
+|-------|---------------|-----------------|
+| Container padding | `0px` | Add `p-2` (8px) for breathing room |
+| Scroll area padding | `0px` | Add `px-2` for list items |
+| Conversation item padding | `6px 12px` | Increase to `8px 16px` for better touch target |
+| List role | Missing | Add `role="listbox"` for accessibility |
+| Item role | Missing | Add `role="option"` on each conversation |
+| Keyboard navigation | Tab only | Add arrow key navigation between items |
+| Mouse wheel scroll | ✅ Works | Scroll container has `overflow-auto` |
+
+**Impact:**
+- Items feel cramped with minimal padding
+- No keyboard navigation beyond Tab
+- Accessibility issues (missing ARIA roles)
+
+**Recommended Fix:**
+```tsx
+// Improve conversation list
+<div 
+  role="listbox" 
+  aria-label="Conversation history"
+  className="flex-1 overflow-auto p-2"  // Add padding
+  onKeyDown={(e) => {
+    if (e.key === 'ArrowDown') selectNext();
+    if (e.key === 'ArrowUp') selectPrevious();
+  }}
+>
+  {conversations.map(conv => (
+    <button
+      role="option"
+      aria-selected={isSelected}
+      className="w-full px-4 py-2 mb-1 rounded-md"  // Better spacing
+    >
+      {conv.name}
+    </button>
+  ))}
+</div>
+```
+
+---
+
+### �🟡 Minor
 
 #### History Panel Search Has No Clear Indicator
 
@@ -303,4 +354,90 @@ The streaming implementation is excellent:
 
 ---
 
-_Last updated: December 25, 2025_
+---
+
+## December 30, 2025 - Live Testing Update
+
+### Testing with Real Query
+
+Performed live query against indexed document (AI safety research paper with 794 entities).
+
+**Query tested:** "What are the main LLM vulnerabilities?"
+
+#### ✅ Verified Features
+
+1. **Streaming Response Works Flawlessly**
+
+   - Response streams in real-time with smooth character-by-character appearance
+   - Cursor blink visible during streaming
+   - "Thinking" indicator shows appropriately
+   - Response renders markdown correctly (headers, lists, bold text)
+   - Formatted output is well-spaced and readable
+
+2. **History Panel Collapse**
+
+   - Right panel collapses smoothly
+   - Collapsed state shows vertical "Conversation History" label
+   - Panel width transitions from ~300px to ~40px
+   - Content in main area expands correctly
+
+3. **Conversation Flow**
+
+   - User message appears instantly with distinct styling
+   - AI response streams below with gradient avatar
+   - Clear visual separation between messages
+   - Scroll-to-bottom works during streaming
+
+4. **Mode Selector**
+   - All four modes visible (Local, Global, Hybrid, Simple)
+   - Active mode highlighted correctly
+   - Switching modes works immediately
+
+#### 🟡 Minor Issues Observed
+
+1. **Mobile Layout (320px)**
+
+   - History panel hidden correctly (as expected)
+   - Input area at bottom works well
+   - Mode selector slightly cramped but functional
+   - **Observation:** Consider hiding mode selector on mobile or moving to settings
+
+2. **Scroll Behavior**
+   - Main conversation area scrolls correctly
+   - Auto-scroll to bottom works during streaming
+   - Fixed zones (header, input bar) remain in place ✅
+
+#### Fixed Zone Verification (VERY IMPORTANT)
+
+| Zone          | Behavior                            | Status     |
+| ------------- | ----------------------------------- | ---------- |
+| Header        | Fixed at top, 64px                  | ✅ Correct |
+| Input Area    | Fixed at bottom                     | ✅ Correct |
+| Sidebar       | Fixed on left                       | ✅ Correct |
+| History Panel | Fixed on right, scrolls internally  | ✅ Correct |
+| Conversation  | Scrollable area between fixed zones | ✅ Correct |
+
+### Updated Screenshots (Dec 30)
+
+| State             | Breakpoint     | File                                  |
+| ----------------- | -------------- | ------------------------------------- |
+| Initial           | Desktop 1280px | `query-desktop-1280-initial.png`      |
+| With Response     | Desktop 1280px | `query-desktop-with-response.png`     |
+| History Collapsed | Desktop        | `query-desktop-history-collapsed.png` |
+| Mobile            | 320px          | `query-mobile-320.png`                |
+
+### Updated Score
+
+| Criterion           | Previous | Current  | Change    |
+| ------------------- | -------- | -------- | --------- |
+| Visual refinement   | 4.5      | 4.6      | +0.1      |
+| Modern styling      | 4.5      | 4.6      | +0.1      |
+| Smooth interactions | 4.0      | 4.5      | +0.5      |
+| Professional polish | 4.5      | 4.6      | +0.1      |
+| **Overall**         | **4.4**  | **4.58** | **+0.18** |
+
+**Note:** Query page remains the best-implemented screen. Streaming UX is excellent, markdown rendering is clean, and the chat-style interface feels modern and responsive.
+
+---
+
+_Last updated: December 30, 2025_

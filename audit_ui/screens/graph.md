@@ -349,4 +349,141 @@ When data is present, verify:
 
 ---
 
-_Last updated: December 25, 2025_
+---
+
+## December 30, 2025 - Live Testing Update
+
+### New Observations with Real Data
+
+Testing performed with actual document data (794 entities, 576 relations from an AI safety research paper).
+
+#### ✅ Positive Findings
+
+1. **Entity Browser Panel Collapse Works Well**
+
+   - Smooth collapse animation observed
+   - Collapsed state shows rotated "Entities (N)" label
+   - Panel persists state correctly
+   - Width transitions smoothly from 256px to minimal collapsed state (~40px)
+
+2. **Graph Canvas Renders Large Datasets**
+
+   - 794 entities rendered without visible lag
+   - Force-directed layout positions nodes correctly
+   - Color-coded entity types clearly visible
+   - Node labels readable at default zoom
+
+3. **Both Panels Collapsible**
+
+   - Left (Entity Browser) and Right (Details) panels both collapse
+   - When both collapsed, graph canvas maximizes correctly
+   - Professional vertical text labels on collapsed panels
+
+4. **Search Functionality**
+   - Entity search works and filters list correctly
+   - Scroll within entity list works smoothly
+   - Clear visual hierarchy for entity types
+
+#### 🔴 Critical Issues Found
+
+1. **Mobile Legend Overlay (CRITICAL)**
+
+   - **Viewport:** 320px (Mobile S)
+   - **Issue:** The Legend component overlays and partially blocks the graph canvas
+   - **Impact:** Users cannot see/interact with graph content behind the legend
+   - **Recommendation:**
+     - On mobile, move legend to bottom sheet or collapsible drawer
+     - Or reduce legend to minimal floating chip that expands on tap
+     - Consider hiding legend by default on mobile, show via toggle
+
+2. **Entity Browser Panel NOT SCROLLABLE (P0 - CRITICAL)**
+
+   - **Priority:** P0 - CRITICAL - Discovered December 30, 2025 (second pass)
+   - **Location:** Entity Browser (left panel)
+   - **Root Cause:** Parent container has `overflow: hidden`
+   - **Evidence:**
+     - Content height: 2147px
+     - Visible height: 619px
+     - **71% of entities are hidden and inaccessible**
+   - **Impact:**
+     - Mouse wheel scroll does NOT work
+     - Keyboard navigation (arrow keys, Page Up/Down) does NOT work
+     - Users cannot access entities beyond visible area (~30 of 100)
+   - **Fix Required:**
+     ```tsx
+     // CURRENT (BUG)
+     <aside className="overflow-hidden ...">
+     
+     // SHOULD BE
+     <aside className="overflow-y-auto overflow-x-hidden ...">
+     ```
+
+3. **Details & Filters Panel NOT SCROLLABLE (P0 - CRITICAL)**
+
+   - **Priority:** P0 - CRITICAL - Discovered December 30, 2025 (second pass)
+   - **Location:** Details & Filters (right panel)
+   - **Root Cause:** Container has `overflow: hidden`
+   - **Evidence:**
+     - Content height: 780px
+     - Visible height: 619px
+     - **161px hidden (Edit/Merge/Delete buttons may be cut off)**
+   - **Impact:**
+     - Cannot scroll to see all entity properties
+     - Action buttons may be hidden for entities with many relationships
+   - **Fix Required:**
+     ```tsx
+     // CURRENT (BUG)
+     <div className="flex flex-col h-full overflow-hidden">
+     
+     // SHOULD BE
+     <div className="flex flex-col h-full">
+       <div className="flex-1 overflow-y-auto">
+     ```
+
+4. **Fixed Zones Verification**
+   - Header: ✅ Fixed at top (64px)
+   - Sidebar: ✅ Fixed on left (256px expanded, 64px collapsed)
+   - Breadcrumb: ✅ Fixed below header
+   - Graph Canvas: ✅ Fills remaining space, has own scroll/pan
+   - Entity Browser: ✅ Has internal scroll for entity list
+
+#### Responsive Behavior - Verified
+
+| Breakpoint | Layout                           | Status | Notes                |
+| ---------- | -------------------------------- | ------ | -------------------- |
+| 320px      | Full-width, hamburger menu       | ⚠️     | Legend overlay issue |
+| 768px      | Sidebar visible, panels collapse | ✅     | Works well           |
+| 1280px     | Full three-panel layout          | ✅     | Optimal experience   |
+
+### Updated Screenshots
+
+| State                  | Breakpoint     | File (Dec 30)                              |
+| ---------------------- | -------------- | ------------------------------------------ |
+| With Data              | Desktop 1280px | `graph-desktop-1280-initial.png`           |
+| Entity Panel Collapsed | Desktop        | `graph-desktop-entity-panel-collapsed.png` |
+| Both Panels Collapsed  | Desktop        | `graph-desktop-both-panels-collapsed.png`  |
+| With Data              | Tablet 768px   | `graph-tablet-768.png`                     |
+| Legend Overlay Issue   | Mobile 320px   | `graph-mobile-320.png`                     |
+
+---
+
+### Updated Score (Revised after scroll bug discovery)
+
+| Criterion           | Previous | Current  | Change     |
+| ------------------- | -------- | -------- | ---------- |
+| Visual refinement   | 3.8      | 4.2      | +0.4       |
+| Modern styling      | 4.0      | 4.2      | +0.2       |
+| Smooth interactions | 3.5      | 4.0      | +0.5       |
+| Professional polish | 3.8      | 4.2      | +0.4       |
+| **Scroll/Overflow** | **N/A**  | **2.0**  | **NEW**    |
+| **Overall**         | **3.8**  | **3.7**  | **-0.1**   |
+
+**Score Revision Note:** Initial testing showed 4.15, but deeper scroll testing revealed 2 P0-critical bugs:
+- Entity Browser panel: `overflow: hidden` blocks all scrolling (71% content hidden)
+- Details panel: `overflow: hidden` blocks scrolling (action buttons may be cut off)
+
+These bugs significantly impact usability and must be fixed before the page is production-ready.
+
+---
+
+_Last updated: December 30, 2025 (Revised with scroll bug findings)_

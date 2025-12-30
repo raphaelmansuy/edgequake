@@ -40,7 +40,7 @@ export function GraphControls() {
             <Button
               variant="outline"
               size="icon"
-              className="bg-background/80 backdrop-blur-sm shadow-lg"
+              className="bg-background/95 backdrop-blur-sm shadow-lg border-border/50 hover:bg-accent hover:border-primary/30 hover:shadow-xl transition-all duration-200"
               onClick={() => setIsExpanded(true)}
             >
               <Settings2 className="h-4 w-4" />

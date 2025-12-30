@@ -100,7 +100,7 @@ export const RightPanel = forwardRef<HTMLDivElement, RightPanelProps>(
         ref={ref}
         className={cn(
           panelWidth,
-          "border-l bg-card flex flex-col transition-all duration-300 ease-in-out",
+          "border-l bg-card flex flex-col transition-all duration-300 ease-in-out overflow-hidden",
           className
         )}
         aria-label={title || 'Side panel'}
@@ -149,7 +149,7 @@ export const RightPanel = forwardRef<HTMLDivElement, RightPanelProps>(
         )}
 
         {/* Content */}
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0" showShadows>
           <div className="p-4">{children}</div>
         </ScrollArea>
       </aside>

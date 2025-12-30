@@ -309,8 +309,8 @@ export function GraphViewer() {
             <ZoomControls />
           </div>
           
-          {/* Legend Overlay - Bottom Right */}
-          <div className="absolute bottom-4 right-4">
+          {/* Legend Overlay - Bottom Right (hidden on mobile to prevent overlay) */}
+          <div className="absolute bottom-4 right-4 hidden md:block">
             <GraphLegend />
           </div>
         </div>
@@ -362,7 +362,7 @@ export function GraphViewer() {
             </div>
             
             {/* Panel Content - Full height scroll */}
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 min-h-0" showShadows>
               <div className="p-3 space-y-4">
                 {/* Node Details - Primary content when selected */}
                 {selectedNode && showNodeDetails && (

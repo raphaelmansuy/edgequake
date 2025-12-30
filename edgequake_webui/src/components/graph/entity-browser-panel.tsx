@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useGraphStore } from "@/stores/use-graph-store";
+import { useUIPreferencesStore } from "@/stores/use-ui-preferences-store";
 import type { GraphNode } from "@/types";
 import {
     ChevronDown,
@@ -232,13 +233,33 @@ interface EntityBrowserPanelProps {
 
 export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
   const { t } = useTranslation();
-  const [isOpen, setIsOpen] = useState(true);
+  
+  // Persisted UI preferences
+  const {
+    graphEntityBrowserCollapsed,
+    setGraphEntityBrowserCollapsed,
+    entityBrowserViewMode,
+    setEntityBrowserViewMode,
+    entityBrowserSortBy,
+    setEntityBrowserSortBy,
+    entityBrowserSortAsc,
+    setEntityBrowserSortAsc,
+  } = useUIPreferencesStore();
+  
+  // Local state (not persisted)
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<SortOption>("name");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
-  const [viewMode, setViewMode] = useState<"list" | "grouped">("grouped");
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const listRef = useRef<HTMLDivElement>(null);
+  
+  // Derived state from preferences
+  const isOpen = !graphEntityBrowserCollapsed;
+  const setIsOpen = (open: boolean) => setGraphEntityBrowserCollapsed(!open);
+  const viewMode = entityBrowserViewMode;
+  const setViewMode = setEntityBrowserViewMode;
+  const sortBy = entityBrowserSortBy;
+  const setSortBy = setEntityBrowserSortBy;
+  const sortDirection: SortDirection = entityBrowserSortAsc ? "asc" : "desc";
+  const setSortDirection = (dir: SortDirection) => setEntityBrowserSortAsc(dir === "asc");
 
   const { nodes, selectedNodeId, selectNode, sigmaInstance } = useGraphStore();
 
@@ -511,7 +532,7 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
       </div>
 
       {/* Entity List */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0" showShadows>
         <div className="p-1.5" id="entity-panel-content" role="tabpanel">
           {filteredNodes.length === 0 ? (
             <div className="py-6 text-center" role="status" aria-live="polite">
