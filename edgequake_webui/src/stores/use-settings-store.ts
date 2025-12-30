@@ -157,20 +157,41 @@ export const useSettingsStore = create<SettingsState>()(
         sidebarCollapsed: state.sidebarCollapsed,
       }),
       /**
+       * Migration function for handling version upgrades
+       */
+      migrate: (persistedState: unknown, version: number) => {
+        const state = persistedState as Partial<SettingsState> | null;
+        // Handle null/undefined persisted state
+        if (!state) {
+          return initialState;
+        }
+        // Current version - no migration needed
+        if (version === STORE_VERSIONS[ZUSTAND_STORAGE_KEYS.SETTINGS_STORE]) {
+          return state;
+        }
+        // Future migrations can be added here
+        return state;
+      },
+      /**
        * Merge function for deep merging nested objects
+       * Handles undefined/null persisted state gracefully
        */
       merge: (persistedState, currentState) => {
+        // Handle case where persisted state is undefined/null
+        if (!persistedState) {
+          return currentState;
+        }
         const persisted = persistedState as Partial<SettingsState>;
         return {
           ...currentState,
           ...persisted,
           graphSettings: {
             ...defaultGraphSettings,
-            ...persisted.graphSettings,
+            ...(persisted.graphSettings || {}),
           },
           querySettings: {
             ...defaultQuerySettings,
-            ...persisted.querySettings,
+            ...(persisted.querySettings || {}),
           },
         };
       },
