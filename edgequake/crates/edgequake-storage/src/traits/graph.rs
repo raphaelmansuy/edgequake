@@ -270,6 +270,159 @@ pub trait GraphStorage: Send + Sync {
     /// Get neighbors of a node at a specific depth.
     async fn get_neighbors(&self, node_id: &str, depth: usize) -> Result<Vec<GraphNode>>;
 
+    // ========== Optimized Batch Operations ==========
+
+    /// Get popular nodes with their degrees in a single query.
+    ///
+    /// This method eliminates N+1 query patterns by returning nodes
+    /// with their connection counts in one database round-trip.
+    ///
+    /// # Arguments
+    ///
+    /// * `limit` - Maximum nodes to return
+    /// * `min_degree` - Minimum connection count (optional filter)
+    /// * `entity_type` - Filter by entity type (optional)
+    /// * `tenant_id` - Tenant context for multi-tenancy (optional)
+    /// * `workspace_id` - Workspace context (optional)
+    ///
+    /// # Returns
+    ///
+    /// Vector of (GraphNode, degree) tuples, ordered by degree descending
+    async fn get_popular_nodes_with_degree(
+        &self,
+        limit: usize,
+        min_degree: Option<usize>,
+        entity_type: Option<&str>,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<(GraphNode, usize)>> {
+        // Default implementation uses existing methods (N+1 pattern)
+        // Implementations should override for performance
+        let labels = self.get_popular_labels(limit * 2).await?;
+        let mut results = Vec::new();
+
+        for label in labels {
+            if results.len() >= limit {
+                break;
+            }
+            if let Some(node) = self.get_node(&label).await? {
+                let degree = self.node_degree(&label).await?;
+
+                // Apply min_degree filter
+                if let Some(min) = min_degree {
+                    if degree < min {
+                        continue;
+                    }
+                }
+
+                // Apply entity_type filter
+                if let Some(et) = entity_type {
+                    let node_type = node
+                        .properties
+                        .get("entity_type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if node_type != et {
+                        continue;
+                    }
+                }
+
+                // Apply tenant filter
+                if let Some(tid) = tenant_id {
+                    let node_tenant = node
+                        .properties
+                        .get("tenant_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if !node_tenant.is_empty() && node_tenant != tid {
+                        continue;
+                    }
+                }
+
+                // Apply workspace filter
+                if let Some(wid) = workspace_id {
+                    let node_workspace = node
+                        .properties
+                        .get("workspace_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if !node_workspace.is_empty() && node_workspace != wid {
+                        continue;
+                    }
+                }
+
+                results.push((node, degree));
+            }
+        }
+
+        Ok(results)
+    }
+
+    /// Get edges between nodes in a specified set.
+    ///
+    /// This method eliminates the "fetch-all-then-filter" pattern by
+    /// querying only edges that connect nodes in the given set.
+    ///
+    /// # Arguments
+    ///
+    /// * `node_ids` - Set of node IDs to filter edges
+    /// * `tenant_id` - Tenant context (optional)
+    /// * `workspace_id` - Workspace context (optional)
+    ///
+    /// # Returns
+    ///
+    /// Edges where both source and target are in the node set
+    async fn get_edges_for_node_set(
+        &self,
+        node_ids: &[String],
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<GraphEdge>> {
+        // Default implementation uses existing methods
+        // Implementations should override for performance
+        let all_edges = self.get_all_edges().await?;
+        let node_set: std::collections::HashSet<&str> =
+            node_ids.iter().map(|s| s.as_str()).collect();
+
+        let filtered: Vec<GraphEdge> = all_edges
+            .into_iter()
+            .filter(|e| {
+                // Both endpoints must be in the node set
+                if !node_set.contains(e.source.as_str()) || !node_set.contains(e.target.as_str()) {
+                    return false;
+                }
+
+                // Apply tenant filter
+                if let Some(tid) = tenant_id {
+                    let edge_tenant = e
+                        .properties
+                        .get("tenant_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if !edge_tenant.is_empty() && edge_tenant != tid {
+                        return false;
+                    }
+                }
+
+                // Apply workspace filter
+                if let Some(wid) = workspace_id {
+                    let edge_workspace = e
+                        .properties
+                        .get("workspace_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if !edge_workspace.is_empty() && edge_workspace != wid {
+                        return false;
+                    }
+                }
+
+                true
+            })
+            .collect();
+
+        Ok(filtered)
+    }
+
     // ========== Utility Operations ==========
 
     /// Get node count.

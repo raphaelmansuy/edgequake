@@ -26,6 +26,7 @@ use crate::handlers;
         handlers::execute_query,
         handlers::stream_query,
         handlers::get_graph,
+        handlers::stream_graph,
         handlers::get_node,
         handlers::search_labels,
         // Entity operations (Phase 2)
@@ -69,6 +70,8 @@ use crate::handlers;
         handlers::GraphNodeResponse,
         handlers::GraphEdgeResponse,
         handlers::GraphQueryParams,
+        handlers::GraphStreamQueryParams,
+        handlers::GraphStreamEvent,
         handlers::SearchLabelsQuery,
         handlers::SearchLabelsResponse,
         // Entity schemas (Phase 2)

@@ -802,6 +802,175 @@ impl GraphStorage for PostgresAGEGraphStorage {
         let cypher = "MATCH (n:Node) DETACH DELETE n";
         self.cypher_execute(cypher).await
     }
+
+    /// Optimized: Get popular nodes with degrees in single query.
+    ///
+    /// Uses a single Cypher query to return nodes with their connection counts,
+    /// eliminating N+1 query patterns.
+    async fn get_popular_nodes_with_degree(
+        &self,
+        limit: usize,
+        min_degree: Option<usize>,
+        entity_type: Option<&str>,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<(GraphNode, usize)>> {
+        let pool = self.pool.get().await?;
+        let mut conn = pool.acquire().await.map_err(|e| {
+            StorageError::Connection(format!("Failed to acquire connection: {}", e))
+        })?;
+
+        // Set up AGE session
+        sqlx::query("LOAD 'age'")
+            .execute(&mut *conn)
+            .await
+            .map_err(|e| StorageError::Database(format!("Failed to load AGE: {}", e)))?;
+
+        sqlx::query("SET search_path = ag_catalog, \"$user\", public")
+            .execute(&mut *conn)
+            .await
+            .map_err(|e| StorageError::Database(format!("Failed to set AGE search path: {}", e)))?;
+
+        // Build WHERE conditions
+        let mut conditions = Vec::new();
+
+        if let Some(min) = min_degree {
+            conditions.push(format!("degree >= {}", min));
+        }
+
+        if let Some(et) = entity_type {
+            let escaped_et = Self::escape_cypher_string(et);
+            conditions.push(format!("n.entity_type = '{}'", escaped_et));
+        }
+
+        if let Some(tid) = tenant_id {
+            let escaped_tid = Self::escape_cypher_string(tid);
+            conditions.push(format!(
+                "(n.tenant_id IS NULL OR n.tenant_id = '{}')",
+                escaped_tid
+            ));
+        }
+
+        if let Some(wid) = workspace_id {
+            let escaped_wid = Self::escape_cypher_string(wid);
+            conditions.push(format!(
+                "(n.workspace_id IS NULL OR n.workspace_id = '{}')",
+                escaped_wid
+            ));
+        }
+
+        let where_clause = if conditions.is_empty() {
+            String::new()
+        } else {
+            format!("WHERE {}", conditions.join(" AND "))
+        };
+
+        // Single optimized query that returns nodes with their degrees
+        // Using SQL-level subquery to work around AGE ORDER BY limitations
+        let sql = format!(
+            "SELECT agtype_to_json(n) as node, degree::bigint as degree FROM ( \
+                SELECT * FROM cypher('{}', $$ \
+                    MATCH (n:Node) \
+                    OPTIONAL MATCH (n)-[r]-() \
+                    WITH n, count(r) as degree \
+                    {} \
+                    RETURN n, degree \
+                    ORDER BY degree DESC \
+                    LIMIT {} \
+                $$) AS (n agtype, degree agtype) \
+             ) subq",
+            self.graph_name,
+            where_clause,
+            limit * 2 // Fetch extra to account for filtering
+        );
+
+        let rows = sqlx::query(&sql)
+            .fetch_all(&mut *conn)
+            .await
+            .map_err(|e| StorageError::Database(format!("Cypher query failed: {}", e)))?;
+
+        let mut results = Vec::with_capacity(limit);
+
+        for row in rows {
+            if results.len() >= limit {
+                break;
+            }
+
+            let json_value: serde_json::Value = row.get("node");
+            let agtype_str = json_value.to_string();
+
+            if let Some(node) = Self::parse_vertex(&agtype_str) {
+                let degree: i64 = row.get("degree");
+                results.push((node, degree as usize));
+            }
+        }
+
+        Ok(results)
+    }
+
+    /// Optimized: Get edges between nodes in a specified set.
+    ///
+    /// Uses a single Cypher query with WHERE IN clause to fetch only
+    /// edges connecting the specified nodes.
+    async fn get_edges_for_node_set(
+        &self,
+        node_ids: &[String],
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<GraphEdge>> {
+        if node_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Build list of IDs for Cypher IN clause
+        let ids_list: Vec<String> = node_ids
+            .iter()
+            .map(|id| format!("'{}'", Self::escape_cypher_string(id)))
+            .collect();
+        let ids_str = ids_list.join(", ");
+
+        // Build WHERE conditions for tenant/workspace filtering
+        let mut conditions = vec![
+            format!("a.node_id IN [{}]", ids_str),
+            format!("b.node_id IN [{}]", ids_str),
+        ];
+
+        if let Some(tid) = tenant_id {
+            let escaped_tid = Self::escape_cypher_string(tid);
+            conditions.push(format!(
+                "(r.tenant_id IS NULL OR r.tenant_id = '{}')",
+                escaped_tid
+            ));
+        }
+
+        if let Some(wid) = workspace_id {
+            let escaped_wid = Self::escape_cypher_string(wid);
+            conditions.push(format!(
+                "(r.workspace_id IS NULL OR r.workspace_id = '{}')",
+                escaped_wid
+            ));
+        }
+
+        let cypher = format!(
+            "MATCH (a:Node)-[r:EDGE]->(b:Node) \
+             WHERE {} \
+             RETURN r",
+            conditions.join(" AND ")
+        );
+
+        let rows = self.cypher_query(&cypher, &["r"]).await?;
+
+        let edges: Vec<GraphEdge> = rows
+            .iter()
+            .filter_map(|row| {
+                let json_value: serde_json::Value = row.get("r");
+                let agtype_str = json_value.to_string();
+                Self::parse_edge(&agtype_str)
+            })
+            .collect();
+
+        Ok(edges)
+    }
 }
 
 impl std::fmt::Debug for PostgresAGEGraphStorage {

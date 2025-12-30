@@ -176,6 +176,7 @@ fn api_v1_routes() -> Router<AppState> {
         .route("/shared/{share_id}", get(handlers::get_shared_conversation))
         // Graph
         .route("/graph", get(handlers::get_graph))
+        .route("/graph/stream", get(handlers::stream_graph))
         .route("/graph/nodes/{node_id}", get(handlers::get_node))
         .route("/graph/labels/search", get(handlers::search_labels))
         .route("/graph/labels/popular", get(handlers::get_popular_labels))
