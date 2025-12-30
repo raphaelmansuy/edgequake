@@ -55,6 +55,7 @@
     "graphology-communities-louvain": "^2.0.2",
     "graphology-layout": "^0.6.1",
     "graphology-layout-forceatlas2": "^0.10.1",
+    "graphology-layout-noverlap": "^0.4.2",
     "i18next": "^25.7.3",
     "i18next-browser-languagedetector": "^8.2.0",
     "katex": "^0.16.27",

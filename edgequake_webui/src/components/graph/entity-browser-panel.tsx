@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { useGraphStore } from "@/stores/use-graph-store";
 import { useUIPreferencesStore } from "@/stores/use-ui-preferences-store";
 import type { GraphNode } from "@/types";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
     ChevronDown,
     ChevronLeft,
@@ -146,6 +147,95 @@ function getEntityTypeColor(type: string): string {
   };
   return colorMap[type.toUpperCase()] || colorMap.DEFAULT;
 }
+
+// ============================================================================
+// Virtualized Entity List Component (for performance with large datasets)
+// ============================================================================
+
+interface VirtualizedEntityListProps {
+  nodes: GraphNode[];
+  selectedNodeId: string | null;
+  focusedIndex: number;
+  onNodeClick: (nodeId: string) => void;
+  onKeyDown: (e: React.KeyboardEvent) => void;
+  onFocusChange: (index: number) => void;
+}
+
+const VirtualizedEntityList = memo(function VirtualizedEntityList({
+  nodes,
+  selectedNodeId,
+  focusedIndex,
+  onNodeClick,
+  onKeyDown,
+  onFocusChange,
+}: VirtualizedEntityListProps) {
+  const { t } = useTranslation();
+  const parentRef = useRef<HTMLDivElement>(null);
+  
+  const virtualizer = useVirtualizer({
+    count: nodes.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 52, // Estimated height of each EntityItem
+    overscan: 5, // Render 5 extra items above/below viewport
+  });
+
+  // Scroll to focused item
+  useEffect(() => {
+    if (focusedIndex >= 0 && focusedIndex < nodes.length) {
+      virtualizer.scrollToIndex(focusedIndex, { align: 'auto', behavior: 'smooth' });
+    }
+  }, [focusedIndex, nodes.length, virtualizer]);
+
+  return (
+    <div
+      ref={parentRef}
+      role="listbox"
+      aria-label={t("graph.entityBrowser.entityList", "Entity list")}
+      tabIndex={0}
+      onKeyDown={onKeyDown}
+      onFocus={() => {
+        if (focusedIndex === -1 && nodes.length > 0) {
+          onFocusChange(0);
+        }
+      }}
+      className="h-full overflow-auto outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-md"
+      style={{ contain: 'strict' }}
+    >
+      <div
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          width: '100%',
+          position: 'relative',
+        }}
+      >
+        {virtualizer.getVirtualItems().map((virtualRow) => {
+          const node = nodes[virtualRow.index];
+          return (
+            <div
+              key={node.id}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: `${virtualRow.size}px`,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+            >
+              <EntityItem
+                node={node}
+                isSelected={node.id === selectedNodeId}
+                isFocused={virtualRow.index === focusedIndex}
+                onClick={() => onNodeClick(node.id)}
+                onKeyDown={onKeyDown}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
 
 // ============================================================================
 // Entity Type Group Component
@@ -533,19 +623,19 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
       </div>
 
       {/* Entity List */}
-      <ScrollArea className="flex-1 min-h-0" showShadows>
-        <div className="p-1.5" id="entity-panel-content" role="tabpanel">
-          {filteredNodes.length === 0 ? (
-            <div className="py-6 text-center" role="status" aria-live="polite">
-              <Network className="h-6 w-6 mx-auto text-muted-foreground/50 mb-1.5" aria-hidden="true" />
-              <p className="text-xs text-muted-foreground">
-                {searchQuery
-                  ? t("graph.entityBrowser.noResults", "No entities found")
-                  : t("graph.entityBrowser.empty", "No entities yet")}
-              </p>
-            </div>
-          ) : viewMode === "grouped" ? (
-            <div className="space-y-0.5">
+      <div className="flex-1 min-h-0 overflow-hidden" id="entity-panel-content" role="tabpanel">
+        {filteredNodes.length === 0 ? (
+          <div className="py-6 text-center" role="status" aria-live="polite">
+            <Network className="h-6 w-6 mx-auto text-muted-foreground/50 mb-1.5" aria-hidden="true" />
+            <p className="text-xs text-muted-foreground">
+              {searchQuery
+                ? t("graph.entityBrowser.noResults", "No entities found")
+                : t("graph.entityBrowser.empty", "No entities yet")}
+            </p>
+          </div>
+        ) : viewMode === "grouped" ? (
+          <ScrollArea className="h-full" showShadows>
+            <div className="p-1.5 space-y-0.5">
               {groupedNodes.map(([type, typeNodes]) => (
                 <EntityTypeGroup
                   key={type}
@@ -557,34 +647,20 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
                 />
               ))}
             </div>
-          ) : (
-            <div 
-              ref={listRef}
-              role="listbox"
-              aria-label={t("graph.entityBrowser.entityList", "Entity list")}
-              tabIndex={0}
+          </ScrollArea>
+        ) : (
+          <div className="h-full p-1.5">
+            <VirtualizedEntityList
+              nodes={sortedNodes}
+              selectedNodeId={selectedNodeId}
+              focusedIndex={focusedIndex}
+              onNodeClick={handleNodeClick}
               onKeyDown={handleListKeyDown}
-              onFocus={() => {
-                if (focusedIndex === -1 && sortedNodes.length > 0) {
-                  setFocusedIndex(0);
-                }
-              }}
-              className="space-y-1 outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-md"
-            >
-              {sortedNodes.map((node, index) => (
-                <EntityItem
-                  key={node.id}
-                  node={node}
-                  isSelected={node.id === selectedNodeId}
-                  isFocused={index === focusedIndex}
-                  onClick={() => handleNodeClick(node.id)}
-                  onKeyDown={handleListKeyDown}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </ScrollArea>
+              onFocusChange={setFocusedIndex}
+            />
+          </div>
+        )}
+      </div>
 
       {/* Footer with stats */}
       <div className="p-3 border-t shrink-0 bg-muted/20">

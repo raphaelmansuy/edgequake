@@ -27,6 +27,7 @@ import { EntityBrowserPanel } from './entity-browser-panel';
 import { GraphControls } from './graph-controls';
 import { GraphExport } from './graph-export';
 import { GraphFilters } from './graph-filters';
+import { BookmarksPanel } from './bookmarks-panel';
 import { GraphLegend } from './graph-legend';
 import { GraphMinimap } from './graph-minimap';
 import { GraphRenderer } from './graph-renderer';
@@ -37,6 +38,7 @@ import { LayoutControl } from './layout-control';
 import { LayoutController } from './layout-controller';
 import { NodeContextMenu, useNodeContextMenu } from './node-context-menu';
 import { NodeDetails } from './node-details';
+import { TimeFilter } from './time-filter';
 import { ZoomControls } from './zoom-controls';
 
 export function GraphViewer() {
@@ -395,6 +397,20 @@ export function GraphViewer() {
           {!isMobile && filteredNodes.length > 0 && (
             <div className="absolute bottom-16 left-4 z-10">
               <GraphMinimap width={140} height={100} />
+            </div>
+          )}
+          
+          {/* Time Filter Overlay - Above Minimap on Left */}
+          {!isMobile && filteredNodes.length > 0 && (
+            <div className="absolute bottom-40 left-4 z-10">
+              <TimeFilter collapsed />
+            </div>
+          )}
+          
+          {/* Bookmarks Panel - Above Time Filter on Left */}
+          {!isMobile && filteredNodes.length > 0 && (
+            <div className="absolute bottom-52 left-4 z-10">
+              <BookmarksPanel collapsed />
             </div>
           )}
           
