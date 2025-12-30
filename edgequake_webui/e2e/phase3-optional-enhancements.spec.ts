@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 /**
  * Phase 3 Optional Enhancements E2E Tests
- * 
+ *
  * Tests for:
  * 1. Graph empty state illustration
  * 2. Drag-to-resize panels
@@ -17,7 +17,9 @@ test.describe("Phase 3 Optional Enhancements", () => {
   // =========================================================================
 
   test.describe("Graph Empty State Illustration", () => {
-    test("empty graph should show illustration with animation", async ({ page }) => {
+    test("empty graph should show illustration with animation", async ({
+      page,
+    }) => {
       // Navigate to graph page
       await page.goto("/graph");
       await page.waitForLoadState("networkidle");
@@ -28,16 +30,18 @@ test.describe("Phase 3 Optional Enhancements", () => {
 
       // Check for SVG elements in the illustration (grid pattern, nodes)
       // The illustration is only visible when there are no nodes
-      const graphCanvas = page.locator('[data-graph-container]');
+      const graphCanvas = page.locator("[data-graph-container]");
       await expect(graphCanvas).toBeVisible();
     });
 
-    test("graph illustration should have proper structure", async ({ page }) => {
+    test("graph illustration should have proper structure", async ({
+      page,
+    }) => {
       await page.goto("/graph");
       await page.waitForLoadState("networkidle");
 
       // Verify the graph container exists
-      const graphContainer = page.locator('[data-graph-container]');
+      const graphContainer = page.locator("[data-graph-container]");
       await expect(graphContainer).toBeVisible({ timeout: 10000 });
     });
   });
@@ -52,8 +56,10 @@ test.describe("Phase 3 Optional Enhancements", () => {
       await page.waitForLoadState("networkidle");
 
       // Look for resize handle with ARIA attributes
-      const resizeHandle = page.locator('[role="separator"][aria-orientation="vertical"]');
-      
+      const resizeHandle = page.locator(
+        '[role="separator"][aria-orientation="vertical"]'
+      );
+
       // If the details panel is open
       const detailsPanel = page.locator('[data-tour="details-panel"]');
       if (await detailsPanel.isVisible().catch(() => false)) {
@@ -66,8 +72,10 @@ test.describe("Phase 3 Optional Enhancements", () => {
       await page.waitForLoadState("networkidle");
 
       // Look for resize handle
-      const resizeHandle = page.locator('[role="separator"][aria-orientation="vertical"]').first();
-      
+      const resizeHandle = page
+        .locator('[role="separator"][aria-orientation="vertical"]')
+        .first();
+
       // Skip if no resize handle visible
       if (await resizeHandle.isVisible().catch(() => false)) {
         // Check for ARIA attributes
@@ -82,8 +90,10 @@ test.describe("Phase 3 Optional Enhancements", () => {
       await page.goto("/graph");
       await page.waitForLoadState("networkidle");
 
-      const resizeHandle = page.locator('[role="separator"][aria-orientation="vertical"]').first();
-      
+      const resizeHandle = page
+        .locator('[role="separator"][aria-orientation="vertical"]')
+        .first();
+
       if (await resizeHandle.isVisible().catch(() => false)) {
         // Focus the resize handle
         await resizeHandle.focus();
@@ -106,13 +116,17 @@ test.describe("Phase 3 Optional Enhancements", () => {
   // =========================================================================
 
   test.describe("Contextual Help Tooltips", () => {
-    test("zoom controls should have tooltip with keyboard shortcut", async ({ page }) => {
+    test("zoom controls should have tooltip with keyboard shortcut", async ({
+      page,
+    }) => {
       await page.goto("/graph");
       await page.waitForLoadState("networkidle");
 
       // Find zoom in button
-      const zoomInButton = page.locator('[data-tour="zoom-controls"] button').first();
-      
+      const zoomInButton = page
+        .locator('[data-tour="zoom-controls"] button')
+        .first();
+
       if (await zoomInButton.isVisible().catch(() => false)) {
         // Hover to show tooltip
         await zoomInButton.hover();
@@ -123,7 +137,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
         // Check for kbd element in tooltip
         const tooltip = page.locator('[data-slot="tooltip-content"]');
         const kbdElement = tooltip.locator("kbd");
-        
+
         // Tooltip should contain keyboard shortcut hint
         if (await tooltip.isVisible().catch(() => false)) {
           expect(await kbdElement.count()).toBeGreaterThanOrEqual(0);
@@ -136,8 +150,10 @@ test.describe("Phase 3 Optional Enhancements", () => {
       await page.waitForLoadState("networkidle");
 
       // Find layout control button
-      const layoutButton = page.locator('[data-tour="layout-control"] button').first();
-      
+      const layoutButton = page
+        .locator('[data-tour="layout-control"] button')
+        .first();
+
       if (await layoutButton.isVisible().catch(() => false)) {
         // Hover to show tooltip
         await layoutButton.hover();
@@ -155,7 +171,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
 
       // Find search button (shows ⌘K shortcut)
       const searchButton = page.locator('[data-tour="graph-search"] button');
-      
+
       if (await searchButton.isVisible().catch(() => false)) {
         // Check for kbd element (⌘K shortcut display)
         const kbdElement = searchButton.locator("kbd");
@@ -243,7 +259,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
 
       // Look for tour trigger button (help icon)
       const tourButton = page.locator('button[aria-label="Start guided tour"]');
-      
+
       // Should be visible in the toolbar
       if (await tourButton.isVisible().catch(() => false)) {
         await expect(tourButton).toBeVisible();
@@ -256,7 +272,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
 
       // Find and click tour trigger
       const tourButton = page.locator('button[aria-label="Start guided tour"]');
-      
+
       if (await tourButton.isVisible().catch(() => false)) {
         await tourButton.click();
         await page.waitForTimeout(500);
@@ -274,7 +290,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
       await page.waitForLoadState("networkidle");
 
       const tourButton = page.locator('button[aria-label="Start guided tour"]');
-      
+
       if (await tourButton.isVisible().catch(() => false)) {
         await tourButton.click();
         await page.waitForTimeout(500);
@@ -297,7 +313,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
       await page.waitForLoadState("networkidle");
 
       const tourButton = page.locator('button[aria-label="Start guided tour"]');
-      
+
       if (await tourButton.isVisible().catch(() => false)) {
         await tourButton.click();
         await page.waitForTimeout(500);
@@ -318,7 +334,9 @@ test.describe("Phase 3 Optional Enhancements", () => {
   // =========================================================================
 
   test.describe("Reduced Motion Support", () => {
-    test("animations should respect prefers-reduced-motion", async ({ page }) => {
+    test("animations should respect prefers-reduced-motion", async ({
+      page,
+    }) => {
       // Emulate reduced motion preference
       await page.emulateMedia({ reducedMotion: "reduce" });
 
@@ -329,7 +347,9 @@ test.describe("Phase 3 Optional Enhancements", () => {
       const hasReducedMotionStyles = await page.evaluate(() => {
         const styles = window.getComputedStyle(document.documentElement);
         // Check for any animation that might be disabled
-        const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+        const mediaQuery = window.matchMedia(
+          "(prefers-reduced-motion: reduce)"
+        );
         return mediaQuery.matches;
       });
 
@@ -383,7 +403,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
 
       // Check for proper ARIA attributes on interactive elements
       const toolbar = page.locator('[role="toolbar"]');
-      if (await toolbar.count() > 0) {
+      if ((await toolbar.count()) > 0) {
         await expect(toolbar.first()).toBeVisible();
       }
 
@@ -394,7 +414,9 @@ test.describe("Phase 3 Optional Enhancements", () => {
       }
     });
 
-    test.skip("screenshot of graph page with enhancements", async ({ page }) => {
+    test.skip("screenshot of graph page with enhancements", async ({
+      page,
+    }) => {
       await page.goto("/graph");
       await page.waitForLoadState("networkidle");
       await page.waitForTimeout(1000);

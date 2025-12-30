@@ -1,6 +1,7 @@
 # Task Log: Phase 3 Optional Enhancements
 
 ## Actions
+
 - Created `GraphEmptyIllustration` SVG component with animated nodes and connections
 - Enhanced `ResizablePanel` with localStorage persistence, touch support, keyboard controls (Arrow keys), ARIA attributes
 - Added contextual help tooltips with keyboard shortcut hints to zoom controls, layout control, export button
@@ -12,6 +13,7 @@
 - Created comprehensive E2E test spec for all Phase 3 features (20 tests passing)
 
 ## Decisions
+
 - Used native CSS animations with `prefers-reduced-motion` for accessibility compliance
 - Built custom tour component instead of third-party library for lighter bundle
 - Keyboard navigation uses Tab for cycling nodes (consistent with web standards)
@@ -19,18 +21,21 @@
 - Used localStorage for panel width and tour completion persistence
 
 ## Next Steps
+
 - Consider adding left panel (EntityBrowserPanel) resize capability
 - Add more tour steps for other pages (Documents, Query)
 - Add `?` keyboard shortcut to open keyboard help dialog
 - Consider adding tour reset button in settings
 
 ## Lessons/Insights
+
 - React 19 requires careful setState patterns in useEffect (no sync setState)
 - Tailwind v4 syntax prefers `z-9999` over `z-[9999]`
 - SVG animations work well with reduced motion via CSS
 - Playwright `emulateMedia` works great for testing reduced motion
 
 ## Files Created
+
 - `/src/components/illustrations/graph-empty-illustration.tsx`
 - `/src/components/illustrations/index.ts`
 - `/src/components/ui/help-tooltip.tsx`
@@ -43,6 +48,7 @@
 - `/e2e/phase3-optional-enhancements.spec.ts`
 
 ## Files Modified
+
 - `/src/app/globals.css` - Animation keyframes, reduced motion support
 - `/src/components/graph/graph-viewer.tsx` - Import hooks/components, add data-tour attrs
 - `/src/components/graph/zoom-controls.tsx` - Enhanced tooltips with kbd shortcuts
@@ -53,6 +59,7 @@
 - `/src/app/(dashboard)/graph/page.tsx` - Wrapped with GraphTourWrapper
 
 ## Test Results
+
 ```
 Running 21 tests using 8 workers
   1 skipped (screenshot test)
