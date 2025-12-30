@@ -223,9 +223,9 @@ pub async fn get_graph(
     } else {
         // OPTIMIZED: Use batch query to get popular nodes with degrees
         // This eliminates the N+1 query pattern (was 400+ queries, now 2)
-        // Added 5-second timeout to prevent indefinite hangs on large graphs
+        // Added 15-second timeout to prevent indefinite hangs on large graphs
 
-        const QUERY_TIMEOUT_SECS: u64 = 5;
+        const QUERY_TIMEOUT_SECS: u64 = 15;
 
         let query_future = state.graph_storage.get_popular_nodes_with_degree(
             params.max_nodes,
@@ -802,7 +802,7 @@ pub async fn stream_graph(
         let total_edges = state_clone.graph_storage.edge_count().await.unwrap_or(0);
 
         // Get nodes with degrees (optimized batch query with timeout)
-        const QUERY_TIMEOUT_SECS: u64 = 5;
+        const QUERY_TIMEOUT_SECS: u64 = 15;
 
         debug!("About to query nodes with timeout wrapper");
 

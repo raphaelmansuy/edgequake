@@ -108,8 +108,9 @@ impl PostgresAGEGraphStorage {
             .await
             .map_err(|e| StorageError::Database(format!("Failed to set AGE search path: {}", e)))?;
 
-        // Set statement timeout to 4 seconds to allow application-level timeout (5s) to trigger fallback
-        sqlx::query("SET statement_timeout = '4s'")
+        // Set statement timeout to 30 seconds to allow complex graph queries to complete
+        // Application-level timeouts (5s) will trigger fallback before this for most cases
+        sqlx::query("SET statement_timeout = '30s'")
             .execute(&mut *conn)
             .await
             .map_err(|e| {
