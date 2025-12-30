@@ -6,6 +6,28 @@ import { create } from "zustand";
 
 export type ColorMode = "entity-type" | "community";
 
+// Streaming progress phase
+export type StreamingPhase =
+  | "idle"
+  | "connecting"
+  | "metadata"
+  | "nodes"
+  | "edges"
+  | "complete"
+  | "error";
+
+// Streaming progress state
+export interface StreamingProgress {
+  phase: StreamingPhase;
+  totalNodes: number;
+  nodesLoaded: number;
+  batchNumber: number;
+  totalBatches: number;
+  edgesLoaded: number;
+  durationMs: number;
+  errorMessage?: string;
+}
+
 // Bookmark type for saving graph views
 export interface GraphBookmark {
   id: string;
@@ -83,6 +105,10 @@ interface GraphState {
   isTruncated: boolean;
   totalNodesInStorage: number;
   totalEdgesInStorage: number;
+
+  // Streaming state for progressive loading
+  useStreaming: boolean;
+  streamingProgress: StreamingProgress;
 }
 
 interface GraphActions {
@@ -154,6 +180,12 @@ interface GraphActions {
     totalNodes: number,
     totalEdges: number
   ) => void;
+
+  // Streaming actions for progressive loading
+  setUseStreaming: (enabled: boolean) => void;
+  setStreamingProgress: (progress: Partial<StreamingProgress>) => void;
+  resetStreamingProgress: () => void;
+  clearGraphForStreaming: () => void;
 }
 
 type GraphStore = GraphState & GraphActions;
@@ -197,6 +229,17 @@ const initialState: GraphState = {
   isTruncated: false,
   totalNodesInStorage: 0,
   totalEdgesInStorage: 0,
+  // Streaming enabled - backend SSE verified working
+  useStreaming: true,
+  streamingProgress: {
+    phase: "idle",
+    totalNodes: 0,
+    nodesLoaded: 0,
+    batchNumber: 0,
+    totalBatches: 0,
+    edgesLoaded: 0,
+    durationMs: 0,
+  },
 };
 
 // Load bookmarks from localStorage
@@ -750,6 +793,55 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
       isTruncated,
       totalNodesInStorage: totalNodes,
       totalEdgesInStorage: totalEdges,
+    });
+  },
+
+  // Streaming actions for progressive loading
+  setUseStreaming: (enabled: boolean) => {
+    try {
+      localStorage.setItem("graph-use-streaming", String(enabled));
+    } catch (e) {
+      console.warn("Failed to save streaming preference to localStorage:", e);
+    }
+    set({ useStreaming: enabled });
+  },
+
+  setStreamingProgress: (progress: Partial<StreamingProgress>) => {
+    set((state) => ({
+      streamingProgress: {
+        ...state.streamingProgress,
+        ...progress,
+      },
+    }));
+  },
+
+  resetStreamingProgress: () => {
+    set({
+      streamingProgress: {
+        phase: "idle",
+        totalNodes: 0,
+        nodesLoaded: 0,
+        batchNumber: 0,
+        totalBatches: 0,
+        edgesLoaded: 0,
+        durationMs: 0,
+        errorMessage: undefined,
+      },
+    });
+  },
+
+  clearGraphForStreaming: () => {
+    // Clear existing graph data while preserving filter settings for streaming
+    set({
+      nodes: [],
+      edges: [],
+      nodeMap: new Map(),
+      edgeMap: new Map(),
+      nodesByType: new Map(),
+      edgesBySource: new Map(),
+      edgesByTarget: new Map(),
+      // Keep the visibleEntityTypes and visibleRelationshipTypes
+      // They will be rebuilt as streaming data arrives
     });
   },
 }));

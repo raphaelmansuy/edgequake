@@ -11,7 +11,7 @@ import forceAtlas2 from 'graphology-layout-forceatlas2';
 import circular from 'graphology-layout/circular';
 import random from 'graphology-layout/random';
 import { useTheme } from 'next-themes';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import Sigma from 'sigma';
 import { animateNodes } from 'sigma/utils';
 
@@ -59,9 +59,17 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
   const previousLayoutRef = useRef<string | null>(null);
   const setSigmaInstance = useGraphStore((s) => s.setSigmaInstance);
   const colorMode = useGraphStore((s) => s.colorMode);
+  const streamingProgress = useGraphStore((s) => s.streamingProgress);
+  const useStreaming = useGraphStore((s) => s.useStreaming);
   const { graphSettings } = useSettingsStore();
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
+  
+  // Track previous node/edge counts for incremental updates
+  const prevNodesCountRef = useRef(0);
+  const prevEdgesCountRef = useRef(0);
+  const pendingLayoutUpdateRef = useRef(false);
+  const layoutUpdateTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Get settings with defaults
   const showLabels = graphSettings.showLabels ?? true;
@@ -71,6 +79,103 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
   const hideUnselectedEdges = graphSettings.hideUnselectedEdges ?? false;
   const nodeSize = NODE_SIZES[graphSettings.nodeSize] ?? NODE_SIZES.medium;
   const layout = graphSettings.layout ?? 'force';
+  
+  // Check if currently streaming
+  const isActivelyStreaming = useStreaming && 
+    (streamingProgress.phase === 'nodes' || streamingProgress.phase === 'edges' || streamingProgress.phase === 'metadata');
+  
+  // Memoize node and edge sets for efficient diffing
+  const nodeIdSet = useMemo(() => new Set(nodes.map(n => n.id)), [nodes]);
+  const edgeIdSet = useMemo(() => {
+    const set = new Set<string>();
+    edges.forEach(e => set.add(`${e.source}-${e.target}-${e.relationship_type}`));
+    return set;
+  }, [edges]);
+
+  // Function to add nodes to existing graph (for streaming)
+  const addNodesToGraph = useCallback((graph: Graph, newNodes: GraphNode[]) => {
+    const borderColor = isDark ? '#374151' : '#ffffff';
+    const existingNodeCount = graph.order;
+    
+    newNodes.forEach((node, index) => {
+      if (graph.hasNode(node.id)) return; // Skip existing nodes
+      
+      // Position new nodes in a spiral pattern from existing nodes
+      const angle = (2 * Math.PI * (existingNodeCount + index)) / Math.max(existingNodeCount + newNodes.length, 1);
+      const radius = 100 + (existingNodeCount * 2);
+      
+      graph.addNode(node.id, {
+        label: node.label,
+        x: Math.cos(angle) * radius,
+        y: Math.sin(angle) * radius,
+        size: nodeSize,
+        color: getNodeColor(node.node_type),
+        borderColor: borderColor,
+        borderSize: 0.15,
+        entityType: node.node_type,
+        description: node.description,
+      });
+    });
+  }, [isDark, nodeSize]);
+  
+  // Function to add edges to existing graph (for streaming)
+  const addEdgesToGraph = useCallback((graph: Graph, newEdges: GraphEdge[]) => {
+    newEdges.forEach((edge) => {
+      if (!graph.hasNode(edge.source) || !graph.hasNode(edge.target)) return;
+      
+      const edgeId = `${edge.source}-${edge.target}-${edge.relationship_type}`;
+      if (graph.hasEdge(edgeId)) return; // Skip existing edges
+      
+      try {
+        graph.addEdgeWithKey(edgeId, edge.source, edge.target, {
+          label: edge.relationship_type,
+          size: Math.max(1, Math.min(edge.weight * 2, 5)),
+          color: isDark ? '#4b5563' : '#94a3b8',
+          type: 'curvedArrow',
+          curvature: 0.25,
+        });
+      } catch {
+        // Edge already exists or invalid
+      }
+    });
+  }, [isDark]);
+  
+  // Debounced layout update for streaming
+  const scheduleLayoutUpdate = useCallback(() => {
+    if (layoutUpdateTimerRef.current) {
+      clearTimeout(layoutUpdateTimerRef.current);
+    }
+    
+    pendingLayoutUpdateRef.current = true;
+    
+    // Delay layout update to batch multiple node additions
+    layoutUpdateTimerRef.current = setTimeout(() => {
+      const graph = graphRef.current;
+      const sigma = sigmaRef.current;
+      
+      if (!graph || !sigma || graph.order === 0) return;
+      
+      // Apply incremental force layout for new nodes only
+      try {
+        forceAtlas2.assign(graph, {
+          iterations: 50, // Fewer iterations for streaming updates
+          settings: {
+            gravity: 1,
+            scalingRatio: 2,
+            strongGravityMode: true,
+            barnesHutOptimize: graph.order > 100,
+            slowDown: 2, // Slower convergence for smoother animation
+          },
+        });
+        
+        sigma.refresh();
+      } catch (e) {
+        console.warn('Layout update failed:', e);
+      }
+      
+      pendingLayoutUpdateRef.current = false;
+    }, 100); // 100ms debounce
+  }, []);
 
   const initializeGraph = useCallback(() => {
     if (!containerRef.current || nodes.length === 0) return;
@@ -426,6 +531,62 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
     
     previousLayoutRef.current = layout;
   }, [layout]);
+  
+  // Incremental update for streaming - add new nodes/edges without full re-render
+  useEffect(() => {
+    const graph = graphRef.current;
+    const sigma = sigmaRef.current;
+    
+    // Skip if no graph/sigma, or if this is the initial render
+    if (!graph || !sigma) return;
+    
+    // Check if we're in streaming mode and there are new nodes
+    const currentNodeCount = nodes.length;
+    const currentEdgeCount = edges.length;
+    const prevNodeCount = prevNodesCountRef.current;
+    const prevEdgeCount = prevEdgesCountRef.current;
+    
+    // Only do incremental updates during active streaming
+    if (!isActivelyStreaming) {
+      prevNodesCountRef.current = currentNodeCount;
+      prevEdgesCountRef.current = currentEdgeCount;
+      return;
+    }
+    
+    // Check for new nodes
+    if (currentNodeCount > prevNodeCount) {
+      const newNodes = nodes.filter(n => !graph.hasNode(n.id));
+      if (newNodes.length > 0) {
+        addNodesToGraph(graph, newNodes);
+        scheduleLayoutUpdate();
+        sigma.refresh();
+      }
+    }
+    
+    // Check for new edges
+    if (currentEdgeCount > prevEdgeCount) {
+      const newEdges = edges.filter(e => {
+        const edgeId = `${e.source}-${e.target}-${e.relationship_type}`;
+        return !graph.hasEdge(edgeId) && graph.hasNode(e.source) && graph.hasNode(e.target);
+      });
+      if (newEdges.length > 0) {
+        addEdgesToGraph(graph, newEdges);
+        sigma.refresh();
+      }
+    }
+    
+    prevNodesCountRef.current = currentNodeCount;
+    prevEdgesCountRef.current = currentEdgeCount;
+  }, [nodes, edges, isActivelyStreaming, addNodesToGraph, addEdgesToGraph, scheduleLayoutUpdate]);
+  
+  // Cleanup layout update timer on unmount
+  useEffect(() => {
+    return () => {
+      if (layoutUpdateTimerRef.current) {
+        clearTimeout(layoutUpdateTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const cleanup = initializeGraph();

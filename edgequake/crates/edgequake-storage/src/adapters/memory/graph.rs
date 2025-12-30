@@ -132,6 +132,20 @@ impl GraphStorage for MemoryGraphStorage {
         Ok(adjacency.get(node_id).map(|n| n.len()).unwrap_or(0))
     }
 
+    async fn node_degrees_batch(&self, node_ids: &[String]) -> Result<Vec<(String, usize)>> {
+        let adjacency = self.adjacency.read().map_err(|e| {
+            StorageError::Database(format!("Lock error: {}", e))
+        })?;
+
+        Ok(node_ids
+            .iter()
+            .map(|id| {
+                let degree = adjacency.get(id).map(|n| n.len()).unwrap_or(0);
+                (id.clone(), degree)
+            })
+            .collect())
+    }
+
     async fn get_all_nodes(&self) -> Result<Vec<GraphNode>> {
         let nodes = self.nodes.read().map_err(|e| {
             StorageError::Database(format!("Lock error: {}", e))

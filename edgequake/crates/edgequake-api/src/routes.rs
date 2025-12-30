@@ -180,6 +180,7 @@ fn api_v1_routes() -> Router<AppState> {
         .route("/graph/nodes/{node_id}", get(handlers::get_node))
         .route("/graph/labels/search", get(handlers::search_labels))
         .route("/graph/labels/popular", get(handlers::get_popular_labels))
+        .route("/graph/degrees/batch", post(handlers::get_degrees_batch))
         // Entities (Phase 2)
         .route("/graph/entities", post(handlers::create_entity))
         .route("/graph/entities/exists", get(handlers::entity_exists))

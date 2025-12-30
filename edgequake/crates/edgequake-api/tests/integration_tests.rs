@@ -343,6 +343,136 @@ async fn test_graph_labels_search() {
     assert_eq!(response.status(), StatusCode::OK);
 }
 
+#[tokio::test]
+async fn test_graph_degrees_batch_empty() {
+    let server = create_test_server();
+    let app = server.build_router();
+
+    let request_body = serde_json::json!({
+        "node_ids": []
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/graph/degrees/batch")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request_body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), 1024 * 1024)
+        .await
+        .unwrap();
+    let result: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    
+    assert_eq!(result["count"], 0);
+    assert_eq!(result["degrees"].as_array().unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn test_graph_degrees_batch_nonexistent_nodes() {
+    let server = create_test_server();
+    let app = server.build_router();
+
+    let request_body = serde_json::json!({
+        "node_ids": ["NONEXISTENT_1", "NONEXISTENT_2", "NONEXISTENT_3"]
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/graph/degrees/batch")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request_body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), 1024 * 1024)
+        .await
+        .unwrap();
+    let result: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    
+    // Should return zero degrees for non-existent nodes
+    assert_eq!(result["count"], 3);
+    let degrees = result["degrees"].as_array().unwrap();
+    assert_eq!(degrees.len(), 3);
+    
+    // All should have degree 0
+    for degree_obj in degrees {
+        assert_eq!(degree_obj["degree"], 0);
+    }
+}
+
+#[tokio::test]
+async fn test_graph_popular_labels_optimized() {
+    let server = create_test_server();
+    let app = server.build_router();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/graph/labels/popular?limit=10")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), 1024 * 1024)
+        .await
+        .unwrap();
+    let result: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    
+    assert!(result["labels"].is_array());
+    assert!(result["total_entities"].is_number());
+}
+
+#[tokio::test]
+async fn test_graph_popular_labels_with_filters() {
+    let server = create_test_server();
+    let app = server.build_router();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/graph/labels/popular?limit=5&min_degree=2&entity_type=person")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), 1024 * 1024)
+        .await
+        .unwrap();
+    let result: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    
+    let labels = result["labels"].as_array().unwrap();
+    
+    // Verify all returned labels have degree >= 2
+    for label in labels {
+        let degree = label["degree"].as_u64().unwrap();
+        assert!(degree >= 2, "All labels should have degree >= 2");
+    }
+}
+
 // ============ OpenAPI/Swagger Tests ============
 
 #[tokio::test]

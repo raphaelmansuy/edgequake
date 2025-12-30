@@ -53,6 +53,10 @@ harness = false
 name = "storage_bench"
 harness = false
 
+[[bench]]
+name = "graph_performance"
+harness = false
+
 [features]
 default = ["postgres"]
 postgres = ["edgequake-api/postgres", "edgequake-storage/postgres"]

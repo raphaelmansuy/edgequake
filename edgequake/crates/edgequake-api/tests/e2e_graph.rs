@@ -370,3 +370,226 @@ async fn test_graph_traversal() {
     assert!(body.get("edges").is_some());
     assert!(body.get("is_truncated").is_some());
 }
+// ============================================================================
+// SOTA Batch Operations E2E Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_degrees_batch_e2e() {
+    let server = create_test_server();
+
+    // Upload document to create nodes
+    upload_document(
+        &server,
+        "Alice works with Bob. Bob collaborates with Charlie. \
+         Charlie leads the project team with Alice."
+    )
+    .await;
+
+    // Give time for processing
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+    // Request degrees for multiple nodes
+    let request_body = json!({
+        "node_ids": ["ALICE", "BOB", "CHARLIE", "NONEXISTENT"]
+    });
+
+    let app = server.build_router();
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/graph/degrees/batch")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request_body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = extract_json(response).await;
+    
+    // Verify response structure
+    assert!(body.get("degrees").is_some());
+    assert!(body.get("count").is_some());
+    
+    let degrees = body["degrees"].as_array().unwrap();
+    assert_eq!(degrees.len(), 4, "Should return degrees for all requested nodes");
+    
+    // Verify each degree has node_id and degree fields
+    for degree_obj in degrees {
+        assert!(degree_obj.get("node_id").is_some());
+        assert!(degree_obj.get("degree").is_some());
+        assert!(degree_obj["degree"].is_number());
+    }
+}
+
+#[tokio::test]
+async fn test_degrees_batch_performance_e2e() {
+    let server = create_test_server();
+
+    // Upload document to create many nodes
+    upload_document(
+        &server,
+        "Alice, Bob, Charlie, David, Eve, Frank, Grace, Henry, Ivy, Jack, \
+         Kate, Leo, Mary, Nancy, Oscar, Paul, Quinn, Rachel, Steve, Tom, \
+         Uma, Victor, Wendy, Xavier, Yara, Zoe all work together on projects."
+    )
+    .await;
+
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+    // Create list of 20 node IDs
+    let node_ids: Vec<String> = vec![
+        "ALICE", "BOB", "CHARLIE", "DAVID", "EVE", "FRANK", "GRACE", "HENRY",
+        "IVY", "JACK", "KATE", "LEO", "MARY", "NANCY", "OSCAR", "PAUL",
+        "QUINN", "RACHEL", "STEVE", "TOM"
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+
+    let request_body = json!({
+        "node_ids": node_ids
+    });
+
+    let start = std::time::Instant::now();
+    
+    let app = server.build_router();
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/graph/degrees/batch")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request_body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let elapsed = start.elapsed();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = extract_json(response).await;
+    let degrees = body["degrees"].as_array().unwrap();
+    assert_eq!(degrees.len(), 20, "Should return all 20 degrees");
+
+    // Performance assertion: batch query should complete in <500ms
+    assert!(
+        elapsed.as_millis() < 500,
+        "Batch query for 20 nodes should complete in <500ms (was {}ms)",
+        elapsed.as_millis()
+    );
+}
+
+#[tokio::test]
+async fn test_popular_labels_optimized_e2e() {
+    let server = create_test_server();
+
+    // Upload document with entities
+    upload_document(
+        &server,
+        "Sarah Chen is a software engineer at Microsoft. \
+         She works with John Smith and Alice Johnson. \
+         They collaborate on Azure and cloud computing projects."
+    )
+    .await;
+
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+    let app = server.build_router();
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/graph/labels/popular?limit=10")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = extract_json(response).await;
+    
+    assert!(body.get("labels").is_some());
+    assert!(body.get("total_entities").is_some());
+    
+    let labels = body["labels"].as_array().unwrap();
+    
+    // Verify labels are sorted by degree (descending)
+    for i in 1..labels.len() {
+        let prev_degree = labels[i - 1]["degree"].as_u64().unwrap();
+        let curr_degree = labels[i]["degree"].as_u64().unwrap();
+        assert!(
+            prev_degree >= curr_degree,
+            "Labels should be sorted by degree descending"
+        );
+    }
+    
+    // Verify each label has required fields
+    for label in labels {
+        assert!(label.get("label").is_some());
+        assert!(label.get("entity_type").is_some());
+        assert!(label.get("degree").is_some());
+        assert!(label.get("description").is_some());
+    }
+}
+
+#[tokio::test]
+async fn test_search_labels_fuzzy_e2e() {
+    let server = create_test_server();
+
+    // Upload document with entities
+    upload_document(
+        &server,
+        "Sarah Chen works on machine learning. \
+         Machine learning models require training data."
+    )
+    .await;
+
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+    // Test 1: Exact match
+    let app1 = server.build_router();
+    let response = app1
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/graph/labels/search?q=SARAH&limit=10")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = extract_json(response).await;
+    
+    // Just verify structure (entity extraction depends on LLM)
+    assert!(body["labels"].is_array());
+    
+    // Test 2: Prefix match
+    let app2 = server.build_router();
+    let response = app2
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/graph/labels/search?q=MACH&limit=10")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = extract_json(response).await;
+    
+    // Verify response structure
+    assert!(body["labels"].is_array());
+}

@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/sheet';
 import { useGraphExpansion } from '@/hooks/use-graph-expansion';
 import { useGraphKeyboardNavigation } from '@/hooks/use-graph-keyboard-navigation';
+import { useGraphStream } from '@/hooks/use-graph-stream';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { getGraph } from '@/lib/api/edgequake';
 import { focusCameraOnNode } from '@/lib/graph/camera-utils';
@@ -39,6 +40,7 @@ import { LayoutControl } from './layout-control';
 import { LayoutController } from './layout-controller';
 import { NodeContextMenu, useNodeContextMenu } from './node-context-menu';
 import { NodeDetails } from './node-details';
+import { StreamingIndicator, StreamingProgressBar } from './streaming-indicator';
 import { TimeFilter } from './time-filter';
 import { TruncationBanner, TruncationIndicator } from './truncation-banner';
 import { ZoomControls } from './zoom-controls';
@@ -121,6 +123,76 @@ export function GraphViewer() {
   const startNode = useGraphStore((s) => s.startNode);
   const setStartNode = useGraphStore((s) => s.setStartNode);
   const setTruncationInfo = useGraphStore((s) => s.setTruncationInfo);
+  
+  // Streaming state for progressive loading
+  const useStreaming = useGraphStore((s) => s.useStreaming);
+  const addNodesToGraph = useGraphStore((s) => s.addNodesToGraph);
+  const clearGraphForStreaming = useGraphStore((s) => s.clearGraphForStreaming);
+  const setStreamingProgress = useGraphStore((s) => s.setStreamingProgress);
+  const resetStreamingProgress = useGraphStore((s) => s.resetStreamingProgress);
+  
+  // Streaming hook for progressive graph loading
+  const {
+    nodes: streamedNodes,
+    edges: streamedEdges,
+    progress: streamingProgress,
+    error: streamingError,
+    isStreaming,
+    startStream,
+    cancel: cancelStream,
+    reset: resetStream,
+  } = useGraphStream({
+    enabled: false, // Manual control - don't auto-start
+    maxNodes,
+    startNode: startNode || undefined,
+    onMetadata: (metadata) => {
+      // Clear existing graph when new streaming starts
+      clearGraphForStreaming();
+      setStreamingProgress({
+        phase: 'metadata',
+        totalNodes: metadata.nodes_to_stream,
+        totalBatches: Math.ceil(metadata.nodes_to_stream / 50), // Default batch size
+      });
+    },
+    onNodesBatch: (nodes, batchNumber, totalBatches) => {
+      // Progressively add nodes to graph
+      addNodesToGraph(nodes, []);
+      setStreamingProgress({
+        phase: 'nodes',
+        nodesLoaded: streamedNodes.length + nodes.length,
+        batchNumber,
+        totalBatches,
+      });
+    },
+    onEdges: (edges) => {
+      // Add all edges at once
+      addNodesToGraph([], edges);
+      setStreamingProgress({
+        phase: 'edges',
+        edgesLoaded: edges.length,
+      });
+    },
+    onComplete: (stats) => {
+      setStreamingProgress({
+        phase: 'complete',
+        durationMs: stats.duration_ms,
+        nodesLoaded: stats.nodes_count,
+        edgesLoaded: stats.edges_count,
+      });
+      setTruncationInfo(
+        stats.nodes_count < maxNodes, // Assume truncated if less than max
+        stats.nodes_count,
+        stats.edges_count
+      );
+    },
+    onError: (error) => {
+      setStreamingProgress({
+        phase: 'error',
+        errorMessage: error.message,
+      });
+      toast.error(`Failed to load graph: ${error.message}`);
+    },
+  });
 
   // Enable keyboard navigation for graph
   useGraphKeyboardNavigation({
@@ -133,7 +205,8 @@ export function GraphViewer() {
     },
   });
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  // Standard query for non-streaming mode (fallback)
+  const { data, isLoading: isQueryLoading, isError, error, refetch } = useQuery({
     queryKey: ['graph', selectedTenantId, selectedWorkspaceId, maxNodes, depth, startNode],
     queryFn: () => getGraph({ 
       maxNodes,
@@ -142,10 +215,44 @@ export function GraphViewer() {
     }),
     staleTime: 5 * 60 * 1000, // 5 minutes - longer cache for better perf
     refetchOnWindowFocus: false, // Disable auto-refetch for better performance
+    enabled: !useStreaming, // Disable when streaming is enabled
   });
 
+  // Combined loading state
+  const isLoading = useStreaming ? isStreaming : isQueryLoading;
+  
+  // Start streaming when in streaming mode
   useEffect(() => {
-    if (data) {
+    if (useStreaming) {
+      resetStreamingProgress();
+      startStream();
+    }
+    
+    // Cleanup: cancel stream on unmount or when switching modes
+    return () => {
+      if (useStreaming) {
+        cancelStream();
+      }
+    };
+    // Only re-run when these key params change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useStreaming, selectedTenantId, selectedWorkspaceId, maxNodes, startNode]);
+
+  // Handle refetch for both modes
+  const handleRefetch = useCallback(() => {
+    if (useStreaming) {
+      cancelStream();
+      resetStreamingProgress();
+      clearGraphForStreaming();
+      startStream();
+    } else {
+      refetch();
+    }
+  }, [useStreaming, cancelStream, resetStreamingProgress, clearGraphForStreaming, startStream, refetch]);
+
+  // Set graph data from non-streaming query (when streaming is disabled)
+  useEffect(() => {
+    if (data && !useStreaming) {
       setGraph(data);
       // Update truncation info from server response
       setTruncationInfo(
@@ -154,7 +261,7 @@ export function GraphViewer() {
         data.total_edges ?? data.edges.length
       );
     }
-  }, [data, setGraph, setTruncationInfo]);
+  }, [data, setGraph, setTruncationInfo, useStreaming]);
 
   useEffect(() => {
     setLoading(isLoading);
@@ -241,15 +348,21 @@ export function GraphViewer() {
 
   const selectedNode = allNodes.find((n) => n.id === selectedNodeId);
 
-  if (isError) {
+  // Combine error states from both streaming and non-streaming modes
+  const hasError = isError || (streamingError && !isStreaming);
+  const errorMessage = error instanceof Error 
+    ? error.message 
+    : streamingError?.message || 'Failed to load knowledge graph';
+
+  if (hasError && allNodes.length === 0) {
     return (
       <div className="p-6">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Error loading graph</AlertTitle>
           <AlertDescription>
-            {error instanceof Error ? error.message : 'Failed to load knowledge graph'}
-            <Button variant="link" className="ml-2 p-0" onClick={() => refetch()}>
+            {errorMessage}
+            <Button variant="link" className="ml-2 p-0" onClick={handleRefetch}>
               Try again
             </Button>
           </AlertDescription>
@@ -319,7 +432,7 @@ export function GraphViewer() {
             {!isMobile && <div data-tour="keyboard-help"><KeyboardShortcutsHelp /></div>}
             {!isMobile && <GraphTourTrigger />}
             {!isMobile && <div className="w-px h-5 bg-border mx-1" />}
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => refetch()} title="Refresh">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleRefetch} title="Refresh">
               <RefreshCw className="h-3.5 w-3.5" />
             </Button>
             {!isMobile && (
@@ -401,8 +514,23 @@ export function GraphViewer() {
                 isLoading={isLoading}
               />
               
-              {/* Loading Overlay */}
-              {isLoading && allNodes.length > 0 && (
+              {/* Streaming Progress Indicator - Shows during progressive loading */}
+              {useStreaming && isStreaming && (
+                <>
+                  <StreamingProgressBar 
+                    progress={streamingProgress}
+                    className="absolute top-0 left-0 right-0 z-20"
+                  />
+                  <StreamingIndicator 
+                    progress={streamingProgress}
+                    className="absolute top-4 left-1/2 -translate-x-1/2 z-20"
+                    compact={isMobile}
+                  />
+                </>
+              )}
+              
+              {/* Loading Overlay - Only for non-streaming refetch */}
+              {isLoading && !useStreaming && allNodes.length > 0 && (
                 <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-sm z-10">
                   <div className="text-center">
                     <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />

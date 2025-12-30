@@ -404,6 +404,112 @@ export async function getPopularLabels(options?: {
 }
 
 // ============================================================================
+// Graph Streaming (SSE)
+// ============================================================================
+
+/**
+ * Metadata sent at the start of graph streaming.
+ */
+export interface GraphStreamMetadata {
+  total_nodes: number;
+  total_edges: number;
+  nodes_to_stream: number;
+  edges_to_stream: number;
+}
+
+/**
+ * Statistics sent at the end of graph streaming.
+ */
+export interface GraphStreamStats {
+  nodes_count: number;
+  edges_count: number;
+  duration_ms: number;
+}
+
+/**
+ * SSE events emitted during graph streaming.
+ * Events are sent in order: metadata → nodes (batches) → edges → done
+ */
+export type GraphStreamEvent =
+  | {
+      type: "metadata";
+      total_nodes: number;
+      total_edges: number;
+      nodes_to_stream: number;
+      edges_to_stream: number;
+    }
+  | { type: "nodes"; batch: number; total_batches: number; nodes: GraphNode[] }
+  | { type: "edges"; edges: GraphEdge[] }
+  | {
+      type: "done";
+      nodes_count: number;
+      edges_count: number;
+      duration_ms: number;
+    }
+  | { type: "error"; message: string };
+
+/**
+ * Options for streaming graph fetch.
+ */
+export interface GetGraphStreamOptions {
+  /** Maximum nodes to stream (default: 200) */
+  maxNodes?: number;
+  /** Nodes per batch (default: 50) */
+  batchSize?: number;
+  /** Focus on specific node neighborhood */
+  startNode?: string;
+}
+
+/**
+ * Stream graph data progressively via SSE.
+ *
+ * This function yields events as they arrive from the server:
+ * 1. `metadata` - Initial graph statistics
+ * 2. `nodes` - Multiple batches of nodes (batch_size per event)
+ * 3. `edges` - Edges between streamed nodes
+ * 4. `done` - Completion summary with timing
+ *
+ * @example
+ * ```typescript
+ * for await (const event of graphStream({ maxNodes: 200 })) {
+ *   switch (event.type) {
+ *     case 'metadata':
+ *       console.log(`Streaming ${event.nodes_to_stream} nodes`);
+ *       break;
+ *     case 'nodes':
+ *       console.log(`Batch ${event.batch}/${event.total_batches}`);
+ *       addNodesToGraph(event.nodes);
+ *       break;
+ *     case 'edges':
+ *       setEdges(event.edges);
+ *       break;
+ *     case 'done':
+ *       console.log(`Completed in ${event.duration_ms}ms`);
+ *       break;
+ *   }
+ * }
+ * ```
+ */
+export async function* graphStream(
+  options?: GetGraphStreamOptions
+): AsyncGenerator<GraphStreamEvent, void, unknown> {
+  const searchParams = new URLSearchParams();
+  if (options?.maxNodes)
+    searchParams.set("max_nodes", String(options.maxNodes));
+  if (options?.batchSize)
+    searchParams.set("batch_size", String(options.batchSize));
+  if (options?.startNode) searchParams.set("start_node", options.startNode);
+
+  const query = searchParams.toString();
+  yield* streamClient<GraphStreamEvent>(
+    `/graph/stream${query ? `?${query}` : ""}`,
+    {
+      method: "GET",
+    }
+  );
+}
+
+// ============================================================================
 // Entities
 // ============================================================================
 
@@ -844,6 +950,7 @@ export const edgequakeApi = {
   getGraphStats,
   searchLabels,
   getPopularLabels,
+  graphStream,
 
   // Entities
   getEntities,

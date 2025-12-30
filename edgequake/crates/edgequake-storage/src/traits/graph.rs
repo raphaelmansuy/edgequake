@@ -200,6 +200,28 @@ pub trait GraphStorage: Send + Sync {
     /// Get the degree (number of edges) of a node.
     async fn node_degree(&self, node_id: &str) -> Result<usize>;
 
+    /// Get degrees for multiple nodes in a single query (batch operation).
+    ///
+    /// This is significantly more efficient than calling `node_degree` multiple times.
+    /// Default implementation calls `node_degree` sequentially (N queries).
+    /// Implementations should override for performance (1 query with IN clause).
+    ///
+    /// # Arguments
+    ///
+    /// * `node_ids` - List of node IDs to query
+    ///
+    /// # Returns
+    ///
+    /// Vector of (node_id, degree) tuples in unspecified order
+    async fn node_degrees_batch(&self, node_ids: &[String]) -> Result<Vec<(String, usize)>> {
+        let mut results = Vec::new();
+        for node_id in node_ids {
+            let degree = self.node_degree(node_id).await?;
+            results.push((node_id.clone(), degree));
+        }
+        Ok(results)
+    }
+
     /// Get all nodes.
     async fn get_all_nodes(&self) -> Result<Vec<GraphNode>>;
 
