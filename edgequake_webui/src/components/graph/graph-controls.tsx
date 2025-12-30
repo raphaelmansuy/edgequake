@@ -81,7 +81,7 @@ export function GraphControls() {
           </div>
           <Select
             value={graphSettings.layout}
-            onValueChange={(value: 'force' | 'circular' | 'random') =>
+            onValueChange={(value: 'force' | 'circular' | 'random' | 'circlepack' | 'noverlaps' | 'force-directed' | 'hierarchical') =>
               setGraphSettings({ layout: value })
             }
           >
@@ -89,9 +89,13 @@ export function GraphControls() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="force">Force-Directed</SelectItem>
+              <SelectItem value="force">ForceAtlas2 (FA2)</SelectItem>
+              <SelectItem value="force-directed">Force-Directed</SelectItem>
               <SelectItem value="circular">Circular</SelectItem>
+              <SelectItem value="circlepack">Circle Pack</SelectItem>
               <SelectItem value="random">Random</SelectItem>
+              <SelectItem value="noverlaps">Noverlaps (Anti-collision)</SelectItem>
+              <SelectItem value="hierarchical">Hierarchical</SelectItem>
             </SelectContent>
           </Select>
         </div>

@@ -6,8 +6,12 @@ import { useGraphStore } from '@/stores/use-graph-store';
 import { useSettingsStore } from '@/stores/use-settings-store';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
 import FA2Layout from 'graphology-layout-forceatlas2/worker';
+import NoverlapLayout from 'graphology-layout-noverlap/worker';
 import circular from 'graphology-layout/circular';
+import circlepack from 'graphology-layout/circlepack';
 import random from 'graphology-layout/random';
+import noverlap from 'graphology-layout-noverlap';
+import forceLayout from 'graphology-layout-force';
 import { Pause, Play, RotateCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -137,8 +141,40 @@ export function LayoutController({ className }: LayoutControllerProps) {
         case 'circular':
           circular.assign(tempGraph);
           break;
+        case 'circlepack':
+          circlepack.assign(tempGraph);
+          break;
         case 'random':
           random.assign(tempGraph);
+          break;
+        case 'noverlaps':
+          noverlap.assign(tempGraph, {
+            maxIterations: 100,
+            settings: {
+              margin: 5,
+              expansion: 1.1,
+              gridSize: 1,
+              ratio: 1,
+              speed: 3,
+            },
+          });
+          break;
+        case 'force-directed':
+          forceLayout.assign(tempGraph, {
+            maxIterations: 100,
+            settings: {
+              attraction: 0.0003,
+              repulsion: 0.02,
+              gravity: 0.02,
+              inertia: 0.4,
+              maxMove: 100,
+            },
+          });
+          break;
+        case 'hierarchical':
+          // Hierarchical layout - tree-like structure
+          // Use circular as fallback for now (proper hierarchical needs custom impl)
+          circular.assign(tempGraph);
           break;
         case 'force':
         default:

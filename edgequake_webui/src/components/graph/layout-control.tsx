@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/tooltip';
 import { useGraphStore } from '@/stores/use-graph-store';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
+import forceLayout from 'graphology-layout-force';
 import noverlap from 'graphology-layout-noverlap';
 import circlepack from 'graphology-layout/circlepack';
 import circular from 'graphology-layout/circular';
@@ -25,7 +26,7 @@ import { useTranslation } from 'react-i18next';
 import { animateNodes } from 'sigma/utils';
 import { toast } from 'sonner';
 
-type LayoutType = 'force' | 'circular' | 'random' | 'noverlap' | 'circlepack';
+type LayoutType = 'force' | 'circular' | 'random' | 'noverlaps' | 'circlepack' | 'force-directed' | 'hierarchical';
 
 export function LayoutControl() {
   const { t } = useTranslation();
@@ -88,7 +89,7 @@ export function LayoutControl() {
             });
             break;
             
-          case 'noverlap':
+          case 'noverlaps':
             // First apply force layout, then remove overlaps
             forceAtlas2.assign(tempGraph, {
               iterations: 50,
@@ -177,7 +178,13 @@ export function LayoutControl() {
           onClick={() => applyLayout('force')}
           className={currentLayout === 'force' ? 'bg-accent' : ''}
         >
-          ⚡ {t('graph.layouts.force', 'Force Directed')}
+          ⚡ {t('graph.layouts.force', 'Force Atlas')}
+        </DropdownMenuItem>
+        <DropdownMenuItem 
+          onClick={() => applyLayout('force-directed')}
+          className={currentLayout === 'force-directed' ? 'bg-accent' : ''}
+        >
+          🔄 {t('graph.layouts.forceDirected', 'Force Directed')}
         </DropdownMenuItem>
         <DropdownMenuItem 
           onClick={() => applyLayout('circular')}
@@ -193,8 +200,8 @@ export function LayoutControl() {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem 
-          onClick={() => applyLayout('noverlap')}
-          className={currentLayout === 'noverlap' ? 'bg-accent' : ''}
+          onClick={() => applyLayout('noverlaps')}
+          className={currentLayout === 'noverlaps' ? 'bg-accent' : ''}
         >
           📐 {t('graph.layouts.noverlap', 'No Overlap')}
         </DropdownMenuItem>
@@ -203,6 +210,12 @@ export function LayoutControl() {
           className={currentLayout === 'circlepack' ? 'bg-accent' : ''}
         >
           🎯 {t('graph.layouts.circlepack', 'Circle Pack')}
+        </DropdownMenuItem>
+        <DropdownMenuItem 
+          onClick={() => applyLayout('hierarchical')}
+          className={currentLayout === 'hierarchical' ? 'bg-accent' : ''}
+        >
+          🌳 {t('graph.layouts.hierarchical', 'Hierarchical')}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -9,7 +9,10 @@ import { NodeBorderProgram } from '@sigma/node-border';
 import Graph from 'graphology';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
 import circular from 'graphology-layout/circular';
+import circlepack from 'graphology-layout/circlepack';
 import random from 'graphology-layout/random';
+import noverlap from 'graphology-layout-noverlap';
+import forceLayout from 'graphology-layout-force';
 import { useTheme } from 'next-themes';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import Sigma from 'sigma';
@@ -257,8 +260,41 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
         case 'circular':
           circular.assign(tempGraph);
           break;
+        case 'circlepack':
+          circlepack.assign(tempGraph);
+          break;
         case 'random':
           random.assign(tempGraph);
+          break;
+        case 'noverlaps':
+          // Apply noverlap to prevent overlaps
+          noverlap.assign(tempGraph, {
+            maxIterations: 100,
+            settings: {
+              margin: 5,
+              expansion: 1.1,
+              gridSize: 1,
+              ratio: 1,
+              speed: 3,
+            },
+          });
+          break;
+        case 'force-directed':
+          // Use synchronous force-directed layout
+          forceLayout.assign(tempGraph, {
+            maxIterations: 100,
+            settings: {
+              attraction: 0.0003,
+              repulsion: 0.02,
+              gravity: 0.02,
+              inertia: 0.4,
+              maxMove: 100,
+            },
+          });
+          break;
+        case 'hierarchical':
+          // Hierarchical layout (using circular as fallback)
+          circular.assign(tempGraph);
           break;
         case 'force':
         default:
@@ -500,8 +536,38 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
       case 'circular':
         circular.assign(tempGraph);
         break;
+      case 'circlepack':
+        circlepack.assign(tempGraph);
+        break;
       case 'random':
         random.assign(tempGraph);
+        break;
+      case 'noverlaps':
+        noverlap.assign(tempGraph, {
+          maxIterations: 100,
+          settings: {
+            margin: 5,
+            expansion: 1.1,
+            gridSize: 1,
+            ratio: 1,
+            speed: 3,
+          },
+        });
+        break;
+      case 'force-directed':
+        forceLayout.assign(tempGraph, {
+          maxIterations: 100,
+          settings: {
+            attraction: 0.0003,
+            repulsion: 0.02,
+            gravity: 0.02,
+            inertia: 0.4,
+            maxMove: 100,
+          },
+        });
+        break;
+      case 'hierarchical':
+        circular.assign(tempGraph);
         break;
       case 'force':
       default:

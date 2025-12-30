@@ -281,15 +281,19 @@ export default function SettingsPage() {
             </div>
             <Select
               value={graphSettings.layout}
-              onValueChange={(layout: 'force' | 'circular' | 'random') => handleGraphSettingsChange('layout', layout)}
+              onValueChange={(layout: 'force' | 'circular' | 'random' | 'circlepack' | 'noverlaps' | 'force-directed' | 'hierarchical') => handleGraphSettingsChange('layout', layout)}
             >
               <SelectTrigger className="w-[150px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="force">Force-Directed</SelectItem>
+                <SelectItem value="force">ForceAtlas2 (FA2)</SelectItem>
+                <SelectItem value="force-directed">Force-Directed</SelectItem>
                 <SelectItem value="circular">Circular</SelectItem>
+                <SelectItem value="circlepack">Circle Pack</SelectItem>
                 <SelectItem value="random">Random</SelectItem>
+                <SelectItem value="noverlaps">Noverlaps</SelectItem>
+                <SelectItem value="hierarchical">Hierarchical</SelectItem>
               </SelectContent>
             </Select>
           </div>
