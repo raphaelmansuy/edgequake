@@ -1,7 +1,6 @@
 //! In-memory key-value storage.
 
 use async_trait::async_trait;
-use serde::{de::DeserializeOwned, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::RwLock;
 

@@ -65,6 +65,7 @@ fn to_title_case(word: &str) -> String {
 }
 
 /// Normalize for comparison (more lenient than storage normalization).
+#[allow(dead_code)]
 pub fn normalize_for_comparison(name: &str) -> String {
     name.trim()
         .to_lowercase()
@@ -74,6 +75,7 @@ pub fn normalize_for_comparison(name: &str) -> String {
 }
 
 /// Check if two entity names are equivalent after normalization.
+#[allow(dead_code)]
 pub fn entities_match(name1: &str, name2: &str) -> bool {
     normalize_entity_name(name1) == normalize_entity_name(name2)
 }

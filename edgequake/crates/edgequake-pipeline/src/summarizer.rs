@@ -165,6 +165,7 @@ where
     }
 
     /// Estimate token count from text (rough approximation).
+    #[allow(dead_code)]
     fn estimate_tokens(&self, text: &str) -> usize {
         // Average ~4 chars per token for English
         text.len() / 4

@@ -1,7 +1,6 @@
 //! Key-value storage trait.
 
 use async_trait::async_trait;
-use serde::{de::DeserializeOwned, Serialize};
 use std::collections::HashSet;
 
 use crate::error::Result;
@@ -120,6 +119,7 @@ pub trait KVStorage: Send + Sync {
 }
 
 /// Extension trait for KV storage with typed access.
+#[allow(dead_code)]
 #[async_trait]
 pub trait KVStorageExt: KVStorage {
     /// Retrieve a single record and deserialize it.

@@ -137,7 +137,7 @@ impl<V: VectorStorage, G: GraphStorage> LocalStrategy<V, G> {
 impl<V: VectorStorage, G: GraphStorage> QueryStrategy for LocalStrategy<V, G> {
     async fn execute(
         &self,
-        query: &str,
+        _query: &str,
         query_embedding: &[f32],
         config: &StrategyConfig,
     ) -> Result<QueryContext> {

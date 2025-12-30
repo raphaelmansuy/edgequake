@@ -218,6 +218,7 @@ struct ChatResponse {
 
 #[derive(Debug, Deserialize)]
 struct ResponseMessage {
+    #[allow(dead_code)]
     role: String,
     content: String,
 }
@@ -226,6 +227,7 @@ struct ResponseMessage {
 struct StreamChunk {
     #[serde(default)]
     message: Option<ResponseMessage>,
+    #[allow(dead_code)]
     done: bool,
 }
 

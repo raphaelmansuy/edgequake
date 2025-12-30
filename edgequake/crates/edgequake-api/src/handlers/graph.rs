@@ -4,7 +4,6 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use edgequake_storage::GraphStorage;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 use utoipa::ToSchema;

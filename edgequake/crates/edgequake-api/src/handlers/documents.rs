@@ -3,7 +3,6 @@
 use axum::{extract::State, Json};
 use axum_extra::extract::Multipart;
 use chrono::Utc;
-use edgequake_storage::KVStorage;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tracing::debug;
