@@ -1,4 +1,5 @@
 -- Migration: Create audit logs table for security monitoring
+SET search_path = public;
 -- Version: V004
 -- Description: Comprehensive audit logging system with partitioning support
 -- Created: 2024-12-29

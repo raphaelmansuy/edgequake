@@ -75,6 +75,8 @@ help: ## Show this help message
 	@echo "  $(GREEN)make db-wait$(RESET)      Wait for database to be ready"
 	@echo "  $(GREEN)make db-logs$(RESET)      View database logs"
 	@echo "  $(GREEN)make db-shell$(RESET)     Open psql shell"
+	@echo "  $(GREEN)make db-clean$(RESET)     Clean all data (non-interactive)"
+	@echo "  $(GREEN)make db-clean-force$(RESET) Destroy and recreate DB container"
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🐳 Docker$(RESET)"
 	@echo "  $(GREEN)make docker-up$(RESET)    Start full stack via Docker"
@@ -334,6 +336,35 @@ db-reset: ## Reset database (WARNING: deletes all data)
 		echo "$(GREEN)✓ Database reset$(RESET)" || \
 		echo "$(YELLOW)Cancelled$(RESET)"
 
+db-clean: ## Clean all data from database (non-interactive, for testing/CI)
+	@echo "$(YELLOW)Cleaning all data from database...$(RESET)"
+	@docker exec edgequake-postgres psql -U edgequake -d edgequake -c "\
+		TRUNCATE TABLE documents CASCADE; \
+		TRUNCATE TABLE chunks CASCADE; \
+		TRUNCATE TABLE entities CASCADE; \
+		TRUNCATE TABLE relationships CASCADE; \
+		TRUNCATE TABLE tasks CASCADE; \
+		TRUNCATE TABLE conversations CASCADE; \
+		TRUNCATE TABLE messages CASCADE; \
+		TRUNCATE TABLE folders CASCADE; \
+		TRUNCATE TABLE tenants CASCADE; \
+		TRUNCATE TABLE workspaces CASCADE; \
+	" 2>/dev/null || echo "$(YELLOW)Some tables may not exist yet$(RESET)"
+	@echo "$(GREEN)✓ Database cleaned$(RESET)"
+
+db-clean-force: ## Force clean database by destroying and recreating container
+	@echo "$(RED)Force cleaning database - destroying container...$(RESET)"
+	@cd $(DOCKER_DIR) && docker compose down -v postgres 2>/dev/null || true
+	@sleep 2
+	@echo "$(YELLOW)→ Recreating database container...$(RESET)"
+	@cd $(DOCKER_DIR) && docker compose up -d postgres
+	@echo "$(YELLOW)→ Waiting for database to be ready...$(RESET)"
+	@sleep 5
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+		docker exec edgequake-postgres pg_isready -U edgequake -d edgequake 2>/dev/null && break || sleep 2; \
+	done
+	@echo "$(GREEN)✓ Database force cleaned and ready$(RESET)"
+
 # ============================================================================
 # Docker (Full Stack)
 # ============================================================================
@@ -381,8 +412,101 @@ build: backend-build frontend-build ## Build all projects
 	@echo "$(GREEN)✓ All projects built$(RESET)"
 
 # ============================================================================
+# PostgreSQL Integration Tests
+# ============================================================================
+
+test-postgres-start: ## Start PostgreSQL test containers
+	@echo "$(BLUE)Starting PostgreSQL test containers...$(RESET)"
+	@cd $(DOCKER_DIR) && docker compose -f docker-compose.test.yml up -d
+	@echo "$(YELLOW)Waiting for databases to be ready...$(RESET)"
+	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do \
+		(docker exec edgequake-postgres-test pg_isready -U edgequake_test -d edgequake_test 2>/dev/null) && break || sleep 2; \
+	done
+	@echo "$(GREEN)✓ PostgreSQL test containers ready$(RESET)"
+
+test-postgres-stop: ## Stop PostgreSQL test containers
+	@echo "$(BLUE)Stopping PostgreSQL test containers...$(RESET)"
+	@cd $(DOCKER_DIR) && docker compose -f docker-compose.test.yml down -v
+	@echo "$(GREEN)✓ PostgreSQL test containers stopped$(RESET)"
+
+test-postgres-storage: test-postgres-start ## Run PostgreSQL storage integration tests
+	@echo "$(BLUE)Running PostgreSQL storage integration tests...$(RESET)"
+	@cd $(BACKEND_DIR) && \
+		POSTGRES_HOST=localhost \
+		POSTGRES_PORT=5433 \
+		POSTGRES_DB=edgequake_test \
+		POSTGRES_USER=edgequake_test \
+		POSTGRES_PASSWORD=test_password_123 \
+		DATABASE_URL="postgresql://edgequake_test:test_password_123@localhost:5433/edgequake_test" \
+		cargo test --package edgequake-storage --test postgres_integration --features postgres -- --test-threads=1
+	@echo "$(GREEN)✓ PostgreSQL storage tests complete$(RESET)"
+
+test-postgres-conversation: test-postgres-start ## Run PostgreSQL conversation integration tests
+	@echo "$(BLUE)Running PostgreSQL conversation integration tests...$(RESET)"
+	@cd $(BACKEND_DIR) && \
+		POSTGRES_HOST=localhost \
+		POSTGRES_PORT=5433 \
+		POSTGRES_DB=edgequake_test \
+		POSTGRES_USER=edgequake_test \
+		POSTGRES_PASSWORD=test_password_123 \
+		DATABASE_URL="postgresql://edgequake_test:test_password_123@localhost:5433/edgequake_test" \
+		cargo test --package edgequake-storage --test postgres_conversation_integration --features postgres -- --test-threads=1
+	@echo "$(GREEN)✓ PostgreSQL conversation tests complete$(RESET)"
+
+test-postgres-workspace: test-postgres-start ## Run PostgreSQL workspace service tests
+	@echo "$(BLUE)Running PostgreSQL workspace service tests...$(RESET)"
+	@cd $(BACKEND_DIR) && \
+		POSTGRES_HOST=localhost \
+		POSTGRES_PORT=5433 \
+		POSTGRES_DB=edgequake_test \
+		POSTGRES_USER=edgequake_test \
+		POSTGRES_PASSWORD=test_password_123 \
+		DATABASE_URL="postgresql://edgequake_test:test_password_123@localhost:5433/edgequake_test" \
+		cargo test --package edgequake-api --test e2e_postgres_workspace --features postgres -- --test-threads=1
+	@echo "$(GREEN)✓ PostgreSQL workspace tests complete$(RESET)"
+
+test-postgres-tasks: test-postgres-start ## Run PostgreSQL task storage tests
+	@echo "$(BLUE)Running PostgreSQL task storage tests...$(RESET)"
+	@cd $(BACKEND_DIR) && \
+		POSTGRES_HOST=localhost \
+		POSTGRES_PORT=5433 \
+		POSTGRES_DB=edgequake_test \
+		POSTGRES_USER=edgequake_test \
+		POSTGRES_PASSWORD=test_password_123 \
+		DATABASE_URL="postgresql://edgequake_test:test_password_123@localhost:5433/edgequake_test" \
+		cargo test --package edgequake-tasks --features postgres -- --test-threads=1
+	@echo "$(GREEN)✓ PostgreSQL task tests complete$(RESET)"
+
+test-postgres-rls: test-postgres-start ## Run PostgreSQL RLS (Row Level Security) tests
+	@echo "$(BLUE)Running PostgreSQL RLS tests...$(RESET)"
+	@cd $(BACKEND_DIR) && \
+		TEST_DATABASE_URL="postgresql://app_user:app_password_123@localhost:5433/edgequake_test" \
+		ADMIN_DATABASE_URL="postgresql://edgequake_test:test_password_123@localhost:5433/edgequake_test" \
+		cargo test --package edgequake-api --test e2e_postgres_rls --features postgres -- --ignored --test-threads=1
+	@echo "$(GREEN)✓ PostgreSQL RLS tests complete$(RESET)"
+
+test-postgres-all: test-postgres-start ## Run ALL PostgreSQL integration tests
+	@echo "$(BOLD)$(BLUE)🧪 Running ALL PostgreSQL Integration Tests$(RESET)"
+	@echo ""
+	@$(MAKE) test-postgres-storage --no-print-directory || true
+	@$(MAKE) test-postgres-conversation --no-print-directory || true
+	@$(MAKE) test-postgres-workspace --no-print-directory || true
+	@$(MAKE) test-postgres-tasks --no-print-directory || true
+	@$(MAKE) test-postgres-rls --no-print-directory || true
+	@echo ""
+	@echo "$(GREEN)✓ All PostgreSQL integration tests completed$(RESET)"
+
+test-postgres-ci: ## Run PostgreSQL tests in CI mode (starts containers, runs tests, stops containers)
+	@echo "$(BOLD)$(BLUE)🤖 Running PostgreSQL CI Tests$(RESET)"
+	@$(MAKE) test-postgres-start --no-print-directory
+	@$(MAKE) test-postgres-all --no-print-directory
+	@$(MAKE) test-postgres-stop --no-print-directory
+	@echo "$(GREEN)✓ PostgreSQL CI tests complete$(RESET)"
+
+# ============================================================================
 # Cleanup
 # ============================================================================
+
 
 clean: ## Clean all build artifacts
 	@echo "$(BLUE)Cleaning build artifacts...$(RESET)"

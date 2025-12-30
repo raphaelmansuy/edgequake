@@ -43,7 +43,7 @@ services:
       - POSTGRES_DB=edgequake
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./init-extensions.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
       - edgequake-network
     healthcheck:

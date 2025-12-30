@@ -299,12 +299,13 @@ pub async fn chat_completion(
     if let Some(ref pool) = state.pg_pool {
         sqlx::query(
             r#"
-            INSERT INTO users (user_id, username, email, password_hash, role, is_active, created_at, updated_at)
-            VALUES ($1, $2, $3, 'anonymous', 'user', TRUE, NOW(), NOW())
+            INSERT INTO users (user_id, tenant_id, username, email, password_hash, role, is_active, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, 'anonymous', 'user', TRUE, NOW(), NOW())
             ON CONFLICT (user_id) DO NOTHING
             "#,
         )
         .bind(user_id)
+        .bind(tenant_id)
         .bind(format!("anon_{}", &user_id.to_string()[..8]))
         .bind(format!("{}@anonymous.local", &user_id.to_string()[..8]))
         .execute(pool)
@@ -524,12 +525,13 @@ pub async fn chat_completion_stream(
     if let Some(ref pool) = state.pg_pool {
         sqlx::query(
             r#"
-            INSERT INTO users (user_id, username, email, password_hash, role, is_active, created_at, updated_at)
-            VALUES ($1, $2, $3, 'anonymous', 'user', TRUE, NOW(), NOW())
+            INSERT INTO users (user_id, tenant_id, username, email, password_hash, role, is_active, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, 'anonymous', 'user', TRUE, NOW(), NOW())
             ON CONFLICT (user_id) DO NOTHING
             "#,
         )
         .bind(user_id)
+        .bind(tenant_id)
         .bind(format!("anon_{}", &user_id.to_string()[..8]))
         .bind(format!("{}@anonymous.local", &user_id.to_string()[..8]))
         .execute(pool)

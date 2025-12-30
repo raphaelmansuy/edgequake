@@ -1,4 +1,5 @@
 -- Migration: 009_add_conversations_tables.sql
+SET search_path = public;
 -- Description: Add conversations, messages, and folders tables for query history persistence
 -- Phase: Query Page Improvement
 -- Date: 2025-01-XX
@@ -162,7 +163,9 @@ CREATE TRIGGER trigger_update_conversation_on_message
     EXECUTE FUNCTION update_conversation_on_message();
 
 -- ============================================================================
--- HELPER FUNCTIONS: Session context functions (MUST be created before RLS policies)
+-- HELPER FUNCTIONS: Session context functions
+-- NOTE: current_user_id() is already created in migration 008
+-- This is kept for idempotency (CREATE OR REPLACE is safe)
 -- ============================================================================
 CREATE OR REPLACE FUNCTION current_user_id()
 RETURNS UUID AS $$
@@ -174,7 +177,7 @@ END;
 $$ LANGUAGE plpgsql STABLE;
 
 -- ============================================================================
--- RLS POLICIES (now that helper functions exist)
+-- RLS POLICIES (helper functions already exist from 008)
 -- ============================================================================
 ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
@@ -218,22 +221,8 @@ CREATE POLICY folders_access ON folders
         AND user_id = current_user_id()
     );
 
--- Update set_tenant_context to also set user_id
--- First drop the old function with the old signature to avoid ambiguity
-DROP FUNCTION IF EXISTS set_tenant_context(UUID, UUID);
-
-CREATE OR REPLACE FUNCTION set_tenant_context(
-    p_tenant_id UUID,
-    p_workspace_id UUID DEFAULT NULL,
-    p_user_id UUID DEFAULT NULL
-)
-RETURNS void AS $$
-BEGIN
-    PERFORM set_config('app.current_tenant_id', COALESCE(p_tenant_id::text, ''), true);
-    PERFORM set_config('app.current_workspace_id', COALESCE(p_workspace_id::text, ''), true);
-    PERFORM set_config('app.current_user_id', COALESCE(p_user_id::text, ''), true);
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+-- NOTE: set_tenant_context is already created with 3 parameters in migration 008
+-- No need to drop and recreate here
 
 -- ============================================================================
 -- Success message

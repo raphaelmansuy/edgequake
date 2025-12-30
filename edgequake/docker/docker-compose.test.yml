@@ -1,45 +1,75 @@
-version: "3.8"
+# ============================================================================
+# EdgeQuake PostgreSQL Integration Test Stack
+# ============================================================================
+#
+# This docker-compose file sets up the test environment for PostgreSQL
+# integration tests. It includes:
+#   - Standard PostgreSQL with pgvector extension
+#   - Apache AGE PostgreSQL for graph database tests
+#   - Proper user setup for RLS testing
+#
+# Usage:
+#   docker-compose -f docker-compose.test.yml up -d
+#   docker-compose -f docker-compose.test.yml down -v
+#
+# Environment:
+#   - POSTGRES_PASSWORD: Password for test database (default: test_password_123)
+#
+# ============================================================================
 
 services:
+  # Standard PostgreSQL with pgvector for KV/Vector storage tests
   postgres-test:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: edgequake-postgres-test
     environment:
       POSTGRES_DB: edgequake_test
       POSTGRES_USER: edgequake_test
-      POSTGRES_PASSWORD: test_password_123
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-test_password_123}
       POSTGRES_HOST_AUTH_METHOD: md5
     ports:
       - "5433:5432" # Use 5433 to avoid conflicts with local postgres
     volumes:
       - postgres_test_data:/var/lib/postgresql/data
-      - ./migrations:/docker-entrypoint-initdb.d
+      - ../migrations:/docker-entrypoint-initdb.d/migrations:ro
+      - ./init-test-db.sh:/docker-entrypoint-initdb.d/00-init-test-db.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U edgequake_test"]
+      test: ["CMD-SHELL", "pg_isready -U edgequake_test -d edgequake_test"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 30s
     networks:
       - edgequake-test
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=100"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "log_statement=all"
 
-  # PostgreSQL with AGE extension for graph database
+  # PostgreSQL with AGE extension for graph database tests
   postgres-age-test:
     image: apache/age:latest
     container_name: edgequake-postgres-age-test
     environment:
       POSTGRES_DB: edgequake_test_age
       POSTGRES_USER: edgequake_test
-      POSTGRES_PASSWORD: test_password_123
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-test_password_123}
     ports:
       - "5434:5432" # Use 5434 for AGE
     volumes:
       - postgres_age_test_data:/var/lib/postgresql/data
-      - ./migrations:/docker-entrypoint-initdb.d
+      - ../migrations:/docker-entrypoint-initdb.d/migrations:ro
+      - ./init-age-db.sh:/docker-entrypoint-initdb.d/00-init-age-db.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U edgequake_test"]
+      test: ["CMD-SHELL", "pg_isready -U edgequake_test -d edgequake_test_age"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 15
+      start_period: 60s
     networks:
       - edgequake-test
 

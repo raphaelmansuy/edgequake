@@ -1,4 +1,5 @@
 -- Migration: 006_add_auth_tables.sql
+SET search_path = public;
 -- Phase 3: Authentication and Authorization tables
 -- Created: 2025-01-21
 

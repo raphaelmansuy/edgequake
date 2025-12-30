@@ -3384,6 +3384,12 @@ mod tests {
             track_id: Some("upload_20240101_abc12345".to_string()),
             created_at: None,
             updated_at: None,
+            cost_usd: None,
+            input_tokens: None,
+            output_tokens: None,
+            total_tokens: None,
+            llm_model: None,
+            embedding_model: None,
         };
 
         let json = serde_json::to_string(&summary).unwrap();
@@ -3407,6 +3413,12 @@ mod tests {
                 track_id: None,
                 created_at: None,
                 updated_at: None,
+                cost_usd: None,
+                input_tokens: None,
+                output_tokens: None,
+                total_tokens: None,
+                llm_model: None,
+                embedding_model: None,
             }],
             total: 1,
             page: 1,
@@ -3501,6 +3513,12 @@ mod tests {
                 track_id: Some("upload_20240101_abc12345".to_string()),
                 created_at: None,
                 updated_at: None,
+                cost_usd: None,
+                input_tokens: None,
+                output_tokens: None,
+                total_tokens: None,
+                llm_model: None,
+                embedding_model: None,
             }],
             total_count: 1,
             status_summary: StatusCounts {

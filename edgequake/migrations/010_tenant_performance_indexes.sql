@@ -1,96 +1,127 @@
 -- Migration: Add tenant isolation performance indexes
+SET search_path = public;
 -- Version: V003
 -- Description: Optimize tenant-filtered queries with strategic indexes
 -- Created: 2024-12-29
--- Updated: 2025-01-27 - Fixed to match actual schema
+-- Updated: 2025-01-28 - Updated to use public schema
+-- Updated: 2025-12-30 - Made idempotent with column checks for compatibility
 
 -- ============================================================================
--- VECTOR STORAGE INDEXES (chunks table)
+-- VECTOR STORAGE INDEXES (chunks table - PUBLIC schema)
 -- ============================================================================
 
 -- Note: Some indexes may already exist from 001_add_tasks_table.sql
 -- Using IF NOT EXISTS to make this idempotent
 
 -- BRIN index for time-series queries (efficient for large tables)
--- Useful for "recent documents" queries within a tenant
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_chunks_created_at_brin') THEN
-        CREATE INDEX idx_chunks_created_at_brin 
-        ON edgequake.chunks USING BRIN(created_at)
-        WITH (pages_per_range = 128);
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'chunks' AND column_name = 'created_at') THEN
+            CREATE INDEX idx_chunks_created_at_brin ON chunks USING BRIN(created_at) WITH (pages_per_range = 128);
+        END IF;
     END IF;
 EXCEPTION WHEN OTHERS THEN
     RAISE NOTICE 'Could not create idx_chunks_created_at_brin: %', SQLERRM;
 END $$;
 
 -- ============================================================================
--- ENTITY AND RELATIONSHIP INDEXES  
+-- ENTITY AND RELATIONSHIP INDEXES (PUBLIC schema) - Only if tenant_id exists
 -- ============================================================================
 
 -- Index for entity type filtering within tenant
-CREATE INDEX IF NOT EXISTS idx_entities_tenant_type
-ON edgequake.entities(tenant_id, entity_type)
-WHERE tenant_id IS NOT NULL;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'entities' AND column_name = 'tenant_id') THEN
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_entities_tenant_type') THEN
+            CREATE INDEX idx_entities_tenant_type ON entities(tenant_id, entity_type) WHERE tenant_id IS NOT NULL;
+        END IF;
+    END IF;
+EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'Could not create idx_entities_tenant_type: %', SQLERRM;
+END $$;
 
 -- Index for relationship type filtering within tenant
-CREATE INDEX IF NOT EXISTS idx_relationships_tenant_type
-ON edgequake.relationships(tenant_id, relation_type)
-WHERE tenant_id IS NOT NULL;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'relationships' AND column_name = 'tenant_id') THEN
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_relationships_tenant_type') THEN
+            CREATE INDEX idx_relationships_tenant_type ON relationships(tenant_id, relation_type) WHERE tenant_id IS NOT NULL;
+        END IF;
+    END IF;
+EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'Could not create idx_relationships_tenant_type: %', SQLERRM;
+END $$;
 
 -- Index for entity search by name within tenant/workspace
-CREATE INDEX IF NOT EXISTS idx_entities_tenant_name_search
-ON edgequake.entities(tenant_id, workspace_id, name)
-WHERE tenant_id IS NOT NULL;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'entities' AND column_name = 'tenant_id') THEN
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_entities_tenant_name_search') THEN
+            CREATE INDEX idx_entities_tenant_name_search ON entities(tenant_id, workspace_id, name) WHERE tenant_id IS NOT NULL;
+        END IF;
+    END IF;
+EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'Could not create idx_entities_tenant_name_search: %', SQLERRM;
+END $$;
 
 -- ============================================================================
--- DOCUMENT METADATA INDEXES
+-- DOCUMENT METADATA INDEXES (PUBLIC schema) - Only if tenant_id exists
 -- ============================================================================
 
 -- Index for document status filtering within tenant
--- Useful for "show all processing documents for tenant X"
-CREATE INDEX IF NOT EXISTS idx_documents_tenant_status
-ON edgequake.documents(tenant_id, status)
-INCLUDE (title, created_at, updated_at)
-WHERE tenant_id IS NOT NULL;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'documents' AND column_name = 'tenant_id') THEN
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_documents_tenant_status') THEN
+            CREATE INDEX idx_documents_tenant_status ON documents(tenant_id, status) INCLUDE (title, created_at, updated_at) WHERE tenant_id IS NOT NULL;
+        END IF;
+    END IF;
+EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'Could not create idx_documents_tenant_status: %', SQLERRM;
+END $$;
 
 -- Index for full-text search within tenant scope
 DO $$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_documents_tenant_title_search') THEN
-        CREATE INDEX idx_documents_tenant_title_search
-        ON edgequake.documents USING GIN (to_tsvector('english', title))
-        WHERE tenant_id IS NOT NULL;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'documents' AND column_name = 'tenant_id') THEN
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_documents_tenant_title_search') THEN
+            CREATE INDEX idx_documents_tenant_title_search ON documents USING GIN (to_tsvector('english', title)) WHERE tenant_id IS NOT NULL;
+        END IF;
     END IF;
 EXCEPTION WHEN OTHERS THEN
     RAISE NOTICE 'Could not create idx_documents_tenant_title_search: %', SQLERRM;
 END $$;
 
 -- ============================================================================
--- AUDIT LOG INDEXES (if audit_logs table exists)
+-- AUDIT LOG INDEXES (public schema - audit_logs table)
 -- ============================================================================
 
--- Composite index for tenant + timestamp queries
--- Enables fast "show audit log for tenant X in last 24 hours"
 DO $$
 BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'edgequake' AND table_name = 'audit_logs') THEN
-        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant_timestamp
-        ON edgequake.audit_logs(tenant_id, timestamp DESC)
-        WHERE tenant_id IS NOT NULL';
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'audit_logs' AND column_name = 'tenant_id') THEN
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_audit_logs_tenant_timestamp_perf') THEN
+            CREATE INDEX idx_audit_logs_tenant_timestamp_perf ON audit_logs(tenant_id, timestamp DESC) WHERE tenant_id IS NOT NULL;
+        END IF;
     END IF;
 EXCEPTION WHEN OTHERS THEN
     RAISE NOTICE 'Could not create audit_logs index: %', SQLERRM;
 END $$;
 
 -- ============================================================================
--- TASK INDEXES
+-- TASK INDEXES (PUBLIC schema) - Only if tenant_id exists
 -- ============================================================================
 
--- Index for task queries within tenant/workspace
-CREATE INDEX IF NOT EXISTS idx_tasks_tenant_workspace_status
-ON edgequake.tasks(tenant_id, workspace_id, status)
-WHERE tenant_id IS NOT NULL;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tasks' AND column_name = 'tenant_id') THEN
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_tasks_tenant_workspace_status') THEN
+            CREATE INDEX idx_tasks_tenant_workspace_status ON tasks(tenant_id, workspace_id, status) WHERE tenant_id IS NOT NULL;
+        END IF;
+    END IF;
+EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'Could not create idx_tasks_tenant_workspace_status: %', SQLERRM;
+END $$;
 
 -- ============================================================================
 -- SUCCESS MESSAGE
@@ -98,8 +129,3 @@ WHERE tenant_id IS NOT NULL;
 DO $$ BEGIN
     RAISE NOTICE 'Migration 010_tenant_performance_indexes completed successfully!';
 END $$;
--- DROP INDEX CONCURRENTLY IF EXISTS idx_documents_tenant_status;
--- DROP INDEX CONCURRENTLY IF EXISTS idx_documents_tenant_title_search;
--- DROP INDEX CONCURRENTLY IF EXISTS idx_audit_logs_tenant_timestamp;
--- DROP INDEX CONCURRENTLY IF EXISTS idx_audit_logs_event_type_timestamp;
--- DROP INDEX CONCURRENTLY IF EXISTS idx_audit_logs_result_timestamp;

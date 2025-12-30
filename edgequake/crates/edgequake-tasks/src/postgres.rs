@@ -39,7 +39,7 @@ impl TaskStorage for PostgresTaskStorage {
     async fn create_task(&self, task: &Task) -> TaskResult<()> {
         sqlx::query(
             r#"
-            INSERT INTO edgequake.tasks (
+            INSERT INTO tasks (
                 track_id, task_type, status, created_at, updated_at,
                 started_at, completed_at, error_message, retry_count,
                 max_retries, task_data, metadata, progress, result
@@ -74,7 +74,7 @@ impl TaskStorage for PostgresTaskStorage {
                 track_id, task_type, status, created_at, updated_at,
                 started_at, completed_at, error_message, retry_count,
                 max_retries, task_data, metadata, progress, result
-            FROM edgequake.tasks
+            FROM tasks
             WHERE track_id = $1
             "#,
         )
@@ -120,7 +120,7 @@ impl TaskStorage for PostgresTaskStorage {
     async fn update_task(&self, task: &Task) -> TaskResult<()> {
         let result = sqlx::query(
             r#"
-            UPDATE edgequake.tasks SET
+            UPDATE tasks SET
                 status = $2,
                 updated_at = $3,
                 started_at = $4,
@@ -153,7 +153,7 @@ impl TaskStorage for PostgresTaskStorage {
     }
 
     async fn delete_task(&self, track_id: &str) -> TaskResult<()> {
-        let result = sqlx::query("DELETE FROM edgequake.tasks WHERE track_id = $1")
+        let result = sqlx::query("DELETE FROM tasks WHERE track_id = $1")
             .bind(track_id)
             .execute(&*self.pool)
             .await
@@ -173,7 +173,7 @@ impl TaskStorage for PostgresTaskStorage {
                 track_id, task_type, status, created_at, updated_at,
                 started_at, completed_at, error_message, retry_count,
                 max_retries, task_data, metadata, progress, result
-            FROM edgequake.tasks WHERE 1=1",
+            FROM tasks WHERE 1=1",
         );
 
         if filter.status.is_some() {
@@ -269,7 +269,7 @@ impl TaskStorage for PostgresTaskStorage {
                 COUNT(*) FILTER (WHERE status = 'failed') as failed,
                 COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled,
                 COUNT(*) as total
-            FROM edgequake.tasks
+            FROM tasks
             "#,
         )
         .fetch_one(&*self.pool)
@@ -290,7 +290,7 @@ impl TaskStorage for PostgresTaskStorage {
 #[cfg(feature = "postgres")]
 impl PostgresTaskStorage {
     async fn get_total_count(&self, filter: TaskFilter) -> TaskResult<u64> {
-        let mut query = String::from("SELECT COUNT(*) FROM edgequake.tasks WHERE 1=1");
+        let mut query = String::from("SELECT COUNT(*) FROM tasks WHERE 1=1");
 
         if filter.status.is_some() {
             query.push_str(" AND status = $1");

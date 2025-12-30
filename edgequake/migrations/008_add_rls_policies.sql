@@ -1,4 +1,5 @@
 -- Migration: 008_add_rls_policies.sql
+SET search_path = public;
 -- Row-Level Security (RLS) for Multi-Tenant Isolation
 -- Created: 2025-12-24
 -- Purpose: Implement true row-level isolation between tenants
@@ -63,14 +64,20 @@ CREATE INDEX IF NOT EXISTS idx_tasks_tenant_workspace
 
 -- ============================================================================
 -- STEP 3: Create RLS context-setting functions
+-- NOTE: Using 3-parameter version for compatibility with 009 and Rust code
 -- ============================================================================
 
--- Function to set the current tenant context
-CREATE OR REPLACE FUNCTION set_tenant_context(p_tenant_id UUID, p_workspace_id UUID DEFAULT NULL)
+-- Function to set the current tenant context (3 parameters for user_id support)
+CREATE OR REPLACE FUNCTION set_tenant_context(
+    p_tenant_id UUID, 
+    p_workspace_id UUID DEFAULT NULL,
+    p_user_id UUID DEFAULT NULL
+)
 RETURNS void AS $$
 BEGIN
     PERFORM set_config('app.current_tenant_id', COALESCE(p_tenant_id::text, ''), true);
     PERFORM set_config('app.current_workspace_id', COALESCE(p_workspace_id::text, ''), true);
+    PERFORM set_config('app.current_user_id', COALESCE(p_user_id::text, ''), true);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -100,8 +107,19 @@ RETURNS void AS $$
 BEGIN
     PERFORM set_config('app.current_tenant_id', '', true);
     PERFORM set_config('app.current_workspace_id', '', true);
+    PERFORM set_config('app.current_user_id', '', true);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to get the current user ID (for conversation RLS)
+CREATE OR REPLACE FUNCTION current_user_id()
+RETURNS UUID AS $$
+BEGIN
+    RETURN NULLIF(current_setting('app.current_user_id', true), '')::UUID;
+EXCEPTION WHEN OTHERS THEN
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql STABLE;
 
 -- ============================================================================
 -- STEP 4: Enable RLS on all data tables
@@ -399,6 +417,6 @@ CREATE TRIGGER check_document_quota
 -- ============================================================================
 -- MIGRATION COMPLETE
 -- ============================================================================
-COMMENT ON FUNCTION set_tenant_context(UUID, UUID) IS 'Sets the current tenant and workspace context for RLS policies';
+COMMENT ON FUNCTION set_tenant_context(UUID, UUID, UUID) IS 'Sets the current tenant, workspace, and user context for RLS policies';
 COMMENT ON FUNCTION current_tenant_id() IS 'Returns the current tenant ID from session context';
 COMMENT ON FUNCTION current_workspace_id() IS 'Returns the current workspace ID from session context';

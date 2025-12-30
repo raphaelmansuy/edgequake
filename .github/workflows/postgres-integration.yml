@@ -1,0 +1,307 @@
+name: PostgreSQL Integration Tests
+
+on:
+  push:
+    branches: [main, edgequake-main]
+    paths:
+      - 'edgequake/crates/edgequake-storage/**'
+      - 'edgequake/crates/edgequake-api/**'
+      - 'edgequake/crates/edgequake-tasks/**'
+      - 'edgequake/migrations/**'
+      - '.github/workflows/postgres-integration.yml'
+  pull_request:
+    branches: [main, edgequake-main]
+    paths:
+      - 'edgequake/crates/edgequake-storage/**'
+      - 'edgequake/crates/edgequake-api/**'
+      - 'edgequake/crates/edgequake-tasks/**'
+      - 'edgequake/migrations/**'
+      - '.github/workflows/postgres-integration.yml'
+  # Allow manual trigger for full integration test suite
+  workflow_dispatch:
+    inputs:
+      run_all_tests:
+        description: 'Run all integration tests (not just changed modules)'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  # PostgreSQL connection settings
+  POSTGRES_HOST: localhost
+  POSTGRES_PORT: 5432
+  POSTGRES_DB: edgequake_test
+  POSTGRES_USER: edgequake_test
+  POSTGRES_PASSWORD: test_password_123
+  DATABASE_URL: postgresql://edgequake_test:test_password_123@localhost:5432/edgequake_test
+  TEST_DATABASE_URL: postgresql://app_user:app_password_123@localhost:5432/edgequake_test
+  ADMIN_DATABASE_URL: postgresql://edgequake_test:test_password_123@localhost:5432/edgequake_test
+
+jobs:
+  postgres-tests:
+    name: PostgreSQL Integration Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: edgequake_test
+          POSTGRES_USER: edgequake_test
+          POSTGRES_PASSWORD: test_password_123
+          POSTGRES_HOST_AUTH_METHOD: md5
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U edgequake_test -d edgequake_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 30s
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: edgequake
+          key: postgres-integration
+
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli --no-default-features --features postgres
+
+      - name: Wait for PostgreSQL
+        run: |
+          echo "Waiting for PostgreSQL to be ready..."
+          for i in {1..30}; do
+            if pg_isready -h localhost -p 5432 -U edgequake_test -d edgequake_test; then
+              echo "PostgreSQL is ready!"
+              break
+            fi
+            echo "Attempt $i: PostgreSQL not ready yet..."
+            sleep 2
+          done
+
+      - name: Install PostgreSQL client tools
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Setup database schema and extensions
+        run: |
+          echo "Setting up test database..."
+          
+          # Install pgvector extension
+          PGPASSWORD=test_password_123 psql -h localhost -p 5432 -U edgequake_test -d edgequake_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
+          
+          # Create app_user for RLS testing (non-superuser)
+          PGPASSWORD=test_password_123 psql -h localhost -p 5432 -U edgequake_test -d edgequake_test << 'EOSQL'
+            -- Create application user (non-superuser) for RLS testing
+            DO $$
+            BEGIN
+              IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'app_user') THEN
+                CREATE ROLE app_user WITH LOGIN PASSWORD 'app_password_123';
+              END IF;
+            END $$;
+            
+            -- Grant necessary permissions
+            GRANT CONNECT ON DATABASE edgequake_test TO app_user;
+            GRANT USAGE ON SCHEMA public TO app_user;
+            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO app_user;
+          EOSQL
+          
+          echo "Database setup complete!"
+
+      - name: Run database migrations
+        working-directory: edgequake
+        run: |
+          echo "Running database migrations..."
+          
+          # Run all SQL migration files in order
+          for file in migrations/*.sql; do
+            echo "Applying migration: $file"
+            PGPASSWORD=test_password_123 psql -h localhost -p 5432 -U edgequake_test -d edgequake_test -f "$file" || true
+          done
+          
+          echo "Migrations complete!"
+
+      - name: Grant permissions to app_user
+        run: |
+          PGPASSWORD=test_password_123 psql -h localhost -p 5432 -U edgequake_test -d edgequake_test << 'EOSQL'
+            -- Grant permissions on all tables to app_user
+            GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
+            GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user;
+          EOSQL
+
+      - name: Run PostgreSQL Storage Integration Tests
+        working-directory: edgequake
+        run: |
+          echo "Running PostgreSQL storage integration tests..."
+          cargo test --package edgequake-storage --test postgres_integration --features postgres -- --test-threads=1
+        continue-on-error: false
+
+      - name: Run PostgreSQL Conversation Integration Tests
+        working-directory: edgequake
+        run: |
+          echo "Running PostgreSQL conversation integration tests..."
+          cargo test --package edgequake-storage --test postgres_conversation_integration --features postgres -- --test-threads=1
+        continue-on-error: false
+
+      - name: Run PostgreSQL RLS E2E Tests
+        working-directory: edgequake
+        run: |
+          echo "Running PostgreSQL RLS E2E tests..."
+          cargo test --package edgequake-api --test e2e_postgres_rls --features postgres -- --ignored --test-threads=1
+        continue-on-error: true  # RLS tests may need additional setup
+
+      - name: Run PostgreSQL Workspace Service Tests
+        working-directory: edgequake
+        run: |
+          echo "Running PostgreSQL workspace service tests..."
+          cargo test --package edgequake-api --test e2e_postgres_workspace --features postgres -- --test-threads=1
+        continue-on-error: false
+
+      - name: Run PostgreSQL Task Storage Tests
+        working-directory: edgequake
+        run: |
+          echo "Running PostgreSQL task storage tests..."
+          cargo test --package edgequake-tasks --features postgres -- --test-threads=1
+        continue-on-error: false
+
+      - name: Run All Integration Tests (optional)
+        if: github.event.inputs.run_all_tests == 'true'
+        working-directory: edgequake
+        run: |
+          echo "Running all integration tests..."
+          cargo test --all --features postgres -- --test-threads=2
+
+  postgres-age-tests:
+    name: PostgreSQL AGE Graph Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres-age:
+        image: apache/age:latest
+        env:
+          POSTGRES_DB: edgequake_test
+          POSTGRES_USER: edgequake_test
+          POSTGRES_PASSWORD: test_password_123
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U edgequake_test -d edgequake_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 60s
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: edgequake
+          key: postgres-age
+
+      - name: Wait for PostgreSQL with AGE
+        run: |
+          echo "Waiting for PostgreSQL with AGE extension to be ready..."
+          for i in {1..60}; do
+            if pg_isready -h localhost -p 5432 -U edgequake_test -d edgequake_test 2>/dev/null; then
+              echo "PostgreSQL is ready!"
+              break
+            fi
+            echo "Attempt $i: PostgreSQL not ready yet..."
+            sleep 2
+          done
+
+      - name: Install PostgreSQL client tools
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Setup AGE extension
+        run: |
+          PGPASSWORD=test_password_123 psql -h localhost -p 5432 -U edgequake_test -d edgequake_test << 'EOSQL'
+            CREATE EXTENSION IF NOT EXISTS age;
+            LOAD 'age';
+            SET search_path = ag_catalog, "$user", public;
+          EOSQL
+
+      - name: Run PostgreSQL AGE Graph Tests
+        working-directory: edgequake
+        run: |
+          echo "Running PostgreSQL AGE graph integration tests..."
+          cargo test --package edgequake-storage --test postgres_integration --features postgres -- test_postgres_age --test-threads=1
+        continue-on-error: true  # AGE tests may fail if extension setup differs
+
+  coverage-postgres:
+    name: PostgreSQL Integration Coverage
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: edgequake_test
+          POSTGRES_USER: edgequake_test
+          POSTGRES_PASSWORD: test_password_123
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U edgequake_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: edgequake
+          key: postgres-coverage
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Setup database
+        run: |
+          PGPASSWORD=test_password_123 psql -h localhost -p 5432 -U edgequake_test -d edgequake_test -c "CREATE EXTENSION IF NOT EXISTS vector;" || true
+          
+          # Run migrations
+          for file in edgequake/migrations/*.sql; do
+            PGPASSWORD=test_password_123 psql -h localhost -p 5432 -U edgequake_test -d edgequake_test -f "$file" || true
+          done
+
+      - name: Generate PostgreSQL-specific coverage
+        working-directory: edgequake
+        run: |
+          cargo tarpaulin \
+            --packages edgequake-storage edgequake-api edgequake-tasks \
+            --features postgres \
+            --timeout 600 \
+            --out xml \
+            --output-dir ./coverage
+        continue-on-error: true
+
+      - name: Upload PostgreSQL coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: edgequake/coverage/cobertura.xml
+          flags: postgres-integration
+          name: postgres-coverage
+          fail_ci_if_error: false

@@ -1,4 +1,5 @@
 -- Migration: 007_add_multi_tenancy_tables.sql
+SET search_path = public;
 -- Phase 3: Multi-tenancy support tables
 -- Created: 2025-01-21
 -- Note: These tables are used when multi-tenant mode is enabled

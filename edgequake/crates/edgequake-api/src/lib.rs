@@ -33,6 +33,9 @@ pub mod streaming;
 #[cfg(feature = "postgres")]
 pub mod postgres_conversation_service;
 
+#[cfg(feature = "postgres")]
+pub mod postgres_workspace_service;
+
 // Re-export commonly used types
 pub use middleware::TenantContext;
 
@@ -45,3 +48,6 @@ pub use state::{AppState, StorageMode};
 
 #[cfg(feature = "postgres")]
 pub use postgres_conversation_service::PostgresConversationService;
+
+#[cfg(feature = "postgres")]
+pub use postgres_workspace_service::PostgresWorkspaceService;

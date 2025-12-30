@@ -1,23 +1,26 @@
 -- Migration: 001_add_tasks_table
+SET search_path = public;
 -- Description: Create schema, core tables, and tasks table
 -- Phase: 1.1.0
--- Date: 2025-12-22 (Updated: 2025-01-27)
+-- Date: 2025-12-22 (Updated: 2025-01-28)
+-- NOTE: Tables created in PUBLIC schema for consistency with RLS policies
 
 -- ============================================================================
--- STEP 1: Create the edgequake schema
+-- STEP 1: Create the edgequake schema (for namespacing, not for tables)
 -- ============================================================================
 CREATE SCHEMA IF NOT EXISTS edgequake;
 
 -- ============================================================================
 -- STEP 2: Create core tables (documents, chunks, entities, relationships)
+-- NOTE: All tables in PUBLIC schema to align with RLS migrations
 -- ============================================================================
 
 -- Enable required PostgreSQL extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "vector";
 
--- Documents Table
-CREATE TABLE IF NOT EXISTS edgequake.documents (
+-- Documents Table (PUBLIC schema)
+CREATE TABLE IF NOT EXISTS documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID,
     workspace_id UUID,
@@ -40,14 +43,14 @@ CREATE TABLE IF NOT EXISTS edgequake.documents (
     CONSTRAINT documents_valid_status CHECK (status IN ('pending', 'processing', 'indexed', 'failed'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_documents_tenant_workspace ON edgequake.documents(tenant_id, workspace_id);
-CREATE INDEX IF NOT EXISTS idx_documents_status ON edgequake.documents(status);
-CREATE INDEX IF NOT EXISTS idx_documents_created_at ON edgequake.documents(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_documents_tenant_workspace ON documents(tenant_id, workspace_id);
+CREATE INDEX IF NOT EXISTS idx_documents_status ON documents(status);
+CREATE INDEX IF NOT EXISTS idx_documents_created_at ON documents(created_at DESC);
 
--- Chunks Table
-CREATE TABLE IF NOT EXISTS edgequake.chunks (
+-- Chunks Table (PUBLIC schema)
+CREATE TABLE IF NOT EXISTS chunks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    document_id UUID NOT NULL REFERENCES edgequake.documents(id) ON DELETE CASCADE,
+    document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     tenant_id UUID,
     workspace_id UUID,
     content TEXT NOT NULL,
@@ -61,11 +64,11 @@ CREATE TABLE IF NOT EXISTS edgequake.chunks (
     CONSTRAINT chunks_unique_doc_index UNIQUE (document_id, chunk_index)
 );
 
-CREATE INDEX IF NOT EXISTS idx_chunks_document ON edgequake.chunks(document_id);
-CREATE INDEX IF NOT EXISTS idx_chunks_tenant_workspace ON edgequake.chunks(tenant_id, workspace_id);
+CREATE INDEX IF NOT EXISTS idx_chunks_document ON chunks(document_id);
+CREATE INDEX IF NOT EXISTS idx_chunks_tenant_workspace ON chunks(tenant_id, workspace_id);
 
--- Entities Table
-CREATE TABLE IF NOT EXISTS edgequake.entities (
+-- Entities Table (PUBLIC schema)
+CREATE TABLE IF NOT EXISTS entities (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID,
     workspace_id UUID,
@@ -85,15 +88,15 @@ CREATE TABLE IF NOT EXISTS edgequake.entities (
     CONSTRAINT entities_unique_name UNIQUE NULLS NOT DISTINCT (tenant_id, workspace_id, name)
 );
 
-CREATE INDEX IF NOT EXISTS idx_entities_tenant_workspace ON edgequake.entities(tenant_id, workspace_id);
-CREATE INDEX IF NOT EXISTS idx_entities_type ON edgequake.entities(entity_type);
-CREATE INDEX IF NOT EXISTS idx_entities_name ON edgequake.entities(name);
+CREATE INDEX IF NOT EXISTS idx_entities_tenant_workspace ON entities(tenant_id, workspace_id);
+CREATE INDEX IF NOT EXISTS idx_entities_type ON entities(entity_type);
+CREATE INDEX IF NOT EXISTS idx_entities_name ON entities(name);
 
--- Relationships Table
-CREATE TABLE IF NOT EXISTS edgequake.relationships (
+-- Relationships Table (PUBLIC schema)
+CREATE TABLE IF NOT EXISTS relationships (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    source_id UUID NOT NULL REFERENCES edgequake.entities(id) ON DELETE CASCADE,
-    target_id UUID NOT NULL REFERENCES edgequake.entities(id) ON DELETE CASCADE,
+    source_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+    target_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
     tenant_id UUID,
     workspace_id UUID,
     relation_type TEXT NOT NULL,
@@ -111,15 +114,15 @@ CREATE TABLE IF NOT EXISTS edgequake.relationships (
     CONSTRAINT relationships_unique UNIQUE (source_id, target_id, relation_type)
 );
 
-CREATE INDEX IF NOT EXISTS idx_relationships_source ON edgequake.relationships(source_id);
-CREATE INDEX IF NOT EXISTS idx_relationships_target ON edgequake.relationships(target_id);
-CREATE INDEX IF NOT EXISTS idx_relationships_tenant_workspace ON edgequake.relationships(tenant_id, workspace_id);
-CREATE INDEX IF NOT EXISTS idx_relationships_type ON edgequake.relationships(relation_type);
+CREATE INDEX IF NOT EXISTS idx_relationships_source ON relationships(source_id);
+CREATE INDEX IF NOT EXISTS idx_relationships_target ON relationships(target_id);
+CREATE INDEX IF NOT EXISTS idx_relationships_tenant_workspace ON relationships(tenant_id, workspace_id);
+CREATE INDEX IF NOT EXISTS idx_relationships_type ON relationships(relation_type);
 
 -- ============================================================================
--- STEP 3: Create tasks table
+-- STEP 3: Create tasks table (PUBLIC schema)
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS edgequake.tasks (
+CREATE TABLE IF NOT EXISTS tasks (
     -- Identity
     track_id VARCHAR(50) PRIMARY KEY,
     task_type VARCHAR(20) NOT NULL,
@@ -156,11 +159,11 @@ CREATE TABLE IF NOT EXISTS edgequake.tasks (
 );
 
 -- Create indexes for performance
-CREATE INDEX IF NOT EXISTS idx_tasks_status ON edgequake.tasks(status, created_at);
-CREATE INDEX IF NOT EXISTS idx_tasks_type ON edgequake.tasks(task_type);
-CREATE INDEX IF NOT EXISTS idx_tasks_created ON edgequake.tasks(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_tasks_updated ON edgequake.tasks(updated_at DESC);
-CREATE INDEX IF NOT EXISTS idx_tasks_status_type ON edgequake.tasks(status, task_type);
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_tasks_type ON tasks(task_type);
+CREATE INDEX IF NOT EXISTS idx_tasks_created ON tasks(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tasks_updated ON tasks(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tasks_status_type ON tasks(status, task_type);
 
 -- Grant permissions (safe to fail if user doesn't have permission)
 DO $$ 

@@ -51,6 +51,8 @@ impl StorageMode {
 #[cfg(feature = "postgres")]
 use crate::PostgresConversationService;
 #[cfg(feature = "postgres")]
+use crate::PostgresWorkspaceService;
+#[cfg(feature = "postgres")]
 use edgequake_storage::{
     GraphStorage, KVStorage, PgVectorStorage, PostgresAGEGraphStorage, PostgresKVStorage,
     VectorStorage,
@@ -433,8 +435,14 @@ impl AppState {
         // Create LLM provider
         let llm_provider = Arc::new(OpenAIProvider::new(llm_api_key));
 
-        // Create workspace service (still in-memory for now)
-        let workspace_service: SharedWorkspaceService = Arc::new(InMemoryWorkspaceService::new());
+        // Create PostgreSQL-backed workspace service for full persistence
+        let pg_workspace_service = PostgresWorkspaceService::new(pool.clone());
+
+        // Ensure default tenant and workspace exist (critical for non-authenticated mode)
+        pg_workspace_service.ensure_defaults().await?;
+        tracing::info!("Default tenant and workspace ensured in PostgreSQL");
+
+        let workspace_service: SharedWorkspaceService = Arc::new(pg_workspace_service);
 
         // Create PostgreSQL-backed conversation service
         let conversation_service: SharedConversationService =
@@ -503,6 +511,10 @@ impl AppState {
 
     /// Initialize default tenant and workspace for non-authenticated mode.
     /// This ensures that the system is usable without authentication.
+    ///
+    /// When using PostgreSQL, the PostgresWorkspaceService already ensures
+    /// defaults exist during construction, so this primarily handles the
+    /// in-memory case and ensures the default user exists.
     pub async fn initialize_defaults(
         &self,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -512,109 +524,39 @@ impl AppState {
         let default_user_id = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001")
             .expect("Invalid default user UUID");
 
-        // When using PostgreSQL, first check if default tenant already exists in the database
-        // and reuse it to maintain consistency across restarts
+        // Define default tenant ID for consistency
+        let default_tenant_id = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002")
+            .expect("Invalid default tenant UUID");
+
+        // When using PostgreSQL, just ensure the default user exists
+        // The PostgresWorkspaceService already creates default tenant/workspace
         #[cfg(feature = "postgres")]
         if let Some(ref pool) = self.pg_pool {
-            // Ensure default user exists in PostgreSQL (for FK constraints)
+            // Ensure default user exists in PostgreSQL (with tenant_id for FK constraints)
             sqlx::query(
                 r#"
-                INSERT INTO users (user_id, username, email, password_hash, role, is_active, created_at, updated_at)
-                VALUES ($1, 'default_user', 'default@edgequake.local', 'not_a_real_hash', 'user', TRUE, NOW(), NOW())
+                INSERT INTO users (user_id, tenant_id, username, email, password_hash, role, is_active, created_at, updated_at)
+                VALUES ($1, $2, 'default_user', 'default@edgequake.local', 'not_a_real_hash', 'user', TRUE, NOW(), NOW())
                 ON CONFLICT (user_id) DO NOTHING
                 "#,
             )
             .bind(default_user_id)
+            .bind(default_tenant_id)
             .execute(pool)
             .await?;
 
-            tracing::debug!(
+            tracing::info!(
                 user_id = %default_user_id,
+                tenant_id = %default_tenant_id,
                 "Ensured default user exists in PostgreSQL"
             );
 
-            // Check if default tenant exists in PostgreSQL
-            let existing_tenant: Option<(uuid::Uuid, String)> = sqlx::query_as(
-                "SELECT tenant_id, name FROM tenants WHERE slug = 'default' LIMIT 1",
-            )
-            .fetch_optional(pool)
-            .await?;
-
-            if let Some((pg_tenant_id, pg_tenant_name)) = existing_tenant {
-                // Get existing workspace too
-                let existing_workspace: Option<(uuid::Uuid, String)> = sqlx::query_as(
-                    "SELECT workspace_id, name FROM workspaces WHERE tenant_id = $1 AND slug = 'default' LIMIT 1"
-                )
-                .bind(pg_tenant_id)
-                .fetch_optional(pool)
-                .await?;
-
-                // CRITICAL: Sync PostgreSQL tenant/workspace to InMemoryWorkspaceService
-                // This ensures frontend-created tenants use the same IDs as PostgreSQL
-                // Without this, conversations created via the frontend would fail FK constraints
-
-                // Create tenant with PostgreSQL's existing ID
-                let mut tenant = Tenant::new("Default", "default")
-                    .with_plan(TenantPlan::Pro)
-                    .with_description("Default tenant for EdgeQuake");
-                tenant.tenant_id = pg_tenant_id; // Use PostgreSQL's ID
-
-                // Insert into InMemoryWorkspaceService (ignore if already exists)
-                if self
-                    .workspace_service
-                    .get_tenant(pg_tenant_id)
-                    .await?
-                    .is_none()
-                {
-                    self.workspace_service.create_tenant(tenant).await?;
-                    tracing::info!(
-                        tenant_id = %pg_tenant_id,
-                        name = %pg_tenant_name,
-                        "Synced PostgreSQL tenant to InMemoryWorkspaceService"
-                    );
-                } else {
-                    tracing::debug!(
-                        tenant_id = %pg_tenant_id,
-                        "Tenant already exists in InMemoryWorkspaceService"
-                    );
-                }
-
-                // Sync workspace if it exists
-                if let Some((ws_id, ws_name)) = existing_workspace {
-                    if self.workspace_service.get_workspace(ws_id).await?.is_none() {
-                        // Create workspace with PostgreSQL's existing ID
-                        use edgequake_core::Workspace;
-                        let mut workspace = Workspace::new(pg_tenant_id, &ws_name, "default")
-                            .with_description("Default workspace for EdgeQuake");
-                        workspace.workspace_id = ws_id; // Use PostgreSQL's ID
-
-                        // Use insert_workspace to preserve the specific ID
-                        self.workspace_service.insert_workspace(workspace).await?;
-
-                        tracing::info!(
-                            workspace_id = %ws_id,
-                            tenant_id = %pg_tenant_id,
-                            "Synced PostgreSQL workspace to InMemoryWorkspaceService"
-                        );
-                    } else {
-                        tracing::debug!(
-                            workspace_id = %ws_id,
-                            "Workspace already exists in InMemoryWorkspaceService"
-                        );
-                    }
-                }
-
-                tracing::info!(
-                    tenant_id = %pg_tenant_id,
-                    name = %pg_tenant_name,
-                    "Synced PostgreSQL defaults to memory"
-                );
-
-                return Ok(());
-            }
+            // PostgreSQL mode: tenant and workspace already created by PostgresWorkspaceService
+            tracing::info!("PostgreSQL mode: defaults already ensured by PostgresWorkspaceService");
+            return Ok(());
         }
 
-        // Check if default tenant already exists in memory
+        // In-memory mode: Check if default tenant already exists
         let existing = self.workspace_service.list_tenants(10, 0).await?;
 
         if !existing.is_empty() {
@@ -625,37 +567,13 @@ impl AppState {
             return Ok(());
         }
 
-        // Create default tenant
-        let default_tenant = Tenant::new("Default", "default")
+        // Create default tenant for in-memory mode
+        let mut default_tenant = Tenant::new("Default", "default")
             .with_plan(TenantPlan::Pro)
             .with_description("Default tenant for EdgeQuake");
+        default_tenant.tenant_id = default_tenant_id;
 
         let tenant = self.workspace_service.create_tenant(default_tenant).await?;
-
-        // When using PostgreSQL, also insert the tenant into the database
-        // This is needed because ConversationService uses PostgreSQL with foreign key constraints
-        #[cfg(feature = "postgres")]
-        if let Some(ref pool) = self.pg_pool {
-            sqlx::query(
-                r#"
-                INSERT INTO tenants (tenant_id, name, slug, description, plan, is_active, created_at, updated_at)
-                VALUES ($1, $2, $3, $4, $5, TRUE, NOW(), NOW())
-                ON CONFLICT (tenant_id) DO NOTHING
-                "#,
-            )
-            .bind(tenant.tenant_id)
-            .bind(&tenant.name)
-            .bind(&tenant.slug)
-            .bind(&tenant.description)
-            .bind(tenant.plan.to_string())
-            .execute(pool)
-            .await?;
-
-            tracing::debug!(
-                tenant_id = %tenant.tenant_id,
-                "Inserted tenant into PostgreSQL database"
-            );
-        }
 
         tracing::info!(
             tenant_id = %tenant.tenant_id,
@@ -674,30 +592,6 @@ impl AppState {
             .workspace_service
             .create_workspace(tenant.tenant_id, workspace_request)
             .await?;
-
-        // When using PostgreSQL, also insert the workspace into the database
-        #[cfg(feature = "postgres")]
-        if let Some(ref pool) = self.pg_pool {
-            sqlx::query(
-                r#"
-                INSERT INTO workspaces (workspace_id, tenant_id, name, slug, description, is_active, created_at, updated_at)
-                VALUES ($1, $2, $3, $4, $5, TRUE, NOW(), NOW())
-                ON CONFLICT (workspace_id) DO NOTHING
-                "#,
-            )
-            .bind(workspace.workspace_id)
-            .bind(tenant.tenant_id)
-            .bind(&workspace.name)
-            .bind(&workspace.slug)
-            .bind(&workspace.description)
-            .execute(pool)
-            .await?;
-
-            tracing::debug!(
-                workspace_id = %workspace.workspace_id,
-                "Inserted workspace into PostgreSQL database"
-            );
-        }
 
         tracing::info!(
             workspace_id = %workspace.workspace_id,
