@@ -22,30 +22,30 @@ After thorough code inspection of both `lightrag_webui/` and `edgequake_webui/` 
 
 ## Detailed Comparison Matrix
 
-| Feature                    | LightRAG                                                        | EdgeQuake                                                               | Winner                      |
-| -------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------- |
-| **Graph Library**          | sigma 3.0.2 + graphology 0.26.0                                 | sigma 3.0.2 + graphology 0.26.0                                         | ✅ Tie (same)               |
-| **Integration Pattern**    | @react-sigma/core wrapper                                       | Direct sigma + graphology                                               | Different approaches        |
-| **Layout Algorithms**      | 6 (Circular, Circlepack, Random, Noverlaps, Force, ForceAtlas2) | 7 (Circular, Circlepack, Random, Noverlaps, Force, FA2, Hierarchical)   | 🏆 EdgeQuake (+1)           |
-| **Web Worker Support**     | ✅ Yes (Noverlaps, Force, FA2)                                  | ✅ Yes (FA2, Noverlaps)                                                 | ✅ Both                     |
-| **Node Borders**           | ✅ NodeBorderProgram                                            | ✅ NodeBorderProgram                                                    | ✅ Both                     |
-| **Curved Edges**           | ✅ EdgeCurvedArrowProgram                                       | ✅ EdgeCurvedArrowProgram                                               | ✅ Both                     |
-| **Edge Hover**             | ✅ enableEdgeEvents                                             | ✅ Custom enterEdge/leaveEdge                                           | ✅ Both                     |
-| **Node Expand/Prune**      | ✅ Yes                                                          | ✅ Yes                                                                  | ✅ Both                     |
-| **Indexed Lookups (O(1))** | ✅ Record<string, number> maps                                  | ✅ Map<string, Node> + type/source/target indexes                       | 🏆 EdgeQuake (more indexes) |
-| **API Query Strategy**     | Label + depth + maxNodes                                        | startNode/types + depth + maxNodes                                      | Different                   |
-| **Virtual Scrolling**      | ❌ No                                                           | ✅ @tanstack/react-virtual                                              | 🏆 EdgeQuake                |
-| **Streaming Load**         | ❌ No                                                           | ✅ SSE-based progressive loading                                        | 🏆 EdgeQuake                |
-| **Bookmarks**              | ❌ No                                                           | ✅ Save/load graph views                                                | 🏆 EdgeQuake                |
-| **Time Filtering**         | ❌ No                                                           | ✅ Filter by date ranges                                                | 🏆 EdgeQuake                |
-| **Community Detection**    | ❌ No                                                           | ✅ Louvain algorithm                                                    | 🏆 EdgeQuake                |
-| **Minimap**                | ❌ No (commented out)                                           | ✅ Canvas-based minimap                                                 | 🏆 EdgeQuake                |
-| **Truncation Feedback**    | ❌ No                                                           | ✅ Banner showing data limits                                           | 🏆 EdgeQuake                |
-| **Responsive Design**      | Not verified in code                                            | ✅ Verified with E2E tests (20 tests passing)                           | 🏆 EdgeQuake                |
-| **Entity Browser**         | ❌ No dedicated panel                                           | ✅ Left panel with virtual scrolling                                    | 🏆 EdgeQuake                |
-| **Graph Export**           | Not verified                                                    | ✅ Yes                                                                  | 🏆 EdgeQuake                |
-| **Keyboard Shortcuts**     | Not verified                                                    | ✅ Yes with help dialog                                                 | 🏆 EdgeQuake                |
-| **Guided Tour**            | ❌ No                                                           | ✅ Yes                                                                  | 🏆 EdgeQuake                |
+| Feature                    | LightRAG                                                        | EdgeQuake                                                             | Winner                      |
+| -------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------- |
+| **Graph Library**          | sigma 3.0.2 + graphology 0.26.0                                 | sigma 3.0.2 + graphology 0.26.0                                       | ✅ Tie (same)               |
+| **Integration Pattern**    | @react-sigma/core wrapper                                       | Direct sigma + graphology                                             | Different approaches        |
+| **Layout Algorithms**      | 6 (Circular, Circlepack, Random, Noverlaps, Force, ForceAtlas2) | 7 (Circular, Circlepack, Random, Noverlaps, Force, FA2, Hierarchical) | 🏆 EdgeQuake (+1)           |
+| **Web Worker Support**     | ✅ Yes (Noverlaps, Force, FA2)                                  | ✅ Yes (FA2, Noverlaps)                                               | ✅ Both                     |
+| **Node Borders**           | ✅ NodeBorderProgram                                            | ✅ NodeBorderProgram                                                  | ✅ Both                     |
+| **Curved Edges**           | ✅ EdgeCurvedArrowProgram                                       | ✅ EdgeCurvedArrowProgram                                             | ✅ Both                     |
+| **Edge Hover**             | ✅ enableEdgeEvents                                             | ✅ Custom enterEdge/leaveEdge                                         | ✅ Both                     |
+| **Node Expand/Prune**      | ✅ Yes                                                          | ✅ Yes                                                                | ✅ Both                     |
+| **Indexed Lookups (O(1))** | ✅ Record<string, number> maps                                  | ✅ Map<string, Node> + type/source/target indexes                     | 🏆 EdgeQuake (more indexes) |
+| **API Query Strategy**     | Label + depth + maxNodes                                        | startNode/types + depth + maxNodes                                    | Different                   |
+| **Virtual Scrolling**      | ❌ No                                                           | ✅ @tanstack/react-virtual                                            | 🏆 EdgeQuake                |
+| **Streaming Load**         | ❌ No                                                           | ✅ SSE-based progressive loading                                      | 🏆 EdgeQuake                |
+| **Bookmarks**              | ❌ No                                                           | ✅ Save/load graph views                                              | 🏆 EdgeQuake                |
+| **Time Filtering**         | ❌ No                                                           | ✅ Filter by date ranges                                              | 🏆 EdgeQuake                |
+| **Community Detection**    | ❌ No                                                           | ✅ Louvain algorithm                                                  | 🏆 EdgeQuake                |
+| **Minimap**                | ❌ No (commented out)                                           | ✅ Canvas-based minimap                                               | 🏆 EdgeQuake                |
+| **Truncation Feedback**    | ❌ No                                                           | ✅ Banner showing data limits                                         | 🏆 EdgeQuake                |
+| **Responsive Design**      | Not verified in code                                            | ✅ Verified with E2E tests (20 tests passing)                         | 🏆 EdgeQuake                |
+| **Entity Browser**         | ❌ No dedicated panel                                           | ✅ Left panel with virtual scrolling                                  | 🏆 EdgeQuake                |
+| **Graph Export**           | Not verified                                                    | ✅ Yes                                                                | 🏆 EdgeQuake                |
+| **Keyboard Shortcuts**     | Not verified                                                    | ✅ Yes with help dialog                                               | 🏆 EdgeQuake                |
+| **Guided Tour**            | ❌ No                                                           | ✅ Yes                                                                | 🏆 EdgeQuake                |
 
 ---
 

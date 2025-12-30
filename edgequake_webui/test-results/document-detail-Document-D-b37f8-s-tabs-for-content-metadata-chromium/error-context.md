@@ -1,0 +1,152 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+  - alert [ref=e11]
+  - generic [ref=e12]:
+    - link "Skip to main content" [ref=e13] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=e14]:
+      - banner [ref=e15]:
+        - generic [ref=e16]:
+          - button "Toggle menu" [ref=e17]:
+            - img
+            - generic [ref=e18]: Toggle menu
+          - generic [ref=e19]: EdgeQuake
+        - generic [ref=e20]:
+          - img [ref=e22]
+          - button "Change language" [ref=e24]:
+            - img
+            - generic [ref=e25]: Change language
+          - button "Toggle theme" [ref=e26]:
+            - img
+            - generic [ref=e27]: Toggle theme
+          - button "User menu" [ref=e28]:
+            - img
+            - generic [ref=e29]: User menu
+      - navigation "breadcrumb" [ref=e31]:
+        - list [ref=e32]:
+          - listitem [ref=e33]:
+            - link "EdgeQuake" [ref=e34] [cursor=pointer]:
+              - /url: /
+              - img [ref=e35]
+              - generic [ref=e38]: EdgeQuake
+          - listitem [ref=e39]:
+            - img [ref=e40]
+          - listitem [ref=e42]:
+            - link "Documents" [disabled] [ref=e43]:
+              - img [ref=e44]
+              - generic [ref=e47]: Documents
+      - main [ref=e48]:
+        - generic [ref=e49]:
+          - generic [ref=e50]:
+            - generic [ref=e51]:
+              - generic [ref=e52]:
+                - generic [ref=e53]:
+                  - heading "Documents" [level=1] [ref=e54]
+                  - paragraph [ref=e55]: Upload and manage documents for knowledge graph extraction
+                - generic [ref=e56]:
+                  - button "Refresh" [ref=e57]:
+                    - img
+                    - text: Refresh
+                  - button "Clear All" [ref=e58]:
+                    - img
+                    - text: Clear All
+              - generic [ref=e59]:
+                - generic [ref=e60]:
+                  - img [ref=e61]
+                  - textbox "Search documents..." [ref=e64]
+                - generic [ref=e65]:
+                  - combobox [ref=e66]:
+                    - generic: All Status (2)
+                    - img
+                  - generic [ref=e67]:
+                    - generic [ref=e68]: "Sort by:"
+                    - button "Created" [ref=e69]:
+                      - text: Created
+                      - img
+                    - button "Updated" [ref=e70]
+              - generic [ref=e71] [cursor=pointer]:
+                - button "Choose File" [ref=e72]
+                - img [ref=e74]
+                - paragraph [ref=e78]: Drag & drop or click to upload • TXT, MD, JSON (max 10MB)
+            - generic [ref=e80]:
+              - generic [ref=e81]:
+                - img [ref=e82]
+                - generic [ref=e85]: Documents (2)
+              - table [ref=e88]:
+                - rowgroup [ref=e89]:
+                  - row "Select all Title Status Entities Cost Created" [ref=e90]:
+                    - columnheader "Select all" [ref=e91]:
+                      - checkbox "Select all" [ref=e92]
+                    - columnheader "Title" [ref=e93]
+                    - columnheader "Status" [ref=e94]
+                    - columnheader "Entities" [ref=e95]
+                    - columnheader "Cost" [ref=e96]
+                    - columnheader "Created" [ref=e97]
+                    - columnheader [ref=e98]
+                - rowgroup [ref=e99]:
+                  - row "Select logic_sense_2512_21482v1.md Completed 260 0.015 13 minutes ago" [ref=e100] [cursor=pointer]:
+                    - cell "Select" [ref=e101]:
+                      - checkbox "Select" [ref=e102]
+                    - cell "logic_sense_2512_21482v1.md" [ref=e103]
+                    - cell "Completed" [ref=e104]:
+                      - generic [ref=e105]:
+                        - img
+                        - text: Completed
+                    - cell "260" [ref=e106]
+                    - cell "0.015" [ref=e107]:
+                      - generic [ref=e108]:
+                        - img
+                        - generic [ref=e109]: "0.015"
+                    - cell "13 minutes ago" [ref=e110]
+                    - cell [ref=e111]:
+                      - generic [ref=e112]:
+                        - button [ref=e113]:
+                          - img
+                        - button [ref=e114]:
+                          - img
+                  - row "Select miss_2512.21110v2.md Completed 4 0.00029 13 minutes ago" [ref=e115] [cursor=pointer]:
+                    - cell "Select" [ref=e116]:
+                      - checkbox "Select" [ref=e117]
+                    - cell "miss_2512.21110v2.md" [ref=e118]
+                    - cell "Completed" [ref=e119]:
+                      - generic [ref=e120]:
+                        - img
+                        - text: Completed
+                    - cell "4" [ref=e121]
+                    - cell "0.00029" [ref=e122]:
+                      - generic [ref=e123]:
+                        - img
+                        - generic [ref=e124]: "0.00029"
+                    - cell "13 minutes ago" [ref=e125]
+                    - cell [ref=e126]:
+                      - generic [ref=e127]:
+                        - button [ref=e128]:
+                          - img
+                        - button [ref=e129]:
+                          - img
+            - generic [ref=e131]:
+              - generic [ref=e132]:
+                - generic [ref=e133]: "Rows per page:"
+                - combobox [ref=e134]:
+                  - generic: "20"
+                  - img
+              - generic [ref=e135]:
+                - generic [ref=e136]: Page 1 of 1
+                - generic [ref=e137]:
+                  - button [disabled]:
+                    - img
+                  - button [disabled]:
+                    - img
+                  - button [disabled]:
+                    - img
+                  - button [disabled]:
+                    - img
+          - button "Expand Preview" [ref=e138] [cursor=pointer]:
+            - img [ref=e139]
+            - generic [ref=e141]: Preview
+  - region "Notifications alt+T"
+```

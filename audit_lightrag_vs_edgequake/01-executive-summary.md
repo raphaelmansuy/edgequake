@@ -35,20 +35,20 @@ This audit compares the Knowledge Graph UI implementations of **LightRAG** (ligh
 
 ### 2.2 Feature Comparison - CORRECTED (Updated 2025-12-30)
 
-| Feature                  | LightRAG                                                | EdgeQuake                                                      | Verified Winner             |
-| ------------------------ | ------------------------------------------------------- | -------------------------------------------------------------- | --------------------------- |
+| Feature                  | LightRAG                                                | EdgeQuake                                                         | Verified Winner             |
+| ------------------------ | ------------------------------------------------------- | ----------------------------------------------------------------- | --------------------------- |
 | **Layout algorithms**    | 6 (Circular, Circlepack, Random, Noverlaps, Force, FA2) | 7 (Circular, Circlepack, Random, Noverlaps, FA2, Force Dir, Hier) | 🏆 EdgeQuake (+1 layout)    |
-| **Web Workers**          | ✅ FA2, Force, Noverlaps                                | ✅ FA2, Noverlaps                                              | ✅ Both                     |
-| **O(1) Indexed lookups** | ✅ Record<string, number>                               | ✅ Map + multiple indexes                                      | 🏆 EdgeQuake (more indexes) |
-| **Node expand/prune**    | ✅ Yes                                                  | ✅ Yes                                                         | ✅ Both                     |
-| **Curved edges**         | ✅ @sigma/edge-curve                                    | ✅ @sigma/edge-curve                                           | ✅ Both                     |
-| **Node borders**         | ✅ NodeBorderProgram                                    | ✅ NodeBorderProgram                                           | ✅ Both                     |
-| **Virtual scrolling**    | ❌ No                                                   | ✅ @tanstack/react-virtual                                     | 🏆 EdgeQuake                |
-| **SSE streaming**        | ❌ No                                                   | ✅ Progressive loading                                         | 🏆 EdgeQuake                |
-| **Bookmarks**            | ❌ No                                                   | ✅ Save/load views                                             | 🏆 EdgeQuake                |
-| **Time filtering**       | ❌ No                                                   | ✅ Date ranges                                                 | 🏆 EdgeQuake                |
-| **Community detection**  | ❌ No                                                   | ✅ Louvain algorithm                                           | 🏆 EdgeQuake                |
-| **Responsive E2E tests** | Not verified                                            | ✅ 20 tests passing                                            | 🏆 EdgeQuake                |
+| **Web Workers**          | ✅ FA2, Force, Noverlaps                                | ✅ FA2, Noverlaps                                                 | ✅ Both                     |
+| **O(1) Indexed lookups** | ✅ Record<string, number>                               | ✅ Map + multiple indexes                                         | 🏆 EdgeQuake (more indexes) |
+| **Node expand/prune**    | ✅ Yes                                                  | ✅ Yes                                                            | ✅ Both                     |
+| **Curved edges**         | ✅ @sigma/edge-curve                                    | ✅ @sigma/edge-curve                                              | ✅ Both                     |
+| **Node borders**         | ✅ NodeBorderProgram                                    | ✅ NodeBorderProgram                                              | ✅ Both                     |
+| **Virtual scrolling**    | ❌ No                                                   | ✅ @tanstack/react-virtual                                        | 🏆 EdgeQuake                |
+| **SSE streaming**        | ❌ No                                                   | ✅ Progressive loading                                            | 🏆 EdgeQuake                |
+| **Bookmarks**            | ❌ No                                                   | ✅ Save/load views                                                | 🏆 EdgeQuake                |
+| **Time filtering**       | ❌ No                                                   | ✅ Date ranges                                                    | 🏆 EdgeQuake                |
+| **Community detection**  | ❌ No                                                   | ✅ Louvain algorithm                                              | 🏆 EdgeQuake                |
+| **Responsive E2E tests** | Not verified                                            | ✅ 20 tests passing                                               | 🏆 EdgeQuake                |
 
 ### 2.3 EdgeQuake Unique Features (Verified)
 

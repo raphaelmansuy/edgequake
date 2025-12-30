@@ -476,7 +476,14 @@ export interface GraphSettings {
   showEdgeLabels: boolean;
   nodeSize: "small" | "medium" | "large";
   edgeThickness: "thin" | "medium" | "thick";
-  layout: "force" | "circular" | "random" | "circlepack" | "noverlaps" | "force-directed" | "hierarchical";
+  layout:
+    | "force"
+    | "circular"
+    | "random"
+    | "circlepack"
+    | "noverlaps"
+    | "force-directed"
+    | "hierarchical";
   colorBy: "type" | "community" | "degree";
   enableNodeDrag?: boolean;
   highlightNeighbors?: boolean;
