@@ -290,12 +290,92 @@ pub struct MessageContext {
     /// Source references used to generate the response.
     #[serde(default)]
     pub sources: Vec<MessageSource>,
-    /// Entities mentioned in the response.
+    /// Entities mentioned in the response with source tracking.
     #[serde(default)]
-    pub entities: Vec<String>,
-    /// Relationships referenced in the response.
+    pub entities: Vec<MessageContextEntity>,
+    /// Relationships referenced in the response with source tracking.
     #[serde(default)]
-    pub relationships: Vec<String>,
+    pub relationships: Vec<MessageContextRelationship>,
+}
+
+/// Entity in message context with source tracking for citations.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MessageContextEntity {
+    /// Entity name.
+    pub name: String,
+    /// Entity type.
+    pub entity_type: String,
+    /// Entity description.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Relevance score.
+    pub score: f32,
+    /// Source document ID for citation link.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_document_id: Option<String>,
+    /// Original file path for citation display.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_file_path: Option<String>,
+    /// Source chunk IDs for provenance.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub source_chunk_ids: Vec<String>,
+}
+
+impl MessageContextEntity {
+    /// Create from entity name with minimal fields.
+    pub fn from_name(name: impl Into<String>, score: f32) -> Self {
+        Self {
+            name: name.into(),
+            entity_type: "UNKNOWN".to_string(),
+            description: None,
+            score,
+            source_document_id: None,
+            source_file_path: None,
+            source_chunk_ids: Vec::new(),
+        }
+    }
+}
+
+/// Relationship in message context with source tracking for citations.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MessageContextRelationship {
+    /// Source entity name.
+    pub source: String,
+    /// Target entity name.
+    pub target: String,
+    /// Relationship type.
+    pub relation_type: String,
+    /// Relationship description.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Relevance score.
+    pub score: f32,
+    /// Source document ID for citation link.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_document_id: Option<String>,
+    /// Original file path for citation display.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_file_path: Option<String>,
+}
+
+impl MessageContextRelationship {
+    /// Create from source/target with minimal fields.
+    pub fn new(
+        source: impl Into<String>,
+        target: impl Into<String>,
+        relation_type: impl Into<String>,
+        score: f32,
+    ) -> Self {
+        Self {
+            source: source.into(),
+            target: target.into(),
+            relation_type: relation_type.into(),
+            description: None,
+            score,
+            source_document_id: None,
+            source_file_path: None,
+        }
+    }
 }
 
 impl MessageContext {

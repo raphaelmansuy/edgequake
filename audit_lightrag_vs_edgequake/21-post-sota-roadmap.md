@@ -30,6 +30,7 @@ This roadmap outlines the next phases of enhancement to achieve true SOTA qualit
 **Why:** Users need to verify answers and trace claims back to original sources. This is critical for trust and explainability.
 
 **Implementation:**
+
 ```rust
 // In GraphNode struct, add:
 pub source_chunks: Vec<String>,  // Chunk IDs that mentioned this entity
@@ -43,6 +44,7 @@ pub source_chunks: Vec<String>,  // Chunk IDs that mentioned this entity
 ```
 
 **Success Criteria:**
+
 - [ ] Every entity in the graph has `source_chunks` field
 - [ ] Query response includes `document_id` and `file_path` in sources
 - [ ] Web UI can show "View source" link for each citation
@@ -58,6 +60,7 @@ pub source_chunks: Vec<String>,  // Chunk IDs that mentioned this entity
 **Why:** Prevents context overflow errors, optimizes cost, ensures consistent response quality.
 
 **Implementation:**
+
 ```rust
 // In SOTAQueryConfig, add:
 pub max_context_tokens: usize,  // Total budget (e.g., 8000)
@@ -80,6 +83,7 @@ fn truncate_to_budget(&self, context: Context, budget: usize) -> Context {
 ```
 
 **Success Criteria:**
+
 - [ ] No context overflow errors in production
 - [ ] Consistent response quality regardless of graph size
 - [ ] Cost stays within budget (trackable)
@@ -97,6 +101,7 @@ fn truncate_to_budget(&self, context: Context, budget: usize) -> Context {
 **Why:** Vector similarity is imprecise. Reranking significantly improves precision@k.
 
 **Implementation:**
+
 - Already have `JinaReranker` in codebase (verify it's used)
 - Add reranking step after initial retrieval, before context assembly
 - Configure in `SOTAQueryConfig`:
@@ -106,6 +111,7 @@ fn truncate_to_budget(&self, context: Context, budget: usize) -> Context {
   ```
 
 **Success Criteria:**
+
 - [ ] Reranking reduces irrelevant context by 30%+
 - [ ] No significant latency increase (< 200ms)
 - [ ] Configurable per-query or globally
@@ -121,6 +127,7 @@ fn truncate_to_budget(&self, context: Context, budget: usize) -> Context {
 **Why:** Many users ask similar questions. Caching reduces latency and cost.
 
 **Implementation:**
+
 ```rust
 // Use existing Redis or in-memory cache
 struct QueryCache {
@@ -136,6 +143,7 @@ struct QueryCacheKey {
 ```
 
 **Success Criteria:**
+
 - [ ] Cache hit rate > 20% for common queries
 - [ ] Cache invalidated on document ingestion
 - [ ] Configurable TTL (default: 1 hour)
@@ -153,6 +161,7 @@ struct QueryCacheKey {
 **Why:** Some queries require "A relates to B, B relates to C, therefore A relates to C" reasoning.
 
 **Implementation:**
+
 ```rust
 // In query execution:
 fn multi_hop_traverse(&self, seed_entities: Vec<EntityId>, max_hops: usize) -> Vec<Path> {
@@ -166,6 +175,7 @@ fn multi_hop_traverse(&self, seed_entities: Vec<EntityId>, max_hops: usize) -> V
 ```
 
 **Success Criteria:**
+
 - [ ] Handles "How is X connected to Y?" queries correctly
 - [ ] Path explanations included in answer
 - [ ] Max 2-3 hops to prevent explosion
@@ -181,6 +191,7 @@ fn multi_hop_traverse(&self, seed_entities: Vec<EntityId>, max_hops: usize) -> V
 **Why:** Users need to verify individual claims, not just the overall answer.
 
 **Implementation:**
+
 ```rust
 // In LLM prompt:
 // "When citing information, use [1], [2], etc. to reference sources."
@@ -194,6 +205,7 @@ fn add_citation_links(answer: &str, sources: &[SourceReference]) -> AnnotatedAns
 ```
 
 **Success Criteria:**
+
 - [ ] Answer contains [1], [2] style citations
 - [ ] Citations map to specific sources in response
 - [ ] Web UI renders clickable citation links
@@ -211,6 +223,7 @@ fn add_citation_links(answer: &str, sources: &[SourceReference]) -> AnnotatedAns
 **Why:** LightRAG uses Leiden algorithm for community detection. This improves global summaries.
 
 **Implementation:**
+
 - Implement Leiden or use existing library
 - Compute communities at ingestion time
 - Store community assignments in graph
@@ -227,6 +240,7 @@ fn add_citation_links(answer: &str, sources: &[SourceReference]) -> AnnotatedAns
 **Why:** Allows more information in the same token budget.
 
 **Implementation:**
+
 - Summarize chunks before including in context
 - Use smaller model for compression (faster/cheaper)
 - Balance compression ratio vs information loss
@@ -242,6 +256,7 @@ fn add_citation_links(answer: &str, sources: &[SourceReference]) -> AnnotatedAns
 **Why:** Users want to see progress and costs.
 
 **Implementation:**
+
 - Emit metrics events during streaming
 - Track: retrieval time, tokens generated, estimated cost
 - Show in Web UI
@@ -253,21 +268,25 @@ fn add_citation_links(answer: &str, sources: &[SourceReference]) -> AnnotatedAns
 ## Testing Strategy
 
 ### Unit Tests
+
 - [ ] `sota_engine.rs`: Test each method with mock providers
 - [ ] `keywords/`: Test extraction, caching, intent classification
 - [ ] Token budgeting: Test allocation algorithms
 
 ### Integration Tests
+
 - [ ] Full query pipeline with test graph data
 - [ ] Verify sources are correctly linked
 - [ ] Test reranking improves results
 
 ### E2E Tests
+
 - [ ] API endpoints return expected structure
 - [ ] Web UI displays citations correctly
 - [ ] Streaming works with all new features
 
 ### Performance Benchmarks
+
 - [ ] Latency before/after reranking
 - [ ] Cache hit rates
 - [ ] Token usage with budgeting
@@ -276,20 +295,21 @@ fn add_citation_links(answer: &str, sources: &[SourceReference]) -> AnnotatedAns
 
 ## Success Metrics
 
-| Metric | Current | Target | How to Measure |
-|--------|---------|--------|----------------|
-| Query Latency (p50) | ~800ms | <500ms | API metrics |
-| Query Latency (p99) | ~2s | <1.5s | API metrics |
-| Relevance Score | N/A | >0.8 | Manual evaluation |
-| Citation Accuracy | N/A | >90% | Manual evaluation |
-| Cache Hit Rate | 0% | >20% | Cache metrics |
-| Context Overflow Rate | ~5% | 0% | Error logs |
+| Metric                | Current | Target | How to Measure    |
+| --------------------- | ------- | ------ | ----------------- |
+| Query Latency (p50)   | ~800ms  | <500ms | API metrics       |
+| Query Latency (p99)   | ~2s     | <1.5s  | API metrics       |
+| Relevance Score       | N/A     | >0.8   | Manual evaluation |
+| Citation Accuracy     | N/A     | >90%   | Manual evaluation |
+| Cache Hit Rate        | 0%      | >20%   | Cache metrics     |
+| Context Overflow Rate | ~5%     | 0%     | Error logs        |
 
 ---
 
 ## Immediate Next Steps
 
 1. **Today:** Start Phase 1.1 (Source ID Tracking)
+
    - Audit current entity storage schema
    - Plan schema migration for `source_chunks`
    - Implement during ingestion
@@ -302,11 +322,11 @@ fn add_citation_links(answer: &str, sources: &[SourceReference]) -> AnnotatedAns
 
 ## Appendix: File Locations
 
-| Feature | Files to Modify |
-|---------|-----------------|
+| Feature         | Files to Modify                                                               |
+| --------------- | ----------------------------------------------------------------------------- |
 | Source Tracking | `edgequake-storage/src/traits/graph.rs`, `edgequake-pipeline/src/extractors/` |
-| Token Budgeting | `edgequake-query/src/sota_engine.rs`, `edgequake-query/src/context.rs` |
-| Reranking | `edgequake-query/src/reranking/` (may exist), wire into `sota_engine.rs` |
-| Query Caching | `edgequake-query/src/cache.rs` (new) |
-| Multi-Hop | `edgequake-query/src/traversal.rs` (new) |
-| Citations | `edgequake-query/src/sota_engine.rs`, `edgequake-api/src/handlers/` |
+| Token Budgeting | `edgequake-query/src/sota_engine.rs`, `edgequake-query/src/context.rs`        |
+| Reranking       | `edgequake-query/src/reranking/` (may exist), wire into `sota_engine.rs`      |
+| Query Caching   | `edgequake-query/src/cache.rs` (new)                                          |
+| Multi-Hop       | `edgequake-query/src/traversal.rs` (new)                                      |
+| Citations       | `edgequake-query/src/sota_engine.rs`, `edgequake-api/src/handlers/`           |

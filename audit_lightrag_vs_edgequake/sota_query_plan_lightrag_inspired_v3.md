@@ -9,13 +9,16 @@
 ## Current State Assessment
 
 ### ✅ Already Implemented
+
 1. **LLM Keyword Extraction** - `edgequake-query/src/keywords/`
+
    - LLMKeywordExtractor with high/low level keywords
    - InMemoryKeywordCache with TTL
    - QueryIntent classification (Factual, Relational, Exploratory, Comparative)
    - MockKeywordExtractor for testing
 
 2. **SOTA Query Engine** - `edgequake-query/src/sota_engine.rs`
+
    - 5 query modes (Local, Global, Hybrid, Mix, Naive)
    - Mode-specific vector filtering (Entity/Relationship/Chunk)
    - Adaptive mode selection based on query intent
@@ -28,14 +31,14 @@
 
 ### ❌ Missing for LightRAG Parity
 
-| Feature | LightRAG | EdgeQuake | Gap |
-|---------|----------|-----------|-----|
-| Source ID Tracking | ✅ Entities/Rels store source_id | ❌ Only source_spans (text) | **CRITICAL** |
-| Document Path | ✅ file_path in metadata | ❌ Not stored | **CRITICAL** |
-| Citation Links | ✅ [1], [2] markers | ❌ Not implemented | HIGH |
-| Token Budgeting | ✅ Dynamic allocation | Partial (truncation) | MEDIUM |
-| Reranking | ✅ Optional | ✅ JinaReranker exists | LOW (wire up) |
-| Query Caching | ✅ Result cache | ❌ Only keyword cache | MEDIUM |
+| Feature            | LightRAG                         | EdgeQuake                   | Gap           |
+| ------------------ | -------------------------------- | --------------------------- | ------------- |
+| Source ID Tracking | ✅ Entities/Rels store source_id | ❌ Only source_spans (text) | **CRITICAL**  |
+| Document Path      | ✅ file_path in metadata         | ❌ Not stored               | **CRITICAL**  |
+| Citation Links     | ✅ [1], [2] markers              | ❌ Not implemented          | HIGH          |
+| Token Budgeting    | ✅ Dynamic allocation            | Partial (truncation)        | MEDIUM        |
+| Reranking          | ✅ Optional                      | ✅ JinaReranker exists      | LOW (wire up) |
+| Query Caching      | ✅ Result cache                  | ❌ Only keyword cache       | MEDIUM        |
 
 ---
 
@@ -66,6 +69,7 @@ pub source_file_path: Option<String>,   // Original file path
 **File:** `edgequake-pipeline/src/extractor.rs`
 
 In `EntityExtractor::extract()`:
+
 - Pass chunk_id to extracted entities
 - Pass document_id and file_path to entities/relationships
 
@@ -74,6 +78,7 @@ In `EntityExtractor::extract()`:
 **File:** `edgequake-pipeline/src/merger.rs`
 
 In `create_entity_node()`:
+
 ```rust
 properties.insert("source_chunk_ids", serde_json::json!(entity.source_chunk_ids));
 properties.insert("source_document_id", serde_json::json!(entity.source_document_id));
@@ -85,6 +90,7 @@ properties.insert("source_file_path", serde_json::json!(entity.source_file_path)
 **File:** `edgequake-pipeline/src/merger.rs`
 
 In entity/relationship vector upsert:
+
 ```rust
 metadata["source_chunk_ids"] = serde_json::json!(entity.source_chunk_ids);
 metadata["source_document_id"] = serde_json::json!(entity.source_document_id);
@@ -116,6 +122,7 @@ pub source_file_path: Option<String>,
 **File:** `edgequake-query/src/sota_engine.rs`
 
 In `query_local()`, `query_global()`, etc.:
+
 - Extract source info from graph node properties
 - Populate in RetrievedEntity/Relationship
 
@@ -124,6 +131,7 @@ In `query_local()`, `query_global()`, etc.:
 **File:** `edgequake-api/src/handlers/query.rs`
 
 Already has `SourceReference` with:
+
 - `document_id: Option<String>`
 - `file_path: Option<String>`
 
@@ -132,11 +140,13 @@ Just need to populate from RetrievedEntity/Relationship.
 ### 1.3 Tests
 
 #### Unit Tests
+
 - [ ] `extractor.rs`: Entity extraction with source_chunk_id
 - [ ] `merger.rs`: Graph node contains source info
 - [ ] `sota_engine.rs`: Retrieved entities have source info
 
 #### Integration Tests (PostgreSQL)
+
 - [ ] End-to-end: Ingest → Query → Verify source_id in response
 - [ ] Multi-document: Sources correctly track to documents
 
@@ -151,6 +161,7 @@ Just need to populate from RetrievedEntity/Relationship.
 **File:** `edgequake-query/src/prompts.rs` (or inline in sota_engine.rs)
 
 Add to generation prompt:
+
 ```
 When answering, cite sources using [1], [2], etc. Each number corresponds to the sources provided below.
 ```
@@ -309,28 +320,28 @@ pub struct SOTAQueryConfig {
 
 ### Unit Tests (Per Feature)
 
-| Test File | Tests |
-|-----------|-------|
+| Test File                       | Tests                            |
+| ------------------------------- | -------------------------------- |
 | `tests/unit_source_tracking.rs` | Entity/rel have source_chunk_ids |
-| `tests/unit_citations.rs` | Citation extraction from answer |
-| `tests/unit_token_budget.rs` | Budget allocation by mode |
-| `tests/unit_cache.rs` | Cache hit/miss/invalidation |
+| `tests/unit_citations.rs`       | Citation extraction from answer  |
+| `tests/unit_token_budget.rs`    | Budget allocation by mode        |
+| `tests/unit_cache.rs`           | Cache hit/miss/invalidation      |
 
 ### Integration Tests (PostgreSQL/AGE)
 
-| Test File | Tests |
-|-----------|-------|
+| Test File                              | Tests                                       |
+| -------------------------------------- | ------------------------------------------- |
 | `tests/integration_source_tracking.rs` | Full ingestion → query → source in response |
-| `tests/integration_citations.rs` | LLM generates citations correctly |
-| `tests/integration_caching.rs` | Cache works across requests |
+| `tests/integration_citations.rs`       | LLM generates citations correctly           |
+| `tests/integration_caching.rs`         | Cache works across requests                 |
 
 ### E2E Tests (API Layer)
 
-| Test File | Tests |
-|-----------|-------|
-| `tests/e2e_query_sources.rs` | POST /query returns sources with document_id |
-| `tests/e2e_chat_citations.rs` | Chat includes [1], [2] citations |
-| `tests/e2e_streaming_sources.rs` | Streaming includes sources event |
+| Test File                        | Tests                                        |
+| -------------------------------- | -------------------------------------------- |
+| `tests/e2e_query_sources.rs`     | POST /query returns sources with document_id |
+| `tests/e2e_chat_citations.rs`    | Chat includes [1], [2] citations             |
+| `tests/e2e_streaming_sources.rs` | Streaming includes sources event             |
 
 ---
 
@@ -373,12 +384,12 @@ Week 3:
 
 ### Performance Targets
 
-| Metric | Target |
-|--------|--------|
-| Query latency (p50) | < 500ms |
-| Query latency (p99) | < 1.5s |
-| Source tracking overhead | < 10% |
-| Cache hit rate | > 20% |
+| Metric                   | Target  |
+| ------------------------ | ------- |
+| Query latency (p50)      | < 500ms |
+| Query latency (p99)      | < 1.5s  |
+| Source tracking overhead | < 10%   |
+| Cache hit rate           | > 20%   |
 
 ---
 
@@ -386,32 +397,32 @@ Week 3:
 
 ### Backend (Rust)
 
-| File | Changes |
-|------|---------|
-| `edgequake-pipeline/src/extractor.rs` | Add source_chunk_ids fields |
-| `edgequake-pipeline/src/merger.rs` | Store source info in graph/vector |
-| `edgequake-query/src/context.rs` | Add source fields to Retrieved* |
-| `edgequake-query/src/sota_engine.rs` | Populate source info, citations |
-| `edgequake-query/src/citations.rs` | New - citation extraction |
-| `edgequake-query/src/cache.rs` | New - query result caching |
-| `edgequake-api/src/handlers/query.rs` | Expose sources in response |
-| `edgequake-api/src/handlers/chat.rs` | Expose sources in streaming |
+| File                                  | Changes                           |
+| ------------------------------------- | --------------------------------- |
+| `edgequake-pipeline/src/extractor.rs` | Add source_chunk_ids fields       |
+| `edgequake-pipeline/src/merger.rs`    | Store source info in graph/vector |
+| `edgequake-query/src/context.rs`      | Add source fields to Retrieved\*  |
+| `edgequake-query/src/sota_engine.rs`  | Populate source info, citations   |
+| `edgequake-query/src/citations.rs`    | New - citation extraction         |
+| `edgequake-query/src/cache.rs`        | New - query result caching        |
+| `edgequake-api/src/handlers/query.rs` | Expose sources in response        |
+| `edgequake-api/src/handlers/chat.rs`  | Expose sources in streaming       |
 
 ### Frontend (TypeScript)
 
-| File | Changes |
-|------|---------|
-| `edgequake_webui/src/types/index.ts` | Add source fields to types |
-| `edgequake_webui/src/components/query/chat-message.tsx` | Render citations |
-| `edgequake_webui/src/components/query/source-panel.tsx` | New - source details |
+| File                                                    | Changes                    |
+| ------------------------------------------------------- | -------------------------- |
+| `edgequake_webui/src/types/index.ts`                    | Add source fields to types |
+| `edgequake_webui/src/components/query/chat-message.tsx` | Render citations           |
+| `edgequake_webui/src/components/query/source-panel.tsx` | New - source details       |
 
 ---
 
 ## Risks & Mitigations
 
-| Risk | Mitigation |
-|------|------------|
-| Schema migration breaks existing data | Graceful fallback for missing fields |
-| Citation parsing errors | Robust regex, fallback to no citations |
-| Token counting inaccuracy | Use tiktoken-rs, validate against OpenAI |
-| Cache invalidation complexity | Start with simple TTL, add versioning later |
+| Risk                                  | Mitigation                                  |
+| ------------------------------------- | ------------------------------------------- |
+| Schema migration breaks existing data | Graceful fallback for missing fields        |
+| Citation parsing errors               | Robust regex, fallback to no citations      |
+| Token counting inaccuracy             | Use tiktoken-rs, validate against OpenAI    |
+| Cache invalidation complexity         | Start with simple TTL, add versioning later |

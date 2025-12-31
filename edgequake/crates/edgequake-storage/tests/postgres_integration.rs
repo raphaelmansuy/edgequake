@@ -1161,7 +1161,10 @@ async fn test_postgres_source_tracking_in_entities() {
     let mut props = HashMap::new();
     props.insert("label".to_string(), serde_json::json!("Sarah Chen"));
     props.insert("type".to_string(), serde_json::json!("PERSON"));
-    props.insert("description".to_string(), serde_json::json!("Lead researcher"));
+    props.insert(
+        "description".to_string(),
+        serde_json::json!("Lead researcher"),
+    );
     props.insert(
         "source_chunk_ids".to_string(),
         serde_json::json!(["chunk-001", "chunk-002", "chunk-003"]),
@@ -1278,7 +1281,7 @@ async fn test_postgres_source_tracking_in_relationships() {
         .expect("Failed to get edge");
     assert!(edge.is_some());
     let edge = edge.unwrap();
-    
+
     // Verify source_chunk_id (singular for relationships)
     let source_chunk = edge
         .properties
@@ -1391,12 +1394,16 @@ async fn test_postgres_source_tracking_e2e() {
     assert!(original_doc.is_some());
     let doc = original_doc.unwrap();
     assert_eq!(
-        doc.get("title").and_then(|v: &serde_json::Value| v.as_str()),
+        doc.get("title")
+            .and_then(|v: &serde_json::Value| v.as_str()),
         Some("Source Tracking Test")
     );
 
     // Cleanup
     kv_storage.clear().await.expect("Failed to clear KV");
-    vector_storage.clear().await.expect("Failed to clear vector");
+    vector_storage
+        .clear()
+        .await
+        .expect("Failed to clear vector");
     graph_storage.clear().await.expect("Failed to clear graph");
 }

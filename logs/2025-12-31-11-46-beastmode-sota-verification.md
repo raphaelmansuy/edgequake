@@ -23,6 +23,7 @@
 ## Next Steps
 
 1. Start Phase 1.1: Source ID Tracking
+
    - Audit entity storage schema
    - Add `source_chunks` field to entities
    - Update ingestion pipeline

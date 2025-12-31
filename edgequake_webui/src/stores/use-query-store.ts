@@ -1,5 +1,6 @@
 "use client";
 
+import { generateUUID } from "@/lib/utils/uuid";
 import type { QueryContext, QueryHistoryItem, QueryMode } from "@/types";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -122,7 +123,7 @@ export const useQueryStore = create<QueryStore>()(
           history: [
             {
               ...item,
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               timestamp: new Date().toISOString(),
             },
             ...state.history.slice(0, 99), // Keep last 100 items

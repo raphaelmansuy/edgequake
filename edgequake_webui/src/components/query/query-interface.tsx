@@ -31,6 +31,8 @@ import { chatCompletion, chatCompletionStream } from '@/lib/api/chat';
 import { ApiRequestError } from '@/lib/api/client';
 import { deleteMessage } from '@/lib/api/conversations';
 import { conversationKeys } from '@/lib/api/query-keys';
+import { mapSourcesToContext } from '@/lib/utils/source-mapper';
+import { generateUUID } from '@/lib/utils/uuid';
 import { useActiveConversationId, useQueryUIStore } from '@/stores/use-query-ui-store';
 import { useSettingsStore } from '@/stores/use-settings-store';
 import { useTenantStore } from '@/stores/use-tenant-store';
@@ -539,7 +541,7 @@ export function QueryInterface() {
   }, []);
 
   const handleStreamQuery = useCallback(async (queryText: string, conversationId: string | null) => {
-    const messageId = crypto.randomUUID();
+    const messageId = generateUUID();
     setStreamingState('thinking');
     thinkingStartRef.current = Date.now();
     abortControllerRef.current = new AbortController();
@@ -591,8 +593,11 @@ export function QueryInterface() {
             break;
 
           case 'context':
-            // Sources retrieved - could display inline
-            // context = ...; // Convert from ChatStreamEvent sources to QueryContext
+            // Map sources from API format to QueryContext for UI display
+            if ('sources' in chunk && chunk.sources) {
+              context = mapSourcesToContext(chunk.sources);
+              console.log('✓ Context received:', context.entities.length, 'entities,', context.relationships.length, 'relationships');
+            }
             break;
 
           case 'token':
@@ -605,11 +610,12 @@ export function QueryInterface() {
               setStreamingState('generating');
             }
 
-            // Update pending message
+            // Update pending message with content and context
             setPendingMessage({
               ...assistantMessage,
               content: fullContent,
               thinkingTimeMs,
+              context,  // Include context for SourceCitations display
             });
             break;
 

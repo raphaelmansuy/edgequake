@@ -51,7 +51,10 @@ pub async fn retrieve_chunks_from_entities(
         if let Ok(Some(data)) = kv_storage.get_by_id(&chunk_id).await {
             // Try to parse as chunk data
             if let Some(content) = data.as_str() {
-                chunks_with_freq.push((RetrievedChunk::new(&chunk_id, content.to_string(), 0.0), frequency));
+                chunks_with_freq.push((
+                    RetrievedChunk::new(&chunk_id, content.to_string(), 0.0),
+                    frequency,
+                ));
             }
         }
     }
@@ -124,7 +127,10 @@ pub async fn retrieve_chunks_from_relationships(
     for (chunk_id, frequency) in chunk_frequency {
         if let Ok(Some(data)) = kv_storage.get_by_id(&chunk_id).await {
             if let Some(content) = data.as_str() {
-                chunks_with_freq.push((RetrievedChunk::new(&chunk_id, content.to_string(), 0.0), frequency));
+                chunks_with_freq.push((
+                    RetrievedChunk::new(&chunk_id, content.to_string(), 0.0),
+                    frequency,
+                ));
             }
         }
     }

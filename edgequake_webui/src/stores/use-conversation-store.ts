@@ -1,5 +1,6 @@
 "use client";
 
+import { generateUUID } from "@/lib/utils/uuid";
 import type { QueryContext, QueryMode } from "@/types";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -80,7 +81,7 @@ const createNewConversation = (
   tenantId?: string,
   workspaceId?: string
 ): Conversation => ({
-  id: crypto.randomUUID(),
+  id: generateUUID(),
   title: `Chat ${new Date().toLocaleDateString()}`,
   messages: [],
   createdAt: Date.now(),

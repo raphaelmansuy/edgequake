@@ -479,6 +479,53 @@ impl SOTAQueryEngine {
             .map_err(QueryError::from)
     }
 
+    /// Execute a streaming query and return both context and stream.
+    ///
+    /// This is the preferred method for UI scenarios where sources need to be
+    /// displayed alongside the streaming response.
+    ///
+    /// Returns:
+    /// - QueryContext: The retrieved entities, relationships, and chunks
+    /// - QueryMode: The mode used for retrieval
+    /// - BoxStream: The LLM response stream
+    pub async fn query_stream_with_context(
+        &self,
+        request: crate::engine::QueryRequest,
+    ) -> Result<(
+        QueryContext,
+        QueryMode,
+        futures::stream::BoxStream<'static, Result<String>>,
+    )> {
+        use futures::StreamExt;
+
+        // Step 1: Get context (this handles keywords, mode selection, retrieval, truncation)
+        let (context, mode) = self.get_context(&request).await?;
+
+        // Step 2: Handle empty context
+        if context.is_empty() {
+            return Ok((
+                context,
+                mode,
+                futures::stream::once(async {
+                    Ok("I'm sorry, but I couldn't find any relevant information in my knowledge base to answer your question.".to_string())
+                })
+                .boxed(),
+            ));
+        }
+
+        // Step 3: Build prompt and get stream
+        let prompt = self.build_prompt(&request.query, &context);
+
+        let stream = self
+            .llm_provider
+            .stream(&prompt)
+            .await
+            .map(|stream| stream.map(|res| res.map_err(QueryError::from)).boxed())
+            .map_err(QueryError::from)?;
+
+        Ok((context, mode, stream))
+    }
+
     /// Get the retrieved context without generating an answer.
     ///
     /// Useful for streaming scenarios where context is sent first.

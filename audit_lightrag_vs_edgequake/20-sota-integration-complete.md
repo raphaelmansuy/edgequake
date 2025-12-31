@@ -13,6 +13,7 @@
 **File:** `edgequake-query/src/sota_engine.rs`
 
 Added two new methods:
+
 - `query_stream()` - Full SOTA pipeline with streaming LLM response
 - `get_context()` - Retrieve context without generation (for advanced use)
 
@@ -23,6 +24,7 @@ These methods apply all SOTA enhancements (keyword extraction, adaptive mode, Ve
 **File:** `edgequake-api/src/state.rs`
 
 Changes:
+
 - Added import: `use edgequake_query::{SOTAQueryConfig, SOTAQueryEngine};`
 - Added field: `pub sota_engine: Arc<SOTAQueryEngine>`
 - Updated `new()` constructor to accept `sota_engine`
@@ -35,6 +37,7 @@ Changes:
 **File:** `edgequake-api/src/handlers/query.rs`
 
 Changes:
+
 - `execute_query()` now uses `state.sota_engine.query()`
 - Streaming query now uses `state.sota_engine.query_stream()`
 
@@ -43,6 +46,7 @@ Changes:
 **File:** `edgequake-api/src/handlers/chat.rs`
 
 Changes:
+
 - `chat_completion()` now uses `state.sota_engine.query()`
 - `chat_completion_stream()` now uses `state.sota_engine.query_stream()`
 
@@ -65,15 +69,15 @@ Changes:
 
 ## SOTA Features Now Active
 
-| Feature | Status | Description |
-|---------|--------|-------------|
-| LLM Keyword Extraction | ✅ Active | Extracts high/low level keywords using LLM |
+| Feature                     | Status    | Description                                         |
+| --------------------------- | --------- | --------------------------------------------------- |
+| LLM Keyword Extraction      | ✅ Active | Extracts high/low level keywords using LLM          |
 | Query Intent Classification | ✅ Active | Classifies query intent (Factual, Relational, etc.) |
-| Adaptive Mode Selection | ✅ Active | Automatically selects optimal mode based on intent |
-| VectorType Filtering | ✅ Active | Filters to Entity/Relationship/Chunk vectors |
-| Batch Graph Operations | ✅ Active | Efficient batched graph traversal |
-| Keyword Caching | ✅ Active | In-memory LRU cache for keyword extraction |
-| Mode-Specific Embeddings | ✅ Active | Different embeddings for different modes |
+| Adaptive Mode Selection     | ✅ Active | Automatically selects optimal mode based on intent  |
+| VectorType Filtering        | ✅ Active | Filters to Entity/Relationship/Chunk vectors        |
+| Batch Graph Operations      | ✅ Active | Efficient batched graph traversal                   |
+| Keyword Caching             | ✅ Active | In-memory LRU cache for keyword extraction          |
+| Mode-Specific Embeddings    | ✅ Active | Different embeddings for different modes            |
 
 ---
 
@@ -104,12 +108,12 @@ The web UI will automatically benefit from improved retrieval quality.
 
 ## Files Modified
 
-| File | Changes |
-|------|---------|
-| `edgequake-query/src/sota_engine.rs` | Added `query_stream()`, `get_context()` |
-| `edgequake-api/src/state.rs` | Added `sota_engine` field, updated constructors |
-| `edgequake-api/src/handlers/query.rs` | Use `sota_engine` instead of `query_engine` |
-| `edgequake-api/src/handlers/chat.rs` | Use `sota_engine` instead of `query_engine` |
+| File                                  | Changes                                         |
+| ------------------------------------- | ----------------------------------------------- |
+| `edgequake-query/src/sota_engine.rs`  | Added `query_stream()`, `get_context()`         |
+| `edgequake-api/src/state.rs`          | Added `sota_engine` field, updated constructors |
+| `edgequake-api/src/handlers/query.rs` | Use `sota_engine` instead of `query_engine`     |
+| `edgequake-api/src/handlers/chat.rs`  | Use `sota_engine` instead of `query_engine`     |
 
 ---
 

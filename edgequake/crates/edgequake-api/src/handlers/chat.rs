@@ -30,8 +30,9 @@ use crate::middleware::TenantContext;
 use crate::state::AppState;
 use crate::streaming::StreamAccumulator;
 use edgequake_core::types::{
-    ConversationMode, CreateConversationRequest, CreateMessageRequest, MessageContext, MessageRole,
-    MessageSource, UpdateMessageRequest,
+    ConversationMode, CreateConversationRequest, CreateMessageRequest, MessageContext,
+    MessageContextEntity, MessageContextRelationship, MessageRole, MessageSource,
+    UpdateMessageRequest,
 };
 use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
 
@@ -230,12 +231,51 @@ fn sources_to_message_context(sources: &[SourceReference]) -> MessageContext {
         entities: sources
             .iter()
             .filter(|s| s.source_type == "entity")
-            .map(|s| s.id.clone())
+            .map(|s| MessageContextEntity {
+                name: s.id.clone(),
+                entity_type: "UNKNOWN".to_string(), // Not available in SourceReference
+                description: s.snippet.clone(),
+                score: s.score,
+                source_document_id: s.document_id.clone(),
+                source_file_path: s.file_path.clone(),
+                source_chunk_ids: Vec::new(), // Not available in SourceReference
+            })
             .collect(),
         relationships: sources
             .iter()
             .filter(|s| s.source_type == "relationship")
-            .map(|s| s.id.clone())
+            .map(|s| {
+                // Parse the relationship ID which is in "SOURCE->TARGET" format
+                let parts: Vec<&str> = s.id.split("->").collect();
+                let (source, target) = if parts.len() >= 2 {
+                    (parts[0].trim().to_string(), parts[1].trim().to_string())
+                } else {
+                    (s.id.clone(), "UNKNOWN".to_string())
+                };
+                // Try to extract relation type from snippet ("SOURCE RELATION_TYPE TARGET")
+                let relation_type = s
+                    .snippet
+                    .as_ref()
+                    .map(|snippet| {
+                        let words: Vec<&str> = snippet.split_whitespace().collect();
+                        if words.len() >= 3 {
+                            words[1..words.len() - 1].join("_").to_uppercase()
+                        } else {
+                            "RELATED_TO".to_string()
+                        }
+                    })
+                    .unwrap_or_else(|| "RELATED_TO".to_string());
+
+                MessageContextRelationship {
+                    source,
+                    target,
+                    relation_type,
+                    description: s.snippet.clone(),
+                    score: s.score,
+                    source_document_id: s.document_id.clone(),
+                    source_file_path: s.file_path.clone(),
+                }
+            })
             .collect(),
     }
 }
@@ -635,6 +675,8 @@ pub async fn chat_completion_stream(
 
         // Use StreamAccumulator for proper token tracking
         let mut accumulator = StreamAccumulator::new();
+        // Track message context for saving after streaming completes
+        let mut saved_message_context: Option<MessageContext> = None;
 
         // Build query request
         let mut engine_request = EngineQueryRequest::new(&message_content).with_mode(query_mode);
@@ -643,9 +685,37 @@ pub async fn chat_completion_stream(
             engine_request = engine_request.with_workspace_id(ws_id.to_string());
         }
 
-        // Execute streaming query using SOTA engine (LightRAG-style)
-        match state_clone.sota_engine.query_stream(engine_request).await {
-            Ok(mut stream) => {
+        // Execute streaming query with context using SOTA engine (LightRAG-style)
+        match state_clone
+            .sota_engine
+            .query_stream_with_context(engine_request)
+            .await
+        {
+            Ok((context, _mode, mut stream)) => {
+                // Send context event BEFORE streaming tokens (for source citations)
+                let sources = build_sources(&context);
+
+                // Save message context for later persistence
+                saved_message_context = Some(sources_to_message_context(&sources));
+
+                if !sources.is_empty() {
+                    let context_event = ChatStreamEvent::Context {
+                        sources: sources.clone(),
+                    };
+                    if tx.send(context_event).await.is_err() {
+                        warn!("Client disconnected before receiving context event");
+                        return;
+                    }
+                    info!(
+                        "Sent context event with {} sources ({} entities, {} relationships, {} chunks)",
+                        sources.len(),
+                        context.entities.len(),
+                        context.relationships.len(),
+                        context.chunks.len()
+                    );
+                }
+
+                // Stream tokens
                 while let Some(chunk_result) = stream.next().await {
                     match chunk_result {
                         Ok(text) => {
@@ -706,7 +776,7 @@ pub async fn chat_completion_stream(
             .await
         {
             Ok(assistant_message) => {
-                // Update with metadata
+                // Update with metadata AND context for source citations
                 let _ = state_clone
                     .conversation_service
                     .update_message(
@@ -716,7 +786,7 @@ pub async fn chat_completion_stream(
                             tokens_used: Some(tokens_used as i32),
                             duration_ms: Some(duration_ms as i32),
                             thinking_time_ms: None,
-                            context: None,
+                            context: saved_message_context, // Save context for source citations!
                             is_error: None,
                         },
                     )

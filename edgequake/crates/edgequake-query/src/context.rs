@@ -338,8 +338,7 @@ mod tests {
 
     #[test]
     fn test_retrieved_chunk_builder() {
-        let chunk = RetrievedChunk::new("id", "content", 0.95)
-            .with_document_id("doc-1");
+        let chunk = RetrievedChunk::new("id", "content", 0.95).with_document_id("doc-1");
 
         assert_eq!(chunk.document_id, Some("doc-1".to_string()));
         assert_eq!(chunk.score, 0.95);

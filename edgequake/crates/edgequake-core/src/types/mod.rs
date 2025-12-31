@@ -15,9 +15,9 @@ pub use chunk::Chunk;
 pub use conversation::{
     Conversation, ConversationFilter, ConversationMode, ConversationSortField,
     CreateConversationRequest, CreateFolderRequest, CreateMessageRequest, Folder, ImportError,
-    ImportResult, Message, MessageContext, MessageRole, MessageSource, PaginatedConversations,
-    PaginatedMessages, PaginationMeta, UpdateConversationRequest, UpdateFolderRequest,
-    UpdateMessageRequest,
+    ImportResult, Message, MessageContext, MessageContextEntity, MessageContextRelationship,
+    MessageRole, MessageSource, PaginatedConversations, PaginatedMessages, PaginationMeta,
+    UpdateConversationRequest, UpdateFolderRequest, UpdateMessageRequest,
 };
 pub use document::{Document, DocumentStatus};
 pub use embedding::{Embedding, EmbeddingConfig};

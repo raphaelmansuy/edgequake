@@ -634,7 +634,10 @@ async fn test_source_tracking_in_extraction_pipeline() {
     assert_eq!(entity1.source_file_path, Some(file_path.to_string()));
 
     assert_eq!(relationship.source_chunk_id, Some(chunk_id.to_string()));
-    assert_eq!(relationship.source_document_id, Some(document_id.to_string()));
+    assert_eq!(
+        relationship.source_document_id,
+        Some(document_id.to_string())
+    );
 
     // Create extraction result
     let mut result = ExtractionResult::new(chunk_id);
@@ -693,6 +696,9 @@ async fn test_source_tracking_in_extraction_pipeline() {
 
     println!("✅ Source tracking E2E test passed!");
     println!("   - Entities created: {}", stats.entities_created);
-    println!("   - Relationships created: {}", stats.relationships_created);
+    println!(
+        "   - Relationships created: {}",
+        stats.relationships_created
+    );
     println!("   - Source tracking fields verified in graph storage");
 }
