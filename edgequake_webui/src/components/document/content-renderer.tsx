@@ -4,21 +4,47 @@
 import { StreamingMarkdownRenderer } from '@/components/query/markdown';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Document } from '@/types';
-import { Suspense, useMemo } from 'react';
+import { Suspense, useMemo, useEffect, useRef } from 'react';
 import { CodeRenderer } from './code-renderer';
 import { PlainTextRenderer } from './plain-text-renderer';
 
 interface ContentRendererProps {
   document: Document;
+  highlightText?: string;
 }
 
-export function ContentRenderer({ document }: ContentRendererProps) {
+export function ContentRenderer({ document, highlightText }: ContentRendererProps) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  
   const renderer = useMemo(() => {
-    return getRendererForDocument(document);
-  }, [document]);
+    return getRendererForDocument(document, highlightText);
+  }, [document, highlightText]);
+
+  // Scroll to and highlight the text when highlightText changes
+  useEffect(() => {
+    if (!highlightText || !contentRef.current) return;
+    
+    // Give time for content to render
+    const timer = setTimeout(() => {
+      const container = contentRef.current;
+      if (!container) return;
+      
+      // Find the highlighted text element
+      const highlightedElements = container.querySelectorAll('mark.highlight-match');
+      if (highlightedElements.length > 0) {
+        // Scroll to first match
+        highlightedElements[0].scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+      }
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [highlightText]);
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div ref={contentRef} className="p-8 max-w-4xl mx-auto">
       <Suspense fallback={<ContentSkeleton />}>
         {renderer}
       </Suspense>
@@ -26,10 +52,15 @@ export function ContentRenderer({ document }: ContentRendererProps) {
   );
 }
 
-function getRendererForDocument(doc: Document) {
+function getRendererForDocument(doc: Document, highlightText?: string) {
   const mimeType = doc.mime_type?.toLowerCase() || '';
   const fileName = doc.file_name?.toLowerCase() || '';
-  const content = doc.content || doc.content_summary || '';
+  let content = doc.content || doc.content_summary || '';
+
+  // Apply highlight to content if highlightText is provided
+  if (highlightText && content) {
+    content = applyTextHighlight(content, highlightText);
+  }
 
   // Markdown documents
   if (
@@ -240,4 +271,51 @@ function ContentSkeleton() {
       <Skeleton className="h-4 w-4/5" />
     </div>
   );
+}
+
+/**
+ * Apply text highlighting to content by wrapping matching text in <mark> tags.
+ * Uses fuzzy matching to find the best match position.
+ */
+function applyTextHighlight(content: string, searchText: string): string {
+  if (!searchText || searchText.length < 10) return content;
+  
+  // Normalize both strings for matching
+  const normalizedContent = content.toLowerCase();
+  const normalizedSearch = searchText.toLowerCase().trim();
+  
+  // Try exact match first
+  let matchIndex = normalizedContent.indexOf(normalizedSearch);
+  
+  // If no exact match, try partial matching with first 50 chars
+  if (matchIndex === -1 && normalizedSearch.length > 50) {
+    const shortSearch = normalizedSearch.slice(0, 50);
+    matchIndex = normalizedContent.indexOf(shortSearch);
+  }
+  
+  // If still no match, try word-by-word matching
+  if (matchIndex === -1) {
+    const words = normalizedSearch.split(/\s+/).filter(w => w.length > 4);
+    if (words.length > 0) {
+      // Find first significant word
+      for (const word of words.slice(0, 3)) {
+        matchIndex = normalizedContent.indexOf(word);
+        if (matchIndex !== -1) break;
+      }
+    }
+  }
+  
+  if (matchIndex === -1) return content;
+  
+  // Calculate highlight range (show some context around the match)
+  const highlightLength = Math.min(searchText.length, 200);
+  const start = matchIndex;
+  const end = Math.min(start + highlightLength, content.length);
+  
+  // Wrap the matched text in a highlight mark
+  const before = content.slice(0, start);
+  const matched = content.slice(start, end);
+  const after = content.slice(end);
+  
+  return `${before}<mark class="highlight-match bg-yellow-200 dark:bg-yellow-800/50 px-0.5 rounded">${matched}</mark>${after}`;
 }

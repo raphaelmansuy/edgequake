@@ -20,8 +20,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
-import { useCallback } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { ContentRenderer } from '@/components/document/content-renderer';
@@ -48,8 +48,12 @@ export default function DocumentViewPage() {
   const { t } = useTranslation();
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const documentId = params.id as string;
   const { selectedWorkspaceId } = useTenantStore();
+  
+  // Get highlight parameter from URL
+  const highlightText = searchParams.get('highlight') || undefined;
 
   // Fetch document details
   const { data: document, isLoading, isError, error, refetch } = useQuery({
@@ -172,7 +176,7 @@ export default function DocumentViewPage() {
         <div className="hidden lg:flex flex-1 overflow-hidden">
           {/* Content Area - 65% */}
           <div className="flex-1 overflow-auto">
-            <ContentRenderer document={document} />
+            <ContentRenderer document={document} highlightText={highlightText} />
           </div>
 
           {/* Metadata Sidebar - 35% */}
@@ -189,7 +193,7 @@ export default function DocumentViewPage() {
               <TabsTrigger value="metadata">Details</TabsTrigger>
             </TabsList>
             <TabsContent value="content" className="flex-1 overflow-auto m-0 mt-0">
-              <ContentRenderer document={document} />
+              <ContentRenderer document={document} highlightText={highlightText} />
             </TabsContent>
             <TabsContent value="metadata" className="flex-1 overflow-hidden m-0 mt-0">
               <MetadataSidebar document={document} />

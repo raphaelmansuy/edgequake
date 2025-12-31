@@ -432,8 +432,26 @@ const AssistantMessage = memo(function AssistantMessage({
                 onEntityClick={(entityId) => {
                   window.location.href = `/graph?entity=${encodeURIComponent(entityId)}`;
                 }}
-                onDocumentClick={(documentId) => {
-                  window.location.href = `/documents?id=${encodeURIComponent(documentId)}`;
+                onDocumentClick={(documentId, chunkContent) => {
+                  // Navigate to document detail page with optional highlight parameter
+                  const url = new URL(`/documents/${encodeURIComponent(documentId)}`, window.location.origin);
+                  if (chunkContent) {
+                    // Use first 100 chars of chunk content as highlight search term
+                    const searchTerm = chunkContent.slice(0, 100);
+                    url.searchParams.set('highlight', searchTerm);
+                  }
+                  window.location.href = url.toString();
+                }}
+                onExploreGraph={(entityLabels) => {
+                  // Navigate to graph page with entity filter
+                  const url = new URL('/graph', window.location.origin);
+                  if (entityLabels.length > 0) {
+                    // Pass entities as comma-separated list for filtering
+                    url.searchParams.set('entities', entityLabels.join(','));
+                    // Use first entity as focus node
+                    url.searchParams.set('focus', entityLabels[0]);
+                  }
+                  window.location.href = url.toString();
                 }}
               />
             </div>

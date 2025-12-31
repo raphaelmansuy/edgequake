@@ -27,8 +27,8 @@ import { useMemo, useState } from 'react';
 interface SourceCitationsProps {
   context: QueryContext;
   onEntityClick?: (entityId: string) => void;
-  onDocumentClick?: (documentId: string) => void;
-  onExploreGraph?: () => void;
+  onDocumentClick?: (documentId: string, chunkContent?: string, chunkIndex?: number) => void;
+  onExploreGraph?: (entityLabels: string[]) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -36,13 +36,24 @@ interface SourceCitationsProps {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const calculateConfidence = (context: QueryContext): number => {
-  const scores = [
-    ...(context.chunks?.map(c => c.score) || []),
-    ...(context.entities?.map(e => e.relevance) || []),
-    ...(context.relationships?.map(r => r.relevance) || []),
-  ];
-  if (scores.length === 0) return 0;
-  return scores.reduce((a, b) => a + b, 0) / scores.length;
+  // Use chunk scores as primary signal (they're reliable cosine similarities)
+  const chunkScores = context.chunks?.map(c => c.score).filter(s => s > 0) || [];
+  
+  if (chunkScores.length === 0) {
+    // No chunks: use entity/relationship relevance, filtering zeros
+    const entityScores = context.entities?.map(e => e.relevance).filter(r => r > 0) || [];
+    const relScores = context.relationships?.map(r => r.relevance).filter(r => r > 0) || [];
+    const allScores = [...entityScores, ...relScores];
+    if (allScores.length === 0) return 0.5; // Default medium confidence
+    return allScores.reduce((a, b) => a + b, 0) / allScores.length;
+  }
+  
+  // Weighted calculation: max score (60%) + average (30%) + entity bonus (10%)
+  const maxScore = Math.max(...chunkScores);
+  const avgScore = chunkScores.reduce((a, b) => a + b, 0) / chunkScores.length;
+  const entityBonus = Math.min(0.1, (context.entities?.length || 0) * 0.005);
+  
+  return Math.min(1.0, maxScore * 0.6 + avgScore * 0.3 + entityBonus);
 };
 
 const getConfidenceLabel = (score: number): { label: string; color: string; bgColor: string } => {
@@ -83,7 +94,7 @@ const DocumentsTab = ({
   onDocumentClick 
 }: { 
   chunksByDocument: Record<string, NonNullable<QueryContext['chunks']>>;
-  onDocumentClick?: (docId: string) => void;
+  onDocumentClick?: (docId: string, chunkContent?: string, chunkIndex?: number) => void;
 }) => {
   const [showAll, setShowAll] = useState(false);
   const entries = Object.entries(chunksByDocument);
@@ -136,7 +147,7 @@ const DocumentsTab = ({
                             variant="ghost"
                             size="sm"
                             className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => onDocumentClick?.(docId)}
+                            onClick={() => onDocumentClick?.(docId, chunks[0]?.content, 0)}
                             aria-label="Open document in new window"
                           >
                             <ExternalLink className="h-3.5 w-3.5" />
@@ -194,7 +205,7 @@ const KnowledgeTab = ({
   entities: QueryContext['entities'];
   relationships: QueryContext['relationships'];
   onEntityClick?: (entityId: string) => void;
-  onDocumentClick?: (documentId: string) => void;
+  onDocumentClick?: (documentId: string, chunkContent?: string, chunkIndex?: number) => void;
 }) => {
   const [showAllEntities, setShowAllEntities] = useState(false);
   const visibleEntities = showAllEntities ? entities : entities?.slice(0, 12);
@@ -359,37 +370,46 @@ const KnowledgeTab = ({
 const ExploreTab = ({
   entityCount,
   relationshipCount,
+  entities,
   onExploreGraph,
 }: {
   entityCount: number;
   relationshipCount: number;
-  onExploreGraph?: () => void;
-}) => (
-  <div className="flex flex-col items-center justify-center py-8 space-y-4">
-    <div className="relative">
-      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-        <Network className="h-8 w-8 text-primary" />
+  entities?: QueryContext['entities'];
+  onExploreGraph?: (entityLabels: string[]) => void;
+}) => {
+  const handleExploreClick = () => {
+    const labels = entities?.map(e => e.label) || [];
+    onExploreGraph?.(labels);
+  };
+  
+  return (
+    <div className="flex flex-col items-center justify-center py-8 space-y-4">
+      <div className="relative">
+        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+          <Network className="h-8 w-8 text-primary" />
+        </div>
+        <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center">
+          {entityCount}
+        </div>
       </div>
-      <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center">
-        {entityCount}
+      <div className="text-center space-y-1">
+        <p className="text-sm font-semibold">Explore Knowledge Graph</p>
+        <p className="text-xs text-muted-foreground">
+          {entityCount} topics · {relationshipCount} connections
+        </p>
       </div>
+      <Button 
+        onClick={handleExploreClick} 
+        className="gap-2"
+        size="sm"
+      >
+        <Network className="h-4 w-4" />
+        Open Graph Explorer
+      </Button>
     </div>
-    <div className="text-center space-y-1">
-      <p className="text-sm font-semibold">Explore Knowledge Graph</p>
-      <p className="text-xs text-muted-foreground">
-        {entityCount} topics · {relationshipCount} connections
-      </p>
-    </div>
-    <Button 
-      onClick={onExploreGraph} 
-      className="gap-2"
-      size="sm"
-    >
-      <Network className="h-4 w-4" />
-      Open Graph Explorer
-    </Button>
-  </div>
-);
+  );
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Component
@@ -504,6 +524,7 @@ export function SourceCitations({
                 <ExploreTab
                   entityCount={context.entities?.length || 0}
                   relationshipCount={context.relationships?.length || 0}
+                  entities={context.entities}
                   onExploreGraph={onExploreGraph}
                 />
               </TabsContent>
