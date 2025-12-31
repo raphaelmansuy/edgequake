@@ -12,12 +12,14 @@
 After exhaustive code analysis of both implementations, EdgeQuake's query system has critical gaps:
 
 **Critical Missing Features:**
+
 1. **Keyword Extraction** - LLM-based extraction exists but is NOT USED in query pipeline
 2. **Separate Vector DBs** - Single unified storage vs LightRAG's dedicated entity/relation/chunk DBs
 3. **Source ID Linking** - Entities don't track which chunks they came from (stub implementation)
 4. **Reranking** - API accepts parameters but no implementation
 
 **Evidence Files Created:**
+
 - `16-deep-query-code-audit.md` - Full code-verified comparison
 - `17-sota-implementation-roadmap.md` - 8-week path to SOTA
 
@@ -32,6 +34,7 @@ After exhaustive code analysis of both implementations, EdgeQuake's query system
 **Critical Code Evidence:**
 
 1. EdgeQuake `engine.rs` line 340-380 - Query text is IGNORED, only embedding used:
+
 ```rust
 async fn retrieve_context(
     &self,
@@ -41,12 +44,14 @@ async fn retrieve_context(
 ```
 
 2. EdgeQuake `chunk_retrieval.rs` line 40 - Fake chunk IDs:
+
 ```rust
 // PLACEHOLDER: Just creates fake chunk IDs from entity names!
 let chunk_id = format!("{}_chunk", entity.name.to_lowercase());
 ```
 
 3. LightRAG `operate.py` line 3080 - Real keyword-driven search:
+
 ```python
 hl_keywords, ll_keywords = await get_keywords_from_query(query, ...)
 # Actually used for vector search!

@@ -8,6 +8,7 @@
 ## Current State Assessment
 
 EdgeQuake's query engine is at **~30% feature parity** with LightRAG. To become SOTA, we need to:
+
 1. Close the feature gap with LightRAG
 2. Add innovations that go beyond LightRAG
 3. Leverage Rust's performance advantages
@@ -56,25 +57,25 @@ impl KeywordExtractor for LLMKeywordExtractor {
         if let Some(cached) = self.cache.get(&cache_key).await? {
             return Ok(cached);
         }
-        
+
         // 2. Build prompt with examples
         let prompt = self.build_extraction_prompt(query);
-        
+
         // 3. Call LLM with JSON mode
         let response = self.llm_provider
             .complete_json::<KeywordsResponse>(&prompt)
             .await?;
-        
+
         // 4. Parse and validate
         let keywords = ExtractedKeywords {
             high_level: response.high_level_keywords,
             low_level: response.low_level_keywords,
             query_intent: self.classify_intent(&response),
         };
-        
+
         // 5. Cache result
         self.cache.set(&cache_key, &keywords).await?;
-        
+
         Ok(keywords)
     }
 }
@@ -93,10 +94,10 @@ impl KeywordExtractor for LLMKeywordExtractor {
 pub struct QueryVectorStores {
     /// Entity vectors indexed by description embeddings
     pub entities: Arc<dyn VectorStorage>,
-    
+
     /// Relationship vectors indexed by description embeddings
     pub relationships: Arc<dyn VectorStorage>,
-    
+
     /// Chunk vectors indexed by content embeddings
     pub chunks: Arc<dyn VectorStorage>,
 }
@@ -171,7 +172,7 @@ impl QueryEmbeddings {
             keywords.low_level.join(", "),
         ];
         let embeddings = embedder.embed_batch(&texts).await?;
-        
+
         Ok(Self {
             query: embeddings[0].clone(),
             high_level: embeddings[1].clone(),
@@ -215,7 +216,7 @@ impl EntityExtractor {
         chunk: &Chunk,
     ) -> Result<Vec<ExtractedEntity>> {
         let raw_entities = self.extract_entities(&chunk.content).await?;
-        
+
         raw_entities.into_iter().map(|e| {
             ExtractedEntity {
                 name: e.name,
@@ -240,7 +241,7 @@ impl GraphStorage for PostgresAGE {
         let source_ids = props.get("source_ids")
             .map(|v| serde_json::to_string(v).unwrap())
             .unwrap_or("[]".to_string());
-        
+
         sqlx::query(r#"
             SELECT * FROM cypher('edgequake', $$
                 MERGE (n {id: $id})
@@ -253,7 +254,7 @@ impl GraphStorage for PostgresAGE {
         .bind(&source_ids)
         .execute(&self.pool)
         .await?;
-        
+
         Ok(())
     }
 }
@@ -314,7 +315,7 @@ impl Reranker for CohereReranker {
     ) -> Result<Vec<RerankedDocument>> {
         // Handle token limits
         let (chunked_docs, original_indices) = self.chunk_for_rerank(&documents);
-        
+
         let response = self.client
             .post("https://api.cohere.ai/v1/rerank")
             .header("Authorization", format!("Bearer {}", self.api_key))
@@ -326,9 +327,9 @@ impl Reranker for CohereReranker {
             }))
             .send()
             .await?;
-        
+
         let result: CohereRerankResponse = response.json().await?;
-        
+
         // Reconstruct with original indices
         self.reconstruct_rankings(result, original_indices, documents)
     }
@@ -352,9 +353,9 @@ impl Reranker for LocalCrossEncoderReranker {
             .iter()
             .map(|d| (query.to_string(), d.content.clone()))
             .collect();
-        
+
         let scores = self.model.run_batch(&pairs)?;
-        
+
         let mut ranked: Vec<_> = documents
             .into_iter()
             .zip(scores)
@@ -365,10 +366,10 @@ impl Reranker for LocalCrossEncoderReranker {
                 original_rank: i,
             })
             .collect();
-        
+
         ranked.sort_by(|a, b| b.relevance_score.partial_cmp(&a.relevance_score).unwrap());
         ranked.truncate(top_k);
-        
+
         Ok(ranked)
     }
 }
@@ -393,35 +394,35 @@ pub struct TokenBudget {
 
 impl TokenBudget {
     pub fn compute_allocations(&self, context: &RawContext) -> TokenAllocations {
-        let available = self.total_limit 
-            - self.system_prompt_reserve 
-            - self.query_tokens 
+        let available = self.total_limit
+            - self.system_prompt_reserve
+            - self.query_tokens
             - self.response_reserve;
-        
+
         // Priority: Entities > Chunks > Relationships
         // Entities provide core semantics
-        // Chunks provide grounding evidence  
+        // Chunks provide grounding evidence
         // Relationships provide connections
-        
+
         let entity_tokens = context.entities.iter()
             .map(|e| self.count_entity_tokens(e))
             .sum::<usize>();
-        
+
         let chunk_tokens = context.chunks.iter()
             .map(|c| self.count_tokens(&c.content))
             .sum::<usize>();
-        
+
         let relation_tokens = context.relationships.iter()
             .map(|r| self.count_relation_tokens(r))
             .sum::<usize>();
-        
+
         let total_requested = entity_tokens + chunk_tokens + relation_tokens;
-        
+
         if total_requested <= available {
             // Everything fits!
             return TokenAllocations::full(entity_tokens, chunk_tokens, relation_tokens);
         }
-        
+
         // Need to cut - use priority-based allocation
         // Step 1: Try to keep all entities
         if entity_tokens <= available {
@@ -429,19 +430,19 @@ impl TokenBudget {
             // Split remaining between chunks (70%) and relations (30%)
             let chunk_budget = (remaining as f32 * 0.7) as usize;
             let relation_budget = remaining - chunk_budget;
-            
+
             return TokenAllocations {
                 entity_budget: entity_tokens,
                 chunk_budget: chunk_budget.min(chunk_tokens),
                 relation_budget: relation_budget.min(relation_tokens),
             };
         }
-        
+
         // Step 2: Need to cut entities too
         let entity_budget = (available as f32 * 0.5) as usize;
         let chunk_budget = (available as f32 * 0.35) as usize;
         let relation_budget = available - entity_budget - chunk_budget;
-        
+
         TokenAllocations {
             entity_budget,
             chunk_budget,
@@ -488,7 +489,7 @@ impl QueryCache {
         }
         hex::encode(hasher.finalize())
     }
-    
+
     pub async fn get_or_compute<T, F, Fut>(
         &self,
         cache: &Arc<dyn Cache<T>>,
@@ -505,23 +506,23 @@ impl QueryCache {
             tracing::debug!(key = %key, "Cache hit");
             return Ok(cached);
         }
-        
+
         // Compute
         let result = compute().await?;
-        
+
         // Store with TTL
         cache.set_with_ttl(key, &result, Duration::from_secs(3600)).await?;
-        
+
         Ok(result)
     }
-    
+
     /// Invalidate caches when documents change
     pub async fn invalidate_for_document(&self, document_id: &str) {
         // Find all cache keys that used this document
         let affected_keys = self.invalidation_tracker
             .get_keys_for_document(document_id)
             .await;
-        
+
         for key in affected_keys {
             self.context_cache.delete(&key).await.ok();
             self.response_cache.delete(&key).await.ok();
@@ -561,12 +562,12 @@ impl ChunkGraphLinker {
     ) -> Result<Vec<LinkedChunk>> {
         // Step 1: Collect all source_ids from entities
         let mut chunk_frequency: HashMap<String, ChunkInfo> = HashMap::new();
-        
+
         for entity in entities {
             let node = self.graph_storage.get_node(&entity.name).await?;
             if let Some(source_ids) = node.and_then(|n| n.properties.get("source_ids")) {
                 let refs: Vec<SourceReference> = serde_json::from_value(source_ids.clone())?;
-                
+
                 for source_ref in refs {
                     let entry = chunk_frequency
                         .entry(source_ref.chunk_id.clone())
@@ -582,11 +583,11 @@ impl ChunkGraphLinker {
                 }
             }
         }
-        
+
         if chunk_frequency.is_empty() {
             return Ok(Vec::new());
         }
-        
+
         // Step 2: Apply selection method
         let selected_ids = match method {
             ChunkSelectionMethod::Weight => {
@@ -620,7 +621,7 @@ impl ChunkGraphLinker {
                 let by_vector = self.chunks_from_entities(
                     entities, ChunkSelectionMethod::Vector, query_embedding, max_chunks / 2
                 ).await?;
-                
+
                 // Merge with deduplication
                 let mut seen = HashSet::new();
                 let mut result = Vec::new();
@@ -632,10 +633,10 @@ impl ChunkGraphLinker {
                 result
             }
         };
-        
+
         // Step 3: Batch retrieve chunk content
         let chunks = self.kv_storage.get_batch(&selected_ids).await?;
-        
+
         Ok(chunks.into_iter()
             .filter_map(|(id, content)| {
                 let info = chunk_frequency.get(&id)?;
@@ -677,7 +678,7 @@ pub struct LinkedChunk {
 pub trait GraphStorage: Send + Sync {
     // Existing
     async fn get_node(&self, id: &str) -> Result<Option<Node>>;
-    
+
     // NEW: Batch operations
     async fn get_nodes_batch(&self, ids: &[&str]) -> Result<HashMap<String, Node>> {
         // Default implementation: sequential (can be overridden)
@@ -689,11 +690,11 @@ pub trait GraphStorage: Send + Sync {
         }
         Ok(result)
     }
-    
+
     async fn get_edges_batch(&self, pairs: &[(String, String)]) -> Result<HashMap<(String, String), Edge>>;
-    
+
     async fn node_degrees_batch(&self, ids: &[&str]) -> Result<HashMap<String, usize>>;
-    
+
     async fn edge_degrees_batch(&self, pairs: &[(String, String)]) -> Result<HashMap<(String, String), usize>>;
 }
 
@@ -708,11 +709,11 @@ impl GraphStorage for PostgresAGE {
                 RETURN n.id, properties(n)
             $$) AS (id agtype, props agtype)
         "#, ids.join("', '"));
-        
+
         let rows = sqlx::query(&query)
             .fetch_all(&self.pool)
             .await?;
-        
+
         let mut result = HashMap::new();
         for row in rows {
             let id: String = row.try_get("id")?;
@@ -749,7 +750,7 @@ impl AdaptiveRetriever {
         let strategy = self.strategies
             .get(&keywords.query_intent)
             .ok_or_else(|| Error::UnknownIntent)?;
-        
+
         strategy.execute(keywords, embeddings, config).await
     }
 }
@@ -834,23 +835,23 @@ impl ReasoningPathRetriever {
         max_hops: usize,
     ) -> Result<Vec<ReasoningPath>> {
         let mut paths = Vec::new();
-        
+
         for source in source_entities {
             for target in target_entities {
                 if source == target { continue; }
-                
+
                 // BFS for shortest paths
                 let found_paths = self.bfs_paths(source, target, max_hops).await?;
                 paths.extend(found_paths);
             }
         }
-        
+
         // Score paths by relevance
         paths.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
-        
+
         Ok(paths)
     }
-    
+
     async fn bfs_paths(
         &self,
         source: &str,
@@ -867,14 +868,14 @@ impl ReasoningPathRetriever {
                 LIMIT 5
             $$) AS (path agtype, hops int)
         "#;
-        
+
         let rows = sqlx::query(query)
             .bind(source)
             .bind(target)
             .bind(max_hops as i32)
             .fetch_all(&self.pool)
             .await?;
-        
+
         // Parse paths
         rows.into_iter()
             .map(|row| self.parse_path(row))
@@ -929,24 +930,24 @@ impl ConfidenceScorer {
             let entity_embedding = self.embedding_provider.embed_one(&entity_text).await?;
             entity.confidence = cosine_similarity(query_embedding, &entity_embedding);
         }
-        
+
         // Score relationships
         for rel in &mut context.relationships {
             let rel_text = format!("{} {} {}", rel.source, rel.relation_type, rel.target);
             let rel_embedding = self.embedding_provider.embed_one(&rel_text).await?;
             rel.confidence = cosine_similarity(query_embedding, &rel_embedding);
         }
-        
+
         // Score chunks
         for chunk in &mut context.chunks {
             chunk.confidence = chunk.score; // Already from vector search
         }
-        
+
         // Sort all by confidence
         context.entities.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap());
         context.relationships.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap());
         context.chunks.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap());
-        
+
         Ok(())
     }
 }
@@ -955,7 +956,7 @@ impl ConfidenceScorer {
 impl QueryContext {
     pub fn to_confidence_context_string(&self) -> String {
         let mut parts = Vec::new();
-        
+
         parts.push("## Entities (sorted by relevance)".to_string());
         for entity in &self.entities {
             parts.push(format!(
@@ -963,9 +964,9 @@ impl QueryContext {
                 entity.name, entity.entity_type, entity.confidence, entity.description
             ));
         }
-        
+
         // ... similar for relationships and chunks
-        
+
         parts.join("\n")
     }
 }
@@ -989,33 +990,33 @@ impl StreamingQueryEngine {
         request: QueryRequest,
     ) -> Result<impl Stream<Item = StreamEvent>> {
         let (tx, rx) = mpsc::channel(100);
-        
+
         tokio::spawn(async move {
             // Phase 1: Quick entity context (fast)
             tx.send(StreamEvent::Status("Retrieving entities...")).await.ok();
             let entities = self.retrieve_entities(&request).await?;
             tx.send(StreamEvent::Context(ContextUpdate::Entities(entities.clone()))).await.ok();
-            
+
             // Start generation with partial context
             let partial_context = QueryContext { entities: entities.clone(), ..Default::default() };
             let gen_handle = self.start_generation(&request, &partial_context);
-            
+
             // Phase 2: Get relationships in parallel
             let relationships = self.retrieve_relationships(&request).await?;
             tx.send(StreamEvent::Context(ContextUpdate::Relationships(relationships))).await.ok();
-            
+
             // Phase 3: Get chunks
             let chunks = self.retrieve_chunks(&request).await?;
             tx.send(StreamEvent::Context(ContextUpdate::Chunks(chunks))).await.ok();
-            
+
             // Stream generation tokens
             while let Some(token) = gen_handle.next().await {
                 tx.send(StreamEvent::Token(token)).await.ok();
             }
-            
+
             tx.send(StreamEvent::Done).await.ok();
         });
-        
+
         Ok(ReceiverStream::new(rx))
     }
 }
@@ -1040,12 +1041,12 @@ pub enum ContextUpdate {
 
 ## Implementation Timeline
 
-| Phase | Duration | Key Deliverables | Feature Parity |
-|-------|----------|------------------|----------------|
-| **Phase 1** | 2 weeks | Keyword extraction, Separate VDBs, Source tracking | 60% |
-| **Phase 2** | 2 weeks | Reranking, Token budgeting, Caching | 85% |
-| **Phase 3** | 2 weeks | Chunk linking, Batch operations | 95% |
-| **Phase 4** | 2 weeks | Intent-adaptive, Multi-hop, Confidence scoring | 120% (SOTA) |
+| Phase       | Duration | Key Deliverables                                   | Feature Parity |
+| ----------- | -------- | -------------------------------------------------- | -------------- |
+| **Phase 1** | 2 weeks  | Keyword extraction, Separate VDBs, Source tracking | 60%            |
+| **Phase 2** | 2 weeks  | Reranking, Token budgeting, Caching                | 85%            |
+| **Phase 3** | 2 weeks  | Chunk linking, Batch operations                    | 95%            |
+| **Phase 4** | 2 weeks  | Intent-adaptive, Multi-hop, Confidence scoring     | 120% (SOTA)    |
 
 **Total: 8 weeks to SOTA**
 
@@ -1054,6 +1055,7 @@ pub enum ContextUpdate {
 ## Success Metrics
 
 ### Feature Parity Metrics
+
 - [ ] Keyword extraction uses LLM with caching
 - [ ] Separate entity/relationship/chunk vector DBs
 - [ ] Full source_id tracking in pipeline
@@ -1061,12 +1063,14 @@ pub enum ContextUpdate {
 - [ ] Query response caching with invalidation
 
 ### Performance Metrics
+
 - Query latency P50 < 500ms
 - Query latency P99 < 2000ms
 - Cache hit rate > 60% for similar queries
 - Batch operations reduce graph queries by 80%
 
 ### Quality Metrics
+
 - NDCG@10 improvement over naive RAG
 - Human preference A/B tests vs LightRAG
 - Citation accuracy (do cited chunks contain answer?)
@@ -1083,4 +1087,4 @@ pub enum ContextUpdate {
 
 ---
 
-*This roadmap is based on the 2025-12-31 code audit. Priorities may shift based on user feedback and performance profiling.*
+_This roadmap is based on the 2025-12-31 code audit. Priorities may shift based on user feedback and performance profiling._
