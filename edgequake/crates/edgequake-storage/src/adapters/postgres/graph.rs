@@ -708,6 +708,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
     ///
     /// Uses direct SQL query instead of slow Cypher OPTIONAL MATCH pattern.
     /// This is 10x+ faster as it leverages PostgreSQL's native aggregation and our node_id index.
+    /// Counts BOTH incoming and outgoing edges (total degree).
     ///
     /// Performance: <50ms for single node (vs 500ms+ with Cypher approach)
     async fn node_degree(&self, node_id: &str) -> Result<usize> {
@@ -718,14 +719,24 @@ impl GraphStorage for PostgresAGEGraphStorage {
 
         let escaped_id = Self::escape_cypher_string(node_id);
 
-        // FAST SQL query: Direct edge count using indexed node lookup
-        // Avoids expensive Cypher MATCH pattern
+        // FAST SQL query: Count both outgoing (start_id) and incoming (end_id) edges
+        // Uses UNION to combine counts from both directions
         let sql = format!(
-            "SELECT COUNT(*) as degree \
-             FROM {}.\"_ag_label_edge\" e \
-             JOIN {}.\"_ag_label_vertex\" v ON e.start_id = v.id \
-             WHERE ag_catalog.agtype_to_json(v.properties)->>'node_id' = '{}'",
-            self.graph_name, self.graph_name, escaped_id
+            "WITH node_vid AS ( \
+                SELECT id FROM {}.\"_ag_label_vertex\" \
+                WHERE ag_catalog.agtype_to_json(properties)->>'node_id' = '{}' \
+             ), \
+             out_edges AS ( \
+                SELECT COUNT(*) as cnt FROM {}.\"_ag_label_edge\" e \
+                JOIN node_vid n ON e.start_id = n.id \
+             ), \
+             in_edges AS ( \
+                SELECT COUNT(*) as cnt FROM {}.\"_ag_label_edge\" e \
+                JOIN node_vid n ON e.end_id = n.id \
+             ) \
+             SELECT COALESCE(o.cnt, 0) + COALESCE(i.cnt, 0) as degree \
+             FROM out_edges o, in_edges i",
+            self.graph_name, escaped_id, self.graph_name, self.graph_name
         );
 
         let row = sqlx::query(&sql)
@@ -759,26 +770,37 @@ impl GraphStorage for PostgresAGEGraphStorage {
             .map(|id| Self::escape_cypher_string(id))
             .collect();
 
-        // FAST SQL query: Batch degree calculation with GROUP BY
-        // Uses ANY($1) for parameterized array query (safer than string building)
+        // FAST SQL query: Batch degree calculation counting BOTH incoming and outgoing edges
         let sql = format!(
-            "WITH edge_counts AS ( \
-                SELECT \
-                    ag_catalog.agtype_to_json(v.properties)->>'node_id' as node_id, \
-                    COUNT(*) as degree \
+            "WITH target_nodes AS ( \
+                SELECT id, ag_catalog.agtype_to_json(properties)->>'node_id' as node_id \
+                FROM {}.\"_ag_label_vertex\" \
+                WHERE ag_catalog.agtype_to_json(properties)->>'node_id' IN ({}) \
+             ), \
+             out_degrees AS ( \
+                SELECT n.node_id, COUNT(*) as out_deg \
                 FROM {}.\"_ag_label_edge\" e \
-                JOIN {}.\"_ag_label_vertex\" v ON e.start_id = v.id \
-                WHERE ag_catalog.agtype_to_json(v.properties)->>'node_id' IN ({}) \
-                GROUP BY ag_catalog.agtype_to_json(v.properties)->>'node_id' \
-            ) \
-            SELECT node_id, degree FROM edge_counts",
-            self.graph_name,
+                JOIN target_nodes n ON e.start_id = n.id \
+                GROUP BY n.node_id \
+             ), \
+             in_degrees AS ( \
+                SELECT n.node_id, COUNT(*) as in_deg \
+                FROM {}.\"_ag_label_edge\" e \
+                JOIN target_nodes n ON e.end_id = n.id \
+                GROUP BY n.node_id \
+             ) \
+             SELECT t.node_id, COALESCE(o.out_deg, 0) + COALESCE(i.in_deg, 0) as degree \
+             FROM target_nodes t \
+             LEFT JOIN out_degrees o ON o.node_id = t.node_id \
+             LEFT JOIN in_degrees i ON i.node_id = t.node_id",
             self.graph_name,
             ids_list
                 .iter()
                 .map(|id| format!("'{}'", id))
                 .collect::<Vec<_>>()
-                .join(", ")
+                .join(", "),
+            self.graph_name,
+            self.graph_name
         );
 
         let rows = sqlx::query(&sql)
