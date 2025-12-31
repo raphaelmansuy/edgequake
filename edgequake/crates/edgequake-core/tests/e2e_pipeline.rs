@@ -591,3 +591,108 @@ async fn test_postgres_e2e_document_to_knowledge_graph() {
 
     println!("PostgreSQL E2E test completed successfully");
 }
+
+/// Test that source tracking fields are properly populated through the extraction pipeline.
+/// This verifies that:
+/// 1. ExtractedEntity and ExtractedRelationship have source fields populated
+/// 2. Merger stores source tracking in graph nodes
+/// 3. Source info can be retrieved from stored entities
+#[tokio::test]
+async fn test_source_tracking_in_extraction_pipeline() {
+    // Create memory storage backends
+    let graph_storage: Arc<dyn GraphStorage> = Arc::new(MemoryGraphStorage::new("test"));
+    let vector_storage = Arc::new(MemoryVectorStorage::new("test", 1536));
+
+    // Create extracted entities with source tracking
+    let chunk_id = "chunk-001";
+    let document_id = "doc-source-test";
+    let file_path = "/documents/test-file.pdf";
+
+    let entity1 = ExtractedEntity::new("EdgeQuake", "TECHNOLOGY", "A RAG system")
+        .with_source_chunk_id(chunk_id)
+        .with_source_document_id(document_id)
+        .with_source_file_path(file_path)
+        .with_importance(0.9);
+
+    let entity2 = ExtractedEntity::new("Sarah Chen", "PERSON", "Lead architect")
+        .with_source_chunk_id(chunk_id)
+        .with_source_document_id(document_id)
+        .with_source_file_path(file_path)
+        .with_importance(0.8);
+
+    let relationship = ExtractedRelationship::new("Sarah Chen", "EdgeQuake", "DESIGNED")
+        .with_description("Sarah Chen designed EdgeQuake")
+        .with_source_chunk_id(chunk_id)
+        .with_source_document_id(document_id)
+        .with_source_file_path(file_path)
+        .with_weight(0.9);
+
+    // Verify source tracking is set on extracted items
+    assert!(!entity1.source_chunk_ids.is_empty());
+    assert_eq!(entity1.source_chunk_ids[0], chunk_id);
+    assert_eq!(entity1.source_document_id, Some(document_id.to_string()));
+    assert_eq!(entity1.source_file_path, Some(file_path.to_string()));
+
+    assert_eq!(relationship.source_chunk_id, Some(chunk_id.to_string()));
+    assert_eq!(relationship.source_document_id, Some(document_id.to_string()));
+
+    // Create extraction result
+    let mut result = ExtractionResult::new(chunk_id);
+    result.add_entity(entity1);
+    result.add_entity(entity2);
+    result.add_relationship(relationship);
+
+    // Use merger to store in graph
+    let merger_config = MergerConfig::default();
+    let merger = KnowledgeGraphMerger::new(merger_config, graph_storage.clone(), vector_storage);
+
+    let stats = merger
+        .merge(vec![result])
+        .await
+        .expect("Merge should succeed");
+
+    assert_eq!(stats.entities_created, 2);
+    assert_eq!(stats.relationships_created, 1);
+
+    // Verify source tracking was stored in graph nodes
+    let node = graph_storage
+        .get_node("EDGEQUAKE")
+        .await
+        .expect("Should get node");
+    assert!(node.is_some(), "Node should exist");
+
+    let node = node.unwrap();
+
+    // Verify source_chunk_ids was stored
+    let source_chunks = node
+        .properties
+        .get("source_chunk_ids")
+        .and_then(|v| v.as_array());
+    assert!(source_chunks.is_some(), "source_chunk_ids should exist");
+    let source_chunks = source_chunks.unwrap();
+    assert!(
+        source_chunks
+            .iter()
+            .any(|v| v.as_str() == Some("chunk-001")),
+        "chunk-001 should be in source_chunk_ids"
+    );
+
+    // Verify source_document_id was stored
+    let source_doc = node
+        .properties
+        .get("source_document_id")
+        .and_then(|v| v.as_str());
+    assert_eq!(source_doc, Some(document_id));
+
+    // Verify source_file_path was stored
+    let source_file = node
+        .properties
+        .get("source_file_path")
+        .and_then(|v| v.as_str());
+    assert_eq!(source_file, Some(file_path));
+
+    println!("✅ Source tracking E2E test passed!");
+    println!("   - Entities created: {}", stats.entities_created);
+    println!("   - Relationships created: {}", stats.relationships_created);
+    println!("   - Source tracking fields verified in graph storage");
+}
