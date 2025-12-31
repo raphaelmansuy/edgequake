@@ -210,6 +210,9 @@ mod tests {
             description: "Test entity".to_string(),
             score: 1.0,
             degree: 0,
+            source_chunk_ids: Vec::new(),
+            source_document_id: None,
+            source_file_path: None,
         }
     }
 
@@ -220,6 +223,9 @@ mod tests {
             relation_type: "TEST".to_string(),
             description: "Test relationship".to_string(),
             score: 1.0,
+            source_chunk_id: None,
+            source_document_id: None,
+            source_file_path: None,
         }
     }
 

@@ -620,7 +620,7 @@ impl SOTAQueryEngine {
         let nodes_map = nodes_map?;
         let degrees: HashMap<String, usize> = degrees?.into_iter().collect();
 
-        // Step 5: Build entity context
+        // Step 5: Build entity context with source tracking
         for (id, node) in &nodes_map {
             let degree = degrees.get(id).copied().unwrap_or(0);
             let entity_type = node
@@ -636,8 +636,34 @@ impl SOTAQueryEngine {
                 .unwrap_or("")
                 .to_string();
 
-            context
-                .add_entity(RetrievedEntity::new(id, entity_type, description).with_degree(degree));
+            // Extract source tracking info (LightRAG parity)
+            let source_chunk_ids: Vec<String> = node
+                .properties
+                .get("source_chunk_ids")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+            let source_document_id = node
+                .properties
+                .get("source_document_id")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let source_file_path = node
+                .properties
+                .get("source_file_path")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
+            let mut entity = RetrievedEntity::new(id, entity_type, description).with_degree(degree);
+            if !source_chunk_ids.is_empty() {
+                entity = entity.with_source_chunk_ids(source_chunk_ids);
+            }
+            if let Some(doc_id) = source_document_id {
+                entity = entity.with_source_document_id(doc_id);
+            }
+            if let Some(file_path) = source_file_path {
+                entity = entity.with_source_file_path(file_path);
+            }
+            context.add_entity(entity);
         }
 
         // Step 6: Batch fetch edges for these entities
@@ -658,11 +684,34 @@ impl SOTAQueryEngine {
                 .unwrap_or("RELATED_TO")
                 .to_string();
 
-            context.add_relationship(RetrievedRelationship::new(
-                &edge.source,
-                &edge.target,
-                rel_type,
-            ));
+            // Extract source tracking for relationships
+            let source_chunk_id = edge
+                .properties
+                .get("source_chunk_id")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let source_document_id = edge
+                .properties
+                .get("source_document_id")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let source_file_path = edge
+                .properties
+                .get("source_file_path")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
+            let mut rel = RetrievedRelationship::new(&edge.source, &edge.target, rel_type);
+            if let Some(chunk_id) = source_chunk_id {
+                rel = rel.with_source_chunk_id(chunk_id);
+            }
+            if let Some(doc_id) = source_document_id {
+                rel = rel.with_source_document_id(doc_id);
+            }
+            if let Some(file_path) = source_file_path {
+                rel = rel.with_source_file_path(file_path);
+            }
+            context.add_relationship(rel);
         }
 
         Ok(context)
@@ -725,11 +774,36 @@ impl SOTAQueryEngine {
             if !src_id.is_empty() && !tgt_id.is_empty() {
                 let rel_key = format!("{}->{}:{}", src_id, tgt_id, rel_type);
                 if seen_relationships.insert(rel_key) {
-                    context.add_relationship(
-                        RetrievedRelationship::new(src_id, tgt_id, rel_type.to_string())
-                            .with_description(description.to_string())
-                            .with_score(result.score),
-                    );
+                    // Extract source tracking from vector metadata
+                    let source_chunk_id = result
+                        .metadata
+                        .get("source_chunk_id")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                    let source_document_id = result
+                        .metadata
+                        .get("source_document_id")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                    let source_file_path = result
+                        .metadata
+                        .get("source_file_path")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+
+                    let mut rel = RetrievedRelationship::new(src_id, tgt_id, rel_type.to_string())
+                        .with_description(description.to_string())
+                        .with_score(result.score);
+                    if let Some(chunk_id) = source_chunk_id {
+                        rel = rel.with_source_chunk_id(chunk_id);
+                    }
+                    if let Some(doc_id) = source_document_id {
+                        rel = rel.with_source_document_id(doc_id);
+                    }
+                    if let Some(file_path) = source_file_path {
+                        rel = rel.with_source_file_path(file_path);
+                    }
+                    context.add_relationship(rel);
                     // Collect entity IDs from relationships
                     if !entity_ids.contains(&src_id.to_string()) {
                         entity_ids.push(src_id.to_string());
@@ -770,9 +844,35 @@ impl SOTAQueryEngine {
                     .unwrap_or("")
                     .to_string();
 
-                context.add_entity(
-                    RetrievedEntity::new(&node.id, entity_type, description).with_degree(degree),
-                );
+                // Extract source tracking
+                let source_chunk_ids: Vec<String> = node
+                    .properties
+                    .get("source_chunk_ids")
+                    .and_then(|v| serde_json::from_value(v.clone()).ok())
+                    .unwrap_or_default();
+                let source_document_id = node
+                    .properties
+                    .get("source_document_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let source_file_path = node
+                    .properties
+                    .get("source_file_path")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
+                let mut entity =
+                    RetrievedEntity::new(&node.id, entity_type, description).with_degree(degree);
+                if !source_chunk_ids.is_empty() {
+                    entity = entity.with_source_chunk_ids(source_chunk_ids);
+                }
+                if let Some(doc_id) = source_document_id {
+                    entity = entity.with_source_document_id(doc_id);
+                }
+                if let Some(file_path) = source_file_path {
+                    entity = entity.with_source_file_path(file_path);
+                }
+                context.add_entity(entity);
             }
 
             // Get edges between popular entities
@@ -788,11 +888,35 @@ impl SOTAQueryEngine {
                         .and_then(|v| v.as_str())
                         .unwrap_or("RELATED_TO")
                         .to_string();
-                    context.add_relationship(RetrievedRelationship::new(
-                        &edge.source,
-                        &edge.target,
-                        rel_type,
-                    ));
+
+                    // Extract source tracking
+                    let source_chunk_id = edge
+                        .properties
+                        .get("source_chunk_id")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                    let source_document_id = edge
+                        .properties
+                        .get("source_document_id")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                    let source_file_path = edge
+                        .properties
+                        .get("source_file_path")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+
+                    let mut rel = RetrievedRelationship::new(&edge.source, &edge.target, rel_type);
+                    if let Some(chunk_id) = source_chunk_id {
+                        rel = rel.with_source_chunk_id(chunk_id);
+                    }
+                    if let Some(doc_id) = source_document_id {
+                        rel = rel.with_source_document_id(doc_id);
+                    }
+                    if let Some(file_path) = source_file_path {
+                        rel = rel.with_source_file_path(file_path);
+                    }
+                    context.add_relationship(rel);
                 }
             }
         } else {
@@ -820,9 +944,35 @@ impl SOTAQueryEngine {
                     .unwrap_or("")
                     .to_string();
 
-                context.add_entity(
-                    RetrievedEntity::new(id, entity_type, description).with_degree(degree),
-                );
+                // Extract source tracking
+                let source_chunk_ids: Vec<String> = node
+                    .properties
+                    .get("source_chunk_ids")
+                    .and_then(|v| serde_json::from_value(v.clone()).ok())
+                    .unwrap_or_default();
+                let source_document_id = node
+                    .properties
+                    .get("source_document_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let source_file_path = node
+                    .properties
+                    .get("source_file_path")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
+                let mut entity =
+                    RetrievedEntity::new(id, entity_type, description).with_degree(degree);
+                if !source_chunk_ids.is_empty() {
+                    entity = entity.with_source_chunk_ids(source_chunk_ids);
+                }
+                if let Some(doc_id) = source_document_id {
+                    entity = entity.with_source_document_id(doc_id);
+                }
+                if let Some(file_path) = source_file_path {
+                    entity = entity.with_source_file_path(file_path);
+                }
+                context.add_entity(entity);
             }
         }
 
@@ -1041,9 +1191,35 @@ impl SOTAQueryEngine {
                 .unwrap_or("")
                 .to_string();
 
-            context.add_entity(
-                RetrievedEntity::new(&node.id, entity_type, description).with_degree(degree),
-            );
+            // Extract source tracking
+            let source_chunk_ids: Vec<String> = node
+                .properties
+                .get("source_chunk_ids")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+            let source_document_id = node
+                .properties
+                .get("source_document_id")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let source_file_path = node
+                .properties
+                .get("source_file_path")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
+            let mut entity =
+                RetrievedEntity::new(&node.id, entity_type, description).with_degree(degree);
+            if !source_chunk_ids.is_empty() {
+                entity = entity.with_source_chunk_ids(source_chunk_ids);
+            }
+            if let Some(doc_id) = source_document_id {
+                entity = entity.with_source_document_id(doc_id);
+            }
+            if let Some(file_path) = source_file_path {
+                entity = entity.with_source_file_path(file_path);
+            }
+            context.add_entity(entity);
         }
 
         // Get edges
@@ -1059,11 +1235,35 @@ impl SOTAQueryEngine {
                     .and_then(|v| v.as_str())
                     .unwrap_or("RELATED_TO")
                     .to_string();
-                context.add_relationship(RetrievedRelationship::new(
-                    &edge.source,
-                    &edge.target,
-                    rel_type,
-                ));
+
+                // Extract source tracking
+                let source_chunk_id = edge
+                    .properties
+                    .get("source_chunk_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let source_document_id = edge
+                    .properties
+                    .get("source_document_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let source_file_path = edge
+                    .properties
+                    .get("source_file_path")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
+                let mut rel = RetrievedRelationship::new(&edge.source, &edge.target, rel_type);
+                if let Some(chunk_id) = source_chunk_id {
+                    rel = rel.with_source_chunk_id(chunk_id);
+                }
+                if let Some(doc_id) = source_document_id {
+                    rel = rel.with_source_document_id(doc_id);
+                }
+                if let Some(file_path) = source_file_path {
+                    rel = rel.with_source_file_path(file_path);
+                }
+                context.add_relationship(rel);
             }
         }
 

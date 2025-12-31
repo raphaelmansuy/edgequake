@@ -91,6 +91,19 @@ pub struct ExtractedEntity {
 
     /// Entity embedding.
     pub embedding: Option<Vec<f32>>,
+
+    /// Source chunk IDs where this entity was mentioned.
+    /// Used for citation tracking back to original document chunks.
+    #[serde(default)]
+    pub source_chunk_ids: Vec<String>,
+
+    /// Source document ID (the document this entity was extracted from).
+    #[serde(default)]
+    pub source_document_id: Option<String>,
+
+    /// Original file path of the source document.
+    #[serde(default)]
+    pub source_file_path: Option<String>,
 }
 
 impl ExtractedEntity {
@@ -107,6 +120,9 @@ impl ExtractedEntity {
             importance: 0.5,
             source_spans: Vec::new(),
             embedding: None,
+            source_chunk_ids: Vec::new(),
+            source_document_id: None,
+            source_file_path: None,
         }
     }
 
@@ -120,6 +136,35 @@ impl ExtractedEntity {
     pub fn with_source_span(mut self, span: impl Into<String>) -> Self {
         self.source_spans.push(span.into());
         self
+    }
+
+    /// Add a source chunk ID.
+    pub fn with_source_chunk_id(mut self, chunk_id: impl Into<String>) -> Self {
+        let id = chunk_id.into();
+        if !self.source_chunk_ids.contains(&id) {
+            self.source_chunk_ids.push(id);
+        }
+        self
+    }
+
+    /// Set the source document ID.
+    pub fn with_source_document_id(mut self, document_id: impl Into<String>) -> Self {
+        self.source_document_id = Some(document_id.into());
+        self
+    }
+
+    /// Set the source file path.
+    pub fn with_source_file_path(mut self, file_path: impl Into<String>) -> Self {
+        self.source_file_path = Some(file_path.into());
+        self
+    }
+
+    /// Add source chunk ID (mutable reference version).
+    pub fn add_source_chunk_id(&mut self, chunk_id: impl Into<String>) {
+        let id = chunk_id.into();
+        if !self.source_chunk_ids.contains(&id) {
+            self.source_chunk_ids.push(id);
+        }
     }
 }
 
@@ -147,6 +192,18 @@ pub struct ExtractedRelationship {
     /// Relationship embedding (for similarity search).
     /// Computed from: keywords + source + target + description
     pub embedding: Option<Vec<f32>>,
+
+    /// Source chunk ID where this relationship was extracted.
+    #[serde(default)]
+    pub source_chunk_id: Option<String>,
+
+    /// Source document ID.
+    #[serde(default)]
+    pub source_document_id: Option<String>,
+
+    /// Original file path of the source document.
+    #[serde(default)]
+    pub source_file_path: Option<String>,
 }
 
 impl ExtractedRelationship {
@@ -164,6 +221,9 @@ impl ExtractedRelationship {
             weight: 0.5,
             keywords: Vec::new(),
             embedding: None,
+            source_chunk_id: None,
+            source_document_id: None,
+            source_file_path: None,
         }
     }
 
@@ -182,6 +242,24 @@ impl ExtractedRelationship {
     /// Add keywords.
     pub fn with_keywords(mut self, keywords: Vec<String>) -> Self {
         self.keywords = keywords;
+        self
+    }
+
+    /// Set the source chunk ID.
+    pub fn with_source_chunk_id(mut self, chunk_id: impl Into<String>) -> Self {
+        self.source_chunk_id = Some(chunk_id.into());
+        self
+    }
+
+    /// Set the source document ID.
+    pub fn with_source_document_id(mut self, document_id: impl Into<String>) -> Self {
+        self.source_document_id = Some(document_id.into());
+        self
+    }
+
+    /// Set the source file path.
+    pub fn with_source_file_path(mut self, file_path: impl Into<String>) -> Self {
+        self.source_file_path = Some(file_path.into());
         self
     }
 }
@@ -833,6 +911,51 @@ mod tests {
         assert_eq!(entity.entity_type, "PERSON");
         assert_eq!(entity.importance, 0.8);
         assert_eq!(entity.source_spans.len(), 1);
+    }
+
+    #[test]
+    fn test_extracted_entity_source_tracking() {
+        let entity = ExtractedEntity::new("Sarah Chen", "PERSON", "Lead researcher")
+            .with_source_chunk_id("chunk-001")
+            .with_source_document_id("doc-abc123")
+            .with_source_file_path("/documents/research.pdf");
+
+        assert_eq!(entity.source_chunk_ids.len(), 1);
+        assert_eq!(entity.source_chunk_ids[0], "chunk-001");
+        assert_eq!(entity.source_document_id, Some("doc-abc123".to_string()));
+        assert_eq!(
+            entity.source_file_path,
+            Some("/documents/research.pdf".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extracted_entity_multiple_source_chunks() {
+        let mut entity = ExtractedEntity::new("ACME Corp", "ORGANIZATION", "A company")
+            .with_source_chunk_id("chunk-001")
+            .with_source_document_id("doc-abc123");
+
+        entity.add_source_chunk_id("chunk-002");
+        entity.add_source_chunk_id("chunk-003");
+
+        assert_eq!(entity.source_chunk_ids.len(), 3);
+        assert!(entity.source_chunk_ids.contains(&"chunk-001".to_string()));
+        assert!(entity.source_chunk_ids.contains(&"chunk-002".to_string()));
+        assert!(entity.source_chunk_ids.contains(&"chunk-003".to_string()));
+    }
+
+    #[test]
+    fn test_extracted_relationship_source_tracking() {
+        let rel = ExtractedRelationship::new("Alice", "Bob", "KNOWS")
+            .with_description("Alice knows Bob from work")
+            .with_source_chunk_id("chunk-005")
+            .with_source_document_id("doc-xyz789")
+            .with_source_file_path("/documents/team.md");
+
+        // Relationship has source_chunk_id as Option<String> (singular)
+        assert_eq!(rel.source_chunk_id, Some("chunk-005".to_string()));
+        assert_eq!(rel.source_document_id, Some("doc-xyz789".to_string()));
+        assert_eq!(rel.source_file_path, Some("/documents/team.md".to_string()));
     }
 
     #[test]

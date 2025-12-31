@@ -147,6 +147,18 @@ pub struct RetrievedEntity {
 
     /// Number of connections in the graph.
     pub degree: usize,
+
+    /// Source chunk IDs where this entity was mentioned (for citations).
+    #[serde(default)]
+    pub source_chunk_ids: Vec<String>,
+
+    /// Source document ID.
+    #[serde(default)]
+    pub source_document_id: Option<String>,
+
+    /// Original file path of the source document.
+    #[serde(default)]
+    pub source_file_path: Option<String>,
 }
 
 impl RetrievedEntity {
@@ -162,6 +174,9 @@ impl RetrievedEntity {
             description: description.into(),
             score: 0.0,
             degree: 0,
+            source_chunk_ids: Vec::new(),
+            source_document_id: None,
+            source_file_path: None,
         }
     }
 
@@ -174,6 +189,24 @@ impl RetrievedEntity {
     /// Set the degree.
     pub fn with_degree(mut self, degree: usize) -> Self {
         self.degree = degree;
+        self
+    }
+
+    /// Set source chunk IDs.
+    pub fn with_source_chunk_ids(mut self, chunk_ids: Vec<String>) -> Self {
+        self.source_chunk_ids = chunk_ids;
+        self
+    }
+
+    /// Set source document ID.
+    pub fn with_source_document_id(mut self, doc_id: impl Into<String>) -> Self {
+        self.source_document_id = Some(doc_id.into());
+        self
+    }
+
+    /// Set source file path.
+    pub fn with_source_file_path(mut self, file_path: impl Into<String>) -> Self {
+        self.source_file_path = Some(file_path.into());
         self
     }
 }
@@ -195,6 +228,18 @@ pub struct RetrievedRelationship {
 
     /// Relevance score.
     pub score: f32,
+
+    /// Source chunk ID where this relationship was extracted (for citations).
+    #[serde(default)]
+    pub source_chunk_id: Option<String>,
+
+    /// Source document ID.
+    #[serde(default)]
+    pub source_document_id: Option<String>,
+
+    /// Original file path of the source document.
+    #[serde(default)]
+    pub source_file_path: Option<String>,
 }
 
 impl RetrievedRelationship {
@@ -210,6 +255,9 @@ impl RetrievedRelationship {
             relation_type: relation_type.into(),
             description: String::new(),
             score: 0.0,
+            source_chunk_id: None,
+            source_document_id: None,
+            source_file_path: None,
         }
     }
 
@@ -222,6 +270,24 @@ impl RetrievedRelationship {
     /// Set the score.
     pub fn with_score(mut self, score: f32) -> Self {
         self.score = score;
+        self
+    }
+
+    /// Set source chunk ID.
+    pub fn with_source_chunk_id(mut self, chunk_id: impl Into<String>) -> Self {
+        self.source_chunk_id = Some(chunk_id.into());
+        self
+    }
+
+    /// Set source document ID.
+    pub fn with_source_document_id(mut self, doc_id: impl Into<String>) -> Self {
+        self.source_document_id = Some(doc_id.into());
+        self
+    }
+
+    /// Set source file path.
+    pub fn with_source_file_path(mut self, file_path: impl Into<String>) -> Self {
+        self.source_file_path = Some(file_path.into());
         self
     }
 }
@@ -277,5 +343,34 @@ mod tests {
 
         assert_eq!(chunk.document_id, Some("doc-1".to_string()));
         assert_eq!(chunk.score, 0.95);
+    }
+
+    #[test]
+    fn test_retrieved_entity_source_tracking() {
+        let entity = RetrievedEntity::new("Sarah Chen", "PERSON", "Lead researcher")
+            .with_source_chunk_ids(vec!["chunk-001".to_string(), "chunk-002".to_string()])
+            .with_source_document_id("doc-abc123")
+            .with_source_file_path("/documents/research.pdf");
+
+        assert_eq!(entity.source_chunk_ids.len(), 2);
+        assert!(entity.source_chunk_ids.contains(&"chunk-001".to_string()));
+        assert!(entity.source_chunk_ids.contains(&"chunk-002".to_string()));
+        assert_eq!(entity.source_document_id, Some("doc-abc123".to_string()));
+        assert_eq!(
+            entity.source_file_path,
+            Some("/documents/research.pdf".to_string())
+        );
+    }
+
+    #[test]
+    fn test_retrieved_relationship_source_tracking() {
+        let rel = RetrievedRelationship::new("Alice", "Bob", "KNOWS")
+            .with_source_chunk_id("chunk-005")
+            .with_source_document_id("doc-xyz789")
+            .with_source_file_path("/documents/team.md");
+
+        assert_eq!(rel.source_chunk_id, Some("chunk-005".to_string()));
+        assert_eq!(rel.source_document_id, Some("doc-xyz789".to_string()));
+        assert_eq!(rel.source_file_path, Some("/documents/team.md".to_string()));
     }
 }

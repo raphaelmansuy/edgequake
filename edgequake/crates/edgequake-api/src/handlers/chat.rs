@@ -186,8 +186,9 @@ fn build_sources(context: &edgequake_query::QueryContext) -> Vec<SourceReference
             rerank_score: None,
             snippet: Some(entity.description.chars().take(200).collect()),
             reference_id: Some(ref_counter),
-            document_id: None,
-            file_path: None,
+            // Source tracking for citations (LightRAG parity)
+            document_id: entity.source_document_id.clone(),
+            file_path: entity.source_file_path.clone(),
         });
         ref_counter += 1;
     }
@@ -203,8 +204,9 @@ fn build_sources(context: &edgequake_query::QueryContext) -> Vec<SourceReference
                 rel.source, rel.relation_type, rel.target
             )),
             reference_id: Some(ref_counter),
-            document_id: None,
-            file_path: None,
+            // Source tracking for citations (LightRAG parity)
+            document_id: rel.source_document_id.clone(),
+            file_path: rel.source_file_path.clone(),
         });
         ref_counter += 1;
     }

@@ -299,8 +299,8 @@ pub async fn execute_query(
             rerank_score: None,
             snippet: Some(entity.description.chars().take(200).collect()),
             reference_id: Some(ref_id),
-            document_id: None,
-            file_path: None,
+            document_id: entity.source_document_id.clone(),
+            file_path: entity.source_file_path.clone(),
         });
     }
 
@@ -318,8 +318,8 @@ pub async fn execute_query(
                 rel.source, rel.relation_type, rel.target
             )),
             reference_id: Some(ref_id),
-            document_id: None,
-            file_path: None,
+            document_id: rel.source_document_id.clone(),
+            file_path: rel.source_file_path.clone(),
         });
     }
 

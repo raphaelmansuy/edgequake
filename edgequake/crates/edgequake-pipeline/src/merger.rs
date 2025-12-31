@@ -124,7 +124,11 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
                 "type": "entity",  // Mark as entity for retrieval filtering
                 "entity_name": entity.name,
                 "entity_type": entity.entity_type,
-                "description": entity.description
+                "description": entity.description,
+                // Source tracking for citations (LightRAG parity)
+                "source_chunk_ids": entity.source_chunk_ids,
+                "source_document_id": entity.source_document_id,
+                "source_file_path": entity.source_file_path
             });
 
             if let Some(tenant_id) = &self.tenant_id {
@@ -176,7 +180,11 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
                 "tgt_id": target_key,
                 "keywords": rel.keywords.join(", "),
                 "relation_type": rel.relation_type,
-                "description": rel.description
+                "description": rel.description,
+                // Source tracking for citations (LightRAG parity)
+                "source_chunk_id": rel.source_chunk_id,
+                "source_document_id": rel.source_document_id,
+                "source_file_path": rel.source_file_path
             });
 
             if let Some(tenant_id) = &self.tenant_id {
@@ -270,6 +278,42 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
         node.properties
             .insert("sources".to_string(), serde_json::json!(sources));
 
+        // Merge source chunk IDs (for citation tracking)
+        let mut source_chunk_ids: Vec<String> = node
+            .properties
+            .get("source_chunk_ids")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default();
+
+        for chunk_id in &entity.source_chunk_ids {
+            if !source_chunk_ids.contains(chunk_id) {
+                source_chunk_ids.push(chunk_id.clone());
+            }
+        }
+
+        node.properties.insert(
+            "source_chunk_ids".to_string(),
+            serde_json::json!(source_chunk_ids),
+        );
+
+        // Update source document ID and file path if not already set
+        if node.properties.get("source_document_id").is_none() {
+            if let Some(ref doc_id) = entity.source_document_id {
+                node.properties.insert(
+                    "source_document_id".to_string(),
+                    serde_json::Value::String(doc_id.clone()),
+                );
+            }
+        }
+        if node.properties.get("source_file_path").is_none() {
+            if let Some(ref file_path) = entity.source_file_path {
+                node.properties.insert(
+                    "source_file_path".to_string(),
+                    serde_json::Value::String(file_path.clone()),
+                );
+            }
+        }
+
         Ok(())
     }
 
@@ -300,6 +344,24 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
             "label".to_string(),
             serde_json::Value::String(entity.name.clone()),
         );
+
+        // Source tracking for citations (LightRAG parity)
+        properties.insert(
+            "source_chunk_ids".to_string(),
+            serde_json::json!(entity.source_chunk_ids),
+        );
+        if let Some(ref doc_id) = entity.source_document_id {
+            properties.insert(
+                "source_document_id".to_string(),
+                serde_json::Value::String(doc_id.clone()),
+            );
+        }
+        if let Some(ref file_path) = entity.source_file_path {
+            properties.insert(
+                "source_file_path".to_string(),
+                serde_json::Value::String(file_path.clone()),
+            );
+        }
 
         // Add tenant context
         if let Some(tenant_id) = &self.tenant_id {
@@ -402,6 +464,26 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
             "relation_type".to_string(),
             serde_json::Value::String(rel.relation_type.clone()),
         );
+
+        // Source tracking for citations (LightRAG parity)
+        if let Some(ref chunk_id) = rel.source_chunk_id {
+            properties.insert(
+                "source_chunk_id".to_string(),
+                serde_json::Value::String(chunk_id.clone()),
+            );
+        }
+        if let Some(ref doc_id) = rel.source_document_id {
+            properties.insert(
+                "source_document_id".to_string(),
+                serde_json::Value::String(doc_id.clone()),
+            );
+        }
+        if let Some(ref file_path) = rel.source_file_path {
+            properties.insert(
+                "source_file_path".to_string(),
+                serde_json::Value::String(file_path.clone()),
+            );
+        }
 
         // Add tenant context
         if let Some(tenant_id) = &self.tenant_id {
@@ -598,5 +680,72 @@ mod tests {
 
         assert_eq!(stats.total_entities(), 8);
         assert_eq!(stats.total_relationships(), 12);
+    }
+
+    #[test]
+    fn test_entity_source_tracking_serialization() {
+        // Test that source tracking fields serialize correctly for storage
+        let entity = ExtractedEntity::new("Sarah Chen", "PERSON", "Lead researcher")
+            .with_source_chunk_id("chunk-001")
+            .with_source_document_id("doc-abc123")
+            .with_source_file_path("/documents/research.pdf");
+
+        // Verify source tracking fields
+        assert_eq!(entity.source_chunk_ids.len(), 1);
+        assert_eq!(entity.source_chunk_ids[0], "chunk-001");
+        assert_eq!(entity.source_document_id, Some("doc-abc123".to_string()));
+        assert_eq!(
+            entity.source_file_path,
+            Some("/documents/research.pdf".to_string())
+        );
+
+        // Verify JSON serialization works
+        let json = serde_json::json!({
+            "source_chunk_ids": entity.source_chunk_ids,
+            "source_document_id": entity.source_document_id,
+            "source_file_path": entity.source_file_path,
+        });
+
+        assert!(json.get("source_chunk_ids").unwrap().is_array());
+        assert_eq!(
+            json.get("source_document_id").unwrap().as_str(),
+            Some("doc-abc123")
+        );
+        assert_eq!(
+            json.get("source_file_path").unwrap().as_str(),
+            Some("/documents/research.pdf")
+        );
+    }
+
+    #[test]
+    fn test_relationship_source_tracking_serialization() {
+        // Test that source tracking fields serialize correctly for storage
+        let rel = ExtractedRelationship::new("Alice", "Bob", "KNOWS")
+            .with_description("Alice knows Bob from work")
+            .with_source_chunk_id("chunk-005")
+            .with_source_document_id("doc-xyz789")
+            .with_source_file_path("/documents/team.md");
+
+        // Verify source tracking fields (relationship uses Option<String> for chunk_id)
+        assert_eq!(rel.source_chunk_id, Some("chunk-005".to_string()));
+        assert_eq!(rel.source_document_id, Some("doc-xyz789".to_string()));
+        assert_eq!(rel.source_file_path, Some("/documents/team.md".to_string()));
+
+        // Verify JSON serialization works
+        let json = serde_json::json!({
+            "source_chunk_ids": rel.source_chunk_id.map(|id| vec![id]).unwrap_or_default(),
+            "source_document_id": rel.source_document_id,
+            "source_file_path": rel.source_file_path,
+        });
+
+        assert!(json.get("source_chunk_ids").unwrap().is_array());
+        assert_eq!(
+            json.get("source_document_id").unwrap().as_str(),
+            Some("doc-xyz789")
+        );
+        assert_eq!(
+            json.get("source_file_path").unwrap().as_str(),
+            Some("/documents/team.md")
+        );
     }
 }
