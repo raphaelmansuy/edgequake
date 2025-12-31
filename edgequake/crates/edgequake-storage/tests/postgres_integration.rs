@@ -1143,3 +1143,260 @@ async fn test_age_cypher_detach_delete() {
     // Cleanup
     graph_storage.clear().await.expect("Failed to clear");
 }
+
+// ============ Source Tracking Tests ============
+
+/// Test that source tracking fields are properly stored and retrieved from graph nodes
+#[tokio::test]
+async fn test_postgres_source_tracking_in_entities() {
+    let config = require_postgres!();
+    let graph_storage = PostgresAGEGraphStorage::new(config);
+
+    graph_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize");
+
+    // Create entity node with source tracking properties
+    let mut props = HashMap::new();
+    props.insert("label".to_string(), serde_json::json!("Sarah Chen"));
+    props.insert("type".to_string(), serde_json::json!("PERSON"));
+    props.insert("description".to_string(), serde_json::json!("Lead researcher"));
+    props.insert(
+        "source_chunk_ids".to_string(),
+        serde_json::json!(["chunk-001", "chunk-002", "chunk-003"]),
+    );
+    props.insert(
+        "source_document_id".to_string(),
+        serde_json::json!("doc-abc123"),
+    );
+    props.insert(
+        "source_file_path".to_string(),
+        serde_json::json!("/documents/research.pdf"),
+    );
+
+    graph_storage
+        .upsert_node("SARAH_CHEN", props)
+        .await
+        .expect("Failed to upsert node");
+
+    // Retrieve the node and verify source tracking
+    let node = graph_storage
+        .get_node("SARAH_CHEN")
+        .await
+        .expect("Failed to get node");
+    assert!(node.is_some());
+    let node = node.unwrap();
+
+    // Verify source_chunk_ids is an array
+    let source_chunk_ids = node
+        .properties
+        .get("source_chunk_ids")
+        .and_then(|v| v.as_array())
+        .expect("source_chunk_ids should be an array");
+    assert_eq!(source_chunk_ids.len(), 3);
+    assert!(source_chunk_ids
+        .iter()
+        .any(|v| v.as_str() == Some("chunk-001")));
+    assert!(source_chunk_ids
+        .iter()
+        .any(|v| v.as_str() == Some("chunk-002")));
+
+    // Verify source_document_id
+    let source_doc_id = node
+        .properties
+        .get("source_document_id")
+        .and_then(|v| v.as_str());
+    assert_eq!(source_doc_id, Some("doc-abc123"));
+
+    // Verify source_file_path
+    let source_file = node
+        .properties
+        .get("source_file_path")
+        .and_then(|v| v.as_str());
+    assert_eq!(source_file, Some("/documents/research.pdf"));
+
+    // Cleanup
+    graph_storage.clear().await.expect("Failed to clear");
+}
+
+/// Test that source tracking works for relationships/edges
+#[tokio::test]
+async fn test_postgres_source_tracking_in_relationships() {
+    let config = require_postgres!();
+    let graph_storage = PostgresAGEGraphStorage::new(config);
+
+    graph_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize");
+
+    // Create source and target nodes
+    let mut props = HashMap::new();
+    props.insert("label".to_string(), serde_json::json!("Alice"));
+    props.insert("type".to_string(), serde_json::json!("PERSON"));
+    graph_storage
+        .upsert_node("ALICE", props.clone())
+        .await
+        .expect("Failed to create source node");
+
+    props.insert("label".to_string(), serde_json::json!("Bob"));
+    graph_storage
+        .upsert_node("BOB", props)
+        .await
+        .expect("Failed to create target node");
+
+    // Create edge with source tracking
+    let mut edge_props = HashMap::new();
+    edge_props.insert("relation".to_string(), serde_json::json!("KNOWS"));
+    edge_props.insert(
+        "description".to_string(),
+        serde_json::json!("Alice knows Bob from work"),
+    );
+    edge_props.insert(
+        "source_chunk_id".to_string(),
+        serde_json::json!("chunk-005"),
+    );
+    edge_props.insert(
+        "source_document_id".to_string(),
+        serde_json::json!("doc-xyz789"),
+    );
+    edge_props.insert(
+        "source_file_path".to_string(),
+        serde_json::json!("/documents/team.md"),
+    );
+
+    graph_storage
+        .upsert_edge("ALICE", "BOB", edge_props)
+        .await
+        .expect("Failed to create edge");
+
+    // Retrieve edge and verify source tracking
+    let edge = graph_storage
+        .get_edge("ALICE", "BOB")
+        .await
+        .expect("Failed to get edge");
+    assert!(edge.is_some());
+    let edge = edge.unwrap();
+    
+    // Verify source_chunk_id (singular for relationships)
+    let source_chunk = edge
+        .properties
+        .get("source_chunk_id")
+        .and_then(|v: &serde_json::Value| v.as_str());
+    assert_eq!(source_chunk, Some("chunk-005"));
+
+    // Verify source_document_id
+    let source_doc = edge
+        .properties
+        .get("source_document_id")
+        .and_then(|v: &serde_json::Value| v.as_str());
+    assert_eq!(source_doc, Some("doc-xyz789"));
+
+    // Verify source_file_path
+    let source_file = edge
+        .properties
+        .get("source_file_path")
+        .and_then(|v: &serde_json::Value| v.as_str());
+    assert_eq!(source_file, Some("/documents/team.md"));
+
+    // Cleanup
+    graph_storage.clear().await.expect("Failed to clear");
+}
+
+/// Test source tracking roundtrip through full E2E pipeline
+#[tokio::test]
+async fn test_postgres_source_tracking_e2e() {
+    let config = require_postgres!();
+
+    let kv_storage = Arc::new(PostgresKVStorage::new(config.clone()));
+    let vector_storage = Arc::new(PgVectorStorage::with_dimension(config.clone(), 1536));
+    let graph_storage = Arc::new(PostgresAGEGraphStorage::new(config));
+
+    kv_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize KV storage");
+    vector_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize vector storage");
+    graph_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize graph storage");
+
+    // 1. Store document
+    let doc_id = "doc-source-tracking-test";
+    let file_path = "/test/documents/source-tracking.txt";
+    let document = serde_json::json!({
+        "title": "Source Tracking Test",
+        "content": "This is a test document for source tracking...",
+        "file_path": file_path,
+    });
+    kv_storage
+        .upsert(&[(doc_id.to_string(), document)])
+        .await
+        .expect("Failed to store document");
+
+    // 2. Store chunks with document reference
+    let chunk_id = "chunk-source-test-001";
+    let chunk_embedding: Vec<f32> = (0..1536).map(|i| (i as f32) / 1536.0).collect();
+    let chunk_metadata = serde_json::json!({
+        "document_id": doc_id,
+        "file_path": file_path,
+    });
+    vector_storage
+        .upsert(&[(chunk_id.to_string(), chunk_embedding, chunk_metadata)])
+        .await
+        .expect("Failed to store chunk");
+
+    // 3. Store entity with source tracking in graph
+    let entity_id = "TEST_ENTITY";
+    let mut entity_props = HashMap::new();
+    entity_props.insert("label".to_string(), serde_json::json!("Test Entity"));
+    entity_props.insert("type".to_string(), serde_json::json!("CONCEPT"));
+    entity_props.insert(
+        "source_chunk_ids".to_string(),
+        serde_json::json!([chunk_id]),
+    );
+    entity_props.insert("source_document_id".to_string(), serde_json::json!(doc_id));
+    entity_props.insert("source_file_path".to_string(), serde_json::json!(file_path));
+    graph_storage
+        .upsert_node(entity_id, entity_props)
+        .await
+        .expect("Failed to store entity");
+
+    // 4. Verify we can trace from entity back to document
+    let retrieved = graph_storage
+        .get_node(entity_id)
+        .await
+        .expect("Failed to get node");
+    assert!(retrieved.is_some());
+    let node = retrieved.unwrap();
+
+    // Extract source info
+    let source_doc = node
+        .properties
+        .get("source_document_id")
+        .and_then(|v: &serde_json::Value| v.as_str())
+        .unwrap();
+    assert_eq!(source_doc, doc_id);
+
+    // Verify we can fetch the original document using source_document_id
+    let original_doc = kv_storage
+        .get_by_id(source_doc)
+        .await
+        .expect("Failed to get document");
+    assert!(original_doc.is_some());
+    let doc = original_doc.unwrap();
+    assert_eq!(
+        doc.get("title").and_then(|v: &serde_json::Value| v.as_str()),
+        Some("Source Tracking Test")
+    );
+
+    // Cleanup
+    kv_storage.clear().await.expect("Failed to clear KV");
+    vector_storage.clear().await.expect("Failed to clear vector");
+    graph_storage.clear().await.expect("Failed to clear graph");
+}
