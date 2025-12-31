@@ -35,7 +35,8 @@ export function mapSourcesToContext(sources: SourceReference[]): QueryContext {
       .filter((s) => s.source_type === "chunk")
       .map((s) => ({
         content: s.snippet || "",
-        document_id: s.id,
+        // Extract document ID from chunk ID (format: "uuid-chunk-N" -> "uuid")
+        document_id: extractDocumentId(s.id),
         score: s.score,
         file_path: s.file_path,
       })),
@@ -89,6 +90,26 @@ function extractRelationType(snippet: string | undefined): string | undefined {
   }
 
   return undefined;
+}
+
+/**
+ * Extracts the document UUID from a chunk ID.
+ * Chunk IDs are formatted as "uuid-chunk-N" where uuid is a UUID and N is the chunk index.
+ *
+ * @param chunkId - The full chunk ID (e.g., "f0291a69-8b63-46d5-b44b-24095b3a8283-chunk-0")
+ * @returns The document UUID (e.g., "f0291a69-8b63-46d5-b44b-24095b3a8283")
+ */
+function extractDocumentId(chunkId: string): string {
+  if (!chunkId) return chunkId;
+
+  // Look for "-chunk-" suffix and extract everything before it
+  const chunkSuffixIndex = chunkId.lastIndexOf("-chunk-");
+  if (chunkSuffixIndex > 0) {
+    return chunkId.substring(0, chunkSuffixIndex);
+  }
+
+  // Fallback: return as-is if no "-chunk-" suffix found
+  return chunkId;
 }
 
 /**

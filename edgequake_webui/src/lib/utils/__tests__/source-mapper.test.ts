@@ -18,7 +18,7 @@ describe("mapSourcesToContext", () => {
     const sources: SourceReference[] = [
       {
         source_type: "chunk",
-        id: "chunk-1",
+        id: "f0291a69-8b63-46d5-b44b-24095b3a8283-chunk-0",
         score: 0.95,
         snippet: "This is some sample content from the document.",
         document_id: "doc-123",
@@ -26,7 +26,7 @@ describe("mapSourcesToContext", () => {
       },
       {
         source_type: "chunk",
-        id: "chunk-2",
+        id: "bc6a87d5-6b38-4a3d-9948-b74477e2247c-chunk-1",
         score: 0.85,
         snippet: "Another chunk of content.",
       },
@@ -37,13 +37,13 @@ describe("mapSourcesToContext", () => {
     expect(result.chunks).toHaveLength(2);
     expect(result.chunks[0]).toEqual({
       content: "This is some sample content from the document.",
-      document_id: "chunk-1",
+      document_id: "f0291a69-8b63-46d5-b44b-24095b3a8283",
       score: 0.95,
       file_path: "/uploads/test.md",
     });
     expect(result.chunks[1]).toEqual({
       content: "Another chunk of content.",
-      document_id: "chunk-2",
+      document_id: "bc6a87d5-6b38-4a3d-9948-b74477e2247c",
       score: 0.85,
       file_path: undefined,
     });
