@@ -120,9 +120,28 @@ export interface ConversationExportJSON {
         title?: string;
         content: string;
         score: number;
+        source_type?: string;
+        document_id?: string;
+        file_path?: string;
       }>;
-      entities?: string[];
-      relationships?: string[];
+      entities?: Array<{
+        name: string;
+        entity_type: string;
+        description?: string;
+        score: number;
+        source_document_id?: string;
+        source_file_path?: string;
+        source_chunk_ids?: string[];
+      }> | string[];
+      relationships?: Array<{
+        source: string;
+        target: string;
+        relation_type: string;
+        description?: string;
+        score: number;
+        source_document_id?: string;
+        source_file_path?: string;
+      }> | string[];
       thinking?: string;
     } | null;
     created_at: string;

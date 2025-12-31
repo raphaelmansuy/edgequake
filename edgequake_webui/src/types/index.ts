@@ -247,17 +247,28 @@ export interface QueryContext {
     content: string;
     document_id: string;
     score: number;
+    file_path?: string;
   }>;
   entities: Array<{
     id: string;
     label: string;
     relevance: number;
+    /** Source document ID for citation link */
+    source_document_id?: string;
+    /** Original file path for citation display */
+    source_file_path?: string;
+    /** Source chunk IDs for provenance */
+    source_chunk_ids?: string[];
   }>;
   relationships: Array<{
     source: string;
     target: string;
     type: string;
     relevance: number;
+    /** Source document ID for citation link */
+    source_document_id?: string;
+    /** Original file path for citation display */
+    source_file_path?: string;
   }>;
 }
 
@@ -585,8 +596,8 @@ export interface ServerMessage {
 
 export interface ServerMessageContext {
   sources?: MessageSource[];
-  entities?: string[];
-  relationships?: string[];
+  entities?: ServerContextEntity[];
+  relationships?: ServerContextRelationship[];
   thinking?: string;
 }
 
@@ -595,6 +606,39 @@ export interface MessageSource {
   title?: string;
   content: string;
   score: number;
+  /** Source type: chunk, entity, or relationship */
+  source_type?: string;
+  /** Document ID for citation link */
+  document_id?: string;
+  /** Original file path for citation display */
+  file_path?: string;
+}
+
+/** Entity returned in context with source tracking */
+export interface ServerContextEntity {
+  name: string;
+  entity_type: string;
+  description?: string;
+  score: number;
+  /** Source document ID for citation link */
+  source_document_id?: string;
+  /** Original file path for citation display */
+  source_file_path?: string;
+  /** Source chunk IDs for provenance */
+  source_chunk_ids?: string[];
+}
+
+/** Relationship returned in context with source tracking */
+export interface ServerContextRelationship {
+  source: string;
+  target: string;
+  relation_type: string;
+  description?: string;
+  score: number;
+  /** Source document ID for citation link */
+  source_document_id?: string;
+  /** Original file path for citation display */
+  source_file_path?: string;
 }
 
 export interface ConversationFolder {

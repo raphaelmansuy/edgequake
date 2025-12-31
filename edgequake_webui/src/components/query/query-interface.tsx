@@ -397,23 +397,53 @@ export function QueryInterface() {
     // Convert ServerMessageContext to QueryContext format
     let context: QueryContext | undefined;
     if (msg.context) {
+      // Filter sources by type
+      const chunkSources = msg.context.sources?.filter(s => s.source_type === 'chunk' || !s.source_type) ?? [];
+      
       context = {
-        chunks: msg.context.sources?.map(s => ({
+        chunks: chunkSources.map(s => ({
           content: s.content,
-          document_id: s.id,
+          document_id: s.document_id ?? s.id,
           score: s.score,
-        })) ?? [],
-        entities: msg.context.entities?.map(e => ({
-          id: e,
-          label: e,
-          relevance: 1,
-        })) ?? [],
-        relationships: msg.context.relationships?.map(r => ({
-          source: r,
-          target: r,
-          type: 'related',
-          relevance: 1,
-        })) ?? [],
+          file_path: s.file_path,
+        })),
+        entities: msg.context.entities?.map(e => {
+          // Handle both string[] and ServerContextEntity[] formats
+          if (typeof e === 'string') {
+            return {
+              id: e,
+              label: e,
+              relevance: 1,
+            };
+          }
+          return {
+            id: e.name,
+            label: e.name,
+            relevance: e.score,
+            source_document_id: e.source_document_id,
+            source_file_path: e.source_file_path,
+            source_chunk_ids: e.source_chunk_ids,
+          };
+        }) ?? [],
+        relationships: msg.context.relationships?.map(r => {
+          // Handle both string[] and ServerContextRelationship[] formats
+          if (typeof r === 'string') {
+            return {
+              source: r,
+              target: r,
+              type: 'related',
+              relevance: 1,
+            };
+          }
+          return {
+            source: r.source,
+            target: r.target,
+            type: r.relation_type,
+            relevance: r.score,
+            source_document_id: r.source_document_id,
+            source_file_path: r.source_file_path,
+          };
+        }) ?? [],
       };
     }
     

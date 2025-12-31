@@ -146,12 +146,32 @@ export function SourceCitations({
                       {entity.label}
                     </Badge>
                   </HoverCardTrigger>
-                  <HoverCardContent className="w-60">
-                    <div className="space-y-1">
+                  <HoverCardContent className="w-72">
+                    <div className="space-y-2">
                       <p className="text-sm font-medium">{entity.label}</p>
                       <p className="text-xs text-muted-foreground">
                         Relevance: {(entity.relevance * 100).toFixed(0)}%
                       </p>
+                      {/* Source Citation Link */}
+                      {(entity.source_file_path || entity.source_document_id) && (
+                        <div className="pt-1 border-t border-border/50">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">
+                            Source
+                          </p>
+                          <button
+                            onClick={() => entity.source_document_id && onDocumentClick?.(entity.source_document_id)}
+                            className="text-xs text-primary hover:underline flex items-center gap-1 truncate max-w-full"
+                          >
+                            <FileText className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate">
+                              {entity.source_file_path 
+                                ? entity.source_file_path.split('/').pop() 
+                                : entity.source_document_id?.slice(0, 12) + '...'}
+                            </span>
+                            <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />
+                          </button>
+                        </div>
+                      )}
                       <Button
                         variant="link"
                         size="sm"
@@ -181,28 +201,70 @@ export function SourceCitations({
             </h4>
             <div className="space-y-1">
               {context.relationships?.slice(0, 5).map((rel, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center gap-1 text-xs text-muted-foreground"
-                >
-                  <span
-                    className="font-medium hover:text-primary cursor-pointer"
-                    onClick={() => onEntityClick?.(rel.source)}
-                  >
-                    {rel.source.slice(0, 15)}
-                  </span>
-                  <span className="text-primary">→</span>
-                  <Badge variant="outline" className="text-[10px]">
-                    {rel.type}
-                  </Badge>
-                  <span className="text-primary">→</span>
-                  <span
-                    className="font-medium hover:text-primary cursor-pointer"
-                    onClick={() => onEntityClick?.(rel.target)}
-                  >
-                    {rel.target.slice(0, 15)}
-                  </span>
-                </div>
+                <HoverCard key={idx}>
+                  <HoverCardTrigger asChild>
+                    <div
+                      className="flex items-center gap-1 text-xs text-muted-foreground cursor-help hover:bg-muted/50 rounded px-1 py-0.5"
+                    >
+                      <span
+                        className="font-medium hover:text-primary cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEntityClick?.(rel.source);
+                        }}
+                      >
+                        {rel.source.slice(0, 15)}
+                      </span>
+                      <span className="text-primary">→</span>
+                      <Badge variant="outline" className="text-[10px]">
+                        {rel.type}
+                      </Badge>
+                      <span className="text-primary">→</span>
+                      <span
+                        className="font-medium hover:text-primary cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEntityClick?.(rel.target);
+                        }}
+                      >
+                        {rel.target.slice(0, 15)}
+                      </span>
+                    </div>
+                  </HoverCardTrigger>
+                  <HoverCardContent className="w-60">
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">
+                        {rel.source} → {rel.target}
+                      </p>
+                      <Badge variant="secondary" className="text-[10px]">
+                        {rel.type}
+                      </Badge>
+                      <p className="text-xs text-muted-foreground">
+                        Relevance: {(rel.relevance * 100).toFixed(0)}%
+                      </p>
+                      {/* Source Citation Link */}
+                      {(rel.source_file_path || rel.source_document_id) && (
+                        <div className="pt-1 border-t border-border/50">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">
+                            Source
+                          </p>
+                          <button
+                            onClick={() => rel.source_document_id && onDocumentClick?.(rel.source_document_id)}
+                            className="text-xs text-primary hover:underline flex items-center gap-1 truncate max-w-full"
+                          >
+                            <FileText className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate">
+                              {rel.source_file_path 
+                                ? rel.source_file_path.split('/').pop() 
+                                : rel.source_document_id?.slice(0, 12) + '...'}
+                            </span>
+                            <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </HoverCardContent>
+                </HoverCard>
               ))}
               {(context.relationships?.length || 0) > 5 && (
                 <p className="text-[10px] text-muted-foreground">
