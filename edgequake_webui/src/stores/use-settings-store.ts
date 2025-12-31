@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  STORE_VERSIONS,
-  ZUSTAND_STORAGE_KEYS,
-} from "@/lib/storage-keys";
+import { STORE_VERSIONS, ZUSTAND_STORAGE_KEYS } from "@/lib/storage-keys";
 import type {
   AppSettings,
   GraphSettings,
@@ -62,7 +59,10 @@ interface SettingsState extends AppSettings {
   importSettings: (jsonString: string) => { success: boolean; error?: string };
 }
 
-const initialState: AppSettings & { sidebarCollapsed: boolean; _hasHydrated: boolean } = {
+const initialState: AppSettings & {
+  sidebarCollapsed: boolean;
+  _hasHydrated: boolean;
+} = {
   theme: "system",
   language: "en",
   graphSettings: defaultGraphSettings,

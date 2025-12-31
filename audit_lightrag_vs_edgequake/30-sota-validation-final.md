@@ -21,65 +21,65 @@ EdgeQuake has achieved State-of-the-Art (SOTA) status compared to LightRAG throu
 
 ### Ingestion Features
 
-| Feature | LightRAG | EdgeQuake | Status |
-|---------|----------|-----------|--------|
-| Chunking with overlap | ✅ | ✅ | **PARITY** |
-| Entity extraction | ✅ | ✅ | **PARITY** |
-| Relationship extraction | ✅ | ✅ | **PARITY** |
-| Source tracking | ❌ | ✅ | **SUPERIOR** |
-| Gleaning (multi-pass extraction) | ✅ | ✅ | **PARITY** |
-| LLM Summarization | ✅ | ✅ | **PARITY** |
-| Entity normalization | ✅ | ✅ | **PARITY** |
-| Duplicate detection | ✅ | ✅ | **PARITY** |
-| Streaming progress | ❌ | ✅ | **SUPERIOR** |
-| Token/cost estimation | ❌ | ✅ | **SUPERIOR** |
-| Batch processing | ✅ | ✅ | **PARITY** |
-| Async processing | ✅ | ✅ | **PARITY** |
+| Feature                          | LightRAG | EdgeQuake | Status       |
+| -------------------------------- | -------- | --------- | ------------ |
+| Chunking with overlap            | ✅       | ✅        | **PARITY**   |
+| Entity extraction                | ✅       | ✅        | **PARITY**   |
+| Relationship extraction          | ✅       | ✅        | **PARITY**   |
+| Source tracking                  | ❌       | ✅        | **SUPERIOR** |
+| Gleaning (multi-pass extraction) | ✅       | ✅        | **PARITY**   |
+| LLM Summarization                | ✅       | ✅        | **PARITY**   |
+| Entity normalization             | ✅       | ✅        | **PARITY**   |
+| Duplicate detection              | ✅       | ✅        | **PARITY**   |
+| Streaming progress               | ❌       | ✅        | **SUPERIOR** |
+| Token/cost estimation            | ❌       | ✅        | **SUPERIOR** |
+| Batch processing                 | ✅       | ✅        | **PARITY**   |
+| Async processing                 | ✅       | ✅        | **PARITY**   |
 
 ### Query Features
 
-| Feature | LightRAG | EdgeQuake | Status |
-|---------|----------|-----------|--------|
-| Local retrieval | ✅ | ✅ | **PARITY** |
-| Global retrieval | ✅ | ✅ | **PARITY** |
-| Hybrid retrieval | ✅ | ✅ | **PARITY** |
-| Naive retrieval | ✅ | ✅ | **PARITY** |
-| Mix (auto-routing) | ✅ | ✅ | **PARITY** |
-| Vector similarity search | ✅ | ✅ | **PARITY** |
-| Graph traversal | ✅ | ✅ | **PARITY** |
-| Reranking | ❌ | ✅ | **SUPERIOR** |
-| Degree-based ranking | ❌ | ✅ | **SUPERIOR** |
-| Source citations | ❌ | ✅ | **SUPERIOR** |
-| Streaming responses | ✅ | ✅ | **PARITY** |
-| Context window optimization | ✅ | ✅ | **PARITY** |
+| Feature                     | LightRAG | EdgeQuake | Status       |
+| --------------------------- | -------- | --------- | ------------ |
+| Local retrieval             | ✅       | ✅        | **PARITY**   |
+| Global retrieval            | ✅       | ✅        | **PARITY**   |
+| Hybrid retrieval            | ✅       | ✅        | **PARITY**   |
+| Naive retrieval             | ✅       | ✅        | **PARITY**   |
+| Mix (auto-routing)          | ✅       | ✅        | **PARITY**   |
+| Vector similarity search    | ✅       | ✅        | **PARITY**   |
+| Graph traversal             | ✅       | ✅        | **PARITY**   |
+| Reranking                   | ❌       | ✅        | **SUPERIOR** |
+| Degree-based ranking        | ❌       | ✅        | **SUPERIOR** |
+| Source citations            | ❌       | ✅        | **SUPERIOR** |
+| Streaming responses         | ✅       | ✅        | **PARITY**   |
+| Context window optimization | ✅       | ✅        | **PARITY**   |
 
 ### API Features
 
-| Feature | LightRAG | EdgeQuake | Status |
-|---------|----------|-----------|--------|
-| REST API | ✅ | ✅ | **PARITY** |
-| Streaming endpoint | ✅ | ✅ | **PARITY** |
-| OpenAI-compatible format | ✅ | ✅ | **PARITY** |
-| Workspace isolation | ❌ | ✅ | **SUPERIOR** |
-| Per-request rerank config | ❌ | ✅ | **SUPERIOR** |
-| Gleaning config API | ❌ | ✅ | **SUPERIOR** |
-| Health/ready endpoints | ✅ | ✅ | **PARITY** |
-| Graph visualization API | ❌ | ✅ | **SUPERIOR** |
-| Lineage tracking API | ❌ | ✅ | **SUPERIOR** |
+| Feature                   | LightRAG | EdgeQuake | Status       |
+| ------------------------- | -------- | --------- | ------------ |
+| REST API                  | ✅       | ✅        | **PARITY**   |
+| Streaming endpoint        | ✅       | ✅        | **PARITY**   |
+| OpenAI-compatible format  | ✅       | ✅        | **PARITY**   |
+| Workspace isolation       | ❌       | ✅        | **SUPERIOR** |
+| Per-request rerank config | ❌       | ✅        | **SUPERIOR** |
+| Gleaning config API       | ❌       | ✅        | **SUPERIOR** |
+| Health/ready endpoints    | ✅       | ✅        | **PARITY**   |
+| Graph visualization API   | ❌       | ✅        | **SUPERIOR** |
+| Lineage tracking API      | ❌       | ✅        | **SUPERIOR** |
 
 ### UI Features
 
-| Feature | LightRAG WebUI | EdgeQuake WebUI | Status |
-|---------|----------------|-----------------|--------|
-| Document upload | ✅ | ✅ | **PARITY** |
-| Query interface | ✅ | ✅ | **PARITY** |
-| Graph visualization | ✅ | ✅ | **PARITY** |
-| Settings panel | ✅ | ✅ | **PARITY** |
-| Reranking toggle | ❌ | ✅ | **SUPERIOR** |
-| Gleaning controls | ❌ | ✅ | **SUPERIOR** |
-| LLM summarization toggle | ❌ | ✅ | **SUPERIOR** |
-| Dark mode | ✅ | ✅ | **PARITY** |
-| Streaming progress | ❌ | ✅ | **SUPERIOR** |
+| Feature                  | LightRAG WebUI | EdgeQuake WebUI | Status       |
+| ------------------------ | -------------- | --------------- | ------------ |
+| Document upload          | ✅             | ✅              | **PARITY**   |
+| Query interface          | ✅             | ✅              | **PARITY**   |
+| Graph visualization      | ✅             | ✅              | **PARITY**   |
+| Settings panel           | ✅             | ✅              | **PARITY**   |
+| Reranking toggle         | ❌             | ✅              | **SUPERIOR** |
+| Gleaning controls        | ❌             | ✅              | **SUPERIOR** |
+| LLM summarization toggle | ❌             | ✅              | **SUPERIOR** |
+| Dark mode                | ✅             | ✅              | **PARITY**   |
+| Streaming progress       | ❌             | ✅              | **SUPERIOR** |
 
 ---
 
@@ -100,6 +100,7 @@ pub struct GleaningConfig {
 ```
 
 **Integration Points:**
+
 - Pipeline config accepts gleaning settings
 - API exposes `enable_gleaning`, `max_gleaning` fields
 - UI provides toggle and iteration selector
@@ -118,6 +119,7 @@ pub struct LLMSummarizer {
 ```
 
 **Integration Points:**
+
 - Merger uses LLMSummarizer when configured
 - API exposes `use_llm_summarization` field
 - UI provides summarization toggle
@@ -137,12 +139,14 @@ pub struct SOTAQueryConfig {
 ```
 
 **Flow:**
+
 1. Vector similarity retrieval returns candidates
 2. Reranker scores candidates against query
 3. Low-scoring candidates filtered out
 4. Top-k returned for context generation
 
 **Integration Points:**
+
 - SOTAQueryEngine accepts optional Reranker
 - Per-request `enable_rerank` override supported
 - API exposes rerank configuration
@@ -172,19 +176,19 @@ fn sort_entities_by_degree(&self, entities: &mut [RetrievedEntity]) {
 
 ### Rust Test Suite
 
-| Package | Tests | Status |
-|---------|-------|--------|
-| edgequake-api | 94 | ✅ Pass |
-| edgequake-core | 102 | ✅ Pass |
-| edgequake-llm | 68 | ✅ Pass |
-| edgequake-pipeline | 94 | ✅ Pass |
-| edgequake-query | 76 | ✅ Pass |
-| edgequake-storage | 37 | ✅ Pass |
-| edgequake-tasks | 30 | ✅ Pass |
-| edgequake-embed | 34 | ✅ Pass |
-| edgequake-reranker | 12 | ✅ Pass |
-| Other | 5 | ✅ Pass |
-| **TOTAL** | **552** | ✅ **ALL PASS** |
+| Package            | Tests   | Status          |
+| ------------------ | ------- | --------------- |
+| edgequake-api      | 94      | ✅ Pass         |
+| edgequake-core     | 102     | ✅ Pass         |
+| edgequake-llm      | 68      | ✅ Pass         |
+| edgequake-pipeline | 94      | ✅ Pass         |
+| edgequake-query    | 76      | ✅ Pass         |
+| edgequake-storage  | 37      | ✅ Pass         |
+| edgequake-tasks    | 30      | ✅ Pass         |
+| edgequake-embed    | 34      | ✅ Pass         |
+| edgequake-reranker | 12      | ✅ Pass         |
+| Other              | 5       | ✅ Pass         |
+| **TOTAL**          | **552** | ✅ **ALL PASS** |
 
 ### TypeScript Type Check
 
@@ -202,14 +206,14 @@ fn sort_entities_by_degree(&self, entities: &mut [RetrievedEntity]) {
 
 ## SOTA Declaration Criteria
 
-| Criterion | Met? | Evidence |
-|-----------|------|----------|
-| Feature parity with LightRAG | ✅ | All core features implemented |
-| Additional innovations | ✅ | Reranking, source tracking, streaming progress, etc. |
-| Comprehensive test coverage | ✅ | 552 unit tests passing |
-| Type safety (Rust + TypeScript) | ✅ | Full compile checks passing |
-| API extensibility | ✅ | Per-request configuration overrides |
-| UI controls for all features | ✅ | Settings page with all SOTA controls |
+| Criterion                       | Met? | Evidence                                             |
+| ------------------------------- | ---- | ---------------------------------------------------- |
+| Feature parity with LightRAG    | ✅   | All core features implemented                        |
+| Additional innovations          | ✅   | Reranking, source tracking, streaming progress, etc. |
+| Comprehensive test coverage     | ✅   | 552 unit tests passing                               |
+| Type safety (Rust + TypeScript) | ✅   | Full compile checks passing                          |
+| API extensibility               | ✅   | Per-request configuration overrides                  |
+| UI controls for all features    | ✅   | Settings page with all SOTA controls                 |
 
 ---
 
@@ -239,5 +243,5 @@ The Rust implementation provides significant performance advantages while mainta
 
 ---
 
-*Validated by: SOTA Implementation Agent*
-*Date: 2025-01-01*
+_Validated by: SOTA Implementation Agent_
+_Date: 2025-01-01_

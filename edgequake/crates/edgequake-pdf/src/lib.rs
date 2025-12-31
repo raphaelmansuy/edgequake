@@ -4,13 +4,13 @@
 //! content from PDF documents and convert them to structured Markdown using
 //! AI enhancement through EdgeQuake's LLM providers.
 
+pub mod config;
 pub mod error;
 pub mod extractor;
-pub mod config;
 
-pub use extractor::PdfExtractor;
 pub use config::PdfConfig;
 pub use error::PdfError;
+pub use extractor::PdfExtractor;
 
 /// Result type for PDF operations.
 pub type Result<T> = std::result::Result<T, PdfError>;

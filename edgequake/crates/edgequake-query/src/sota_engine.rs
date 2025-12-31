@@ -119,7 +119,7 @@ impl Default for SOTAQueryConfig {
             use_adaptive_mode: true,
             truncation: TruncationConfig::default(),
             keyword_cache_ttl_secs: 24 * 60 * 60, // 24 hours
-            enable_rerank: true,  // Enable by default for SOTA quality
+            enable_rerank: true,                  // Enable by default for SOTA quality
             min_rerank_score: 0.3,
             rerank_top_k: 10,
         }
@@ -303,10 +303,7 @@ impl SOTAQueryEngine {
         let documents: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
 
         // Call the reranker
-        match reranker
-            .rerank(query, &documents, Some(rerank_top_k))
-            .await
-        {
+        match reranker.rerank(query, &documents, Some(rerank_top_k)).await {
             Ok(results) => {
                 tracing::debug!(
                     query = %query,
@@ -316,8 +313,10 @@ impl SOTAQueryEngine {
                 );
 
                 // Build index -> score map
-                let score_map: std::collections::HashMap<usize, f64> =
-                    results.iter().map(|r| (r.index, r.relevance_score)).collect();
+                let score_map: std::collections::HashMap<usize, f64> = results
+                    .iter()
+                    .map(|r| (r.index, r.relevance_score))
+                    .collect();
 
                 // Update scores and filter by min score
                 let mut reranked: Vec<_> = chunks
@@ -337,7 +336,11 @@ impl SOTAQueryEngine {
                     .collect();
 
                 // Sort by score descending
-                reranked.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+                reranked.sort_by(|a, b| {
+                    b.score
+                        .partial_cmp(&a.score)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
 
                 // Return top_k
                 reranked.truncate(rerank_top_k);
@@ -975,7 +978,11 @@ impl SOTAQueryEngine {
             // Query with filter to retrieve only the specific chunks
             let results = self
                 .vector_storage
-                .query(&embeddings.low_level, chunk_ids_vec.len(), Some(&chunk_ids_vec))
+                .query(
+                    &embeddings.low_level,
+                    chunk_ids_vec.len(),
+                    Some(&chunk_ids_vec),
+                )
                 .await?;
 
             for result in results {
@@ -1328,7 +1335,11 @@ impl SOTAQueryEngine {
             // Query with filter to retrieve only the specific chunks
             let results = self
                 .vector_storage
-                .query(&embeddings.high_level, chunk_ids_vec.len(), Some(&chunk_ids_vec))
+                .query(
+                    &embeddings.high_level,
+                    chunk_ids_vec.len(),
+                    Some(&chunk_ids_vec),
+                )
                 .await?;
 
             // Track which chunks we already have to avoid duplicates

@@ -13,6 +13,7 @@
 **Solution:** `edgequake-pdf` crate with CLI tool that integrates seamlessly with EdgeQuake's LLM provider system, supporting text, tables, images, and scanned documents with >95% accuracy.
 
 **Key Features:**
+
 - ✅ Generic & pluggable LLM provider integration
 - ✅ AI-enhanced table and image processing
 - ✅ Comprehensive CLI tool for standalone usage
@@ -43,6 +44,7 @@
 ## Current State & Gap Analysis
 
 ### ✅ What EdgeQuake Already Has
+
 - Robust LLM provider abstraction (`edgequake-llm`)
 - OpenAI and mock provider implementations
 - Async Rust infrastructure with tokio
@@ -50,12 +52,14 @@
 - Workspace-integrated crate structure
 
 ### 🔴 Critical Gaps (Must Fix)
+
 - **No PDF processing capability**
 - **No vision support in LLM providers**
 - **No CLI tools for document processing**
 - **No structured Markdown output from PDFs**
 
 ### 🟡 Nice-to-Have Gaps
+
 - Advanced layout handling
 - OCR optimization
 - Performance benchmarking
@@ -66,21 +70,26 @@
 ## Implementation Plan - 7 Phases
 
 ### Phase 1: Foundation & Critical Mitigations (Week 1) 🔴 CRITICAL
+
 **Goal:** Establish working PDF extraction with fallback strategies
 
 **Tasks:**
+
 1. **Research & Validate `pdf_oxide` API** 🔄 IN PROGRESS
+
    - Test current API compatibility
    - Implement fallback to `lopdf` + `pdf-extract` if needed
    - **Files:** `edgequake/crates/edgequake-pdf/Cargo.toml`
 
 2. **Extend `edgequake-llm` with Vision Support** 📋 PLANNED
+
    - Add `VisionProvider` trait
    - Implement vision in OpenAI provider
    - Update mock provider for testing
    - **Files:** `edgequake-llm/src/traits.rs`, `edgequake-llm/src/providers/`
 
 3. **Create Basic PDF Crate Structure** 📋 PLANNED
+
    - Set up `edgequake-pdf` crate
    - Implement core extraction logic
    - Add to workspace Cargo.toml
@@ -93,16 +102,20 @@
    - **Files:** `edgequake/crates/edgequake-pdf/tests/`
 
 ### Phase 2: Core AI Enhancement (Week 2-3) 🟡 HIGH PRIORITY
+
 **Goal:** Add AI-powered processing for complex content
 
 **Tasks:**
+
 1. **AI Enhancement Pipeline** 📋 PLANNED
+
    - Integrate vision capabilities
    - Add table refinement with AI
    - Image description generation
    - **Files:** `edgequake-pdf/src/extractor.rs`
 
 2. **Performance Optimization** 📋 PLANNED
+
    - Concurrent AI processing
    - Memory usage optimization
    - Cost monitoring
@@ -115,16 +128,20 @@
    - **Files:** `edgequake-pdf/src/error.rs`
 
 ### Phase 3: CLI Tool Development (Week 4) 🟡 HIGH PRIORITY
+
 **Goal:** Complete standalone CLI tool for end users
 
 **Tasks:**
+
 1. **CLI Crate Setup** 📋 PLANNED
+
    - Create `edgequake-pdf-cli` binary crate
    - Implement clap-based command structure
    - Add to workspace
    - **Files:** `edgequake/crates/edgequake-pdf-cli/src/main.rs`
 
 2. **Core Commands** 📋 PLANNED
+
    - `convert` subcommand with full options
    - `info` for PDF analysis
    - `batch` for multi-file processing
@@ -137,16 +154,20 @@
    - **Files:** `edgequake/crates/edgequake-pdf-cli/src/config.rs`
 
 ### Phase 4: Advanced Features (Week 5) 🟠 MEDIUM PRIORITY
+
 **Goal:** Handle complex document layouts and edge cases
 
 **Tasks:**
+
 1. **Layout Processing** 📋 PLANNED
+
    - Multi-column detection
    - Complex table structures
    - Figure and caption handling
    - **Files:** `edgequake-pdf/src/layout.rs`
 
 2. **OCR Integration** 📋 PLANNED
+
    - Scanned document support
    - Cloud OCR fallbacks
    - Quality validation
@@ -159,16 +180,20 @@
    - **Files:** `edgequake/crates/edgequake-pdf/tests/`
 
 ### Phase 5: Production Readiness (Week 6) 🟢 LOW PRIORITY
+
 **Goal:** Enterprise-grade reliability and monitoring
 
 **Tasks:**
+
 1. **Comprehensive Testing** 📋 PLANNED
+
    - 90%+ test coverage
    - E2E test suite
    - Performance regression tests
    - **Files:** `edgequake/crates/edgequake-pdf/tests/`
 
 2. **Monitoring & Observability** 📋 PLANNED
+
    - Cost tracking and limits
    - Performance metrics
    - Error reporting
@@ -181,16 +206,20 @@
    - **Files:** `edgequake/crates/edgequake-pdf/README.md`
 
 ### Phase 6: Distribution & Packaging (Week 7) 🟢 LOW PRIORITY
+
 **Goal:** Make the tool accessible to end users
 
 **Tasks:**
+
 1. **Binary Distribution** 📋 PLANNED
+
    - GitHub releases with pre-built binaries
    - Cross-platform builds (x86_64, ARM)
    - Installation scripts
    - **Files:** `.github/workflows/release.yml`
 
 2. **Package Manager Support** 📋 PLANNED
+
    - Cargo install support
    - Homebrew formula
    - Docker container
@@ -345,6 +374,7 @@ edgequake-pdf-cli [GLOBAL_OPTIONS] <SUBCOMMAND> [SUBCOMMAND_OPTIONS]
 ```
 
 ### Global Options
+
 - `-v, --verbose`: Enable verbose logging
 - `-q, --quiet`: Suppress output
 - `--config <FILE>`: Configuration file path
@@ -353,10 +383,13 @@ edgequake-pdf-cli [GLOBAL_OPTIONS] <SUBCOMMAND> [SUBCOMMAND_OPTIONS]
 ### Subcommands
 
 #### Convert (Primary)
+
 ```bash
 edgequake-pdf-cli convert [OPTIONS] <INPUT> [OUTPUT]
 ```
+
 **Key Options:**
+
 - `--pages <RANGE>`: Page range (e.g., "1-5,8,10-12")
 - `--mode <MODE>`: Processing mode (fast, balanced, accurate)
 - `--vision <BOOL>`: Enable vision processing
@@ -364,10 +397,13 @@ edgequake-pdf-cli convert [OPTIONS] <INPUT> [OUTPUT]
 - `--progress`: Show progress bar
 
 #### Info (Analysis)
+
 ```bash
 edgequake-pdf-cli info [OPTIONS] <INPUT>
 ```
+
 **Options:**
+
 - `--metadata`: Document metadata
 - `--pages`: Page information
 - `--structure`: Document structure analysis
@@ -375,20 +411,26 @@ edgequake-pdf-cli info [OPTIONS] <INPUT>
 - `--tables`: Table detection
 
 #### Batch (Multi-file)
+
 ```bash
 edgequake-pdf-cli batch [OPTIONS] <INPUT_DIR> <OUTPUT_DIR>
 ```
+
 **Options:**
+
 - `--pattern <PATTERN>`: File pattern matching
 - `--recursive`: Process subdirectories
 - `--parallel <N>`: Parallel processing count
 - `--continue-on-error`: Continue after failures
 
 #### Config (Management)
+
 ```bash
 edgequake-pdf-cli config [SUBCOMMAND]
 ```
+
 **Subcommands:**
+
 - `init`: Create default config
 - `show`: Display current config
 - `set <KEY> <VALUE>`: Set config value
@@ -399,6 +441,7 @@ edgequake-pdf-cli config [SUBCOMMAND]
 ## Usage Examples
 
 ### Library Usage
+
 ```rust
 use edgequake_pdf::{PdfExtractor, PdfExtractorConfig};
 use edgequake_llm::providers::openai::OpenAIProvider;
@@ -418,6 +461,7 @@ async fn main() -> Result<()> {
 ```
 
 ### CLI Usage
+
 ```bash
 # Basic conversion
 edgequake-pdf-cli convert document.pdf output.md
@@ -443,12 +487,12 @@ edgequake-pdf-cli info --metadata --structure document.pdf
 
 ### Critical Risks 🔴
 
-| Risk | Probability | Impact | Mitigation | Status |
-|------|-------------|--------|------------|--------|
-| pdf_oxide API Incompatible | High | Critical | Fallback to lopdf + pdf-extract | 🔄 Research Required |
-| Vision Support Missing | High | Critical | Extend LLM provider traits | 📋 Implementation Planned |
-| Performance Target Miss | Medium | High | Benchmarking + optimization | 📋 Planned |
-| AI Cost Overrun | Medium | Medium | Cost limits + monitoring | 📋 Planned |
+| Risk                       | Probability | Impact   | Mitigation                      | Status                    |
+| -------------------------- | ----------- | -------- | ------------------------------- | ------------------------- |
+| pdf_oxide API Incompatible | High        | Critical | Fallback to lopdf + pdf-extract | 🔄 Research Required      |
+| Vision Support Missing     | High        | Critical | Extend LLM provider traits      | 📋 Implementation Planned |
+| Performance Target Miss    | Medium      | High     | Benchmarking + optimization     | 📋 Planned                |
+| AI Cost Overrun            | Medium      | Medium   | Cost limits + monitoring        | 📋 Planned                |
 
 ### Go/No-Go Decision Points
 
@@ -463,6 +507,7 @@ edgequake-pdf-cli info --metadata --structure document.pdf
 ## Success Metrics
 
 ### Technical Metrics
+
 - ✅ PDF text extraction accuracy: >95% for native PDFs
 - ✅ Vision-enhanced processing: >80% for scanned/complex PDFs
 - ✅ Performance: <15s for 100-page PDFs
@@ -470,12 +515,14 @@ edgequake-pdf-cli info --metadata --structure document.pdf
 - ✅ API reliability: >99.5% with fallbacks
 
 ### Quality Metrics
+
 - ✅ Test coverage: >90% unit, >80% integration, >70% E2E
 - ✅ Error handling: Graceful degradation for all failure modes
 - ✅ Documentation: Complete API docs and usage examples
 - ✅ Cross-platform: Consistent behavior on Linux/macOS/Windows
 
 ### Operational Metrics
+
 - ✅ Cost efficiency: <$0.10 per 100-page document
 - ✅ Scalability: Handle concurrent requests without degradation
 - ✅ Maintainability: Clear code structure and documentation
@@ -485,26 +532,31 @@ edgequake-pdf-cli info --metadata --structure document.pdf
 ## Implementation Roadmap
 
 ### Immediate Actions (Next 24-48 hours)
+
 1. **API Research**: Validate `pdf_oxide` compatibility and test fallbacks
 2. **Crate Setup**: Create `edgequake-pdf` directory structure
 3. **Vision Extension**: Begin `VisionProvider` trait implementation
 
 ### Week 1: Foundation
+
 - Complete pdf_oxide validation and fallback implementation
 - Extend LLM providers with vision support
 - Create working text extraction prototype
 
 ### Week 2-3: Core Features
+
 - AI enhancement pipeline with vision integration
 - Performance optimization and benchmarking
 - Comprehensive error handling
 
 ### Week 4: CLI Tool
+
 - Complete CLI crate with all subcommands
 - User experience polish (progress bars, colors, config)
 - Cross-platform testing
 
 ### Week 5-7: Production Ready
+
 - Advanced features (layout, OCR)
 - Comprehensive testing and documentation
 - Distribution and packaging
@@ -514,6 +566,7 @@ edgequake-pdf-cli info --metadata --structure document.pdf
 ## Files to Create/Modify
 
 ### New Files
+
 - `edgequake/crates/edgequake-pdf/Cargo.toml`
 - `edgequake/crates/edgequake-pdf/src/lib.rs`
 - `edgequake/crates/edgequake-pdf/src/extractor.rs`
@@ -524,6 +577,7 @@ edgequake-pdf-cli info --metadata --structure document.pdf
 - `edgequake/crates/edgequake-pdf-cli/src/commands/`
 
 ### Modified Files
+
 - `edgequake/Cargo.toml` (add new crates to workspace)
 - `edgequake-llm/src/traits.rs` (add VisionProvider trait)
 - `edgequake-llm/src/providers/openai.rs` (implement vision)
@@ -534,24 +588,28 @@ edgequake-pdf-cli info --metadata --structure document.pdf
 ## Testing Strategy
 
 ### Unit Tests
+
 - Component isolation testing
 - Mock LLM provider usage
 - Error condition validation
 - **Location:** `edgequake/crates/edgequake-pdf/tests/unit/`
 
 ### Integration Tests
+
 - Full pipeline testing with real providers
 - Performance benchmarking
 - Cross-platform validation
 - **Location:** `edgequake/crates/edgequake-pdf/tests/integration/`
 
 ### E2E Tests
+
 - CLI tool testing
 - Real PDF processing
 - Batch operation validation
 - **Location:** `edgequake/crates/edgequake-pdf/tests/e2e/`
 
 ### Test Data
+
 - Curated PDF test suite
 - Various document types (native, scanned, complex)
 - Performance benchmarking documents
@@ -562,6 +620,7 @@ edgequake-pdf-cli info --metadata --structure document.pdf
 ## Verification Plan
 
 ### Manual Testing Steps
+
 1. **Basic Functionality**: Convert simple PDF to Markdown
 2. **AI Enhancement**: Process document with tables and images
 3. **CLI Tool**: Test all subcommands with various options
@@ -571,6 +630,7 @@ edgequake-pdf-cli info --metadata --structure document.pdf
 7. **Cross-Platform**: Validate on all supported platforms
 
 ### Automated Verification
+
 - **CI Pipeline**: Full test suite on all platforms
 - **Performance Regression**: Automated benchmarking
 - **Integration Tests**: End-to-end pipeline validation
@@ -583,6 +643,7 @@ edgequake-pdf-cli info --metadata --structure document.pdf
 This specification provides a comprehensive, actionable plan for implementing a production-ready PDF-to-Markdown extraction crate within the EdgeQuake ecosystem. The phased approach ensures quality implementation with proper testing and documentation.
 
 **Key Success Factors:**
+
 1. **Early API validation** of PDF parsing libraries
 2. **Incremental development** with working prototypes
 3. **Comprehensive testing** at all levels
@@ -657,15 +718,15 @@ use std::sync::Arc;
 async fn main() -> Result<()> {
     // Get LLM provider from EdgeQuake's provider factory
     let llm_provider = Arc::new(/* EdgeQuake LLM provider instance */);
-    
+
     let config = PdfExtractorConfig::default()
         .with_llm_provider(llm_provider)
         .with_ocr_threshold(0.8);
-    
+
     let extractor = PdfExtractor::new(config);
     let pdf_bytes = std::fs::read("document.pdf")?;
     let markdown = extractor.extract_to_markdown(&pdf_bytes).await?;
-    
+
     // Write to file or return
     std::fs::write("output.md", &markdown)?;
     Ok(())
@@ -681,6 +742,7 @@ async fn main() -> Result<()> {
   - Output format options
 
 #### Error Handling
+
 - Use `anyhow` for propagation.
 - Fallbacks: If AI fails, use `pdf_oxide`'s rule-based output.
 - Logging: Integrate `tracing` for debug info.
@@ -690,32 +752,38 @@ async fn main() -> Result<()> {
 The tool processes PDFs page-by-page for efficiency, maintaining global context (e.g., running headers/footers).
 
 #### 1. Text Extraction
+
 - **pdf_oxide Role**: Extracts text with layout-aware reading order (XY-Cut algorithm), handles ligatures, hyphenation, and fonts. Outputs as structured blocks (e.g., paragraphs, headings via font size heuristics).
 - **AI Enhancement**: For scanned/low-confidence text, send page images to AI vision endpoint for OCR and rephrasing. Prompt: "Extract and clean all text from this image, preserving order and structure."
-- **Output in Markdown**: Convert to # Headers, **bold**, *italic*, lists, etc. Preserve paragraphs.
+- **Output in Markdown**: Convert to # Headers, **bold**, _italic_, lists, etc. Preserve paragraphs.
 
 #### 2. Tables
+
 - **pdf_oxide Role**: In v0.4.0+, uses grid detection for extraction. For earlier versions, fallback to text-block clustering.
 - **AI Enhancement**: If table is complex/misparsed (e.g., merged cells), convert to image and send to AI. Prompt: "Interpret this table image as Markdown. Include headers, rows, and handle spans accurately."
 - **Output**: Render as Markdown tables (`| Col1 | Col2 |`). Add captions if detected nearby.
 
 #### 3. Images and Figures
+
 - **pdf_oxide Role**: Extracts embedded images (JPEG/PNG/TIFF) with positions. Detects figures via spatial clustering (DBSCAN).
 - **AI Enhancement**: Base64-encode image and send to vision model. Prompt: "Describe this image/figure in detail, including key elements, colors, and context. Generate a concise alt-text and caption."
 - **Output**: Insert as Markdown images: `![Figure Description](data:image/png;base64,<base64_data>)` or link to extracted file. Include AI-generated caption and number (e.g., "Figure 1: [AI Description]"). Auto-number figures sequentially.
 
 #### 4. Figure Descriptions and Captions
+
 - **pdf_oxide Role**: Identifies potential captions via proximity to images (e.g., text blocks below/above).
 - **AI Enhancement**: Refine with context. Prompt: "Given this figure image and nearby text '[excerpt]', generate an accurate description and caption."
 - **Output**: Append to image Markdown: `![Alt text](...)  
-  *Figure X: AI-generated description.*`
+*Figure X: AI-generated description.*`
 
 #### 5. Page Numbers and Metadata
+
 - **pdf_oxide Role**: Parses page metadata, detects headers/footers via repetition analysis.
 - **AI Enhancement**: Minimal; use only if ambiguous (e.g., send footer image for confirmation).
 - **Output**: Insert as footnotes or section breaks: `--- Page N ---`. Preserve in TOC if applicable.
 
 #### 6. Overall Structure and Reading Order
+
 - **pdf_oxide Role**: Global layout analysis ensures logical flow.
 - **AI Enhancement**: For highly unstructured PDFs, send extracted text to AI for reorganization. Prompt: "Restructure this raw text into coherent Markdown, adding headings and sections where logical."
 - **Edge Cases**:
@@ -776,10 +844,10 @@ async fn describe_image(
         ChatMessage::system("You are a PDF extraction assistant. Describe this image for Markdown alt-text."),
         ChatMessage::user(format!("Analyze this image and provide a concise description:\n![Image](data:image/png;base64,{})", image_base64)),
     ];
-    
+
     let options = CompletionOptions::default()
         .with_temperature(0.1); // Low temperature for consistency
-    
+
     let response = provider.chat(&messages, Some(&options)).await?;
     Ok(response.content)
 }
@@ -793,7 +861,7 @@ async fn describe_image(
   - `ai_enhancer.rs`: AI interaction layer using `edgequake-llm`
   - `assembler.rs`: Markdown assembly and formatting
   - `error.rs`: Error types specific to PDF processing
-- **Integration with EdgeQuake**: 
+- **Integration with EdgeQuake**:
   - Added to workspace members in root `Cargo.toml`
   - Can be used by other EdgeQuake crates (e.g., `edgequake-pipeline` for document ingestion)
   - Follows EdgeQuake coding conventions: `tracing` for logging, `thiserror` for errors, async/await patterns
@@ -822,6 +890,7 @@ The `edgequake-pdf` crate includes a command-line interface (CLI) tool for stand
 The CLI tool is implemented as a separate binary crate that depends on the `edgequake-pdf` library crate. This separation allows the library to be used programmatically while providing a standalone executable for command-line usage.
 
 **Crate Structure**:
+
 ```
 edgequake/crates/
 ├── edgequake-pdf/          # Library crate
@@ -883,6 +952,7 @@ edgequake-pdf-cli [GLOBAL_OPTIONS] <SUBCOMMAND> [SUBCOMMAND_OPTIONS]
 ```
 
 **Global Options**:
+
 - `-v, --verbose`: Enable verbose logging (can be repeated for more verbosity)
 - `-q, --quiet`: Suppress all output except errors
 - `--log-level <LEVEL>`: Set logging level (error, warn, info, debug, trace)
@@ -890,6 +960,7 @@ edgequake-pdf-cli [GLOBAL_OPTIONS] <SUBCOMMAND> [SUBCOMMAND_OPTIONS]
 - `--provider <PROVIDER>`: LLM provider to use (openai, mock) [default: auto-detect]
 
 **Subcommands**:
+
 - `convert`: Convert PDF to Markdown (default subcommand)
 - `info`: Display PDF information and metadata
 - `batch`: Process multiple PDFs in batch mode
@@ -904,10 +975,12 @@ edgequake-pdf-cli convert [OPTIONS] <INPUT> [OUTPUT]
 ```
 
 **Arguments**:
+
 - `<INPUT>`: Path to input PDF file (required)
 - `[OUTPUT]`: Path to output Markdown file (optional, defaults to stdout or auto-generated)
 
 **Options**:
+
 - `-f, --format <FORMAT>`: Output format (markdown, html, json) [default: markdown]
 - `--pages <RANGE>`: Page range to process (e.g., "1-5,8,10-12") [default: all]
 - `--mode <MODE>`: Processing mode (fast, balanced, accurate) [default: balanced]
@@ -930,6 +1003,7 @@ edgequake-pdf-cli info [OPTIONS] <INPUT>
 ```
 
 **Options**:
+
 - `--metadata`: Show document metadata (title, author, creation date, etc.)
 - `--pages`: Show page count and dimensions
 - `--structure`: Analyze and display document structure
@@ -946,7 +1020,8 @@ edgequake-pdf-cli batch [OPTIONS] <INPUT_DIR> <OUTPUT_DIR>
 ```
 
 **Options**:
-- `--pattern <PATTERN>`: File pattern to match (e.g., "*.pdf") [default: *.pdf]
+
+- `--pattern <PATTERN>`: File pattern to match (e.g., "_.pdf") [default: _.pdf]
 - `--recursive`: Process subdirectories recursively
 - `--parallel <N>`: Number of PDFs to process in parallel [default: 2]
 - `--continue-on-error`: Continue processing other files if one fails
@@ -962,12 +1037,14 @@ edgequake-pdf-cli config [SUBCOMMAND]
 ```
 
 **Subcommands**:
+
 - `init`: Create default configuration file
 - `show`: Display current configuration
 - `set <KEY> <VALUE>`: Set configuration value
 - `get <KEY>`: Get configuration value
 
 **Configuration File Format (TOML)**:
+
 ```toml
 [processing]
 mode = "balanced"
@@ -995,6 +1072,7 @@ file = "edgequake-pdf.log"
 ### Usage Examples
 
 **Basic PDF conversion**:
+
 ```bash
 # Convert PDF to Markdown (output to stdout)
 edgequake-pdf-cli convert document.pdf
@@ -1007,6 +1085,7 @@ edgequake-pdf-cli convert --pages 1-5,10 document.pdf
 ```
 
 **Advanced processing with custom settings**:
+
 ```bash
 # High-accuracy mode with vision and progress bar
 edgequake-pdf-cli convert \
@@ -1025,6 +1104,7 @@ edgequake-pdf-cli convert \
 ```
 
 **Batch processing**:
+
 ```bash
 # Process all PDFs in directory
 edgequake-pdf-cli batch ./pdfs ./markdown --recursive --parallel 4
@@ -1038,6 +1118,7 @@ edgequake-pdf-cli batch \
 ```
 
 **Information and analysis**:
+
 ```bash
 # Get PDF metadata
 edgequake-pdf-cli info --metadata document.pdf
@@ -1047,6 +1128,7 @@ edgequake-pdf-cli info --structure --tables document.pdf
 ```
 
 **Configuration management**:
+
 ```bash
 # Initialize configuration
 edgequake-pdf-cli config init
@@ -1061,6 +1143,7 @@ edgequake-pdf-cli config show
 ### CLI Implementation Details
 
 **Main Entry Point** (`src/main.rs`):
+
 ```rust
 use clap::{Parser, Subcommand};
 use edgequake_pdf_cli::*;
@@ -1118,6 +1201,7 @@ async fn main() -> Result<()> {
 ```
 
 **Error Handling & User Experience**:
+
 - **Colored output**: Success (green), warnings (yellow), errors (red)
 - **Progress indicators**: Progress bars for long operations
 - **Interactive prompts**: Optional confirmation for destructive operations
@@ -1125,12 +1209,14 @@ async fn main() -> Result<()> {
 - **Auto-completion**: Shell completion scripts generation
 
 **Performance Considerations**:
+
 - **Streaming I/O**: Large PDFs processed without loading entirely into memory
 - **Concurrent processing**: Multiple pages/AI requests processed simultaneously
 - **Resource monitoring**: Memory and API usage tracking
 - **Graceful degradation**: Automatic fallback to simpler modes on resource constraints
 
 **Distribution & Packaging**:
+
 - **Cargo installation**: `cargo install edgequake-pdf-cli`
 - **Pre-built binaries**: GitHub releases with cross-platform builds
 - **Container images**: Docker images for isolated execution
@@ -1147,6 +1233,7 @@ The `edgequake-pdf` crate implements a comprehensive testing strategy with three
 Unit tests focus on testing individual functions and methods in isolation, using mocks and stubs for dependencies.
 
 #### Configuration Tests (`config.rs`)
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -1182,6 +1269,7 @@ mod tests {
 ```
 
 #### Error Handling Tests (`error.rs`)
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -1203,6 +1291,7 @@ mod tests {
 ```
 
 #### Extractor Logic Tests (`extractor.rs`)
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -1246,6 +1335,7 @@ mod tests {
 Integration tests verify that different components work together correctly, using real dependencies where possible but still relying on mocks for external services.
 
 #### Test Directory Structure
+
 ```
 edgequake-pdf/
 ├── tests/
@@ -1262,6 +1352,7 @@ edgequake-pdf/
 ```
 
 #### PDF Processing Integration Tests
+
 ```rust
 #[cfg(test)]
 mod integration_tests {
@@ -1339,6 +1430,7 @@ mod integration_tests {
 ```
 
 #### LLM Provider Integration Tests
+
 ```rust
 #[cfg(test)]
 mod llm_integration_tests {
@@ -1379,6 +1471,7 @@ mod llm_integration_tests {
 E2E tests validate the complete PDF processing pipeline from input to output, testing real-world scenarios and performance characteristics.
 
 #### E2E Test Structure
+
 ```rust
 #[cfg(test)]
 mod e2e_tests {
@@ -1538,6 +1631,7 @@ mod e2e_tests {
 ```
 
 #### Benchmark Tests
+
 ```rust
 #[cfg(test)]
 mod benchmark_tests {
@@ -1575,6 +1669,7 @@ mod benchmark_tests {
 ### Test Data and Fixtures
 
 #### Test PDF Generation
+
 ```bash
 # Generate test PDFs using various tools
 # Text-based PDF
@@ -1588,6 +1683,7 @@ convert -size 800x600 xc:white -pointsize 12 -annotate +10+30 'Scanned Document 
 ```
 
 #### CI/CD Integration
+
 ```yaml
 # .github/workflows/test.yml
 name: Test
@@ -1643,6 +1739,7 @@ cargo tarpaulin --package edgequake-pdf --out Html
 ### 🚧 **Critical Roadblocks**
 
 #### 1. **pdf_oxide API Compatibility** 🔴
+
 **Issue**: The specification assumes `pdf_oxide` v0.2.2 API, but the actual API may differ significantly. The code examples use `Document::load_from_bytes()` and `page.extract_text()` which may not exist or work as expected.
 
 **Impact**: Core PDF parsing functionality may fail to compile or work incorrectly.
@@ -1650,6 +1747,7 @@ cargo tarpaulin --package edgequake-pdf --out Html
 **Detailed Mitigation Strategy**:
 
 **Phase 1: API Research & Validation (Day 1)**
+
 ```rust
 // Create a minimal test to verify pdf_oxide API
 #[cfg(test)]
@@ -1729,11 +1827,13 @@ pub struct PdfImage {
 ```
 
 **Contingency Plan**: If no suitable Rust PDF library exists, consider:
+
 - Using Python libraries via `pyo3` (embed Python runtime)
 - External PDF-to-text conversion tools
 - Web service integration for PDF processing
 
 #### 2. **Vision Support in edgequake-llm** 🔴
+
 **Issue**: Current `edgequake-llm` traits do not include vision/image processing capabilities. The specification assumes vision support exists or can be easily added.
 
 **Impact**: Cannot process scanned PDFs, images, tables, or complex layouts that require visual analysis.
@@ -1983,16 +2083,19 @@ impl PdfExtractor {
 ```
 
 **Contingency Plan**: If vision trait extension proves too complex:
+
 - Direct `async-openai` usage for vision-only operations
 - Separate vision service/microservice
 - Fallback to text-only processing with OCR
 
 #### 3. **Performance Requirements** 🟡
+
 **Issue**: Achieving <10s processing for 100-page PDFs with AI enhancement is ambitious. Each AI call adds 1-3s latency, and batching may not scale linearly.
 
 **Impact**: May not meet performance targets, especially for large documents.
 
 **Mitigation**:
+
 - **Benchmark early**: Test with real PDFs and measure baseline performance
 - **Optimize batching**: Implement smart batching strategies (group similar content types)
 - **Caching**: Cache AI responses for repeated content
@@ -2000,11 +2103,13 @@ impl PdfExtractor {
 - **Fallback**: Rule-based only mode for performance-critical scenarios
 
 #### 4. **OCR Fallback Complexity** 🟡
+
 **Issue**: `tesseract` dependency may have platform-specific issues, complex setup, and poor accuracy for complex layouts.
 
 **Impact**: Scanned PDF processing may fail on certain platforms or produce poor results.
 
 **Mitigation**:
+
 - **Container deployment**: Use Docker containers with pre-configured Tesseract
 - **Cloud OCR**: Integrate Google Cloud Vision or Azure OCR as fallback
 - **Quality gates**: Only use OCR when AI vision fails
@@ -2013,33 +2118,39 @@ impl PdfExtractor {
 ### ⚠️ **Significant Challenges**
 
 #### 5. **Complex Layout Handling** 🟡
+
 **Issue**: Multi-column layouts, complex tables with merged cells, mathematical equations, and irregular document structures are difficult to parse accurately.
 
 **Impact**: Poor conversion quality for academic papers, financial reports, and technical documents.
 
 **Mitigation**:
+
 - **Layout analysis**: Implement advanced layout detection algorithms
 - **AI-first approach**: Use AI for layout understanding before rule-based parsing
 - **Specialized handlers**: Create specific handlers for common document types
 - **Quality metrics**: Implement accuracy scoring and fallback thresholds
 
 #### 6. **Memory and Resource Management** 🟡
+
 **Issue**: Large PDFs with images can consume significant memory. Concurrent AI processing may overwhelm system resources.
 
 **Impact**: Out-of-memory errors, system instability, poor performance under load.
 
 **Mitigation**:
+
 - **Streaming processing**: Process pages individually rather than loading entire PDF
 - **Resource limits**: Implement configurable memory limits and concurrent request caps
 - **Progressive loading**: Load and process content on-demand
 - **Monitoring**: Add resource usage tracking and alerts
 
 #### 7. **Cost and Rate Limiting** 🟡
+
 **Issue**: AI processing of large PDFs can be expensive and hit API rate limits. A 100-page document might require dozens of AI calls.
 
 **Impact**: High operational costs, service unavailability during peak usage.
 
 **Mitigation**:
+
 - **Cost estimation**: Implement pre-processing cost calculation
 - **Smart batching**: Minimize AI calls through intelligent content analysis
 - **Caching**: Cache AI responses for similar content
@@ -2047,11 +2158,13 @@ impl PdfExtractor {
 - **Rate limiting**: Integrate with EdgeQuake's existing rate limiting infrastructure
 
 #### 8. **Cross-Platform Compatibility** 🟠
+
 **Issue**: PDF processing libraries and OCR tools may behave differently across platforms. File path handling, encoding issues, and system dependencies.
 
 **Impact**: Inconsistent behavior across development and production environments.
 
 **Mitigation**:
+
 - **Container standardization**: Use Docker for consistent environments
 - **Platform-specific testing**: Comprehensive CI/CD matrix testing
 - **Abstraction layers**: Abstract file system operations
@@ -2060,21 +2173,25 @@ impl PdfExtractor {
 ### 🔧 **Technical Debt and Maintenance**
 
 #### 9. **Dependency Version Conflicts** 🟠
+
 **Issue**: Integrating new dependencies (`pdf_oxide`, `tesseract`, `image`) with existing EdgeQuake workspace may cause version conflicts.
 
 **Impact**: Compilation failures, security vulnerabilities from outdated dependencies.
 
 **Mitigation**:
+
 - **Dependency audit**: Regular security and compatibility audits
 - **Workspace management**: Careful version pinning and conflict resolution
 - **Isolated testing**: Test crate in isolation before workspace integration
 
 #### 10. **Testing Infrastructure Complexity** 🟠
+
 **Issue**: E2E testing requires diverse PDF test fixtures, mock AI responses, and performance benchmarking infrastructure.
 
 **Impact**: Slow test execution, flaky tests, difficulty maintaining test coverage.
 
 **Mitigation**:
+
 - **Test fixtures**: Curated set of representative PDF documents
 - **Mock ecosystem**: Comprehensive mocking for all external dependencies
 - **Parallel execution**: Optimize test execution time
@@ -2082,38 +2199,42 @@ impl PdfExtractor {
 
 ### 📊 **Risk Assessment Matrix**
 
-| Roadblock | Probability | Impact | Priority | Mitigation Status | Timeline |
-|-----------|-------------|--------|----------|-------------------|----------|
-| pdf_oxide API | High | Critical | 🔴 P0 | **Detailed fallback strategy ready** | 1-4 days |
-| Vision Support | High | Critical | 🔴 P0 | **Complete implementation plan** | 1-7 days |
-| Performance | Medium | High | 🟡 P1 | Benchmarking strategy defined | Ongoing |
-| OCR Complexity | Medium | Medium | 🟡 P1 | Container/cloud fallbacks | 2-3 weeks |
-| Layout Handling | Medium | High | 🟡 P1 | AI-first approach planned | 3-4 weeks |
-| Resource Management | Low | Medium | 🟠 P2 | Monitoring framework | 4-6 weeks |
-| Cost/Rate Limiting | Medium | Medium | 🟠 P2 | Cost controls implemented | 2-3 weeks |
-| Cross-Platform | Low | Low | 🟢 P3 | Container standardization | 4-6 weeks |
+| Roadblock           | Probability | Impact   | Priority | Mitigation Status                    | Timeline  |
+| ------------------- | ----------- | -------- | -------- | ------------------------------------ | --------- |
+| pdf_oxide API       | High        | Critical | 🔴 P0    | **Detailed fallback strategy ready** | 1-4 days  |
+| Vision Support      | High        | Critical | 🔴 P0    | **Complete implementation plan**     | 1-7 days  |
+| Performance         | Medium      | High     | 🟡 P1    | Benchmarking strategy defined        | Ongoing   |
+| OCR Complexity      | Medium      | Medium   | 🟡 P1    | Container/cloud fallbacks            | 2-3 weeks |
+| Layout Handling     | Medium      | High     | 🟡 P1    | AI-first approach planned            | 3-4 weeks |
+| Resource Management | Low         | Medium   | 🟠 P2    | Monitoring framework                 | 4-6 weeks |
+| Cost/Rate Limiting  | Medium      | Medium   | 🟠 P2    | Cost controls implemented            | 2-3 weeks |
+| Cross-Platform      | Low         | Low      | 🟢 P3    | Container standardization            | 4-6 weeks |
 
 ### 🎯 **Implementation Priority**
 
 **Phase 1 (Week 1): Foundation & Critical Mitigations** 🔴 Critical Path
+
 1. **Day 1-2**: Research and validate `pdf_oxide` API, implement fallback if needed
 2. **Day 3-4**: Extend `edgequake-llm` with `VisionProvider` trait
 3. **Day 5-7**: Implement vision support in OpenAI provider and mock provider
 4. **Day 7**: Create minimal PDF text extraction working prototype
 
 **Phase 2 (Week 2-3): Core Features** 🟡 High Priority
+
 1. **Day 8-10**: Implement AI enhancement pipeline with vision integration
 2. **Day 11-14**: Add table and image processing with vision capabilities
 3. **Day 15-17**: Performance optimization and benchmarking
 4. **Day 17-21**: Comprehensive error handling and fallback mechanisms
 
 **Phase 3 (Week 4-5): Polish & Advanced Features** 🟠 Medium Priority
+
 1. **Day 22-25**: Advanced layout handling (multi-column, complex tables)
 2. **Day 26-28**: Cross-platform testing and container deployment
 3. **Day 29-31**: Cost optimization and rate limiting integration
 4. **Day 32-35**: Documentation completion and examples
 
 **Phase 4 (Week 6-7): Production Ready** 🟢 Low Priority
+
 1. **Day 36-42**: E2E testing infrastructure and comprehensive test suite
 2. **Day 43-45**: Performance monitoring and alerting
 3. **Day 46-49**: Production deployment validation
@@ -2132,12 +2253,14 @@ impl PdfExtractor {
 ### 🔄 **Updated Contingency Plans**
 
 **Primary Contingencies** (if critical roadblocks cannot be resolved):
+
 1. **pdf_oxide Failure**: Switch to `lopdf` + Python embedding via `pyo3`
 2. **Vision Complexity**: Implement separate vision microservice using direct OpenAI API
 3. **Performance Issues**: Add "fast mode" (rule-based only) and "accurate mode" (AI-enhanced)
 4. **Cost Concerns**: Implement usage quotas, cost estimation, and tiered service levels
 
 **Secondary Contingencies**:
+
 1. **OCR Fallback**: Use cloud OCR services (Google Cloud Vision, Azure OCR)
 2. **Memory Issues**: Implement streaming processing and external image storage
 3. **Platform Issues**: Docker containerization for consistent deployment
@@ -2146,6 +2269,7 @@ impl PdfExtractor {
 ### 📈 **Success Metrics**
 
 **Technical Metrics**:
+
 - ✅ PDF text extraction accuracy: >95% for native PDFs
 - ✅ Vision-enhanced processing: >80% accuracy for scanned/complex PDFs
 - ✅ Performance: <15s for 100-page PDFs (adjusted from <10s)
@@ -2153,12 +2277,14 @@ impl PdfExtractor {
 - ✅ API reliability: >99.5% success rate with fallbacks
 
 **Quality Metrics**:
+
 - ✅ Test coverage: >90% unit, >80% integration, >70% E2E
 - ✅ Error handling: Graceful degradation for all failure modes
 - ✅ Cross-platform: Consistent behavior on Linux/macOS/Windows
 - ✅ Documentation: Complete API docs and usage examples
 
 **Operational Metrics**:
+
 - ✅ Cost efficiency: <$0.10 per 100-page document
 - ✅ Scalability: Handle concurrent requests without degradation
 - ✅ Monitoring: Comprehensive logging and metrics
@@ -2175,11 +2301,13 @@ This comprehensive testing strategy ensures the `edgequake-pdf` crate is reliabl
 ### **Immediate Actions (Next 24-48 hours)**
 
 1. **Research & Validation Phase**:
+
    - Investigate `pdf_oxide` API compatibility and current limitations
    - Review existing `edgequake-llm` provider implementations
    - Test basic PDF parsing with available libraries
 
 2. **Foundation Setup**:
+
    - Create `edgequake/crates/edgequake-pdf/` directory structure
    - Set up basic Cargo.toml with dependencies
    - Implement placeholder structures for all major components
@@ -2192,16 +2320,19 @@ This comprehensive testing strategy ensures the `edgequake-pdf` crate is reliabl
 ### **Week 1: Critical Path Implementation**
 
 **Day 1-2: PDF Parsing Foundation**
+
 - Complete `pdf_oxide` API research and validation
 - Implement fallback PDF parsing strategy if needed
 - Create basic text extraction functionality
 
 **Day 3-4: Vision Provider Extension**
+
 - Extend `LlmProvider` trait with `VisionProvider` capabilities
 - Implement vision support in `OpenAiProvider`
 - Update `MockProvider` with vision mocking
 
 **Day 5-7: Integration & Testing**
+
 - Integrate vision capabilities into PDF processing pipeline
 - Create comprehensive unit tests for all components
 - Validate workspace integration and compilation
@@ -2209,11 +2340,13 @@ This comprehensive testing strategy ensures the `edgequake-pdf` crate is reliabl
 ### **Week 2-3: Core Feature Development**
 
 **Day 8-14: AI Enhancement Pipeline**
+
 - Implement AI-powered text enhancement
 - Add table and image processing with vision
 - Create error handling and fallback mechanisms
 
 **Day 15-21: Performance & Optimization**
+
 - Performance benchmarking and optimization
 - Memory usage optimization
 - Cost monitoring and rate limiting
@@ -2221,6 +2354,7 @@ This comprehensive testing strategy ensures the `edgequake-pdf` crate is reliabl
 ### **Week 4-5: Advanced Features & Polish**
 
 **Day 22-35: Advanced Capabilities**
+
 - Multi-column layout handling
 - Complex table processing
 - Cross-platform compatibility testing
@@ -2229,6 +2363,7 @@ This comprehensive testing strategy ensures the `edgequake-pdf` crate is reliabl
 ### **Week 6-7: Production Readiness**
 
 **Day 36-52: Finalization**
+
 - Complete E2E testing infrastructure
 - Production deployment validation
 - Final performance tuning and monitoring
@@ -2259,12 +2394,14 @@ cargo test -p edgequake-pdf
 ### **Key Dependencies & Prerequisites**
 
 **Required Before Starting**:
+
 - ✅ EdgeQuake workspace setup and compilation
 - ✅ OpenAI API key for testing (optional, mock provider available)
 - ✅ Basic understanding of PDF structure and parsing
 - ✅ Familiarity with async Rust patterns
 
 **Tools & Environment**:
+
 - Rust 1.78+ with Cargo
 - PDF test files for validation
 - Image processing libraries for vision features
@@ -2286,6 +2423,7 @@ cargo test -p edgequake-pdf
 This specification provides a comprehensive roadmap for implementing a production-ready PDF-to-Markdown transformation crate within the EdgeQuake ecosystem. The detailed mitigation strategies for critical roadblocks ensure realistic planning and high success probability.
 
 **Key Success Factors**:
+
 1. **Early validation** of PDF parsing APIs and vision capabilities
 2. **Incremental implementation** with working prototypes at each phase
 3. **Comprehensive testing** from unit to E2E levels

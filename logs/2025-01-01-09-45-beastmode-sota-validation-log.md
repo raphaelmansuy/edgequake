@@ -35,16 +35,16 @@
 
 ## Test Summary
 
-| Package | Tests | Status |
-|---------|-------|--------|
-| edgequake-api | 94 | ✅ |
-| edgequake-core | 102 | ✅ |
-| edgequake-llm | 68 | ✅ |
-| edgequake-pipeline | 94 | ✅ |
-| edgequake-query | 76 | ✅ |
-| edgequake-storage | 37 | ✅ |
-| edgequake-tasks | 30 | ✅ |
-| edgequake-embed | 34 | ✅ |
-| edgequake-reranker | 12 | ✅ |
-| Other | 5 | ✅ |
-| **TOTAL** | **552** | ✅ |
+| Package            | Tests   | Status |
+| ------------------ | ------- | ------ |
+| edgequake-api      | 94      | ✅     |
+| edgequake-core     | 102     | ✅     |
+| edgequake-llm      | 68      | ✅     |
+| edgequake-pipeline | 94      | ✅     |
+| edgequake-query    | 76      | ✅     |
+| edgequake-storage  | 37      | ✅     |
+| edgequake-tasks    | 30      | ✅     |
+| edgequake-embed    | 34      | ✅     |
+| edgequake-reranker | 12      | ✅     |
+| Other              | 5       | ✅     |
+| **TOTAL**          | **552** | ✅     |
