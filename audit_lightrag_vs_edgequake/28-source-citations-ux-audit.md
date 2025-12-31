@@ -10,13 +10,13 @@
 
 The Source Citations component has **critical UX issues** that undermine user trust and provide meaningless information. Based on screenshot analysis and code audit, the following problems were identified:
 
-| Issue | Severity | User Impact |
-|-------|----------|-------------|
-| Scary red/orange score colors | 🔴 Critical | Users think responses are unreliable |
-| 0% relationship scores | 🔴 Critical | Completely meaningless, destroys trust |
-| UUID-based document titles | 🟠 High | Users can't identify documents |
-| No chunk line numbers | 🟡 Medium | Users can't navigate to source |
-| Arbitrary score thresholds | 🟠 High | 4% labeled "Low" when RAG normal |
+| Issue                         | Severity    | User Impact                            |
+| ----------------------------- | ----------- | -------------------------------------- |
+| Scary red/orange score colors | 🔴 Critical | Users think responses are unreliable   |
+| 0% relationship scores        | 🔴 Critical | Completely meaningless, destroys trust |
+| UUID-based document titles    | 🟠 High     | Users can't identify documents         |
+| No chunk line numbers         | 🟡 Medium   | Users can't navigate to source         |
+| Arbitrary score thresholds    | 🟠 High     | 4% labeled "Low" when RAG normal       |
 
 ---
 
@@ -27,22 +27,41 @@ The Source Citations component has **critical UX issues** that undermine user tr
 **File:** [source-citations.tsx](../edgequake_webui/src/components/query/source-citations.tsx#L53-L57)
 
 ```typescript
-const getConfidenceLabel = (score: number): { label: string; color: string; bgColor: string } => {
-  if (score >= 0.8) return { label: 'High', color: 'text-emerald-600...', bgColor: 'bg-emerald-500' };
-  if (score >= 0.6) return { label: 'Good', color: 'text-green-600...', bgColor: 'bg-green-500' };
-  if (score >= 0.4) return { label: 'Medium', color: 'text-amber-600...', bgColor: 'bg-amber-500' };  // ⚠️ ORANGE
-  return { label: 'Low', color: 'text-red-600...', bgColor: 'bg-red-500' };  // 🔴 RED = SCARY!
+const getConfidenceLabel = (
+  score: number
+): { label: string; color: string; bgColor: string } => {
+  if (score >= 0.8)
+    return {
+      label: "High",
+      color: "text-emerald-600...",
+      bgColor: "bg-emerald-500",
+    };
+  if (score >= 0.6)
+    return {
+      label: "Good",
+      color: "text-green-600...",
+      bgColor: "bg-green-500",
+    };
+  if (score >= 0.4)
+    return {
+      label: "Medium",
+      color: "text-amber-600...",
+      bgColor: "bg-amber-500",
+    }; // ⚠️ ORANGE
+  return { label: "Low", color: "text-red-600...", bgColor: "bg-red-500" }; // 🔴 RED = SCARY!
 };
 ```
 
 ### Problem Analysis
 
 1. **RED = Danger in Universal UI Convention**
+
    - Users interpret red as error, failure, or warning
    - A "Low (4%)" confidence in red makes users distrust the answer
    - Even correct answers appear unreliable
 
 2. **Thresholds Don't Match RAG Reality**
+
    - Vector similarity scores of 0.3-0.5 are NORMAL for RAG
    - A score of 0.35 (35%) is often a good match
    - Current thresholds treat 35% as "Low" with scary red
@@ -56,20 +75,28 @@ const getConfidenceLabel = (score: number): { label: string; color: string; bgCo
 ### Solution
 
 **Option A: Remove Percentage Display Entirely (Recommended)**
+
 ```typescript
 // Just show "Sources" with count, no scary percentages
 const getConfidenceLabel = (score: number) => {
   // Use only for internal logic, not display
-  return score >= 0.5 ? 'primary' : 'secondary';
+  return score >= 0.5 ? "primary" : "secondary";
 };
 ```
 
 **Option B: Use Neutral Colors with Qualitative Labels**
+
 ```typescript
 const getConfidenceLabel = (score: number) => {
-  if (score >= 0.5) return { label: 'Primary', color: 'text-blue-600', bgColor: 'bg-blue-500' };
-  if (score >= 0.3) return { label: 'Supporting', color: 'text-slate-600', bgColor: 'bg-slate-500' };
-  return { label: 'Related', color: 'text-slate-400', bgColor: 'bg-slate-400' };
+  if (score >= 0.5)
+    return { label: "Primary", color: "text-blue-600", bgColor: "bg-blue-500" };
+  if (score >= 0.3)
+    return {
+      label: "Supporting",
+      color: "text-slate-600",
+      bgColor: "bg-slate-500",
+    };
+  return { label: "Related", color: "text-slate-400", bgColor: "bg-slate-400" };
 };
 ```
 
@@ -97,6 +124,7 @@ CoSIL → created by jiang et → Jiang et al.  0%
 ```
 
 **ALL relationships show 0%!** This is either:
+
 1. Backend bug: Scores aren't being calculated
 2. Design flaw: Relationships don't have similarity scores
 
@@ -115,22 +143,28 @@ CoSIL → created by jiang et → Jiang et al.  0%
 ### Solution
 
 **Option A: Hide Score for Relationships**
+
 ```tsx
-{/* Only show score for chunks, not relationships */}
-{rel.relevance > 0 && (
-  <span className="ml-auto text-[10px] text-muted-foreground">
-    {Math.round(rel.relevance * 100)}%
-  </span>
-)}
+{
+  /* Only show score for chunks, not relationships */
+}
+{
+  rel.relevance > 0 && (
+    <span className="ml-auto text-[10px] text-muted-foreground">
+      {Math.round(rel.relevance * 100)}%
+    </span>
+  );
+}
 ```
 
 **Option B: Remove Score Column Entirely for Relationships**
+
 ```tsx
 <div className="flex items-center gap-1.5 text-xs p-2 rounded-md">
   <span className="font-medium">{rel.source}</span>
   <span className="text-primary/60">→</span>
   <Badge variant="outline" className="text-[10px]">
-    {rel.type.toLowerCase().replace(/_/g, ' ')}
+    {rel.type.toLowerCase().replace(/_/g, " ")}
   </Badge>
   <span className="text-primary/60">→</span>
   <span className="font-medium">{rel.target}</span>
@@ -147,9 +181,11 @@ CoSIL → created by jiang et → Jiang et al.  0%
 **File:** [source-citations.tsx](../edgequake_webui/src/components/query/source-citations.tsx#L126-L131)
 
 ```tsx
-{chunks[0]?.file_path 
-  ? chunks[0].file_path.split('/').pop() 
-  : `Document ${docId.slice(0, 8)}`}
+{
+  chunks[0]?.file_path
+    ? chunks[0].file_path.split("/").pop()
+    : `Document ${docId.slice(0, 8)}`;
+}
 ```
 
 ### Screenshot Evidence
@@ -161,6 +197,7 @@ CoSIL → created by jiang et → Jiang et al.  0%
 ### Solution
 
 **Title Extraction Priority:**
+
 1. Check `file_path` for filename
 2. Extract first `#` heading from content
 3. Fallback to "Untitled Document"
@@ -168,28 +205,28 @@ CoSIL → created by jiang et → Jiang et al.  0%
 ```typescript
 const getDocumentTitle = (chunks: Chunk[]): string => {
   const chunk = chunks[0];
-  if (!chunk) return 'Untitled';
-  
+  if (!chunk) return "Untitled";
+
   // Priority 1: file_path filename
   if (chunk.file_path) {
-    const filename = chunk.file_path.split('/').pop() || '';
+    const filename = chunk.file_path.split("/").pop() || "";
     // Remove extension for cleaner display
-    return filename.replace(/\.(md|txt|pdf|docx?)$/i, '') || filename;
+    return filename.replace(/\.(md|txt|pdf|docx?)$/i, "") || filename;
   }
-  
+
   // Priority 2: Extract markdown title from content
   const titleMatch = chunk.content.match(/^#\s+(.+)$/m);
   if (titleMatch) {
     return titleMatch[1].trim().slice(0, 60);
   }
-  
+
   // Priority 3: First line truncated
-  const firstLine = chunk.content.split('\n')[0]?.trim();
+  const firstLine = chunk.content.split("\n")[0]?.trim();
   if (firstLine && firstLine.length > 0) {
-    return firstLine.slice(0, 60) + (firstLine.length > 60 ? '...' : '');
+    return firstLine.slice(0, 60) + (firstLine.length > 60 ? "..." : "");
   }
-  
-  return 'Untitled Document';
+
+  return "Untitled Document";
 };
 ```
 
@@ -201,7 +238,7 @@ Add `title` field to `SourceReference`:
 // query.rs
 pub struct SourceReference {
     // ... existing fields ...
-    
+
     /// Document title for display.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
@@ -252,6 +289,7 @@ chunks: Array<{
 ### Solution
 
 **Step 1: Add to SourceReference (Backend)**
+
 ```rust
 pub struct SourceReference {
     // ... existing ...
@@ -262,6 +300,7 @@ pub struct SourceReference {
 ```
 
 **Step 2: Add to Frontend Types**
+
 ```typescript
 chunks: Array<{
   content: string;
@@ -275,6 +314,7 @@ chunks: Array<{
 ```
 
 **Step 3: Display in UI**
+
 ```tsx
 <div className="flex items-center gap-2">
   <FileText className="h-3.5 w-3.5" />
@@ -288,10 +328,13 @@ chunks: Array<{
 ```
 
 **Step 4: Deep Link with Line Numbers**
+
 ```tsx
 const handleChunkClick = (chunk: Chunk) => {
-  const url = `/documents/${chunk.document_id}?start=${chunk.start_line}&end=${chunk.end_line}&highlight=${encodeURIComponent(chunk.content.slice(0, 50))}`;
-  window.open(url, '_blank');
+  const url = `/documents/${chunk.document_id}?start=${chunk.start_line}&end=${
+    chunk.end_line
+  }&highlight=${encodeURIComponent(chunk.content.slice(0, 50))}`;
+  window.open(url, "_blank");
 };
 ```
 
@@ -301,36 +344,36 @@ const handleChunkClick = (chunk: Chunk) => {
 
 ### Phase 1: Quick Wins (1 hour)
 
-| Task | File | Change |
-|------|------|--------|
-| Fix score colors | source-citations.tsx | Use neutral blue/gray palette |
-| Hide 0% relationship scores | source-citations.tsx | Conditional render |
-| Extract document title from content | source-citations.tsx | Add getDocumentTitle helper |
+| Task                                | File                 | Change                        |
+| ----------------------------------- | -------------------- | ----------------------------- |
+| Fix score colors                    | source-citations.tsx | Use neutral blue/gray palette |
+| Hide 0% relationship scores         | source-citations.tsx | Conditional render            |
+| Extract document title from content | source-citations.tsx | Add getDocumentTitle helper   |
 
 ### Phase 2: Backend Enhancement (1.5 hours)
 
-| Task | File | Change |
-|------|------|--------|
-| Add title to SourceReference | query.rs | New field + population |
-| Add start_line/end_line | query.rs | New fields |
-| Populate from ChunkLineage | sota_engine.rs | Flow lineage data |
+| Task                         | File           | Change                 |
+| ---------------------------- | -------------- | ---------------------- |
+| Add title to SourceReference | query.rs       | New field + population |
+| Add start_line/end_line      | query.rs       | New fields             |
+| Populate from ChunkLineage   | sota_engine.rs | Flow lineage data      |
 
 ### Phase 3: Frontend Polish (1 hour)
 
-| Task | File | Change |
-|------|------|--------|
-| Update frontend types | types/index.ts | Add new fields |
-| Display line numbers | source-citations.tsx | Badge with lines |
-| Deep link with parameters | source-citations.tsx | Click handler |
-| Update source-mapper | source-mapper.ts | Map new fields |
+| Task                      | File                 | Change           |
+| ------------------------- | -------------------- | ---------------- |
+| Update frontend types     | types/index.ts       | Add new fields   |
+| Display line numbers      | source-citations.tsx | Badge with lines |
+| Deep link with parameters | source-citations.tsx | Click handler    |
+| Update source-mapper      | source-mapper.ts     | Map new fields   |
 
 ### Phase 4: Testing (30 mins)
 
-| Task | Tool | Validation |
-|------|------|------------|
-| Visual regression | Playwright | Screenshots |
-| API response check | curl | New fields present |
-| Link navigation | Browser | Works end-to-end |
+| Task               | Tool       | Validation         |
+| ------------------ | ---------- | ------------------ |
+| Visual regression  | Playwright | Screenshots        |
+| API response check | curl       | New fields present |
+| Link navigation    | Browser    | Works end-to-end   |
 
 ---
 
@@ -347,11 +390,13 @@ const handleChunkClick = (chunk: Chunk) => {
 ## Files to Modify
 
 ### Frontend
+
 - `source-citations.tsx` - Main component overhaul
 - `types/index.ts` - Add new type fields
 - `source-mapper.ts` - Map new API fields
 
-### Backend  
+### Backend
+
 - `query.rs` - SourceReference enhancements
 - `chat.rs` - build_sources update
 - `sota_engine.rs` - Lineage data flow
@@ -360,11 +405,11 @@ const handleChunkClick = (chunk: Chunk) => {
 
 ## Risk Assessment
 
-| Risk | Likelihood | Mitigation |
-|------|------------|------------|
-| Backend changes break API | Low | Add fields as optional |
-| Line numbers not in storage | Medium | Check chunk storage schema |
-| Title extraction fails | Low | Multiple fallback layers |
+| Risk                        | Likelihood | Mitigation                 |
+| --------------------------- | ---------- | -------------------------- |
+| Backend changes break API   | Low        | Add fields as optional     |
+| Line numbers not in storage | Medium     | Check chunk storage schema |
+| Title extraction fails      | Low        | Multiple fallback layers   |
 
 ---
 

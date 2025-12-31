@@ -152,11 +152,30 @@ impl QueryEngine {
                 .unwrap_or("")
                 .to_string();
 
+            // Extract line number information from metadata if available
+            let start_line = metadata
+                .get("start_line")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as usize);
+
+            let end_line = metadata
+                .get("end_line")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as usize);
+
+            let chunk_index = metadata
+                .get("chunk_index")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as usize);
+
             context_chunks.push(ContextChunk {
                 chunk_id: id.clone(),
                 document_id: doc_id,
                 content: content.clone(),
                 score,
+                start_line,
+                end_line,
+                chunk_index,
             });
 
             context_text.push_str(&format!("--- Chunk {} ---\n{}\n\n", id, content));

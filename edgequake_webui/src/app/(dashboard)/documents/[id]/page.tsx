@@ -1,5 +1,7 @@
 'use client';
 
+import { ContentRenderer } from '@/components/document/content-renderer';
+import { MetadataSidebar } from '@/components/document/metadata-sidebar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -7,25 +9,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getDocument } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useQuery } from '@tanstack/react-query';
-import { format, formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import {
-  AlertCircle,
-  ArrowLeft,
-  CheckCircle,
-  Clock,
-  Copy,
-  Loader2,
-  Network,
-  RefreshCw,
-  XCircle,
+    AlertCircle,
+    ArrowLeft,
+    CheckCircle,
+    Clock,
+    Copy,
+    Loader2,
+    Network,
+    RefreshCw,
+    XCircle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { ContentRenderer } from '@/components/document/content-renderer';
-import { MetadataSidebar } from '@/components/document/metadata-sidebar';
 
 const statusConfig = {
   pending: { icon: Clock, color: 'text-yellow-500', bg: 'bg-yellow-500/10', label: 'Pending' },

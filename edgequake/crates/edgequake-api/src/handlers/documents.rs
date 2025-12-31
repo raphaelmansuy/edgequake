@@ -300,6 +300,9 @@ pub async fn upload_document(
                     "document_id": document_id,
                     "index": chunk.index,
                     "content": chunk.content,
+                    "start_line": chunk.start_line,
+                    "end_line": chunk.end_line,
+                    "chunk_index": chunk.index,
                 });
 
                 // Add tenant and workspace IDs if present

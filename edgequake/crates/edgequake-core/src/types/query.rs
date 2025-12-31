@@ -184,6 +184,15 @@ pub struct ContextChunk {
 
     /// Relevance score.
     pub score: f32,
+
+    /// Start line number in the document.
+    pub start_line: Option<usize>,
+
+    /// End line number in the document.
+    pub end_line: Option<usize>,
+
+    /// Chunk index in the document.
+    pub chunk_index: Option<usize>,
 }
 
 /// Statistics from a query.

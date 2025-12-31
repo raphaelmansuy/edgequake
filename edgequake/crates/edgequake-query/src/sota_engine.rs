@@ -774,6 +774,66 @@ impl SOTAQueryEngine {
             context.add_relationship(rel);
         }
 
+        // Step 7: Retrieve chunks from source_chunk_ids
+        let mut chunk_ids = std::collections::HashSet::new();
+
+        // Collect chunk IDs from entities
+        for entity in &context.entities {
+            for chunk_id in &entity.source_chunk_ids {
+                chunk_ids.insert(chunk_id.clone());
+            }
+        }
+
+        // Collect chunk IDs from relationships
+        for rel in &context.relationships {
+            if let Some(chunk_id) = &rel.source_chunk_id {
+                chunk_ids.insert(chunk_id.clone());
+            }
+        }
+
+        // Retrieve chunks from vector storage if any chunk IDs were collected
+        if !chunk_ids.is_empty() {
+            let chunk_ids_vec: Vec<String> =
+                chunk_ids.into_iter().take(self.config.max_chunks).collect();
+
+            // Use the low-level keyword embedding to query for these specific chunks
+            // Query with filter to retrieve only the specific chunks
+            let results = self
+                .vector_storage
+                .query(&embeddings.low_level, chunk_ids_vec.len(), Some(&chunk_ids_vec))
+                .await?;
+
+            for result in results {
+                if !self.matches_tenant_filter(&result.metadata, &tenant_id, &workspace_id) {
+                    continue;
+                }
+
+                let content = result
+                    .metadata
+                    .get("content")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let mut chunk = RetrievedChunk::new(&result.id, content, result.score);
+
+                // Extract document_id from chunk_id (format: "uuid-chunk-N")
+                if let Some(doc_id) = extract_document_id(&result.id) {
+                    chunk = chunk.with_document_id(doc_id);
+                }
+
+                // Extract line number information if available
+                if let Some(start) = result.metadata.get("start_line").and_then(|v| v.as_u64()) {
+                    if let Some(end) = result.metadata.get("end_line").and_then(|v| v.as_u64()) {
+                        chunk = chunk.with_lines(start as usize, end as usize);
+                    }
+                }
+                if let Some(idx) = result.metadata.get("chunk_index").and_then(|v| v.as_u64()) {
+                    chunk = chunk.with_chunk_index(idx as usize);
+                }
+                context.add_chunk(chunk);
+            }
+        }
+
         Ok(context)
     }
 
@@ -1054,7 +1114,82 @@ impl SOTAQueryEngine {
             if let Some(doc_id) = extract_document_id(&result.id) {
                 chunk = chunk.with_document_id(doc_id);
             }
+            // Extract line number information if available
+            if let Some(start) = result.metadata.get("start_line").and_then(|v| v.as_u64()) {
+                if let Some(end) = result.metadata.get("end_line").and_then(|v| v.as_u64()) {
+                    chunk = chunk.with_lines(start as usize, end as usize);
+                }
+            }
+            if let Some(idx) = result.metadata.get("chunk_index").and_then(|v| v.as_u64()) {
+                chunk = chunk.with_chunk_index(idx as usize);
+            }
             context.add_chunk(chunk);
+        }
+
+        // Step 7: Also retrieve chunks from source_chunk_ids tracked in entities/relationships
+        let mut source_chunk_ids = std::collections::HashSet::new();
+
+        // Collect chunk IDs from entities
+        for entity in &context.entities {
+            for chunk_id in &entity.source_chunk_ids {
+                source_chunk_ids.insert(chunk_id.clone());
+            }
+        }
+
+        // Collect chunk IDs from relationships
+        for rel in &context.relationships {
+            if let Some(chunk_id) = &rel.source_chunk_id {
+                source_chunk_ids.insert(chunk_id.clone());
+            }
+        }
+
+        // Retrieve source chunks if any were collected and we haven't hit max chunks
+        if !source_chunk_ids.is_empty() && context.chunks.len() < self.config.max_chunks {
+            let remaining_slots = self.config.max_chunks - context.chunks.len();
+            let chunk_ids_vec: Vec<String> =
+                source_chunk_ids.into_iter().take(remaining_slots).collect();
+
+            // Use the high-level keyword embedding to query for these specific chunks
+            // Query with filter to retrieve only the specific chunks
+            let results = self
+                .vector_storage
+                .query(&embeddings.high_level, chunk_ids_vec.len(), Some(&chunk_ids_vec))
+                .await?;
+
+            // Track which chunks we already have to avoid duplicates
+            let existing_chunk_ids: std::collections::HashSet<_> =
+                context.chunks.iter().map(|c| c.id.clone()).collect();
+
+            for result in results {
+                if existing_chunk_ids.contains(&result.id) {
+                    continue;
+                }
+                if !self.matches_tenant_filter(&result.metadata, &tenant_id, &workspace_id) {
+                    continue;
+                }
+
+                let content = result
+                    .metadata
+                    .get("content")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let mut chunk = RetrievedChunk::new(&result.id, content, result.score);
+
+                if let Some(doc_id) = extract_document_id(&result.id) {
+                    chunk = chunk.with_document_id(doc_id);
+                }
+
+                if let Some(start) = result.metadata.get("start_line").and_then(|v| v.as_u64()) {
+                    if let Some(end) = result.metadata.get("end_line").and_then(|v| v.as_u64()) {
+                        chunk = chunk.with_lines(start as usize, end as usize);
+                    }
+                }
+                if let Some(idx) = result.metadata.get("chunk_index").and_then(|v| v.as_u64()) {
+                    chunk = chunk.with_chunk_index(idx as usize);
+                }
+                context.add_chunk(chunk);
+            }
         }
 
         Ok(context)
@@ -1182,6 +1317,15 @@ impl SOTAQueryEngine {
                 if let Some(doc_id) = extract_document_id(&result.id) {
                     chunk = chunk.with_document_id(doc_id);
                 }
+                // Extract line number information if available
+                if let Some(start) = result.metadata.get("start_line").and_then(|v| v.as_u64()) {
+                    if let Some(end) = result.metadata.get("end_line").and_then(|v| v.as_u64()) {
+                        chunk = chunk.with_lines(start as usize, end as usize);
+                    }
+                }
+                if let Some(idx) = result.metadata.get("chunk_index").and_then(|v| v.as_u64()) {
+                    chunk = chunk.with_chunk_index(idx as usize);
+                }
                 context.add_chunk(chunk);
             }
         }
@@ -1221,6 +1365,15 @@ impl SOTAQueryEngine {
             let mut chunk = RetrievedChunk::new(&result.id, content, result.score);
             if let Some(doc_id) = extract_document_id(&result.id) {
                 chunk = chunk.with_document_id(doc_id);
+            }
+            // Extract line number information if available
+            if let Some(start) = result.metadata.get("start_line").and_then(|v| v.as_u64()) {
+                if let Some(end) = result.metadata.get("end_line").and_then(|v| v.as_u64()) {
+                    chunk = chunk.with_lines(start as usize, end as usize);
+                }
+            }
+            if let Some(idx) = result.metadata.get("chunk_index").and_then(|v| v.as_u64()) {
+                chunk = chunk.with_chunk_index(idx as usize);
             }
             context.add_chunk(chunk);
         }

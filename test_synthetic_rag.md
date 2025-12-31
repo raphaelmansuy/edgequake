@@ -13,6 +13,7 @@ This synthetic document is designed to test the RAG system's entity extraction a
 ### Technologies
 
 The **LightRAG Algorithm** is the foundation of EdgeQuake's entity extraction pipeline. It uses advanced NLP techniques to identify:
+
 - Named entities (people, organizations, locations)
 - Concepts and abstract ideas
 - Relationships between entities
@@ -24,6 +25,7 @@ The **LightRAG Algorithm** is the foundation of EdgeQuake's entity extraction pi
 ### Projects
 
 The **Project Alpha Initiative** aims to improve document indexing by 10x while maintaining high accuracy. Key metrics include:
+
 - Precision: 95.5%
 - Recall: 92.3%
 - F1 Score: 93.9%
@@ -40,11 +42,11 @@ The system architecture consists of three main layers:
 
 ### Performance Benchmarks
 
-| Metric | Value | Notes |
-|--------|-------|-------|
-| Indexing Speed | 150 docs/min | With batch processing |
-| Query Latency | 45ms p95 | Using caching |
-| Entity Accuracy | 94.2% | Human-verified |
+| Metric          | Value        | Notes                 |
+| --------------- | ------------ | --------------------- |
+| Indexing Speed  | 150 docs/min | With batch processing |
+| Query Latency   | 45ms p95     | Using caching         |
+| Entity Accuracy | 94.2%        | Human-verified        |
 
 ## Relationships
 
@@ -59,11 +61,13 @@ The system architecture consists of three main layers:
 ## Conclusion
 
 This document contains multiple entities and relationships that should be extracted with high confidence scores. The relevance scoring should reflect:
+
 - Direct mentions: High score (>0.85)
 - Contextual references: Medium score (0.5-0.85)
 - Weak associations: Low score (<0.5)
 
 Use queries like:
+
 - "What projects is EdgeQuake working on?"
 - "Who founded EdgeQuake?"
 - "How does LightRAG work?"

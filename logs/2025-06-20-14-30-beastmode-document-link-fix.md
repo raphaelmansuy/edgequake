@@ -13,11 +13,13 @@ Fixed document links in source citations that were producing 404 errors due to m
 ## Problem
 
 When clicking "Open document in new window" in source citations, the URL was:
+
 ```
 /documents/8ddd9d1b-f6cf-4be2-90fe-7ba70ca5780a-chunk-0?highlight=...
 ```
 
 This resulted in 404 errors because the document ID should be:
+
 ```
 /documents/8ddd9d1b-f6cf-4be2-90fe-7ba70ca5780a?highlight=...
 ```
@@ -32,6 +34,7 @@ This resulted in 404 errors because the document ID should be:
 ### Backend (sota_engine.rs)
 
 Added `extract_document_id()` helper function:
+
 ```rust
 fn extract_document_id(chunk_id: &str) -> Option<String> {
     if let Some(suffix_idx) = chunk_id.rfind("-chunk-") {
@@ -44,25 +47,30 @@ fn extract_document_id(chunk_id: &str) -> Option<String> {
 ```
 
 Applied in 3 locations:
-- `query_local()` 
+
+- `query_local()`
 - `query_hybrid()`
 - `query_naive()`
 
 ### Frontend (query-interface.tsx)
 
 Added `extractDocId()` helper in `convertServerMessage()`:
+
 ```typescript
 const extractDocId = (chunkId: string): string => {
-  const suffixIndex = chunkId.lastIndexOf('-chunk-');
+  const suffixIndex = chunkId.lastIndexOf("-chunk-");
   return suffixIndex > 0 ? chunkId.substring(0, suffixIndex) : chunkId;
 };
 ```
 
 Changed from:
+
 ```typescript
 document_id: s.document_id ?? s.id,
 ```
+
 To:
+
 ```typescript
 document_id: s.document_id ?? extractDocId(s.id),
 ```
@@ -71,10 +79,10 @@ document_id: s.document_id ?? extractDocId(s.id),
 
 Verified with 2 different queries:
 
-| Test | Query | Document | URL Format | Loaded | Highlighting |
-|------|-------|----------|------------|--------|--------------|
-| 1 | "Project Genesis..." | 8ddd9d1b | ✅ Clean UUID | ✅ Success | ✅ Visible |
-| 2 | "QuantumTech Labs..." | b10ab852 | ✅ Clean UUID | ✅ Success | ✅ Visible |
+| Test | Query                 | Document | URL Format    | Loaded     | Highlighting |
+| ---- | --------------------- | -------- | ------------- | ---------- | ------------ |
+| 1    | "Project Genesis..."  | 8ddd9d1b | ✅ Clean UUID | ✅ Success | ✅ Visible   |
+| 2    | "QuantumTech Labs..." | b10ab852 | ✅ Clean UUID | ✅ Success | ✅ Visible   |
 
 ## Files Changed
 

@@ -122,6 +122,18 @@ pub struct SourceReference {
     /// Original file path of the source document.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_path: Option<String>,
+
+    /// Start line number in the document.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_line: Option<usize>,
+
+    /// End line number in the document.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_line: Option<usize>,
+
+    /// Chunk index in the document.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chunk_index: Option<usize>,
 }
 
 /// Query statistics.
@@ -271,6 +283,9 @@ pub async fn execute_query(
                 reference_id: Some(ref_id),
                 document_id: chunk.document_id.clone(),
                 file_path: None, // TODO: Resolve document_id to file_path
+                start_line: chunk.start_line,
+                end_line: chunk.end_line,
+                chunk_index: chunk.chunk_index,
             }
         })
         .collect();
@@ -301,6 +316,9 @@ pub async fn execute_query(
             reference_id: Some(ref_id),
             document_id: entity.source_document_id.clone(),
             file_path: entity.source_file_path.clone(),
+            start_line: None,
+            end_line: None,
+            chunk_index: None,
         });
     }
 
@@ -320,6 +338,9 @@ pub async fn execute_query(
             reference_id: Some(ref_id),
             document_id: rel.source_document_id.clone(),
             file_path: rel.source_file_path.clone(),
+            start_line: None,
+            end_line: None,
+            chunk_index: None,
         });
     }
 

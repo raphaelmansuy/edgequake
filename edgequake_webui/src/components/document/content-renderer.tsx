@@ -4,7 +4,7 @@
 import { StreamingMarkdownRenderer } from '@/components/query/markdown';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Document } from '@/types';
-import { Suspense, useMemo, useEffect, useRef } from 'react';
+import { Suspense, useEffect, useMemo, useRef } from 'react';
 import { CodeRenderer } from './code-renderer';
 import { PlainTextRenderer } from './plain-text-renderer';
 

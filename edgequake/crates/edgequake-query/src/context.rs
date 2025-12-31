@@ -107,6 +107,15 @@ pub struct RetrievedChunk {
 
     /// Token count.
     pub token_count: usize,
+
+    /// Start line number in the document.
+    pub start_line: Option<usize>,
+
+    /// End line number in the document.
+    pub end_line: Option<usize>,
+
+    /// Chunk index in the document.
+    pub chunk_index: Option<usize>,
 }
 
 impl RetrievedChunk {
@@ -120,12 +129,28 @@ impl RetrievedChunk {
             score,
             document_id: None,
             token_count,
+            start_line: None,
+            end_line: None,
+            chunk_index: None,
         }
     }
 
     /// Set the document ID.
     pub fn with_document_id(mut self, doc_id: impl Into<String>) -> Self {
         self.document_id = Some(doc_id.into());
+        self
+    }
+
+    /// Set line numbers.
+    pub fn with_lines(mut self, start: usize, end: usize) -> Self {
+        self.start_line = Some(start);
+        self.end_line = Some(end);
+        self
+    }
+
+    /// Set chunk index.
+    pub fn with_chunk_index(mut self, index: usize) -> Self {
+        self.chunk_index = Some(index);
         self
     }
 }
