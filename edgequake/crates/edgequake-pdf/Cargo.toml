@@ -1,0 +1,33 @@
+[package]
+name = "edgequake-pdf"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "PDF to Markdown extraction with AI enhancement for EdgeQuake"
+
+[dependencies]
+# Workspace dependencies
+edgequake-llm.workspace = true
+async-trait.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+futures.workspace = true
+
+# PDF processing
+pdf_oxide = "0.2.2"
+
+# Image processing
+image = "0.25"
+base64 = "0.22"
+
+# Optional: Local OCR fallback
+tesseract = "0.14"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }

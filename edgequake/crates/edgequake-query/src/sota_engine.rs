@@ -43,6 +43,7 @@ use crate::truncation::{balance_context, TruncationConfig};
 use crate::vector_filter::{filter_by_type, VectorType};
 
 use edgequake_llm::traits::{EmbeddingProvider, LLMProvider};
+use edgequake_llm::Reranker;
 use edgequake_storage::traits::{GraphStorage, VectorStorage};
 
 /// Extract document UUID from chunk ID.
@@ -93,6 +94,15 @@ pub struct SOTAQueryConfig {
 
     /// Keyword cache TTL in seconds.
     pub keyword_cache_ttl_secs: u64,
+
+    /// Enable reranking for improved retrieval precision.
+    pub enable_rerank: bool,
+
+    /// Minimum rerank score threshold (0.0 - 1.0).
+    pub min_rerank_score: f32,
+
+    /// Top K results to keep after reranking.
+    pub rerank_top_k: usize,
 }
 
 impl Default for SOTAQueryConfig {
@@ -109,6 +119,9 @@ impl Default for SOTAQueryConfig {
             use_adaptive_mode: true,
             truncation: TruncationConfig::default(),
             keyword_cache_ttl_secs: 24 * 60 * 60, // 24 hours
+            enable_rerank: true,  // Enable by default for SOTA quality
+            min_rerank_score: 0.3,
+            rerank_top_k: 10,
         }
     }
 }
@@ -188,6 +201,8 @@ pub struct SOTAQueryEngine {
     llm_provider: Arc<dyn LLMProvider>,
     keyword_extractor: Arc<dyn KeywordExtractor>,
     tokenizer: Arc<dyn Tokenizer>,
+    /// Optional reranker for improved retrieval precision.
+    reranker: Option<Arc<dyn Reranker>>,
 }
 
 impl SOTAQueryEngine {
@@ -216,7 +231,14 @@ impl SOTAQueryEngine {
             llm_provider,
             keyword_extractor,
             tokenizer: Arc::new(SimpleTokenizer),
+            reranker: None, // No reranker by default
         }
+    }
+
+    /// Create with a reranker for improved retrieval precision.
+    pub fn with_reranker(mut self, reranker: Arc<dyn Reranker>) -> Self {
+        self.reranker = Some(reranker);
+        self
     }
 
     /// Create with mock keyword extractor (for testing).
@@ -237,6 +259,7 @@ impl SOTAQueryEngine {
             llm_provider,
             keyword_extractor,
             tokenizer: Arc::new(SimpleTokenizer),
+            reranker: None,
         }
     }
 
@@ -250,6 +273,98 @@ impl SOTAQueryEngine {
     pub fn with_tokenizer(mut self, tokenizer: Arc<dyn Tokenizer>) -> Self {
         self.tokenizer = tokenizer;
         self
+    }
+
+    /// Rerank chunks using the configured reranker.
+    ///
+    /// Applies reranking to improve retrieval precision:
+    /// 1. Calls the reranker with query and chunk contents
+    /// 2. Filters chunks by min_rerank_score
+    /// 3. Returns top_k chunks sorted by rerank score
+    async fn rerank_chunks(
+        &self,
+        query: &str,
+        mut chunks: Vec<crate::context::RetrievedChunk>,
+        enable_override: Option<bool>,
+        top_k_override: Option<usize>,
+    ) -> Vec<crate::context::RetrievedChunk> {
+        // Check if reranking is enabled (use request override if provided)
+        let enable_rerank = enable_override.unwrap_or(self.config.enable_rerank);
+        let rerank_top_k = top_k_override.unwrap_or(self.config.rerank_top_k);
+
+        // Skip if reranking is disabled or no reranker configured
+        if !enable_rerank || self.reranker.is_none() || chunks.is_empty() {
+            return chunks;
+        }
+
+        let reranker = self.reranker.as_ref().unwrap();
+
+        // Extract contents for reranking
+        let documents: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
+
+        // Call the reranker
+        match reranker
+            .rerank(query, &documents, Some(rerank_top_k))
+            .await
+        {
+            Ok(results) => {
+                tracing::debug!(
+                    query = %query,
+                    chunk_count = chunks.len(),
+                    result_count = results.len(),
+                    "Reranked chunks"
+                );
+
+                // Build index -> score map
+                let score_map: std::collections::HashMap<usize, f64> =
+                    results.iter().map(|r| (r.index, r.relevance_score)).collect();
+
+                // Update scores and filter by min score
+                let mut reranked: Vec<_> = chunks
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(idx, chunk)| {
+                        score_map.get(&idx).and_then(|&score| {
+                            if score >= self.config.min_rerank_score as f64 {
+                                let mut c = chunk.clone();
+                                c.score = score as f32;
+                                Some(c)
+                            } else {
+                                None
+                            }
+                        })
+                    })
+                    .collect();
+
+                // Sort by score descending
+                reranked.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+
+                // Return top_k
+                reranked.truncate(rerank_top_k);
+                reranked
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "Reranking failed, returning original chunks");
+                chunks.truncate(rerank_top_k);
+                chunks
+            }
+        }
+    }
+
+    /// Sort entities by degree (descending) for importance-based ranking.
+    ///
+    /// High-degree entities are more connected in the knowledge graph
+    /// and typically represent more important/central concepts.
+    fn sort_entities_by_degree(&self, entities: &mut [crate::context::RetrievedEntity]) {
+        entities.sort_by(|a, b| {
+            // Sort by degree descending (higher degree = more important)
+            b.degree.cmp(&a.degree)
+        });
+        tracing::debug!(
+            entity_count = entities.len(),
+            top_degree = entities.first().map(|e| e.degree).unwrap_or(0),
+            "Sorted entities by degree"
+        );
     }
 
     /// Execute a query with full SOTA pipeline.
@@ -344,6 +459,29 @@ impl SOTAQueryEngine {
         };
         stats.retrieval_time_ms = retrieval_start.elapsed().as_millis() as u64;
         stats.context_tokens = context.token_count;
+
+        // Step 4.5: Rerank chunks for improved precision
+        let mut context = context;
+        let should_rerank = request.enable_rerank.unwrap_or(self.config.enable_rerank);
+        if should_rerank && self.reranker.is_some() {
+            let rerank_start = std::time::Instant::now();
+            let reranked_chunks = self
+                .rerank_chunks(
+                    &request.query,
+                    context.chunks,
+                    request.enable_rerank,
+                    request.rerank_top_k,
+                )
+                .await;
+            context.chunks = reranked_chunks;
+            let rerank_time = rerank_start.elapsed().as_millis() as u64;
+            tracing::debug!(rerank_time_ms = rerank_time, "Reranking completed");
+            // Include rerank time in retrieval
+            stats.retrieval_time_ms += rerank_time;
+        }
+
+        // Step 4.6: Sort entities by degree for importance-based ranking
+        self.sort_entities_by_degree(&mut context.entities);
 
         // Step 5: Apply truncation
         let (truncated_entities, truncated_relationships, truncated_chunks) = balance_context(
@@ -460,6 +598,25 @@ impl SOTAQueryEngine {
                     .await?
             }
         };
+
+        // Step 4.5: Rerank chunks for improved precision (streaming version)
+        let mut context = context;
+        let should_rerank = request.enable_rerank.unwrap_or(self.config.enable_rerank);
+        if should_rerank && self.reranker.is_some() {
+            let reranked_chunks = self
+                .rerank_chunks(
+                    &request.query,
+                    context.chunks,
+                    request.enable_rerank,
+                    request.rerank_top_k,
+                )
+                .await;
+            context.chunks = reranked_chunks;
+            tracing::debug!(streaming = true, "Reranking completed for streaming query");
+        }
+
+        // Step 4.6: Sort entities by degree for importance-based ranking
+        self.sort_entities_by_degree(&mut context.entities);
 
         // Step 5: Apply truncation
         let (truncated_entities, truncated_relationships, truncated_chunks) = balance_context(
@@ -612,6 +769,24 @@ impl SOTAQueryEngine {
                     .await?
             }
         };
+
+        // Step 4.5: Rerank chunks for improved precision
+        let mut context = context;
+        let should_rerank = request.enable_rerank.unwrap_or(self.config.enable_rerank);
+        if should_rerank && self.reranker.is_some() {
+            let reranked_chunks = self
+                .rerank_chunks(
+                    &request.query,
+                    context.chunks,
+                    request.enable_rerank,
+                    request.rerank_top_k,
+                )
+                .await;
+            context.chunks = reranked_chunks;
+        }
+
+        // Step 4.6: Sort entities by degree for importance-based ranking
+        self.sort_entities_by_degree(&mut context.entities);
 
         // Step 5: Apply truncation
         let (truncated_entities, truncated_relationships, truncated_chunks) = balance_context(

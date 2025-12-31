@@ -34,6 +34,30 @@ pub struct UploadDocumentRequest {
     /// Optional track ID for batch grouping. If not provided, one will be generated.
     #[serde(default)]
     pub track_id: Option<String>,
+
+    /// Enable gleaning (multiple extraction passes) for higher quality entity extraction.
+    #[serde(default = "default_enable_gleaning")]
+    pub enable_gleaning: bool,
+
+    /// Maximum number of gleaning passes (1-3 recommended).
+    #[serde(default = "default_max_gleaning")]
+    pub max_gleaning: usize,
+
+    /// Enable LLM-powered description summarization during merge.
+    #[serde(default = "default_use_llm_summarization")]
+    pub use_llm_summarization: bool,
+}
+
+fn default_enable_gleaning() -> bool {
+    true
+}
+
+fn default_max_gleaning() -> usize {
+    1
+}
+
+fn default_use_llm_summarization() -> bool {
+    true
 }
 
 /// Document upload response.
@@ -3297,6 +3321,9 @@ mod tests {
             metadata: None,
             async_processing: false,
             track_id: None,
+            enable_gleaning: true,
+            max_gleaning: 1,
+            use_llm_summarization: true,
         };
 
         assert!(!request.content.is_empty());

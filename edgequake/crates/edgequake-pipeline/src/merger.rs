@@ -11,6 +11,7 @@ use edgequake_storage::{GraphEdge, GraphNode, GraphStorage, VectorStorage};
 
 use crate::error::Result;
 use crate::extractor::{ExtractedEntity, ExtractedRelationship, ExtractionResult};
+use crate::summarizer::LLMSummarizer;
 
 /// Configuration for the merger.
 #[derive(Debug, Clone)]
@@ -26,6 +27,9 @@ pub struct MergerConfig {
 
     /// Maximum number of source references to keep.
     pub max_sources: usize,
+
+    /// Use LLM for description merging (if summarizer is provided).
+    pub use_llm_summarization: bool,
 }
 
 impl Default for MergerConfig {
@@ -35,6 +39,7 @@ impl Default for MergerConfig {
             description_decay: 0.9,
             min_importance: 0.1,
             max_sources: 10,
+            use_llm_summarization: true, // Enable by default for SOTA quality
         }
     }
 }
@@ -46,6 +51,8 @@ pub struct KnowledgeGraphMerger<G: GraphStorage + ?Sized, V: VectorStorage + ?Si
     vector_storage: Arc<V>,
     tenant_id: Option<String>,
     workspace_id: Option<String>,
+    /// Optional LLM summarizer for intelligent description merging.
+    summarizer: Option<Arc<LLMSummarizer>>,
 }
 
 impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G, V> {
@@ -57,6 +64,7 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
             vector_storage,
             tenant_id: None,
             workspace_id: None,
+            summarizer: None,
         }
     }
 
@@ -68,6 +76,12 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
     ) -> Self {
         self.tenant_id = tenant_id;
         self.workspace_id = workspace_id;
+        self
+    }
+
+    /// Set the LLM summarizer for intelligent description merging.
+    pub fn with_summarizer(mut self, summarizer: Arc<LLMSummarizer>) -> Self {
+        self.summarizer = Some(summarizer);
         self
     }
 
@@ -149,7 +163,7 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
         match existing {
             Some(mut node) => {
                 // Update existing entity
-                self.update_entity_node(&mut node, &entity)?;
+                self.update_entity_node(&mut node, &entity).await?;
                 self.graph_storage
                     .upsert_node(&node.id, node.properties)
                     .await?;
@@ -208,7 +222,7 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
         match existing {
             Some(mut edge) => {
                 // Update existing relationship
-                self.update_relationship_edge(&mut edge, &rel)?;
+                self.update_relationship_edge(&mut edge, &rel).await?;
                 self.graph_storage
                     .upsert_edge(&edge.source, &edge.target, edge.properties)
                     .await?;
@@ -230,7 +244,11 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
     }
 
     /// Update an existing entity node with new information.
-    fn update_entity_node(&self, node: &mut GraphNode, entity: &ExtractedEntity) -> Result<()> {
+    async fn update_entity_node(
+        &self,
+        node: &mut GraphNode,
+        entity: &ExtractedEntity,
+    ) -> Result<()> {
         // Merge descriptions
         let existing_desc = node
             .properties
@@ -238,11 +256,45 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
             .and_then(|v| v.as_str())
             .unwrap_or("");
 
-        let merged_desc = merge_descriptions(
-            existing_desc,
-            &entity.description,
-            self.config.max_description_length,
-        );
+        // Use LLM summarizer if available and enabled
+        let merged_desc = if self.config.use_llm_summarization {
+            if let Some(summarizer) = &self.summarizer {
+                // Use LLM to intelligently merge descriptions
+                let descriptions = vec![existing_desc.to_string(), entity.description.clone()];
+                match summarizer
+                    .merge_entity_descriptions(&entity.name, &descriptions)
+                    .await
+                {
+                    Ok(merged) => merged,
+                    Err(e) => {
+                        tracing::warn!(
+                            entity = %entity.name,
+                            error = %e,
+                            "LLM summarization failed, falling back to simple merge"
+                        );
+                        merge_descriptions(
+                            existing_desc,
+                            &entity.description,
+                            self.config.max_description_length,
+                        )
+                    }
+                }
+            } else {
+                // No summarizer provided, use simple merge
+                merge_descriptions(
+                    existing_desc,
+                    &entity.description,
+                    self.config.max_description_length,
+                )
+            }
+        } else {
+            // LLM summarization disabled
+            merge_descriptions(
+                existing_desc,
+                &entity.description,
+                self.config.max_description_length,
+            )
+        };
 
         node.properties.insert(
             "description".to_string(),
@@ -384,7 +436,7 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
     }
 
     /// Update an existing relationship edge.
-    fn update_relationship_edge(
+    async fn update_relationship_edge(
         &self,
         edge: &mut GraphEdge,
         rel: &ExtractedRelationship,
@@ -396,11 +448,44 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
             .and_then(|v| v.as_str())
             .unwrap_or("");
 
-        let merged_desc = merge_descriptions(
-            existing_desc,
-            &rel.description,
-            self.config.max_description_length,
-        );
+        // Use LLM summarizer if available and enabled
+        let merged_desc = if self.config.use_llm_summarization {
+            if let Some(summarizer) = &self.summarizer {
+                // Use LLM to intelligently merge relationship descriptions
+                let descriptions = vec![existing_desc.to_string(), rel.description.clone()];
+                match summarizer
+                    .merge_relationship_descriptions(&rel.source, &rel.target, &descriptions)
+                    .await
+                {
+                    Ok(merged) => merged,
+                    Err(e) => {
+                        tracing::warn!(
+                            source = %rel.source,
+                            target = %rel.target,
+                            error = %e,
+                            "LLM summarization failed, falling back to simple merge"
+                        );
+                        merge_descriptions(
+                            existing_desc,
+                            &rel.description,
+                            self.config.max_description_length,
+                        )
+                    }
+                }
+            } else {
+                merge_descriptions(
+                    existing_desc,
+                    &rel.description,
+                    self.config.max_description_length,
+                )
+            }
+        } else {
+            merge_descriptions(
+                existing_desc,
+                &rel.description,
+                self.config.max_description_length,
+            )
+        };
 
         edge.properties.insert(
             "description".to_string(),

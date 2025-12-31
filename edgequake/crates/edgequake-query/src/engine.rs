@@ -88,6 +88,14 @@ pub struct QueryRequest {
     /// Conversation history for multi-turn context.
     #[serde(default)]
     pub conversation_history: Vec<ConversationMessage>,
+
+    /// Override: enable or disable reranking for this request.
+    #[serde(default)]
+    pub enable_rerank: Option<bool>,
+
+    /// Override: rerank top K results.
+    #[serde(default)]
+    pub rerank_top_k: Option<usize>,
 }
 
 /// A single message in conversation history.
@@ -111,6 +119,8 @@ impl QueryRequest {
             prompt_only: false,
             params: HashMap::new(),
             conversation_history: Vec::new(),
+            enable_rerank: None,
+            rerank_top_k: None,
         }
     }
 
@@ -158,6 +168,18 @@ impl QueryRequest {
     /// Get workspace ID from params.
     pub fn workspace_id(&self) -> Option<String> {
         self.params.get("workspace_id").and_then(|v| v.as_str()).map(|s| s.to_string())
+    }
+
+    /// Override reranking for this request.
+    pub fn with_rerank(mut self, enable: bool) -> Self {
+        self.enable_rerank = Some(enable);
+        self
+    }
+
+    /// Set the rerank top K for this request.
+    pub fn with_rerank_top_k(mut self, top_k: usize) -> Self {
+        self.rerank_top_k = Some(top_k);
+        self
     }
 }
 

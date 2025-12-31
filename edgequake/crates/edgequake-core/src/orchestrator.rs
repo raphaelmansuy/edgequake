@@ -12,7 +12,8 @@ use std::sync::Arc;
 
 use edgequake_llm::traits::{EmbeddingProvider, LLMProvider};
 use edgequake_pipeline::{
-    KnowledgeGraphMerger, LLMExtractor, MergerConfig, Pipeline, PipelineConfig,
+    GleaningConfig, GleaningExtractor, KnowledgeGraphMerger, LLMExtractor, LLMSummarizer,
+    MergerConfig, Pipeline, PipelineConfig, SummarizerConfig,
 };
 use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage};
 use serde::{Deserialize, Serialize};
@@ -79,6 +80,15 @@ pub struct EdgeQuakeConfig {
 
     /// Summary language for generated content.
     pub summary_language: String,
+
+    /// Enable gleaning (multi-pass extraction) for better entity coverage.
+    pub enable_gleaning: bool,
+
+    /// Maximum number of gleaning iterations (1-3 recommended).
+    pub max_gleaning: usize,
+
+    /// Enable LLM-based description merging for better deduplication.
+    pub use_llm_summarization: bool,
 }
 
 /// Log level configuration.
@@ -149,6 +159,9 @@ impl Default for EdgeQuakeConfig {
                 "EVENT".to_string(),
             ],
             summary_language: "English".to_string(),
+            enable_gleaning: true,       // Enable by default for SOTA quality
+            max_gleaning: 1,             // LightRAG default
+            use_llm_summarization: true, // Enable by default for SOTA quality
         }
     }
 }
@@ -210,6 +223,21 @@ impl EdgeQuakeConfig {
     pub fn with_chunk_config(mut self, size: usize, overlap: usize) -> Self {
         self.chunk_token_size = size;
         self.chunk_overlap_token_size = overlap;
+        self
+    }
+
+    /// Set gleaning configuration for multi-pass extraction.
+    ///
+    /// Gleaning performs additional LLM passes to find entities that might
+    /// have been missed in the first extraction. This improves extraction
+    /// quality at the cost of additional LLM calls.
+    ///
+    /// # Arguments
+    /// * `enabled` - Whether to enable gleaning
+    /// * `max_iterations` - Maximum gleaning iterations (1-3 recommended)
+    pub fn with_gleaning(mut self, enabled: bool, max_iterations: usize) -> Self {
+        self.enable_gleaning = enabled;
+        self.max_gleaning = max_iterations;
         self
     }
 }
@@ -334,9 +362,28 @@ impl EdgeQuake {
             ..Default::default()
         };
 
-        let extractor = Arc::new(
+        // Create base extractor
+        let base_extractor: Arc<dyn edgequake_pipeline::EntityExtractor> = Arc::new(
             LLMExtractor::new(llm.clone()).with_entity_types(self.config.entity_types.clone()),
         );
+
+        // Wrap with GleaningExtractor if enabled
+        let extractor: Arc<dyn edgequake_pipeline::EntityExtractor> = if self.config.enable_gleaning
+            && self.config.max_gleaning > 0
+        {
+            tracing::info!(
+                max_gleaning = self.config.max_gleaning,
+                "Enabling gleaning for multi-pass extraction"
+            );
+            Arc::new(
+                GleaningExtractor::new(llm.clone(), base_extractor).with_config(GleaningConfig {
+                    max_gleaning: self.config.max_gleaning,
+                    always_glean: false,
+                }),
+            )
+        } else {
+            base_extractor
+        };
 
         let pipeline = Pipeline::new(pipeline_config)
             .with_extractor(extractor)
@@ -419,12 +466,28 @@ impl EdgeQuake {
             .map_err(|e| Error::internal(format!("Pipeline error: {}", e)))?;
 
         // 2. Merge results into knowledge graph and vector store
-        let merger = KnowledgeGraphMerger::new(
-            MergerConfig::default(),
-            graph_storage.clone(),
-            vector_storage.clone(),
-        )
-        .with_tenant_context(self.config.tenant_id.clone(), self.config.workspace_id.clone());
+        let llm = self
+            .llm_provider
+            .as_ref()
+            .ok_or_else(|| Error::not_initialized("LLM provider not initialized"))?;
+
+        let merger_config = MergerConfig {
+            use_llm_summarization: self.config.use_llm_summarization,
+            ..Default::default()
+        };
+
+        let mut merger =
+            KnowledgeGraphMerger::new(merger_config, graph_storage.clone(), vector_storage.clone())
+                .with_tenant_context(
+                    self.config.tenant_id.clone(),
+                    self.config.workspace_id.clone(),
+                );
+
+        // Add LLM summarizer if enabled
+        if self.config.use_llm_summarization {
+            let summarizer = Arc::new(LLMSummarizer::new(llm.clone(), SummarizerConfig::default()));
+            merger = merger.with_summarizer(summarizer);
+        }
 
         let merge_stats = merger
             .merge(processing_result.extractions.clone())
@@ -574,7 +637,9 @@ impl EdgeQuake {
                     // First delete all connected edges
                     let edges = graph_storage.get_node_edges(&node.id).await?;
                     for edge in edges {
-                        graph_storage.delete_edge(&edge.source, &edge.target).await?;
+                        graph_storage
+                            .delete_edge(&edge.source, &edge.target)
+                            .await?;
                         result.relationships_removed += 1;
                     }
                     // Then delete the node
@@ -607,7 +672,9 @@ impl EdgeQuake {
 
                 if remaining_sources.is_empty() {
                     // No sources left - delete the relationship
-                    graph_storage.delete_edge(&edge.source, &edge.target).await?;
+                    graph_storage
+                        .delete_edge(&edge.source, &edge.target)
+                        .await?;
                     result.relationships_removed += 1;
                 } else if remaining_sources.len() < source_id.split('|').count() {
                     // Some sources were removed - update the relationship
@@ -616,7 +683,9 @@ impl EdgeQuake {
                         "source_id".to_string(),
                         serde_json::json!(remaining_sources.join("|")),
                     );
-                    graph_storage.upsert_edge(&edge.source, &edge.target, updated_props).await?;
+                    graph_storage
+                        .upsert_edge(&edge.source, &edge.target, updated_props)
+                        .await?;
                     result.relationships_updated += 1;
                 }
             }
@@ -651,7 +720,10 @@ impl EdgeQuake {
     /// Analyze the impact of deleting a document before actually deleting it.
     ///
     /// This implements impact analysis (P4-06) from the specification.
-    pub async fn analyze_deletion_impact(&self, document_id: &str) -> Result<DocumentDeletionResult> {
+    pub async fn analyze_deletion_impact(
+        &self,
+        document_id: &str,
+    ) -> Result<DocumentDeletionResult> {
         if !self.initialized {
             return Err(Error::not_initialized("EdgeQuake not initialized"));
         }
@@ -743,7 +815,9 @@ impl EdgeQuake {
         // First, delete all edges connected to this entity
         let edges = graph_storage.get_node_edges(&normalized_name).await?;
         for edge in edges {
-            graph_storage.delete_edge(&edge.source, &edge.target).await?;
+            graph_storage
+                .delete_edge(&edge.source, &edge.target)
+                .await?;
             relationships_deleted += 1;
         }
 

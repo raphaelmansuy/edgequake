@@ -7,6 +7,7 @@ import {
 import type {
   AppSettings,
   GraphSettings,
+  IngestionSettings,
   QueryMode,
   QuerySettings,
 } from "@/types";
@@ -31,6 +32,14 @@ const defaultQuerySettings: QuerySettings = {
   maxTokens: 2048,
   temperature: 0.7,
   stream: true, // Enable streaming by default for better UX
+  enableRerank: true, // Enable reranking by default for SOTA quality
+  rerankTopK: 10,
+};
+
+const defaultIngestionSettings: IngestionSettings = {
+  enableGleaning: true, // Enable gleaning by default for SOTA quality
+  maxGleaning: 1,
+  useLLMSummarization: true, // Enable LLM summarization by default
 };
 
 interface SettingsState extends AppSettings {
@@ -43,6 +52,7 @@ interface SettingsState extends AppSettings {
   setLanguage: (language: AppSettings["language"]) => void;
   setGraphSettings: (settings: Partial<GraphSettings>) => void;
   setQuerySettings: (settings: Partial<QuerySettings>) => void;
+  setIngestionSettings: (settings: Partial<IngestionSettings>) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebar: () => void;
   resetSettings: () => void;
@@ -57,6 +67,7 @@ const initialState: AppSettings & { sidebarCollapsed: boolean; _hasHydrated: boo
   language: "en",
   graphSettings: defaultGraphSettings,
   querySettings: defaultQuerySettings,
+  ingestionSettings: defaultIngestionSettings,
   sidebarCollapsed: false,
   _hasHydrated: false,
 };
@@ -80,6 +91,11 @@ export const useSettingsStore = create<SettingsState>()(
           querySettings: { ...state.querySettings, ...settings },
         })),
 
+      setIngestionSettings: (settings) =>
+        set((state) => ({
+          ingestionSettings: { ...state.ingestionSettings, ...settings },
+        })),
+
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
 
       toggleSidebar: () =>
@@ -100,6 +116,7 @@ export const useSettingsStore = create<SettingsState>()(
             language: state.language,
             graphSettings: state.graphSettings,
             querySettings: state.querySettings,
+            ingestionSettings: state.ingestionSettings,
             sidebarCollapsed: state.sidebarCollapsed,
           },
         };
@@ -134,6 +151,10 @@ export const useSettingsStore = create<SettingsState>()(
               ...defaultQuerySettings,
               ...settings.querySettings,
             },
+            ingestionSettings: {
+              ...defaultIngestionSettings,
+              ...settings.ingestionSettings,
+            },
             sidebarCollapsed: settings.sidebarCollapsed ?? false,
           });
 
@@ -154,6 +175,7 @@ export const useSettingsStore = create<SettingsState>()(
         language: state.language,
         graphSettings: state.graphSettings,
         querySettings: state.querySettings,
+        ingestionSettings: state.ingestionSettings,
         sidebarCollapsed: state.sidebarCollapsed,
       }),
       /**
@@ -192,6 +214,10 @@ export const useSettingsStore = create<SettingsState>()(
           querySettings: {
             ...defaultQuerySettings,
             ...(persisted.querySettings || {}),
+          },
+          ingestionSettings: {
+            ...defaultIngestionSettings,
+            ...(persisted.ingestionSettings || {}),
           },
         };
       },

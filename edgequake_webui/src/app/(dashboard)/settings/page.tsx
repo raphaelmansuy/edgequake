@@ -36,9 +36,11 @@ export default function SettingsPage() {
     language, 
     graphSettings, 
     querySettings,
+    ingestionSettings,
     setLanguage, 
     setGraphSettings,
     setQuerySettings,
+    setIngestionSettings,
     resetSettings,
     exportSettings,
     importSettings,
@@ -117,6 +119,14 @@ export default function SettingsPage() {
   ) => {
     setQuerySettings({ [key]: value });
     toast.success('Query settings updated');
+  };
+
+  const handleIngestionSettingsChange = <K extends keyof typeof ingestionSettings>(
+    key: K,
+    value: typeof ingestionSettings[K]
+  ) => {
+    setIngestionSettings({ [key]: value });
+    toast.success('Ingestion settings updated');
   };
 
   return (
@@ -351,6 +361,115 @@ export default function SettingsPage() {
             <Switch
               checked={querySettings.stream}
               onCheckedChange={(stream) => handleQuerySettingsChange('stream', stream)}
+            />
+          </div>
+
+          <Separator />
+
+          {/* Reranking - SOTA Feature */}
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-sm font-medium">Enable Reranking</label>
+              <p className="text-xs text-muted-foreground">
+                Improve retrieval precision with semantic reranking
+              </p>
+            </div>
+            <Switch
+              checked={querySettings.enableRerank}
+              onCheckedChange={(enableRerank) => handleQuerySettingsChange('enableRerank', enableRerank)}
+            />
+          </div>
+
+          {/* Rerank Top K */}
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-sm font-medium">Rerank Top K</label>
+              <p className="text-xs text-muted-foreground">
+                Number of top results after reranking
+              </p>
+            </div>
+            <Select
+              value={String(querySettings.rerankTopK)}
+              onValueChange={(value) => handleQuerySettingsChange('rerankTopK', Number(value))}
+            >
+              <SelectTrigger className="w-[80px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">5</SelectItem>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="15">15</SelectItem>
+                <SelectItem value="20">20</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Ingestion Settings - SOTA Features */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="h-5 w-5" />
+            Ingestion Settings
+          </CardTitle>
+          <CardDescription>
+            Advanced settings for document ingestion quality
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Gleaning */}
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-sm font-medium">Enable Gleaning</label>
+              <p className="text-xs text-muted-foreground">
+                Multiple extraction passes for higher quality entities
+              </p>
+            </div>
+            <Switch
+              checked={ingestionSettings.enableGleaning}
+              onCheckedChange={(enableGleaning) => handleIngestionSettingsChange('enableGleaning', enableGleaning)}
+            />
+          </div>
+
+          <Separator />
+
+          {/* Max Gleaning Passes */}
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-sm font-medium">Max Gleaning Passes</label>
+              <p className="text-xs text-muted-foreground">
+                Maximum number of extraction passes (1-3)
+              </p>
+            </div>
+            <Select
+              value={String(ingestionSettings.maxGleaning)}
+              onValueChange={(value) => handleIngestionSettingsChange('maxGleaning', Number(value))}
+            >
+              <SelectTrigger className="w-[80px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1</SelectItem>
+                <SelectItem value="2">2</SelectItem>
+                <SelectItem value="3">3</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Separator />
+
+          {/* LLM Summarization */}
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-sm font-medium">LLM Summarization</label>
+              <p className="text-xs text-muted-foreground">
+                Use LLM to merge entity descriptions intelligently
+              </p>
+            </div>
+            <Switch
+              checked={ingestionSettings.useLLMSummarization}
+              onCheckedChange={(useLLMSummarization) => handleIngestionSettingsChange('useLLMSummarization', useLLMSummarization)}
             />
           </div>
         </CardContent>

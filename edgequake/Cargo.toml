@@ -1,16 +1,17 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/edgequake-api",
+    "crates/edgequake-audit",
+    "crates/edgequake-auth",
     "crates/edgequake-core",
-    "crates/edgequake-storage",
     "crates/edgequake-llm",
+    "crates/edgequake-pdf",
     "crates/edgequake-pipeline",
     "crates/edgequake-query",
-    "crates/edgequake-api",
-    "crates/edgequake-tasks",
-    "crates/edgequake-auth",
     "crates/edgequake-rate-limiter",
-    "crates/edgequake-audit",
+    "crates/edgequake-storage",
+    "crates/edgequake-tasks",
 ]
 
 [package]
@@ -156,13 +157,14 @@ tokio-test = "0.4"
 criterion = { version = "0.5", features = ["async_tokio"] }
 
 # Workspace crates
-edgequake-core = { path = "crates/edgequake-core" }
-edgequake-storage = { path = "crates/edgequake-storage" }
-edgequake-llm = { path = "crates/edgequake-llm" }
-edgequake-pipeline = { path = "crates/edgequake-pipeline" }
-edgequake-query = { path = "crates/edgequake-query" }
 edgequake-api = { path = "crates/edgequake-api" }
 edgequake-auth = { path = "crates/edgequake-auth" }
+edgequake-core = { path = "crates/edgequake-core" }
+edgequake-llm = { path = "crates/edgequake-llm" }
+edgequake-pdf = { path = "crates/edgequake-pdf" }
+edgequake-pipeline = { path = "crates/edgequake-pipeline" }
+edgequake-query = { path = "crates/edgequake-query" }
+edgequake-storage = { path = "crates/edgequake-storage" }
 edgequake-tasks = { path = "crates/edgequake-tasks" }
 
 # CPU utilities

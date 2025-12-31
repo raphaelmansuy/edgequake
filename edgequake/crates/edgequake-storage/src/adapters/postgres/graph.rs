@@ -1490,6 +1490,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
 
         // FAST SQL query using CTE for degree calculation
         // This avoids expensive Cypher OPTIONAL MATCH and uses native SQL GROUP BY
+        // Note: Cast graphid to text for comparison - AGE's graphid type doesn't have direct = operator
         let min_degree_filter = if let Some(min) = min_degree {
             format!("AND degree >= {}", min)
         } else {
@@ -1499,10 +1500,10 @@ impl GraphStorage for PostgresAGEGraphStorage {
         let sql = format!(
             "WITH edge_counts AS ( \
                 SELECT \
-                    start_id, \
+                    ag_catalog.graphid_to_agtype(start_id)::text as start_id_text, \
                     COUNT(*) as out_degree \
                 FROM {}.\"_ag_label_edge\" \
-                GROUP BY start_id \
+                GROUP BY ag_catalog.graphid_to_agtype(start_id)::text \
             ), \
             node_degrees AS ( \
                 SELECT \
@@ -1510,7 +1511,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
                     v.properties, \
                     COALESCE(ec.out_degree, 0) as degree \
                 FROM {}.\"_ag_label_vertex\" v \
-                LEFT JOIN edge_counts ec ON v.id = ec.start_id \
+                LEFT JOIN edge_counts ec ON ag_catalog.graphid_to_agtype(v.id)::text = ec.start_id_text \
                 {} \
             ) \
             SELECT \

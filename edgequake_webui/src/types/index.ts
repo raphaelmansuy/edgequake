@@ -510,6 +510,19 @@ export interface QuerySettings {
   maxTokens: number;
   temperature: number;
   stream: boolean;
+  /** Enable reranking for improved retrieval precision */
+  enableRerank: boolean;
+  /** Top K results to keep after reranking */
+  rerankTopK: number;
+}
+
+export interface IngestionSettings {
+  /** Enable gleaning (multiple extraction passes) for higher quality entity extraction */
+  enableGleaning: boolean;
+  /** Maximum number of gleaning passes (1-3 recommended) */
+  maxGleaning: number;
+  /** Enable LLM-powered description summarization during merge */
+  useLLMSummarization: boolean;
 }
 
 export interface AppSettings {
@@ -517,6 +530,7 @@ export interface AppSettings {
   language: "en" | "zh" | "ja" | "ko";
   graphSettings: GraphSettings;
   querySettings: QuerySettings;
+  ingestionSettings: IngestionSettings;
 }
 
 // API error types

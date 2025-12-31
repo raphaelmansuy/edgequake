@@ -221,6 +221,12 @@ pub async fn execute_query(
         engine_request = engine_request.prompt_only();
     }
 
+    // Add rerank settings to engine request
+    engine_request = engine_request.with_rerank(request.enable_rerank);
+    if let Some(top_k) = request.rerank_top_k {
+        engine_request = engine_request.with_rerank_top_k(top_k);
+    }
+
     // Add conversation history if provided
     if let Some(history) = &request.conversation_history {
         let engine_history: Vec<edgequake_query::ConversationMessage> = history

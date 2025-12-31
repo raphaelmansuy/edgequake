@@ -642,22 +642,19 @@ impl Default for GleaningConfig {
 /// This implements GAP-018: Max Gleaning from LightRAG.
 /// Gleaning is the process of asking the LLM to look again at the text
 /// for any entities or relationships that might have been missed in the first pass.
-pub struct GleaningExtractor<L: edgequake_llm::LLMProvider + Send + Sync + 'static> {
+pub struct GleaningExtractor {
     /// The underlying LLM provider.
-    llm_provider: std::sync::Arc<L>,
+    llm_provider: std::sync::Arc<dyn edgequake_llm::LLMProvider>,
     /// The base extractor to use.
     base_extractor: std::sync::Arc<dyn EntityExtractor>,
     /// Gleaning configuration.
     config: GleaningConfig,
 }
 
-impl<L> GleaningExtractor<L>
-where
-    L: edgequake_llm::LLMProvider + Send + Sync + 'static,
-{
+impl GleaningExtractor {
     /// Create a new gleaning extractor.
     pub fn new(
-        llm_provider: std::sync::Arc<L>,
+        llm_provider: std::sync::Arc<dyn edgequake_llm::LLMProvider>,
         base_extractor: std::sync::Arc<dyn EntityExtractor>,
     ) -> Self {
         Self {
@@ -812,10 +809,7 @@ Respond with valid JSON in this exact format:
 }
 
 #[async_trait]
-impl<L> EntityExtractor for GleaningExtractor<L>
-where
-    L: edgequake_llm::LLMProvider + Send + Sync + 'static,
-{
+impl EntityExtractor for GleaningExtractor {
     async fn extract(&self, chunk: &TextChunk) -> Result<ExtractionResult> {
         // First pass: use base extractor
         let mut result = self.base_extractor.extract(chunk).await?;

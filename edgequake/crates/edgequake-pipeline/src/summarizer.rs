@@ -128,21 +128,18 @@ impl DescriptionSummarizer for SimpleSummarizer {
 }
 
 /// LLM-based summarizer for high-quality summaries.
-pub struct LLMSummarizer<L>
-where
-    L: edgequake_llm::LLMProvider,
-{
-    llm_provider: Arc<L>,
+pub struct LLMSummarizer {
+    llm_provider: Arc<dyn edgequake_llm::LLMProvider>,
     config: SummarizerConfig,
     prompts: SummarizationPrompts,
 }
 
-impl<L> LLMSummarizer<L>
-where
-    L: edgequake_llm::LLMProvider,
-{
+impl LLMSummarizer {
     /// Create a new LLM summarizer.
-    pub fn new(llm_provider: Arc<L>, config: SummarizerConfig) -> Self {
+    pub fn new(
+        llm_provider: Arc<dyn edgequake_llm::LLMProvider>,
+        config: SummarizerConfig,
+    ) -> Self {
         Self {
             llm_provider,
             config,
@@ -152,7 +149,7 @@ where
 
     /// Create with custom prompts.
     pub fn with_prompts(
-        llm_provider: Arc<L>,
+        llm_provider: Arc<dyn edgequake_llm::LLMProvider>,
         config: SummarizerConfig,
         prompts: SummarizationPrompts,
     ) -> Self {
@@ -355,10 +352,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<L> DescriptionSummarizer for LLMSummarizer<L>
-where
-    L: edgequake_llm::LLMProvider + Send + Sync,
-{
+impl DescriptionSummarizer for LLMSummarizer {
     async fn summarize(&self, description: &str) -> Result<String> {
         if description.len() <= self.config.target_length {
             return Ok(description.to_string());
