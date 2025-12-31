@@ -20,15 +20,15 @@ This document provides a **precision implementation plan** for adding LightRAG-i
 
 ### Implementation Status
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| Phase 1.1 | GraphStorage trait batch methods | ✅ Complete |
+| Phase     | Description                          | Status      |
+| --------- | ------------------------------------ | ----------- |
+| Phase 1.1 | GraphStorage trait batch methods     | ✅ Complete |
 | Phase 1.2 | PostgresAGE batch SQL implementation | ✅ Complete |
-| Phase 1.3 | MemoryStorage batch implementation | ✅ Complete |
-| Phase 2.1 | QueryEngine query_local refactoring | ✅ Complete |
+| Phase 1.3 | MemoryStorage batch implementation   | ✅ Complete |
+| Phase 2.1 | QueryEngine query_local refactoring  | ✅ Complete |
 | Phase 2.2 | QueryEngine query_global refactoring | ✅ Complete |
-| Phase 3.1 | Batch query benchmark tests | ✅ Complete |
-| Phase 3.2 | Performance verification | ✅ Complete |
+| Phase 3.1 | Batch query benchmark tests          | ✅ Complete |
+| Phase 3.2 | Performance verification             | ✅ Complete |
 
 ---
 
