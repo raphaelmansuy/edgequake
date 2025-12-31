@@ -20,5 +20,12 @@ thiserror.workspace = true
 tracing.workspace = true
 futures = "0.3"
 
+# SOTA keyword extraction dependencies
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+hex = "0.4"
+regex = "1.10"
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "chrono"] }
+
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }

@@ -221,9 +221,9 @@ pub async fn execute_query(
         engine_request = engine_request.with_conversation_history(engine_history);
     }
 
-    // Execute query using the query engine
+    // Execute query using the SOTA query engine (LightRAG-style)
     let result = state
-        .query_engine
+        .sota_engine
         .query(engine_request)
         .await
         .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?;
@@ -412,9 +412,9 @@ pub async fn stream_query(
         engine_request = engine_request.with_workspace_id(workspace_id.clone());
     }
 
-    // Execute streaming query
+    // Execute streaming query using SOTA engine (LightRAG-style)
     let stream = state
-        .query_engine
+        .sota_engine
         .query_stream(engine_request)
         .await
         .map_err(|e| ApiError::Internal(format!("Streaming query failed: {}", e)))?;

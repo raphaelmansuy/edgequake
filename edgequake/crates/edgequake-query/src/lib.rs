@@ -27,6 +27,7 @@ pub mod engine;
 pub mod error;
 pub mod keywords;
 pub mod modes;
+pub mod sota_engine;
 pub mod strategies;
 pub mod tokenizer;
 pub mod truncation;
@@ -41,8 +42,14 @@ pub use engine::{
     ConversationMessage, QueryEngine, QueryEngineConfig, QueryRequest, QueryResponse,
 };
 pub use error::{QueryError, Result};
-pub use keywords::{KeywordExtractor, Keywords, LLMKeywordExtractor, MockKeywordExtractor};
+// Re-export keywords module types
+pub use keywords::{
+    CachedKeywordExtractor, ExtractedKeywords, InMemoryKeywordCache, KeywordCache,
+    KeywordExtractor, Keywords, LLMKeywordExtractor, MockKeywordExtractor, PostgresKeywordCache,
+    QueryIntent,
+};
 pub use modes::QueryMode;
+pub use sota_engine::{QueryEmbeddings, SOTAQueryConfig, SOTAQueryEngine};
 pub use strategies::{
     create_strategy, GlobalStrategy, HybridStrategy, LocalStrategy, MixStrategy, NaiveStrategy,
     QueryStrategy, StrategyConfig,

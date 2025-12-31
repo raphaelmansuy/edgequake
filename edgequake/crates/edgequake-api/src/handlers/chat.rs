@@ -385,7 +385,7 @@ pub async fn chat_completion(
 
     debug!(message_id = %user_message.message_id, "Saved user message");
 
-    // 3. Build and execute query
+    // 3. Build and execute query using SOTA engine (LightRAG-style)
     let mut engine_request = EngineQueryRequest::new(&request.message).with_mode(query_mode);
 
     engine_request = engine_request.with_tenant_id(tenant_id.to_string());
@@ -394,7 +394,7 @@ pub async fn chat_completion(
     }
 
     let result = state
-        .query_engine
+        .sota_engine
         .query(engine_request)
         .await
         .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?;
@@ -641,8 +641,8 @@ pub async fn chat_completion_stream(
             engine_request = engine_request.with_workspace_id(ws_id.to_string());
         }
 
-        // Execute streaming query
-        match state_clone.query_engine.query_stream(engine_request).await {
+        // Execute streaming query using SOTA engine (LightRAG-style)
+        match state_clone.sota_engine.query_stream(engine_request).await {
             Ok(mut stream) => {
                 while let Some(chunk_result) = stream.next().await {
                     match chunk_result {

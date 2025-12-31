@@ -10,7 +10,7 @@ use edgequake_core::{
 };
 use edgequake_llm::OpenAIProvider;
 use edgequake_pipeline::Pipeline;
-use edgequake_query::{QueryEngine, QueryEngineConfig};
+use edgequake_query::{QueryEngine, QueryEngineConfig, SOTAQueryConfig, SOTAQueryEngine};
 use edgequake_rate_limiter::{RateLimitConfig as TokenBucketConfig, RateLimiter};
 use edgequake_storage::adapters::memory::{
     MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
@@ -86,6 +86,9 @@ pub struct AppState {
 
     /// Query engine.
     pub query_engine: Arc<QueryEngine>,
+
+    /// SOTA Query engine with LightRAG-style enhancements.
+    pub sota_engine: Arc<SOTAQueryEngine>,
 
     /// Processing pipeline.
     pub pipeline: Arc<Pipeline>,
@@ -169,6 +172,7 @@ impl AppState {
         llm_provider: Arc<dyn edgequake_llm::traits::LLMProvider>,
         embedding_provider: Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
         query_engine: Arc<QueryEngine>,
+        sota_engine: Arc<SOTAQueryEngine>,
         pipeline: Arc<Pipeline>,
         task_storage: SharedTaskStorage,
         task_queue: SharedTaskQueue,
@@ -188,6 +192,7 @@ impl AppState {
             llm_provider,
             embedding_provider,
             query_engine,
+            sota_engine,
             pipeline,
             task_storage,
             task_queue,
@@ -239,9 +244,18 @@ impl AppState {
         let task_storage = Arc::new(edgequake_tasks::memory::MemoryTaskStorage::new());
         let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
 
-        // Create query engine
+        // Create legacy query engine (for backward compatibility)
         let query_engine = Arc::new(QueryEngine::new(
             QueryEngineConfig::default(),
+            Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
+            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+        ));
+
+        // Create SOTA query engine with LightRAG-style enhancements
+        let sota_engine = Arc::new(SOTAQueryEngine::new(
+            SOTAQueryConfig::default(),
             Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
             Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
             Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
@@ -264,6 +278,7 @@ impl AppState {
             embedding_provider: Arc::clone(&llm_provider)
                 as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
             query_engine,
+            sota_engine,
             pipeline,
             task_storage,
             task_queue,
@@ -305,9 +320,19 @@ impl AppState {
         let task_storage = Arc::new(edgequake_tasks::memory::MemoryTaskStorage::new());
         let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
 
+        // Create legacy query engine (for backward compatibility)
         let query_config = QueryEngineConfig::default();
         let query_engine = Arc::new(QueryEngine::new(
             query_config,
+            Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
+            Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+            Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+        ));
+
+        // Create SOTA query engine with mock keywords for testing
+        let sota_engine = Arc::new(SOTAQueryEngine::with_mock_keywords(
+            SOTAQueryConfig::default(),
             Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
             Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
             Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
@@ -330,6 +355,7 @@ impl AppState {
             embedding_provider: Arc::clone(&mock_provider)
                 as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
             query_engine,
+            sota_engine,
             pipeline,
             task_storage,
             task_queue,
@@ -471,9 +497,18 @@ impl AppState {
         let task_storage = Arc::new(edgequake_tasks::memory::MemoryTaskStorage::new());
         let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
 
-        // Create query engine
+        // Create legacy query engine (for backward compatibility)
         let query_engine = Arc::new(QueryEngine::new(
             QueryEngineConfig::default(),
+            Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
+            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+        ));
+
+        // Create SOTA query engine with LightRAG-style enhancements
+        let sota_engine = Arc::new(SOTAQueryEngine::new(
+            SOTAQueryConfig::default(),
             Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
             Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
             Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
@@ -496,6 +531,7 @@ impl AppState {
             embedding_provider: Arc::clone(&llm_provider)
                 as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
             query_engine,
+            sota_engine,
             pipeline,
             task_storage,
             task_queue,

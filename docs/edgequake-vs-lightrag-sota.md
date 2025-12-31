@@ -1,6 +1,7 @@
 # EdgeQuake vs LightRAG: Complete SOTA Comparison
 
 ## Version Information
+
 - **EdgeQuake**: v0.1.0 (2025-01-25)
 - **LightRAG**: Latest commit (2025-01)
 - **Comparison Type**: Code-verified, performance-tested
@@ -13,16 +14,16 @@
 
 **EdgeQuake surpasses LightRAG in all critical categories:**
 
-| Category | EdgeQuake | LightRAG | Winner |
-|----------|-----------|----------|--------|
-| **Graph Layouts** | ✅ 7 | ⚠️ 6 | 🎯 EdgeQuake |
-| **Layout Performance** | ✅ Linear scaling | ⚠️ Not documented | 🎯 EdgeQuake |
-| **UI Responsiveness** | ✅ Web Workers | ⚠️ FA2 only | 🎯 EdgeQuake |
-| **Backend Language** | ✅ Rust | ⚠️ Python | 🎯 EdgeQuake |
-| **Storage Options** | ✅ PostgreSQL + Memory | ⚠️ File-based | 🎯 EdgeQuake |
-| **Multi-tenancy** | ✅ Native support | ❌ Not supported | 🎯 EdgeQuake |
-| **Production Ready** | ✅ Yes | ⚠️ Experimental | 🎯 EdgeQuake |
-| **Documentation** | ✅ Comprehensive | ⚠️ Basic | 🎯 EdgeQuake |
+| Category               | EdgeQuake              | LightRAG          | Winner       |
+| ---------------------- | ---------------------- | ----------------- | ------------ |
+| **Graph Layouts**      | ✅ 7                   | ⚠️ 6              | 🎯 EdgeQuake |
+| **Layout Performance** | ✅ Linear scaling      | ⚠️ Not documented | 🎯 EdgeQuake |
+| **UI Responsiveness**  | ✅ Web Workers         | ⚠️ FA2 only       | 🎯 EdgeQuake |
+| **Backend Language**   | ✅ Rust                | ⚠️ Python         | 🎯 EdgeQuake |
+| **Storage Options**    | ✅ PostgreSQL + Memory | ⚠️ File-based     | 🎯 EdgeQuake |
+| **Multi-tenancy**      | ✅ Native support      | ❌ Not supported  | 🎯 EdgeQuake |
+| **Production Ready**   | ✅ Yes                 | ⚠️ Experimental   | 🎯 EdgeQuake |
+| **Documentation**      | ✅ Comprehensive       | ⚠️ Basic          | 🎯 EdgeQuake |
 
 ---
 
@@ -31,6 +32,7 @@
 ### 1. Graph Layouts (🎯 EdgeQuake Wins)
 
 #### EdgeQuake: 7 Layouts
+
 1. ⚡ **Force Atlas (FA2)** - Web Worker, physics-based
 2. 🔄 **Force Directed** - NEW! Fast spring-embedder
 3. ⭕ **Circular** - Deterministic circle arrangement
@@ -40,6 +42,7 @@
 7. 🌳 **Hierarchical** - NEW! Tree-like structure
 
 #### LightRAG: 6 Layouts
+
 1. ⚡ Force Atlas (FA2) - Web Worker
 2. ⭕ Circular
 3. 📊 ForceLink (similar to Force Directed)
@@ -54,17 +57,19 @@
 ### 2. Performance Benchmarks (🎯 EdgeQuake Wins)
 
 #### EdgeQuake Performance (Verified)
-| Graph Size | Average Layout Time | Variance |
-|------------|--------------------| ---------|
-| Small (~10 nodes) | 949ms | ±30ms |
-| Medium (~100 nodes) | 1439ms | ±40ms |
-| Large (1000+ nodes) | 2436ms | ±15ms |
+
+| Graph Size          | Average Layout Time | Variance |
+| ------------------- | ------------------- | -------- |
+| Small (~10 nodes)   | 949ms               | ±30ms    |
+| Medium (~100 nodes) | 1439ms              | ±40ms    |
+| Large (1000+ nodes) | 2436ms              | ±15ms    |
 
 - **Linear scaling**: ~1.5x per 10x graph size
 - **Consistent**: Low variance across all layouts
 - **Responsive**: Web Workers prevent UI freeze
 
 #### LightRAG Performance (Estimated)
+
 - No documented benchmarks available
 - Anecdotal reports suggest similar performance
 - Web Worker only for FA2 (not Noverlap)
@@ -76,13 +81,15 @@
 ### 3. UI Responsiveness (🎯 EdgeQuake Wins)
 
 #### EdgeQuake
+
 - ✅ Web Workers for **FA2 and Noverlaps**
 - ✅ UI remains clickable during heavy computation
 - ✅ Toast notifications for all layout changes
 - ✅ Animation controls with start/stop
 - ✅ Real-time progress feedback
 
-#### LightRAG  
+#### LightRAG
+
 - ⚠️ Web Worker for **FA2 only**
 - ⚠️ Direct layouts may freeze UI briefly
 - ✅ Toast notifications present
@@ -95,6 +102,7 @@
 ### 4. Backend Technology (🎯 EdgeQuake Wins)
 
 #### EdgeQuake: Rust
+
 - ✅ **Memory safety** without garbage collection
 - ✅ **Blazing fast** execution (compiled, zero-cost abstractions)
 - ✅ **Concurrent** by default (async/await)
@@ -103,6 +111,7 @@
 - ✅ **Low memory** footprint
 
 #### LightRAG: Python
+
 - ⚠️ Slower execution (interpreted)
 - ⚠️ GIL limits concurrency
 - ⚠️ Runtime type errors possible
@@ -116,6 +125,7 @@
 ### 5. Storage & Persistence (🎯 EdgeQuake Wins)
 
 #### EdgeQuake
+
 - ✅ **PostgreSQL** with AGE graph extension (production)
 - ✅ **In-memory** storage (development/testing)
 - ✅ **Multi-tenancy** with workspace isolation
@@ -124,6 +134,7 @@
 - ✅ **Connection pooling** built-in
 
 #### LightRAG
+
 - ⚠️ **File-based** storage (JSON, pickle)
 - ⚠️ No database backend
 - ⚠️ No multi-tenancy
@@ -137,6 +148,7 @@
 ### 6. Multi-Tenancy (🎯 EdgeQuake Wins)
 
 #### EdgeQuake
+
 - ✅ Native **workspace isolation**
 - ✅ Per-workspace **configuration**
 - ✅ Workspace **switching** in UI
@@ -144,6 +156,7 @@
 - ✅ **Concurrent** workspace queries
 
 #### LightRAG
+
 - ❌ No multi-tenancy support
 - ❌ Single global state
 - ❌ Manual workarounds needed
@@ -155,6 +168,7 @@
 ### 7. API & Integration (🎯 EdgeQuake Wins)
 
 #### EdgeQuake
+
 - ✅ **RESTful API** with Axum
 - ✅ **OpenAPI/Swagger** documentation
 - ✅ **Server-Sent Events** (SSE) for streaming
@@ -163,6 +177,7 @@
 - ✅ **Type-safe** client generation
 
 #### LightRAG
+
 - ⚠️ Basic Flask API
 - ⚠️ Limited documentation
 - ⚠️ No streaming
@@ -175,6 +190,7 @@
 ### 8. Frontend Architecture (🎯 EdgeQuake Wins)
 
 #### EdgeQuake
+
 - ✅ **Next.js 16** (App Router)
 - ✅ **React 19** (latest)
 - ✅ **TypeScript** (type-safe)
@@ -184,6 +200,7 @@
 - ✅ **Sigma.js 3.0** (graph rendering)
 
 #### LightRAG
+
 - ⚠️ React 18 (older)
 - ✅ TypeScript
 - ⚠️ Basic CSS
@@ -197,6 +214,7 @@
 ### 9. Developer Experience (🎯 EdgeQuake Wins)
 
 #### EdgeQuake
+
 - ✅ **Comprehensive documentation** (10+ docs)
 - ✅ **Production guides** with examples
 - ✅ **E2E tests** with Playwright
@@ -206,6 +224,7 @@
 - ✅ **CI/CD** ready
 
 #### LightRAG
+
 - ⚠️ Basic README only
 - ⚠️ Limited examples
 - ⚠️ No E2E tests
@@ -219,6 +238,7 @@
 ### 10. Production Readiness (🎯 EdgeQuake Wins)
 
 #### EdgeQuake
+
 - ✅ **Tested** with E2E and performance tests
 - ✅ **Documented** comprehensively
 - ✅ **Monitored** with health checks
@@ -228,6 +248,7 @@
 - ✅ **Cost-efficient** ($0.0014 per document with GPT-4o-mini)
 
 #### LightRAG
+
 - ⚠️ **Experimental** status
 - ⚠️ Limited testing
 - ⚠️ Basic documentation
@@ -241,70 +262,81 @@
 ## 🎯 Performance Comparison Matrix
 
 ### Layout Computation Speed
-| Layout | EdgeQuake (1000 nodes) | LightRAG (estimated) | Winner |
-|--------|------------------------|----------------------|--------|
-| Force Atlas | 2447ms | ~2500ms | 🎯 EdgeQuake |
-| Force Directed | 2433ms | ~2600ms (ForceLink) | 🎯 EdgeQuake |
-| Circular | 2425ms | ~2400ms | 🔄 Tie |
-| Circle Pack | 2448ms | N/A | 🎯 EdgeQuake |
-| Random | 2453ms | ~2400ms | 🔄 Tie |
-| Noverlaps | 2425ms | ~2800ms | 🎯 EdgeQuake |
-| Hierarchical | 2423ms | ~2700ms (Dagre) | 🎯 EdgeQuake |
+
+| Layout         | EdgeQuake (1000 nodes) | LightRAG (estimated) | Winner       |
+| -------------- | ---------------------- | -------------------- | ------------ |
+| Force Atlas    | 2447ms                 | ~2500ms              | 🎯 EdgeQuake |
+| Force Directed | 2433ms                 | ~2600ms (ForceLink)  | 🎯 EdgeQuake |
+| Circular       | 2425ms                 | ~2400ms              | 🔄 Tie       |
+| Circle Pack    | 2448ms                 | N/A                  | 🎯 EdgeQuake |
+| Random         | 2453ms                 | ~2400ms              | 🔄 Tie       |
+| Noverlaps      | 2425ms                 | ~2800ms              | 🎯 EdgeQuake |
+| Hierarchical   | 2423ms                 | ~2700ms (Dagre)      | 🎯 EdgeQuake |
 
 ### Memory Usage
-| Operation | EdgeQuake | LightRAG | Winner |
-|-----------|-----------|----------|--------|
-| Backend idle | ~50MB | ~200MB | 🎯 EdgeQuake |
-| 1000 node graph | ~100MB | ~350MB | 🎯 EdgeQuake |
-| 10,000 nodes | ~500MB | ~2GB | 🎯 EdgeQuake |
+
+| Operation       | EdgeQuake | LightRAG | Winner       |
+| --------------- | --------- | -------- | ------------ |
+| Backend idle    | ~50MB     | ~200MB   | 🎯 EdgeQuake |
+| 1000 node graph | ~100MB    | ~350MB   | 🎯 EdgeQuake |
+| 10,000 nodes    | ~500MB    | ~2GB     | 🎯 EdgeQuake |
 
 ### API Response Time
-| Endpoint | EdgeQuake | LightRAG | Winner |
-|----------|-----------|----------|--------|
-| Health check | <5ms | ~50ms | 🎯 EdgeQuake |
-| Graph query | ~50ms | ~200ms | 🎯 EdgeQuake |
-| Entity search | ~30ms | ~150ms | 🎯 EdgeQuake |
-| Document upload | ~500ms | ~800ms | 🎯 EdgeQuake |
+
+| Endpoint        | EdgeQuake | LightRAG | Winner       |
+| --------------- | --------- | -------- | ------------ |
+| Health check    | <5ms      | ~50ms    | 🎯 EdgeQuake |
+| Graph query     | ~50ms     | ~200ms   | 🎯 EdgeQuake |
+| Entity search   | ~30ms     | ~150ms   | 🎯 EdgeQuake |
+| Document upload | ~500ms    | ~800ms   | 🎯 EdgeQuake |
 
 ---
 
 ## 🚀 EdgeQuake's Unique Advantages
 
 ### 1. Additional Layout: Circle Pack
+
 - Hierarchical circular packing algorithm
 - Beautiful for clustered data
 - Not available in LightRAG
 
 ### 2. Additional Layout: Force Directed
+
 - Faster than Force Atlas for quick previews
 - Direct implementation without Web Worker overhead
 - Better for small/medium graphs
 
 ### 3. Web Worker for Noverlaps
+
 - EdgeQuake: Uses Web Worker (non-blocking)
 - LightRAG: Direct implementation (may freeze UI)
 
 ### 4. Rust Backend
+
 - 10-100x faster than Python
 - Memory-safe without GC pauses
 - Better for production deployments
 
 ### 5. PostgreSQL Storage
+
 - Enterprise-grade persistence
 - ACID transactions
 - Scalable to millions of nodes
 
 ### 6. Multi-Tenancy
+
 - Critical for SaaS products
 - Workspace isolation
 - Concurrent access
 
 ### 7. Modern Frontend Stack
+
 - Next.js 16 App Router
 - React 19
 - Better performance and DX
 
 ### 8. Comprehensive Documentation
+
 - 10+ detailed guides
 - Performance benchmarks
 - Production examples
@@ -314,6 +346,7 @@
 ## 📈 Scalability Comparison
 
 ### EdgeQuake
+
 - ✅ Tested up to **10,000 nodes**
 - ✅ Linear scaling confirmed
 - ✅ PostgreSQL handles millions of nodes
@@ -321,6 +354,7 @@
 - ✅ Horizontal scaling ready (stateless API)
 
 ### LightRAG
+
 - ⚠️ Tested up to **~1,000 nodes** (anecdotal)
 - ⚠️ File-based storage limits scalability
 - ⚠️ Python GIL limits concurrency
@@ -335,6 +369,7 @@
 Both systems use OpenAI by default:
 
 ### EdgeQuake
+
 - **Model**: GPT-4o-mini (recommended)
 - **Embedding**: text-embedding-3-small (1536d)
 - **Cost per document**: ~$0.0014
@@ -342,6 +377,7 @@ Both systems use OpenAI by default:
 - **Alternative**: Mock provider for dev/test (free)
 
 ### LightRAG
+
 - **Model**: GPT-4 or GPT-3.5
 - **Embedding**: text-embedding-ada-002
 - **Cost per document**: ~$0.005-0.020 (3-14x more)
@@ -355,6 +391,7 @@ Both systems use OpenAI by default:
 ## 🔒 Security Comparison
 
 ### EdgeQuake
+
 - ✅ **Rust memory safety** (no buffer overflows)
 - ✅ **Type-safe** at compile time
 - ✅ **SQL injection** prevention (parameterized queries)
@@ -363,6 +400,7 @@ Both systems use OpenAI by default:
 - ✅ **No eval()** or unsafe code
 
 ### LightRAG
+
 - ⚠️ Python runtime errors possible
 - ⚠️ File system access (potential issues)
 - ⚠️ Less secure by default
@@ -374,6 +412,7 @@ Both systems use OpenAI by default:
 ## 🧪 Testing Coverage
 
 ### EdgeQuake
+
 - ✅ **E2E tests**: 12/14 passing (2 skipped for missing features)
 - ✅ **Performance tests**: 7/7 passing
 - ✅ **Unit tests**: Rust crates tested
@@ -381,6 +420,7 @@ Both systems use OpenAI by default:
 - ✅ **Load tests**: Planned (Phase 1.4)
 
 ### LightRAG
+
 - ⚠️ Limited test coverage
 - ⚠️ No E2E tests
 - ⚠️ No performance tests
@@ -393,6 +433,7 @@ Both systems use OpenAI by default:
 ## 📝 Documentation Quality
 
 ### EdgeQuake Documentation
+
 1. Quick Start Guide
 2. Architecture Overview
 3. API Reference (OpenAPI)
@@ -409,6 +450,7 @@ Both systems use OpenAI by default:
 **Total: 12 comprehensive documents**
 
 ### LightRAG Documentation
+
 1. README.md
 2. API examples (basic)
 
@@ -421,12 +463,14 @@ Both systems use OpenAI by default:
 ## 🎓 Learning Curve
 
 ### EdgeQuake
+
 - **Backend**: Rust (steep learning curve, but worth it)
 - **Frontend**: React/Next.js (standard web stack)
 - **Deployment**: Docker (standard)
 - **Overall**: Medium-high, but well-documented
 
 ### LightRAG
+
 - **Backend**: Python (easy)
 - **Frontend**: React (standard)
 - **Deployment**: Manual (unclear)
@@ -465,17 +509,17 @@ Both systems use OpenAI by default:
 
 ## 📊 Scoring Summary
 
-| Category | Weight | EdgeQuake | LightRAG | Winner |
-|----------|--------|-----------|----------|--------|
-| Layouts | 15% | 10/10 | 8/10 | 🎯 EdgeQuake |
-| Performance | 20% | 10/10 | 7/10 | 🎯 EdgeQuake |
-| Scalability | 15% | 10/10 | 5/10 | 🎯 EdgeQuake |
-| UX | 10% | 9/10 | 7/10 | 🎯 EdgeQuake |
-| Documentation | 10% | 10/10 | 4/10 | 🎯 EdgeQuake |
-| Testing | 10% | 9/10 | 3/10 | 🎯 EdgeQuake |
-| Security | 10% | 10/10 | 6/10 | 🎯 EdgeQuake |
-| Production Ready | 10% | 10/10 | 5/10 | 🎯 EdgeQuake |
-| **Total** | **100%** | **9.75/10** | **6.0/10** | 🏆 **EdgeQuake** |
+| Category         | Weight   | EdgeQuake   | LightRAG   | Winner           |
+| ---------------- | -------- | ----------- | ---------- | ---------------- |
+| Layouts          | 15%      | 10/10       | 8/10       | 🎯 EdgeQuake     |
+| Performance      | 20%      | 10/10       | 7/10       | 🎯 EdgeQuake     |
+| Scalability      | 15%      | 10/10       | 5/10       | 🎯 EdgeQuake     |
+| UX               | 10%      | 9/10        | 7/10       | 🎯 EdgeQuake     |
+| Documentation    | 10%      | 10/10       | 4/10       | 🎯 EdgeQuake     |
+| Testing          | 10%      | 9/10        | 3/10       | 🎯 EdgeQuake     |
+| Security         | 10%      | 10/10       | 6/10       | 🎯 EdgeQuake     |
+| Production Ready | 10%      | 10/10       | 5/10       | 🎯 EdgeQuake     |
+| **Total**        | **100%** | **9.75/10** | **6.0/10** | 🏆 **EdgeQuake** |
 
 ---
 
@@ -487,7 +531,7 @@ Both systems use OpenAI by default:
 
 ---
 
-*Document Version*: 1.0
-*Date*: 2025-01-25
-*Author*: EdgeQuake Team
-*Status*: ✅ Verified and Tested
+_Document Version_: 1.0
+_Date_: 2025-01-25
+_Author_: EdgeQuake Team
+_Status_: ✅ Verified and Tested

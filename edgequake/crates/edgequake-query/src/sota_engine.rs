@@ -1,0 +1,1201 @@
+//! SOTA Query Engine - LightRAG-inspired implementation.
+//!
+//! This module provides the enhanced query engine with:
+//! - LLM-based keyword extraction with caching
+//! - Mode-specific vector search (entities vs relationships)
+//! - Batch graph operations
+//! - Query caching
+//!
+//! # Architecture
+//!
+//! ```text
+//! Query → Keyword Extraction → Mode Router
+//!                                 ↓
+//!         ┌───────────────────────┼───────────────────────┐
+//!         ↓                       ↓                       ↓
+//!     Local Mode             Global Mode             Naive Mode
+//!   (Entity VDB +          (Relationship VDB +      (Chunk VDB)
+//!    low-level kw)          high-level kw)
+//!         ↓                       ↓                       ↓
+//!         └───────────────────────┼───────────────────────┘
+//!                                 ↓
+//!                         Context Building
+//!                                 ↓
+//!                         Token Budgeting
+//!                                 ↓
+//!                         LLM Generation
+//! ```
+
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use serde::{Deserialize, Serialize};
+
+use crate::context::{QueryContext, RetrievedChunk, RetrievedEntity, RetrievedRelationship};
+use crate::error::{QueryError, Result};
+use crate::keywords::{
+    CachedKeywordExtractor, ExtractedKeywords, InMemoryKeywordCache, KeywordExtractor,
+    LLMKeywordExtractor, MockKeywordExtractor, QueryIntent,
+};
+use crate::modes::QueryMode;
+use crate::tokenizer::{SimpleTokenizer, Tokenizer};
+use crate::truncation::{balance_context, TruncationConfig};
+use crate::vector_filter::{filter_by_type, VectorType};
+
+use edgequake_llm::traits::{EmbeddingProvider, LLMProvider};
+use edgequake_storage::traits::{GraphStorage, VectorStorage};
+
+/// Configuration for the SOTA query engine.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SOTAQueryConfig {
+    /// Default query mode.
+    pub default_mode: QueryMode,
+
+    /// Maximum entities to retrieve.
+    pub max_entities: usize,
+
+    /// Maximum relationships to retrieve.
+    pub max_relationships: usize,
+
+    /// Maximum chunks to retrieve.
+    pub max_chunks: usize,
+
+    /// Maximum context tokens.
+    pub max_context_tokens: usize,
+
+    /// Graph traversal depth.
+    pub graph_depth: usize,
+
+    /// Minimum similarity score threshold.
+    pub min_score: f32,
+
+    /// Whether to use keyword extraction.
+    pub use_keyword_extraction: bool,
+
+    /// Whether to use adaptive mode selection based on query intent.
+    pub use_adaptive_mode: bool,
+
+    /// Truncation configuration.
+    pub truncation: TruncationConfig,
+
+    /// Keyword cache TTL in seconds.
+    pub keyword_cache_ttl_secs: u64,
+}
+
+impl Default for SOTAQueryConfig {
+    fn default() -> Self {
+        Self {
+            default_mode: QueryMode::Hybrid,
+            max_entities: 20,
+            max_relationships: 20,
+            max_chunks: 10,
+            max_context_tokens: 4000,
+            graph_depth: 2,
+            min_score: 0.1,
+            use_keyword_extraction: true,
+            use_adaptive_mode: true,
+            truncation: TruncationConfig::default(),
+            keyword_cache_ttl_secs: 24 * 60 * 60, // 24 hours
+        }
+    }
+}
+
+/// Query embeddings for different keyword levels.
+///
+/// LightRAG uses different embeddings for different modes:
+/// - low_level: Entity search (Local mode)
+/// - high_level: Relationship search (Global mode)
+/// - query: Direct chunk search (Naive mode)
+#[derive(Debug, Clone)]
+pub struct QueryEmbeddings {
+    /// Original query embedding.
+    pub query: Vec<f32>,
+
+    /// High-level keywords embedding (for Global mode).
+    pub high_level: Vec<f32>,
+
+    /// Low-level keywords embedding (for Local mode).
+    pub low_level: Vec<f32>,
+}
+
+impl QueryEmbeddings {
+    /// Compute all embeddings in a single batch.
+    pub async fn compute(
+        query: &str,
+        keywords: &ExtractedKeywords,
+        embedder: &dyn EmbeddingProvider,
+    ) -> Result<Self> {
+        let high_level_text = if keywords.high_level.is_empty() {
+            query.to_string()
+        } else {
+            keywords.high_level.join(", ")
+        };
+
+        let low_level_text = if keywords.low_level.is_empty() {
+            query.to_string()
+        } else {
+            keywords.low_level.join(", ")
+        };
+
+        // Batch embed all three texts
+        let texts = vec![query.to_string(), high_level_text, low_level_text];
+
+        let embeddings = embedder.embed(&texts).await.map_err(QueryError::from)?;
+
+        if embeddings.len() != 3 {
+            return Err(QueryError::Internal(format!(
+                "Expected 3 embeddings, got {}",
+                embeddings.len()
+            )));
+        }
+
+        Ok(Self {
+            query: embeddings[0].clone(),
+            high_level: embeddings[1].clone(),
+            low_level: embeddings[2].clone(),
+        })
+    }
+
+    /// Simple embedding (same for all levels).
+    pub fn uniform(embedding: Vec<f32>) -> Self {
+        Self {
+            query: embedding.clone(),
+            high_level: embedding.clone(),
+            low_level: embedding,
+        }
+    }
+}
+
+/// SOTA Query Engine with LightRAG-inspired enhancements.
+pub struct SOTAQueryEngine {
+    config: SOTAQueryConfig,
+    vector_storage: Arc<dyn VectorStorage>,
+    graph_storage: Arc<dyn GraphStorage>,
+    embedding_provider: Arc<dyn EmbeddingProvider>,
+    llm_provider: Arc<dyn LLMProvider>,
+    keyword_extractor: Arc<dyn KeywordExtractor>,
+    tokenizer: Arc<dyn Tokenizer>,
+}
+
+impl SOTAQueryEngine {
+    /// Create a new SOTA query engine.
+    pub fn new(
+        config: SOTAQueryConfig,
+        vector_storage: Arc<dyn VectorStorage>,
+        graph_storage: Arc<dyn GraphStorage>,
+        embedding_provider: Arc<dyn EmbeddingProvider>,
+        llm_provider: Arc<dyn LLMProvider>,
+    ) -> Self {
+        // Create cached keyword extractor
+        let base_extractor = Arc::new(LLMKeywordExtractor::new(llm_provider.clone()));
+        let cache = Arc::new(InMemoryKeywordCache::new(1000));
+        let keyword_extractor: Arc<dyn KeywordExtractor> = Arc::new(CachedKeywordExtractor::new(
+            base_extractor,
+            cache,
+            std::time::Duration::from_secs(config.keyword_cache_ttl_secs),
+        ));
+
+        Self {
+            config,
+            vector_storage,
+            graph_storage,
+            embedding_provider,
+            llm_provider,
+            keyword_extractor,
+            tokenizer: Arc::new(SimpleTokenizer),
+        }
+    }
+
+    /// Create with mock keyword extractor (for testing).
+    pub fn with_mock_keywords(
+        config: SOTAQueryConfig,
+        vector_storage: Arc<dyn VectorStorage>,
+        graph_storage: Arc<dyn GraphStorage>,
+        embedding_provider: Arc<dyn EmbeddingProvider>,
+        llm_provider: Arc<dyn LLMProvider>,
+    ) -> Self {
+        let keyword_extractor: Arc<dyn KeywordExtractor> = Arc::new(MockKeywordExtractor::new());
+
+        Self {
+            config,
+            vector_storage,
+            graph_storage,
+            embedding_provider,
+            llm_provider,
+            keyword_extractor,
+            tokenizer: Arc::new(SimpleTokenizer),
+        }
+    }
+
+    /// Set a custom keyword extractor.
+    pub fn with_keyword_extractor(mut self, extractor: Arc<dyn KeywordExtractor>) -> Self {
+        self.keyword_extractor = extractor;
+        self
+    }
+
+    /// Set a custom tokenizer.
+    pub fn with_tokenizer(mut self, tokenizer: Arc<dyn Tokenizer>) -> Self {
+        self.tokenizer = tokenizer;
+        self
+    }
+
+    /// Execute a query with full SOTA pipeline.
+    pub async fn query(
+        &self,
+        request: crate::engine::QueryRequest,
+    ) -> Result<crate::engine::QueryResponse> {
+        let start = std::time::Instant::now();
+        let mut stats = crate::engine::QueryStats::default();
+
+        // Step 1: Extract keywords (with caching)
+        let keywords = if self.config.use_keyword_extraction {
+            let kw_start = std::time::Instant::now();
+            let kw = self
+                .keyword_extractor
+                .extract_extended(&request.query)
+                .await?;
+            tracing::debug!(
+                query = %request.query,
+                high_level = ?kw.high_level,
+                low_level = ?kw.low_level,
+                intent = %kw.query_intent,
+                "Extracted keywords"
+            );
+            stats.embedding_time_ms += kw_start.elapsed().as_millis() as u64;
+            kw
+        } else {
+            ExtractedKeywords::new(vec![], vec![], QueryIntent::Exploratory)
+        };
+
+        // Step 2: Determine query mode
+        let mode = if let Some(m) = request.mode {
+            m
+        } else if self.config.use_adaptive_mode {
+            keywords.query_intent.recommended_mode()
+        } else {
+            self.config.default_mode
+        };
+
+        tracing::debug!(mode = %mode, "Selected query mode");
+
+        // Step 3: Compute embeddings
+        let embed_start = std::time::Instant::now();
+        let embeddings =
+            QueryEmbeddings::compute(&request.query, &keywords, self.embedding_provider.as_ref())
+                .await?;
+        stats.embedding_time_ms += embed_start.elapsed().as_millis() as u64;
+
+        // Step 4: Mode-specific retrieval
+        let retrieval_start = std::time::Instant::now();
+        let context = match mode {
+            QueryMode::Local => {
+                self.query_local(
+                    &keywords,
+                    &embeddings,
+                    request.tenant_id(),
+                    request.workspace_id(),
+                )
+                .await?
+            }
+            QueryMode::Global => {
+                self.query_global(
+                    &keywords,
+                    &embeddings,
+                    request.tenant_id(),
+                    request.workspace_id(),
+                )
+                .await?
+            }
+            QueryMode::Hybrid => {
+                self.query_hybrid(
+                    &keywords,
+                    &embeddings,
+                    request.tenant_id(),
+                    request.workspace_id(),
+                )
+                .await?
+            }
+            QueryMode::Mix => {
+                self.query_mix(
+                    &keywords,
+                    &embeddings,
+                    request.tenant_id(),
+                    request.workspace_id(),
+                )
+                .await?
+            }
+            QueryMode::Naive => {
+                self.query_naive(&embeddings, request.tenant_id(), request.workspace_id())
+                    .await?
+            }
+        };
+        stats.retrieval_time_ms = retrieval_start.elapsed().as_millis() as u64;
+        stats.context_tokens = context.token_count;
+
+        // Step 5: Apply truncation
+        let (truncated_entities, truncated_relationships, truncated_chunks) = balance_context(
+            context.entities.clone(),
+            context.relationships.clone(),
+            context.chunks.clone(),
+            &self.config.truncation,
+            self.tokenizer.as_ref(),
+        );
+
+        let mut final_context = context;
+        final_context.entities = truncated_entities;
+        final_context.relationships = truncated_relationships;
+        final_context.chunks = truncated_chunks;
+
+        // Step 6: Generate answer (if not context-only)
+        let (answer, generated_tokens) = if request.context_only {
+            (String::new(), 0)
+        } else if request.prompt_only {
+            (self.build_prompt(&request.query, &final_context), 0)
+        } else {
+            let gen_start = std::time::Instant::now();
+            let result = self.generate_answer(&request.query, &final_context).await?;
+            stats.generation_time_ms = gen_start.elapsed().as_millis() as u64;
+            result
+        };
+
+        stats.generated_tokens = generated_tokens;
+        stats.total_time_ms = start.elapsed().as_millis() as u64;
+
+        Ok(crate::engine::QueryResponse {
+            answer,
+            context: final_context,
+            mode,
+            stats,
+        })
+    }
+
+    /// Execute a streaming query with full SOTA pipeline.
+    ///
+    /// This method applies all SOTA enhancements (keyword extraction, adaptive mode,
+    /// mode-specific retrieval) and then streams the LLM response.
+    pub async fn query_stream(
+        &self,
+        request: crate::engine::QueryRequest,
+    ) -> Result<futures::stream::BoxStream<'static, Result<String>>> {
+        use futures::StreamExt;
+
+        // Step 1: Extract keywords (with caching)
+        let keywords = if self.config.use_keyword_extraction {
+            self.keyword_extractor
+                .extract_extended(&request.query)
+                .await?
+        } else {
+            ExtractedKeywords::new(vec![], vec![], QueryIntent::Exploratory)
+        };
+
+        // Step 2: Determine query mode
+        let mode = if let Some(m) = request.mode {
+            m
+        } else if self.config.use_adaptive_mode {
+            keywords.query_intent.recommended_mode()
+        } else {
+            self.config.default_mode
+        };
+
+        tracing::debug!(mode = %mode, streaming = true, "Selected query mode for streaming");
+
+        // Step 3: Compute embeddings
+        let embeddings =
+            QueryEmbeddings::compute(&request.query, &keywords, self.embedding_provider.as_ref())
+                .await?;
+
+        // Step 4: Mode-specific retrieval
+        let context = match mode {
+            QueryMode::Local => {
+                self.query_local(
+                    &keywords,
+                    &embeddings,
+                    request.tenant_id(),
+                    request.workspace_id(),
+                )
+                .await?
+            }
+            QueryMode::Global => {
+                self.query_global(
+                    &keywords,
+                    &embeddings,
+                    request.tenant_id(),
+                    request.workspace_id(),
+                )
+                .await?
+            }
+            QueryMode::Hybrid => {
+                self.query_hybrid(
+                    &keywords,
+                    &embeddings,
+                    request.tenant_id(),
+                    request.workspace_id(),
+                )
+                .await?
+            }
+            QueryMode::Mix => {
+                self.query_mix(
+                    &keywords,
+                    &embeddings,
+                    request.tenant_id(),
+                    request.workspace_id(),
+                )
+                .await?
+            }
+            QueryMode::Naive => {
+                self.query_naive(&embeddings, request.tenant_id(), request.workspace_id())
+                    .await?
+            }
+        };
+
+        // Step 5: Apply truncation
+        let (truncated_entities, truncated_relationships, truncated_chunks) = balance_context(
+            context.entities.clone(),
+            context.relationships.clone(),
+            context.chunks.clone(),
+            &self.config.truncation,
+            self.tokenizer.as_ref(),
+        );
+
+        let mut final_context = context;
+        final_context.entities = truncated_entities;
+        final_context.relationships = truncated_relationships;
+        final_context.chunks = truncated_chunks;
+
+        // Step 6: Handle empty context
+        if final_context.is_empty() {
+            return Ok(futures::stream::once(async {
+                Ok("I'm sorry, but I couldn't find any relevant information in my knowledge base to answer your question.".to_string())
+            }).boxed());
+        }
+
+        // Step 7: Build prompt and stream response
+        let prompt = self.build_prompt(&request.query, &final_context);
+
+        self.llm_provider
+            .stream(&prompt)
+            .await
+            .map(|stream| stream.map(|res| res.map_err(QueryError::from)).boxed())
+            .map_err(QueryError::from)
+    }
+
+    /// Get the retrieved context without generating an answer.
+    ///
+    /// Useful for streaming scenarios where context is sent first.
+    pub async fn get_context(
+        &self,
+        request: &crate::engine::QueryRequest,
+    ) -> Result<(QueryContext, QueryMode)> {
+        // Step 1: Extract keywords (with caching)
+        let keywords = if self.config.use_keyword_extraction {
+            self.keyword_extractor
+                .extract_extended(&request.query)
+                .await?
+        } else {
+            ExtractedKeywords::new(vec![], vec![], QueryIntent::Exploratory)
+        };
+
+        // Step 2: Determine query mode
+        let mode = if let Some(m) = request.mode {
+            m
+        } else if self.config.use_adaptive_mode {
+            keywords.query_intent.recommended_mode()
+        } else {
+            self.config.default_mode
+        };
+
+        // Step 3: Compute embeddings
+        let embeddings =
+            QueryEmbeddings::compute(&request.query, &keywords, self.embedding_provider.as_ref())
+                .await?;
+
+        // Step 4: Mode-specific retrieval
+        let context = match mode {
+            QueryMode::Local => {
+                self.query_local(
+                    &keywords,
+                    &embeddings,
+                    request.tenant_id(),
+                    request.workspace_id(),
+                )
+                .await?
+            }
+            QueryMode::Global => {
+                self.query_global(
+                    &keywords,
+                    &embeddings,
+                    request.tenant_id(),
+                    request.workspace_id(),
+                )
+                .await?
+            }
+            QueryMode::Hybrid => {
+                self.query_hybrid(
+                    &keywords,
+                    &embeddings,
+                    request.tenant_id(),
+                    request.workspace_id(),
+                )
+                .await?
+            }
+            QueryMode::Mix => {
+                self.query_mix(
+                    &keywords,
+                    &embeddings,
+                    request.tenant_id(),
+                    request.workspace_id(),
+                )
+                .await?
+            }
+            QueryMode::Naive => {
+                self.query_naive(&embeddings, request.tenant_id(), request.workspace_id())
+                    .await?
+            }
+        };
+
+        // Step 5: Apply truncation
+        let (truncated_entities, truncated_relationships, truncated_chunks) = balance_context(
+            context.entities.clone(),
+            context.relationships.clone(),
+            context.chunks.clone(),
+            &self.config.truncation,
+            self.tokenizer.as_ref(),
+        );
+
+        let mut final_context = context;
+        final_context.entities = truncated_entities;
+        final_context.relationships = truncated_relationships;
+        final_context.chunks = truncated_chunks;
+
+        Ok((final_context, mode))
+    }
+
+    /// Local mode: Entity-centric search with low-level keywords.
+    async fn query_local(
+        &self,
+        _keywords: &ExtractedKeywords,
+        embeddings: &QueryEmbeddings,
+        tenant_id: Option<String>,
+        workspace_id: Option<String>,
+    ) -> Result<QueryContext> {
+        let mut context = QueryContext::new();
+
+        // Step 1: Vector search with LOW-level keyword embedding
+        // This finds entities relevant to specific terms
+        let vector_results = self
+            .vector_storage
+            .query(&embeddings.low_level, self.config.max_entities * 3, None)
+            .await?;
+
+        // Step 2: Filter to entity vectors only (LightRAG Local mode)
+        let entity_vectors = filter_by_type(vector_results, VectorType::Entity);
+
+        // Step 3: Extract entity IDs from vector results
+        let entity_ids: Vec<String> = entity_vectors
+            .iter()
+            .filter(|r| r.score >= self.config.min_score)
+            .filter(|r| self.matches_tenant_filter(&r.metadata, &tenant_id, &workspace_id))
+            .filter_map(|r| {
+                // Try to get entity_name from metadata, fallback to id
+                r.metadata
+                    .get("entity_name")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .or_else(|| Some(r.id.clone()))
+            })
+            .take(self.config.max_entities)
+            .collect();
+
+        if entity_ids.is_empty() {
+            // Fallback to popular entities
+            return self.fallback_to_popular(tenant_id, workspace_id).await;
+        }
+
+        // Step 4: Batch fetch nodes and degrees (LightRAG optimization)
+        let (nodes_map, degrees) = tokio::join!(
+            self.graph_storage.get_nodes_batch(&entity_ids),
+            self.graph_storage.node_degrees_batch(&entity_ids),
+        );
+
+        let nodes_map = nodes_map?;
+        let degrees: HashMap<String, usize> = degrees?.into_iter().collect();
+
+        // Step 5: Build entity context
+        for (id, node) in &nodes_map {
+            let degree = degrees.get(id).copied().unwrap_or(0);
+            let entity_type = node
+                .properties
+                .get("entity_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("UNKNOWN")
+                .to_string();
+            let description = node
+                .properties
+                .get("description")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            context
+                .add_entity(RetrievedEntity::new(id, entity_type, description).with_degree(degree));
+        }
+
+        // Step 6: Batch fetch edges for these entities
+        let edges = self
+            .graph_storage
+            .get_edges_for_nodes_batch(&entity_ids)
+            .await?;
+
+        for edge in edges.iter().take(self.config.max_relationships) {
+            if !self.matches_tenant_filter_props(&edge.properties, &tenant_id, &workspace_id) {
+                continue;
+            }
+
+            let rel_type = edge
+                .properties
+                .get("relation_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("RELATED_TO")
+                .to_string();
+
+            context.add_relationship(RetrievedRelationship::new(
+                &edge.source,
+                &edge.target,
+                rel_type,
+            ));
+        }
+
+        Ok(context)
+    }
+
+    /// Global mode: Relationship-centric search with high-level keywords.
+    async fn query_global(
+        &self,
+        _keywords: &ExtractedKeywords,
+        embeddings: &QueryEmbeddings,
+        tenant_id: Option<String>,
+        workspace_id: Option<String>,
+    ) -> Result<QueryContext> {
+        let mut context = QueryContext::new();
+        let mut entity_ids: Vec<String> = Vec::new();
+        let mut seen_relationships = std::collections::HashSet::new();
+
+        // Step 1: Vector search with HIGH-level keyword embedding
+        // This finds relationships relevant to broader concepts
+        let vector_results = self
+            .vector_storage
+            .query(
+                &embeddings.high_level,
+                self.config.max_relationships * 3,
+                None,
+            )
+            .await?;
+
+        // Step 2: Filter to relationship vectors only (LightRAG Global mode)
+        let relationship_vectors = filter_by_type(vector_results.clone(), VectorType::Relationship);
+
+        // Step 3: Extract relationships from vector results
+        for result in relationship_vectors
+            .iter()
+            .filter(|r| r.score >= self.config.min_score)
+            .filter(|r| self.matches_tenant_filter(&r.metadata, &tenant_id, &workspace_id))
+            .take(self.config.max_relationships)
+        {
+            let src_id = result
+                .metadata
+                .get("src_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let tgt_id = result
+                .metadata
+                .get("tgt_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let rel_type = result
+                .metadata
+                .get("relation_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("RELATED_TO");
+            let description = result
+                .metadata
+                .get("description")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+
+            if !src_id.is_empty() && !tgt_id.is_empty() {
+                let rel_key = format!("{}->{}:{}", src_id, tgt_id, rel_type);
+                if seen_relationships.insert(rel_key) {
+                    context.add_relationship(
+                        RetrievedRelationship::new(src_id, tgt_id, rel_type.to_string())
+                            .with_description(description.to_string())
+                            .with_score(result.score),
+                    );
+                    // Collect entity IDs from relationships
+                    if !entity_ids.contains(&src_id.to_string()) {
+                        entity_ids.push(src_id.to_string());
+                    }
+                    if !entity_ids.contains(&tgt_id.to_string()) {
+                        entity_ids.push(tgt_id.to_string());
+                    }
+                }
+            }
+        }
+
+        // Step 4: Fallback to popular entities if no relationship vectors found
+        if entity_ids.is_empty() {
+            let popular = self
+                .graph_storage
+                .get_popular_nodes_with_degree(
+                    self.config.max_entities,
+                    Some(2), // Min degree
+                    None,
+                    tenant_id.as_deref(),
+                    workspace_id.as_deref(),
+                )
+                .await?;
+
+            entity_ids = popular.iter().map(|(n, _)| n.id.clone()).collect();
+
+            for (node, degree) in popular {
+                let entity_type = node
+                    .properties
+                    .get("entity_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("UNKNOWN")
+                    .to_string();
+                let description = node
+                    .properties
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+
+                context.add_entity(
+                    RetrievedEntity::new(&node.id, entity_type, description).with_degree(degree),
+                );
+            }
+
+            // Get edges between popular entities
+            if !entity_ids.is_empty() {
+                let edges = self
+                    .graph_storage
+                    .get_edges_for_nodes_batch(&entity_ids)
+                    .await?;
+                for edge in edges.iter().take(self.config.max_relationships) {
+                    let rel_type = edge
+                        .properties
+                        .get("relation_type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("RELATED_TO")
+                        .to_string();
+                    context.add_relationship(RetrievedRelationship::new(
+                        &edge.source,
+                        &edge.target,
+                        rel_type,
+                    ));
+                }
+            }
+        } else {
+            // Step 5: Batch fetch entities from relationship endpoints
+            let (nodes_map, degrees) = tokio::join!(
+                self.graph_storage.get_nodes_batch(&entity_ids),
+                self.graph_storage.node_degrees_batch(&entity_ids),
+            );
+
+            let nodes_map = nodes_map?;
+            let degrees: HashMap<String, usize> = degrees?.into_iter().collect();
+
+            for (id, node) in &nodes_map {
+                let degree = degrees.get(id).copied().unwrap_or(0);
+                let entity_type = node
+                    .properties
+                    .get("entity_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("UNKNOWN")
+                    .to_string();
+                let description = node
+                    .properties
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+
+                context.add_entity(
+                    RetrievedEntity::new(id, entity_type, description).with_degree(degree),
+                );
+            }
+        }
+
+        // Step 6: Add chunks from vector search (filter to chunks)
+        let chunk_vectors = filter_by_type(vector_results, VectorType::Chunk);
+        for result in chunk_vectors
+            .iter()
+            .filter(|r| r.score >= self.config.min_score)
+            .filter(|r| self.matches_tenant_filter(&r.metadata, &tenant_id, &workspace_id))
+            .take(self.config.max_chunks)
+        {
+            let content = result
+                .metadata
+                .get("content")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            context.add_chunk(RetrievedChunk::new(&result.id, content, result.score));
+        }
+
+        Ok(context)
+    }
+
+    /// Hybrid mode: Combine local and global with round-robin merging.
+    async fn query_hybrid(
+        &self,
+        keywords: &ExtractedKeywords,
+        embeddings: &QueryEmbeddings,
+        tenant_id: Option<String>,
+        workspace_id: Option<String>,
+    ) -> Result<QueryContext> {
+        // Run local and global in parallel
+        let (local_result, global_result) = tokio::join!(
+            self.query_local(
+                keywords,
+                embeddings,
+                tenant_id.clone(),
+                workspace_id.clone()
+            ),
+            self.query_global(
+                keywords,
+                embeddings,
+                tenant_id.clone(),
+                workspace_id.clone()
+            ),
+        );
+
+        let local = local_result?;
+        let global = global_result?;
+
+        // Round-robin merge with deduplication
+        let mut context = QueryContext::new();
+        let mut seen_entities = std::collections::HashSet::new();
+        let mut seen_relationships = std::collections::HashSet::new();
+
+        // Interleave entities
+        let max_len = local.entities.len().max(global.entities.len());
+        for i in 0..max_len {
+            if let Some(e) = local.entities.get(i) {
+                if seen_entities.insert(e.name.clone()) {
+                    context.add_entity(e.clone());
+                }
+            }
+            if let Some(e) = global.entities.get(i) {
+                if seen_entities.insert(e.name.clone()) {
+                    context.add_entity(e.clone());
+                }
+            }
+        }
+
+        // Interleave relationships
+        let max_len = local.relationships.len().max(global.relationships.len());
+        for i in 0..max_len {
+            if let Some(r) = local.relationships.get(i) {
+                let key = format!("{}-{}-{}", r.source, r.relation_type, r.target);
+                if seen_relationships.insert(key) {
+                    context.add_relationship(r.clone());
+                }
+            }
+            if let Some(r) = global.relationships.get(i) {
+                let key = format!("{}-{}-{}", r.source, r.relation_type, r.target);
+                if seen_relationships.insert(key) {
+                    context.add_relationship(r.clone());
+                }
+            }
+        }
+
+        // Combine chunks (deduplicated)
+        let mut seen_chunks = std::collections::HashSet::new();
+        for c in local.chunks.iter().chain(global.chunks.iter()) {
+            if seen_chunks.insert(c.id.clone()) {
+                context.add_chunk(c.clone());
+            }
+        }
+
+        Ok(context)
+    }
+
+    /// Mix mode: Hybrid plus direct chunk search.
+    async fn query_mix(
+        &self,
+        keywords: &ExtractedKeywords,
+        embeddings: &QueryEmbeddings,
+        tenant_id: Option<String>,
+        workspace_id: Option<String>,
+    ) -> Result<QueryContext> {
+        // Run hybrid and direct chunk search in parallel
+        let (hybrid_result, chunk_results) = tokio::join!(
+            self.query_hybrid(
+                keywords,
+                embeddings,
+                tenant_id.clone(),
+                workspace_id.clone()
+            ),
+            self.vector_storage
+                .query(&embeddings.query, self.config.max_chunks * 2, None),
+        );
+
+        let mut context = hybrid_result?;
+        let chunk_results = chunk_results?;
+
+        // Filter to chunk vectors only
+        let chunk_vectors = filter_by_type(chunk_results, VectorType::Chunk);
+
+        // Add direct chunks (deduplicated)
+        let existing_chunk_ids: std::collections::HashSet<_> =
+            context.chunks.iter().map(|c| c.id.clone()).collect();
+
+        for result in chunk_vectors
+            .iter()
+            .filter(|r| r.score >= self.config.min_score)
+            .filter(|r| self.matches_tenant_filter(&r.metadata, &tenant_id, &workspace_id))
+            .take(self.config.max_chunks)
+        {
+            if !existing_chunk_ids.contains(&result.id) {
+                let content = result
+                    .metadata
+                    .get("content")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                context.add_chunk(RetrievedChunk::new(&result.id, content, result.score));
+            }
+        }
+
+        Ok(context)
+    }
+
+    /// Naive mode: Direct chunk vector search only.
+    async fn query_naive(
+        &self,
+        embeddings: &QueryEmbeddings,
+        tenant_id: Option<String>,
+        workspace_id: Option<String>,
+    ) -> Result<QueryContext> {
+        let mut context = QueryContext::new();
+
+        let results = self
+            .vector_storage
+            .query(&embeddings.query, self.config.max_chunks * 2, None)
+            .await?;
+
+        // Filter to chunk vectors only
+        let chunk_results = filter_by_type(results, VectorType::Chunk);
+
+        for result in chunk_results
+            .iter()
+            .filter(|r| r.score >= self.config.min_score)
+            .filter(|r| self.matches_tenant_filter(&r.metadata, &tenant_id, &workspace_id))
+            .take(self.config.max_chunks)
+        {
+            let content = result
+                .metadata
+                .get("content")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            context.add_chunk(RetrievedChunk::new(&result.id, content, result.score));
+        }
+
+        Ok(context)
+    }
+
+    /// Fallback to popular entities when no vector matches.
+    async fn fallback_to_popular(
+        &self,
+        tenant_id: Option<String>,
+        workspace_id: Option<String>,
+    ) -> Result<QueryContext> {
+        let mut context = QueryContext::new();
+
+        let popular = self
+            .graph_storage
+            .get_popular_nodes_with_degree(
+                self.config.max_entities,
+                None,
+                None,
+                tenant_id.as_deref(),
+                workspace_id.as_deref(),
+            )
+            .await?;
+
+        let entity_ids: Vec<String> = popular.iter().map(|(n, _)| n.id.clone()).collect();
+
+        for (node, degree) in popular {
+            let entity_type = node
+                .properties
+                .get("entity_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("UNKNOWN")
+                .to_string();
+            let description = node
+                .properties
+                .get("description")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            context.add_entity(
+                RetrievedEntity::new(&node.id, entity_type, description).with_degree(degree),
+            );
+        }
+
+        // Get edges
+        if !entity_ids.is_empty() {
+            let edges = self
+                .graph_storage
+                .get_edges_for_nodes_batch(&entity_ids)
+                .await?;
+            for edge in edges.iter().take(self.config.max_relationships) {
+                let rel_type = edge
+                    .properties
+                    .get("relation_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("RELATED_TO")
+                    .to_string();
+                context.add_relationship(RetrievedRelationship::new(
+                    &edge.source,
+                    &edge.target,
+                    rel_type,
+                ));
+            }
+        }
+
+        Ok(context)
+    }
+
+    /// Check if metadata matches tenant filter.
+    fn matches_tenant_filter(
+        &self,
+        metadata: &serde_json::Value,
+        tenant_id: &Option<String>,
+        workspace_id: &Option<String>,
+    ) -> bool {
+        if tenant_id.is_none() && workspace_id.is_none() {
+            return true;
+        }
+
+        if let Some(tid) = tenant_id {
+            if let Some(meta_tid) = metadata.get("tenant_id").and_then(|v| v.as_str()) {
+                if meta_tid != tid {
+                    return false;
+                }
+            }
+        }
+
+        if let Some(wid) = workspace_id {
+            if let Some(meta_wid) = metadata.get("workspace_id").and_then(|v| v.as_str()) {
+                if meta_wid != wid {
+                    return false;
+                }
+            }
+        }
+
+        true
+    }
+
+    /// Check if properties match tenant filter.
+    fn matches_tenant_filter_props(
+        &self,
+        properties: &HashMap<String, serde_json::Value>,
+        tenant_id: &Option<String>,
+        workspace_id: &Option<String>,
+    ) -> bool {
+        if tenant_id.is_none() && workspace_id.is_none() {
+            return true;
+        }
+
+        if let Some(tid) = tenant_id {
+            if let Some(prop_tid) = properties.get("tenant_id").and_then(|v| v.as_str()) {
+                if prop_tid != tid {
+                    return false;
+                }
+            }
+        }
+
+        if let Some(wid) = workspace_id {
+            if let Some(prop_wid) = properties.get("workspace_id").and_then(|v| v.as_str()) {
+                if prop_wid != wid {
+                    return false;
+                }
+            }
+        }
+
+        true
+    }
+
+    /// Build prompt for LLM.
+    fn build_prompt(&self, query: &str, context: &QueryContext) -> String {
+        if context.is_empty() {
+            return "I'm sorry, but I couldn't find any relevant information in my knowledge base to answer your question.".to_string();
+        }
+
+        let context_text = context.to_context_string();
+
+        format!(
+            r#"You are a helpful assistant. Answer the user's question based on the following context.
+
+## Context
+{context_text}
+
+## Question
+{query}
+
+## Answer
+Provide a clear, accurate answer based on the context above. If the context doesn't contain enough information to answer the question, say so."#
+        )
+    }
+
+    /// Generate answer using LLM.
+    async fn generate_answer(
+        &self,
+        query: &str,
+        context: &QueryContext,
+    ) -> Result<(String, usize)> {
+        if context.is_empty() {
+            return Ok((
+                "I'm sorry, but I couldn't find any relevant information in my knowledge base to answer your question.".to_string(),
+                0,
+            ));
+        }
+
+        let prompt = self.build_prompt(query, context);
+        let response = self.llm_provider.complete(&prompt).await?;
+
+        Ok((response.content, response.completion_tokens))
+    }
+
+    /// Get the engine configuration.
+    pub fn config(&self) -> &SOTAQueryConfig {
+        &self.config
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sota_config_default() {
+        let config = SOTAQueryConfig::default();
+        assert_eq!(config.default_mode, QueryMode::Hybrid);
+        assert!(config.use_keyword_extraction);
+        assert!(config.use_adaptive_mode);
+    }
+
+    #[test]
+    fn test_query_embeddings_uniform() {
+        let embedding = vec![1.0, 2.0, 3.0];
+        let embeddings = QueryEmbeddings::uniform(embedding.clone());
+
+        assert_eq!(embeddings.query, embedding);
+        assert_eq!(embeddings.high_level, embedding);
+        assert_eq!(embeddings.low_level, embedding);
+    }
+}
