@@ -56,11 +56,67 @@ const calculateConfidence = (context: QueryContext): number => {
   return Math.min(1.0, maxScore * 0.6 + avgScore * 0.3 + entityBonus);
 };
 
+/**
+ * Get confidence label with NEUTRAL colors (no scary red/orange).
+ * 
+ * RAG systems typically return scores in 0.2-0.6 range for good matches.
+ * Using neutral blues/grays avoids alarming users with "warning" colors.
+ * 
+ * Thresholds adjusted for realistic RAG similarity scores:
+ * - 0.5+: Strong match (primary blue)
+ * - 0.3+: Good match (secondary blue)  
+ * - 0.2+: Related (neutral gray)
+ * - <0.2: Weak (lighter gray)
+ */
 const getConfidenceLabel = (score: number): { label: string; color: string; bgColor: string } => {
-  if (score >= 0.8) return { label: 'High', color: 'text-emerald-600 dark:text-emerald-400', bgColor: 'bg-emerald-500' };
-  if (score >= 0.6) return { label: 'Good', color: 'text-green-600 dark:text-green-400', bgColor: 'bg-green-500' };
-  if (score >= 0.4) return { label: 'Medium', color: 'text-amber-600 dark:text-amber-400', bgColor: 'bg-amber-500' };
-  return { label: 'Low', color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-500' };
+  if (score >= 0.5) return { label: 'Strong', color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-500' };
+  if (score >= 0.3) return { label: 'Good', color: 'text-sky-600 dark:text-sky-400', bgColor: 'bg-sky-500' };
+  if (score >= 0.2) return { label: 'Related', color: 'text-slate-600 dark:text-slate-400', bgColor: 'bg-slate-500' };
+  return { label: 'Mentioned', color: 'text-slate-500 dark:text-slate-400', bgColor: 'bg-slate-400' };
+};
+
+/**
+ * Extract a meaningful document title from available data.
+ * 
+ * Priority:
+ * 1. file_path filename (without extension)
+ * 2. First markdown heading from content
+ * 3. First line of content (truncated)
+ * 4. Fallback to "Untitled Document"
+ */
+const getDocumentTitle = (chunks: NonNullable<QueryContext['chunks']>): string => {
+  const chunk = chunks[0];
+  if (!chunk) return 'Untitled';
+  
+  // Priority 1: Extract filename from file_path
+  if (chunk.file_path) {
+    const filename = chunk.file_path.split('/').pop() || '';
+    // Remove common extensions for cleaner display
+    const cleanName = filename.replace(/\.(md|txt|pdf|docx?|html?|rst|json|xml)$/i, '');
+    if (cleanName.length > 0) {
+      // Truncate long filenames
+      return cleanName.length > 50 ? cleanName.slice(0, 50) + '...' : cleanName;
+    }
+  }
+  
+  // Priority 2: Extract first markdown heading from content
+  const titleMatch = chunk.content.match(/^#+\s+(.+)$/m);
+  if (titleMatch && titleMatch[1]) {
+    const title = titleMatch[1].trim();
+    return title.length > 50 ? title.slice(0, 50) + '...' : title;
+  }
+  
+  // Priority 3: Use first meaningful line
+  const lines = chunk.content.split('\n').filter(line => line.trim().length > 0);
+  if (lines.length > 0) {
+    const firstLine = lines[0].trim();
+    // Skip if it's just markdown syntax or too short
+    if (firstLine.length > 3 && !firstLine.match(/^[-*#=]+$/)) {
+      return firstLine.length > 50 ? firstLine.slice(0, 50) + '...' : firstLine;
+    }
+  }
+  
+  return 'Untitled Document';
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -130,15 +186,17 @@ const DocumentsTab = ({
                     </span>
                     
                     <div className="flex-1 min-w-0 space-y-1.5">
-                      {/* Header row */}
+                      {/* Header row with clickable title */}
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-medium truncate flex items-center gap-1.5">
-                          <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                          {/* Use file_path filename or document ID as fallback */}
-                          {chunks[0]?.file_path 
-                            ? chunks[0].file_path.split('/').pop() 
-                            : `Document ${docId.slice(0, 8)}`}
-                        </span>
+                        <button
+                          className="text-sm font-medium truncate flex items-center gap-1.5 hover:text-primary transition-colors text-left"
+                          onClick={() => onDocumentClick?.(docId, chunks[0]?.content, 0)}
+                          title={`Open: ${getDocumentTitle(chunks)}`}
+                        >
+                          <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                          {/* Use extracted document title */}
+                          {getDocumentTitle(chunks)}
+                        </button>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <span className={`text-xs font-semibold ${scoreColor}`}>
                             {Math.round(avgScore * 100)}%
@@ -155,22 +213,36 @@ const DocumentsTab = ({
                         </div>
                       </div>
                       
-                      {/* Document ID hint */}
-                      <p className="text-[10px] text-muted-foreground/70 font-mono">
-                        {docId.slice(0, 16)}...
-                      </p>
-                      
-                      {/* Content preview */}
-                      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                        "{chunks[0]?.content.slice(0, 120)}..."
-                      </p>
-                      
-                      {/* Chunk count badge */}
-                      {chunks.length > 1 && (
-                        <Badge variant="outline" className="text-[10px] h-5">
-                          {chunks.length} passages
-                        </Badge>
-                      )}
+                      {/* Chunk/passage list - show each excerpt */}
+                      <div className="space-y-1.5 mt-2">
+                        {chunks.slice(0, 3).map((chunk, chunkIdx) => (
+                          <button
+                            key={chunkIdx}
+                            onClick={() => onDocumentClick?.(docId, chunk.content, chunkIdx)}
+                            className="w-full text-left p-2 rounded bg-muted/40 hover:bg-muted/70 transition-colors group/chunk"
+                          >
+                            <div className="flex items-start gap-2">
+                              <Badge 
+                                variant="outline" 
+                                className="text-[9px] h-4 px-1 flex-shrink-0 mt-0.5"
+                              >
+                                {chunkIdx + 1}
+                              </Badge>
+                              <p className="text-[11px] text-muted-foreground line-clamp-2 flex-1 leading-relaxed">
+                                {chunk.content.slice(0, 150)}{chunk.content.length > 150 ? '...' : ''}
+                              </p>
+                              <span className={`text-[9px] flex-shrink-0 ${getConfidenceLabel(chunk.score).color}`}>
+                                {Math.round(chunk.score * 100)}%
+                              </span>
+                            </div>
+                          </button>
+                        ))}
+                        {chunks.length > 3 && (
+                          <p className="text-[10px] text-muted-foreground text-center pt-1">
+                            +{chunks.length - 3} more passages
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -330,9 +402,12 @@ const KnowledgeTab = ({
                       >
                         {rel.target}
                       </span>
-                      <span className="ml-auto text-[10px] text-muted-foreground">
-                        {Math.round(rel.relevance * 100)}%
-                      </span>
+                      {/* Only show score if meaningful (> 0) - graph relationships often have no similarity score */}
+                      {rel.relevance > 0.01 && (
+                        <span className="ml-auto text-[10px] text-muted-foreground">
+                          {Math.round(rel.relevance * 100)}%
+                        </span>
+                      )}
                     </div>
                   </HoverCardTrigger>
                   <HoverCardContent className="w-64" align="start">
