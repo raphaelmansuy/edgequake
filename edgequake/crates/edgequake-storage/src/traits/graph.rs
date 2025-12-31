@@ -228,6 +228,68 @@ pub trait GraphStorage: Send + Sync {
     /// Get nodes by a list of IDs.
     async fn get_nodes_by_ids(&self, node_ids: &[String]) -> Result<Vec<GraphNode>>;
 
+    /// Get nodes as a HashMap keyed by node_id (LightRAG-inspired batch pattern).
+    ///
+    /// This method is optimized for O(1) lookups after retrieval.
+    /// Uses UNNEST with ORDINALITY for efficient batch SQL queries.
+    ///
+    /// Default implementation wraps `get_nodes_by_ids`.
+    /// PostgreSQL implementation uses optimized batch SQL.
+    ///
+    /// # Arguments
+    /// * `node_ids` - List of node IDs to fetch
+    ///
+    /// # Returns
+    /// HashMap mapping node_id -> GraphNode for found nodes
+    async fn get_nodes_batch(&self, node_ids: &[String]) -> Result<HashMap<String, GraphNode>> {
+        let nodes = self.get_nodes_by_ids(node_ids).await?;
+        Ok(nodes.into_iter().map(|n| (n.id.clone(), n)).collect())
+    }
+
+    /// Get edges where BOTH endpoints are in the specified node set.
+    ///
+    /// This is the LightRAG-inspired pattern that eliminates the
+    /// "fetch-all-edges-then-filter" anti-pattern by using SQL JOINs.
+    ///
+    /// Default implementation falls back to `get_edges_for_node_set`.
+    /// PostgreSQL implementation uses optimized batch SQL.
+    ///
+    /// # Arguments
+    /// * `node_ids` - Set of node IDs to filter edges
+    ///
+    /// # Returns
+    /// Edges where both source and target are in the node set
+    async fn get_edges_for_nodes_batch(&self, node_ids: &[String]) -> Result<Vec<GraphEdge>> {
+        self.get_edges_for_node_set(node_ids, None, None).await
+    }
+
+    /// Get nodes with their in/out degrees in a single batch query.
+    ///
+    /// Combines node retrieval with degree calculation for efficiency.
+    /// Returns (node, in_degree, out_degree) tuples.
+    ///
+    /// Default implementation combines two separate queries.
+    /// PostgreSQL implementation uses optimized single query.
+    async fn get_nodes_with_degrees_batch(
+        &self,
+        node_ids: &[String],
+    ) -> Result<Vec<(GraphNode, usize, usize)>> {
+        let nodes = self.get_nodes_batch(node_ids).await?;
+        let degrees: HashMap<String, usize> = self
+            .node_degrees_batch(node_ids)
+            .await?
+            .into_iter()
+            .collect();
+
+        let mut result = Vec::new();
+        for (id, node) in nodes {
+            let total_degree = degrees.get(&id).copied().unwrap_or(0);
+            // Default: assume symmetric (no in/out distinction)
+            result.push((node, total_degree, total_degree));
+        }
+        Ok(result)
+    }
+
     // ========== Edge Operations ==========
 
     /// Check if an edge exists between two nodes.

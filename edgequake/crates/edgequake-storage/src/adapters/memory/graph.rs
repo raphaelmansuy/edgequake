@@ -56,16 +56,18 @@ impl GraphStorage for MemoryGraphStorage {
     }
 
     async fn has_node(&self, node_id: &str) -> Result<bool> {
-        let nodes = self.nodes.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let nodes = self
+            .nodes
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
         Ok(nodes.contains_key(node_id))
     }
 
     async fn get_node(&self, node_id: &str) -> Result<Option<GraphNode>> {
-        let nodes = self.nodes.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let nodes = self
+            .nodes
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
 
         Ok(nodes.get(node_id).map(|props| GraphNode {
             id: node_id.to_string(),
@@ -78,12 +80,14 @@ impl GraphStorage for MemoryGraphStorage {
         node_id: &str,
         properties: HashMap<String, serde_json::Value>,
     ) -> Result<()> {
-        let mut nodes = self.nodes.write().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
-        let mut adjacency = self.adjacency.write().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let mut nodes = self
+            .nodes
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut adjacency = self
+            .adjacency
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
 
         nodes.insert(node_id.to_string(), properties);
         adjacency.entry(node_id.to_string()).or_default();
@@ -92,15 +96,18 @@ impl GraphStorage for MemoryGraphStorage {
     }
 
     async fn delete_node(&self, node_id: &str) -> Result<()> {
-        let mut nodes = self.nodes.write().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
-        let mut edges = self.edges.write().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
-        let mut adjacency = self.adjacency.write().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let mut nodes = self
+            .nodes
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut edges = self
+            .edges
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut adjacency = self
+            .adjacency
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
 
         nodes.remove(node_id);
 
@@ -125,17 +132,19 @@ impl GraphStorage for MemoryGraphStorage {
     }
 
     async fn node_degree(&self, node_id: &str) -> Result<usize> {
-        let adjacency = self.adjacency.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let adjacency = self
+            .adjacency
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
 
         Ok(adjacency.get(node_id).map(|n| n.len()).unwrap_or(0))
     }
 
     async fn node_degrees_batch(&self, node_ids: &[String]) -> Result<Vec<(String, usize)>> {
-        let adjacency = self.adjacency.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let adjacency = self
+            .adjacency
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
 
         Ok(node_ids
             .iter()
@@ -147,9 +156,10 @@ impl GraphStorage for MemoryGraphStorage {
     }
 
     async fn get_all_nodes(&self) -> Result<Vec<GraphNode>> {
-        let nodes = self.nodes.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let nodes = self
+            .nodes
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
 
         Ok(nodes
             .iter()
@@ -161,9 +171,10 @@ impl GraphStorage for MemoryGraphStorage {
     }
 
     async fn get_nodes_by_ids(&self, node_ids: &[String]) -> Result<Vec<GraphNode>> {
-        let nodes = self.nodes.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let nodes = self
+            .nodes
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
 
         Ok(node_ids
             .iter()
@@ -176,18 +187,93 @@ impl GraphStorage for MemoryGraphStorage {
             .collect())
     }
 
+    /// Optimized batch node retrieval returning HashMap for O(1) lookups.
+    async fn get_nodes_batch(&self, node_ids: &[String]) -> Result<HashMap<String, GraphNode>> {
+        let nodes = self
+            .nodes
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+
+        let mut result = HashMap::new();
+        for id in node_ids {
+            if let Some(props) = nodes.get(id) {
+                result.insert(
+                    id.clone(),
+                    GraphNode {
+                        id: id.clone(),
+                        properties: props.clone(),
+                    },
+                );
+            }
+        }
+        Ok(result)
+    }
+
+    /// Get edges where both endpoints are in the specified node set.
+    async fn get_edges_for_nodes_batch(&self, node_ids: &[String]) -> Result<Vec<GraphEdge>> {
+        let edges = self
+            .edges
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+
+        let node_set: HashSet<&str> = node_ids.iter().map(|s| s.as_str()).collect();
+
+        Ok(edges
+            .iter()
+            .filter(|((s, t), _)| node_set.contains(s.as_str()) && node_set.contains(t.as_str()))
+            .map(|((s, t), props)| GraphEdge {
+                source: s.clone(),
+                target: t.clone(),
+                properties: props.clone(),
+            })
+            .collect())
+    }
+
+    /// Get nodes with their degrees in a single batch operation.
+    async fn get_nodes_with_degrees_batch(
+        &self,
+        node_ids: &[String],
+    ) -> Result<Vec<(GraphNode, usize, usize)>> {
+        let nodes = self
+            .nodes
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let adjacency = self
+            .adjacency
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+
+        let mut result = Vec::new();
+        for id in node_ids {
+            if let Some(props) = nodes.get(id) {
+                let degree = adjacency.get(id).map(|n| n.len()).unwrap_or(0);
+                result.push((
+                    GraphNode {
+                        id: id.clone(),
+                        properties: props.clone(),
+                    },
+                    degree, // in_degree (symmetric graph, so same)
+                    degree, // out_degree
+                ));
+            }
+        }
+        Ok(result)
+    }
+
     async fn has_edge(&self, source: &str, target: &str) -> Result<bool> {
-        let edges = self.edges.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let edges = self
+            .edges
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
         let key = Self::edge_key(source, target);
         Ok(edges.contains_key(&key))
     }
 
     async fn get_edge(&self, source: &str, target: &str) -> Result<Option<GraphEdge>> {
-        let edges = self.edges.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let edges = self
+            .edges
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
         let key = Self::edge_key(source, target);
 
         Ok(edges.get(&key).map(|props| GraphEdge {
@@ -203,12 +289,14 @@ impl GraphStorage for MemoryGraphStorage {
         target: &str,
         properties: HashMap<String, serde_json::Value>,
     ) -> Result<()> {
-        let mut edges = self.edges.write().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
-        let mut adjacency = self.adjacency.write().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let mut edges = self
+            .edges
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut adjacency = self
+            .adjacency
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
 
         let key = Self::edge_key(source, target);
         edges.insert(key, properties);
@@ -227,12 +315,14 @@ impl GraphStorage for MemoryGraphStorage {
     }
 
     async fn delete_edge(&self, source: &str, target: &str) -> Result<()> {
-        let mut edges = self.edges.write().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
-        let mut adjacency = self.adjacency.write().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let mut edges = self
+            .edges
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut adjacency = self
+            .adjacency
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
 
         let key = Self::edge_key(source, target);
         edges.remove(&key);
@@ -249,9 +339,10 @@ impl GraphStorage for MemoryGraphStorage {
     }
 
     async fn get_node_edges(&self, node_id: &str) -> Result<Vec<GraphEdge>> {
-        let edges = self.edges.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let edges = self
+            .edges
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
 
         Ok(edges
             .iter()
@@ -265,9 +356,10 @@ impl GraphStorage for MemoryGraphStorage {
     }
 
     async fn get_all_edges(&self) -> Result<Vec<GraphEdge>> {
-        let edges = self.edges.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let edges = self
+            .edges
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
 
         Ok(edges
             .iter()
@@ -285,15 +377,18 @@ impl GraphStorage for MemoryGraphStorage {
         max_depth: usize,
         max_nodes: usize,
     ) -> Result<KnowledgeGraph> {
-        let nodes_map = self.nodes.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
-        let edges_map = self.edges.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
-        let adjacency = self.adjacency.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let nodes_map = self
+            .nodes
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let edges_map = self
+            .edges
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let adjacency = self
+            .adjacency
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
 
         let mut visited: HashSet<String> = HashSet::new();
         let mut result_nodes: Vec<GraphNode> = Vec::new();
@@ -344,9 +439,10 @@ impl GraphStorage for MemoryGraphStorage {
     }
 
     async fn get_popular_labels(&self, limit: usize) -> Result<Vec<String>> {
-        let adjacency = self.adjacency.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let adjacency = self
+            .adjacency
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
 
         let mut node_degrees: Vec<(String, usize)> = adjacency
             .iter()
@@ -355,13 +451,18 @@ impl GraphStorage for MemoryGraphStorage {
 
         node_degrees.sort_by(|a, b| b.1.cmp(&a.1));
 
-        Ok(node_degrees.into_iter().take(limit).map(|(id, _)| id).collect())
+        Ok(node_degrees
+            .into_iter()
+            .take(limit)
+            .map(|(id, _)| id)
+            .collect())
     }
 
     async fn search_labels(&self, query: &str, limit: usize) -> Result<Vec<String>> {
-        let nodes = self.nodes.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let nodes = self
+            .nodes
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
 
         let query_lower = query.to_lowercase();
 
@@ -379,29 +480,34 @@ impl GraphStorage for MemoryGraphStorage {
     }
 
     async fn node_count(&self) -> Result<usize> {
-        let nodes = self.nodes.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let nodes = self
+            .nodes
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
         Ok(nodes.len())
     }
 
     async fn edge_count(&self) -> Result<usize> {
-        let edges = self.edges.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let edges = self
+            .edges
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
         Ok(edges.len())
     }
 
     async fn clear(&self) -> Result<()> {
-        let mut nodes = self.nodes.write().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
-        let mut edges = self.edges.write().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
-        let mut adjacency = self.adjacency.write().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let mut nodes = self
+            .nodes
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut edges = self
+            .edges
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut adjacency = self
+            .adjacency
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
 
         nodes.clear();
         edges.clear();

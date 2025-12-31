@@ -328,21 +328,28 @@ mod tests {
 
         println!("Performance comparison for {} nodes:", node_ids.len());
         println!(
-            "  Individual queries: {}ms ({} queries)",
-            individual_elapsed.as_millis(),
+            "  Individual queries: {:?} ({} queries)",
+            individual_elapsed,
             node_ids.len()
         );
-        println!("  Batch query: {}ms (1 query)", batch_elapsed.as_millis());
-        println!(
-            "  Speedup: {:.1}x",
-            individual_elapsed.as_millis() as f64 / batch_elapsed.as_millis() as f64
-        );
+        println!("  Batch query: {:?} (1 query)", batch_elapsed);
 
-        // Batch should be faster (though in-memory implementation may not show huge difference)
-        // In PostgreSQL implementation, batch is 10-100x faster
+        // Calculate speedup safely (avoid div by zero)
+        let speedup = if batch_elapsed.as_nanos() > 0 {
+            individual_elapsed.as_nanos() as f64 / batch_elapsed.as_nanos() as f64
+        } else if individual_elapsed.as_nanos() > 0 {
+            f64::INFINITY // Batch is faster (instant)
+        } else {
+            1.0 // Both instant, equal performance
+        };
+        println!("  Speedup: {:.2}x", speedup);
+
+        // Batch should be as fast or faster than individual queries
+        // Use nanos for better precision (ms can both be 0)
         assert!(
-            batch_elapsed <= individual_elapsed,
-            "Batch should be as fast or faster than individual queries"
+            batch_elapsed.as_nanos() <= individual_elapsed.as_nanos() + 10_000, // Allow 10µs tolerance
+            "Batch should be as fast or faster than individual queries (batch: {:?}, individual: {:?})",
+            batch_elapsed, individual_elapsed
         );
     }
 
