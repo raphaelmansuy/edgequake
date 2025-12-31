@@ -248,6 +248,9 @@ export interface QueryContext {
     document_id: string;
     score: number;
     file_path?: string;
+    start_line?: number;
+    end_line?: number;
+    chunk_index?: number;
   }>;
   entities: Array<{
     id: string;

@@ -432,14 +432,23 @@ const AssistantMessage = memo(function AssistantMessage({
                 onEntityClick={(entityId) => {
                   window.location.href = `/graph?entity=${encodeURIComponent(entityId)}`;
                 }}
-                onDocumentClick={(documentId, chunkContent) => {
-                  // Navigate to document detail page with optional highlight parameter
+                onDocumentClick={(documentId, chunkContent, chunkIndex, startLine, endLine) => {
+                  // Navigate to document detail page with line numbers and/or highlight
                   const url = new URL(`/documents/${encodeURIComponent(documentId)}`, window.location.origin);
-                  if (chunkContent) {
+                  
+                  // Priority 1: Use line numbers if available
+                  if (startLine !== undefined && endLine !== undefined) {
+                    url.searchParams.set('start_line', startLine.toString());
+                    url.searchParams.set('end_line', endLine.toString());
+                  }
+                  
+                  // Fallback: Use text highlight if no line numbers
+                  if (chunkContent && startLine === undefined) {
                     // Use first 100 chars of chunk content as highlight search term
                     const searchTerm = chunkContent.slice(0, 100);
                     url.searchParams.set('highlight', searchTerm);
                   }
+                  
                   window.location.href = url.toString();
                 }}
                 onExploreGraph={(entityLabels) => {

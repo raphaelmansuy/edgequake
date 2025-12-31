@@ -1257,3 +1257,57 @@ pre[class*="language-"],
 .dark .katex {
   color: oklch(0.9 0.02 265);
 }
+/* ============================================
+ * HIGHLIGHTER PEN (STABILO) STYLE
+ * For source citation line highlighting
+ * ============================================ */
+
+/* Highlighter pen style for source citations */
+mark.highlight-citation {
+  background: linear-gradient(104deg, 
+    rgba(255, 237, 74, 0.3) 0.9%, 
+    rgba(255, 237, 74, 0.7) 2.4%, 
+    rgba(255, 237, 74, 0.5) 5.8%, 
+    rgba(255, 237, 74, 0.4) 93%, 
+    rgba(255, 237, 74, 0.7) 96%, 
+    transparent 98%
+  );
+  background-size: 100% 0.7em;
+  background-repeat: no-repeat;
+  background-position: 0 88%;
+  color: inherit;
+  padding: 0.125rem 0;
+  border-radius: 0.25rem;
+  animation: highlight-fade-in 0.8s ease-out;
+  line-height: 1.6;
+  display: inline;
+}
+
+@keyframes highlight-fade-in {
+  from {
+    background-size: 0% 0.7em;
+    opacity: 0.6;
+  }
+  to {
+    background-size: 100% 0.7em;
+    opacity: 1;
+  }
+}
+
+/* Dark mode version - slightly brighter yellow */
+.dark mark.highlight-citation {
+  background: linear-gradient(104deg, 
+    rgba(253, 224, 71, 0.4) 0.9%, 
+    rgba(253, 224, 71, 0.8) 2.4%, 
+    rgba(253, 224, 71, 0.6) 5.8%, 
+    rgba(253, 224, 71, 0.5) 93%, 
+    rgba(253, 224, 71, 0.8) 96%, 
+    transparent 98%
+  );
+}
+
+/* Ensure proper stacking for line numbers */
+[data-line-number] {
+  position: relative;
+  display: block;
+}

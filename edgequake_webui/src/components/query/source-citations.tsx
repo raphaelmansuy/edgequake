@@ -27,7 +27,13 @@ import { useMemo, useState } from 'react';
 interface SourceCitationsProps {
   context: QueryContext;
   onEntityClick?: (entityId: string) => void;
-  onDocumentClick?: (documentId: string, chunkContent?: string, chunkIndex?: number) => void;
+  onDocumentClick?: (
+    documentId: string, 
+    chunkContent?: string, 
+    chunkIndex?: number,
+    startLine?: number,
+    endLine?: number
+  ) => void;
   onExploreGraph?: (entityLabels: string[]) => void;
 }
 
@@ -150,7 +156,13 @@ const DocumentsTab = ({
   onDocumentClick 
 }: { 
   chunksByDocument: Record<string, NonNullable<QueryContext['chunks']>>;
-  onDocumentClick?: (docId: string, chunkContent?: string, chunkIndex?: number) => void;
+  onDocumentClick?: (
+    docId: string, 
+    chunkContent?: string, 
+    chunkIndex?: number,
+    startLine?: number,
+    endLine?: number
+  ) => void;
 }) => {
   const [showAll, setShowAll] = useState(false);
   const entries = Object.entries(chunksByDocument);
@@ -189,13 +201,15 @@ const DocumentsTab = ({
                       {/* Header row with clickable title */}
                       <div className="flex items-center justify-between gap-2">
                         <button
-                          className="text-sm font-medium truncate flex items-center gap-1.5 hover:text-primary transition-colors text-left"
+                          className="text-sm font-medium flex items-center gap-1.5 hover:text-primary transition-colors text-left max-w-full overflow-hidden"
                           onClick={() => onDocumentClick?.(docId, chunks[0]?.content, 0)}
                           title={`Open: ${getDocumentTitle(chunks)}`}
                         >
                           <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                           {/* Use extracted document title */}
-                          {getDocumentTitle(chunks)}
+                          <span className="truncate">
+                            {getDocumentTitle(chunks)}
+                          </span>
                         </button>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <span className={`text-xs font-semibold ${scoreColor}`}>
@@ -218,7 +232,13 @@ const DocumentsTab = ({
                         {chunks.slice(0, 3).map((chunk, chunkIdx) => (
                           <button
                             key={chunkIdx}
-                            onClick={() => onDocumentClick?.(docId, chunk.content, chunkIdx)}
+                            onClick={() => onDocumentClick?.(
+                              docId, 
+                              chunk.content, 
+                              chunkIdx,
+                              chunk.start_line,
+                              chunk.end_line
+                            )}
                             className="w-full text-left p-2 rounded bg-muted/40 hover:bg-muted/70 transition-colors group/chunk"
                           >
                             <div className="flex items-start gap-2">
@@ -228,13 +248,19 @@ const DocumentsTab = ({
                               >
                                 {chunkIdx + 1}
                               </Badge>
-                              <p className="text-[11px] text-muted-foreground line-clamp-2 flex-1 leading-relaxed">
+                              <p className="text-[11px] text-muted-foreground line-clamp-2 flex-1 leading-relaxed break-words overflow-hidden">
                                 {chunk.content.slice(0, 150)}{chunk.content.length > 150 ? '...' : ''}
                               </p>
                               <span className={`text-[9px] flex-shrink-0 ${getConfidenceLabel(chunk.score).color}`}>
                                 {Math.round(chunk.score * 100)}%
                               </span>
                             </div>
+                            {/* Line range display */}
+                            {chunk.start_line !== undefined && chunk.end_line !== undefined && (
+                              <div className="text-[9px] text-muted-foreground mt-1 pl-6">
+                                Lines {chunk.start_line}-{chunk.end_line}
+                              </div>
+                            )}
                           </button>
                         ))}
                         {chunks.length > 3 && (
@@ -294,8 +320,8 @@ const KnowledgeTab = ({
   }
 
   return (
-    <ScrollArea className="max-h-[300px]">
-      <div className="space-y-5 pr-2">
+    <ScrollArea className="h-[400px]">
+      <div className="space-y-5 pr-4">
         {/* Entities */}
         {entities && entities.length > 0 && (
           <div className="space-y-2.5">

@@ -11,28 +11,41 @@ import { PlainTextRenderer } from './plain-text-renderer';
 interface ContentRendererProps {
   document: Document;
   highlightText?: string;
+  startLine?: number;
+  endLine?: number;
 }
 
-export function ContentRenderer({ document, highlightText }: ContentRendererProps) {
+export function ContentRenderer({ document, highlightText, startLine, endLine }: ContentRendererProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   
   const renderer = useMemo(() => {
-    return getRendererForDocument(document, highlightText);
-  }, [document, highlightText]);
+    return getRendererForDocument(document, highlightText, startLine, endLine);
+  }, [document, highlightText, startLine, endLine]);
 
-  // Scroll to and highlight the text when highlightText changes
+  // Scroll to and highlight the text when highlightText or line numbers change
   useEffect(() => {
-    if (!highlightText || !contentRef.current) return;
+    if ((!highlightText && startLine === undefined) || !contentRef.current) return;
     
     // Give time for content to render
     const timer = setTimeout(() => {
       const container = contentRef.current;
       if (!container) return;
       
-      // Find the highlighted text element
-      const highlightedElements = container.querySelectorAll('mark.highlight-match');
+      // Priority 1: Scroll to line numbers if provided
+      if (startLine !== undefined) {
+        const lineElements = container.querySelectorAll('[data-line-number]');
+        const targetLine = Array.from(lineElements).find(
+          el => parseInt(el.getAttribute('data-line-number') || '0') >= startLine
+        );
+        if (targetLine) {
+          targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+      }
+      
+      // Priority 2: Find highlighted text element (fallback)
+      const highlightedElements = container.querySelectorAll('mark.highlight-citation, mark.highlight-match');
       if (highlightedElements.length > 0) {
-        // Scroll to first match
         highlightedElements[0].scrollIntoView({ 
           behavior: 'smooth', 
           block: 'center' 
@@ -41,7 +54,7 @@ export function ContentRenderer({ document, highlightText }: ContentRendererProp
     }, 100);
     
     return () => clearTimeout(timer);
-  }, [highlightText]);
+  }, [highlightText, startLine, endLine]);
 
   return (
     <div ref={contentRef} className="p-8 max-w-4xl mx-auto">
@@ -52,13 +65,18 @@ export function ContentRenderer({ document, highlightText }: ContentRendererProp
   );
 }
 
-function getRendererForDocument(doc: Document, highlightText?: string) {
+function getRendererForDocument(doc: Document, highlightText?: string, startLine?: number, endLine?: number) {
   const mimeType = doc.mime_type?.toLowerCase() || '';
   const fileName = doc.file_name?.toLowerCase() || '';
   let content = doc.content || doc.content_summary || '';
 
-  // Apply highlight to content if highlightText is provided
-  if (highlightText && content) {
+  // Apply highlight to content
+  // Priority 1: Line-based highlighting (stabilo effect)
+  if (startLine !== undefined && endLine !== undefined) {
+    content = applyLineHighlight(content, startLine, endLine);
+  } 
+  // Priority 2: Text-based highlighting (fallback)
+  else if (highlightText && content) {
     content = applyTextHighlight(content, highlightText);
   }
 
@@ -271,6 +289,32 @@ function ContentSkeleton() {
       <Skeleton className="h-4 w-4/5" />
     </div>
   );
+}
+
+/**
+ * Highlight specific line range in content using stabilo highlighter style.
+ * Wraps each line in a span with data-line-number for scrolling.
+ */
+function applyLineHighlight(content: string, startLine: number, endLine: number): string {
+  const lines = content.split('\n');
+  
+  return lines.map((line, idx) => {
+    const lineNumber = idx + 1;
+    const isHighlighted = lineNumber >= startLine && lineNumber <= endLine;
+    
+    // Escape HTML entities
+    const escapedLine = line
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+    
+    if (isHighlighted) {
+      return `<mark class="highlight-citation" data-line-number="${lineNumber}">${escapedLine}</mark>`;
+    }
+    return `<span data-line-number="${lineNumber}">${escapedLine}</span>`;
+  }).join('\n');
 }
 
 /**

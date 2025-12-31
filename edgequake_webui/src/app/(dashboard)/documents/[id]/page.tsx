@@ -52,8 +52,14 @@ export default function DocumentViewPage() {
   const documentId = params.id as string;
   const { selectedWorkspaceId } = useTenantStore();
   
-  // Get highlight parameter from URL
+  // Get highlight parameters from URL
   const highlightText = searchParams.get('highlight') || undefined;
+  const startLine = searchParams.get('start_line') 
+    ? parseInt(searchParams.get('start_line')!) 
+    : undefined;
+  const endLine = searchParams.get('end_line') 
+    ? parseInt(searchParams.get('end_line')!) 
+    : undefined;
 
   // Fetch document details
   const { data: document, isLoading, isError, error, refetch } = useQuery({
@@ -176,11 +182,16 @@ export default function DocumentViewPage() {
         <div className="hidden lg:flex flex-1 overflow-hidden">
           {/* Content Area - 65% */}
           <div className="flex-1 overflow-auto">
-            <ContentRenderer document={document} highlightText={highlightText} />
+            <ContentRenderer 
+              document={document} 
+              highlightText={highlightText}
+              startLine={startLine}
+              endLine={endLine}
+            />
           </div>
 
           {/* Metadata Sidebar - 35% */}
-          <div className="w-[35%] shrink-0">
+          <div className="w-[35%] shrink-0 overflow-hidden">
             <MetadataSidebar document={document} />
           </div>
         </div>
@@ -193,7 +204,12 @@ export default function DocumentViewPage() {
               <TabsTrigger value="metadata">Details</TabsTrigger>
             </TabsList>
             <TabsContent value="content" className="flex-1 overflow-auto m-0 mt-0">
-              <ContentRenderer document={document} highlightText={highlightText} />
+              <ContentRenderer 
+                document={document} 
+                highlightText={highlightText}
+                startLine={startLine}
+                endLine={endLine}
+              />
             </TabsContent>
             <TabsContent value="metadata" className="flex-1 overflow-hidden m-0 mt-0">
               <MetadataSidebar document={document} />
