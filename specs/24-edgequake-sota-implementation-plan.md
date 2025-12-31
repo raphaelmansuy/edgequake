@@ -10,10 +10,10 @@
 
 ### ✅ NO GAPS REMAINING - EdgeQuake Wins ALL Categories!
 
-| Category               | LightRAG                                                | EdgeQuake                                                     | Status      |
-| ---------------------- | ------------------------------------------------------- | ------------------------------------------------------------- | ----------- |
+| Category               | LightRAG                                                | EdgeQuake                                                         | Status      |
+| ---------------------- | ------------------------------------------------------- | ----------------------------------------------------------------- | ----------- |
 | **Layout Algorithms**  | 6 (Circular, Circlepack, Random, Noverlaps, Force, FA2) | 7 (Circular, Circlepack, Random, Noverlaps, FA2, Force Dir, Hier) | ✅ WIN (+1) |
-| **Web Worker Support** | 3 workers (FA2, Force, Noverlaps)                       | 2 workers (FA2, Noverlaps)                                    | ≈ Parity    |
+| **Web Worker Support** | 3 workers (FA2, Force, Noverlaps)                       | 2 workers (FA2, Noverlaps)                                        | ≈ Parity    |
 
 ### Where EdgeQuake Already Wins (Verified)
 

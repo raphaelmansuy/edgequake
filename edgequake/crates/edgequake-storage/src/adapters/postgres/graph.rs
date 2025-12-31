@@ -50,6 +50,10 @@ pub struct PostgresAGEGraphStorage {
     namespace: String,
     prefix: String,
     initialized: AtomicBool,
+    /// Track if indexes have been created after first node insertion.
+    /// AGE creates label tables lazily on first use, so indexes must be
+    /// created after the first node/edge is inserted.
+    indexes_verified: AtomicBool,
 }
 
 impl PostgresAGEGraphStorage {
@@ -65,6 +69,7 @@ impl PostgresAGEGraphStorage {
             namespace,
             prefix,
             initialized: AtomicBool::new(false),
+            indexes_verified: AtomicBool::new(false),
         }
     }
 
@@ -355,6 +360,167 @@ impl PostgresAGEGraphStorage {
 
         Ok(())
     }
+
+    /// Create or ensure indexes exist on AGE graph tables for query performance.
+    ///
+    /// This is CRITICAL for query performance. Without these indexes, Cypher queries
+    /// like `MATCH (n:Node {node_id: 'xxx'})` perform full table scans.
+    ///
+    /// Creates indexes on:
+    /// - Node table: node_id property expression index, GIN index on properties
+    /// - EDGE table: start_id, end_id, and composite indexes
+    async fn ensure_indexes(&self) -> Result<()> {
+        let pool = self.pool.get().await?;
+        let mut conn = pool.acquire().await.map_err(|e| {
+            StorageError::Connection(format!("Failed to acquire connection: {}", e))
+        })?;
+
+        // Set up AGE session
+        sqlx::query("LOAD 'age'")
+            .execute(&mut *conn)
+            .await
+            .map_err(|e| StorageError::Database(format!("Failed to load AGE: {}", e)))?;
+
+        sqlx::query("SET search_path = ag_catalog, \"$user\", public")
+            .execute(&mut *conn)
+            .await
+            .map_err(|e| StorageError::Database(format!("Failed to set AGE search path: {}", e)))?;
+
+        // Define all indexes to create - order matters for dependencies
+        let index_queries = [
+            // Node table indexes (CRITICAL for query performance)
+            (
+                "idx_node_prop_node_id",
+                format!(
+                    r#"CREATE INDEX IF NOT EXISTS idx_node_prop_node_id 
+                       ON {}."Node" (ag_catalog.agtype_access_operator(properties, '"node_id"'::agtype))"#,
+                    self.graph_name
+                ),
+            ),
+            (
+                "idx_node_props_gin",
+                format!(
+                    r#"CREATE INDEX IF NOT EXISTS idx_node_props_gin 
+                       ON {}."Node" USING gin(properties)"#,
+                    self.graph_name
+                ),
+            ),
+            (
+                "idx_node_id",
+                format!(
+                    r#"CREATE INDEX IF NOT EXISTS idx_node_id 
+                       ON {}."Node" (id)"#,
+                    self.graph_name
+                ),
+            ),
+            // EDGE table indexes
+            (
+                "idx_edge_start_id",
+                format!(
+                    r#"CREATE INDEX IF NOT EXISTS idx_edge_start_id 
+                       ON {}."EDGE" (start_id)"#,
+                    self.graph_name
+                ),
+            ),
+            (
+                "idx_edge_end_id",
+                format!(
+                    r#"CREATE INDEX IF NOT EXISTS idx_edge_end_id 
+                       ON {}."EDGE" (end_id)"#,
+                    self.graph_name
+                ),
+            ),
+            (
+                "idx_edge_start_end",
+                format!(
+                    r#"CREATE INDEX IF NOT EXISTS idx_edge_start_end 
+                       ON {}."EDGE" (start_id, end_id)"#,
+                    self.graph_name
+                ),
+            ),
+            (
+                "idx_edge_props_gin",
+                format!(
+                    r#"CREATE INDEX IF NOT EXISTS idx_edge_props_gin 
+                       ON {}."EDGE" USING gin(properties)"#,
+                    self.graph_name
+                ),
+            ),
+            // Fallback indexes on AGE internal tables
+            (
+                "idx_ag_vertex_props_gin",
+                format!(
+                    r#"CREATE INDEX IF NOT EXISTS idx_ag_vertex_props_gin 
+                       ON {}."_ag_label_vertex" USING gin(properties)"#,
+                    self.graph_name
+                ),
+            ),
+            (
+                "idx_ag_edge_start_id",
+                format!(
+                    r#"CREATE INDEX IF NOT EXISTS idx_ag_edge_start_id 
+                       ON {}."_ag_label_edge" (start_id)"#,
+                    self.graph_name
+                ),
+            ),
+            (
+                "idx_ag_edge_end_id",
+                format!(
+                    r#"CREATE INDEX IF NOT EXISTS idx_ag_edge_end_id 
+                       ON {}."_ag_label_edge" (end_id)"#,
+                    self.graph_name
+                ),
+            ),
+            (
+                "idx_ag_edge_start_end",
+                format!(
+                    r#"CREATE INDEX IF NOT EXISTS idx_ag_edge_start_end 
+                       ON {}."_ag_label_edge" (start_id, end_id)"#,
+                    self.graph_name
+                ),
+            ),
+        ];
+
+        let mut indexes_created = 0;
+        let mut indexes_skipped = 0;
+
+        for (name, sql) in &index_queries {
+            match sqlx::query(sql).execute(&mut *conn).await {
+                Ok(_) => {
+                    indexes_created += 1;
+                    tracing::debug!("Created/verified index: {}", name);
+                }
+                Err(e) => {
+                    // Check if it's a "table does not exist" error - this is OK
+                    // The table will be created on first node/edge insertion
+                    let err_str = e.to_string();
+                    if err_str.contains("does not exist")
+                        || err_str.contains("undefined_table")
+                        || err_str.contains("relation")
+                    {
+                        indexes_skipped += 1;
+                        tracing::debug!(
+                            "Skipped index {} (table not yet created): {}",
+                            name,
+                            err_str
+                        );
+                    } else {
+                        tracing::warn!("Failed to create index {}: {}", name, e);
+                    }
+                }
+            }
+        }
+
+        if indexes_created > 0 {
+            tracing::info!(
+                "AGE graph indexes: {} created/verified, {} skipped (tables pending)",
+                indexes_created,
+                indexes_skipped
+            );
+        }
+
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -370,10 +536,15 @@ impl GraphStorage for PostgresAGEGraphStorage {
 
         self.pool.initialize().await?;
         self.create_graph().await?;
+
+        // CRITICAL: Create indexes for query performance
+        // Without these, Cypher queries like MATCH (n:Node {node_id: 'xxx'}) scan all vertices
+        self.ensure_indexes().await?;
+
         self.initialized.store(true, Ordering::Relaxed);
 
         tracing::info!(
-            "Initialized PostgresAGEGraphStorage with graph '{}'",
+            "Initialized PostgresAGEGraphStorage with graph '{}' (indexes verified)",
             self.graph_name
         );
 
@@ -431,7 +602,18 @@ impl GraphStorage for PostgresAGEGraphStorage {
             escaped_id, props_cypher
         );
 
-        self.cypher_execute(&cypher).await
+        self.cypher_execute(&cypher).await?;
+
+        // Ensure indexes exist after first node insertion
+        // AGE creates the Node table lazily, so we need to create indexes
+        // after the first node is inserted
+        if !self.indexes_verified.load(Ordering::Relaxed) {
+            self.ensure_indexes().await?;
+            self.indexes_verified.store(true, Ordering::Relaxed);
+            tracing::info!("Created AGE indexes after first node insertion");
+        }
+
+        Ok(())
     }
 
     async fn delete_node(&self, node_id: &str) -> Result<()> {

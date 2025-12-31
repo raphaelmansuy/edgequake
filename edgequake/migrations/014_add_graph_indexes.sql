@@ -40,7 +40,7 @@ BEGIN
         -- Index 1: tenant_id for multi-tenancy queries
         BEGIN
             EXECUTE format(
-                'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_%s_tenant_id ON %I._ag_label_vertex ((ag_catalog.agtype_to_json(properties)->>''tenant_id''))',
+                'CREATE INDEX IF NOT EXISTS idx_%s_tenant_id ON %I._ag_label_vertex ((ag_catalog.agtype_to_json(properties)->>''tenant_id''))',
                 replace(graph_name, '.', '_'),
                 graph_name
             );
@@ -52,7 +52,7 @@ BEGIN
         -- Index 2: workspace_id for workspace filtering
         BEGIN
             EXECUTE format(
-                'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_%s_workspace_id ON %I._ag_label_vertex ((ag_catalog.agtype_to_json(properties)->>''workspace_id''))',
+                'CREATE INDEX IF NOT EXISTS idx_%s_workspace_id ON %I._ag_label_vertex ((ag_catalog.agtype_to_json(properties)->>''workspace_id''))',
                 replace(graph_name, '.', '_'),
                 graph_name
             );
@@ -64,7 +64,7 @@ BEGIN
         -- Index 3: entity_type for entity filtering
         BEGIN
             EXECUTE format(
-                'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_%s_entity_type ON %I._ag_label_vertex ((ag_catalog.agtype_to_json(properties)->>''entity_type''))',
+                'CREATE INDEX IF NOT EXISTS idx_%s_entity_type ON %I._ag_label_vertex ((ag_catalog.agtype_to_json(properties)->>''entity_type''))',
                 replace(graph_name, '.', '_'),
                 graph_name
             );
@@ -76,7 +76,7 @@ BEGIN
         -- Index 4: Combined (tenant_id, workspace_id) for common queries
         BEGIN
             EXECUTE format(
-                'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_%s_tenant_workspace ON %I._ag_label_vertex ((ag_catalog.agtype_to_json(properties)->>''tenant_id''), (ag_catalog.agtype_to_json(properties)->>''workspace_id''))',
+                'CREATE INDEX IF NOT EXISTS idx_%s_tenant_workspace ON %I._ag_label_vertex ((ag_catalog.agtype_to_json(properties)->>''tenant_id''), (ag_catalog.agtype_to_json(properties)->>''workspace_id''))',
                 replace(graph_name, '.', '_'),
                 graph_name
             );
@@ -88,7 +88,7 @@ BEGIN
         -- Index 5: node_id for fast node lookups
         BEGIN
             EXECUTE format(
-                'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_%s_node_id ON %I._ag_label_vertex ((ag_catalog.agtype_to_json(properties)->>''node_id''))',
+                'CREATE INDEX IF NOT EXISTS idx_%s_node_id ON %I._ag_label_vertex ((ag_catalog.agtype_to_json(properties)->>''node_id''))',
                 replace(graph_name, '.', '_'),
                 graph_name
             );

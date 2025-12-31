@@ -9,7 +9,7 @@
     "dropdowns": 0
   },
   "/documents": {
-    "buttons": 24,
+    "buttons": 11,
     "cards": 0,
     "inputs": 2,
     "badges": 0,
@@ -27,7 +27,7 @@
     "dropdowns": 0
   },
   "/graph": {
-    "buttons": 135,
+    "buttons": 32,
     "cards": 0,
     "inputs": 1,
     "badges": 0,

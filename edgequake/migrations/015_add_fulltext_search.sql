@@ -3,19 +3,60 @@
 -- Purpose: Enable fuzzy search and autocomplete for entity names
 -- Performance: Enables ts_rank scoring and @@ operator matching
 
--- Full-text search index on node_id using GIN (Generalized Inverted Index)
--- This enables fast text search with ts_rank scoring
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_node_id_fulltext
-ON ag_catalog._ag_label_vertex
-USING gin(to_tsvector('english', ag_catalog.agtype_to_json(properties)->>'node_id'));
+-- NOTE: Using non-CONCURRENT index creation for compatibility with migration transactions
+-- For production with large tables, consider running CONCURRENTLY outside migrations
 
--- Additional index for simple prefix matching (faster than full-text for autocomplete)
--- Uses pg_trgm extension for trigram similarity
+-- Create pg_trgm extension if not exists (needed for trigram similarity)
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_node_id_trgm
-ON ag_catalog._ag_label_vertex
-USING gin((ag_catalog.agtype_to_json(properties)->>'node_id') gin_trgm_ops);
+-- Create indexes on graph vertex tables
+DO $$ 
+DECLARE
+    graph_name TEXT;
+BEGIN
+    -- Check if AGE extension is available
+    IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'age') THEN
+        RAISE NOTICE 'Apache AGE extension not available - skipping fulltext indexes';
+        RETURN;
+    END IF;
+
+    -- Find all graphs in the database
+    FOR graph_name IN 
+        SELECT name FROM ag_catalog.ag_graph
+    LOOP
+        RAISE NOTICE 'Adding fulltext indexes to graph: %', graph_name;
+        
+        -- Fulltext index on node_id property
+        BEGIN
+            EXECUTE format(
+                'CREATE INDEX IF NOT EXISTS idx_%s_node_id_fulltext ON %I._ag_label_vertex 
+                 USING gin(to_tsvector(''english'', ag_catalog.agtype_to_json(properties)->>''node_id''))',
+                replace(graph_name, '.', '_'),
+                graph_name
+            );
+            RAISE NOTICE '  ✓ Created fulltext index on node_id';
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE '  ✗ Failed to create fulltext index: %', SQLERRM;
+        END;
+        
+        -- Trigram index on node_id property (for fuzzy search)
+        BEGIN
+            EXECUTE format(
+                'CREATE INDEX IF NOT EXISTS idx_%s_node_id_trgm ON %I._ag_label_vertex 
+                 USING gin((ag_catalog.agtype_to_json(properties)->>''node_id'') gin_trgm_ops)',
+                replace(graph_name, '.', '_'),
+                graph_name
+            );
+            RAISE NOTICE '  ✓ Created trigram index on node_id';
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE '  ✗ Failed to create trigram index: %', SQLERRM;
+        END;
+        
+    END LOOP;
+    
+    RAISE NOTICE 'Fulltext index creation completed';
+    
+END $$;
 
 -- Usage examples:
 -- 
@@ -23,7 +64,7 @@ USING gin((ag_catalog.agtype_to_json(properties)->>'node_id') gin_trgm_ops);
 --   SELECT ag_catalog.agtype_to_json(properties)->>'node_id' as label,
 --          ts_rank(to_tsvector('english', ag_catalog.agtype_to_json(properties)->>'node_id'),
 --                  plainto_tsquery('english', 'search term')) as rank
---   FROM ag_catalog._ag_label_vertex
+--   FROM <graph>._ag_label_vertex
 --   WHERE to_tsvector('english', ag_catalog.agtype_to_json(properties)->>'node_id')
 --         @@ plainto_tsquery('english', 'search term')
 --   ORDER BY rank DESC;
@@ -31,6 +72,6 @@ USING gin((ag_catalog.agtype_to_json(properties)->>'node_id') gin_trgm_ops);
 -- Trigram similarity search (fuzzy):
 --   SELECT ag_catalog.agtype_to_json(properties)->>'node_id' as label,
 --          similarity(ag_catalog.agtype_to_json(properties)->>'node_id', 'search term') as sim
---   FROM ag_catalog._ag_label_vertex
+--   FROM <graph>._ag_label_vertex
 --   WHERE ag_catalog.agtype_to_json(properties)->>'node_id' % 'search term'
 --   ORDER BY sim DESC;

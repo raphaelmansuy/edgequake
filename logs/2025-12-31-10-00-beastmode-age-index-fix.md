@@ -17,11 +17,13 @@ Storage error: Database error: Cypher query failed: error returned from database
 Using sequential thinking, identified the root cause:
 
 1. **Missing indexes on `_ag_label_edge` table**
+
    - The `get_popular_nodes_with_degree` function uses `GROUP BY start_id`
    - Without index: O(N) full table scan on every query
    - With 10k+ edges, this exceeds the 30s timeout
 
 2. **Query structure** (from `graph.rs` line 1042):
+
    ```sql
    WITH edge_counts AS (
      SELECT start_id, COUNT(*) as out_degree
@@ -39,6 +41,7 @@ Using sequential thinking, identified the root cause:
 ## Solution
 
 ### 1. Added AGE indexes to `init.sql` (Phase 7.1)
+
 ```sql
 CREATE INDEX idx_ag_edge_start_id ON <graph>._ag_label_edge(start_id);
 CREATE INDEX idx_ag_edge_end_id ON <graph>._ag_label_edge(end_id);
@@ -47,10 +50,12 @@ CREATE INDEX idx_ag_vertex_props_gin ON <graph>._ag_label_vertex USING GIN(prope
 ```
 
 ### 2. Created migration script
+
 - `edgequake/migrations/001_add_age_indexes.sql`
 - For existing databases that don't have indexes
 
 ### 3. Added unit tests
+
 - `edgequake/crates/edgequake-storage/tests/graph_query_performance.rs`
 - Tests for query performance, tenant filtering, degree accuracy
 
@@ -58,11 +63,11 @@ CREATE INDEX idx_ag_vertex_props_gin ON <graph>._ag_label_vertex USING GIN(prope
 
 ## Performance Results
 
-| Metric | Before (no indexes) | After (with indexes) | Improvement |
-|--------|---------------------|----------------------|-------------|
-| 200 nodes | 30s timeout | 79ms | **380x faster** |
-| 500 nodes | 30s timeout | 97ms | **309x faster** |
-| SSE stream | 30s timeout | 25ms | **1200x faster** |
+| Metric     | Before (no indexes) | After (with indexes) | Improvement      |
+| ---------- | ------------------- | -------------------- | ---------------- |
+| 200 nodes  | 30s timeout         | 79ms                 | **380x faster**  |
+| 500 nodes  | 30s timeout         | 97ms                 | **309x faster**  |
+| SSE stream | 30s timeout         | 25ms                 | **1200x faster** |
 
 ---
 

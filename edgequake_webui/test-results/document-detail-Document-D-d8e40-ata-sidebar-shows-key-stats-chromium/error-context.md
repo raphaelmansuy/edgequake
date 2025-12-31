@@ -54,9 +54,9 @@
               - generic [ref=e72]: v0.1.0
     - generic [ref=e73]:
       - banner [ref=e74]:
-        - button "AA" [ref=e77]:
+        - button "Default Workspac..." [ref=e77]:
           - img
-          - generic [ref=e78]: AA
+          - generic [ref=e78]: Default Workspac...
           - img
         - generic [ref=e79]:
           - generic [ref=e80]:
@@ -92,106 +92,37 @@
                 - generic [ref=e113]:
                   - heading "Documents" [level=1] [ref=e114]
                   - paragraph [ref=e115]: Upload and manage documents for knowledge graph extraction
-                - generic [ref=e116]:
-                  - button "Refresh" [ref=e117]:
+                - button "Refresh" [ref=e117]:
+                  - img
+                  - text: Refresh
+              - generic [ref=e118]:
+                - generic [ref=e119]:
+                  - img [ref=e120]
+                  - textbox "Search documents..." [ref=e123]
+                - generic [ref=e124]:
+                  - combobox [ref=e125]:
+                    - generic: All Status (0)
                     - img
-                    - text: Refresh
-                  - button "Clear All" [ref=e118]:
-                    - img
-                    - text: Clear All
-              - generic [ref=e119]:
-                - generic [ref=e120]:
-                  - img [ref=e121]
-                  - textbox "Search documents..." [ref=e124]
-                - generic [ref=e125]:
-                  - combobox [ref=e126]:
-                    - generic: All Status (2)
-                    - img
-                  - generic [ref=e128]:
-                    - generic [ref=e129]: "Sort by:"
-                    - button "Created" [ref=e130]:
+                  - generic [ref=e127]:
+                    - generic [ref=e128]: "Sort by:"
+                    - button "Created" [ref=e129]:
                       - text: Created
                       - img
-                    - button "Updated" [ref=e131]
-              - generic [ref=e132] [cursor=pointer]:
-                - button "Choose File" [ref=e133]
-                - img [ref=e135]
-                - paragraph [ref=e139]: Drag & drop or click to upload • TXT, MD, JSON (max 10MB)
-            - generic [ref=e141]:
-              - generic [ref=e142]:
-                - img [ref=e143]
-                - generic [ref=e146]: Documents (2)
-              - table [ref=e149]:
-                - rowgroup [ref=e150]:
-                  - row "Select all Title Status Entities Cost Created" [ref=e151]:
-                    - columnheader "Select all" [ref=e152]:
-                      - checkbox "Select all" [ref=e153]
-                    - columnheader "Title" [ref=e154]
-                    - columnheader "Status" [ref=e155]
-                    - columnheader "Entities" [ref=e156]
-                    - columnheader "Cost" [ref=e157]
-                    - columnheader "Created" [ref=e158]
-                    - columnheader [ref=e159]
-                - rowgroup [ref=e160]:
-                  - row "Select logic_sense_2512_21482v1.md Completed 260 0.015 13 minutes ago" [ref=e161] [cursor=pointer]:
-                    - cell "Select" [ref=e162]:
-                      - checkbox "Select" [ref=e163]
-                    - cell "logic_sense_2512_21482v1.md" [ref=e164]
-                    - cell "Completed" [ref=e165]:
-                      - generic [ref=e166]:
-                        - img
-                        - text: Completed
-                    - cell "260" [ref=e167]
-                    - cell "0.015" [ref=e168]:
-                      - generic [ref=e169]:
-                        - img
-                        - generic [ref=e170]: "0.015"
-                    - cell "13 minutes ago" [ref=e171]
-                    - cell [ref=e172]:
-                      - generic [ref=e173]:
-                        - button [ref=e174]:
-                          - img
-                        - button [ref=e175]:
-                          - img
-                  - row "Select miss_2512.21110v2.md Completed 4 0.00029 13 minutes ago" [ref=e176] [cursor=pointer]:
-                    - cell "Select" [ref=e177]:
-                      - checkbox "Select" [ref=e178]
-                    - cell "miss_2512.21110v2.md" [ref=e179]
-                    - cell "Completed" [ref=e180]:
-                      - generic [ref=e181]:
-                        - img
-                        - text: Completed
-                    - cell "4" [ref=e182]
-                    - cell "0.00029" [ref=e183]:
-                      - generic [ref=e184]:
-                        - img
-                        - generic [ref=e185]: "0.00029"
-                    - cell "13 minutes ago" [ref=e186]
-                    - cell [ref=e187]:
-                      - generic [ref=e188]:
-                        - button [ref=e189]:
-                          - img
-                        - button [ref=e190]:
-                          - img
-            - generic [ref=e192]:
-              - generic [ref=e193]:
-                - generic [ref=e194]: "Rows per page:"
-                - combobox [ref=e195]:
-                  - generic: "20"
-                  - img
-              - generic [ref=e196]:
-                - generic [ref=e197]: Page 1 of 1
-                - generic [ref=e198]:
-                  - button [disabled]:
-                    - img
-                  - button [disabled]:
-                    - img
-                  - button [disabled]:
-                    - img
-                  - button [disabled]:
-                    - img
-          - button "Expand Preview" [ref=e199] [cursor=pointer]:
-            - img [ref=e200]
-            - generic [ref=e202]: Preview
+                    - button "Updated" [ref=e130]
+              - generic [ref=e131] [cursor=pointer]:
+                - button "Choose File" [ref=e132]
+                - img [ref=e134]
+                - paragraph [ref=e138]: Drag & drop or click to upload • TXT, MD, JSON (max 10MB)
+            - generic [ref=e140]:
+              - generic [ref=e141]:
+                - img [ref=e142]
+                - generic [ref=e145]: Documents (0)
+              - generic [ref=e146]:
+                - img [ref=e147]
+                - paragraph [ref=e150]: No documents yet
+                - paragraph [ref=e151]: Upload documents to build your knowledge graph
+          - button "Expand Preview" [ref=e152] [cursor=pointer]:
+            - img [ref=e153]
+            - generic [ref=e155]: Preview
   - region "Notifications alt+T"
 ```
