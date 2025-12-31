@@ -402,10 +402,17 @@ export function QueryInterface() {
       // Filter sources by type
       const chunkSources = msg.context.sources?.filter(s => s.source_type === 'chunk' || !s.source_type) ?? [];
       
+      // Helper to extract document UUID from chunk ID (format: "uuid-chunk-N" -> "uuid")
+      const extractDocId = (chunkId: string): string => {
+        const suffixIndex = chunkId.lastIndexOf('-chunk-');
+        return suffixIndex > 0 ? chunkId.substring(0, suffixIndex) : chunkId;
+      };
+      
       context = {
         chunks: chunkSources.map(s => ({
           content: s.content,
-          document_id: s.document_id ?? s.id,
+          // Use document_id if provided, otherwise extract from chunk ID
+          document_id: s.document_id ?? extractDocId(s.id),
           score: s.score,
           file_path: s.file_path,
         })),

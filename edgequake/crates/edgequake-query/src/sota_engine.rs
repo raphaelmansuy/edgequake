@@ -45,6 +45,19 @@ use crate::vector_filter::{filter_by_type, VectorType};
 use edgequake_llm::traits::{EmbeddingProvider, LLMProvider};
 use edgequake_storage::traits::{GraphStorage, VectorStorage};
 
+/// Extract document UUID from chunk ID.
+///
+/// Chunk IDs are formatted as "uuid-chunk-N" (e.g., "f0291a69-8b63-46d5-b44b-24095b3a8283-chunk-0").
+/// This function extracts the UUID portion for document linking.
+fn extract_document_id(chunk_id: &str) -> Option<String> {
+    if let Some(suffix_idx) = chunk_id.rfind("-chunk-") {
+        if suffix_idx > 0 {
+            return Some(chunk_id[..suffix_idx].to_string());
+        }
+    }
+    None
+}
+
 /// Configuration for the SOTA query engine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SOTAQueryConfig {
@@ -1037,7 +1050,11 @@ impl SOTAQueryEngine {
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
-            context.add_chunk(RetrievedChunk::new(&result.id, content, result.score));
+            let mut chunk = RetrievedChunk::new(&result.id, content, result.score);
+            if let Some(doc_id) = extract_document_id(&result.id) {
+                chunk = chunk.with_document_id(doc_id);
+            }
+            context.add_chunk(chunk);
         }
 
         Ok(context)
@@ -1161,7 +1178,11 @@ impl SOTAQueryEngine {
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string();
-                context.add_chunk(RetrievedChunk::new(&result.id, content, result.score));
+                let mut chunk = RetrievedChunk::new(&result.id, content, result.score);
+                if let Some(doc_id) = extract_document_id(&result.id) {
+                    chunk = chunk.with_document_id(doc_id);
+                }
+                context.add_chunk(chunk);
             }
         }
 
@@ -1197,7 +1218,11 @@ impl SOTAQueryEngine {
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
-            context.add_chunk(RetrievedChunk::new(&result.id, content, result.score));
+            let mut chunk = RetrievedChunk::new(&result.id, content, result.score);
+            if let Some(doc_id) = extract_document_id(&result.id) {
+                chunk = chunk.with_document_id(doc_id);
+            }
+            context.add_chunk(chunk);
         }
 
         Ok(context)
