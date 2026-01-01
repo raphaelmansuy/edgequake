@@ -352,17 +352,17 @@ impl BlockMergeProcessor {
 
         // Don't merge if style changes significantly
         if let (Some(span_a), Some(span_b)) = (a.spans.last(), b.spans.first()) {
-             let size_a = span_a.style.size.unwrap_or(0.0);
-             let size_b = span_b.style.size.unwrap_or(0.0);
-             if (size_a - size_b).abs() > 1.5 {
-                 return false;
-             }
-             
-             let weight_a = span_a.style.weight.unwrap_or(400);
-             let weight_b = span_b.style.weight.unwrap_or(400);
-             if (weight_a >= 600) != (weight_b >= 600) {
-                 return false;
-             }
+            let size_a = span_a.style.size.unwrap_or(0.0);
+            let size_b = span_b.style.size.unwrap_or(0.0);
+            if (size_a - size_b).abs() > 1.5 {
+                return false;
+            }
+
+            let weight_a = span_a.style.weight.unwrap_or(400);
+            let weight_b = span_b.style.weight.unwrap_or(400);
+            if (weight_a >= 600) != (weight_b >= 600) {
+                return false;
+            }
         }
 
         // For list items, don't merge if the second one starts with a bullet/number
@@ -660,8 +660,7 @@ impl Processor for PostProcessor {
 }
 
 /// Processor to detect headers based on font size and weight.
-pub struct HeaderDetectionProcessor {
-}
+pub struct HeaderDetectionProcessor {}
 
 impl HeaderDetectionProcessor {
     pub fn new() -> Self {
@@ -687,28 +686,32 @@ impl Processor for HeaderDetectionProcessor {
                 }
             }
         }
-        
+
         // Find body size (most common)
-        let body_size_int = size_counts.iter().max_by_key(|&(_, count)| count).map(|(s, _)| *s).unwrap_or(100);
+        let body_size_int = size_counts
+            .iter()
+            .max_by_key(|&(_, count)| count)
+            .map(|(s, _)| *s)
+            .unwrap_or(100);
         let body_size = body_size_int as f32 / 10.0;
-        
+
         // 2. Detect headers
         for page in &mut document.pages {
             for block in &mut page.blocks {
                 if block.block_type != BlockType::Text {
                     continue;
                 }
-                
+
                 if let Some(span) = block.spans.first() {
                     let size = span.style.size.unwrap_or(10.0);
                     let weight = span.style.weight.unwrap_or(400);
                     let is_bold = weight >= 600;
-                    
+
                     // H1: Very large (e.g. > 1.6x body)
                     // H2: Large (> 1.3x)
                     // H3: Slightly larger (> 1.1x)
                     // H4: Bold and same size
-                    
+
                     if size > body_size * 1.6 {
                         block.block_type = BlockType::SectionHeader;
                         block.level = Some(1);
@@ -724,17 +727,17 @@ impl Processor for HeaderDetectionProcessor {
                         // Also check if it doesn't end with punctuation (except :)
                         let text = block.text.trim();
                         if text.len() < 80 && !text.ends_with('.') {
-                             block.block_type = BlockType::SectionHeader;
-                             block.level = Some(4);
+                            block.block_type = BlockType::SectionHeader;
+                            block.level = Some(4);
                         }
                     }
                 }
             }
         }
-        
+
         Ok(document)
     }
-    
+
     fn name(&self) -> &str {
         "HeaderDetectionProcessor"
     }
@@ -802,7 +805,9 @@ impl Processor for ListDetectionProcessor {
 
         for page in &mut document.pages {
             // Find the minimum x-coordinate (left margin) to calculate indentation
-            let min_x = page.blocks.iter()
+            let min_x = page
+                .blocks
+                .iter()
                 .map(|b| b.bbox.x1)
                 .fold(f32::MAX, |a, b| a.min(b));
 
@@ -814,15 +819,19 @@ impl Processor for ListDetectionProcessor {
                 let text = block.text.trim();
                 if bullet_regex.is_match(text) || number_regex.is_match(text) {
                     block.block_type = BlockType::ListItem;
-                    
+
                     // Calculate indentation level
                     // Assume 20 points per level
                     let indent = block.bbox.x1 - min_x;
                     let level = (indent / 20.0).round() as i32;
-                    
+
                     // Store indentation in metadata for renderer
-                    block.metadata.insert("indent".to_string(), serde_json::json!(indent));
-                    block.metadata.insert("level".to_string(), serde_json::json!(level));
+                    block
+                        .metadata
+                        .insert("indent".to_string(), serde_json::json!(indent));
+                    block
+                        .metadata
+                        .insert("level".to_string(), serde_json::json!(level));
                 }
             }
         }
@@ -859,8 +868,9 @@ impl Processor for CodeBlockDetectionProcessor {
                 }
 
                 // Check if all spans look like code
-                let all_code = !block.spans.is_empty() && block.spans.iter().all(|s| s.style.looks_like_code());
-                
+                let all_code = !block.spans.is_empty()
+                    && block.spans.iter().all(|s| s.style.looks_like_code());
+
                 if all_code {
                     block.block_type = BlockType::Code;
                 }
@@ -877,14 +887,14 @@ impl Processor for CodeBlockDetectionProcessor {
                         // Add newline between lines
                         cur.text.push('\n');
                         cur.text.push_str(&block.text);
-                        
+
                         // Merge spans
                         // Add a newline span if needed, or just append
                         cur.spans.extend(block.spans);
-                        
+
                         // Update bbox
                         cur.bbox = cur.bbox.union(&block.bbox);
-                        
+
                         current_code = Some(cur);
                     } else {
                         current_code = Some(block);
@@ -896,11 +906,11 @@ impl Processor for CodeBlockDetectionProcessor {
                     merged.push(block);
                 }
             }
-            
+
             if let Some(cur) = current_code {
                 merged.push(cur);
             }
-            
+
             page.blocks = merged;
         }
         Ok(document)

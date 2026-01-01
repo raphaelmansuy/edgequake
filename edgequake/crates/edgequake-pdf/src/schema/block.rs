@@ -295,7 +295,11 @@ impl Block {
 
     /// Get the total number of blocks (including children).
     pub fn total_blocks(&self) -> usize {
-        1 + self.children.iter().map(|c| c.total_blocks()).sum::<usize>()
+        1 + self
+            .children
+            .iter()
+            .map(|c| c.total_blocks())
+            .sum::<usize>()
     }
 
     /// Recursively iterate over all blocks.
