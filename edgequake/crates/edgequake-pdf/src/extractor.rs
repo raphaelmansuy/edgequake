@@ -6,8 +6,6 @@ use tracing::info;
 use edgequake_llm::traits::LLMProvider;
 
 use crate::backend::mock::MockBackend;
-#[cfg(feature = "lopdf")]
-use crate::backend::sota_backend::SotaBackend;
 use crate::backend::PdfBackend;
 
 use crate::config::PdfConfig;
@@ -88,17 +86,9 @@ impl PdfExtractor {
     /// 1. SotaBackend (if lopdf feature enabled) - SOTA pure Rust with font analysis
     /// 2. MockBackend - empty documents, for testing only
     pub fn with_config(llm_provider: Arc<dyn LLMProvider>, config: PdfConfig) -> Self {
-        // Use SOTA backend if lopdf is enabled
-        #[cfg(feature = "lopdf")]
+        // Using MockBackend only - external backends (lopdf/pdfium) were removed.
         let backend = {
-            tracing::info!("Using SOTA backend for PDF extraction (pure Rust with font analysis)");
-            Box::new(SotaBackend::with_config(config.clone())) as Box<dyn PdfBackend>
-        };
-
-        // No lopdf - use mock backend
-        #[cfg(not(feature = "lopdf"))]
-        let backend = {
-            tracing::warn!("No PDF backend available, using MockBackend");
+            tracing::warn!("Using MockBackend for PDF extraction (external backends removed)");
             Box::new(MockBackend::new()) as Box<dyn PdfBackend>
         };
 

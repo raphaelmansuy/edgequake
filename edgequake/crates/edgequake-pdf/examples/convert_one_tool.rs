@@ -2,23 +2,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use edgequake_llm::providers::mock::MockProvider;
-use edgequake_llm::traits::LLMProvider;
-use edgequake_llm::OpenAIProvider;
+use std::sync::Arc;
 use edgequake_pdf::{PdfConfig, PdfExtractor};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Use OpenAI if OPENAI_API_KEY is set, otherwise fall back to mock
-    let provider: Arc<dyn LLMProvider> = match std::env::var("OPENAI_API_KEY") {
-        Ok(api_key) if !api_key.is_empty() => {
-            println!("Using OpenAI provider for AI-enhanced extraction");
-            Arc::new(OpenAIProvider::new(api_key).with_model("gpt-4o-mini"))
-        }
-        _ => {
-            println!("OPENAI_API_KEY not set - using mock provider (limited descriptions)");
-            Arc::new(MockProvider::new())
-        }
-    };
+    // OpenAI support removed from this example; use the MockProvider
+    let provider = Arc::new(MockProvider::new());
 
     // Configure to process first 2 pages for faster testing
     // Enable readability enhancement to fix word concatenation issues

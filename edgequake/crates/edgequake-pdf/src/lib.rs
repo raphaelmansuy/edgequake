@@ -75,9 +75,7 @@ pub use renderers::{JsonRenderer, MarkdownRenderer, MarkdownStyle, Renderer};
 // Re-export vision types
 pub use vision::{ImageFormat, PageImage, VisionCapable, VisionConfig, VisionExtractor};
 
-// Re-export pdfium backend (SOTA quality backend)
-#[cfg(feature = "pdfium")]
-pub use backend::pdfium::PdfiumBackend;
+// Pdfium backend removed from this crate. Use a separate optional crate if needed.
 
 /// Result type for PDF operations.
 pub type Result<T> = std::result::Result<T, PdfError>;
