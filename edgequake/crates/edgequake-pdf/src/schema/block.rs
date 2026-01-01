@@ -316,23 +316,48 @@ impl Block {
                 let other_starts_with_space =
                     other.text.starts_with(' ') || other.text.starts_with('\n');
 
-                // Check for hyphenation: if self ends with letter and other starts with lowercase letter,
-                // this is likely a hyphenated word that should be joined without space
-                let last_char = self.text.trim_end().chars().last();
+                // Check for explicit hyphenation (word split at line break with hyphen)
+                // e.g., "modifi-" + "cation" should become "modification"
+                let ends_with_hyphen = self.text.trim_end().ends_with('-');
                 let first_char = other.text.trim_start().chars().next();
-                let is_word_continuation = matches!(
-                    (last_char, first_char),
-                    (Some(c1), Some(c2)) if c1.is_alphabetic() && c2.is_lowercase()
-                );
-
-                if is_word_continuation {
-                    // Join word fragments directly without space
-                    // Also strip trailing space from self and leading space from other
-                    self.text = self.text.trim_end().to_string();
+                let starts_with_lowercase = matches!(first_char, Some(c) if c.is_lowercase());
+                
+                // Only join without space in these specific cases:
+                // 1. Explicit hyphenation: "word-" at end of line + lowercase continuation
+                // 2. Same visual line: blocks are horizontally adjacent (very small vertical gap)
+                let is_same_visual_line = (self.bbox.y2 - other.bbox.y1).abs() < 3.0 
+                    || (self.bbox.y1 - other.bbox.y1).abs() < 3.0;
+                let horizontal_gap = other.bbox.x1 - self.bbox.x2;
+                let is_close_horizontally = horizontal_gap < 20.0 && horizontal_gap > -5.0;
+                
+                if ends_with_hyphen && starts_with_lowercase {
+                    // Explicit hyphenation: remove hyphen and join
+                    self.text = self.text.trim_end_matches('-').trim_end().to_string();
                     self.text.push_str(other.text.trim_start());
+                } else if is_same_visual_line && is_close_horizontally {
+                    // Same line, close together - check if it's a word fragment
+                    // Only join without space if both conditions met AND looks like word fragment
+                    let last_char = self.text.trim_end().chars().last();
+                    let is_likely_word_fragment = matches!(
+                        (last_char, first_char),
+                        (Some(c1), Some(c2)) if c1.is_alphabetic() && c2.is_lowercase()
+                    ) && !self.text.trim_end().ends_with(' ');
+                    
+                    if is_likely_word_fragment {
+                        self.text = self.text.trim_end().to_string();
+                        self.text.push_str(other.text.trim_start());
+                    } else if !self_ends_with_space && !other_starts_with_space {
+                        self.text.push(' ');
+                        if !self.spans.is_empty() || !other.spans.is_empty() {
+                            self.spans.push(TextSpan::plain(" "));
+                        }
+                        self.text.push_str(&other.text);
+                    } else {
+                        self.text.push_str(&other.text);
+                    }
                 } else if !self_ends_with_space && !other_starts_with_space {
+                    // Default: add space between blocks
                     self.text.push(' ');
-                    // Add space span if we have spans
                     if !self.spans.is_empty() || !other.spans.is_empty() {
                         self.spans.push(TextSpan::plain(" "));
                     }

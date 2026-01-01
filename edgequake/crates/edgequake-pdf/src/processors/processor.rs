@@ -151,6 +151,23 @@ impl GarbledTextFilterProcessor {
             return false;
         }
 
+        // Filter very short isolated fragments (≤3 chars) that don't look like valid content
+        // e.g., ",w", "v", but not "1.", "a)", "I", "A"
+        if trimmed.len() <= 3 {
+            let is_valid_short = 
+                // Single uppercase letter (section marker)
+                (trimmed.len() == 1 && trimmed.chars().next().map(|c| c.is_uppercase()).unwrap_or(false))
+                // Number or numbered item
+                || trimmed.chars().all(|c| c.is_ascii_digit() || c == '.')
+                // Common single-letter words
+                || ["I", "a", "A"].contains(&trimmed);
+            
+            if !is_valid_short {
+                tracing::debug!("Filtering very short fragment: '{}'", trimmed);
+                return true;
+            }
+        }
+
         // Filter very short isolated fragments that look like figure labels
         // e.g., ",w", "v", "x u", "l i d"
         // But not valid short content like "1.", "a)", etc.
@@ -831,7 +848,12 @@ impl PostProcessor {
             }
         }
 
-        result.trim().to_string()
+        // Only trim if not a pure whitespace span (preserve space-only spans)
+        if result.chars().all(|c| c.is_whitespace()) {
+            result
+        } else {
+            result.trim().to_string()
+        }
     }
 
     /// Fix common OCR errors.
@@ -872,44 +894,19 @@ impl PostProcessor {
     }
 
     /// Fix concatenated words (e.g., "methodsThe" -> "methods The")
+    /// NOTE: This method only handles legitimate text patterns, not PDF extraction errors.
+    /// Word spacing issues must be fixed at the source (pdfium.rs character-level extraction).
     fn fix_concatenated_words(&self, text: &str) -> String {
         let mut result = text.to_string();
 
-        // Fix lowercase immediately followed by uppercase
+        // Fix lowercase immediately followed by uppercase (legit pattern: "methodsThe" -> "methods The")
         if let Ok(re) = Regex::new(r"([a-z])([A-Z][a-z])") {
             result = re.replace_all(&result, "$1 $2").to_string();
         }
 
-        // Fix "etal." -> "et al."
+        // Fix "etal." -> "et al." (standard academic citation)
         result = result.replace("etal.", "et al.");
         result = result.replace("etal,", "et al.,");
-
-        // Fix common academic paper patterns
-        let literal_fixes = [
-            ("ofthe", "of the"),
-            ("tothe", "to the"),
-            ("inthe", "in the"),
-            ("onthe", "on the"),
-            ("forthe", "for the"),
-            ("bythe", "by the"),
-            ("atthe", "at the"),
-            ("asthe", "as the"),
-            ("isthe", "is the"),
-            ("canbe", "can be"),
-            ("willbe", "will be"),
-            ("hasbeen", "has been"),
-            ("isused", "is used"),
-            ("areused", "are used"),
-            ("basedon", "based on"),
-            ("focuson", "focus on"),
-            ("resultin", "result in"),
-            ("leadto", "lead to"),
-            ("dueto", "due to"),
-        ];
-
-        for (from, to) in &literal_fixes {
-            result = result.replace(from, to);
-        }
 
         result
     }

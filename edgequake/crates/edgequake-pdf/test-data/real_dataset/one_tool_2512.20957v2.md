@@ -8,19 +8,15 @@
 
 ### Abstract
 
-Locating the files and functions requiring modification in large open-source software(OSS)repositories is challenging due to their scale and structural complexity.Existing large language model(LLM)-based methods typically treat this as arepository-level retrieval task and rely on multiple
+Locating the files and functions requiring modifi cation in large open-source software (OSS)repos itories is challenging due to their scale and struc tural complexity. Existing large language model (LLM)-based methods typically treat this as a repository-level retrieval task and rely on multiple
 
-*Figure 1.Illustration of a LLM navigating through a code reposi*
+*Figure 1. Illustration of a LLM navigating through a code reposi*
 
-,w
+tory. The LLM is equipped with a single yet powerful tool:jump, which is realized through a language server.
 
-v
+**epo av gator**, an sign reflects the actual flow of code execution
 
-tory.The LLM is equipped with a single yet powerful tool:j ump,which is realized through a language server.
-
-**epo av gator**,ana**single execution-aware tool**-jumping to thesign reflects the actual flow of code execution
-
-ries remains limited.SWE -BENCH(Jimenez et al.,2023)
+ries remains limited. SWE-BENCH(Jimenez et al., 2023)
 
 currently serves as the most comprehensive benchmark for
 
@@ -28,35 +24,35 @@ evaluating whether LLMs can resolve real-world GitHub is
 
 gator is**trained end-to-end via Reinforcement**
 
-sues.All pretrained LLMs can not process the whole repos
+sues. All pretrained LLMs can not process the whole repos
 
 **Learning(RL)**directly from a pretrained model,
 
-itory directly due to context limits.While SWE -AGENT
+itory directly due to context limits. While SWE-AGENT
 
-without any closed-source distillation.Experiments demonstrate that RL-trained RepoNaviga
+without any closed-source distillation. Experi ments demonstrate that RL-trained RepoNaviga
 
-(Jimenez et al.,2023)provides moderate gains,it remains
+(Jimenez et al., 2023)provides moderate gains,it remains
 
-tor achieves state-of-the-art performance,with the7B model outperforming 14B baselines,the 14B
+tor achieves state-of-the-art performance,with the 7B model outperforming 14B baselines,the 14B
 
 Most existing agents rely on test-time scaling applied di
 
-model surpassing 32B competitors,and even the
+model surpassing 32B competitors, and even the
 
 rectly to pretrained LLMs(Liu et al.,2023;Chen et al.,2025;
 
 32B model exceeding closed-source models such
 
-Schmidgall et al.,2025).In software engineering(SWE)
+Schmidgall et al., 2025). In software engineering (SWE)
 
-as Claude-3.7.These results confirm that integrat
+as Claude-3.7. These results confirm that integrat
 
 tasks,tool usage is essential rather than optional:real-world
 
-ing**a single,structurally grounded tool with**
+ing**a single, structurally grounded tool with**
 
-repositories are far larger than the context window of current
+repositories are far larger than the context window ofcurrent
 
 **RL training**provides an efficient and scalable
 
@@ -64,33 +60,33 @@ LLMs,making it impossible to process an entire codebase
 
 solution for repository-level issue localization.
 
-in a single forward pass.Agents must therefore iterativelyinvoke tools to retrieve partial information from the repos
+in a single forward pass. Agents must therefore iteratively invoke tools to retrieve partial information from the repos
 
 itory and interleave natural-language reasoning with tool
 
 calls.
 
-With the rapid advancement of Large Language Models However,mainstream LLMs are rarely exposed to such
+With the rapid advancement of Large Language Models However, mainstream LLMs are rarely exposed to such
 
-acquire tool usage only through few-shot prompting.Such
+agentic interaction patterns during pretraining and typically acquire tool usage only through few-shot prompting. Such
 
-equipping LLMs with pre-built tools to form LLM agentspabilities(Shen,2024;Yuan et al.,2024;Lu et al.,2024). plex multi-step tool-chaining behaviors,especially underIn the domain of software engineering(SWE),although limited context windows.Moreover,because tool definition
+equipping LLMs with pre-built tools to form LLM agents pabilities (Shen, 2024;Yuan et al., 2024;Lu et al., 2024). plex multi-step tool-chaining behaviors, especially under In the domain of software engineering (SWE), although limited context windows. Moreover,because tool definition
 
 spaces are effectively unbounded,pretrained models cannot
 
-LLM agents can effectively handle simple programmingtasks(Hui et al.,2024;Guo et al.,2024a),their ability to fully internalize their semantics without post-training.Tooperate on large-scale open-source software(OSS)reposito
+LLM agents can effectively handle simple programming tasks (Hui et al., 2024;Guo et al., 2024a), their ability to fully internalize their semantics without post-training. To
 
-mitigate these issues,post-training paradigms such as Supervised Finetuning(SFT)(Ma et al.,2025)and Reinforcement
+mitigate these issues,post-training paradigms such as Super vised Finetuning(SFT) (Ma et al.,2025)and Reinforcement
 
-1School of Computer Science, Peking University Learning with Verifiable Rewards(RLVR)(Yu et al.,2025a;
+1School of Computer Science, Peking University Learning with Verifiable Rewards (RLVR) (Yu et al., 2025a;
 
-2Zhonggduancui n A@cademi y. Correfspondence tof:@Ykitodng Yue et al.,2025)have been applied,with promising results
+2Zhonggduancuin A@cademi y. Correfspondence tof:@ Ykitodng Yue et al., 2025)have been applied, with promising results
 
-Dcnu*>*an*<*uany tong zgc .ac.cn*>*,Yun ang Wu*<*wuy p u.e u. in domains including retrieval agents(Jin et al.,2025),GUI.
+Dcnu*>*an*<*uany tong zgc .ac.cn*>*,Yun ang Wu*<*wuy p u.e u. in domains including retrieval agents (Jin et al., 2025), GUI .
 
-agents(Hong et al.,2024),and math agents(Yan et al.,
+agents (Hong et al., 2024), and math agents (Yan et al.,
 
-*Submitted to International Conference on Machine Learning*,2026. 2025).
+*SubmittedtoInternational Conference onMachineLearning*,2026. 2025).
 
 1
 
@@ -101,111 +97,115 @@ agents(Hong et al.,2024),and math agents(Yan et al.,
 
 **One Tool Is Enough:Reinforcement Learning for Repository-Level LLM Agents**
 
-Directly training an agent to fix software issues,however,
+Directly training an agent to fix software issues, however,
 
 any tools,most tools are out-of-domain(OOD)for LLMs.
 
-remains difficult.A single bug often admits multiple valid Even for the most powerful models,failures often happenpatches,making string-level evaluation unreliable.The
+remains difficult. A single bug often admits multiple valid Even for the most powerful models, failures often happen patches, making string-level evaluation unreliable. The
 
 when calling the new-defined tools due to wrong calling
 
-to master new-defined tool is critical for LLM agents.In
+to master new-defined tool is critical for LLM agents. In
 
-each repository(Luo et al.,2025),which is prohibitively
+each repository (Luo et al., 2025), which is prohibitively
 
 tuitively,the tool-calling trajectories can be generated by a
 
-expensive.To make training more tractable,we adopt a
+expensive. To make training more tractable, we adopt a
 
-more powerful LLM,and such trajectories can be used to
+more powerful LLM, and such trajectories can be used to
 
-**ization**.Prior work shows that a software issue becomes
+**ization**. Prior work shows that a software issue becomes
 
-et al.,2025).However,this pipeline requires a stronger
+et al., 2025). However, this pipeline requires a stronger
 
 substantially easier to resolve once the relevant functions
 
-teacher model which has capability to master the tool.Re
+teacher model which has capability to master the tool. Re
 
 and files are correctly identified(Chen et al.,2025;Ma et al.,
 
-cently,more methods have emerged with no teacher-model
+cently, more methods have emerged with no teacher-model
 
-2025;Xia et al.,2024;Jiang et al.,2025).Since modern
+2025;Xia et al., 2024;Jiang et al., 2025). Since modern
 
-required.Rejected-sampled finetuning(RFT)(Ahn et al.,
+required. Rejected-sampled finetuning (RFT) (Ahn et al.,
 
-OSS repositories contain a significant amount of code -far 2024)utilizes generated trajectories of the agent itself via
+OSS repositories contain a significant amount of code-far 2024)utilizes generated trajectories of the agent itself via
 
-multiple rollouts.Agentic RL(Jin et al.,2025)is an on
+multiple rollouts. Agentic RL (Jin et al., 2025) is an on
 
-cally reduces the search space and improves downstream policy RLVR methods requiring only the result for verifiyingsolvability.Crucially,localization outputs a discrete set
+cally reduces the search space and improves downstream policy RLVR methods requiring only the result for verifiying solvability. Crucially, localization outputs a discrete set
 
-trajectories.Such training methods yield remarkable results
+trajectories. Such training methods yield remarkable results
 
-ofpaths,enabling verifiable,string-level evaluation that is
-
-when the tools are search engines(Jin et al.,2025),python
+when the tools are search engines (Jin et al., 2025),python
 
 compatible with scalable training frameworks such as SFT
 
+executer(Jimenez et al., 2023), calculator(Yan et al., 2025),
+
+andRLVR.
+
 and visual models(Gupta&Kembhavi,2023).
 
-Existing localization agents(Ma et al.,2025;Chenet al.,2025;He et al.,2025)typically rely on multiple**2.2.Software Engineering Agents**
+Existing localization agents (Ma et al., 2025;Chen et al., 2025;He et al., 2025) typically rely on multiple**2.2.Software Engineering Agents**
 
-Get Impo rt s .Although effective to some extent,these
+tools,including SearchClass, SearchMethods, and The introduction of SWE-bench(Jimenez et al.,2023;Yang Get Import s. Although effective to some extent, these
 
-et al.,2024b)has motivated a range of agentic pipelines for
+et al., 2024b)has motivated a range of agentic pipelines for
 
-software engineering(SWE)tasks.Among them,SWE
+software engineering (SWE) tasks. Among them, SWE
 
-etc)of programing languages,which do not reflect how
+etc) of programing languages, which do not reflect how
 
 AGENT(Yang et al.,2024a)and OPENHANDS(Wang et al.,
 
-code actually executes.High-level abstractions,such as 2025a)are widely adopted frameworks that equip agents
+code actually executes. High-level abstractions, such as 2025a) are widely adopted frameworks that equip agents
 
 with tools for interacting with computing environments.
 
-ing only sequential execution and j ump operations.Since Workflow-based methods such as Agentless(Xia et al.,modern LLMs already excel at modeling sequential depen 2024)decompose issue resolution into localization,repair,dencies,we focus on enhancing their ability to j ump across
+ing only sequential execution and jump operations. Since Workflow-based methods such as Agentless (Xia et al., modern LLMs already excel at modeling sequential depen 2024) decompose issue resolution into localization,repair, dencies,we focus on enhancing their ability to jump across
+
+and validation subproblems. Chen et al. (2025)builds the re
+
+the repository-that is, to follow and inspect the source def
 
 spository as a graph and applied graph-level searching tools
 
-,
-
 .
 
-we introduce a single,structurally grounded tool:j ump, grated commit history as agent memory.RepoLens(Wangwhich retrieves the precise definition of a given symbol.
+we introduce a single, structurally grounded tool:jump, grated commit history as agent memory. RepoLens (Wang which retrieves the precise definition of a given symbol.
 
-et al.,2025b)equip conceptual information of the respos
+et al., 2025b) equip conceptual information of the respos
 
-Details of this tool are provided in Sec.3.3.
+Details of this tool are provided in Sec. 3.3.
 
-itory to enable repo-level understanding.These pipelinesare training-free,compatible with closed-source language
+itory to enable repo-level understanding. These pipelines are training-free, compatible with closed-source language
 
-Our main contributions are threefold:(1)We propose the
+Our main contributions are threefold: (1) We propose the
 
-models,and yield competitive results.
+models, and yield competitive results.
 
-first repo-level localization agent trained on reinforcementlearning directly from the pretrained model,regardless of To enable task-specific training,DEEPSWE(Luo et al.,distillation from a close-source model.(2)We design a 2025)and SWE -SWISS(He et al.,2025)employ reinforcerepository-navigation agent that operates by performing
+first repo-level localization agent trained on reinforcement learning directly from the pretrained model, regardless of To enable task-specific training, DEEPSWE (Luo et al., distillation from a close-source model. (2) We design a 2025) and SWE-SWISS(He et al., 2025) employ reinforce repository-navigation agent that operates by performing
 
-ment learning and achieve strong performance.However,
+ment learning and achieve strong performance. However,
 
-realistic j ump operations aligned with actual execution se
+realistic jump operations aligned with actual execution se
 
 end-to-end training remains costly because patch evaluation
 
-mantics.(3)We demonstrate that one unified tool signifi
+mantics. (3) We demonstrate that one unified tool signifi
 
 requires executing Docker environments across numerous
 
 cantly improves efficiency and controllability compared to
 
-repositories.Consequently,issue localization has emerged
+repositories. Consequently,issue localization has emerged
 
 multi-tool pipelines.
 
-as a computationally efficient alternative,aiming to identifyfaulty components -at file or function level -rather than
+as a computationally efficient alternative, aiming to identify faulty components-at file or function level-rather than
 
 ### 2.Related Works
 
@@ -213,21 +213,19 @@ generating full patches.
 
 **2.1.Agentic Training**
 
-Recent localization agents include LOCAGENT(Chen et al.,2025)and COSIL(Jiang et al.,2025),which model code
+Recent localization agents include LOCAGENT(Chen et al.,
+
+                          2025) and COSIL (Jiang et al., 2025), which model code
 
 LLM agents are promising methods to equip models with bases as graphs and integrates them into LLMs, and
 
-.,
+2024;Guo et al.,2024b). However,because most pretrained
 
-,
-
-2024;Guo et al.,2024b).However,because most pretrained
-
-through priority scheduling,action decomposition,and
+through priority scheduling, action decomposition, and
 
 LLMs are trained on texts only and developers can define
 
-context pruning.From an open-source perspective,RE
+context pruning. From an open-source perspective, RE 
 
 2
 
@@ -238,71 +236,61 @@ context pruning.From an open-source perspective,RE
 
 **One Tool Is Enough:Reinforcement Learning for Repository-Level LLM Agents**
 
-*Figure 2.Overview of our Repo Navigator.During the rollout phrase,the agent can call the j ump tool,and the language server will return*
+*Figure 2. Overview of our Repo Navigator. During the rollout phrase,the agent can call the jump tool, and the language server will return*
 
-the definition code of the symbol.This process is trained by reinforcement learning.
+the definition code of the symbol. This process is trained by reinforcement learning.
 
-POSEARCHER(Ma et al.,2025),trained with distillation**3.1.Problem Formulation**
+POSEARCHER(Ma et al., 2025), trained with distillation**3.1.Problem Formulation**
 
-and Rt Lblon tdhe Qwen mtodel family(Team,2024),represents Given a repository*R*=*{f*1*, . . .,f**N**}*and an issue de
+and Rt Lblon tdhe Qwen mtodel family(Team,2024),represents Given a repository*R*=*{f*1*, . . . ,f**N**}*and an issue de
 
 a no a e a vancemen .
 
-scription*q*,the goal is to output relevant code regions
+scription*q*, the goal is to output relevant code regions
 
-Nevertheless,prior agents overlook the structural relations*Y**∗*=*{*(*f**i**,g**i j*)*}*,where*g**i j*denotes a function or code
+Nevertheless,prior agents overlook the structural relations*Y**∗*=*{*(*f**i**,g**i j*)*}*, where*g**i j*denotes a function or code
 
-span in file*f**i*.At each step*t*,the agent produces a optional
+span in file*f**i*. At each step*t*,the agent produces a optional
 
-*,*
+are cross-referenced across files-and typically rely on mul
 
-*,*
+reasoning step*r**t*, a tool call*a**t*, and receives the observation
 
-are cross-referenced across files -and typically rely on mul
+tiple search tools for symbol definition retrieval, amplifying
 
-reasoning step*r**t*,a tool call*a**t*,and receives the observation
+*o**t*, forming a trajectory*τ*=*{*(*r**t**,a**t**,o**t*)*}**tT*=1. After termi
 
-tiple search tools for symbol definition retrieval,amplifying
+error propagation(see Sec. 3). In contrast, we employ a sin
 
-*o**t*,forming a trajectory*τ*=*{*(*r**t**,a**t**,o**t*)*}**tT*=1.After termi
+nation, a final prediction*Y*is scored by a reward*R*(*Y,Y**∗*).
 
-error propagation(see Sec.3).In contrast,we employ a sin
+gle execution-logic-focused tool,reducing usage complexity. The objective is max*θ*E*τ∼π**θ*[*R*(*τ*)]. Finally, our approach constitutes the first localization agent distillation-based supervised finetuning, a crucial stage in
 
-ˆ
+tool orchestration overhead. At each step the policy*π**θ*
 
-ˆ
+et al., 2025).
 
-nation,a final prediction*Y*is scored by a reward*R*(*Y,Y**∗*) .
-
-gle execution-logic-focused tool,reducing usage complexity. The objective is max*θ*E*τ ∼π**θ*[*R*(*τ*)] .Finally,our approach constitutes the first localization agentdistillation-based supervised finetuning,a crucial stage in
-
-tool orchestration overhead.At each step the policy*π**θ*
-
-et al.,2025).
-
-decides whether to continue reasoning or to emit a JSONformatted tool call,while a symbol and its corresponding
+decides whether to continue reasoning or to emit a JSON formatted tool call, while a symbol and its corresponding
 
 ### 3.Method
 
-file are parsed to the tool.The agent receives structured ob
+file are parsed to the tool. The agent receives structured ob
 
-We present**RepoNavigator**,a reinforcement-learning agent
+We present**RepoNavigator**, a reinforcement-learning agent
 
-servations(code snippets or error messages),then continuesreasoning until termination.The loop is*reason → act →*
+servations (code snippets or error messages),then continues reasoning until termination. The loop is*reason → act →*
 
-for repository-level issue localization.The method consists of three components:(1)a unified tool to retrieve the
+for repository-level issue localization. The method con sists of three components: (1) a unified tool to retrieve the
 
 *observe*.
 
-definition of any symbols in a given file,(2)a reasoning -action agent loop that alternates between natural-language**3.3.Jump:Symbol Resolution**
+definition of any symbols in a given file, (2) a reasoning- action agent loop that alternates between natural-language**3.3.Jump:Symbol Resolution**
 
-reasoning and tool invocation,and(3)a GRPO-based RL Language servers resolve the definition of a Python symboljectories.Below we provide the formal problem setting andthe detailed method.
+reasoning and tool invocation, and(3) a GRPO-based RL Language servers resolve the definition of a Python symbol jectories. Below we provide the formal problem setting and the detailed method.
 
-symbol occurrence*s*at source location*ℓ*,Pyright computesa resolution mapping
+symbol occurrence*s*at source location*ℓ*, Pyright computes a resolution mapping
 
-*R*(*s,ℓ*)*→{*(*f**i**,p**i*)*},*
-
-(1)
+*R*(*s, ℓ*)*→ {*(*f**i**, p**i*)*},*
 
 3
 
@@ -313,31 +301,27 @@ symbol occurrence*s*at source location*ℓ*,Pyright computesa resolution mapping
 
 **One Tool Is Enough:Reinforcement Learning for Repository-Level LLM Agents**
 
-practice,we use fi l e path and symbol to resolve*ℓ*.Ifwe have multiple symbols with the same name exist in thetsoaomlewchoidcehsanlilpopwest,fworeaacdcduirtaitoenraellsyolpuatirosen aonf*ℓ*i nde x to the
+practice, we use file path and symbol to resolve*ℓ*. If tsoaomlewchoidcehsanlilpopwest,fworeaacdcduirtaitoenraellsyolpuatirosen aonf*ℓ*index to the
 
-*L*GRPO(*θ*) =E(*s**t**a**t*)*∼π**θ**π**θ*(*a*(*t**|s|**t*))*A*ˆ*t*
-
-,
+*L*GRPO(*θ*) = E(*s**t**a**t*)*∼π**θ**π**θ*(*a*(*t**|s|**t*))*A*ˆ*t*
 
 .
 
-*,*
-
 old*π**θ*old*a**t**s**t*
 
-*− β D*KL(*π**θ*old(*·|s**t*)*∥ π**θ*(*·|s**t*))](3)
+*− β D*KL(*π**θ*old(*· |s**t*)*∥ π**θ*(*· |s**t*))] (3)
 
-**Syntactic Analysis**In this process,the source file isrole of*s*(e.g.,name,attribute access,or call expression)
+**Syntactic Analysis**In this process, the source file is role of*s*(e.g., name, attribute access, or call expression)
 
-where the first term is the standard policy gradient objectivewith an estimated advantage function*A**t*,which promotes
+where the first term is the standard policy gradient objective with an estimated advantage function*A**t*,which promotes
 
-ˆexpressions*a.b*,Pyright treats*a*as a receiver expression
+determines the subsequent resolution strategy. For attribute expressions*a.b*, Pyright treats*a*as a receiver expression
 
-actions that lead to higher-than-expected returns.The sec
+actions that lead to higher-than-expected returns. The sec
 
 whose type must be inferred prior to member lookup.
 
-ond term is a Kullback-Leibler(KL)divergence penalty,scaled by a coefficient*β*,which acts as a trust region,pre
+ond term is a Kullback-Leibler (KL) divergence penalty, scaled by a coefficient*β*, which acts as a trust region,pre
 
 **Lexical Scope Resolution**For a name symbol*x*,candi
 
@@ -347,75 +331,63 @@ date definitions are searched along a scope chain
 
 *S*=*{*local*,*enclosing*,*module*,*builtins*},*
 
-(2)
-
 maximization with behavioral consistency.
 
-following Python 's LEGB rule.Each scope maintains a The reward of GRPO process is calculated as:symbol table mapping identifiers to defining AST nodes.
+following Python's LEGB rule. Each scope maintains a The reward of GRPO process is calculated as: symbol table mapping identifiers to defining AST nodes.
 
-ˆ
+*R*(*Y,Y**∗**,τ*) = DICE(*Y,Y**∗*) +S(*τ*)
 
-ˆ
+**Static T**(**ype**i**I**b**n**l**feren**i**ce**.l Fodr)attrib*T*ut(e s)yfmbohls, it ciom Dice is a common metric for set-level comparison, for set
 
-*R*(*Y,Y**∗**,τ*) =DICE(*Y,Y**∗*)+S(*τ*)
+putes a poss y un on-va ue type*a*or t e rece ver*Y*ˆ and set*Y**∗*
 
-(4)
+expression*a*using type annotations, assignment flow analy sis, function return types, and stub files (.pyi). Member
 
-**Static T**(**ype**i**I**b**n**l**feren**i**ce**.l Fodr)attrib*T*ut(e s)yfmbohls,it ciom Dice is a common metric for set-level comparison,for setsis,function return types,and stub files( .pyi).Member
-
-(*Y*ˆ*Y**∗*) 2*×|Y*ˆ*∩ Y**∗**|*
-
-()
+(*Y*ˆ*Y**∗*) 2*× |Y*ˆ*∩ Y**∗**|*
 
 5
 
 resolution is then defined as
 
-=
+*|Y|*+*|Y**∗**|*
 
-ˆ*|Y|*+*|Y**∗**|*
-
-resolve(*a.b*) =[lookup(*b,*MRO(*t*))*,*
-
-and*S*(*τ*)is the success rate of tool-calling extracted from
+and*S*(*τ*) is the success rate of tool-calling extracted from
 
 *t∈T*(*a*)
 
-*τ*.We consider the tool-call to be failed when the format
+*τ*. We consider the tool-call to be failed when the format
 
-*t*.
+**Import Dependency Graph**For cross-file resolution,im**4. Experiment**
 
-**Import Dependency Graph**For cross-file resolution,im**4.Experiment**
+port dependency graph that statically emulates Python's module loading semantics is built. Import statements intro**4.1.Experimnent Setup**
 
-port dependency graph that statically emulates Python 'smodule loading semantics is built.Import statements intro**4.1.Experimnent Setup**
+of target modules,including re-exports and all -based (Yang et al., 2025b) to form the training set. We apply filtering. Resolution may therefore traverse multiple mod Qwen2.5-7B-Instruct with RepoNavigator to sample each
 
-of target modules,including re-exports and al l -based (Yang et al.,2025b)to form the training set.We applyfiltering.Resolution may therefore traverse multiple mod Qwen2.5 -7B -Instruct with RepoNavigator to sample each
-
-data for 16 times.A sample is abandoned if all 16 scores
+data for 16 times. A sample is abandoned if all 16 scores
 
 **3.4.Reasoning-Action Loop**
 
-verified(Jimenez et al.,2023),which is a human-verifiedsubset of SWE-bench.We additionally test our method on
+verified (Jimenez et al., 2023), which is a human-verified subset of SWE-bench. We additionally test our method on
 
-Given history*h**t*=(*q,o*1:*t −*1*,a*1:*t −*1),the agent samples
+Given history*h**t*= (*q,o*1:*t−*1*,a*1:*t−*1), the agent samples
 
-either a natural-language reasoning step*r**t**∼ π**θ*(*·|h**t*)or a
+either a natural-language reasoning step*r**t**∼ π**θ*(*·|h**t*) or a
 
-structured tool call*a**t**∼ π**θ*(*·|h**t*) .Tool calls must satisfy is a new and more difficult benchmark)for generalization.
+structured tool call*a**t**∼ π**θ*(*·|h**t*). Tool calls must satisfy is a new and more difficult benchmark) for generalization.
 
-a JSON grammar enforced via constrained decoding.The For ground-truth locations,we directly use the locations in
+a JSON grammar enforced via constrained decoding. The For ground-truth locations, we directly use the locations in
 
-**M**20**e**2**t**5**r**)**ics**lPi rdeviousllwordks(Chi ein et al.,20i25;Ma et al.,
+**M**20**e**2**t**5**r**)**ics**lPirdeviousllwordks (Chiein et al., 20i25;Ma et al.,
 
 **3.5.Reinforcement Learning**
 
-app e reca an prec s on as metr cs.However,
+app e reca an prec s on as metr cs. However,
 
-We apply reinforcement learning with verifiable rewards because the predicted locations and ground-truth locationsto train the agent directly from the pretrained model,with
+We apply reinforcement learning with verifiable rewards because the predicted locations and ground-truth locations to train the agent directly from the pretrained model, with
 
-are sets of strings,recall and precision singularly can not
+are sets of strings, recall and precision singularly can not
 
-reflect the performance fairly.Thus,we utilize Sample-F1
+reflect the performance fairly. Thus, we utilize Sample-F1
 
 4
 
@@ -426,9 +398,9 @@ reflect the performance fairly.Thus,we utilize Sample-F1
 
 **One Tool Is Enough:Reinforcement Learning for Repository-Level LLM Agents**
 
-*Table 1.Comparison of different agent pipelines on function-level and file-level Dice/IoU metrics.We use Qwen2.5 -Instruct series as*
+*Table 1. Comparison of different agent pipelines on function-level and file-level Dice/IoU metrics. We use Qwen2.5-Instruct series as*
 
-our base model.**Bold numbers**denote the best performance among same-size models;underline numbers denote the best trainingfree performance among same-size models;yellow background illustrates training-free RepoNavigator;blue background illustratesRepoNavigator trained with GRPO.
+our base model.**Bold numbers**denote the best performance among same-size models;underline numbers denote the best training free performance among same-size models;yellow background illustrates training-free RepoNavigator;blue background illustrates RepoNavigator trained with GRPO.
 
 **Function-level**
 
@@ -472,13 +444,13 @@ RepoNavigator Claude3.7-Sonnet 31.03
 
 RepoNavigator
 
-GPT5 -chat
+GPT5-chat
 
 30.42
 
 34.56
 
-31.17
+3 1.17
 
 29.67 58.17 61.87
 
@@ -486,7 +458,7 @@ GPT5 -chat
 
 57.33
 
-RepoNavigator Claude4.5 -Sonnet 43.97
+RepoNavigator Claude4.5-Sonnet 43.97
 
 **45.76**
 
@@ -506,9 +478,9 @@ Training Free
 
 17.62
 
-1 1.71
+1 1.7 1
 
-12.71
+12.7 1
 
 10.31 60.96
 
@@ -544,7 +516,7 @@ Training Free
 
 12.93
 
-15.31
+15.3 1
 
 1 1.74 63.01
 
@@ -628,7 +600,7 @@ Training Free
 
 13.32
 
-17.71
+17.7 1
 
 12.32 71.42
 
@@ -646,11 +618,11 @@ Training Free
 
 13.40
 
-19.81
+19.8 1
 
 12.12**78.35**
 
-18.10
+1 8.10
 
 28.79
 
@@ -706,7 +678,7 @@ Training Free
 
 28.79
 
-18.15
+1 8.15
 
 RepoNavigator
 
@@ -860,27 +832,25 @@ GRPO
 
 **65.75**
 
-(which is the averaged score of per-sample F1 values)and
+(which is the averaged score of per-sample F1 values) and
 
 to 128 on 4k training samples filtered from SWE-smith,
 
-IoU(intersection out of union)as our core metrics.At the
+IoU (intersection out of union) as our core metrics. At the
 
 with maximum prompt length and max response length
 
-each sample,and the temperature is set to 1.0 to encourage
+each sample, and the temperature is set to 1.0 to encourage
 
-the methods ' performance fairly.
+the methods' performance fairly.
 
-exploration.We use greedy decoding in the inference stage
+exploration. We use greedy decoding in the inference stage
 
-**Training**For the 7B model,we conduct GRPO with 8
+**Training**For the 7B model, we conduct GRPO with 8
 
 are provided in Appendix.B.
 
-Tesla-A100-80G GPUs.For the 14B and 32B model,wetrain it with 16 Tesla-A100-80G GPUs.We apply verl**4.2.Effectiveness**
-
-((SKhen,20t24l)a2s0th2e3t)rainitnhg firafmework,andi weWapplty viLLthM**Baselines**We compare our method against Locagentmodel for 1 epoch,while the training batch size is fixed (Chen et al.,2025),CoSIL(Jiang et al.,2025),Agent
+Tesla-A100-80G GPUs. For the 14B and 32B model, we ((SKhen,20t24l)a2s0th2e3t)rainitnhg firafmework,andi weWapplty viLLthM**Baselines**We compare our method against Locagent model for 1 epoch, while the training batch size is fixed (Chen et al., 2025), CoSIL (Jiang et al., 2025), Agent
 
 5
 
@@ -891,9 +861,9 @@ Tesla-A100-80G GPUs.For the 14B and 32B model,wetrain it with 16 Tesla-A100-80G 
 
 **One Tool Is Enough:Reinforcement Learning for Repository-Level LLM Agents**
 
-*Table 2.Comparison of different agent pipelines on function-level and file-level metrics on SWE-bench Pro for generalization.Bold*
+*Table 2. Comparison of different agent pipelines on function-level and file-level metrics on SWE-bench Pro for generalization. Bold*
 
-**numbers**denote the best performance among same-size models;underline numbers denote the best training-free performance amongsame-size models;yellow background illustrates training-free RepoNavigator;blue background illustrates RepoNavigator trained withGRPO.
+**numbers**denote the best performance among same-size models;underline numbers denote the best training-free performance among same-size models;yellow background illustrates training-free RepoNavigator;blue background illustrates RepoNavigator trained with GRPO.
 
 **Function-level**
 
@@ -919,7 +889,7 @@ Training Free 1.01
 
 0.17
 
-10.81
+10.8 1
 
 8.93
 
@@ -949,7 +919,7 @@ Training Free**12.82**
 
 5.73**39.41**
 
-13.15
+1 3.15
 
 18.89
 
@@ -1027,7 +997,7 @@ Training Free 10.73
 
 9.97
 
-14.81
+14.8 1
 
 9.30
 
@@ -1137,7 +1107,7 @@ Training Free 1 1.08
 
 20.07
 
-13.1 1
+1 3.1 1
 
 RepoSearcher Training Free 2.00
 
@@ -1145,7 +1115,7 @@ RepoSearcher Training Free 2.00
 
 1.45
 
-1.00 13.51
+1.00 1 3.5 1
 
 3.43
 
@@ -1179,19 +1149,23 @@ GRPO
 
 **52.44**
 
-baseline methods are presented in Appendix.A.
+baseline methods are presented in Appendix. A.
 
-**Results**As illustrated in Table.1,on balanced metrics(S -F1 and IoU)for both function-level and file-level localization,our method surpasses all baseline methods withwith GRPO,our 7B model surpasses 14B baselines,and our14B model surpasses 32B baselines on S -F1 and IoU.Thiscontributes to the validness of RepoNavigator furthermore.Although some baselines have higher recall score significantly lower precision score than RepoNavigator,and resultbehaves more conservatively and generates less wrong locSaOtiToAns.For 14Bllandi3i2B mf odels,RhepdoNTavhiigaitor alichievhes
+**Results**As illustrated in Table. 1, on balanced metrics (S-F1 and IoU)for both function-level and file-level local ization, our method surpasses all baseline methods with with GRPO, our 7B model surpasses 14B baselines, and our
+
+14B model surpasses 32B baselines on S-F1 and IoU. This Although some baselines have higher recall score signifi cantly lower precision score than RepoNavigator, and result behaves more conservatively and generates less wrong lo cSaOtiToAns. For 14Bllandi3i2B mf odels,RhepdoNTavhiigaitor alichievhes
 
 *Figure 3.Ablation study:comparison between Repo Navigator*
 
-with training free,RFT,GRPO with pure outcome and hybrid
+among a tra n ng- ree met o s.
 
-single tool pipeline is better than previous multiple toolspipelines.
+with training free, RFT, GRPO with pure outcome and hybrid
 
-less(Xia et al.,2024),Orcaloca(Yu et al.,2025b),and Compared with RepoSearcher,which is distilled fromRepoSearcher(Ma et al.,2025).Detailed explaination of
+single tool pipeline is better than previous multiple tools pipelines.
 
-claude-3.7-sonnet(Anthropic,2025)and reinforced by
+less (Xia et al., 2024), Orcaloca (Yu et al., 2025b), and Compared with RepoSearcher, which is distilled from RepoSearcher (Ma et al., 2025). Detailed explaination of
+
+claude-3.7-sonnet (Anthropic, 2025) and reinforced by
 
 6
 
@@ -1216,7 +1190,7 @@ LocAgent
 
 2.65
 
-13.01
+1 3.01
 
 RepoNavigator
 
@@ -1230,87 +1204,71 @@ RepoNavigator+RL
 
 15.03
 
-*Table 3.We use Qwen2.5 -14B -Instruct as the localization model,*
+*Table 3.We use Qwen2.5-14B-Instruct as the localization model,*
 
-and use Qwen2.5 -32B -Instruct as the repair model on SWEbench Verified.
+and use Qwen2.5-32B-Instruct as the repair model on SWE bench Verified.
 
-**4.4.Scaling Law of Tool-Calling**
+**4.4.Scaling Law ofTool-Calling**
 
-*Figure 4.Scaling law of tool-calling,where Pre and Post denote To assess the significance of tool-calling in Repo Navigator*
-
-,
+*Figure 4. Scaling law of tool-calling,where Pre and Post denote To assess the significance of tool-calling in Repo Navigator*
 
 the corresponding metric before and after the RL training.
 
-we varied the maximum number of tool-calling turns anding more tool-calling turns consistently leads to improved
+we varied the maximum number of tool-calling turns and ing more tool-calling turns consistently leads to improved
 
-GRPO,trained RepoNavigator outperforms it on all metriperformance for RepoNavigator,both before and after reces except recall.Moreover,we found that our training-free inforcement learning(RL)training.In other words,thesemethod outperforms RepoSearcher for 14B models.This is
+GRPO,trained RepoNavigator outperforms it on all metriperformance for RepoNavigator, both before and after re ces except recall. Moreover, we found that our training-free inforcement learning (RL) training. In other words, these
 
 results empirically validate the scaling law of tool-calling
 
-probably due to the simplified tool we integrate to the agent in this context(see Sec.5 for more details).
+probably due to the simplified tool we integrate to the agent in this context (see Sec. 5 for more details).
 
 .
 
-To assess the generalizability of RepoNavigator,we present**4.5.Influence on Issue Resolution**
+To assess the generalizability of RepoNavigator, we present**4.5.Influence on Issue Resolution**
 
-its performance on Python samples from the SWE-bench To evaluate the impact of different localization results onPro dataset(Yang et al.,2025b)in Table 2.The results
+its performance on Python samples from the SWE-bench To evaluate the impact of different localization results on Pro dataset (Yang et al., 2025b) in Table 2. The results
 
 the final issue resolution performance we test RepoNaviga
 
-on this dataset are consistent with those observed on SWEtor against baselines on SWE-bench Verified.We directly
+on this dataset are consistent with those observed on SWEtor against baselines on SWE-bench Verified. We directly bench Verified. While we cannot fully exclude the potential
 
-,
+apply the repairing phrase of Agentless while replacing its make a stronger claim regarding SWE-bench Pro, as it was
 
-bench Verified.While we cannot fully exclude the potential
-
-apply the repairing phrase of Agentless while replacing itsmake a stronger claim regarding SWE-bench Pro,as it was
-
-trates the results.Compared with baselines,RepoNavigator
+trates the results. Compared with baselines, RepoNavigator
 
 released after the publication of the Qwen2.5 series.
 
-has the highest performance on issue resolution,while reinforcement learning improves its performance furthermore.
+has the highest performance on issue resolution, while rein forcement learning improves its performance furthermore.
 
 **4.3.Training Strategy Comparison**
 
-To explore the capability of GRPO on agentic training,we**5.Discussion:Building Less yet More Capable**
+To explore the capability of GRPO on agentic training,we**5. Discussion:Building Less yet More Capable**
 
 ### Tools
 
-sented in Fig.3,directly training with GRPO outperformesRFT-only and RFT+GRPO.Moreover,although RFT has ac In this section,we analyze the logic behind RepoNavigacetable performance,the more steps RFT proceeds,the less
+sented in Fig. 3, directly training with GRPO outperformes RFT-only and RFT+GRPO.Moreover,although RFT has ac In this section, we analyze the logic behind RepoNaviga cetable performance, the more steps RFT proceeds, the less
 
 tor:building less tools with more powerful and more en
 
-improvement GRPO makes after the cold start.This conclu
+improvement GRPO makes after the cold start. This conclu
 
-sembled functions is more effective than building multipletask-specific tools.
+sembled functions is more effective than building multiple task-specific tools.
 
-sion contradicts with previous SWE agents trained with RL(Ma et al.,2025),however,it aligns with the broader field ofis effective only when the pretrained model is not strong Let the total number of available tools be denoted as*k*.
+sion contradicts with previous SWE agents trained with RL (Ma et al., 2025),however,it aligns with the broader field of enoug
 
-h(G
+uohet ad.,d ia h.i h en tlie prdeitra nle mioie s When only a single tool-specifically the jump tool-is re
 
-l 2024)Wh h
+strodngl eniohuRgLainb ata hs g i-qiua tyf, SreFcTt y(RtFraT)n ngi a
 
-enoug
+tained, the system's structural relations become simpler, as
 
-uohet ad.,d ia h.i h en tlie prdeitra nle mioie s When only a single tool -specifically the j ump tool -is re
-
-strodngl eni ohuRgL ainb ata hs g i-qiua tyf,SreFcTt y(RtFraT)n ngi a
-
-tained,the system 's structural relations become simpler,as
-
-i
-
-cold start.
-
-to what this tool can access.In this case,the set of possible
+to what this tool can access. In this case, the set of possible
 
 We also remove the success rate in the reward function for
 
 actions and observable elements is smaller than when multi
 
-ablation.As presented in Fig.3,reinforcement learning with ple tools are available.This reduction is generally beneficial,hybrid reward(with tool-calling success rate)has higher
+ablation. As presented in Fig. 3,reinforcement learning with ple tools are available. This reduction is generally beneficial, hybrid reward (with tool-calling success rate) has higher
 
 since additional tools often introduce new and unfamiliar
 
@@ -1331,95 +1289,45 @@ of errors.
 
 **One Tool Is Enough:Reinforcement Learning for Repository-Level LLM Agents**
 
-### Jump GetClass GetFunc GetStruc IoU✓
+### Jump GetClass GetFunc GetStruc IoU
 
-### ✓
-
-### ✓
-
-### ✓
-
-### 13.71
-
-### ✓
-
-### ✓
-
-### ✓
-
-### ✗
-
-### 21.44
-
-### ✓
-
-### ✗
-
-### ✗
-
-### ✓
-
-### 24.00
-
-### ✓
-
-### ✗
-
-### ✗
-
-### ✗
-
-### 24.28
+### 1 3.7 1 21.44 24.00 24.28
 
 *Table 4.We change the tool set of Repo Navigator and present*
 
-the function-level IoU(%)on Qwen2.5 -7B -Instruct.Apparently,excessive tools do not boost RepoNavigator 's performance.
+the function-level IoU(%) on Qwen2.5-7B-Instruct. Apparently, excessive tools do not boost RepoNavigator's performance.
 
-mantically activated by that entry point.Because every
+mantically activated by that entry point. Because every
 
-*Figure 5.Venn graph illustrating access scope of j ump.Compared pendency path originating from the entry point,it is nec*
+*Figure 5.Venn graph illustrating access scope of jump. Compared pendency path originating from the entry point, it is nec*
 
 essarily reachable through this recursive symbol-reference
 
-with the repository scope,the access scope has a much higher IoU
+with the repository scope, the access scope has a much higher IoU
 
-expansion.Therefore,the final access scope produced by
+expansion. Therefore, the final access scope produced by
 
 with the groundtruth set.
 
-exhaustive j ump traversal is guaranteed to contain all locations that must be modified to resolve the issue.
+exhaustive jump traversal is guaranteed to contain all loca tions that must be modified to resolve the issue.
 
 **5.2.Impact on Tool-Calling Success Rate**
 
 **5.4.Verification**
 
-For a given process in issue localization(for instance,checking the code snippet of a function),let the success probabil To further verify this proposal,we change the tool set oftool invocations,the overall success rate can be expressed
+For a given process in issue localization(for instance,check ing the code snippet of a function), let the success probabil To further verify this proposal, we change the tool set of tool invocations,the overall success rate can be expressed
 
-come reward.We add excessive tools which were frequently
-
-as
-
-used in previous works(Chen et al.,2025;Ma et al.,2025;
-
-*k*
-
-Jiang et al.,2025)and present the result in Table.4.*Get*
+come reward. We add excessive tools which were frequently used in previous works (Chen et al., 2025;Ma et al., 2025; Jiang et al., 2025) and present the result in Table. 4.*Get*
 
 (6)*Class/GetFunc*takes a class/function name as input and
 
-*i*=1
+Since each step introduces an additional potential point of put and outputs the repository's structure. The results clearly failure, the cumulative success rate typically decreases as implies that additional tools do not increase model's perfor mance. This inspires researchers to develop**less but more**
 
-outputs the class/function definition.*GetStruc*takes no in
-
-Since each step introduces an additional potential point of put and outputs the repository 's structure.The results clearlyfailure,the cumulative success rate typically decreases as implies that additional tools do not increase model 's performance.This inspires researchers to develop**less but more**
-
-**capable tools**.
-
-general,completing a task with a single,more versatile toolscope tools executed in sequence.
+general, completing a task with a single, more versatile tool scope tools executed in sequence.
 
 ### 6.Conclusion
 
-Iln thlisi workl,weliintrioduced RephoNdavigatorf,a reposiitoiry
+Iln thlisi workl, weliintrioduced RephoNdavigatorf, a reposiitoiry
 
 **5.3.Impact on the Prediction Space**
 
@@ -1427,29 +1335,29 @@ The access scope of a tool is defined as the complete set of
 
 multi-tool paradigms by leveraging a single,more-capable
 
-files,symbols,and other resources that the tool can access j ump tool for symbol resolution.This unified design faithwithin a repository.For a j ump tool that navigates to symfully reflects real code execution flow while significantlybol definitions,its access scope can be obtained by starting
+files, symbols, and other resources that the tool can access jump tool for symbol resolution. This unified design faith within a repository. For a jump tool that navigates to symfully reflects real code execution flow while significantly bol definitions, its access scope can be obtained by starting
 
 reducing the complexity and brittleness of multi-step tool
 
-chaining.Through tool-integrated GRPO,RepoNavigator
+chaining. Through tool-integrated GRPO,RepoNavigator
 
-erenced symbols until no new definitions can be reached. learns to reason,invoke tools,and refine its predictions in aApparently,its access scope is significantly smaller than the
+erenced symbols until no new definitions can be reached. learns to reason,invoke tools, and refine its predictions in a Apparently, its access scope is significantly smaller than the
 
-closed-loop manner,enabling end-to-end optimization with
+closed-loop manner, enabling end-to-end optimization with
 
-full repository scope.Consequently,when computing the
+full repository scope. Consequently, when computing the
 
 out relying on closed-source teacher models or distillation.
 
-Intdershection ovder Uhnion(IoiU)bhetwjeen the plredictlioni set Extensive experiments across SWE-bench-Verified and
+Intdershection ovder Uhnion (IoiU) bhetwjeen the plredictlioni set Extensive experiments across SWE-bench-Verified and
 
--fenhc -rol emlionsitrate t fat epo aWv gathor ac i evlel s
+-fenhc - rol emlionsitrate t fat epo aWv gathor ac i evlels
 
-hiplying multiple repo-level retrivel tools results in the accessWhen we start from the entry point and repeatedly apply
+higher IoU, as depicted in Fig. 5. On the other hand, ap plying multiple repo-level retrivel tools results in the access When we start from the entry point and repeatedly apply
 
 stronger robustness and more reliable multi-step reason
 
-j ump -which retrieves the definition of each referenced ing than previous frameworks relying on multiple narrowlysymbol -we effectively traverse all symbols that are se
+jump-which retrieves the definition of each referenced ing than previous frameworks relying on multiple narrowly symbol-we effectively traverse all symbols that are se
 
 scoped tools.
 
@@ -1462,15 +1370,15 @@ scoped tools.
 
 **One Tool Is Enough:Reinforcement Learning for Repository-Level LLM Agents**
 
-Our findings highlight the importance of aligning agent tool**References**
+Our findings highlight the importance ofaligning agent tool**References**
 
-ing wiith reallexecutiioin structurel,aknd bshow ithlat eifficient Ahn,J.,Verma,R.,Lou,R.,Liu,D.,Zhang,R.,and Yin,W.
+ing wiith reallexecutiioin structurel, aknd bshow ithlat eifficient Ahn,J., Verma, R.,Lou, R.,Liu, D.,Zhang, R., and Yin,W.
 
 rfeason dnig-too icod-tra n ng can un ocd slu sFtant a ga nks eveilnl
 
 Large language models for mathematical reasoning:Pro
 
-or lme um-sdize RopenN-souirce mfo e sP.huture wor w
+or lme um-sdize RopenN-souirce mfo e sP. huture wor w
 
 gresses and challenges.*arXivpreprint arXiv:2402.00157*,
 
@@ -1484,13 +1392,15 @@ Anthropic.
 
 Claude 3.7 sonnet and claude code.
 
-http s://www .anth ropi c .c om/news/
+https://www.anthropic.com/news/ claude-3-7-sonnet, February 2025.
 
 data:
 
-2025 -1 1 -18.Chen,Z.,Tang,R.,Deng,G.,Wu,F.,Wu,J.,Jiang,Z.,Prasanna,V.,Cohan,A.,and Wang,X.LocAgent:Graphguided LLM agents for code localization.In Che,W.,Nabende,J.,Shutova,E.,and Pilehvar,M.T.(eds.),*Pro**ceedings ofthe 63rdAnnual Meeting ofthe Association**for Computational Linguistics(Volume 1:Long Papers)*,pp.8697 -8727,Vienna,Austria,July 2025.Associationfor Computational Linguistics.ISBN 979-8 -89176-251 -0.doi:10.18653/v1/2025.acl-long.426.URL http s:
+2025-1 1-1 8. Chen, Z., Tang, R., Deng, G., Wu, F., Wu, J., Jiang, Z., Prasanna,V.,Cohan,A.,and Wang,X. LocAgent:Graph guided LLM agents for code localization. In Che, W., Nabende,J., Shutova,E., and Pilehvar,M. T. (eds.),*Pro* *ceedings ofthe 63rdAnnual Meeting ofthe Association* *for Computational Linguistics(Volume 1:Long Papers)*, pp. 8697-8727,Vienna,Austria,July 2025. Association for Computational Linguistics. ISBN 979-8-89176-251-
 
-Guo,D.,Zhu,Q.,Yang,D.,Xie,Z.,Dong,K.,Zhang,W.,Chen,G.,Bi,X.,Wu,Y.,Li,Y.,et al.Deepseek-coder:When the large language model meets*arXiv:2401.14196*,2024a.Guo,T.,Chen,X.,Wang,Y.,Chang,R.,Pei,S.,Chawla,N.V.,Wiest,O.,and Zhang,X.Large language model*arXiv preprint arXiv:2402.01680*,2024b.Gupta,T.and Kembhavi,A.Visual programming:Compositional visual reasoning without training.In*Proceedings**ofthe IEEE/CVF conference on computer vision andpat**tern recognition*,pp.14953 -14962,2023.He,Z.,Yang,Q.,Sheng,W.,Zhong,X.,Zhang,K.,An,C.,Shi,W.,Cai,T.,He,D.,Chen,J.,and Xu,J.Swe-swiss:Amulti-task fine-tuning and rl recipe for high-performanceissue resolution.https://github.com/zhenyuhe00/SWESwiss,2025.Notion Blog.Hong,W.,Wang,W.,Lv,Q.,Xu,J.,Yu,W.,Ji,J.,Wang,Y.,Wang,Z.,Dong,Y.,Ding,M.,et al.Cogagent:A visual*IEEE/CVF Conference on Computer Vision and Pattern**Recognition*,pp.14281 -14290,2024.Huang,X.,Liu,W.,Chen,X.,Wang,X.,Wang,H.,Lian,D.,Wang,Y.,Tang,R.,and Chen,E.Understandingthe planning of llm agents:A survey.*arXiv preprint**arXiv:2402.02716*,2024.Hui,B.,Yang,J.,Cui,Z.,Yang,J.,Liu,D.,Zhang,L.,Liu,T.,Zhang,J.,Yu,B.,Lu,K.,et al.Qwen2.5 -codertechnical report.*arXiv preprint arXiv:2409.12186*,2024.
+                          0. doi:10.18653/v1/2025.acl-long.426. URL https:
+
+//aclanthology.org/2 025.acl-long.42 6/. Guo, D., Zhu, Q., Yang, D., Xie, Z., Dong, K., Zhang, W., Chen, G., Bi, X., Wu, Y., Li, Y., et al. Deepseek-coder:When the large language model meets programming-the rise ofcode intelligence.*arXivpreprint* *arXiv:2401.14196*,2024a. Guo, T., Chen, X., Wang, Y., Chang, R., Pei, S., Chawla, N. V., Wiest, O., and Zhang, X. Large language model *arXivpreprint arXiv:2402.01680*,2024b. Gupta,T. and Kembhavi,A. Visual programming:Compo sitional visual reasoning without training. In*Proceedings* *ofthe IEEE/CVF conference on computer vision andpat* *tern recognition*,pp. 14953-14962,2023. He,Z.,Yang,Q.,Sheng,W.,Zhong,X.,Zhang,K.,An,C., Shi,W., Cai, T., He,D., Chen,J., and Xu,J. Swe-swiss:A multi-task fine-tuning and rl recipe for high-performance issue resolution. https://github.com/zhenyuhe00/SWE Swiss,2025. Notion Blog. Hong, W., Wang, W., Lv, Q., Xu, J., Yu, W., Ji, J., Wang, Y., Wang,Z.,Dong, Y.,Ding,M., et al. Cogagent:A visual *IEEE/CVF Conference on Computer Vision andPattern* *Recognition*,pp. 14281-14290,2024. Huang, X., Liu, W., Chen, X., Wang, X., Wang, H., Lian, D., Wang, Y., Tang, R., and Chen, E. Understanding the planning of llm agents:A survey.*arXiv preprint* *arXiv:2402.02716*,2024. Hui, B., Yang, J., Cui, Z., Yang, J., Liu, D., Zhang, L., Liu,T.,Zhang,J., Yu,B.,Lu, K., et al. Qwen2. 5-coder technical report.*arXivpreprint arXiv:2409.12186*, 2024.
 
 9
 
@@ -1501,9 +1411,9 @@ Guo,D.,Zhu,Q.,Yang,D.,Xie,Z.,Dong,K.,Zhang,W.,Chen,G.,Bi,X.,Wu,Y.,Li,Y.,et al.De
 
 **One Tool Is Enough:Reinforcement Learning for Repository-Level LLM Agents**
 
-Jiang,Z.,Ren,X.,Yan,M.,Jiang,W.,Li,Y.,and Schmidgall,S.,Su,Y.,Wang,Z.,Sun,X.,Wu,J.,Yu,X.,Liu,Z. Cosil:Software issue localization via llm
+Jiang, Z., Ren, X., Yan, M., Jiang, W., Li, Y., and Schmidgall, S., Su, Y., Wang, Z., Sun, X., Wu, J., Yu, X., Liu, Z. Cosil:Software issue localization via llm
 
-Liu,J.,Moor,M.,Liu,Z.,and Barsoum,E.Agent lab
+Liu, J., Moor, M., Liu, Z., and Barsoum, E. Agent lab
 
 driven code repository graph searching.*arXiv preprint*
 
@@ -1513,99 +1423,101 @@ oratory:Using llm agents as research assistants.*arXiv*
 
 *preprint arXiv:2501.04227*,2025.
 
-Jimenez,C.E.,Yang,J.,Wettig,A.,Yao,S.,Pei,K.,Press, Shen Z Llm with tools:A survey*arXiv preprint*
+Jimenez, C. E., Yang,J.,Wettig, A., Yao, S., Pei, K., Press, Shen Z Llm with tools:A survey*arXiv preprint*
 
 .
 
-O.,and Narasimhan,K.Swe-bench:Can language mod
+O.,and Narasimhan,K. Swe-bench:Can language mod
 
 *arXiv:2409.18807*,2024.
 
-els resolve real-world github issues?*arXiv preprint**arXiv:2310.06770*,2023.
+els resolve real-world github issues?*arXiv preprint* *arXiv:2310.06770*,2023.
 
-Team,Q. Qwen2 technical report.*arXiv preprint**arXiv:2407.10671*,2024.
+Team, Q. Qwen2 technical report.*arXiv preprint* *arXiv:2407.10671*,2024.
 
-Jin,B.,Zeng,H.,Yue,Z.,Yoon,J.,Arik,S.,Wang,D.,Zamani,Hd.l,and Han,J.hSearich-r1:iThrainiinfg llms to Wang,X.,Li,B.,Song,Y.,Xu,F.F.,Tang,X.,Zhuge,
+Jin, B., Zeng, H., Yue, Z., Yoon, J., Arik, S., Wang, D., Zamani, Hd.l, and Han, J. hSearich-r1:iThrainiinfg llms to Wang, X., Li, B., Song, Y., Xu, F. F., Tang, X., Zhuge,
 
 rleasoin an everage searc eng*2*n*0*e*3*s*0*w*9*t*16*re2n02o5rcement
 
-M.,Pan,J.,Song,Y.,Li,B.,Singh,J.,Tran,H.H.,
+M., Pan, J., Song, Y., Li, B., Singh, J., Tran, H. H.,
 
-earn ng.*arXiv preprint arXiv:5. 5*,
+earn ng.*arXivpreprint arXiv:5. 5*,
 
-Li,F.,Ma,R.,Zheng,M.,Qian,B.,Shao,Y.,Muen
+Li, F., Ma, R., Zheng, M., Qian, B., Shao, Y., Muen
 
 .
 
-Kwon,W.,Li,Z.,Zhuang,S.,Sheng,Y.,Zheng,L.,Yu,
+Kwon, W., Li, Z., Zhuang, S., Sheng, Y., Zheng, L., Yu,
 
-nighoff,N.,Zhang,Y.,Hui,B.,Lin,J.,Brennan,R.,
+nighoff, N., Zhang, Y., Hui, B., Lin, J., Brennan, R.,
 
-C.H.,Gonzalez,J.E.,Zhang,H.,and Stoica,I.Efficient
+C. H., Gonzalez,J. E.,Zhang, H., and Stoica, I. Efficient
 
-Peng,H.,Ji,H.,and Neubig,G. Openhands:An
+Peng, H., Ji, H., and Neubig, G. Openhands:An
 
 memory management for large language model serving
 
 open platform for AI software developers as general
 
-with pagedattention.In*Proceedings ofthe ACM SIGOPS*
+with pagedattention. In*Proceedings ofthe ACM SIGOPS*
 
-ist agents.In*The Thirteenth International Conference**on Learning Representations*,2025a. URL http s:
+ist agents. In*The Thirteenth International Conference* *on Learning Representations*, 2025a. URL https:
 
 *29th Symposium on Operating Systems Principles*,2023.
 
-//ope n revi ew .net/fo rum?id=OJd3 ayDD oF.
+//openreview.net/forum?id=OJd3ayDDoF.
 
-Langley,P.Crafting papers on machine learning.In Langley,P.(ed.),*Proceedings ofthe 17th International Conference*Wang,Y.,Mao,W.,Wang,C.,Zhou,Z.,Zhou,Y.,Zhao,W.,*on Machine Learning(ICML 2000)*,pp.1207 -1216,Stan
+Langley,P. Crafting papers on machine learning. In Langley, P. (ed.),*Proceedings ofthe 17th International Conference*Wang,Y.,Mao,W.,Wang, C.,Zhou,Z.,Zhou,Y.,Zhao,W., *on Machine Learning(ICML 2000)*,pp. 1207-1216,Stan
 
 Lou,Y.,and Peng,X.Extracting conceptual knowledge to
 
 ford,CA,2000.Morgan Kaufmann.
 
-locate software issues.*arXivpreprint arXiv:2509.21427*,2025b.
+locate software issues.*arXivpreprint arXiv:2509.21427*, 2025b.
 
-Li,Y.,Wen,H.,Wang,W.,Li,X.,Yuan,Y.,Liu,G.,Liu,
+Li, Y., Wen, H., Wang, W., Li, X., Yuan, Y., Liu, G., Liu,
+
+ang, . gent ess:e
+
+ns gits an*Xi*survey a*i*out*X*t*i*e*2*c*4*ap*0*a*1 054*ty*5*,*9*e 20c2e4ncy an
 
 bili ffi i
-
-d
 
 mystifying llm-based software engineering agents.*arXiv*
 
 *.*
 
-,
-
 .
 
 *preprint arXiv:2407.01489*,2024.
 
-Liu,A.,Feng,B.,Xue,B.,Wang,B.,Wu,B.,Lu,C.,Zhao,.,
+Liu,A.,Feng, B.,Xue,B.,Wang,B.,Wu,B.,Lu, C.,Zhao,
 
 .
 
 Mathagent:Leveraging a mixture-of-math-agent frame
 
-technical report.*arXiv preprint arXiv:2412.19437*,2024.
+technical report.*arXivpreprint arXiv:2412.19437*, 2024.
 
-work for real-world multimodal mathematical error detection*arXiv preprint arXiv:2503 18132*2025
+work for real-world multimodal mathematical error de
+
+Liu, Z., Zhang, Y., Li, P., Liu, Y., and Yang, D. Dy
+
+tection*arXivpreprint arXiv:2503 18132*2025
 
 .
 
 *.*
 
-,
-
 .
 
-namic llm-agent network:An llm-agent collaborationframework with agent team optimization.*arXiv preprint*Yang,A.,Li,A.,Yang,B.,Zhang,B.,Hui,B.,Zheng,B.,*arXiv:2310.02170*,2023.
+namic llm-agent network:An llm-agent collaboration framework with agent team optimization.*arXivpreprint*Yang, A., Li, A., Yang, B., Zhang, B., Hui, B., Zheng, B., *arXiv:2310.02170*,2023.
 
-Yu,B.,Gao,C.,Huang,C.,Lv,C.,et al.Qwen3 technicalreport.*arXiv preprint arXiv:2505.09388*,2025a.
+Yu,B., Gao,C.,Huang,C.,Lv,C.,et al. Qwen3 technical report.*arXivpreprint arXiv:2505.09388*, 2025a.
 
-Lu,J.,Holleis,T.,Zhang,Y.,Aumayer,B.,Nan,F.,Bai,box:A stateful,conversational,interactive evaluation
+Lu, J., Holleis, T., Zhang, Y., Aumayer, B., Nan, F., Bai, F., Ma, S., Ma, S., Li, M., Yin, G., et al. Toolsand Y J Ji box:A stateful, conversational, interactive evaluation
 
-Narasimhan,K.R.,and Press,O.SWE-agent:Agent
+Narasimhan, K. R., and Press, O. SWE-agent:Agent
 
 benchmark for llm tool use capabilities.*arXiv preprint*
 
@@ -1613,33 +1525,33 @@ computer interfaces enable automated software engi
 
 *arXiv:2408.04682*,2024.
 
-neering.In*The Thirty-eighth Annual Conference on**Neural Information Processing Systems*,2024a.URL
+neering. In*The Thirty-eighth Annual Conference on* *Neural Information Processing Systems*, 2024a. URL
 
-Luo,M.,Jain,N.,Singh,J.,Tan,S.,Patel,A.,Wu,Q.,Ariyak,A.,Cai,C.,Tarun Venkat,S.Z.,Athiwaratkun,
+Luo, M., Jain, N., Singh, J., Tan, S., Patel, A., Wu, Q., Ariyak, A., Cai, C., Tarun Venkat, S. Z., Athiwaratkun,
 
-http s://a rxiv .o rg/ab s/2 4 0 5.1 5 7 93.
+https : //arxiv.org/abs/2 4 0 5. 1 5 7 93.
 
-B.,Roongta,M.,Zhang,C.,Li,L.E.,Popa,R.A.,
+B., Roongta, M., Zhang, C., Li, L. E., Popa, R. A.,
 
-Yang,J.,Jimenez,C.E.,Zhang,A.L.,Lieret,K.,Yang,
+Yang, J., Jimenez, C. E., Zhang, A. L., Lieret, K., Yang,
 
 Sen K and Stoica I Deepswe:Training a state
 
-J.,Wu,X.,Press,O.,Muennighoff,N.,Synnaeve,G.,
+J., Wu, X., Press, O., Muennighoff, N., Synnaeve, G.,
 
-of-the-art coding agent from scratch by scaling rl.Narasimhan,K.R.,et al.Swe-bench multimodal:Do ai
+of-the-art coding agent from scratch by scaling rl. https://pretty-radio-b75.notion.site/ DeepSWE-Training-a-Fully-Open-sourced-Statsey-stoemf-stghenee-rAalrizte-tCoovdisiunagl-soAftgweanrte-dbomy-aiSncs?al*a*i*r*n*X*g*iv*-RL-222 81 902c14 681 93aabbe9a8c5 9bbe33,
 
-2025.Notion Blog.
+  2025. Notion Blog.
 
 *preprint arXiv:2410.03859*,2024b.
 
-Ma,Z.,Peng,C.,Zeng,Q.,Gao,P.,Zou,Y.,and Xie, Yang,J.,Lieret,K.,Jimenez,C.E.,Wettig,A.,Khandpur,B.Tool-integrated reinforcement learning for repo deep
+Ma, Z., Peng, C., Zeng, Q., Gao, P., Zou, Y., and Xie, Yang,J.,Lieret, K.,Jimenez, C. E.,Wettig,A., Khandpur, B. Tool-integrated reinforcement learning for repo deep
 
-K.,Zhang,Y.,Hui,B.,Press,O.,Schmidt,L.,and Yang,
+K.,Zhang, Y.,Hui,B.,Press, O., Schmidt,L., and Yang,
 
-search,2025. URL http s://a rxiv .o rg/ab s/
+search, 2025. URL https://arxiv.org/abs/
 
-D.Swe-smith:Scaling data for software engineeringagents.*arXiv preprint arXiv:2504.21798*,2025b.
+D. Swe-smith:Scaling data for software engineering agents.*arXivpreprint arXiv:2504.21798*, 2025b.
 
 10
 
@@ -1650,43 +1562,35 @@ D.Swe-smith:Scaling data for software engineeringagents.*arXiv preprint arXiv:25
 
 **One Tool Is Enough:Reinforcement Learning for Repository-Level LLM Agents**
 
-Yu,Q.,Zhang,Z.,Zhu,R.,Yuan,Y.,Zuo,X.,Yue,Y.,Dai,**A.Detailed Illustration of Baselines**
+Yu,Q.,Zhang,Z.,Zhu,R.,Yuan,Y.,Zuo,X.,Yue,Y.,Dai,**A. Detailed Illustration of Baselines**
 
-W.,Fan,T.,Liu,G.,Liu,L.,et al.Dapo:An open-sourcellm reinforcement learning system at scale.*arXivpreprint***Agentless**Agentless(Xia et al.,2024)is a workflow for*arXiv:2503.14476*,2025a.Yu,Z.,Zhang,H.,Zhao,Y.,Huang,H.,Yao,M.,Ding, tected.Third,precise locations for edit are given by LLMsK.,and Zhao,J.Orcaloca:An llm agent framework based on the classes and functions.for software issue localization,2025b.URL http s://a rxiv .o rg/ab s/2 5 0 2.0 0 3 5 0.
+W., Fan, T., Liu, G., Liu, L., et al. Dapo:An open-source llm reinforcement learning system at scale.*arXivpreprint***Agentless**Agentless (Xia et al., 2024) is a workflow for *arXiv:2503.14476*,2025a. Yu, Z., Zhang, H., Zhao, Y., Huang, H., Yao, M., Ding, tected. Third,precise locations for edit are given by LLMs K., and Zhao, J. Orcaloca:An llm agent framework based on the classes and functions. for software issue localization, 2025b. URL https:
 
-Li,D.,and Yang,D.Easytool:Enhancing llm-basedagents with concise tool instruction.*arXiv preprint**arXiv:2401 06201*2024
-
-,
+Li, D., and Yang, D. Easytool:Enhancing llm-based agents with concise tool instruction.*arXiv preprint* *arXiv:2401 06201*2024
 
 *.*
 
 .
 
-Yue,Y.,Yuan,Y.,Yu,Q.,Zuo,X.,Zhu,R.,Xu,W.,Chen,J.,Wang,C.,Fan,T.,Du,Z.,et al.Vapo:Efficient and**LocAgent**LocAgent(Chen et al.,2025)is almost a fullyreliable reinforcement learning for advanced reasoningtasks.*arXiv preprint arXiv:2504.05118*,2025.
+Yue,Y.,Yuan,Y.,Yu,Q.,Zuo,X.,Zhu,R.,Xu,W.,Chen, J., Wang, C., Fan, T., Du, Z., et al. Vapo:Efficient and**LocAgent**LocAgent(Chen et al., 2025)is almost a fully reliable reinforcement learning for advanced reasoning tasks.*arXivpreprint arXiv:2504.05118*, 2025.
 
-issue localization.First,it identifies suspicious files in therepository.Second,relevant classes and functions are de
+issue localization. First, it identifies suspicious files in the repository. Second, relevant classes and functions are de
 
-**CoSIL**CoSIL(Jiang et al.,2025)is an agent which firstefve docla z(a lon.f o ti y)ndamica tyh cons rulc s lca grahpi s
+**CoSIL**CoSIL(Jiang et al., 2025)is an agent which first
 
 the searching scope.
 
-automatic LLM agent besides its planning prompt concatenated into the context at the beginning of the searchingprocess.It builds the whole repository into a direct heterogeneous graph,whose nodes are files,classes,and functions.Additionally,edges are built by dependencies such as imports and invocations.Multiple graph-level searching tools
+automatic LLM agent besides its planning prompt concate nated into the context at the beginning of the searching process. It builds the whole repository into a direct hetero geneous graph,whose nodes are files,classes, and functions. Additionally, edges are built by dependencies such as im ports and invocations. Multiple graph-level searching tools
 
-**RepoSearcher**RepoSearcher(Ma et al.,2025)is an agentlevel localization,which aligns with CoSIL.RepoSearcherintroduced the first training framework*ToolTrain*for localization agents,which is composed of distilling from aclose-source model(Claude3.7-Sonnet in RepoSeacher)aswarmup and reinforcement learning to further enhance theperformance.
+**RepoSearcher**RepoSearcher(Ma et al.,2025)is an agent level localization, which aligns with CoSIL. RepoSearcher introduced the first training framework*ToolTrain*for lo calization agents, which is composed of distilling from a close-source model(Claude3.7-Sonnet in RepoSeacher) as performance.
 
-**Ours**Compared with all baselines,we are the first fullyautomatic LLM agent,with no fixed workflow and no planetary prompt,and we are the first method trained directlyfrom pretrained open-source LLMs without a close-sourceteacher model.Lastly,we only integrate a single yet powerful tool to the agent,which reduces compounding error and
+**Ours**Compared with all baselines, we are the first fully automatic LLM agent,with no fixed workflow and no plan etary prompt, and we are the first method trained directly from pretrained open-source LLMs without a close-source teacher model. Lastly, we only integrate a single yet power ful tool to the agent, which reduces compounding error and
 
 ### B.Experimental Details
 
-**Hyperparameters**We set clip ratio low to 0.2,clip ratio high to 0.8,learning rate to 10*−*6, training batch size to 128,training temperature to 1.0,maximumtool-calling times to 12,and max response length to 10240.
+**Hyperparameters**We set clip ratio low to 0.2, clip ratio high to 0.8, learning rate to 10*−*6, train ing batch size to 128,training temperature to 1.0, maximum tool-calling times to 12, and max response length to 10240.
 
-**Metrics**Given the set of predicted locations(ether fileˆtions*Y**∗*,the aforementioned metrics are calculated as:
-
-ˆ
-
-Recall =*|Y ∩ Y**∗**|*
-
-(7)
+**Metrics**Given the set of predicted locations (ether file level or function-level)*Y*, and the set of groundtruth loca tions*Y**∗*,the aforementioned metrics are calculated as:
 
 *|Y**∗**|*
 
@@ -1701,16 +1605,6 @@ Jump GetClass GetFunc GetStruc Recall Precision F1
 
 IoU Recall Precision F1
 
-IoU
-
-✓
-
-✓
-
-✓
-
-✓
-
 14.28
 
 15.44
@@ -1719,27 +1613,11 @@ IoU
 
 36.76 35.59 34.55
 
-✓
-
-✓
-
-✓
-
-✗
-
 22.60
 
 25.02 22.80 21.44 48.49
 
 50.13 48.52 47.17
-
-✓
-
-✗
-
-✗
-
-✓
 
 24.64
 
@@ -1747,65 +1625,43 @@ IoU
 
 55.76 53.68 52.69
 
-✓
-
-✗
-
-✗
-
-✗
-
 **25.11**
 
 **29.16 25.75 24.28 55.81**
 
 **58.71 56.32 54.89**
 
-*Table 5.We change the tool set of Repo Navigator and present the function-level IoU.Because the j ump tool is already powerful enough*
+*Table 5.We change the tool set of Repo Navigator and present the function-level IoU. Because the jump tool is already powerful enough*
 
-for localization,excessive tools do not increase its performance.
+for localization, excessive tools do not increase its performance.
 
 Precision=*|Y|∩Y*ˆ*Y|**∗**|*
 
-ˆ
+rmepanocseitoorfyt-healnadngduyangaemsiecrvimerp, oasrtistscafunndcetigornaadleitythreelpieersfoonr static analysis techniques such as abstract syntax trees and
 
-rmepanocseitoorfyt-healnadngduyangaemsiecrvimerp,oasrtistscafunndcetigornaadleitythreelpieersfoonr
+IoU*|Y ∩ Y**∗**|*
 
-(8)
+(10) Nevertheless, in our empirical evaluation, we did not ob
 
-static analysis techniques such as abstract syntax trees and
+*|Y∪Y**∗**|*
 
-ˆ
+serve any instances of monkey patching or dynamic imports
 
-(9)
+In practice,when the prediction set*Y*is empty(for instance, total failure), we set recall,precision, sample-F1, and IoU different methods and apply the patch generation backend**Groundtruth Retrieval**A limitation of our work lies in solved(%) denotes the percentage of samples that pass all locations directly from the gold patch in the datasets, test units after applying the patch.
 
-returns an error message indicating that the definition of the
+which may ignore other patches that also resolve the issue. Our evaluation metrics do not take these correct alternatives
 
-ˆ
-
-(10) Nevertheless,in our empirical evaluation,we did not ob
-
-=ˆ
-
-In practice,when the prediction set*Y*is empty(for instance,
-
-ˆdifferent methods and apply the patch generation backend**Groundtruth Retrieval**A limitation of our work lies insolved(%)denotes the percentage of samples that pass all locations directly from the gold pat ch in the datasets,test units after applying the patch.
-
-which may ignore other patches that also resolve the issue.Our evaluation metrics do not take these correct alternatives
-
-**Implementation**When the response exceeds the maxiinto consideration.However,using golden patches is acmum length,we clip and force the agent to stop,and we give
+**Implementation**When the response exceeds the maxiinto consideration. However, using golden patches is ac mum length,we clip and force the agent to stop,and we give
 
 ceptable when comparing mutliple methods If a method
 
 .
 
-reveals golden locations(locations in golden patches),it
+reveals golden locations (locations in golden patches), it
 
-tool-calling times(which is 12),we add**"You must not call**
+tool-calling times (which is 12),we add**"You must not call**
 
 undoubtedly contributes to the resolution of the issue and
-
-,
 
 the result in Table 3 demonstrates this claim
 
@@ -1813,39 +1669,33 @@ the result in Table 3 demonstrates this claim
 
 .
 
-tool 's response.Most of the time,the agent will stop callingmum tool-calling times is not achieved and the final answer
+tool's response. Most of the time,the agent will stop calling mum tool-calling times is not achieved and the final answer
 
-ate Python repositories in our experiments.This is because
+ate Python repositories in our experiments. This is because
 
-each language(C/C++,Java,etc.)has its unique language
+each language(C/C++,Java, etc.) has its unique language
 
 aforementioned process is an automatic agentic framework,
 
-server,and we only succeed in implementing the language
+server, and we only succeed in implementing the language
 
 which allows the agent to explore in the environments with
 
-server ofpython.We will implement more language servers
+server of python. We will implement more language servers
 
-and validate our approach on more programing languagesin the future.
+and validate our approach on more programing languages in the future.
 
-**Preventing Data Leakage**It is a widespread concerndataset was published in 2025,while the Qwen2.5 series gator on*astropy astropy-12907*from SWE-bench Verified.were published in 2024.Moreover,we exclude the samples We apply the default tool-calling prompt template of verl
-
-,
+**Preventing Data Leakage**It is a widespread concern dataset was published in 2025, while the Qwen2.5 series gator on*astropy astropy-12907*from SWE-bench Verified. were published in 2024. Moreover,we exclude the samples We apply the default tool-calling prompt template of verl
 
 .
 
-,
-
 bench Verified or SWE-bench Pro.
 
-present any process restrictions in our prompt,encouraging RepoNavigator to plan,call tools,and make decisions
+present any process restrictions in our prompt, encourag ing RepoNavigator to plan, call tools, and make decisions
 
-**Language Server**In practice,we apply a Python lanfull-automatically.This is distinct with Agentless(whichguage server to extract the definition code corresponding has a fixed workflow),LocAgent(which predefines a speto an invoked symbol within a repository.However,the
+**Language Server**In practice, we apply a Python lanfull-automatically. This is distinct with Agentless (which guage server to extract the definition code corresponding has a fixed workflow), LocAgent(which predefines a spe to an invoked symbol within a repository. However, the
 
-cific step-by-step workflow in its system prompt),CoSIL
-
-presence of monkey patches -runtime modifications to the
+cific step-by-step workflow in its system prompt), CoSIL
 
 and RepoSearcher(which is half-automatic because some
 
@@ -1871,24 +1721,24 @@ multi-turns tool-calling conversations).
 
 Prompt
 
-[sy st em]
+[system] You are Qwen, created by Alibaba Cloud. You are a helpful assistant.
 
-{"type": "fun ct i on", "fun ct i on":{"name": "che ck", "de s c ript i on": "I n the
+# Tools
 
-_
+You may call one or more functions to assist with the user query.
 
-_
+You are provided with function signatures within <tools></tools> XML tags: <tools> {"type" : "function", "function" : {"name" : "check", "description" : "In the For instance, in the first turn, file path is the entry point of. ",
 
-"type": "st ri ng"}}, "requi red": ["symbol", "fi l e_path"], "type": "obj e ct"}}}
+definition code will be given to the agent. ", "type" : "string"}, "file path" : {"description" : "The relevant path to the file where the symbol is referred. ",
 
-_
+</tools>
 
-_
+For each function call, return a j son object with function name and arguments within <tool_call></tool_call> XML tags: <tool call> {"name" : <function-name>, "arguments" : <args-j son-object>} </tool call> [user] You are given a codebase and an issue, you need to locate the files and You can call the tool to check the definition code of a symbol. You can only The ' file path' is the relevant path of where the symbol is called, NOT where it is defined! For instance, if ' classA.functionB' is what you want to check (which is called
 
-_
+This is the issue: [Problem Statement]
 
-rel evant/path/t o/fi l e 1.py::fun c_name 1,rel evant/path/t o/fi l e2.py::fun c_name2,
+The entry file of the code base is: [Relevant Path To Entry Point] [Entry Point]
 
-{' name ':' che ck ', ' a rgume nt s ':{' symbol ':' symbol _t o_be_che cked ', ' fi l e_path ':
+Your final answer should be all functions that should be modified, such as: relevant/path/to/file1.py: :func_name1,relevant/path/to/file2.py: :func_name2, . . . (a series of file: :function pairs seperated by comma) Please put your final answer inside \boxed{ } only in the last turn. You can only call the tool once each turn. For instance: {' name' :' check' , ' arguments ' : {' symbol' :' symbol_to_be_checked' , ' file_path' :
 
 14

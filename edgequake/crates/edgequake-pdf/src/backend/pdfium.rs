@@ -245,8 +245,20 @@ impl PdfiumBackend {
                 let mut min_y = f32::MAX;
                 let mut max_y = f32::MIN;
 
-                // Find max height in part for reference
-                let _max_h = part.iter().map(|c| c.height).fold(0.0f32, |a, b| a.max(b));
+                // Calculate median character width for this line segment
+                // This provides a stable reference for gap thresholds
+                let mut char_widths: Vec<f32> = part
+                    .iter()
+                    .map(|c| (c.right - c.left).abs())
+                    .filter(|w| *w > 0.5) // Filter out zero-width or very thin characters
+                    .collect();
+                char_widths.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                let median_char_width = if char_widths.is_empty() {
+                    5.0 // Default fallback
+                } else {
+                    char_widths[char_widths.len() / 2]
+                };
+
 
                 for char_data in &part {
                     min_x = min_x.min(char_data.left);
@@ -318,14 +330,20 @@ impl PdfiumBackend {
                             && !curr_char.is_ascii_punctuation()
                             && !curr_char.is_whitespace();
 
+                        // Use median character width as the reference for gap thresholds
+                        // This is more stable than using individual character heights which vary wildly
+                        // (e.g., 'j' has height 8.97 while 'u' has height 3.87 in the same word)
                         let threshold = if is_number_dot || is_opening_punct {
                             f32::MAX // Never add space after opening punctuation or number+dot
                         } else if is_code {
-                            char_data.height * 0.8 // Larger gap for monospace
+                            median_char_width * 0.6 // Larger gap for monospace
                         } else if curr_is_punct || prev_is_punct {
-                            char_data.height * 1.5 // Require VERY large gap for punctuation
+                            median_char_width * 0.8 // Require larger gap for punctuation
                         } else {
-                            char_data.height * 0.3 // Standard gap for text (balanced threshold)
+                            // Standard gap threshold: 50% of median character width
+                            // This is more forgiving than using height, which causes issues
+                            // with descenders (j, p, g) and variable font sizes
+                            median_char_width * 0.5
                         };
 
                         // Also don't add space if characters overlap or are very close (ligatures)
