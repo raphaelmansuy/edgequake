@@ -2,12 +2,11 @@
 //!
 //! This module provides the processing pipeline architecture:
 //! - **Provider**: Loads documents from various sources
-//! - **Builder**: Constructs document representation from provider (DEPRECATED - use PdfiumExtractor)
+//! - **Builder**: Constructs document representation from provider (deprecated)
 //! - **Processor**: Transforms documents (layout, enhancement, etc.)
 //! - **Renderer**: Outputs to various formats (Markdown, JSON, etc.)
 
-// DEPRECATED: builder module depends on pdf_oxide which has been removed
-// Use PdfiumExtractor directly for SOTA PDF extraction
+// DEPRECATED: builder module depends on pdf_oxide which has been removed.
 // mod builder;
 
 mod llm_enhance;
@@ -21,5 +20,6 @@ pub use processor::{
     GarbledTextFilterProcessor, HeaderDetectionProcessor, HyphenContinuationProcessor,
     LayoutProcessor, ListDetectionProcessor, MarginFilterProcessor, PostProcessor, Processor,
     ProcessorChain, StyleDetectionProcessor, TableDetectionProcessor,
+    TextTableReconstructionProcessor,
 };
 pub use provider::{ByteProvider, FileProvider, PdfProvider};
