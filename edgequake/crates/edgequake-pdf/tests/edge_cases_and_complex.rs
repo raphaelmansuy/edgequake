@@ -1,5 +1,5 @@
 //! Comprehensive Edge Cases and Complex Scenario Tests (50+ tests)
-//! 
+//!
 //! This test suite covers:
 //! - Edge cases (empty, boundary, maximum)
 //! - Complex scenarios (stress, performance, interaction)
@@ -7,9 +7,9 @@
 //! - Concurrent operations
 //! - Configuration permutations
 
-use std::sync::Arc;
 use edgequake_llm::providers::mock::MockProvider;
-use edgequake_pdf::{PdfConfig, PdfExtractor, OutputFormat};
+use edgequake_pdf::{OutputFormat, PdfConfig, PdfExtractor};
+use std::sync::Arc;
 
 fn get_test_data_dir() -> std::path::PathBuf {
     std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data")
@@ -65,7 +65,10 @@ fn edge_05_corrupted_header() {
 fn edge_06_maximum_page_config() {
     let mut config = PdfConfig::default();
     config.max_pages = Some(usize::MAX);
-    assert!(create_extractor_with_config(config).config().max_pages.is_some());
+    assert!(create_extractor_with_config(config)
+        .config()
+        .max_pages
+        .is_some());
 }
 
 #[test]
@@ -83,7 +86,12 @@ async fn edge_08_extract_empty_input() {
 
 #[test]
 fn edge_09_all_output_formats() {
-    let formats = vec![OutputFormat::Markdown, OutputFormat::Json, OutputFormat::Html, OutputFormat::Chunks];
+    let formats = vec![
+        OutputFormat::Markdown,
+        OutputFormat::Json,
+        OutputFormat::Html,
+        OutputFormat::Chunks,
+    ];
     for fmt in formats {
         let mut config = PdfConfig::default();
         config.output_format = fmt;
@@ -94,7 +102,11 @@ fn edge_09_all_output_formats() {
 #[test]
 fn edge_10_all_extraction_modes() {
     use edgequake_pdf::ExtractionMode;
-    let modes = vec![ExtractionMode::Text, ExtractionMode::Vision, ExtractionMode::Hybrid];
+    let modes = vec![
+        ExtractionMode::Text,
+        ExtractionMode::Vision,
+        ExtractionMode::Hybrid,
+    ];
     for mode in modes {
         let mut config = PdfConfig::default();
         config.mode = mode;
@@ -132,10 +144,15 @@ async fn boundary_04_text_size() {
     assert!(!text.is_empty() && text.len() < 10_000_000);
 }
 
-// CONFIGURATION COMBINATIONS  
+// CONFIGURATION COMBINATIONS
 #[test]
 fn config_01_format_combinations() {
-    let formats = [OutputFormat::Markdown, OutputFormat::Json, OutputFormat::Html, OutputFormat::Chunks];
+    let formats = [
+        OutputFormat::Markdown,
+        OutputFormat::Json,
+        OutputFormat::Html,
+        OutputFormat::Chunks,
+    ];
     for fmt in &formats {
         let mut config = PdfConfig::default();
         config.output_format = *fmt;
@@ -148,7 +165,7 @@ fn config_02_boolean_toggles() {
     let mut config = PdfConfig::default();
     config.extract_images = true;
     let _ = create_extractor_with_config(config);
-    
+
     let mut config = PdfConfig::default();
     config.include_page_numbers = true;
     let _ = create_extractor_with_config(config);
@@ -189,32 +206,44 @@ fn config_04_page_limits() {
 async fn concurrent_01_same_pdf_multiple() {
     let pdf = Arc::new(load_pdf("001_simple_text.pdf"));
     let mut handles = vec![];
-    
+
     for _ in 0..5 {
         let pdf_clone = Arc::clone(&pdf);
         handles.push(tokio::spawn(async move {
-            create_extractor().extract_to_markdown(&pdf_clone).await.is_ok()
+            create_extractor()
+                .extract_to_markdown(&pdf_clone)
+                .await
+                .is_ok()
         }));
     }
-    
+
     let mut success = 0;
     for h in handles {
-        if h.await.unwrap() { success += 1; }
+        if h.await.unwrap() {
+            success += 1;
+        }
     }
     assert!(success > 0);
 }
 
 #[tokio::test]
 async fn concurrent_02_multiple_pdfs() {
-    let files = vec!["001_simple_text.pdf", "003_two_columns.pdf", "004_simple_table_2x3.pdf"];
+    let files = vec![
+        "001_simple_text.pdf",
+        "003_two_columns.pdf",
+        "004_simple_table_2x3.pdf",
+    ];
     let mut handles = vec![];
-    
+
     for file in files {
         handles.push(tokio::spawn(async move {
-            create_extractor().extract_to_markdown(&load_pdf(file)).await.is_ok()
+            create_extractor()
+                .extract_to_markdown(&load_pdf(file))
+                .await
+                .is_ok()
         }));
     }
-    
+
     let mut success = 0;
     for h in handles {
         if let Ok(true) = h.await {
@@ -228,15 +257,19 @@ async fn concurrent_02_multiple_pdfs() {
 async fn concurrent_03_concurrent_info() {
     let pdf = Arc::new(load_pdf("001_simple_text.pdf"));
     let mut handles = vec![];
-    
+
     for _ in 0..10 {
         let pdf_clone = Arc::clone(&pdf);
         handles.push(tokio::spawn(async move {
             create_extractor().get_info(&pdf_clone).is_ok()
         }));
     }
-    
-    let success = futures::future::join_all(handles).await.iter().filter(|r| r.is_ok()).count();
+
+    let success = futures::future::join_all(handles)
+        .await
+        .iter()
+        .filter(|r| r.is_ok())
+        .count();
     assert_eq!(success, 10);
 }
 
@@ -289,7 +322,7 @@ async fn error_05_recovery() {
 async fn stress_01_repeated() {
     let ext = Arc::new(create_extractor());
     let pdf = Arc::new(load_pdf("001_simple_text.pdf"));
-    
+
     for _ in 0..10 {
         let _ = ext.extract_to_markdown(&pdf).await;
     }
@@ -307,7 +340,7 @@ async fn stress_02_multiple_extractors() {
 async fn stress_03_rapid_info() {
     let ext = create_extractor();
     let pdf = load_pdf("001_simple_text.pdf");
-    
+
     for _ in 0..20 {
         let _ = ext.get_info(&pdf);
     }
@@ -317,7 +350,7 @@ async fn stress_03_rapid_info() {
 async fn stress_04_mixed_ops() {
     let ext = Arc::new(create_extractor());
     let pdf = Arc::new(load_pdf("003_two_columns.pdf"));
-    
+
     for _ in 0..3 {
         let ext_c = Arc::clone(&ext);
         let pdf_c = Arc::clone(&pdf);
@@ -329,9 +362,13 @@ async fn stress_04_mixed_ops() {
 // COMPLEX SCENARIOS
 #[tokio::test]
 async fn scenario_01_sequential_multi() {
-    let files = vec!["001_simple_text.pdf", "003_two_columns.pdf", "004_simple_table_2x3.pdf"];
+    let files = vec![
+        "001_simple_text.pdf",
+        "003_two_columns.pdf",
+        "004_simple_table_2x3.pdf",
+    ];
     let ext = create_extractor();
-    
+
     for file in files {
         if let Ok(md) = ext.extract_to_markdown(&load_pdf(file)).await {
             assert!(!md.is_empty());
@@ -342,7 +379,7 @@ async fn scenario_01_sequential_multi() {
 #[tokio::test]
 async fn scenario_02_different_configs() {
     let pdf = Arc::new(load_pdf("001_simple_text.pdf"));
-    
+
     for extract in [true, false] {
         let mut config = PdfConfig::default();
         config.extract_images = extract;
@@ -355,7 +392,7 @@ async fn scenario_02_different_configs() {
 async fn scenario_03_all_methods() {
     let pdf = load_pdf("001_simple_text.pdf");
     let ext = create_extractor();
-    
+
     assert!(ext.extract_text(&pdf).await.is_ok());
     assert!(ext.extract_to_markdown(&pdf).await.is_ok());
     assert!(ext.get_info(&pdf).is_ok());
@@ -365,7 +402,7 @@ async fn scenario_03_all_methods() {
 async fn scenario_04_full_extraction() {
     let pdf = load_pdf("008_multi_page_5_pages.pdf");
     let ext = create_extractor();
-    
+
     if let Ok(doc) = ext.extract_full(&pdf).await {
         assert!(doc.page_count > 0);
         assert!(!doc.pages.is_empty());
@@ -431,7 +468,7 @@ fn validate_04_config_consistency() {
 async fn validate_05_info_consistency() {
     let pdf = load_pdf("008_multi_page_5_pages.pdf");
     let ext = create_extractor();
-    
+
     if let (Ok(i1), Ok(i2)) = (ext.get_info(&pdf), ext.get_info(&pdf)) {
         assert_eq!(i1.page_count, i2.page_count);
         assert_eq!(i1.file_size, i2.file_size);

@@ -156,6 +156,56 @@ This directory contains a comprehensive test suite for the EdgeQuake PDF to Mark
 **Result**: 292 chars, **some symbols → ■**
 **Issue**: ¥, fractions rendered as ■
 
+### 022_corrupted_xref_table.pdf
+**Purpose**: Corrupted XRef table (broken cross-reference)
+**Content**: Simple text, intentionally broken XRef
+**Expected**: Extraction fails gracefully or recovers partial text
+
+### 023_incomplete_unicode_mapping.pdf
+**Purpose**: Missing Unicode mapping for some glyphs
+**Content**: Text with (cid:x) output for unmapped glyphs
+**Expected**: (cid:x) for unmapped, normal for rest
+
+### 024_embedded_fonts_obfuscated.pdf
+**Purpose**: Custom/subset/obfuscated fonts
+**Content**: Text rendered with embedded, subset fonts
+**Expected**: Extraction recovers text or shows gibberish if mapping missing
+
+### 025_rotated_text.pdf
+**Purpose**: Rotated text (arbitrary angles)
+**Content**: Text at 0°, 45°, 90°, 135°, etc.
+**Expected**: All text extracted regardless of rotation
+
+### 026_overlapping_text_layers.pdf
+**Purpose**: Multiple overlapping text layers (OCR + original)
+**Content**: Original, OCR, watermark overlays
+**Expected**: Avoid duplicate text, handle overlays
+
+### 027_digital_signatures_annotations.pdf
+**Purpose**: Digital signatures, comments, highlights, sticky notes
+**Content**: Text with annotations and signature
+**Expected**: Ignore non-text annotations, skip signature fields
+
+### 028_vector_graphics_text_on_path.pdf
+**Purpose**: Text in vector graphics or on path
+**Content**: Text on curve, inside shapes, SVG-like
+**Expected**: Extract text if possible, skip if unsupported
+
+### 029_encrypted_password_protected.pdf
+**Purpose**: Password-protected/encrypted PDF
+**Content**: Simple text, password required
+**Expected**: Extraction fails with clear error
+
+### 030_mixed_writing_directions.pdf
+**Purpose**: Mixed LTR and RTL text (e.g., English + Arabic/Hebrew)
+**Content**: Paragraphs in both scripts
+**Expected**: Preserve order and directionality
+
+### 031_embedded_files_attachments.pdf
+**Purpose**: Embedded files/attachments (PDF/A, Excel, images)
+**Content**: Text plus embedded files
+**Expected**: Ignore attachments, may log presence
+
 ---
 
 ## Test Commands
@@ -256,6 +306,8 @@ New tests should:
 2. Document purpose/expected output
 3. Update this README
 4. Run full suite before commit
+5. Add to `test-data/ISSUES_FOUND.md` if exposing new issues
+6. Consider automation scripts for repetitive tasks
 
 ---
 
