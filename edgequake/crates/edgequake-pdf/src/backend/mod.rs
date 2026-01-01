@@ -16,10 +16,9 @@ pub trait PdfBackend: Send + Sync {
     fn get_info(&self, pdf_bytes: &[u8]) -> Result<PdfInfo>;
 }
 
-#[cfg(feature = "pdfium")]
-pub mod pdfium;
-
+/// SOTA PDF backend with proper encoding and font analysis.
 #[cfg(feature = "lopdf")]
-pub mod lopdf_backend;
+pub mod sota_backend;
 
+/// Mock backend for testing
 pub mod mock;

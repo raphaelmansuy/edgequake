@@ -122,7 +122,11 @@ impl PdfiumBackend {
             }
 
             if all_chars.len() < 10 {
-                debug!("Extracted char: '{}' (unicode: {:?})", char_text, char_info.unicode_string());
+                debug!(
+                    "Extracted char: '{}' (unicode: {:?})",
+                    char_text,
+                    char_info.unicode_string()
+                );
             }
 
             let font_name = char_info.font_name();
@@ -258,7 +262,6 @@ impl PdfiumBackend {
                 } else {
                     char_widths[char_widths.len() / 2]
                 };
-
 
                 for char_data in &part {
                     min_x = min_x.min(char_data.left);

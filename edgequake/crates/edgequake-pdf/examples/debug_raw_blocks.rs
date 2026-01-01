@@ -26,22 +26,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Search for specific problematic patterns
         let patterns = ["modifi", "cation", "repos", "itories", "struc", "tural"];
-        
+
         for page in &document.pages {
             println!("Page {} has {} blocks\n", page.number, page.blocks.len());
-            
+
             if page.number > 1 {
                 break;
             }
-            
+
             // Find blocks containing our problem patterns
             for (i, block) in page.blocks.iter().enumerate() {
                 for pattern in &patterns {
                     if block.text.to_lowercase().contains(pattern) {
-                        println!(
-                            "Block {} [MATCH '{}']:",
-                            i, pattern
-                        );
+                        println!("Block {} [MATCH '{}']:", i, pattern);
                         println!(
                             "  bbox=({:.1},{:.1})-({:.1},{:.1})",
                             block.bbox.x1, block.bbox.y1, block.bbox.x2, block.bbox.y2

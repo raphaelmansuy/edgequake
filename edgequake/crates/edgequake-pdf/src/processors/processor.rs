@@ -341,6 +341,17 @@ impl Default for LayoutProcessor {
 impl Processor for LayoutProcessor {
     fn process(&self, mut document: Document) -> Result<Document> {
         for page in &mut document.pages {
+            // Skip layout reanalysis if page already has columns set (backend already handled it)
+            // This allows backends like SOTA to do their own column detection without interference
+            if !page.columns.is_empty() {
+                tracing::debug!(
+                    "Page {} already has {} columns set, skipping layout reanalysis",
+                    page.number,
+                    page.columns.len()
+                );
+                continue;
+            }
+
             let layout = self.analyzer.analyze(&page.blocks, page.width, page.height);
 
             // Check if the detected columns look like a table structure
@@ -577,7 +588,7 @@ impl BlockMergeProcessor {
     /// Create a new block merge processor.
     pub fn new() -> Self {
         Self {
-            max_vertical_gap: 15.0,
+            max_vertical_gap: 50.0,  // Increased to handle typical line spacing (12pt font = ~12pt gap)
             max_margin_diff: 20.0,
         }
     }
@@ -600,11 +611,13 @@ impl BlockMergeProcessor {
             b.block_type,
             BlockType::Text | BlockType::SectionHeader | BlockType::ListItem
         ) {
+            tracing::debug!("BlockMerge: NOT merging - wrong block type: {:?} + {:?}", a.block_type, b.block_type);
             return false;
         }
 
         // If types are different, don't merge
         if a.block_type != b.block_type {
+            tracing::debug!("BlockMerge: NOT merging - different types: {:?} vs {:?}", a.block_type, b.block_type);
             return false;
         }
 
@@ -625,6 +638,18 @@ impl BlockMergeProcessor {
             let size_a = span_a.style.size.unwrap_or(0.0);
             let size_b = span_b.style.size.unwrap_or(0.0);
             if (size_a - size_b).abs() > 1.5 {
+                // Only log if it's text blocks that we'd otherwise merge
+                if a.block_type == BlockType::Text && b.block_type == BlockType::Text {
+                    // Use chars() for safe substring (handles multi-byte Unicode)
+                    let a_start: String = a.text.chars().take(20).collect();
+                    let b_start: String = b.text.chars().take(20).collect();
+                    tracing::debug!(
+                        "BlockMerge: NOT merging - font size diff: {:.1} vs {:.1}, text: '{}' + '{}'", 
+                        size_a, size_b,
+                        a_start,
+                        b_start
+                    );
+                }
                 return false;
             }
 
@@ -650,25 +675,48 @@ impl BlockMergeProcessor {
         }
 
         // Check vertical proximity
-        let vertical_gap = b.bbox.y1 - a.bbox.y2;
+        // In PDF coordinates Y increases upward:
+        // - y2 is the top of a block (higher Y)
+        // - y1 is the bottom of a block (lower Y)
+        // For blocks a (above) and b (below), the gap is: a.y1 (bottom of a) - b.y2 (top of b)
+        // If blocks are very close or overlapping, this will be small or negative
+        let vertical_gap = (a.bbox.y1 - b.bbox.y2).abs();
         // For headers, be more strict with vertical gap but allow for multi-line headers
         let max_gap = if a.block_type == BlockType::SectionHeader {
-            25.0
+            35.0  // Allow more gap for multi-line headers
         } else {
             self.max_vertical_gap
         };
 
-        if vertical_gap < -2.0 || vertical_gap > max_gap {
+        if vertical_gap > max_gap {
             return false;
         }
 
-        // Check horizontal alignment
+        // Check horizontal alignment - blocks from different columns should NOT merge
         let margin_diff = (a.bbox.x1 - b.bbox.x1).abs();
         let max_margin = if a.block_type == BlockType::SectionHeader {
             50.0
         } else {
             self.max_margin_diff
         };
+        
+        // Additional check: don't merge if blocks are in completely different horizontal zones
+        // This prevents merging left column text with right column text
+        let horizontal_zone_threshold = 100.0; // If X positions differ by > 100pt, different columns
+        if margin_diff > horizontal_zone_threshold {
+            // Use chars() for safe substring (handles multi-byte Unicode)
+            let a_start: String = a.text.chars().take(30).collect();
+            let b_start: String = b.text.chars().take(30).collect();
+            tracing::debug!(
+                "BlockMerge: NOT merging due to horizontal zone difference ({:.1} > {:.1}): '{}' + '{}'",
+                margin_diff,
+                horizontal_zone_threshold,
+                a_start,
+                b_start
+            );
+            return false;
+        }
+        
         margin_diff <= max_margin
     }
 
@@ -683,10 +731,36 @@ impl BlockMergeProcessor {
 
         for block in blocks {
             if let Some(mut cur) = current.take() {
-                if self.should_merge(&cur, &block) {
+                let should = self.should_merge(&cur, &block);
+                if should {
+                    // Use chars() to safely get last/first N characters (handles multi-byte Unicode)
+                    let cur_end: String = cur.text.chars().rev().take(20).collect::<String>().chars().rev().collect();
+                    let block_start: String = block.text.chars().take(20).collect();
+                    tracing::debug!(
+                        "BlockMerge: MERGING '{}' + '{}'",
+                        cur_end,
+                        block_start
+                    );
                     cur.merge(&block);
+                    // Clear spans after merge since they may contain stale hyphenated text.
+                    // The MarkdownRenderer will use block.text instead which has correct joined text.
+                    cur.spans.clear();
                     current = Some(cur);
                 } else {
+                    // Log why consecutive Text blocks aren't merging
+                    if cur.block_type == BlockType::Text && block.block_type == BlockType::Text {
+                        let v_gap = (block.bbox.y1 - cur.bbox.y2).abs();
+                        let h_diff = (cur.bbox.x1 - block.bbox.x1).abs();
+                        // Use chars() for safe substring (handles multi-byte Unicode)
+                        let cur_start: String = cur.text.chars().take(15).collect();
+                        let block_start: String = block.text.chars().take(15).collect();
+                        tracing::debug!(
+                            "BlockMerge: Text+Text NOT merged: v_gap={:.1}, h_diff={:.1}, '{}...' + '{}...'",
+                            v_gap, h_diff,
+                            cur_start,
+                            block_start
+                        );
+                    }
                     merged.push(cur);
                     current = Some(block);
                 }
@@ -728,6 +802,162 @@ impl Processor for BlockMergeProcessor {
 
     fn name(&self) -> &str {
         "BlockMergeProcessor"
+    }
+}
+
+/// Processor to detect section headers from text patterns.
+///
+/// This processor works without font information by detecting:
+/// - Numbered section patterns: "1. Introduction", "3.2. Related Work"
+/// - Special section names: "Abstract", "References", "Conclusion"
+/// - Running headers (repeated text across pages)
+pub struct SectionPatternProcessor {
+    /// Section number pattern regex
+    section_regex: Regex,
+    /// Special section names to detect
+    special_sections: Vec<&'static str>,
+}
+
+impl SectionPatternProcessor {
+    pub fn new() -> Self {
+        Self {
+            // Match patterns like "1.", "3.2.", "A.1.", followed by space and title
+            section_regex: Regex::new(
+                r"^([0-9A-Z]+\.(?:[0-9]+\.)*)\s+([A-Z][A-Za-z0-9\s,:\-\(\)]+)$"
+            ).expect("Section regex should be valid"),
+            special_sections: vec![
+                "Abstract",
+                "Introduction", 
+                "Related Work",
+                "Background",
+                "Methodology",
+                "Methods",
+                "Approach",
+                "Experiments",
+                "Results",
+                "Discussion",
+                "Conclusion",
+                "Conclusions",
+                "Future Work",
+                "Acknowledgments",
+                "Acknowledgements",
+                "References",
+                "Bibliography",
+                "Appendix",
+            ],
+        }
+    }
+
+    /// Calculate heading level from section number.
+    /// "1." -> level 2 (H2, since H1 is title)
+    /// "3.2." -> level 3 (H3)
+    /// "3.2.1." -> level 4 (H4)
+    fn calculate_level(&self, section_num: &str) -> u8 {
+        let dots = section_num.matches('.').count();
+        // Minimum level 2, max level 6
+        (dots + 1).min(6).max(2) as u8
+    }
+
+    /// Check if text is a special section name.
+    fn is_special_section(&self, text: &str) -> bool {
+        let trimmed = text.trim();
+        self.special_sections.iter().any(|s| {
+            trimmed.eq_ignore_ascii_case(s)
+        })
+    }
+
+    /// Detect running headers (text repeated across multiple pages).
+    fn find_running_headers(&self, document: &Document) -> std::collections::HashSet<String> {
+        use std::collections::HashMap;
+        
+        let mut text_pages: HashMap<String, usize> = HashMap::new();
+        
+        // Count on how many pages each short text appears
+        for page in &document.pages {
+            let mut seen_on_page = std::collections::HashSet::new();
+            for block in &page.blocks {
+                let text = block.text.trim().to_string();
+                // Only consider short texts that could be headers (< 150 chars)
+                if text.len() > 10 && text.len() < 150 {
+                    // Normalize for comparison
+                    let normalized = text.to_lowercase();
+                    if seen_on_page.insert(normalized.clone()) {
+                        *text_pages.entry(normalized).or_insert(0) += 1;
+                    }
+                }
+            }
+        }
+        
+        // Text appearing on 3+ pages is likely a running header
+        let threshold = (document.pages.len() / 2).max(3);
+        text_pages
+            .into_iter()
+            .filter(|(_, count)| *count >= threshold)
+            .map(|(text, _)| text)
+            .collect()
+    }
+}
+
+impl Default for SectionPatternProcessor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Processor for SectionPatternProcessor {
+    fn process(&self, mut document: Document) -> Result<Document> {
+        // First pass: identify running headers
+        let running_headers = self.find_running_headers(&document);
+        
+        // Second pass: process blocks
+        for page in &mut document.pages {
+            for block in &mut page.blocks {
+                // Skip if already classified as something other than Text
+                if block.block_type != BlockType::Text && block.block_type != BlockType::Paragraph {
+                    continue;
+                }
+                
+                let text = block.text.trim();
+                
+                // Check for running headers
+                if running_headers.contains(&text.to_lowercase()) {
+                    block.block_type = BlockType::PageHeader;
+                    tracing::debug!("Marked running header: '{}'", text);
+                    continue;
+                }
+                
+                // Check for numbered section headers
+                if let Some(captures) = self.section_regex.captures(text) {
+                    if let (Some(num), Some(title)) = (captures.get(1), captures.get(2)) {
+                        let section_num = num.as_str();
+                        let title_text = title.as_str();
+                        
+                        // Validate: title should be reasonable length
+                        if title_text.len() < 80 && !title_text.ends_with('.') {
+                            let level = self.calculate_level(section_num);
+                            block.block_type = BlockType::SectionHeader;
+                            block.level = Some(level);
+                            tracing::debug!(
+                                "Detected section header: '{}' -> level {}", 
+                                text, level
+                            );
+                        }
+                    }
+                }
+                // Check for special section names
+                else if self.is_special_section(text) {
+                    block.block_type = BlockType::SectionHeader;
+                    block.level = Some(2); // Special sections are H2
+                    tracing::debug!("Detected special section: '{}'", text);
+                }
+            }
+        }
+        
+        Ok(document)
+    }
+
+    fn name(&self) -> &str {
+        "SectionPatternProcessor"
     }
 }
 
@@ -1251,7 +1481,7 @@ impl HyphenContinuationProcessor {
     fn ends_with_hyphen(&self, text: &str) -> Option<String> {
         let trimmed = text.trim_end();
 
-        // Check for explicit hyphen at end
+        // Check for explicit hyphen at end (most reliable)
         if trimmed.ends_with('-') {
             // Get the word fragment before the hyphen
             let without_hyphen = &trimmed[..trimmed.len() - 1];
@@ -1259,26 +1489,85 @@ impl HyphenContinuationProcessor {
             return Some(last_word.to_string());
         }
 
-        // Check for trailing space followed by word fragment (common PDF extraction issue)
-        // Pattern: "modifi " at end of line where next block starts with "cation"
-        if let Some(last_word) = trimmed.split_whitespace().last() {
-            // If the last word is short (< 8 chars) and looks like a word fragment
-            // (no sentence-ending punctuation), it might be hyphenated
-            if last_word.len() >= 2
-                && last_word.len() < 8
-                && last_word.chars().all(|c| c.is_alphabetic())
-                && !trimmed.ends_with('.')
-                && !trimmed.ends_with('!')
-                && !trimmed.ends_with('?')
-                && !trimmed.ends_with(',')
-                && !trimmed.ends_with(':')
-                && !trimmed.ends_with(';')
-            {
-                return Some(last_word.to_string());
-            }
-        }
-
         None
+    }
+    
+    /// Check if text ends with an EXPLICIT hyphen (strict check for cross-column joining)
+    fn ends_with_explicit_hyphen(&self, text: &str) -> bool {
+        text.trim_end().ends_with('-')
+    }
+    
+    /// Get the word fragment before the hyphen for cross-column validation
+    fn get_hyphen_fragment(&self, text: &str) -> Option<String> {
+        let trimmed = text.trim_end();
+        if trimmed.ends_with('-') {
+            let without_hyphen = &trimmed[..trimmed.len() - 1];
+            let last_word = without_hyphen.split_whitespace().last()?;
+            // Return the fragment in lowercase for matching
+            return Some(last_word.to_lowercase());
+        }
+        None
+    }
+    
+    /// Validate that a continuation completes the hyphenated word sensibly.
+    /// The first word of continuation should be a reasonable suffix for the fragment.
+    fn is_valid_continuation(&self, fragment: &str, continuation_text: &str) -> bool {
+        let cont_trimmed = continuation_text.trim_start();
+        if cont_trimmed.is_empty() {
+            return false;
+        }
+        
+        // Get first word of continuation
+        let first_word = cont_trimmed.split_whitespace().next().unwrap_or("");
+        if first_word.is_empty() || !first_word.chars().next().unwrap().is_lowercase() {
+            return false;
+        }
+        
+        // The first word should be a reasonable word suffix (all alphabetic)
+        if !first_word.chars().all(|c| c.is_alphabetic()) {
+            return false;
+        }
+        
+        // STRICT CHECK: The continuation should be a word SUFFIX, not a standalone word.
+        // Word suffixes typically:
+        // 1. Are short (1-6 chars for typical suffixes like "tion", "ing", "ment", "ries", etc.)
+        // 2. Don't form common standalone words themselves (like "which", "this", "that", etc.)
+        
+        let first_word_lower = first_word.to_lowercase();
+        
+        // Reject common English words that would never be hyphen continuations
+        let common_words = [
+            "which", "this", "that", "with", "from", "have", "been", "were", "their",
+            "they", "there", "them", "these", "those", "then", "than", "when", "where",
+            "what", "who", "how", "why", "can", "will", "may", "must", "should", "would",
+            "could", "into", "such", "some", "only", "very", "also", "more", "most",
+            "like", "just", "over", "other", "each", "both", "many", "well", "even",
+            "while", "without", "within", "through", "during", "before", "after",
+            "between", "under", "about", "above", "across", "along", "among", "around",
+            "far", "the", "and", "for", "are", "but", "not", "you", "all", "out", "way",
+            "its", "her", "his", "our", "any", "being", "doing", "going", "making",
+            "using", "having", "getting", "saying", "seeing", "knowing", "coming",
+        ];
+        
+        if common_words.contains(&first_word_lower.as_str()) {
+            return false;
+        }
+        
+        // Word suffixes are typically short - reject if too long to be a suffix
+        // Common suffixes: -tion, -ment, -ness, -able, -ible, -ing, -ed, -ly, -ry, -ries
+        // Allow up to 8 chars for compound suffixes like "itory" (reposit-itory)
+        if first_word.len() > 8 {
+            return false;
+        }
+        
+        // The combined word should form something reasonable
+        // Heuristic: fragment + first_word should be 5-20 chars (typical word length)
+        let combined_len = fragment.len() + first_word.len();
+        if combined_len < 4 || combined_len > 25 {
+            return false;
+        }
+        
+        true
     }
 
     /// Check if text starts with a continuation of a hyphenated word.
@@ -1349,39 +1638,105 @@ impl Processor for HyphenContinuationProcessor {
         for page in &mut document.pages {
             let mut i = 0;
             while i < page.blocks.len() {
-                let should_join = if i + 1 < page.blocks.len() {
+                // First check for immediate adjacent join (standard case)
+                let mut join_with: Option<usize> = None;
+                
+                if i + 1 < page.blocks.len() {
                     let current = &page.blocks[i];
                     let next = &page.blocks[i + 1];
 
                     // Only consider joining text blocks that are vertically adjacent
-                    if current.block_type != BlockType::Text || next.block_type != BlockType::Text {
-                        false
-                    } else {
+                    if current.block_type == BlockType::Text && next.block_type == BlockType::Text {
                         // Check if they're on consecutive lines (small vertical gap)
-                        let vertical_gap = next.bbox.y1 - current.bbox.y2;
-                        if vertical_gap > 20.0 || vertical_gap < -5.0 {
-                            false
-                        } else {
-                            // Check for hyphenation
-                            let ends_hyph = self.ends_with_hyphen(&current.text);
-                            let starts_cont = self.starts_with_continuation(&next.text);
-                            ends_hyph.is_some() && starts_cont
+                        // Note: In PDF coordinates, Y increases upward, so blocks read from top to bottom
+                        // have decreasing Y values. The gap is current.y2 - next.y1 (top of next vs bottom of current)
+                        // Or we can check absolute difference to handle both orderings
+                        let vertical_gap = (next.bbox.y1 - current.bbox.y2).abs();
+                        
+                        // Check for hyphenation
+                        let ends_hyph = self.ends_with_hyphen(&current.text);
+                        let starts_cont = self.starts_with_continuation(&next.text);
+                        
+                        if ends_hyph.is_some() {
+                            // Safe string slicing for debug output
+                            let current_end: String = current.text.chars().rev().take(15).collect::<String>().chars().rev().collect();
+                            let next_start: String = next.text.chars().take(15).collect();
+                            tracing::debug!(
+                                "Hyphen check: '{}...' ends_hyph={:?}, starts_cont={}, vertical_gap={:.1}, next='{}...'",
+                                current_end,
+                                ends_hyph,
+                                starts_cont,
+                                vertical_gap,
+                                next_start
+                            );
+                        }
+                        
+                        // Allow larger gap for line spacing (up to ~50pt for double-spaced or with margins)
+                        if vertical_gap <= 50.0 {
+                            if ends_hyph.is_some() && starts_cont {
+                                tracing::debug!("Immediate hyphen join triggered");
+                                join_with = Some(i + 1);
+                            }
                         }
                     }
-                } else {
-                    false
-                };
-
-                if should_join {
+                }
+                
+                // If no immediate join, but current ends with EXPLICIT hyphen, search ahead
+                // This handles two-column layouts where hyphenation spans columns
+                // Only trigger for explicit "-" ending, not implicit short-word patterns
+                if join_with.is_none() && i + 1 < page.blocks.len() {
                     let current = &page.blocks[i];
-                    let next = &page.blocks[i + 1];
+                    if current.block_type == BlockType::Text && self.ends_with_explicit_hyphen(&current.text) {
+                        // Get the word fragment before the hyphen for validation
+                        if let Some(fragment) = self.get_hyphen_fragment(&current.text) {
+                            // Search up to 5 blocks ahead for continuation
+                            for j in (i + 1)..((i + 6).min(page.blocks.len())) {
+                                let candidate = &page.blocks[j];
+                                // Skip non-text blocks (figures, captions)
+                                if candidate.block_type != BlockType::Text {
+                                    continue;
+                                }
+                                // Check if this is a valid continuation that completes the word
+                                if self.is_valid_continuation(&fragment, &candidate.text) {
+                                    // Use chars() for safe substring (handles multi-byte Unicode)
+                                    let cur_end: String = current.text.chars().rev().take(20).collect::<String>().chars().rev().collect();
+                                    let cand_start: String = candidate.text.chars().take(20).collect();
+                                    tracing::debug!(
+                                        "Cross-column hyphen join: '{}' + '{}' (fragment: {})",
+                                        cur_end,
+                                        cand_start,
+                                        fragment
+                                    );
+                                    join_with = Some(j);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
 
-                    let joined_text = self.join_hyphenated(&current.text, &next.text);
-                    let joined_bbox = current.bbox.union(&next.bbox);
+                if let Some(j) = join_with {
+                    let current = &page.blocks[i];
+                    let target = &page.blocks[j];
+
+                    let joined_text = self.join_hyphenated(&current.text, &target.text);
+                    // Print first 100 chars of joined text for debugging
+                    let joined_preview: String = joined_text.chars().take(80).collect();
+                    tracing::debug!(
+                        "Joining blocks [{}+{}]: len {}→{}, text: '{}'",
+                        i, j,
+                        current.text.len() + target.text.len(),
+                        joined_text.len(),
+                        joined_preview
+                    );
+                    let joined_bbox = current.bbox.union(&target.bbox);
 
                     page.blocks[i].text = joined_text;
                     page.blocks[i].bbox = joined_bbox;
-                    page.blocks.remove(i + 1);
+                    // Clear spans since they contain the old hyphenated text
+                    // The MarkdownRenderer will use block.text instead
+                    page.blocks[i].spans.clear();
+                    page.blocks.remove(j);
                     // Don't increment i, check if there are more continuations
                 } else {
                     i += 1;
@@ -1394,6 +1749,152 @@ impl Processor for HyphenContinuationProcessor {
 
     fn name(&self) -> &str {
         "HyphenContinuationProcessor"
+    }
+}
+
+/// Processor for detecting bold/italic styles and H1/H2+ header levels.
+///
+/// This processor implements the requirements from spec_algo_2.md:
+/// - Bold detection: Font weight >= 600 or font name contains "bold"
+/// - Italic detection: Font name contains "italic" or "oblique"
+/// - H1/H2+ detection: Font size ratios relative to body text
+///
+/// Uses pure heuristics, no ML required.
+#[derive(Clone)]
+pub struct StyleDetectionProcessor {
+    /// Computed body font size (most common size in document)
+    body_size: f32,
+}
+
+impl StyleDetectionProcessor {
+    /// Create a new style detection processor.
+    pub fn new() -> Self {
+        Self { body_size: 10.0 }
+    }
+
+    /// Compute body font size as the most common font size in the document.
+    fn compute_body_size(&mut self, document: &Document) {
+        use std::collections::HashMap;
+        let mut size_counts: HashMap<i32, usize> = HashMap::new();
+
+        for page in &document.pages {
+            for block in &page.blocks {
+                for span in &block.spans {
+                    // Quantize to 0.1pt precision
+                    let size_key = (span.style.size.unwrap_or(10.0) * 10.0) as i32;
+                    *size_counts.entry(size_key).or_insert(0) += 1;
+                }
+            }
+        }
+
+        self.body_size = size_counts
+            .iter()
+            .max_by_key(|&(_, count)| count)
+            .map(|(s, _)| *s as f32 / 10.0)
+            .unwrap_or(10.0);
+
+        tracing::debug!("Computed body font size: {:.1}pt", self.body_size);
+    }
+
+    /// Detect and update styles per span based on font metadata.
+    fn detect_styles(&self, block: &mut Block) {
+        for span in &mut block.spans {
+            let family_lower = span
+                .style
+                .family
+                .as_ref()
+                .map(|f| f.to_lowercase())
+                .unwrap_or_default();
+
+            // Bold: Weight >= 600 or name contains "bold"
+            let is_bold = span.style.weight.unwrap_or(400) >= 600 || family_lower.contains("bold");
+            span.style.weight = Some(if is_bold { 700 } else { 400 });
+
+            // Italic: Name contains "italic" or "oblique"
+            let is_italic =
+                span.style.italic || family_lower.contains("italic") || family_lower.contains("oblique");
+            span.style.italic = is_italic;
+        }
+    }
+
+    /// Detect header levels based on font size ratios.
+    ///
+    /// From spec_algo_2.md:
+    /// - H1: size ratio > 1.5 AND short text (<80 chars)
+    /// - H2: size ratio > 1.2 OR (bold AND ratio >= 1.0) AND short text
+    /// - H3: bold AND all-caps
+    fn detect_headers(&self, block: &mut Block) {
+        if block.block_type != BlockType::Text {
+            return;
+        }
+
+        // Get representative style from first span
+        let (size, is_bold) = block
+            .spans
+            .first()
+            .map(|s| {
+                (
+                    s.style.size.unwrap_or(10.0),
+                    s.style.weight.unwrap_or(400) >= 600,
+                )
+            })
+            .unwrap_or((10.0, false));
+
+        let ratio = size / self.body_size;
+        let text = block.text.trim();
+        let is_short = text.len() < 80;
+        let is_all_caps = !text.is_empty() && text == text.to_uppercase() && text.chars().any(|c| c.is_alphabetic());
+
+        // H1: Large title (ratio > 1.5) and short
+        if ratio > 1.5 && is_short {
+            block.block_type = BlockType::SectionHeader;
+            block.level = Some(1);
+            tracing::debug!("H1 detected: ratio={:.2}, text='{}'", ratio, text);
+        }
+        // H2: Section header (ratio > 1.2 OR bold with ratio >= 1.0) and short
+        else if (ratio > 1.2 || (is_bold && ratio >= 1.0)) && is_short {
+            block.block_type = BlockType::SectionHeader;
+            block.level = Some(2);
+            tracing::debug!("H2 detected: ratio={:.2}, bold={}, text='{}'", ratio, is_bold, text);
+        }
+        // H3: Bold and all-caps sub-section
+        else if is_bold && is_all_caps && is_short {
+            block.block_type = BlockType::SectionHeader;
+            block.level = Some(3);
+            tracing::debug!("H3 detected: all-caps bold, text='{}'", text);
+        }
+    }
+}
+
+impl Default for StyleDetectionProcessor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Processor for StyleDetectionProcessor {
+    fn process(&self, mut document: Document) -> Result<Document> {
+        let mut processor = self.clone();
+        processor.compute_body_size(&document);
+
+        for page in &mut document.pages {
+            for block in &mut page.blocks {
+                processor.detect_styles(block);
+                processor.detect_headers(block);
+
+                // Process children recursively
+                for child in &mut block.children {
+                    processor.detect_styles(child);
+                    processor.detect_headers(child);
+                }
+            }
+        }
+
+        Ok(document)
+    }
+
+    fn name(&self) -> &str {
+        "StyleDetectionProcessor"
     }
 }
 

@@ -217,3 +217,99 @@ self.bindings.FPDF_GetPageCount(self.document_handle) // ❌ returns 0
 **STATUS:** Testing halted until this critical bug is resolved.
 
 ---
+
+## NEW SESSION: 2026-01-01 - SOTA Mission with lopdf Backend
+
+### OODA Loop #1 - Territory Mapping
+
+**OBSERVE:**
+
+- Switched to lopdf backend (pure Rust, no external deps)
+- pdfium.rs still exists but is now optional/deprecated
+- Need to understand current capabilities and gaps
+
+**Structure Mapped:**
+
+```
+/src/
+├── backend/
+│   ├── lopdf_backend.rs  ← Pure Rust (just added, working)
+│   ├── mock.rs           ← Testing
+│   └── pdfium.rs         ← TO REMOVE
+├── processors/
+│   ├── llm_enhance.rs    ← LLM enhancement (need to inspect)
+│   └── processor.rs      ← Core processors
+├── renderers/
+│   └── markdown.rs       ← Output
+├── schema/               ← Data structures
+├── layout/               ← Column/reading order detection
+└── vision.rs             ← Vision processing (need to inspect)
+```
+
+**ORIENT:**
+
+- lopdf works but produces basic text extraction
+- Need to add: LLM vision for images/figures, table detection
+- Need to remove: pdfium dependency
+
+**DECIDE:**
+
+1. Read vision.rs and llm_enhance.rs to understand capabilities
+2. Test current output quality
+3. Identify gaps for SOTA
+
+**ACT:**
+Reading key files now...
+
+---
+
+### OODA Loop #2 - Quality Analysis
+
+**OBSERVE - Current Output (one_tool_2512.20957v2.md):**
+
+✅ GOOD:
+
+- Text extraction clean and accurate
+- Academic paper structure preserved
+- References parsed correctly (e.g., "Liu et al., 2024")
+- Superscripts preserved (¹, ²)
+- Mathematical notation partially works (θ, π, etc.)
+- Figure captions detected
+- Page breaks handled with "---"
+
+❌ ISSUES FOUND:
+
+1. **TABLES**: Table 1 & 2 NOT formatted as markdown tables - just plain text
+2. **EQUATIONS**: Math is plain text, should be LaTeX ($...$, $$...$$)
+3. **NO HEADERS**: "1. Introduction" should be "## 1. Introduction"
+4. **RUNNING HEADERS**: "One Tool Is Enough..." repeated on every page
+5. **FIGURE PLACEHOLDERS**: No image content (expected without vision)
+
+**ORIENT - Root Causes:**
+
+1. lopdf_backend just splits by paragraphs - no structure detection
+2. Processors don't detect table patterns from text
+3. No header level detection (lopdf doesn't expose font sizes)
+4. Running headers not filtered
+5. PostProcessor doesn't transform detected patterns to markdown
+
+**DECIDE - Improvement Strategy:**
+Priority 1: Add PostProcessor enhancements:
+
+- Detect section headers (number + "." + Title pattern)
+- Remove running headers (repeated page titles)
+
+Priority 2: Table detection:
+
+- Detect tabular patterns (aligned columns)
+- Format as markdown tables
+
+Priority 3: Equation detection:
+
+- Detect math notation
+- Wrap in LaTeX delimiters
+
+**ACT:**
+Starting with PostProcessor enhancements...
+
+---

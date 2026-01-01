@@ -5,19 +5,18 @@ use tracing::info;
 
 use edgequake_llm::traits::LLMProvider;
 
-#[cfg(feature = "pdfium")]
-use crate::backend::pdfium::PdfiumBackend;
+use crate::backend::mock::MockBackend;
 #[cfg(feature = "lopdf")]
-use crate::backend::lopdf_backend::LopdfBackend;
+use crate::backend::sota_backend::SotaBackend;
 use crate::backend::PdfBackend;
 
 use crate::config::PdfConfig;
 use crate::error::PdfError;
 use crate::processors::{
     BlockMergeProcessor, CaptionDetectionProcessor, CodeBlockDetectionProcessor,
-    GarbledTextFilterProcessor, HeaderDetectionProcessor, HyphenContinuationProcessor, 
-    LayoutProcessor, ListDetectionProcessor, LlmEnhanceConfig, LlmEnhanceProcessor, 
-    MarginFilterProcessor, PostProcessor, ProcessorChain,
+    GarbledTextFilterProcessor, HeaderDetectionProcessor, HyphenContinuationProcessor,
+    LayoutProcessor, ListDetectionProcessor, LlmEnhanceConfig, LlmEnhanceProcessor,
+    MarginFilterProcessor, PostProcessor, ProcessorChain, StyleDetectionProcessor,
 };
 use crate::renderers::{MarkdownRenderer, MarkdownStyle, Renderer};
 use crate::schema::Document;
@@ -84,50 +83,23 @@ impl PdfExtractor {
     }
 
     /// Create a PDF extractor with custom configuration.
-    /// 
+    ///
     /// Backend priority:
-    /// 1. Pdfium (if feature enabled and library available) - highest quality
-    /// 2. Lopdf (if feature enabled) - pure Rust, no external deps
-    /// 3. MockBackend - empty documents, for testing only
+    /// 1. SotaBackend (if lopdf feature enabled) - SOTA pure Rust with font analysis
+    /// 2. MockBackend - empty documents, for testing only
     pub fn with_config(llm_provider: Arc<dyn LLMProvider>, config: PdfConfig) -> Self {
-        // Try Pdfium first (highest quality)
-        #[cfg(feature = "pdfium")]
-        let backend = match PdfiumBackend::with_config(config.clone()) {
-            Ok(b) => {
-                tracing::info!("Using Pdfium backend for PDF extraction");
-                Box::new(b) as Box<dyn PdfBackend>
-            }
-            Err(e) => {
-                tracing::warn!(
-                    "Failed to initialize Pdfium backend: {}. Trying fallback...",
-                    e
-                );
-                // Fall through to lopdf/mock
-                #[cfg(feature = "lopdf")]
-                {
-                    tracing::info!("Using Lopdf backend for PDF extraction");
-                    Box::new(LopdfBackend::with_config(config.clone())) as Box<dyn PdfBackend>
-                }
-                #[cfg(not(feature = "lopdf"))]
-                {
-                    tracing::warn!("No PDF backend available, using MockBackend");
-                    Box::new(MockBackend::new())
-                }
-            }
-        };
-
-        // If pdfium not enabled, try lopdf
-        #[cfg(all(not(feature = "pdfium"), feature = "lopdf"))]
+        // Use SOTA backend if lopdf is enabled
+        #[cfg(feature = "lopdf")]
         let backend = {
-            tracing::info!("Using Lopdf backend for PDF extraction");
-            Box::new(LopdfBackend::with_config(config.clone())) as Box<dyn PdfBackend>
+            tracing::info!("Using SOTA backend for PDF extraction (pure Rust with font analysis)");
+            Box::new(SotaBackend::with_config(config.clone())) as Box<dyn PdfBackend>
         };
 
-        // No backends enabled - use mock
-        #[cfg(all(not(feature = "pdfium"), not(feature = "lopdf")))]
+        // No lopdf - use mock backend
+        #[cfg(not(feature = "lopdf"))]
         let backend = {
             tracing::warn!("No PDF backend available, using MockBackend");
-            Box::new(MockBackend::new())
+            Box::new(MockBackend::new()) as Box<dyn PdfBackend>
         };
 
         Self {
@@ -180,6 +152,14 @@ impl PdfExtractor {
 
         // Apply post-processing pipeline
         let mut doc = self.apply_processors(doc).await?;
+
+        // Debug: show first few blocks of page 1 after all processing
+        if let Some(page) = doc.pages.first() {
+            for (i, block) in page.blocks.iter().take(10).enumerate() {
+                let text_preview: String = block.text.chars().take(60).collect();
+                tracing::debug!("After processors - page1 block {}: '{}'", i, text_preview);
+            }
+        }
 
         // Apply AI enhancement if configured
         if self.config.enhance_readability || self.config.enhance_tables {
@@ -251,15 +231,16 @@ impl PdfExtractor {
     /// Apply post-processing pipeline to improve text quality
     async fn apply_processors(&self, document: Document) -> Result<Document> {
         let chain = ProcessorChain::new()
-            .add(MarginFilterProcessor::new())  // Filter margin content (line numbers, page numbers)
-            .add(GarbledTextFilterProcessor::new())  // Filter garbled figure annotations
+            .add(MarginFilterProcessor::new()) // Filter margin content (line numbers, page numbers)
+            .add(GarbledTextFilterProcessor::new()) // Filter garbled figure annotations
             .add(LayoutProcessor::new())
+            .add(StyleDetectionProcessor::new()) // Detect bold/italic styles and H1/H2+ levels (spec_algo_2.md)
             // .add(TableDetectionProcessor::new()) // DISABLED - causing malformed output
             .add(HeaderDetectionProcessor::new())
             .add(CaptionDetectionProcessor::new())
             .add(ListDetectionProcessor::new())
             .add(CodeBlockDetectionProcessor::new())
-            .add(HyphenContinuationProcessor::new())  // Fix hyphenated words at line breaks
+            .add(HyphenContinuationProcessor::new()) // Fix hyphenated words at line breaks
             .add(BlockMergeProcessor::new())
             .add(PostProcessor::new());
 
