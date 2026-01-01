@@ -87,11 +87,21 @@ impl Processor for LayoutProcessor {
         for page in &mut document.pages {
             let layout = self.analyzer.analyze(&page.blocks, page.width, page.height);
 
-            page.columns = layout.columns;
-
-            // Sort blocks by reading order
-            self.analyzer
-                .sort_by_reading_order(&mut page.blocks, &page.columns);
+            // Check if the detected columns look like a table structure
+            // If so, don't apply column-based reading order
+            let bboxes: Vec<crate::schema::BoundingBox> = page.blocks.iter().map(|b| b.bbox).collect();
+            let is_table = self.analyzer.column_detector().is_likely_table(&bboxes, &layout.columns);
+            
+            if is_table {
+                // For table-like layouts, use single column to preserve natural order
+                page.columns = vec![];
+                tracing::debug!("Detected table-like layout, skipping column-based reading order");
+            } else {
+                page.columns = layout.columns;
+                // Sort blocks by reading order only for actual multi-column layouts
+                self.analyzer
+                    .sort_by_reading_order(&mut page.blocks, &page.columns);
+            }
         }
 
         Ok(document)

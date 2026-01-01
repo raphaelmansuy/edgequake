@@ -173,6 +173,10 @@ impl LayoutAnalyzer {
         self
     }
 
+    /// Get a reference to the column detector.
+    pub fn column_detector(&self) -> &ColumnDetector {
+        &self.column_detector
+    }
     /// Analyze layout of blocks on a page.
     pub fn analyze(&self, blocks: &[Block], page_width: f32, page_height: f32) -> LayoutAnalysis {
         if blocks.is_empty() {

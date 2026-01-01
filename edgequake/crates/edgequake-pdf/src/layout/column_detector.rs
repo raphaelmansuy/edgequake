@@ -338,6 +338,89 @@ impl ColumnDetector {
         }
         None
     }
+
+    /// Check if the detected columns actually look like a table structure.
+    /// Tables typically have:
+    /// - Many items per row (3+)
+    /// - Short items (single words or numbers) relative to column width
+    /// - Uniform row structure with items significantly shorter than columns
+    /// Multi-column text layouts have:
+    /// - Longer text blocks that fill most of the column width
+    /// - Items close to column width
+    pub fn is_likely_table(&self, items: &[BoundingBox], columns: &[BoundingBox]) -> bool {
+        if columns.len() < 2 {
+            return false;
+        }
+
+        // Calculate average column width
+        let avg_col_width = columns.iter().map(|c| c.width()).sum::<f32>() / columns.len() as f32;
+        
+        // Calculate average item width
+        let avg_item_width = if !items.is_empty() {
+            items.iter().map(|b| b.width()).sum::<f32>() / items.len() as f32
+        } else {
+            0.0
+        };
+        
+        // Key metric: items fill percentage of column
+        // Tables: items are typically 20-50% of column width (short words/numbers)
+        // Text columns: items are typically 70-95% of column width (full lines)
+        let fill_ratio = avg_item_width / avg_col_width;
+
+        // Group items by Y position to find rows
+        let mut rows: Vec<Vec<&BoundingBox>> = Vec::new();
+        let mut sorted_items: Vec<&BoundingBox> = items.iter().collect();
+        sorted_items.sort_by(|a, b| a.y1.partial_cmp(&b.y1).unwrap_or(std::cmp::Ordering::Equal));
+
+        for item in sorted_items {
+            let mut found_row = false;
+            for row in rows.iter_mut() {
+                if !row.is_empty() {
+                    let first = row[0];
+                    let overlap_y = first.y2.min(item.y2) - first.y1.max(item.y1);
+                    let min_h = (first.y2 - first.y1).min(item.y2 - item.y1);
+                    if overlap_y > min_h * 0.5 || (first.y1 - item.y1).abs() < 5.0 {
+                        row.push(item);
+                        found_row = true;
+                        break;
+                    }
+                }
+            }
+            if !found_row {
+                rows.push(vec![item]);
+            }
+        }
+
+        // Table characteristics:
+        let rows_with_3_plus_items = rows.iter().filter(|r| r.len() >= 3).count();
+        let multi_item_rows = rows.iter().filter(|r| r.len() > 1).count();
+        
+        // Short items relative to column width
+        let short_threshold = avg_col_width * 0.5; // Items less than 50% of column width
+        let short_items = items.iter().filter(|b| b.width() < short_threshold).count();
+        let short_ratio = short_items as f32 / items.len() as f32;
+
+        // Columns have similar widths
+        let col_widths: Vec<f32> = columns.iter().map(|c| c.width()).collect();
+        let width_avg = col_widths.iter().sum::<f32>() / col_widths.len() as f32;
+        let uniform_widths = col_widths.iter().all(|w| (*w - width_avg).abs() < width_avg * 0.5);
+
+        // Decision logic:
+        // - fill_ratio < 0.5 with many multi-item rows => table (items don't fill columns)
+        // - fill_ratio > 0.6 => text columns (items fill most of column width)
+        // - 4+ columns is strongly table-like unless fill_ratio is very high
+        let is_table = 
+            (fill_ratio < 0.45 && multi_item_rows >= 3) || // Items don't fill columns
+            (columns.len() >= 4 && fill_ratio < 0.6) || // Many columns with sparse items
+            (short_ratio > 0.75 && multi_item_rows >= 3 && uniform_widths); // Very short items in grid
+        
+        debug!(
+            "is_likely_table: {} cols, fill_ratio={:.2}, short_ratio={:.2}, rows_3+={}, multi_rows={} => {}",
+            columns.len(), fill_ratio, short_ratio, rows_with_3_plus_items, multi_item_rows, is_table
+        );
+        
+        is_table
+    }
 }
 
 impl Default for ColumnDetector {

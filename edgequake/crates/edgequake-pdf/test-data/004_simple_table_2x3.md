@@ -4,10 +4,8 @@
 
 This document contains a simple 2-column by 3-row table:
 
-### Name
-
-Alice Bob Charlie
-
-### Age
-
-25 30 35
+| Name | Age |
+| --- | --- |
+| Alice | 25 |
+| Bob | 30 |
+| Charlie | 35 |
