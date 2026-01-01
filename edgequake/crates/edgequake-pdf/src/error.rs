@@ -23,6 +23,9 @@ pub enum PdfError {
     #[error("Configuration error: {0}")]
     Config(String),
 
+    #[error("Processor error: {0}")]
+    Processor(String),
+
     #[error("Unsupported operation: {0}")]
     Unsupported(String),
 }

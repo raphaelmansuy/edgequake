@@ -5,8 +5,60 @@ use tracing::info;
 
 use edgequake_llm::traits::LLMProvider;
 
+#[cfg(feature = "pdfium")]
+use crate::pdfium_extractor::PdfiumExtractor;
+
 use crate::config::PdfConfig;
+use crate::error::PdfError;
+use crate::processors::{LayoutProcessor, LlmEnhanceConfig, LlmEnhanceProcessor, PostProcessor, ProcessorChain};
+use crate::renderers::{MarkdownRenderer, MarkdownStyle, Renderer};
+use crate::schema::Document;
 use crate::Result;
+
+/// Extracted image with metadata
+#[derive(Debug, Clone)]
+pub struct ExtractedImage {
+    /// Image index in document
+    pub id: String,
+    /// MIME type (e.g., "image/png", "image/jpeg")
+    pub mime_type: String,
+    /// Page number where the image was found
+    pub page: usize,
+    /// Image index on the page
+    pub index: usize,
+    /// AI-generated description (if available)
+    pub description: Option<String>,
+    /// Image dimensions (width, height) if available
+    pub dimensions: Option<(u32, u32)>,
+}
+
+/// Page content extracted from PDF
+#[derive(Debug, Clone)]
+pub struct PageContent {
+    /// Page number (0-indexed)
+    pub page_number: usize,
+    /// Raw text content
+    pub text: String,
+    /// Markdown content
+    pub markdown: String,
+    /// Images extracted from this page
+    pub images: Vec<ExtractedImage>,
+}
+
+/// Result of full document extraction
+#[derive(Debug, Clone)]
+pub struct ExtractionResult {
+    /// Total number of pages in the document
+    pub page_count: usize,
+    /// Combined Markdown output
+    pub markdown: String,
+    /// Individual page contents
+    pub pages: Vec<PageContent>,
+    /// All extracted images
+    pub images: Vec<ExtractedImage>,
+    /// Document metadata
+    pub metadata: crate::schema::DocumentMetadata,
+}
 
 /// Main PDF extractor that converts PDFs to Markdown using AI enhancement.
 pub struct PdfExtractor {
@@ -31,33 +83,207 @@ impl PdfExtractor {
         }
     }
 
-    /// Extract Markdown from PDF bytes.
-    pub async fn extract_to_markdown(&self, _pdf_bytes: &[u8]) -> Result<String> {
-        info!("Starting PDF extraction");
-
-        // For now, return a placeholder - full implementation needs pdf_oxide API research
-        // TODO: Implement proper PDF parsing with pdf_oxide
-        let placeholder = format!("# PDF Extraction\n\nThis is a placeholder implementation. PDF processing with AI enhancement will be implemented using the EdgeQuake LLM provider.\n\nConfiguration:\n- OCR Threshold: {}\n- Max Pages: {:?}\n- Include Page Numbers: {}\n- Extract Images: {}\n- Enhance Tables: {}\n- AI Temperature: {}\n",
-            self.config.ocr_threshold,
-            self.config.max_pages,
-            self.config.include_page_numbers,
-            self.config.extract_images,
-            self.config.enhance_tables,
-            self.config.ai_temperature
-        );
-
-        info!("PDF extraction completed (placeholder)");
-        Ok(placeholder)
+    /// Get the current configuration
+    pub fn config(&self) -> &PdfConfig {
+        &self.config
     }
+
+    /// Extract Markdown from PDF bytes.
+    ///
+    /// This is the main entry point for PDF extraction. It parses the PDF,
+    /// extracts text and images, and optionally enhances the output with AI.
+    pub async fn extract_to_markdown(&self, pdf_bytes: &[u8]) -> Result<String> {
+        info!("Starting PDF extraction to Markdown");
+
+        let doc = self.extract_document(pdf_bytes).await?;
+
+        let mut style = MarkdownStyle::default();
+        style.page_numbers = self.config.include_page_numbers;
+
+        let renderer = MarkdownRenderer::with_style(style);
+        renderer.render(&doc)
+    }
+
+    /// Extract structured Document from PDF bytes.
+    pub async fn extract_document(&self, _pdf_bytes: &[u8]) -> Result<Document> {
+        info!("Starting PDF extraction to Document IR");
+
+        #[cfg(feature = "pdfium")]
+        {
+            // Use PdfiumExtractor for base extraction with our config
+            let pdfium_extractor = PdfiumExtractor::with_config(self.config.clone())
+                .map_err(|e| PdfError::PdfParse(format!("Failed to initialize Pdfium: {}", e)))?;
+
+            // Extract base document using Pdfium
+            let doc = pdfium_extractor.extract_document(_pdf_bytes)?;
+
+            // Apply post-processing pipeline
+            let mut doc = self.apply_processors(doc).await?;
+
+            // Apply AI enhancement if configured
+            if self.config.enhance_readability || self.config.enhance_tables {
+                info!("Applying AI enhancement to document");
+                let enhance_config = LlmEnhanceConfig {
+                    enhance_tables: self.config.enhance_tables,
+                    improve_text: self.config.enhance_readability,
+                    ..LlmEnhanceConfig::default()
+                };
+
+                let enhancer = LlmEnhanceProcessor::new(self.llm_provider.clone(), enhance_config);
+                enhancer.process_document(&mut doc).await?;
+            }
+
+            Ok(doc)
+        }
+
+        #[cfg(not(feature = "pdfium"))]
+        {
+            Err(PdfError::PdfParse(
+                "PDF extraction requires the 'pdfium' feature to be enabled".to_string(),
+            ))
+        }
+    }
+
+    /// Extract full document with detailed results
+    pub async fn extract_full(&self, pdf_bytes: &[u8]) -> Result<ExtractionResult> {
+        info!("Starting full PDF extraction");
+
+        let doc = self.extract_document(pdf_bytes).await?;
+        let renderer = MarkdownRenderer::new();
+        let markdown = renderer.render(&doc)?;
+
+        let mut pages = Vec::new();
+        for page in &doc.pages {
+            let mut page_text = String::new();
+            for block in &page.blocks {
+                page_text.push_str(&block.text);
+                page_text.push_str("\n\n");
+            }
+
+            pages.push(PageContent {
+                page_number: page.number,
+                text: page_text.clone(),
+                markdown: page_text,
+                images: Vec::new(), // TODO: Extract images
+            });
+        }
+
+        Ok(ExtractionResult {
+            page_count: doc.pages.len(),
+            markdown,
+            pages,
+            images: Vec::new(),
+            metadata: doc.metadata.clone(),
+        })
+    }
+
+    /// Extract raw text from PDF (no formatting)
+    pub async fn extract_text(&self, pdf_bytes: &[u8]) -> Result<String> {
+        let doc = self.extract_document(pdf_bytes).await?;
+        let mut text = String::new();
+        for page in &doc.pages {
+            for block in &page.blocks {
+                text.push_str(&block.text);
+                text.push_str("\n\n");
+            }
+        }
+        Ok(text.trim().to_string())
+    }
+
+    /// Get PDF information without full extraction
+    pub fn get_info(&self, _pdf_bytes: &[u8]) -> Result<PdfInfo> {
+        #[cfg(feature = "pdfium")]
+        {
+            let pdfium_extractor = PdfiumExtractor::new()
+                .map_err(|e| PdfError::PdfParse(format!("Failed to initialize Pdfium: {}", e)))?;
+
+            let page_count = pdfium_extractor.page_count(_pdf_bytes)?;
+            let metadata = pdfium_extractor.extract_metadata(_pdf_bytes)?;
+
+            Ok(PdfInfo {
+                page_count,
+                pdf_version: metadata
+                    .pdf_version
+                    .unwrap_or_else(|| "Unknown".to_string()),
+                has_images: false, // TODO: Implement image detection for pdfium
+                image_count: 0,    // TODO: Implement image counting for pdfium
+                file_size: _pdf_bytes.len(),
+            })
+        }
+
+        #[cfg(not(feature = "pdfium"))]
+        {
+            Err(PdfError::PdfParse(
+                "PDF extraction requires the 'pdfium' feature to be enabled".to_string(),
+            ))
+        }
+    }
+
+    /// Apply post-processing pipeline to improve text quality
+    async fn apply_processors(&self, document: Document) -> Result<Document> {
+        let chain = ProcessorChain::new()
+            .add(LayoutProcessor::new())
+            .add(PostProcessor::new());
+
+        chain
+            .process(document)
+            .map_err(|e| PdfError::Processor(e.to_string()))
+    }
+}
+
+/// Basic PDF information
+#[derive(Debug, Clone)]
+pub struct PdfInfo {
+    /// Total number of pages
+    pub page_count: usize,
+    /// PDF version string
+    pub pdf_version: String,
+    /// Whether the PDF contains images
+    pub has_images: bool,
+    /// Total number of images across all pages
+    pub image_count: usize,
+    /// File size in bytes
+    pub file_size: usize,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use edgequake_llm::providers::mock::MockProvider;
+
+    fn create_test_extractor() -> PdfExtractor {
+        let provider = Arc::new(MockProvider::new());
+        PdfExtractor::new(provider)
+    }
+
+    #[test]
+    fn test_extractor_creation() {
+        let extractor = create_test_extractor();
+        assert_eq!(extractor.config().ocr_threshold, 0.8);
+    }
+
+    #[test]
+    fn test_extractor_with_config() {
+        let provider = Arc::new(MockProvider::new());
+        let config = PdfConfig::new().with_ocr_threshold(0.5).with_max_pages(10);
+        let extractor = PdfExtractor::with_config(provider, config);
+        assert_eq!(extractor.config().ocr_threshold, 0.5);
+        assert_eq!(extractor.config().max_pages, Some(10));
+    }
 
     #[tokio::test]
-    async fn test_basic_extraction() {
-        // TODO: Add tests once mock PDF data is available
-        // This would require test PDF files and mock LLM provider
+    async fn test_invalid_pdf_bytes() {
+        let extractor = create_test_extractor();
+        let invalid_bytes = b"not a pdf file";
+        let result = extractor.extract_to_markdown(invalid_bytes).await;
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_invalid_pdf_info() {
+        let extractor = create_test_extractor();
+        let invalid_bytes = b"not a pdf file";
+        let result = extractor.get_info(invalid_bytes);
+        assert!(result.is_err());
     }
 }

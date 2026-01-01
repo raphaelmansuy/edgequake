@@ -7,6 +7,14 @@ license.workspace = true
 repository.workspace = true
 description = "PDF to Markdown extraction with AI enhancement for EdgeQuake"
 
+[[bin]]
+name = "edgequake-pdf"
+path = "src/bin.rs"
+
+[features]
+default = []
+pdfium = ["dep:pdfium-render"]
+
 [dependencies]
 # Workspace dependencies
 edgequake-llm.workspace = true
@@ -15,19 +23,29 @@ tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-tracing.workspace = true
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow.workspace = true
 futures.workspace = true
 
-# PDF processing
-pdf_oxide = "0.2.2"
+# PDF processing - pdfium-render for SOTA quality with character-level positions
+# Disable default features to avoid image version conflicts, explicitly use image 0.24 and pdfium API version
+pdfium-render = { version = "0.8", optional = true, default-features = false, features = [
+    "image_024",
+    "thread_safe",
+    "pdfium_latest",
+] }
 
-# Image processing
-image = "0.25"
+# Image processing (match pdf_oxide's version)
+image = "0.24"
 base64 = "0.22"
+regex = "1.10"
 
-# Optional: Local OCR fallback
-tesseract = "0.14"
+# Temporary file handling for PDF bytes
+tempfile = "3.10"
+
+# CLI dependencies
+clap = { version = "4.5", features = ["derive"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }
