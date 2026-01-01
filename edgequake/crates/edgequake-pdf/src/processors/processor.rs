@@ -576,6 +576,529 @@ impl Processor for TableDetectionProcessor {
         "TableDetectionProcessor"
     }
 }
+
+/// Text-based table reconstruction processor.
+///
+/// This handles common cases where the PDF extraction produces one text block per table row
+/// (rather than per cell), by reconstructing a structured `BlockType::Table` from caption-adjacent
+/// lines.
+pub struct TextTableReconstructionProcessor;
+
+impl TextTableReconstructionProcessor {
+    pub fn new() -> Self {
+        Self
+    }
+
+    fn normalize_table_caption(text: &str) -> String {
+        text.trim()
+            .trim_start_matches('#')
+            .trim_start_matches('*')
+            .trim_start()
+            .to_string()
+    }
+
+    fn looks_like_table_caption(text: &str) -> bool {
+        let t = Self::normalize_table_caption(text);
+        // Table 1. ..., TABLE 2 ..., Table S1 ..., etc.
+        let re = Regex::new(r"(?i)^table\s*(?:\d+|s\d+)\b").unwrap();
+        re.is_match(&t)
+    }
+
+    fn is_hard_break(block: &Block) -> bool {
+        let t = block.text.trim();
+        t == "---" || block.block_type == BlockType::SectionHeader
+    }
+
+    fn table_like_score(text: &str) -> i32 {
+        let t = text.trim();
+        if t.is_empty() {
+            return 0;
+        }
+
+        // Strong signal: lots of spacing columns.
+        let multi_space_runs = t.split_whitespace().count() < t.len() / 6;
+        let digits = t.chars().filter(|c| c.is_ascii_digit()).count();
+        let pipes = t.matches('|').count();
+
+        let mut score = 0;
+        if multi_space_runs {
+            score += 2;
+        }
+        if digits >= 3 {
+            score += 2;
+        } else if digits >= 1 {
+            score += 1;
+        }
+        if pipes >= 2 {
+            score += 3;
+        }
+        score
+    }
+
+    fn parse_numeric_suffix(line: &str) -> Option<(String, Vec<String>)> {
+        let tokens: Vec<&str> = line.split_whitespace().collect();
+        if tokens.is_empty() {
+            return None;
+        }
+
+        // Try: <prefix> <float> <int>
+        if tokens.len() >= 3 {
+            let last = tokens[tokens.len() - 1];
+            let prev = tokens[tokens.len() - 2];
+
+            let last_is_int = last.parse::<i64>().is_ok();
+            let prev_is_float = prev.parse::<f64>().is_ok();
+
+            if last_is_int && prev_is_float {
+                let prefix = tokens[..tokens.len() - 2].join(" ");
+                return Some((prefix, vec![prev.to_string(), last.to_string()]));
+            }
+        }
+
+        // Try: <prefix> <float>
+        if tokens.len() >= 2 {
+            let last = tokens[tokens.len() - 1];
+            if last.parse::<f64>().is_ok() {
+                let prefix = tokens[..tokens.len() - 1].join(" ");
+                return Some((prefix, vec![last.to_string()]));
+            }
+        }
+
+        None
+    }
+
+    fn build_table_cells(
+        table_bbox: crate::schema::BoundingBox,
+        page: usize,
+        rows: &[Vec<String>],
+    ) -> Vec<Block> {
+        if rows.is_empty() {
+            return Vec::new();
+        }
+        let col_count = rows.iter().map(|r| r.len()).max().unwrap_or(0);
+        if col_count == 0 {
+            return Vec::new();
+        }
+
+        let width = (table_bbox.x2 - table_bbox.x1).max(1.0);
+        let col_w = width / col_count as f32;
+        let row_h = 14.0;
+
+        let mut children = Vec::new();
+        for (r, row) in rows.iter().enumerate() {
+            for c in 0..col_count {
+                let text = row.get(c).cloned().unwrap_or_default();
+                let mut cell_bbox = table_bbox;
+                cell_bbox.x1 = table_bbox.x1 + c as f32 * col_w;
+                cell_bbox.x2 = table_bbox.x1 + (c as f32 + 1.0) * col_w;
+                cell_bbox.y1 = table_bbox.y1 + r as f32 * row_h;
+                cell_bbox.y2 = cell_bbox.y1 + row_h;
+
+                let mut cell = Block::new(BlockType::TableCell, cell_bbox);
+                cell.page = page;
+                cell.text = text;
+                children.push(cell);
+            }
+        }
+        children
+    }
+}
+
+impl Default for TextTableReconstructionProcessor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Processor for TextTableReconstructionProcessor {
+    fn process(&self, mut document: Document) -> Result<Document> {
+        for page in &mut document.pages {
+            if page.blocks.is_empty() {
+                continue;
+            }
+
+            let mut new_blocks: Vec<Block> = Vec::with_capacity(page.blocks.len());
+            let mut i = 0;
+            while i < page.blocks.len() {
+                let block = &page.blocks[i];
+
+                if !Self::looks_like_table_caption(&block.text) {
+                    new_blocks.push(block.clone());
+                    i += 1;
+                    continue;
+                }
+
+                    // If the next non-empty line is already a pipe table, do nothing.
+                    let mut next_non_empty: Option<&str> = None;
+                    for j in (i + 1)..page.blocks.len().min(i + 8) {
+                        let t = page.blocks[j].text.trim();
+                        if t.is_empty() {
+                            continue;
+                        }
+                        next_non_empty = Some(t);
+                        break;
+                    }
+                    if matches!(next_non_empty, Some(t) if t.starts_with('|')) {
+                        new_blocks.push(block.clone());
+                        i += 1;
+                        continue;
+                    }
+
+                    // Scan forward for table-like lines (caption-before-table).
+                    let scan_start = i + 1;
+                    let scan_end = (scan_start + 40).min(page.blocks.len());
+                    let mut forward_lines: Vec<(usize, String)> = Vec::new();
+                    let mut forward_score = 0;
+                    let mut non_table_streak = 0;
+                    for j in scan_start..scan_end {
+                        let b = &page.blocks[j];
+                        let t = b.text.trim();
+                        if t.is_empty() {
+                            break;
+                        }
+                        if Self::is_hard_break(b) {
+                            break;
+                        }
+                        if Self::looks_like_table_caption(t) {
+                            break;
+                        }
+
+                        let s = Self::table_like_score(t);
+                        if !forward_lines.is_empty() {
+                            if s == 0 {
+                                non_table_streak += 1;
+                                if non_table_streak >= 3 {
+                                    break;
+                                }
+                            } else {
+                                non_table_streak = 0;
+                            }
+                        }
+
+                        forward_score += s;
+                        forward_lines.push((j, t.to_string()));
+                    }
+
+                    // Scan backward for table-like lines (caption-after-table).
+                    let mut backward_lines: Vec<(usize, String)> = Vec::new();
+                    let mut backward_score = 0;
+                    let mut non_table_streak = 0;
+                    let back_start = i.saturating_sub(1);
+                    let back_limit = i.saturating_sub(60);
+                    let mut j = back_start;
+                    while j >= back_limit {
+                        let b = &page.blocks[j];
+                        let t = b.text.trim();
+                        if t.is_empty() {
+                            break;
+                        }
+                        if Self::is_hard_break(b) {
+                            break;
+                        }
+                        if Self::looks_like_table_caption(t) {
+                            break;
+                        }
+
+                        let s = Self::table_like_score(t);
+                        if !backward_lines.is_empty() {
+                            if s == 0 {
+                                non_table_streak += 1;
+                                if non_table_streak >= 3 {
+                                    break;
+                                }
+                            } else {
+                                non_table_streak = 0;
+                            }
+                        }
+
+                        backward_score += s;
+                        backward_lines.push((j, t.to_string()));
+
+                        if j == 0 {
+                            break;
+                        }
+                        j -= 1;
+                    }
+                    backward_lines.reverse();
+
+                    // Pick the best candidate direction.
+                    // Some PDFs collapse an entire table into a single extracted line/block.
+                    // Accept that case if the line is strongly table-like.
+                    const MIN_SINGLE_LINE_SCORE: i32 = 3;
+                    let forward_candidate = forward_lines.len() >= 2
+                        || (forward_lines.len() == 1 && forward_score >= MIN_SINGLE_LINE_SCORE);
+                    let backward_candidate = backward_lines.len() >= 2
+                        || (backward_lines.len() == 1 && backward_score >= MIN_SINGLE_LINE_SCORE);
+
+                    let use_forward = forward_candidate
+                        && (!backward_candidate || forward_score >= backward_score);
+                    let use_backward = !use_forward && backward_candidate;
+
+                    if !use_forward && !use_backward {
+                        // Not enough evidence; keep as-is.
+                        new_blocks.push(block.clone());
+                        i += 1;
+                        continue;
+                    }
+
+                    let lines: Vec<(usize, String)> = if use_forward {
+                        forward_lines
+                    } else {
+                        backward_lines
+                    };
+
+                    // If we only captured a single line, emit a conservative 1-column table.
+                    // This guarantees a Markdown pipe table renders without guessing columns.
+                    if lines.len() == 1 {
+                        let mut table_bbox = block.bbox;
+                        table_bbox = table_bbox.union(&page.blocks[lines[0].0].bbox);
+
+                        let mut rows: Vec<Vec<String>> = Vec::new();
+                        rows.push(vec!["Value".to_string()]);
+                        rows.push(vec![lines[0].1.clone()]);
+
+                        let mut table_block = Block::new(BlockType::Table, table_bbox);
+                        table_block.page = page.number as usize - 1;
+                        table_block.children =
+                            Self::build_table_cells(table_bbox, table_block.page, &rows);
+                        table_block
+                            .metadata
+                            .insert("reconstructed".to_string(), serde_json::json!(true));
+
+                        new_blocks.push(block.clone());
+                        new_blocks.push(table_block);
+
+                        if use_forward {
+                            let consumed_until = lines[0].0 + 1;
+                            i = consumed_until;
+                        } else {
+                            i += 1;
+                        }
+                        continue;
+                    }
+
+                // Header detection: often split across 1-2 lines.
+                let mut header_cols: Vec<String> = Vec::new();
+                let header_consumed: usize;
+                let first = lines[0].1.clone();
+                let second = lines.get(1).map(|(_, s)| s.as_str()).unwrap_or("");
+
+                let first_lc = first.to_lowercase();
+                if first_lc.contains("sub-task")
+                    && first_lc.contains("f1")
+                    && first_lc.contains("rank")
+                {
+                    header_cols.push("Sub-task".to_string());
+                    if second.eq_ignore_ascii_case("task") {
+                        header_cols.push("Task".to_string());
+                        header_consumed = 2;
+                    } else {
+                        header_consumed = 1;
+                    }
+                    header_cols.push("F1-score".to_string());
+                    header_cols.push("Rank".to_string());
+                } else {
+                    // Fallback: split by runs of whitespace
+                    header_cols = first
+                        .split_whitespace()
+                        .map(|s| s.to_string())
+                        .collect();
+                    header_consumed = 1;
+                }
+
+                if header_cols.len() < 2 {
+                    new_blocks.push(block.clone());
+                    i += 1;
+                    continue;
+                }
+
+                let mut rows: Vec<Vec<String>> = Vec::new();
+                rows.push(header_cols.clone());
+
+                // Specialized row parsing for common leaderboard tables.
+                if header_cols.len() == 4 && header_cols.get(1).map(|s| s == "Task").unwrap_or(false)
+                {
+                    #[derive(Default)]
+                    struct RowAcc {
+                        sub_task: String,
+                        task: String,
+                        f1: String,
+                        rank: String,
+                    }
+
+                    let re_subtask = Regex::new(r"(?i)^(?:[A-D]\d+(?:\.\d+)?|C\d+|D\d+)\s*-").unwrap();
+
+                    let mut pending: Option<RowAcc> = None;
+                    let mut parsed: Vec<RowAcc> = Vec::new();
+
+                    for (_, line) in lines.iter().skip(header_consumed) {
+                        let t = line.trim();
+                        if t.is_empty() {
+                            continue;
+                        }
+
+                        if let Some((prefix, nums)) = Self::parse_numeric_suffix(t) {
+                            if let Some(p) = pending.take() {
+                                if !p.sub_task.is_empty() {
+                                    parsed.push(p);
+                                }
+                            }
+
+                            let mut row = RowAcc::default();
+                            row.sub_task = prefix;
+                            if nums.len() == 2 {
+                                row.f1 = nums[0].clone();
+                                row.rank = nums[1].clone();
+                            } else if nums.len() == 1 {
+                                row.f1 = nums[0].clone();
+                            }
+                            pending = Some(row);
+                            continue;
+                        }
+
+                        let is_int_only = t.parse::<i64>().is_ok();
+                        let is_float_only = t.parse::<f64>().is_ok();
+                        let has_digit = t.chars().any(|c| c.is_ascii_digit());
+                        let lc = t.to_lowercase();
+                        let looks_task = !has_digit
+                            && (lc.contains("extraction")
+                                || lc.contains("discovery")
+                                || lc.contains("typing")
+                                || lc.contains("relation"));
+
+                        // Some PDFs split the sub-task descriptor into its own line.
+                        let looks_subtask = re_subtask.is_match(t);
+                        if looks_subtask {
+                            if let Some(p) = pending.take() {
+                                if !p.sub_task.is_empty() {
+                                    parsed.push(p);
+                                }
+                            }
+                            let mut row = RowAcc::default();
+                            row.sub_task = t.to_string();
+                            pending = Some(row);
+                            continue;
+                        }
+
+                        if let Some(p) = pending.as_mut() {
+                            if is_int_only && p.rank.is_empty() {
+                                p.rank = t.to_string();
+                                continue;
+                            }
+                            if is_float_only && p.f1.is_empty() {
+                                p.f1 = t.to_string();
+                                continue;
+                            }
+                            if looks_task && p.task.is_empty() {
+                                p.task = t.to_string();
+                                continue;
+                            }
+
+                            // Continuation: prefer extending the most descriptive field.
+                            if p.task.is_empty() {
+                                if !p.sub_task.is_empty() {
+                                    p.sub_task.push(' ');
+                                }
+                                p.sub_task.push_str(t);
+                            } else {
+                                p.task.push(' ');
+                                p.task.push_str(t);
+                            }
+                        }
+                    }
+
+                    if let Some(p) = pending.take() {
+                        if !p.sub_task.is_empty() {
+                            parsed.push(p);
+                        }
+                    }
+
+                    for p in parsed {
+                        rows.push(vec![p.sub_task, p.task, p.f1, p.rank]);
+                    }
+                } else {
+                    // Generic fallback:
+                    // 1) Try splitting rows by numeric suffix.
+                    // 2) If that fails, build a single-column Markdown table so tables still render.
+                    let mut numeric_rows: Vec<Vec<String>> = Vec::new();
+                    for (_, line) in lines.iter().skip(header_consumed) {
+                        if let Some((prefix, nums)) = Self::parse_numeric_suffix(line) {
+                            let mut r = Vec::new();
+                            r.push(prefix);
+                            r.extend(nums);
+                            numeric_rows.push(r);
+                        }
+                    }
+
+                    if numeric_rows.len() >= 2 {
+                        rows.extend(numeric_rows);
+                    } else {
+                        // 1-col fallback: include the scanned lines as rows.
+                        rows.clear();
+                        rows.push(vec!["Value".to_string()]);
+                        for (_, line) in lines.iter() {
+                            rows.push(vec![line.clone()]);
+                        }
+                    }
+                }
+
+                // Normalize row sizes.
+                let col_count = header_cols.len();
+                if rows.len() >= 2 {
+                    for r in rows.iter_mut() {
+                        if r.len() < col_count {
+                            r.resize(col_count, String::new());
+                        }
+                    }
+                }
+
+                if rows.len() < 2 {
+                    new_blocks.push(block.clone());
+                    i += 1;
+                    continue;
+                }
+
+                // Compute bbox union over captured blocks.
+                let mut table_bbox = block.bbox;
+                for (idx, _) in &lines {
+                    table_bbox = table_bbox.union(&page.blocks[*idx].bbox);
+                }
+
+                let mut table_block = Block::new(BlockType::Table, table_bbox);
+                table_block.page = page.number as usize - 1;
+                table_block.children = Self::build_table_cells(table_bbox, table_block.page, &rows);
+                table_block
+                    .metadata
+                    .insert("reconstructed".to_string(), serde_json::json!(true));
+
+                // Keep caption, then insert reconstructed table.
+                new_blocks.push(block.clone());
+                new_blocks.push(table_block);
+
+                if use_forward {
+                    // Skip consumed blocks (caption-before-table).
+                    let consumed_until = lines
+                        .last()
+                        .map(|(idx, _)| *idx + 1)
+                        .unwrap_or(i + 1);
+                    i = consumed_until;
+                } else {
+                    // Caption-after-table: do not skip forward blocks.
+                    i += 1;
+                }
+            }
+
+            page.blocks = new_blocks;
+        }
+
+        Ok(document)
+    }
+
+    fn name(&self) -> &str {
+        "TextTableReconstructionProcessor"
+    }
+}
+
 /// Block merge processor - merges adjacent blocks into paragraphs.
 pub struct BlockMergeProcessor {
     /// Maximum vertical gap for merging
@@ -1127,7 +1650,7 @@ impl PostProcessor {
 
     /// Fix concatenated words (e.g., "methodsThe" -> "methods The")
     /// NOTE: This method only handles legitimate text patterns, not PDF extraction errors.
-    /// Word spacing issues must be fixed at the source (pdfium.rs character-level extraction).
+    /// Word spacing issues must be fixed at the source (character-level extraction).
     fn fix_concatenated_words(&self, text: &str) -> String {
         let mut result = text.to_string();
 
@@ -1964,5 +2487,97 @@ mod tests {
         let result = processor.process(doc).unwrap();
 
         assert!(!result.pages.is_empty());
+    }
+
+    #[test]
+    fn test_text_table_reconstruction_caption_after_table() {
+        let mut doc = Document::new();
+        let mut page = Page::new(1, 612.0, 792.0);
+
+        page.add_block(Block::text(
+            "Agent Pipeline Func-IoU(%) Resolved(%) Agentless 5.28 10.12 Repo Navigator 12.00 14.74",
+            BoundingBox::new(72.0, 100.0, 540.0, 130.0),
+        ));
+        page.add_block(Block::text(
+            "*Table 3. We use Qwen2.5-14B-Instruct as the localization model*",
+            BoundingBox::new(72.0, 140.0, 540.0, 155.0),
+        ));
+        page.add_block(Block::text(
+            "---",
+            BoundingBox::new(72.0, 160.0, 540.0, 165.0),
+        ));
+
+        doc.add_page(page);
+
+        let processor = TextTableReconstructionProcessor::new();
+        let result = processor.process(doc).unwrap();
+        let blocks = &result.pages[0].blocks;
+
+        let mut found = false;
+        for w in blocks.windows(2) {
+            if TextTableReconstructionProcessor::looks_like_table_caption(&w[0].text)
+                && w[1].block_type == BlockType::Table
+            {
+                assert!(!w[1].children.is_empty());
+                assert!(w[1]
+                    .children
+                    .iter()
+                    .all(|c| c.block_type == BlockType::TableCell));
+                found = true;
+                break;
+            }
+        }
+        assert!(found, "expected caption followed by reconstructed table");
+    }
+
+    #[test]
+    fn test_text_table_reconstruction_caption_before_table_skips_source_lines() {
+        let mut doc = Document::new();
+        let mut page = Page::new(1, 612.0, 792.0);
+
+        page.add_block(Block::text(
+            "#### Table 1. F1-scores and Rankings",
+            BoundingBox::new(72.0, 100.0, 540.0, 115.0),
+        ));
+        page.add_block(Block::text(
+            "Sub-task F1-score Rank",
+            BoundingBox::new(72.0, 120.0, 540.0, 135.0),
+        ));
+        page.add_block(Block::text(
+            "Task",
+            BoundingBox::new(72.0, 136.0, 540.0, 150.0),
+        ));
+        page.add_block(Block::text(
+            "A1.2 - Scholarly Term Extraction 0.4578 4",
+            BoundingBox::new(72.0, 156.0, 540.0, 170.0),
+        ));
+        page.add_block(Block::text(
+            "A1.3 - Engineering Term Extraction 0.4302 6",
+            BoundingBox::new(72.0, 171.0, 540.0, 185.0),
+        ));
+        page.add_block(Block::text(
+            "---",
+            BoundingBox::new(72.0, 190.0, 540.0, 195.0),
+        ));
+
+        doc.add_page(page);
+
+        let processor = TextTableReconstructionProcessor::new();
+        let result = processor.process(doc).unwrap();
+        let blocks = &result.pages[0].blocks;
+
+        // Ensure caption is followed by a table block.
+        let caption_idx = blocks
+            .iter()
+            .position(|b| TextTableReconstructionProcessor::looks_like_table_caption(&b.text))
+            .expect("caption should exist");
+        assert!(caption_idx + 1 < blocks.len());
+        assert_eq!(blocks[caption_idx + 1].block_type, BlockType::Table);
+
+        // Ensure we did not keep the raw header line(s) as separate blocks.
+        assert!(
+            !blocks.iter().any(|b| b.text.trim() == "Sub-task F1-score Rank"),
+            "expected source table lines to be consumed when caption precedes table"
+        );
     }
 }

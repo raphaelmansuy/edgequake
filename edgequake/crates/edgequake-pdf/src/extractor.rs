@@ -16,6 +16,7 @@ use crate::processors::{
     GarbledTextFilterProcessor, HeaderDetectionProcessor, HyphenContinuationProcessor,
     LayoutProcessor, ListDetectionProcessor, LlmEnhanceConfig, LlmEnhanceProcessor,
     MarginFilterProcessor, PostProcessor, ProcessorChain, StyleDetectionProcessor,
+    TextTableReconstructionProcessor,
 };
 use crate::renderers::{MarkdownRenderer, MarkdownStyle, Renderer};
 use crate::schema::Document;
@@ -76,7 +77,7 @@ pub struct PdfExtractor {
 impl PdfExtractor {
     /// Create a new PDF extractor with the given LLM provider and default config.
     ///
-    /// This will attempt to use the best available backend (Pdfium if enabled).
+    /// This will attempt to use the best available backend.
     pub fn new(llm_provider: Arc<dyn LLMProvider>) -> Self {
         Self::with_config(llm_provider, PdfConfig::default())
     }
@@ -245,6 +246,7 @@ impl PdfExtractor {
             // .add(TableDetectionProcessor::new()) // DISABLED - causing malformed output
             .add(HeaderDetectionProcessor::new())
             .add(CaptionDetectionProcessor::new())
+            .add(TextTableReconstructionProcessor::new())
             .add(ListDetectionProcessor::new())
             .add(CodeBlockDetectionProcessor::new())
             .add(HyphenContinuationProcessor::new()) // Fix hyphenated words at line breaks
@@ -303,12 +305,9 @@ mod tests {
         let invalid_bytes = b"not a pdf file";
         // With MockBackend, this will succeed (returning empty doc)
         // We should verify that it doesn't panic
-        let result = extractor.extract_to_markdown(invalid_bytes).await;
+        let _result = extractor.extract_to_markdown(invalid_bytes).await;
 
-        // If we are using MockBackend (default in tests usually), it returns Ok
-        // If we are using PdfiumBackend, it returns Err
-
-        // For now, let's just assert that it runs without panic
+        // For now, just verify it runs without panic.
         // assert!(result.is_err());
     }
 
@@ -316,7 +315,7 @@ mod tests {
     fn test_invalid_pdf_info() {
         let extractor = create_test_extractor();
         let invalid_bytes = b"not a pdf file";
-        let result = extractor.get_info(invalid_bytes);
+        let _result = extractor.get_info(invalid_bytes);
         // Same here
     }
 }

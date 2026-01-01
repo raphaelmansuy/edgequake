@@ -1,5 +1,3 @@
-## Page 1
-
 ### S&P 500 Stock'sMovement Prediction using CNN
 
 ## Rahul Gupta Stanford University 353 Serra Mall, Stanford, CA 94305
@@ -18,7 +16,7 @@ funds and individual rely on S&P 500 stock's movement to invest, liquidate their
 
 risks. S&P 500 represent top 500 large cap companies of
 
-*consist ofS&P500index. Historically there are many*
+*consist ofS&P 500index. Historically there are many*
 
 the United Statesand is watched by companies and
 
@@ -32,7 +30,7 @@ the key financial indicators for market movements.Though
 
 *currently for algorithm trading and alpha generating*
 
-*[ ]. the same proposed model can be trainedfor all the stocks*
+*[]. the same proposed model can be trainedfor all the stocks*
 
 *systems using traditional mathematical approaches*
 
@@ -141,8 +139,6 @@ vectorized calculations in a batch with error computation and gradient descent o
 
 ---
 
-## Page 2
-
 their ability to learn useful spatial features from the input computer vision. In Predicting Time Series with Spacedata have revolutionized computer vision. The network
 
 Time Convolutional and Recurrent Neural Networks, Grob
@@ -185,13 +181,13 @@ time-series numbers(OPEN, HIGH, LOW, CLOSE,
 
 Convolutional and Recurrent Neural Network (STaR).
 
-VOLUME, ADJ_OPEN, ADJ_HIGH, ADJ_LOW, ADJ_CLOSE, ADJ_VOLUME ) uploaded in CSV format
+VOLUME, ADJ_OPEN, ADJ_HIGH, ADJ_LOW, ADJ_CLOSE, ADJ_VOLUME) uploaded in CSV format
 
 In the paper titled as Conditional Time Series
 
 for all current stock consists in S&P 500. We then use a
 
-Forecasting with Convolutional Neural Networks [],
+Forecasting with Convolutional Neural Networks[],
 
 CNN approach to deep learning to predictBUY/SELL
 
@@ -205,7 +201,7 @@ time series forecasting based on the deep convolutional Wave Net architecture. T
 
 series and allow for the fast processing of data and the exploitation of the correlation structure between the
 
-Persio and Honchar [8]laid the framework for comparing
+Persio and Honchar[8]laid the framework for comparing
 
 , multidimensionaltime series. The performance of the
 
@@ -306,13 +302,11 @@ fluctuationsto an actual imagewas a smartapproach but 2
 
 ---
 
-## Page 3
-
 requires additional work that is an overheadmake it less usable.
 
 15
 
-Bi´nkowskiet al.[]proposed model they called Significance-Offset Convolutional Neural Network, a deep convolutional network architecture for regression of multivariate asynchronous time series. The model is inspiredby standard autoregressive (AR) models and gating mechanisms used in recurrent neural networks.
+Bi´nkowskiet al. [] proposed model they called Significance-Offset Convolutional Neural Network, a deep convolutional network architecture for regression of multivariate asynchronous time series. The model is inspiredby standard autoregressive (AR) models and gating mechanisms used in recurrent neural networks.
 
 16
 
@@ -381,8 +375,6 @@ For the ohlcprice, it also needs to be split-unadjusted. An example of unsplit-a
 
 ---
 
-## Page 4
-
 As follows, several steps of data preprocessing are
 
 The simple normalization technique was used to get all
@@ -403,7 +395,7 @@ DATE, OPEN, HIGH, LOW, CLOSE, VOLUME,
 
 features equally in their representation.
 
-EX_DIVIDEND, SPLIT_RATIO, ADJ_OPEN ADJ_HIGH, ADJ_LOW, ADJ_CLOSE, ADJ_VOLUME, ADJ_FACTOR . However, for the model we will be using features only: OPEN, HIGH, LOW, CLOSE, VOLUME,
+EX_DIVIDEND, SPLIT_RATIO, ADJ_OPEN ADJ_HIGH, ADJ_LOW, ADJ_CLOSE, ADJ_VOLUME, ADJ_FACTOR. However, for the model we will be using features only: OPEN, HIGH, LOW, CLOSE, VOLUME,
 
 The complete dataset used in training and testing of this
 
@@ -411,7 +403,7 @@ ADJ_OPEN, ADJ_HIGH, ADJ_LOW, ADJ_CLOSE,
 
 paper has been loadedfrom an authorized market data
 
-ADJ_VOLUME .The remaining three columns were
+ADJ_VOLUME.The remaining three columns were
 
 source provider Intrinio.com, a Financial Data Platform
 
@@ -425,7 +417,7 @@ columns were either 0 or 1 and didnot add any value in setting the pattern CNN i
 
 18
 
-Deep-Learning (DL) []approaches that relate to computational algorithms using artificial neural networks with many layers allows to directly analyze raw data measurements without having to encode the measurements in task-specific representations. This workproposesto harness CNN networks to efficiently learn complex nonlinear models directly from the raw data, for the prediction ofthe financial market trends. This paperintroducesthe following contributions:
+Deep-Learning (DL)[] approaches that relate to computational algorithms using artificial neural networks with many layers allows to directly analyze raw data measurements without having to encode the measurements in task-specific representations. This workproposesto harness CNN networks to efficiently learn complex nonlinear models directly from the raw data, for the prediction ofthe financial market trends. This paperintroducesthe following contributions:
 
 *Figure 3: Cleaned data before normalization was applied*
 
@@ -467,8 +459,6 @@ to see ifthe modelhas learnedthese complex market events. A Conv Net arranges it
 
 
 ---
-
-## Page 5
 
 In the proposed model,the convolutionallayer is one
 
@@ -516,7 +506,7 @@ The graph above illustrates the range of possible loss values given an accurateo
 
 *Figure 6: Cross-entropy loss graph*
 
-The input data snapshots/images are in shape [batch_size, window_size, channels], the rolling-window (the number of daysof the datamodelislooking at in one batchand the tenchannels areOHLCV and adjusted OHLCV .
+The input data snapshots/images are in shape [batch_size, window_size, channels], the rolling-window (the number of daysof the datamodelislooking at in one batchand the tenchannels areOHLCV and adjusted OHLCV.
 
 After
 
@@ -530,8 +520,6 @@ only). Image source: stats.stackexchange.com 5
 
 
 ---
-
-## Page 6
 
 ) as split/dividend unadjusted and adjusted prices, breaking
 
@@ -567,7 +555,7 @@ for around an hour with different sets of data and multiple
 
 orequivalently
 
-stocks the highest accuracyachieved was 69%. Additionally, toprovide further perspective, following image demonstratesthe prediction accuracies from some of the Deep Learning models implemented in previous paperstrying to achievea similargoal:
+stocks the highest accuracy achieved was 69%. Additionally, toprovide further perspective, following image demonstratesthe prediction accuracies from some of the Deep Learning models implemented in previous paperstrying to achievea similargoal:
 
 where we are using the notation fjto mean the j-th element of the vector of class scores f.The full loss for the dataset is the mean of Lioveralltraining examples together with a
 
@@ -605,7 +593,7 @@ learningat all:
 
 22
 
-Estimation(MLE ). [] The base of the model is startedfrom anonline blog by Xu, Pat Git Hub [23]that tries to achieve a similargoaland except data augmentation and few parts of the model every other piece of code has gonethrough aredesignand rewritten. The proposed model implementation varies from the model referredas a base model in terms of complexity of input data.Also,the model is exposedto be trainedon
+Estimation(MLE). [] The base of the model is startedfrom anonline blog by Xu, Pat Git Hub [23]that tries to achieve a similargoaland except data augmentation and few parts of the model every other piece of code has gonethrough aredesignand rewritten. The proposed model implementation varies from the model referredas a base model in terms of complexity of input data.Also,the model is exposedto be trainedon
 
 *Figure 9: Initial execution loss and accuracyMSFT 2-day (T+2)*
 
@@ -613,8 +601,6 @@ Estimation(MLE ). [] The base of the model is startedfrom anonline blog by Xu, P
 
 
 ---
-
-## Page 7
 
 7
 
@@ -652,8 +638,6 @@ model: that used are performance tuning and babysitting the epoch, batch size an
 
 
 ---
-
-## Page 8
 
 8
 
@@ -719,8 +703,6 @@ such as generating sets of most profitable portfolios or There are numerous oppo
 
 
 ---
-
-## Page 9
 
 9
 

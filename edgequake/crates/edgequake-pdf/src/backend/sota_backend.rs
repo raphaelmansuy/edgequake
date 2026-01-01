@@ -1472,13 +1472,14 @@ impl SotaBackend {
                                         }
                                     }
                                     Object::Integer(n) => {
-                                        // Negative values > 100 indicate word space
-                                        if *n < -100 {
+                                        // In TJ arrays, negative kerning values often encode word spaces.
+                                        // Be more permissive to avoid missing spaces in real-world PDFs.
+                                        if *n < -50 {
                                             combined_text.push(' ');
                                         }
                                     }
                                     Object::Real(n) => {
-                                        if *n < -100.0 {
+                                        if *n < -50.0 {
                                             combined_text.push(' ');
                                         }
                                     }
@@ -1649,6 +1650,7 @@ impl SotaBackend {
 
         // Find gaps - minimum gap of 4 bins (20pt) for column separator
         let gaps = self.find_projection_gaps(&proj, bin_size, 4);
+        debug!("Projection gaps found: {:?}", gaps);
 
         // Look for a gap near the center of the page (column boundary)
         // In academic papers, the gutter is typically around 45-55% of page width
@@ -2074,18 +2076,29 @@ impl SotaBackend {
         let is_bold = elements.iter().any(|e| e.is_bold);
         let is_italic = elements.iter().any(|e| e.is_italic);
 
-        // Estimate average character width
+        // Estimate average character width.
+        // We bias toward inserting spaces (missing spaces are worse than extra spaces).
         let avg_char_width = avg_font_size * 0.5;
-        let space_threshold = avg_char_width * 1.5;
+        let space_threshold = avg_char_width * 1.1;
 
         for (i, elem) in elements.iter().enumerate() {
             if i > 0 {
                 let prev = &elements[i - 1];
-                // Estimate previous element's end position
-                let prev_end = prev.x + (prev.text.len() as f32 * avg_char_width);
+                // Estimate previous element's end position using its own font size and Unicode-safe length.
+                let prev_char_width = prev.font_size * 0.5;
+                let prev_len = prev.text.chars().count() as f32;
+                let prev_end = prev.x + (prev_len * prev_char_width);
                 let gap = elem.x - prev_end;
 
-                if gap > space_threshold {
+                // Avoid inserting spaces before punctuation.
+                let starts_with_punct = elem
+                    .text
+                    .chars()
+                    .next()
+                    .map(|c| matches!(c, ',' | '.' | ':' | ';' | ')' | ']' | '}' | '?' | '!' ))
+                    .unwrap_or(false);
+
+                if gap > space_threshold && !starts_with_punct {
                     text.push(' ');
                 }
             }
@@ -2288,7 +2301,7 @@ impl SotaBackend {
         page_id: ObjectId,
         page_num: usize,
     ) -> Result<Page> {
-        let (width, height) = self.get_page_dimensions(doc, page_id)?;
+        let (page_width, page_height) = self.get_page_dimensions(doc, page_id)?;
 
         // Get fonts
         let fonts = self.get_page_fonts(doc, page_id).unwrap_or_default();
@@ -2302,8 +2315,29 @@ impl SotaBackend {
         debug!("Page {} has {} text elements and {} graphical lines", page_num, elements.len(), pdf_lines.len());
 
         // Detect tables
-        let tables = self.lattice_engine.detect_tables(&pdf_lines, &elements, width, height);
-        debug!("Page {} has {} detected tables", page_num, tables.len());
+        let tables: Vec<Block> = Vec::new(); // DISABLED FOR NOW
+        // let tables = self.lattice_engine.detect_tables(
+        //     page_num,
+        //     &lines,
+        //     &mut text_elements,
+        //     page_width,
+        //     page_height,
+        // );
+        
+        if !tables.is_empty() {
+            warn!(
+                "Table detection filtered all text elements on page {}, skipping text processing for this page.",
+                page_num
+            );
+            return Ok(Page {
+                number: page_num,
+                width: page_width,
+                height: page_height,
+                blocks: tables,
+                stats: PageStats::default(),
+                ..Page::new(page_num, page_width, page_height)
+            });
+        }
 
         // Filter out text elements that are inside tables
         let mut non_table_elements = Vec::new();
@@ -2330,7 +2364,7 @@ impl SotaBackend {
         }
 
         // Group into lines (handles two-column layouts) and get column bounding boxes
-        let (lines, columns) = self.group_into_lines(non_table_elements, width, height);
+        let (lines, columns) = self.group_into_lines(non_table_elements, page_width, page_height);
         debug!(
             "Page {} has {} lines, {} columns detected",
             page_num,
@@ -2339,7 +2373,7 @@ impl SotaBackend {
         );
 
         // Convert to blocks
-        let mut blocks = self.lines_to_blocks(lines, width, height);
+        let mut blocks = self.lines_to_blocks(lines, page_width, page_height);
         
         // Add tables
         blocks.extend(tables);
@@ -2353,7 +2387,7 @@ impl SotaBackend {
             .map(|b| b.text.split_whitespace().count())
             .sum();
 
-        let mut page = Page::new(page_num, width, height);
+        let mut page = Page::new(page_num, page_width, page_height);
         page.blocks = blocks;
         page.columns = columns; // Set detected columns to prevent LayoutProcessor re-analysis
         page.method = ExtractionMethod::Native;

@@ -31,11 +31,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pdf_path = manifest_dir
         .join("test-data")
         .join("real_dataset")
-        .join("one_tool_2512.20957v2.pdf");
+        .join("ccn_2512.21804v1.pdf");
     let out_path = manifest_dir
         .join("test-data")
         .join("real_dataset")
-        .join("one_tool_2512.20957v2.md");
+        .join("ccn_2512.21804v1.md");
 
     println!("Input: {}", pdf_path.display());
     println!("Output: {}", out_path.display());

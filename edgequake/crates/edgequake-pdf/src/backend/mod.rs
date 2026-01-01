@@ -5,7 +5,7 @@ use async_trait::async_trait;
 
 /// Trait for PDF extraction backends.
 ///
-/// This trait abstracts the underlying PDF engine (e.g., Pdfium, lopdf, etc.)
+/// This trait abstracts the underlying PDF engine (e.g., lopdf, etc.)
 /// allowing for swappable backends and easier testing.
 #[async_trait]
 pub trait PdfBackend: Send + Sync {

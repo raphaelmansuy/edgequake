@@ -495,7 +495,10 @@ async fn advanced_023_incomplete_unicode_mapping() {
 async fn advanced_024_embedded_fonts_obfuscated() {
     let pdf = load_pdf("024_embedded_fonts_obfuscated.pdf");
     let result = create_extractor().extract_text(&pdf).await;
-    assert!(result.is_ok(), "Should extract, but may be gibberish if font mapping missing");
+    assert!(
+        result.is_ok(),
+        "Should extract, but may be gibberish if font mapping missing"
+    );
 }
 
 #[tokio::test]
@@ -516,7 +519,10 @@ async fn advanced_026_overlapping_text_layers() {
 async fn advanced_027_digital_signatures_annotations() {
     let pdf = load_pdf("027_digital_signatures_annotations.pdf");
     let result = create_extractor().extract_text(&pdf).await;
-    assert!(result.is_ok(), "Should extract text, ignore annotations/signatures");
+    assert!(
+        result.is_ok(),
+        "Should extract text, ignore annotations/signatures"
+    );
 }
 
 #[tokio::test]
@@ -530,7 +536,10 @@ async fn advanced_028_vector_graphics_text_on_path() {
 fn advanced_029_encrypted_password_protected() {
     let pdf = load_pdf("029_encrypted_password_protected.pdf");
     let result = create_extractor().get_info(&pdf);
-    assert!(result.is_err(), "Should fail with clear error on encrypted PDF");
+    assert!(
+        result.is_err(),
+        "Should fail with clear error on encrypted PDF"
+    );
 }
 
 #[tokio::test]
