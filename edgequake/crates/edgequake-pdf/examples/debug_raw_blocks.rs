@@ -1,4 +1,4 @@
-//! Debug: Extract raw blocks BEFORE processor chain to trace "arepository" issue
+//! Debug: Extract raw blocks BEFORE processor chain to trace spacing issues
 
 use std::path::PathBuf;
 
@@ -24,7 +24,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let pdf_bytes = std::fs::read(&sample_pdf)?;
         let document = backend.extract(&pdf_bytes).await?;
 
-        // Show all blocks from page 1
+        // Search for specific problematic patterns
+        let patterns = ["modifi", "cation", "repos", "itories", "struc", "tural"];
+        
         for page in &document.pages {
             println!("Page {} has {} blocks\n", page.number, page.blocks.len());
             
@@ -32,15 +34,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 break;
             }
             
-            // Show blocks 8-15 in detail
+            // Find blocks containing our problem patterns
             for (i, block) in page.blocks.iter().enumerate() {
-                if i >= 8 && i <= 15 {
-                    println!(
-                        "Block {}: bbox=({:.1},{:.1})-({:.1},{:.1})",
-                        i, block.bbox.x1, block.bbox.y1, block.bbox.x2, block.bbox.y2
-                    );
-                    println!("  Text: '{}'", block.text.replace('\n', "\\n"));
-                    println!();
+                for pattern in &patterns {
+                    if block.text.to_lowercase().contains(pattern) {
+                        println!(
+                            "Block {} [MATCH '{}']:",
+                            i, pattern
+                        );
+                        println!(
+                            "  bbox=({:.1},{:.1})-({:.1},{:.1})",
+                            block.bbox.x1, block.bbox.y1, block.bbox.x2, block.bbox.y2
+                        );
+                        println!("  Text: '{}'", block.text.replace('\n', "\\n"));
+                        println!();
+                        break;
+                    }
                 }
             }
         }

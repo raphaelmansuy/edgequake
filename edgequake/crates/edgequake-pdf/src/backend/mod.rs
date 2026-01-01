@@ -5,7 +5,7 @@ use async_trait::async_trait;
 
 /// Trait for PDF extraction backends.
 ///
-/// This trait abstracts the underlying PDF engine (e.g., Pdfium, Poppler, etc.)
+/// This trait abstracts the underlying PDF engine (e.g., Pdfium, lopdf, etc.)
 /// allowing for swappable backends and easier testing.
 #[async_trait]
 pub trait PdfBackend: Send + Sync {
@@ -18,5 +18,8 @@ pub trait PdfBackend: Send + Sync {
 
 #[cfg(feature = "pdfium")]
 pub mod pdfium;
+
+#[cfg(feature = "lopdf")]
+pub mod lopdf_backend;
 
 pub mod mock;

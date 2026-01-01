@@ -1363,8 +1363,9 @@ impl Processor for HyphenContinuationProcessor {
                             false
                         } else {
                             // Check for hyphenation
-                            self.ends_with_hyphen(&current.text).is_some()
-                                && self.starts_with_continuation(&next.text)
+                            let ends_hyph = self.ends_with_hyphen(&current.text);
+                            let starts_cont = self.starts_with_continuation(&next.text);
+                            ends_hyph.is_some() && starts_cont
                         }
                     }
                 } else {

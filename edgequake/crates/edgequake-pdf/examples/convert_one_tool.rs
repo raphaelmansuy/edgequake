@@ -31,8 +31,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let extractor = PdfExtractor::with_config(provider, config);
 
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let sample_pdf = manifest_dir.join("test-data").join("one_tool.pdf");
-    let out_md = manifest_dir.join("test-data").join("one_tool.md");
+    let sample_pdf = manifest_dir.join("test-data").join("sample.pdf");
+    let out_md = manifest_dir.join("test-data").join("sample.md");
 
     let pdf_bytes = std::fs::read(&sample_pdf)?;
 

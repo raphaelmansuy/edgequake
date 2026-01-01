@@ -5,9 +5,10 @@ use tracing::info;
 
 use edgequake_llm::traits::LLMProvider;
 
-use crate::backend::mock::MockBackend;
 #[cfg(feature = "pdfium")]
 use crate::backend::pdfium::PdfiumBackend;
+#[cfg(feature = "lopdf")]
+use crate::backend::lopdf_backend::LopdfBackend;
 use crate::backend::PdfBackend;
 
 use crate::config::PdfConfig;
@@ -16,7 +17,7 @@ use crate::processors::{
     BlockMergeProcessor, CaptionDetectionProcessor, CodeBlockDetectionProcessor,
     GarbledTextFilterProcessor, HeaderDetectionProcessor, HyphenContinuationProcessor, 
     LayoutProcessor, ListDetectionProcessor, LlmEnhanceConfig, LlmEnhanceProcessor, 
-    MarginFilterProcessor, PostProcessor, ProcessorChain, TableDetectionProcessor,
+    MarginFilterProcessor, PostProcessor, ProcessorChain,
 };
 use crate::renderers::{MarkdownRenderer, MarkdownStyle, Renderer};
 use crate::schema::Document;
@@ -83,21 +84,51 @@ impl PdfExtractor {
     }
 
     /// Create a PDF extractor with custom configuration.
+    /// 
+    /// Backend priority:
+    /// 1. Pdfium (if feature enabled and library available) - highest quality
+    /// 2. Lopdf (if feature enabled) - pure Rust, no external deps
+    /// 3. MockBackend - empty documents, for testing only
     pub fn with_config(llm_provider: Arc<dyn LLMProvider>, config: PdfConfig) -> Self {
+        // Try Pdfium first (highest quality)
         #[cfg(feature = "pdfium")]
         let backend = match PdfiumBackend::with_config(config.clone()) {
-            Ok(b) => Box::new(b) as Box<dyn PdfBackend>,
+            Ok(b) => {
+                tracing::info!("Using Pdfium backend for PDF extraction");
+                Box::new(b) as Box<dyn PdfBackend>
+            }
             Err(e) => {
                 tracing::warn!(
-                    "Failed to initialize Pdfium backend: {}. Falling back to MockBackend.",
+                    "Failed to initialize Pdfium backend: {}. Trying fallback...",
                     e
                 );
-                Box::new(MockBackend::new())
+                // Fall through to lopdf/mock
+                #[cfg(feature = "lopdf")]
+                {
+                    tracing::info!("Using Lopdf backend for PDF extraction");
+                    Box::new(LopdfBackend::with_config(config.clone())) as Box<dyn PdfBackend>
+                }
+                #[cfg(not(feature = "lopdf"))]
+                {
+                    tracing::warn!("No PDF backend available, using MockBackend");
+                    Box::new(MockBackend::new())
+                }
             }
         };
 
-        #[cfg(not(feature = "pdfium"))]
-        let backend = Box::new(MockBackend::new());
+        // If pdfium not enabled, try lopdf
+        #[cfg(all(not(feature = "pdfium"), feature = "lopdf"))]
+        let backend = {
+            tracing::info!("Using Lopdf backend for PDF extraction");
+            Box::new(LopdfBackend::with_config(config.clone())) as Box<dyn PdfBackend>
+        };
+
+        // No backends enabled - use mock
+        #[cfg(all(not(feature = "pdfium"), not(feature = "lopdf")))]
+        let backend = {
+            tracing::warn!("No PDF backend available, using MockBackend");
+            Box::new(MockBackend::new())
+        };
 
         Self {
             backend,
