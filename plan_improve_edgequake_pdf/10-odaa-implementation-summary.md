@@ -11,28 +11,32 @@ Successfully refactored `edgequake-pdf` crate to eliminate duplicate layout anal
 ### 🔍 Observe (Territory Mapping)
 
 **Discovered Architecture:**
+
 - 7,920 lines of Rust code across 26 files
 - 6 major components: Backend, Schema, Layout, Processors, Renderers, Orchestration
 - 98 unit tests, sophisticated PDF extraction pipeline
 
 **Critical Issue Identified:**
+
 - `PdfiumBackend.extract()` performs layout analysis (lines 426-436)
 - `LayoutProcessor.process()` performs THE SAME analysis (lines 87-100)
 - Result: **Layout analysis runs TWICE for every document!**
 
 **Evidence:**
+
 ```rust
 // In PdfiumBackend (backend/pdfium.rs:426-436)
 let analyzer = LayoutAnalyzer::new();
 let layout = analyzer.analyze(&blocks, width, height);
 analyzer.sort_by_reading_order(&mut page.blocks, &page.columns);
 
-// In LayoutProcessor (processors/processor.rs:87-96)  
+// In LayoutProcessor (processors/processor.rs:87-96)
 let layout = self.analyzer.analyze(&page.blocks, page.width, page.height);
 self.analyzer.sort_by_reading_order(&mut page.blocks, &page.columns);
 ```
 
 **Architectural Analysis:**
+
 - PdfiumBackend: Extracts + analyzes (OVERREACH)
 - MockBackend: Returns raw data (CORRECT)
 - LayoutProcessor: Always runs (REDUNDANT when backend already analyzed)
@@ -40,16 +44,19 @@ self.analyzer.sort_by_reading_order(&mut page.blocks, &page.columns);
 ### 🧭 Orient (Root Cause Analysis)
 
 **Problem:** Violation of Single Responsibility Principle
+
 - Backend should: Extract text/blocks from PDF
 - Backend does: Extract + layout analysis + reading order
 - Consequence: Every backend must replicate layout logic
 
 **Inconsistency:**
+
 - PdfiumBackend returns sorted blocks with columns
 - MockBackend returns unsorted blocks without columns
 - No clear contract for what "extracted" means
 
 **Impact:**
+
 - Wasted CPU cycles (duplicate work)
 - Tight coupling (backend → layout algorithm)
 - Hard to test (can't test extraction without layout)
@@ -60,6 +67,7 @@ self.analyzer.sort_by_reading_order(&mut page.blocks, &page.columns);
 **Principle: Backends extract RAW data, Processors ANALYZE it**
 
 **Proposed Architecture:**
+
 ```
 Before (WRONG):
 PDF → Backend [extract + analyze] → Document [sorted] → LayoutProcessor [re-analyze] → ...
@@ -69,12 +77,14 @@ PDF → Backend [extract only] → Document [unsorted] → LayoutProcessor [anal
 ```
 
 **Changes Required:**
+
 1. Remove `LayoutAnalyzer` import from `pdfium.rs`
 2. Remove layout analysis calls from `extract()` method
 3. Return Page with unsorted blocks and empty columns
 4. LayoutProcessor becomes ONLY place doing layout analysis
 
 **Expected Benefits:**
+
 - Single Responsibility: Each component does ONE thing
 - Consistent Abstraction: All backends behave the same
 - Better Performance: Layout analysis runs once, not twice
@@ -86,11 +96,13 @@ PDF → Backend [extract only] → Document [unsorted] → LayoutProcessor [anal
 **File Modified:** `edgequake/crates/edgequake-pdf/src/backend/pdfium.rs`
 
 **Change 1: Removed Import**
+
 ```rust
 - use crate::layout::LayoutAnalyzer;
 ```
 
 **Change 2: Simplified Page Creation (lines 420-440)**
+
 ```rust
 // Before (20 lines with layout analysis):
 let blocks = self.extract_page_blocks(&pdfium_page, page_index + 1)?;
@@ -122,22 +134,27 @@ pages.push(page);
 ### ✅ Assess (Verification & Results)
 
 **Compilation:**
+
 ```bash
 $ cargo check -p edgequake-pdf
    Compiling edgequake-pdf v0.1.0
     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.62s
 ```
+
 ✅ No errors, no warnings (related to changes)
 
 **Unit Tests:**
+
 ```bash
 $ cargo test -p edgequake-pdf --lib
 running 98 tests
 test result: ok. 98 passed; 0 failed; 0 ignored
 ```
+
 ✅ All unit tests pass
 
 **Integration Tests:**
+
 ```bash
 $ cargo test -p edgequake-pdf --test pipeline_test
 test result: ok. 1 passed; 0 failed
@@ -145,6 +162,7 @@ test result: ok. 1 passed; 0 failed
 $ cargo test -p edgequake-pdf --test layout_test
 test result: ok. 2 passed; 0 failed
 ```
+
 ✅ New architecture tests pass
 
 **Code Metrics:**
@@ -156,6 +174,7 @@ test result: ok. 2 passed; 0 failed
 | Code complexity | High (mixed concerns) | Low (single responsibility) | ✅ Improved |
 
 **Architecture Validation:**
+
 - ✅ Backend returns unsorted blocks
 - ✅ `page.columns` is empty after backend
 - ✅ LayoutProcessor populates columns
@@ -177,16 +196,19 @@ test result: ok. 2 passed; 0 failed
 ### Immediate Benefits
 
 1. **Performance Improvement:**
+
    - Before: Layout analysis runs twice per document
    - After: Layout analysis runs once per document
    - Expected speedup: 10-20% on layout-heavy documents
 
 2. **Code Quality:**
+
    - Clearer responsibilities (extract vs analyze)
    - Reduced coupling (backend ↛ layout)
    - Improved testability (can mock layout)
 
 3. **Maintainability:**
+
    - One place to modify layout algorithm (LayoutProcessor)
    - New backends don't need layout knowledge
    - Easier to understand data flow
@@ -199,11 +221,13 @@ test result: ok. 2 passed; 0 failed
 ### Long-Term Benefits
 
 1. **Architecture Clarity:**
+
    - Clean pipeline: Extract → Model → Analyze → Transform → Render
    - Each stage has clear inputs/outputs
    - Easy to explain to new contributors
 
 2. **Testing Strategy:**
+
    - Unit test backend: "Does it extract text correctly?"
    - Unit test layout: "Does it sort blocks correctly?"
    - Integration test: "Does the full pipeline work?"
@@ -217,18 +241,21 @@ test result: ok. 2 passed; 0 failed
 ## Documentation Created
 
 1. **[07-current-architecture-deep.md](./07-current-architecture-deep.md)**
+
    - Comprehensive analysis of existing architecture
    - Component breakdown with line counts
    - Data flow diagrams
    - Issue identification
 
 2. **[08-proposed-architecture-clean.md](./08-proposed-architecture-clean.md)**
+
    - Proposed separation of concerns
    - Before/after comparisons
    - Benefits and migration path
    - Testing strategy
 
 3. **[09-implementation-roadmap.md](./09-implementation-roadmap.md)**
+
    - Step-by-step implementation guide
    - Verification checklist
    - Rollback plan
@@ -242,6 +269,7 @@ test result: ok. 2 passed; 0 failed
 ## Next ODAA Iterations (Future Work)
 
 ### Iteration 2: Performance Validation
+
 - **Observe:** Benchmark before/after refactoring
 - **Orient:** Identify performance bottlenecks
 - **Decide:** Optimize hot paths
@@ -249,6 +277,7 @@ test result: ok. 2 passed; 0 failed
 - **Assess:** Verify speedup
 
 ### Iteration 3: Enhanced Testing
+
 - **Observe:** Test coverage gaps
 - **Orient:** Identify untested edge cases
 - **Decide:** Add regression tests for multi-column, complex layouts
@@ -256,6 +285,7 @@ test result: ok. 2 passed; 0 failed
 - **Assess:** Verify robustness
 
 ### Iteration 4: Additional Backends
+
 - **Observe:** Limitations of pdfium-only approach
 - **Orient:** Research alternative PDF libraries (PyMuPDF, Poppler)
 - **Decide:** Implement second backend
@@ -263,6 +293,7 @@ test result: ok. 2 passed; 0 failed
 - **Assess:** Verify quality parity
 
 ### Iteration 5: Layout Algorithm Improvements
+
 - **Observe:** Layout analysis quality on complex documents
 - **Orient:** Research SOTA layout algorithms
 - **Decide:** Implement improvements (deep learning-based?)
@@ -270,6 +301,7 @@ test result: ok. 2 passed; 0 failed
 - **Assess:** Verify accuracy improvement
 
 ### Iteration 6: Streaming Support
+
 - **Observe:** Memory usage on large PDFs
 - **Orient:** Identify opportunities for streaming
 - **Decide:** Implement page-by-page streaming
@@ -301,6 +333,7 @@ This refactoring represents **ONE STEP** toward SOTA PDF-to-Markdown conversion.
 **Mission: Eliminate layout duplication ✅ ACCOMPLISHED**
 
 The `edgequake-pdf` crate now has:
+
 - Clean separation between extraction and analysis
 - Consistent backend behavior
 - Single point of truth for layout logic

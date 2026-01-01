@@ -3,29 +3,34 @@
 ## 2026-01-01-deep-analysis-and-refactoring
 
 ### Context
+
 User requested comprehensive territory mapping of `edgequake-pdf` crate with focus on isolating `pdfium` in clear abstraction, ensuring pipeline decomposition (PDF → Object Model → Markdown), and improving testability through ODAA loop.
 
 ### Actions Performed
 
 1. **Territory Mapping (Sequential Thinking)**
+
    - Analyzed all 26 source files (~7,920 lines)
    - Documented 6 major components with responsibilities
    - Created detailed architecture diagrams
    - Identified code metrics and dependencies
 
 2. **Critical Issue Discovery**
+
    - Found layout analysis duplication (backend + processor)
    - Documented inconsistent backend behavior
    - Traced data flow through entire pipeline
    - Quantified performance impact
 
 3. **Architecture Documentation**
+
    - Created `07-current-architecture-deep.md` (comprehensive analysis)
    - Created `08-proposed-architecture-clean.md` (solution design)
    - Created `09-implementation-roadmap.md` (step-by-step guide)
    - Maintained `scratch_pad_pdf.md` (raw thought log)
 
 4. **Refactoring Implementation**
+
    - Removed `LayoutAnalyzer` import from `pdfium.rs`
    - Simplified page creation (20 lines → 11 lines)
    - Ensured backend returns unsorted blocks
@@ -40,12 +45,14 @@ User requested comprehensive territory mapping of `edgequake-pdf` crate with foc
 ### Decisions Made
 
 **Key Decision:** Remove layout analysis from backends
+
 - **Rationale:** Single Responsibility Principle violation
 - **Alternative Considered:** Make layout optional in backends
 - **Chosen Approach:** Move ALL layout analysis to LayoutProcessor
 - **Justification:** Cleaner abstraction, better testability, no duplication
 
 **Implementation Strategy:** Surgical refactoring
+
 - **Rationale:** Minimize risk, verify incrementally
 - **Alternative Considered:** Full rewrite of backend layer
 - **Chosen Approach:** Remove ~25 lines, test thoroughly
@@ -54,6 +61,7 @@ User requested comprehensive territory mapping of `edgequake-pdf` crate with foc
 ### Next Steps
 
 **Immediate (Completed):**
+
 - [x] Map territory with sequential thinking
 - [x] Identify architectural issues
 - [x] Document current and proposed architecture
@@ -62,6 +70,7 @@ User requested comprehensive territory mapping of `edgequake-pdf` crate with foc
 - [x] Update documentation
 
 **Short-Term (Next Iteration):**
+
 - [ ] Add regression tests for multi-column layouts
 - [ ] Benchmark performance improvement
 - [ ] Create sample.pdf for integration tests
@@ -69,6 +78,7 @@ User requested comprehensive territory mapping of `edgequake-pdf` crate with foc
 - [ ] Add examples of custom backends
 
 **Long-Term (Future ODAA Loops):**
+
 - [ ] Implement alternative backend (PyMuPDF, Poppler)
 - [ ] Optimize layout analysis algorithm
 - [ ] Add streaming support for large PDFs
@@ -78,6 +88,7 @@ User requested comprehensive territory mapping of `edgequake-pdf` crate with foc
 ### Lessons & Insights
 
 **What Worked Well:**
+
 1. Sequential thinking exposed the duplication immediately
 2. Creating detailed documentation before coding clarified the solution
 3. Small, focused changes were easy to verify
@@ -85,6 +96,7 @@ User requested comprehensive territory mapping of `edgequake-pdf` crate with foc
 5. ODAA loop structure kept work organized
 
 **What Could Improve:**
+
 1. Could have added performance benchmarks before/after
 2. Should create sample PDFs for integration tests
 3. Could document more examples of backend implementations
@@ -99,6 +111,7 @@ User requested comprehensive territory mapping of `edgequake-pdf` crate with foc
 ### Metrics
 
 **Time Spent:**
+
 - Territory mapping: ~2 hours
 - Documentation: ~2 hours
 - Implementation: ~30 minutes
@@ -106,6 +119,7 @@ User requested comprehensive territory mapping of `edgequake-pdf` crate with foc
 - Total: ~5 hours
 
 **Code Changes:**
+
 - Files modified: 1 (`backend/pdfium.rs`)
 - Lines removed: ~25
 - Lines added: ~11
@@ -113,11 +127,13 @@ User requested comprehensive territory mapping of `edgequake-pdf` crate with foc
 - Complexity reduction: High
 
 **Test Coverage:**
+
 - Unit tests: 98/98 passing (100%)
 - Integration tests: 3/3 passing (100%)
 - New tests added: 2 (pipeline_test, layout_test)
 
 **Documentation:**
+
 - New documents: 4
 - Total pages: ~20
 - Diagrams: 3

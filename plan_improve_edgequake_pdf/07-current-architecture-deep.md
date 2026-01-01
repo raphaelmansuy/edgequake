@@ -11,11 +11,13 @@ The `edgequake-pdf` crate is a sophisticated PDF-to-Markdown converter with AI e
 **Purpose:** Abstract PDF extraction from specific libraries
 
 **Files:**
+
 - `mod.rs` (13 lines) - `PdfBackend` trait definition
 - `pdfium.rs` (494 lines) - Pdfium-based implementation
 - `mock.rs` (46 lines) - Testing implementation
 
 **Trait Definition:**
+
 ```rust
 #[async_trait]
 pub trait PdfBackend: Send + Sync {
@@ -26,12 +28,13 @@ pub trait PdfBackend: Send + Sync {
 
 **Current Implementations:**
 
-| Backend | extract() Behavior | get_info() Behavior |
-|---------|-------------------|---------------------|
+| Backend       | extract() Behavior                                                                                       | get_info() Behavior                            |
+| ------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
 | PdfiumBackend | Extracts text with positions<br>Creates blocks<br>**Runs layout analysis**<br>**Sorts by reading order** | Returns page count<br>PDF version<br>File size |
-| MockBackend | Returns pre-built Document | Returns static info |
+| MockBackend   | Returns pre-built Document                                                                               | Returns static info                            |
 
-**Issue Identified:** 
+**Issue Identified:**
+
 - `PdfiumBackend` does layout analysis (columns, reading order) during extraction
 - `MockBackend` does not
 - Inconsistent abstraction
@@ -41,12 +44,14 @@ pub trait PdfBackend: Send + Sync {
 **Purpose:** Document object model representing the intermediate representation
 
 **Files:**
+
 - `document.rs` (600 lines) - Document, Page, DocumentMetadata, TOC
 - `block.rs` (489 lines) - Block structure with hierarchy
 - `block_types.rs` (186 lines) - BlockType enum and traits
 - `geometry.rs` (450 lines) - BoundingBox, Point, geometric operations
 
 **Key Types:**
+
 ```
 Document
 ├── metadata: DocumentMetadata
@@ -77,12 +82,14 @@ Block
 **Purpose:** Detect document structure (columns, reading order, regions)
 
 **Files:**
+
 - `mod.rs` (324 lines) - LayoutAnalyzer, LayoutAnalysis
 - `xy_cut.rs` (552 lines) - Recursive XY-Cut algorithm
 - `column_detector.rs` (402 lines) - Column detection via projection
 - `reading_order.rs` (406 lines) - Z-order + multi-column ordering
 
 **Algorithm:** XY-Cut recursive segmentation
+
 ```
               Page
                |
@@ -96,6 +103,7 @@ Block
 ```
 
 **Usage:**
+
 - `PdfiumBackend` calls `LayoutAnalyzer.analyze()` and `sort_by_reading_order()`
 - `LayoutProcessor` **also** calls the same methods
 
@@ -106,12 +114,14 @@ Block
 **Purpose:** Transform and enhance extracted document
 
 **Files:**
+
 - `processor.rs` (989 lines) - PostProcessor trait + 7 implementations
 - `llm_enhance.rs` (388 lines) - AI-powered enhancement
 - `builder.rs` (351 lines) - ProcessorChain fluent API
 - `provider.rs` (99 lines) - Content providers (file, bytes)
 
 **Processors (in order):**
+
 1. **LayoutProcessor** - Applies layout analysis (DUPLICATE!)
 2. **TableDetectionProcessor** - Identifies tables from structure
 3. **HeaderDetectionProcessor** - Detects headings from fonts
@@ -122,11 +132,13 @@ Block
 8. **PostProcessor** - Normalizes whitespace
 
 **Strengths:**
+
 - Composable pipeline
 - Each processor has single responsibility
 - Trait-based extensibility
 
 **Issue Identified:**
+
 - LayoutProcessor always runs even if backend already did layout
 - Creates redundant work
 
@@ -135,10 +147,12 @@ Block
 **Purpose:** Convert Document to output formats
 
 **Files:**
+
 - `markdown.rs` (595 lines) - Markdown with styles (Standard/Minimal/Verbose)
 - `json.rs` (132 lines) - JSON export
 
 **Markdown Styles:**
+
 - **Standard:** `# Heading`, `**bold**`, `_italic_`, tables
 - **Minimal:** Plain text, minimal formatting
 - **Verbose:** Full metadata, block IDs, debugging info
@@ -150,14 +164,15 @@ Block
 **Purpose:** Coordinate the full extraction pipeline
 
 **Flow:**
+
 ```rust
 async fn extract_to_markdown(&self, pdf_bytes: &[u8]) -> Result<String> {
     // 1. Backend extraction
     let mut doc = self.backend.extract(pdf_bytes).await?;
-    
+
     // 2. Processing pipeline
     doc = self.apply_processors(doc).await?;
-    
+
     // 3. Rendering
     let renderer = MarkdownRenderer::new(...);
     Ok(renderer.render(&doc))
@@ -165,6 +180,7 @@ async fn extract_to_markdown(&self, pdf_bytes: &[u8]) -> Result<String> {
 ```
 
 **Pipeline Assembly (extractor.rs:218):**
+
 ```rust
 ProcessorChain::new()
     .add(LayoutProcessor::new())         // ← FIRST!
@@ -238,16 +254,19 @@ ProcessorChain::new()
 ## Critical Issues
 
 ### Issue #1: Layout Analysis Duplication
+
 - **Location:** `backend/pdfium.rs:426` + `processors/processor.rs:87`
 - **Impact:** Performance penalty, wasted CPU
 - **Root Cause:** Unclear separation of concerns
 
 ### Issue #2: Inconsistent Backend Abstraction
+
 - **PdfiumBackend:** Returns fully analyzed document
 - **MockBackend:** Returns raw document
 - **Impact:** Processors must handle both cases
 
 ### Issue #3: Tight Coupling
+
 - Backend directly instantiates `LayoutAnalyzer`
 - Cannot swap layout algorithm without modifying backend
 - Hard to test layout independently

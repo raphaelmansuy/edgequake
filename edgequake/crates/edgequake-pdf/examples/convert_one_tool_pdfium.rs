@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 #[cfg(feature = "pdfium")]
-use edgequake_pdf::{PdfiumBackend, PdfBackend, MarkdownRenderer, Renderer};
+use edgequake_pdf::{MarkdownRenderer, PdfBackend, PdfiumBackend, Renderer};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

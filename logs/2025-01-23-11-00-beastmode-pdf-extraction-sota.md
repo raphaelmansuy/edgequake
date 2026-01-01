@@ -25,10 +25,12 @@ Successfully fixed the edgequake-pdf Pdfium backend and achieved SOTA quality PD
 ## Key Fixes
 
 ### 1. Compilation Fix
+
 - Added `sync` feature to pdfium-render to enable Send+Sync traits
 - Added missing struct fields: `method`, `stats`, `metadata`
 
 ### 2. Space Detection Improvement
+
 ```rust
 // Before: Extra spaces like "1 ." in numbered lists
 // After: Correct "1." with no extra space before period
@@ -47,15 +49,15 @@ The fix prevents space insertion before closing punctuation (. , : ; ! ?) when p
 
 ### PDF Conversion Results
 
-| PDF Type | Status | Characters |
-|----------|--------|------------|
-| Basic text | ✅ | 388 |
-| Formatted text | ✅ | 252 |
-| Lists (bullet/numbered) | ✅ | 226 |
-| Tables | ✅ | 162 |
-| Multi-column | ✅ | 402 |
-| Mixed content | ✅ | 509 |
-| Multi-page (5 pages) | ✅ | 1652 |
+| PDF Type                | Status | Characters |
+| ----------------------- | ------ | ---------- |
+| Basic text              | ✅     | 388        |
+| Formatted text          | ✅     | 252        |
+| Lists (bullet/numbered) | ✅     | 226        |
+| Tables                  | ✅     | 162        |
+| Multi-column            | ✅     | 402        |
+| Mixed content           | ✅     | 509        |
+| Multi-page (5 pages)    | ✅     | 1652       |
 
 ## Quality Achieved
 

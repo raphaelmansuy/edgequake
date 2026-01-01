@@ -6,20 +6,23 @@
 
 #![cfg(feature = "pdfium")]
 
+use async_trait::async_trait;
 use std::collections::HashMap;
 use std::path::Path;
 use tracing::{debug, info};
-use async_trait::async_trait;
 
 use pdfium_render::prelude::*;
 
 use crate::config::PdfConfig;
 use crate::error::PdfError;
 
-use crate::schema::{Block, BlockId, BlockType, BoundingBox, Document, ExtractionMethod, FontStyle, Page, PageStats, TextSpan};
-use crate::{DocumentMetadata, Result};
-use crate::extractor::PdfInfo;
 use super::PdfBackend;
+use crate::extractor::PdfInfo;
+use crate::schema::{
+    Block, BlockId, BlockType, BoundingBox, Document, ExtractionMethod, FontStyle, Page, PageStats,
+    TextSpan,
+};
+use crate::{DocumentMetadata, Result};
 
 /// Pdfium-based PDF extractor with character-level word detection.
 ///
@@ -251,15 +254,16 @@ impl PdfiumBackend {
                     // Handle style changes
                     if let Some(ref cur_style) = current_style {
                         // Check if styles are effectively different (ignoring minor size diffs)
-                        let size_diff = (cur_style.size.unwrap_or(0.0) - style.size.unwrap_or(0.0)).abs();
-                        
+                        let size_diff =
+                            (cur_style.size.unwrap_or(0.0) - style.size.unwrap_or(0.0)).abs();
+
                         // Treat weight >= 600 as bold, < 600 as normal
                         let cur_bold = cur_style.weight.unwrap_or(400) >= 600;
                         let new_bold = style.weight.unwrap_or(400) >= 600;
                         let bold_changed = cur_bold != new_bold;
                         let code_changed = cur_style.looks_like_code() != style.looks_like_code();
-                        
-                        let style_changed = bold_changed 
+
+                        let style_changed = bold_changed
                             || cur_style.italic != style.italic
                             || cur_style.superscript != style.superscript
                             || cur_style.subscript != style.subscript
@@ -285,23 +289,29 @@ impl PdfiumBackend {
                     // Add space if needed
                     if let Some(pc) = prev_char {
                         let h_dist = char_data.left - pc.right;
-                        
+
                         // Determine threshold based on content
                         let curr_char = char_data.text.chars().next().unwrap_or(' ');
                         let prev_char_last = pc.text.chars().last().unwrap_or(' ');
-                        
+
                         let curr_is_punct = curr_char.is_ascii_punctuation();
                         let prev_is_punct = prev_char_last.is_ascii_punctuation();
                         let prev_is_digit = prev_char_last.is_ascii_digit();
                         let is_code = char_data.font_style.looks_like_code();
-                        
+
                         // Special case: digit followed by period (like "1.") - never add space
                         // This handles numbered lists like "1. First item"
                         let is_number_dot = prev_is_digit && curr_char == '.';
-                        
+
                         // Special case: closing punctuation after letter/digit - never add space
-                        let is_closing_punct = !prev_is_punct && (curr_char == '.' || curr_char == ',' || curr_char == ':' || curr_char == ';' || curr_char == '!' || curr_char == '?');
-                        
+                        let is_closing_punct = !prev_is_punct
+                            && (curr_char == '.'
+                                || curr_char == ','
+                                || curr_char == ':'
+                                || curr_char == ';'
+                                || curr_char == '!'
+                                || curr_char == '?');
+
                         let threshold = if is_number_dot || is_closing_punct {
                             f32::MAX // Never add space before closing punctuation
                         } else if is_code {
@@ -313,11 +323,12 @@ impl PdfiumBackend {
                         };
 
                         // Also don't add space if characters overlap or are very close (ligatures)
-                        if h_dist > threshold
-                            && char_data.text != " "
-                            && !span_text.ends_with(' ')
+                        if h_dist > threshold && char_data.text != " " && !span_text.ends_with(' ')
                         {
-                            debug!("Inserting space: '{}' - '{}', dist: {}, thresh: {}", pc.text, char_data.text, h_dist, threshold);
+                            debug!(
+                                "Inserting space: '{}' - '{}', dist: {}, thresh: {}",
+                                pc.text, char_data.text, h_dist, threshold
+                            );
                             span_text.push(' ');
                         }
                     }
@@ -444,7 +455,7 @@ impl PdfBackend for PdfiumBackend {
                 blocks,
                 method: ExtractionMethod::Pdfium,
                 stats: PageStats::default(),
-                columns: vec![],  // Will be populated by LayoutProcessor
+                columns: vec![], // Will be populated by LayoutProcessor
                 margins: None,
                 metadata: HashMap::new(),
             };

@@ -13,11 +13,12 @@ This roadmap details the precise steps to refactor `PdfiumBackend` to remove dup
 ### File: `edgequake/crates/edgequake-pdf/src/backend/pdfium.rs`
 
 **Current Code (lines 420-440):**
+
 ```rust
 // Process each page
 for page_index in 0..pages_to_process {
     let pdfium_page = pdfium_doc.pages().get(page_index as u16)...;
-    
+
     // Extract blocks with word boundary detection
     let blocks = self.extract_page_blocks(&pdfium_page, page_index + 1)?;
 
@@ -41,11 +42,12 @@ for page_index in 0..pages_to_process {
 ```
 
 **Proposed Code:**
+
 ```rust
 // Process each page
 for page_index in 0..pages_to_process {
     let pdfium_page = pdfium_doc.pages().get(page_index as u16)...;
-    
+
     // Extract blocks with word boundary detection
     let blocks = self.extract_page_blocks(&pdfium_page, page_index + 1)?;
 
@@ -64,20 +66,24 @@ for page_index in 0..pages_to_process {
 ```
 
 **Lines to Remove:**
+
 - Line 426-430: `let analyzer = LayoutAnalyzer::new();` and `analyzer.analyze(...)`
 - Line 432-437: `page.columns = layout.columns;`
 - Line 439-440: `analyzer.sort_by_reading_order(...)`
 
 **Lines to Keep:**
+
 - Line 422-424: Extract blocks (this is the backend's job!)
 - Line 432-437: Create Page (but with empty columns)
 
 **Import to Remove:**
+
 - Line 18: `use crate::layout::LayoutAnalyzer;` (no longer needed)
 
 ## Step-by-Step Implementation
 
 ### Step 1: Backup Current State
+
 ```bash
 cd edgequake/crates/edgequake-pdf
 cp src/backend/pdfium.rs src/backend/pdfium.rs.before_refactor
@@ -88,11 +94,13 @@ cp src/backend/pdfium.rs src/backend/pdfium.rs.before_refactor
 **Edit `src/backend/pdfium.rs`:**
 
 1. Remove import (line 18):
+
 ```rust
 - use crate::layout::LayoutAnalyzer;
 ```
 
 2. Replace lines 420-445 with:
+
 ```rust
 // Process each page
 for page_index in 0..pages_to_process {
@@ -124,6 +132,7 @@ for page_index in 0..pages_to_process {
 ```
 
 ### Step 3: Verify Compilation
+
 ```bash
 cargo check -p edgequake-pdf
 ```
@@ -131,6 +140,7 @@ cargo check -p edgequake-pdf
 **Expected:** No compilation errors (Page::new() might need to be replaced with struct literal)
 
 ### Step 4: Run Tests
+
 ```bash
 cargo test -p edgequake-pdf
 ```
@@ -138,6 +148,7 @@ cargo test -p edgequake-pdf
 **Expected:** All tests should still pass because LayoutProcessor will now do the work
 
 ### Step 5: Verify Behavior
+
 ```bash
 # Run the CLI to verify end-to-end
 cargo run -p edgequake-pdf -- convert path/to/test.pdf
@@ -148,43 +159,44 @@ cargo run -p edgequake-pdf -- convert path/to/test.pdf
 ### Step 6: Add Regression Test
 
 **Create new test in `tests/backend_test.rs`:**
+
 ```rust
 #[tokio::test]
 async fn test_backend_returns_unsorted_blocks() {
     // This test verifies that backends return raw, unsorted blocks
     // and that layout analysis is deferred to processors
-    
+
     use edgequake_pdf::backend::mock::MockBackend;
     use edgequake_pdf::schema::{Document, Page, Block, BlockType, BoundingBox};
-    
+
     // Create a document with blocks in wrong reading order
     let mut doc = Document::new();
     let mut page = Page::new(1, 600.0, 800.0);
-    
+
     // Block B (should be second but is first)
     page.blocks.push(Block::new(
         BlockType::Text,
         BoundingBox::new(100.0, 200.0, 200.0, 220.0),
         "Block B".to_string(),
     ));
-    
+
     // Block A (should be first but is second)
     page.blocks.push(Block::new(
         BlockType::Text,
         BoundingBox::new(100.0, 100.0, 200.0, 120.0),
         "Block A".to_string(),
     ));
-    
+
     doc.pages.push(page);
-    
+
     // Backend should return blocks AS-IS (unsorted)
     let backend = MockBackend::with_document(doc.clone());
     let result = backend.extract(&[]).await.unwrap();
-    
+
     // Verify blocks are still in original (wrong) order
     assert_eq!(result.pages[0].blocks[0].text, "Block B");
     assert_eq!(result.pages[0].blocks[1].text, "Block A");
-    
+
     // Verify columns are empty (not analyzed yet)
     assert!(result.pages[0].columns.is_empty());
 }
@@ -192,10 +204,10 @@ async fn test_backend_returns_unsorted_blocks() {
 #[tokio::test]
 async fn test_layout_processor_sorts_blocks() {
     // This test verifies that LayoutProcessor correctly sorts blocks
-    
+
     use edgequake_pdf::processors::{LayoutProcessor, Processor};
     use edgequake_pdf::schema::{Document, Page, Block, BlockType, BoundingBox};
-    
+
     // Create document with unsorted blocks
     let mut doc = Document::new();
     let mut page = Page {
@@ -218,11 +230,11 @@ async fn test_layout_processor_sorts_blocks() {
         margins: None,
     };
     doc.pages.push(page);
-    
+
     // Process with LayoutProcessor
     let processor = LayoutProcessor::new();
     let result = processor.process(doc).unwrap();
-    
+
     // Verify blocks are now sorted (A before B)
     assert_eq!(result.pages[0].blocks[0].text, "Block A");
     assert_eq!(result.pages[0].blocks[1].text, "Block B");
@@ -232,6 +244,7 @@ async fn test_layout_processor_sorts_blocks() {
 ### Step 7: Update Documentation
 
 **Edit `src/backend/mod.rs` trait documentation:**
+
 ```rust
 /// PDF extraction backend.
 ///
@@ -251,7 +264,7 @@ pub trait PdfBackend: Send + Sync {
     ///
     /// Returns a Document with unsorted blocks and no layout analysis.
     async fn extract(&self, pdf_bytes: &[u8]) -> Result<Document>;
-    
+
     /// Get PDF metadata without full extraction.
     fn get_info(&self, pdf_bytes: &[u8]) -> Result<PdfInfo>;
 }
@@ -260,6 +273,7 @@ pub trait PdfBackend: Send + Sync {
 ### Step 8: Performance Verification
 
 **Benchmark before/after:**
+
 ```bash
 # Before refactor
 cargo build --release -p edgequake-pdf
@@ -288,6 +302,7 @@ time target/release/edgequake-pdf convert test.pdf
 ## Rollback Plan
 
 If issues arise:
+
 ```bash
 cd edgequake/crates/edgequake-pdf
 git checkout src/backend/pdfium.rs
@@ -298,21 +313,25 @@ cp src/backend/pdfium.rs.before_refactor src/backend/pdfium.rs
 ## Expected Outcomes
 
 ### Code Quality
+
 - **Before:** 494 lines in pdfium.rs
 - **After:** ~450 lines (removed ~40 lines)
 - **Complexity:** Reduced (single responsibility)
 
 ### Performance
+
 - **Before:** Layout analysis runs twice (backend + processor)
 - **After:** Layout analysis runs once (processor only)
 - **Expected:** 10-20% faster on large documents
 
 ### Maintainability
+
 - **Before:** Layout logic in two places
 - **After:** Layout logic in one place (LayoutProcessor)
 - **Testing:** Easier to test backend and layout independently
 
 ### Consistency
+
 - **Before:** PdfiumBackend ≠ MockBackend behavior
 - **After:** All backends return raw, unsorted blocks
 - **Abstraction:** Clean, predictable contract

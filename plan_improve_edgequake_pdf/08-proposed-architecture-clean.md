@@ -13,6 +13,7 @@ Each layer has a single, well-defined responsibility with no overlap.
 **Single Responsibility:** Extract raw text/blocks from PDF bytes
 
 **What it SHOULD do:**
+
 - Load PDF from bytes
 - Extract characters with positions
 - Group characters into words (whitespace detection)
@@ -22,24 +23,27 @@ Each layer has a single, well-defined responsibility with no overlap.
 - Extract images (if configured)
 
 **What it should NOT do:**
+
 - ❌ Detect columns
 - ❌ Analyze reading order
 - ❌ Sort blocks
 - ❌ Detect document structure
 
 **Revised PdfBackend contract:**
+
 ```rust
 #[async_trait]
 pub trait PdfBackend: Send + Sync {
     /// Extract raw blocks from PDF (unsorted, no layout analysis)
     async fn extract(&self, pdf_bytes: &[u8]) -> Result<Document>;
-    
+
     /// Get PDF metadata without full extraction
     fn get_info(&self, pdf_bytes: &[u8]) -> Result<PdfInfo>;
 }
 ```
 
 **Post-Refactor Behavior:**
+
 ```rust
 // PdfiumBackend::extract() should return:
 Document {
@@ -60,6 +64,7 @@ Document {
 **Handled by:** `LayoutProcessor` (ONLY)
 
 **What it does:**
+
 - Detect page columns using horizontal projection
 - Determine reading order (Z-order + multi-column)
 - Apply XY-Cut recursive segmentation
@@ -73,6 +78,7 @@ Document {
 **Single Responsibility:** Add semantic meaning to blocks
 
 **Processors:**
+
 1. **LayoutProcessor** - Structure analysis (columns, order)
 2. **TableDetectionProcessor** - Identify tables from grid layout
 3. **HeaderDetectionProcessor** - Detect headings from font size/weight
@@ -83,6 +89,7 @@ Document {
 8. **NormalizeProcessor** - Clean whitespace
 
 **Pipeline guarantees:**
+
 - Each processor receives a valid Document
 - Processors are independent (can be reordered)
 - Processing is idempotent
@@ -162,26 +169,31 @@ Document {
 ## Benefits of This Architecture
 
 ### 1. Single Responsibility
+
 - Each component does ONE thing
 - Easy to understand and maintain
 - Clear testing boundaries
 
 ### 2. Consistent Abstraction
+
 - All backends return raw, unsorted blocks
 - No special cases
 - Predictable behavior
 
 ### 3. Pluggable Components
+
 - Can swap layout algorithm without touching backend
 - Can skip layout if not needed
 - Can add alternative backends easily
 
 ### 4. Better Testability
+
 - Backend can be tested without layout logic
 - Layout can be tested with synthetic blocks
 - Processors test in isolation
 
 ### 5. Performance
+
 - No duplicate work
 - Clear optimization points
 - Can profile each stage independently
@@ -189,6 +201,7 @@ Document {
 ## Backend Comparison (Before vs After)
 
 ### Before (Current)
+
 ```rust
 // PdfiumBackend::extract()
 let blocks = self.extract_page_blocks(page, page_num)?;
@@ -203,6 +216,7 @@ return Document { pages, ... }; // Already sorted!
 ```
 
 ### After (Proposed)
+
 ```rust
 // PdfiumBackend::extract()
 let blocks = self.extract_page_blocks(page, page_num)?;
@@ -218,6 +232,7 @@ return Document { pages, ... }; // Raw data only
 ```
 
 ### MockBackend (No Change Needed!)
+
 ```rust
 // MockBackend already does it right:
 async fn extract(&self, _pdf_bytes: &[u8]) -> Result<Document> {
@@ -240,6 +255,7 @@ ProcessorChain::new()
 ## Migration Path
 
 ### Phase 1: Refactor PdfiumBackend (CRITICAL)
+
 1. Remove `LayoutAnalyzer` instantiation from `extract()`
 2. Remove `analyzer.analyze()` call
 3. Remove `sort_by_reading_order()` call
@@ -247,11 +263,13 @@ ProcessorChain::new()
 5. Return unsorted blocks
 
 ### Phase 2: Verify Tests
+
 1. Run existing tests (should still pass)
 2. Add test to verify blocks are unsorted after backend
 3. Add test to verify blocks are sorted after LayoutProcessor
 
 ### Phase 3: Update Documentation
+
 1. Update backend trait documentation
 2. Add architecture diagram to README
 3. Document the separation of concerns
@@ -259,15 +277,16 @@ ProcessorChain::new()
 ## Testing Strategy
 
 ### Backend Tests
+
 ```rust
 #[test]
 fn test_backend_returns_unsorted_blocks() {
     let backend = PdfiumBackend::new().unwrap();
     let doc = backend.extract(pdf_bytes).await.unwrap();
-    
+
     // Blocks should be unsorted
     assert!(doc.pages[0].columns.is_empty());
-    
+
     // Blocks should have valid bounding boxes
     for block in &doc.pages[0].blocks {
         assert!(block.bbox.width() > 0.0);
@@ -276,32 +295,34 @@ fn test_backend_returns_unsorted_blocks() {
 ```
 
 ### Layout Processor Tests
+
 ```rust
 #[test]
 fn test_layout_processor_sorts_blocks() {
     let mut doc = create_unsorted_document();
     assert!(doc.pages[0].columns.is_empty());
-    
+
     let processor = LayoutProcessor::new();
     let result = processor.process(doc).unwrap();
-    
+
     // Should now have columns
     assert!(!result.pages[0].columns.is_empty());
-    
+
     // Blocks should be in reading order
     // (check y-coordinate is monotonic within columns)
 }
 ```
 
 ### Integration Tests
+
 ```rust
 #[test]
 fn test_full_pipeline() {
     let backend = PdfiumBackend::new().unwrap();
     let extractor = PdfExtractor::with_backend(backend, ...);
-    
+
     let markdown = extractor.extract_to_markdown(pdf_bytes).await.unwrap();
-    
+
     // Should have proper document structure
     assert!(markdown.contains("# Heading"));
     assert!(markdown.contains("| Table | Cell |"));
@@ -321,12 +342,15 @@ fn test_full_pipeline() {
 ## Risk Mitigation
 
 ### Risk: Breaking existing code
+
 **Mitigation:** Full test suite must pass before merge
 
 ### Risk: Performance regression
+
 **Mitigation:** Benchmark before/after (should be faster!)
 
 ### Risk: Quality degradation
+
 **Mitigation:** Integration tests verify output quality
 
 ## Success Metrics
