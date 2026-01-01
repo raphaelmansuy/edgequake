@@ -2,7 +2,7 @@
 
 # Page 1 Content
 
-This is some content on page 1 . It should be extracted correctly across page boundaries.
+This is some content on page 1. It should be extracted correctly across page boundaries.
 
 Footer Page 1
 

@@ -1,6 +1,7 @@
 //! Column detection for multi-column document layouts.
 
 use crate::schema::BoundingBox;
+use tracing::debug;
 
 /// Column layout detection results.
 #[derive(Debug, Clone)]
@@ -76,7 +77,10 @@ impl ColumnDetector {
 
     /// Detect columns from a list of bounding boxes.
     pub fn detect(&self, items: &[BoundingBox], page_width: f32) -> Vec<BoundingBox> {
+        debug!("ColumnDetector::detect: {} items, page_width={}", items.len(), page_width);
+        
         if items.is_empty() {
+            debug!("ColumnDetector::detect: no items, returning empty");
             return Vec::new();
         }
 
@@ -87,6 +91,12 @@ impl ColumnDetector {
             .cloned()
             .collect();
 
+        debug!(
+            "ColumnDetector::detect: filtered {} items to {} items (removed wide items)",
+            items.len(),
+            filtered_items.len()
+        );
+
         let items_to_use = if filtered_items.is_empty() {
             items
         } else {
@@ -95,12 +105,29 @@ impl ColumnDetector {
 
         // Build horizontal projection histogram
         let histogram = self.build_projection_histogram(items_to_use, page_width);
+        
+        // Log histogram summary
+        let non_zero_bins: Vec<(usize, u32)> = histogram.iter()
+            .enumerate()
+            .filter(|(_, &c)| c > 0)
+            .map(|(i, &c)| (i, c))
+            .collect();
+        debug!("ColumnDetector::detect: histogram has {} non-zero bins out of {}", 
+            non_zero_bins.len(), histogram.len());
 
         // Find valleys (gaps) in the histogram
         let gaps = self.find_gaps(&histogram, page_width);
+        debug!("ColumnDetector::detect: found {} gaps: {:?}", gaps.len(), gaps);
 
         // Convert gaps to columns
-        self.gaps_to_columns(&gaps, items, page_width)
+        let columns = self.gaps_to_columns(&gaps, items, page_width);
+        debug!(
+            "ColumnDetector::detect: detected {} columns: {:?}",
+            columns.len(),
+            columns.iter().map(|c| (c.x1, c.x2)).collect::<Vec<_>>()
+        );
+        
+        columns
     }
 
     /// Build a histogram of horizontal projection.
@@ -128,9 +155,37 @@ impl ColumnDetector {
         let mut gaps = Vec::new();
         let mut gap_start: Option<usize> = None;
 
-        // Use a threshold based on average density
+        // Use a more adaptive threshold based on the maximum density in the histogram
+        // This helps detect gaps in multi-column layouts where bounding boxes may overlap slightly
+        let max_count = *histogram.iter().max().unwrap_or(&0);
         let avg_count = histogram.iter().sum::<u32>() as f32 / histogram.len() as f32;
-        let threshold = (avg_count * 0.1).max(0.0) as u32;
+        
+        // Threshold is either:
+        // 1. 15% of max count (helps with multi-column)
+        // 2. At least 1 if max > 3 (allow 0-1 to be gap even if avg is higher)
+        let threshold = if max_count > 3 {
+            ((max_count as f32 * 0.15) as u32).max(1)
+        } else {
+            (avg_count * 0.1).max(0.0) as u32
+        };
+        
+        debug!(
+            "find_gaps: min_gap_bins={}, avg_count={:.2}, max_count={}, threshold={}",
+            min_gap_bins, avg_count, max_count, threshold
+        );
+        
+        // Log histogram sections for debugging
+        let bins_per_section = 20;
+        for section in (0..histogram.len()).step_by(bins_per_section) {
+            let end = (section + bins_per_section).min(histogram.len());
+            let section_vals: Vec<u32> = histogram[section..end].to_vec();
+            let x_start = section as f32 * self.bin_size;
+            let x_end = end as f32 * self.bin_size;
+            debug!(
+                "find_gaps: histogram x={:.0}-{:.0}: {:?}",
+                x_start, x_end, section_vals
+            );
+        }
 
         for (i, &count) in histogram.iter().enumerate() {
             if count <= threshold {
@@ -139,17 +194,27 @@ impl ColumnDetector {
                 }
             } else if let Some(start) = gap_start {
                 let gap_length = i - start;
+                // Convert bin indices to coordinates
+                let x1 = start as f32 * self.bin_size;
+                let x2 = i as f32 * self.bin_size;
+                
                 if gap_length >= min_gap_bins {
-                    // Convert bin indices to coordinates
-                    let x1 = start as f32 * self.bin_size;
-                    let x2 = i as f32 * self.bin_size;
-
                     // Don't include margins as gaps
                     if x1 > self.min_column_width * 0.5
                         && x2 < page_width - self.min_column_width * 0.5
                     {
+                        debug!("find_gaps: ACCEPTED gap at x1={:.1}, x2={:.1}, length={}", x1, x2, gap_length);
                         gaps.push((x1, x2));
+                    } else {
+                        debug!(
+                            "find_gaps: REJECTED gap at x1={:.1}, x2={:.1} (margin check: x1>{:.1}={}, x2<{:.1}={})",
+                            x1, x2, 
+                            self.min_column_width * 0.5, x1 > self.min_column_width * 0.5,
+                            page_width - self.min_column_width * 0.5, x2 < page_width - self.min_column_width * 0.5
+                        );
                     }
+                } else {
+                    debug!("find_gaps: REJECTED gap at x1={:.1}, x2={:.1} (too short: {} < {})", x1, x2, gap_length, min_gap_bins);
                 }
                 gap_start = None;
             }
