@@ -169,3 +169,38 @@ Achieve SOTA PDF to Markdown conversion quality.
 - Verify 010-012.
 - Refine table detection for merged cells.
 - Final SOTA declaration.
+
+---
+
+## 2026-01-01 19:00: CRITICAL BUG FOUND - Pdfium Feature Not Default
+
+### Observation
+- CLI tool built without `--features pdfium` returns 0 pages for all PDFs
+- get_info() reports 0 pages, conversions fail silently
+- MockBackend was being used by default instead of PdfiumBackend
+
+### Detection
+- Default feature in Cargo.toml was `[]` instead of `["pdfium"]`
+- Without pdfium feature, MockBackend is used which has no real extraction logic
+
+### Action
+- Changed Cargo.toml: `default = ["pdfium"]`
+- Verified build with explicit feature flag works correctly
+- 001_simple_text.pdf now correctly shows 1 page and extracts 219 chars
+
+### Assessment
+- **CRITICAL FIX APPLIED** - pdfium is now default feature
+- All subsequent tests must verify with rebuilt binary
+- Need to re-baseline all PDFs with correct feature enabled
+
+### Next Actions
+1. Rebuild with new default features
+2. Test all existing PDFs (001-012)
+3. Identify gaps in test coverage
+4. Create comprehensive test suite
+5. Run OODA loops until SOTA achieved
+
+---
+
+## 2026-01-01 19:15: Baseline Testing All Existing PDFs
+

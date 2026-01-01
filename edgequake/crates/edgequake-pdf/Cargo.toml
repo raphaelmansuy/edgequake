@@ -12,7 +12,7 @@ name = "edgequake-pdf"
 path = "src/bin.rs"
 
 [features]
-default = []
+default = ["pdfium"]
 pdfium = ["dep:pdfium-render"]
 
 [dependencies]
