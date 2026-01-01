@@ -1,5 +1,0 @@
-Small Graph Test Document - 10 Entities Target
-
-Alice met Bob at the conference. Bob introduced Alice to Charlie. Charlie works with Diana on the project. Diana manages Eve who reports to Frank. Frank collaborates with Grace on research. Grace mentors Henry who assists Iris. Iris coordinates with Jack on implementation.
-
-This document is designed to generate approximately 10 entities for testing graph layout performance with small graphs.

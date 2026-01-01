@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use edgequake_llm::providers::mock::MockProvider;
-use std::sync::Arc;
 use edgequake_pdf::{PdfConfig, PdfExtractor};
 
 #[tokio::main]

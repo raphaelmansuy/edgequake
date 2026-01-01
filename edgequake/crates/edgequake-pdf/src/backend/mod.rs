@@ -16,9 +16,13 @@ pub trait PdfBackend: Send + Sync {
     fn get_info(&self, pdf_bytes: &[u8]) -> Result<PdfInfo>;
 }
 
-// SOTA backend (based on lopdf) removed — lopdf dependency deleted.
-// Keep mock backend for tests and development.
-// pub mod sota_backend; // removed
-
-/// Mock backend for testing
+pub mod elements;
+#[cfg(feature = "lopdf")]
+pub mod lattice;
 pub mod mock;
+#[cfg(feature = "lopdf")]
+pub mod sota_backend;
+
+pub use mock::MockBackend;
+#[cfg(feature = "lopdf")]
+pub use sota_backend::SotaBackend;

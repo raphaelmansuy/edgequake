@@ -12,8 +12,9 @@ name = "edgequake-pdf"
 path = "src/bin.rs"
 
 [features]
-# No default backends - optional backends removed (lopdf/pdfium removed)
-default = []
+# Default features include lopdf backend for native PDF parsing
+default = ["lopdf"]
+lopdf = ["dep:lopdf"]
 
 [dependencies]
 # Workspace dependencies
@@ -28,8 +29,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow.workspace = true
 futures.workspace = true
 
-# lopdf and pdfium backends removed from this crate per project policy.
-# If you need an external PDF engine, add the dependency in your consumer crate.
+# lopdf - local path dependency for PDF parsing
+lopdf = { path = "../../../lopdf", optional = true, default-features = false }
 
 # Image processing (match pdf_oxide's version)
 image = "0.24"

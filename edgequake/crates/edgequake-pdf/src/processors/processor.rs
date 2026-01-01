@@ -811,6 +811,7 @@ impl Processor for BlockMergeProcessor {
 /// - Numbered section patterns: "1. Introduction", "3.2. Related Work"
 /// - Special section names: "Abstract", "References", "Conclusion"
 /// - Running headers (repeated text across pages)
+#[allow(dead_code)]
 pub struct SectionPatternProcessor {
     /// Section number pattern regex
     section_regex: Regex,
@@ -818,6 +819,7 @@ pub struct SectionPatternProcessor {
     special_sections: Vec<&'static str>,
 }
 
+#[allow(dead_code)]
 impl SectionPatternProcessor {
     pub fn new() -> Self {
         Self {

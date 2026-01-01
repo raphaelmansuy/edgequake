@@ -10,7 +10,27 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{broadcast, RwLock};
+
+/// Events emitted by the pipeline for real-time updates.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "type", content = "data")]
+pub enum PipelineEvent {
+    /// A new log message.
+    Log(PipelineMessage),
+    /// Progress update.
+    Progress {
+        processed: u32,
+        total: u32,
+        batch: u32,
+        total_batches: u32,
+    },
+    /// State change (start/stop).
+    StateChange {
+        is_busy: bool,
+        job_name: Option<String>,
+    },
+}
 
 /// A single pipeline message with timestamp and level.
 #[derive(Debug, Clone, Serialize)]
@@ -84,6 +104,7 @@ impl Default for PipelineStateInner {
 #[derive(Clone)]
 pub struct PipelineState {
     inner: Arc<RwLock<PipelineStateInner>>,
+    tx: broadcast::Sender<PipelineEvent>,
 }
 
 impl Default for PipelineState {
@@ -95,19 +116,28 @@ impl Default for PipelineState {
 impl PipelineState {
     /// Create a new pipeline state.
     pub fn new() -> Self {
+        let (tx, _) = broadcast::channel(100);
         Self {
             inner: Arc::new(RwLock::new(PipelineStateInner::default())),
+            tx,
         }
     }
 
     /// Create with custom max messages limit.
     pub fn with_max_messages(max_messages: usize) -> Self {
+        let (tx, _) = broadcast::channel(100);
         Self {
             inner: Arc::new(RwLock::new(PipelineStateInner {
                 max_messages,
                 ..Default::default()
             })),
+            tx,
         }
+    }
+
+    /// Subscribe to pipeline events.
+    pub fn subscribe(&self) -> broadcast::Receiver<PipelineEvent> {
+        self.tx.subscribe()
     }
 
     /// Start a new job.
@@ -122,8 +152,15 @@ impl PipelineState {
         inner.total_batches = batches;
         inner.cancellation_requested = false;
 
+        // Notify state change
+        let _ = self.tx.send(PipelineEvent::StateChange {
+            is_busy: true,
+            job_name: Some(name.clone()),
+        });
+
         // Log start message
         let msg = PipelineMessage::info(format!("Starting: {}", name));
+        let _ = self.tx.send(PipelineEvent::Log(msg.clone()));
         Self::push_message(&mut inner, msg);
     }
 
@@ -131,6 +168,7 @@ impl PipelineState {
     pub async fn log(&self, level: &str, message: String) {
         let mut inner = self.inner.write().await;
         let msg = PipelineMessage::new(level, message);
+        let _ = self.tx.send(PipelineEvent::Log(msg.clone()));
         Self::push_message(&mut inner, msg);
     }
 
@@ -163,10 +201,19 @@ impl PipelineState {
     pub async fn advance_batch(&self) {
         let mut inner = self.inner.write().await;
         inner.current_batch += 1;
+
+        let _ = self.tx.send(PipelineEvent::Progress {
+            processed: inner.processed_documents,
+            total: inner.total_documents,
+            batch: inner.current_batch,
+            total_batches: inner.total_batches,
+        });
+
         let msg = PipelineMessage::info(format!(
             "Batch {}/{}",
             inner.current_batch, inner.total_batches
         ));
+        let _ = self.tx.send(PipelineEvent::Log(msg.clone()));
         Self::push_message(&mut inner, msg);
     }
 
@@ -174,10 +221,19 @@ impl PipelineState {
     pub async fn document_processed(&self, doc_id: &str, entities: usize) {
         let mut inner = self.inner.write().await;
         inner.processed_documents += 1;
+
+        let _ = self.tx.send(PipelineEvent::Progress {
+            processed: inner.processed_documents,
+            total: inner.total_documents,
+            batch: inner.current_batch,
+            total_batches: inner.total_batches,
+        });
+
         let msg = PipelineMessage::info(format!(
             "✓ {} ({} entities) - {}/{}",
             doc_id, entities, inner.processed_documents, inner.total_documents
         ));
+        let _ = self.tx.send(PipelineEvent::Log(msg.clone()));
         Self::push_message(&mut inner, msg);
     }
 
@@ -185,10 +241,19 @@ impl PipelineState {
     pub async fn document_failed(&self, doc_id: &str, error: &str) {
         let mut inner = self.inner.write().await;
         inner.processed_documents += 1;
+
+        let _ = self.tx.send(PipelineEvent::Progress {
+            processed: inner.processed_documents,
+            total: inner.total_documents,
+            batch: inner.current_batch,
+            total_batches: inner.total_batches,
+        });
+
         let msg = PipelineMessage::error(format!(
             "✗ {} failed: {} - {}/{}",
             doc_id, error, inner.processed_documents, inner.total_documents
         ));
+        let _ = self.tx.send(PipelineEvent::Log(msg.clone()));
         Self::push_message(&mut inner, msg);
     }
 
@@ -199,9 +264,16 @@ impl PipelineState {
             "Complete: {} documents processed",
             inner.processed_documents
         ));
+        let _ = self.tx.send(PipelineEvent::Log(msg.clone()));
         Self::push_message(&mut inner, msg);
+
         inner.is_busy = false;
         inner.job_name = None;
+
+        let _ = self.tx.send(PipelineEvent::StateChange {
+            is_busy: false,
+            job_name: None,
+        });
     }
 
     /// Request cancellation of the current job.

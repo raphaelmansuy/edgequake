@@ -1,3 +1,0 @@
-**MegaRAG** is an advanced Retrieval-Augmented Generation (RAG) framework developed by the **National Taiwan University** research team. The framework specializes in **knowledge graph** construction and **multi-modal retrieval** capabilities. 
-
-The system uses **vector embeddings** to enhance search accuracy and provides **real-time processing** of documents. **MegaRAG**integrates seamlessly with existing **AI pipelines** and supports **multi-language processing**.

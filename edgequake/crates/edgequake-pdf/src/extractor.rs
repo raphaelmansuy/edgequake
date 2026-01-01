@@ -5,6 +5,7 @@ use tracing::info;
 
 use edgequake_llm::traits::LLMProvider;
 
+#[cfg(not(feature = "lopdf"))]
 use crate::backend::mock::MockBackend;
 use crate::backend::PdfBackend;
 
@@ -86,10 +87,18 @@ impl PdfExtractor {
     /// 1. SotaBackend (if lopdf feature enabled) - SOTA pure Rust with font analysis
     /// 2. MockBackend - empty documents, for testing only
     pub fn with_config(llm_provider: Arc<dyn LLMProvider>, config: PdfConfig) -> Self {
-        // Using MockBackend only - external backends (lopdf/pdfium) were removed.
-        let backend = {
-            tracing::warn!("Using MockBackend for PDF extraction (external backends removed)");
-            Box::new(MockBackend::new()) as Box<dyn PdfBackend>
+        // Select backend based on features
+        let backend: Box<dyn PdfBackend> = {
+            #[cfg(feature = "lopdf")]
+            {
+                info!("Using SotaBackend (lopdf) for PDF extraction");
+                Box::new(crate::backend::SotaBackend::with_config(config.clone()))
+            }
+            #[cfg(not(feature = "lopdf"))]
+            {
+                tracing::warn!("Using MockBackend for PDF extraction (lopdf feature disabled)");
+                Box::new(MockBackend::new())
+            }
         };
 
         Self {
@@ -139,6 +148,14 @@ impl PdfExtractor {
 
         // Extract base document using the configured backend
         let doc = self.backend.extract(pdf_bytes).await?;
+
+        // Debug: show first few blocks of page 1 BEFORE processing
+        if let Some(page) = doc.pages.first() {
+            for (i, block) in page.blocks.iter().take(20).enumerate() {
+                let text_preview: String = block.text.chars().take(60).collect();
+                tracing::info!("BEFORE processors - page1 block {}: '{}'", i, text_preview);
+            }
+        }
 
         // Apply post-processing pipeline
         let mut doc = self.apply_processors(doc).await?;
