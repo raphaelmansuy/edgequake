@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 #[cfg(feature = "pdfium")]
-use edgequake_pdf::PdfiumExtractor;
+use edgequake_pdf::{PdfiumBackend, PdfBackend, MarkdownRenderer, Renderer};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -28,11 +28,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         println!(
-            "Testing PdfiumExtractor on {} (SOTA quality)...",
+            "Testing PdfiumBackend on {} (SOTA quality)...",
             sample_pdf.display()
         );
 
-        let extractor = PdfiumExtractor::new()?;
+        let backend = PdfiumBackend::new()?;
 
         let pdf_bytes = std::fs::read(&sample_pdf)?;
 
@@ -41,7 +41,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             sample_pdf.display()
         );
 
-        let markdown = extractor.extract_to_markdown(&pdf_bytes)?;
+        let document = backend.extract(&pdf_bytes).await?;
+        let renderer = MarkdownRenderer::default();
+        let markdown = renderer.render(&document)?;
 
         std::fs::write(&out_md, &markdown)?;
 

@@ -33,6 +33,7 @@ futures.workspace = true
 pdfium-render = { version = "0.8", optional = true, default-features = false, features = [
     "image_024",
     "thread_safe",
+    "sync",
     "pdfium_latest",
 ] }
 

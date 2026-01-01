@@ -3,45 +3,35 @@
 //! This module provides a high-quality PDF extraction alternative that uses
 //! Chromium's PDFium library for accurate text extraction with proper word
 //! boundaries and page rendering for Vision mode.
-//!
-//! # Features
-//!
-//! - Character-level position detection for accurate word boundaries
-//! - Page rendering to images for Vision mode extraction
-//! - Compatible with the same interface as the default pdf_oxide extractor
-//!
-//! # Requirements
-//!
-//! Requires the Pdfium dynamic library to be available at runtime.
-//! Download from: https://github.com/bblanchon/pdfium-binaries/releases
 
 #![cfg(feature = "pdfium")]
 
 use std::collections::HashMap;
 use std::path::Path;
 use tracing::{debug, info};
+use async_trait::async_trait;
 
 use pdfium_render::prelude::*;
 
 use crate::config::PdfConfig;
 use crate::error::PdfError;
-use crate::layout::LayoutAnalyzer;
 
-use crate::renderers::{MarkdownRenderer, MarkdownStyle, Renderer};
-use crate::schema::{Block, BlockId, BlockType, BoundingBox, Document, FontStyle, Page, TextSpan};
+use crate::schema::{Block, BlockId, BlockType, BoundingBox, Document, ExtractionMethod, FontStyle, Page, PageStats, TextSpan};
 use crate::{DocumentMetadata, Result};
+use crate::extractor::PdfInfo;
+use super::PdfBackend;
 
 /// Pdfium-based PDF extractor with character-level word detection.
 ///
 /// This extractor provides SOTA quality text extraction by using
 /// character positions to accurately detect word boundaries.
-pub struct PdfiumExtractor {
+pub struct PdfiumBackend {
     pdfium: Pdfium,
     config: PdfConfig,
 }
 
-impl PdfiumExtractor {
-    /// Create a new PdfiumExtractor.
+impl PdfiumBackend {
+    /// Create a new PdfiumBackend.
     ///
     /// Attempts to bind to Pdfium in the following order:
     /// 1. Library in the current directory
@@ -51,7 +41,7 @@ impl PdfiumExtractor {
         Self::with_config(PdfConfig::default())
     }
 
-    /// Create a PdfiumExtractor with custom configuration.
+    /// Create a PdfiumBackend with custom configuration.
     pub fn with_config(config: PdfConfig) -> Result<Self> {
         // Try to bind to Pdfium library
         let bindings = Self::find_pdfium_library()?;
@@ -90,74 +80,6 @@ impl PdfiumExtractor {
         Err(PdfError::PdfParse(
             "Could not find Pdfium library. Download from https://github.com/bblanchon/pdfium-binaries/releases".to_string()
         ))
-    }
-
-    /// Extract document from PDF with proper word boundaries.
-    ///
-    /// Uses character-level position detection to insert spaces
-    /// where word boundaries should exist and groups text into blocks.
-    pub fn extract_document(&self, pdf_bytes: &[u8]) -> Result<Document> {
-        info!("Starting Pdfium-based PDF extraction to Document IR");
-
-        let pdfium_doc = self
-            .pdfium
-            .load_pdf_from_byte_vec(pdf_bytes.to_vec(), None)
-            .map_err(|e| PdfError::PdfParse(format!("Failed to load PDF: {:?}", e)))?;
-
-        let page_count = pdfium_doc.pages().len();
-        info!("PDF has {} pages", page_count);
-
-        // Extract metadata
-        let metadata = self.extract_metadata(pdf_bytes)?;
-
-        // Determine pages to process
-        let max_pages = self.config.max_pages.unwrap_or(page_count as usize);
-        let pages_to_process = std::cmp::min(page_count as usize, max_pages);
-
-        let mut pages = Vec::new();
-
-        // Process each page
-        for page_index in 0..pages_to_process {
-            let pdfium_page = pdfium_doc.pages().get(page_index as u16).map_err(|e| {
-                PdfError::PdfParse(format!("Failed to get page {}: {:?}", page_index, e))
-            })?;
-
-            debug!(
-                "Processing page {}/{} with Pdfium",
-                page_index + 1,
-                pages_to_process
-            );
-
-            // Extract blocks with word boundary detection
-            let blocks = self.extract_page_blocks(&pdfium_page, page_index + 1)?;
-
-            // Apply layout analysis to each page
-            let analyzer = LayoutAnalyzer::new();
-            let layout = analyzer.analyze(
-                &blocks,
-                pdfium_page.width().value,
-                pdfium_page.height().value,
-            );
-
-            let mut page = Page::new(
-                page_index + 1,
-                pdfium_page.width().value,
-                pdfium_page.height().value,
-            );
-            page.blocks = blocks;
-            page.columns = layout.columns;
-
-            // Sort blocks by reading order
-            analyzer.sort_by_reading_order(&mut page.blocks, &page.columns);
-
-            pages.push(page);
-        }
-
-        let mut doc = Document::new();
-        doc.metadata = metadata;
-        doc.pages = pages;
-
-        Ok(doc)
     }
 
     /// Extract blocks from a page with character-level word boundary detection.
@@ -326,23 +248,6 @@ impl PdfiumExtractor {
 
                     let style = char_data.font_style.clone();
 
-                    // Detect superscript/subscript relative to line
-                    /*
-                    let line_mid = (min_y + max_y) / 2.0;
-                    let is_punct_check = char_data.text.chars().next().map_or(false, |c| c.is_ascii_punctuation());
-                    
-                    // Only if character is significantly smaller
-                    if !is_punct_check && char_data.height < max_h * 0.75 {
-                        let char_mid = (char_data.top + char_data.bottom) / 2.0;
-                        
-                        if char_mid < line_mid - (max_h * 0.15) {
-                             style.superscript = true;
-                        } else if char_mid > line_mid + (max_h * 0.15) {
-                             style.subscript = true;
-                        }
-                    }
-                    */
-
                     // Handle style changes
                     if let Some(ref cur_style) = current_style {
                         // Check if styles are effectively different (ignoring minor size diffs)
@@ -382,12 +287,26 @@ impl PdfiumExtractor {
                         let h_dist = char_data.left - pc.right;
                         
                         // Determine threshold based on content
-                        let is_punct = char_data.text.chars().next().map_or(false, |c| c.is_ascii_punctuation());
+                        let curr_char = char_data.text.chars().next().unwrap_or(' ');
+                        let prev_char_last = pc.text.chars().last().unwrap_or(' ');
+                        
+                        let curr_is_punct = curr_char.is_ascii_punctuation();
+                        let prev_is_punct = prev_char_last.is_ascii_punctuation();
+                        let prev_is_digit = prev_char_last.is_ascii_digit();
                         let is_code = char_data.font_style.looks_like_code();
                         
-                        let threshold = if is_code {
+                        // Special case: digit followed by period (like "1.") - never add space
+                        // This handles numbered lists like "1. First item"
+                        let is_number_dot = prev_is_digit && curr_char == '.';
+                        
+                        // Special case: closing punctuation after letter/digit - never add space
+                        let is_closing_punct = !prev_is_punct && (curr_char == '.' || curr_char == ',' || curr_char == ':' || curr_char == ';' || curr_char == '!' || curr_char == '?');
+                        
+                        let threshold = if is_number_dot || is_closing_punct {
+                            f32::MAX // Never add space before closing punctuation
+                        } else if is_code {
                             char_data.height * 0.8 // Larger gap for monospace
-                        } else if is_punct {
+                        } else if curr_is_punct || prev_is_punct {
                             char_data.height * 1.5 // Require VERY large gap for punctuation
                         } else {
                             char_data.height * 0.35 // Standard gap for text
@@ -446,69 +365,6 @@ impl PdfiumExtractor {
         Ok(blocks)
     }
 
-    /// Extract text from PDF with proper word boundaries.
-    pub fn extract_to_markdown(&self, pdf_bytes: &[u8]) -> Result<String> {
-        let doc = self.extract_document(pdf_bytes)?;
-
-        let style = MarkdownStyle {
-            page_numbers: self.config.include_page_numbers,
-            ..MarkdownStyle::default()
-        };
-        let renderer = MarkdownRenderer::with_style(style);
-        renderer.render(&doc)
-    }
-
-    /// Render a page to an image for Vision mode extraction.
-    pub fn render_page_to_image(
-        &self,
-        pdf_bytes: &[u8],
-        page_index: usize,
-        dpi: u32,
-    ) -> Result<Vec<u8>> {
-        let document = self
-            .pdfium
-            .load_pdf_from_byte_vec(pdf_bytes.to_vec(), None)
-            .map_err(|e| PdfError::PdfParse(format!("Failed to load PDF: {:?}", e)))?;
-
-        let page = document.pages().get(page_index as u16).map_err(|e| {
-            PdfError::PdfParse(format!("Failed to get page {}: {:?}", page_index, e))
-        })?;
-
-        let scale = dpi as f32 / 72.0;
-        let width = (page.width().value * scale) as i32;
-        let height = (page.height().value * scale) as i32;
-
-        let render_config = PdfRenderConfig::new()
-            .set_target_width(width)
-            .set_maximum_height(height);
-
-        let bitmap = page
-            .render_with_config(&render_config)
-            .map_err(|e| PdfError::PdfParse(format!("Failed to render page: {:?}", e)))?;
-
-        let image = bitmap.as_image();
-        let mut png_data = Vec::new();
-
-        image
-            .write_to(
-                &mut std::io::Cursor::new(&mut png_data),
-                image::ImageFormat::Png,
-            )
-            .map_err(|e| PdfError::PdfParse(format!("Failed to encode PNG: {:?}", e)))?;
-
-        Ok(png_data)
-    }
-
-    /// Get page count from PDF.
-    pub fn page_count(&self, pdf_bytes: &[u8]) -> Result<usize> {
-        let document = self
-            .pdfium
-            .load_pdf_from_byte_vec(pdf_bytes.to_vec(), None)
-            .map_err(|e| PdfError::PdfParse(format!("Failed to load PDF: {:?}", e)))?;
-
-        Ok(document.pages().len() as usize)
-    }
-
     /// Extract document metadata.
     pub fn extract_metadata(&self, pdf_bytes: &[u8]) -> Result<DocumentMetadata> {
         let document = self
@@ -542,6 +398,88 @@ impl PdfiumExtractor {
     }
 }
 
+#[async_trait]
+impl PdfBackend for PdfiumBackend {
+    async fn extract(&self, pdf_bytes: &[u8]) -> Result<Document> {
+        info!("Starting Pdfium-based PDF extraction to Document IR");
+
+        let pdfium_doc = self
+            .pdfium
+            .load_pdf_from_byte_vec(pdf_bytes.to_vec(), None)
+            .map_err(|e| PdfError::PdfParse(format!("Failed to load PDF: {:?}", e)))?;
+
+        let page_count = pdfium_doc.pages().len();
+        info!("PDF has {} pages", page_count);
+
+        // Extract metadata
+        let metadata = self.extract_metadata(pdf_bytes)?;
+
+        // Determine pages to process
+        let max_pages = self.config.max_pages.unwrap_or(page_count as usize);
+        let pages_to_process = std::cmp::min(page_count as usize, max_pages);
+
+        let mut pages = Vec::new();
+
+        // Process each page
+        for page_index in 0..pages_to_process {
+            let pdfium_page = pdfium_doc.pages().get(page_index as u16).map_err(|e| {
+                PdfError::PdfParse(format!("Failed to get page {}: {:?}", page_index, e))
+            })?;
+
+            debug!(
+                "Processing page {}/{} with Pdfium",
+                page_index + 1,
+                pages_to_process
+            );
+
+            // Extract blocks with word boundary detection
+            let blocks = self.extract_page_blocks(&pdfium_page, page_index + 1)?;
+
+            // Create page with unsorted blocks
+            // Layout analysis (column detection, reading order) is handled by LayoutProcessor
+            let page = Page {
+                number: page_index + 1,
+                width: pdfium_page.width().value,
+                height: pdfium_page.height().value,
+                blocks,
+                method: ExtractionMethod::Pdfium,
+                stats: PageStats::default(),
+                columns: vec![],  // Will be populated by LayoutProcessor
+                margins: None,
+                metadata: HashMap::new(),
+            };
+
+            pages.push(page);
+        }
+
+        let mut doc = Document::new();
+        doc.metadata = metadata;
+        doc.pages = pages;
+
+        Ok(doc)
+    }
+
+    fn get_info(&self, pdf_bytes: &[u8]) -> Result<PdfInfo> {
+        let document = self
+            .pdfium
+            .load_pdf_from_byte_vec(pdf_bytes.to_vec(), None)
+            .map_err(|e| PdfError::PdfParse(format!("Failed to load PDF: {:?}", e)))?;
+
+        let page_count = document.pages().len() as usize;
+        let metadata = self.extract_metadata(pdf_bytes)?;
+
+        Ok(PdfInfo {
+            page_count,
+            pdf_version: metadata
+                .pdf_version
+                .unwrap_or_else(|| "Unknown".to_string()),
+            has_images: false, // TODO: Implement image detection for pdfium
+            image_count: 0,    // TODO: Implement image counting for pdfium
+            file_size: pdf_bytes.len(),
+        })
+    }
+}
+
 fn pdf_font_weight_to_u16(weight: PdfFontWeight) -> u16 {
     match weight {
         PdfFontWeight::Weight100 => 100,
@@ -557,22 +495,8 @@ fn pdf_font_weight_to_u16(weight: PdfFontWeight) -> u16 {
     }
 }
 
-impl Default for PdfiumExtractor {
+impl Default for PdfiumBackend {
     fn default() -> Self {
-        Self::new().expect("Failed to initialize PdfiumExtractor")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_pdfium_extractor_creation() {
-        let result = PdfiumExtractor::new();
-        match result {
-            Ok(_) => println!("PdfiumExtractor created successfully"),
-            Err(e) => println!("PdfiumExtractor not available: {}", e),
-        }
+        Self::new().expect("Failed to initialize PdfiumBackend")
     }
 }

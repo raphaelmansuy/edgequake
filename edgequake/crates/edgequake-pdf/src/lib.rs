@@ -14,6 +14,7 @@
 //! - **renderers**: Output format renderers
 //! - **config**: Extraction configuration options
 //! - **extractor**: Main PDF extraction logic
+//! - **backend**: Pluggable PDF extraction backends
 //!
 //! # Example
 //!
@@ -35,6 +36,7 @@
 //! }
 //! ```
 
+pub mod backend;
 pub mod config;
 pub mod error;
 pub mod extractor;
@@ -44,15 +46,10 @@ pub mod renderers;
 pub mod schema;
 pub mod vision;
 
-// Pdfium-based extractor (SOTA quality, optional feature)
-#[cfg(feature = "pdfium")]
-pub mod pdfium_extractor;
-
+pub use backend::PdfBackend;
 pub use config::{ExtractionMode, LayoutConfig, OutputFormat, PdfConfig};
 pub use error::PdfError;
-pub use extractor::{
-    ExtractedImage, ExtractionResult, PageContent, PdfExtractor, PdfInfo,
-};
+pub use extractor::{ExtractedImage, ExtractionResult, PageContent, PdfExtractor, PdfInfo};
 
 // Re-export schema types for convenience
 pub use schema::{
@@ -68,18 +65,8 @@ pub use layout::{
 
 // Re-export processor types
 pub use processors::{
-    // DocumentBuilder and PageBuilder deprecated - use PdfiumExtractor instead
-    BlockMergeProcessor,
-    ByteProvider,
-    FileProvider,
-    LayoutProcessor,
-    LlmEnhanceConfig,
-    LlmEnhanceProcessor,
-    LlmEnhanced,
-    PdfProvider,
-    PostProcessor,
-    Processor,
-    ProcessorChain,
+    BlockMergeProcessor, ByteProvider, FileProvider, LayoutProcessor, LlmEnhanceConfig,
+    LlmEnhanceProcessor, LlmEnhanced, PdfProvider, PostProcessor, Processor, ProcessorChain,
 };
 
 // Re-export renderer types
@@ -88,9 +75,9 @@ pub use renderers::{JsonRenderer, MarkdownRenderer, MarkdownStyle, Renderer};
 // Re-export vision types
 pub use vision::{ImageFormat, PageImage, VisionCapable, VisionConfig, VisionExtractor};
 
-// Re-export pdfium extractor (SOTA quality backend)
+// Re-export pdfium backend (SOTA quality backend)
 #[cfg(feature = "pdfium")]
-pub use pdfium_extractor::PdfiumExtractor;
+pub use backend::pdfium::PdfiumBackend;
 
 /// Result type for PDF operations.
 pub type Result<T> = std::result::Result<T, PdfError>;

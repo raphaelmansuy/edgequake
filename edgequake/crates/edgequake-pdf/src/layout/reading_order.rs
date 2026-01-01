@@ -40,7 +40,7 @@ pub struct ReadingOrderDetector {
     /// Tolerance for considering blocks on the same line
     line_tolerance: f32,
     /// Tolerance for column alignment
-    column_tolerance: f32,
+    _column_tolerance: f32,
 }
 
 impl ReadingOrderDetector {
@@ -48,7 +48,7 @@ impl ReadingOrderDetector {
     pub fn new() -> Self {
         Self {
             line_tolerance: 5.0,
-            column_tolerance: 20.0,
+            _column_tolerance: 20.0,
         }
     }
 
@@ -56,7 +56,7 @@ impl ReadingOrderDetector {
     pub fn with_tolerances(line_tolerance: f32, column_tolerance: f32) -> Self {
         Self {
             line_tolerance,
-            column_tolerance,
+            _column_tolerance: column_tolerance,
         }
     }
 
@@ -248,7 +248,8 @@ impl ReadingOrderDetector {
                 let current_spanning_y = blocks[spanning[spanning_idx]].bbox.y1;
                 let threshold = current_spanning_y + self.line_tolerance;
 
-                while spanning_idx < spanning.len() && blocks[spanning[spanning_idx]].bbox.y1 <= threshold
+                while spanning_idx < spanning.len()
+                    && blocks[spanning[spanning_idx]].bbox.y1 <= threshold
                 {
                     result.push(spanning[spanning_idx]);
                     spanning_idx += 1;

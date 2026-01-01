@@ -13,6 +13,8 @@ pub enum ExtractionMethod {
     /// Native PDF text extraction
     #[default]
     Native,
+    /// Pdfium-based extraction (SOTA quality)
+    Pdfium,
     /// OCR-based extraction
     Ocr,
     /// LLM-enhanced extraction
@@ -28,6 +30,7 @@ impl ExtractionMethod {
     pub fn label(&self) -> &'static str {
         match self {
             ExtractionMethod::Native => "Native Text",
+            ExtractionMethod::Pdfium => "Pdfium (SOTA)",
             ExtractionMethod::Ocr => "OCR",
             ExtractionMethod::LlmEnhanced => "LLM Enhanced",
             ExtractionMethod::Vision => "Vision Model",

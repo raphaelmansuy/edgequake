@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 #[cfg(feature = "pdfium")]
-use edgequake_pdf::PdfiumExtractor;
+use edgequake_pdf::{PdfiumBackend, PdfBackend, MarkdownRenderer, Renderer};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -13,9 +13,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(feature = "pdfium")]
     {
-        println!("Testing PdfiumExtractor on sample.pdf...");
+        println!("Testing PdfiumBackend on sample.pdf...");
 
-        let extractor = PdfiumExtractor::new()?;
+        let backend = PdfiumBackend::new()?;
 
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let sample_pdf = manifest_dir.join("test-data").join("sample.pdf");
@@ -28,7 +28,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             sample_pdf.display()
         );
 
-        let markdown = extractor.extract_to_markdown(&pdf_bytes)?;
+        let document = backend.extract(&pdf_bytes).await?;
+        let renderer = MarkdownRenderer::default();
+        let markdown = renderer.render(&document)?;
 
         std::fs::write(&out_md, &markdown)?;
 

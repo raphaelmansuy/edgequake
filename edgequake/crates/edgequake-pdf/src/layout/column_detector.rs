@@ -52,7 +52,7 @@ pub struct ColumnDetector {
     /// Minimum column width
     min_column_width: f32,
     /// Minimum vertical overlap ratio for items in same column
-    min_overlap_ratio: f32,
+    _min_overlap_ratio: f32,
     /// Histogram bin size for projection analysis
     bin_size: f32,
 }
@@ -63,7 +63,7 @@ impl ColumnDetector {
         Self {
             min_gap_width: 15.0,     // ~0.2 inch
             min_column_width: 100.0, // ~1.4 inch
-            min_overlap_ratio: 0.5,
+            _min_overlap_ratio: 0.5,
             bin_size: 5.0,
         }
     }
