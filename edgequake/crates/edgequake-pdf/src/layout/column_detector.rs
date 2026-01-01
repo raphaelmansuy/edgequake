@@ -62,7 +62,7 @@ impl ColumnDetector {
     /// Create a new column detector with default settings.
     pub fn new() -> Self {
         Self {
-            min_gap_width: 15.0,     // ~0.2 inch
+            min_gap_width: 30.0,     // ~0.4 inch - increased to be more conservative
             min_column_width: 100.0, // ~1.4 inch
             _min_overlap_ratio: 0.5,
             bin_size: 5.0,
