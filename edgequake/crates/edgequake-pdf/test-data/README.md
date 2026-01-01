@@ -1,103 +1,266 @@
-# EdgeQuake PDF Test Suite
+# EdgeQuake PDF Test Suite - Complete Index
 
 ## Overview
-This directory contains test PDF documents with increasing complexity levels to validate the EdgeQuake PDF to Markdown conversion tool.
 
-## Test Documents
+This directory contains a comprehensive test suite for the EdgeQuake PDF to Markdown conversion tool. Tests are organized by increasing complexity to systematically validate SOTA (State-of-the-Art) conversion quality.
 
-### Level 1: Basic Text
-- **001_basic_single_column_text.pdf**
-  - Single column, plain text only
-  - No formatting or special elements
-  - Expected output: Clean paragraphs in Markdown
+## Test Results Summary (2026-01-01)
 
-### Level 2: Formatted Text
-- **002_formatted_text_bold_italic.pdf**
-  - Headings (H1, H2)
-  - Bold and italic inline formatting
-  - Expected output: Proper Markdown formatting (* for italic, ** for bold)
+**Overall Quality Score: 70/100**
 
-- **003_lists_bullets_numbered.pdf**
-  - Unordered bullet lists
-  - Ordered numbered lists
-  - Expected output: Proper list syntax (-, 1., 2., etc.)
+### ✅ WORKING WELL (Score: 80-100)
+- Basic text extraction (001 series)
+- Formatted text with bold/italic (002 series)  
+- Two-column layouts (003)
+- Simple tables (004)
 
-### Level 3: Structure
-- **006_multi_column_layout.pdf**
-  - Two-column layout
-  - Tests column detection and reading order
-  - Expected output: Left column first, then right column
+### ⚠️ NEEDS IMPROVEMENT (Score: 40-79)
+- Nested lists - indentation flattened (013)
+- Complex tables - spanning issues (014, 018)
+- Superscript/subscript (015)
+- Code vs table detection (016)
+- Footnotes (019)
 
-### Level 4: Tables
-- **004_simple_table_2x3.pdf**
-  - Simple 2-column table with header
-  - 3 data rows
-  - Expected output: Markdown table syntax with alignment
+### ❌ CRITICAL ISSUES (Score: 0-39)
+- Three-column reading order broken (017)
+- Canvas-based PDF extraction fails (021)
 
-- **005_complex_table_merged_cells.pdf**
-  - Multi-column table (6 columns)
-  - Multiple rows with formatting
-  - Total row with special styling
-  - Expected output: Complete table in Markdown
+---
 
-### Level 6: Mixed Content
-- **007_mixed_content_complex.pdf**
-  - Realistic mix: text + lists + tables
-  - Multiple sections with headings
-  - Tests integration of all features
-  - Expected output: Well-structured Markdown with all elements
+## Complete Test Catalog
 
-- **008_multi_page_5_pages.pdf**
-  - 5-page document
-  - Tests page boundary handling
-  - Tests --page-numbers flag
-  - Expected output: Continuous or page-delimited Markdown
+### 001_simple_text.pdf ✅ SOTA
+**Purpose**: Basic text extraction  
+**Content**: Simple paragraphs
+**Expected**: Clean paragraph separation  
+**Result**: 219 chars, perfect
 
-## Testing Protocol (ODAA Loop)
+### 001_basic_single_column_text.pdf ✅ SOTA  
+**Purpose**: Single column with margins
+**Content**: Title + paragraphs
+**Expected**: Proper structure
+**Result**: 388 chars, perfect
 
-For each test document:
+### 002_formatted_text_bold_italic.pdf ✅ SOTA
+**Purpose**: Inline formatting
+**Content**: Bold, italic, mixed
+**Expected**: Markdown formatting (*, **, ***)
+**Result**: 252 chars, formatting preserved
 
-1. **OBSERVE**: Examine the input PDF (use `info` command)
-2. **ORIENT**: Define expected Markdown output
-3. **DECIDE**: Run conversion, identify issues
-4. **ACT**: Fix code if needed
-5. **ASSESS**: Verify improvement, iterate
+### 002_headers_and_lists.pdf ✅ SOTA
+**Purpose**: Document structure
+**Content**: Headers + lists
+**Expected**: Proper headings and list syntax
+**Result**: 187 chars, good
+
+### 003_lists_bullets_numbered.pdf ✅ GOOD
+**Purpose**: List extraction
+**Content**: Bullets and numbers
+**Expected**: List syntax (-, 1., 2.)
+**Result**: 226 chars, minor issues
+
+### 003_two_columns.pdf ✅ SOTA
+**Purpose**: Two-column reading order
+**Content**: Two equal columns
+**Expected**: Left column → right column
+**Result**: 481 chars, **perfect reading order after fix**
+
+### 004_simple_table_2x3.pdf ✅ SOTA
+**Purpose**: Basic tables
+**Content**: 2×4 table
+**Expected**: Markdown table
+**Result**: 162 chars, proper format
+
+### 004_tables.pdf ✅ GOOD
+**Purpose**: Table detection
+**Content**: Simple table
+**Expected**: Table syntax
+**Result**: 166 chars
+
+### 005_complex_table_merged_cells.pdf ⚠️ NEEDS WORK
+**Purpose**: Advanced tables
+**Content**: 6 columns, merged cells
+**Expected**: Spanning preserved
+**Result**: 264 chars, spanning not preserved
+
+### 005_mixed_styles.pdf ✅ GOOD  
+**Purpose**: Mixed formatting
+**Content**: Various styles
+**Expected**: All styles preserved
+**Result**: 181 chars
+
+### 006_images_and_captions.pdf ⚠️ PARTIAL
+**Purpose**: Image handling
+**Content**: Images + captions
+**Expected**: Placeholders + captions
+**Result**: 142 chars, images not extracted yet
+
+### 006_multi_column_layout.pdf ✅ GOOD
+**Purpose**: Multi-column with headers
+**Content**: Two columns
+**Expected**: Proper flow
+**Result**: 402 chars
+
+### 013_nested_lists_deep.pdf ⚠️ NEEDS WORK
+**Purpose**: Complex nested lists
+**Content**: 3-level nesting
+**Expected**: Proper indentation
+**Result**: 221 chars, **indentation flattened**
+**Issue**: Nested structure lost
+
+### 014_table_spanning_cells.pdf ❌ BROKEN
+**Purpose**: Cell merging
+**Content**: Table with merged cells
+**Expected**: Proper table structure
+**Result**: 333 chars, **extracted as individual headers**
+**Issue**: Table detection completely failed
+
+### 015_superscript_subscript.pdf ⚠️ ISSUES
+**Purpose**: Mathematical notation
+**Content**: E=mc², H₂O, footnotes
+**Expected**: Super/subscript formatting
+**Result**: 192 chars, **spacing issues**
+**Examples**: "H O" not "H₂O", "mc2" not "mc²"
+
+### 016_mixed_fonts_sizes.pdf ❌ BROKEN
+**Purpose**: Font variation
+**Content**: Different fonts including code
+**Expected**: Code blocks preserved
+**Result**: 195 chars, **code detected as table!**
+**Issue**: `def hello_world()` → `| def hello | _ | world() |`
+
+### 017_three_columns.pdf ❌ CRITICAL
+**Purpose**: Three-column layout
+**Content**: Three equal columns
+**Expected**: Col1 → Col2 → Col3
+**Result**: 369 chars, **columns interleaved**
+**Issue**: Reading order broken (2-col works, 3-col fails)
+
+### 018_table_multiheader.pdf ⚠️ ISSUES
+**Purpose**: Multi-level headers
+**Content**: Grouped column headers
+**Expected**: Header structure preserved
+**Result**: 241 chars, **"110" → "1 10"**
+**Issue**: Number splitting in cells
+
+### 019_footnotes_references.pdf ⚠️ ISSUES
+**Purpose**: Footnote handling
+**Content**: Footnotes + references
+**Expected**: Proper footnote syntax
+**Result**: 486 chars, **extracted as chaotic table**
+
+### 020_unicode_special_chars.pdf ⚠️ PARTIAL
+**Purpose**: Unicode support
+**Content**: Math, Greek, currencies
+**Expected**: All characters preserved
+**Result**: 292 chars, **some symbols → ■**
+**Issue**: ¥, fractions rendered as ■
+
+---
 
 ## Test Commands
 
 ```bash
+# Convert PDF to Markdown
+cargo run --release --bin edgequake-pdf -- convert \\
+  -i test-data/001_simple_text.pdf \\
+  -o output/001.md
+
 # Get PDF info
-cargo run --bin edgequake-pdf -- info -i test-data/001_basic_single_column_text.pdf
+cargo run --release --bin edgequake-pdf -- info \\
+  -i test-data/001_simple_text.pdf
 
-# Convert to markdown (default output)
-cargo run --bin edgequake-pdf -- convert -i test-data/001_basic_single_column_text.pdf
+# Run all tests
+cd test-data && ./test_all.sh
 
-# Convert with custom output
-cargo run --bin edgequake-pdf -- convert -i test-data/001_basic_single_column_text.pdf -o output/001.md
-
-# Convert with page numbers
-cargo run --bin edgequake-pdf -- convert -i test-data/008_multi_page_5_pages.pdf --page-numbers
-
-# Convert first 3 pages only
-cargo run --bin edgequake-pdf -- convert -i test-data/008_multi_page_5_pages.pdf --max-pages 3
-
-# Vision mode (if/when implemented with real LLM)
-cargo run --bin edgequake-pdf -- convert -i test-data/007_mixed_content_complex.pdf --vision
+# Test with page numbers
+cargo run --release --bin edgequake-pdf -- convert \\
+  -i test-data/008_multi_page_5_pages.pdf \\
+  --page-numbers
 ```
 
-## Success Criteria (SOTA)
+---
 
-A SOTA PDF converter should:
+## Priority Fixes for SOTA
 
-✅ Extract text accurately (100% for clean PDFs)
-✅ Preserve document structure (headings, paragraphs)
-✅ Detect and format lists correctly
-✅ Handle tables (simple and complex)
-✅ Maintain reading order (single/multi-column)
-✅ Process multi-page documents efficiently
-✅ Generate clean, valid Markdown
-✅ Handle edge cases gracefully
+### CRITICAL (Blocking SOTA)
+1. **Three-column reading order** (017)
+   - 2-column works after recent fix
+   - 3-column still interleaves content
+   - Root cause: Column detection or merging
 
-## Current Status
+2. **Complex table detection** (014)
+   - Tables with spanning cells break
+   - Extracted as individual paragraphs
+   - Needs better table heuristics
 
-See `scratchpad_raw_log.md` for detailed test results and iteration log.
+### HIGH (Major Issues)
+3. **Code block detection** (016)
+   - Monospace text detected as table
+   - Need font-based discrimination
+
+4. **Number splitting** (018)
+   - "110" becomes "1 10" in tables
+   - Word boundary logic too aggressive
+
+### MEDIUM (Quality Improvements)
+5. **Nested list indentation** (013)
+6. **Superscript/subscript** (015)
+7. **Footnote layout** (019)
+8. **Unicode glyph handling** (020)
+
+---
+
+## Known Issues & Workarounds
+
+**Issue: Three columns interleaved**
+- Priority: CRITICAL
+- Test: 017
+- Status: 2-column fixed, 3-column broken
+- Workaround: Use 2-column layouts
+
+**Issue: Code detected as table**
+- Priority: HIGH  
+- Test: 016
+- Workaround: None
+
+**Issue: Number splitting "1 10"**
+- Priority: MEDIUM
+- Test: 018
+- Workaround: None
+
+**Issue: Canvas PDFs extract 0 chars**
+- Priority: MEDIUM
+- Test: 021
+- Workaround: Use SimpleDocTemplate
+
+---
+
+## OODA Loop Process
+
+For each failing test:
+1. **OBSERVE**: Run conversion, examine output
+2. **ORIENT**: Identify root cause  
+3. **DECIDE**: Plan fix
+4. **ACT**: Implement
+5. **ASSESS**: Verify + check regressions
+
+Log iterations in `scratchpad_raw_log.md`.
+
+---
+
+## Contributing
+
+New tests should:
+1. Follow naming: `NNN_description.pdf`
+2. Document purpose/expected output
+3. Update this README
+4. Run full suite before commit
+
+---
+
+## References
+
+- Issues: `test-data/ISSUES_FOUND.md`
+- Dev log: `scratchpad_raw_log.md`  
+- Examples: `../examples/`

@@ -204,3 +204,59 @@ Achieve SOTA PDF to Markdown conversion quality.
 
 ## 2026-01-01 19:15: Baseline Testing All Existing PDFs
 
+
+---
+
+## 2026-01-01 20:15: OODA Loop #1 - Three Column Fix
+
+### OBSERVE:
+Output for 017_three_columns.pdf shows:
+- Title correctly placed first (spanning element)
+- Column headers extracted in order: Col1, Col2, Col3
+- Content mixed: "Column 2" and "Column 3" content interleaved
+- Expected: Title → All of Col1 → All of Col2 → All of Col3
+
+### ORIENT (Root Cause Analysis):
+Located in `src/layout/reading_order.rs::merge_column_orders()`:
+- Algorithm processes blocks in "horizontal slices" (row-by-row across columns)
+- Logic: For each Y position, process blocks from all columns at that Y
+- This is WRONG for multi-column documents
+- Correct behavior: Process entire Column 1, then Column 2, then Column 3
+
+### DECIDE (Fix Strategy):
+Change `merge_column_orders` to:
+1. Process spanning elements at top
+2. For each column (left to right):
+   - Process ALL blocks in that column before next column
+3. Handle remaining spanning elements between columns
+4. Minimize disruption to 2-column logic (which works)
+
+### ACT (Implementation):
+
+
+### ASSESS (Results):
+**TWO-COLUMN TEST (003)**: ✅ PERFECT!
+- Reading order: Title → Column 1 (complete) → Column 2 (complete)
+- No interleaving
+- Fix WORKS for 2-column case
+
+**THREE-COLUMN TEST (017)**: ❌ STILL BROKEN
+- Columns still interleaved
+- Possible reasons:
+  1. Column detection might not be finding 3 columns
+  2. Canvas-based PDF (017) might have different text extraction
+  3. Need to verify column detection is actually running
+
+**NEW TEST (021)**: ⚠️ 0 CHARACTERS
+- Canvas-based PDF not extracting text at all
+- Might be pdfium incompatibility with reportlab.pdfgen.canvas
+
+### DECISION:
+- Two-column fix is GOOD - don't revert
+- Need to investigate why 017 doesn't detect 3 columns properly
+- Try regenerating 017 with SimpleDocTemplate instead of canvas
+
+---
+
+## 2026-01-01 20:45: Continue Testing - Verify All Working Cases
+

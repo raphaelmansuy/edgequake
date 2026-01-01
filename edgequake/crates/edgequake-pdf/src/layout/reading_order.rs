@@ -191,6 +191,10 @@ impl ReadingOrderDetector {
     }
 
     /// Merge column orders with spanning elements.
+    /// 
+    /// Strategy: Process columns sequentially (left-to-right), inserting spanning 
+    /// elements at their vertical position. This ensures proper reading order for
+    /// multi-column layouts (read all of column 1, then all of column 2, etc.)
     fn merge_column_orders(
         &self,
         column_blocks: &[Vec<usize>],
@@ -199,87 +203,54 @@ impl ReadingOrderDetector {
         blocks: &[Block],
     ) -> Vec<usize> {
         let mut result = Vec::new();
-        let mut col_indices: Vec<usize> = vec![0; column_blocks.len()];
         let mut spanning_idx = 0;
-        let mut unassigned_idx = 0;
-
-        while spanning_idx < spanning.len()
-            || col_indices
-                .iter()
-                .enumerate()
-                .any(|(i, &idx)| idx < column_blocks[i].len())
-            || unassigned_idx < unassigned.len()
-        {
-            // Find the next spanning element's Y position
-            let next_spanning_y = if spanning_idx < spanning.len() {
-                blocks[spanning[spanning_idx]].bbox.y1
+        
+        // Process leading spanning elements (before first column)
+        let first_col_y = column_blocks
+            .iter()
+            .filter_map(|col| col.first().map(|&idx| blocks[idx].bbox.y1))
+            .min_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap_or(f32::MAX);
+        
+        while spanning_idx < spanning.len() {
+            let span_y = blocks[spanning[spanning_idx]].bbox.y1;
+            if span_y < first_col_y - self.line_tolerance {
+                result.push(spanning[spanning_idx]);
+                spanning_idx += 1;
             } else {
-                f32::MAX
-            };
-
-            // Process all column blocks that are above this spanning element
-            // We do this column by column (left to right)
-            for (col, blocks_in_col) in column_blocks.iter().enumerate() {
-                while col_indices[col] < blocks_in_col.len() {
-                    let idx = blocks_in_col[col_indices[col]];
-                    // Use a small tolerance to avoid missing blocks that are exactly at the same Y
-                    if blocks[idx].bbox.y1 < next_spanning_y - self.line_tolerance {
-                        result.push(idx);
-                        col_indices[col] += 1;
+                break;
+            }
+        }
+        
+        // Process each column sequentially (left to right)
+        for col_blocks in column_blocks {
+            for &block_idx in col_blocks {
+                let block_y = blocks[block_idx].bbox.y1;
+                
+                // Insert any spanning elements that appear before this block
+                while spanning_idx < spanning.len() {
+                    let span_y = blocks[spanning[spanning_idx]].bbox.y1;
+                    if span_y < block_y - self.line_tolerance {
+                        result.push(spanning[spanning_idx]);
+                        spanning_idx += 1;
                     } else {
                         break;
                     }
                 }
-            }
-
-            // Process unassigned blocks above the spanning element
-            while unassigned_idx < unassigned.len() {
-                let idx = unassigned[unassigned_idx];
-                if blocks[idx].bbox.y1 < next_spanning_y - self.line_tolerance {
-                    result.push(idx);
-                    unassigned_idx += 1;
-                } else {
-                    break;
-                }
-            }
-
-            // Now process the spanning element(s) at the current level
-            if spanning_idx < spanning.len() {
-                let current_spanning_y = blocks[spanning[spanning_idx]].bbox.y1;
-                let threshold = current_spanning_y + self.line_tolerance;
-
-                while spanning_idx < spanning.len()
-                    && blocks[spanning[spanning_idx]].bbox.y1 <= threshold
-                {
-                    result.push(spanning[spanning_idx]);
-                    spanning_idx += 1;
-                }
-            } else {
-                // No more spanning elements, but we might have column blocks left.
-                // The loop above with next_spanning_y = MAX should have handled them.
-                if col_indices
-                    .iter()
-                    .enumerate()
-                    .all(|(i, &idx)| idx >= column_blocks[i].len())
-                    && unassigned_idx >= unassigned.len()
-                {
-                    break;
-                }
-
-                // Force progress if needed (should not happen with next_spanning_y = MAX)
-                for (col, blocks_in_col) in column_blocks.iter().enumerate() {
-                    while col_indices[col] < blocks_in_col.len() {
-                        result.push(blocks_in_col[col_indices[col]]);
-                        col_indices[col] += 1;
-                    }
-                }
-                while unassigned_idx < unassigned.len() {
-                    result.push(unassigned[unassigned_idx]);
-                    unassigned_idx += 1;
-                }
+                
+                result.push(block_idx);
             }
         }
-
+        
+        // Process remaining spanning elements
+        while spanning_idx < spanning.len() {
+            result.push(spanning[spanning_idx]);
+            spanning_idx += 1;
+        }
+        
+        // Process unassigned blocks
+        result.extend_from_slice(unassigned);
+        
         result
     }
 
