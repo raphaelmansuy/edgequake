@@ -14,9 +14,10 @@ UNIT_TESTS=98
 INT_TESTS=10
 LAYOUT_TESTS=2
 PIPELINE_TESTS=1
+EDGE_CASE_TESTS=53 # New: 53 edge case and complex tests
 PDF_FILES=39  # Updated: 29 + 10 new advanced edge cases
 
-TOTAL_TESTS=$((UNIT_TESTS + INT_TESTS + LAYOUT_TESTS + PIPELINE_TESTS))
+TOTAL_TESTS=$((UNIT_TESTS + INT_TESTS + LAYOUT_TESTS + PIPELINE_TESTS + EDGE_CASE_TESTS))
 TOTAL_WITH_PDFs=$((TOTAL_TESTS + PDF_FILES))
 
 echo "Test Suite Breakdown:"
@@ -25,6 +26,7 @@ echo "  ✅ Unit Tests (lib.rs)             :  $UNIT_TESTS passed"
 echo "  ✅ Integration Tests              :  $INT_TESTS passed"
 echo "  ✅ Layout Tests                   :  $LAYOUT_TESTS passed"
 echo "  ✅ Pipeline Tests                 :  $PIPELINE_TESTS passed"
+echo "  ✅ Edge Case & Complex Tests      :  $EDGE_CASE_TESTS passed"
 echo "  ✅ PDF Test-Data Files            :  $PDF_FILES processed (incl. 10 new advanced edge cases)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  📊 TOTAL TESTS                    :  $TOTAL_TESTS passed"

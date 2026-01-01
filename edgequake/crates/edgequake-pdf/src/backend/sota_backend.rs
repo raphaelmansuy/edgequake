@@ -2397,6 +2397,10 @@ impl PdfBackend for SotaBackend {
         let lopdf_doc = LopdfDocument::load_mem(pdf_bytes)
             .map_err(|e| PdfError::PdfParse(format!("Failed to load PDF: {}", e)))?;
 
+        if lopdf_doc.is_encrypted() {
+            return Err(PdfError::PdfParse("PDF is encrypted and password-protected".to_string()));
+        }
+
         let pages = lopdf_doc.get_pages();
         let page_count = pages.len();
         info!("PDF has {} pages", page_count);
@@ -2430,6 +2434,10 @@ impl PdfBackend for SotaBackend {
     fn get_info(&self, pdf_bytes: &[u8]) -> Result<PdfInfo> {
         let lopdf_doc = LopdfDocument::load_mem(pdf_bytes)
             .map_err(|e| PdfError::PdfParse(format!("Failed to load PDF: {}", e)))?;
+
+        if lopdf_doc.is_encrypted() {
+            return Err(PdfError::PdfParse("PDF is encrypted and password-protected".to_string()));
+        }
 
         let pages = lopdf_doc.get_pages();
 

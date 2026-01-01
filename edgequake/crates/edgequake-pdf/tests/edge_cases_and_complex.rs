@@ -475,6 +475,78 @@ async fn validate_05_info_consistency() {
     }
 }
 
+// ADVANCED EDGE CASES (022-031)
+
+#[test]
+fn advanced_022_corrupted_xref_table() {
+    let pdf = load_pdf("022_corrupted_xref_table.pdf");
+    let result = create_extractor().get_info(&pdf);
+    assert!(result.is_err(), "Should fail gracefully on corrupted XRef");
+}
+
+#[tokio::test]
+async fn advanced_023_incomplete_unicode_mapping() {
+    let pdf = load_pdf("023_incomplete_unicode_mapping.pdf");
+    let result = create_extractor().extract_text(&pdf).await;
+    assert!(result.is_ok(), "Should extract, but may contain (cid:x)");
+}
+
+#[tokio::test]
+async fn advanced_024_embedded_fonts_obfuscated() {
+    let pdf = load_pdf("024_embedded_fonts_obfuscated.pdf");
+    let result = create_extractor().extract_text(&pdf).await;
+    assert!(result.is_ok(), "Should extract, but may be gibberish if font mapping missing");
+}
+
+#[tokio::test]
+async fn advanced_025_rotated_text() {
+    let pdf = load_pdf("025_rotated_text.pdf");
+    let result = create_extractor().extract_text(&pdf).await;
+    assert!(result.is_ok(), "Should extract all rotated text");
+}
+
+#[tokio::test]
+async fn advanced_026_overlapping_text_layers() {
+    let pdf = load_pdf("026_overlapping_text_layers.pdf");
+    let result = create_extractor().extract_text(&pdf).await;
+    assert!(result.is_ok(), "Should extract, avoid duplicate overlays");
+}
+
+#[tokio::test]
+async fn advanced_027_digital_signatures_annotations() {
+    let pdf = load_pdf("027_digital_signatures_annotations.pdf");
+    let result = create_extractor().extract_text(&pdf).await;
+    assert!(result.is_ok(), "Should extract text, ignore annotations/signatures");
+}
+
+#[tokio::test]
+async fn advanced_028_vector_graphics_text_on_path() {
+    let pdf = load_pdf("028_vector_graphics_text_on_path.pdf");
+    let result = create_extractor().extract_text(&pdf).await;
+    assert!(result.is_ok(), "Should extract text on path if possible");
+}
+
+#[test]
+fn advanced_029_encrypted_password_protected() {
+    let pdf = load_pdf("029_encrypted_password_protected.pdf");
+    let result = create_extractor().get_info(&pdf);
+    assert!(result.is_err(), "Should fail with clear error on encrypted PDF");
+}
+
+#[tokio::test]
+async fn advanced_030_mixed_writing_directions() {
+    let pdf = load_pdf("030_mixed_writing_directions.pdf");
+    let result = create_extractor().extract_text(&pdf).await;
+    assert!(result.is_ok(), "Should extract both LTR and RTL text");
+}
+
+#[tokio::test]
+async fn advanced_031_embedded_files_attachments() {
+    let pdf = load_pdf("031_embedded_files_attachments.pdf");
+    let result = create_extractor().extract_text(&pdf).await;
+    assert!(result.is_ok(), "Should extract text, ignore attachments");
+}
+
 #[test]
 fn summary_60_tests_defined() {
     println!("50+ Edge Cases & Complex Tests Summary:");
