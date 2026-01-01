@@ -1,7 +1,10 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 
 #[cfg(feature = "pdfium")]
-use edgequake_pdf::{MarkdownRenderer, PdfBackend, PdfiumBackend, Renderer};
+use edgequake_llm::providers::mock::MockProvider;
+#[cfg(feature = "pdfium")]
+use edgequake_pdf::{PdfConfig, PdfExtractor, PdfiumBackend};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -28,22 +31,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         println!(
-            "Testing PdfiumBackend on {} (SOTA quality)...",
+            "Testing PdfExtractor with PdfiumBackend on {} (SOTA quality)...",
             sample_pdf.display()
         );
 
-        let backend = PdfiumBackend::new()?;
+        // Create PdfiumBackend and wrap in PdfExtractor to use full processor chain
+        let backend = Box::new(PdfiumBackend::new()?);
+        let llm_provider = Arc::new(MockProvider::new());
+        let config = PdfConfig::default();
+        let extractor = PdfExtractor::with_backend(backend, llm_provider, config);
 
         let pdf_bytes = std::fs::read(&sample_pdf)?;
 
         println!(
-            "Extracting {} to markdown with Pdfium (character-level word detection)...",
+            "Extracting {} to markdown with full processor chain...",
             sample_pdf.display()
         );
 
-        let document = backend.extract(&pdf_bytes).await?;
-        let renderer = MarkdownRenderer::default();
-        let markdown = renderer.render(&document)?;
+        let markdown = extractor.extract_to_markdown(&pdf_bytes).await?;
 
         std::fs::write(&out_md, &markdown)?;
 

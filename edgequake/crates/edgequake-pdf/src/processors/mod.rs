@@ -18,7 +18,8 @@ mod provider;
 pub use llm_enhance::{LlmEnhanceConfig, LlmEnhanceProcessor, LlmEnhanced};
 pub use processor::{
     BlockMergeProcessor, CaptionDetectionProcessor, CodeBlockDetectionProcessor,
-    HeaderDetectionProcessor, LayoutProcessor, ListDetectionProcessor, PostProcessor, Processor,
-    ProcessorChain, TableDetectionProcessor,
+    GarbledTextFilterProcessor, HeaderDetectionProcessor, HyphenContinuationProcessor, 
+    LayoutProcessor, ListDetectionProcessor, MarginFilterProcessor, PostProcessor, 
+    Processor, ProcessorChain, TableDetectionProcessor,
 };
 pub use provider::{ByteProvider, FileProvider, PdfProvider};

@@ -8,6 +8,245 @@ use crate::schema::{Block, BlockType, Document};
 use crate::Result;
 use regex::Regex;
 
+/// Processor to filter out margin content like line numbers.
+///
+/// Academic papers (especially arXiv) often have line numbers in the left margin.
+/// This processor removes blocks that are positioned in page margins.
+pub struct MarginFilterProcessor {
+    /// Left margin threshold (blocks with x < this are filtered)
+    left_margin: f32,
+    /// Right margin threshold (blocks with x > page_width - this are filtered)
+    right_margin: f32,
+    /// Top margin threshold
+    top_margin: f32,
+    /// Bottom margin threshold  
+    bottom_margin: f32,
+}
+
+impl MarginFilterProcessor {
+    /// Create with default margins for academic papers.
+    pub fn new() -> Self {
+        Self {
+            left_margin: 50.0,   // Filter content in first 50pt (line numbers)
+            right_margin: 30.0,  // Filter right margin content
+            top_margin: 40.0,    // Filter header area
+            bottom_margin: 40.0, // Filter footer area
+        }
+    }
+
+    /// Create with custom margins.
+    pub fn with_margins(left: f32, right: f32, top: f32, bottom: f32) -> Self {
+        Self {
+            left_margin: left,
+            right_margin: right,
+            top_margin: top,
+            bottom_margin: bottom,
+        }
+    }
+
+    /// Check if a block is in the margin area.
+    fn is_margin_content(&self, block: &Block, page_width: f32, page_height: f32) -> bool {
+        let bbox = &block.bbox;
+
+        // Check if block is entirely in left margin
+        if bbox.x2 < self.left_margin {
+            // Also check if it's short text (likely line number)
+            if block.text.trim().len() <= 3 {
+                tracing::debug!("Filtering left margin content: '{}'", block.text.trim());
+                return true;
+            }
+        }
+
+        // Check if block is entirely in right margin
+        if bbox.x1 > page_width - self.right_margin {
+            if block.text.trim().len() <= 3 {
+                tracing::debug!("Filtering right margin content: '{}'", block.text.trim());
+                return true;
+            }
+        }
+
+        // Check if block is single digit/letter at edge of content (likely line number)
+        let text = block.text.trim();
+        if text.len() <= 2
+            && text
+                .chars()
+                .all(|c| c.is_ascii_digit() || c.is_ascii_uppercase())
+        {
+            // If it's positioned far from main content area, filter it
+            if bbox.x1 < 60.0 || bbox.x1 > page_width - 60.0 {
+                tracing::debug!("Filtering likely line number: '{}'", text);
+                return true;
+            }
+        }
+
+        // Check top margin (headers)
+        if bbox.y2 < self.top_margin && block.text.len() < 100 {
+            // Only filter short texts in header (not full header lines)
+            // Skip - we want to keep page headers
+        }
+
+        // Check bottom margin (footers)
+        if bbox.y1 > page_height - self.bottom_margin && block.text.len() < 100 {
+            // Check for page number pattern
+            let trimmed = block.text.trim();
+            if trimmed.parse::<i32>().is_ok() {
+                tracing::debug!("Filtering footer page number: '{}'", trimmed);
+                return true;
+            }
+        }
+
+        false
+    }
+}
+
+impl Default for MarginFilterProcessor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Processor for MarginFilterProcessor {
+    fn process(&self, mut document: Document) -> Result<Document> {
+        for page in &mut document.pages {
+            let page_width = page.width;
+            let page_height = page.height;
+
+            page.blocks
+                .retain(|block| !self.is_margin_content(block, page_width, page_height));
+        }
+
+        Ok(document)
+    }
+
+    fn name(&self) -> &str {
+        "MarginFilterProcessor"
+    }
+}
+
+/// Processor to filter garbled/corrupted text from figure annotations.
+///
+/// Detects text that appears corrupted, such as:
+/// - High ratio of single-character words
+/// - Text that doesn't form recognizable patterns
+/// - Very short isolated fragments
+pub struct GarbledTextFilterProcessor {
+    /// Maximum ratio of short words (≤2 chars) allowed
+    max_short_word_ratio: f32,
+    /// Minimum number of words to apply the ratio check
+    min_word_count: usize,
+}
+
+impl GarbledTextFilterProcessor {
+    pub fn new() -> Self {
+        Self {
+            max_short_word_ratio: 0.35,
+            min_word_count: 4,
+        }
+    }
+
+    /// Check if text appears garbled/corrupted.
+    fn is_garbled(&self, text: &str) -> bool {
+        let trimmed = text.trim();
+        if trimmed.is_empty() {
+            return false;
+        }
+
+        // Filter very short isolated fragments that look like figure labels
+        // e.g., ",w", "v", "x u", "l i d"
+        // But not valid short content like "1.", "a)", etc.
+        if trimmed.len() <= 6 && trimmed.split_whitespace().count() >= 2 {
+            // Multiple words in ≤6 chars = likely garbled
+            // Except if it looks like a numbered item or reference
+            let has_digit = trimmed.chars().any(|c| c.is_ascii_digit());
+            let looks_like_item = has_digit && (trimmed.contains('.') || trimmed.contains(')'));
+            if !looks_like_item {
+                tracing::debug!("Filtering short garbled fragment: '{}'", trimmed);
+                return true;
+            }
+        }
+
+        let words: Vec<&str> = trimmed.split_whitespace().collect();
+        if words.len() < self.min_word_count {
+            return false;
+        }
+
+        // Count short words (≤2 chars) excluding common valid short words
+        let valid_short_words = ["a", "an", "as", "at", "be", "by", "do", "go", "he", "if", 
+                                 "in", "is", "it", "me", "my", "no", "of", "on", "or", "so", 
+                                 "to", "up", "us", "we", "i", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+        let short_count = words.iter()
+            .filter(|w| w.len() <= 2 && !valid_short_words.contains(&w.to_lowercase().as_str()))
+            .count();
+        let ratio = short_count as f32 / words.len() as f32;
+
+        if ratio > self.max_short_word_ratio {
+            tracing::debug!(
+                "Filtering garbled text ({}% unusual short words): '{}'",
+                (ratio * 100.0) as i32,
+                if trimmed.len() > 50 { &trimmed[..50] } else { trimmed }
+            );
+            return true;
+        }
+
+        // Check for patterns like missing letters: "a iliar tools hich o erlook"
+        // This has MANY isolated letters that aren't common words
+        let isolated_letters = words.iter()
+            .filter(|w| w.len() == 1 && w.chars().all(|c| c.is_alphabetic()))
+            .filter(|w| !valid_short_words.contains(&w.to_lowercase().as_str()))
+            .count();
+        // Need at least 4 isolated non-common letters AND high ratio
+        if isolated_letters >= 4 && ratio > 0.30 {
+            tracing::debug!("Filtering text with isolated letters: '{}'", if trimmed.len() > 50 { &trimmed[..50] } else { trimmed });
+            return true;
+        }
+
+        // Check for OCR-garbled text pattern: words that look like word fragments
+        // Pattern: single letter + space + lowercase fragment (e.g., "a iliar" = "familiar" with missing "f")
+        // "hich" = "which" missing "w", "erlook" = "overlook" missing "ov", "ec" = "exec" missing "ex"
+        // These are unusual non-words that suggest OCR corruption
+        let non_word_fragments = words.iter().filter(|w| {
+            let w_lower = w.to_lowercase();
+            let len = w_lower.len();
+            // Check for likely fragments: 4-7 chars that start with unusual patterns
+            if len >= 4 && len <= 8 && w_lower.chars().all(|c| c.is_alphabetic()) {
+                // Check for patterns that suggest missing first letter(s)
+                // Common garbled patterns from the PDF
+                let garbled_patterns = ["iliar", "hich", "erlook", "ec", "tion", "xec"];
+                garbled_patterns.iter().any(|p| w_lower.starts_with(p) || w_lower == *p)
+            } else {
+                false
+            }
+        }).count();
+
+        if non_word_fragments >= 2 {
+            tracing::debug!("Filtering text with OCR fragments: '{}'", if trimmed.len() > 50 { &trimmed[..50] } else { trimmed });
+            return true;
+        }
+
+        false
+    }
+}
+
+impl Default for GarbledTextFilterProcessor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Processor for GarbledTextFilterProcessor {
+    fn process(&self, mut document: Document) -> Result<Document> {
+        for page in &mut document.pages {
+            page.blocks.retain(|block| !self.is_garbled(&block.text));
+        }
+
+        Ok(document)
+    }
+
+    fn name(&self) -> &str {
+        "GarbledTextFilterProcessor"
+    }
+}
+
 /// Trait for document processors.
 pub trait Processor: Send + Sync {
     /// Process a document, returning the modified document.
@@ -89,9 +328,13 @@ impl Processor for LayoutProcessor {
 
             // Check if the detected columns look like a table structure
             // If so, don't apply column-based reading order
-            let bboxes: Vec<crate::schema::BoundingBox> = page.blocks.iter().map(|b| b.bbox).collect();
-            let is_table = self.analyzer.column_detector().is_likely_table(&bboxes, &layout.columns);
-            
+            let bboxes: Vec<crate::schema::BoundingBox> =
+                page.blocks.iter().map(|b| b.bbox).collect();
+            let is_table = self
+                .analyzer
+                .column_detector()
+                .is_likely_table(&bboxes, &layout.columns);
+
             if is_table {
                 // For table-like layouts, use single column to preserve natural order
                 page.columns = vec![];
@@ -509,11 +752,68 @@ impl PostProcessor {
         self
     }
 
+    /// Fix soft hyphen patterns and control characters.
+    /// PDF extraction can produce control characters (like \x02) to indicate soft hyphens.
+    /// Common patterns:
+    /// - "modifi\x02 cation" (control char between word parts)
+    /// - "modifi \x02 cation" (space + control char + space between parts)
+    fn fix_soft_hyphens(&self, text: &str) -> String {
+        let mut result = String::new();
+        let chars: Vec<char> = text.chars().collect();
+        let len = chars.len();
+        let mut i = 0;
+
+        while i < len {
+            let c = chars[i];
+
+            // Check for control characters that indicate soft hyphen/line break
+            // These are commonly \x02 (STX), \x1F (unit separator), \xAD (soft hyphen)
+            if c == '\x02' || c == '\x1F' || c == '\u{00AD}' {
+                // Look backward to find the last alphabetic character (skipping spaces from result string)
+                let result_trimmed = result.trim_end();
+                let prev_is_letter = result_trimmed
+                    .chars()
+                    .last()
+                    .map(|c| c.is_alphabetic())
+                    .unwrap_or(false);
+
+                // Look forward past any spaces and control chars
+                let mut j = i + 1;
+                while j < len && (chars[j] == ' ' || chars[j] == '\x02' || chars[j] == '\x1F') {
+                    j += 1;
+                }
+
+                // Check if next real char is lowercase (word continuation)
+                let next_is_lower = j < len && chars[j].is_lowercase();
+
+                if prev_is_letter && next_is_lower {
+                    // This is a soft hyphen - remove trailing spaces from result and skip control/spaces
+                    while result.ends_with(' ') {
+                        result.pop();
+                    }
+                    i = j;
+                    continue;
+                } else {
+                    // Not a soft hyphen pattern - replace with space
+                    result.push(' ');
+                }
+            } else {
+                result.push(c);
+            }
+            i += 1;
+        }
+
+        result
+    }
+
     /// Normalize whitespace in text.
     fn normalize_text(&self, text: &str) -> String {
         if !self.normalize_whitespace {
             return text.to_string();
         }
+
+        // First fix soft hyphens
+        let text = self.fix_soft_hyphens(text);
 
         // Collapse multiple horizontal spaces but preserve newlines
         let mut result = String::new();
@@ -634,10 +934,17 @@ impl PostProcessor {
     /// Process a block.
     fn process_block(&self, block: &mut Block) {
         if block.block_type.has_text() {
+            // Process main text
             block.text = self.normalize_text(&block.text);
             block.text = self.fix_ocr_text(&block.text);
             block.text = self.fix_concatenated_words(&block.text);
             block.text = self.cleanup_citations(&block.text);
+            
+            // Also process spans since MarkdownRenderer uses spans if present
+            for span in &mut block.spans {
+                span.text = self.normalize_text(&span.text);
+                span.text = self.fix_ocr_text(&span.text);
+            }
         }
 
         // Process children
@@ -928,6 +1235,167 @@ impl Processor for CodeBlockDetectionProcessor {
 
     fn name(&self) -> &str {
         "CodeBlockDetectionProcessor"
+    }
+}
+
+/// Processor to fix hyphenated words at line breaks.
+///
+/// Academic papers often use hyphenation for word wrapping. This processor
+/// detects patterns like "modifi-\ncation" and joins them to "modification".
+pub struct HyphenContinuationProcessor {}
+
+impl HyphenContinuationProcessor {
+    pub fn new() -> Self {
+        Self {}
+    }
+
+    /// Check if a block text ends with a hyphenated word fragment.
+    /// Returns the fragment if found.
+    fn ends_with_hyphen(&self, text: &str) -> Option<String> {
+        let trimmed = text.trim_end();
+
+        // Check for explicit hyphen at end
+        if trimmed.ends_with('-') {
+            // Get the word fragment before the hyphen
+            let without_hyphen = &trimmed[..trimmed.len() - 1];
+            let last_word = without_hyphen.split_whitespace().last()?;
+            return Some(last_word.to_string());
+        }
+
+        // Check for trailing space followed by word fragment (common PDF extraction issue)
+        // Pattern: "modifi " at end of line where next block starts with "cation"
+        if let Some(last_word) = trimmed.split_whitespace().last() {
+            // If the last word is short (< 8 chars) and looks like a word fragment
+            // (no sentence-ending punctuation), it might be hyphenated
+            if last_word.len() >= 2
+                && last_word.len() < 8
+                && last_word.chars().all(|c| c.is_alphabetic())
+                && !trimmed.ends_with('.')
+                && !trimmed.ends_with('!')
+                && !trimmed.ends_with('?')
+                && !trimmed.ends_with(',')
+                && !trimmed.ends_with(':')
+                && !trimmed.ends_with(';')
+            {
+                return Some(last_word.to_string());
+            }
+        }
+
+        None
+    }
+
+    /// Check if text starts with a continuation of a hyphenated word.
+    fn starts_with_continuation(&self, text: &str) -> bool {
+        let trimmed = text.trim_start();
+        if trimmed.is_empty() {
+            return false;
+        }
+
+        // Must start with lowercase letter
+        let first_char = trimmed.chars().next().unwrap();
+        if !first_char.is_lowercase() {
+            return false;
+        }
+
+        // Get first word
+        let first_word = trimmed.split_whitespace().next().unwrap_or("");
+
+        // Should be a word fragment (no spaces, just letters)
+        first_word.chars().all(|c| c.is_alphabetic())
+    }
+
+    /// Join two text blocks, removing hyphenation.
+    fn join_hyphenated(&self, first: &str, second: &str) -> String {
+        let first_trimmed = first.trim_end();
+        let second_trimmed = second.trim_start();
+
+        // If first ends with hyphen, remove it and join directly
+        if first_trimmed.ends_with('-') {
+            let base = &first_trimmed[..first_trimmed.len() - 1];
+            return format!("{}{}", base, second_trimmed);
+        }
+
+        // Otherwise, we're dealing with a "word " + "fragment" pattern
+        // Remove trailing spaces from first, then join with second
+        let words: Vec<&str> = first_trimmed.split_whitespace().collect();
+        if words.is_empty() {
+            return second_trimmed.to_string();
+        }
+
+        let first_word = second_trimmed.split_whitespace().next().unwrap_or("");
+        let rest_of_second: String = second_trimmed[first_word.len()..].trim_start().to_string();
+
+        // Join the last word fragment with the continuation
+        let last_word = words.last().unwrap();
+        let prefix: String = words[..words.len() - 1].join(" ");
+
+        if prefix.is_empty() {
+            format!("{}{} {}", last_word, first_word, rest_of_second)
+                .trim()
+                .to_string()
+        } else {
+            format!("{} {}{} {}", prefix, last_word, first_word, rest_of_second)
+                .trim()
+                .to_string()
+        }
+    }
+}
+
+impl Default for HyphenContinuationProcessor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Processor for HyphenContinuationProcessor {
+    fn process(&self, mut document: Document) -> Result<Document> {
+        for page in &mut document.pages {
+            let mut i = 0;
+            while i < page.blocks.len() {
+                let should_join = if i + 1 < page.blocks.len() {
+                    let current = &page.blocks[i];
+                    let next = &page.blocks[i + 1];
+
+                    // Only consider joining text blocks that are vertically adjacent
+                    if current.block_type != BlockType::Text || next.block_type != BlockType::Text {
+                        false
+                    } else {
+                        // Check if they're on consecutive lines (small vertical gap)
+                        let vertical_gap = next.bbox.y1 - current.bbox.y2;
+                        if vertical_gap > 20.0 || vertical_gap < -5.0 {
+                            false
+                        } else {
+                            // Check for hyphenation
+                            self.ends_with_hyphen(&current.text).is_some()
+                                && self.starts_with_continuation(&next.text)
+                        }
+                    }
+                } else {
+                    false
+                };
+
+                if should_join {
+                    let current = &page.blocks[i];
+                    let next = &page.blocks[i + 1];
+
+                    let joined_text = self.join_hyphenated(&current.text, &next.text);
+                    let joined_bbox = current.bbox.union(&next.bbox);
+
+                    page.blocks[i].text = joined_text;
+                    page.blocks[i].bbox = joined_bbox;
+                    page.blocks.remove(i + 1);
+                    // Don't increment i, check if there are more continuations
+                } else {
+                    i += 1;
+                }
+            }
+        }
+
+        Ok(document)
+    }
+
+    fn name(&self) -> &str {
+        "HyphenContinuationProcessor"
     }
 }
 

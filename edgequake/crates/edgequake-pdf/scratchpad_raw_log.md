@@ -175,56 +175,120 @@ Achieve SOTA PDF to Markdown conversion quality.
 ## 2026-01-01 19:00: CRITICAL BUG FOUND - Pdfium Feature Not Default
 
 ### Observation
+
 - CLI tool built without `--features pdfium` returns 0 pages for all PDFs
 - get_info() reports 0 pages, conversions fail silently
 - MockBackend was being used by default instead of PdfiumBackend
 
 ### Detection
+
 - Default feature in Cargo.toml was `[]` instead of `["pdfium"]`
 - Without pdfium feature, MockBackend is used which has no real extraction logic
 
 ### Action
+
 - Changed Cargo.toml: `default = ["pdfium"]`
 - Verified build with explicit feature flag works correctly
 - 001_simple_text.pdf now correctly shows 1 page and extracts 219 chars
 
 ### Assessment
+
 - **CRITICAL FIX APPLIED** - pdfium is now default feature
 - All subsequent tests must verify with rebuilt binary
 - Need to re-baseline all PDFs with correct feature enabled
 
 ### Next Actions
+
 1. Rebuild with new default features
 2. Test all existing PDFs (001-012)
 3. Identify gaps in test coverage
 4. Create comprehensive test suite
-5. Run OODA loops until SOTA achieved
+
+---
+
+## 2026-01-01 - SOTA Mission: one_tool_2512.20957v2.pdf
+
+### Mission Objective
+
+Convert `one_tool_2512.20957v2.pdf` to SOTA-quality Markdown using OODA loops.
+
+---
+
+## OODA Loop #1 - Initial Territory Mapping
+
+### OBSERVE
+
+The current output (52307 chars, 2182 lines) has issues:
+
+1. **ArXiv line numbers in margin** - Numbers like "5", "2", "0" appearing in text
+2. **Multi-column interleaving** - Left and right columns mixed together
+3. **Word hyphenation issues** - "modifi cation" (extra space at hyphen)
+4. **Figure captions mixed with body** - "\*Figure 1.Illustration..."
+5. **Email addresses corrupted** - "Dcnu*>*an*<*uany tong zgc .ac.cn"
+6. **Bold markers fragmented** - "**R**og c **N**an c**i**"
+
+### Key Architecture Insights
+
+- `PdfiumBackend`: Extracts characters, groups into lines by Y-overlap
+- `ColumnDetector`: Uses histogram projection to find column gaps (min_gap=30pt, min_col=100pt)
+- `ReadingOrderDetector`: Assigns blocks to columns, sorts by column then Y
+- `LayoutProcessor`: Applies column detection and reading order
+- `TableDetectionProcessor`: May be incorrectly treating columns as tables
+
+### Root Cause Analysis
+
+1. ArXiv margin line numbers are NOT being filtered (they're in 0-50pt range)
+2. Column detection threshold (30pt gap) may not be detecting proper gutters
+3. Reading order may be interleaving instead of sequential column processing
+
+### ORIENT
+
+The problem is architectural:
+
+1. Need to detect and filter margin content (line numbers, footer info)
+2. Need better column gap detection for academic papers
+3. Need to ensure columns are processed sequentially, not interleaved
+
+### DECIDE
+
+1. Add margin detection to filter line numbers (typically x < 50pt for arxiv)
+2. Tune column detection parameters
+3. Verify reading order is column-sequential
+
+### ACT
+
+First, let me add margin content filtering in PdfiumBackend. 5. Run OODA loops until SOTA achieved
 
 ---
 
 ## 2026-01-01 19:15: Baseline Testing All Existing PDFs
-
 
 ---
 
 ## 2026-01-01 20:15: OODA Loop #1 - Three Column Fix
 
 ### OBSERVE:
+
 Output for 017_three_columns.pdf shows:
+
 - Title correctly placed first (spanning element)
 - Column headers extracted in order: Col1, Col2, Col3
 - Content mixed: "Column 2" and "Column 3" content interleaved
 - Expected: Title → All of Col1 → All of Col2 → All of Col3
 
 ### ORIENT (Root Cause Analysis):
+
 Located in `src/layout/reading_order.rs::merge_column_orders()`:
+
 - Algorithm processes blocks in "horizontal slices" (row-by-row across columns)
 - Logic: For each Y position, process blocks from all columns at that Y
 - This is WRONG for multi-column documents
 - Correct behavior: Process entire Column 1, then Column 2, then Column 3
 
 ### DECIDE (Fix Strategy):
+
 Change `merge_column_orders` to:
+
 1. Process spanning elements at top
 2. For each column (left to right):
    - Process ALL blocks in that column before next column
@@ -233,14 +297,16 @@ Change `merge_column_orders` to:
 
 ### ACT (Implementation):
 
-
 ### ASSESS (Results):
+
 **TWO-COLUMN TEST (003)**: ✅ PERFECT!
+
 - Reading order: Title → Column 1 (complete) → Column 2 (complete)
 - No interleaving
 - Fix WORKS for 2-column case
 
 **THREE-COLUMN TEST (017)**: ❌ STILL BROKEN
+
 - Columns still interleaved
 - Possible reasons:
   1. Column detection might not be finding 3 columns
@@ -248,10 +314,12 @@ Change `merge_column_orders` to:
   3. Need to verify column detection is actually running
 
 **NEW TEST (021)**: ⚠️ 0 CHARACTERS
+
 - Canvas-based PDF not extracting text at all
 - Might be pdfium incompatibility with reportlab.pdfgen.canvas
 
 ### DECISION:
+
 - Two-column fix is GOOD - don't revert
 - Need to investigate why 017 doesn't detect 3 columns properly
 - Try regenerating 017 with SimpleDocTemplate instead of canvas
@@ -260,13 +328,14 @@ Change `merge_column_orders` to:
 
 ## 2026-01-01 20:45: Continue Testing - Verify All Working Cases
 
-
 ---
 
 ## 2026-01-01: SOTA Mission - OODA Loop #1 - Initial Assessment
 
 ### OBSERVE:
+
 Current extraction of `one_tool_2512.20957v2.pdf` is catastrophically bad:
+
 - Text is severely garbled with characters split apart (e.g., "modifi" + "cation", "repo" + "s")
 - Tables are completely malformed and unreadable
 - Reading order is wrong - text appears in random order
@@ -276,7 +345,9 @@ Current extraction of `one_tool_2512.20957v2.pdf` is catastrophically bad:
 This is FAR from SOTA quality. The output is essentially garbage.
 
 ### ORIENT (Deep Analysis):
+
 Root causes likely include:
+
 1. **Character spacing issues**: Words are being split at character level instead of word boundaries
 2. **Reading order algorithm failure**: Multi-column or complex layout not handled properly
 3. **Table detection broken**: Tables rendered as malformed markdown
@@ -284,12 +355,14 @@ Root causes likely include:
 5. **Coordinate system problems**: Y-flipping or bounding box calculations wrong
 
 From the codebase exploration:
+
 - Uses PdfiumBackend for extraction
 - Has LayoutProcessor, TableDetectionProcessor, BlockMergeProcessor
 - Has reading order detection in layout/reading_order.rs
 - Previous logs show ongoing work on these issues
 
 ### DECIDE (Action Plan):
+
 1. First, examine the raw text extraction from PdfiumBackend to see if the problem starts there
 2. Check the layout analysis and column detection
 3. Fix character/word boundary detection
@@ -298,9 +371,11 @@ From the codebase exploration:
 6. Test iteratively
 
 ### ACT (Implementation):
+
 Start by examining the raw extraction output to isolate where the corruption begins.
 
 **FIX 4: Conservative Column Detection**
+
 - **Problem**: LayoutProcessor might be detecting false columns
 - **Solution**: Increased min_gap_width from 15.0 to 30.0
 - **Result**: No significant change - columns likely not the issue
@@ -310,19 +385,22 @@ Start by examining the raw extraction output to isolate where the corruption beg
 After 4 OODA loops, we have achieved **MAJOR IMPROVEMENTS**:
 
 ✅ **BEFORE**: Catastrophically broken output
-- Words split apart ("modifi" + "cation")  
+
+- Words split apart ("modifi" + "cation")
 - Malformed tables destroying readability
 - Garbled text with wrong reading order
 - Completely unusable output
 
 ✅ **AFTER**: Readable research paper content
+
 - Words properly formed and spaced
 - Clean paragraph formatting
-- Main content preserved and comprehensible  
+- Main content preserved and comprehensible
 - Reading order has minor issues but doesn't break understanding
 
 **Key Fixes Applied**:
-1. Word boundary threshold: 0.15 → 0.3 * char_height
+
+1. Word boundary threshold: 0.15 → 0.3 \* char_height
 2. Disabled broken TableDetectionProcessor
 3. Conservative column detection parameters
 

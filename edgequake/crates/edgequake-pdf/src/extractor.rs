@@ -14,8 +14,9 @@ use crate::config::PdfConfig;
 use crate::error::PdfError;
 use crate::processors::{
     BlockMergeProcessor, CaptionDetectionProcessor, CodeBlockDetectionProcessor,
-    HeaderDetectionProcessor, LayoutProcessor, ListDetectionProcessor, LlmEnhanceConfig,
-    LlmEnhanceProcessor, PostProcessor, ProcessorChain, TableDetectionProcessor,
+    GarbledTextFilterProcessor, HeaderDetectionProcessor, HyphenContinuationProcessor, 
+    LayoutProcessor, ListDetectionProcessor, LlmEnhanceConfig, LlmEnhanceProcessor, 
+    MarginFilterProcessor, PostProcessor, ProcessorChain, TableDetectionProcessor,
 };
 use crate::renderers::{MarkdownRenderer, MarkdownStyle, Renderer};
 use crate::schema::Document;
@@ -219,12 +220,15 @@ impl PdfExtractor {
     /// Apply post-processing pipeline to improve text quality
     async fn apply_processors(&self, document: Document) -> Result<Document> {
         let chain = ProcessorChain::new()
+            .add(MarginFilterProcessor::new())  // Filter margin content (line numbers, page numbers)
+            .add(GarbledTextFilterProcessor::new())  // Filter garbled figure annotations
             .add(LayoutProcessor::new())
             // .add(TableDetectionProcessor::new()) // DISABLED - causing malformed output
             .add(HeaderDetectionProcessor::new())
             .add(CaptionDetectionProcessor::new())
             .add(ListDetectionProcessor::new())
             .add(CodeBlockDetectionProcessor::new())
+            .add(HyphenContinuationProcessor::new())  // Fix hyphenated words at line breaks
             .add(BlockMergeProcessor::new())
             .add(PostProcessor::new());
 

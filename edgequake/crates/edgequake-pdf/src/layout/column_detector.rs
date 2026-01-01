@@ -160,13 +160,13 @@ impl ColumnDetector {
         let max_count = *histogram.iter().max().unwrap_or(&0);
         let avg_count = histogram.iter().sum::<u32>() as f32 / histogram.len() as f32;
         
-        // Threshold is either:
-        // 1. 15% of max count (helps with multi-column)
-        // 2. At least 1 if max > 3 (allow 0-1 to be gap even if avg is higher)
+        // Threshold for detecting column gutters:
+        // For academic papers (2-column), the gutter typically has 10-30% of max density
+        // Use 35% of max count to catch these gutters more aggressively
         let threshold = if max_count > 3 {
-            ((max_count as f32 * 0.15) as u32).max(1)
+            ((max_count as f32 * 0.35) as u32).max(2)
         } else {
-            (avg_count * 0.1).max(0.0) as u32
+            (avg_count * 0.2).max(0.0) as u32
         };
         
         debug!(

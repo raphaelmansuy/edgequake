@@ -308,16 +308,42 @@ impl Block {
     }
 
     /// Merge with another block (combine text and expand bbox).
+    /// Handles hyphenation and avoids double spaces.
     pub fn merge(&mut self, other: &Block) {
         if !other.text.is_empty() {
             if !self.text.is_empty() {
-                self.text.push(' ');
-                // Add space span if we have spans
-                if !self.spans.is_empty() || !other.spans.is_empty() {
-                    self.spans.push(TextSpan::plain(" "));
+                let self_ends_with_space = self.text.ends_with(' ') || self.text.ends_with('\n');
+                let other_starts_with_space =
+                    other.text.starts_with(' ') || other.text.starts_with('\n');
+
+                // Check for hyphenation: if self ends with letter and other starts with lowercase letter,
+                // this is likely a hyphenated word that should be joined without space
+                let last_char = self.text.trim_end().chars().last();
+                let first_char = other.text.trim_start().chars().next();
+                let is_word_continuation = matches!(
+                    (last_char, first_char),
+                    (Some(c1), Some(c2)) if c1.is_alphabetic() && c2.is_lowercase()
+                );
+
+                if is_word_continuation {
+                    // Join word fragments directly without space
+                    // Also strip trailing space from self and leading space from other
+                    self.text = self.text.trim_end().to_string();
+                    self.text.push_str(other.text.trim_start());
+                } else if !self_ends_with_space && !other_starts_with_space {
+                    self.text.push(' ');
+                    // Add space span if we have spans
+                    if !self.spans.is_empty() || !other.spans.is_empty() {
+                        self.spans.push(TextSpan::plain(" "));
+                    }
+                    self.text.push_str(&other.text);
+                } else {
+                    // One already has space, just concatenate
+                    self.text.push_str(&other.text);
                 }
+            } else {
+                self.text.push_str(&other.text);
             }
-            self.text.push_str(&other.text);
         }
         self.bbox = self.bbox.union(&other.bbox);
         self.spans.extend(other.spans.clone());
