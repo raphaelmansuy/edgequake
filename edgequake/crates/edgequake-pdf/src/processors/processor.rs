@@ -256,10 +256,10 @@ impl Processor for TableDetectionProcessor {
                     // If we have at least 2 rows and some multi-column rows, it's a table
                     let has_multi_col = table_rows.iter().any(|&r| rows[r].len() > 1);
 
-                    // A table should have at least 3 rows or 3 columns to be sure it's not just a random alignment
-                    let is_likely_table = (table_rows.len() >= 3 && has_multi_col)
-                        || (table_rows.len() >= 2
-                            && table_rows.iter().any(|&r| rows[r].len() >= 3));
+                    // A table should have at least 4 rows or multiple rows with 3+ columns to be sure it's not just a random alignment
+                    let is_likely_table = (table_rows.len() >= 6 && has_multi_col)
+                        || (table_rows.len() >= 4
+                            && table_rows.iter().any(|&r| rows[r].len() >= 4));
 
                     if is_likely_table {
                         let mut table_bbox = page.blocks[rows[table_rows[0]][0]].bbox.clone();

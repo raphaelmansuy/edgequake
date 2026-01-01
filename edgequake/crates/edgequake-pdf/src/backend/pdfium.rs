@@ -121,6 +121,10 @@ impl PdfiumBackend {
                 continue;
             }
 
+            if all_chars.len() < 10 {
+                debug!("Extracted char: '{}' (unicode: {:?})", char_text, char_info.unicode_string());
+            }
+
             let font_name = char_info.font_name();
             let is_bold = char_info
                 .font_weight()
@@ -212,10 +216,11 @@ impl PdfiumBackend {
 
             for char_data in line_chars {
                 if let Some(pr) = prev_right {
-                    // Split if gap is larger than 1.2x char height (typical for columns/tables)
+                    // Split if gap is larger than 3x char height (typical for columns/tables)
+                    // Increased threshold to avoid splitting normal text
                     let gap = char_data.left - pr;
-                    if gap > char_data.height * 1.2 && gap > 5.0 {
-                        debug!("Splitting line at gap: {}", gap);
+                    let threshold = char_data.height * 3.0;
+                    if gap > threshold && gap > 15.0 {
                         line_parts.push(current_part);
                         current_part = Vec::new();
                     }
@@ -303,23 +308,24 @@ impl PdfiumBackend {
                         // This handles numbered lists like "1. First item"
                         let is_number_dot = prev_is_digit && curr_char == '.';
 
-                        // Special case: closing punctuation after letter/digit - never add space
-                        let is_closing_punct = !prev_is_punct
-                            && (curr_char == '.'
-                                || curr_char == ','
-                                || curr_char == ':'
-                                || curr_char == ';'
-                                || curr_char == '!'
-                                || curr_char == '?');
+                        // Special case: opening punctuation before letter/digit - never add space
+                        // This handles cases like "word: next" where colon should be followed by space
+                        let is_opening_punct = prev_is_punct
+                            && (prev_char_last == ':'
+                                || prev_char_last == ';'
+                                || prev_char_last == '?'
+                                || prev_char_last == '!')
+                            && !curr_char.is_ascii_punctuation()
+                            && !curr_char.is_whitespace();
 
-                        let threshold = if is_number_dot || is_closing_punct {
-                            f32::MAX // Never add space before closing punctuation
+                        let threshold = if is_number_dot || is_opening_punct {
+                            f32::MAX // Never add space after opening punctuation or number+dot
                         } else if is_code {
                             char_data.height * 0.8 // Larger gap for monospace
                         } else if curr_is_punct || prev_is_punct {
                             char_data.height * 1.5 // Require VERY large gap for punctuation
                         } else {
-                            char_data.height * 0.35 // Standard gap for text
+                            char_data.height * 0.3 // Standard gap for text (balanced threshold)
                         };
 
                         // Also don't add space if characters overlap or are very close (ligatures)
@@ -353,6 +359,11 @@ impl PdfiumBackend {
 
                 if block_text.trim().is_empty() {
                     continue;
+                }
+
+                // Debug: log first few blocks
+                if blocks.len() < 5 {
+                    debug!("Block {} text: '{}'", blocks.len(), block_text);
                 }
 
                 blocks.push(Block {

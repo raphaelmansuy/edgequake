@@ -5,10 +5,10 @@ use tracing::info;
 
 use edgequake_llm::traits::LLMProvider;
 
-use crate::backend::PdfBackend;
+use crate::backend::mock::MockBackend;
 #[cfg(feature = "pdfium")]
 use crate::backend::pdfium::PdfiumBackend;
-use crate::backend::mock::MockBackend;
+use crate::backend::PdfBackend;
 
 use crate::config::PdfConfig;
 use crate::error::PdfError;
@@ -87,7 +87,10 @@ impl PdfExtractor {
         let backend = match PdfiumBackend::with_config(config.clone()) {
             Ok(b) => Box::new(b) as Box<dyn PdfBackend>,
             Err(e) => {
-                tracing::warn!("Failed to initialize Pdfium backend: {}. Falling back to MockBackend.", e);
+                tracing::warn!(
+                    "Failed to initialize Pdfium backend: {}. Falling back to MockBackend.",
+                    e
+                );
                 Box::new(MockBackend::new())
             }
         };
@@ -217,7 +220,7 @@ impl PdfExtractor {
     async fn apply_processors(&self, document: Document) -> Result<Document> {
         let chain = ProcessorChain::new()
             .add(LayoutProcessor::new())
-            .add(TableDetectionProcessor::new())
+            // .add(TableDetectionProcessor::new()) // DISABLED - causing malformed output
             .add(HeaderDetectionProcessor::new())
             .add(CaptionDetectionProcessor::new())
             .add(ListDetectionProcessor::new())
@@ -278,12 +281,12 @@ mod tests {
         // With MockBackend, this will succeed (returning empty doc)
         // We should verify that it doesn't panic
         let result = extractor.extract_to_markdown(invalid_bytes).await;
-        
+
         // If we are using MockBackend (default in tests usually), it returns Ok
         // If we are using PdfiumBackend, it returns Err
-        
+
         // For now, let's just assert that it runs without panic
-        // assert!(result.is_err()); 
+        // assert!(result.is_err());
     }
 
     #[test]

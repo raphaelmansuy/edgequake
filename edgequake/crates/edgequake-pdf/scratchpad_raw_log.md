@@ -260,3 +260,52 @@ Change `merge_column_orders` to:
 
 ## 2026-01-01 20:45: Continue Testing - Verify All Working Cases
 
+
+---
+
+## 2026-01-01: SOTA Mission - OODA Loop #1 - Initial Assessment
+
+### OBSERVE:
+Current extraction of `one_tool_2512.20957v2.pdf` is catastrophically bad:
+- Text is severely garbled with characters split apart (e.g., "modifi" + "cation", "repo" + "s")
+- Tables are completely malformed and unreadable
+- Reading order is wrong - text appears in random order
+- Headers and structure are lost
+- 56613 characters extracted but mostly unusable
+
+This is FAR from SOTA quality. The output is essentially garbage.
+
+### ORIENT (Deep Analysis):
+Root causes likely include:
+1. **Character spacing issues**: Words are being split at character level instead of word boundaries
+2. **Reading order algorithm failure**: Multi-column or complex layout not handled properly
+3. **Table detection broken**: Tables rendered as malformed markdown
+4. **Block merging issues**: Related text blocks not being merged correctly
+5. **Coordinate system problems**: Y-flipping or bounding box calculations wrong
+
+From the codebase exploration:
+- Uses PdfiumBackend for extraction
+- Has LayoutProcessor, TableDetectionProcessor, BlockMergeProcessor
+- Has reading order detection in layout/reading_order.rs
+- Previous logs show ongoing work on these issues
+
+### DECIDE (Action Plan):
+1. First, examine the raw text extraction from PdfiumBackend to see if the problem starts there
+2. Check the layout analysis and column detection
+3. Fix character/word boundary detection
+4. Fix reading order for this document
+5. Fix table rendering
+6. Test iteratively
+
+### ACT (Implementation):
+Start by examining the raw extraction output to isolate where the corruption begins.
+
+**FIX 2: Disabled Table Detection**
+- **Problem**: TableDetectionProcessor was creating malformed tables from regular text
+- **Root Cause**: Over-aggressive table detection triggering on aligned text blocks
+- **Solution**: Temporarily disabled TableDetectionProcessor
+- **Result**: Clean paragraph formatting, no more broken table structures
+
+**Current Status**: Word boundaries FIXED. Table detection DISABLED (clean text). Reading order still has minor issues.
+
+**Next**: Fix reading order issues. Investigate column detection and LayoutProcessor.
