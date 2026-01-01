@@ -268,6 +268,83 @@ def create_009_code_blocks(path):
     doc.build(story)
 
 
+def create_010_complex_tables(path):
+    doc = SimpleDocTemplate(path, pagesize=letter)
+    doc.title = "Complex Tables Test"
+    styles = getSampleStyleSheet()
+    story = []
+    story.append(Paragraph("Complex Tables Test", styles["Title"]))
+    story.append(Spacer(1, 12))
+
+    data = [
+        ["Merged Header", "", "Header 3"],
+        ["Row 1, Col 1", "Row 1, Col 2", "Row 1, Col 3"],
+        ["Row 2, Col 1", "Merged Cell", ""],
+    ]
+    t = Table(data)
+    t.setStyle(
+        TableStyle(
+            [
+                ("SPAN", (0, 0), (1, 0)),  # Merge first two cells in first row
+                ("SPAN", (1, 2), (2, 2)),  # Merge last two cells in last row
+                ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+                ("GRID", (0, 0), (-1, -1), 1, colors.black),
+            ]
+        )
+    )
+    story.append(t)
+    doc.build(story)
+
+
+def create_011_math_formulas(path):
+    doc = SimpleDocTemplate(path, pagesize=letter)
+    doc.title = "Math Formulas Test"
+    styles = getSampleStyleSheet()
+    story = []
+    story.append(Paragraph("Math Formulas Test", styles["Title"]))
+    story.append(Spacer(1, 12))
+    story.append(
+        Paragraph(
+            "Einstein's famous equation: E = mc<sup>2</sup>",
+            styles["Normal"],
+        )
+    )
+    story.append(
+        Paragraph(
+            "Quadratic formula: x = (-b &plusmn; &radic;(b<sup>2</sup> - 4ac)) / 2a",
+            styles["Normal"],
+        )
+    )
+    doc.build(story)
+
+
+def create_012_mixed_languages(path):
+    doc = SimpleDocTemplate(path, pagesize=letter)
+    doc.title = "Mixed Languages Test"
+    styles = getSampleStyleSheet()
+    story = []
+    story.append(Paragraph("Mixed Languages Test", styles["Title"]))
+    story.append(Spacer(1, 12))
+    story.append(
+        Paragraph(
+            "English: The quick brown fox jumps over the lazy dog.", styles["Normal"]
+        )
+    )
+    story.append(
+        Paragraph(
+            "French: Le vif zéphyr coule sur le jonc en-thé.",
+            styles["Normal"],
+        )
+    )
+    story.append(
+        Paragraph(
+            "Spanish: El veloz murciélago hindú comía feliz cardillo y escabeche.",
+            styles["Normal"],
+        )
+    )
+    doc.build(story)
+
+
 if __name__ == "__main__":
     base_path = "/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/test-data"
     create_001_simple_text(os.path.join(base_path, "001_simple_text.pdf"))
@@ -281,4 +358,7 @@ if __name__ == "__main__":
     create_007_nested_lists(os.path.join(base_path, "007_nested_lists.pdf"))
     create_008_multi_page(os.path.join(base_path, "008_multi_page.pdf"))
     create_009_code_blocks(os.path.join(base_path, "009_code_blocks.pdf"))
+    create_010_complex_tables(os.path.join(base_path, "010_complex_tables.pdf"))
+    create_011_math_formulas(os.path.join(base_path, "011_math_formulas.pdf"))
+    create_012_mixed_languages(os.path.join(base_path, "012_mixed_languages.pdf"))
     print("PDFs generated successfully.")

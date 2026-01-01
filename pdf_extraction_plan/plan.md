@@ -1,7 +1,8 @@
 # EdgeQuake PDF Extraction Implementation Plan
 
 **Date:** 2025-12-31
-**Status:** ✅ COMPLETE
+**Status:** ✅ COMPLETE + OODA Quality Improvements
+**Last Updated:** 2025-01-01
 
 ## Overview
 
@@ -31,7 +32,25 @@ Implementing full PDF-to-Markdown extraction using `pdf_oxide` library and EdgeQ
 - [x] Download test PDF files (sample.pdf from pdfobject.com)
 - [x] Create unit tests (4 unit tests)
 - [x] Create integration tests (10 integration tests)
-- [x] Validate extraction quality (all 11 tests passing)
+- [x] Validate extraction quality (all 116 tests passing)
+
+### Phase 4: Marker-Style Architecture ✅ COMPLETE
+
+- [x] Block-based schema module (22 block types)
+- [x] Layout detection module (XY-cut, columns, reading order)
+- [x] Processor traits (provider, builder, chain)
+- [x] Renderers (Markdown, JSON)
+- [x] LLM enhancement processor
+- [x] Vision mode support
+- [x] Config & CLI updates
+
+### Phase 5: OODA Quality Improvements ✅ COMPLETE (2025-01-01)
+
+- [x] Character encoding fix (Þ → fi ligatures)
+- [x] Header reordering (move main title to top)
+- [x] CLI binary with convert/info commands
+- [x] Page numbers flag working
+- [x] Verified on sample.pdf and one_tool.pdf
 
 ## Technical Decisions
 

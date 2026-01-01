@@ -124,14 +124,35 @@ impl Processor for TableDetectionProcessor {
                 continue;
             }
 
-            // Group blocks by Y coordinate (rows)
+            // If we detected multiple columns, skip table detection to preserve reading order
+            // This is a simplification, but prevents column text from being treated as a table
+            if page.columns.len() > 1 {
+                continue;
+            }
+
+            // Group blocks by Y coordinate (rows) with a more generous tolerance
+            // to handle multi-line cells that might be slightly misaligned
             let mut rows: Vec<Vec<usize>> = Vec::new();
-            for (idx, block) in page.blocks.iter().enumerate() {
+            let mut sorted_indices: Vec<usize> = (0..page.blocks.len()).collect();
+            sorted_indices.sort_by(|&a, &b| {
+                page.blocks[a]
+                    .bbox
+                    .y1
+                    .partial_cmp(&page.blocks[b].bbox.y1)
+                    .unwrap()
+            });
+
+            for idx in sorted_indices {
+                let block = &page.blocks[idx];
                 let mut found = false;
                 for row in rows.iter_mut() {
                     let first_idx = row[0];
-                    // If Y coordinates are close, they are on the same row
-                    if (page.blocks[first_idx].bbox.y1 - block.bbox.y1).abs() < 8.0 {
+                    // If Y coordinates overlap significantly, they are on the same row
+                    let b1 = &page.blocks[first_idx];
+                    let overlap_y = b1.bbox.y2.min(block.bbox.y2) - b1.bbox.y1.max(block.bbox.y1);
+                    let min_h = (b1.bbox.y2 - b1.bbox.y1).min(block.bbox.y2 - block.bbox.y1);
+
+                    if overlap_y > min_h * 0.5 || (b1.bbox.y1 - block.bbox.y1).abs() < 10.0 {
                         row.push(idx);
                         found = true;
                         break;
@@ -153,14 +174,10 @@ impl Processor for TableDetectionProcessor {
                 });
             }
 
-            // Sort rows by Y coordinate (top to bottom)
-            rows.sort_by(|a, b| {
-                page.blocks[a[0]]
-                    .bbox
-                    .y1
-                    .partial_cmp(&page.blocks[b[0]].bbox.y1)
-                    .unwrap()
-            });
+            tracing::debug!("Detected {} rows", rows.len());
+            for (idx, row) in rows.iter().enumerate() {
+                tracing::debug!("Row {}: {} blocks", idx, row.len());
+            }
 
             // Identify table regions
             let mut new_blocks = Vec::new();
@@ -168,41 +185,73 @@ impl Processor for TableDetectionProcessor {
             while i < rows.len() {
                 // A potential table row has multiple blocks
                 if rows[i].len() > 1 {
-                    // Check if this row has very large gaps (likely columns, not a table)
-                    let mut has_large_gaps = false;
-                    for k in 0..rows[i].len() - 1 {
-                        let b1 = &page.blocks[rows[i][k]];
-                        let b2 = &page.blocks[rows[i][k + 1]];
-                        let gap = b2.bbox.x1 - b1.bbox.x2;
-                        if gap > 100.0 {
-                            has_large_gaps = true;
-                            break;
-                        }
-                    }
-
-                    if has_large_gaps {
-                        for &block_idx in &rows[i] {
-                            new_blocks.push(page.blocks[block_idx].clone());
-                        }
-                        i += 1;
-                        continue;
-                    }
-
                     let mut table_rows = vec![i];
                     let mut j = i + 1;
-                    while j < rows.len() && rows[j].len() > 1 {
-                        // Check if column count is similar (allow +/- 1 for merged cells)
-                        let diff = (rows[j].len() as i32 - rows[i].len() as i32).abs();
-                        if diff <= 1 {
+
+                    // Look ahead for more rows that look like they belong to the same table
+                    while j < rows.len() {
+                        let current_row_blocks = &rows[j];
+
+                        // If it's a single block, it might be a multi-line cell continuation
+                        // or the end of the table.
+                        if current_row_blocks.len() > 1 {
+                            // Check gap between blocks
+                            let mut max_gap: f32 = 0.0;
+                            for k in 0..current_row_blocks.len() - 1 {
+                                let b1 = &page.blocks[current_row_blocks[k]];
+                                let b2 = &page.blocks[current_row_blocks[k + 1]];
+                                max_gap = max_gap.max(b2.bbox.x1 - b1.bbox.x2);
+                            }
+
+                            // If gap is too large, it's probably columns, not a table
+                            // Increased to 150.0 to handle wider tables
+                            if max_gap > 150.0 {
+                                break;
+                            }
+
                             table_rows.push(j);
                             j += 1;
+                        } else if current_row_blocks.len() == 1 {
+                            // Check if this single block aligns with one of the columns in the table
+                            let block = &page.blocks[current_row_blocks[0]];
+                            let mut aligns = false;
+                            for &prev_row_idx in &table_rows {
+                                for &prev_block_idx in &rows[prev_row_idx] {
+                                    let prev_block = &page.blocks[prev_block_idx];
+                                    let overlap_x = prev_block.bbox.x2.min(block.bbox.x2)
+                                        - prev_block.bbox.x1.max(block.bbox.x1);
+                                    let min_w = (prev_block.bbox.x2 - prev_block.bbox.x1)
+                                        .min(block.bbox.x2 - block.bbox.x1);
+                                    if overlap_x > min_w * 0.8 {
+                                        aligns = true;
+                                        break;
+                                    }
+                                }
+                                if aligns {
+                                    break;
+                                }
+                            }
+
+                            if aligns {
+                                table_rows.push(j);
+                                j += 1;
+                            } else {
+                                break;
+                            }
                         } else {
                             break;
                         }
                     }
 
-                    // If we have at least 2 rows with multiple columns, it's a table
-                    if table_rows.len() >= 2 {
+                    // If we have at least 2 rows and some multi-column rows, it's a table
+                    let has_multi_col = table_rows.iter().any(|&r| rows[r].len() > 1);
+
+                    // A table should have at least 3 rows or 3 columns to be sure it's not just a random alignment
+                    let is_likely_table = (table_rows.len() >= 3 && has_multi_col)
+                        || (table_rows.len() >= 2
+                            && table_rows.iter().any(|&r| rows[r].len() >= 3));
+
+                    if is_likely_table {
                         let mut table_bbox = page.blocks[rows[table_rows[0]][0]].bbox.clone();
                         for &row_idx in &table_rows {
                             for &block_idx in &rows[row_idx] {
@@ -213,6 +262,8 @@ impl Processor for TableDetectionProcessor {
                         let mut table_block = Block::new(BlockType::Table, table_bbox);
                         table_block.page = page.number as usize - 1;
 
+                        // Group blocks into cells based on X alignment
+                        // This is a simplification; a real SOTA extractor would do better
                         for &row_idx in &table_rows {
                             for &block_idx in &rows[row_idx] {
                                 table_block.children.push(page.blocks[block_idx].clone());
@@ -271,20 +322,84 @@ impl BlockMergeProcessor {
 
     /// Check if two blocks should be merged.
     fn should_merge(&self, a: &Block, b: &Block) -> bool {
-        // Only merge text blocks
-        if a.block_type != BlockType::Text || b.block_type != BlockType::Text {
+        // Only merge text, header, or list item blocks
+        if !matches!(
+            a.block_type,
+            BlockType::Text | BlockType::SectionHeader | BlockType::ListItem
+        ) || !matches!(
+            b.block_type,
+            BlockType::Text | BlockType::SectionHeader | BlockType::ListItem
+        ) {
             return false;
+        }
+
+        // If types are different, don't merge
+        if a.block_type != b.block_type {
+            return false;
+        }
+
+        // Don't merge if b looks like a start of a new list item
+        let trimmed_b = b.text.trim();
+        if trimmed_b.starts_with("- ")
+            || trimmed_b.starts_with("* ")
+            || trimmed_b.starts_with("• ")
+            || (trimmed_b.len() > 2
+                && trimmed_b.chars().next().unwrap().is_ascii_digit()
+                && trimmed_b.contains(". "))
+        {
+            return false;
+        }
+
+        // Don't merge if style changes significantly
+        if let (Some(span_a), Some(span_b)) = (a.spans.last(), b.spans.first()) {
+             let size_a = span_a.style.size.unwrap_or(0.0);
+             let size_b = span_b.style.size.unwrap_or(0.0);
+             if (size_a - size_b).abs() > 1.5 {
+                 return false;
+             }
+             
+             let weight_a = span_a.style.weight.unwrap_or(400);
+             let weight_b = span_b.style.weight.unwrap_or(400);
+             if (weight_a >= 600) != (weight_b >= 600) {
+                 return false;
+             }
+        }
+
+        // For list items, don't merge if the second one starts with a bullet/number
+        if a.block_type == BlockType::ListItem {
+            let trimmed_b = b.text.trim();
+            if trimmed_b.starts_with("- ")
+                || trimmed_b.starts_with("* ")
+                || trimmed_b.starts_with("• ")
+                || (trimmed_b.len() > 2
+                    && trimmed_b.chars().next().unwrap().is_ascii_digit()
+                    && trimmed_b.contains(". "))
+            {
+                return false;
+            }
         }
 
         // Check vertical proximity
         let vertical_gap = b.bbox.y1 - a.bbox.y2;
-        if vertical_gap < 0.0 || vertical_gap > self.max_vertical_gap {
+        // For headers, be more strict with vertical gap but allow for multi-line headers
+        let max_gap = if a.block_type == BlockType::SectionHeader {
+            25.0
+        } else {
+            self.max_vertical_gap
+        };
+
+        if vertical_gap < -2.0 || vertical_gap > max_gap {
             return false;
         }
 
         // Check horizontal alignment
         let margin_diff = (a.bbox.x1 - b.bbox.x1).abs();
-        margin_diff <= self.max_margin_diff
+        let max_margin = if a.block_type == BlockType::SectionHeader {
+            50.0
+        } else {
+            self.max_margin_diff
+        };
+        margin_diff <= max_margin
     }
 
     /// Merge blocks on a page.
@@ -541,6 +656,258 @@ impl Processor for PostProcessor {
 
     fn name(&self) -> &str {
         "PostProcessor"
+    }
+}
+
+/// Processor to detect headers based on font size and weight.
+pub struct HeaderDetectionProcessor {
+}
+
+impl HeaderDetectionProcessor {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Default for HeaderDetectionProcessor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Processor for HeaderDetectionProcessor {
+    fn process(&self, mut document: Document) -> Result<Document> {
+        // 1. Calculate font size statistics
+        let mut size_counts = std::collections::HashMap::new();
+        for page in &document.pages {
+            for block in &page.blocks {
+                if let Some(span) = block.spans.first() {
+                    let size = (span.style.size.unwrap_or(10.0) * 10.0).round() as i32; // Round to 0.1
+                    *size_counts.entry(size).or_insert(0) += block.text.len();
+                }
+            }
+        }
+        
+        // Find body size (most common)
+        let body_size_int = size_counts.iter().max_by_key(|&(_, count)| count).map(|(s, _)| *s).unwrap_or(100);
+        let body_size = body_size_int as f32 / 10.0;
+        
+        // 2. Detect headers
+        for page in &mut document.pages {
+            for block in &mut page.blocks {
+                if block.block_type != BlockType::Text {
+                    continue;
+                }
+                
+                if let Some(span) = block.spans.first() {
+                    let size = span.style.size.unwrap_or(10.0);
+                    let weight = span.style.weight.unwrap_or(400);
+                    let is_bold = weight >= 600;
+                    
+                    // H1: Very large (e.g. > 1.6x body)
+                    // H2: Large (> 1.3x)
+                    // H3: Slightly larger (> 1.1x)
+                    // H4: Bold and same size
+                    
+                    if size > body_size * 1.6 {
+                        block.block_type = BlockType::SectionHeader;
+                        block.level = Some(1);
+                    } else if size > body_size * 1.3 {
+                        block.block_type = BlockType::SectionHeader;
+                        block.level = Some(2);
+                    } else if size > body_size * 1.1 {
+                        block.block_type = BlockType::SectionHeader;
+                        block.level = Some(3);
+                    } else if is_bold && size >= body_size {
+                        // Maybe H4? Or just bold text?
+                        // If it's a short line, likely a header.
+                        // Also check if it doesn't end with punctuation (except :)
+                        let text = block.text.trim();
+                        if text.len() < 80 && !text.ends_with('.') {
+                             block.block_type = BlockType::SectionHeader;
+                             block.level = Some(4);
+                        }
+                    }
+                }
+            }
+        }
+        
+        Ok(document)
+    }
+    
+    fn name(&self) -> &str {
+        "HeaderDetectionProcessor"
+    }
+}
+
+/// Processor to detect captions for figures and tables.
+pub struct CaptionDetectionProcessor {}
+
+impl CaptionDetectionProcessor {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Default for CaptionDetectionProcessor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Processor for CaptionDetectionProcessor {
+    fn process(&self, mut document: Document) -> Result<Document> {
+        let caption_regex = Regex::new(r"^(Figure|Fig\.|Table|Tab\.)\s*\d+[:.]").unwrap();
+
+        for page in &mut document.pages {
+            for block in &mut page.blocks {
+                if block.block_type != BlockType::Text {
+                    continue;
+                }
+
+                let text = block.text.trim();
+                if caption_regex.is_match(text) {
+                    // It looks like a caption
+                    block.block_type = BlockType::Caption;
+                }
+            }
+        }
+        Ok(document)
+    }
+
+    fn name(&self) -> &str {
+        "CaptionDetectionProcessor"
+    }
+}
+
+/// Processor to detect list items and their indentation.
+pub struct ListDetectionProcessor {}
+
+impl ListDetectionProcessor {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Default for ListDetectionProcessor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Processor for ListDetectionProcessor {
+    fn process(&self, mut document: Document) -> Result<Document> {
+        let bullet_regex = Regex::new(r"^[-*•]\s+").unwrap();
+        let number_regex = Regex::new(r"^\d+[\.)]\s+").unwrap();
+
+        for page in &mut document.pages {
+            // Find the minimum x-coordinate (left margin) to calculate indentation
+            let min_x = page.blocks.iter()
+                .map(|b| b.bbox.x1)
+                .fold(f32::MAX, |a, b| a.min(b));
+
+            for block in &mut page.blocks {
+                if block.block_type != BlockType::Text {
+                    continue;
+                }
+
+                let text = block.text.trim();
+                if bullet_regex.is_match(text) || number_regex.is_match(text) {
+                    block.block_type = BlockType::ListItem;
+                    
+                    // Calculate indentation level
+                    // Assume 20 points per level
+                    let indent = block.bbox.x1 - min_x;
+                    let level = (indent / 20.0).round() as i32;
+                    
+                    // Store indentation in metadata for renderer
+                    block.metadata.insert("indent".to_string(), serde_json::json!(indent));
+                    block.metadata.insert("level".to_string(), serde_json::json!(level));
+                }
+            }
+        }
+        Ok(document)
+    }
+
+    fn name(&self) -> &str {
+        "ListDetectionProcessor"
+    }
+}
+
+/// Processor to detect and merge code blocks.
+pub struct CodeBlockDetectionProcessor {}
+
+impl CodeBlockDetectionProcessor {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Default for CodeBlockDetectionProcessor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Processor for CodeBlockDetectionProcessor {
+    fn process(&self, mut document: Document) -> Result<Document> {
+        for page in &mut document.pages {
+            // 1. Identify code blocks
+            for block in &mut page.blocks {
+                if block.block_type != BlockType::Text {
+                    continue;
+                }
+
+                // Check if all spans look like code
+                let all_code = !block.spans.is_empty() && block.spans.iter().all(|s| s.style.looks_like_code());
+                
+                if all_code {
+                    block.block_type = BlockType::Code;
+                }
+            }
+
+            // 2. Merge consecutive code blocks
+            let mut merged = Vec::new();
+            let mut current_code: Option<Block> = None;
+
+            for block in std::mem::take(&mut page.blocks) {
+                if block.block_type == BlockType::Code {
+                    if let Some(mut cur) = current_code.take() {
+                        // Merge with current code block
+                        // Add newline between lines
+                        cur.text.push('\n');
+                        cur.text.push_str(&block.text);
+                        
+                        // Merge spans
+                        // Add a newline span if needed, or just append
+                        cur.spans.extend(block.spans);
+                        
+                        // Update bbox
+                        cur.bbox = cur.bbox.union(&block.bbox);
+                        
+                        current_code = Some(cur);
+                    } else {
+                        current_code = Some(block);
+                    }
+                } else {
+                    if let Some(cur) = current_code.take() {
+                        merged.push(cur);
+                    }
+                    merged.push(block);
+                }
+            }
+            
+            if let Some(cur) = current_code {
+                merged.push(cur);
+            }
+            
+            page.blocks = merged;
+        }
+        Ok(document)
+    }
+
+    fn name(&self) -> &str {
+        "CodeBlockDetectionProcessor"
     }
 }
 

@@ -15,6 +15,9 @@ This directory contains a set of PDF documents designed to test the accuracy and
 | [007_nested_lists.pdf](007_nested_lists.pdf)               | Nested lists              | Correct indentation and list markers for nested items.           |
 | [008_multi_page.pdf](008_multi_page.pdf)                   | Multi-page documents      | Correct flow across pages and potential header/footer filtering. |
 | [009_code_blocks.pdf](009_code_blocks.pdf)                 | Code blocks               | Extraction of code snippets with preserved formatting.           |
+| [010_complex_tables.pdf](010_complex_tables.pdf)           | Complex tables            | Handling of merged cells and complex table layouts.              |
+| [011_math_formulas.pdf](011_math_formulas.pdf)             | Math formulas             | Extraction of mathematical expressions and symbols.              |
+| [012_mixed_languages.pdf](012_mixed_languages.pdf)         | Mixed languages           | Correct extraction of accented characters and different scripts. |
 
 ## How to run tests
 

@@ -87,8 +87,20 @@ impl MarkdownRenderer {
             output.push_str(&format!("## Page {}\n\n", page.number));
         }
 
-        for block in &page.blocks {
+        for (i, block) in page.blocks.iter().enumerate() {
             self.render_block(block, output);
+
+            // Add extra newline after list items if the next block is not a list item
+            if block.block_type == BlockType::ListItem {
+                let next_is_list = page
+                    .blocks
+                    .get(i + 1)
+                    .map(|b| b.block_type == BlockType::ListItem)
+                    .unwrap_or(false);
+                if !next_is_list {
+                    output.push('\n');
+                }
+            }
         }
     }
 
@@ -143,7 +155,7 @@ impl MarkdownRenderer {
     fn render_header(&self, block: &Block, output: &mut String) {
         let level = block.level.unwrap_or(2).min(self.style.max_heading_level);
         let text = if !block.spans.is_empty() {
-            self.render_spans(&block.spans)
+            self.render_spans_styled(&block.spans, true, false)
         } else {
             self.clean_text(&block.text)
         };
@@ -183,13 +195,17 @@ impl MarkdownRenderer {
         };
 
         // Handle indentation for nested lists
-        if let Some(indent) = block.metadata.get("indent").and_then(|v| v.as_f64()) {
-            // Assume 72.0 is base margin, every 10.0 points is one level of indentation
-            // (Using 10.0 instead of 20.0 to be more sensitive to small indents)
-            let level = ((indent - 72.0).max(0.0) / 10.0).floor() as usize;
-            for _ in 0..level {
-                output.push_str("  ");
-            }
+        let level = if let Some(lvl) = block.metadata.get("level").and_then(|v| v.as_u64()) {
+            lvl as usize
+        } else if let Some(indent) = block.metadata.get("indent").and_then(|v| v.as_f64()) {
+            // Fallback to old logic if level not present
+            ((indent - 72.0).max(0.0) / 20.0).floor() as usize
+        } else {
+            0
+        };
+
+        for _ in 0..level {
+            output.push_str("  ");
         }
 
         // Check if already has bullet/number prefix
@@ -212,6 +228,16 @@ impl MarkdownRenderer {
 
     /// Render structured spans with formatting.
     fn render_spans(&self, spans: &[TextSpan]) -> String {
+        self.render_spans_styled(spans, false, false)
+    }
+
+    /// Render structured spans with optional style skipping.
+    fn render_spans_styled(
+        &self,
+        spans: &[TextSpan],
+        skip_bold: bool,
+        skip_italic: bool,
+    ) -> String {
         let mut result = String::new();
         for span in spans {
             let content = &span.text;
@@ -219,9 +245,11 @@ impl MarkdownRenderer {
                 continue;
             }
 
-            let is_bold = span.style.weight.map(|w| w >= 600).unwrap_or(false);
-            let is_italic = span.style.italic;
+            let is_bold = span.style.weight.map(|w| w >= 600).unwrap_or(false) && !skip_bold;
+            let is_italic = span.style.italic && !skip_italic;
             let is_code = span.style.looks_like_code();
+            let is_superscript = span.style.superscript;
+            let is_subscript = span.style.subscript;
 
             if is_code {
                 result.push_str(&format!("`{}`", content));
@@ -236,6 +264,13 @@ impl MarkdownRenderer {
                 let trailing_space = content.ends_with(' ');
 
                 let mut styled = trimmed.to_string();
+
+                if is_superscript {
+                    styled = format!("^{}^", styled);
+                } else if is_subscript {
+                    styled = format!("~{}~", styled);
+                }
+
                 if is_bold && is_italic {
                     styled = format!("***{}***", styled);
                 } else if is_bold {
@@ -303,7 +338,7 @@ impl MarkdownRenderer {
         for child in &block.children {
             let y = child.bbox.y1;
             if let Some(prev_y) = current_y {
-                if (y - prev_y).abs() > 5.0 {
+                if (y - prev_y).abs() > 10.0 {
                     if !current_row.is_empty() {
                         // Sort row by X position
                         current_row.sort_by(|a, b| a.bbox.x1.partial_cmp(&b.bbox.x1).unwrap());
@@ -423,9 +458,17 @@ impl Renderer for MarkdownRenderer {
     fn render(&self, document: &Document) -> Result<String> {
         let mut output = String::new();
 
-        // Add document title if available
+        // Add document title if available and not already present as the first block
         if let Some(title) = &document.metadata.title {
-            output.push_str(&format!("# {}\n\n", title));
+            let first_block_text = document
+                .pages
+                .first()
+                .and_then(|p| p.blocks.first())
+                .map(|b| b.text.trim());
+
+            if first_block_text != Some(title.trim()) {
+                output.push_str(&format!("# {}\n\n", title));
+            }
         }
 
         // Render each page

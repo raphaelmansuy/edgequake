@@ -1,8 +1,4 @@
-# Tables Test
-
-## Page 1
-
-# **Tables Test**
+#### Tables Test
 
 | Header 1 | Header 2 | Header 3 |
 | --- | --- | --- |

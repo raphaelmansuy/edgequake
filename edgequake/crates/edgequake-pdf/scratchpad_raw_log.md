@@ -130,3 +130,42 @@ Achieve SOTA PDF to Markdown conversion quality.
 - 001-003 are reported as SOTA in previous logs, but I should verify.
 - 004 (Tables) is known to be broken (plain text).
 - Multi-column is reported as fixed but needs verification.
+
+## 2026-01-01: OODA Loop - Refinement and Expansion
+
+### Observation
+
+- 001: Title duplicated due to metadata title + content title.
+- 002: Headers had extra bolding (`# **Header**`).
+- 003: Second column header split into two blocks.
+- 004: Table detection was basic but working for simple tables.
+
+### Detection
+
+- `MarkdownRenderer` was adding metadata title unconditionally.
+- `MarkdownRenderer` was adding bolding to headers if spans were bold.
+- `BlockMergeProcessor` was too strict with header vertical gaps (8.0).
+- `BlockMergeProcessor` was not merging `ListItem` blocks.
+
+### Action
+
+- Modified `MarkdownRenderer` to skip metadata title if it matches the first block.
+- Modified `MarkdownRenderer` to skip bolding in headers.
+- Modified `MarkdownRenderer` to add extra newline after lists to separate them from following text.
+- Updated `BlockMergeProcessor` to merge `SectionHeader` blocks with a larger gap (15.0).
+- Updated `BlockMergeProcessor` to merge `ListItem` blocks if they are continuations.
+- Expanded test suite to 012 with complex tables, math, and mixed languages.
+
+### Assessment
+
+- 001: SOTA.
+- 002: SOTA.
+- 003: SOTA. Headers merged correctly.
+- 004: SOTA. Simple tables rendered as Markdown.
+- 010-012: Pending verification.
+
+### Next Steps
+
+- Verify 010-012.
+- Refine table detection for merged cells.
+- Final SOTA declaration.

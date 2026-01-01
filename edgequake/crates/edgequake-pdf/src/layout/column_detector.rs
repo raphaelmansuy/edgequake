@@ -80,8 +80,21 @@ impl ColumnDetector {
             return Vec::new();
         }
 
+        // Filter out items that are too wide (likely headers or spanning elements)
+        let filtered_items: Vec<BoundingBox> = items
+            .iter()
+            .filter(|bbox| bbox.width() < page_width * 0.8)
+            .cloned()
+            .collect();
+
+        let items_to_use = if filtered_items.is_empty() {
+            items
+        } else {
+            &filtered_items
+        };
+
         // Build horizontal projection histogram
-        let histogram = self.build_projection_histogram(items, page_width);
+        let histogram = self.build_projection_histogram(items_to_use, page_width);
 
         // Find valleys (gaps) in the histogram
         let gaps = self.find_gaps(&histogram, page_width);
@@ -115,8 +128,12 @@ impl ColumnDetector {
         let mut gaps = Vec::new();
         let mut gap_start: Option<usize> = None;
 
+        // Use a threshold based on average density
+        let avg_count = histogram.iter().sum::<u32>() as f32 / histogram.len() as f32;
+        let threshold = (avg_count * 0.1).max(0.0) as u32;
+
         for (i, &count) in histogram.iter().enumerate() {
-            if count == 0 {
+            if count <= threshold {
                 if gap_start.is_none() {
                     gap_start = Some(i);
                 }
@@ -128,7 +145,9 @@ impl ColumnDetector {
                     let x2 = i as f32 * self.bin_size;
 
                     // Don't include margins as gaps
-                    if x1 > self.min_column_width && x2 < page_width - self.min_column_width {
+                    if x1 > self.min_column_width * 0.5
+                        && x2 < page_width - self.min_column_width * 0.5
+                    {
                         gaps.push((x1, x2));
                     }
                 }

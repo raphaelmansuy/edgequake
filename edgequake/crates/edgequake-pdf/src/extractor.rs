@@ -10,7 +10,11 @@ use crate::pdfium_extractor::PdfiumExtractor;
 
 use crate::config::PdfConfig;
 use crate::error::PdfError;
-use crate::processors::{LayoutProcessor, LlmEnhanceConfig, LlmEnhanceProcessor, PostProcessor, ProcessorChain};
+use crate::processors::{
+    BlockMergeProcessor, CaptionDetectionProcessor, CodeBlockDetectionProcessor,
+    HeaderDetectionProcessor, LayoutProcessor, ListDetectionProcessor, LlmEnhanceConfig,
+    LlmEnhanceProcessor, PostProcessor, ProcessorChain, TableDetectionProcessor,
+};
 use crate::renderers::{MarkdownRenderer, MarkdownStyle, Renderer};
 use crate::schema::Document;
 use crate::Result;
@@ -223,6 +227,12 @@ impl PdfExtractor {
     async fn apply_processors(&self, document: Document) -> Result<Document> {
         let chain = ProcessorChain::new()
             .add(LayoutProcessor::new())
+            .add(TableDetectionProcessor::new())
+            .add(HeaderDetectionProcessor::new())
+            .add(CaptionDetectionProcessor::new())
+            .add(ListDetectionProcessor::new())
+            .add(CodeBlockDetectionProcessor::new())
+            .add(BlockMergeProcessor::new())
             .add(PostProcessor::new());
 
         chain

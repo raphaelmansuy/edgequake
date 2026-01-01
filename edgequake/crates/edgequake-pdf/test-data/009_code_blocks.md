@@ -1,14 +1,10 @@
 # Code Blocks Test
 
-## Page 1
-
-# **Code Blocks Test**
-
 Here is a block of code:
 
 ```
 fn main() {
-println!("Hello, World!");
+println!( "Hello, World! ") ;
 }
 ```
 

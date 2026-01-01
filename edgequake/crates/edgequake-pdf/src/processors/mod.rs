@@ -17,7 +17,8 @@ mod provider;
 // pub use builder::{DocumentBuilder, PageBuilder};
 pub use llm_enhance::{LlmEnhanceConfig, LlmEnhanceProcessor, LlmEnhanced};
 pub use processor::{
-    BlockMergeProcessor, LayoutProcessor, PostProcessor, Processor, ProcessorChain,
-    TableDetectionProcessor,
+    BlockMergeProcessor, CaptionDetectionProcessor, CodeBlockDetectionProcessor,
+    HeaderDetectionProcessor, LayoutProcessor, ListDetectionProcessor, PostProcessor, Processor,
+    ProcessorChain, TableDetectionProcessor,
 };
 pub use provider::{ByteProvider, FileProvider, PdfProvider};

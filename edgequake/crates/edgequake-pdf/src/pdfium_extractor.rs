@@ -17,6 +17,7 @@
 
 #![cfg(feature = "pdfium")]
 
+use std::collections::HashMap;
 use std::path::Path;
 use tracing::{debug, info};
 
@@ -25,11 +26,9 @@ use pdfium_render::prelude::*;
 use crate::config::PdfConfig;
 use crate::error::PdfError;
 use crate::layout::LayoutAnalyzer;
-use crate::processors::{
-    LayoutProcessor, PostProcessor, Processor, ProcessorChain, TableDetectionProcessor,
-};
+
 use crate::renderers::{MarkdownRenderer, MarkdownStyle, Renderer};
-use crate::schema::{Block, BlockType, BoundingBox, Document, FontStyle, Page, TextSpan};
+use crate::schema::{Block, BlockId, BlockType, BoundingBox, Document, FontStyle, Page, TextSpan};
 use crate::{DocumentMetadata, Result};
 
 /// Pdfium-based PDF extractor with character-level word detection.
@@ -158,43 +157,31 @@ impl PdfiumExtractor {
         doc.metadata = metadata;
         doc.pages = pages;
 
-        // Apply post-processing (normalization, OCR fixes, table detection, etc.)
-        let chain = ProcessorChain::new()
-            .add(LayoutProcessor::new())
-            .add(TableDetectionProcessor::new())
-            .add(PostProcessor::new());
-
-        let doc = chain.process(doc)?;
-
         Ok(doc)
     }
 
     /// Extract blocks from a page with character-level word boundary detection.
-    fn extract_page_blocks(&self, page: &PdfPage, _page_num: usize) -> Result<Vec<Block>> {
+    fn extract_page_blocks(&self, page: &PdfPage, page_num: usize) -> Result<Vec<Block>> {
         let text_page = page
             .text()
             .map_err(|e| PdfError::PdfParse(format!("Failed to get text page: {:?}", e)))?;
 
         let page_height = page.height().value;
-        let mut blocks = Vec::new();
-        let mut full_text = String::new();
-        let mut span_text = String::new();
-        let mut current_spans: Vec<TextSpan> = Vec::new();
-        let mut current_style: Option<FontStyle> = None;
 
-        let mut prev_char_right: Option<f32> = None;
-        let mut prev_char_top: Option<f32> = None;
-        let mut prev_char_bottom: Option<f32> = None;
+        // 1. Collect all characters with their properties
+        #[derive(Clone)]
+        struct CharData {
+            text: String,
+            left: f32,
+            right: f32,
+            top: f32,
+            bottom: f32,
+            height: f32,
+            font_style: FontStyle,
+        }
 
-        // Track block bounding box
-        let mut block_min_x = f32::MAX;
-        let mut block_max_x = f32::MIN;
-        let mut block_min_y = f32::MAX;
-        let mut block_max_y = f32::MIN;
-
-        // Iterate over all characters in the page
-        for (_i, char_info) in text_page.chars().iter().enumerate() {
-            // Get character bounds
+        let mut all_chars = Vec::new();
+        for char_info in text_page.chars().iter() {
             let bounds = match char_info.tight_bounds() {
                 Ok(b) => b,
                 Err(_) => continue,
@@ -209,7 +196,6 @@ impl PdfiumExtractor {
                 continue;
             }
 
-            // Extract font style
             let font_name = char_info.font_name();
             let is_bold = char_info
                 .font_weight()
@@ -220,285 +206,247 @@ impl PdfiumExtractor {
                 || font_name.to_lowercase().contains("italic")
                 || font_name.to_lowercase().contains("oblique");
 
-            let font_style = FontStyle {
-                family: Some(font_name),
-                size: Some(char_info.scaled_font_size().value),
-                weight: Some(if is_bold { 700 } else { 400 }),
-                italic: is_italic,
-                underline: false, // Pdfium doesn't easily provide underline per char
-                strikethrough: false,
-                superscript: false,
-                subscript: false,
-                color: None, // Could extract from fill_color()
-                background_color: None,
-            };
-
-            // Convert PDF coordinates (bottom-left origin) to our coordinates (top-left origin)
             let char_left = bounds.left().value;
             let char_right = bounds.right().value;
-            let char_bottom_pdf = bounds.bottom().value;
-            let char_top_pdf = bounds.top().value;
-
-            let char_top = page_height - char_top_pdf;
-            let char_bottom = page_height - char_bottom_pdf;
-            let char_width = bounds.width().value.abs();
+            let char_top = page_height - bounds.top().value;
+            let char_bottom = page_height - bounds.bottom().value;
             let char_height = (char_bottom - char_top).abs();
 
-            // Use current character metrics for thresholds to handle font size changes
-            let current_char_height = char_height.max(8.0);
-            let current_char_width = char_width.max(4.0);
+            all_chars.push(CharData {
+                text: char_text,
+                left: char_left,
+                right: char_right,
+                top: char_top,
+                bottom: char_bottom,
+                height: char_height,
+                font_style: FontStyle {
+                    family: Some(font_name),
+                    size: Some(char_info.scaled_font_size().value),
+                    weight: Some(if is_bold { 700 } else { 400 }),
+                    italic: is_italic,
+                    underline: false,
+                    strikethrough: false,
+                    superscript: false, // Will be detected later
+                    subscript: false,   // Will be detected later
+                    color: None,
+                    background_color: None,
+                },
+            });
+        }
 
-            // Detect newlines and paragraph breaks using vertical overlap and mid-point distance
-            if let (Some(p_top), Some(p_bottom)) = (prev_char_top, prev_char_bottom) {
-                let overlap_top = char_top.max(p_top);
-                let overlap_bottom = char_bottom.min(p_bottom);
-                let overlap_height = (overlap_bottom - overlap_top).max(0.0);
+        if all_chars.is_empty() {
+            return Ok(Vec::new());
+        }
 
-                let min_h = (char_bottom - char_top).abs().min((p_bottom - p_top).abs());
-                let overlap_ratio = if min_h > 0.0 {
-                    overlap_height / min_h
-                } else {
-                    1.0
-                };
-                let mid_y_diff = ((char_top + char_bottom) / 2.0 - (p_top + p_bottom) / 2.0).abs();
+        // 2. Group characters into lines
+        // Sort by top coordinate first
+        all_chars.sort_by(|a, b| {
+            a.top
+                .partial_cmp(&b.top)
+                .unwrap()
+                .then(a.left.partial_cmp(&b.left).unwrap())
+        });
 
-                // If overlap is small AND mid-point distance is significant, it's a new line
-                if overlap_ratio < 0.2 && mid_y_diff > current_char_height * 0.4 {
-                    let y_diff = (char_top - p_top).abs();
+        let mut lines: Vec<Vec<CharData>> = Vec::new();
+        for char_data in all_chars {
+            let mut found_line = false;
+            // Try to find a line that this character belongs to (check last few lines)
+            // Use a more relaxed overlap check for lines
+            for line in lines.iter_mut().rev().take(10) {
+                let l_top = line.iter().map(|c| c.top).fold(f32::MAX, |a, b| a.min(b));
+                let l_bottom = line
+                    .iter()
+                    .map(|c| c.bottom)
+                    .fold(f32::MIN, |a, b| a.max(b));
+                let l_height = (l_bottom - l_top).max(1.0);
 
-                    // If Y change is very large, it's a new block (paragraph)
-                    if y_diff > current_char_height * 1.8 && !full_text.trim().is_empty() {
-                        // Finish last span
-                        if !span_text.is_empty() {
-                            if let Some(ref style) = current_style {
-                                current_spans
-                                    .push(TextSpan::styled(span_text.clone(), style.clone()));
+                let overlap = (char_data.bottom.min(l_bottom) - char_data.top.max(l_top)).max(0.0);
+                // If overlap is more than 30% of either height, it's the same line
+                if overlap > char_data.height * 0.3 || overlap > l_height * 0.3 {
+                    line.push(char_data.clone());
+                    found_line = true;
+                    break;
+                }
+            }
+
+            if !found_line {
+                lines.push(vec![char_data]);
+            }
+        }
+
+        // 3. Process each line into blocks
+        let mut blocks = Vec::new();
+        for mut line_chars in lines {
+            // Sort characters in line by left coordinate
+            line_chars.sort_by(|a, b| a.left.partial_cmp(&b.left).unwrap());
+
+            // Detect columns within the line (large horizontal gaps)
+            let mut line_parts = Vec::new();
+            let mut current_part = Vec::new();
+            let mut prev_right: Option<f32> = None;
+
+            for char_data in line_chars {
+                if let Some(pr) = prev_right {
+                    // Split if gap is larger than 1.2x char height (typical for columns/tables)
+                    let gap = char_data.left - pr;
+                    if gap > char_data.height * 1.2 && gap > 5.0 {
+                        debug!("Splitting line at gap: {}", gap);
+                        line_parts.push(current_part);
+                        current_part = Vec::new();
+                    }
+                }
+                prev_right = Some(char_data.right);
+                current_part.push(char_data);
+            }
+            line_parts.push(current_part);
+
+            for part in line_parts {
+                if part.is_empty() {
+                    continue;
+                }
+
+                let mut current_spans = Vec::new();
+                let mut span_text = String::new();
+                let mut current_style: Option<FontStyle> = None;
+                let mut prev_char: Option<&CharData> = None;
+
+                let mut min_x = f32::MAX;
+                let mut max_x = f32::MIN;
+                let mut min_y = f32::MAX;
+                let mut max_y = f32::MIN;
+
+                // Find max height in part for reference
+                let _max_h = part.iter().map(|c| c.height).fold(0.0f32, |a, b| a.max(b));
+
+                for char_data in &part {
+                    min_x = min_x.min(char_data.left);
+                    max_x = max_x.max(char_data.right);
+                    min_y = min_y.min(char_data.top);
+                    max_y = max_y.max(char_data.bottom);
+
+                    let style = char_data.font_style.clone();
+
+                    // Detect superscript/subscript relative to line
+                    /*
+                    let line_mid = (min_y + max_y) / 2.0;
+                    let is_punct_check = char_data.text.chars().next().map_or(false, |c| c.is_ascii_punctuation());
+                    
+                    // Only if character is significantly smaller
+                    if !is_punct_check && char_data.height < max_h * 0.75 {
+                        let char_mid = (char_data.top + char_data.bottom) / 2.0;
+                        
+                        if char_mid < line_mid - (max_h * 0.15) {
+                             style.superscript = true;
+                        } else if char_mid > line_mid + (max_h * 0.15) {
+                             style.subscript = true;
+                        }
+                    }
+                    */
+
+                    // Handle style changes
+                    if let Some(ref cur_style) = current_style {
+                        // Check if styles are effectively different (ignoring minor size diffs)
+                        let size_diff = (cur_style.size.unwrap_or(0.0) - style.size.unwrap_or(0.0)).abs();
+                        
+                        // Treat weight >= 600 as bold, < 600 as normal
+                        let cur_bold = cur_style.weight.unwrap_or(400) >= 600;
+                        let new_bold = style.weight.unwrap_or(400) >= 600;
+                        let bold_changed = cur_bold != new_bold;
+                        let code_changed = cur_style.looks_like_code() != style.looks_like_code();
+                        
+                        let style_changed = bold_changed 
+                            || cur_style.italic != style.italic
+                            || cur_style.superscript != style.superscript
+                            || cur_style.subscript != style.subscript
+                            || code_changed
+                            || size_diff > 1.5; // Allow small size variations
+
+                        if style_changed {
+                            debug!("Style changed: {:?} -> {:?}", cur_style, style);
+                            if !span_text.is_empty() {
+                                current_spans.push(TextSpan {
+                                    text: span_text.clone(),
+                                    bbox: None,
+                                    style: cur_style.clone(),
+                                });
+                                span_text.clear();
                             }
+                            current_style = Some(style.clone());
                         }
-
-                        self.push_block(
-                            &mut blocks,
-                            &mut full_text,
-                            &mut current_spans,
-                            &mut current_style,
-                            block_min_x,
-                            block_min_y,
-                            block_max_x,
-                            block_max_y,
-                        );
-                        span_text.clear();
-
-                        block_min_x = f32::MAX;
-                        block_max_x = f32::MIN;
-                        block_min_y = f32::MAX;
-                        block_max_y = f32::MIN;
-                    } else if !full_text.ends_with('\n') && !full_text.trim().is_empty() {
-                        full_text.push('\n');
-                        span_text.push('\n');
+                    } else {
+                        current_style = Some(style.clone());
                     }
-                    prev_char_right = None;
-                }
-            }
 
-            // Detect word boundaries and column breaks
-            if char_text == " " {
-                if !full_text.ends_with(' ') && !full_text.is_empty() && !full_text.ends_with('\n')
-                {
-                    full_text.push(' ');
-                    span_text.push(' ');
-                }
-                prev_char_right = Some(char_right);
-                continue;
-            } else if let Some(prev_right) = prev_char_right {
-                let gap = char_left - prev_right;
+                    // Add space if needed
+                    if let Some(pc) = prev_char {
+                        let h_dist = char_data.left - pc.right;
+                        
+                        // Determine threshold based on content
+                        let is_punct = char_data.text.chars().next().map_or(false, |c| c.is_ascii_punctuation());
+                        let is_code = char_data.font_style.looks_like_code();
+                        
+                        let threshold = if is_code {
+                            char_data.height * 0.8 // Larger gap for monospace
+                        } else if is_punct {
+                            char_data.height * 1.5 // Require VERY large gap for punctuation
+                        } else {
+                            char_data.height * 0.35 // Standard gap for text
+                        };
 
-                // If there's a large horizontal gap or we moved backwards significantly, start a new block
-                if (gap > current_char_width * 2.0 || gap < -current_char_width * 2.0)
-                    && !full_text.trim().is_empty()
-                {
-                    // Finish last span
-                    if !span_text.is_empty() {
-                        if let Some(ref style) = current_style {
-                            current_spans.push(TextSpan::styled(span_text.clone(), style.clone()));
+                        // Also don't add space if characters overlap or are very close (ligatures)
+                        if h_dist > threshold
+                            && char_data.text != " "
+                            && !span_text.ends_with(' ')
+                        {
+                            debug!("Inserting space: '{}' - '{}', dist: {}, thresh: {}", pc.text, char_data.text, h_dist, threshold);
+                            span_text.push(' ');
                         }
                     }
 
-                    self.push_block(
-                        &mut blocks,
-                        &mut full_text,
-                        &mut current_spans,
-                        &mut current_style,
-                        block_min_x,
-                        block_min_y,
-                        block_max_x,
-                        block_max_y,
-                    );
-                    span_text.clear();
-
-                    block_min_x = f32::MAX;
-                    block_max_x = f32::MIN;
-                    block_min_y = f32::MAX;
-                    block_max_y = f32::MIN;
-                } else if gap > current_char_width * 0.5
-                    && !full_text.ends_with(' ')
-                    && !full_text.ends_with('\n')
-                {
-                    // Normal word boundary
-                    // For code blocks, be more conservative with auto-inserted spaces
-                    let is_code = current_style
-                        .as_ref()
-                        .map(|s| s.looks_like_code())
-                        .unwrap_or(false);
-                    let threshold = if is_code { 1.5 } else { 0.8 };
-
-                    if gap > current_char_width * threshold {
-                        full_text.push(' ');
-                        span_text.push(' ');
-                    }
+                    span_text.push_str(&char_data.text);
+                    prev_char = Some(char_data);
                 }
-            }
 
-            // Handle style changes within a block
-            let style_changed = if let Some(ref style) = current_style {
-                *style != font_style
-            } else {
-                true
-            };
-
-            if style_changed {
                 if !span_text.is_empty() {
-                    if let Some(ref style) = current_style {
-                        current_spans.push(TextSpan::styled(span_text.clone(), style.clone()));
-                    }
+                    current_spans.push(TextSpan {
+                        text: span_text,
+                        bbox: None,
+                        style: current_style.unwrap_or_default(),
+                    });
                 }
-                span_text.clear();
-                current_style = Some(font_style.clone());
-            }
 
-            full_text.push_str(&char_text);
-            span_text.push_str(&char_text);
+                let block_text = current_spans
+                    .iter()
+                    .map(|s| s.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join("");
 
-            // Update block bounds
-            block_min_x = block_min_x.min(char_left);
-            block_max_x = block_max_x.max(char_right);
-            block_min_y = block_min_y.min(char_top);
-            block_max_y = block_max_y.max(char_bottom);
-
-            prev_char_right = Some(char_right);
-            prev_char_top = Some(char_top);
-            prev_char_bottom = Some(char_bottom);
-        }
-
-        // Add final block
-        if !full_text.trim().is_empty() {
-            if !span_text.is_empty() {
-                if let Some(ref style) = current_style {
-                    current_spans.push(TextSpan::styled(span_text.clone(), style.clone()));
+                if block_text.trim().is_empty() {
+                    continue;
                 }
-            }
-            self.push_block(
-                &mut blocks,
-                &mut full_text,
-                &mut current_spans,
-                &mut current_style,
-                block_min_x,
-                block_min_y,
-                block_max_x,
-                block_max_y,
-            );
-        }
 
-        // Extract images and other non-text objects
-        for object in page.objects().iter() {
-            match object.object_type() {
-                PdfPageObjectType::Image => {
-                    if let Ok(bounds) = object.bounds() {
-                        let bbox = BoundingBox::new(
-                            bounds.left().value,
-                            page_height - bounds.top().value,
-                            bounds.right().value,
-                            page_height - bounds.bottom().value,
-                        );
-                        let mut block = Block::new(BlockType::Figure, bbox);
-                        block.page = _page_num;
-                        blocks.push(block);
-                    }
-                }
-                _ => {}
+                blocks.push(Block {
+                    id: BlockId::with_indices(page_num, blocks.len()),
+                    block_type: BlockType::Text,
+                    bbox: BoundingBox::new(min_x, min_y, max_x, max_y),
+                    page: page_num,
+                    position: blocks.len(),
+                    text: block_text,
+                    html: None,
+                    spans: current_spans,
+                    children: Vec::new(),
+                    confidence: 1.0,
+                    level: None,
+                    source: None,
+                    metadata: HashMap::new(),
+                });
             }
         }
 
         Ok(blocks)
     }
 
-    /// Helper to push a block and classify it.
-    fn push_block(
-        &self,
-        blocks: &mut Vec<Block>,
-        text: &mut String,
-        spans: &mut Vec<TextSpan>,
-        style: &mut Option<FontStyle>,
-        min_x: f32,
-        min_y: f32,
-        max_x: f32,
-        max_y: f32,
-    ) {
-        let trimmed_text = text.trim().to_string();
-        if trimmed_text.is_empty() {
-            return;
-        }
-
-        let bbox = BoundingBox::new(min_x, min_y, max_x, max_y);
-        let mut block = Block::text(trimmed_text.clone(), bbox);
-        block.spans = spans.clone();
-
-        // Classify block based on style and content
-        if let Some(ref s) = style {
-            let base_size = 12.0;
-            let is_bold = s.weight.map(|w| w >= 600).unwrap_or(false);
-            let size = s.size.unwrap_or(base_size);
-
-            if is_bold || size > base_size * 1.1 {
-                block.block_type = BlockType::SectionHeader;
-                // Improved level estimation
-                block.level = if size >= 18.0 {
-                    Some(1)
-                } else if size >= 14.0 {
-                    Some(2)
-                } else if size >= 12.0 && is_bold {
-                    Some(3)
-                } else {
-                    Some(4)
-                };
-            } else if s.looks_like_code() {
-                block.block_type = BlockType::Code;
-            }
-        }
-
-        // Pattern-based classification (Lists)
-        if trimmed_text.starts_with("- ")
-            || trimmed_text.starts_with("• ")
-            || (trimmed_text.len() > 2
-                && trimmed_text.chars().next().unwrap().is_ascii_digit()
-                && trimmed_text.contains(". "))
-        {
-            block.block_type = BlockType::ListItem;
-            // Store indentation for nested lists
-            block
-                .metadata
-                .insert("indent".to_string(), serde_json::json!(min_x));
-        }
-
-        blocks.push(block);
-        text.clear();
-        spans.clear();
-        *style = None;
-    }
-
     /// Extract text from PDF with proper word boundaries.
-    ///
-    /// Uses character-level position detection to insert spaces
-    /// where word boundaries should exist.
     pub fn extract_to_markdown(&self, pdf_bytes: &[u8]) -> Result<String> {
         let doc = self.extract_document(pdf_bytes)?;
 
@@ -511,8 +459,6 @@ impl PdfiumExtractor {
     }
 
     /// Render a page to an image for Vision mode extraction.
-    ///
-    /// Returns the page as a PNG image at the specified DPI.
     pub fn render_page_to_image(
         &self,
         pdf_bytes: &[u8],
@@ -528,12 +474,10 @@ impl PdfiumExtractor {
             PdfError::PdfParse(format!("Failed to get page {}: {:?}", page_index, e))
         })?;
 
-        // Calculate pixel dimensions based on DPI
-        let scale = dpi as f32 / 72.0; // PDF points to pixels
+        let scale = dpi as f32 / 72.0;
         let width = (page.width().value * scale) as i32;
         let height = (page.height().value * scale) as i32;
 
-        // Render the page
         let render_config = PdfRenderConfig::new()
             .set_target_width(width)
             .set_maximum_height(height);
@@ -542,7 +486,6 @@ impl PdfiumExtractor {
             .render_with_config(&render_config)
             .map_err(|e| PdfError::PdfParse(format!("Failed to render page: {:?}", e)))?;
 
-        // Convert to PNG
         let image = bitmap.as_image();
         let mut png_data = Vec::new();
 
@@ -575,7 +518,6 @@ impl PdfiumExtractor {
 
         let metadata = document.metadata();
 
-        // Extract metadata tags - convert &str to owned String
         let title = metadata
             .get(PdfDocumentMetadataTagType::Title)
             .map(|tag| tag.value().to_string())
@@ -588,7 +530,6 @@ impl PdfiumExtractor {
             .get(PdfDocumentMetadataTagType::CreationDate)
             .map(|tag| tag.value().to_string());
 
-        // Format PDF version using Debug trait since Display is not implemented
         let pdf_version = Some(format!("{:?}", document.version()));
 
         let mut doc_metadata = DocumentMetadata::default();
@@ -601,7 +542,6 @@ impl PdfiumExtractor {
     }
 }
 
-/// Helper to convert Pdfium font weight to u16.
 fn pdf_font_weight_to_u16(weight: PdfFontWeight) -> u16 {
     match weight {
         PdfFontWeight::Weight100 => 100,
@@ -617,7 +557,6 @@ fn pdf_font_weight_to_u16(weight: PdfFontWeight) -> u16 {
     }
 }
 
-/// Default implementation using system/local Pdfium library.
 impl Default for PdfiumExtractor {
     fn default() -> Self {
         Self::new().expect("Failed to initialize PdfiumExtractor")
@@ -630,12 +569,7 @@ mod tests {
 
     #[test]
     fn test_pdfium_extractor_creation() {
-        // This test will fail if Pdfium library is not available
-        // That's expected behavior for the feature-gated module
         let result = PdfiumExtractor::new();
-
-        // If Pdfium is available, the extractor should be created
-        // If not, we get an error which is also valid
         match result {
             Ok(_) => println!("PdfiumExtractor created successfully"),
             Err(e) => println!("PdfiumExtractor not available: {}", e),

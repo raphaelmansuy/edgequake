@@ -308,6 +308,10 @@ impl Block {
         if !other.text.is_empty() {
             if !self.text.is_empty() {
                 self.text.push(' ');
+                // Add space span if we have spans
+                if !self.spans.is_empty() || !other.spans.is_empty() {
+                    self.spans.push(TextSpan::plain(" "));
+                }
             }
             self.text.push_str(&other.text);
         }
