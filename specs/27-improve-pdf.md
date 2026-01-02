@@ -1,5 +1,7 @@
 You are tasked with improving the PDF to Markdown conversion quality of the Edgequake PDF processing library, specifically focusing on styles (bold, italic, headings) and tables. You will follow an OODA (Observe, Orient, Decide, Act) loop methodology to iteratively enhance the system in a measurable way.
 
+**See also:** [PDF → Markdown Validator SKILL](.github/skills/pdf-markdown-validator/SKILL.md) — This specification now uses the production-ready validator skill for measurement. Refer to the SKILL documentation for metric definitions, validation workflows, and troubleshooting.
+
 ## Short goal
 
 Improve PDF→Markdown quality for **styles** (bold/italic/heading detection) and **tables** (detection + cell extraction) using an OODA-driven, measurable, test-first loop.
@@ -7,6 +9,8 @@ Improve PDF→Markdown quality for **styles** (bold/italic/heading detection) an
 ## Single scalar objective (0–100)
 
 We compute a single score in [0,100] using explicit sub-metrics and formulas:
+
+**Note:** Use the PDF-Markdown Validator SKILL's `validate.py` script to compute these metrics automatically. See [.github/skills/pdf-markdown-validator/SKILL.md](.github/skills/pdf-markdown-validator/SKILL.md) for implementation details.
 
 - **Table Accuracy (40% weight)**
 
@@ -40,8 +44,17 @@ We compute a single score in [0,100] using explicit sub-metrics and formulas:
 
 ## Dataset & Execution
 
-- Dataset: `crates/edgequake-pdf/test-data/real_dataset/` (5 PDFs with `.gold.mdf` ground-truth)
+**Validation Setup:**
+Use the PDF-Markdown Validator SKILL to measure quality across iterations. Prepare your test data as follows:
+
+1. **Markdown Files:** Generate with `cargo run -p edgequake-pdf --example real_dataset_eval -- --write`
+2. **Gold Files:** Create `.gold.md` reference files for each PDF (see SKILL documentation for annotation guidelines)
+3. **Run Validation:** Use `validate.py` to compute table/style/robustness/performance scores
+4. **Analyze Drifts:** Use `diff_analysis.py` and `batch_drift.py` to identify error patterns
+
+- Dataset: `crates/edgequake-pdf/test-data/real_dataset/` (with `.gold.md` ground-truth files)
 - Baseline harness: `examples/real_dataset_eval.rs` (extend to include table/style F1 and artifact counters)
+- Validation scripts: `.github/skills/pdf-markdown-validator/scripts/` (validate.py, analyze_failures.py, diff_analysis.py, batch_drift.py)
 - Append-only log: `crates/edgequake-pdf/sessions/improve_pdf/scratchpad_append_log.md`
 - Per-iteration artifacts: `OBSERVE.md`, `ORIENT.md`, `DECIDE.md`, `PATCH.diff`, `*.mdf.gen` in `crates/edgequake-pdf/sessions/improve_pdf/001-iteration/` etc.
 
@@ -145,7 +158,10 @@ _Tip:_ add a short `README.md` under `crates/edgequake-pdf/sessions/improve_pdf/
 - Run tests: `cd edgequake && cargo test -p edgequake-pdf`
 - Run evaluation: `cargo run -p edgequake-pdf --example real_dataset_eval -- --write`
 - Validate Markdown: `pandoc -f markdown -t html -o /dev/null file.md`
+- **Measure quality:** `python3 .github/skills/pdf-markdown-validator/scripts/validate.py --pdf-dir crates/edgequake-pdf/test-data --gold-dir crates/edgequake-pdf/test-data --output-report metrics.json`
+- **Analyze failures:** `python3 .github/skills/pdf-markdown-validator/scripts/analyze_failures.py metrics.json --verbose`
+- **Detailed drift analysis:** `python3 .github/skills/pdf-markdown-validator/scripts/batch_drift.py --pdf-dir crates/edgequake-pdf/test-data --gold-dir crates/edgequake-pdf/test-data --output-report drift_report.json`
 
 ---
 
-Start by executing the Observe step now: run tests and the extended evaluator with `--write`, capture diffs and perf, append `OBSERVE.md`, then call mcp_sequentialthi_sequentialthinking with Thought 1 describing the observation and your next planned thought.
+Start by executing the Observe step now: run tests and the extended evaluator with `--write`, generate metrics using the validator SKILL, capture drifts and perf, append `OBSERVE.md`, then call mcp_sequentialthi_sequentialthinking with Thought 1 describing the observation and your next planned thought.
