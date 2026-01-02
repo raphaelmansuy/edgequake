@@ -510,25 +510,36 @@ impl LatticeEngine {
         max_x: f32,
         max_y: f32,
     ) -> String {
+        // Use center-point containment with moderate tolerance
+        // Reduced from original 2.0pt but increased from 1.0pt to 1.5pt
+        // Balance: prevent adjacent cell pollution while handling PDF coordinate imprecision
+        let tol = 1.5;
+
         let mut contained: Vec<&TextElement> = text_elements
             .iter()
             .filter(|elem| {
                 let cx = elem.x;
                 let cy = elem.y;
-                // Use a small tolerance
-                let tol = 2.0;
-                cx >= min_x - tol && cx <= max_x + tol && cy >= min_y - tol && cy <= max_y + tol
+                
+                // Center-point based containment check
+                // This is imperfect (doesn't account for glyph width) but TextElement
+                // doesn't provide bbox information, so we use center + tolerance
+                cx >= min_x - tol && cx <= max_x + tol && 
+                cy >= min_y - tol && cy <= max_y + tol
             })
             .collect();
 
-        // Sort by Y (descending) then X (ascending)
+        // Sort by Y (descending for top-to-bottom), then X (ascending for left-to-right)
+        // Removed 5pt Y-binning: use exact Y coordinates with 1pt threshold for same-row detection
         contained.sort_by(|a, b| {
-            let row_a = (a.y / 5.0).round() as i32;
-            let row_b = (b.y / 5.0).round() as i32;
-            if row_a != row_b {
-                row_b.cmp(&row_a)
-            } else {
+            // Use 1pt threshold instead of 5pt binning for same-row detection
+            // This prevents vertical spillover while handling typical baseline variations
+            if (a.y - b.y).abs() < 1.0 {
+                // Same row - sort by X ascending (left to right)
                 a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal)
+            } else {
+                // Different rows - sort by Y descending (top to bottom in PDF coordinates)
+                b.y.partial_cmp(&a.y).unwrap_or(std::cmp::Ordering::Equal)
             }
         });
 

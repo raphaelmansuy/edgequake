@@ -138,7 +138,7 @@ Language servers resolve the definition of a Python symbol
 |  |  |  |  |  |  | Qwen2.5-7B | Qwen2.5-7B |
 |  | Locagent Training Free 17.62 11.71 12.71 10.31 60.96 34.88 40.67 33.33 | Locagent Training Free 17.62 11.71 12.71 10.31 60.96 34.88 40.67 33.33 CoSIL Training Free 29.30 | CoSIL Training Free 29.30 |  | 8.98 12.90 8.07 70.12 | 8.98 12.90 8.07 70.12 | 17.90 27.39 17.42 |
 
-| Orcaloca Training Free 27.70 20.29 RepoSearcher Distillation+GRPO  63.26  19.24 27.37 17.59  84.11  19.97 31.64 19.57 RepoNavigator RepoNavigator | Orcaloca Training Free 27.70 20.29 | Training Free | Training Free GRPO | 15.89 GRPO 26.69 | 15.89 17.46 26.69 30.34 | 17.46 30.34 Qwen2.5-14B | 21.70 16.19 27.49 Qwen2.5-14B | 21.70 17.92 16.19 15.46 27.49 26.43 | 17.92 48.04 48.65 15.46 42.36 26.43 50.62 | 48.04 48.65 42.36 43.23 50.62 53.83 | 47.36 43.23 42.12 53.83 51.63 | 47.36 45.77 42.12 40.97 51.63 50.62 |
+| RepoSearcher Distillation+GRPO  63.26  19.24 27.37 17.59  84.11  19.97 31.64 19.57 |  | Training Free | Training Free GRPO | 15.89 GRPO 26.69 | 15.89 17.46 26.69 30.34 | 17.46 30.34 Qwen2.5-14B | 16.19 27.49 Qwen2.5-14B | 16.19 15.46 27.49 26.43 | 15.46 42.36 26.43 50.62 | 42.36 43.23 50.62 53.83 | 43.23 42.12 53.83 51.63 | 42.12 40.97 51.63 50.62 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Locagent Training Free 35.62 13.32 17.71 12.32 71.42 31.66 40.77 30.64 | Locagent Training Free 35.62 13.32 17.71 12.32 71.42 31.66 40.77 30.64 CoSIL Training Free  48.61 | CoSIL Training Free  48.61 |  |  | 13.40 19.81 12.12  78.35 | 13.40 19.81 12.12  78.35 |  |  |  | 18.10 28.79 17.72 | 18.10 28.79 17.72 |  |
 
@@ -151,15 +151,15 @@ Language servers resolve the definition of a Python symbol
 
 | Table 2. Comparison of different agent pipelines on function-level and file-level metrics on SWE-bench numbers  denote the best performance among same-size models; same-size models; GRPO. | Comparison of different agent pipelines on function-level and file-level metrics on SWE-bench yellow background | yellow background illustrates training-free RepoNavigator; | illustrates training-free RepoNavigator; | underline numbers | underline numbers blue background | denote the best training-free performance among illustrates RepoNavigator trained with | Pro for generalization.  Bold illustrates RepoNavigator trained with |
 |---|---|---|---|---|---|---|---|
-| GRPO. Agent Pipeline Model | Agent Pipeline Model |  | Function-level File-level | Function-level File-level |  |  |  |
+| Agent Pipeline Model | Agent Pipeline Model |  | Function-level File-level | Function-level File-level |  |  |  |
 
 |  | Recall Precision Sample-F1 IoU Recall Precision Sample-F1 IoU | Recall Precision Sample-F1 IoU Recall Precision Sample-F1 IoU |  |  |
 |---|---|---|---|---|
 |  |  |  |  |  |
 |  |  |  | Qwen2.5-7B | Qwen2.5-7B |
-| LocAgent Training Free 1.01 0.02 0.65 0.40 12.16 0.17 10.81 8.93 Agentless Training Free  12.82 | CoSIL Training Free 8.64 3.33 4.58 2.87 26.64 8.47 12.11 7.70 Agentless Training Free  12.82 | 6.94 8.05 5.73  39.41 | 6.94 8.05 5.73  39.41 | 13.15 18.89 12.35 |
+| LocAgent Training Free 1.01 0.02 0.65 0.40 12.16 0.17 10.81 8.93 Agentless Training Free  12.82 | CoSIL Training Free 8.64 3.33 4.58 2.87 26.64 8.47 12.11 7.70 | 6.94 8.05 5.73  39.41 | 6.94 8.05 5.73  39.41 | 13.15 18.89 12.35 |
 
-| Agentless Training Free  12.82 RepoSearcher Training Free 1.07 0.93 0.97 0.86 4.91 1.64 2.30 1.63 RepoNavigator RepoNavigator | Agentless Training Free  12.82 | Training Free | Training Free GRPO | 9.84 GRPO 12.33 | 6.94 8.05 5.73  39.41 9.84 14.65 12.33 21.26 | 6.94 8.05 5.73  39.41 14.65 21.26 Qwen2.5-14B | 10.67 14.29 Qwen2.5-14B | 10.67 9.20 14.29 12.02 | 9.20 30.50 12.02 36.36 | 13.15 18.89 12.35 30.50 37.24 36.36 48.13 | 13.15 18.89 12.35 37.24 31.86 48.13 39.74 | 31.86 28.82 39.74 36.36 |
+| Agentless Training Free  12.82 RepoSearcher Training Free 1.07 0.93 0.97 0.86 4.91 1.64 2.30 1.63 RepoNavigator RepoNavigator | Agentless Training Free  12.82 | Training Free | Training Free GRPO | GRPO 12.33 | 6.94 8.05 5.73  39.41 9.84 14.65 12.33 21.26 | 6.94 8.05 5.73  39.41 14.65 21.26 Qwen2.5-14B | 10.67 14.29 Qwen2.5-14B | 10.67 14.29 12.02 | 9.20 30.50 12.02 36.36 | 13.15 18.89 12.35 30.50 37.24 36.36 48.13 | 13.15 18.89 12.35 37.24 31.86 48.13 39.74 | 31.86 28.82 39.74 36.36 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | LocAgent Training Free 6.22 0.13 3.65 2.65 15.58 0.21 11.69 9.53 Agentless Training Free 10.49 6.75 7.41 5.28 41.42 13.42 19.02 12.37 RepoSearcher Training Free 2.79 1.38 1.69 1.14 17.37 5.17 7.60 4.84 RepoNavigator RepoNavigator | LocAgent Training Free 6.22 0.13 3.65 2.65 15.58 0.21 11.69 9.53 CoSIL Training Free 10.73 4.67 5.96 3.94 34.31 9.97 14.81 9.30 Agentless Training Free 10.49 6.75 7.41 5.28 41.42 13.42 19.02 12.37 | CoSIL Training Free 10.73 4.67 5.96 3.94 34.31 9.97 14.81 9.30 Training Free | Training Free GRPO | 14.36 GRPO 16.05 | 14.36 19.74 16.05 25.25 | 19.74 25.25 Qwen2.5-32B | 15.27 18.06 Qwen2.5-32B | 15.27 12.00 18.06 14.58 | 12.00 43.57 14.58 46.85 | 43.57 54.52 46.85 58.64 | 54.52 46.06 58.64 49.72 | 46.06 41.07 49.72 45.14 |
 | LocAgent Training Free 8.72 0.17 4.30 2.90 25.73 0.38 19.77 16.50 | LocAgent Training Free 8.72 0.17 4.30 2.90 25.73 0.38 19.77 16.50 CoSIL Training Free 15.00 | CoSIL Training Free 15.00 |  |  | 6.35 8.14 5.21 45.37 13.04 19.42 12.36 | 6.35 8.14 5.21 45.37 13.04 19.42 12.36 |  |  |  |  |  |  |

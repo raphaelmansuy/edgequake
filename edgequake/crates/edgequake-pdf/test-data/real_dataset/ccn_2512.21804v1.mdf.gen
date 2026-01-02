@@ -324,7 +324,7 @@ After
 |     |   |
 |---|---|
 |  |  |
-|                                          image  illustrates  result  of  our lear |                Figure  8 : Base  Deep models  result  without feature                              engineering   [15]       INITIAL EXECU TION/TRAINING RESULTS:    After  a  redesign   and  rewriting  the  model  f ollowing  image  illustrates  the  result   of  one  of  the  initial  execution  result  of  our   proposed   model  and  it  does  seem  to  be  not  lear n ing   at all:       Figure 9: Initial execution loss and ac cura cy   MSFT 2 - day (T+2)   |
+|                                          image  illustrates  result  of  our lear |                Figure  8 : Base  Deep models  result  without feature    [15]                           engineering         INITIAL EXECU TION/TRAINING RESULTS:    After  a  redesign   and  rewriting  the  model  f ollowing  image  illustrates  the  result   of  one  of  the  initial  execution  result  of  our   proposed   model  and  it  does  seem  to  be  not  lear n ing   at all:       Figure 9: Initial execution loss and ac cura cy   MSFT 2 - day (T+2)   |
 
 
 ---
