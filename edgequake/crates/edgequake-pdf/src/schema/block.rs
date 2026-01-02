@@ -321,15 +321,15 @@ impl Block {
                 let ends_with_hyphen = self.text.trim_end().ends_with('-');
                 let first_char = other.text.trim_start().chars().next();
                 let starts_with_lowercase = matches!(first_char, Some(c) if c.is_lowercase());
-                
+
                 // Only join without space in these specific cases:
                 // 1. Explicit hyphenation: "word-" at end of line + lowercase continuation
                 // 2. Same visual line: blocks are horizontally adjacent (very small vertical gap)
-                let is_same_visual_line = (self.bbox.y2 - other.bbox.y1).abs() < 3.0 
+                let is_same_visual_line = (self.bbox.y2 - other.bbox.y1).abs() < 3.0
                     || (self.bbox.y1 - other.bbox.y1).abs() < 3.0;
                 let horizontal_gap = other.bbox.x1 - self.bbox.x2;
                 let is_close_horizontally = horizontal_gap < 20.0 && horizontal_gap > -5.0;
-                
+
                 if ends_with_hyphen && starts_with_lowercase {
                     // Explicit hyphenation: remove hyphen and join
                     self.text = self.text.trim_end_matches('-').trim_end().to_string();
@@ -342,7 +342,7 @@ impl Block {
                         (last_char, first_char),
                         (Some(c1), Some(c2)) if c1.is_alphabetic() && c2.is_lowercase()
                     ) && !self.text.trim_end().ends_with(' ');
-                    
+
                     if is_likely_word_fragment {
                         self.text = self.text.trim_end().to_string();
                         self.text.push_str(other.text.trim_start());

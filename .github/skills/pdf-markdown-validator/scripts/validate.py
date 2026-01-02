@@ -370,9 +370,9 @@ class PDFValidator:
             total_fp += fp
             total_fn += fn
 
-        # Unmatched generated cells
+        # Unmatched gold cells (false negatives)
         for i in range(len(gen_cells), len(gold_cells)):
-            total_fp += len(gen_cells[i].split())
+            total_fn += len(gold_cells[i].split())
 
         precision = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0
         recall = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0

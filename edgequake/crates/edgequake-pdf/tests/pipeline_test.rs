@@ -1,7 +1,7 @@
-use std::sync::Arc;
-use edgequake_pdf::{PdfExtractor, PdfConfig, PdfBackend, Document, PdfInfo};
-use edgequake_llm::providers::mock::MockProvider;
 use async_trait::async_trait;
+use edgequake_llm::providers::mock::MockProvider;
+use edgequake_pdf::{Document, PdfBackend, PdfConfig, PdfExtractor, PdfInfo};
+use std::sync::Arc;
 
 // Mock backend for testing
 struct TestBackend {
@@ -36,18 +36,18 @@ impl PdfBackend for TestBackend {
 async fn test_pipeline_flow() {
     let provider = Arc::new(MockProvider::new());
     let config = PdfConfig::default();
-    
+
     // Use the built-in MockBackend
     // We need to make sure we can access it.
     // In lib.rs: pub mod backend; -> pub mod mock; -> pub struct MockBackend
     // So edgequake_pdf::backend::mock::MockBackend
-    
+
     let backend = Box::new(edgequake_pdf::backend::mock::MockBackend::new());
     let extractor = PdfExtractor::with_backend(backend, provider, config);
-    
+
     let pdf_bytes = b"fake pdf content";
     let result = extractor.extract_to_markdown(pdf_bytes).await;
-    
+
     assert!(result.is_ok());
     let markdown = result.unwrap();
     println!("Markdown: {}", markdown);

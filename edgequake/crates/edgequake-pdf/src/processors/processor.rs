@@ -19,7 +19,7 @@ pub struct MarginFilterProcessor {
     right_margin: f32,
     /// Top margin threshold
     top_margin: f32,
-    /// Bottom margin threshold  
+    /// Bottom margin threshold
     bottom_margin: f32,
 }
 
@@ -154,14 +154,14 @@ impl GarbledTextFilterProcessor {
         // Filter very short isolated fragments (≤3 chars) that don't look like valid content
         // e.g., ",w", "v", but not "1.", "a)", "I", "A"
         if trimmed.len() <= 3 {
-            let is_valid_short = 
+            let is_valid_short =
                 // Single uppercase letter (section marker)
                 (trimmed.len() == 1 && trimmed.chars().next().map(|c| c.is_uppercase()).unwrap_or(false))
                 // Number or numbered item
                 || trimmed.chars().all(|c| c.is_ascii_digit() || c == '.')
                 // Common single-letter words
                 || ["I", "a", "A"].contains(&trimmed);
-            
+
             if !is_valid_short {
                 tracing::debug!("Filtering very short fragment: '{}'", trimmed);
                 return true;
@@ -188,10 +188,13 @@ impl GarbledTextFilterProcessor {
         }
 
         // Count short words (≤2 chars) excluding common valid short words
-        let valid_short_words = ["a", "an", "as", "at", "be", "by", "do", "go", "he", "if", 
-                                 "in", "is", "it", "me", "my", "no", "of", "on", "or", "so", 
-                                 "to", "up", "us", "we", "i", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
-        let short_count = words.iter()
+        let valid_short_words = [
+            "a", "an", "as", "at", "be", "by", "do", "go", "he", "if", "in", "is", "it", "me",
+            "my", "no", "of", "on", "or", "so", "to", "up", "us", "we", "i", "1", "2", "3", "4",
+            "5", "6", "7", "8", "9",
+        ];
+        let short_count = words
+            .iter()
             .filter(|w| w.len() <= 2 && !valid_short_words.contains(&w.to_lowercase().as_str()))
             .count();
         let ratio = short_count as f32 / words.len() as f32;
@@ -200,20 +203,32 @@ impl GarbledTextFilterProcessor {
             tracing::debug!(
                 "Filtering garbled text ({}% unusual short words): '{}'",
                 (ratio * 100.0) as i32,
-                if trimmed.len() > 50 { &trimmed[..50] } else { trimmed }
+                if trimmed.len() > 50 {
+                    &trimmed[..50]
+                } else {
+                    trimmed
+                }
             );
             return true;
         }
 
         // Check for patterns like missing letters: "a iliar tools hich o erlook"
         // This has MANY isolated letters that aren't common words
-        let isolated_letters = words.iter()
+        let isolated_letters = words
+            .iter()
             .filter(|w| w.len() == 1 && w.chars().all(|c| c.is_alphabetic()))
             .filter(|w| !valid_short_words.contains(&w.to_lowercase().as_str()))
             .count();
         // Need at least 4 isolated non-common letters AND high ratio
         if isolated_letters >= 4 && ratio > 0.30 {
-            tracing::debug!("Filtering text with isolated letters: '{}'", if trimmed.len() > 50 { &trimmed[..50] } else { trimmed });
+            tracing::debug!(
+                "Filtering text with isolated letters: '{}'",
+                if trimmed.len() > 50 {
+                    &trimmed[..50]
+                } else {
+                    trimmed
+                }
+            );
             return true;
         }
 
@@ -221,22 +236,34 @@ impl GarbledTextFilterProcessor {
         // Pattern: single letter + space + lowercase fragment (e.g., "a iliar" = "familiar" with missing "f")
         // "hich" = "which" missing "w", "erlook" = "overlook" missing "ov", "ec" = "exec" missing "ex"
         // These are unusual non-words that suggest OCR corruption
-        let non_word_fragments = words.iter().filter(|w| {
-            let w_lower = w.to_lowercase();
-            let len = w_lower.len();
-            // Check for likely fragments: 4-7 chars that start with unusual patterns
-            if len >= 4 && len <= 8 && w_lower.chars().all(|c| c.is_alphabetic()) {
-                // Check for patterns that suggest missing first letter(s)
-                // Common garbled patterns from the PDF
-                let garbled_patterns = ["iliar", "hich", "erlook", "ec", "tion", "xec"];
-                garbled_patterns.iter().any(|p| w_lower.starts_with(p) || w_lower == *p)
-            } else {
-                false
-            }
-        }).count();
+        let non_word_fragments = words
+            .iter()
+            .filter(|w| {
+                let w_lower = w.to_lowercase();
+                let len = w_lower.len();
+                // Check for likely fragments: 4-7 chars that start with unusual patterns
+                if len >= 4 && len <= 8 && w_lower.chars().all(|c| c.is_alphabetic()) {
+                    // Check for patterns that suggest missing first letter(s)
+                    // Common garbled patterns from the PDF
+                    let garbled_patterns = ["iliar", "hich", "erlook", "ec", "tion", "xec"];
+                    garbled_patterns
+                        .iter()
+                        .any(|p| w_lower.starts_with(p) || w_lower == *p)
+                } else {
+                    false
+                }
+            })
+            .count();
 
         if non_word_fragments >= 2 {
-            tracing::debug!("Filtering text with OCR fragments: '{}'", if trimmed.len() > 50 { &trimmed[..50] } else { trimmed });
+            tracing::debug!(
+                "Filtering text with OCR fragments: '{}'",
+                if trimmed.len() > 50 {
+                    &trimmed[..50]
+                } else {
+                    trimmed
+                }
+            );
             return true;
         }
 
@@ -728,154 +755,154 @@ impl Processor for TextTableReconstructionProcessor {
                     continue;
                 }
 
-                    // If the next non-empty line is already a pipe table, do nothing.
-                    let mut next_non_empty: Option<&str> = None;
-                    for j in (i + 1)..page.blocks.len().min(i + 8) {
-                        let t = page.blocks[j].text.trim();
-                        if t.is_empty() {
-                            continue;
-                        }
-                        next_non_empty = Some(t);
+                // If the next non-empty line is already a pipe table, do nothing.
+                let mut next_non_empty: Option<&str> = None;
+                for j in (i + 1)..page.blocks.len().min(i + 8) {
+                    let t = page.blocks[j].text.trim();
+                    if t.is_empty() {
+                        continue;
+                    }
+                    next_non_empty = Some(t);
+                    break;
+                }
+                if matches!(next_non_empty, Some(t) if t.starts_with('|')) {
+                    new_blocks.push(block.clone());
+                    i += 1;
+                    continue;
+                }
+
+                // Scan forward for table-like lines (caption-before-table).
+                let scan_start = i + 1;
+                let scan_end = (scan_start + 40).min(page.blocks.len());
+                let mut forward_lines: Vec<(usize, String)> = Vec::new();
+                let mut forward_score = 0;
+                let mut non_table_streak = 0;
+                for j in scan_start..scan_end {
+                    let b = &page.blocks[j];
+                    let t = b.text.trim();
+                    if t.is_empty() {
                         break;
                     }
-                    if matches!(next_non_empty, Some(t) if t.starts_with('|')) {
-                        new_blocks.push(block.clone());
-                        i += 1;
-                        continue;
+                    if Self::is_hard_break(b) {
+                        break;
+                    }
+                    if Self::looks_like_table_caption(t) {
+                        break;
                     }
 
-                    // Scan forward for table-like lines (caption-before-table).
-                    let scan_start = i + 1;
-                    let scan_end = (scan_start + 40).min(page.blocks.len());
-                    let mut forward_lines: Vec<(usize, String)> = Vec::new();
-                    let mut forward_score = 0;
-                    let mut non_table_streak = 0;
-                    for j in scan_start..scan_end {
-                        let b = &page.blocks[j];
-                        let t = b.text.trim();
-                        if t.is_empty() {
-                            break;
-                        }
-                        if Self::is_hard_break(b) {
-                            break;
-                        }
-                        if Self::looks_like_table_caption(t) {
-                            break;
-                        }
-
-                        let s = Self::table_like_score(t);
-                        if !forward_lines.is_empty() {
-                            if s == 0 {
-                                non_table_streak += 1;
-                                if non_table_streak >= 3 {
-                                    break;
-                                }
-                            } else {
-                                non_table_streak = 0;
+                    let s = Self::table_like_score(t);
+                    if !forward_lines.is_empty() {
+                        if s == 0 {
+                            non_table_streak += 1;
+                            if non_table_streak >= 3 {
+                                break;
                             }
-                        }
-
-                        forward_score += s;
-                        forward_lines.push((j, t.to_string()));
-                    }
-
-                    // Scan backward for table-like lines (caption-after-table).
-                    let mut backward_lines: Vec<(usize, String)> = Vec::new();
-                    let mut backward_score = 0;
-                    let mut non_table_streak = 0;
-                    let back_start = i.saturating_sub(1);
-                    let back_limit = i.saturating_sub(60);
-                    let mut j = back_start;
-                    while j >= back_limit {
-                        let b = &page.blocks[j];
-                        let t = b.text.trim();
-                        if t.is_empty() {
-                            break;
-                        }
-                        if Self::is_hard_break(b) {
-                            break;
-                        }
-                        if Self::looks_like_table_caption(t) {
-                            break;
-                        }
-
-                        let s = Self::table_like_score(t);
-                        if !backward_lines.is_empty() {
-                            if s == 0 {
-                                non_table_streak += 1;
-                                if non_table_streak >= 3 {
-                                    break;
-                                }
-                            } else {
-                                non_table_streak = 0;
-                            }
-                        }
-
-                        backward_score += s;
-                        backward_lines.push((j, t.to_string()));
-
-                        if j == 0 {
-                            break;
-                        }
-                        j -= 1;
-                    }
-                    backward_lines.reverse();
-
-                    // Pick the best candidate direction.
-                    // Some PDFs collapse an entire table into a single extracted line/block.
-                    // Accept that case if the line is strongly table-like.
-                    const MIN_SINGLE_LINE_SCORE: i32 = 3;
-                    let forward_candidate = forward_lines.len() >= 2
-                        || (forward_lines.len() == 1 && forward_score >= MIN_SINGLE_LINE_SCORE);
-                    let backward_candidate = backward_lines.len() >= 2
-                        || (backward_lines.len() == 1 && backward_score >= MIN_SINGLE_LINE_SCORE);
-
-                    let use_forward = forward_candidate
-                        && (!backward_candidate || forward_score >= backward_score);
-                    let use_backward = !use_forward && backward_candidate;
-
-                    if !use_forward && !use_backward {
-                        // Not enough evidence; keep as-is.
-                        new_blocks.push(block.clone());
-                        i += 1;
-                        continue;
-                    }
-
-                    let lines: Vec<(usize, String)> = if use_forward {
-                        forward_lines
-                    } else {
-                        backward_lines
-                    };
-
-                    // If we only captured a single line, emit a conservative 1-column table.
-                    // This guarantees a Markdown pipe table renders without guessing columns.
-                    if lines.len() == 1 {
-                        let mut table_bbox = block.bbox;
-                        table_bbox = table_bbox.union(&page.blocks[lines[0].0].bbox);
-
-                        let mut rows: Vec<Vec<String>> = Vec::new();
-                        rows.push(vec!["Value".to_string()]);
-                        rows.push(vec![lines[0].1.clone()]);
-
-                        let mut table_block = Block::new(BlockType::Table, table_bbox);
-                        table_block.page = page.number as usize - 1;
-                        table_block.children =
-                            Self::build_table_cells(table_bbox, table_block.page, &rows);
-                        table_block
-                            .metadata
-                            .insert("reconstructed".to_string(), serde_json::json!(true));
-
-                        new_blocks.push(block.clone());
-                        new_blocks.push(table_block);
-
-                        if use_forward {
-                            let consumed_until = lines[0].0 + 1;
-                            i = consumed_until;
                         } else {
-                            i += 1;
+                            non_table_streak = 0;
                         }
-                        continue;
                     }
+
+                    forward_score += s;
+                    forward_lines.push((j, t.to_string()));
+                }
+
+                // Scan backward for table-like lines (caption-after-table).
+                let mut backward_lines: Vec<(usize, String)> = Vec::new();
+                let mut backward_score = 0;
+                let mut non_table_streak = 0;
+                let back_start = i.saturating_sub(1);
+                let back_limit = i.saturating_sub(60);
+                let mut j = back_start;
+                while j >= back_limit {
+                    let b = &page.blocks[j];
+                    let t = b.text.trim();
+                    if t.is_empty() {
+                        break;
+                    }
+                    if Self::is_hard_break(b) {
+                        break;
+                    }
+                    if Self::looks_like_table_caption(t) {
+                        break;
+                    }
+
+                    let s = Self::table_like_score(t);
+                    if !backward_lines.is_empty() {
+                        if s == 0 {
+                            non_table_streak += 1;
+                            if non_table_streak >= 3 {
+                                break;
+                            }
+                        } else {
+                            non_table_streak = 0;
+                        }
+                    }
+
+                    backward_score += s;
+                    backward_lines.push((j, t.to_string()));
+
+                    if j == 0 {
+                        break;
+                    }
+                    j -= 1;
+                }
+                backward_lines.reverse();
+
+                // Pick the best candidate direction.
+                // Some PDFs collapse an entire table into a single extracted line/block.
+                // Accept that case if the line is strongly table-like.
+                const MIN_SINGLE_LINE_SCORE: i32 = 3;
+                let forward_candidate = forward_lines.len() >= 2
+                    || (forward_lines.len() == 1 && forward_score >= MIN_SINGLE_LINE_SCORE);
+                let backward_candidate = backward_lines.len() >= 2
+                    || (backward_lines.len() == 1 && backward_score >= MIN_SINGLE_LINE_SCORE);
+
+                let use_forward =
+                    forward_candidate && (!backward_candidate || forward_score >= backward_score);
+                let use_backward = !use_forward && backward_candidate;
+
+                if !use_forward && !use_backward {
+                    // Not enough evidence; keep as-is.
+                    new_blocks.push(block.clone());
+                    i += 1;
+                    continue;
+                }
+
+                let lines: Vec<(usize, String)> = if use_forward {
+                    forward_lines
+                } else {
+                    backward_lines
+                };
+
+                // If we only captured a single line, emit a conservative 1-column table.
+                // This guarantees a Markdown pipe table renders without guessing columns.
+                if lines.len() == 1 {
+                    let mut table_bbox = block.bbox;
+                    table_bbox = table_bbox.union(&page.blocks[lines[0].0].bbox);
+
+                    let mut rows: Vec<Vec<String>> = Vec::new();
+                    rows.push(vec!["Value".to_string()]);
+                    rows.push(vec![lines[0].1.clone()]);
+
+                    let mut table_block = Block::new(BlockType::Table, table_bbox);
+                    table_block.page = page.number as usize - 1;
+                    table_block.children =
+                        Self::build_table_cells(table_bbox, table_block.page, &rows);
+                    table_block
+                        .metadata
+                        .insert("reconstructed".to_string(), serde_json::json!(true));
+
+                    new_blocks.push(block.clone());
+                    new_blocks.push(table_block);
+
+                    if use_forward {
+                        let consumed_until = lines[0].0 + 1;
+                        i = consumed_until;
+                    } else {
+                        i += 1;
+                    }
+                    continue;
+                }
 
                 // Header detection: often split across 1-2 lines.
                 let mut header_cols: Vec<String> = Vec::new();
@@ -899,10 +926,7 @@ impl Processor for TextTableReconstructionProcessor {
                     header_cols.push("Rank".to_string());
                 } else {
                     // Fallback: split by runs of whitespace
-                    header_cols = first
-                        .split_whitespace()
-                        .map(|s| s.to_string())
-                        .collect();
+                    header_cols = first.split_whitespace().map(|s| s.to_string()).collect();
                     header_consumed = 1;
                 }
 
@@ -916,7 +940,8 @@ impl Processor for TextTableReconstructionProcessor {
                 rows.push(header_cols.clone());
 
                 // Specialized row parsing for common leaderboard tables.
-                if header_cols.len() == 4 && header_cols.get(1).map(|s| s == "Task").unwrap_or(false)
+                if header_cols.len() == 4
+                    && header_cols.get(1).map(|s| s == "Task").unwrap_or(false)
                 {
                     #[derive(Default)]
                     struct RowAcc {
@@ -926,7 +951,8 @@ impl Processor for TextTableReconstructionProcessor {
                         rank: String,
                     }
 
-                    let re_subtask = Regex::new(r"(?i)^(?:[A-D]\d+(?:\.\d+)?|C\d+|D\d+)\s*-").unwrap();
+                    let re_subtask =
+                        Regex::new(r"(?i)^(?:[A-D]\d+(?:\.\d+)?|C\d+|D\d+)\s*-").unwrap();
 
                     let mut pending: Option<RowAcc> = None;
                     let mut parsed: Vec<RowAcc> = Vec::new();
@@ -1077,10 +1103,7 @@ impl Processor for TextTableReconstructionProcessor {
 
                 if use_forward {
                     // Skip consumed blocks (caption-before-table).
-                    let consumed_until = lines
-                        .last()
-                        .map(|(idx, _)| *idx + 1)
-                        .unwrap_or(i + 1);
+                    let consumed_until = lines.last().map(|(idx, _)| *idx + 1).unwrap_or(i + 1);
                     i = consumed_until;
                 } else {
                     // Caption-after-table: do not skip forward blocks.
@@ -1111,7 +1134,7 @@ impl BlockMergeProcessor {
     /// Create a new block merge processor.
     pub fn new() -> Self {
         Self {
-            max_vertical_gap: 50.0,  // Increased to handle typical line spacing (12pt font = ~12pt gap)
+            max_vertical_gap: 50.0, // Increased to handle typical line spacing (12pt font = ~12pt gap)
             max_margin_diff: 20.0,
         }
     }
@@ -1134,13 +1157,21 @@ impl BlockMergeProcessor {
             b.block_type,
             BlockType::Text | BlockType::SectionHeader | BlockType::ListItem
         ) {
-            tracing::debug!("BlockMerge: NOT merging - wrong block type: {:?} + {:?}", a.block_type, b.block_type);
+            tracing::debug!(
+                "BlockMerge: NOT merging - wrong block type: {:?} + {:?}",
+                a.block_type,
+                b.block_type
+            );
             return false;
         }
 
         // If types are different, don't merge
         if a.block_type != b.block_type {
-            tracing::debug!("BlockMerge: NOT merging - different types: {:?} vs {:?}", a.block_type, b.block_type);
+            tracing::debug!(
+                "BlockMerge: NOT merging - different types: {:?} vs {:?}",
+                a.block_type,
+                b.block_type
+            );
             return false;
         }
 
@@ -1167,7 +1198,7 @@ impl BlockMergeProcessor {
                     let a_start: String = a.text.chars().take(20).collect();
                     let b_start: String = b.text.chars().take(20).collect();
                     tracing::debug!(
-                        "BlockMerge: NOT merging - font size diff: {:.1} vs {:.1}, text: '{}' + '{}'", 
+                        "BlockMerge: NOT merging - font size diff: {:.1} vs {:.1}, text: '{}' + '{}'",
                         size_a, size_b,
                         a_start,
                         b_start
@@ -1206,7 +1237,7 @@ impl BlockMergeProcessor {
         let vertical_gap = (a.bbox.y1 - b.bbox.y2).abs();
         // For headers, be more strict with vertical gap but allow for multi-line headers
         let max_gap = if a.block_type == BlockType::SectionHeader {
-            35.0  // Allow more gap for multi-line headers
+            35.0 // Allow more gap for multi-line headers
         } else {
             self.max_vertical_gap
         };
@@ -1222,7 +1253,7 @@ impl BlockMergeProcessor {
         } else {
             self.max_margin_diff
         };
-        
+
         // Additional check: don't merge if blocks are in completely different horizontal zones
         // This prevents merging left column text with right column text
         let horizontal_zone_threshold = 100.0; // If X positions differ by > 100pt, different columns
@@ -1239,7 +1270,7 @@ impl BlockMergeProcessor {
             );
             return false;
         }
-        
+
         margin_diff <= max_margin
     }
 
@@ -1257,13 +1288,17 @@ impl BlockMergeProcessor {
                 let should = self.should_merge(&cur, &block);
                 if should {
                     // Use chars() to safely get last/first N characters (handles multi-byte Unicode)
-                    let cur_end: String = cur.text.chars().rev().take(20).collect::<String>().chars().rev().collect();
+                    let cur_end: String = cur
+                        .text
+                        .chars()
+                        .rev()
+                        .take(20)
+                        .collect::<String>()
+                        .chars()
+                        .rev()
+                        .collect();
                     let block_start: String = block.text.chars().take(20).collect();
-                    tracing::debug!(
-                        "BlockMerge: MERGING '{}' + '{}'",
-                        cur_end,
-                        block_start
-                    );
+                    tracing::debug!("BlockMerge: MERGING '{}' + '{}'", cur_end, block_start);
                     cur.merge(&block);
                     // Clear spans after merge since they may contain stale hyphenated text.
                     // The MarkdownRenderer will use block.text instead which has correct joined text.
@@ -1348,11 +1383,12 @@ impl SectionPatternProcessor {
         Self {
             // Match patterns like "1.", "3.2.", "A.1.", followed by space and title
             section_regex: Regex::new(
-                r"^([0-9A-Z]+\.(?:[0-9]+\.)*)\s+([A-Z][A-Za-z0-9\s,:\-\(\)]+)$"
-            ).expect("Section regex should be valid"),
+                r"^([0-9A-Z]+\.(?:[0-9]+\.)*)\s+([A-Z][A-Za-z0-9\s,:\-\(\)]+)$",
+            )
+            .expect("Section regex should be valid"),
             special_sections: vec![
                 "Abstract",
-                "Introduction", 
+                "Introduction",
                 "Related Work",
                 "Background",
                 "Methodology",
@@ -1386,17 +1422,17 @@ impl SectionPatternProcessor {
     /// Check if text is a special section name.
     fn is_special_section(&self, text: &str) -> bool {
         let trimmed = text.trim();
-        self.special_sections.iter().any(|s| {
-            trimmed.eq_ignore_ascii_case(s)
-        })
+        self.special_sections
+            .iter()
+            .any(|s| trimmed.eq_ignore_ascii_case(s))
     }
 
     /// Detect running headers (text repeated across multiple pages).
     fn find_running_headers(&self, document: &Document) -> std::collections::HashSet<String> {
         use std::collections::HashMap;
-        
+
         let mut text_pages: HashMap<String, usize> = HashMap::new();
-        
+
         // Count on how many pages each short text appears
         for page in &document.pages {
             let mut seen_on_page = std::collections::HashSet::new();
@@ -1412,7 +1448,7 @@ impl SectionPatternProcessor {
                 }
             }
         }
-        
+
         // Text appearing on 3+ pages is likely a running header
         let threshold = (document.pages.len() / 2).max(3);
         text_pages
@@ -1433,7 +1469,7 @@ impl Processor for SectionPatternProcessor {
     fn process(&self, mut document: Document) -> Result<Document> {
         // First pass: identify running headers
         let running_headers = self.find_running_headers(&document);
-        
+
         // Second pass: process blocks
         for page in &mut document.pages {
             for block in &mut page.blocks {
@@ -1441,30 +1477,31 @@ impl Processor for SectionPatternProcessor {
                 if block.block_type != BlockType::Text && block.block_type != BlockType::Paragraph {
                     continue;
                 }
-                
+
                 let text = block.text.trim();
-                
+
                 // Check for running headers
                 if running_headers.contains(&text.to_lowercase()) {
                     block.block_type = BlockType::PageHeader;
                     tracing::debug!("Marked running header: '{}'", text);
                     continue;
                 }
-                
+
                 // Check for numbered section headers
                 if let Some(captures) = self.section_regex.captures(text) {
                     if let (Some(num), Some(title)) = (captures.get(1), captures.get(2)) {
                         let section_num = num.as_str();
                         let title_text = title.as_str();
-                        
+
                         // Validate: title should be reasonable length
                         if title_text.len() < 80 && !title_text.ends_with('.') {
                             let level = self.calculate_level(section_num);
                             block.block_type = BlockType::SectionHeader;
                             block.level = Some(level);
                             tracing::debug!(
-                                "Detected section header: '{}' -> level {}", 
-                                text, level
+                                "Detected section header: '{}' -> level {}",
+                                text,
+                                level
                             );
                         }
                     }
@@ -1477,7 +1514,7 @@ impl Processor for SectionPatternProcessor {
                 }
             }
         }
-        
+
         Ok(document)
     }
 
@@ -1727,7 +1764,7 @@ impl PostProcessor {
             block.text = self.fix_ocr_text(&block.text);
             block.text = self.fix_concatenated_words(&block.text);
             block.text = self.cleanup_citations(&block.text);
-            
+
             // Also process spans since MarkdownRenderer uses spans if present
             for span in &mut block.spans {
                 span.text = self.normalize_span_text(&span.text);
@@ -2084,12 +2121,12 @@ impl HyphenContinuationProcessor {
 
         None
     }
-    
+
     /// Check if text ends with an EXPLICIT hyphen (strict check for cross-column joining)
     fn ends_with_explicit_hyphen(&self, text: &str) -> bool {
         text.trim_end().ends_with('-')
     }
-    
+
     /// Get the word fragment before the hyphen for cross-column validation
     fn get_hyphen_fragment(&self, text: &str) -> Option<String> {
         let trimmed = text.trim_end();
@@ -2101,7 +2138,7 @@ impl HyphenContinuationProcessor {
         }
         None
     }
-    
+
     /// Validate that a continuation completes the hyphenated word sensibly.
     /// The first word of continuation should be a reasonable suffix for the fragment.
     fn is_valid_continuation(&self, fragment: &str, continuation_text: &str) -> bool {
@@ -2109,57 +2146,56 @@ impl HyphenContinuationProcessor {
         if cont_trimmed.is_empty() {
             return false;
         }
-        
+
         // Get first word of continuation
         let first_word = cont_trimmed.split_whitespace().next().unwrap_or("");
         if first_word.is_empty() || !first_word.chars().next().unwrap().is_lowercase() {
             return false;
         }
-        
+
         // The first word should be a reasonable word suffix (all alphabetic)
         if !first_word.chars().all(|c| c.is_alphabetic()) {
             return false;
         }
-        
+
         // STRICT CHECK: The continuation should be a word SUFFIX, not a standalone word.
         // Word suffixes typically:
         // 1. Are short (1-6 chars for typical suffixes like "tion", "ing", "ment", "ries", etc.)
         // 2. Don't form common standalone words themselves (like "which", "this", "that", etc.)
-        
+
         let first_word_lower = first_word.to_lowercase();
-        
+
         // Reject common English words that would never be hyphen continuations
         let common_words = [
-            "which", "this", "that", "with", "from", "have", "been", "were", "their",
-            "they", "there", "them", "these", "those", "then", "than", "when", "where",
-            "what", "who", "how", "why", "can", "will", "may", "must", "should", "would",
-            "could", "into", "such", "some", "only", "very", "also", "more", "most",
-            "like", "just", "over", "other", "each", "both", "many", "well", "even",
-            "while", "without", "within", "through", "during", "before", "after",
-            "between", "under", "about", "above", "across", "along", "among", "around",
-            "far", "the", "and", "for", "are", "but", "not", "you", "all", "out", "way",
-            "its", "her", "his", "our", "any", "being", "doing", "going", "making",
+            "which", "this", "that", "with", "from", "have", "been", "were", "their", "they",
+            "there", "them", "these", "those", "then", "than", "when", "where", "what", "who",
+            "how", "why", "can", "will", "may", "must", "should", "would", "could", "into", "such",
+            "some", "only", "very", "also", "more", "most", "like", "just", "over", "other",
+            "each", "both", "many", "well", "even", "while", "without", "within", "through",
+            "during", "before", "after", "between", "under", "about", "above", "across", "along",
+            "among", "around", "far", "the", "and", "for", "are", "but", "not", "you", "all",
+            "out", "way", "its", "her", "his", "our", "any", "being", "doing", "going", "making",
             "using", "having", "getting", "saying", "seeing", "knowing", "coming",
         ];
-        
+
         if common_words.contains(&first_word_lower.as_str()) {
             return false;
         }
-        
+
         // Word suffixes are typically short - reject if too long to be a suffix
         // Common suffixes: -tion, -ment, -ness, -able, -ible, -ing, -ed, -ly, -ry, -ries
         // Allow up to 8 chars for compound suffixes like "itory" (reposit-itory)
         if first_word.len() > 8 {
             return false;
         }
-        
+
         // The combined word should form something reasonable
         // Heuristic: fragment + first_word should be 5-20 chars (typical word length)
         let combined_len = fragment.len() + first_word.len();
         if combined_len < 4 || combined_len > 25 {
             return false;
         }
-        
+
         true
     }
 
@@ -2233,7 +2269,7 @@ impl Processor for HyphenContinuationProcessor {
             while i < page.blocks.len() {
                 // First check for immediate adjacent join (standard case)
                 let mut join_with: Option<usize> = None;
-                
+
                 if i + 1 < page.blocks.len() {
                     let current = &page.blocks[i];
                     let next = &page.blocks[i + 1];
@@ -2245,14 +2281,22 @@ impl Processor for HyphenContinuationProcessor {
                         // have decreasing Y values. The gap is current.y2 - next.y1 (top of next vs bottom of current)
                         // Or we can check absolute difference to handle both orderings
                         let vertical_gap = (next.bbox.y1 - current.bbox.y2).abs();
-                        
+
                         // Check for hyphenation
                         let ends_hyph = self.ends_with_hyphen(&current.text);
                         let starts_cont = self.starts_with_continuation(&next.text);
-                        
+
                         if ends_hyph.is_some() {
                             // Safe string slicing for debug output
-                            let current_end: String = current.text.chars().rev().take(15).collect::<String>().chars().rev().collect();
+                            let current_end: String = current
+                                .text
+                                .chars()
+                                .rev()
+                                .take(15)
+                                .collect::<String>()
+                                .chars()
+                                .rev()
+                                .collect();
                             let next_start: String = next.text.chars().take(15).collect();
                             tracing::debug!(
                                 "Hyphen check: '{}...' ends_hyph={:?}, starts_cont={}, vertical_gap={:.1}, next='{}...'",
@@ -2263,7 +2307,7 @@ impl Processor for HyphenContinuationProcessor {
                                 next_start
                             );
                         }
-                        
+
                         // Allow larger gap for line spacing (up to ~50pt for double-spaced or with margins)
                         if vertical_gap <= 50.0 {
                             if ends_hyph.is_some() && starts_cont {
@@ -2273,13 +2317,15 @@ impl Processor for HyphenContinuationProcessor {
                         }
                     }
                 }
-                
+
                 // If no immediate join, but current ends with EXPLICIT hyphen, search ahead
                 // This handles two-column layouts where hyphenation spans columns
                 // Only trigger for explicit "-" ending, not implicit short-word patterns
                 if join_with.is_none() && i + 1 < page.blocks.len() {
                     let current = &page.blocks[i];
-                    if current.block_type == BlockType::Text && self.ends_with_explicit_hyphen(&current.text) {
+                    if current.block_type == BlockType::Text
+                        && self.ends_with_explicit_hyphen(&current.text)
+                    {
                         // Get the word fragment before the hyphen for validation
                         if let Some(fragment) = self.get_hyphen_fragment(&current.text) {
                             // Search up to 5 blocks ahead for continuation
@@ -2292,8 +2338,17 @@ impl Processor for HyphenContinuationProcessor {
                                 // Check if this is a valid continuation that completes the word
                                 if self.is_valid_continuation(&fragment, &candidate.text) {
                                     // Use chars() for safe substring (handles multi-byte Unicode)
-                                    let cur_end: String = current.text.chars().rev().take(20).collect::<String>().chars().rev().collect();
-                                    let cand_start: String = candidate.text.chars().take(20).collect();
+                                    let cur_end: String = current
+                                        .text
+                                        .chars()
+                                        .rev()
+                                        .take(20)
+                                        .collect::<String>()
+                                        .chars()
+                                        .rev()
+                                        .collect();
+                                    let cand_start: String =
+                                        candidate.text.chars().take(20).collect();
                                     tracing::debug!(
                                         "Cross-column hyphen join: '{}' + '{}' (fragment: {})",
                                         cur_end,
@@ -2317,7 +2372,8 @@ impl Processor for HyphenContinuationProcessor {
                     let joined_preview: String = joined_text.chars().take(80).collect();
                     tracing::debug!(
                         "Joining blocks [{}+{}]: len {}→{}, text: '{}'",
-                        i, j,
+                        i,
+                        j,
                         current.text.len() + target.text.len(),
                         joined_text.len(),
                         joined_preview
@@ -2404,8 +2460,9 @@ impl StyleDetectionProcessor {
             span.style.weight = Some(if is_bold { 700 } else { 400 });
 
             // Italic: Name contains "italic" or "oblique"
-            let is_italic =
-                span.style.italic || family_lower.contains("italic") || family_lower.contains("oblique");
+            let is_italic = span.style.italic
+                || family_lower.contains("italic")
+                || family_lower.contains("oblique");
             span.style.italic = is_italic;
         }
     }
@@ -2436,7 +2493,9 @@ impl StyleDetectionProcessor {
         let ratio = size / self.body_size;
         let text = block.text.trim();
         let is_short = text.len() < 80;
-        let is_all_caps = !text.is_empty() && text == text.to_uppercase() && text.chars().any(|c| c.is_alphabetic());
+        let is_all_caps = !text.is_empty()
+            && text == text.to_uppercase()
+            && text.chars().any(|c| c.is_alphabetic());
 
         // H1: Large title (ratio > 1.5) and short
         if ratio > 1.5 && is_short {
@@ -2448,7 +2507,12 @@ impl StyleDetectionProcessor {
         else if (ratio > 1.2 || (is_bold && ratio >= 1.0)) && is_short {
             block.block_type = BlockType::SectionHeader;
             block.level = Some(2);
-            tracing::debug!("H2 detected: ratio={:.2}, bold={}, text='{}'", ratio, is_bold, text);
+            tracing::debug!(
+                "H2 detected: ratio={:.2}, bold={}, text='{}'",
+                ratio,
+                is_bold,
+                text
+            );
         }
         // H3: Bold and all-caps sub-section
         else if is_bold && is_all_caps && is_short {
@@ -2672,7 +2736,9 @@ mod tests {
 
         // Ensure we did not keep the raw header line(s) as separate blocks.
         assert!(
-            !blocks.iter().any(|b| b.text.trim() == "Sub-task F1-score Rank"),
+            !blocks
+                .iter()
+                .any(|b| b.text.trim() == "Sub-task F1-score Rank"),
             "expected source table lines to be consumed when caption precedes table"
         );
     }

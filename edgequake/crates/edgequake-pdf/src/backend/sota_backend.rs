@@ -19,7 +19,7 @@ use crate::error::PdfError;
 use crate::extractor::PdfInfo;
 use crate::schema::{
     Block, BlockId, BlockType, BoundingBox, Document, ExtractionMethod, FontStyle, Page, PageStats,
-    TextSpan, Point,
+    Point, TextSpan,
 };
 use crate::{DocumentMetadata, Result};
 
@@ -302,7 +302,7 @@ mod encodings {
         Some(0x00FF),
     ];
 
-    /// Standard Encoding - Adobe Standard Encoding  
+    /// Standard Encoding - Adobe Standard Encoding
     pub static STANDARD_ENCODING: CodedCharacterSet = [
         // 0x00-0x1F: Control characters
         None,
@@ -570,7 +570,7 @@ mod encodings {
         None,
     ];
 
-    /// Mac Roman encoding  
+    /// Mac Roman encoding
     pub static MAC_ROMAN_ENCODING: CodedCharacterSet = [
         // 0x00-0x1F: Control characters
         None,
@@ -841,15 +841,51 @@ mod encodings {
         Identity,
     }
 
+    /// Common ligature byte mappings for fonts without ToUnicode CMaps.
+    /// PDF fonts encode ligatures in different byte positions depending on the font:
+    /// - PostScript Type 1 fonts often use positions 0x02/0x03 for fi/fl
+    /// - Other fonts use control character region (0x1B-0x1F)
+    /// These mappings expand to the actual character sequences.
+    fn get_ligature_expansion(byte: u8) -> Option<&'static str> {
+        match byte {
+            // PostScript Type 1 fonts typically use these positions
+            0x02 => Some("fi"),  // Common in Type 1 fonts
+            0x03 => Some("fl"),  // Common in Type 1 fonts
+            0x04 => Some("ff"),  // Sometimes used in Type 1 fonts
+            0x05 => Some("ffi"), // Sometimes used in Type 1 fonts
+            0x06 => Some("ffl"), // Sometimes used in Type 1 fonts
+            // Windows/Adobe standard positions
+            0x1B => Some("ffl"), // U+FB04 expanded
+            0x1C => Some("ffi"), // U+FB03 expanded
+            0x1D => Some("ff"),  // U+FB00 expanded
+            0x1E => Some("fl"),  // U+FB02 expanded
+            0x1F => Some("fi"),  // U+FB01 expanded
+            _ => None,
+        }
+    }
+
     impl Encoding {
         /// Decode bytes to string using this encoding
         pub fn decode(&self, bytes: &[u8]) -> String {
             match self {
-                Encoding::OneByteEncoding(map) => bytes
-                    .iter()
-                    .filter_map(|&b| map[b as usize])
-                    .map(|cp| char::from_u32(cp as u32).unwrap_or('\u{FFFD}'))
-                    .collect(),
+                Encoding::OneByteEncoding(map) => {
+                    let mut result = String::new();
+                    for &b in bytes {
+                        if let Some(cp) = map[b as usize] {
+                            // Normal character from encoding table
+                            if let Some(c) = char::from_u32(cp as u32) {
+                                result.push(c);
+                            } else {
+                                result.push('\u{FFFD}');
+                            }
+                        } else if let Some(ligature) = get_ligature_expansion(b) {
+                            // Fallback: expand common ligature bytes to their character sequences
+                            result.push_str(ligature);
+                        }
+                        // If neither, silently skip (control character with no mapping)
+                    }
+                    result
+                }
                 Encoding::ToUnicodeMap(cmap) => cmap.decode(bytes),
                 Encoding::Identity => {
                     // Identity-H: treat as UTF-16BE
@@ -877,13 +913,19 @@ mod encodings {
     #[derive(Debug, Default)]
     pub struct ToUnicodeMap {
         /// Maps character codes to Unicode strings
-        mappings: HashMap<u32, Vec<u16>>,
+        pub mappings: HashMap<u32, Vec<u16>>,
         /// Code space ranges (min, max)
         #[allow(dead_code)]
         code_spaces: Vec<(u32, u32)>,
     }
 
     impl ToUnicodeMap {
+        /// Check if map has multi-char mapping (ligature)
+        #[allow(dead_code)]
+        pub fn has_ligature(&self) -> bool {
+            self.mappings.values().any(|v| v.len() > 1)
+        }
+
         /// Parse a ToUnicode CMap stream
         pub fn parse(data: &[u8]) -> Self {
             let mut map = ToUnicodeMap::default();
@@ -892,6 +934,8 @@ mod encodings {
             // Parse beginbfchar...endbfchar sections
             let mut in_bfchar = false;
             let lines: Vec<&str> = text.lines().collect();
+            let mut _char_count = 0;
+            let mut _fi_found = false;
 
             for line in &lines {
                 let line = line.trim();
@@ -911,7 +955,14 @@ mod encodings {
                             Self::parse_hex_code(parts[0]),
                             Self::parse_hex_string(parts[1]),
                         ) {
+                            // Check for "fi" mapping (either as ligature FB01 or as 0066+0069)
+                            let is_fi = dst.len() == 2 && dst[0] == 0x0066 && dst[1] == 0x0069;
+                            let is_ligature = dst.iter().any(|&c| c == 0xFB01 || c == 0xFB02);
+                            if is_fi || is_ligature {
+                                _fi_found = true;
+                            }
                             map.mappings.insert(src, dst);
+                            _char_count += 1;
                         }
                     }
                 }
@@ -1017,15 +1068,30 @@ mod encodings {
                 if !found {
                     let code1 = bytes[i] as u32;
                     if let Some(chars) = self.mappings.get(&code1) {
+                        // Check for corrupted ligature mappings (e.g., 0x02 -> 'f' instead of 'fi')
+                        // Some PDFs have ToUnicode CMaps that incorrectly map ligature codes
+                        if chars.len() == 1 && chars[0] == 0x0066 {
+                            // Single 'f' - check if this is a ligature byte position
+                            if let Some(ligature) = get_ligature_expansion(bytes[i]) {
+                                // Override with proper ligature expansion
+                                result.push_str(ligature);
+                                i += 1;
+                                continue;
+                            }
+                        }
                         for &cp in chars {
                             if let Some(c) = char::from_u32(cp as u32) {
                                 result.push(c);
                             }
                         }
-                    } else {
-                        // Fallback: treat as Latin-1
+                    } else if let Some(ligature) = get_ligature_expansion(bytes[i]) {
+                        // Fallback: expand common ligature bytes
+                        result.push_str(ligature);
+                    } else if bytes[i] >= 0x20 {
+                        // Fallback: treat printable chars as Latin-1
                         result.push(bytes[i] as char);
                     }
+                    // Skip non-printable chars without ligature mapping
                     i += 1;
                 }
             }
@@ -1087,7 +1153,8 @@ impl FontInfo {
         if let Ok(to_unicode) = font_dict.get(b"ToUnicode") {
             if let Some(stream) = Self::resolve_stream(doc, to_unicode) {
                 if let Ok(data) = stream.decompressed_content() {
-                    return Encoding::ToUnicodeMap(encodings::ToUnicodeMap::parse(&data));
+                    let cmap = encodings::ToUnicodeMap::parse(&data);
+                    return Encoding::ToUnicodeMap(cmap);
                 }
             }
         }
@@ -1147,7 +1214,7 @@ impl FontInfo {
     }
 }
 
-use super::elements::{TextElement, PdfLine};
+use super::elements::{PdfLine, TextElement};
 use super::lattice::LatticeEngine;
 
 /// SOTA PDF backend with proper encoding support
@@ -1162,7 +1229,7 @@ impl SotaBackend {
     }
 
     pub fn with_config(config: PdfConfig) -> Self {
-        Self { 
+        Self {
             config,
             lattice_engine: LatticeEngine::new(),
         }
@@ -1267,15 +1334,15 @@ impl SotaBackend {
 
         let mut text_elements = Vec::new();
         let mut line_elements = Vec::new();
-        
+
         let mut current_font: Option<&FontInfo> = None;
         let mut current_font_name = String::new();
         let mut font_size: f32 = 12.0;
-        
+
         // Text matrices
         let mut text_matrix = [1.0f32, 0.0, 0.0, 1.0, 0.0, 0.0];
         let mut line_matrix = [1.0f32, 0.0, 0.0, 1.0, 0.0, 0.0];
-        
+
         // Graphics state
         let mut ctm = [1.0f32, 0.0, 0.0, 1.0, 0.0, 0.0];
         let mut line_width = 1.0;
@@ -1304,13 +1371,19 @@ impl SotaBackend {
                         // [a b 0]   [a' b' 0]
                         // [c d 0] * [c' d' 0]
                         // [e f 1]   [e' f' 1]
-                        let a = ctm[0]; let b = ctm[1];
-                        let c = ctm[2]; let d = ctm[3];
-                        let e = ctm[4]; let f = ctm[5];
-                        
-                        let a_p = new_matrix[0]; let b_p = new_matrix[1];
-                        let c_p = new_matrix[2]; let d_p = new_matrix[3];
-                        let e_p = new_matrix[4]; let f_p = new_matrix[5];
+                        let a = ctm[0];
+                        let b = ctm[1];
+                        let c = ctm[2];
+                        let d = ctm[3];
+                        let e = ctm[4];
+                        let f = ctm[5];
+
+                        let a_p = new_matrix[0];
+                        let b_p = new_matrix[1];
+                        let c_p = new_matrix[2];
+                        let d_p = new_matrix[3];
+                        let e_p = new_matrix[4];
+                        let f_p = new_matrix[5];
 
                         ctm[0] = a * a_p + b * c_p;
                         ctm[1] = a * b_p + b * d_p;
@@ -1323,7 +1396,7 @@ impl SotaBackend {
                 "w" => {
                     if let Some(w) = Self::get_number(&op.operands[0]) {
                         // Scale line width by CTM expansion factor (approx)
-                        let scale = (ctm[0].abs() + ctm[3].abs()) / 2.0; 
+                        let scale = (ctm[0].abs() + ctm[3].abs()) / 2.0;
                         line_width = w * scale;
                     }
                 }
@@ -1346,7 +1419,7 @@ impl SotaBackend {
                         // Transform point
                         let tx = x * ctm[0] + y * ctm[2] + ctm[4];
                         let ty = x * ctm[1] + y * ctm[3] + ctm[5];
-                        
+
                         line_elements.push(PdfLine {
                             p1: current_point,
                             p2: (tx, ty),
@@ -1361,17 +1434,45 @@ impl SotaBackend {
                         let y = Self::get_number(&op.operands[1]).unwrap_or(0.0);
                         let w = Self::get_number(&op.operands[2]).unwrap_or(0.0);
                         let h = Self::get_number(&op.operands[3]).unwrap_or(0.0);
-                        
-                        // Transform all 4 corners
-                        let p1 = (x * ctm[0] + y * ctm[2] + ctm[4], x * ctm[1] + y * ctm[3] + ctm[5]);
-                        let p2 = ((x+w) * ctm[0] + y * ctm[2] + ctm[4], (x+w) * ctm[1] + y * ctm[3] + ctm[5]);
-                        let p3 = ((x+w) * ctm[0] + (y+h) * ctm[2] + ctm[4], (x+w) * ctm[1] + (y+h) * ctm[3] + ctm[5]);
-                        let p4 = (x * ctm[0] + (y+h) * ctm[2] + ctm[4], x * ctm[1] + (y+h) * ctm[3] + ctm[5]);
 
-                        line_elements.push(PdfLine { p1, p2, width: line_width });
-                        line_elements.push(PdfLine { p1: p2, p2: p3, width: line_width });
-                        line_elements.push(PdfLine { p1: p3, p2: p4, width: line_width });
-                        line_elements.push(PdfLine { p1: p4, p2: p1, width: line_width });
+                        // Transform all 4 corners
+                        let p1 = (
+                            x * ctm[0] + y * ctm[2] + ctm[4],
+                            x * ctm[1] + y * ctm[3] + ctm[5],
+                        );
+                        let p2 = (
+                            (x + w) * ctm[0] + y * ctm[2] + ctm[4],
+                            (x + w) * ctm[1] + y * ctm[3] + ctm[5],
+                        );
+                        let p3 = (
+                            (x + w) * ctm[0] + (y + h) * ctm[2] + ctm[4],
+                            (x + w) * ctm[1] + (y + h) * ctm[3] + ctm[5],
+                        );
+                        let p4 = (
+                            x * ctm[0] + (y + h) * ctm[2] + ctm[4],
+                            x * ctm[1] + (y + h) * ctm[3] + ctm[5],
+                        );
+
+                        line_elements.push(PdfLine {
+                            p1,
+                            p2,
+                            width: line_width,
+                        });
+                        line_elements.push(PdfLine {
+                            p1: p2,
+                            p2: p3,
+                            width: line_width,
+                        });
+                        line_elements.push(PdfLine {
+                            p1: p3,
+                            p2: p4,
+                            width: line_width,
+                        });
+                        line_elements.push(PdfLine {
+                            p1: p4,
+                            p2: p1,
+                            width: line_width,
+                        });
                     }
                 }
 
@@ -1689,42 +1790,53 @@ impl SotaBackend {
 
         // If global check failed, try checking only the bottom 75% of the page
         // This handles pages with full-width headers/abstracts but two-column body
-        let max_y = elements.iter().map(|e| e.y).fold(f32::NEG_INFINITY, f32::max);
+        let max_y = elements
+            .iter()
+            .map(|e| e.y)
+            .fold(f32::NEG_INFINITY, f32::max);
         let min_y = elements.iter().map(|e| e.y).fold(f32::INFINITY, f32::min);
         let page_height_content = max_y - min_y;
-        
+
         // Only try this if we have enough vertical content
         if page_height_content > 200.0 {
             let threshold_y = max_y - (page_height_content * 0.25);
-            let bottom_elements: Vec<TextElement> = elements.iter()
+            let bottom_elements: Vec<TextElement> = elements
+                .iter()
                 .filter(|e| e.y < threshold_y)
                 .cloned()
                 .collect();
-                
+
             if bottom_elements.len() > 20 {
-                let proj_bottom = self.compute_vertical_projection(&bottom_elements, page_width, bin_size);
+                let proj_bottom =
+                    self.compute_vertical_projection(&bottom_elements, page_width, bin_size);
                 let gaps_bottom = self.find_projection_gaps(&proj_bottom, bin_size, 4);
-                
+
                 let center_gap_bottom = gaps_bottom
                     .iter()
                     .find(|&&gap| (gap - center).abs() < center_range);
-                    
+
                 if let Some(&boundary) = center_gap_bottom {
                     // Verify with bottom element distribution
-                    let left_count = bottom_elements.iter().filter(|e| e.x < boundary - 10.0).count();
-                    let right_count = bottom_elements.iter().filter(|e| e.x > boundary + 10.0).count();
-                    
+                    let left_count = bottom_elements
+                        .iter()
+                        .filter(|e| e.x < boundary - 10.0)
+                        .count();
+                    let right_count = bottom_elements
+                        .iter()
+                        .filter(|e| e.x > boundary + 10.0)
+                        .count();
+
                     let balance = if left_count > right_count {
                         right_count as f32 / left_count as f32
                     } else {
                         left_count as f32 / right_count as f32
                     };
-                    
+
                     debug!(
                         "Bottom-only Projection gap at X={:.1}: left={}, right={}, balance={:.2}",
                         boundary, left_count, right_count, balance
                     );
-                    
+
                     if left_count >= 5 && right_count >= 5 && balance > 0.25 {
                         debug!(
                             "Detected TWO-COLUMN layout (bottom-only) with boundary at {:.1}",
@@ -1800,7 +1912,8 @@ impl SotaBackend {
         // First, detect if this is a two-column layout
         let column_boundary = self.detect_columns(&elements, page_width);
 
-        // Sort by Y (descending = top first)
+        // Sort by Y descending (higher Y = top of page in PDF coordinates)
+        // This puts content that appears at the top of the page first
         let mut elements = elements;
         elements.sort_by(|a, b| b.y.partial_cmp(&a.y).unwrap_or(std::cmp::Ordering::Equal));
 
@@ -1814,7 +1927,8 @@ impl SotaBackend {
         }
 
         // Single-column layout: group into Y-bands
-        (self.group_single_column_layout(elements), Vec::new())
+        let lines = self.group_single_column_layout(elements);
+        (lines, Vec::new())
     }
 
     /// Handle two-column layout: separate left and right columns, then process each
@@ -1840,7 +1954,7 @@ impl SotaBackend {
         let footer_threshold = 60.0; // Only page numbers (body text can go down to Y~85)
         let header_threshold = 730.0; // Filter running headers
         let title_threshold = 650.0; // Title zone: Y > 650 for page titles
-        
+
         // Threshold for affiliation/metadata region (above footer, below main body)
         // This captures institutional affiliations, email addresses, submission info
         let affiliation_threshold = 80.0; // Elements at Y < 80 but > footer are affiliations
@@ -1859,11 +1973,11 @@ impl SotaBackend {
 
             // Check if element is in header region (running header)
             let is_header = elem.y > header_threshold && elem.font_size < 10.0;
-            
+
             // Check if element is affiliation/metadata (between body and footer)
             // These include: university names, emails, conference submission lines
             let is_affiliation_zone = elem.y < affiliation_threshold && elem.y >= footer_threshold;
-            let looks_like_affiliation = elem.text.contains('@') 
+            let looks_like_affiliation = elem.text.contains('@')
                 || elem.text.contains("University")
                 || elem.text.contains("School of")
                 || elem.text.contains("Department")
@@ -1970,37 +2084,42 @@ impl SotaBackend {
         // This ensures titles/headers appear before column content
         let mut result = Vec::new();
         result.extend(spanning_lines);
-        
+
         // Before adding left/right columns, detect and move isolated bottom content to footer
         // This handles affiliations, figure captions that are below the main column content
         let (left_main, left_bottom) = self.split_by_vertical_gap(left_lines, 30.0);
         let (right_main, right_bottom) = self.split_by_vertical_gap(right_lines, 30.0);
-        
+
         result.extend(left_main);
         result.extend(right_main);
         result.extend(footer_lines); // Footer at the end
-        result.extend(left_bottom);  // Bottom content after footer
+        result.extend(left_bottom); // Bottom content after footer
         result.extend(right_bottom); // Bottom content after footer
 
         result
     }
-    
+
     /// Split lines into main content and bottom-isolated content.
     /// If there's a vertical gap > threshold between content regions, the lower content is separated.
-    fn split_by_vertical_gap(&self, lines: Vec<Vec<TextElement>>, gap_threshold: f32) -> (Vec<Vec<TextElement>>, Vec<Vec<TextElement>>) {
+    fn split_by_vertical_gap(
+        &self,
+        lines: Vec<Vec<TextElement>>,
+        gap_threshold: f32,
+    ) -> (Vec<Vec<TextElement>>, Vec<Vec<TextElement>>) {
         if lines.len() < 2 {
             return (lines, Vec::new());
         }
-        
+
         // Find lines' Y positions (use first element's Y as representative)
-        let y_positions: Vec<f32> = lines.iter()
+        let y_positions: Vec<f32> = lines
+            .iter()
             .map(|line| line.first().map(|e| e.y).unwrap_or(0.0))
             .collect();
-        
+
         // Find largest gap in Y (remember: sorted by Y descending, so gaps are when Y suddenly drops more)
         let mut max_gap = 0.0f32;
         let mut split_idx = lines.len();
-        
+
         for i in 1..y_positions.len() {
             let gap = y_positions[i - 1] - y_positions[i]; // Previous Y minus current Y (should be positive)
             if gap > max_gap && gap > gap_threshold {
@@ -2008,9 +2127,12 @@ impl SotaBackend {
                 split_idx = i;
             }
         }
-        
+
         if max_gap > gap_threshold {
-            debug!("Found vertical gap of {:.1}pt at line {}, splitting column content", max_gap, split_idx);
+            debug!(
+                "Found vertical gap of {:.1}pt at line {}, splitting column content",
+                max_gap, split_idx
+            );
             let (main, bottom) = lines.split_at(split_idx);
             (main.to_vec(), bottom.to_vec())
         } else {
@@ -2024,7 +2146,7 @@ impl SotaBackend {
             return Vec::new();
         }
 
-        // Sort by Y (descending = top first)
+        // Sort by Y descending (higher Y = top of page in PDF coordinates)
         elements.sort_by(|a, b| b.y.partial_cmp(&a.y).unwrap_or(std::cmp::Ordering::Equal));
 
         // Group into Y-bands
@@ -2095,7 +2217,7 @@ impl SotaBackend {
                     .text
                     .chars()
                     .next()
-                    .map(|c| matches!(c, ',' | '.' | ':' | ';' | ')' | ']' | '}' | '?' | '!' ))
+                    .map(|c| matches!(c, ',' | '.' | ':' | ';' | ')' | ']' | '}' | '?' | '!'))
                     .unwrap_or(false);
 
                 if gap > space_threshold && !starts_with_punct {
@@ -2312,18 +2434,23 @@ impl SotaBackend {
 
         // Extract text and graphical elements
         let (elements, pdf_lines) = self.extract_page_elements(&content_bytes, &fonts)?;
-        debug!("Page {} has {} text elements and {} graphical lines", page_num, elements.len(), pdf_lines.len());
+        debug!(
+            "Page {} has {} text elements and {} graphical lines",
+            page_num,
+            elements.len(),
+            pdf_lines.len()
+        );
 
         // Detect tables
         let tables: Vec<Block> = Vec::new(); // DISABLED FOR NOW
-        // let tables = self.lattice_engine.detect_tables(
-        //     page_num,
-        //     &lines,
-        //     &mut text_elements,
-        //     page_width,
-        //     page_height,
-        // );
-        
+                                             // let tables = self.lattice_engine.detect_tables(
+                                             //     page_num,
+                                             //     &lines,
+                                             //     &mut text_elements,
+                                             //     page_width,
+                                             //     page_height,
+                                             // );
+
         if !tables.is_empty() {
             warn!(
                 "Table detection filtered all text elements on page {}, skipping text processing for this page.",
@@ -2374,12 +2501,13 @@ impl SotaBackend {
 
         // Convert to blocks
         let mut blocks = self.lines_to_blocks(lines, page_width, page_height);
-        
+
         // Add tables
         blocks.extend(tables);
-        
-        // Sort blocks by Y (top to bottom) - PDF Y is up, so sort descending by max Y (top)
-        blocks.sort_by(|a, b| b.bbox.y2.partial_cmp(&a.bbox.y2).unwrap_or(std::cmp::Ordering::Equal));
+
+        // NOTE: Do NOT sort blocks here! The reading order has already been established by
+        // group_into_lines() -> group_two_column_layout() or group_single_column_layout().
+        // Sorting by Y would destroy the correct column-based reading order.
 
         let char_count: usize = blocks.iter().map(|b| b.text.len()).sum();
         let word_count: usize = blocks
@@ -2432,7 +2560,9 @@ impl PdfBackend for SotaBackend {
             .map_err(|e| PdfError::PdfParse(format!("Failed to load PDF: {}", e)))?;
 
         if lopdf_doc.is_encrypted() {
-            return Err(PdfError::PdfParse("PDF is encrypted and password-protected".to_string()));
+            return Err(PdfError::PdfParse(
+                "PDF is encrypted and password-protected".to_string(),
+            ));
         }
 
         let pages = lopdf_doc.get_pages();
@@ -2470,7 +2600,9 @@ impl PdfBackend for SotaBackend {
             .map_err(|e| PdfError::PdfParse(format!("Failed to load PDF: {}", e)))?;
 
         if lopdf_doc.is_encrypted() {
-            return Err(PdfError::PdfParse("PDF is encrypted and password-protected".to_string()));
+            return Err(PdfError::PdfParse(
+                "PDF is encrypted and password-protected".to_string(),
+            ));
         }
 
         let pages = lopdf_doc.get_pages();

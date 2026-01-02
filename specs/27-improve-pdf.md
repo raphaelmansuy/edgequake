@@ -58,6 +58,7 @@ Use the PDF-Markdown Validator SKILL to measure quality across iterations. Prepa
 **Note:** Manual metric formulas in this document are for transparency. Use the PDF-Markdown Validator SKILL's `validate.py` script to compute these metrics automatically; the SKILL is the source of truth for iterative measurement.
 
 **Performance note:** The performance metric calculation is defined here for reference. The SKILL currently uses a placeholder for performance profiling; see the SKILL documentation for integration and P95/P50 collection details.
+
 - Validation scripts: `.github/skills/pdf-markdown-validator/scripts/` (validate.py, analyze_failures.py, diff_analysis.py, batch_drift.py)
 - Append-only log: `crates/edgequake-pdf/sessions/improve_pdf/scratchpad_append_log.md`
 - Per-iteration artifacts: `OBSERVE.md`, `ORIENT.md`, `DECIDE.md`, `PATCH.diff`, `*.mdf.gen` in `crates/edgequake-pdf/sessions/improve_pdf/001-iteration/` etc.

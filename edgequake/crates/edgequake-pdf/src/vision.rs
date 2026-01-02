@@ -210,17 +210,18 @@ impl VisionExtractor {
 
     /// Extract markdown from a page image.
     async fn extract_markdown(&self, image: &PageImage) -> Result<String> {
-        let prompt = self.config.prompt.as_deref().unwrap_or(DEFAULT_VISION_PROMPT);
+        let prompt = self
+            .config
+            .prompt
+            .as_deref()
+            .unwrap_or(DEFAULT_VISION_PROMPT);
 
         // Build the message with the image
         let image_url = image.to_data_url();
 
         let messages = vec![
             ChatMessage::system(VISION_SYSTEM_PROMPT.to_string()),
-            ChatMessage::user(format!(
-                "[Image: {}]\n\n{}",
-                image_url, prompt
-            )),
+            ChatMessage::user(format!("[Image: {}]\n\n{}", image_url, prompt)),
         ];
 
         let options = CompletionOptions {
@@ -231,7 +232,10 @@ impl VisionExtractor {
 
         match self.provider.chat(&messages, Some(&options)).await {
             Ok(response) => Ok(response.content.trim().to_string()),
-            Err(e) => Err(PdfError::AiProcessing(format!("Vision extraction failed: {}", e))),
+            Err(e) => Err(PdfError::AiProcessing(format!(
+                "Vision extraction failed: {}",
+                e
+            ))),
         }
     }
 
@@ -294,7 +298,11 @@ impl VisionExtractor {
         if line.starts_with("- ") || line.starts_with("* ") || line.starts_with("+ ") {
             return (BlockType::ListItem, None, line.to_string());
         }
-        if line.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false)
+        if line
+            .chars()
+            .next()
+            .map(|c| c.is_ascii_digit())
+            .unwrap_or(false)
             && (line.contains(". ") || line.contains(") "))
         {
             return (BlockType::ListItem, None, line.to_string());

@@ -77,8 +77,12 @@ impl ColumnDetector {
 
     /// Detect columns from a list of bounding boxes.
     pub fn detect(&self, items: &[BoundingBox], page_width: f32) -> Vec<BoundingBox> {
-        debug!("ColumnDetector::detect: {} items, page_width={}", items.len(), page_width);
-        
+        debug!(
+            "ColumnDetector::detect: {} items, page_width={}",
+            items.len(),
+            page_width
+        );
+
         if items.is_empty() {
             debug!("ColumnDetector::detect: no items, returning empty");
             return Vec::new();
@@ -105,19 +109,27 @@ impl ColumnDetector {
 
         // Build horizontal projection histogram
         let histogram = self.build_projection_histogram(items_to_use, page_width);
-        
+
         // Log histogram summary
-        let non_zero_bins: Vec<(usize, u32)> = histogram.iter()
+        let non_zero_bins: Vec<(usize, u32)> = histogram
+            .iter()
             .enumerate()
             .filter(|(_, &c)| c > 0)
             .map(|(i, &c)| (i, c))
             .collect();
-        debug!("ColumnDetector::detect: histogram has {} non-zero bins out of {}", 
-            non_zero_bins.len(), histogram.len());
+        debug!(
+            "ColumnDetector::detect: histogram has {} non-zero bins out of {}",
+            non_zero_bins.len(),
+            histogram.len()
+        );
 
         // Find valleys (gaps) in the histogram
         let gaps = self.find_gaps(&histogram, page_width);
-        debug!("ColumnDetector::detect: found {} gaps: {:?}", gaps.len(), gaps);
+        debug!(
+            "ColumnDetector::detect: found {} gaps: {:?}",
+            gaps.len(),
+            gaps
+        );
 
         // Convert gaps to columns
         let columns = self.gaps_to_columns(&gaps, items, page_width);
@@ -126,7 +138,7 @@ impl ColumnDetector {
             columns.len(),
             columns.iter().map(|c| (c.x1, c.x2)).collect::<Vec<_>>()
         );
-        
+
         columns
     }
 
@@ -159,7 +171,7 @@ impl ColumnDetector {
         // This helps detect gaps in multi-column layouts where bounding boxes may overlap slightly
         let max_count = *histogram.iter().max().unwrap_or(&0);
         let avg_count = histogram.iter().sum::<u32>() as f32 / histogram.len() as f32;
-        
+
         // Threshold for detecting column gutters:
         // For academic papers (2-column), the gutter typically has 10-30% of max density
         // Use 35% of max count to catch these gutters more aggressively
@@ -168,12 +180,12 @@ impl ColumnDetector {
         } else {
             (avg_count * 0.2).max(0.0) as u32
         };
-        
+
         debug!(
             "find_gaps: min_gap_bins={}, avg_count={:.2}, max_count={}, threshold={}",
             min_gap_bins, avg_count, max_count, threshold
         );
-        
+
         // Log histogram sections for debugging
         let bins_per_section = 20;
         for section in (0..histogram.len()).step_by(bins_per_section) {
@@ -197,24 +209,30 @@ impl ColumnDetector {
                 // Convert bin indices to coordinates
                 let x1 = start as f32 * self.bin_size;
                 let x2 = i as f32 * self.bin_size;
-                
+
                 if gap_length >= min_gap_bins {
                     // Don't include margins as gaps
                     if x1 > self.min_column_width * 0.5
                         && x2 < page_width - self.min_column_width * 0.5
                     {
-                        debug!("find_gaps: ACCEPTED gap at x1={:.1}, x2={:.1}, length={}", x1, x2, gap_length);
+                        debug!(
+                            "find_gaps: ACCEPTED gap at x1={:.1}, x2={:.1}, length={}",
+                            x1, x2, gap_length
+                        );
                         gaps.push((x1, x2));
                     } else {
                         debug!(
                             "find_gaps: REJECTED gap at x1={:.1}, x2={:.1} (margin check: x1>{:.1}={}, x2<{:.1}={})",
-                            x1, x2, 
+                            x1, x2,
                             self.min_column_width * 0.5, x1 > self.min_column_width * 0.5,
                             page_width - self.min_column_width * 0.5, x2 < page_width - self.min_column_width * 0.5
                         );
                     }
                 } else {
-                    debug!("find_gaps: REJECTED gap at x1={:.1}, x2={:.1} (too short: {} < {})", x1, x2, gap_length, min_gap_bins);
+                    debug!(
+                        "find_gaps: REJECTED gap at x1={:.1}, x2={:.1} (too short: {} < {})",
+                        x1, x2, gap_length, min_gap_bins
+                    );
                 }
                 gap_start = None;
             }
@@ -354,14 +372,14 @@ impl ColumnDetector {
 
         // Calculate average column width
         let avg_col_width = columns.iter().map(|c| c.width()).sum::<f32>() / columns.len() as f32;
-        
+
         // Calculate average item width
         let avg_item_width = if !items.is_empty() {
             items.iter().map(|b| b.width()).sum::<f32>() / items.len() as f32
         } else {
             0.0
         };
-        
+
         // Key metric: items fill percentage of column
         // Tables: items are typically 20-50% of column width (short words/numbers)
         // Text columns: items are typically 70-95% of column width (full lines)
@@ -394,7 +412,7 @@ impl ColumnDetector {
         // Table characteristics:
         let rows_with_3_plus_items = rows.iter().filter(|r| r.len() >= 3).count();
         let multi_item_rows = rows.iter().filter(|r| r.len() > 1).count();
-        
+
         // Short items relative to column width
         let short_threshold = avg_col_width * 0.5; // Items less than 50% of column width
         let short_items = items.iter().filter(|b| b.width() < short_threshold).count();
@@ -403,22 +421,23 @@ impl ColumnDetector {
         // Columns have similar widths
         let col_widths: Vec<f32> = columns.iter().map(|c| c.width()).collect();
         let width_avg = col_widths.iter().sum::<f32>() / col_widths.len() as f32;
-        let uniform_widths = col_widths.iter().all(|w| (*w - width_avg).abs() < width_avg * 0.5);
+        let uniform_widths = col_widths
+            .iter()
+            .all(|w| (*w - width_avg).abs() < width_avg * 0.5);
 
         // Decision logic:
         // - fill_ratio < 0.5 with many multi-item rows => table (items don't fill columns)
         // - fill_ratio > 0.6 => text columns (items fill most of column width)
         // - 4+ columns is strongly table-like unless fill_ratio is very high
-        let is_table = 
-            (fill_ratio < 0.45 && multi_item_rows >= 3) || // Items don't fill columns
+        let is_table = (fill_ratio < 0.45 && multi_item_rows >= 3) || // Items don't fill columns
             (columns.len() >= 4 && fill_ratio < 0.6) || // Many columns with sparse items
             (short_ratio > 0.75 && multi_item_rows >= 3 && uniform_widths); // Very short items in grid
-        
+
         debug!(
             "is_likely_table: {} cols, fill_ratio={:.2}, short_ratio={:.2}, rows_3+={}, multi_rows={} => {}",
             columns.len(), fill_ratio, short_ratio, rows_with_3_plus_items, multi_item_rows, is_table
         );
-        
+
         is_table
     }
 }

@@ -265,7 +265,7 @@ Output:"#,
         let messages = vec![
             ChatMessage::system(
                 "You are a document processing assistant. \
-                 Follow instructions precisely and output only what is asked for."
+                 Follow instructions precisely and output only what is asked for.",
             ),
             ChatMessage::user(prompt.to_string()),
         ];
@@ -357,7 +357,9 @@ mod tests {
         assert!(LlmEnhanceProcessor::text_needs_improvement("@#$%^&*()"));
 
         // Should need improvement (suspicious patterns)
-        assert!(LlmEnhanceProcessor::text_needs_improvement("The nurnber l1ke 0O"));
+        assert!(LlmEnhanceProcessor::text_needs_improvement(
+            "The nurnber l1ke 0O"
+        ));
     }
 
     #[tokio::test]

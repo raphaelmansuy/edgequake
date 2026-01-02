@@ -1,9 +1,9 @@
+use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use std::sync::Arc;
-use clap::{Parser, Subcommand};
 
 use edgequake_llm::providers::mock::MockProvider;
-use edgequake_pdf::{PdfExtractor, PdfConfig, ExtractionMode};
+use edgequake_pdf::{ExtractionMode, PdfConfig, PdfExtractor};
 
 #[derive(Parser)]
 #[command(name = "edgequake-pdf")]
@@ -80,7 +80,11 @@ async fn convert_pdf(
     // Create extractor
     let provider = Arc::new(MockProvider::new());
     let config = PdfConfig::new()
-        .with_mode(if vision { ExtractionMode::Vision } else { ExtractionMode::Text })
+        .with_mode(if vision {
+            ExtractionMode::Vision
+        } else {
+            ExtractionMode::Text
+        })
         .with_page_numbers(page_numbers);
 
     let config = if let Some(max_pages) = max_pages {
@@ -107,7 +111,11 @@ async fn convert_pdf(
     // Write output
     std::fs::write(&output_path, &markdown)?;
 
-    println!("✅ Converted {} to {}", input.display(), output_path.display());
+    println!(
+        "✅ Converted {} to {}",
+        input.display(),
+        output_path.display()
+    );
     println!("📄 {} characters extracted", markdown.len());
 
     Ok(())
