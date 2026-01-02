@@ -58,11 +58,11 @@ The `.gold.md` file is your reference for what the PDF should convert to. Use st
 ```markdown
 # Document Title
 
-**Bold text** and *italic text* demonstrate formatting.
+**Bold text** and _italic text_ demonstrate formatting.
 
 | Table Header 1 | Table Header 2 |
-|---|---|
-| Cell 1 | Cell 2 |
+| -------------- | -------------- |
+| Cell 1         | Cell 2         |
 
 See `examples/example.gold.md` for a complete template.
 ```
@@ -109,6 +109,7 @@ Combines two components:
 - **Cell Content Accuracy**: Are cell contents extracted correctly? (Token-level matching)
 
 **Interpretation:**
+
 - 90–100: Excellent table handling
 - 70–89: Good; minor issues
 - 50–69: Fair; significant cell content loss
@@ -119,10 +120,11 @@ Combines two components:
 Measures preservation of text formatting:
 
 - **Bold F1**: Detection of **bold** text
-- **Italic F1**: Detection of *italic* text
+- **Italic F1**: Detection of _italic_ text
 - **Heading F1**: Correct heading levels (H1≠H2)
 
 **Interpretation:**
+
 - 90–100: Formatting consistently preserved
 - 70–89: Good; minor style misses
 - 50–69: Fair; some styles lost
@@ -137,6 +139,7 @@ System stability and validity:
 - **Completeness**: Percentage producing non-empty output
 
 **Interpretation:**
+
 - 95–100: Production-ready
 - 85–94: Stable with minor issues
 - 70–84: Moderate stability
@@ -150,6 +153,7 @@ Processing speed relative to baseline:
 - **P95 latency**: 95th percentile (tail behavior)
 
 **Interpretation:**
+
 - 95–100: Meets/exceeds baseline
 - 80–94: Good; ≤20% slowdown
 - 60–79: Acceptable; 20–60% slowdown
@@ -269,6 +273,7 @@ cat drift_report.json | jq '.top_issues'
 ```
 
 The drift analysis shows:
+
 - **Line-by-line differences** with categorization (style, content, heading, table, list, code)
 - **Severity assessment** (🔴 critical, 🟠 major, 🟡 minor)
 - **Grouped statistics** across all files for trend analysis
@@ -287,11 +292,12 @@ Example `.gold.md` header with documentation:
 ```markdown
 ---
 source: Original publication
-difficulty: medium  # easy, medium, hard, edge-case
+difficulty: medium # easy, medium, hard, edge-case
 notes: Contains 3-column layout with merged cells in table
 ---
 
 # Document Title
+
 ...
 ```
 
@@ -300,11 +306,13 @@ notes: Contains 3-column layout with merged cells in table
 ### Error: "Markdown validation failed"
 
 **Check:**
+
 ```bash
 pandoc -f markdown -t html -o /dev/null generated.md 2>&1
 ```
 
 **Common issues:**
+
 - Unmatched backticks in code
 - Missing pipes in table
 - Improperly escaped special characters
@@ -312,6 +320,7 @@ pandoc -f markdown -t html -o /dev/null generated.md 2>&1
 ### Error: "Cell content accuracy very low"
 
 **Debug:** Visually compare gold vs. generated:
+
 ```bash
 diff -y test-data/doc.gold.md test-data/doc.md | less
 ```
@@ -319,6 +328,7 @@ diff -y test-data/doc.gold.md test-data/doc.md | less
 ### Issue: Performance regressed
 
 **Profile the code:**
+
 ```bash
 cd edgequake/crates/edgequake-pdf
 cargo flamegraph --example real_dataset_eval

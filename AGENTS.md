@@ -47,6 +47,7 @@ make stop
 ```
 
 **Alternative commands:**
+
 - `make backend-bg`: Start backend only in background with PostgreSQL
 - `make backend-memory`: Start backend with ephemeral in-memory storage (testing only)
 
@@ -150,14 +151,15 @@ This repository includes reusable SKILL definitions in `.github/skills/` for com
 
 ### Available Skills
 
-| Skill                             | Location                                                                                                       | Purpose                                                                                                                                                                                                  |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **makefile-dev-workflow**         | [.github/skills/makefile-dev-workflow/SKILL.md](.github/skills/makefile-dev-workflow/SKILL.md)                 | Unified development workflow using Makefile commands. Use for starting services, running E2E tests, and managing the full development stack (database, backend, frontend). **Start here for dev setup.** |
-| **playwright-ux-ui-capture**      | [.github/skills/playwright-ux-ui-capture/SKILL.md](.github/skills/playwright-ux-ui-capture/SKILL.md)           | Capture EdgeQuake WebUI routes with Playwright and write artifacts (screenshots + request JSON). Use when automating UI screenshot collection or updating E2E capture specs.                             |
+| Skill                             | Location                                                                                                       | Purpose                                                                                                                                                                                                               |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **makefile-dev-workflow**         | [.github/skills/makefile-dev-workflow/SKILL.md](.github/skills/makefile-dev-workflow/SKILL.md)                 | Unified development workflow using Makefile commands. Use for starting services, running E2E tests, and managing the full development stack (database, backend, frontend). **Start here for dev setup.**              |
+| **pdf-markdown-validator**        | [.github/skills/pdf-markdown-validator/SKILL.md](.github/skills/pdf-markdown-validator/SKILL.md)               | Validate PDF to Markdown conversion quality using multi-dimensional metrics (table accuracy, style preservation, robustness, performance). Use when measuring conversion fidelity and tracking improvements.          |
+| **playwright-ux-ui-capture**      | [.github/skills/playwright-ux-ui-capture/SKILL.md](.github/skills/playwright-ux-ui-capture/SKILL.md)           | Capture EdgeQuake WebUI routes with Playwright and write artifacts (screenshots + request JSON). Use when automating UI screenshot collection or updating E2E capture specs.                                          |
 | **reverse-documentation**         | [.github/skills/reverse-documentation/SKILL.md](.github/skills/reverse-documentation/SKILL.md)                 | Automatically generate comprehensive documentation for Rust and TypeScript codebases by analyzing code structure, patterns, and relationships. Supports trait-based patterns, async operations, and React components. |
-| **ux-ui-analyze-single-page**     | [.github/skills/ux-ui-analyze-single-page/SKILL.md](.github/skills/ux-ui-analyze-single-page/SKILL.md)         | Analyze individual pages with Playwright for UX/UI improvements. Use when evaluating specific routes or components.                                                                                      |
-| **ux-ui-map-page-by-page**        | [.github/skills/ux-ui-map-page-by-page/SKILL.md](.github/skills/ux-ui-map-page-by-page/SKILL.md)               | Map entire application UI across all pages with Playwright. Use when auditing complete application UX/UI.                                                                                                |
-| **copilotkit-nextjs-integration** | [.github/skills/copilotkit-nextjs-integration/SKILL.md](.github/skills/copilotkit-nextjs-integration/SKILL.md) | Integrate CopilotKit AI components into Next.js frontend. Use when adding AI-powered UI features.                                                                                                        |
+| **ux-ui-analyze-single-page**     | [.github/skills/ux-ui-analyze-single-page/SKILL.md](.github/skills/ux-ui-analyze-single-page/SKILL.md)         | Analyze individual pages with Playwright for UX/UI improvements. Use when evaluating specific routes or components.                                                                                                   |
+| **ux-ui-map-page-by-page**        | [.github/skills/ux-ui-map-page-by-page/SKILL.md](.github/skills/ux-ui-map-page-by-page/SKILL.md)               | Map entire application UI across all pages with Playwright. Use when auditing complete application UX/UI.                                                                                                             |
+| **copilotkit-nextjs-integration** | [.github/skills/copilotkit-nextjs-integration/SKILL.md](.github/skills/copilotkit-nextjs-integration/SKILL.md) | Integrate CopilotKit AI components into Next.js frontend. Use when adding AI-powered UI features.                                                                                                                     |
 
 ### Quick reference for common tasks
 
@@ -178,6 +180,17 @@ cd edgequake_webui && pnpm exec playwright test markdown-test.spec.ts
 ```
 
 See: [makefile-dev-workflow SKILL](.github/skills/makefile-dev-workflow/SKILL.md) → E2E Testing section
+
+**Validating PDF → Markdown conversions:**
+
+```bash
+python3 .github/skills/pdf-markdown-validator/scripts/validate.py \
+  --pdf-dir edgequake/crates/edgequake-pdf/test-data \
+  --gold-dir edgequake/crates/edgequake-pdf/test-data \
+  --verbose
+```
+
+See: [pdf-markdown-validator SKILL](.github/skills/pdf-markdown-validator/SKILL.md)
 
 **Capturing UI screenshots:**
 
