@@ -1,4 +1,6 @@
-You are tasked with improving the PDF to Markdown conversion quality of the Edgequake PDF processing library, specifically focusing on styles (bold, italic, headings) and tables. You will follow an OODA (Observe, Orient, Decide, Act) loop methodology to iteratively enhance the system in a measurable way.
+You are an autonomous engineer improving EdgeQuake's PDF→Markdown conversion, focusing on styles (bold, italic, heading levels) and tables (detection and cell extraction). Follow an OODA (Observe, Orient, Decide, Act) loop to iteratively improve quality and produce reproducible artifacts under the sessions/ directory. Use the PDF-Markdown Validator SKILL for measurement and regression checks.
+
+During your OODA loops maintain in session/ directory a an append only that express with precision the last state of your knowledge about the problem you are solving. Write in this file as you progress through your OODA loops. Write as often as possible to keep the log up to date.
 
 **See also:** [PDF → Markdown Validator SKILL](.github/skills/pdf-markdown-validator/SKILL.md) — This specification now uses the production-ready validator skill for measurement. Refer to the SKILL documentation for metric definitions, validation workflows, and troubleshooting.
 
@@ -60,12 +62,12 @@ Use the PDF-Markdown Validator SKILL to measure quality across iterations. Prepa
 **Performance note:** The performance metric calculation is defined here for reference. The SKILL currently uses a placeholder for performance profiling; see the SKILL documentation for integration and P95/P50 collection details.
 
 - Validation scripts: `.github/skills/pdf-markdown-validator/scripts/` (validate.py, analyze_failures.py, diff_analysis.py, batch_drift.py)
-- Append-only log: `crates/edgequake-pdf/sessions/improve_pdf/scratchpad_append_log.md`
-- Per-iteration artifacts: `OBSERVE.md`, `ORIENT.md`, `DECIDE.md`, `PATCH.diff`, `*.mdf.gen` in `crates/edgequake-pdf/sessions/improve_pdf/001-iteration/` etc.
+- Append-only log: `sessions/improve_pdf/scratchpad_append_log.md`
+- Per-iteration artifacts: `OBSERVE.md`, `ORIENT.md`, `DECIDE.md`, `PATCH.diff`, `*.mdf.gen` in `sessions/improve_pdf/001-iteration/` etc.
 
 ## Reproducibility & Environment
 
-- Document required tool versions in `crates/edgequake-pdf/sessions/improve_pdf/README.md` (recommended minimums: `rustup` stable toolchain, `cargo` from the same toolchain, `pandoc >= 2.14`).
+- Document required tool versions in `sessions/improve_pdf/README.md` (recommended minimums: `rustup` stable toolchain, `cargo` from the same toolchain, `pandoc >= 2.14`).
 - Make evaluator runs deterministic where possible: add a `--seed` flag to `real_dataset_eval.rs` and use it in CI runs when comparing metrics.
 - Pin runtime environment in session README and mention any environment variables needed (e.g., `RUSTFLAGS`, `CARGO_HOME`).
 - Provide a small wrapper script `scripts/run_eval.sh` that sets the recommended environment and runs the evaluator with reproducible flags.
@@ -101,7 +103,7 @@ Use the PDF-Markdown Validator SKILL to measure quality across iterations. Prepa
 - Run `cargo test` and the extended eval; record metrics and diffs scoped to the directory
 - Commit small, well-documented changes; include `PATCH.diff` and mention `Directory: <path>` in commit message
 
-Stop rule: stop after 20 OODA iterations or when the **average improvement over the last 3 iterations** is < 5 points (knee rule), or when there are 3 consecutive iterations with no statistically significant improvement. Document the rationale in `DECIDE.md` when stopping early.
+Stop rule: run a minimum of 30 OODA iterations. After the first 30 iterations, stop only when the **average improvement over the last 3 iterations** is < 5 points (knee rule), or when there are 3 consecutive iterations with no statistically significant improvement. Document the rationale in `DECIDE.md` when stopping early. Be Relentless never stop.
 
 ## Sequential-thinking tool usage (MANDATORY)
 
@@ -150,7 +152,7 @@ Patch: Span-level whitespace normalization + concatenated-word fixes (apply to `
 - Why: `MarkdownRenderer` uses spans preferentially; unnormalized spans produce camel joins and double spaces
 - Acceptance: Unit tests pass; validator SKILL confirms improvement in targeted style/cell metrics; `real_dataset_eval` shows decreased camel-join counter on `AlphaEvolve` and `one_tool_*.pdf`
 
-_Tip:_ add a short `README.md` under `crates/edgequake-pdf/sessions/improve_pdf/` describing the OODA loop process, required tools/versions, and how to reproduce an iteration.
+_Tip:_ add a short `README.md` under `sessions/improve_pdf/` describing the OODA loop process, required tools/versions, and how to reproduce an iteration.
 
 ## Safety, IP & Research policy
 
