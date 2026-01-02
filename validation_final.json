@@ -1,0 +1,68 @@
+{
+  "summary": {
+    "table_accuracy": 100.0,
+    "style_accuracy": 84.25925925925925,
+    "robustness": 100.0,
+    "performance": 90.0,
+    "composite": 92.7037037037037,
+    "document_count": 6,
+    "crash_count": 0,
+    "invalid_markdown_count": 0
+  },
+  "documents": [
+    {
+      "name": "001_simple_text",
+      "table_accuracy": 100.0,
+      "style_accuracy": 66.66666666666666,
+      "robustness": 100.0,
+      "performance_ms": null,
+      "composite": 85.66666666666667,
+      "errors": []
+    },
+    {
+      "name": "002_formatted_text_bold_italic",
+      "table_accuracy": 100.0,
+      "style_accuracy": 50.0,
+      "robustness": 100.0,
+      "performance_ms": null,
+      "composite": 79.0,
+      "errors": []
+    },
+    {
+      "name": "003_lists_bullets_numbered",
+      "table_accuracy": 100.0,
+      "style_accuracy": 100.0,
+      "robustness": 100.0,
+      "performance_ms": null,
+      "composite": 99.0,
+      "errors": []
+    },
+    {
+      "name": "004_simple_table_2x3",
+      "table_accuracy": 100.0,
+      "style_accuracy": 88.88888888888889,
+      "robustness": 100.0,
+      "performance_ms": null,
+      "composite": 94.55555555555554,
+      "errors": []
+    },
+    {
+      "name": "005_mixed_styles",
+      "table_accuracy": 100.0,
+      "style_accuracy": 100.0,
+      "robustness": 100.0,
+      "performance_ms": null,
+      "composite": 99.0,
+      "errors": []
+    },
+    {
+      "name": "006_multi_column_layout",
+      "table_accuracy": 100.0,
+      "style_accuracy": 100.0,
+      "robustness": 100.0,
+      "performance_ms": null,
+      "composite": 99.0,
+      "errors": []
+    }
+  ]
+}

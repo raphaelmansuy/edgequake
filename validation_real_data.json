@@ -1,0 +1,41 @@
+{
+  "summary": {
+    "table_accuracy": 100.0,
+    "style_accuracy": 100.0,
+    "robustness": 100.0,
+    "performance": 90.0,
+    "composite": 99.0,
+    "document_count": 3,
+    "crash_count": 0,
+    "invalid_markdown_count": 0
+  },
+  "documents": [
+    {
+      "name": "001_simple_text",
+      "table_accuracy": 100.0,
+      "style_accuracy": 100.0,
+      "robustness": 100.0,
+      "performance_ms": null,
+      "composite": 99.0,
+      "errors": []
+    },
+    {
+      "name": "002_formatted_text_bold_italic",
+      "table_accuracy": 100.0,
+      "style_accuracy": 100.0,
+      "robustness": 100.0,
+      "performance_ms": null,
+      "composite": 99.0,
+      "errors": []
+    },
+    {
+      "name": "004_simple_table_2x3",
+      "table_accuracy": 100.0,
+      "style_accuracy": 100.0,
+      "robustness": 100.0,
+      "performance_ms": null,
+      "composite": 99.0,
+      "errors": []
+    }
+  ]
+}

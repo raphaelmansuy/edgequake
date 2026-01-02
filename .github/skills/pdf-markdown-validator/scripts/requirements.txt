@@ -1,0 +1,16 @@
+# PDF → Markdown Validator - Python Requirements
+# Minimal dependencies; scripts work with standard library
+# These are optional for enhanced functionality
+
+# No required packages for core validation script
+# The validate.py, analyze_failures.py, and compare_runs.py scripts
+# use only Python standard library (json, argparse, pathlib, etc.)
+
+# Optional packages for enhanced analysis:
+# - pandas>=1.3.0  # For advanced data analysis and CSV export
+# - matplotlib>=3.4.0  # For visualization of metrics over time
+# - seaborn>=0.11.0  # For statistical plots
+# - plotly>=5.0.0  # For interactive dashboards
+
+# If you want to install all optional dependencies:
+# pip install pandas matplotlib seaborn plotly
