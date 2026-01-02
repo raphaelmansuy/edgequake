@@ -40,7 +40,7 @@ We compute a single score in [0,100] using explicit sub-metrics and formulas:
 
 - `cargo test -p edgequake-pdf` must pass (exit code 0)
 - No crashes (no panics or non-zero exit codes) when running the evaluator on `crates/edgequake-pdf/test-data/real_dataset/*`
-- All generated Markdown files must be syntactically valid: `pandoc -f markdown -t html -o /dev/null file.md` must exit with code 0 for every output file (recommend `pandoc >= 2.14`).
+- All generated Markdown files must be syntactically valid: `pandoc -f markdown -t html -o /dev/null file.md` must exit with code 0 for every output file (recommend `pandoc >= 2.14`). This check is performed automatically by the validator SKILL.
 
 ## Dataset & Execution
 
@@ -54,6 +54,10 @@ Use the PDF-Markdown Validator SKILL to measure quality across iterations. Prepa
 
 - Dataset: `crates/edgequake-pdf/test-data/real_dataset/` (with `.gold.md` ground-truth files)
 - Baseline harness: `examples/real_dataset_eval.rs` (extend to include table/style F1 and artifact counters)
+
+**Note:** Manual metric formulas in this document are for transparency. Use the PDF-Markdown Validator SKILL's `validate.py` script to compute these metrics automatically; the SKILL is the source of truth for iterative measurement.
+
+**Performance note:** The performance metric calculation is defined here for reference. The SKILL currently uses a placeholder for performance profiling; see the SKILL documentation for integration and P95/P50 collection details.
 - Validation scripts: `.github/skills/pdf-markdown-validator/scripts/` (validate.py, analyze_failures.py, diff_analysis.py, batch_drift.py)
 - Append-only log: `crates/edgequake-pdf/sessions/improve_pdf/scratchpad_append_log.md`
 - Per-iteration artifacts: `OBSERVE.md`, `ORIENT.md`, `DECIDE.md`, `PATCH.diff`, `*.mdf.gen` in `crates/edgequake-pdf/sessions/improve_pdf/001-iteration/` etc.
@@ -69,8 +73,7 @@ Use the PDF-Markdown Validator SKILL to measure quality across iterations. Prepa
 
 **Scope rule — one directory per OODA loop**
 
-- Each iteration MUST target a single directory (module) in the repository (e.g., `crates/edgequake-pdf/src/processors`, `crates/edgequake-pdf/src/backend`, `crates/edgequake-pdf/src/renderers`, `crates/edgequake-pdf/tests`, `examples/`).
-- Declare the target directory at the start of the iteration (in `OBSERVE.md`) and keep the scope for Orient / Decide / Act limited to that directory. Prioritize highest-impact directories first.
+- Each iteration MUST target a single directory (module) in the repository (e.g., `crates/edgequake-pdf/src/processors`, `crates/edgequake-pdf/src/backend`, `crates/edgequake-pdf/src/renderers`, `crates/edgequake-pdf/tests`, `examples/`). Declare the target directory at the start of the iteration (in `OBSERVE.md`) and keep the scope for Orient / Decide / Act limited to that directory. While the SKILL measures and reports at the file level, iterations should remain directory-scoped for code changes and diagnosis. Prioritize highest-impact directories first.
 
 1. Observe
 
@@ -117,7 +120,7 @@ Follow these rules:
   3. Thought 3: Orient — inspect processors/backend in the directory to find root cause (nextThoughtNeeded=true)
   4. Thought 4: Decide — pick minimal patch limited to the directory with acceptance checklist (nextThoughtNeeded=false)
   5. Thought 5: Act — implement patch, run tests, report results (nextThoughtNeeded=false)
-- Always call the sequential-thinking tool before modifying code and after running tests to summarize outcomes and include the `Directory: <path>` prefix in the `thought` text.
+- Always call the sequential-thinking tool before modifying code and after running tests to summarize outcomes and include the `Directory: <path>` prefix in the `thought` text. Use the SKILL for measurement and diagnostics; use the sequential-thinking tool for planning, decision records, and traceability.
 
 Example call (illustrative):
 
@@ -136,7 +139,7 @@ Call the sequential-thinking tool after the Observe step and again after running
 
 - New test demonstrates failure before patch and passes after
 - `cargo test -p edgequake-pdf` passes
-- Extended `real_dataset_eval` shows targeted metric improvement and no regressions
+- Validator SKILL report shows targeted metric improvement and no regressions
 - Append iteration summary to `scratchpad_append_log.md` and produce `OBSERVE/ORIENT/DECIDE/PATCH.diff`
 
 ## Example first patch (minimal, high ROI)
@@ -144,7 +147,7 @@ Call the sequential-thinking tool after the Observe step and again after running
 Patch: Span-level whitespace normalization + concatenated-word fixes (apply to `block.spans` as well as `block.text`), add unit tests for span boundary handling and concatenated-word cases.
 
 - Why: `MarkdownRenderer` uses spans preferentially; unnormalized spans produce camel joins and double spaces
-- Acceptance: Unit tests pass; `real_dataset_eval` shows decreased camel-join counter on `AlphaEvolve` and `one_tool_*.pdf`
+- Acceptance: Unit tests pass; validator SKILL confirms improvement in targeted style/cell metrics; `real_dataset_eval` shows decreased camel-join counter on `AlphaEvolve` and `one_tool_*.pdf`
 
 _Tip:_ add a short `README.md` under `crates/edgequake-pdf/sessions/improve_pdf/` describing the OODA loop process, required tools/versions, and how to reproduce an iteration.
 
@@ -157,7 +160,6 @@ _Tip:_ add a short `README.md` under `crates/edgequake-pdf/sessions/improve_pdf/
 
 - Run tests: `cd edgequake && cargo test -p edgequake-pdf`
 - Run evaluation: `cargo run -p edgequake-pdf --example real_dataset_eval -- --write`
-- Validate Markdown: `pandoc -f markdown -t html -o /dev/null file.md`
 - **Measure quality:** `python3 .github/skills/pdf-markdown-validator/scripts/validate.py --pdf-dir crates/edgequake-pdf/test-data --gold-dir crates/edgequake-pdf/test-data --output-report metrics.json`
 - **Analyze failures:** `python3 .github/skills/pdf-markdown-validator/scripts/analyze_failures.py metrics.json --verbose`
 - **Detailed drift analysis:** `python3 .github/skills/pdf-markdown-validator/scripts/batch_drift.py --pdf-dir crates/edgequake-pdf/test-data --gold-dir crates/edgequake-pdf/test-data --output-report drift_report.json`
@@ -165,3 +167,9 @@ _Tip:_ add a short `README.md` under `crates/edgequake-pdf/sessions/improve_pdf/
 ---
 
 Start by executing the Observe step now: run tests and the extended evaluator with `--write`, generate metrics using the validator SKILL, capture drifts and perf, append `OBSERVE.md`, then call mcp_sequentialthi_sequentialthinking with Thought 1 describing the observation and your next planned thought.
+
+## Troubleshooting
+
+- For common issues and solutions, see the PDF-Markdown Validator SKILL [README](.github/skills/pdf-markdown-validator/README.md).
+- If metrics are unexpectedly low, use the drift analysis scripts (`diff_analysis.py`, `batch_drift.py`) to identify error patterns and root causes.
+- For environment setup, gold annotation guidelines, and advanced workflows, see the SKILL documentation.
