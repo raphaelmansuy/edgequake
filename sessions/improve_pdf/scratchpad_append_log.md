@@ -204,3 +204,34 @@ The slight regression in Table Accuracy (3.5% → 2.4%) is acceptable given the 
 **Next Target:** Address remaining code smells - unused fields (lattice_engine, font_name, is_bold, is_italic), deprecated methods (single_column, multi_column), and integrate lattice_engine for table detection.
 
 ---
+
+## Loop 013 - Friday Jan 3 2026 01:00 HKT
+
+**Status:** ⚠️ FAILED - Zero improvement
+
+**Attempted:** Fix extract_text_in_rect() tolerance (0.5pt, 1.0pt, 1.5pt)
+- Removed 5pt Y-binning → 1pt same-row threshold ✓
+- Tightened tolerance to prevent spillover
+- Improved Y-coordinate sorting
+
+**Result:** Table Accuracy 2.4% (UNCHANGED), Composite 32.5/100 (UNCHANGED)
+
+**Discovery:** Tolerance tuning doesn't solve the problem!
+- At 0.5pt: Empty cells (27k chars)
+- At 1.0pt: All data in first column (40k chars)
+- At 1.5pt: All data in first column (41k chars)
+- Character count varies but table structure identical → tolerance affects quantity, not quality
+
+**Root Cause:** Cell boundaries don't match text coordinates
+- extract_text_in_rect() only finds text for column 0
+- Columns 1+ get empty strings
+- This is NOT a tolerance issue - it's a coordinate mismatch
+
+**Next Loop 014 Strategy:**
+1. Add debug logging to understand actual coordinates
+2. Check if tables use line-based vs clustering column detection
+3. Create minimal repro test case
+4. Consider forcing clustering path or using text X-coords directly
+
+**Lesson:** Debug before implementing. Parameter tuning can't fix architectural problems.
+
