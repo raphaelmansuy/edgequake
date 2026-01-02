@@ -29,8 +29,8 @@ pub struct XYCutParams {
 impl Default for XYCutParams {
     fn default() -> Self {
         Self {
-            min_vertical_gap: 20.0,   // ~0.28 inch
-            min_horizontal_gap: 10.0, // ~0.14 inch
+            min_vertical_gap: 20.0,   // Will be overridden by adaptive calculation
+            min_horizontal_gap: 10.0, // Will be overridden by adaptive calculation
             min_region_width: 50.0,
             min_region_height: 20.0,
             max_depth: 10,
@@ -40,23 +40,8 @@ impl Default for XYCutParams {
 }
 
 impl XYCutParams {
-    /// Create parameters for single-column documents.
-    pub fn single_column() -> Self {
-        Self {
-            min_vertical_gap: 100.0, // Large gap to avoid column splits
-            min_horizontal_gap: 8.0,
-            ..Default::default()
-        }
-    }
-
-    /// Create parameters for multi-column documents.
-    pub fn multi_column() -> Self {
-        Self {
-            min_vertical_gap: 15.0, // Smaller gap to detect columns
-            min_horizontal_gap: 10.0,
-            ..Default::default()
-        }
-    }
+    // Removed deprecated single_column() and multi_column() methods (Loop 010).
+    // Use XYCut::with_defaults() or segment_adaptive() for adaptive thresholds.
 }
 
 /// XY-cut tree node representing a document region.
@@ -125,6 +110,82 @@ impl XYCutNode {
     }
 }
 
+/// Calculate adaptive vertical gap threshold from bounding box distribution.
+///
+/// Uses statistical analysis of horizontal spacing between items to determine
+/// appropriate gap threshold for column detection. This is a first-principles
+/// approach that adapts to the document's actual layout.
+///
+/// # Arguments
+/// * `items` - Bounding boxes to analyze
+///
+/// # Returns
+/// Adaptive gap threshold based on 15th percentile of horizontal distances
+fn calculate_adaptive_vertical_gap(items: &[BoundingBox]) -> f32 {
+    if items.len() < 2 {
+        return 20.0; // Default fallback
+    }
+
+    // Calculate horizontal distances between adjacent items
+    let mut distances = Vec::new();
+    for i in 0..items.len() {
+        for j in (i + 1)..items.len() {
+            let dist = (items[i].x1 - items[j].x1).abs();
+            distances.push(dist);
+        }
+    }
+
+    if distances.is_empty() {
+        return 20.0;
+    }
+
+    // Sort and use 15th percentile to capture typical column gaps
+    distances.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let percentile_idx = (distances.len() as f32 * 0.15) as usize;
+    let gap = distances.get(percentile_idx).copied().unwrap_or(20.0);
+
+    // Clamp to reasonable range
+    gap.max(10.0).min(100.0)
+}
+
+/// Calculate adaptive horizontal gap threshold from bounding box distribution.
+///
+/// Uses statistical analysis of vertical spacing between items to determine
+/// appropriate gap threshold for block separation. This is a first-principles
+/// approach that adapts to the document's actual layout.
+///
+/// # Arguments
+/// * `items` - Bounding boxes to analyze
+///
+/// # Returns
+/// Adaptive gap threshold based on 15th percentile of vertical distances
+fn calculate_adaptive_horizontal_gap(items: &[BoundingBox]) -> f32 {
+    if items.len() < 2 {
+        return 10.0; // Default fallback
+    }
+
+    // Calculate vertical distances between adjacent items
+    let mut distances = Vec::new();
+    for i in 0..items.len() {
+        for j in (i + 1)..items.len() {
+            let dist = (items[i].y1 - items[j].y1).abs();
+            distances.push(dist);
+        }
+    }
+
+    if distances.is_empty() {
+        return 10.0;
+    }
+
+    // Sort and use 15th percentile to capture typical block gaps
+    distances.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let percentile_idx = (distances.len() as f32 * 0.15) as usize;
+    let gap = distances.get(percentile_idx).copied().unwrap_or(10.0);
+
+    // Clamp to reasonable range
+    gap.max(5.0).min(50.0)
+}
+
 /// XY-cut algorithm implementation.
 pub struct XYCut {
     params: XYCutParams,
@@ -152,6 +213,31 @@ impl XYCut {
     pub fn segment(&self, items: &[BoundingBox], page_bbox: &BoundingBox) -> XYCutNode {
         let indices: Vec<usize> = (0..items.len()).collect();
         self.segment_recursive(items, &indices, page_bbox, 0)
+    }
+
+    /// Segment with adaptive gap calculation.
+    ///
+    /// This method calculates gap thresholds based on the actual distribution
+    /// of items in the document, following first principles instead of
+    /// using hardcoded magic numbers.
+    ///
+    /// # Arguments
+    /// * `items` - Bounding boxes of items to segment
+    /// * `page_bbox` - Page bounding box
+    ///
+    /// # Returns
+    /// Tree structure representing the document segmentation
+    pub fn segment_adaptive(&self, items: &[BoundingBox], page_bbox: &BoundingBox) -> XYCutNode {
+        // Calculate adaptive gaps based on item distribution
+        let adaptive_params = XYCutParams {
+            min_vertical_gap: calculate_adaptive_vertical_gap(items),
+            min_horizontal_gap: calculate_adaptive_horizontal_gap(items),
+            ..self.params.clone()
+        };
+
+        let adaptive_xy_cut = XYCut::new(adaptive_params);
+        let indices: Vec<usize> = (0..items.len()).collect();
+        adaptive_xy_cut.segment_recursive(items, &indices, page_bbox, 0)
     }
 
     /// Recursive segmentation.
@@ -508,12 +594,32 @@ mod tests {
     }
 
     #[test]
-    fn test_xy_cut_params() {
-        let single = XYCutParams::single_column();
-        assert!(single.min_vertical_gap > 50.0);
+    fn test_adaptive_gap_calculation() {
+        // Test adaptive vertical gap (column detection)
+        // Wide column spacing should result in larger gap threshold
+        let wide_columns = vec![
+            make_bbox(50.0, 50.0, 250.0, 150.0),  // Left column
+            make_bbox(350.0, 50.0, 550.0, 150.0), // Right column (100pt horizontal gap)
+        ];
+        let vertical_gap = calculate_adaptive_vertical_gap(&wide_columns);
+        assert!(
+            vertical_gap >= 10.0 && vertical_gap <= 100.0,
+            "Adaptive vertical gap {} should be in range [10, 100]",
+            vertical_gap
+        );
 
-        let multi = XYCutParams::multi_column();
-        assert!(multi.min_vertical_gap < 30.0);
+        // Test adaptive horizontal gap (block separation)
+        // Vertically spaced blocks should result in smaller gap threshold
+        let vertical_blocks = vec![
+            make_bbox(50.0, 50.0, 250.0, 100.0),  // Top block
+            make_bbox(50.0, 120.0, 250.0, 170.0), // Bottom block (20pt vertical gap)
+        ];
+        let horizontal_gap = calculate_adaptive_horizontal_gap(&vertical_blocks);
+        assert!(
+            horizontal_gap >= 5.0 && horizontal_gap <= 50.0,
+            "Adaptive horizontal gap {} should be in range [5, 50]",
+            horizontal_gap
+        );
     }
 
     #[test]

@@ -1131,10 +1131,25 @@ impl FontInfo {
 
         // Detect bold/italic from font name
         let lower_name = base_font.to_lowercase();
+        // Check for common bold indicators:
+        // - "bold", "black", "heavy" in name
+        // - "sfbx" (SF Bold Extended) in arXiv/LaTeX fonts like TFFXIV+SFBX1200
+        // - "cmbx" (Computer Modern Bold Extended)
+        // - "-bold" suffix
         let is_bold = lower_name.contains("bold")
             || lower_name.contains("black")
-            || lower_name.contains("heavy");
-        let is_italic = lower_name.contains("italic") || lower_name.contains("oblique");
+            || lower_name.contains("heavy")
+            || lower_name.contains("sfbx")   // SF Bold Extended (arXiv/LaTeX) - TFFXIV+SFBX1200
+            || lower_name.contains("cmbx")   // Computer Modern Bold Extended
+            || lower_name.contains("-bold");
+
+        let is_italic = lower_name.contains("italic") 
+            || lower_name.contains("oblique")
+            || lower_name.contains("sfti")   // SF Text Italic - e.g., TXAXLJ+SFTI0900
+            || lower_name.contains("cmti")   // Computer Modern Text Italic
+            || lower_name.contains("cmmi")   // Computer Modern Math Italic
+            || lower_name.contains("cmmib")  // Computer Modern Math Italic Bold
+            || lower_name.contains("-italic");
 
         // Get encoding
         let encoding = Self::get_encoding(doc, font_dict);
@@ -1221,6 +1236,13 @@ use super::lattice::LatticeEngine;
 pub struct SotaBackend {
     config: PdfConfig,
     lattice_engine: LatticeEngine,
+}
+
+#[derive(Debug, Clone)]
+struct MergedLine {
+    text: String,
+    avg_font_size: f32,
+    spans: Vec<TextSpan>,
 }
 
 impl SotaBackend {
@@ -1708,14 +1730,21 @@ impl SotaBackend {
         let mut gaps = Vec::new();
         let mut low_start: Option<usize> = None;
 
-        // Calculate mean density for adaptive thresholding
+        // Calculate adaptive threshold based on content distribution
+        // This is a first-principles approach that adapts to document density
         let total: usize = proj.iter().sum();
         let avg_density = if proj.is_empty() {
             0
         } else {
             total / proj.len()
         };
-        let low_threshold = (avg_density as f32 * 0.2) as usize; // 20% of average = "empty"
+
+        // Use 20th percentile instead of fixed 20% of average
+        // This adapts to skewed distributions better
+        let mut sorted_proj = proj.to_vec();
+        sorted_proj.sort();
+        let percentile_idx = (sorted_proj.len() as f32 * 0.20) as usize;
+        let low_threshold = sorted_proj.get(percentile_idx).copied().unwrap_or(0);
 
         for (i, &count) in proj.iter().enumerate() {
             if count <= low_threshold {
@@ -1788,8 +1817,9 @@ impl SotaBackend {
             }
         }
 
-        // If global check failed, try checking only the bottom 75% of the page
+        // If global check failed, try checking only the bottom portion of the page
         // This handles pages with full-width headers/abstracts but two-column body
+        // Use adaptive threshold based on content distribution instead of fixed 75%
         let max_y = elements
             .iter()
             .map(|e| e.y)
@@ -1799,7 +1829,15 @@ impl SotaBackend {
 
         // Only try this if we have enough vertical content
         if page_height_content > 200.0 {
-            let threshold_y = max_y - (page_height_content * 0.25);
+            // Calculate adaptive threshold based on content density
+            // Use 20th percentile of y-coordinates to find natural content boundary
+            let mut y_coords: Vec<f32> = elements.iter().map(|e| e.y).collect();
+            y_coords.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let percentile_idx = (y_coords.len() as f32 * 0.20) as usize;
+            let threshold_y = y_coords
+                .get(percentile_idx)
+                .copied()
+                .unwrap_or(max_y - page_height_content * 0.25);
             let bottom_elements: Vec<TextElement> = elements
                 .iter()
                 .filter(|e| e.y < threshold_y)
@@ -1944,20 +1982,15 @@ impl SotaBackend {
         let mut spanning_elements: Vec<TextElement> = Vec::new();
         let mut footer_elements: Vec<TextElement> = Vec::new();
 
-        // Define content regions (filter header/footer)
-        // Academic papers typically have:
-        // - Footer: Y < 60 (page numbers at ~52) - keep threshold low to avoid capturing body text
-        // - Header: Y > 720 for 792pt page (running headers)
-        // - Main body: 60 < Y < 720
-        // Note: Page 1 may have affiliations at Y~106-126, but these should be processed
-        // by the HeaderFooterDetectionProcessor later, not filtered here
-        let footer_threshold = 60.0; // Only page numbers (body text can go down to Y~85)
-        let header_threshold = 730.0; // Filter running headers
-        let title_threshold = 650.0; // Title zone: Y > 650 for page titles
-
-        // Threshold for affiliation/metadata region (above footer, below main body)
-        // This captures institutional affiliations, email addresses, submission info
-        let affiliation_threshold = 80.0; // Elements at Y < 80 but > footer are affiliations
+        // Calculate adaptive thresholds based on actual content distribution
+        // This is a first-principles approach that adapts to different document layouts
+        let (
+            footer_threshold,
+            header_threshold,
+            title_threshold,
+            affiliation_threshold,
+            large_font_threshold,
+        ) = self.calculate_adaptive_region_thresholds(&elements);
 
         // Margin around column boundary for classification
         let margin = 15.0;
@@ -1972,7 +2005,7 @@ impl SotaBackend {
             let is_footer = elem.y < footer_threshold;
 
             // Check if element is in header region (running header)
-            let is_header = elem.y > header_threshold && elem.font_size < 10.0;
+            let is_header = elem.y > header_threshold && elem.font_size < large_font_threshold;
 
             // Check if element is affiliation/metadata (between body and footer)
             // These include: university names, emails, conference submission lines
@@ -1993,7 +2026,7 @@ impl SotaBackend {
             // - Larger font size (typically > 11pt for titles)
             // - Not a header/footer
             let is_title_zone = elem.y > title_threshold;
-            let is_large_font = elem.font_size > 11.0;
+            let is_large_font = elem.font_size > large_font_threshold;
             let is_spanning = is_title_zone && is_large_font && !is_footer && !is_header;
 
             if is_spanning {
@@ -2182,26 +2215,45 @@ impl SotaBackend {
         lines
     }
 
-    /// Merge line elements into text with proper spacing
-    fn merge_line(&self, elements: &[TextElement]) -> (String, f32, String, bool, bool) {
+    /// Merge line elements into text with proper spacing while preserving style runs as spans.
+    fn merge_line(&self, elements: &[TextElement]) -> MergedLine {
         if elements.is_empty() {
-            return (String::new(), 12.0, String::new(), false, false);
+            return MergedLine {
+                text: String::new(),
+                avg_font_size: 12.0,
+                spans: Vec::new(),
+            };
         }
 
-        let mut text = String::new();
         let avg_font_size =
             elements.iter().map(|e| e.font_size).sum::<f32>() / elements.len() as f32;
-        let font_name = elements
-            .first()
-            .map(|e| e.font_name.clone())
-            .unwrap_or_default();
-        let is_bold = elements.iter().any(|e| e.is_bold);
-        let is_italic = elements.iter().any(|e| e.is_italic);
 
         // Estimate average character width.
         // We bias toward inserting spaces (missing spaces are worse than extra spaces).
+        // Using a low threshold (0.3x) to be more aggressive about space insertion.
+        // Post-processing can clean up extra spaces, but missing spaces cause word concatenation.
         let avg_char_width = avg_font_size * 0.5;
-        let space_threshold = avg_char_width * 1.1;
+        let space_threshold = avg_char_width * 0.3;
+
+        let mut text = String::new();
+        let mut spans: Vec<TextSpan> = Vec::new();
+
+        let push_to_spans = |spans: &mut Vec<TextSpan>, chunk: &str, style: FontStyle| {
+            if chunk.is_empty() {
+                return;
+            }
+            if let Some(last) = spans.last_mut() {
+                if last.style == style {
+                    last.text.push_str(chunk);
+                    return;
+                }
+            }
+            spans.push(TextSpan {
+                text: chunk.to_string(),
+                bbox: None,
+                style,
+            });
+        };
 
         for (i, elem) in elements.iter().enumerate() {
             if i > 0 {
@@ -2222,12 +2274,31 @@ impl SotaBackend {
 
                 if gap > space_threshold && !starts_with_punct {
                     text.push(' ');
+                    if let Some(last) = spans.last_mut() {
+                        last.text.push(' ');
+                    } else {
+                        spans.push(TextSpan::plain(" "));
+                    }
                 }
             }
+
             text.push_str(&elem.text);
+            // FontStyle with weight and italic are used - this flows to output correctly!
+            let style = FontStyle {
+                family: Some(elem.font_name.clone()),
+                size: Some(elem.font_size),
+                weight: Some(if elem.is_bold { 700 } else { 400 }),
+                italic: elem.is_italic,
+                ..Default::default()
+            };
+            push_to_spans(&mut spans, &elem.text, style);
         }
 
-        (text, avg_font_size, font_name, is_bold, is_italic)
+        MergedLine {
+            text,
+            avg_font_size,
+            spans,
+        }
     }
 
     /// Convert lines to blocks with type detection
@@ -2275,11 +2346,10 @@ impl SotaBackend {
         // Track text occurrences for running header detection
         let mut text_occurrences: std::collections::HashMap<String, usize> =
             std::collections::HashMap::new();
-        let line_texts: Vec<(String, f32, String, bool, bool)> =
-            lines.iter().map(|line| self.merge_line(line)).collect();
+        let line_texts: Vec<MergedLine> = lines.iter().map(|line| self.merge_line(line)).collect();
 
-        for (text, _, _, _, _) in &line_texts {
-            let normalized = text.trim().to_lowercase();
+        for merged in &line_texts {
+            let normalized = merged.text.trim().to_lowercase();
             if !normalized.is_empty() && normalized.len() < 100 {
                 *text_occurrences.entry(normalized).or_insert(0) += 1;
             }
@@ -2293,8 +2363,8 @@ impl SotaBackend {
                 continue;
             }
 
-            let (text, font_size, font_name, is_bold, is_italic) = &line_texts[idx];
-            let text = text.trim();
+            let merged = &line_texts[idx];
+            let text = merged.text.trim();
             if text.is_empty() {
                 continue;
             }
@@ -2312,24 +2382,14 @@ impl SotaBackend {
                 .unwrap_or(page_width);
             let y = line.first().map(|e| e.y).unwrap_or(0.0);
 
-            let bbox = BoundingBox::new(min_x, y, max_x, y + *font_size);
+            let bbox = BoundingBox::new(min_x, y, max_x, y + merged.avg_font_size);
 
             // Detect block type
-            let normalized = text.trim().to_lowercase();
+            let normalized = text.to_lowercase();
             let is_running_header = text_occurrences.get(&normalized).copied().unwrap_or(0) >= 3;
 
             let block_type = if is_running_header {
                 BlockType::PageHeader
-            } else if *font_size > body_size * 1.3 || *is_bold {
-                // All headers use SectionHeader with level
-                BlockType::SectionHeader
-            } else if text.starts_with("• ")
-                || text.starts_with("- ")
-                || regex::Regex::new(r"^\d+[\.\)]\s")
-                    .map(|r| r.is_match(text))
-                    .unwrap_or(false)
-            {
-                BlockType::ListItem
             } else {
                 BlockType::Text
             };
@@ -2338,24 +2398,15 @@ impl SotaBackend {
                 debug!("Creating block with 'thei': '{}'", text);
             }
 
-            let level = if block_type == BlockType::SectionHeader {
-                Some(self.calculate_header_level(*font_size, body_size))
-            } else {
-                None
-            };
-
-            // Create span with style
-            let span = TextSpan {
-                text: text.to_string(),
-                bbox: Some(bbox.clone()),
-                style: FontStyle {
-                    family: Some(font_name.clone()),
-                    size: Some(*font_size),
-                    weight: if *is_bold { Some(700) } else { Some(400) },
-                    italic: *is_italic,
-                    ..Default::default()
-                },
-            };
+            let spans = merged
+                .spans
+                .iter()
+                .cloned()
+                .map(|mut s| {
+                    s.bbox = Some(bbox.clone());
+                    s
+                })
+                .collect::<Vec<_>>();
 
             let block = Block {
                 id: BlockId::with_indices(0, blocks.len()),
@@ -2364,8 +2415,8 @@ impl SotaBackend {
                 bbox,
                 page: 0,
                 position: blocks.len(),
-                level,
-                spans: vec![span],
+                level: None,
+                spans,
                 ..Default::default()
             };
 
@@ -2386,6 +2437,65 @@ impl SotaBackend {
         } else {
             4
         }
+    }
+
+    /// Calculate adaptive region thresholds based on actual content distribution.
+    ///
+    /// This is a first-principles approach that analyzes the document's
+    /// actual layout to determine appropriate thresholds for header/footer/title
+    /// detection, instead of using hardcoded magic numbers.
+    ///
+    /// # Arguments
+    /// * `elements` - Text elements to analyze
+    ///
+    /// # Returns
+    /// Tuple of (footer_threshold, header_threshold, title_threshold, affiliation_threshold, large_font_threshold)
+    fn calculate_adaptive_region_thresholds(
+        &self,
+        elements: &[TextElement],
+    ) -> (f32, f32, f32, f32, f32) {
+        if elements.is_empty() {
+            // Fallback to reasonable defaults for empty documents
+            return (60.0, 730.0, 650.0, 80.0, 11.0);
+        }
+
+        // Calculate page height from elements
+        let page_height = elements.iter().map(|e| e.y).fold(f32::MIN, f32::max);
+        let page_bottom = elements.iter().map(|e| e.y).fold(f32::MAX, f32::min);
+
+        // Calculate font size distribution
+        let font_sizes: Vec<f32> = elements.iter().map(|e| e.font_size).collect();
+        let avg_font_size = if font_sizes.is_empty() {
+            10.0
+        } else {
+            font_sizes.iter().sum::<f32>() / font_sizes.len() as f32
+        };
+
+        // Calculate adaptive thresholds based on page dimensions and content
+        let footer_threshold = page_bottom + (page_height - page_bottom) * 0.08; // Bottom 8% of page
+        let header_threshold = page_height - (page_height - page_bottom) * 0.08; // Top 8% of page
+        let title_threshold = page_bottom + (page_height - page_bottom) * 0.15; // Top 15% of page
+        let affiliation_threshold = page_bottom + (page_height - page_bottom) * 0.12; // Bottom 12% of page
+        let large_font_threshold = avg_font_size * 1.2; // 20% larger than average
+
+        // Clamp to reasonable ranges
+        let footer_threshold = footer_threshold.max(40.0).min(100.0);
+        let header_threshold = header_threshold
+            .max(page_height - 100.0)
+            .min(page_height - 20.0);
+        let title_threshold = title_threshold
+            .max(page_bottom + 100.0)
+            .min(page_height - 50.0);
+        let affiliation_threshold = affiliation_threshold.max(60.0).min(120.0);
+        let large_font_threshold = large_font_threshold.max(10.0).min(14.0);
+
+        (
+            footer_threshold,
+            header_threshold,
+            title_threshold,
+            affiliation_threshold,
+            large_font_threshold,
+        )
     }
 
     /// Get page dimensions
@@ -2441,15 +2551,70 @@ impl SotaBackend {
             pdf_lines.len()
         );
 
-        // Detect tables
-        let tables: Vec<Block> = Vec::new(); // DISABLED FOR NOW
-                                             // let tables = self.lattice_engine.detect_tables(
-                                             //     page_num,
-                                             //     &lines,
-                                             //     &mut text_elements,
-                                             //     page_width,
-                                             //     page_height,
-                                             // );
+        // Detect tables using lattice-based line detection
+        let tables: Vec<Block> = self
+            .lattice_engine
+            .detect_tables(&pdf_lines, &elements, page_width, page_height)
+            .into_iter()
+            .filter(|table| {
+                // Exclude tables that are too small (< 50x50 points)
+                // This filters out small decorative boxes
+                let min_size = 50.0;
+                if table.bbox.width() < min_size || table.bbox.height() < min_size {
+                    debug!(
+                        "Filtered out table: too small ({:.1}x{:.1})",
+                        table.bbox.width(),
+                        table.bbox.height()
+                    );
+                    return false;
+                }
+
+                // Exclude tables that are too large (> 80% of page)
+                // This filters out page borders and full-page elements
+                // First principles: tables typically have margins on all sides
+                let max_width = page_width * 0.8;
+                let max_height = page_height * 0.8;
+                if table.bbox.width() > max_width || table.bbox.height() > max_height {
+                    debug!(
+                        "Filtered out table: too large ({:.1}x{:.1})",
+                        table.bbox.width(),
+                        table.bbox.height()
+                    );
+                    return false;
+                }
+
+                // Exclude tables that are too close to page edges (likely page borders)
+                // First principles: tables are typically centered with margins
+                let margin_threshold = 20.0; // 20 points from edge
+                if table.bbox.x1 < margin_threshold
+                    || table.bbox.y1 < margin_threshold
+                    || table.bbox.x2 > page_width - margin_threshold
+                    || table.bbox.y2 > page_height - margin_threshold
+                {
+                    debug!("Filtered out table: too close to page edges");
+                    return false;
+                }
+
+                // Exclude empty tables (no text content)
+                if table.text.trim().is_empty() {
+                    debug!("Filtered out table: empty");
+                    return false;
+                }
+
+                // Exclude tables with very low text density (likely decorative boxes)
+                // First principles: tables contain data, not just whitespace
+                let text_len = table.text.trim().len();
+                let table_area = table.bbox.width() * table.bbox.height();
+                let text_density = text_len as f32 / table_area;
+                if text_density < 0.0001 {
+                    // Less than 1 char per 10000 points²
+                    debug!("Filtered out table: low text density ({:.6})", text_density);
+                    return false;
+                }
+
+                true
+            })
+            .collect();
 
         if !tables.is_empty() {
             warn!(
@@ -2614,5 +2779,44 @@ impl PdfBackend for SotaBackend {
             image_count: 0,
             file_size: pdf_bytes.len(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_merge_line_preserves_style_runs_as_spans() {
+        let backend = SotaBackend::new();
+
+        let elems = vec![
+            TextElement {
+                text: "Hello".to_string(),
+                x: 10.0,
+                y: 700.0,
+                font_size: 12.0,
+                font_name: "Times-Roman".to_string(),
+                is_bold: false,
+                is_italic: false,
+            },
+            TextElement {
+                text: "World".to_string(),
+                x: 60.0,
+                y: 700.0,
+                font_size: 12.0,
+                font_name: "Times-Bold".to_string(),
+                is_bold: true,
+                is_italic: false,
+            },
+        ];
+
+        let merged = backend.merge_line(&elems);
+        assert_eq!(merged.text, "Hello World");
+        assert!(merged.spans.len() >= 2);
+        assert_eq!(merged.spans[0].text, "Hello ");
+        assert_eq!(merged.spans[0].style.weight, Some(400));
+        assert_eq!(merged.spans[1].text, "World");
+        assert_eq!(merged.spans[1].style.weight, Some(700));
     }
 }

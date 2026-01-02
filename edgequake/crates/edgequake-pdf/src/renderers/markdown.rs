@@ -446,6 +446,73 @@ impl MarkdownRenderer {
 
         result.trim().to_string()
     }
+
+    /// Normalize excessive whitespace in final output.
+    /// Removes double spaces while preserving intentional formatting (code blocks, tables, etc.)
+    fn normalize_excessive_whitespace(&self, text: &str) -> String {
+        let mut result = String::with_capacity(text.len());
+        let mut in_code_block = false;
+        let mut prev_char = '\0';
+
+        for line in text.lines() {
+            // Detect code block boundaries
+            if line.trim_start().starts_with("```") {
+                in_code_block = !in_code_block;
+                result.push_str(line);
+                result.push('\n');
+                prev_char = '\n';
+                continue;
+            }
+
+            // Don't normalize inside code blocks or table rows
+            if in_code_block || line.trim_start().starts_with('|') {
+                result.push_str(line);
+                result.push('\n');
+                prev_char = '\n';
+                continue;
+            }
+
+            // Normalize double spaces in regular text
+            for ch in line.chars() {
+                if ch == ' ' && prev_char == ' ' {
+                    // Skip consecutive spaces
+                    continue;
+                }
+                result.push(ch);
+                prev_char = ch;
+            }
+            result.push('\n');
+            prev_char = '\n';
+        }
+
+        result
+    }
+
+    /// Clean up malformed markdown-like artifacts from PDF extraction.
+    /// These often come from figure/table annotations, checkboxes, or bullet points.
+    fn cleanup_markdown_artifacts(&self, text: &str) -> String {
+        use regex::Regex;
+        let mut result = text.to_string();
+
+        // Remove patterns like "*[]*.*", "*-*", "*.*", "*[]**.*"
+        // These are garbled representations of bullets/checkboxes
+        let artifact_patterns = [
+            (r"\*\[\]\*\*\.\*", " "), // *[]**.*
+            (r"\*\[\]\*", " "),       // *[]*
+            (r" \*-\*\s*", " "),      // *-*  (space before)
+            (r"\*\.\*\s*", " "),      // *.*
+            (r" - \*-\*", " "),       // - *-*
+            (r"\n\*\.\*\s*", "\n"),   // *.* at start of line
+        ];
+
+        for (pattern, replacement) in artifact_patterns {
+            if let Ok(re) = Regex::new(pattern) {
+                result = re.replace_all(&result, replacement).to_string();
+            }
+        }
+
+        result
+    }
 }
 
 impl Default for MarkdownRenderer {
@@ -480,8 +547,13 @@ impl Renderer for MarkdownRenderer {
             self.render_page(page, &mut output);
         }
 
-        // Trim trailing whitespace
-        Ok(output.trim().to_string())
+        // Final normalization: remove excessive whitespace
+        // This catches any double-spaces that slipped through span/block processing
+        let output = output.trim().to_string();
+        let output = self.normalize_excessive_whitespace(&output);
+        let output = self.cleanup_markdown_artifacts(&output);
+
+        Ok(output)
     }
 
     fn extension(&self) -> &str {

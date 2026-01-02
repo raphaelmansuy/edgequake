@@ -23,19 +23,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_max_pages(10) // First 10 pages for testing
         .with_image_extraction(false)
         .with_table_enhancement(false)
-        .with_readability_enhancement(false);
+        .with_readability_enhancement(false)
+        .with_page_numbers(false); // Don't include page markers in output
 
     let extractor = PdfExtractor::with_config(provider, config);
 
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let pdf_path = manifest_dir
-        .join("test-data")
-        .join("real_dataset")
-        .join("ccn_2512.21804v1.pdf");
-    let out_path = manifest_dir
-        .join("test-data")
-        .join("real_dataset")
-        .join("ccn_2512.21804v1.md");
+    // Accept command-line argument for PDF path, or use default
+    let args: Vec<String> = std::env::args().collect();
+    let (pdf_path, out_path) = if args.len() > 1 {
+        let pdf = PathBuf::from(&args[1]);
+        let out = pdf.with_extension("md");
+        (pdf, out)
+    } else {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let pdf = manifest_dir
+            .join("test-data")
+            .join("real_dataset")
+            .join("ccn_2512.21804v1.pdf");
+        let out = manifest_dir
+            .join("test-data")
+            .join("real_dataset")
+            .join("ccn_2512.21804v1.md");
+        (pdf, out)
+    };
 
     println!("Input: {}", pdf_path.display());
     println!("Output: {}", out_path.display());

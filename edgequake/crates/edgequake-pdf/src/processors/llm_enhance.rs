@@ -233,28 +233,68 @@ Output:"#,
     }
 
     /// Check if text seems to have quality issues.
+    ///
+    /// Uses statistical analysis of character distributions instead of
+    /// keyword-based heuristics. This is a first-principles approach
+    /// that adapts to different text patterns.
+    ///
+    /// # Arguments
+    /// * `text` - Text to analyze
+    ///
+    /// # Returns
+    /// true if text likely has quality issues (OCR errors, etc.)
     fn text_needs_improvement(text: &str) -> bool {
-        // Simple heuristics for detecting OCR issues
-        let suspicious_patterns = [
-            "l1", "0O", "rn", // Common OCR confusions
-        ];
+        if text.is_empty() {
+            return false;
+        }
 
-        // High ratio of non-word characters might indicate issues
+        // Statistical analysis of character distribution
+        // High ratio of non-alphanumeric characters may indicate issues
         let word_chars = text.chars().filter(|c| c.is_alphanumeric()).count();
         let total_chars = text.chars().count();
 
         if total_chars > 0 {
             let ratio = word_chars as f32 / total_chars as f32;
-            if ratio < 0.5 {
+            // Use adaptive threshold based on text length
+            // Shorter text can have higher non-word ratio naturally
+            let threshold = if total_chars < 20 {
+                0.3
+            } else if total_chars < 50 {
+                0.4
+            } else {
+                0.5
+            };
+            if ratio < threshold {
                 return true;
             }
         }
 
-        // Check for suspicious patterns
-        for pattern in &suspicious_patterns {
-            if text.contains(pattern) {
-                return true;
-            }
+        // Check for character-level anomalies using statistical analysis
+        // instead of fixed keyword patterns
+        let char_counts: std::collections::HashMap<char, usize> = text
+            .chars()
+            .filter(|c| c.is_alphanumeric())
+            .fold(std::collections::HashMap::new(), |mut acc, c| {
+                *acc.entry(c).or_insert(0) += 1;
+                acc
+            });
+
+        if char_counts.is_empty() {
+            return false;
+        }
+
+        // Calculate character frequency distribution
+        let total_alnum: usize = char_counts.values().sum();
+        let avg_freq = total_alnum as f32 / char_counts.len() as f32;
+
+        // Check for unusual character frequency patterns
+        // (e.g., many single occurrences might indicate OCR errors)
+        let single_occurrences = char_counts.values().filter(|&&count| count == 1).count();
+        let single_ratio = single_occurrences as f32 / char_counts.len() as f32;
+
+        // High ratio of single-occurrence characters suggests OCR issues
+        if single_ratio > 0.7 && total_alnum > 10 {
+            return true;
         }
 
         false

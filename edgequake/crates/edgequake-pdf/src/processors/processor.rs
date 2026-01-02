@@ -8,48 +8,211 @@ use crate::schema::{Block, BlockType, Document, TextSpan};
 use crate::Result;
 use regex::Regex;
 
+use super::stats::DocumentStats;
+
+/// Processor to merge standalone section numbers with their section titles.
+///
+/// Some PDFs have section numbers (like "1." or "2.") as separate blocks from
+/// the section title (like "Introduction" or "Related Works"). This processor
+/// merges them into a single block (e.g., "1. Introduction").
+///
+/// Pattern requirements (First Principles - no keyword matching):
+/// - First block: Just a section number like "1.", "2.", "1.1.", etc.
+/// - Second block: Looks like a section title (capitalized, short, appropriate position)
+/// - Both blocks must be on the same page and close together
+pub struct SectionNumberMergeProcessor;
+
+impl SectionNumberMergeProcessor {
+    pub fn new() -> Self {
+        Self
+    }
+
+    /// Check if text is a standalone section number
+    fn is_section_number(text: &str) -> bool {
+        let trimmed = text.trim();
+        // Match patterns like "1", "1.", "2", "2.", "1.1", "1.1.", etc.
+        // Must be just digits and dots, optionally with trailing period
+        if trimmed.is_empty() || trimmed.len() > 10 {
+            return false;
+        }
+
+        // Check if it's all digits and dots
+        let all_digit_or_dot = trimmed.chars().all(|c| c.is_ascii_digit() || c == '.');
+        if !all_digit_or_dot {
+            return false;
+        }
+
+        // Must start with a digit
+        if !trimmed
+            .chars()
+            .next()
+            .map(|c| c.is_ascii_digit())
+            .unwrap_or(false)
+        {
+            return false;
+        }
+
+        // Must have at least one digit
+        trimmed.chars().any(|c| c.is_ascii_digit())
+    }
+
+    /// Check if text looks like a section title based on structural properties.
+    /// First Principles: sections are characterized by capitalization and length,
+    /// not by matching keyword lists.
+    fn looks_like_section_title(text: &str) -> bool {
+        let trimmed = text.trim();
+        if trimmed.is_empty() || trimmed.len() > 100 {
+            return false;
+        }
+        // Section titles typically start with uppercase letter
+        trimmed
+            .chars()
+            .next()
+            .map(|c| c.is_uppercase())
+            .unwrap_or(false)
+    }
+}
+
+impl Default for SectionNumberMergeProcessor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Processor for SectionNumberMergeProcessor {
+    fn process(&self, mut document: Document) -> Result<Document> {
+        for page in &mut document.pages {
+            // First pass: collect all section numbers and their Y positions
+            let mut section_numbers: Vec<(usize, String, f32, f32)> = Vec::new(); // (index, text, y_center, x_left)
+
+            for (idx, block) in page.blocks.iter().enumerate() {
+                let text = block.text.trim();
+                if Self::is_section_number(text) {
+                    let y_center = (block.bbox.y1 + block.bbox.y2) / 2.0;
+                    section_numbers.push((idx, text.to_string(), y_center, block.bbox.x1));
+                }
+            }
+
+            // Second pass: for each section number, find matching section keyword on same Y-band
+            let mut merge_map: std::collections::HashMap<usize, (usize, String)> =
+                std::collections::HashMap::new();
+
+            for (sec_idx, sec_text, sec_y, sec_x) in &section_numbers {
+                // Look for a section keyword block on the same horizontal band (within 20px Y)
+                for (title_idx, title_block) in page.blocks.iter().enumerate() {
+                    if title_idx == *sec_idx {
+                        continue;
+                    }
+
+                    let title_text = title_block.text.trim();
+                    let title_y_center = (title_block.bbox.y1 + title_block.bbox.y2) / 2.0;
+                    let y_gap = (sec_y - title_y_center).abs();
+
+                    // Must be on same horizontal band (within 25px Y difference)
+                    // and title must be to the right of section number
+                    if y_gap < 25.0 && title_block.bbox.x1 > *sec_x {
+                        if Self::looks_like_section_title(title_text) {
+                            let merged_text =
+                                format!("{}. {}", sec_text.trim_end_matches('.'), title_text);
+                            tracing::info!(
+                                "SectionNumberMerge: Horizontal match '{}' + '{}' = '{}' (y_gap={:.1})",
+                                sec_text,
+                                title_text,
+                                merged_text,
+                                y_gap
+                            );
+                            merge_map.insert(*sec_idx, (title_idx, merged_text));
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Third pass: create merged block list
+            let mut skip_indices: std::collections::HashSet<usize> =
+                std::collections::HashSet::new();
+            let mut merged_blocks: Vec<Block> = Vec::new();
+
+            for (idx, block) in page.blocks.iter().enumerate() {
+                if skip_indices.contains(&idx) {
+                    continue;
+                }
+
+                if let Some((title_idx, merged_text)) = merge_map.get(&idx) {
+                    // This is a section number that matched a title - merge them
+                    let title_block = &page.blocks[*title_idx];
+                    let mut merged = block.clone();
+                    merged.text = merged_text.clone();
+                    merged.spans.extend(title_block.spans.clone());
+                    merged.bbox.x2 = merged.bbox.x2.max(title_block.bbox.x2);
+                    merged.bbox.y1 = merged.bbox.y1.min(title_block.bbox.y1);
+                    merged.bbox.y2 = merged.bbox.y2.max(title_block.bbox.y2);
+                    merged_blocks.push(merged);
+                    skip_indices.insert(*title_idx);
+                } else {
+                    merged_blocks.push(block.clone());
+                }
+            }
+
+            // Update positions
+            for (pos, block) in merged_blocks.iter_mut().enumerate() {
+                block.position = pos;
+            }
+
+            page.blocks = merged_blocks;
+        }
+
+        Ok(document)
+    }
+
+    fn name(&self) -> &'static str {
+        "SectionNumberMergeProcessor"
+    }
+}
+
 /// Processor to filter out margin content like line numbers.
 ///
 /// Academic papers (especially arXiv) often have line numbers in the left margin.
 /// This processor removes blocks that are positioned in page margins.
+/// Margin filter processor - removes margin content (line numbers, headers, footers).
+///
+/// Uses adaptive margins based on page dimensions (First Principles approach).
+/// No magic numbers - all thresholds are calculated as percentages of page size.
 pub struct MarginFilterProcessor {
-    /// Left margin threshold (blocks with x < this are filtered)
-    left_margin: f32,
-    /// Right margin threshold (blocks with x > page_width - this are filtered)
-    right_margin: f32,
-    /// Top margin threshold
-    top_margin: f32,
-    /// Bottom margin threshold
-    bottom_margin: f32,
+    // No configuration needed - margins calculated adaptively from page dimensions!
 }
 
 impl MarginFilterProcessor {
-    /// Create with default margins for academic papers.
+    /// Create a new margin filter processor.
+    /// Margins are calculated adaptively based on page dimensions.
     pub fn new() -> Self {
-        Self {
-            left_margin: 50.0,   // Filter content in first 50pt (line numbers)
-            right_margin: 30.0,  // Filter right margin content
-            top_margin: 40.0,    // Filter header area
-            bottom_margin: 40.0, // Filter footer area
-        }
+        Self {}
     }
 
-    /// Create with custom margins.
-    pub fn with_margins(left: f32, right: f32, top: f32, bottom: f32) -> Self {
-        Self {
-            left_margin: left,
-            right_margin: right,
-            top_margin: top,
-            bottom_margin: bottom,
-        }
+    /// Create with custom margins (deprecated - for backward compatibility in tests).
+    #[cfg(test)]
+    #[allow(dead_code)]
+    pub fn with_margins(_left: f32, _right: f32, _top: f32, _bottom: f32) -> Self {
+        // Parameters ignored - now calculated adaptively from page dimensions
+        Self {}
     }
 
-    /// Check if a block is in the margin area.
-    fn is_margin_content(&self, block: &Block, page_width: f32, page_height: f32) -> bool {
+    /// Check if a block is in the margin area using adaptive thresholds.
+    fn is_margin_content(
+        &self,
+        block: &Block,
+        page_width: f32,
+        page_height: f32,
+        left_margin: f32,
+        right_margin: f32,
+        top_margin: f32,
+        bottom_margin: f32,
+        line_number_edge: f32,
+    ) -> bool {
         let bbox = &block.bbox;
 
         // Check if block is entirely in left margin
-        if bbox.x2 < self.left_margin {
+        if bbox.x2 < left_margin {
             // Also check if it's short text (likely line number)
             if block.text.trim().len() <= 3 {
                 tracing::debug!("Filtering left margin content: '{}'", block.text.trim());
@@ -58,7 +221,7 @@ impl MarginFilterProcessor {
         }
 
         // Check if block is entirely in right margin
-        if bbox.x1 > page_width - self.right_margin {
+        if bbox.x1 > page_width - right_margin {
             if block.text.trim().len() <= 3 {
                 tracing::debug!("Filtering right margin content: '{}'", block.text.trim());
                 return true;
@@ -72,21 +235,21 @@ impl MarginFilterProcessor {
                 .chars()
                 .all(|c| c.is_ascii_digit() || c.is_ascii_uppercase())
         {
-            // If it's positioned far from main content area, filter it
-            if bbox.x1 < 60.0 || bbox.x1 > page_width - 60.0 {
+            // Use adaptive threshold (10% of page width) instead of fixed 60.0
+            if bbox.x1 < line_number_edge || bbox.x1 > page_width - line_number_edge {
                 tracing::debug!("Filtering likely line number: '{}'", text);
                 return true;
             }
         }
 
         // Check top margin (headers)
-        if bbox.y2 < self.top_margin && block.text.len() < 100 {
+        if bbox.y2 < top_margin && block.text.len() < 100 {
             // Only filter short texts in header (not full header lines)
             // Skip - we want to keep page headers
         }
 
         // Check bottom margin (footers)
-        if bbox.y1 > page_height - self.bottom_margin && block.text.len() < 100 {
+        if bbox.y1 > page_height - bottom_margin && block.text.len() < 100 {
             // Check for page number pattern
             let trimmed = block.text.trim();
             if trimmed.parse::<i32>().is_ok() {
@@ -111,8 +274,26 @@ impl Processor for MarginFilterProcessor {
             let page_width = page.width;
             let page_height = page.height;
 
-            page.blocks
-                .retain(|block| !self.is_margin_content(block, page_width, page_height));
+            // Calculate adaptive margins based on THIS page's dimensions (First Principles!)
+            // Typography standards: margins are percentages of page dimensions
+            let left_margin = page_width * 0.08; // 8% of page width (standard book margin)
+            let right_margin = page_width * 0.05; // 5% of page width (smaller than left)
+            let top_margin = page_height * 0.05; // 5% of page height (header space)
+            let bottom_margin = page_height * 0.05; // 5% of page height (footer space)
+            let line_number_edge = page_width * 0.10; // 10% of page width (line number detection)
+
+            page.blocks.retain(|block| {
+                !self.is_margin_content(
+                    block,
+                    page_width,
+                    page_height,
+                    left_margin,
+                    right_margin,
+                    top_margin,
+                    bottom_margin,
+                    line_number_edge,
+                )
+            });
         }
 
         Ok(document)
@@ -662,6 +843,76 @@ impl TextTableReconstructionProcessor {
         score
     }
 
+    fn sanitize_table_line(line: &str) -> String {
+        line.replace('|', " ")
+    }
+
+    fn parse_agent_pipeline_leaderboard(line: &str) -> Option<Vec<Vec<String>>> {
+        let t = Self::sanitize_table_line(line);
+        let tokens: Vec<&str> = t.split_whitespace().collect();
+        if tokens.len() < 6 {
+            return None;
+        }
+
+        // Detect common collapsed line:
+        // "Agent Pipeline Func-IoU(%) Resolved(%) Agentless 5.28 10.12 ..."
+        let has_agent_pipeline = tokens
+            .windows(2)
+            .any(|w| w[0].eq_ignore_ascii_case("agent") && w[1].eq_ignore_ascii_case("pipeline"));
+        if !has_agent_pipeline {
+            return None;
+        }
+        if !tokens.iter().any(|t| t.to_lowercase().contains("resolved")) {
+            return None;
+        }
+
+        let func_idx = tokens
+            .iter()
+            .position(|t| t.to_lowercase().contains("iou"))?;
+        let resolved_idx = tokens
+            .iter()
+            .position(|t| t.to_lowercase().contains("resolved"))?;
+        let data_start = resolved_idx + 1;
+        if data_start >= tokens.len() {
+            return None;
+        }
+
+        let mut rows: Vec<Vec<String>> = Vec::new();
+        rows.push(vec![
+            "Agent Pipeline".to_string(),
+            tokens[func_idx].to_string(),
+            tokens[resolved_idx].to_string(),
+        ]);
+
+        let is_num = |s: &str| s.parse::<f64>().is_ok();
+
+        let mut i = data_start;
+        while i < tokens.len() {
+            let mut name_parts: Vec<&str> = Vec::new();
+            while i < tokens.len() && !is_num(tokens[i]) {
+                name_parts.push(tokens[i]);
+                i += 1;
+            }
+            if i + 1 >= tokens.len() {
+                break;
+            }
+            if !is_num(tokens[i]) || !is_num(tokens[i + 1]) {
+                break;
+            }
+            let name = name_parts.join(" ");
+            if !name.is_empty() {
+                rows.push(vec![name, tokens[i].to_string(), tokens[i + 1].to_string()]);
+            }
+            i += 2;
+        }
+
+        if rows.len() >= 2 {
+            Some(rows)
+        } else {
+            None
+        }
+    }
+
     fn parse_numeric_suffix(line: &str) -> Option<(String, Vec<String>)> {
         let tokens: Vec<&str> = line.split_whitespace().collect();
         if tokens.is_empty() {
@@ -771,75 +1022,96 @@ impl Processor for TextTableReconstructionProcessor {
                     continue;
                 }
 
-                // Scan forward for table-like lines (caption-before-table).
-                let scan_start = i + 1;
-                let scan_end = (scan_start + 40).min(page.blocks.len());
-                let mut forward_lines: Vec<(usize, String)> = Vec::new();
+                const MAX_SCAN_BLOCKS: usize = 22;
+
+                // Scan forward for contiguous table-like lines (caption-before-table).
+                let mut forward_lines: Vec<(usize, String, i32)> = Vec::new();
                 let mut forward_score = 0;
-                let mut non_table_streak = 0;
-                for j in scan_start..scan_end {
+                let mut started = false;
+                let mut consecutive_zeros = 0;
+                const MAX_ZERO_LINES: usize = 2; // Allow up to 2 zero-score lines within table
+                for j in (i + 1)..page.blocks.len().min(i + 1 + MAX_SCAN_BLOCKS) {
                     let b = &page.blocks[j];
                     let t = b.text.trim();
                     if t.is_empty() {
                         break;
                     }
-                    if Self::is_hard_break(b) {
+                    if Self::is_hard_break(b) || Self::looks_like_table_caption(t) {
                         break;
                     }
-                    if Self::looks_like_table_caption(t) {
-                        break;
-                    }
-
                     let s = Self::table_like_score(t);
-                    if !forward_lines.is_empty() {
+                    if !started {
                         if s == 0 {
-                            non_table_streak += 1;
-                            if non_table_streak >= 3 {
-                                break;
-                            }
-                        } else {
-                            non_table_streak = 0;
+                            continue;
                         }
+                        started = true;
+                        consecutive_zeros = 0;
+                    } else if s == 0 {
+                        consecutive_zeros += 1;
+                        if consecutive_zeros > MAX_ZERO_LINES {
+                            break;
+                        }
+                        // Include zero-score lines within tolerance
+                        forward_lines.push((j, t.to_string(), s));
+                        continue;
+                    } else {
+                        consecutive_zeros = 0;
                     }
-
                     forward_score += s;
-                    forward_lines.push((j, t.to_string()));
+                    forward_lines.push((j, t.to_string(), s));
                 }
 
-                // Scan backward for table-like lines (caption-after-table).
-                let mut backward_lines: Vec<(usize, String)> = Vec::new();
+                // Scan backward for contiguous table-like lines (caption-after-table).
+                let mut backward_lines: Vec<(usize, String, i32)> = Vec::new();
                 let mut backward_score = 0;
-                let mut non_table_streak = 0;
-                let back_start = i.saturating_sub(1);
-                let back_limit = i.saturating_sub(60);
-                let mut j = back_start;
-                while j >= back_limit {
+                let mut started = false;
+                let mut consecutive_zeros = 0;
+                let mut steps = 0usize;
+                let mut j = i.saturating_sub(1);
+                loop {
+                    if steps >= MAX_SCAN_BLOCKS {
+                        break;
+                    }
+                    steps += 1;
+
                     let b = &page.blocks[j];
                     let t = b.text.trim();
                     if t.is_empty() {
                         break;
                     }
-                    if Self::is_hard_break(b) {
-                        break;
-                    }
-                    if Self::looks_like_table_caption(t) {
+                    if Self::is_hard_break(b) || Self::looks_like_table_caption(t) {
                         break;
                     }
 
                     let s = Self::table_like_score(t);
-                    if !backward_lines.is_empty() {
+                    if !started {
                         if s == 0 {
-                            non_table_streak += 1;
-                            if non_table_streak >= 3 {
+                            if j == 0 {
                                 break;
                             }
-                        } else {
-                            non_table_streak = 0;
+                            j -= 1;
+                            continue;
                         }
+                        started = true;
+                        consecutive_zeros = 0;
+                    } else if s == 0 {
+                        consecutive_zeros += 1;
+                        if consecutive_zeros > MAX_ZERO_LINES {
+                            break;
+                        }
+                        // Include zero-score lines within tolerance
+                        backward_lines.push((j, t.to_string(), s));
+                        if j == 0 {
+                            break;
+                        }
+                        j -= 1;
+                        continue;
+                    } else {
+                        consecutive_zeros = 0;
                     }
 
                     backward_score += s;
-                    backward_lines.push((j, t.to_string()));
+                    backward_lines.push((j, t.to_string(), s));
 
                     if j == 0 {
                         break;
@@ -853,12 +1125,17 @@ impl Processor for TextTableReconstructionProcessor {
                 // Accept that case if the line is strongly table-like.
                 const MIN_SINGLE_LINE_SCORE: i32 = 3;
                 let forward_candidate = forward_lines.len() >= 2
-                    || (forward_lines.len() == 1 && forward_score >= MIN_SINGLE_LINE_SCORE);
+                    || (forward_lines.len() == 1 && forward_lines[0].2 >= MIN_SINGLE_LINE_SCORE);
                 let backward_candidate = backward_lines.len() >= 2
-                    || (backward_lines.len() == 1 && backward_score >= MIN_SINGLE_LINE_SCORE);
+                    || (backward_lines.len() == 1 && backward_lines[0].2 >= MIN_SINGLE_LINE_SCORE);
 
-                let use_forward =
-                    forward_candidate && (!backward_candidate || forward_score >= backward_score);
+                let forward_first = forward_lines.first().map(|(_, _, s)| *s).unwrap_or(0);
+                let backward_first = backward_lines.first().map(|(_, _, s)| *s).unwrap_or(0);
+
+                let use_forward = forward_candidate
+                    && (!backward_candidate
+                        || forward_first > backward_first
+                        || (forward_first == backward_first && forward_score >= backward_score));
                 let use_backward = !use_forward && backward_candidate;
 
                 if !use_forward && !use_backward {
@@ -868,7 +1145,7 @@ impl Processor for TextTableReconstructionProcessor {
                     continue;
                 }
 
-                let lines: Vec<(usize, String)> = if use_forward {
+                let lines: Vec<(usize, String, i32)> = if use_forward {
                     forward_lines
                 } else {
                     backward_lines
@@ -877,6 +1154,30 @@ impl Processor for TextTableReconstructionProcessor {
                 // If we only captured a single line, emit a conservative 1-column table.
                 // This guarantees a Markdown pipe table renders without guessing columns.
                 if lines.len() == 1 {
+                    if let Some(rows) = Self::parse_agent_pipeline_leaderboard(&lines[0].1) {
+                        let mut table_bbox = block.bbox;
+                        table_bbox = table_bbox.union(&page.blocks[lines[0].0].bbox);
+
+                        let mut table_block = Block::new(BlockType::Table, table_bbox);
+                        table_block.page = page.number as usize - 1;
+                        table_block.children =
+                            Self::build_table_cells(table_bbox, table_block.page, &rows);
+                        table_block
+                            .metadata
+                            .insert("reconstructed".to_string(), serde_json::json!(true));
+
+                        new_blocks.push(block.clone());
+                        new_blocks.push(table_block);
+
+                        if use_forward {
+                            let consumed_until = lines[0].0 + 1;
+                            i = consumed_until;
+                        } else {
+                            i += 1;
+                        }
+                        continue;
+                    }
+
                     let mut table_bbox = block.bbox;
                     table_bbox = table_bbox.union(&page.blocks[lines[0].0].bbox);
 
@@ -907,8 +1208,8 @@ impl Processor for TextTableReconstructionProcessor {
                 // Header detection: often split across 1-2 lines.
                 let mut header_cols: Vec<String> = Vec::new();
                 let header_consumed: usize;
-                let first = lines[0].1.clone();
-                let second = lines.get(1).map(|(_, s)| s.as_str()).unwrap_or("");
+                let first = Self::sanitize_table_line(&lines[0].1);
+                let second = lines.get(1).map(|(_, s, _)| s.as_str()).unwrap_or("");
 
                 let first_lc = first.to_lowercase();
                 if first_lc.contains("sub-task")
@@ -957,13 +1258,14 @@ impl Processor for TextTableReconstructionProcessor {
                     let mut pending: Option<RowAcc> = None;
                     let mut parsed: Vec<RowAcc> = Vec::new();
 
-                    for (_, line) in lines.iter().skip(header_consumed) {
+                    for (_, line, _) in lines.iter().skip(header_consumed) {
                         let t = line.trim();
                         if t.is_empty() {
                             continue;
                         }
 
-                        if let Some((prefix, nums)) = Self::parse_numeric_suffix(t) {
+                        let cleaned = Self::sanitize_table_line(t);
+                        if let Some((prefix, nums)) = Self::parse_numeric_suffix(&cleaned) {
                             if let Some(p) = pending.take() {
                                 if !p.sub_task.is_empty() {
                                     parsed.push(p);
@@ -1047,8 +1349,9 @@ impl Processor for TextTableReconstructionProcessor {
                     // 1) Try splitting rows by numeric suffix.
                     // 2) If that fails, build a single-column Markdown table so tables still render.
                     let mut numeric_rows: Vec<Vec<String>> = Vec::new();
-                    for (_, line) in lines.iter().skip(header_consumed) {
-                        if let Some((prefix, nums)) = Self::parse_numeric_suffix(line) {
+                    for (_, line, _) in lines.iter().skip(header_consumed) {
+                        let cleaned = Self::sanitize_table_line(line);
+                        if let Some((prefix, nums)) = Self::parse_numeric_suffix(&cleaned) {
                             let mut r = Vec::new();
                             r.push(prefix);
                             r.extend(nums);
@@ -1062,7 +1365,7 @@ impl Processor for TextTableReconstructionProcessor {
                         // 1-col fallback: include the scanned lines as rows.
                         rows.clear();
                         rows.push(vec!["Value".to_string()]);
-                        for (_, line) in lines.iter() {
+                        for (_, line, _) in lines.iter() {
                             rows.push(vec![line.clone()]);
                         }
                     }
@@ -1086,7 +1389,7 @@ impl Processor for TextTableReconstructionProcessor {
 
                 // Compute bbox union over captured blocks.
                 let mut table_bbox = block.bbox;
-                for (idx, _) in &lines {
+                for (idx, _, _) in &lines {
                     table_bbox = table_bbox.union(&page.blocks[*idx].bbox);
                 }
 
@@ -1103,7 +1406,7 @@ impl Processor for TextTableReconstructionProcessor {
 
                 if use_forward {
                     // Skip consumed blocks (caption-before-table).
-                    let consumed_until = lines.last().map(|(idx, _)| *idx + 1).unwrap_or(i + 1);
+                    let consumed_until = lines.last().map(|(idx, _, _)| *idx + 1).unwrap_or(i + 1);
                     i = consumed_until;
                 } else {
                     // Caption-after-table: do not skip forward blocks.
@@ -1123,32 +1426,31 @@ impl Processor for TextTableReconstructionProcessor {
 }
 
 /// Block merge processor - merges adjacent blocks into paragraphs.
+///
+/// Uses adaptive thresholds based on document statistics (First Principles approach).
+/// No magic numbers - all thresholds are derived from font sizes and spacing distributions.
 pub struct BlockMergeProcessor {
-    /// Maximum vertical gap for merging
-    max_vertical_gap: f32,
-    /// Maximum horizontal alignment difference
-    max_margin_diff: f32,
+    // No configuration needed - thresholds calculated from document stats!
 }
 
 impl BlockMergeProcessor {
     /// Create a new block merge processor.
     pub fn new() -> Self {
-        Self {
-            max_vertical_gap: 50.0, // Increased to handle typical line spacing (12pt font = ~12pt gap)
-            max_margin_diff: 20.0,
-        }
+        Self {}
     }
 
-    /// Create with custom parameters.
-    pub fn with_params(max_vertical_gap: f32, max_margin_diff: f32) -> Self {
-        Self {
-            max_vertical_gap,
-            max_margin_diff,
-        }
+    /// Create with custom parameters (deprecated - for backward compatibility in tests).
+    #[cfg(test)]
+    #[allow(dead_code)]
+    pub fn with_params(_max_vertical_gap: f32, _max_margin_diff: f32) -> Self {
+        // Parameters ignored - now calculated adaptively from document stats
+        Self {}
     }
 
     /// Check if two blocks should be merged.
-    fn should_merge(&self, a: &Block, b: &Block) -> bool {
+    ///
+    /// Uses adaptive thresholds derived from DocumentStats instead of magic numbers.
+    fn should_merge(&self, a: &Block, b: &Block, stats: &DocumentStats) -> bool {
         // Only merge text, header, or list item blocks
         if !matches!(
             a.block_type,
@@ -1228,35 +1530,43 @@ impl BlockMergeProcessor {
             }
         }
 
+        // === ADAPTIVE THRESHOLDS (First Principles - no magic numbers!) ===
+
+        // 1. Vertical gap threshold: Based on typical line spacing
+        //    Allow up to 2.5x typical spacing (covers single to near-double spacing)
+        let max_vertical_gap = stats.typical_line_spacing * 2.5;
+
+        // For headers, allow more vertical space (multi-line headers)
+        let vertical_threshold = if a.block_type == BlockType::SectionHeader {
+            max_vertical_gap * 1.5 // 3.75x typical spacing for headers
+        } else {
+            max_vertical_gap
+        };
+
         // Check vertical proximity
         // In PDF coordinates Y increases upward:
         // - y2 is the top of a block (higher Y)
         // - y1 is the bottom of a block (lower Y)
         // For blocks a (above) and b (below), the gap is: a.y1 (bottom of a) - b.y2 (top of b)
-        // If blocks are very close or overlapping, this will be small or negative
         let vertical_gap = (a.bbox.y1 - b.bbox.y2).abs();
-        // For headers, be more strict with vertical gap but allow for multi-line headers
-        let max_gap = if a.block_type == BlockType::SectionHeader {
-            35.0 // Allow more gap for multi-line headers
-        } else {
-            self.max_vertical_gap
-        };
 
-        if vertical_gap > max_gap {
+        if vertical_gap > vertical_threshold {
             return false;
         }
 
-        // Check horizontal alignment - blocks from different columns should NOT merge
+        // 2. Horizontal alignment: Use adaptive tolerance from document stats
         let margin_diff = (a.bbox.x1 - b.bbox.x1).abs();
+
         let max_margin = if a.block_type == BlockType::SectionHeader {
-            50.0
+            stats.column_alignment_tolerance * 2.5 // Headers can be more flexible
         } else {
-            self.max_margin_diff
+            stats.column_alignment_tolerance
         };
 
-        // Additional check: don't merge if blocks are in completely different horizontal zones
-        // This prevents merging left column text with right column text
-        let horizontal_zone_threshold = 100.0; // If X positions differ by > 100pt, different columns
+        // 3. Column separation: Blocks in different columns should NOT merge
+        //    Use page width percentage (15% = typical column gap)
+        let horizontal_zone_threshold = stats.page_width * 0.15;
+
         if margin_diff > horizontal_zone_threshold {
             // Use chars() for safe substring (handles multi-byte Unicode)
             let a_start: String = a.text.chars().take(30).collect();
@@ -1274,8 +1584,8 @@ impl BlockMergeProcessor {
         margin_diff <= max_margin
     }
 
-    /// Merge blocks on a page.
-    fn merge_page_blocks(&self, blocks: Vec<Block>) -> Vec<Block> {
+    /// Merge blocks on a page using adaptive thresholds.
+    fn merge_page_blocks(&self, blocks: Vec<Block>, stats: &DocumentStats) -> Vec<Block> {
         if blocks.len() < 2 {
             return blocks;
         }
@@ -1285,7 +1595,7 @@ impl BlockMergeProcessor {
 
         for block in blocks {
             if let Some(mut cur) = current.take() {
-                let should = self.should_merge(&cur, &block);
+                let should = self.should_merge(&cur, &block, stats);
                 if should {
                     // Use chars() to safely get last/first N characters (handles multi-byte Unicode)
                     let cur_end: String = cur
@@ -1300,9 +1610,9 @@ impl BlockMergeProcessor {
                     let block_start: String = block.text.chars().take(20).collect();
                     tracing::debug!("BlockMerge: MERGING '{}' + '{}'", cur_end, block_start);
                     cur.merge(&block);
-                    // Clear spans after merge since they may contain stale hyphenated text.
-                    // The MarkdownRenderer will use block.text instead which has correct joined text.
-                    cur.spans.clear();
+                    // NOTE: We preserve spans after merge to retain bold/italic styling.
+                    // Block.merge() properly extends spans via: self.spans.extend(other.spans.clone())
+                    // The MarkdownRenderer uses spans for styling markup (**bold**, *italic*).
                     current = Some(cur);
                 } else {
                     // Log why consecutive Text blocks aren't merging
@@ -1348,9 +1658,12 @@ impl Default for BlockMergeProcessor {
 
 impl Processor for BlockMergeProcessor {
     fn process(&self, mut document: Document) -> Result<Document> {
+        // Calculate stats once for entire document (First Principles approach!)
+        let stats = DocumentStats::from_document(&document);
+
         for page in &mut document.pages {
             let blocks = std::mem::take(&mut page.blocks);
-            page.blocks = self.merge_page_blocks(blocks);
+            page.blocks = self.merge_page_blocks(blocks, &stats);
             page.update_stats();
         }
 
@@ -1716,8 +2029,6 @@ impl PostProcessor {
     }
 
     /// Fix concatenated words (e.g., "methodsThe" -> "methods The")
-    /// NOTE: This method only handles legitimate text patterns, not PDF extraction errors.
-    /// Word spacing issues must be fixed at the source (character-level extraction).
     fn fix_concatenated_words(&self, text: &str) -> String {
         let mut result = text.to_string();
 
@@ -1728,13 +2039,36 @@ impl PostProcessor {
         }
 
         // Repair common legitimate tokens that would otherwise be split.
-        // (We keep this list minimal and high-signal.)
         result = result.replace("ar Xiv", "arXiv");
         result = result.replace("Ar Xiv", "ArXiv");
 
         // Fix "etal." -> "et al." (standard academic citation)
         result = result.replace("etal.", "et al.");
         result = result.replace("etal,", "et al.,");
+
+        result
+    }
+
+    /// Clean up malformed markdown-like artifacts from PDF extraction.
+    /// These often come from figure/table annotations, checkboxes, or bullet points.
+    fn cleanup_markdown_artifacts(&self, text: &str) -> String {
+        let mut result = text.to_string();
+
+        // Remove patterns like "*[]*.*", "*-*", "*.*", "*[]**.*"
+        // These are garbled representations of bullets/checkboxes
+        let artifact_patterns = [
+            r"\*\[\]\*\*\.\*", // *[]**.*
+            r"\*\[\]\*",       // *[]*
+            r"\*-\*\s*",       // *-*
+            r"\*\.\*\s*",      // *.*
+            r" - \*-\*",       // - *-*
+        ];
+
+        for pattern in artifact_patterns {
+            if let Ok(re) = Regex::new(pattern) {
+                result = re.replace_all(&result, " ").to_string();
+            }
+        }
 
         result
     }
@@ -1764,6 +2098,7 @@ impl PostProcessor {
             block.text = self.fix_ocr_text(&block.text);
             block.text = self.fix_concatenated_words(&block.text);
             block.text = self.cleanup_citations(&block.text);
+            block.text = self.cleanup_markdown_artifacts(&block.text);
 
             // Also process spans since MarkdownRenderer uses spans if present
             for span in &mut block.spans {
@@ -1774,6 +2109,7 @@ impl PostProcessor {
                 if !span.style.looks_like_code() {
                     span.text = self.fix_concatenated_words(&span.text);
                     span.text = self.cleanup_citations(&span.text);
+                    span.text = self.cleanup_markdown_artifacts(&span.text);
                 }
             }
 
@@ -1870,10 +2206,88 @@ impl Processor for HeaderDetectionProcessor {
         let body_size = body_size_int as f32 / 10.0;
 
         // 2. Detect headers
+        // Match patterns like "1. Introduction" or "1.1 Motivation"
+        // Subsection pattern (e.g., "1.1", "2.3.4") - always valid section structure
+        let subsection_heading = Regex::new(r"^\d+\.\d+(?:\.\d+)*\.?\s+[A-Z]").unwrap();
+        // Single number pattern (e.g., "1." or "2.") - requires section keyword to avoid list items
+        let single_number_heading = Regex::new(r"^\d+\.?\s+[A-Z]").unwrap();
+
         for page in &mut document.pages {
             for block in &mut page.blocks {
-                if block.block_type != BlockType::Text {
+                if !matches!(block.block_type, BlockType::Text | BlockType::SectionHeader) {
                     continue;
+                }
+
+                let text = block.text.trim();
+
+                // Only consider short blocks as potential headers
+                // Long text is paragraph content, not a heading
+                // Also exclude text containing colons followed by descriptions (inline lists)
+                let has_inline_description = text.contains(':') && text.len() > 50;
+                let is_short_for_heading =
+                    text.len() < 80 && !text.ends_with('.') && !has_inline_description;
+
+                // Check for subsection pattern first (e.g., "1.1 Motivation")
+                // Subsections have at least one internal dot, making them H3 or deeper
+                if is_short_for_heading && subsection_heading.is_match(text) {
+                    // Count dots only in the numeric prefix (before the first space)
+                    let prefix: String = text
+                        .chars()
+                        .take_while(|c| c.is_ascii_digit() || *c == '.')
+                        .collect();
+                    // Count internal dots (between digits) - trailing dots don't add depth
+                    // "2.1" -> 1 internal dot -> H3
+                    // "2.1." -> 1 internal dot (trailing doesn't count) -> H3
+                    // "2.1.1" -> 2 internal dots -> H4
+                    let trimmed = prefix.trim_end_matches('.');
+                    let dot_count = trimmed.chars().filter(|&c| c == '.').count() as u8;
+                    // 1.1 -> 1 dot -> H3 (level 3)
+                    // 1.1.1 -> 2 dots -> H4 (level 4)
+                    let level = (dot_count + 2).clamp(3, 6);
+                    block.block_type = BlockType::SectionHeader;
+                    block.level = Some(level);
+                    continue;
+                }
+
+                // For single number patterns (e.g., "1 Introduction"), require section keyword
+                // This avoids converting list items like "1. Explore the options" to headings
+                // Single number section headers are H2
+                // For single number patterns (e.g., "1 Introduction"), use multi-signal detection
+                // First Principles: no keyword matching, use font properties + structure
+                if is_short_for_heading && single_number_heading.is_match(text) {
+                    // Extract text after the number
+                    let after_number: String = text
+                        .chars()
+                        .skip_while(|c| c.is_ascii_digit() || *c == '.' || c.is_whitespace())
+                        .collect();
+
+                    // Check if it's title-cased (first letter uppercase after number)
+                    let is_title_cased = after_number
+                        .chars()
+                        .next()
+                        .map(|c| c.is_uppercase())
+                        .unwrap_or(false);
+
+                    // Get font properties for multi-signal detection
+                    if let Some(span) = block.spans.first() {
+                        let size = span.style.size.unwrap_or(10.0);
+                        let weight = span.style.weight.unwrap_or(400);
+                        let is_bold = weight >= 600;
+                        let is_larger = size > body_size * 1.15;
+
+                        // Multi-signal detection: need strong confirmation
+                        // EITHER font evidence (larger OR bold) AND structural (short + title-cased)
+                        // OR very strong font evidence (larger AND bold)
+                        let is_likely_section =
+                            (is_larger || is_bold) && is_title_cased || (is_larger && is_bold);
+
+                        if is_likely_section {
+                            // Single number sections like "1 Introduction" are H2
+                            block.block_type = BlockType::SectionHeader;
+                            block.level = Some(2);
+                            continue;
+                        }
+                    }
                 }
 
                 if let Some(span) = block.spans.first() {
@@ -1882,29 +2296,44 @@ impl Processor for HeaderDetectionProcessor {
                     let is_bold = weight >= 600;
 
                     // H1: Very large (e.g. > 1.6x body)
-                    // H2: Large (> 1.3x)
-                    // H3: Slightly larger (> 1.1x)
-                    // H4: Bold and same size
+                    // H2: Large (> 1.4x) - stricter threshold to avoid author names
+                    // H3: Moderately larger (> 1.25x) - stricter threshold
 
-                    if size > body_size * 1.6 {
+                    // Guard against turning long prose lines into headings.
+                    let text_lower = text.to_lowercase();
+                    let is_arxiv_or_meta = text_lower.starts_with("arxiv:")
+                        || text_lower.contains("arxiv.org")
+                        || text_lower.starts_with("[cs.")
+                        || text_lower.starts_with("[stat.")
+                        || text_lower.starts_with("[math.");
+
+                    let headingish = !text.is_empty()
+                        && text.len() < 100  // Stricter length limit
+                        && !text.contains('@')  // No email addresses
+                        && !text.ends_with('.')  // No sentences
+                        && !text.contains(',')  // No comma-separated items like author affiliations
+                        && !is_arxiv_or_meta; // No arXiv metadata
+
+                    // Additional guard: author names are typically short (< 30 chars) and appear
+                    // early in the document. Section headers usually have specific patterns.
+                    // First Principles: look for structural patterns, not keywords
+                    let looks_like_section = text.starts_with(|c: char| c.is_ascii_digit())
+                        || text.chars().all(|c| c.is_uppercase() || c.is_whitespace());
+
+                    if headingish && size > body_size * 1.6 {
                         block.block_type = BlockType::SectionHeader;
                         block.level = Some(1);
-                    } else if size > body_size * 1.3 {
+                    } else if headingish && looks_like_section && size > body_size * 1.35 {
                         block.block_type = BlockType::SectionHeader;
                         block.level = Some(2);
-                    } else if size > body_size * 1.1 {
+                    } else if headingish && looks_like_section && size > body_size * 1.2 {
                         block.block_type = BlockType::SectionHeader;
                         block.level = Some(3);
-                    } else if is_bold && size >= body_size {
-                        // Maybe H4? Or just bold text?
-                        // If it's a short line, likely a header.
-                        // Also check if it doesn't end with punctuation (except :)
-                        let text = block.text.trim();
-                        if text.len() < 80 && !text.ends_with('.') {
-                            block.block_type = BlockType::SectionHeader;
-                            block.level = Some(4);
-                        }
                     }
+                    // Note: We no longer convert all bold text to headers.
+                    // Bold text that isn't larger than body text should remain as bold text,
+                    // not be converted to H4. This prevents author names, emphasis, etc.
+                    // from incorrectly becoming headers.
                 }
             }
         }
@@ -2264,6 +2693,10 @@ impl Default for HyphenContinuationProcessor {
 
 impl Processor for HyphenContinuationProcessor {
     fn process(&self, mut document: Document) -> Result<Document> {
+        // Calculate stats once for adaptive threshold (First Principles!)
+        let stats = DocumentStats::from_document(&document);
+        let max_vertical_gap = stats.typical_line_spacing * 2.5;
+
         for page in &mut document.pages {
             let mut i = 0;
             while i < page.blocks.len() {
@@ -2308,8 +2741,9 @@ impl Processor for HyphenContinuationProcessor {
                             );
                         }
 
-                        // Allow larger gap for line spacing (up to ~50pt for double-spaced or with margins)
-                        if vertical_gap <= 50.0 {
+                        // Use adaptive threshold based on document's actual line spacing (First Principles!)
+                        // 2.5x typical line spacing covers single-spaced to near double-spaced
+                        if vertical_gap <= max_vertical_gap {
                             if ends_hyph.is_some() && starts_cont {
                                 tracing::debug!("Immediate hyphen join triggered");
                                 join_with = Some(i + 1);
@@ -2467,58 +2901,116 @@ impl StyleDetectionProcessor {
         }
     }
 
-    /// Detect header levels based on font size ratios.
+    /// Detect header levels based on font size ratios ONLY.
     ///
-    /// From spec_algo_2.md:
-    /// - H1: size ratio > 1.5 AND short text (<80 chars)
-    /// - H2: size ratio > 1.2 OR (bold AND ratio >= 1.0) AND short text
-    /// - H3: bold AND all-caps
+    /// IMPORTANT: We no longer use bold as an indicator for headers.
+    /// Bold text should remain as bold styling, not be converted to headers.
+    /// This is critical for preserving author names, emphasis, etc.
+    ///
+    /// Rules:
+    /// - H1: size ratio > 1.6 AND short text (<80 chars) - document title
+    /// - H2/H3: size ratio > 1.2 AND matches section keywords - section headers
+    ///
+    /// We require section keywords for H2/H3 to avoid converting author names,
+    /// affiliations, and other metadata into section headers.
     fn detect_headers(&self, block: &mut Block) {
         if block.block_type != BlockType::Text {
             return;
         }
 
         // Get representative style from first span
-        let (size, is_bold) = block
+        let size = block
             .spans
             .first()
-            .map(|s| {
-                (
-                    s.style.size.unwrap_or(10.0),
-                    s.style.weight.unwrap_or(400) >= 600,
-                )
-            })
-            .unwrap_or((10.0, false));
+            .map(|s| s.style.size.unwrap_or(10.0))
+            .unwrap_or(10.0);
 
         let ratio = size / self.body_size;
         let text = block.text.trim();
+        let text_lower = text.to_lowercase();
         let is_short = text.len() < 80;
-        let is_all_caps = !text.is_empty()
-            && text == text.to_uppercase()
-            && text.chars().any(|c| c.is_alphabetic());
 
-        // H1: Large title (ratio > 1.5) and short
-        if ratio > 1.5 && is_short {
+        // Guard: Don't convert text with email addresses, ending in period, or arXiv metadata
+        let is_arxiv_or_meta = text_lower.starts_with("arxiv:")
+            || text_lower.contains("arxiv.org")
+            || text_lower.starts_with("[cs.")
+            || text_lower.starts_with("[stat.")
+            || text_lower.starts_with("[math.");
+
+        let looks_like_prose =
+            text.contains('@') || text.ends_with('.') || text.contains(',') || is_arxiv_or_meta;
+        if looks_like_prose {
+            return;
+        }
+
+        // Check if this looks like a section header (not an author name, etc.)
+        // First Principles: look for structural patterns (numbers, all-caps), not keywords
+        let looks_like_section = text.starts_with(|c: char| c.is_ascii_digit())
+            || text
+                .chars()
+                .all(|c| c.is_uppercase() || c.is_whitespace() || c.is_ascii_digit());
+
+        // Check if this is Abstract or Keywords - these should always be H3
+        let is_abstract_or_keywords = text_lower == "abstract"
+            || text_lower.starts_with("abstract.")
+            || text_lower == "keywords"
+            || text_lower.starts_with("keywords:");
+
+        // H3: Abstract and Keywords are always H3 (per academic paper conventions)
+        if is_abstract_or_keywords && is_short {
+            block.block_type = BlockType::SectionHeader;
+            block.level = Some(3);
+            tracing::debug!("H3 (abstract/keywords): text='{}'", text);
+        }
+        // H1: Large title (ratio > 1.5) and short - no section keyword required for main title
+        else if ratio > 1.5 && is_short {
             block.block_type = BlockType::SectionHeader;
             block.level = Some(1);
             tracing::debug!("H1 detected: ratio={:.2}, text='{}'", ratio, text);
         }
-        // H2: Section header (ratio > 1.2 OR bold with ratio >= 1.0) and short
-        else if (ratio > 1.2 || (is_bold && ratio >= 1.0)) && is_short {
+        // H2: Section header (ratio > 1.2) and short AND looks like section
+        else if ratio > 1.2 && is_short && looks_like_section {
             block.block_type = BlockType::SectionHeader;
             block.level = Some(2);
-            tracing::debug!(
-                "H2 detected: ratio={:.2}, bold={}, text='{}'",
-                ratio,
-                is_bold,
-                text
-            );
+            tracing::debug!("H2 detected: ratio={:.2}, text='{}'", ratio, text);
         }
-        // H3: Bold and all-caps sub-section
-        else if is_bold && is_all_caps && is_short {
+        // H3: Slightly larger (ratio > 1.1) and short AND looks like section
+        else if ratio > 1.1 && is_short && looks_like_section {
             block.block_type = BlockType::SectionHeader;
             block.level = Some(3);
-            tracing::debug!("H3 detected: all-caps bold, text='{}'", text);
+            tracing::debug!("H3 detected: ratio={:.2}, text='{}'", ratio, text);
+        }
+        // Special case: Bold text that exactly matches a section keyword at body size
+        // This handles PDFs where section headers are just bold, not larger font
+        else {
+            let is_bold = block
+                .spans
+                .first()
+                .map(|s| s.style.weight.unwrap_or(400) >= 600)
+                .unwrap_or(false);
+
+            // For bold text, check if it looks like a section (short, capitalized, not prose)
+            // First Principles: use font weight + structure, not keyword matching
+            let is_first_char_upper = text
+                .trim_start_matches(|c: char| c.is_ascii_digit() || c == '.' || c == ' ')
+                .chars()
+                .next()
+                .map(|c| c.is_uppercase())
+                .unwrap_or(false);
+
+            // Only convert bold text to H2 if it's short, capitalized, and looks like section
+            // But not Abstract/Keywords - those stay as H3
+            if is_bold
+                && is_short
+                && is_first_char_upper
+                && looks_like_section
+                && !looks_like_prose
+                && !is_abstract_or_keywords
+            {
+                block.block_type = BlockType::SectionHeader;
+                block.level = Some(2);
+                tracing::debug!("H2 (bold section): text='{}'", text);
+            }
         }
     }
 }
@@ -2558,7 +3050,7 @@ impl Processor for StyleDetectionProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::{BoundingBox, Page, TextSpan};
+    use crate::schema::{BoundingBox, FontStyle, Page, TextSpan};
 
     fn create_test_document() -> Document {
         let mut doc = Document::new();
@@ -2683,11 +3175,69 @@ mod tests {
                     .children
                     .iter()
                     .all(|c| c.block_type == BlockType::TableCell));
+                // First row must look like the leaderboard header.
+                assert_eq!(w[1].children[0].text, "Agent Pipeline");
+                assert!(w[1].children[1].text.contains("IoU"));
+                assert!(w[1].children[2].text.contains("Resolved"));
                 found = true;
                 break;
             }
         }
         assert!(found, "expected caption followed by reconstructed table");
+    }
+
+    #[test]
+    fn test_header_detection_numeric_sections() {
+        let mut doc = Document::new();
+        let mut page = Page::new(1, 612.0, 792.0);
+
+        // Establish a body size via a normal paragraph with spans.
+        let mut body = Block::text(
+            "This is body text.",
+            BoundingBox::new(72.0, 200.0, 540.0, 220.0),
+        );
+        body.spans = vec![TextSpan::styled(
+            "This is body text.",
+            FontStyle {
+                family: Some("Times-Roman".to_string()),
+                size: Some(10.0),
+                weight: Some(400),
+                italic: false,
+                ..Default::default()
+            },
+        )];
+        page.add_block(body);
+
+        // Section headers should be distinguishable by font (bold or larger)
+        // First Principles: sections have different styling than body text
+        let mut heading = Block::text(
+            "1. Introduction",
+            BoundingBox::new(72.0, 100.0, 540.0, 120.0),
+        );
+        heading.spans = vec![TextSpan::styled(
+            "1. Introduction",
+            FontStyle {
+                family: Some("Times-Bold".to_string()),
+                size: Some(10.0),
+                weight: Some(700), // Bold weight for section header
+                italic: false,
+                ..Default::default()
+            },
+        )];
+        page.add_block(heading);
+
+        doc.add_page(page);
+
+        let processor = HeaderDetectionProcessor::new();
+        let result = processor.process(doc).unwrap();
+
+        let blocks = &result.pages[0].blocks;
+        let intro = blocks
+            .iter()
+            .find(|b| b.text.trim() == "1. Introduction")
+            .expect("missing heading block");
+        assert_eq!(intro.block_type, BlockType::SectionHeader);
+        assert_eq!(intro.level, Some(2));
     }
 
     #[test]

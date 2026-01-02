@@ -17,6 +17,8 @@ EdgeQuake is an advanced Retrieval-Augmented Generation (RAG) framework implemen
 - `lightrag_webui/`: React 19 + TypeScript client driven by Bun + Vite
 - `docs/`: Comprehensive documentation including production guides
 
+Important Ensure to keep the files small and modular for maintainability.
+
 ## Build, Test, and Development Commands
 
 - `cargo build`: Build the entire workspace

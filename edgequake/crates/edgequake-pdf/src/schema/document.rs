@@ -201,13 +201,44 @@ impl Page {
     }
 
     /// Check if page is likely a scan (needs OCR).
+    ///
+    /// Uses statistical analysis of content density instead of
+    /// fixed character count heuristics. This is a first-principles
+    /// approach that adapts to different document types.
     pub fn needs_ocr(&self) -> bool {
-        // If we have very few text blocks or very short text, likely a scan
+        if self.blocks.is_empty() {
+            return true; // No content at all - likely needs OCR
+        }
+
+        // Calculate content density metrics
         let text_len: usize = self.blocks.iter().map(|b| b.text.len()).sum();
         let block_count = self.blocks.len();
 
-        // Heuristic: less than 50 characters of text
-        text_len < 50 && block_count < 5
+        // Calculate average block size
+        let avg_block_size = if block_count > 0 {
+            text_len as f32 / block_count as f32
+        } else {
+            0.0
+        };
+
+        // Calculate page area
+        let page_area = self.width * self.height;
+
+        // Calculate text density (characters per square point)
+        let text_density = if page_area > 0.0 {
+            text_len as f32 / page_area
+        } else {
+            0.0
+        };
+
+        // Use adaptive thresholds based on page dimensions
+        // Larger pages can have more text naturally
+        let min_text_threshold = (page_area / 1000.0) as usize; // ~1 char per 1000 sq pts
+        let min_block_threshold = (page_area / 50000.0) as usize; // ~1 block per 50000 sq pts
+
+        // Check if content is sparse (likely needs OCR)
+        // This is a first-principles approach based on density
+        text_len < min_text_threshold.max(20) && block_count < min_block_threshold.max(3)
     }
 }
 

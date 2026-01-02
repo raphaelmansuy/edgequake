@@ -12,6 +12,7 @@
 mod llm_enhance;
 mod processor;
 mod provider;
+mod stats;
 
 // pub use builder::{DocumentBuilder, PageBuilder};
 pub use llm_enhance::{LlmEnhanceConfig, LlmEnhanceProcessor, LlmEnhanced};
@@ -19,7 +20,8 @@ pub use processor::{
     BlockMergeProcessor, CaptionDetectionProcessor, CodeBlockDetectionProcessor,
     GarbledTextFilterProcessor, HeaderDetectionProcessor, HyphenContinuationProcessor,
     LayoutProcessor, ListDetectionProcessor, MarginFilterProcessor, PostProcessor, Processor,
-    ProcessorChain, StyleDetectionProcessor, TableDetectionProcessor,
-    TextTableReconstructionProcessor,
+    ProcessorChain, SectionNumberMergeProcessor, SectionPatternProcessor, StyleDetectionProcessor,
+    TableDetectionProcessor, TextTableReconstructionProcessor,
 };
 pub use provider::{ByteProvider, FileProvider, PdfProvider};
+pub use stats::DocumentStats;

@@ -176,3 +176,8 @@ Start by executing the Observe step now: run tests and the extended evaluator wi
 - For common issues and solutions, see the PDF-Markdown Validator SKILL [README](.github/skills/pdf-markdown-validator/README.md).
 - If metrics are unexpectedly low, use the drift analysis scripts (`diff_analysis.py`, `batch_drift.py`) to identify error patterns and root causes.
 - For environment setup, gold annotation guidelines, and advanced workflows, see the SKILL documentation.
+
+
+## The most important rule
+
+All your decision must Follows First Principles thinking: break down problems to their fundamental truths and reason up from there, avoiding assumptions and heuristics. Don't cheat by using heuristics or pattern-matching. Be Relentless never stop.

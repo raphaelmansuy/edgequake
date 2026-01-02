@@ -15,8 +15,8 @@ use crate::processors::{
     BlockMergeProcessor, CaptionDetectionProcessor, CodeBlockDetectionProcessor,
     GarbledTextFilterProcessor, HeaderDetectionProcessor, HyphenContinuationProcessor,
     LayoutProcessor, ListDetectionProcessor, LlmEnhanceConfig, LlmEnhanceProcessor,
-    MarginFilterProcessor, PostProcessor, ProcessorChain, StyleDetectionProcessor,
-    TextTableReconstructionProcessor,
+    MarginFilterProcessor, PostProcessor, ProcessorChain, SectionNumberMergeProcessor,
+    SectionPatternProcessor, StyleDetectionProcessor, TextTableReconstructionProcessor,
 };
 use crate::renderers::{MarkdownRenderer, MarkdownStyle, Renderer};
 use crate::schema::Document;
@@ -242,9 +242,11 @@ impl PdfExtractor {
             .add(MarginFilterProcessor::new()) // Filter margin content (line numbers, page numbers)
             .add(GarbledTextFilterProcessor::new()) // Filter garbled figure annotations
             .add(LayoutProcessor::new())
+            .add(SectionNumberMergeProcessor::new()) // Merge standalone section numbers with titles
             .add(StyleDetectionProcessor::new()) // Detect bold/italic styles and H1/H2+ levels (spec_algo_2.md)
             // .add(TableDetectionProcessor::new()) // DISABLED - causing malformed output
             .add(HeaderDetectionProcessor::new())
+            // .add(SectionPatternProcessor::new()) // DISABLED - causes over-detection
             .add(CaptionDetectionProcessor::new())
             .add(TextTableReconstructionProcessor::new())
             .add(ListDetectionProcessor::new())
