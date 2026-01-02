@@ -4,7 +4,7 @@
 //! transformation. Each processor can modify the document structure.
 
 use crate::layout::LayoutAnalyzer;
-use crate::schema::{Block, BlockType, Document};
+use crate::schema::{Block, BlockType, Document, TextSpan};
 use crate::Result;
 use regex::Regex;
 
@@ -1611,6 +1611,36 @@ impl PostProcessor {
         }
     }
 
+    /// Normalize whitespace in span text.
+    ///
+    /// Unlike `normalize_text`, spans must preserve leading/trailing spaces because the
+    /// Markdown renderer concatenates spans directly while using those boundary spaces
+    /// to keep words separated.
+    fn normalize_span_text(&self, text: &str) -> String {
+        if !self.normalize_whitespace {
+            return text.to_string();
+        }
+
+        let text = self.fix_soft_hyphens(text);
+
+        let mut result = String::new();
+        let mut prev_space = false;
+
+        for c in text.chars() {
+            if c == ' ' || c == '\t' {
+                if !prev_space {
+                    result.push(' ');
+                    prev_space = true;
+                }
+            } else {
+                result.push(c);
+                prev_space = false;
+            }
+        }
+
+        result
+    }
+
     /// Fix common OCR errors.
     fn fix_ocr_text(&self, text: &str) -> String {
         if !self.fix_ocr_errors {
@@ -1654,10 +1684,16 @@ impl PostProcessor {
     fn fix_concatenated_words(&self, text: &str) -> String {
         let mut result = text.to_string();
 
-        // Fix lowercase immediately followed by uppercase (legit pattern: "methodsThe" -> "methods The")
+        // Fix concatenations like "methodsThe" -> "methods The".
+        // This is intentionally broad; we patch known legitimate tokens afterwards.
         if let Ok(re) = Regex::new(r"([a-z])([A-Z][a-z])") {
             result = re.replace_all(&result, "$1 $2").to_string();
         }
+
+        // Repair common legitimate tokens that would otherwise be split.
+        // (We keep this list minimal and high-signal.)
+        result = result.replace("ar Xiv", "arXiv");
+        result = result.replace("Ar Xiv", "ArXiv");
 
         // Fix "etal." -> "et al." (standard academic citation)
         result = result.replace("etal.", "et al.");
@@ -1694,8 +1730,20 @@ impl PostProcessor {
             
             // Also process spans since MarkdownRenderer uses spans if present
             for span in &mut block.spans {
-                span.text = self.normalize_text(&span.text);
+                span.text = self.normalize_span_text(&span.text);
                 span.text = self.fix_ocr_text(&span.text);
+
+                // Avoid rewriting code-like spans (could change identifiers).
+                if !span.style.looks_like_code() {
+                    span.text = self.fix_concatenated_words(&span.text);
+                    span.text = self.cleanup_citations(&span.text);
+                }
+            }
+
+            // Span-to-span boundaries can create double-spaces (e.g. trailing + leading spaces).
+            // Normalize those without destroying intentional newlines.
+            if self.normalize_whitespace {
+                Self::normalize_span_boundaries(&mut block.spans);
             }
         }
 
@@ -1703,6 +1751,26 @@ impl PostProcessor {
         for child in &mut block.children {
             self.process_block(child);
         }
+    }
+
+    fn normalize_span_boundaries(spans: &mut Vec<TextSpan>) {
+        // Remove empty spans and de-duplicate horizontal spaces across boundaries.
+        spans.retain(|s| !s.text.is_empty());
+        if spans.len() < 2 {
+            return;
+        }
+
+        for i in 1..spans.len() {
+            let prev_ends_space = spans[i - 1].text.ends_with(' ');
+            let cur_starts_space = spans[i].text.starts_with(' ');
+            if prev_ends_space && cur_starts_space {
+                // Drop exactly one leading space from current span.
+                spans[i].text.remove(0);
+            }
+        }
+
+        // Clean up spans that became empty after boundary normalization.
+        spans.retain(|s| !s.text.is_empty());
     }
 }
 
@@ -2426,7 +2494,7 @@ impl Processor for StyleDetectionProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::{BoundingBox, Page};
+    use crate::schema::{BoundingBox, Page, TextSpan};
 
     fn create_test_document() -> Document {
         let mut doc = Document::new();
@@ -2478,6 +2546,34 @@ mod tests {
 
         let fixed = processor.fix_ocr_text("ﬁnd the ﬂow");
         assert_eq!(fixed, "find the flow");
+    }
+
+    #[test]
+    fn test_post_processor_span_cleanup_and_boundaries() {
+        let processor = PostProcessor::new();
+
+        let mut block = Block::text(
+            "methodsThe    model",
+            BoundingBox::new(72.0, 100.0, 540.0, 130.0),
+        );
+        // Renderer prefers spans if present.
+        block.spans = vec![TextSpan::plain("methodsThe "), TextSpan::plain("  model")];
+
+        processor.process_block(&mut block);
+
+        // Concatenated-word fix should apply to spans too.
+        assert_eq!(block.spans[0].text, "methods The ");
+        // Boundary normalization should remove the extra double-space across spans.
+        assert_eq!(block.spans[1].text, "model");
+    }
+
+    #[test]
+    fn test_post_processor_does_not_split_arxiv() {
+        let processor = PostProcessor::new();
+
+        let input = "Submitted to arXiv:2501.23456";
+        let output = processor.fix_concatenated_words(input);
+        assert_eq!(output, input);
     }
 
     #[test]
