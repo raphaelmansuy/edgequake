@@ -13,7 +13,7 @@ mod reading_order;
 mod xy_cut;
 
 pub use column_detector::{ColumnDetector, ColumnLayout};
-pub use geometric::{Cluster, Column, GeometricClusterer};
+pub use geometric::{dbscan_1d, Cluster, Column, GeometricClusterer};
 pub use reading_order::{ReadingOrder, ReadingOrderDetector};
 pub use xy_cut::{XYCut, XYCutNode, XYCutParams};
 

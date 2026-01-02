@@ -1,4 +1,5 @@
 use super::elements::{PdfLine, TextElement};
+use crate::layout::dbscan_1d;
 use crate::schema::{Block, BlockType, BoundingBox};
 
 /// Lattice Engine for table extraction based on graphical lines
@@ -252,11 +253,13 @@ impl LatticeEngine {
         let unique_y = self.get_sorted_unique(&y_coords, true); // Descending (Top to Bottom)
         let mut unique_x = self.get_sorted_unique(&x_coords, false); // Ascending (Left to Right)
 
-        // If we have rows (unique_y >= 2) but no columns (unique_x < 2), try whitespace detection
+        // If we have rows (unique_y >= 2) but no columns (unique_x < 2), use geometric clustering
+        // This handles tables without vertical lines but with clear column structure
         if unique_y.len() >= 2 && unique_x.len() < 2 {
-            let detected_x = self.detect_columns_by_whitespace(text_elements, &bbox);
+            let detected_x = self.detect_columns_by_clustering(text_elements, &bbox);
             if detected_x.len() >= 2 {
                 unique_x = detected_x;
+                tracing::info!("Detected {} columns in table bbox {:?}", unique_x.len(), bbox);
             }
         }
 
@@ -312,6 +315,74 @@ impl LatticeEngine {
         let mut block = Block::new(BlockType::Table, bbox);
         block.text = markdown;
         Some(block)
+    }
+
+    /// Detect table columns using geometric clustering (DBSCAN).
+    ///
+    /// First principles approach: cluster text element X-coordinates to find
+    /// natural column boundaries instead of using whitespace heuristics.
+    ///
+    /// This handles multi-word cells, variable spacing, and alignment issues.
+    fn detect_columns_by_clustering(
+        &self,
+        text_elements: &[TextElement],
+        bbox: &BoundingBox,
+    ) -> Vec<f32> {
+        // 1. Collect X coordinates of elements within table bbox
+        let mut x_coords: Vec<f32> = text_elements
+            .iter()
+            .filter(|elem| {
+                let cx = elem.x;
+                let cy = elem.y;
+                let tolerance = 2.0;
+                cx >= bbox.x1 - tolerance
+                    && cx <= bbox.x2 + tolerance
+                    && cy >= bbox.y1 - tolerance
+                    && cy <= bbox.y2 + tolerance
+            })
+            .map(|elem| elem.x)
+            .collect();
+
+        if x_coords.len() < 2 {
+            return Vec::new();
+        }
+
+        // 2. Sort coordinates
+        x_coords.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        // 3. Compute adaptive epsilon (10th percentile of inter-element distances)
+        let mut distances: Vec<f32> = x_coords
+            .windows(2)
+            .map(|w| w[1] - w[0])
+            .filter(|&d| d > 0.5) // Ignore sub-point distances
+            .collect();
+
+        if distances.is_empty() {
+            return Vec::new();
+        }
+
+        distances.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let p10_idx = ((distances.len() as f32 * 0.10).ceil() as usize).min(distances.len() - 1);
+        let epsilon = distances[p10_idx];
+
+        // 4. Apply DBSCAN clustering
+        let clusters: Vec<Vec<f32>> = dbscan_1d(&x_coords, epsilon, 1);
+
+        // 5. Extract column boundaries (cluster centroids)
+        let mut col_boundaries: Vec<f32> = Vec::new();
+        for cluster in &clusters {
+            if cluster.is_empty() {
+                continue;
+            }
+            let sum: f32 = cluster.iter().sum();
+            let centroid = sum / cluster.len() as f32;
+            col_boundaries.push(centroid);
+        }
+
+        // 6. Sort left to right
+        col_boundaries.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        col_boundaries
     }
 
     fn detect_columns_by_whitespace(

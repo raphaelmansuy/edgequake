@@ -2220,12 +2220,61 @@ impl Processor for HeaderDetectionProcessor {
 
                 let text = block.text.trim();
 
-                // Only consider short blocks as potential headers
-                // Long text is paragraph content, not a heading
-                // Also exclude text containing colons followed by descriptions (inline lists)
-                let has_inline_description = text.contains(':') && text.len() > 50;
+                // Adaptive length threshold based on heading level expectations
+                // Document titles (H1) are naturally longer than section headers (H2/H3)
+                // First Principles: use position + font size to distinguish title from section
+                let is_first_page = page.number == 1;
+                let block_y = block.bbox.y1;
+                let page_height = page.height;
+                // PDF coordinates: y increases from bottom to top
+                // Top of page is near page_height, bottom is near 0
+                let is_top_of_page = block_y > (page_height - 200.0);
+
+                // Get font size for title detection
+                let font_size = block
+                    .spans
+                    .first()
+                    .and_then(|s| s.style.size)
+                    .unwrap_or(10.0);
+                let is_large_font = font_size > body_size * 1.4; // Slightly relaxed from 1.5
+
+                // Allow longer text for document titles (first page + top position)
+                // Use more relaxed conditions for first page to catch titles
+                let max_heading_len = if is_first_page && (is_top_of_page || is_large_font) {
+                    150 // Document titles: 80-120 chars typical
+                } else {
+                    80 // Section headers: usually shorter
+                };
+
+                // Inline description check: "Key: Value" patterns
+                // Examples to EXCLUDE from headings: "Author: John Doe", "Date: 2024"
+                // Examples to INCLUDE as headings: "Title: Subtitle of Paper", "ISWC 2025: Workshop"
+                // First Principles: inline descriptions have very short keys (< 10 chars)
+                // AND the key is often lowercase or property-like
+                let has_inline_description = if let Some(colon_pos) = text.find(':') {
+                    if colon_pos < 10 {
+                        // Very short key - likely inline description
+                        // But check if it's a common section/title pattern
+                        let key = &text[..colon_pos].trim();
+                        let is_property_like = key
+                            .chars()
+                            .next()
+                            .map(|c| c.is_lowercase())
+                            .unwrap_or(false)
+                            || key == &"doi"
+                            || key == &"url"
+                            || key == &"email";
+                        is_property_like && text.len() > 50
+                    } else {
+                        // Longer key (>= 10 chars) - likely part of title/heading
+                        false
+                    }
+                } else {
+                    false
+                };
+
                 let is_short_for_heading =
-                    text.len() < 80 && !text.ends_with('.') && !has_inline_description;
+                    text.len() < max_heading_len && !text.ends_with('.') && !has_inline_description;
 
                 // Check for subsection pattern first (e.g., "1.1 Motivation")
                 // Subsections have at least one internal dot, making them H3 or deeper
@@ -2307,8 +2356,16 @@ impl Processor for HeaderDetectionProcessor {
                         || text_lower.starts_with("[stat.")
                         || text_lower.starts_with("[math.");
 
+                    // Use position-aware length threshold (same as above)
+                    let max_len_for_heading = if is_first_page && (is_top_of_page || is_large_font)
+                    {
+                        150 // Allow longer document titles
+                    } else {
+                        100 // Standard section headers
+                    };
+
                     let headingish = !text.is_empty()
-                        && text.len() < 100  // Stricter length limit
+                        && text.len() < max_len_for_heading
                         && !text.contains('@')  // No email addresses
                         && !text.ends_with('.')  // No sentences
                         && !text.contains(',')  // No comma-separated items like author affiliations

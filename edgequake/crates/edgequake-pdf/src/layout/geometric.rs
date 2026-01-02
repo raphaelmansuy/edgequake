@@ -442,3 +442,106 @@ mod tests {
         assert_eq!(cluster.width(), 20.0, "Width should be 20.0");
     }
 }
+
+/// 1D DBSCAN for column/row detection in tables.
+///
+/// Clusters values in a single dimension using density-based approach.
+///
+/// # Arguments
+/// * `values` - Sorted array of 1D coordinates
+/// * `eps` - Maximum distance between two values to be neighbors
+/// * `min_samples` - Minimum points to form a cluster
+///
+/// # Returns
+/// Vector of clusters, each containing the coordinate values
+pub fn dbscan_1d(values: &[f32], eps: f32, min_samples: usize) -> Vec<Vec<f32>> {
+    let n = values.len();
+    if n == 0 {
+        return Vec::new();
+    }
+
+    let mut labels = vec![-1; n]; // -1 = noise, >= 0 = cluster ID
+    let mut cluster_id = 0;
+
+    for i in 0..n {
+        if labels[i] != -1 {
+            continue; // Already processed
+        }
+
+        // Find neighbors within eps
+        let mut neighbors: Vec<usize> = Vec::new();
+        for j in 0..n {
+            if (values[j] - values[i]).abs() <= eps {
+                neighbors.push(j);
+            }
+        }
+
+        // Not enough neighbors - mark as noise
+        if neighbors.len() < min_samples {
+            labels[i] = -1;
+            continue;
+        }
+
+        // Start new cluster
+        labels[i] = cluster_id;
+        let mut seed_set = neighbors.clone();
+        let mut k = 0;
+
+        while k < seed_set.len() {
+            let q = seed_set[k];
+            k += 1;
+
+            // If noise, add to cluster
+            if labels[q] == -1 {
+                labels[q] = cluster_id;
+            }
+
+            // Already in cluster
+            if labels[q] != -1 {
+                continue;
+            }
+
+            labels[q] = cluster_id;
+
+            // Find neighbors of q
+            let mut q_neighbors: Vec<usize> = Vec::new();
+            for j in 0..n {
+                if (values[j] - values[q]).abs() <= eps {
+                    q_neighbors.push(j);
+                }
+            }
+
+            // If q is core point, add its neighbors to seed set
+            if q_neighbors.len() >= min_samples {
+                for &neighbor in &q_neighbors {
+                    if labels[neighbor] == -1 || !seed_set.contains(&neighbor) {
+                        seed_set.push(neighbor);
+                    }
+                }
+            }
+        }
+
+        cluster_id += 1;
+    }
+
+    // Group values by cluster ID
+    let mut clusters: HashMap<i32, Vec<f32>> = HashMap::new();
+    for (i, &label) in labels.iter().enumerate() {
+        if label >= 0 {
+            clusters
+                .entry(label)
+                .or_insert_with(Vec::new)
+                .push(values[i]);
+        }
+    }
+
+    // Convert to vector of clusters
+    let mut result: Vec<Vec<f32>> = clusters.into_values().collect();
+    result.sort_by(|a, b| {
+        let a_min = a.iter().fold(f32::INFINITY, |acc, &x| acc.min(x));
+        let b_min = b.iter().fold(f32::INFINITY, |acc, &x| acc.min(x));
+        a_min.partial_cmp(&b_min).unwrap()
+    });
+
+    result
+}

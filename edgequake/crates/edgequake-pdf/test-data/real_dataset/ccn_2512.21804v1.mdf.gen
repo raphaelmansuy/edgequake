@@ -1,24 +1,34 @@
 **S&P 500 Stock's Movement Prediction using CNN**
 
-Rahul Gupta Stanford University
+Rahul Gupta
 
-353 Serra Mall, Stanford, CA 94305
+Stanford University
+
+## 353 Serra Mall, Stanford, CA 94305
 
 ### Abstract
 
-Financial institutions, banks, dealer broker firms, hedge funds and individual rely on S&P 500 stock's movement to 
+Financial institutions, banks, dealer broker firms, hedge 
 
-*This paper is about predicting the movement of stock* invest, liquidate their investment *consist of S& P 500 index. Historically there are many* risks. S&P 500 represent top 500 large cap companies of *approaches have been tried using various methods to* the United tates *predict the stock movement and being used in the market* individual not just in *currently for algorithm trading and alpha generating* the key financial indicators for market movements. *systems using traditional mathematical approaches*  the same proposed model can *The success of artificial neural network recently createda* listed in S&P 500, for illustration purposes, in *lotof interest and paved the way to enable prediction* the proposed model will use historical prices of few of *using cutting-edge research in the machine learning and* S&P 500 stocks to train and test the model. *deep learning. Some of these papers have done a greatjob* *in implementing and explaining benefits of these new* *technologies. Althoughmost these papersdo not go into* Background: *the complexity of the financial data and mostly utilize* In the recent years, deep le *single dimensiondata, still most ofthese paperswere* Networks (ANN) have *successfulin creating the ground for future research in* such, to name few such as automotive, diagnostic, surgery *this comparatively new phenomenon.* etc. ANN application list is ever increasing. After the 
+funds and individual rely on S&P 500 stock's movement to 
+
+*This paper is about predicting the movement of stock* invest, liquidate their investment
+
+*consist of S& P 500 index. Historically there are many* risks. S&P 500 represent top 500 large cap companies of *approaches have been tried using various methods to* the United tates *predict the stock movement and being used in the market* individual not just in *currently for algorithm trading and alpha generating* the key financial indicators for market movements. *systems using traditional mathematical approaches*  the same proposed model can *The success of artificial neural network recently createda* listed in S&P 500, for illustration purposes, in *lotof interest and paved the way to enable prediction* the proposed model will use historical prices of few of *using cutting-edge research in the machine learning and* S&P 500 stocks to train and test the model. *deep learning. Some of these papers have done a greatjob* *in implementing and explaining benefits of these new* *technologies. Althoughmost these papersdo not go into* Background: *the complexity of the financial data and mostly utilize* In the recent years, deep le *single dimensiondata, still most ofthese paperswere* Networks (ANN) have *successfulin creating the ground for future research in* such, to name few such as automotive, diagnostic, surgery *this comparatively new phenomenon.* etc. ANN application list is ever increasing. After the 
 
 Image Net challenges 
 
-*In this paper,I am trying to usemultivariate raw data* Netwo rk (CNN) based model have made *including stock split/dividend events (as-is) present in* progress in predicting images (in fact better *real-world market data instead of engineered financial* and overdo other available approaches used till date, there *data.Convolution Neural Network (CNN), the best-known* have been several applications tried using CNN. *tool so far for image classification,isused on the multi-* D eep Learning approach, *dimensional stock numbers taken from the market* Term -Memory), a prominent variation of Recurrent Neural *mimicking them as a vectorof historical data matrices* Network or RNN, has been used in predicting time *(read images)and the model achieves promising results.* data and has provide *The predictions can be mad e stock by stock,i.e.,a single* shows that LSTM *stock, sector-wiseorfor the portfolio of stocks.* algorithms such as ARIMA mod
+*In this paper,I am trying to usemultivariate raw data* Netwo rk (CNN) based model have made 
 
-## Introduction The application of deep learning approaches mainly 
+*including stock split/dividend events (as-is) present in* progress in predicting images (in fact better *real-world market data instead of engineered financial* and overdo other available approaches used till date, there *data.Convolution Neural Network (CNN), the best-known* have been several applications tried using CNN. *tool so far for image classification,isused on the multi-* D eep Learning approach, *dimensional stock numbers taken from the market* Term -Memory), a prominent variation of Recurrent Neural *mimicking them as a vectorof historical data matrices* Network or RNN, has been used in predicting time *(read images)and the model achieves promising results.* data and has provide *The predictions can be mad e stock by stock,i.e.,a single* shows that LSTM *stock, sector-wiseorfor the portfolio of stocks.* algorithms such as ARIMA mod
+
+**Introduction** The application of deep learning approaches mainly 
 
 LSTM and CNN to finance has received a great deal of 
 
-The Standard & Poor's 500 Index or S&P 500 as it attention from both investors and academia. called is a weightedindex of the 500 largest U.S. publicly challengingto train, mainly because of the computationally traded companies market capitalization.S&P 500 is one of expensive nature of time the furthermostcommonly quoted American indexes of the networks, and the amount of data over which they because it is representative of the largest U.S.public must be trained corporations and it focuses on the large-cap sector of the stateful, many problems require "online" training, meaning 
+The Standard & Poor's 500 Index or S&P 500 as it attention from both investors and academia. 
+
+called is a weightedindex of the 500 largest U.S. publicly challengingto train, mainly because of the computationally traded companies market capitalization.S&P 500 is one of expensive nature of time the furthermostcommonly quoted American indexes of the networks, and the amount of data over which they because it is representative of the largest U.S.public must be trained corporations and it focuses on the large-cap sector of the stateful, many problems require "online" training, meaning 
 
 s or hedge their business
 
@@ -42,13 +52,21 @@ rahulgup@stanford.edu
 
 U.S. market.[3] that they cannot be trainedall at once by highly optimized, 
 
-vectorized calculations in a batch with error computation and gradient descent over groups[5]. However, CNNs with 1
+vectorized calculations in a batch with error computation and gradient descent over groups[5]. However, CNNs with 
+
+1
 
 arning using Artificial Neural 
 
-been usedin a lotof different areas where Convolutional Neural 
+been usedin a lotof different areas 
 
-significant than human) Another 
+where Convolutional Neural 
+
+significant
+
+than human) 
+
+Another 
 
 LSTM (stands for Long-Shortd surprising results. A recent study
 
@@ -67,9 +85,19 @@ LSTMs are
 
 ---
 
-data have revolutionized computer vision. The network topology of CNNs exploits the spatial relationship among the pixels in an image,and this is one of the reasons for their success[6]. Stock market prediction is usually consideredas one of the most challenging issues among time series predictions
+data have revolutionized computer vision. The network topology of CNNs exploits the spatial relationship among the pixels in an image,and this is one of the reasons for their success[6]. 
 
-[7] due to its noise,and volatile featuresmake CNN natural choice over LSTM. In addition to the data noise, due to its nature of convolving CNN intuitionally would be better of handling prediction of a stockdividend and split events The input to our algorithm is a stock's raw historical time-series numbers(OPEN, HIGH, LOW, CLOSE, VOLUME, ADJ_OPEN, ADJ_HIGH, ADJ_LOW, ADJ_CLOSE, ADJ_VOLUME) uploaded in CSV format for all current stock consists in S&P 500. We then use a CNN approach to deep learning to predictBUY/SELL based on the absolute return.
+Stock market prediction is usually consideredas one of 
+
+the most challenging issues among time series predictions
+
+[7] due to its noise,and volatile featuresmake CNN natural 
+
+choice over LSTM. In addition to the data noise, due to its nature of convolving CNN intuitionally would be better of handling prediction of a stockdividend and split events
+
+The input to our algorithm is a stock's raw historical
+
+time-series numbers(OPEN, HIGH, LOW, CLOSE, VOLUME, ADJ_OPEN, ADJ_HIGH, ADJ_LOW, ADJ_CLOSE, ADJ_VOLUME) uploaded in CSV format for all current stock consists in S&P 500. We then use a CNN approach to deep learning to predictBUY/SELL based on the absolute return.
 
 Time Convolutional and Recurrent Neural Networks, Grob et al. applied CNNs to predict electricity prices at the European Power Exchange discovering that the CNNʻs were able to find features with better predictive power than those engineered by an expert.Similar to the way proposed in thispaper, in their article,Grob et al.[10] demonstrated 
 
@@ -77,15 +105,29 @@ tricks-of-the-trade forCNNs to this criticaldomain. Their multidimensionaltime s
 
 . correlation between intraday electricitycontracts. Also, 
 
-they tested two novel models -Space-Time Convolutional Neural Network (ST -CNN) and Space-Time Convolutional and Recurrent Neural Network (STaR). In the paper titled as Conditional Time Series Forecasting with Convolutional Neural Networks [], Borovykh et al. have presented a method for conditional time series forecasting based on the deep convolutional Wave Net architecture. The network used in their model contains stacks of dilated convolutions that allow it to access a wide-ranginghistory when forecasting; several convolutional filters are applied in parallel to separate time series and allow for the fast processing of data and the exploitation of the correlation structure between the
+they tested two novel models -Space-Time Convolutional Neural Network (ST -CNN) and Space-Time Convolutional and Recurrent Neural Network (STaR).
+
+In the paper titled as Conditional Time Series 
+
+Forecasting with Convolutional Neural Networks [], Borovykh et al. have presented a method for conditional time series forecasting based on the deep convolutional Wave Net architecture. The network used in their model contains stacks of dilated convolutions that allow it to access a wide-ranginghistory when forecasting; several convolutional filters are applied in parallel to separate time series and allow for the fast processing of data and the exploitation of the correlation structure between the
 
 , multidimensionaltime series. The performance of the 
 
-C NN is analyzed on various multivariate time series and compared to that of the well-known autoregressive model and along-short-termmemory network. Pinheiro and Dras [] explores recurrent neural networks with character-level language model pre-training for both intraday and daily stock market forecastingand predicting directional changes in the S&P 500 index, both for individual stocks/tickersand the overall indexin their 
+C NN is analyzed on various multivariate time series and compared to that of the well-known autoregressive model and along-short-termmemory network. 
+
+Pinheiro and Dras [] explores recurrent neural networks 
+
+with character-level language model pre-training for both intraday and daily stock market forecastingand predicting directional changes in the S&P 500 index, both for individual stocks/tickersand the overall indexin their 
 
 . paper Stock Market Prediction with Deep Learning: A 
 
-Character-based Neural Language Model for Event-based Trading. Selvinet al.[] have proposed method that does fit the data to a specific model, insteadidentify the underlying dynamics existing in the data using deep learning architectures. In theirwork,theyused three different deep learning architectures for the price prediction of NSE listed companies and compares their performanceby applying a sliding window approach for predicting future values. The model proposed in this paper also uses the sliding window approach. In a paper submitted by SiripurapuA. [] where using 
+Character-based Neural Language Model for Event-based Trading.
+
+Selvinet al.[] have proposed method that does fit the 
+
+data to a specific model, insteadidentify the underlying dynamics existing in the data using deep learning architectures. In theirwork,theyused three different deep learning architectures for the price prediction of NSE listed companies and compares their performanceby applying a sliding window approach for predicting future values. The model proposed in this paper also uses the sliding window approach.
+
+In a paper submitted by SiripurapuA. [] where using 
 
 their ability to learn useful spatial features from the input computer vision. In Predicting Time Series with Space-
 
@@ -105,14 +147,30 @@ prices; however,by converting the time series of past price
 
 to learn useful spatial features have revolutionized 
 
-fluctuationsto an actual imagewas a smartapproach but 2
+fluctuationsto an actual imagewas a smartapproach but 
 
-Persio and Honchar[8] laid the framework for comparing different neural network models for stock prediction concerningthe forecast of their trend movements up or down, in their paper Artificial Neural Networks architectures for stock price prediction:comparisons and applications.Like our data set, the S&P500 historical time series, predicting a trendbased ondata from the past days, and proposing a novel state-of-art approach based on a combinationof wavelets and CNN, which outperforms the basic neural networks ones. Their paper demonstrates that neural networks can predict financial time series movements even trained only on plaintime series data In theirpaper, Financial Time Series Prediction using Deep Learning, Ariel Navon, and Yosi Kellery presented a data-driven end-to-end Deep Learning approach for time series prediction, applied to financial time series. In their paper, a Deep Learning scheme is derived to predict the temporal trends of stocks and ETFs in NYSE or NASDAQ. Their approach is based on an artificialneural networkto predict the temporalpatterns of stocks and ETFsthat are applied to raw financial data inputs which very similar to the input data being used in thispaper as it used raw market data of indices/ticker from S&P 500.
+2
+
+Persio and Honchar[8] laid the framework for comparing 
+
+different neural network models for stock prediction concerningthe forecast of their trend movements up or down, in their paper Artificial Neural Networks architectures for stock price prediction:comparisons and applications.Like our data set, the S&P500 historical time series, predicting a trendbased ondata from the past days, and proposing a novel state-of-art approach based on a combinationof wavelets and CNN, which outperforms the basic neural networks ones. Their paper demonstrates that neural networks can predict financial time series movements even trained only on plaintime series data
+
+In theirpaper, Financial Time Series Prediction using 
+
+Deep Learning, Ariel Navon, and Yosi Kellery presented a data-driven end-to-end Deep Learning approach for time series prediction, applied to financial time series. In their paper, a Deep Learning scheme is derived to predict the temporal trends of stocks and ETFs in NYSE or NASDAQ. Their approach is based on an artificialneural networkto predict the temporalpatterns of stocks and ETFsthat are applied to raw financial data inputs which very similar to the input data being used in thispaper as it used raw market data of indices/ticker from S&P 500.
 
 
 ---
 
-usable. Bi´nkowski et al. [] proposed model they called Significance-Offset Convolutional Neural Network, a deep convolutional network architecture for regression of multivariate asynchronous time series. The model is inspiredby standard autoregressive (AR) models and gating mechanisms used in recurrent neural networks. Sezer and Ozbayoglu [] proposed a novel algorithmic trading model CNN-TA using a 2-D Convolutional Neural Network based on image processing properties. They converted financial time series into 2-D imagesand then labeledas Buy, Sell or Hold depending on the hills and valleys of the original time series. 
+usable.
+
+Bi´nkowski et al. [] proposed model they called 
+
+Significance-Offset Convolutional Neural Network, a deep convolutional network architecture for regression of multivariate asynchronous time series. The model is inspiredby standard autoregressive (AR) models and gating mechanisms used in recurrent neural networks.
+
+Sezer and Ozbayoglu [] proposed a novel algorithmic 
+
+trading model CNN-TA using a 2-D Convolutional Neural Network based on image processing properties. They converted financial time series into 2-D imagesand then labeledas Buy, Sell or Hold depending on the hills and valleys of the original time series. 
 
 Figure 1 (a): Example of OHLC candleprice chart. Image 
 
@@ -122,7 +180,7 @@ requires additional work that is an overheadmake it less
 
 15
 
-16
+ 16Figure 1 (a): Example of OHLC candleprice chart. Image 
 
 *Figure 2: Apple Inc. (AAPL) split-unadjusted price movement*
 
@@ -130,13 +188,31 @@ requires additional work that is an overheadmake it less
 
 ## 3.Dataset and Features
 
-The dataset we are using in this paper and model is raw data and not the engineered financial data.An open-high low-close-volume (or OHLCV in short) with its adjusted counterpart is usedfor training and testing this model. The OHLCV is used to illustrate movements in the price of a financial instrument over time along with volume traded over one unit of time, e.g., one day or one hour. For this paper,we are using daily. The image in figure 1(a) is an example of OHLC candle price chart and 1(b) a zoom-in illustration of a single candle and how to decode it. An adjusted OHLC price is a stock's price on an any given day of trading that has been amended to include any dividend distributions and corporate actionssuch as dividend/split that occurred at any time beforethe next day's open. OHLCV and adjusted OHLCV are most critical raw numbers that a stock/equity has prices comprises along withfew others such as market capitalization, earning, etc For the ohlcprice, it also needs to be split-unadjusted. An example of unsplit-adjusted price could be foundin figure 2 that is part of the dataset used in training.
+The dataset we are using in this paper and model is raw 
+
+data and not the engineered financial data.An open-high low-close-volume (or OHLCV in short) with its adjusted counterpart is usedfor training and testing this model. The OHLCV is used to illustrate movements in the price of a financial instrument over time along with volume traded over one unit of time, e.g., one day or one hour. For this paper,we are using daily. 
+
+The image in figure 1(a) is an example of OHLC candle price chart and 1(b) a zoom-in illustration of a single candle and how to decode it. 
+
+An adjusted OHLC price is a stock's price on an any 
+
+given day of trading that has been amended to include any dividend distributions and corporate actionssuch as dividend/split that occurred at any time beforethe next day's open.
+
+OHLCV and adjusted OHLCV are most critical raw
+
+numbers that a stock/equity has prices comprises along withfew others such as market capitalization, earning, etc
+
+For the ohlcprice, it also needs to be split-unadjusted. 
+
+An example of unsplit-adjusted price could be foundin figure 2 that is part of the dataset used in training.
 
 Figure 1 (b): Decoding candle chart. Image source: 
 
 (b) wikipedia
 
-Stock dividends are like cash dividends and effects company's stock price; however, instead of cash, a company pays out stock[17]. As aresult, a company's shares outstanding will increase, and the company's stock price will decrease. On the other hand, stock splits occur when a company perceives that its stock price may be too high and want to keep their stock price within an optimal trading range. Stock splits are usually done to increase the liquidity of the stock and to make it more affordable for investors to buy regular lots.
+Stock dividends are like cash dividends and effects 
+
+company's stock price; however, instead of cash, a company pays out stock[17]. As aresult, a company's shares outstanding will increase, and the company's stock price will decrease. On the other hand, stock splits occur when a company perceives that its stock price may be too high and want to keep their stock price within an optimal trading range. Stock splits are usually done to increase the liquidity of the stock and to make it more affordable for investors to buy regular lots.
 
 .
 
@@ -163,7 +239,9 @@ As follows, several steps of data preprocessing are The simple normalization tec
 
 *Figure 3: Cleaned data before normalization was applied*
 
-Data augmentation is used to create multiple images by sliding the window by number days to predict. approachhas enhanced the ability of the proposed to find and learn more complex pattern that already has access to the daily data ranging from eightto tw enty years. The whole dataset was discretizedby using split and shuffle techniqueto process the train data discretely prevent the overfitting.
+Data augmentation is used to create multiple images by 
+
+sliding the window by number days to predict. approachhas enhanced the ability of the proposed to find and learn more complex pattern that already has access to the daily data ranging from eightto tw enty years. The whole dataset was discretizedby using split and shuffle techniqueto process the train data discretely prevent the overfitting.
 
 The complete dataset used in training and testing of this 
 
@@ -171,21 +249,35 @@ were paper has been loadedfrom an authorized market data
 
 source provider Intrinio.com, a Financial Data Platform for all current stock consists ofS&P 500.
 
-**4.M ethods**
+## 4.M ethods
 
-Deep-Learning (DL)[] approaches that relate to computational algorithms using artificial neural networks with many layers allows to directly analyze raw data measurements without having to encode the measurements in task-specific representations. This workproposes to 
+Deep-Learning (DL)[] approaches that relate to 
 
-of the financial market trends. This paperintroduces the following contributions: First, a learning scheme based on the raw market data pricesdata of stocks, in contrast to financial forecasting schemes where the analysis utilized engineered features 
+computational algorithms using artificial neural networks with many layers allows to directly analyze raw data measurements without having to encode the measurements in task-specific representations. This workproposes to 
+
+of the financial market trends. This paperintroduces the following contributions: 
+
+First, a learning scheme based on the raw market data 
+
+pricesdata of stocks, in contrast to financial forecasting schemes where the analysis utilized engineered features 
 
 [ 9].
 
-This model Second, a trading strategy that utilizes the probabilistic 
+This 
+
+model Second, a trading strategy that utilizes the probabilistic 
 
 predictions of the convolutional neural network model, to 
 
--four determine the bullish or bearishtrendof the equities. and Third, the model is trained on stock dividend/split data 
+-four determine the bullish or bearishtrendof the equities.
 
-to see ifthe model has learned these complex market events. A Conv Net arranges its neurons in three dimensions (width, height, depth), as visualized below in one of the layers. 
+and Third, the model is trained on stock dividend/split data 
+
+to see ifthe model has learned these complex market events.
+
+A Conv Net arranges its neurons in three dimensions 
+
+(width, height, depth), as visualized below in one of the layers. 
 
 
 ---
@@ -204,11 +296,13 @@ loss, or log loss, measures the performance of a classification model whose outp
 
 In the proposed model, the convolutionallayer is one For the model proposed in this paper Softmax classifier, 
 
-21
+ 21Below function illustrates a multiclass single fully-
 
 output_size], where output_sizeis of two values, one represents the bullish confidenceand the otherbearish trend. Figure 7: Classification using Softmax function(for illustrations 
 
-only). Image source: stats.stackexchange.com 5
+only). Image source: stats.stackexchange.com
+
+5
 
 *Figure 6: Cross-entropy loss graph*
 
@@ -216,7 +310,11 @@ The input data snapshots/images are in shape [batch_size, window _size, channels
 
 *Figure 6: Cross-entropy lossgraph*
 
-The graph above illustrates the range of possible loss values given an accurate observation. As the predicted probability approaches 1, log loss slowly decreases. As the expected probability decreases, however, the log loss increases rapidly. Log loss penalizes both types of errors, but especially those predictionsthat are confidently wrong. 
+The graph above illustrates the range of possible loss 
+
+values given an accurate observation. As the predicted probability approaches 1, log loss slowly decreases. As the expected probability decreases, however, the log loss increases rapidly. Log loss penalizes both types of errors, but especially those predictionsthat are confidently wrong.
+
+connected layer neural network with Softmax function: 
 
 After
 
@@ -239,13 +337,15 @@ After
 
 **JPM** 30-day (T+30) forcasting, LR 0.001
 
-There are numerous opportunities of future extensions such as generating sets of most profitable portfolios or predicting forex exchanges, and commodities, e.g., gas, precious metals.More sophisticated model with the CNN combined with LSTM that can manipulate its memory state and NLP to add non-financial aspects thus putting Fundamental Analysis as well in play for more accurate forecasting usingsentiment analysis[20]on current affairs. 
+There are numerous opportunities of future extensions such as generating sets of most profitable portfolios or predicting forex exchanges, and commodities, e.g., gas, precious metals.More sophisticated model with the CNN combined with LSTM that can manipulate its memory state and NLP to add non-financial aspects thus putting Fundamental Analysis as well in play for more accurate forecasting usingsentiment analysis[20]on current affairs.
 
-enthusiastand researchersis Derivatives Marketfor O ptionsand Futurestrading.
+ enthusiastand researchersis Derivatives Marketfor O ptionsand Futurestrading.
 
 **TECH Sector**3-day (T+30) forecasting, LR0.001 of across international capital market with minimal effort. 
 
-2017 Mar 2017. [Online]. Available: https://arxiv.org/abs/1703.04691.
+2017
+
+Mar 2017. [Online]. Available: https://arxiv.org/abs/1703.04691.
 
 on the model proposed here. It can be usedfor generating sets of most promising portfolios in future. The same [12] L. d. S. Pinheiro and M. Dras, "Stock Market Prediction with Deep 
 
@@ -255,7 +355,9 @@ model can be used to predict with other stocks and indices Learning: A Character
 
 ## 6.Conclusion 
 
-The results achieved by the model proposed in this paper seems promising for forecasting single stock movement as well as sector-wise progression. We can also utilize the existing model for prediction of movement of S&P 500 index once we train the model on 500 constituents historical data. There can be many ideas for future extensions or even creating new applications based 
+The results achieved by the model proposed in this 
+
+paper seems promising for forecasting single stock movement as well as sector-wise progression. We can also utilize the existing model for prediction of movement of S&P 500 index once we train the model on 500 constituents historical data. There can be many ideas for future extensions or even creating new applications based 
 
 ## 7.References
 
@@ -297,7 +399,9 @@ Learning," *Electrical Engineering and Systems Science,* vol. Signal Processing,
 
 [10] Groß et al., "Predicting Time Series with Space-Time Convolutional 
 
-and Recurrent Neural Networks," in *ESANN 2017*, Bruges (Belgium), .
+and Recurrent Neural Networks," in *ESANN 2017*, Bruges (Belgium), 
+
+.
 
 [11] Borovykh et al., "Conditional Time Series Forecasting with 
 
@@ -306,18 +410,46 @@ Convolutional Neural Networks," Statistics > Machine Learning, 14
 
 ---
 
-[13] Selvin et al., "Stock price prediction using LSTM, RNN and CNN- [14] A. Siripurapu, *Convolutional Networks for Stock Trading,* Stanford, [15] Bińkowski et al., *Autoregressive Convolutional Neural Networks for* 
+[13] Selvin et al., "Stock price prediction using LSTM, RNN and CNN-
+
+[14] A. Siripurapu, *Convolutional Networks for Stock Trading,* Stanford, 
+
+[15] Bińkowski et al., *Autoregressive Convolutional Neural Networks for* 
 
 [17] Investopedia, "Stock Dividends And Stock Splits," Investopedia, 
 
 [Online]. Available: 
 
-[18] Y. Le Cun, Y. Bengio and G. Hinton, "Deep learning," 2015. [20] L. Lenc and T. Hercig, "Neural Network for Sentiment Analysis," pp. 
+[18] Y. Le Cun, Y. Bengio and G. Hinton, "Deep learning," 2015. 
 
- [22] A. Karpathy, "CS231n," Stanford University, 01 04 2018. [Online]. [23] P. Xu, "Convolutional Neural Stock Market Technical Analyser," 
+[20] L. Lenc and T. Hercig, "Neural Network for Sentiment Analysis," pp. 
+
+[21] "Loss Functions," Readthedocs.io, 2017. [Online]. Available: http://mlsliding window model," in Research Gate, 2017.
+
+[22] A. Karpathy, "CS231n," Stanford University, 01 04 2018. [Online]. 
+
+[23] P. Xu, "Convolutional Neural Stock Market Technical Analyser," 
 
 Git Hub, 3 6 2017. [Online]. Available: 
 
-Trading," Macquarie University, 2017. 2015. *Asynchronous Time Series,* Computer Science > Learning, 2017. Based Stock Trading System Based on Evolutionary Optimized Technical Analysis Parameters," *Procedia Computer Science,* vol. 114, pp. 473-480, 2017. https://www.investopedia.com/walkthrough/corporate-finance/5/dividends/stock-dividends-splits.aspx. markets prediction using deep neural networks," 2016. 48-55, 2016. cheatsheet.readthedocs.io/en/latest/loss_functions.html. Available: http://cs231n.github.io/. https://github.com/philipxjm/Convolutional-Neural-Stock-Market- Technical-Analyser/blob/master/README.md. 
+Trading," Macquarie University, 2017. 
+
+2015. 
+
+*Asynchronous Time Series,* Computer Science > Learning, 2017. 
+
+Based Stock Trading System Based on Evolutionary Optimized Technical Analysis Parameters," *Procedia Computer Science,* vol. 114, pp. 473-480, 2017. 
+
+https://www.investopedia.com/walkthrough/corporate-finance/5/dividends/stock-dividends-splits.aspx. 
+
+markets prediction using deep neural networks," 2016. 
+
+48-55, 2016. 
+
+cheatsheet.readthedocs.io/en/latest/loss_functions.html. 
+
+Available: http://cs231n.github.io/. 
+
+https://github.com/philipxjm/Convolutional-Neural-Stock-Market- Technical-Analyser/blob/master/README.md. 
 
 9

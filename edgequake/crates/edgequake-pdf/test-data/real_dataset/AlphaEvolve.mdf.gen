@@ -2,15 +2,17 @@
 
 ## 1. Introduction
 
-**Alexander Novikov, Ngân Vu˜, Marvin Eisenberger** **See , Swarat Chaudhuri , George Holland , Alex Davies , Sebastian Nowozin , Pushmeet Kohli and Matej Balog**
+**Alexander Novikov, Ngân Vu˜, Marvin Eisenberger**
+
+**See , Swarat Chaudhuri , George Holland , Alex Davies , Sebastian Nowozin , Pushmeet Kohli and Matej Balog**
 
 Google Deep Mind
 
 **In this white paper, we present*****Alpha Evolve*** **capabilities of state-of-the-art LLMs on highly challenging tasks such as tackling open scientific problems** **or optimizing critical pieces of computational infrastructure.** **pipeline of LLMs, whose task is to improve an algorithm by making direct changes to the code. Using** **an evolutionary approach, continuously receiving feedback from one or more evaluators,** **iteratively improves the algorithm, potentially leading to new scientific and practical discoveries. We** 
 
-**stacks at Google,*****Alpha Evolve*** **developed a more efficient scheduling algorithm for data centers, found** 
+**putational problems. When applied to optimizing critical components of large-scale computational**
 
-**novel, provably correct algorithms that surpass state-of-the-art solutions on a spectrum of problems** **in mathematics and computer science, significantly expanding the scope of prior automated discovery** **methods (Romera-Paredes et al., 2023). Notably,** **procedure to multiply two**4 × 4 **complex-valued matrices using** **first improvement, after 56 years, over Strassen's algorithm in this setting. We believe** **coding agents like it can have a significant impact in improving solutions of problems across many areas** **of science and computation.**
+ **novel, provably correct algorithms that surpass state-of-the-art solutions on a spectrum of problems** **in mathematics and computer science, significantly expanding the scope of prior automated discovery** **methods (Romera-Paredes et al., 2023). Notably,** **procedure to multiply two**4 × 4 **complex-valued matrices using** **first improvement, after 56 years, over Strassen's algorithm in this setting. We believe** **coding agents like it can have a significant impact in improving solutions of problems across many areas** **of science and computation.**
 
 **, Emilien Dupont, Po-Sen Huang, Adam Zsolt Wagner,**
 
@@ -20,7 +22,9 @@ Google Deep Mind
 
 ***Alpha Evolve***
 
-***Alpha Evolve*** **itself. Furthermore,*****Alpha Evolve*** **discovered** ***Alpha Evolve*** **developed a search algorithm that found a**
+***Alpha Evolve*** **itself. Furthermore,*****Alpha Evolve*** **discovered**
+
+***Alpha Evolve*** **developed a search algorithm that found a**
 
 48 **scalar multiplications; offering the**
 
@@ -36,9 +40,15 @@ that takes on this challenge using a combination of evolutionary computation and
 
 © 2025 Google Deep Mind. All rights reserved
 
- exploration, backtracking on unpromising hypotheses, experimentation, and validation. There has been much recent interest in using large language models (LLMs) to automate significant parts of this process. Hopes of success here are driven by the breathtaking power of recent LLMs [32,76], which can enhance their capabilities using test-time compute, and the rise of*agents*that combine language generation and action [ 
+ exploration, backtracking on unpromising hypotheses, experimentation, and validation.
 
-getting LLM pipelines all the way to making entirely new scientific or practical discoveries remains challenging. In this white paper, we present an LLM code superoptimization agent, called
+There has been much recent interest in using large language models (LLMs) to automate
+
+significant parts of this process. Hopes of success here are driven by the breathtaking power of recent LLMs [32,76], which can enhance their capabilities using test-time compute, and the rise of*agents*that combine language generation and action [ 
+
+getting LLM pipelines all the way to making entirely new scientific or practical discoveries remains challenging.
+
+In this white paper, we present an LLM code superoptimization agent, called
 
 88,]. These advances have
 
@@ -64,7 +74,21 @@ getting LLM pipelines all the way to making entirely new scientific or practical
 
 ---
 
-been applied previously []. Despite being general-purpose, improving the SOTA for 14 matrix multiplication algorithms; notably, for *Alpha Evolve*improves Strassen ()'s algorithm by discovering an algorithm using 48 multiplications to multiply4 × 4 complex-valued matrices. In mathematics, we consider a broad range of open problems on which one can make progress by discovering constructions (objects) with better properties than all previously known constructions, according to given mathematical definitions. We apply large number (over 50) of such problems and match the best known constructions on of them (in many cases these constructions are likely to already be optimal). On problems,*Alpha Evolve*surpasses the SOTA and discovers new, provably better constructions. This includes an improvement on the Minimum Overlap Problem set by Erdős improved construction on the Kissing Numbers problem in Finally, we use*Alpha Evolve*in four engineering problems spanning different layers of Google's compute stack: discovering scheduling heuristics for Google's cluster management system, optimizing matrix-multiplication kernels used to train LLMs, optimizing arithmetic circuits used within TPUs, and optimizing the runtime of attention in Transformers. Because these components are run repeatedly over a long period of time, any improvements are highly valuable.
+been applied previously []. Despite being general-purpose, improving the SOTA for 14 matrix multiplication algorithms; notably, for *Alpha Evolve*improves Strassen ()'s algorithm by discovering an algorithm using 48 multiplications to multiply4 × 4 complex-valued matrices.
+
+In mathematics, we consider a broad range of open problems on which one can make
+
+progress by discovering constructions (objects) with better properties than all previously known constructions, according to given mathematical definitions. We apply large number (over 50) of such problems and match the best known constructions on of them (in many cases these constructions are likely to already be optimal). On problems,*Alpha Evolve*surpasses the SOTA and discovers new, provably better constructions.
+
+This includes an improvement on the Minimum Overlap Problem set by Erdős
+
+improved construction on the Kissing Numbers problem in
+
+Finally, we use*Alpha Evolve*in four engineering problems spanning different layers of
+
+Google's compute stack: discovering scheduling heuristics for Google's cluster management
+
+system, optimizing matrix-multiplication kernels used to train LLMs, optimizing arithmetic circuits used within TPUs, and optimizing the runtime of attention in Transformers. Because these components are run repeatedly over a long period of time, any improvements are highly valuable.
 
 *Alpha Evolve*goes beyond [],
 
@@ -74,13 +98,17 @@ been applied previously []. Despite being general-purpose, improving the SOTA fo
 
 ∼75%
 
-∼20% of the [] and an
+∼20% of the
+
+[] and an
 
 dimensions [8, 31].
 
 *Alpha Evolve*: A coding agent for scientific and algorithmic discovery
 
-Within algorithm design, we consider the fundamental problem of discovering fast algorithms for multiplying matrices, a problem to which a more specialized AI approach had
+Within algorithm design, we consider the fundamental problem of discovering fast
+
+algorithms for multiplying matrices, a problem to which a more specialized AI approach had
 
 1969
 
@@ -90,7 +118,7 @@ Within algorithm design, we consider the fundamental problem of discovering fast
 
 11
 
-**2.**
+## 2.*Alpha Evolve*
 
 **2.1.**
 
@@ -104,11 +132,13 @@ Within algorithm design, we consider the fundamental problem of discovering fast
 
 3
 
-***Alpha Evolve*** 
+Alpha Evolveis a coding agent that orchestrates an autonomous pipeline of computations including queries to LLMs, and produces algorithms that address a usertrating procedure is an evolutionary algorithm that gradually develops programs that
 
-high-level overview of*Alpha Evolve*is shown in Figure 1, and Figure 2 gives an expanded view.
+ high-level overview of*Alpha Evolve*is shown in Figure 1, and Figure 2 gives an expanded
 
-## Task specification
+view.
+
+ **Task specification**
 
 **Evaluation.** Since*Alpha Evolve*tackles problems with machine-gradeable solutions, the user must provide a mechanism for automatically assessing generated solutions. This mechanism takes the form of a functionℎ mapping a solution to a set of scalar evaluation metrics. By convention, these metrics are maximized. In our current setup,
 
@@ -119,7 +149,17 @@ high-level overview of*Alpha Evolve*is shown in Figure 1, and Figure 2 gives an 
 
 ---
 
-**Figure 2**|Expanded view of the*Alpha Evolve*discovery process. The user provides an initial program (with components to evolve marked), evaluation code, and optional configurations (Section 2.1). *Alpha Evolve*then initiates an evolutionary loop. The programs from the*Program database*to construct rich prompts (Section 2.2). Given these prompts, the*LLMs* generate code modifications (diffs), which are applied to create new programs (Section 2.3). These are then scored by solutions are registered back into the*Program database* discovery of better and better programs. as a Python function, called`evaluate`, with a fixed input/output signature, returning a dictionary of scalars. Depending on the application, executing this function may take only seconds on a single device or spawn extensive computations. For mathematical problems, the function typically very simple. For example, when wishing to find largest possible graphs satisf ying a given property,ℎ invokes the evolved code to generate a graph, checks whether the property holds, and then simply returns the size of the graph as the score. In more complicated cases, the functionℎ might involve performing an evolved search algorithm, or training and evaluating a machine learning model.
+**Figure 2**|Expanded view of the*Alpha Evolve*discovery process. The user provides an initial program (with components to evolve marked), evaluation code, and optional configurations
+
+(Section 2.1). *Alpha Evolve*then initiates an evolutionary loop. The
+
+programs from the*Program database*to construct rich prompts (Section 2.2). Given these prompts, the*LLMs* generate code modifications (diffs), which are applied to create new programs (Section 2.3). These are then scored by solutions are registered back into the*Program database* discovery of better and better programs.
+
+as a Python function, called`evaluate`, with a fixed input/output signature, returning a dictionary of scalars.
+
+Depending on the application, executing this function may take only seconds on a single
+
+device or spawn extensive computations. For mathematical problems, the function typically very simple. For example, when wishing to find largest possible graphs satisf ying a given property,ℎ invokes the evolved code to generate a graph, checks whether the property holds, and then simply returns the size of the graph as the score. In more complicated cases, the functionℎ might involve performing an evolved search algorithm, or training and evaluating a machine learning model.
 
 *Prompt sampler* uses
 
@@ -142,13 +182,25 @@ only minimal changes, simply by adding special markers (`# EVOLVE-BLOCK-START `a
 
 *Alpha Evolve*: A coding agent for scientific and algorithmic discovery
 
-Any user-provided code inside such evolution blocks serves as the initial solution to be improved by*Alpha Evolve*, and the rest of the code forms a skeleton that ties the evolved pieces together, so that they can be invoked from`evaluate`. While this initial implementation must be complete, it can be rudimentary-for instance, consisting of single-line functions that return constants of the appropriate types.
+Any user-provided code inside such evolution blocks serves as the initial solution to be
 
-**Flexibility in choosing the abstraction.***Alpha Evolve*can be applied to the same problem in very different ways-especially when the evolved programs are not the final output but a means to discover solutions. For example,*Alpha Evolve*can evolve the solution in raw string representation (as in classical evolutionary algorithms); evolve a function of a definite form that specifies how to construct the solution from scratch (the approach taken in [83]); evolve a bespoke search algorithm to find the solution within some fixed compute budget; or even co-evolve intermediate solutions and search algorithms together, such that each search algorithm is specifically tailored to further improve upon a particular intermediate solution. We find that different levels of abstraction work better for different problems. For example, we hypothesize that for problems with highly symmetric solutions it is advantageous to evolve constructor functions as these tend to be more concise [83], whereas for problems with non-symmetric solutions it works better to evolve customized search algorithms.
+improved by*Alpha Evolve*, and the rest of the code forms a skeleton that ties the evolved pieces together, so that they can be invoked from`evaluate`. While this initial implementation must be complete, it can be rudimentary-for instance, consisting of single-line functions that return constants of the appropriate types.
+
+**Flexibility in choosing the abstraction.***Alpha Evolve*can be applied to the same problem in very different ways-especially when the evolved programs are not the final output but a means to discover solutions. For example,*Alpha Evolve*can evolve the solution in raw string representation (as in classical evolutionary algorithms); evolve a function of a definite form that specifies how to construct the solution from scratch (the approach taken in [83]); evolve a bespoke search algorithm to find the solution within some fixed compute budget; or even co-evolve intermediate solutions and search algorithms together, such that each search algorithm is specifically tailored to further improve upon a particular intermediate solution.
+
+We find that different levels of abstraction work better for different problems. For example,
+
+we hypothesize that for problems with highly symmetric solutions it is advantageous to
+
+evolve constructor functions as these tend to be more concise [83], whereas for problems
+
+with non-symmetric solutions it works better to evolve customized search algorithms.
 
 ### 2.2. Prompt sampling
 
-As *Alpha Evolve*leverages SOTA LLMs, it supports various types of customization and providing long contexts as part of the primary evolution prompt. This prompt comprises multiple previously discovered solutions sampled from the program database, as well as system instructions on how to propose changes to a particular solution. Beyond these key ingredients, users can further tailor prompts to their specific needs in different ways, such as the following.
+As *Alpha Evolve*leverages SOTA LLMs, it supports various types of customization and providing
+
+long contexts as part of the primary evolution prompt. This prompt comprises multiple previously discovered solutions sampled from the program database, as well as system instructions on how to propose changes to a particular solution. Beyond these key ingredients, users can further tailor prompts to their specific needs in different ways, such as the following.
 
  • *Explicit context*: details about the problem being solved, such as fixed human-written
 
@@ -168,7 +220,9 @@ additional prompt-generation step, co-evolved in a separate database analogous t
 
 ### 2.3. Creative generation
 
-To drive the evolutionary procedure,*Alpha Evolve*leverages the capabilities of SOTA LLMs, whose principal role is to digest information about previously developed solutions and propose new, diverse ways to improve the solutions. Although*Alpha Evolve*is model-agnostic, in ablations we observe that*Alpha Evolve*performs increasingly better as the underlying LLM improves (see Section 4).
+To drive the evolutionary procedure,*Alpha Evolve*leverages the capabilities of SOTA LLMs, whose principal role is to digest information about previously developed solutions and
+
+propose new, diverse ways to improve the solutions. Although*Alpha Evolve*is model-agnostic, in ablations we observe that*Alpha Evolve*performs increasingly better as the underlying LLM improves (see Section 4).
 
 5
 
@@ -193,13 +247,21 @@ To drive the evolutionary procedure,*Alpha Evolve*leverages the capabilities of 
 >>>>>>> REPLACE
 ```
 
-Here, the code between`<<<<<<< SEARCH `and `======= `is the exact segment to match in the current program version. The code between`======= `and `>>>>>>> REPLACE `is the new segment that will replace the original one. This allows for targeted updates to specific parts of the code. In cases where the code being evolved is very short, or when a complete rewrite is more appropriate than a small modification,*Alpha Evolve*can be configured to instruct the LLM to output the entire code block directly, rather than using the diff format.
+Here, the code between`<<<<<<< SEARCH `and `======= `is the exact segment to match
+
+in the current program version. The code between`======= `and `>>>>>>> REPLACE `is the new segment that will replace the original one. This allows for targeted updates to specific parts of the code.
+
+In cases where the code being evolved is very short, or when a complete rewrite is more
+
+appropriate than a small modification,*Alpha Evolve*can be configured to instruct the LLM to output the entire code block directly, rather than using the diff format.
 
 **Models used.** *Alpha Evolve*employs an ensemble of large language models. Specifically, we utilize a combination of Gemini 2.0 Flash and Gemini 2.0 Pro. This ensemble approach allows us to balance computational throughput with the quality of generated solutions. Gemini 2.0 Flash, with its lower latency, enables a higher rate of candidate generation, increasing the number of ideas explored per unit of time. Concurrently, Gemini 2.0 Pro, possessing greater capabilities, provides occasional, higher-quality suggestions that can significantly advance the evolutionary search and potentially lead to breakthroughs. This strategic mix optimizes the overall discovery process by maximizing the volume of evaluated ideas while retaining the potential for substantial improvements driven by the more powerful model.
 
 ### 2.4. Evaluation
 
-To track*Alpha Evolve*'s progress and to select which ideas to propagate in future generations, each new solution proposed by the LLMs is automatically evaluated. In principle, this process amounts to simply executing the user-provided evaluation functionℎ on the generated solution. In practice,*Alpha Evolve*supports optional mechanisms to make this evaluation more flexible and more efficient:
+To track*Alpha Evolve*'s progress and to select which ideas to propagate in future generations,
+
+each new solution proposed by the LLMs is automatically evaluated. In principle, this process amounts to simply executing the user-provided evaluation functionℎ on the generated solution. In practice,*Alpha Evolve*supports optional mechanisms to make this evaluation more flexible and more efficient:
 
  • *Evaluation cascade (hypothesis testing)*: the user can specif y ensembles of test cases of
 
@@ -242,7 +304,19 @@ During its evolutionary procedure,*Alpha Evolve*continually generates a growing 
 
 ---
 
-targets and run the algorithm, initialized with multiple random seeds using the evaluation cascade described in Section 2.4. The performance is then measured as the best (lowest) rank achieved on each target as well as the fraction of seeds that achieved this rank, providing a signal for*Alpha Evolve*to hill-climb. To ensure the exactness of the decomposition and avoid any potential numerical error, when evaluating, we round each element to the nearest integer or the nearest half-integer; and, to encourage the algorithm to generate near-integral solutions, we include this request in natural language in the LLM's prompt. In Table 2, one can see that the various algorithms developed by state of the art for 14 different matrix multiplication targets. Notably, for multiplying two 4 × 4 matrices, applying the algorithm of Strassen with rank (number of scalar multiplications) equal to 49, which works over any field. For the very specific case of multiplying in the field with 2 elements, Fawzi et al. algorithm with rank 47. For 56 years, designing an algorithm with rank less than 49 over any field with characteristic 0 was an open problem. a rank-48 algorithm to multiply two4 × 4 complex-valued matrices. As shown in Figure 4, *Alpha Evolve*makes significant changes to the initial program, introducing several original ideas to design increasingly better algorithms. While most results in Table 2 (including ⟨4,4,4⟩) were obtained from a simple initial program, we found that for some parameters, seeding the initial program with our own ideas (such as adding stochasticity to the evaluation function or using evolutionary approaches) could further boost performance, highlighting the possibility of scientific collaboration between researchers and *Alpha Evolve*.
+targets and run the algorithm, initialized with multiple random seeds using the evaluation cascade described in Section 2.4. The performance is then measured as the best (lowest) rank achieved on each target as well as the fraction of seeds that achieved this rank, providing a signal for*Alpha Evolve*to hill-climb. To ensure the exactness of the decomposition and avoid any potential numerical error, when evaluating, we round each element to the nearest integer or the nearest half-integer; and, to encourage the algorithm to generate near-integral solutions, we include this request in natural language in the LLM's prompt.
+
+In Table 2, one can see that the various algorithms developed by
+
+state of the art for 14 different matrix multiplication targets. Notably, for multiplying two
+
+4 × 4 matrices, applying the algorithm of Strassen with rank (number of scalar multiplications) equal to 49, which works over any field. For
+
+the very specific case of multiplying in the field with 2 elements, Fawzi et al. algorithm with rank 47. For 56 years, designing an algorithm with rank less than 49 over any field with characteristic 0 was an open problem. a rank-48 algorithm to multiply two4 × 4 complex-valued matrices.
+
+As shown in Figure 4, *Alpha Evolve*makes significant changes to the initial program,
+
+introducing several original ideas to design increasingly better algorithms. While most results in Table 2 (including ⟨4,4,4⟩) were obtained from a simple initial program, we found that for some parameters, seeding the initial program with our own ideas (such as adding stochasticity to the evaluation function or using evolutionary approaches) could further boost performance, highlighting the possibility of scientific collaboration between researchers and *Alpha Evolve*.
 
 *Alpha Evolve*improve the
 
@@ -264,13 +338,21 @@ able to develop sophisticated tensor decomposition algorithms that outperform ex
 
 *Alpha Evolve*'s broad potential as a versatile tool for mathematical research.
 
-3There exist algorithms using fewer than 49 multiplications, but they do not correspond to decompositions of the matrix multiplication tensor, and they cannot be applied recursively to multiplying larger matrices.
+3There exist algorithms using fewer than 49 multiplications, but they do not correspond to decompositions
+
+of the matrix multiplication tensor, and they cannot be applied recursively to multiplying larger matrices.
 
 10
 
 **3.2. Finding tailored search algorithms for a wide range of open mathematical problems**
 
-A significant frontier in mathematical research involves discovering objects or that possess optimal, or near-optimal, properties according to some measure. Examples range from finding dense packings of geometric shapes [ satisf ying specific combinatorial or analytic constraints (e.g., [ often relies on finding a single construction that surpasses all previously known examples, thereby establishing new lower or upper bounds for the optimal value. We demonstrate that *Alpha Evolve*serves as a powerful tool for exploring the vast search space inherent in these problems, successfully tackling a diverse array of open mathematical challenges. To assess its capabilities, we apply*Alpha Evolve* problems, spanning more than five different branches of mathematics, including analysis, combinatorics, number theory, and geometry, evaluated across numerous specific parameter settings (e.g., different dimensions or sizes). In 75% of the cases the best known constructions, and in 20% of the cases it discovered a new object that is better than a previously known best construction, thereby improving the SOTA. In all these cases, the initial starting point was a simple or a random construction. These results underscore
+A significant frontier in mathematical research involves discovering objects or
+
+that possess optimal, or near-optimal, properties according to some measure. Examples range from finding dense packings of geometric shapes [ satisf ying specific combinatorial or analytic constraints (e.g., [ often relies on finding a single construction that surpasses all previously known examples, thereby establishing new lower or upper bounds for the optimal value. We demonstrate that *Alpha Evolve*serves as a powerful tool for exploring the vast search space inherent in these problems, successfully tackling a diverse array of open mathematical challenges.
+
+To assess its capabilities, we apply*Alpha Evolve*
+
+problems, spanning more than five different branches of mathematics, including analysis, combinatorics, number theory, and geometry, evaluated across numerous specific parameter settings (e.g., different dimensions or sizes). In 75% of the cases the best known constructions, and in 20% of the cases it discovered a new object that is better than a previously known best construction, thereby improving the SOTA. In all these cases, the initial starting point was a simple or a random construction. These results underscore
 
 *constructions*
 
@@ -302,7 +384,9 @@ to a curated set of over 50 mathematical
 
 2
 
-17 18 19 20 21 22 23 24 25 26 27 28 29
+17 18 19 20 21 22 23 24 25 26
+
+27 28 29
 
 2
 
@@ -331,13 +415,27 @@ configuration used here is its versatility and
 
 *Alpha Evolve*: A coding agent for scientific and algorithmic discovery
 
-Below are high-level descriptions of some of the problems where*Alpha Evolve*yielded new results. Full list of problems and details are provided in Appendix B.
+Below are high-level descriptions of some of the problems where*Alpha Evolve*yielded new
+
+results. Full list of problems and details are provided in Appendix B.
 
 12
 
-A significant advantage of the*Alpha Evolve* speed of application. The core methodology, focused on evolving heuristic search programs (detailed below), can be rapidly deployed across a diverse range of mathematical construction 
+A significant advantage of the*Alpha Evolve*
 
-problem formulation and search space definition, to autonomously discover effective search patterns and attack strategies by identif ying subtle structures within the problem landscape. This allows for efficient, large-scale exploration across many different problems. The key methodological innovation enabling these discoveries is evolve*heuristic search algorithms*rather than directly evolving the constructions themselves. For many problems, particularly those with fast objective function evaluations-which are common in mathematics-we employed an iterative refinement strategy. Each generation of *Alpha Evolve*was tasked with evolving a program representing a search heuristic. This program was given a fixed time budget (e.g., 1000 seconds) and was shown the best construction found by the previous best heuristic. Its goal was to leverage this starting point and the allotted time to find an even better construction. The evolutionary process thus selects for heuristics that are effective at improving already high-quality solutions. The final constructions were often the result of a sequence of different, specialized heuristics discovered by heuristics proficient at making large gains from random or simple initial states, and later heuristics adept at fine-tuning near-optimal configurations. This automated discovery of multi-stage, adaptive search strategies is challenging to replicate manually and proved crucial for surpassing the SOTA.
+speed of application. The core methodology, focused on evolving heuristic search programs
+
+(detailed below), can be rapidly deployed across a diverse range of mathematical construction
+
+ problem formulation and search space definition, to autonomously discover effective search patterns and attack strategies by identif ying subtle structures within the problem landscape. This allows for efficient, large-scale exploration across many different problems.
+
+The key methodological innovation enabling these discoveries is
+
+evolve*heuristic search algorithms*rather than directly evolving the constructions themselves. For many problems, particularly those with fast objective function evaluations-which are common in mathematics-we employed an iterative refinement strategy. Each generation of *Alpha Evolve*was tasked with evolving a program representing a search heuristic. This program
+
+was given a fixed time budget (e.g., 1000 seconds) and was shown the best construction found
+
+by the previous best heuristic. Its goal was to leverage this starting point and the allotted time to find an even better construction. The evolutionary process thus selects for heuristics that are effective at improving already high-quality solutions. The final constructions were often the result of a sequence of different, specialized heuristics discovered by heuristics proficient at making large gains from random or simple initial states, and later heuristics adept at fine-tuning near-optimal configurations. This automated discovery of multi-stage, adaptive search strategies is challenging to replicate manually and proved crucial for surpassing the SOTA.
 
 *Alpha Evolve*-early
 
@@ -348,21 +446,37 @@ problem formulation and search space definition, to autonomously discover effect
 
  • **Analysis**
 
-**- Autocorrelation inequalities.***Alpha Evolve*was able to improve the best known bounds on several autocorrelation inequalities.
+**- Autocorrelation inequalities.***Alpha Evolve*was able to improve the best known
 
-**- Uncertainty principles.***Alpha Evolve*was able to produce a refined configuration for a problem arising in Fourier analysis, by polishing an uncertainty principle construction [33] leading to a slightly better upper bound.
+bounds on several autocorrelation inequalities.
+
+**- Uncertainty principles.***Alpha Evolve*was able to produce a refined configuration
+
+for a problem arising in Fourier analysis, by polishing an uncertainty principle construction [33] leading to a slightly better upper bound.
 
  • **Combinatorics and number theory**
 
-**- Erdős's minimum overlap problem.** *Alpha Evolve*established a new upper bound for the minimum overlap problem [25], slightly improving upon the previous record [40].
+**- Erdős's minimum overlap problem.** *Alpha Evolve*established a new upper bound
+
+for the minimum overlap problem [25], slightly improving upon the previous record [40].
 
  • **Geometry and packing**
 
-**- Kissing number problem.** In 11 dimensions,*Alpha Evolve*improved the lower bound on the kissing number, finding a configuration of 593 non-overlapping unit spheres that can simultaneously touch a central unit sphere, surpassing the previous record of 592 [31].
+**- Kissing number problem.** In 11 dimensions,*Alpha Evolve*improved the lower
 
-**- Packing problems.***Alpha Evolve*achieved several new results in packing problems, such as packing points in a shape to minimize the ratio of the maximum and minimum distance, packing various polygons in other polygons in the most efficient way, and variants of the Heilbronn problem concerning point sets avoiding small-area triangles [29].
+bound on the kissing number, finding a configuration of 593 non-overlapping unit spheres that can simultaneously touch a central unit sphere, surpassing the previous record of 592 [31].
 
-The full list of problems appears in Appendix B and the new constructions found by *Alpha Evolve*can be found in the accompanying Google Colab. More examples and details on these problems and the methods used will be provided in an upcoming paper. Most of these discoveries are on open problems suggested to us by external mathematicians Javier Gomez Serrano and Terence Tao, who also advised on how to best formulate them as inputs to*Alpha Evolve*. This highlights the potential for synergistic partnerships between AI-driven discovery engines like*Alpha Evolve*and human mathematical expertise.
+**- Packing problems.***Alpha Evolve*achieved several new results in packing problems,
+
+such as packing points in a shape to minimize the ratio of the maximum and minimum distance, packing various polygons in other polygons in the most efficient way, and variants of the Heilbronn problem concerning point sets avoiding small-area triangles [29].
+
+The full list of problems appears in Appendix B and the new constructions found by
+
+*Alpha Evolve*can be found in the accompanying Google Colab. More examples and details on these problems and the methods used will be provided in an upcoming paper. Most of these discoveries are on open problems suggested to us by external mathematicians Javier
+
+Gomez Serrano and Terence Tao, who also advised on how to best formulate them as inputs
+
+to*Alpha Evolve*. This highlights the potential for synergistic partnerships between AI-driven discovery engines like*Alpha Evolve*and human mathematical expertise.
 
 ### 3.3. Optimizing Google's computing ecosystem
 
@@ -385,9 +499,21 @@ Efficiently scheduling compute jobs onto a cluster of machines is a critical opt
 
 7 `cpu_residual / mem_residual)`
 
-**Figure 6** | Left: The heuristic function discovered by*Alpha Evolve*, tailored to Google's workloads and capacity. Right: Visualization of the heuristic scoring function. Yellow regions represent high scores, while purple regions represent low scores. of computational footprint. This recovery is essential to accommodate growing compute needs without a proportional increase in resource consumption. Furthermore, this problem is challenging since it combines typical engineering difficulties, such as debuggability and scale, on top of the classically difficult bin-packing problem. bin-packing problem with two variables. In this context, machines represent bins with defined capacities for CPU and memory, and incoming jobs are items with specific resource demands. A heuristic function takes as input a pending job's CPU and memory requirements and a potential machine's CPU and memory availability. This function then outputs a priority score for the machine. The Borg scheduler subsequently assigns the pending job to the machine with the highest priority score as determined by the heuristic function, among other objectives. Because this heuristic only influences the ranking of machines already determined by Borg to be available and capable of running each pending job, the resulting scheduling decisions are effectively correct by construction. heuristic function (shown in Figure 6), evolving from the existing one in production. We use a simulator of our data centers to provide feedback to*Alpha Evolve*based on historical snapshots of workloads and capacity across Google's fleet. We measure the performance of *Alpha Evolve*'s heuristic function on an unseen test dataset of recent workloads and capacity to ensure generalization. Observing that*Alpha Evolve*'s heuristic function outperforms the 
+**Figure 6** | Left: The heuristic function discovered by*Alpha Evolve*, tailored to Google's
 
-that this heuristic function continuously recovers on average 0.7% of Google's fleet-wide compute resources, which would otherwise be stranded.*Alpha Evolve*was chosen over a deep reinforcement learning approach because its code solution not only leads to better performance, but also offers clear advantages in interpretability, debuggability, predictability, and ease of deployment-essential qualities for a mission-critical system.
+workloads and capacity. Right: Visualization of the heuristic scoring function. Yellow regions
+
+represent high scores, while purple regions represent low scores.
+
+of computational footprint. This recovery is essential to accommodate growing compute needs without a proportional increase in resource consumption. Furthermore, this problem is challenging since it combines typical engineering difficulties, such as debuggability and scale, on top of the classically difficult bin-packing problem.
+
+bin-packing problem with two variables. In this context, machines represent bins with defined capacities for CPU and memory, and incoming jobs are items with specific resource demands. A heuristic function takes as input a pending job's CPU and memory requirements and a potential machine's CPU and memory availability. This function then outputs a priority score for the machine. The Borg scheduler subsequently assigns the pending job to the machine with the highest priority score as determined by the heuristic function, among other objectives. Because this heuristic only influences the ranking of machines already determined by Borg to be available and capable of running each pending job, the resulting scheduling decisions are effectively correct by construction.
+
+heuristic function (shown in Figure 6), evolving from the existing one in production. We use a simulator of our data centers to provide feedback to*Alpha Evolve*based on historical snapshots of workloads and capacity across Google's fleet. We measure the performance of *Alpha Evolve*'s heuristic function on an unseen test dataset of recent workloads and capacity to ensure generalization. Observing that*Alpha Evolve*'s heuristic function outperforms the 
+
+deployment measurements across Google's fleet confirmed the simulator results, revealing that this heuristic function continuously recovers on average 0.7% of Google's fleet-wide
+
+deep reinforcement learning approach because its code solution not only leads to better performance, but also offers clear advantages in interpretability, debuggability, predictability, and ease of deployment-essential qualities for a mission-critical system.
 
 *Alpha Evolve*: A coding agent for scientific and algorithmic discovery
 
@@ -406,20 +532,50 @@ An early version of*Alpha Evolve*was used to discover a remarkably simple yet ef
 
 #### *3.3.2. Enhancing Gemini kernel engineering*
 
-Training large models like Gemini requires substantial computational resources. Gemini is built on JAX [9], and Pallas is an extension to JAX that enables writing custom, highly specialized programs (kernels) tailored for optimal execution on hardware accelerators. Therefore, efficient Pallas kernels are crucial for optimizing Gemini's training performance. A critical aspect of kernel optimization is tuning the tiling strategy for matrix multiplication operations (see Figure 7). This technique involves dividing a large matrix multiplication computation into smaller subproblems to better balance computation with data movement, which is key to accelerating the overall computation. Traditionally, kernel engineers rely on either search-based autotuning or manually crafted heuristics to determine near-optimal tiling configurations for various input shapes. Search-based tuning interrupts the research workflow, necessitating retuning for every input shape change. Conversely, manually crafting effective tiling heuristics is a major engineering bottleneck due to its complexity, demanding a deep understanding of both kernel functionality and hardware intricacies. The key advantage of a performant heuristic is its ability to deliver high performance across arbitrary input shapes. Consequently, to expedite the design of performant kernels for emerging hardware and to simplif y their utilization by model developers, we aim to facilitate the heuristic generation process. We address this challenge by employing*Alpha Evolve*to optimize tiling heuristics for an important matrix multiplication kernel used to train Gemini. The objective is to minimize the kernel's actual runtime.*Alpha Evolve*iteratively explores and refines tiling heuristics for this kernel by proposing candidate code, aiming to minimize this runtime on various input shapes on real TPU accelerators. The kernel's correctness is maintained by construction because *Alpha Evolve*is optimizing the tiling strategy for this kernel rather than altering
+Training large models like Gemini requires substantial computational resources. Gemini
+
+is built on JAX [9], and Pallas is an extension to JAX that enables writing custom, highly specialized programs (kernels) tailored for optimal execution on hardware accelerators.
+
+Therefore, efficient Pallas kernels are crucial for optimizing Gemini's training performance. A critical aspect of kernel optimization is tuning the tiling strategy for matrix multiplication
+
+operations (see Figure 7). This technique involves dividing a large matrix multiplication computation into smaller subproblems to better balance computation with data movement,
+
+which is key to accelerating the overall computation. Traditionally, kernel engineers rely on
+
+either search-based autotuning or manually crafted heuristics to determine near-optimal tiling configurations for various input shapes. Search-based tuning interrupts the research
+
+workflow, necessitating retuning for every input shape change. Conversely, manually crafting
+
+effective tiling heuristics is a major engineering bottleneck due to its complexity, demanding a deep understanding of both kernel functionality and hardware intricacies. The key advantage of a performant heuristic is its ability to deliver high performance across arbitrary input shapes. Consequently, to expedite the design of performant kernels for emerging hardware and to simplif y their utilization by model developers, we aim to facilitate the heuristic generation process.
+
+We address this challenge by employing*Alpha Evolve*to optimize tiling heuristics for an
+
+important matrix multiplication kernel used to train Gemini. The objective is to minimize the kernel's actual runtime.*Alpha Evolve*iteratively explores and refines tiling heuristics for this kernel by proposing candidate code, aiming to minimize this runtime on various input shapes on real TPU accelerators. The kernel's correctness is maintained by construction because *Alpha Evolve*is optimizing the tiling strategy for this kernel rather than altering
 
 15
 
 
 ---
 
-its underlying mathematical operation. To build the training and evaluation datasets for *Alpha Evolve*, we automatically collect realistic kernel input shapes from kernel users. Half of these input shapes form the training set, providing the optimization targets during the evolutionary process. The remaining input shapes form the evaluation set, used to test the general applicability of the resulting heuristic. average 23% kernel speedup across all kernels over the existing expert-designed heuristic, and a corresponding 1% reduction in Gemini's overall training time. In addition, the use of*Alpha Evolve*significantly reduced the kernel optimization time, from several months of dedicated engineering effort to just days of automated experimentation. This acceleration speeds up the deployment of optimized kernels, allowing kernel engineers to dedicate their expertise to more strategic, higher-level optimization problems. Furthermore,*Alpha Evolve* offers a path towards automating the manual tuning process and improving the ergonomics of Gemini kernel usage. The tiling heuristic discovered by*Alpha Evolve*has been deployed in production, directly enhancing Gemini's training efficiency and the Gemini team's research and engineering velocity. This deployment also marks a novel instance where Gemini, through the capabilities of*Alpha Evolve*, optimizes its own training process.
+its underlying mathematical operation. To build the training and evaluation datasets for *Alpha Evolve*, we automatically collect realistic kernel input shapes from kernel users. Half of these input shapes form the training set, providing the optimization targets during the evolutionary process. The remaining input shapes form the evaluation set, used to test the general applicability of the resulting heuristic.
+
+average 23% kernel speedup across all kernels over the existing expert-designed heuristic, and a corresponding 1% reduction in Gemini's overall training time. In addition, the use of*Alpha Evolve*significantly reduced the kernel optimization time, from several months of dedicated engineering effort to just days of automated experimentation. This acceleration speeds up the deployment of optimized kernels, allowing kernel engineers to dedicate their expertise to more strategic, higher-level optimization problems. Furthermore,*Alpha Evolve* offers a path towards automating the manual tuning process and improving the ergonomics of Gemini kernel usage. The tiling heuristic discovered by*Alpha Evolve*has been deployed in production, directly enhancing Gemini's training efficiency and the Gemini team's research and engineering velocity. This deployment also marks a novel instance where Gemini, through the capabilities of*Alpha Evolve*, optimizes its own training process.
 
 #### *3.3.3. Assisting in hardware circuit design*
 
 Specialized hardware, such as Google's Tensor Processing Units (TPUs), is crucial for achieving the resource efficiency required to run modern AI systems at scale. However, designing new 
 
-Transfer Level (RTL) optimization, a critical step in this process, involves manually rewriting months of iteration by highly skilled engineers. implementation of a key TPU arithmetic circuit within the matrix multiplication unit. The optimization objectives were to reduce both area and power consumption while preserving the component's core functionality. Crucially, the final proposal must pass robust verification methods to confirm that the modified circuit maintains functional correctness.*Alpha Evolve* was able to find a simple code rewrite that removed unnecessary bits, a change validated by TPU designers for correctness. While this specific improvement was also independently caught by downstream synthesis tools,*Alpha Evolve*'s contribution at the RTL stage demonstrates its capability to refine source RTL and provide optimizations early in the design flow. contribution to TPU arithmetic circuits, achieved via*Alpha Evolve*, paving the way for future contributions. A key advantage of*Alpha Evolve*is that it communicates the suggested changes directly in Verilog, the standard language used by hardware engineers, fostering trust and 
+Transfer Level (RTL) optimization, a critical step in this process, involves manually rewriting
+
+months of iteration by highly skilled engineers.
+
+implementation of a key TPU arithmetic circuit within the matrix multiplication unit. The optimization objectives were to reduce both area and power consumption while preserving the component's core functionality. Crucially, the final proposal must pass robust verification methods to confirm that the modified circuit maintains functional correctness.*Alpha Evolve*
+
+was able to find a simple code rewrite that removed unnecessary bits, a change validated by TPU designers for correctness. While this specific improvement was also independently caught
+
+by downstream synthesis tools,*Alpha Evolve*'s contribution at the RTL stage demonstrates its capability to refine source RTL and provide optimizations early in the design flow.
+
+contribution to TPU arithmetic circuits, achieved via*Alpha Evolve*, paving the way for future contributions. A key advantage of*Alpha Evolve*is that it communicates the suggested changes directly in Verilog, the standard language used by hardware engineers, fostering trust and 
 
 Integrated into an upcoming TPU, this improvement represents Gemini's first direct
 
@@ -438,13 +594,33 @@ In this work,*Alpha Evolve*was challenged to optimize an already highly optimize
 
 #### *3.3.4. Directly optimizing compiler-generated code*
 
-The transformer architecture [100] is used in the majority of modern neural networks, ranging from LLMs to Alpha Fold [1]. The core computation of transformers is the attention mechanism [ 4], which is most commonly implemented using Flash Attention [22]. In our 
+The transformer architecture [100] is used in the majority of modern neural networks,
 
-these stages, improved decisions on memory access orchestration or computation scheduling can significantly reduce runtime on specific hardware. We challenged*Alpha Evolve*to directly optimize the XLA-generated IRs encapsulating the Flash Attention kernel along with pre- and postprocessing code. We optimized a configuration corresponding to a highly impactful transformer model used for inference at scale on GPUs, with the goal of minimizing the module's overall execution time. This was a particularly challenging task, because (1) the IR is designed for debugging purposes rather than for direct editing by developers, and (2) it is compiler-generated and already highly optimized. Each modification proposed by*Alpha Evolve*was checked against the reference (unmodified) code on randomized inputs in order to ensure numerical correctness throughout optimization. The final version of the code was rigorously confirmed by human experts to be correct for all possible inputs. *Alpha Evolve*was able to provide meaningful optimizations for both levels of abstraction exposed by the IR. Firstly, the Flash Attention kernel for the configuration of interest was sped up by 32%. Secondly,*Alpha Evolve*found improvements in pre- and postprocessing of kernel inputs and outputs, resulting in a 15% speed up in this part. These results demonstrate the ability of*Alpha Evolve*to optimize compiler-generated code, offering the potential of incorporating discovered optimizations into existing compilers for specific use cases, or, in the longer term, incorporating*Alpha Evolve*into the compiler workflow itself.
+ranging from LLMs to Alpha Fold [1]. The core computation of transformers is the attention mechanism [ 4], which is most commonly implemented using Flash Attention [22]. In our 
 
-- **4. Ablations**
+these stages, improved decisions on memory access orchestration or computation scheduling can significantly reduce runtime on specific hardware.
 
-We carried out ablations on two tasks: finding tensor decompositions for faster matrix multiplication (Section 3.1) and computing lower bounds on kissing numbers (Section 3.2), aiming to understand the efficacy of the following components of*Alpha Evolve*.
+We challenged*Alpha Evolve*to directly optimize the XLA-generated IRs encapsulating the
+
+Flash Attention kernel along with pre- and postprocessing code. We optimized a configuration corresponding to a highly impactful transformer model used for inference at scale on GPUs,
+
+with the goal of minimizing the module's overall execution time. This was a particularly
+
+challenging task, because (1) the IR is designed for debugging purposes rather than for direct editing by developers, and (2) it is compiler-generated and already highly optimized. Each modification proposed by*Alpha Evolve*was checked against the reference (unmodified) code on randomized inputs in order to ensure numerical correctness throughout optimization.
+
+The final version of the code was rigorously confirmed by human experts to be correct for all
+
+possible inputs.
+
+*Alpha Evolve*was able to provide meaningful optimizations for both levels of abstraction
+
+exposed by the IR. Firstly, the Flash Attention kernel for the configuration of interest was sped up by 32%. Secondly,*Alpha Evolve*found improvements in pre- and postprocessing of kernel inputs and outputs, resulting in a 15% speed up in this part. These results demonstrate the ability of*Alpha Evolve*to optimize compiler-generated code, offering the potential of incorporating discovered optimizations into existing compilers for specific use cases, or, in the longer term, incorporating*Alpha Evolve*into the compiler workflow itself.
+
+## 4. Ablations
+
+We carried out ablations on two tasks: finding tensor decompositions for faster matrix
+
+multiplication (Section 3.1) and computing lower bounds on kissing numbers (Section 3.2), aiming to understand the efficacy of the following components of*Alpha Evolve*.
 
  • **Evolutionary approach.***Alpha Evolve*utilizes an evolutionary approach, where previ-
 
@@ -452,14 +628,20 @@ ously generated programs are stored in a database and used to obtain better prog
 
  • **Context in prompts.***Alpha Evolve*uses powerful language models with large context
 
-windows, whose output can be improved significantly by providing problem-specific context in the prompt. To test the importance of context, we consider an alternative approach where no explicit context is added to the prompt. We refer to this approach as "No context in the prompt".
+windows, whose output can be improved significantly by providing problem-specific
+
+context in the prompt. To test the importance of context, we consider an alternative approach where no explicit context is added to the prompt. We refer to this approach as "No context in the prompt".
 
 17
 
 
 ---
 
- finding sphere packings for improving kissing numbers. Each curve shows the performance of an individual setting with increasing compute budget, averaged over all considered targets (higher values on the target metric are better). The shades indicate intra-target standard deviation, averaged over three independent runs of random seeds.
+ finding sphere packings for improving kissing numbers. Each curve shows the performance of an individual setting with increasing compute budget, averaged over all considered targets
+
+(higher values on the target metric are better). The shades indicate intra-target standard
+
+deviation, averaged over three independent runs of random seeds.
 
  • **Meta prompts.** *Alpha Evolve*also uses meta prompts in order to improve the prompts
 
@@ -467,11 +649,17 @@ that are provided to the language model. This allows it to potentially surpass t
 
  • **Full-file evolution.**Unlike previous approaches such as Fun Search,
 
- decomposition where only the loss function is evolved. We refer to this approach as "No full-file evolution".
+ decomposition where only the loss function is evolved. We refer to this approach as
+
+"No full-file evolution".
 
  • **Powerful language models.** *Alpha Evolve*
 
-guage models in order to obtain highly diverse samples. To understand the importance of this component, we consider an alternative where only a single small base model is used. We refer to this approach as "Small base LLM only". Figure 8 shows the results of the all-inclusive alternatives listed above. As can be seen, each of the components is responsible for a significant improvement in the results.
+guage models in order to obtain highly diverse samples. To understand the importance of this component, we consider an alternative where only a single small base model is used. We refer to this approach as "Small base LLM only".
+
+Figure 8 shows the results of the all-inclusive
+
+alternatives listed above. As can be seen, each of the components is responsible for a significant improvement in the results.
 
 *Alpha Evolve*on the problem of
 
@@ -498,9 +686,29 @@ relies on a mixture of small and large lan-
 
 ---
 
-automate the construction of these operators-it leverages the LLM's world knowledge to mutate programs without the need to pre-define a set of allowed mutation operations. *Alpha Evolve*was preceded by a body of recent efforts that combine LLMs and evolution; specifically, it extends the Fun Search system, introduced by Romera-Paredes et al. approach to mathematical discovery. Fun Search was subsequently used in downstream tasks such as learning acquisition functions for Bayesian optimization [ models [], computing distances between graphs [ programming [].*Alpha Evolve*goes beyond Fun Search and its recent reimplementation [] in three key ways. First, while Fun Search only allowed the evolution of a single Python function,*Alpha Evolve*allows evolution over entire codebases written in a wide range of programming languages. Second, Fun Search optimized a single objective function, while *Alpha Evolve*provides the ability to perform multiobjective optimization. Third, the LLMs in Fun Search were relatively small and solely trained on code. By contrast, 
+automate the construction of these operators-it leverages the LLM's world knowledge to mutate programs without the need to pre-define a set of allowed mutation operations.
 
-problems that were not amenable to Fun Search. Other efforts in this category include the approach by Lehman et al. an LLM-guided evolution process to discover programmatic policies for a set of simulated robots; or the approach by Hemberg et al. found use in several scientific and mathematical tasks, including symbolic regression [ 89], discovering heuristics for combinatorial optimization [ molecular structures []. LLM-guided evolution has also been used to improve AI systems by enhancing LLM prompts [] and searching over neural architectures [ differs from these approaches in its scale, flexibility, and general applicability to a broad range of domains. Some recent efforts have augmented the basic paradigm of LLM-guided evolution with complementary ideas. For example, Surina et al. by continuously finetuning the LLM through reinforcement learning. Grayeli et al. enhance the evolution process with an LLM-directed concept learning step that summarizes high-performing programs in the pool into natural language. More investigation is required to understand the benefits of these ideas at the scale at which Evolutionary methods have also found use in the recent AI Co-Scientist work [ seeks to automate scientific discovery using distinct agents for tasks like hypothesis discovery, ranking of hypotheses, and literature review. While AI Co-Scientist represents scientific hypotheses and their evaluation criteria in*natural language* *code*, and directs evolution using programmatic evaluation functions. This choice enables us to substantially sidestep LLM hallucinations, which allows evolution process for a large number of time steps. Nevertheless, it is possible in principle to combine the two approaches, leading to a method that allows a flexible combination of natural-language and programmatic idioms.
+*Alpha Evolve*was preceded by a body of recent efforts that combine LLMs and evolution;
+
+specifically, it extends the Fun Search system, introduced by Romera-Paredes et al. approach to mathematical discovery. Fun Search was subsequently used in downstream tasks such as learning acquisition functions for Bayesian optimization [ models [], computing distances between graphs [ programming [].*Alpha Evolve*goes beyond Fun Search and its recent reimplementation
+
+[] in three key ways. First, while Fun Search only allowed the evolution of a single Python
+
+function,*Alpha Evolve*allows evolution over entire codebases written in a wide range of programming languages. Second, Fun Search optimized a single objective function, while *Alpha Evolve*provides the ability to perform multiobjective optimization. Third, the LLMs in Fun Search were relatively small and solely trained on code. By contrast, 
+
+problems that were not amenable to Fun Search.
+
+Other efforts in this category include the approach by Lehman et al.
+
+an LLM-guided evolution process to discover programmatic policies for a set of simulated robots; or the approach by Hemberg et al. found use in several scientific and mathematical tasks, including symbolic regression [ 89], discovering heuristics for combinatorial optimization [ molecular structures []. LLM-guided evolution has also been used to improve AI systems by enhancing LLM prompts [] and searching over neural architectures [ differs from these approaches in its scale, flexibility, and general applicability to a broad range of domains.
+
+Some recent efforts have augmented the basic paradigm of LLM-guided evolution with
+
+complementary ideas. For example, Surina et al. by continuously finetuning the LLM through reinforcement learning. Grayeli et al. enhance the evolution process with an LLM-directed concept learning step that summarizes high-performing programs in the pool into natural language. More investigation is required to understand the benefits of these ideas at the scale at which
+
+Evolutionary methods have also found use in the recent AI Co-Scientist work [
+
+seeks to automate scientific discovery using distinct agents for tasks like hypothesis discovery, ranking of hypotheses, and literature review. While AI Co-Scientist represents scientific hypotheses and their evaluation criteria in*natural language* *code*, and directs evolution using programmatic evaluation functions. This choice enables us to substantially sidestep LLM hallucinations, which allows evolution process for a large number of time steps. Nevertheless, it is possible in principle to combine the two approaches, leading to a method that allows a flexible combination of natural-language and programmatic idioms.
 
 [83] as an
 
@@ -551,7 +759,21 @@ methods is the use of handwritten evolution operators, which can be hard to desi
 
 ---
 
-back. The idea of code superoptimization goes back to the 1980s [ to the problem included systematic enumeration [ sampling [86], and deep reinforcement learning [ focus on a single problem such as matrix multiplication, there have been systems such as Alpha Tensor that were also able to discover provably correct algorithms []. More recently, a body of LLM-based approaches to superoptimization and algorithm discovery have emerged. This literature builds on the success of LLMs in coding tasks, perhaps best illustrated by their success in (simulated) programming competitions as in the case of Alpha Code [60]. For instance, LLM agents have been used to optimize certain operations in GPU kernels, such as the attention operation [ operations [56]. There is also work on using LLMs to discover novel evolutionary algorithms [55], train language models [58], and optimize warehouse-scale computers [ recent work [] has also proposed the use of multiple LLM agents that converse with each other to accomplish mathematical and coding tasks. While previous work on using LLMs for algorithm discovery provided promising results, 
+back. The idea of code superoptimization goes back to the 1980s [ to the problem included systematic enumeration [ sampling [86], and deep reinforcement learning [ focus on a single problem such as matrix multiplication, there have been systems such as
+
+Alpha Tensor that were also able to discover provably correct algorithms [].
+
+More recently, a body of LLM-based approaches to superoptimization and algorithm
+
+discovery have emerged. This literature builds on the success of LLMs in coding tasks, perhaps best illustrated by their success in (simulated) programming competitions as in the case of Alpha Code [60]. For instance, LLM agents have been used to optimize certain operations in GPU kernels, such as the attention operation [ operations [56]. There is also work on using LLMs to discover novel evolutionary algorithms
+
+[55], train language models [58], and optimize warehouse-scale computers [
+
+recent work [] has also proposed the use of multiple LLM agents that converse with each other to accomplish mathematical and coding tasks.
+
+While previous work on using LLMs for algorithm discovery provided promising results,
+
+Alpha Evolve's approach to leverage it for evolutionary algorithms allows us to address significantly more challenging problems, as demonstrated in Section 3.
 
 69]; pre-LLM approaches
 
@@ -569,7 +791,7 @@ back. The idea of code superoptimization goes back to the 1980s [ to the problem
 
 20
 
-26
+26More recently, a body of LLM-based approaches to superoptimization and algorithm
 
 15
 
@@ -577,7 +799,7 @@ back. The idea of code superoptimization goes back to the 1980s [ to the problem
 
 106 109 112
 
-11
+ 11*Alpha Evolve*are the methods that
 
 113 120
 
@@ -591,13 +813,33 @@ back. The idea of code superoptimization goes back to the 1980s [ to the problem
 
 **AI for scientific and mathematical discovery.**
 
-applied to a wide range of scientific disciplines and tasks, from protein structure prediction [46] to quantum physics [6,84] to climate sciences [ recent LLM-based methods that target scientific problems in multiple disciplines, such as materials science [45,71,94,], chemistry [ [79], and quantum physics [30, 78] (for surveys on the topic, see [36, 65, 81]). Many of these methods use LLMs to automate several distinct stages of the scientific discovery process [37,59,,,], e.g., for generating and ranking hypotheses and ideas [38,90]. Of these methods, especially related to use LLM-guided tree search-based algorithms [ [34,,]. Other works use LLMs to optimize experimental planning and design [7,,43,75] or experiment execution and workflow [ are also works focusing on the data analysis stage [ these methods in its use of programmatic hypothesis representations and evaluation metrics. AI systems have also contributed to advances in pure mathematics [ the Fun Search approach [,83] established LLM-guided evolution as a powerful tool for discovering witnesses for, and counterexamples to, mathematical statements-a problem that is complementary to that of finding formal and informal proofs of mathematical statements [ , 98, 99, 110, 111].
+applied to a wide range of scientific disciplines and tasks, from protein structure prediction
+
+[46] to quantum physics [6,84] to climate sciences [
+
+recent LLM-based methods that target scientific problems in multiple disciplines, such as materials science [45,71,94,], chemistry [
+
+[79], and quantum physics [30, 78] (for surveys on the topic, see [36, 65, 81]).
+
+Many of these methods use LLMs to automate several distinct stages of the scientific
+
+discovery process [37,59,,,], e.g., for generating and ranking hypotheses and ideas [38,90]. Of these methods, especially related to use LLM-guided tree search-based algorithms [
+
+[34,,]. Other works use LLMs to optimize experimental planning and design [7,,43,75] or experiment execution and workflow [
+
+are also works focusing on the data analysis stage [ these methods in its use of programmatic hypothesis representations and evaluation metrics.
+
+AI systems have also contributed to advances in pure mathematics [
+
+the Fun Search approach [,83] established LLM-guided evolution as a powerful tool for discovering witnesses for, and counterexamples to, mathematical statements-a problem that is complementary to that of finding formal and informal proofs of mathematical statements [
+
+, 98, 99, 110, 111].
 
 Over the last decade, AI systems have been
 
-53]. In particular, there are numerous ,64], bioinformatics [67,85], geoscience
+53]. In particular, there are numerous
 
-*Alpha Evolve*are the methods that
+,64], bioinformatics [67,85], geoscience
 
 ] or LLM-guided evolutionary algorithms
 
@@ -612,11 +854,35 @@ Over the last decade, AI systems have been
 
 ## 6. Discussion
 
-*Alpha Evolve*demonstrates the surprising power of combining state-of-the-art LLMs with automated evaluation metrics within an evolutionary framework, which can lead to new discoveries on decades-old mathematical problems as well as practical improvements to highly optimized compute stacks. searching for the solution directly, finding a function that constructs it from scratch, or evolving a search algorithm to find it. Applying*Alpha Evolve*in different ways comes with different biases (for example, finding constructive functions may favor discovering highly symmetric objects [83]) and thus can suit different problems. procedure, significantly enhances the capability of the base LLM (compared to, e.g., repeated sampling). On one hand, this can be seen as a compelling demonstration of how machine feedback is able to sustain test-time compute scaling up to regimes where new scientific discoveries and highly valuable practical optimizations are made. On the other hand, a natural next step will be to consider distilling the*Alpha Evolve*-augmented performance of the base LLMs into the next generation of the base models. This can have intrinsic value and also, likely, uplift the next version of*Alpha Evolve*. that increase the efficiency of its own infrastructure and of (future versions of ) its base LLMs. Currently, the gains are moderate and the feedback loops for improving the next version of *Alpha Evolve*are on the order of months. However, with these improvements we envision that the value of setting up more environments (problems) with robust evaluation functions will become more widely recognized, which in turn will result in more high-value practical discoveries going forward. devise an automated evaluator. While this is true of many problems in the mathematical and computational sciences, there are domains such as the natural sciences where only some experiments can be simulated or automated. While*Alpha Evolve*does allow for LLM-provided evaluation of ideas, this is not a setting we have optimized for. However, concurrent work shows this is possible [34], and a natural step would be to link the two settings, with LLMs providing feedback on high-level ideas before transitioning to an implementation stage, for which machine feedback is available through code execution.
+*Alpha Evolve*demonstrates the surprising power of combining state-of-the-art LLMs with automated evaluation metrics within an evolutionary framework, which can lead to new discoveries on decades-old mathematical problems as well as practical improvements to highly optimized compute stacks.
+
+searching for the solution directly, finding a function that constructs it from scratch, or evolving a search algorithm to find it. Applying*Alpha Evolve*in different ways comes with different biases (for example, finding constructive functions may favor discovering highly symmetric objects [83]) and thus can suit different problems.
+
+procedure, significantly enhances the capability of the base LLM (compared to, e.g., repeated sampling). On one hand, this can be seen as a compelling demonstration of how machine feedback is able to sustain test-time compute scaling up to regimes where new scientific discoveries and highly valuable practical optimizations are made. On the other hand, a natural next step will be to consider distilling the*Alpha Evolve*-augmented performance of the base LLMs into the next generation of the base models. This can have intrinsic value and also, likely, uplift the next version of*Alpha Evolve*.
+
+that increase the efficiency of its own infrastructure and of (future versions of ) its base LLMs.
+
+Currently, the gains are moderate and the feedback loops for improving the next version of
+
+*Alpha Evolve*are on the order of months. However, with these improvements we envision that the value of setting up more environments (problems) with robust evaluation functions
+
+will become more widely recognized, which in turn will result in more high-value practical
+
+discoveries going forward.
+
+devise an automated evaluator. While this is true of many problems in the mathematical and computational sciences, there are domains such as the natural sciences where only some experiments can be simulated or automated. While*Alpha Evolve*does allow for LLM-provided evaluation of ideas, this is not a setting we have optimized for. However, concurrent work shows this is possible [34], and a natural step would be to link the two settings, with LLMs providing feedback on high-level ideas before transitioning to an implementation stage, for
+
+which machine feedback is available through code execution.
 
 **Acknowledgements**
 
-We thank Michael Figurnov for reviewing this white paper; Alhussein Fawzi, Bernardino Romera-Paredes, and Ankit Anand for early explorations and insightful discussions; Stig Petersen and Demis Hassabis for support and advice; JD Velasquez for helpful advice on managing the practical applications; and all early users and collaborators of*Alpha Evolve* for their diverse use cases and insightful feedback, which shaped it into a more robust and versatile tool for a wide range of applications. We gratefully acknowledge the invaluable contributions of these individuals towards the applications highlighted in this white paper:
+We thank Michael Figurnov for reviewing this white paper; Alhussein Fawzi, Bernardino
+
+Romera-Paredes, and Ankit Anand for early explorations and insightful discussions; Stig Petersen and Demis Hassabis for support and advice; JD Velasquez for helpful advice on managing the practical applications; and all early users and collaborators of*Alpha Evolve* for their diverse use cases and insightful feedback, which shaped it into a more robust and
+
+versatile tool for a wide range of applications. We gratefully acknowledge the invaluable
+
+contributions of these individuals towards the applications highlighted in this white paper:
 
 *Alpha Evolve*: A coding agent for scientific and algorithmic discovery
 
@@ -633,15 +899,37 @@ The main limitation of*Alpha Evolve*is that it handles problems for which it is 
 
 ---
 
-mathematical problems and advising on how to best formulate them for*Alpha Evolve*; Bogdan Georgiev, Ray Jiang, and Johannes Bausch for their contributions to applying*Alpha Evolve*to such problems. Pengming Wang for co-leading the application to data center scheduling; Federico Piccinini, Sultan Kenjeyev, and Andrea Michi for making significant contributions; Kieran Milan, Daniel Mankowitz, Cosmin Paduraru, Calin Cascaval, Tammo Spalink, and Natasha Antropova for providing helpful advice; Aaron Gentleman, Gaurav Dhiman, Parthasarathy Ranganatha, and Amin Vahdat for reviewing this work. burn for making significant contributions; Justin Chiu and Julian Walker for providing helpful advice; Jean-Baptiste Alayrac, Dmitry Lepikhin, Sebastian Borgeaud, Koray Kavukcuoglu and Jeff Dean for reviewing this work. providing the circuit evaluation infrastructure; Kirk Sanders, Srikanth Dwarakanath, Indranil Chakraborty, Christopher Clark for verif ying and validating the results in the TPU design; Vinod Nair, Sergio Guadarrama, Dimitrios Vytiniotis, and Daniel Belov for their helpful advice; Kerry Takenaka, Jeff Dean, Sridhar Lakshmanamurthy, Parthasarathy Ranganathan, and Amin Vahdat for reviewing this work. and Aliia Khasanova for their help with XLA modifications as well as their helpful advice; Giorgio Arena, Marco Cornero, and Sebastian Bodenstein for reviewing this work.
+mathematical problems and advising on how to best formulate them for*Alpha Evolve*; Bogdan
+
+Georgiev, Ray Jiang, and Johannes Bausch for their contributions to applying*Alpha Evolve*to
+
+such problems.
+
+Pengming Wang for co-leading the application to data center scheduling; Federico Piccinini, Sultan Kenjeyev, and Andrea Michi for making significant contributions; Kieran Milan, Daniel Mankowitz, Cosmin Paduraru, Calin Cascaval, Tammo Spalink, and Natasha Antropova for providing helpful advice; Aaron Gentleman, Gaurav Dhiman, Parthasarathy Ranganatha, and Amin Vahdat for reviewing this work.
+
+burn for making significant contributions; Justin Chiu and Julian Walker for providing helpful advice; Jean-Baptiste Alayrac, Dmitry Lepikhin, Sebastian Borgeaud, Koray Kavukcuoglu and Jeff Dean for reviewing this work.
+
+providing the circuit evaluation infrastructure; Kirk Sanders, Srikanth Dwarakanath, Indranil
+
+Chakraborty, Christopher Clark for verif ying and validating the results in the TPU design; Vinod Nair, Sergio Guadarrama, Dimitrios Vytiniotis, and Daniel Belov for their helpful
+
+advice; Kerry Takenaka, Jeff Dean, Sridhar Lakshmanamurthy, Parthasarathy Ranganathan, and Amin Vahdat for reviewing this work.
+
+and Aliia Khasanova for their help with XLA modifications as well as their helpful advice;
+
+Giorgio Arena, Marco Cornero, and Sebastian Bodenstein for reviewing this work.
 
 **Author information**
 
-These authors contributed equally: Alexander Novikov, Ngân Vu, Marvin Eisenberger, Emilien˜ Dupont, Po-Sen Huang, Adam Zsolt Wagner, Sergey Shirobokov, Borislav Kozlovskii, and Matej Balog.
+These authors contributed equally: Alexander Novikov, Ngân Vu, Marvin Eisenberger, Emilien˜
+
+Dupont, Po-Sen Huang, Adam Zsolt Wagner, Sergey Shirobokov, Borislav Kozlovskii, and Matej Balog.
 
 **Contributions.** A.N. and M.B. designed and implemented the initial version of*Alpha Evolve*. 
 
-S.H. oversaw the practical applications. E.D. and M.E. implemented the first benchmark developed the final version of*Alpha Evolve*, with contributions from S.S., P.-S.H., and input from M.B., E.D., A.Z.W. and N.V. A.N., S.S., P.-S.H. and M.E. maintained the infrastructure underlying*Alpha Evolve*. M.E. and E.D. used*Alpha Evolve*to discover new algorithms for matrix multiplication, with input from F.J.R.R. A.Z.W. worked on the applications to open mathematical problems, with help from A.M., M.E., and A.N. A.N. contributed to the Borg scheduling application. P.-S.H. and N.V. worked on the application to Gemini kernel engineering. P.-S.H. and A.N. contributed to the TPU circuit design application. B.K. and S.S. worked on applying*Alpha Evolve*to directly optimize compiler-generated code. M.E. performed the ablation experiments. M.B., A.N., M.E., S.S. and P.-S. H. performed the
+S.H. oversaw the practical applications. E.D. and M.E. implemented the first benchmark
+
+developed the final version of*Alpha Evolve*, with contributions from S.S., P.-S.H., and input from M.B., E.D., A.Z.W. and N.V. A.N., S.S., P.-S.H. and M.E. maintained the infrastructure underlying*Alpha Evolve*. M.E. and E.D. used*Alpha Evolve*to discover new algorithms for matrix multiplication, with input from F.J.R.R. A.Z.W. worked on the applications to open mathematical problems, with help from A.M., M.E., and A.N. A.N. contributed to the Borg scheduling application. P.-S.H. and N.V. worked on the application to Gemini kernel engineering. P.-S.H. and A.N. contributed to the TPU circuit design application. B.K. and S.S. worked on applying*Alpha Evolve*to directly optimize compiler-generated code. M.E. performed the ablation experiments. M.B., A.N., M.E., S.S. and P.-S. H. performed the
 
 Terence Tao, Javier Gomez Serrano, and Jordan Ellenberg for suggesting specific open
 
@@ -660,13 +948,19 @@ Benjamin Chetioui, Sergei Lebedev, Alexander Belyaev, Henning Becker, Oleg Shysh
 
 ---
 
-majority of code reviews. M.B., E.D., S.C., N.V., A.Z.W., F.J.R.R., M.E., A.N., B.K., S.S., A.M., and M.P.K. wrote the paper, with input from A.S., P.-S.H and P.K. N.V., E.D., M.E., S.C., A.N., and A.Z.W. created the figures. F.J.R.R., A.M., and A.Z.W. assembled the accompanying Google Colab. S.N., A.D. and P.K. advised and enabled multiple strands of this work. M.B., A.N., N.V. and G.H. coordinated the team. P.K. supervised and coordinated the research program.
+majority of code reviews. M.B., E.D., S.C., N.V., A.Z.W., F.J.R.R., M.E., A.N., B.K., S.S., A.M., and M.P.K. wrote the paper, with input from A.S., P.-S.H and P.K. N.V., E.D., M.E., S.C., A.N., and A.Z.W. created the figures. F.J.R.R., A.M., and A.Z.W. assembled the accompanying
+
+Google Colab. S.N., A.D. and P.K. advised and enabled multiple strands of this work. M.B., A.N., N.V. and G.H. coordinated the team. P.K. supervised and coordinated the research
+
+program.
 
 **Corresponding authors.** Matej Balog, Alexander Novikov and Pushmeet Kohli.
 
-## References
+**References**
 
-more, A. J. Ballard, J. Bambrick, et al. Accurate structure prediction of biomolecular interactions with alphafold 3.*Nature*, 630(8016):493-500, 2024. S. Chiappa. FunBO: Discovering acquisition functions for Bayesian optimization with Fun Search. In*International Conference on Machine Learning*, 2025.
+more, A. J. Ballard, J. Bambrick, et al. Accurate structure prediction of biomolecular interactions with alphafold 3.*Nature*, 630(8016):493-500, 2024.
+
+S. Chiappa. FunBO: Discovering acquisition functions for Bayesian optimization with Fun Search. In*International Conference on Machine Learning*, 2025.
 
 [3] Alpha Proof and Alpha Geometry teams. AI achieves silver-medal standard solving
 
@@ -678,13 +972,25 @@ oogle/discover/blog/ai- solves- imo- problems- at- silver- medal- lev
 
 [4] D. Bahdanau, K. Cho, and Y. Bengio. Neural machine translation by jointly learning
 
-to align and translate.*arXiv preprint arXiv:1409.0473*, 2014. *Introduction on the Automatic Evolution of computer programs and its Applications*. The Morgan Kaufmann Series in Artificial Intelligence, 1998. D. Hassabis, S. Boixo, H. Neven, and P. Kohli. Learning high-accuracy error decoding for quantum processors.*Nature*, 635(8040):834-840, 2024. doi: 10.1038/s41586-0 24-08148-8. with large language models.*Nature*, 624(7992):570-578, 2023. doi: 10.1038/s415 86-023-06792-0.
+to align and translate.*arXiv preprint arXiv:1409.0473*, 2014.
+
+*Introduction on the Automatic Evolution of computer programs and its Applications*. The Morgan Kaufmann Series in Artificial Intelligence, 1998.
+
+D. Hassabis, S. Boixo, H. Neven, and P. Kohli. Learning high-accuracy error decoding for quantum processors.*Nature*, 635(8040):834-840, 2024. doi: 10.1038/s41586-0
+
+24-08148-8.
+
+with large language models.*Nature*, 624(7992):570-578, 2023. doi: 10.1038/s415
+
+86-023-06792-0.
 
 *Alpha Evolve*: A coding agent for scientific and algorithmic discovery
 
 [8] P. Boyvalenkov, S. Dodunekov, and O. Musin. A survey on the kissing numbers.*Serdica*
 
-*Math. J.*, 38(4):507-522, 2012. ISSN 1310-6600. transformations of Python+Num Py programs, 2018. URL`http://github.com/j` `ax-ml/jax`.
+*Math. J.*, 38(4):507-522, 2012. ISSN 1310-6600.
+
+transformations of Python+Num Py programs, 2018. URL`http://github.com/j` `ax-ml/jax`.
 
 23
 
@@ -693,15 +999,23 @@ to align and translate.*arXiv preprint arXiv:1409.0473*, 2014. *Introduction on 
 
 large language models with chemistry tools.*Nature Machine Intelligence*, 6(5):525-
 
-535, 2024. doi: 10.1038/s42256-024-00832-8. reasoning in LLMs unlocks steerable synthesis planning and reaction mechanism elucidation. In*arXiv preprint arXiv:2503.08537*, 2025.
+535, 2024. doi: 10.1038/s42256-024-00832-8.
+
+reasoning in LLMs unlocks steerable synthesis planning and reaction mechanism elucidation. In*arXiv preprint arXiv:2503.08537*, 2025.
 
 [12] M. Caldas Ramos, C. J. Collison, and A. D. White. A review of large language models
 
-and autonomous agents in chemistry.*Chemical Science*, 16:2514-2572, 2025. doi: 10.1039/D4SC03921A. K. J. Miller, and K. L. Stachenfeld. Discovering symbolic cognitive models from human and animal behavior. In*International Conference on Machine Learning*, 2025.
+and autonomous agents in chemistry.*Chemical Science*, 16:2514-2572, 2025. doi:
+
+10.1039/D4SC03921A.
+
+K. J. Miller, and K. L. Stachenfeld. Discovering symbolic cognitive models from human and animal behavior. In*International Conference on Machine Learning*, 2025.
 
 [14] A. Chen, D. M. Dohan, and D. R. So. Evo Prompting: Language models for code-level
 
-neural architecture search. In*Advances in Neural Information Processing Systems*, 2023.
+neural architecture search. In*Advances in Neural Information Processing Systems*,
+
+2023.
 
 [15] T. Chen, B. Xu, and K. Devleker. Automating GPU kernel generation with Deep Seek-R1
 
@@ -711,15 +1025,25 @@ and inference time scaling, 2025. URL`https://developer.nvidia.com/blog/`
 automating-gpu-kernel-generation-with-deepseek-r1-and-inference
 ```
 
-`-time-scaling`. Hsieh, Y. Lu, and Q. V. Le. Symbolic discovery of optimization algorithms.*Advances* *in Neural Information Processing Systems*, 2023.
+`-time-scaling`.
+
+Hsieh, Y. Lu, and Q. V. Le. Symbolic discovery of optimization algorithms.*Advances* *in Neural Information Processing Systems*, 2023.
 
 [17] A. Cloninger and S. Steinerberger. On suprema of autoconvolutions with an application
 
-to Sidon sets.*Proceedings of the American Mathematical Society*, 145(8):3191-3200, 2017.
+to Sidon sets.*Proceedings of the American Mathematical Society*, 145(8):3191-3200,
+
+2017.
 
 [18] H. Cohn and F. Gonçalves. An optimal uncertainty principle in twelve dimensions via
 
-modular forms.*Inventiones mathematicae*, 217:799-831, 2019. J. B. Tenenbaum, W. Hart, et al. Evaluating language models for mathematics through interactions.*Proceedings of the National Academy of Sciences*, 121(24):e2318124121, 2024.
+modular forms.*Inventiones mathematicae*, 217:799-831, 2019.
+
+J. B. Tenenbaum, W. Hart, et al. Evaluating language models for mathematics through
+
+interactions.*Proceedings of the National Academy of Sciences*, 121(24):e2318124121,
+
+2024.
 
 *Alpha Evolve*: A coding agent for scientific and algorithmic discovery
 
@@ -731,22 +1055,30 @@ modular forms.*Inventiones mathematicae*, 217:799-831, 2019. J. B. Tenenbaum, W.
 
 gression. jl.*arXiv preprint arXiv:2305.01582*, 2023.
 
-[22] T. Dao, D. Fu, S. Ermon, A. Rudra, and C. Ré. Flashattention: Fast and memoryefficient exact attention with io-awareness.Advances in neural information processing
+[22] T. Dao, D. Fu, S. Ermon, A. Rudra, and C. Ré. Flashattention: Fast and memory-
 
-*systems*, 35:16344-16359, 2022.
+efficient exact attention with io-awareness.*Advances in neural information processing* *systems*, 35:16344-16359, 2022.
 
 24
 
 
 ---
 
-P. Kohli. Advancing mathematics by guiding human intuition with AI. (7887):70-74, 2021. doi: 10.1038/s41586-021-04086-x. Generative modelling for mathematical discovery. 2025.
+P. Kohli. Advancing mathematics by guiding human intuition with AI.
+
+(7887):70-74, 2021. doi: 10.1038/s41586-021-04086-x.
+
+Generative modelling for mathematical discovery.
+
+ 2025.*Riveon Lematematika*, 9:45-48, 1955.
 
 [25] P. Erdős. Some remarks on number theory.
 
 ering faster matrix multiplication algorithms with reinforcement learning.
 
-610(7930):47-53, 2022. doi: 10.1038/s41586-022-05172-4. breeder: Self-referential self-improvement via prompt evolution. *arXiv:2309.16797*, 2023.
+610(7930):47-53, 2022. doi: 10.1038/s41586-022-05172-4.
+
+breeder: Self-referential self-improvement via prompt evolution. *arXiv:2309.16797*, 2023.
 
 [28] N. Ferruz and B. Höcker. Controllable protein design with language models.
 
@@ -760,21 +1092,23 @@ ering faster matrix multiplication algorithms with reinforcement learning.
 
 *Science and Technology*, 6(1):015029, 2025. doi: 10.1088/2632-2153/adb00a.
 
-[31] M. Ganzhinov. Highly symmetric lines. In [32] Gemini team. Gemini 2.5: Our most intelligent AI model, 2025. URL
+[31] M. Ganzhinov. Highly symmetric lines. In
+
+[32] Gemini team. Gemini 2.5: Our most intelligent AI model, 2025. URL
 
 ```
 //blog.google/technology/google-deepmind/gemini-model-thinking-u
 ```
 
-`pdates-march-2025`. on the torus, and an uncertainty principle for roots. *and Applications*, 451(2):678-711, 2017.
+`pdates-march-2025`.
+
+on the torus, and an uncertainty principle for roots. *and Applications*, 451(2):678-711, 2017.
 
 co-scientist.*arXiv preprint arXiv:2502.18864*
 
 *Nature*, 600
 
 *arXiv preprint arXiv:2503.11061*,
-
-*Riveon Lematematika*, 9:45-48, 1955.
 
 *Nature*,
 
@@ -798,7 +1132,9 @@ https:
 
 *Alpha Evolve*: A coding agent for scientific and algorithmic discovery
 
-regression with a learned concept library.*Advances in Neural Information Processing* *Systems*, 37:44678-44709, 2024.
+regression with a learned concept library.*Advances in Neural Information Processing*
+
+*Systems*, 37:44678-44709, 2024.
 
 25
 
@@ -807,11 +1143,17 @@ regression with a learned concept library.*Advances in Neural Information Proces
 
 ---
 
-scientific discovery: A survey of progress, challenges, and future directions. In*ICLR* *Workshop: Towards Agentic AI for Science: Hypothesis Generation, Comprehension,* *Quantification, and Validation*, 2025.
+scientific discovery: A survey of progress, challenges, and future directions. In*ICLR* *Workshop: Towards Agentic AI for Science: Hypothesis Generation, Comprehension,*
+
+*Quantification, and Validation*, 2025.
 
 [37] X. Gu and M. Krenn. Interesting scientific idea generation using knowledge
 
-graphs and LLMs: Evaluations with 100 research group leaders. In*arXiv preprint* *arXiv:2405.17044*, 2024. for advancing scientific discovery. In*Proceedings of the IEEE International Conference* *on Big Data*, pages 1746-1755, 2024. doi: 10.1109/bigdata62323.2024.10825618.
+graphs and LLMs: Evaluations with 100 research group leaders. In*arXiv preprint* *arXiv:2405.17044*, 2024.
+
+for advancing scientific discovery. In*Proceedings of the IEEE International Conference*
+
+*on Big Data*, pages 1746-1755, 2024. doi: 10.1109/bigdata62323.2024.10825618.
 
 [39] K. Gyarmati, F. Hennecart, and I. Z. Ruzsa. Sums and differences of finite sets.
 
@@ -833,7 +1175,9 @@ for matrix multiplication.SIAM J. Appl. Math., 20(1):30-36, Jan. 1971. ISSN 0036
 
 M. Wang, and L. Cong. CRISPR-GPT: An LLM agent for automated design of genelarge language models. InarXiv preprint arXiv:2406.13163, 2024.
 
-B. Qin, et al. A survey on hallucination in large language models: Principles, taxonomy, challenges, and open questions.*ACM Transactions on Information Systems*, 43(2): 1-55, 2025.
+B. Qin, et al. A survey on hallucination in large language models: Principles, taxonomy, challenges, and open questions.*ACM Transactions on Information Systems*, 43(2):
+
+1-55, 2025.
 
 [45] S. Jia, C. Zhang, and V. Fung. LLMat Design: Autonomous materials discovery with
 
@@ -870,9 +1214,13 @@ selection.*Statistics and Computing*, 4(2):87-112, 1994. doi: 10.1007/BF00175355
 
 [52] J. D. Laderman. A noncommutative algorithm for multiplying3 × 3 matrices using
 
-23 multiplications.*Bulletin of the American Mathematical Society*, 82(1):126 - 128, 1976.
+23 multiplications.*Bulletin of the American Mathematical Society*, 82(1):126 - 128,
 
-medium-range global weather forecasting.*Science*, 382(6677):1416-1421, 2023. doi: 10.1126/science.adi2336.
+1976.
+
+medium-range global weather forecasting.*Science*, 382(6677):1416-1421, 2023. doi:
+
+10.1126/science.adi2336.
 
 [54] W. B. Langdon and R. Poli.*Foundations of genetic programming*. Springer Science &
 
@@ -880,7 +1228,23 @@ Business Media, 2013.
 
 [55] R. Lange, Y. Tian, and Y. Tang. Large language models as evolution strategies. In
 
-*Proceedings of the Genetic and Evolutionary Computation Conference Companion*, GECCO '24 Companion, pages 579-582. Association for Computing Machinery, 2024. doi: 10.1145/3638530.3654238. Agentic CUDA kernel discovery, optimization and composition. Technical report, Sakana AI, 02 2025. large models. In*Handbook of evolutionary machine learning*, pages 331-366. Springer, 2023. *Through Large Models*, pages 331-366. Springer Nature Singapore, 2024. doi: 10.1007/978-981-99-3814-8\_11.
+*Proceedings of the Genetic and Evolutionary Computation Conference Companion*, GECCO
+
+'24 Companion, pages 579-582. Association for Computing Machinery, 2024. doi:
+
+10.1145/3638530.3654238.
+
+Agentic CUDA kernel discovery, optimization and composition. Technical report,
+
+Sakana AI, 02 2025.
+
+large models. In*Handbook of evolutionary machine learning*, pages 331-366. Springer,
+
+2023.
+
+*Through Large Models*, pages 331-366. Springer Nature Singapore, 2024. doi:
+
+10.1007/978-981-99-3814-8\_11.
 
 *Alpha Evolve*: A coding agent for scientific and algorithmic discovery
 
@@ -893,11 +1257,23 @@ model framework for literature-based disease-gene association prediction.*Briefi
 
 ---
 
-10.1126/science.abq1158. A. Yazdanbakhsh, D. Altinbüken, F. Papa, et al. ECO: An LLM-driven efficient code optimizer for warehouse scale computers. Evolutionary-scale prediction of atomic-level protein structure with a language model. *Science*, 379(6637):1123-1130, 2023. doi: 10.1126/science.ade2574. heuristics: Towards efficient automatic algorithm design using large language model. *arXiv preprint arXiv:2401.02051*
+10.1126/science.abq1158.
+
+A. Yazdanbakhsh, D. Altinbüken, F. Papa, et al. ECO: An LLM-driven efficient code
+
+optimizer for warehouse scale computers.
+
+Evolutionary-scale prediction of atomic-level protein structure with a language model.
+
+*Science*, 379(6637):1123-1130, 2023. doi: 10.1126/science.ade2574.
+
+heuristics: Towards efficient automatic algorithm design using large language model. *arXiv preprint arXiv:2401.02051*
 
 [64] F. Luo, J. Zhang, Q. Wang, and C. Yang. Leveraging prompt engineering in large
 
-language models for accelerating chemical research. 10.1021/acscentsci.4c01935.
+language models for accelerating chemical research.
+
+10.1021/acscentsci.4c01935.
 
 [65] Z. Luo, Z. Yang, Z. Xu, W. Yang, and X. Du. LLM4SR: A survey on large language
 
@@ -905,13 +1281,21 @@ models for scientific research. In
 
 [66] H. Ma, A. Narayanaswamy, P. Riley, and L. Li. Evolving symbolic density functionals.
 
-*Science Advances*, 8(36):eabq0279, 2022. doi: 10.1126/sciadv.abq0279. generate functional protein sequences across diverse families. (8):1099-1106, August 2023. ISSN 1087-0156. doi: 10.1038/s41587-022-01618-2.
+*Science Advances*, 8(36):eabq0279, 2022. doi: 10.1126/sciadv.abq0279.
 
-Faster sorting algorithms discovered using deep reinforcement learning. (7964):257-263, 2023. doi: 10.1038/s41586-023-06004-9.
+generate functional protein sequences across diverse families.
+
+(8):1099-1106, August 2023. ISSN 1087-0156. doi: 10.1038/s41587-022-01618-2.
+
+Faster sorting algorithms discovered using deep reinforcement learning.
+
+(7964):257-263, 2023. doi: 10.1038/s41586-023-06004-9.
 
 [69] H. Massalin. Superoptimizer - A look at the smallest program. In R. H. Katz and
 
-M. Freeman, editors, *Support for Programming Languages and Operating Systems (ASPLOS II), Palo Alto,* *California, USA, October 5-8, 1987* 36206.36194.
+M. Freeman, editors,
+
+*Support for Programming Languages and Operating Systems (ASPLOS II), Palo Alto,* *California, USA, October 5-8, 1987* 36206.36194.
 
 [70] M. Matolcsi and C. Vinuesa. Improved bounds on the supremum of autoconvolutions.
 
@@ -960,7 +1344,9 @@ schemes. *arXiv preprint arXiv:2502.04514*, 2025.
 
 *arXiv:1504.04909*, 2015.
 
-F. Ren, and A. Zhavoronkov. DORA AI scientist: Multi-agent virtual research team for scientific exploration discovery and automated report generation. In*bio Rxiv* *preprint:10.1101/2025.03.06.641840*. Cold Spring Harbor Laboratory, 2025. doi: 10.1101/2025.03.06.641840.
+F. Ren, and A. Zhavoronkov. DORA AI scientist: Multi-agent virtual research team for scientific exploration discovery and automated report generation. In*bio Rxiv* *preprint:10.1101/2025.03.06.641840*. Cold Spring Harbor Laboratory, 2025. doi:
+
+10.1101/2025.03.06.641840.
 
 [76] OpenAI. Introducing OpenAI o3 and o4-mini, 2025. URL`https://openai.com/i`
 
@@ -968,7 +1354,23 @@ F. Ren, and A. Zhavoronkov. DORA AI scientist: Multi-agent virtual research team
 
 [77] OpenXLA. XLA: composable transformations of Python+Num Py programs. URL
 
-`https://github.com/openxla/xla`. Brenner, and E.-A. Kim. Quantum many-body physics calculations with large language models. *Communications Physics*, 8(1):49, 2025. doi: 10.1038/s42005-025-01956-y. science discovery via multi-agent LLM systems. In*arXiv preprint arXiv:2503.05854*, 2025. hamsson. Can large language models serve as data analysts? a multi-agent assisted approach for qualitative data analysis.*arXiv preprint arXiv:2402.01386*, 2024. A survey of LLM-based scientific agents. In*arXiv preprint arXiv:2503.24047*, 2025. and R. Fergus. Biological structure and function emerge from scaling unsupervised learning to 250 million protein sequences.*Proceedings of the National Academy of* *Sciences*, 118(15):e2016239118, 2021. doi: 10.1073/pnas.2016239118. discoveries from program search with large language models.*Nature*, 625(7995):
+`https://github.com/openxla/xla`.
+
+Brenner, and E.-A. Kim. Quantum many-body physics calculations with large language models. *Communications Physics*, 8(1):49, 2025. doi: 10.1038/s42005-025-01956-y.
+
+science discovery via multi-agent LLM systems. In*arXiv preprint arXiv:2503.05854*,
+
+2025.
+
+hamsson. Can large language models serve as data analysts? a multi-agent assisted approach for qualitative data analysis.*arXiv preprint arXiv:2402.01386*, 2024.
+
+A survey of LLM-based scientific agents. In*arXiv preprint arXiv:2503.24047*, 2025.
+
+and R. Fergus. Biological structure and function emerge from scaling unsupervised learning to 250 million protein sequences.*Proceedings of the National Academy of*
+
+*Sciences*, 118(15):e2016239118, 2021. doi: 10.1073/pnas.2016239118.
+
+discoveries from program search with large language models.*Nature*, 625(7995):
 
 468-475, 2023. doi: 10.1038/s41586-023-06924-6.
 
@@ -987,13 +1389,21 @@ matics.*Computational and Structural Biotechnology Journal* ISSN 2001-0370. doi:
 
 [86] E. Schkufza, R. Sharma, and A. Aiken. Stochastic superoptimization. In V. Sarkar and
 
-R. Bodík, editors,*Architectural Support for Programming Languages and Operating* *Systems, ASPLOS 2013, Houston, TX, USA, March 16-20, 2013*
+R. Bodík, editors,*Architectural Support for Programming Languages and Operating*
+
+*Systems, ASPLOS 2013, Houston, TX, USA, March 16-20, 2013*
 
  2013. doi: 10.1145/2451116.2451150.
 
 [87] M. Schmidt and H. Lipson. Distilling free-form natural laws from experimental data.
 
-*Science*, 324(5923):81-85, 2009. doi: 10.1126/science.1165893. agents with verbal reinforcement learning. *Systems*, 36:8634-8652, 2023. equation discovery via programming with large language models. In
+*Science*, 324(5923):81-85, 2009. doi: 10.1126/science.1165893.
+
+agents with verbal reinforcement learning.
+
+*Systems*, 36:8634-8652, 2023.
+
+equation discovery via programming with large language models. In
 
 *Nature*
 
@@ -1038,7 +1448,11 @@ lication/364167198_Bilinear_Algorithm_for_Matrix_Multiplication_
 
 [93] A. V. Smirnov. The bilinear complexity and practical algorithms for matrix multiplilarge language models for universal scientific formula and theory discovery. In
 
-cation.*Computational Mathematics and Mathematical Physics* 2013. *preprint arXiv:2503.06512*, 2025.
+cation.*Computational Mathematics and Mathematical Physics*
+
+2013.
+
+*preprint arXiv:2503.06512*, 2025.
 
 *Advances in Neural Information Processing*
 
@@ -1046,7 +1460,9 @@ cation.*Computational Mathematics and Mathematical Physics* 2013. *preprint arXi
 
 , 2025.
 
-⟨3, , ⟩. , 04 2021.
+⟨3, , ⟩.
+
+, 04 2021.
 
 ```
 https://www.researchgate.net/pub
@@ -1067,7 +1483,21 @@ Michigan, 1989.
 
 [98] A. Thakur, G. Tsoukalas, Y. Wen, J. Xin, and S. Chaudhuri. An in-context learning
 
-agent for formal theorem-proving. In*Conference on Language Models*, 2024. human demonstrations. *Nature*, 625(7995):476-482, 2024. I. Polosukhin. Attention is all you need. In*Advances in Neural Information Processing* *Systems*, 2017. Amplif ying human performance in combinatorial competitive programming. 2024. scale cluster management at Google with Borg. In*Proceedings of the Tenth European* *Conference on Computer Systems*, Euro Sys '15, New York, NY, USA, 2015. Association for Computing Machinery. ISBN 9781450332385. doi: 10.1145/2741948.2741964.
+agent for formal theorem-proving. In*Conference on Language Models*, 2024.
+
+human demonstrations. *Nature*, 625(7995):476-482, 2024.
+
+I. Polosukhin. Attention is all you need. In*Advances in Neural Information Processing*
+
+*Systems*, 2017.
+
+Amplif ying human performance in combinatorial competitive programming. 2024.
+
+scale cluster management at Google with Borg. In*Proceedings of the Tenth European*
+
+*Conference on Computer Systems*, Euro Sys '15, New York, NY, USA, 2015. Association
+
+for Computing Machinery. ISBN 9781450332385. doi: 10.1145/2741948.2741964.
 
 [103] S. Verma, A. Goyal, A. Mathur, A. Anand, and S. Ranu. GRAIL: Graph edit distance
 
@@ -1075,17 +1505,27 @@ and node alignment using llm-generated code. In*International Conference on Mach
 
 [104] C. Vinuesa del Rio.*Generalized Sidon sets*. PhD thesis, Universidad Autónoma de
 
-Madrid, 2010. lutionary search over chemical space with large language models. In*International* *Conference on Learning Representations*, 2025.
+Madrid, 2010.
+
+lutionary search over chemical space with large language models. In*International*
+
+*Conference on Learning Representations*, 2025.
 
 [106] Q. Wang, D. Downey, H. Ji, and T. Hope. SciMON: Scientific inspiration machines
 
-optimized for novelty. In*Proceedings of the 62nd Annual Meeting of the Association for* *Computational Linguistics (Volume 1: Long Papers)*, pages 279-299, Bangkok, Thailand,
+optimized for novelty. In*Proceedings of the 62nd Annual Meeting of the Association for*
+
+*Computational Linguistics (Volume 1: Long Papers)*, pages 279-299, Bangkok, Thailand,
 
  2024. Association for Computational Linguistics. doi: 10.18653/v1/2024.acl-long.18.
 
 [107] E. P. White. A new bound for Erdős' minimum overlap problem.*Acta Arithmetica*,
 
-208:235-255, 2023. LLM applications via multi-agent conversation. In*arXiv preprint arXiv:2308.08155*, 2023.
+208:235-255, 2023.
+
+LLM applications via multi-agent conversation. In*arXiv preprint arXiv:2308.08155*,
+
+ 2023.LLM applications via multi-agent conversation. In*arXiv preprint arXiv:2308.08155*,
 
 *Alpha Evolve*: A coding agent for scientific and algorithmic discovery
 
@@ -1094,11 +1534,37 @@ optimized for novelty. In*Proceedings of the 62nd Annual Meeting of the Associat
 
 ---
 
-T.-Y. Liu, H. Liu, and T. Qin. Nature language model: Deciphering the language of nature for scientific discovery. In*arXiv preprint arXiv:2502.07527v2* A. Anandkumar. Leandojo: Theorem proving with retrieval-augmented language models. *Advances in Neural Information Processing Systems* mathematical reasoning: A new frontier in AI.
+T.-Y. Liu, H. Liu, and T. Qin. Nature language model: Deciphering the language of
+
+nature for scientific discovery. In*arXiv preprint arXiv:2502.07527v2*
+
+A. Anandkumar. Leandojo: Theorem proving with retrieval-augmented language
+
+models. *Advances in Neural Information Processing Systems*
+
+mathematical reasoning: A new frontier in AI.
 
 [112] Z. Yang, X. Du, J. Li, J. Zheng, S. Poria, and E. Cambria. Large language models for
 
-automated open-domain scientific hypotheses discovery. In *tion for Computational Linguistics: ACL 2024* Computational Linguistics, 2024. doi: 10.18653/v1/2024.f indings-acl.804. MOOSE-Chem: Large language models for rediscovering unseen chemistry scientific hypotheses. In reasoning and acting in language models. In *Representations (ICLR)*, 2023. heuristic using large language model. In volume 39, pages 27144-27152, 2025. doi: 10.1609/aaai.v39i25.34922. large language model for molecule optimization. In 2023. language models as hyper-heuristics with reflective evolution. In *Information Processing Systems*, volume 37, 2024. *Scheduling*. Springer, 2021.
+automated open-domain scientific hypotheses discovery. In *tion for Computational Linguistics: ACL 2024*
+
+Computational Linguistics, 2024. doi: 10.18653/v1/2024.f indings-acl.804.
+
+MOOSE-Chem: Large language models for rediscovering unseen chemistry scientific hypotheses. In
+
+reasoning and acting in language models. In *Representations (ICLR)*, 2023.
+
+heuristic using large language model. In
+
+volume 39, pages 27144-27152, 2025. doi: 10.1609/aaai.v39i25.34922.
+
+large language model for molecule optimization. In
+
+2023.
+
+language models as hyper-heuristics with reflective evolution. In *Information Processing Systems*, volume 37, 2024.
+
+*Scheduling*. Springer, 2021.
 
 [119] H. Zhang, Y. Song, Z. Hou, S. Miret, and B. Liu. Honey Comb: A flexible LLM-based
 
@@ -1145,20 +1611,36 @@ language models. In L. Peled-Cohen, N. Calderon, S. Lissak, and R. Reichart, edi
 
 *Alpha Evolve*: A coding agent for scientific and algorithmic discovery
 
-*Proceedings of the 1st Workshop on NLP for Science (NLP4Science)*, pages 117-139. Association for Computational Linguistics, 2024. doi: 10.18653/v1/2024.nlp4scien ce-1.10.
+*Proceedings of the 1st Workshop on NLP for Science (NLP4Science)*, pages 117-139.
+
+Association for Computational Linguistics, 2024. doi: 10.18653/v1/2024.nlp4scien
+
+ce-1.10.
 
 33
 
 
 ---
 
-**Full table of results.**We provide the best ranks obtained by we considered 54 matrix multiplication sizes in our experiments. These were chosen roughly representing sizes⟨, , ⟩ where ≤, symmetries of the underlying matrix multiplication tensor, there exist equivalent algorithms for any permutations of the three axes, hence we focus on sorted sizes In all but two considered sizes,*Alpha Evolve* surpass the best known rank. Anecdotally, we encountered some difficulty when increasing the problem size: when we run the discovered programs on sizes beyond random seeds on evaluators with a single GPU accelerator, we often run out of memory.best known best known
+**Full table of results.**We provide the best ranks obtained by
+
+we considered 54 matrix multiplication sizes in our experiments. These were chosen roughly
+
+representing sizes⟨, , ⟩ where ≤, symmetries of the underlying matrix multiplication tensor, there exist equivalent algorithms for any permutations of the three axes, hence we focus on sorted sizes
+
+In all but two considered sizes,*Alpha Evolve*
+
+surpass the best known rank. Anecdotally, we encountered some difficulty when increasing the problem size: when we run the discovered programs on sizes beyond random seeds on evaluators with a single GPU accelerator, we often run out of memory.best known best known
 
 ⟨, , ⟩ *Alpha Evolve*⟨, , ⟩
 
 Hence, extending our setup to larger matrix sizes requires further optimization.[reference]
 
-⟨,, ⟩ 7 [95] ⟨7,3,6⟩ ⟨,,3⟩ 93] ⟨,3,7⟩ ⟨,,4⟩ 93] ⟨,3,8⟩ ⟨,,5⟩ 93] ⟨,3,9⟩ ⟨,,6⟩ 93] ⟨,3, ⟨,,7⟩ 93] ⟨,4,4⟩ ⟨,,8⟩ 93] ⟨,4,5⟩ ⟨,,9⟩ 32 [93] ⟨32,4,6⟩ ⟨,, ⟩ 35 [93] ⟨35,4,7⟩ ⟨,, ⟩ 39 [93] ⟨39,4,8⟩ ⟨,, ⟩ 42 [93] ⟨42,5,5⟩ ⟨,, ⟩ 46 [93] ⟨46,5,6⟩ ⟨,, ⟩ 49 [93] ⟨493,3,3⟩ ⟨,, ⟩ 53 [93] ⟨533,3,4⟩ ⟨,, ⟩ 56 [93] ⟨563,3,5⟩ ⟨,3,3⟩ 93] ⟨3,3,6⟩ ⟨,3,4⟩ 93] ⟨3,3,7⟩
+⟨,, ⟩ 7 [95] ⟨7,3,6⟩ ⟨,,3⟩ 93] ⟨,3,7⟩ ⟨,,4⟩ 93] ⟨,3,8⟩ ⟨,,5⟩ 93] ⟨,3,9⟩ ⟨,,6⟩ 93] ⟨,3, ⟨,,7⟩ 93] ⟨,4,4⟩ ⟨,,8⟩ 93] ⟨,4,5⟩ ⟨,,9⟩ 32 [93] ⟨32,4,6⟩
+
+⟨,, ⟩ 35 [93] ⟨35,4,7⟩ ⟨,, ⟩ 39 [93] ⟨39,4,8⟩ ⟨,, ⟩ 42 [93] ⟨42,5,5⟩ ⟨,, ⟩ 46 [93] ⟨46,5,6⟩ ⟨,, ⟩ 49 [93] ⟨493,3,3⟩ ⟨,, ⟩ 53 [93] ⟨533,3,4⟩ ⟨,, ⟩ 56 [93] ⟨563,3,5⟩
+
+⟨,3,3⟩ 93] ⟨3,3,6⟩ ⟨,3,4⟩ 93] ⟨3,3,7⟩
 
 **Table 3**⟨ |Full version of Table 2, showing the best ranks obtained by
 
@@ -1251,7 +1733,9 @@ Hence, extending our setup to larger matrix sizes requires further optimization.
 
 112 `+ )`
 
-118 121
+118
+
+121
 
 129 `+ )`
 
@@ -1279,7 +1763,9 @@ Hence, extending our setup to larger matrix sizes requires further optimization.
 
 ---
 
-The data and verification code for all constructions reported in this section appear in the accompanying Google Colab.
+The data and verification code for all constructions reported in this section appear in the
+
+accompanying Google Colab.
 
 ≤.5098,
 
@@ -1301,13 +1787,19 @@ The data and verification code for all constructions reported in this section ap
 
 1 2 1 2 1
 
-1 28 1 1 17
+1 28 1 1
+
+17
 
 1 1 1 1
 
 1 2 1 2 1
 
-negative values. There is a step function that gives the upper bound3 ≤ 1.45810 [104, page 75].*Alpha Evolve*found a step function with 400 equally-spaced intervals on[−1/4,1/4] that gives a slightly better upper bound3 ≤ 1.4557.
+negative values. There is a step function that gives the upper bound3 ≤ 1.45810 [104, page
+
+75].*Alpha Evolve*found a step function with 400 equally-spaced intervals on[−1/4,1/4] that
+
+gives a slightly better upper bound3 ≤ 1.4557.
 
 38
 
@@ -1321,7 +1813,11 @@ Let denote the largest constant satisf ying
 
 max ∗ (
 
-for all non-negative:ℝ → ℝ. This problem arises in additive combinatorics, relating to the size of Sidon sets. It is currently known that with the lower bound achieved in [] and the upper bound achieved in [ function construction.*Alpha Evolve*found a step function with 600 equally-spaced intervals on [− /4, /4] that gives a slightly better upper bound
+for all non-negative:ℝ → ℝ. This problem arises in additive combinatorics, relating to the size of Sidon sets. It is currently known that
+
+with the lower bound achieved in [] and the upper bound achieved in [
+
+function construction.*Alpha Evolve*found a step function with 600 equally-spaced intervals on [− /4, /4] that gives a slightly better upper bound
 
 **B.2. Second autocorrelation inequality**
 
@@ -1333,7 +1829,9 @@ for all non-negative:ℝ → ℝ. It is known that
 
 0.88922
 
-with the lower bound coming from a step function construction [ a step function with 50 equally-spaced intervals on lower bound 0.8962 ≤.
+with the lower bound coming from a step function construction [
+
+a step function with 50 equally-spaced intervals on lower bound 0.8962 ≤.
 
 **B.3. Third autocorrelation inequality**
 
@@ -1341,26 +1839,60 @@ Let 3 be the largest constant satisf ying
 
 for any function: ℝ → ℝ. Clearly 3
 
-)|≥ 3 () ≤, since we now allow to take positive and
+)|≥ 3 ()
+
+≤, since we now allow to take positive and
 
 
 ---
 
-Given a function:ℝ → ℝ, define the Fourier transform Let 4 be the largest constant for which one has for all evenwith max ( (0),ˆ(0))< 0. It is known [33] that
+Given a function:ℝ → ℝ, define the Fourier transform
+
+Let 4 be the largest constant for which one has
+
+for all evenwith max ( (0),ˆ(0))< 0. It is known [33] that
 
 0.
 
-(The upper bound is stated as0.353 in the paper, but rounding their solution to the fourth digit gives0.3523). We improved the upper bound to combination as in [33], but with refined constants that were found by To obtain upper bounds for4, one constructs a specific "test function" conditions and calculates the value() for this function, which provides an upper bound 4 ≤ () (ˆ). Following the approach in [ () = () −, where () is an even polynomial constructed as a linear combination of Hermite polynomials 4 (). This form is particularly useful because the Fourier transform of () − is () −. For an even polynomial to the largest positive root of(), and is related to the largest positive root of Specifically, if() ≥0 for large| |, () is the largest positive root of largest positive root of(), implying ( The method involves finding coefficients
+(The upper bound is stated as0.353 in the paper, but rounding their solution to the fourth
 
-4() + 8() +. . .such that ()satisfies certain constraints (related to and being positive for large| |) and minimizes the largest positive root of approach, the polynomial () is constructed such that optimization process to simplif y constraints), meaning positive rootmax of () is then the largest positive root of derived from this construction ismax /( The refined constants found by*Alpha Evolve* (), finding its largest positive rootmax
+digit gives0.3523). We improved the upper bound to combination as in [33], but with refined constants that were found by
 
-and calculatingmax /() yields the improved upper bound linear combination is very similar to the one found in [ hypothesis the construction is nearly optimal. *Note*: After publishing the first version of this manuscript, Henry Cohn pointed out that in a recent paper [] they used a similar, but more refined approach to get the better constant
+To obtain upper bounds for4, one constructs a specific "test function"
+
+conditions and calculates the value() for this function, which provides an upper bound 4 ≤ () (ˆ). Following the approach in [
+
+() = () −, where () is an even polynomial constructed as a linear combination of
+
+Hermite polynomials 4 (). This form is particularly useful because the Fourier transform of
+
+() − is () −. For an even polynomial
+
+to the largest positive root of(), and is related to the largest positive root of Specifically, if() ≥0 for large| |, () is the largest positive root of largest positive root of(), implying (
+
+The method involves finding coefficients
+
+4() + 8() +. . .such that ()satisfies certain constraints (related to
+
+and being positive for large| |) and minimizes the largest positive root of approach, the polynomial () is constructed such that optimization process to simplif y constraints), meaning positive rootmax of () is then the largest positive root of derived from this construction ismax /(
+
+The refined constants found by*Alpha Evolve*
+
+(), finding its largest positive rootmax
+
+and calculatingmax /() yields the improved upper bound linear combination is very similar to the one found in [ hypothesis the construction is nearly optimal.
+
+*Note*: After publishing the first version of this manuscript, Henry Cohn pointed out that in
+
+a recent paper [] they used a similar, but more refined approach to get the better constant
 
 ### 0.3284. By incorporating their refined approach into
 
 ˆ():= () and
 
-() ≥0 for all| | ≥}. ) (ˆ) ≥ 4
+() ≥0 for all| | ≥}.
+
+) (ˆ) ≥ 4
 
 ≤ 4 ≤ 0.3523.
 
@@ -1372,7 +1904,11 @@ satisf ying the
 
 (ˆ)
 
-33], the test function is sought in the form () = 4 4 (), the Fourier transform ()) − = () −. Thus, () is related
+33], the test function is sought in the form
+
+() = 4 4 (), the Fourier transform
+
+()) − = () −. Thus, () is related
 
 (ˆ) ().
 
@@ -1382,9 +1918,13 @@ satisf ying the
 
 (). In our
 
-() has a factor of. The largest ()/. The upper bound on 4
+() has a factor of. The largest
 
-× −5]. Using these coefficients to construct (by finding the largest positive root of()/),
+()/. The upper bound on 4
+
+× −5]. Using these coefficients to construct
+
+(by finding the largest positive root of()/),
 
 4 ≤ 0.3521. Qualitatively our
 
@@ -1398,13 +1938,11 @@ satisf ying the
 
 2025
 
-18
+ 18*Alpha Evolve*, we improved our reported
 
 constant further to 0.3216. For details, we refer to the accompanying Google Colab.
 
 39
-
-*Alpha Evolve*, we improved our reported
 
 
 ---
@@ -1417,15 +1955,23 @@ Let 5 be the largest constant for which
 
 ∈ [−,] −
 
-for all non-negative , : [−,] → [0,] with extend , by zero outside of[−,]. This constant controls the asymptotics of the Minimum Overlap Problem of []. The bounds
+for all non-negative , : [−,] → [0,] with extend , by zero outside of[−,]. This constant controls the asymptotics of the Minimum
+
+Overlap Problem of []. The bounds
 
 0.379005
 
-are known, where the lower bound was obtained in [ It is known (see [40]) that this constant is equal to the infimum, over all step functions on [0,] with values in[0,] and satisf ying
+are known, where the lower bound was obtained in [
+
+It is known (see [40]) that this constant is equal to the infimum, over all step functions
+
+on [0,] with values in[0,] and satisf ying
 
 max ℎ(
 
-The upper bound to the Erdős minimum overlap problem was then obtained by using this result, in [40] by a step function construction. The step function depicted in Figure 10 does ever so slightly better than the previous bound, giving the upper bound of
+The upper bound to the Erdős minimum overlap problem was then obtained by using this
+
+result, in [40] by a step function construction. The step function depicted in Figure 10 does ever so slightly better than the previous bound, giving the upper bound of
 
 for the minimum overlap problem of Erdős.
 
@@ -1465,18 +2011,18 @@ positive constant independent of the sets, (for sufficiently large sets, ).)
 
 **B.6. Sums and differences of finite sets**
 
-Let 6 be the largest constant for which the following statement holds: there exist arbitrarily large finite sets of integers, with | + respectively. The notation≪ means that sets, (for sufficiently large sets, ). The notation
+Let 6 be the largest constant for which the following statement holds: there exist arbitrarily large finite sets of integers, with | +
 
-∈, ∈} denote the sumset and difference set, ≤ for some constant independent of the
+respectively. The notation≪ means that sets, (for sufficiently large sets, ). The notation
+
+∈, ∈} denote the sumset and difference set,
+
+≤ for some constant independent of the
 
 ≫ means that ≥ ′ for some
 
 
 ---
-
-| Figure 11 | Constructions of the packing problems found by AlphaEvolve . Left: Packing 11 unit hexagons into a regular hexagon of side length 3.931. Right: Packing 12 unit hexagons into a regular hexagon of side length 3.942. see [ 39 , Corollary 3] for the upper bound and [ 39 , Theorem 1] for the lower bound. The main tool for the lower bound is the following result of Gyarmati et al. [ 39 ]: | − | |
-|---|
-| log | + | |
 
 
 ---
@@ -1484,17 +2030,17 @@ Let 6 be the largest constant for which the following statement holds: there exi
 | Figure 12 | | Left: 16 points in 2 dimensions achieving a ratio of maximum distance to √ |
 |---|---|
 
-| √ best known bound of 4 . 168 [ 29 ]. B.9.  The Heilbronn problem for triangles The goal of this problem is to find points on or inside a triangle with unit area so that the area of the smallest triangle formed by these points is maximized. For = 11 , the SOTA was 0 . 036 [ 29 ], and AlphaEvolve found a construction with minimum area larger than 0 . 0365 , which is shown in  Figure 13  (left). B.10.  The Heilbronn problem for convex regions The goal of this problem is to find points on or inside a convex region with unit area so that the area of the smallest triangle formed by these points is maximized. AlphaEvolve improved two of the best known bounds. For = 13 , the SOTA was 0 . 0306 [ 29 ], and AlphaEvolve improved it to 0 . 0309 (see Figure 13  (middle)). For = 14 , the SOTA was 0 . 0277 [ 29 ] and AlphaEvolve improved it to 0 . 0278 (see  Figure 13  (right)). B.11.  Kissing number in dimension 11 The kissing problem asks how many disjoint unit spheres can be packed tangent to a given unit sphere. The maximum such number in dimensions is called the -dimensional kissing number [ 8 ] . For = 11 , the best known lower bound was 592 [ 31 ] and AlphaEvolve improved |
-|---|
+| best known bound of B.9.  The Heilbronn problem for triangles The goal of this problem is to find area of the smallest triangle formed by these points is maximized. For 0 . which is shown in  Figure 13  (left). B.10.  The Heilbronn problem for convex regions The goal of this problem is to find the area of the smallest triangle formed by these points is maximized. two of the best known bounds. Figure 13  (middle)). For 0 . B.11.  Kissing number in dimension 11 The kissing problem asks how many disjoint unit spheres can be packed tangent to a given unit sphere. The maximum such number in number [ | . 036 . 0278 | 036 For 0278 | [ For | [ 29 (see  Figure 13  (right)). | 29 (see  Figure 13  (right)). 8 | ], and AlphaEvolve found a construction with minimum area larger than = 8 ] | ], and AlphaEvolve found a construction with minimum area larger than = ] . For | 13 . For | 13 , the SOTA was | , the SOTA was = | = 11 | √ 11 | √ , the best known lower bound was 592 [ | 4 , the best known lower bound was 592 [ | 4 . | . 168 | 168 = | = 14 | [ 29 ]. 14 | [ 29 ]. 0 , the SOTA was | 0 . 0306 , the SOTA was | points on or inside a convex region with unit area so that . 0306 | points on or inside a triangle with unit area so that the points on or inside a convex region with unit area so that | points on or inside a triangle with unit area so that the [ | [ 29 | 29 ], and | ], and dimensions is called the | 0 dimensions is called the | 0 . | . 0277 | AlphaEvolve 0277 | AlphaEvolve [ | [ 29 | 29 ] and | ] and 31 | improved it to 31 | improved it to AlphaEvolve ] and | AlphaEvolve AlphaEvolve ] and AlphaEvolve | = AlphaEvolve -dimensional kissing AlphaEvolve | = 11 -dimensional kissing | 11 , the SOTA was | , the SOTA was improved it to | 0 improved it to | 0 . 0309 | improved . 0309 improved | 0 improved improved | 0 . | . 0365 | 0365 (see | , (see |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 
 
 ---
 
-| Figure 13 | New constructions found by AlphaEvolve improving the best known bounds on two variants of the Heilbronn problem. Left: 11 points in a unit-area triangle with all formed triangles having area ≥ 0 . 0365 . Middle: 13 points inside a convex region with unit area with all formed triangles having area ≥ 0 . 0309 . Right: 14 points inside a unit convex region with minimum area ≥ 0 . 0278 . this to 593. To prove the lower bound of 593 for the kissing number in dimension 11, AlphaEvolve found 593 many 11-dimensional non-zero points with integral coordinates such that the maximum norm of these points is smaller than their minimum pairwise distance. By the following lemma, this implies the kissing number in dimension 11 is at least 593. Lemma 1. Let ⊂ ℝ be a set of points satisf ying 0 ∉ and min { ∥ − ∥ : ≠ ∈ } ≥ max { ∥ ∥ : ∈ } . n o 2 |
-|---|
+| Figure 13 | two variants of the Heilbronn problem. Left: 11 points in a unit-area triangle with all formed triangles having area all formed triangles having area minimum area this to 593. To prove the lower bound of 593 for the kissing number in dimension 11, AlphaEvolve that the maximum norm of these points is smaller than their minimum pairwise distance. By the following lemma, this implies the kissing number in dimension 11 is at least 593. Lemma 1. | | Let | New constructions found by found 593 many 11-dimensional non-zero points with integral coordinates such Let | New constructions found by ≥ found 593 many 11-dimensional non-zero points with integral coordinates such | ≥ 0 ⊂ | 0 . ⊂ | . 0278 ℝ | ≥ 0278 ℝ | ≥ min | be a set of points satisf ying min | 0 be a set of points satisf ying | 0 . . | . 0365 . | 0365 { | { ∥ n | ∥ n 2 | . Middle: 13 points inside a convex region with unit area with − 2 | . Middle: 13 points inside a convex region with unit area with ≥ − | ≥ ∥ | 0 ∥ | 0 . : | . 0309 : | 0309 ≠ o | AlphaEvolve . Right: 14 points inside a unit convex region with ≠ o | AlphaEvolve . Right: 14 points inside a unit convex region with ∈ | ∈ } | } ≥ | 0 ≥ | 0 max | ∉ max | improving the best known bounds on ∉ | improving the best known bounds on { | and { | and ∥ | ∥ ∥ | ∥ : | : ∈ | ∈ } | } . |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 
-| 2 unit spheres centred at : ∈ form a valid kissing configuration in dimension , as ∥ ∥ required. □ B.12.  Packing circles inside a unit square to maximize sum of radii Given a positive integer , the problem is to pack disjoint circles inside a unit square so as to maximize the sum of their radii. AlphaEvolve found two new constructions improving the state of the art [ 29 ]. |
-|---|
+| 2 unit spheres centred at ∥ required. B.12.  Packing circles inside a unit square to maximize sum of radii Given a positive integer , the problem is to pack to maximize the sum of their radii. state of the art [ 29 ]. | 2 ∥ ∥ | : ∥ | : ∈ | ∈ AlphaEvolve | form a valid kissing configuration in dimension AlphaEvolve | form a valid kissing configuration in dimension found two new constructions improving the | disjoint circles inside a unit square so as found two new constructions improving the | , as disjoint circles inside a unit square so as | , as □ |
+|---|---|---|---|---|---|---|---|---|---|
 
 
 ---
@@ -1503,15 +2049,21 @@ Let 6 be the largest constant for which the following statement holds: there exi
 
 **B.13. Packing circles inside a rectangle of perimeter 4 to maximize sum of radii**
 
-Given a positive integer, the problem is to pack perimeter 4 so as to maximize the sum of their radii. for =, improving the state of the art from
+Given a positive integer, the problem is to pack
 
-disjoint circles inside a rectangle of *Alpha Evolve*found a new construction
+perimeter 4 so as to maximize the sum of their radii. for =, improving the state of the art from
+
+disjoint circles inside a rectangle of
+
+*Alpha Evolve*found a new construction
 
 .364 [] to.3658; see Figure 14 (right).
 
 *Alpha Evolve*: A coding agent for scientific and algorithmic discovery
 
-For = 26, the SOTA was2.634, and Alpha Evolve improved it to2.635; see Figure 14 (left). For= 32, the SOTA was2.936, and Alpha Evolve improved it to2.937; see Figure 14
+For = 26, the SOTA was2.634, and Alpha Evolve improved it to2.635; see Figure 14
+
+(left). For= 32, the SOTA was2.936, and Alpha Evolve improved it to2.937; see Figure 14
 
 packing circles to maximize their sum of radii. Left:26 circles in a unit square with sum of radii≥ 2.635. Middle:32 circles in a unit square with sum of radii≥ 2.937. Right: 21 circles in a rectangle with perimeter4, with sum of radii≥ 2.365.
 
