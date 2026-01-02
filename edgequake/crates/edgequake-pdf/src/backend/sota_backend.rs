@@ -1462,7 +1462,7 @@ impl SotaBackend {
                         if let Object::Array(arr) = &op.operands[0] {
                             let mut combined_text = String::new();
 
-                            for item in arr {
+                            for item in arr.iter() {
                                 match item {
                                     Object::String(_, _) => {
                                         if let Some(text) =
@@ -1572,6 +1572,19 @@ impl SotaBackend {
             Object::Real(f) => Some(*f as f32),
             _ => None,
         }
+    }
+
+    fn fallback_page(&self, doc: &LopdfDocument, page_num: u32) -> Option<Page> {
+        if let Ok(text) = doc.extract_text(&[page_num]) {
+            let text = text.trim();
+            if !text.is_empty() {
+                let mut page = Page::new(page_num as usize, 0.0, 0.0);
+                page.blocks
+                    .push(Block::text(text, BoundingBox::new(0.0, 0.0, 0.0, 0.0)));
+                return Some(page);
+            }
+        }
+        None
     }
 
     // ============================================================================
@@ -2452,11 +2465,38 @@ impl PdfBackend for SotaBackend {
             debug!("Processing page {}", page_num);
 
             match self.extract_page(&lopdf_doc, *page_id, *page_num as usize) {
-                Ok(page) => {
-                    document.add_page(page);
+                Ok(mut page) => {
+                    if page.blocks.is_empty() {
+                        if let Some(fallback_page) = self.fallback_page(&lopdf_doc, *page_num) {
+                            document.add_page(fallback_page);
+                        } else {
+                            document.add_page(page);
+                        }
+                    } else {
+                        document.add_page(page);
+                    }
                 }
                 Err(e) => {
                     warn!("Failed to extract page {}: {}", page_num, e);
+                    if let Some(fallback_page) = self.fallback_page(&lopdf_doc, *page_num) {
+                        document.add_page(fallback_page);
+                    }
+                }
+            }
+        }
+
+        // Fallback: if no pages were extracted, use lopdf's built-in text extraction
+        if document.pages.is_empty() {
+            let page_numbers: Vec<u32> = pages.keys().cloned().collect();
+            if let Ok(text) = lopdf_doc.extract_text(&page_numbers) {
+                let text = text.trim();
+                if !text.is_empty() {
+                    let mut fallback_page = Page::new(1, 0.0, 0.0);
+                    fallback_page.blocks.push(Block::text(
+                        text,
+                        BoundingBox::new(0.0, 0.0, 0.0, 0.0),
+                    ));
+                    document.add_page(fallback_page);
                 }
             }
         }

@@ -30,7 +30,7 @@ anyhow.workspace = true
 futures.workspace = true
 
 # lopdf - local path dependency for PDF parsing
-lopdf = { path = "../../../lopdf", optional = true, default-features = false }
+lopdf = { version = "0.32", optional = true, default-features = false, features = ["nom_parser"] }
 
 # Image processing (match pdf_oxide's version)
 image = "0.24"
