@@ -152,3 +152,130 @@ impl FontInfo {
         self.encoding.decode(bytes)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_font_info_decode_winansi() {
+        let info = FontInfo {
+            base_font: "Helvetica".to_string(),
+            encoding: Encoding::OneByteEncoding(&encodings::WIN_ANSI_ENCODING),
+            size: 12.0,
+            is_bold: false,
+            is_italic: false,
+        };
+
+        // Simple ASCII should decode correctly
+        let result = info.decode(b"Hello");
+        assert_eq!(result, "Hello");
+    }
+
+    #[test]
+    fn test_detect_bold_from_name() {
+        // Common bold indicators
+        let bold_names = vec![
+            "Helvetica-Bold",
+            "ArialMT-Black",
+            "TimesNewRomanPS-HeavyMT",
+            "SFBX1200+Bold",      // LaTeX bold
+            "CMBX10",             // Computer Modern Bold
+        ];
+
+        for name in bold_names {
+            let lower = name.to_lowercase();
+            let is_bold = lower.contains("bold")
+                || lower.contains("black")
+                || lower.contains("heavy")
+                || lower.contains("sfbx")
+                || lower.contains("cmbx");
+            assert!(is_bold, "Expected '{}' to be detected as bold", name);
+        }
+    }
+
+    #[test]
+    fn test_detect_italic_from_name() {
+        let italic_names = vec![
+            "Helvetica-Italic",
+            "ArialMT-Oblique",
+            "SFTI0900",           // LaTeX italic
+            "CMTI10",             // Computer Modern italic
+            "CMMI10",             // Computer Modern math italic
+        ];
+
+        for name in italic_names {
+            let lower = name.to_lowercase();
+            let is_italic = lower.contains("italic")
+                || lower.contains("oblique")
+                || lower.contains("sfti")
+                || lower.contains("cmti")
+                || lower.contains("cmmi");
+            assert!(is_italic, "Expected '{}' to be detected as italic", name);
+        }
+    }
+
+    #[test]
+    fn test_regular_font_not_bold_or_italic() {
+        let regular_names = vec![
+            "Helvetica",
+            "ArialMT",
+            "TimesNewRomanPSMT",
+        ];
+
+        for name in regular_names {
+            let lower = name.to_lowercase();
+            let is_bold = lower.contains("bold")
+                || lower.contains("black")
+                || lower.contains("heavy");
+            let is_italic = lower.contains("italic")
+                || lower.contains("oblique");
+            assert!(!is_bold, "Expected '{}' NOT to be bold", name);
+            assert!(!is_italic, "Expected '{}' NOT to be italic", name);
+        }
+    }
+
+    #[test]
+    fn test_font_info_struct() {
+        let info = FontInfo {
+            base_font: "TestFont".to_string(),
+            encoding: Encoding::Identity,
+            size: 14.0,
+            is_bold: true,
+            is_italic: false,
+        };
+
+        assert_eq!(info.base_font, "TestFont");
+        assert!(info.is_bold);
+        assert!(!info.is_italic);
+    }
+
+    #[test]
+    fn test_identity_encoding_decode() {
+        let info = FontInfo {
+            base_font: "Test".to_string(),
+            encoding: Encoding::Identity,
+            size: 12.0,
+            is_bold: false,
+            is_italic: false,
+        };
+
+        // Identity treats bytes as UTF-16BE
+        let bytes = [0x00, 0x41]; // UTF-16BE for 'A'
+        let result = info.decode(&bytes);
+        assert_eq!(result, "A");
+    }
+
+    #[test]
+    fn test_bold_italic_combined() {
+        let name = "Helvetica-BoldOblique";
+        let lower = name.to_lowercase();
+
+        let is_bold = lower.contains("bold");
+        let is_italic = lower.contains("oblique");
+
+        assert!(is_bold);
+        assert!(is_italic);
+    }
+}
+

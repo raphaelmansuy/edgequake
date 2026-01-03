@@ -129,4 +129,81 @@ mod tests {
         assert_eq!(renderer.extension(), "json");
         assert_eq!(renderer.mime_type(), "application/json");
     }
+
+    #[test]
+    fn test_json_default() {
+        let renderer = JsonRenderer::default();
+        assert!(renderer.options.pretty);
+        assert_eq!(renderer.options.indent, 2);
+    }
+
+    #[test]
+    fn test_json_options_default() {
+        let opts = JsonOptions::default();
+        assert!(opts.pretty);
+        assert_eq!(opts.indent, 2);
+        assert!(!opts.include_empty);
+    }
+
+    #[test]
+    fn test_json_with_options() {
+        let opts = JsonOptions {
+            pretty: false,
+            indent: 4,
+            include_empty: true,
+        };
+        let renderer = JsonRenderer::with_options(opts);
+        assert!(!renderer.options.pretty);
+        assert_eq!(renderer.options.indent, 4);
+    }
+
+    #[test]
+    fn test_json_empty_document() {
+        let renderer = JsonRenderer::new();
+        let doc = Document::new();
+        let result = renderer.render(&doc).unwrap();
+
+        // Should still produce valid JSON
+        assert!(result.starts_with("{"));
+        assert!(result.ends_with("}"));
+        assert!(result.contains("\"pages\""));
+    }
+
+    #[test]
+    fn test_json_multiple_pages() {
+        let renderer = JsonRenderer::new();
+        let mut doc = Document::new();
+
+        let page1 = Page::new(1, 612.0, 792.0);
+        let page2 = Page::new(2, 612.0, 792.0);
+        doc.add_page(page1);
+        doc.add_page(page2);
+
+        let result = renderer.render(&doc).unwrap();
+        // Should contain both pages
+        assert!(result.contains("\"number\":1") || result.contains("\"number\": 1"));
+        assert!(result.contains("\"number\":2") || result.contains("\"number\": 2"));
+    }
+
+    #[test]
+    fn test_json_contains_blocks() {
+        let renderer = JsonRenderer::new();
+        let doc = create_test_document();
+        let result = renderer.render(&doc).unwrap();
+
+        assert!(result.contains("\"blocks\""));
+        assert!(result.contains("\"text\""));
+    }
+
+    #[test]
+    fn test_json_contains_bbox() {
+        let renderer = JsonRenderer::new();
+        let doc = create_test_document();
+        let result = renderer.render(&doc).unwrap();
+
+        // BoundingBox should be serialized
+        assert!(result.contains("72.0") || result.contains("72"));
+        assert!(result.contains("540.0") || result.contains("540"));
+    }
 }
+

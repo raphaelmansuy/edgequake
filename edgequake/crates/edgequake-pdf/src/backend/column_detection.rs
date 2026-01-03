@@ -275,3 +275,134 @@ impl Default for ColumnDetector {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_element(x: f32, y: f32, text: &str) -> TextElement {
+        TextElement {
+            text: text.to_string(),
+            x,
+            y,
+            font_name: "test".to_string(),
+            font_size: 12.0,
+            is_bold: false,
+            is_italic: false,
+        }
+    }
+
+    #[test]
+    fn test_column_detector_default() {
+        let detector = ColumnDetector::default();
+        assert_eq!(detector.bin_size, 5.0);
+        assert_eq!(detector.min_gap_bins, 4);
+    }
+
+    #[test]
+    fn test_detect_single_column() {
+        let detector = ColumnDetector::new();
+        // All elements in the center - single column layout
+        let elements: Vec<TextElement> = (0..20)
+            .map(|i| make_element(200.0, i as f32 * 15.0, "text"))
+            .collect();
+
+        let result = detector.detect_columns(&elements, 600.0);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_detect_two_columns() {
+        let detector = ColumnDetector::new();
+        // Left column elements (x = 50-200)
+        let mut elements: Vec<TextElement> = (0..15)
+            .map(|i| make_element(100.0, i as f32 * 20.0, "left"))
+            .collect();
+        // Right column elements (x = 350-500)
+        elements.extend((0..15).map(|i| make_element(400.0, i as f32 * 20.0, "right")));
+
+        let result = detector.detect_columns(&elements, 600.0);
+        assert!(result.is_some());
+        let boundary = result.unwrap();
+        // Boundary should be near center (around 250-350)
+        assert!(boundary > 200.0 && boundary < 400.0);
+    }
+
+    #[test]
+    fn test_detect_columns_insufficient_elements() {
+        let detector = ColumnDetector::new();
+        let elements = vec![
+            make_element(50.0, 10.0, "a"),
+            make_element(400.0, 10.0, "b"),
+        ];
+
+        // Need at least 10 elements
+        let result = detector.detect_columns(&elements, 600.0);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_vertical_projection_histogram() {
+        let detector = ColumnDetector::new();
+        let elements = vec![
+            make_element(10.0, 10.0, "a"),
+            make_element(10.0, 20.0, "b"),
+            make_element(10.0, 30.0, "c"),
+        ];
+
+        let proj = detector.compute_vertical_projection(&elements, 100.0);
+        // First few bins should have counts, rest should be zero
+        assert!(proj[0] > 0 || proj[1] > 0 || proj[2] > 0);
+    }
+
+    #[test]
+    fn test_find_projection_gaps() {
+        let detector = ColumnDetector::new();
+        // Simulate a projection with a clear gap in the middle
+        let proj = vec![5, 5, 5, 5, 0, 0, 0, 0, 0, 5, 5, 5, 5];
+
+        let gaps = detector.find_projection_gaps(&proj);
+        // Should detect the gap
+        assert!(!gaps.is_empty());
+    }
+
+    #[test]
+    fn test_no_gaps_uniform_distribution() {
+        let detector = ColumnDetector::new();
+        // Uniform distribution - no gaps
+        let proj = vec![5; 20];
+
+        let gaps = detector.find_projection_gaps(&proj);
+        assert!(gaps.is_empty());
+    }
+
+    #[test]
+    fn test_detect_columns_imbalanced() {
+        let detector = ColumnDetector::new();
+        // Very imbalanced - most content in left column
+        let mut elements: Vec<TextElement> = (0..30)
+            .map(|i| make_element(100.0, i as f32 * 15.0, "left"))
+            .collect();
+        // Only 2 elements in right (below balance threshold)
+        elements.push(make_element(400.0, 10.0, "right"));
+        elements.push(make_element(400.0, 25.0, "right"));
+
+        let result = detector.detect_columns(&elements, 600.0);
+        // Should reject due to imbalance (balance < 0.25)
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_detect_columns_wide_page() {
+        let detector = ColumnDetector::new();
+        // Wide page with two clear columns
+        let mut elements: Vec<TextElement> = (0..10)
+            .map(|i| make_element(100.0, i as f32 * 20.0, "left"))
+            .collect();
+        elements.extend((0..10).map(|i| make_element(700.0, i as f32 * 20.0, "right")));
+
+        let result = detector.detect_columns(&elements, 1000.0);
+        assert!(result.is_some());
+    }
+}
+

@@ -38,7 +38,7 @@ pub mod spatial;
 #[cfg(feature = "lopdf")]
 pub mod text_grouping;
 
-pub use mock::MockBackend;
-pub use spatial::{LineRect, LineSpatialIndex};
 #[cfg(feature = "lopdf")]
 pub use extraction_engine::ExtractionEngine;
+pub use mock::MockBackend;
+pub use spatial::{LineRect, LineSpatialIndex};

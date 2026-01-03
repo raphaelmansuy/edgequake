@@ -433,13 +433,37 @@ mod tests {
     }
 
     #[test]
-    fn test_get_number() {
+    fn test_content_parser_default() {
+        let parser = ContentParser::default();
+        let _ = parser;
+    }
+
+    #[test]
+    fn test_get_number_integer() {
         assert_eq!(ContentParser::get_number(&Object::Integer(42)), Some(42.0));
+        assert_eq!(ContentParser::get_number(&Object::Integer(-10)), Some(-10.0));
+        assert_eq!(ContentParser::get_number(&Object::Integer(0)), Some(0.0));
+    }
+
+    #[test]
+    fn test_get_number_real() {
         assert_eq!(ContentParser::get_number(&Object::Real(3.14)), Some(3.14));
+        assert_eq!(ContentParser::get_number(&Object::Real(-2.5)), Some(-2.5));
+        assert_eq!(ContentParser::get_number(&Object::Real(0.0)), Some(0.0));
+    }
+
+    #[test]
+    fn test_get_number_non_numeric() {
         assert_eq!(
             ContentParser::get_number(&Object::Name(b"foo".to_vec())),
             None
         );
+        assert_eq!(
+            ContentParser::get_number(&Object::String(b"bar".to_vec(), lopdf::StringFormat::Literal)),
+            None
+        );
+        assert_eq!(ContentParser::get_number(&Object::Boolean(true)), None);
+        assert_eq!(ContentParser::get_number(&Object::Null), None);
     }
 
     #[test]
@@ -452,4 +476,75 @@ mod tests {
         assert!(text.is_empty());
         assert!(lines.is_empty());
     }
+
+    #[test]
+    fn test_parse_simple_text_operator() {
+        let parser = ContentParser::new();
+        let fonts = BTreeMap::new();
+        // Simple content stream: BT (Hello) Tj ET
+        let content = b"BT (Hello) Tj ET";
+        let result = parser.parse(content, &fonts);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_line_operators() {
+        let parser = ContentParser::new();
+        let fonts = BTreeMap::new();
+        // Simple line: move to and line to
+        let content = b"100 200 m 300 400 l S";
+        let result = parser.parse(content, &fonts);
+        assert!(result.is_ok());
+        let (_, lines) = result.unwrap();
+        // Should have at least one line
+        assert!(!lines.is_empty());
+    }
+
+    #[test]
+    fn test_parse_rectangle_operator() {
+        let parser = ContentParser::new();
+        let fonts = BTreeMap::new();
+        // Rectangle operator: x y width height re
+        let content = b"50 50 100 100 re S";
+        let result = parser.parse(content, &fonts);
+        assert!(result.is_ok());
+        let (_, lines) = result.unwrap();
+        // Rectangle should produce 4 lines
+        assert_eq!(lines.len(), 4);
+    }
+
+    #[test]
+    fn test_parse_graphics_state_save_restore() {
+        let parser = ContentParser::new();
+        let fonts = BTreeMap::new();
+        // Save and restore graphics state
+        let content = b"q 2 w 100 200 m 300 400 l S Q 100 200 m 300 400 l S";
+        let result = parser.parse(content, &fonts);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_line_width_operator() {
+        let parser = ContentParser::new();
+        let fonts = BTreeMap::new();
+        // Set line width and draw
+        let content = b"3 w 100 200 m 300 200 l S";
+        let result = parser.parse(content, &fonts);
+        assert!(result.is_ok());
+        let (_, lines) = result.unwrap();
+        assert!(!lines.is_empty());
+        // First line should have width 3.0
+        assert_eq!(lines[0].width, 3.0);
+    }
+
+    #[test]
+    fn test_parse_ctm_transform() {
+        let parser = ContentParser::new();
+        let fonts = BTreeMap::new();
+        // Apply CTM transformation
+        let content = b"1 0 0 1 50 50 cm 100 200 m 300 400 l S";
+        let result = parser.parse(content, &fonts);
+        assert!(result.is_ok());
+    }
 }
+

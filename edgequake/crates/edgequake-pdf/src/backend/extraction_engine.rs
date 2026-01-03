@@ -20,8 +20,7 @@ use crate::config::PdfConfig;
 use crate::error::PdfError;
 use crate::extractor::PdfInfo;
 use crate::schema::{
-    Block, BlockType, BoundingBox, Document, ExtractionMethod, Page, PageStats,
-    Point,
+    Block, BlockType, BoundingBox, Document, ExtractionMethod, Page, PageStats, Point,
 };
 use crate::{DocumentMetadata, Result};
 
@@ -181,12 +180,9 @@ impl ExtractionEngine {
         let column_boundary = self.detect_columns(&elements, page_width);
 
         // Use TextGrouper to group elements into lines
-        let lines = self.text_grouper.group_into_lines(
-            elements,
-            page_width,
-            page_height,
-            column_boundary,
-        );
+        let lines =
+            self.text_grouper
+                .group_into_lines(elements, page_width, page_height, column_boundary);
 
         // Create column bounding boxes if two-column layout
         let columns = if let Some(boundary) = column_boundary {
@@ -425,10 +421,10 @@ impl ExtractionEngine {
     }
 
     /// Extract pages in parallel using rayon for multi-core performance.
-    /// 
+    ///
     /// WHY: Sequential page processing only uses ~25% CPU on 4-core machines.
     /// Parallel extraction achieves ~3.8x speedup by distributing work across cores.
-    /// 
+    ///
     /// Thread safety: LopdfDocument is not Sync, so we load separate document copies
     /// per thread. The overhead is minimal (~5ms) compared to extraction time (~40ms/page).
     fn extract_pages_parallel(
@@ -502,19 +498,16 @@ impl PdfBackend for ExtractionEngine {
         // Use parallel extraction for multi-page documents (threshold: 2+ pages)
         // Single-page documents don't benefit from parallelism overhead
         let parallel_threshold = 2;
-        
+
         if page_infos.len() >= parallel_threshold {
-            info!(
-                "Using parallel extraction for {} pages",
-                page_infos.len()
-            );
-            
+            info!("Using parallel extraction for {} pages", page_infos.len());
+
             // Extract pages in parallel
             let mut results = self.extract_pages_parallel(pdf_bytes, page_infos);
-            
+
             // Sort by page number to maintain order
             results.sort_by_key(|(num, _)| *num);
-            
+
             // Add pages to document
             for (page_num, result) in results {
                 match result {

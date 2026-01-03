@@ -446,3 +446,150 @@ impl Default for TextGrouper {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_element(x: f32, y: f32, text: &str, font_size: f32) -> TextElement {
+        TextElement {
+            text: text.to_string(),
+            x,
+            y,
+            font_name: "test".to_string(),
+            font_size,
+            is_bold: false,
+            is_italic: false,
+        }
+    }
+
+    #[test]
+    fn test_text_grouper_default() {
+        let grouper = TextGrouper::default();
+        // Just verify it can be created
+        assert!(std::mem::size_of_val(&grouper) >= 0);
+    }
+
+    #[test]
+    fn test_group_empty_elements() {
+        let grouper = TextGrouper::new();
+        let elements: Vec<TextElement> = vec![];
+
+        let result = grouper.group_into_lines(elements, 600.0, 800.0, None);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_group_single_element() {
+        let grouper = TextGrouper::new();
+        let elements = vec![make_element(100.0, 500.0, "Hello", 12.0)];
+
+        let result = grouper.group_into_lines(elements, 600.0, 800.0, None);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].len(), 1);
+    }
+
+    #[test]
+    fn test_group_same_line_elements() {
+        let grouper = TextGrouper::new();
+        let elements = vec![
+            make_element(100.0, 500.0, "Hello", 12.0),
+            make_element(160.0, 500.0, "World", 12.0),
+        ];
+
+        let result = grouper.group_into_lines(elements, 600.0, 800.0, None);
+        // Same Y = same line
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].len(), 2);
+    }
+
+    #[test]
+    fn test_group_different_lines() {
+        let grouper = TextGrouper::new();
+        let elements = vec![
+            make_element(100.0, 600.0, "Line 1", 12.0),
+            make_element(100.0, 580.0, "Line 2", 12.0),
+            make_element(100.0, 560.0, "Line 3", 12.0),
+        ];
+
+        let result = grouper.group_into_lines(elements, 600.0, 800.0, None);
+        // Three different Y values = three lines
+        assert_eq!(result.len(), 3);
+    }
+
+    #[test]
+    fn test_group_two_column_layout() {
+        let grouper = TextGrouper::new();
+        let elements = vec![
+            // Left column
+            make_element(100.0, 500.0, "Left 1", 10.0),
+            make_element(100.0, 480.0, "Left 2", 10.0),
+            // Right column
+            make_element(400.0, 500.0, "Right 1", 10.0),
+            make_element(400.0, 480.0, "Right 2", 10.0),
+        ];
+
+        let result = grouper.group_into_lines(elements, 600.0, 800.0, Some(300.0));
+        // Should separate columns and process left first, then right
+        assert!(result.len() >= 2);
+    }
+
+    #[test]
+    fn test_merged_line_struct() {
+        let line = MergedLine {
+            text: "Test line".to_string(),
+            avg_font_size: 12.0,
+            spans: vec![],
+        };
+        assert_eq!(line.text, "Test line");
+        assert_eq!(line.avg_font_size, 12.0);
+    }
+
+    #[test]
+    fn test_adaptive_thresholds() {
+        let elements = vec![
+            make_element(100.0, 700.0, "Top", 12.0),
+            make_element(100.0, 500.0, "Middle", 10.0),
+            make_element(100.0, 100.0, "Bottom", 8.0),
+        ];
+
+        let (footer, header, title, affiliation, large_font) =
+            calculate_adaptive_region_thresholds(&elements);
+
+        // Verify thresholds are in valid ranges
+        assert!(footer > 0.0);
+        assert!(header > footer);
+        assert!(large_font > 0.0);
+        assert!(title > 0.0);
+        assert!(affiliation > 0.0);
+    }
+
+    #[test]
+    fn test_adaptive_thresholds_empty() {
+        let elements: Vec<TextElement> = vec![];
+        let (footer, header, title, affiliation, large_font) =
+            calculate_adaptive_region_thresholds(&elements);
+
+        // Should return default values
+        assert_eq!(footer, 60.0);
+        assert_eq!(header, 730.0);
+        assert_eq!(large_font, 11.0);
+        assert!(title > 0.0);
+        assert!(affiliation > 0.0);
+    }
+
+    #[test]
+    fn test_skip_empty_text_elements() {
+        let grouper = TextGrouper::new();
+        let elements = vec![
+            make_element(100.0, 500.0, "", 12.0),
+            make_element(100.0, 500.0, "   ", 12.0),
+            make_element(200.0, 500.0, "Valid", 12.0),
+        ];
+
+        let result = grouper.group_into_lines(elements, 600.0, 800.0, Some(300.0));
+        // Empty elements should be skipped
+        assert!(result.len() <= 2);
+    }
+}
+

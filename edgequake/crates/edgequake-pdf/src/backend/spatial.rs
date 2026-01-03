@@ -46,7 +46,13 @@ pub struct LineRect {
 impl LineRect {
     /// Create a new line rectangle from coordinates.
     pub fn new(idx: usize, x1: f32, y1: f32, x2: f32, y2: f32) -> Self {
-        Self { idx, x1, y1, x2, y2 }
+        Self {
+            idx,
+            x1,
+            y1,
+            x2,
+            y2,
+        }
     }
 
     /// Expand the bounding box by a tolerance (for intersection queries).
@@ -95,10 +101,7 @@ impl LineSpatialIndex {
     /// WHY: `locate_in_envelope_intersecting` finds overlapping boxes (not containment).
     /// Returns indices of matching lines.
     pub fn query_region(&self, x1: f32, y1: f32, x2: f32, y2: f32) -> Vec<usize> {
-        let query_box = AABB::from_corners(
-            [x1.min(x2), y1.min(y2)],
-            [x1.max(x2), y1.max(y2)],
-        );
+        let query_box = AABB::from_corners([x1.min(x2), y1.min(y2)], [x1.max(x2), y1.max(y2)]);
         self.tree
             .locate_in_envelope_intersecting(&query_box)
             .map(|line| line.idx)
@@ -167,9 +170,9 @@ mod tests {
     #[test]
     fn test_spatial_index_query() {
         let lines = vec![
-            LineRect::new(0, 0.0, 0.0, 100.0, 0.0),   // Horizontal at y=0
+            LineRect::new(0, 0.0, 0.0, 100.0, 0.0), // Horizontal at y=0
             LineRect::new(1, 0.0, 100.0, 100.0, 100.0), // Horizontal at y=100
-            LineRect::new(2, 50.0, 0.0, 50.0, 100.0),  // Vertical at x=50
+            LineRect::new(2, 50.0, 0.0, 50.0, 100.0), // Vertical at x=50
         ];
         let index = LineSpatialIndex::new(lines);
 
@@ -187,7 +190,7 @@ mod tests {
     fn test_query_near_line() {
         let lines = vec![
             LineRect::new(0, 0.0, 0.0, 100.0, 0.0),   // Horizontal at y=0
-            LineRect::new(1, 50.0, 0.0, 50.0, 100.0),  // Vertical crossing horizontal
+            LineRect::new(1, 50.0, 0.0, 50.0, 100.0), // Vertical crossing horizontal
             LineRect::new(2, 0.0, 200.0, 100.0, 200.0), // Far horizontal at y=200
         ];
         let index = LineSpatialIndex::new(lines.clone());
@@ -196,8 +199,11 @@ mod tests {
         // The vertical line (50,0)-(50,100) has bbox (50,0) to (50,100)
         // These bboxes overlap: x=50 is in 0-100, and y ranges (−5,5) ∩ (0,100) = (0,5) ≠ ∅
         let near = index.query_near_line(&lines[0], 5.0);
-        
-        assert!(near.contains(&1), "Vertical line should be near horizontal line");
+
+        assert!(
+            near.contains(&1),
+            "Vertical line should be near horizontal line"
+        );
         assert!(!near.contains(&2), "Far horizontal should NOT be near");
     }
 
@@ -215,7 +221,7 @@ mod tests {
     fn test_single_line_index() {
         let lines = vec![LineRect::new(0, 10.0, 10.0, 50.0, 10.0)];
         let index = LineSpatialIndex::new(lines);
-        
+
         assert_eq!(index.len(), 1);
         assert!(!index.is_empty());
     }
@@ -239,11 +245,11 @@ mod tests {
         let expanded = line.expanded(5.0);
         let lower = expanded.lower();
         let upper = expanded.upper();
-        
-        assert_eq!(lower[0], 5.0);   // 10 - 5
-        assert_eq!(lower[1], 15.0);  // 20 - 5
-        assert_eq!(upper[0], 35.0);  // 30 + 5
-        assert_eq!(upper[1], 45.0);  // 40 + 5
+
+        assert_eq!(lower[0], 5.0); // 10 - 5
+        assert_eq!(lower[1], 15.0); // 20 - 5
+        assert_eq!(upper[0], 35.0); // 30 + 5
+        assert_eq!(upper[1], 45.0); // 40 + 5
     }
 
     #[test]
@@ -253,7 +259,7 @@ mod tests {
             LineRect::new(1, 20.0, 20.0, 30.0, 20.0),
         ];
         let index = LineSpatialIndex::new(lines);
-        
+
         let all: Vec<_> = index.all_lines().collect();
         assert_eq!(all.len(), 2);
     }
@@ -263,26 +269,32 @@ mod tests {
         // Two overlapping horizontal lines
         let lines = vec![
             LineRect::new(0, 0.0, 10.0, 100.0, 10.0),
-            LineRect::new(1, 50.0, 10.0, 150.0, 10.0),  // Overlaps 0 at x=50-100
+            LineRect::new(1, 50.0, 10.0, 150.0, 10.0), // Overlaps 0 at x=50-100
         ];
         let index = LineSpatialIndex::new(lines.clone());
 
         let near = index.query_near_line(&lines[0], 2.0);
-        assert!(near.contains(&1), "Overlapping lines should be near each other");
+        assert!(
+            near.contains(&1),
+            "Overlapping lines should be near each other"
+        );
     }
 
     #[test]
     fn test_query_self_excluded() {
         let lines = vec![
             LineRect::new(0, 0.0, 0.0, 100.0, 0.0),
-            LineRect::new(1, 0.0, 0.0, 100.0, 0.0),  // Same position, different idx
+            LineRect::new(1, 0.0, 0.0, 100.0, 0.0), // Same position, different idx
         ];
         let index = LineSpatialIndex::new(lines.clone());
 
         // When querying near line 0, line 0 should NOT be in results
         let near = index.query_near_line(&lines[0], 5.0);
         assert!(!near.contains(&0), "Self should be excluded from results");
-        assert!(near.contains(&1), "Other overlapping line should be included");
+        assert!(
+            near.contains(&1),
+            "Other overlapping line should be included"
+        );
     }
 
     #[test]
@@ -292,7 +304,7 @@ mod tests {
         let env = line.envelope();
         let lower = env.lower();
         let upper = env.upper();
-        
+
         assert_eq!(lower[0], 50.0);
         assert_eq!(lower[1], 0.0);
         assert_eq!(upper[0], 50.0);
@@ -304,7 +316,7 @@ mod tests {
         // Degenerate line: single point
         let line = LineRect::new(0, 50.0, 50.0, 50.0, 50.0);
         let env = line.envelope();
-        
+
         // Should still have valid envelope (point)
         assert_eq!(env.lower()[0], 50.0);
         assert_eq!(env.upper()[0], 50.0);
@@ -316,10 +328,10 @@ mod tests {
         let lines: Vec<LineRect> = (0..100)
             .map(|i| LineRect::new(i, i as f32 * 10.0, 0.0, i as f32 * 10.0 + 100.0, 0.0))
             .collect();
-        
+
         let index = LineSpatialIndex::new(lines);
         assert_eq!(index.len(), 100);
-        
+
         // Query should still work efficiently
         let result = index.query_region(0.0, -5.0, 1000.0, 5.0);
         assert!(!result.is_empty());
