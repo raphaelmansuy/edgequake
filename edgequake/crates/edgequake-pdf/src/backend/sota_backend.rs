@@ -570,10 +570,8 @@ impl SotaBackend {
                         if let Some(text) = self.decode_text_operand(&op.operands[0], current_font)
                         {
                             // Remove CR/LF which can appear in PDF strings
-                            let cleaned: String = text
-                                .chars()
-                                .filter(|&c| c != '\n' && c != '\r')
-                                .collect();
+                            let cleaned: String =
+                                text.chars().filter(|&c| c != '\n' && c != '\r').collect();
 
                             if !cleaned.is_empty() {
                                 let (is_bold, is_italic) = current_font
@@ -1550,10 +1548,16 @@ impl SotaBackend {
         let affiliation_threshold = page_bottom + (page_height - page_bottom) * 0.12; // Bottom 12% of page
         let large_font_threshold = avg_font_size * 1.2; // 20% larger than average
 
-        // Clamp to reasonable ranges using clamp() for clarity
+        // Clamp to reasonable ranges - ensure min <= max to avoid panic
         let footer_threshold = footer_threshold.clamp(40.0, 100.0);
-        let header_threshold = header_threshold.clamp(page_height - 100.0, page_height - 20.0);
-        let title_threshold = title_threshold.clamp(page_bottom + 100.0, page_height - 50.0);
+        let header_min = (page_height - 100.0).max(0.0);
+        let header_max = (page_height - 20.0).max(header_min);
+        let header_threshold = header_threshold.clamp(header_min, header_max);
+        
+        let title_min = page_bottom + 100.0;
+        let title_max = (page_height - 50.0).max(title_min);
+        let title_threshold = title_threshold.clamp(title_min, title_max);
+        
         let affiliation_threshold = affiliation_threshold.clamp(60.0, 120.0);
         let large_font_threshold = large_font_threshold.clamp(10.0, 14.0);
 

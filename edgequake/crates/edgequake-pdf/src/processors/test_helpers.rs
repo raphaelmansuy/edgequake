@@ -11,6 +11,9 @@
 //! Provides reusable functions for creating test documents, blocks, and pages
 //! to reduce duplication across processor test modules.
 
+// Allow dead code since these are test utilities that may not all be used yet
+#![allow(dead_code)]
+
 use crate::schema::{Block, BlockType, BoundingBox, Document, FontStyle, Page, TextSpan};
 
 // =============================================================================

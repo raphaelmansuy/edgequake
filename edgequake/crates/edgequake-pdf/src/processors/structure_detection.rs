@@ -430,6 +430,8 @@ impl Processor for CodeBlockDetectionProcessor {
 
 #[cfg(test)]
 mod tests {
+    #![allow(unused_imports)]
+
     use super::*;
     use crate::processors::test_helpers::{
         code_block as make_code_block, doc_with_blocks, styled_block, text_block,
@@ -437,6 +439,7 @@ mod tests {
     use crate::schema::{BoundingBox, FontStyle, Page, TextSpan};
 
     /// Create a minimal test document with one paragraph.
+    #[allow(dead_code)]
     fn create_test_document() -> Document {
         doc_with_blocks(vec![text_block(
             "Test paragraph",
