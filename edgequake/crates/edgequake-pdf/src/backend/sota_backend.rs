@@ -18,8 +18,8 @@ use crate::config::PdfConfig;
 use crate::error::PdfError;
 use crate::extractor::PdfInfo;
 use crate::schema::{
-    Block, BlockId, BlockType, BoundingBox, Document, ExtractionMethod, FontStyle, Page, PageStats,
-    Point, TextSpan,
+    Block, BlockId, BlockType, BoundingBox, Document, ExtractionMethod, Page, PageStats,
+    Point,
 };
 use crate::{DocumentMetadata, Result};
 
@@ -29,6 +29,9 @@ use lopdf::{Dictionary, Document as LopdfDocument, Object, ObjectId, Stream};
 // Import encoding types from the extracted encodings module
 use super::encodings;
 use super::encodings::Encoding;
+use super::elements::{PdfLine, TextElement};
+use super::lattice::LatticeEngine;
+use super::text_grouping::{MergedLine, TextGrouper};
 
 /// Information about a font in the PDF
 #[derive(Debug)]
@@ -169,20 +172,11 @@ impl FontInfo {
     }
 }
 
-use super::elements::{PdfLine, TextElement};
-use super::lattice::LatticeEngine;
-
 /// SOTA PDF backend with proper encoding support
 pub struct SotaBackend {
     config: PdfConfig,
     lattice_engine: LatticeEngine,
-}
-
-#[derive(Debug, Clone)]
-struct MergedLine {
-    text: String,
-    avg_font_size: f32,
-    spans: Vec<TextSpan>,
+    text_grouper: TextGrouper,
 }
 
 impl SotaBackend {
@@ -194,6 +188,7 @@ impl SotaBackend {
         Self {
             config,
             lattice_engine: LatticeEngine::new(),
+            text_grouper: TextGrouper::new(),
         }
     }
 
@@ -1032,355 +1027,24 @@ impl SotaBackend {
         // First, detect if this is a two-column layout
         let column_boundary = self.detect_columns(&elements, page_width);
 
-        // Sort by Y descending (higher Y = top of page in PDF coordinates)
-        // This puts content that appears at the top of the page first
-        let mut elements = elements;
-        elements.sort_by(|a, b| b.y.partial_cmp(&a.y).unwrap_or(std::cmp::Ordering::Equal));
+        // Use TextGrouper to group elements into lines
+        let lines = self.text_grouper.group_into_lines(
+            elements,
+            page_width,
+            page_height,
+            column_boundary,
+        );
 
-        // If two-column layout detected, separate columns first
-        if let Some(boundary) = column_boundary {
-            let lines = self.group_two_column_layout(elements, boundary, page_width);
-            // Create column bounding boxes
+        // Create column bounding boxes if two-column layout
+        let columns = if let Some(boundary) = column_boundary {
             let left_column = BoundingBox::new(0.0, 0.0, boundary, page_height);
             let right_column = BoundingBox::new(boundary, 0.0, page_width, page_height);
-            return (lines, vec![left_column, right_column]);
-        }
-
-        // Single-column layout: group into Y-bands
-        let lines = self.group_single_column_layout(elements);
-        (lines, Vec::new())
-    }
-
-    /// Handle two-column layout: separate left and right columns, then process each
-    /// Uses footer filtering and handles spanning elements
-    fn group_two_column_layout(
-        &self,
-        elements: Vec<TextElement>,
-        column_boundary: f32,
-        _page_width: f32,
-    ) -> Vec<Vec<TextElement>> {
-        let mut left_column: Vec<TextElement> = Vec::new();
-        let mut right_column: Vec<TextElement> = Vec::new();
-        let mut spanning_elements: Vec<TextElement> = Vec::new();
-        let mut footer_elements: Vec<TextElement> = Vec::new();
-
-        // Calculate adaptive thresholds based on actual content distribution
-        // This is a first-principles approach that adapts to different document layouts
-        let (
-            footer_threshold,
-            header_threshold,
-            title_threshold,
-            affiliation_threshold,
-            large_font_threshold,
-        ) = self.calculate_adaptive_region_thresholds(&elements);
-
-        // Margin around column boundary for classification
-        let margin = 15.0;
-
-        for elem in elements {
-            // Skip very small elements (likely artifacts)
-            if elem.text.trim().is_empty() {
-                continue;
-            }
-
-            // Check if element is in footer region
-            let is_footer = elem.y < footer_threshold;
-
-            // Check if element is in header region (running header)
-            let is_header = elem.y > header_threshold && elem.font_size < large_font_threshold;
-
-            // Check if element is affiliation/metadata (between body and footer)
-            // These include: university names, emails, conference submission lines
-            let is_affiliation_zone = elem.y < affiliation_threshold && elem.y >= footer_threshold;
-            let looks_like_affiliation = elem.text.contains('@')
-                || elem.text.contains("University")
-                || elem.text.contains("School of")
-                || elem.text.contains("Department")
-                || elem.text.contains("Correspondence")
-                || elem.text.contains("Submitted to")
-                || elem.text.contains("Conference")
-                || elem.text.starts_with("1") && elem.text.len() < 5  // Affiliation numbers
-                || elem.text.starts_with("2") && elem.text.len() < 5;
-            let is_affiliation = is_affiliation_zone || looks_like_affiliation;
-
-            // Handle spanning elements (titles):
-            // - In title zone (near top of page)
-            // - Larger font size (typically > 11pt for titles)
-            // - Not a header/footer
-            let is_title_zone = elem.y > title_threshold;
-            let is_large_font = elem.font_size > large_font_threshold;
-            let is_spanning = is_title_zone && is_large_font && !is_footer && !is_header;
-
-            if is_spanning {
-                // Spanning elements go to beginning (will be processed first)
-                spanning_elements.push(elem);
-            } else if is_footer || is_header || is_affiliation {
-                // Footer/header/affiliation: add to separate collection (will appear at end)
-                debug!(
-                    "Footer/affiliation element: Y={:.1} X={:.1} affil={} '{}'",
-                    elem.y,
-                    elem.x,
-                    is_affiliation,
-                    &elem.text[..elem.text.len().min(40)]
-                );
-                footer_elements.push(elem);
-            } else if elem.x < column_boundary - margin {
-                // Clearly in left column
-                left_column.push(elem);
-            } else if elem.x > column_boundary + margin {
-                // Clearly in right column
-                right_column.push(elem);
-            } else {
-                // In the gap - use element width to decide
-                // If it's a continuation of left column text, it belongs to left
-                // Short elements in gap likely belong to whichever column has more content at this Y
-                if elem.text.starts_with(|c: char| c.is_lowercase()) {
-                    // Starts with lowercase = likely continuation
-                    left_column.push(elem);
-                } else {
-                    right_column.push(elem);
-                }
-            }
-        }
-
-        debug!(
-            "Two-column separation: spanning={}, left={}, right={}, footer={}",
-            spanning_elements.len(),
-            left_column.len(),
-            right_column.len(),
-            footer_elements.len()
-        );
-
-        // Process spanning elements first (titles, etc.)
-        let spanning_lines = self.group_single_column_layout(spanning_elements);
-
-        // Process each column into lines
-        let left_lines = self.group_single_column_layout(left_column);
-        let right_lines = self.group_single_column_layout(right_column);
-
-        // Process footer/header elements last
-        let footer_lines = self.group_single_column_layout(footer_elements);
-
-        debug!(
-            "Grouped: spanning={}, left={} lines, right={} lines, footer={} lines",
-            spanning_lines.len(),
-            left_lines.len(),
-            right_lines.len(),
-            footer_lines.len()
-        );
-
-        // Log first few lines of each section
-        for (i, line) in spanning_lines.iter().take(2).enumerate() {
-            let text: String = line
-                .iter()
-                .map(|e| e.text.as_str())
-                .collect::<Vec<_>>()
-                .join("");
-            debug!("Spanning line {}: '{}'", i, &text[..text.len().min(50)]);
-        }
-        for (i, line) in left_lines.iter().take(3).enumerate() {
-            let text: String = line
-                .iter()
-                .map(|e| e.text.as_str())
-                .collect::<Vec<_>>()
-                .join("");
-            debug!("Left line {}: '{}'", i, &text[..text.len().min(50)]);
-        }
-        for (i, line) in right_lines.iter().take(3).enumerate() {
-            let text: String = line
-                .iter()
-                .map(|e| e.text.as_str())
-                .collect::<Vec<_>>()
-                .join("");
-            debug!("Right line {}: '{}'", i, &text[..text.len().min(50)]);
-        }
-
-        // Combine: spanning elements first, then left column, then right column, then footer
-        // This ensures titles/headers appear before column content
-        let mut result = Vec::new();
-        result.extend(spanning_lines);
-
-        // Before adding left/right columns, detect and move isolated bottom content to footer
-        // This handles affiliations, figure captions that are below the main column content
-        let (left_main, left_bottom) = self.split_by_vertical_gap(left_lines, 30.0);
-        let (right_main, right_bottom) = self.split_by_vertical_gap(right_lines, 30.0);
-
-        result.extend(left_main);
-        result.extend(right_main);
-        result.extend(footer_lines); // Footer at the end
-        result.extend(left_bottom); // Bottom content after footer
-        result.extend(right_bottom); // Bottom content after footer
-
-        result
-    }
-
-    /// Split lines into main content and bottom-isolated content.
-    /// If there's a vertical gap > threshold between content regions, the lower content is separated.
-    fn split_by_vertical_gap(
-        &self,
-        lines: Vec<Vec<TextElement>>,
-        gap_threshold: f32,
-    ) -> (Vec<Vec<TextElement>>, Vec<Vec<TextElement>>) {
-        if lines.len() < 2 {
-            return (lines, Vec::new());
-        }
-
-        // Find lines' Y positions (use first element's Y as representative)
-        let y_positions: Vec<f32> = lines
-            .iter()
-            .map(|line| line.first().map(|e| e.y).unwrap_or(0.0))
-            .collect();
-
-        // Find largest gap in Y (remember: sorted by Y descending, so gaps are when Y suddenly drops more)
-        let mut max_gap = 0.0f32;
-        let mut split_idx = lines.len();
-
-        for i in 1..y_positions.len() {
-            let gap = y_positions[i - 1] - y_positions[i]; // Previous Y minus current Y (should be positive)
-            if gap > max_gap && gap > gap_threshold {
-                max_gap = gap;
-                split_idx = i;
-            }
-        }
-
-        if max_gap > gap_threshold {
-            debug!(
-                "Found vertical gap of {:.1}pt at line {}, splitting column content",
-                max_gap, split_idx
-            );
-            let (main, bottom) = lines.split_at(split_idx);
-            (main.to_vec(), bottom.to_vec())
+            vec![left_column, right_column]
         } else {
-            (lines, Vec::new())
-        }
-    }
-
-    /// Group elements into lines for single-column layout
-    fn group_single_column_layout(&self, mut elements: Vec<TextElement>) -> Vec<Vec<TextElement>> {
-        if elements.is_empty() {
-            return Vec::new();
-        }
-
-        // Sort by Y descending (higher Y = top of page in PDF coordinates)
-        elements.sort_by(|a, b| b.y.partial_cmp(&a.y).unwrap_or(std::cmp::Ordering::Equal));
-
-        // Group into Y-bands
-        let mut lines: Vec<Vec<TextElement>> = Vec::new();
-        let mut current_line: Vec<TextElement> = Vec::new();
-        let mut current_y: Option<f32> = None;
-
-        for elem in elements {
-            let y_tolerance = elem.font_size * 0.5;
-
-            if let Some(y) = current_y {
-                if (elem.y - y).abs() > y_tolerance {
-                    // New line - save current and start new
-                    if !current_line.is_empty() {
-                        current_line.sort_by(|a, b| {
-                            a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal)
-                        });
-                        lines.push(std::mem::take(&mut current_line));
-                    }
-                    current_y = Some(elem.y);
-                }
-            } else {
-                current_y = Some(elem.y);
-            }
-            current_line.push(elem);
-        }
-
-        if !current_line.is_empty() {
-            current_line.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal));
-            lines.push(current_line);
-        }
-
-        lines
-    }
-
-    /// Merge line elements into text with proper spacing while preserving style runs as spans.
-    fn merge_line(&self, elements: &[TextElement]) -> MergedLine {
-        if elements.is_empty() {
-            return MergedLine {
-                text: String::new(),
-                avg_font_size: 12.0,
-                spans: Vec::new(),
-            };
-        }
-
-        let avg_font_size =
-            elements.iter().map(|e| e.font_size).sum::<f32>() / elements.len() as f32;
-
-        // Estimate average character width.
-        // We bias toward inserting spaces (missing spaces are worse than extra spaces).
-        // Using a low threshold (0.3x) to be more aggressive about space insertion.
-        // Post-processing can clean up extra spaces, but missing spaces cause word concatenation.
-        let avg_char_width = avg_font_size * 0.5;
-        let space_threshold = avg_char_width * 0.3;
-
-        let mut text = String::new();
-        let mut spans: Vec<TextSpan> = Vec::new();
-
-        let push_to_spans = |spans: &mut Vec<TextSpan>, chunk: &str, style: FontStyle| {
-            if chunk.is_empty() {
-                return;
-            }
-            if let Some(last) = spans.last_mut() {
-                if last.style == style {
-                    last.text.push_str(chunk);
-                    return;
-                }
-            }
-            spans.push(TextSpan {
-                text: chunk.to_string(),
-                bbox: None,
-                style,
-            });
+            Vec::new()
         };
 
-        for (i, elem) in elements.iter().enumerate() {
-            if i > 0 {
-                let prev = &elements[i - 1];
-                // Estimate previous element's end position using its own font size and Unicode-safe length.
-                let prev_char_width = prev.font_size * 0.5;
-                let prev_len = prev.text.chars().count() as f32;
-                let prev_end = prev.x + (prev_len * prev_char_width);
-                let gap = elem.x - prev_end;
-
-                // Avoid inserting spaces before punctuation.
-                let starts_with_punct = elem
-                    .text
-                    .chars()
-                    .next()
-                    .map(|c| matches!(c, ',' | '.' | ':' | ';' | ')' | ']' | '}' | '?' | '!'))
-                    .unwrap_or(false);
-
-                if gap > space_threshold && !starts_with_punct {
-                    text.push(' ');
-                    if let Some(last) = spans.last_mut() {
-                        last.text.push(' ');
-                    } else {
-                        spans.push(TextSpan::plain(" "));
-                    }
-                }
-            }
-
-            text.push_str(&elem.text);
-            // FontStyle with weight and italic are used - this flows to output correctly!
-            let style = FontStyle {
-                family: Some(elem.font_name.clone()),
-                size: Some(elem.font_size),
-                weight: Some(if elem.is_bold { 700 } else { 400 }),
-                italic: elem.is_italic,
-                ..Default::default()
-            };
-            push_to_spans(&mut spans, &elem.text, style);
-        }
-
-        MergedLine {
-            text,
-            avg_font_size,
-            spans,
-        }
+        (lines, columns)
     }
 
     /// Convert lines to blocks with type detection
@@ -1426,7 +1090,7 @@ impl SotaBackend {
         // Track text occurrences for running header detection
         let mut text_occurrences: std::collections::HashMap<String, usize> =
             std::collections::HashMap::new();
-        let line_texts: Vec<MergedLine> = lines.iter().map(|line| self.merge_line(line)).collect();
+        let line_texts: Vec<MergedLine> = lines.iter().map(|line| self.text_grouper.merge_line(line)).collect();
 
         for merged in &line_texts {
             let normalized = merged.text.trim().to_lowercase();
@@ -1551,58 +1215,6 @@ impl SotaBackend {
     /// # Arguments
     /// * `elements` - Text elements to analyze
     ///
-    /// # Returns
-    /// Tuple of (footer_threshold, header_threshold, title_threshold, affiliation_threshold, large_font_threshold)
-    fn calculate_adaptive_region_thresholds(
-        &self,
-        elements: &[TextElement],
-    ) -> (f32, f32, f32, f32, f32) {
-        if elements.is_empty() {
-            // Fallback to reasonable defaults for empty documents
-            return (60.0, 730.0, 650.0, 80.0, 11.0);
-        }
-
-        // Calculate page height from elements
-        let page_height = elements.iter().map(|e| e.y).fold(f32::MIN, f32::max);
-        let page_bottom = elements.iter().map(|e| e.y).fold(f32::MAX, f32::min);
-
-        // Calculate font size distribution
-        let font_sizes: Vec<f32> = elements.iter().map(|e| e.font_size).collect();
-        let avg_font_size = if font_sizes.is_empty() {
-            10.0
-        } else {
-            font_sizes.iter().sum::<f32>() / font_sizes.len() as f32
-        };
-
-        // Calculate adaptive thresholds based on page dimensions and content
-        let footer_threshold = page_bottom + (page_height - page_bottom) * 0.08; // Bottom 8% of page
-        let header_threshold = page_height - (page_height - page_bottom) * 0.08; // Top 8% of page
-        let title_threshold = page_bottom + (page_height - page_bottom) * 0.15; // Top 15% of page
-        let affiliation_threshold = page_bottom + (page_height - page_bottom) * 0.12; // Bottom 12% of page
-        let large_font_threshold = avg_font_size * 1.2; // 20% larger than average
-
-        // Clamp to reasonable ranges - ensure min <= max to avoid panic
-        let footer_threshold = footer_threshold.clamp(40.0, 100.0);
-        let header_min = (page_height - 100.0).max(0.0);
-        let header_max = (page_height - 20.0).max(header_min);
-        let header_threshold = header_threshold.clamp(header_min, header_max);
-
-        let title_min = page_bottom + 100.0;
-        let title_max = (page_height - 50.0).max(title_min);
-        let title_threshold = title_threshold.clamp(title_min, title_max);
-
-        let affiliation_threshold = affiliation_threshold.clamp(60.0, 120.0);
-        let large_font_threshold = large_font_threshold.clamp(10.0, 14.0);
-
-        (
-            footer_threshold,
-            header_threshold,
-            title_threshold,
-            affiliation_threshold,
-            large_font_threshold,
-        )
-    }
-
     /// Get page dimensions
     fn get_page_dimensions(&self, doc: &LopdfDocument, page_id: ObjectId) -> Result<(f32, f32)> {
         let page_dict = doc
@@ -1932,7 +1544,7 @@ mod tests {
             },
         ];
 
-        let merged = backend.merge_line(&elems);
+        let merged = backend.text_grouper.merge_line(&elems);
         assert_eq!(merged.text, "Hello World");
         assert!(merged.spans.len() >= 2);
         assert_eq!(merged.spans[0].text, "Hello ");

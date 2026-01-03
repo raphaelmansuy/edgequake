@@ -24,6 +24,8 @@ pub mod lattice;
 pub mod mock;
 #[cfg(feature = "lopdf")]
 pub mod sota_backend;
+#[cfg(feature = "lopdf")]
+pub mod text_grouping;
 
 pub use mock::MockBackend;
 #[cfg(feature = "lopdf")]
