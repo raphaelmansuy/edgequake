@@ -1,5 +1,3 @@
-One Tool Is Enough: Reinforcement Learning for Repository-Level LLM Agents
-
 ### Abstract
 
 ## 1. Introduction
@@ -36,7 +34,7 @@ Submitted to International Conference on Machine Learning
 
 1
 
-arXiv:2512.20957v2 [cs.SE] 25 Dec 2025
+## arXiv:2512.20957v2 [cs.SE] 25 Dec 2025
 
 With the rapid advancement of Large Language Models (LLMs) (Liu et al., 2024; Team, 2024; Yang et al., 2025a),
 
@@ -143,8 +141,6 @@ end-to-end training remains costly because patch evaluation requires executing D
 
 bases as graphs and integrates them into LLMs, and
 
-One Tool Is Enough: Reinforcement Learning for Repository-Level LLM Agents
-
 Directly training an agent to fix software issues, however,any tools, most tools are out-of-domain (OOD) for LLMs. remains difficult. A single bug often admits multiple valid Even for the most powerful models, failures often happen patches, making string-level evaluation unreliable. Thewhen calling the new-defined tools due to wrong calling
 
 2024; Guo et al., 2024b). However, because most pretrainedthrough priority scheduling, action decomposition, and LLMs are trained on texts only and developers can definecontext pruning. From an open-source perspective, R E-
@@ -195,8 +191,6 @@ servations (code snippets or error messages), then continues reasoning until ter
 ### 3.3. Jump: Symbol Resolution
 
 Language servers resolve the definition of a Python symbol 
-
-One Tool Is Enough: Reinforcement Learning for Repository-Level LLM Agents
 
 1
 
@@ -268,8 +262,6 @@ The reward of GRPO process is calculated as:
 Dice is a common metric for set-level comparison, for set *Y* and set *Y*ˆ ∗
 
 *τ* ) is the success rate of tool-calling extracted from
-
-One Tool Is Enough: Reinforcement Learning for Repository-Level LLM Agents
 
 where each pair ( f , p ) denotes a file path and a source*i i* Reference Policy Optimization (GRPO), which has the loss
 
@@ -369,8 +361,6 @@ Repo Navigator Training Free 28.11 28.19 Repo Navigator GRPO 33.71 37.19
 18.10 28.79 17.72
 
 25.58 23.00 59.00 56.68 56.39 53.74 29.23 26.84 61.60 58.97 58.90 56.36
-
-One Tool Is Enough: Reinforcement Learning for Repository-Level LLM Agents
 
 *Table 1. Comparison of different agent pipelines on function-level and file-level Dice/IoU metrics. We use Qwen2.5-Instruct series as*
 
@@ -479,8 +469,6 @@ baseline methods are presented in Appendix. A.
 
 10.67 9.20 30.50 37.24 31.86 28.82 14.29 12.02 36.36 48.13 39.74 36.36
 
-One Tool Is Enough: Reinforcement Learning for Repository-Level LLM Agents
-
 *Table 2. Comparison of different agent pipelines on function-level and file-level metrics on SWE-bench Pro for generalization. Bold*
 
 | Repo Searcher | Training | Free | 1.07 | 0.93 | 0.97 | 0.86 | 4.91 | 1.64 | 2.30 | 1.63 |
@@ -546,7 +534,7 @@ SOTA among all training-free methods. This implies that
 
 ## 5. Discussion: Building Less yet More Capable
 
-Tools
+##### Tools
 
 *Figure 4. Scaling law of tool-calling, where Pre and Post denote*
 
@@ -585,8 +573,6 @@ To evaluate the impact of different localization results on
 has the highest performance on issue resolution, while reinhybrid reward (with tool-calling success rate) has highersince additional tools often introduce new and unfamiliar
 
 forcement learning improves its performance furthermore.
-
-One Tool Is Enough: Reinforcement Learning for Repository-Level LLM Agents
 
 Agent Pipeline Func-IoU(%) Resolved(%)
 
@@ -675,8 +661,6 @@ implies that additional tools do not increase model's perforcapable tools.
 
 mance. This inspires researchers to develop less but more
 
-One Tool Is Enough: Reinforcement Learning for Repository-Level LLM Agents
-
 Jump Get Class Get Func Get Struc IoU
 
 ✓ ✓ ✓ ✓ 13.71
@@ -723,8 +707,6 @@ Extensive experiments across SWE-bench-Verified and SWE-bench-Pro demonstrate th
 ---
 
 Our findings highlight the importance of aligning agent tool- References ing with real execution structure, and show that efficient reasoning-tool co-training can unlock substantial gains even for medium-sized open-source models. Future work will 
-
-One Tool Is Enough: Reinforcement Learning for Repository-Level LLM Agents
 
 Ahn, J., Verma, R., Lou, R., Liu, D., Zhang, R., and Yin, W.
 
@@ -877,8 +859,6 @@ J., Wu, X., Press, O., Muennighoff, N., Synnaeve, G.,
 
 Narasimhan, K. R., et al. Swe-bench multimodal: Do ai systems generalize to visual software domains? arXiv, preprint arXiv:2410.03859, 2024b.
 
-One Tool Is Enough: Reinforcement Learning for Repository-Level LLM Agents
-
 Jiang, Z., Ren, X., Yan, M., Jiang, W., Li, Y., and Schmidgall, S., Su, Y., Wang, Z., Sun, X., Wu, J., Yu, X.,
 
 Liu, Z. Cosil: Software issue localization via llm-Liu, J., Moor, M., Liu, Z., and Barsoum, E. Agent labdriven code repository graph searching. arXiv preprint oratory: Using llm agents as research assistants. arXiv
@@ -900,9 +880,9 @@ B. Tool-integrated reinforcement learning for repo deepK., Zhang, Y., Hui, B., P
 
 ---
 
-A. Detailed Illustration of Baselines
+## A. Detailed Illustration of Baselines
 
-B. Experimental Details
+## B. Experimental Details
 
 arXiv:2503.14476, 2025a.
 
@@ -962,8 +942,6 @@ Tool Train for lollm reinforcement learning system at scale. arXiv preprint Agen
 
 Ours Compared with all baselines, we are the first fullyissue localization. First, it identifies suspicious files in the
 
-One Tool Is Enough: Reinforcement Learning for Repository-Level LLM Agents
-
 Yu, Q., Zhang, Z., Zhu, R., Yuan, Y., Zuo, X., Yue, Y., Dai,
 
 W., Fan, T., Liu, G., Liu, L., et al. Dapo: An open-source
@@ -993,13 +971,17 @@ Metrics Given the set of predicted locations (ether file-
 
 ---
 
-C. Threats to Validity
+## C. Threats to Validity
 
-D. Case Study
+## D. Case Study
 
 ✓ ✗ ✗ ✓ 24.64 27.48 25.05 24.00 53.48 55.76 53.68 52.69 ✓ ✗ ✗ ✗
 
 *Table 5. We change the tool set of Repo Navigator and present the function-level IoU. Because the jump*
+
+| Value |
+| --- |
+| ✓ ✗ ✗ ✓ 24.64 27.48 25.05 24.00 53.48 55.76 53.68 52.69 |
 
 for localization, excessive tools do not increase its performance.
 
@@ -1016,8 +998,6 @@ returns an error message indicating that the definition of the current symbol ca
 (10) Nevertheless, in our empirical evaluation, we did not observe any instances of monkey patching or dynamic imports
 
 within the analyzed datasets.
-
-One Tool Is Enough: Reinforcement Learning for Repository-Level LLM Agents
 
 Jump Get Class Get Func Get Struc Recall Precision F1 IoU Recall Precision F1 IoU
 
@@ -1082,16 +1062,12 @@ present any process restrictions in our prompt, encouraging Repo Navigator to pl
 
 ---
 
-One Tool Is Enough: Reinforcement Learning for Repository-Level LLM Agents
-
 forced steps are added to the workflow besides the automatic multi-turns tool-calling conversations).
 
 13
 
 
 ---
-
-One Tool Is Enough: Reinforcement Learning for Repository-Level LLM Agents
 
 Prompt
 

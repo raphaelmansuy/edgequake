@@ -1,4 +1,4 @@
-**Fundamentals of Building Autonomous LLM**
+#### Fundamentals of Building Autonomous LLM
 
 **Agents** *⋆*
 
@@ -46,7 +46,7 @@ problem solving by externalizing intermediate reasoning and refining it through 
 
 ⋆ This paper is based on a seminar technical report from the course Trends in Autonomous Agents: Advances in Architecture and Practice offered at TUM.
 
-arXiv:2510.09244v1 [cs.AI] 10 Oct 2025
+## arXiv:2510.09244v1 [cs.AI] 10 Oct 2025
 
 
 ---
@@ -63,11 +63,15 @@ of intelligent agents powered by large language models (LLMs) to improve the exe
 
 The review aims to accomplish this by pursuing the following particular goals:
 
-1. Explore the options for perception systems, including multimodal LLMs and
-2. Examine reasoning architectures, such as Chain-of-Thought (CoT) and Tree-
-3. Explore and evaluate memory-augmented architectures, such as Retrieval-
-4. Examine the available execution architectures, such as tool-based frameworks,
-5. Finally, evaluate the complexity of implementation of each system solution
+## 1. Explore the options for perception systems, including multimodal LLMs and
+
+## 2. Examine reasoning architectures, such as Chain-of-Thought (CoT) and Tree-
+
+## 3. Explore and evaluate memory-augmented architectures, such as Retrieval-
+
+## 4. Examine the available execution architectures, such as tool-based frameworks,
+
+## 5. Finally, evaluate the complexity of implementation of each system solution
 
 ### 1.3 Problem Statement
 
@@ -98,11 +102,15 @@ To achieve these ob jectives, some challenges need to be overcome.
 
 agents [13, 15, 16], reveal key limitations in multimodal agents, highlighting the following issues:
 
-1. Difficulties in GUI grounding and operational knowledge: Agents
-2. Repetitive actions: Agents frequently predict repetitive actions, indicating
-3. Inability to handle unexpected window noise: Agents are not robust to
-4. Limitations in exploration and adaptability: Particularly for agents
-5. **Significant performance gap with human capabilities:** As reported on
+## 1. Difficulties in GUI grounding and operational knowledge: Agents
+
+## 2. Repetitive actions: Agents frequently predict repetitive actions, indicating
+
+## 3. Inability to handle unexpected window noise: Agents are not robust to
+
+## 4. Limitations in exploration and adaptability: Particularly for agents
+
+## 5. Significant performance gap with human capabilities: As reported on
 
 To address these challenges and guide the investigation of agent design, this
 
@@ -132,15 +140,15 @@ the OSworld website [43], humans achieve a task completion rate of more than
 
 (as of June 2025), indicating a substantial gap with human performance.
 
-1. RQ1, Design space, What architectural options exist for the core subsys-
+## 1. RQ1, Design space, What architectural options exist for the core subsys-
 
 tems of LLM-based agents, perception, reasoning and planning, memory, and execution, and how can they be systematically organized for practitioner use?
 
-2. RQ2, Integration, Which subsystem integration patterns enable reliable
+## 2. RQ2, Integration, Which subsystem integration patterns enable reliable
 
 closed-loop autonomy in realistic software environments, for example, GUI and web tasks that combine visual grounding with structured signals such as DOM or accessibility trees [30, 56]?
 
-3. RQ3, Reasoning efficacy, How do reasoning strategies, for example, CoT,
+## 3. RQ3, Reasoning efficacy, How do reasoning strategies, for example, CoT,
 
 ToT, Re Act, and parallel planning, such as DPPM or MCTS-based approaches,
 
@@ -151,9 +159,11 @@ Building Autonomous LLM Agents 3
 
 ---
 
-4. **RQ4, Memory impact,** How do long-term and short-term memory mech-
-5. RQ5, Failures and mitigation, What are the principal failure modes
-6. RQ6, Evaluation and generalization, Which benchmarks and metrics are
+## 4. RQ4, Memory impact, How do long-term and short-term memory mech-
+
+## 5. RQ5, Failures and mitigation, What are the principal failure modes
+
+## 6. RQ6, Evaluation and generalization, Which benchmarks and metrics are
 
 LLM-based agents.
 
@@ -310,7 +320,9 @@ Transformers (ViT) are used to extract rich visual representations [34, 45].
 
 -Input Pro jector: This component aligns the encoded features from nontextual modalities (e.g., visual embeddings) with the text feature space of the
 
-LLM. It acts as a bridge, transforming the visual embeddings into a format that the LLM can comprehend and integrate alongside textual inputs. This processing ensures that the visual embeddings are effectively supplied to the LLM, enabling the LLM to leverage its pre-trained linguistic knowledge for multimodal reasoning [34, 50].
+## LLM. It acts as a bridge, transforming the visual embeddings into a format
+
+that the LLM can comprehend and integrate alongside textual inputs. This processing ensures that the visual embeddings are effectively supplied to the LLM, enabling the LLM to leverage its pre-trained linguistic knowledge for multimodal reasoning [34, 50].
 
 **- LLM Backbone:** This is the core reasoning engine. The processed and
 
@@ -561,10 +573,13 @@ This systematic breakdown helps in navigating intricate real-world scenarios tha
 
 Decomposition first and Interleaved decomposition [26]. Decomposition first methods, as seen in systems like HuggingGPT [48] and Plan-and-Solve [55], initially decompose the entire task into sub-goals and then proceed to plan for each sub-goal sequentially. HuggingGPT, for instance, explicitly instructs the LLM to break down multimodal tasks and define dependencies between subtasks [48]. A slightly modified version of the Decomposition first approach is DPPM (Decompose, Plan in Parallel, and Merge). It addresses the limitations of existing planning methods, such as:
 
-1. Handling heavy constraints
-2. Carrying errors from the planning of previous steps
-3. Forgetting the main goal
-4. Cohesion between subtasks
+## 1. Handling heavy constraints
+
+## 2. Carrying errors from the planning of previous steps
+
+## 3. Forgetting the main goal
+
+## 4. Cohesion between subtasks
 
 DPPM tackles these problems with the following methods: First, it decomposes the complex task into subtasks. Second, it generates subplans for each of these subtasks concurrently using individual LLM agents. This parallel planning allows each agent to focus only on its assigned subtask, promoting independent work and avoiding the cascading errors that can occur when subplans are sequentially dependent. Finally, DPPM merges these independently generated local subplans into a coherent global plan [36]. Although this method can struggle to adapt
 
@@ -724,7 +739,7 @@ steps. As the agent carries out each group of steps, it would receive feedback f
 
 which would determine the current scenario:
 
-1. Successful execution: The actions produced the expected result, so the agent
+## 1. Successful execution: The actions produced the expected result, so the agent
 
 continues with the next group of steps.
 
@@ -1225,7 +1240,7 @@ and generalized LLM agents, moving beyond simple workflow automation towards tru
 
 ---
 
-**References**
+## References
 
 1. Alazraki, L., Mozes, M., Campos, J.A., Yi-Chern, T., Rei, M., Bartolo, M.: No
 2. Anthony Brohan, e.a.: Rt-2: Vision-language-action models transfer web knowledge
@@ -1399,7 +1414,8 @@ Building Autonomous LLM Agents 35
 40. Nakano, R., Hilton, J., Bala ji, S., Wu, J., Ouyang, L., Kim, C., Hesse, C., Jain,
 41. Niu, R., Li, J., Wang, S., Fu, Y., Hu, X., Leng, X., Kong, H., Chang, Y., Wang,
 42. OpenAI: Code interpreter. OpenAI Platform (2025), https://platform.openai.com/
-43. OSWorld Team: Osworld: Benchmarking multimodal agents for open-ended tasks
+
+## 43. OSWorld Team: Osworld: Benchmarking multimodal agents for open-ended tasks
 
 augmented generation for knowledge-intensive nlp tasks. arXiv preprint (2021), https://arxiv.org/abs/2005.11401
 

@@ -1,11 +1,5 @@
-# (anonymous)
+**Name Age**
 
-# Simple Table
+Alice 25
 
-This document contains a simple 2-column by 3-row table:
-
-| Name | Age |
-| --- | --- |
-| Alice | 25 |
-| Bob | 30 |
-| Charlie | 35 |
+This document contains a simple 2-column by 3-row table:Charlie **Simple Table**35

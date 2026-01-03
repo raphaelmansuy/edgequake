@@ -1,10 +1,1 @@
-# (anonymous)
-
-# Mixed Fonts and Sizes
-
-Normal text in Helvetica.
-
-| def hello | _ | world() : print( 'Hello, World! ') |
-| --- | --- | --- |
-| LARGE TEXT FOR EMPHASIS |
-| Small fine print text |
+LARGE TEXT FOR EMPHASISNormal text in Helvetica.`def hello_world(): print('Hello, World!')`Small fine print text **Mixed Fonts and Sizes**

@@ -542,8 +542,14 @@ impl SotaBackend {
                                     .map(|f| (f.is_bold, f.is_italic))
                                     .unwrap_or((false, false));
 
+                                // Remove CR/LF which can appear in PDF strings
+                                let cleaned: String = combined_text
+                                    .chars()
+                                    .filter(|&c| c != '\n' && c != '\r')
+                                    .collect();
+
                                 text_elements.push(TextElement {
-                                    text: combined_text.replace('\n', "").replace('\r', ""),
+                                    text: cleaned,
                                     x: text_matrix[4],
                                     y: text_matrix[5],
                                     font_size,
@@ -563,14 +569,19 @@ impl SotaBackend {
                     if !op.operands.is_empty() {
                         if let Some(text) = self.decode_text_operand(&op.operands[0], current_font)
                         {
-                            let text = text.replace('\n', "").replace('\r', "");
-                            if !text.is_empty() {
+                            // Remove CR/LF which can appear in PDF strings
+                            let cleaned: String = text
+                                .chars()
+                                .filter(|&c| c != '\n' && c != '\r')
+                                .collect();
+
+                            if !cleaned.is_empty() {
                                 let (is_bold, is_italic) = current_font
                                     .map(|f| (f.is_bold, f.is_italic))
                                     .unwrap_or((false, false));
 
                                 text_elements.push(TextElement {
-                                    text,
+                                    text: cleaned,
                                     x: text_matrix[4],
                                     y: text_matrix[5],
                                     font_size,
@@ -619,7 +630,7 @@ impl SotaBackend {
     fn get_number(obj: &Object) -> Option<f32> {
         match obj {
             Object::Integer(i) => Some(*i as f32),
-            Object::Real(f) => Some(*f as f32),
+            Object::Real(f) => Some(*f),
             _ => None,
         }
     }
@@ -745,8 +756,8 @@ impl SotaBackend {
             // Count each element's contribution to bins it spans
             let start_bin = (elem.x / bin_size) as usize;
             let end_bin = ((elem.x + 20.0) / bin_size) as usize; // Approximate text width
-            for bin in start_bin..=end_bin.min(num_bins - 1) {
-                proj[bin] += 1;
+            for i in start_bin..=end_bin.min(num_bins - 1) {
+                proj[i] += 1;
             }
         }
         proj
@@ -1441,7 +1452,7 @@ impl SotaBackend {
                 }
             }
 
-            last_bbox = Some(bbox.clone());
+            last_bbox = Some(bbox);
             last_text = text.to_string();
 
             // Detect block type
@@ -1463,7 +1474,7 @@ impl SotaBackend {
                 .iter()
                 .cloned()
                 .map(|mut s| {
-                    s.bbox = Some(bbox.clone());
+                    s.bbox = Some(bbox);
                     s
                 })
                 .collect::<Vec<_>>();
@@ -1539,16 +1550,12 @@ impl SotaBackend {
         let affiliation_threshold = page_bottom + (page_height - page_bottom) * 0.12; // Bottom 12% of page
         let large_font_threshold = avg_font_size * 1.2; // 20% larger than average
 
-        // Clamp to reasonable ranges
-        let footer_threshold = footer_threshold.max(40.0).min(100.0);
-        let header_threshold = header_threshold
-            .max(page_height - 100.0)
-            .min(page_height - 20.0);
-        let title_threshold = title_threshold
-            .max(page_bottom + 100.0)
-            .min(page_height - 50.0);
-        let affiliation_threshold = affiliation_threshold.max(60.0).min(120.0);
-        let large_font_threshold = large_font_threshold.max(10.0).min(14.0);
+        // Clamp to reasonable ranges using clamp() for clarity
+        let footer_threshold = footer_threshold.clamp(40.0, 100.0);
+        let header_threshold = header_threshold.clamp(page_height - 100.0, page_height - 20.0);
+        let title_threshold = title_threshold.clamp(page_bottom + 100.0, page_height - 50.0);
+        let affiliation_threshold = affiliation_threshold.clamp(60.0, 120.0);
+        let large_font_threshold = large_font_threshold.clamp(10.0, 14.0);
 
         (
             footer_threshold,

@@ -1,23 +1,136 @@
+#!/usr/bin/env python3
+"""
+Markdown to PDF converter for test data generation.
+
+Converts all markdown files in gold/ directory to PDF format,
+placing PDFs in corresponding pdfs/ directory structure.
+"""
+
+import json
 import os
+import subprocess
+import sys
+from pathlib import Path
+from typing import Dict, List, Tuple
 
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.platypus import (
-    Frame,
-    FrameBreak,
-    Image,
-    PageBreak,
-    PageTemplate,
-    Paragraph,
-    SimpleDocTemplate,
-    Spacer,
-    Table,
-    TableStyle,
-)
+# Configuration
+REPO_ROOT = Path(__file__).parent
+GOLD_DIR = REPO_ROOT / "gold"
+PDF_DIR = REPO_ROOT / "pdfs"
+EXTRACTED_DIR = REPO_ROOT / "extracted"
+DIFFS_DIR = REPO_ROOT / "diffs"
 
 
-def create_001_simple_text(path):
+def check_dependencies():
+    """Check if required tools are installed."""
+    required = ["pandoc"]
+    missing = []
+
+    for cmd in required:
+        try:
+            subprocess.run([cmd, "--version"], capture_output=True, check=True)
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            missing.append(cmd)
+
+    if missing:
+        print(f"Error: Missing required tools: {', '.join(missing)}")
+        print("\nInstall with:")
+        print("  macOS: brew install pandoc wkhtmltopdf")
+        print("  Ubuntu: sudo apt-get install pandoc wkhtmltopdf")
+        return False
+    return True
+
+
+def get_markdown_files() -> List[Path]:
+    """Get all markdown files from gold directory."""
+    md_files = list(GOLD_DIR.rglob("*.md"))
+    return sorted(md_files)
+
+
+def create_pdf(md_file: Path, pdf_file: Path) -> bool:
+    """Convert markdown to PDF using pandoc."""
+    try:
+        pdf_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Try wkhtmltopdf first
+        cmd = [
+            "pandoc",
+            str(md_file),
+            "-o",
+            str(pdf_file),
+            "--pdf-engine=wkhtmltopdf",
+            "--standalone",
+            "-V",
+            "margin-left=20mm",
+            "-V",
+            "margin-right=20mm",
+            "-V",
+            "margin-top=20mm",
+            "-V",
+            "margin-bottom=20mm",
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
+        if result.returncode == 0:
+            return True
+
+        # Try xvfb-run wkhtmltopdf for Linux
+        cmd_xvfb = [
+            "pandoc",
+            str(md_file),
+            "-o",
+            str(pdf_file),
+            "--pdf-engine=xvfb-run wkhtmltopdf",
+            "--standalone",
+        ]
+        result_xvfb = subprocess.run(
+            cmd_xvfb, capture_output=True, text=True, timeout=30
+        )
+
+        if result_xvfb.returncode == 0:
+            return True
+
+        # Try weasyprint
+        cmd_weasy = [
+            "pandoc",
+            str(md_file),
+            "-o",
+            str(pdf_file),
+            "--pdf-engine=weasyprint",
+            "--standalone",
+        ]
+        result_weasy = subprocess.run(
+            cmd_weasy, capture_output=True, text=True, timeout=30
+        )
+
+        if result_weasy.returncode == 0:
+            return True
+
+        # Try default LaTeX engine
+        cmd_latex = [
+            "pandoc",
+            str(md_file),
+            "-o",
+            str(pdf_file),
+            "--pdf-engine=pdflatex",
+        ]
+        result_latex = subprocess.run(
+            cmd_latex, capture_output=True, text=True, timeout=30
+        )
+
+        if result_latex.returncode == 0:
+            return True
+
+        print(f"Error: {result_latex.stderr[:100]}")
+        return False
+
+    except subprocess.TimeoutExpired:
+        return False
+    except Exception as e:
+        print(f"Exception: {e}")
+        return False
+
     doc = SimpleDocTemplate(path, pagesize=letter)
     doc.title = "Simple Text Test"
     styles = getSampleStyleSheet()
@@ -40,325 +153,107 @@ def create_001_simple_text(path):
     doc.build(story)
 
 
-def create_002_headers_and_lists(path):
-    doc = SimpleDocTemplate(path, pagesize=letter)
-    doc.title = "Headers and Lists Test"
-    styles = getSampleStyleSheet()
-    story = []
-    story.append(Paragraph("Headers and Lists Test", styles["Title"]))
-    story.append(Paragraph("Level 1 Header", styles["Heading1"]))
-    story.append(Paragraph("Level 2 Header", styles["Heading2"]))
-    story.append(Paragraph("Level 3 Header", styles["Heading3"]))
-    story.append(Spacer(1, 12))
-    story.append(Paragraph("Unordered List:", styles["Normal"]))
-    story.append(Paragraph("- Item 1", styles["Normal"]))
-    story.append(Paragraph("- Item 2", styles["Normal"]))
-    story.append(Paragraph("- Item 3", styles["Normal"]))
-    story.append(Spacer(1, 12))
-    story.append(Paragraph("Ordered List:", styles["Normal"]))
-    story.append(Paragraph("1. First item", styles["Normal"]))
-    story.append(Paragraph("2. Second item", styles["Normal"]))
-    story.append(Paragraph("3. Third item", styles["Normal"]))
-    doc.build(story)
+def convert_all_documents() -> tuple:
+    """Convert all markdown documents to PDF."""
+    md_files = get_markdown_files()
+
+    if not md_files:
+        print("No markdown files found in gold directory")
+        return 0, 0
+
+    successful = 0
+    failed = 0
+
+    print(f"Found {len(md_files)} markdown documents")
+    print(f"Converting to PDF...\n")
+
+    for i, md_file in enumerate(md_files, 1):
+        relative_path = md_file.relative_to(GOLD_DIR)
+        pdf_file = PDF_DIR / relative_path.with_suffix(".pdf")
+
+        print(f"[{i:3d}/{len(md_files)}] {relative_path}...", end=" ", flush=True)
+
+        if create_pdf(md_file, pdf_file):
+            print("✓")
+            successful += 1
+        else:
+            print("✗")
+            failed += 1
+
+    print(f"\nConversion complete: {successful} successful, {failed} failed")
+    return successful, failed
 
 
-def create_003_two_columns(path):
-    doc = SimpleDocTemplate(path, pagesize=letter)
-    doc.title = "Two Column Layout Test"
-    styles = getSampleStyleSheet()
+def create_directory_structure():
+    """Create output directories if they don't exist."""
+    PDF_DIR.mkdir(parents=True, exist_ok=True)
+    EXTRACTED_DIR.mkdir(parents=True, exist_ok=True)
+    DIFFS_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Define two columns
-    frame1 = Frame(
-        doc.leftMargin, doc.bottomMargin, doc.width / 2 - 6, doc.height, id="col1"
-    )
-    frame2 = Frame(
-        doc.leftMargin + doc.width / 2 + 6,
-        doc.bottomMargin,
-        doc.width / 2 - 6,
-        doc.height,
-        id="col2",
-    )
-
-    template = PageTemplate(id="two_columns", frames=[frame1, frame2])
-    doc.addPageTemplates([template])
-
-    story = []
-    story.append(Paragraph("Two Column Layout Test", styles["Title"]))
-    story.append(Spacer(1, 12))
-    story.append(
-        Paragraph(
-            "This is the first column. The text here should be read completely before moving to the second column if the reading order detection is working correctly.",
-            styles["Normal"],
-        )
-    )
-    story.append(
-        Paragraph(
-            "More text in the first column to ensure it fills some space and tests the vertical flow.",
-            styles["Normal"],
-        )
-    )
-
-    story.append(FrameBreak())  # Move to next frame
-
-    story.append(Paragraph("This is the second column.", styles["Title"]))
-    story.append(
-        Paragraph(
-            "The extractor should detect that this is a separate column and not interleave the lines with the first column.",
-            styles["Normal"],
-        )
-    )
-    story.append(
-        Paragraph(
-            "SOTA extraction requires understanding the spatial layout of the page.",
-            styles["Normal"],
-        )
-    )
-
-    doc.build(story)
+    for subdir in GOLD_DIR.iterdir():
+        if subdir.is_dir():
+            (PDF_DIR / subdir.name).mkdir(parents=True, exist_ok=True)
+            (EXTRACTED_DIR / subdir.name).mkdir(parents=True, exist_ok=True)
 
 
-def create_004_tables(path):
-    doc = SimpleDocTemplate(path, pagesize=letter)
-    doc.title = "Tables Test"
-    styles = getSampleStyleSheet()
-    story = []
-    story.append(Paragraph("Tables Test", styles["Title"]))
-    story.append(Spacer(1, 12))
+def generate_manifest() -> dict:
+    """Generate manifest of all test documents."""
+    manifest = {
+        "categories": {},
+        "total_documents": 0,
+    }
 
-    data = [
-        ["Header 1", "Header 2", "Header 3"],
-        ["Row 1, Col 1", "Row 1, Col 2", "Row 1, Col 3"],
-        ["Row 2, Col 1", "Row 2, Col 2", "Row 2, Col 3"],
-    ]
-    t = Table(data)
-    t.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
-                ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
-                ("GRID", (0, 0), (-1, -1), 1, colors.black),
-            ]
-        )
-    )
-    story.append(t)
-    doc.build(story)
+    for category_dir in sorted(GOLD_DIR.iterdir()):
+        if not category_dir.is_dir():
+            continue
+
+        md_files = sorted(category_dir.glob("*.md"))
+        category_name = category_dir.name
+
+        manifest["categories"][category_name] = {
+            "document_count": len(md_files),
+            "documents": [f.stem for f in md_files],
+        }
+        manifest["total_documents"] += len(md_files)
+
+    return manifest
 
 
-def create_005_mixed_styles(path):
-    doc = SimpleDocTemplate(path, pagesize=letter)
-    doc.title = "Mixed Styles Test"
-    styles = getSampleStyleSheet()
-    story = []
-    story.append(Paragraph("Mixed Styles Test", styles["Title"]))
-    story.append(Spacer(1, 12))
-    story.append(
-        Paragraph(
-            "This paragraph contains <b>bold text</b>, <i>italic text</i>, and <u>underlined text</u>.",
-            styles["Normal"],
-        )
-    )
-    story.append(
-        Paragraph(
-            "We also have <b><i>bold and italic</i></b> text combined.",
-            styles["Normal"],
-        )
-    )
-    story.append(
-        Paragraph(
-            "This is a <font face='Courier'>monospace font</font> example.",
-            styles["Normal"],
-        )
-    )
-    doc.build(story)
+def main():
+    """Main entry point."""
+    print("EdgeQuake PDF Test Data Generator")
+    print("=" * 50)
 
+    if not check_dependencies():
+        return 1
 
-def create_006_images_and_captions(path):
-    doc = SimpleDocTemplate(path, pagesize=letter)
-    doc.title = "Images and Captions Test"
-    styles = getSampleStyleSheet()
-    story = []
-    story.append(Paragraph("Images and Captions Test", styles["Title"]))
-    story.append(Spacer(1, 12))
-    story.append(
-        Paragraph(
-            "Below is an image (placeholder) followed by a caption.", styles["Normal"]
-        )
-    )
-    # Since I don't have a real image easily, I'll use a colored box or just text that looks like a caption
-    story.append(Spacer(1, 100))  # Placeholder for image
-    story.append(
-        Paragraph(
-            "Figure 1: This is a caption for the missing image above.", styles["Italic"]
-        )
-    )
-    doc.build(story)
+    print("Creating directory structure...")
+    create_directory_structure()
 
+    print("Generating manifest...")
+    manifest = generate_manifest()
+    manifest_file = REPO_ROOT / "MANIFEST.json"
+    with open(manifest_file, "w") as f:
+        json.dump(manifest, f, indent=2)
+    print(f"Manifest saved to {manifest_file.name}")
+    print(f"Total documents: {manifest['total_documents']}")
 
-def create_007_nested_lists(path):
-    doc = SimpleDocTemplate(path, pagesize=letter)
-    doc.title = "Nested Lists Test"
-    styles = getSampleStyleSheet()
-    story = []
-    story.append(Paragraph("Nested Lists Test", styles["Title"]))
-    story.append(Spacer(1, 12))
-    story.append(Paragraph("- Level 1 Item A", styles["Normal"]))
-    story.append(
-        Paragraph("&nbsp;&nbsp;&nbsp;&nbsp;- Level 2 Item A.1", styles["Normal"])
-    )
-    story.append(
-        Paragraph("&nbsp;&nbsp;&nbsp;&nbsp;- Level 2 Item A.2", styles["Normal"])
-    )
-    story.append(Paragraph("- Level 1 Item B", styles["Normal"]))
-    story.append(
-        Paragraph("&nbsp;&nbsp;&nbsp;&nbsp;1. Level 2 Ordered 1", styles["Normal"])
-    )
-    story.append(
-        Paragraph("&nbsp;&nbsp;&nbsp;&nbsp;2. Level 2 Ordered 2", styles["Normal"])
-    )
-    doc.build(story)
+    print()
+    successful, failed = convert_all_documents()
 
+    print("\n" + "=" * 50)
+    print("Summary:")
+    print(f"  Total documents: {len(get_markdown_files())}")
+    print(f"  PDF files created: {successful}")
+    print(f"  Conversion failures: {failed}")
 
-def create_008_multi_page(path):
-    doc = SimpleDocTemplate(path, pagesize=letter)
-    doc.title = "Multi-page Test"
-    styles = getSampleStyleSheet()
-    story = []
-
-    for i in range(1, 4):
-        story.append(Paragraph(f"Page {i} Content", styles["Title"]))
-        story.append(
-            Paragraph(
-                f"This is some content on page {i}. It should be extracted correctly across page boundaries.",
-                styles["Normal"],
-            )
-        )
-        story.append(Spacer(1, 400))
-        story.append(Paragraph(f"Footer Page {i}", styles["Normal"]))
-        if i < 3:
-            story.append(PageBreak())
-
-    doc.build(story)
-
-
-def create_009_code_blocks(path):
-    doc = SimpleDocTemplate(path, pagesize=letter)
-    doc.title = "Code Blocks Test"
-    styles = getSampleStyleSheet()
-    code_style = ParagraphStyle(
-        "Code", parent=styles["Normal"], fontName="Courier", fontSize=10, leftIndent=20
-    )
-
-    story = []
-    story.append(Paragraph("Code Blocks Test", styles["Title"]))
-    story.append(Spacer(1, 12))
-    story.append(Paragraph("Here is a block of code:", styles["Normal"]))
-    story.append(Spacer(1, 6))
-    story.append(
-        Paragraph(
-            'fn main() {<br/>&nbsp;&nbsp;&nbsp;&nbsp;println!("Hello, World!");<br/>}',
-            code_style,
-        )
-    )
-    story.append(Spacer(1, 12))
-    story.append(Paragraph("End of code block.", styles["Normal"]))
-    doc.build(story)
-
-
-def create_010_complex_tables(path):
-    doc = SimpleDocTemplate(path, pagesize=letter)
-    doc.title = "Complex Tables Test"
-    styles = getSampleStyleSheet()
-    story = []
-    story.append(Paragraph("Complex Tables Test", styles["Title"]))
-    story.append(Spacer(1, 12))
-
-    data = [
-        ["Merged Header", "", "Header 3"],
-        ["Row 1, Col 1", "Row 1, Col 2", "Row 1, Col 3"],
-        ["Row 2, Col 1", "Merged Cell", ""],
-    ]
-    t = Table(data)
-    t.setStyle(
-        TableStyle(
-            [
-                ("SPAN", (0, 0), (1, 0)),  # Merge first two cells in first row
-                ("SPAN", (1, 2), (2, 2)),  # Merge last two cells in last row
-                ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
-                ("GRID", (0, 0), (-1, -1), 1, colors.black),
-            ]
-        )
-    )
-    story.append(t)
-    doc.build(story)
-
-
-def create_011_math_formulas(path):
-    doc = SimpleDocTemplate(path, pagesize=letter)
-    doc.title = "Math Formulas Test"
-    styles = getSampleStyleSheet()
-    story = []
-    story.append(Paragraph("Math Formulas Test", styles["Title"]))
-    story.append(Spacer(1, 12))
-    story.append(
-        Paragraph(
-            "Einstein's famous equation: E = mc<sup>2</sup>",
-            styles["Normal"],
-        )
-    )
-    story.append(
-        Paragraph(
-            "Quadratic formula: x = (-b &plusmn; &radic;(b<sup>2</sup> - 4ac)) / 2a",
-            styles["Normal"],
-        )
-    )
-    doc.build(story)
-
-
-def create_012_mixed_languages(path):
-    doc = SimpleDocTemplate(path, pagesize=letter)
-    doc.title = "Mixed Languages Test"
-    styles = getSampleStyleSheet()
-    story = []
-    story.append(Paragraph("Mixed Languages Test", styles["Title"]))
-    story.append(Spacer(1, 12))
-    story.append(
-        Paragraph(
-            "English: The quick brown fox jumps over the lazy dog.", styles["Normal"]
-        )
-    )
-    story.append(
-        Paragraph(
-            "French: Le vif zéphyr coule sur le jonc en-thé.",
-            styles["Normal"],
-        )
-    )
-    story.append(
-        Paragraph(
-            "Spanish: El veloz murciélago hindú comía feliz cardillo y escabeche.",
-            styles["Normal"],
-        )
-    )
-    doc.build(story)
+    if failed == 0:
+        print("\n✓ All conversions successful!")
+        return 0
+    else:
+        print(f"\n⚠ {failed} documents failed to convert")
+        return 1
 
 
 if __name__ == "__main__":
-    base_path = "/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/test-data"
-    create_001_simple_text(os.path.join(base_path, "001_simple_text.pdf"))
-    create_002_headers_and_lists(os.path.join(base_path, "002_headers_and_lists.pdf"))
-    create_003_two_columns(os.path.join(base_path, "003_two_columns.pdf"))
-    create_004_tables(os.path.join(base_path, "004_tables.pdf"))
-    create_005_mixed_styles(os.path.join(base_path, "005_mixed_styles.pdf"))
-    create_006_images_and_captions(
-        os.path.join(base_path, "006_images_and_captions.pdf")
-    )
-    create_007_nested_lists(os.path.join(base_path, "007_nested_lists.pdf"))
-    create_008_multi_page(os.path.join(base_path, "008_multi_page.pdf"))
-    create_009_code_blocks(os.path.join(base_path, "009_code_blocks.pdf"))
-    create_010_complex_tables(os.path.join(base_path, "010_complex_tables.pdf"))
-    create_011_math_formulas(os.path.join(base_path, "011_math_formulas.pdf"))
-    create_012_mixed_languages(os.path.join(base_path, "012_mixed_languages.pdf"))
-    print("PDFs generated successfully.")
+    sys.exit(main())

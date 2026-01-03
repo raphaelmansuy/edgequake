@@ -1,8 +1,38 @@
-# EdgeQuake PDF Test Suite - Complete Index
+# EdgeQuake Comprehensive PDF-to-Markdown Test Suite
 
-## Overview
+## 📋 Overview
 
-This directory contains a comprehensive test suite for the EdgeQuake PDF to Markdown conversion tool. Tests are organized by increasing complexity to systematically validate SOTA (State-of-the-Art) conversion quality.
+This directory contains a comprehensive test infrastructure for evaluating PDF-to-Markdown conversion fidelity through rigorous, first-principles evaluation.
+
+**Test Data**: 105 manually-created markdown documents organized into 10 categories by complexity
+**Evaluation Method**: Diff-based analysis with quantitative metrics (text preservation, formatting preservation, structural fidelity)
+**Documentation**: TEST_PROTOCOL.md defines complete methodology
+
+## 📁 Directory Structure
+
+```
+test-data/
+├── gold/                          # Original markdown (single source of truth)
+│   ├── 01-basics/                 # Plain text, symbols (15 docs)
+│   ├── 02-formatting/             # Bold, italic, code (15 docs)
+│   ├── 03-headers/                # H1-H6 hierarchy (15 docs)
+│   ├── 04-lists/                  # Bullets, numbered, nested (15 docs)
+│   ├── 05-tables/                 # Tabular data (15 docs)
+│   ├── 06-code/                   # Code blocks (10 docs)
+│   ├── 07-multi-column/           # 2-4 column layouts (10 docs)
+│   ├── 08-complex/                # Real-world documents (10 docs)
+│   ├── 09-edge-cases/             # Unicode, math, footnotes (5 docs)
+│   └── 10-adversarial/            # Challenging cases (10 docs)
+├── pdfs/                          # PDF versions (generated from gold)
+├── extracted/                     # PDF→Markdown extraction results
+├── diffs/                         # Diff analysis and reports
+├── TEST_PROTOCOL.md               # Evaluation methodology (CRITICAL)
+├── generate_pdfs.py               # Markdown → PDF converter
+├── eval.sh                        # Evaluation runner
+└── report.py                      # Report generator
+```
+
+## 🎯 Evaluation Phases
 
 ## Test Results Summary (2026-01-01)
 
@@ -362,6 +392,23 @@ New tests should:
 3. Update this README
 4. Run full suite before commit
 5. Add to `test-data/ISSUES_FOUND.md` if exposing new issues
+
+---
+
+🔧 Quick commands
+
+- Generate PDFs (fallback generator using ReportLab):
+
+  ```bash
+  python3 generate_simple_pdfs.py
+  ```
+
+- Run comprehensive Rust evaluation (ignored by default, run with ignored tests):
+
+  ```bash
+  cargo test --package edgequake-pdf --test comprehensive_evaluation -- --ignored --nocapture
+  ```
+
 6. Consider automation scripts for repetitive tasks
 
 ---

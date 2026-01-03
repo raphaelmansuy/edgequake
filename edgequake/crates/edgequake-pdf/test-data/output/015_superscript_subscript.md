@@ -1,9 +1,1 @@
-# (anonymous)
-
-# Superscript and Subscript Test
-
-Mathematical notation: E = mc2
-
-Chemical formula:H O is water Footnotes : This ha s 2a fo o tnote1
-
-Array indexing: xi where i goes from 1 to n
+Mathematical notation: E = mc2Chemical formula: H2O is water Footnotes: This has a footnote1Array indexing: x where i goes from 1 to n**Superscript and Subscript Test**

@@ -91,8 +91,6 @@ is also a limitation-in particular, it puts tasks that require manual experiment
 
 The idea of combining evolutionary methods with coding LLMs has been previously ex-
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 The evolutionary process in*Alpha Evolve*leverages modern LLMs' ability to respond to
 
 While the use of an automated evaluation metric offers*Alpha Evolve a key advantage, it*
@@ -131,8 +129,6 @@ system, optimizing matrix-multiplication kernels used to train LLMs, optimizing 
 [25] and an
 
 11 dimensions [8, 31].
-
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
 
 Within algorithm design, we consider the fundamental problem of discovering fast
 
@@ -193,20 +189,18 @@ device or spawn extensive computations. For mathematical problems, the function 
 
 ℎis
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 only minimal changes, simply by adding special markers (`# EVOLVE-BLOCK-START `and # `EVOLVE-BLOCK-END`) as comments into the code.
 
 4
 
-**API.** To support evolving multiple components across a codebase, input API where blocks of code can be annotated as to-be-evolved-by-the-system; see Figure 3a for an illustration. This design facilitates integrating it with existing codebases while requiring
+## API. To support evolving multiple components across a codebase,
+
+input API where blocks of code can be annotated as to-be-evolved-by-the-system; see Figure 3a for an illustration. This design facilitates integrating it with existing codebases while requiring
 
 *Alpha Evolve exposes an*
 
 
 ---
-
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
 
 Any user-provided code inside such evolution blocks serves as the initial solution to be
 
@@ -365,16 +359,12 @@ expert knowledge of optimization and machine learning.
 Describe each change with a SEARCH/REPLACE block.
 ```
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 6
 
 diffs in (c) will be applied to the "current program" shown in the prompt (b), and the resulting modified program will then be sent to the evaluators. The evaluators will invoke the `evaluate `function from (a) in order to obtain the scores of the newly proposed program.
 
 
 ---
-
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
 
 **Output format.** When *Alpha Evolve asks an LLM to modif y existing code, especially within* larger codebases, it requests the changes to be provided as a sequence of diff blocks in a specific format:
 
@@ -432,8 +422,6 @@ During its evolutionary procedure,*Alpha Evolve continually generates a growing 
 ### 2.6. Distributed pipeline
 
 *Alpha Evolve is implemented as an asynchronous computational pipeline (using the*`asyncio` Python library) in which many computations are run concurrently, with each computation blocking (waiting) whenever its next step relies on the result of another, yet unfinished computation. More specifically, the asynchronous pipeline comprises a controller, LLM samplers, and evaluation nodes. The entire pipeline is optimized for throughput (rather than the speed of any one particular computation), in order to maximize the number of ideas that can be proposed and evaluated within a specific overall computation budget.
-
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
 
 8
 
@@ -494,8 +482,6 @@ discovered by*Alpha Evolve use complex-valued multiplications which can be used 
 
 ⟨3 ,4,7 ⟩, ⟨4 ,4,4 ⟩, and ⟨4 ,4,8 ⟩, the algorithms
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 ⟨, , ⟩ best known [reference] *Alpha Evolve*
 
 Starting from the problem description and a standard gradient-based algorithm (including
@@ -547,8 +533,6 @@ of the matrix multiplication tensor, and they cannot be applied recursively to m
 
 3There exist algorithms using fewer than 49 multiplications, but they do not correspond to decompositions
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 10
 
 
@@ -573,8 +557,6 @@ Figure 4 | Changes proposed by Alpha Evolveto discover faster matrix multiplicat
 rithms. The full diff is outlined on the left (see magnified version in Figures 9a to 9c) and some excerpts are highlighted on the right. In this example,*Alpha Evolve proposes extensive*
 
 right), the loss function (middle right), and hyperparameter sweep (bottom right). These changes are highly non-trivial, requiring 15 mutations during the evolutionary process.
-
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
 
 9
 
@@ -601,8 +583,6 @@ by the previous best heuristic. Its goal was to leverage this starting point and
 
 results. Full list of problems and details are provided in Appendix B.
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 A significant advantage of the*Alpha Evolve configuration used here is its versatility and*
 
 The key methodological innovation enabling these discoveries is*Alpha Evolve 's ability to*
@@ -613,8 +593,6 @@ Below are high-level descriptions of some of the problems where*Alpha Evolve yie
 
 
 ---
-
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
 
 •Analysis
 
@@ -687,8 +665,6 @@ deployment measurements across Google's fleet confirmed the simulator results, r
 
 deep reinforcement learning approach because its code solution not only leads to better performance, but also offers clear advantages in interpretability, debuggability, predictability, and ease of deployment-essential qualities for a mission-critical system.
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 We address this challenge by framing the online job scheduling problem as a vector
 
 An early version of Alpha Evolvewas used to discover a remarkably simple yet effective
@@ -697,8 +673,6 @@ An early version of Alpha Evolvewas used to discover a remarkably simple yet eff
 
 
 ---
-
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
 
 **Figure 7 | Visualization of the tiling heuristic problem for a matrix product** =. Creating a heuristic that automatically chooses the right tile size (, ,) for all input shapes is difficult because one has to know the matrix multiplication unit's optimal shapes and memory capacity, the memory requirements of surrounding operations, extra operations that are fused into the kernel, and low-level compiler intricacies, among other details.
 
@@ -753,16 +727,12 @@ In this work, Alpha Evolve was challenged to optimize an already highly optimize
 
 Integrated into an upcoming TPU, this improvement represents Gemini's first direct
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 This automated approach enables *Alpha Evolve*to discover a heuristic that yields an
 
 16
 
 
 ---
-
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
 
 #### *3.3.4. Directly optimizing compiler-generated code*
 
@@ -841,8 +811,6 @@ on the problem of finding low-rank tensor decom-
 
 *Alpha Evolve , initialized with different*
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 operators to evolve a pool of programs [ 5 , 51 ]. In particular, classical evolutionary techniques have succeeded in symbolic regression applications [66 ,87 ], automated scientific [ 21 ] or algorithmic [ 16 ] discovery, and scheduling [ 118 ] problems. However, a challenge with these
 
 18
@@ -904,8 +872,6 @@ seeks to automate scientific discovery using distinct agents for tasks like hypo
 
 [41] for code synthesis. Similar approaches have
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 methods is the use of handwritten evolution operators, which can be hard to design and may fail to capture important properties of the domain. In contrast,*Alpha Evolve*uses LLMs to
 
 19
@@ -965,8 +931,6 @@ While previous work on using LLMs for algorithm discovery provided promising res
 
 Many of these methods use LLMs to automate several distinct stages of the scientific
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 AI systems have also contributed to advances in pure mathematics [23 ]. In this context,
 
 20
@@ -996,7 +960,7 @@ devise an automated evaluator. While this is true of many problems in the mathem
 
 which machine feedback is available through code execution.
 
-**Acknowledgements**
+## Acknowledgements
 
 We thank Michael Figurnov for reviewing this white paper; Alhussein Fawzi, Bernardino
 
@@ -1009,8 +973,6 @@ contributions of these individuals towards the applications highlighted in this 
 Interestingly, Alpha Evolve often allows approaching the same problem in different ways:
 
 *Alpha Evolve can also be seen as a test-time compute agent that, through its evolutionary*
-
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
 
 Beyond distillation, it is also intriguing that Alpha Evolvecan make practical discoveries
 
@@ -1063,8 +1025,6 @@ Timur Sitdikov for leading the application to TPU circuit design; Georges Rotiva
 
 Benjamin Chetioui, Sergei Lebedev, Alexander Belyaev, Henning Becker, Oleg Shyshkov,
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 22
 
 
@@ -1078,7 +1038,7 @@ program.
 
 **Corresponding authors.** Matej Balog, Alexander Novikov and Pushmeet Kohli.
 
-**References**
+## References
 
 interactions with alphafold 3.*Nature , 630(8016):493-500, 2024.*
 
@@ -1114,8 +1074,6 @@ with large language models.*Nature , 624(7992):570-578, 2023. doi: 10.1038/s415*
 
 *Math. J. , 38(4):507-522, 2012. ISSN 1310-6600.*
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 transformations of Python+Num Py programs, 2018. URL`http://github.com/j` `ax-ml/jax`.
 
 23
@@ -1139,7 +1097,7 @@ K. J. Miller, and K. L. Stachenfeld. Discovering symbolic cognitive models from 
 
 neural architecture search. In
 
- 2023.*Advances in Neural Information Processing Systems*,
+## 2023.*Advances in Neural Information Processing Systems*,
 
 [15] T. Chen, B. Xu, and K. Devleker. Automating GPU kernel generation with Deep Seek-R1
 
@@ -1180,8 +1138,6 @@ gression. jl. arXiv preprint arXiv:2305.01582
 , 2025.
 
 *Chemical Science , 16:2514-2572, 2025. doi:*
-
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
 
 *International Conference on Machine Learning*
 
@@ -1282,8 +1238,6 @@ https:
 
 *Journal of Mathematical Analysis*
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 regression with a learned concept library.*Advances in Neural Information Processing*
 
 *Systems , 37:44678-44709, 2024.*
@@ -1338,8 +1292,6 @@ Highly accurate protein structure prediction with Alpha Fold.
 583-589, 2021. doi: 10.1038/s41586-021-03819-2.
 
 *arXiv preprint*
-
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
 
 scientific discovery: A survey of progress, challenges, and future directions. In*ICLR*
 
@@ -1426,8 +1378,6 @@ Sakana AI, 02 2025.
 
 model framework for literature-based disease-gene association prediction.*Briefings in* *Bioinformatics , 26(1):bbaf070, 02 2025. ISSN 1477-4054. doi: 10.1093/bib/bbaf 070.*
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 27
 
 
@@ -1477,8 +1427,6 @@ Faster sorting algorithms discovered using deep reinforcement learning.
 
 *arXiv preprint arXiv:2503.15669*, 2025.
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 level code generation with Alpha Code.*Science , 378(6624):1092-1097, 2022. doi:*
 
 M. Freeman, editors, Proceedings of the Second International Conference on Architectural
@@ -1509,8 +1457,6 @@ In arXiv preprint arXiv:2402.05200, 2024.
 *Proceedings of the Genetic and Evolutionary Computation*
 
 *arXiv preprint*
-
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
 
 [72] J. Moosbauer and M. Poole. Flip graphs with symmetry and new matrix multiplication
 
@@ -1614,8 +1560,6 @@ equation discovery via programming with large language models. In
 , 23:3498-3505, 2024.
 
 , pages 305-316. ACM,
-
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
 
 *Conference on Learning Representations*
 
@@ -1737,8 +1681,6 @@ LLM applications via multi-agent conversation. In*arXiv preprint arXiv:2308.0815
 
  2023.LLM applications via multi-agent conversation. In*arXiv preprint arXiv:2308.08155*,
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 31
 
 
@@ -1794,8 +1736,6 @@ agent system for materials science. In Y. Al-Onaizan, M. Bansal, and Y.-N. Chen,
 
 , 2025.
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 *International Conference on Learning Representations*
 
 *International Conference on Learning*
@@ -1820,8 +1760,6 @@ language models. In L. Peled-Cohen, N. Calderon, S. Lissak, and R. Reichart, edi
 
 
 ---
-
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
 
 *Proceedings of the 1st Workshop on NLP for Science (NLP4Science)*, pages 117-139.
 
@@ -1896,9 +1834,7 @@ best known
 
 , and ⟨4 ,4,8 ⟩, the algorithms discovered by
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
-**A. Faster matrix multiplication: Full results**
+## A. Faster matrix multiplication: Full results
 
 14 [ 14 18 [ 18
 
@@ -1920,8 +1856,6 @@ best known
 
 
 ---
-
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
 
 8 `+ )`
 
@@ -1947,8 +1881,6 @@ best known
 
 
 ---
-
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
 
 69 `+ )`
 
@@ -1978,8 +1910,6 @@ best known
 ---
 
  - ` - 1 1 7 , 6 + 2 5 5 , 1 8`
-
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
 
 136 137 138 139 140 141 142 143 144 145 146 147 148
 
@@ -2014,9 +1944,7 @@ accompanying Google Colab.
 
 [−1 /4,1 /4] that gives a slightly better
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
-**B. Details of mathematical discoveries of*****Alpha Evolve***
+## B. Details of mathematical discoveries of*Alpha Evolve*
 
 negative values. There is a step function that gives the upper bound3 ≤1.45810 [ 104 , page
 
@@ -2026,7 +1954,7 @@ gives a slightly better upper bound3 ≤1.4557 .
 
 38
 
-**B.1. First autocorrelation inequality**
+### B.1. First autocorrelation inequality
 
 For any function: ℝ→ℝ, define the autoconvolution of
 
@@ -2046,7 +1974,7 @@ with the lower bound achieved in [17 ] and the upper bound achieved in [
 
 function construction.*Alpha Evolve found a step function with 600 equally-spaced intervals* on [−1/4,1 /4] that gives a slightly better upper bound
 
-**B.2. Second autocorrelation inequality**
+### B.2. Second autocorrelation inequality
 
 Let be the smallest constant for which one has
 
@@ -2060,7 +1988,7 @@ with the lower bound coming from a step function construction [
 
 a step function with 50 equally-spaced intervals on lower bound 0 .8962 ≤ .2
 
-**B.3. Third autocorrelation inequality**
+### B.3. Third autocorrelation inequality
 
 Let 3 be the largest constant satisf ying
 
@@ -2107,9 +2035,7 @@ max (by finding the largest positive root of( )/),
 
 4 ≤0.3521 . Qualitatively our
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
-**B.4. An uncertainty inequality**
+### B.4. An uncertainty inequality
 
 −2 
 
@@ -2188,8 +2114,6 @@ result, in [40] by a step function construction. The step function depicted in F
 
 5 ≤0.380924 .
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 1
 
 1
@@ -2208,7 +2132,7 @@ positive constant independent of the sets, (for sufficiently large sets , ).)
 
 40
 
-**B.6. Sums and differences of finite sets**
+### B.6. Sums and differences of finite sets
 
 Let 6 be the largest constant for which the following statement holds: there exist arbitrarily large finite sets of integers , with | +
 
@@ -2235,8 +2159,6 @@ respectively. The notation≪ means that sets , (for sufficiently large sets , )
 
 3 .943 and 4 . 0,
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 1
 
 2
@@ -2253,7 +2175,7 @@ see [39 , Corollary 3] for the upper bound and [ main tool for the lower bound i
 
 for any finite set of non-negative integers containing zero satisf ying *Alpha Evolve*found a set of size 2003 improving the lower bound to another set of size 54265 further improving the lower bound to
 
-**B.7. Packing unit regular hexagons inside a regular hexagon**
+### B.7. Packing unit regular hexagons inside a regular hexagon
 
 Consider the problem of packing disjoint regular hexagons with unit side length into a
 
@@ -2265,7 +2187,7 @@ respectively [ 29 ].Alpha Evolvefound packing arrangements that improve these bo
 
 3 .931 and 3 .942 , respectively. These arrangements are shown in Figure 11.
 
-**B.8. Minimizing the ratio of maximum to minimum distance**
+### B.8. Minimizing the ratio of maximum to minimum distance
 
 For any and, the goal of this problem is to find to minimize the ratio between the maximum and minimum pairwise distances. found two new constructions improving the best known bounds. The found constructions are shown in Figure 12.
 
@@ -2282,8 +2204,6 @@ points in the-dimensional space so as
 
 0 .0365 ,
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 29
 
 The kissing problem asks how many disjoint unit spheres can be packed tangent to a given
@@ -2296,7 +2216,7 @@ In 3 dimensions, Alpha Evolve√ found 14 points with ratio ≈
 
 best known bound of 4 .168 [].
 
-**B.9. The Heilbronn problem for triangles**
+### B.9. The Heilbronn problem for triangles
 
 The goal of this problem is to findpoints on or inside a triangle with unit area so that the
 
@@ -2304,7 +2224,7 @@ area of the smallest triangle formed by these points is maximized. For 0 .036 [2
 
 which is shown in Figure 13 (left).
 
-**B.10. The Heilbronn problem for convex regions**
+### B.10. The Heilbronn problem for convex regions
 
 The goal of this problem is to findpoints on or inside a convex region with unit area so that
 
@@ -2312,7 +2232,7 @@ the area of the smallest triangle formed by these points is maximized. two of th
 
 0 .0278 (see Figure 13 (right)).
 
-**B.11. Kissing number in dimension 11**
+### B.11. Kissing number in dimension 11
 
 *Alpha Evolve improved*
 
@@ -2345,8 +2265,6 @@ equal to their geometric mean. The points at them are tangent to a unit sphere c
 
 ∈ ≥ max} {∥∥: ∈ .}
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 2 2 2 2 2 2
 
 Given a positive integer, the problem is to packdisjoint circles inside a unit square so as
@@ -2361,7 +2279,7 @@ After simplif ying, this is equivalent to2⟨n o , ⟩ ≤ ∥
 
 unit spheres centred at∥∥: ∈ form a valid kissing configuration in dimension required.
 
-**B.12. Packing circles inside a unit square to maximize sum of radii**
+### B.12. Packing circles inside a unit square to maximize sum of radii
 
 ∥,∥∥} implies
 
@@ -2380,7 +2298,7 @@ unit spheres centred at∥∥: ∈ form a valid kissing configuration in dimensi
 
 (middle).
 
-**B.13. Packing circles inside a rectangle of perimeter 4 to maximize sum of radii**
+### B.13. Packing circles inside a rectangle of perimeter 4 to maximize sum of radii
 
 Given a positive integer, the problem is to pack
 
@@ -2392,13 +2310,11 @@ disjoint circles inside a rectangle of
 
 2 .364 [] to 2 .3658 ; see Figure 14 (right).
 
-*Alpha Evolve : A coding agent for scientific and algorithmic discovery*
-
 For = 26 , the SOTA was2 .634 , and Alpha Evolve improved it to2 .635 ; see Figure 14
 
 (left). For = 32 , the SOTA was2 .936, and Alpha Evolve improved it to2 .937; see Figure 14
 
- 29*Alpha Evolve found a new construction*
+## 29*Alpha Evolve found a new construction*
 
 packing circles to maximize their sum of radii. Left:26 circles in a unit square with sum of radii ≥2.635 . Middle: 32 circles in a unit square with sum of radii≥2.937 . Right: 21 circles in a rectangle with perimeter4 , with sum of radii ≥2.365 .
 
