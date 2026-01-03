@@ -66,13 +66,12 @@ impl Default for LayoutConfig {
 
 /// Configuration for PDF extraction operations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct PdfConfig {
     /// Extraction mode (text, vision, hybrid).
-    #[serde(default)]
     pub mode: ExtractionMode,
 
     /// Output format.
-    #[serde(default)]
     pub output_format: OutputFormat,
 
     /// OCR confidence threshold (0.0-1.0). Below this, AI enhancement is triggered.
@@ -245,6 +244,103 @@ impl PdfConfig {
         self.mode = ExtractionMode::Hybrid;
         self
     }
+
+    /// Load configuration from a TOML file.
+    ///
+    /// # Example
+    ///
+    /// ```toml
+    /// mode = "Text"
+    /// output_format = "Markdown"
+    /// ocr_threshold = 0.8
+    /// include_page_numbers = true
+    ///
+    /// [layout]
+    /// detect_columns = true
+    /// detect_tables = true
+    /// column_gap_threshold = 20.0
+    /// ```
+    pub fn from_toml_file(path: impl AsRef<std::path::Path>) -> Result<Self, ConfigError> {
+        let contents = std::fs::read_to_string(path.as_ref())
+            .map_err(|e| ConfigError::IoError(e.to_string()))?;
+        Self::from_toml(&contents)
+    }
+
+    /// Load configuration from a TOML string.
+    pub fn from_toml(toml_str: &str) -> Result<Self, ConfigError> {
+        toml::from_str(toml_str).map_err(|e| ConfigError::ParseError(e.to_string()))
+    }
+
+    /// Save configuration to a TOML file.
+    pub fn to_toml_file(&self, path: impl AsRef<std::path::Path>) -> Result<(), ConfigError> {
+        let toml_str = self.to_toml()?;
+        std::fs::write(path.as_ref(), toml_str)
+            .map_err(|e| ConfigError::IoError(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Serialize configuration to a TOML string.
+    pub fn to_toml(&self) -> Result<String, ConfigError> {
+        toml::to_string_pretty(self).map_err(|e| ConfigError::SerializeError(e.to_string()))
+    }
+
+    /// Validate the configuration.
+    ///
+    /// Returns errors for invalid combinations or values.
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        // Validate OCR threshold
+        if !(0.0..=1.0).contains(&self.ocr_threshold) {
+            return Err(ConfigError::ValidationError(
+                "ocr_threshold must be between 0.0 and 1.0".to_string(),
+            ));
+        }
+
+        // Validate quality threshold
+        if !(0.0..=1.0).contains(&self.quality_threshold) {
+            return Err(ConfigError::ValidationError(
+                "quality_threshold must be between 0.0 and 1.0".to_string(),
+            ));
+        }
+
+        // Validate AI temperature
+        if !(0.0..=2.0).contains(&self.ai_temperature) {
+            return Err(ConfigError::ValidationError(
+                "ai_temperature must be between 0.0 and 2.0".to_string(),
+            ));
+        }
+
+        // Validate vision DPI
+        if self.vision_dpi < 72 || self.vision_dpi > 600 {
+            return Err(ConfigError::ValidationError(
+                "vision_dpi must be between 72 and 600".to_string(),
+            ));
+        }
+
+        // Validate layout column gap
+        if self.layout.column_gap_threshold < 0.0 {
+            return Err(ConfigError::ValidationError(
+                "column_gap_threshold must be non-negative".to_string(),
+            ));
+        }
+
+        Ok(())
+    }
+}
+
+/// Configuration errors.
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum ConfigError {
+    #[error("IO error: {0}")]
+    IoError(String),
+
+    #[error("Parse error: {0}")]
+    ParseError(String),
+
+    #[error("Serialize error: {0}")]
+    SerializeError(String),
+
+    #[error("Validation error: {0}")]
+    ValidationError(String),
 }
 
 #[cfg(test)]
@@ -380,5 +476,174 @@ mod tests {
         assert_eq!(config.mode, ExtractionMode::Vision);
         assert_eq!(config.output_format, OutputFormat::Html);
         assert_eq!(config.max_pages, Some(100));
+    }
+
+    // TOML configuration tests (Phase 5)
+
+    #[test]
+    fn test_config_to_toml() {
+        let config = PdfConfig::default();
+        let toml_str = config.to_toml().expect("Should serialize to TOML");
+        
+        assert!(toml_str.contains("mode = \"Text\""));
+        assert!(toml_str.contains("output_format = \"Markdown\""));
+        assert!(toml_str.contains("ocr_threshold = 0.8"));
+    }
+
+    #[test]
+    fn test_config_from_toml() {
+        let toml_str = r#"
+            mode = "Vision"
+            output_format = "Json"
+            ocr_threshold = 0.9
+            include_page_numbers = false
+            include_metadata = true
+            include_styles = false
+            quality_threshold = 0.7
+            vision_dpi = 200
+            ai_temperature = 0.5
+
+            [layout]
+            detect_columns = true
+            detect_tables = true
+            detect_equations = false
+            column_gap_threshold = 25.0
+            use_xy_cut = true
+        "#;
+
+        let config = PdfConfig::from_toml(toml_str).expect("Should parse TOML");
+        assert_eq!(config.mode, ExtractionMode::Vision);
+        assert_eq!(config.output_format, OutputFormat::Json);
+        assert!((config.ocr_threshold - 0.9).abs() < 0.001);
+        assert!(!config.include_page_numbers);
+        assert_eq!(config.vision_dpi, 200);
+    }
+
+    #[test]
+    fn test_config_toml_roundtrip() {
+        let original = PdfConfig::new()
+            .with_mode(ExtractionMode::Hybrid)
+            .with_output_format(OutputFormat::Html)
+            .with_max_pages(50)
+            .with_vision_dpi(300);
+
+        let toml_str = original.to_toml().expect("Should serialize");
+        let parsed = PdfConfig::from_toml(&toml_str).expect("Should parse");
+
+        assert_eq!(parsed.mode, original.mode);
+        assert_eq!(parsed.output_format, original.output_format);
+        assert_eq!(parsed.max_pages, original.max_pages);
+        assert_eq!(parsed.vision_dpi, original.vision_dpi);
+    }
+
+    #[test]
+    fn test_config_validate_valid() {
+        let config = PdfConfig::default();
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_config_validate_invalid_ocr_threshold() {
+        let mut config = PdfConfig::default();
+        config.ocr_threshold = 1.5; // Invalid: > 1.0
+        
+        let result = config.validate();
+        assert!(result.is_err());
+        if let Err(ConfigError::ValidationError(msg)) = result {
+            assert!(msg.contains("ocr_threshold"));
+        }
+    }
+
+    #[test]
+    fn test_config_validate_invalid_quality_threshold() {
+        let mut config = PdfConfig::default();
+        config.quality_threshold = -0.1; // Invalid: < 0.0
+        
+        let result = config.validate();
+        assert!(result.is_err());
+        if let Err(ConfigError::ValidationError(msg)) = result {
+            assert!(msg.contains("quality_threshold"));
+        }
+    }
+
+    #[test]
+    fn test_config_validate_invalid_ai_temperature() {
+        let mut config = PdfConfig::default();
+        config.ai_temperature = 2.5; // Invalid: > 2.0
+        
+        let result = config.validate();
+        assert!(result.is_err());
+        if let Err(ConfigError::ValidationError(msg)) = result {
+            assert!(msg.contains("ai_temperature"));
+        }
+    }
+
+    #[test]
+    fn test_config_validate_invalid_vision_dpi() {
+        let mut config = PdfConfig::default();
+        config.vision_dpi = 50; // Invalid: < 72
+        
+        let result = config.validate();
+        assert!(result.is_err());
+        if let Err(ConfigError::ValidationError(msg)) = result {
+            assert!(msg.contains("vision_dpi"));
+        }
+    }
+
+    #[test]
+    fn test_config_validate_invalid_column_gap() {
+        let mut config = PdfConfig::default();
+        config.layout.column_gap_threshold = -5.0; // Invalid: < 0.0
+        
+        let result = config.validate();
+        assert!(result.is_err());
+        if let Err(ConfigError::ValidationError(msg)) = result {
+            assert!(msg.contains("column_gap_threshold"));
+        }
+    }
+
+    #[test]
+    fn test_config_from_toml_invalid() {
+        let invalid_toml = "this is not valid toml {{{{";
+        let result = PdfConfig::from_toml(invalid_toml);
+        assert!(matches!(result, Err(ConfigError::ParseError(_))));
+    }
+
+    #[test]
+    fn test_config_toml_file_roundtrip() {
+        use std::fs;
+        
+        let config = PdfConfig::new()
+            .with_mode(ExtractionMode::Vision)
+            .with_max_pages(25);
+
+        let temp_path = std::env::temp_dir().join("test_config.toml");
+        
+        // Write to file
+        config.to_toml_file(&temp_path).expect("Should write file");
+        
+        // Read back
+        let loaded = PdfConfig::from_toml_file(&temp_path).expect("Should read file");
+        
+        assert_eq!(loaded.mode, config.mode);
+        assert_eq!(loaded.max_pages, config.max_pages);
+        
+        // Cleanup
+        fs::remove_file(&temp_path).ok();
+    }
+
+    #[test]
+    fn test_config_error_display() {
+        let io_err = ConfigError::IoError("file not found".to_string());
+        let display = format!("{}", io_err);
+        assert!(display.contains("IO error"));
+
+        let parse_err = ConfigError::ParseError("invalid syntax".to_string());
+        let display = format!("{}", parse_err);
+        assert!(display.contains("Parse error"));
+
+        let validation_err = ConfigError::ValidationError("threshold out of range".to_string());
+        let display = format!("{}", validation_err);
+        assert!(display.contains("Validation error"));
     }
 }
