@@ -47,6 +47,10 @@ struct FontInfo {
 }
 
 impl FontInfo {
+    /// Construct FontInfo from a PDF font dictionary.
+    ///
+    /// Extracts the base font name, detects bold/italic style from common naming
+    /// conventions (including LaTeX fonts like SFBX/CMTI), and resolves encoding.
     fn from_dict(doc: &LopdfDocument, font_dict: &Dictionary) -> Self {
         // Get base font name
         let base_font = font_dict
@@ -90,6 +94,12 @@ impl FontInfo {
         }
     }
 
+    /// Resolve the font encoding from the PDF dictionary.
+    ///
+    /// Priority order:
+    /// 1. ToUnicode CMap (most reliable, handles any mapping)
+    /// 2. Named encoding (WinAnsiEncoding, StandardEncoding, etc.)
+    /// 3. Identity fallback (raw bytes as UTF-16BE)
     fn get_encoding(doc: &LopdfDocument, font_dict: &Dictionary) -> Encoding {
         // Check for ToUnicode CMap first (most reliable)
         if let Ok(to_unicode) = font_dict.get(b"ToUnicode") {
@@ -147,6 +157,9 @@ impl FontInfo {
         Encoding::OneByteEncoding(&encodings::WIN_ANSI_ENCODING)
     }
 
+    /// Resolve a PDF object to a Stream, following indirect references.
+    ///
+    /// Handles both direct Stream objects and Reference pointers.
     fn resolve_stream<'a>(doc: &'a LopdfDocument, obj: &'a Object) -> Option<&'a Stream> {
         match obj {
             Object::Reference(id) => doc.get_object(*id).ok()?.as_stream().ok(),
@@ -598,6 +611,10 @@ impl SotaBackend {
         Ok((text_elements, line_elements))
     }
 
+    /// Decode a PDF text operand to a Unicode string.
+    ///
+    /// Uses the font's encoding (ToUnicode CMap, WinAnsi, etc.) if available.
+    /// Falls back to UTF-16BE with BOM detection, then Latin-1.
     fn decode_text_operand(&self, obj: &Object, font: Option<&FontInfo>) -> Option<String> {
         if let Object::String(bytes, _) = obj {
             if let Some(font) = font {
