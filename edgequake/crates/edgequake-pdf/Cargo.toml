@@ -52,3 +52,8 @@ clap = { version = "4.5", features = ["derive"] }
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }
 chrono = "0.4"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "extraction_bench"
+harness = false
