@@ -26,6 +26,8 @@ pub mod mock;
 pub mod sota_backend;
 #[cfg(feature = "lopdf")]
 pub mod text_grouping;
+#[cfg(feature = "lopdf")]
+pub mod column_detection;
 
 pub use mock::MockBackend;
 #[cfg(feature = "lopdf")]
