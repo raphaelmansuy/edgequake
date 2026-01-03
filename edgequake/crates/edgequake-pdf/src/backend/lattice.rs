@@ -111,7 +111,119 @@ impl LatticeEngine {
             }
         }
 
+        // FIRST PRINCIPLES: Merge horizontally adjacent tables that share the same Y-band.
+        // Wide tables in academic PDFs are often split into left/right halves with a gap.
+        // If two tables have overlapping Y-bands (>80%) and are side-by-side (X gap < 50pt),
+        // they should be merged into a single table.
+        let tables = self.merge_horizontal_table_halves(tables, text_elements);
+
         tables
+    }
+
+    /// Merge tables that appear to be left/right halves of the same table.
+    /// Returns a deduplicated list of tables.
+    fn merge_horizontal_table_halves(
+        &self,
+        mut tables: Vec<Block>,
+        text_elements: &[TextElement],
+    ) -> Vec<Block> {
+        if tables.len() < 2 {
+            return tables;
+        }
+
+        // Sort by Y-position (top to bottom in PDF coordinates where Y increases downward for our bbox)
+        tables.sort_by(|a, b| {
+            b.bbox
+                .y2
+                .partial_cmp(&a.bbox.y2)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        let mut merged_indices: std::collections::HashSet<usize> = std::collections::HashSet::new();
+        let mut result: Vec<Block> = Vec::new();
+
+        for i in 0..tables.len() {
+            if merged_indices.contains(&i) {
+                continue;
+            }
+
+            let mut merged_table = tables[i].clone();
+            let mut merged_count = 1;
+
+            for j in (i + 1)..tables.len() {
+                if merged_indices.contains(&j) {
+                    continue;
+                }
+
+                let t1 = &merged_table;
+                let t2 = &tables[j];
+
+                // Check Y-band overlap (>70%)
+                let y_overlap = (t1.bbox.y2.min(t2.bbox.y2) - t1.bbox.y1.max(t2.bbox.y1)).max(0.0);
+                let min_height = t1.bbox.height().min(t2.bbox.height());
+                let y_overlap_ratio = if min_height > 0.0 {
+                    y_overlap / min_height
+                } else {
+                    0.0
+                };
+
+                if y_overlap_ratio < 0.70 {
+                    continue;
+                }
+
+                // Check X-gap (should be small - tables are adjacent)
+                let x_gap = if t1.bbox.x2 < t2.bbox.x1 {
+                    t2.bbox.x1 - t1.bbox.x2
+                } else if t2.bbox.x2 < t1.bbox.x1 {
+                    t1.bbox.x1 - t2.bbox.x2
+                } else {
+                    0.0 // overlapping
+                };
+
+                if x_gap > 50.0 {
+                    continue;
+                }
+
+                // Tables are horizontally adjacent with matching Y-band - merge them
+                println!(
+                    "🔗 MERGING HORIZONTAL TABLE HALVES: Y-overlap={:.1}%, X-gap={:.1}pt",
+                    y_overlap_ratio * 100.0,
+                    x_gap
+                );
+
+                // Expand bbox to include both tables
+                merged_table.bbox.x1 = merged_table.bbox.x1.min(t2.bbox.x1);
+                merged_table.bbox.x2 = merged_table.bbox.x2.max(t2.bbox.x2);
+                merged_table.bbox.y1 = merged_table.bbox.y1.min(t2.bbox.y1);
+                merged_table.bbox.y2 = merged_table.bbox.y2.max(t2.bbox.y2);
+
+                // Re-extract text for the merged bbox
+                let text_parts = self.extract_text_in_rect(
+                    text_elements,
+                    merged_table.bbox.x1,
+                    merged_table.bbox.y1,
+                    merged_table.bbox.x2,
+                    merged_table.bbox.y2,
+                );
+                merged_table.text = text_parts.join(" ");
+
+                merged_indices.insert(j);
+                merged_count += 1;
+            }
+
+            if merged_count > 1 {
+                println!(
+                    "📊 MERGED {} table halves into one (bbox: {:.1}x{:.1})",
+                    merged_count,
+                    merged_table.bbox.width(),
+                    merged_table.bbox.height()
+                );
+            }
+
+            result.push(merged_table);
+        }
+
+        result
     }
 
     fn group_parallel_lines<'a>(&self, lines: &[&'a PdfLine]) -> Vec<Vec<&'a PdfLine>> {
@@ -253,23 +365,177 @@ impl LatticeEngine {
         let unique_y = self.get_sorted_unique(&y_coords, true); // Descending (Top to Bottom)
         let mut unique_x = self.get_sorted_unique(&x_coords, false); // Ascending (Left to Right)
 
-        // If we have rows (unique_y >= 2) but no columns (unique_x < 2), use geometric clustering
-        // This handles tables without vertical lines but with clear column structure
-        if unique_y.len() >= 2 && unique_x.len() < 2 {
+        // FIRST PRINCIPLES: Only use clustering when grid lines are absent or insufficient
+        //
+        // Rationale:
+        // - When vertical grid lines exist (unique_x >= 2), trust them - PDF author explicitly drew boundaries
+        // - When no vertical lines (unique_x < 2), try clustering to find implicit column boundaries
+        // - Clustering on already-gridded tables causes false crossing_ratio rejections
+        //
+        // This hybrid approach handles both:
+        // 1. Properly gridded tables (trust the lines)
+        // 2. Under-gridded or whitespace tables (infer from text positions)
+
+        if unique_x.len() < 2 {
+            // No vertical lines - try clustering to detect columns
             let detected_x = self.detect_columns_by_clustering(text_elements, &bbox);
+
+            let rows_from_lines = unique_y.len().saturating_sub(1);
+            let cols_from_lines = unique_x.len().saturating_sub(1);
+            let cols_from_clustering = detected_x.len().saturating_sub(1);
+
+            println!(
+                "Table grid: {} rows (from lines), {} cols (from lines), {} cols (from clustering)",
+                rows_from_lines, cols_from_lines, cols_from_clustering
+            );
+
             if detected_x.len() >= 2 {
+                println!(
+                    "Using clustered columns ({} cols) - no vertical grid lines found",
+                    cols_from_clustering
+                );
                 unique_x = detected_x;
-                tracing::info!("Detected {} columns in table bbox {:?}", unique_x.len(), bbox);
             }
+        } else {
+            // Has vertical lines - trust them, don't override with clustering
+            let rows_from_lines = unique_y.len().saturating_sub(1);
+            let cols_from_lines = unique_x.len().saturating_sub(1);
+            println!(
+                "Table grid: {} rows, {} cols (using grid lines - not clustering)",
+                rows_from_lines, cols_from_lines
+            );
         }
 
         // If we don't have a grid, fallback to raw text dump
         if unique_y.len() < 2 || unique_x.len() < 2 {
-            return self.create_fallback_table_block(bbox, text_elements);
+            // If no grid is found, we return None so the text is processed by the standard layout engine.
+            // Returning a fallback block here would force it to be treated as a "Table" block,
+            // which bypasses paragraph/header detection.
+            return None;
+        }
+
+        // Validate table structure using geometric properties (First Principles)
+        // We reject structures that are physically unlikely to be readable tables.
+
+        let table_height = bbox.height();
+        let table_width = bbox.width();
+        let num_rows = unique_y.len().saturating_sub(1);
+        let num_cols = unique_x.len().saturating_sub(1);
+
+        if num_rows == 0 || num_cols == 0 {
+            return None;
+        }
+
+        // FIRST PRINCIPLES: A table must have at least 2 rows (header + data)
+        // A single-row grid is NOT a table - it's a decorative line or header underline.
+        if num_rows < 2 {
+            println!(
+                "Rejecting table: Only {} row(s) - tables require header + data rows",
+                num_rows
+            );
+            return None;
+        }
+
+        // 1. Row Height Analysis
+        // A single table row shouldn't take up half the page (unless it's a layout wrapper).
+        // Standard page height is ~800pt.
+        let avg_row_height = table_height / num_rows as f32;
+        if avg_row_height > 200.0 {
+            // tracing::info!("Rejecting table: Row height too large ({:.1}pt)", avg_row_height);
+            return None;
+        }
+
+        // 2. Column Width Analysis
+        // Columns narrower than ~10pt (approx 2-3 chars) are likely grid noise or vertical separators.
+        let avg_col_width = table_width / num_cols as f32;
+        if avg_col_width < 10.0 {
+            // tracing::info!("Rejecting table: Column width too narrow ({:.1}pt)", avg_col_width);
+            return None;
+        }
+
+        // 3. Aspect Ratio / Density Check
+        // Extreme aspect ratios (e.g. 1 row, 50 cols) are suspicious.
+        let cell_aspect_ratio = avg_col_width / avg_row_height;
+        if cell_aspect_ratio < 0.05 {
+            // Very tall, very narrow cells
+            // tracing::info!("Rejecting table: Extreme cell aspect ratio ({:.3})", cell_aspect_ratio);
+            return None;
+        }
+
+        // 6. Column Crossing Check (Heuristic 6)
+        // If text elements physically cross column boundaries, the vertical lines are likely not column separators.
+        if unique_x.len() > 2 {
+            let mut crossing_count = 0;
+
+            // Filter elements inside table
+            let table_elements: Vec<&TextElement> = text_elements
+                .iter()
+                .filter(|e| {
+                    e.x >= bbox.x1 - 1.0
+                        && e.x <= bbox.x2 + 1.0
+                        && e.y >= bbox.y1 - 1.0
+                        && e.y <= bbox.y2 + 1.0
+                })
+                .collect();
+
+            let total_elements = table_elements.len();
+
+            for elem in &table_elements {
+                let char_width = if elem.font_size > 0.0 {
+                    elem.font_size * 0.5
+                } else {
+                    5.0
+                };
+                let elem_width = elem.text.len() as f32 * char_width;
+                let elem_right = elem.x + elem_width;
+
+                for &boundary in &unique_x[1..unique_x.len() - 1] {
+                    // Skip outer edges
+                    // Check if element crosses boundary with significant overlap
+                    // We use a small tolerance (2.0) to avoid floating point issues
+                    if elem.x < boundary - 2.0 && elem_right > boundary + 2.0 {
+                        crossing_count += 1;
+                        break; // Count once per element
+                    }
+                }
+            }
+
+            if total_elements > 0 {
+                let crossing_ratio = crossing_count as f32 / total_elements as f32;
+                println!(
+                    "Table Check: crossing_ratio={:.2} ({}/{})",
+                    crossing_ratio, crossing_count, total_elements
+                );
+                if crossing_ratio > 0.35 {
+                    // First principles: Word-level text extraction in multi-line cells naturally
+                    // creates apparent "crossings". Threshold of 0.35 (35%) allows legitimate
+                    // multi-line cells while rejecting severely malformed grids.
+                    println!(
+                        "Rejecting table: Text elements cross column boundaries (ratio {:.2})",
+                        crossing_ratio
+                    );
+                    return None;
+                }
+            }
+
+            // 7. Element Count vs Grid Size (Heuristic 7)
+            // If the grid implies many cells but we have very few text elements, it's likely noise.
+            if num_cols * num_rows > 20 && total_elements < 5 {
+                println!(
+                    "Rejecting table: Large grid ({}x{}) with few text elements ({})",
+                    num_rows, num_cols, total_elements
+                );
+                return None;
+            }
         }
 
         // 2. Build Cells and Extract Text
+        // Note: extract_text_in_rect now returns Vec<String> to handle merged cells
         let mut rows = Vec::new();
+        
+        // DEBUG: Show which table we're processing
+        println!("📊 BUILDING TABLE: grid={}x{} (rows x cols)", num_rows, num_cols);
+
         for i in 0..unique_y.len() - 1 {
             let top = unique_y[i];
             let bottom = unique_y[i + 1];
@@ -279,19 +545,249 @@ impl LatticeEngine {
                 let left = unique_x[j];
                 let right = unique_x[j + 1];
 
-                // Find text in this cell
-                // Note: PDF Y increases upwards. So 'top' has higher Y than 'bottom'.
-                // Rect is [left, bottom, right, top]
-                let cell_text = self.extract_text_in_rect(text_elements, left, bottom, right, top);
-                row_cells.push(cell_text);
+                // Extract text - may return multiple strings if cell is merged
+                let cell_texts = self.extract_text_in_rect(text_elements, left, bottom, right, top);
+
+                // FIRST PRINCIPLES: Handle merged cells
+                // If extract_text_in_rect found multiple X-position clusters,
+                // we have a merged cell that should be split into multiple columns
+
+                // DEBUG: Track if this is a split cell
+                if cell_texts.len() > 1 {
+                    println!(
+                        "💥 SPLIT APPLIED: Cell at grid col {} split into {} subcells",
+                        j,
+                        cell_texts.len()
+                    );
+                    for (idx, text) in cell_texts.iter().enumerate() {
+                        println!("   Subcell {}: {:?}", idx, text);
+                    }
+                }
+
+                for text in cell_texts {
+                    row_cells.push(text);
+                }
             }
+
+            // DEBUG: Show row cell count after splitting
+            if row_cells.len() != unique_x.len() - 1 {
+                println!(
+                    "🔥 ROW EXPANDED: grid cols={}, actual cells={}",
+                    unique_x.len() - 1,
+                    row_cells.len()
+                );
+            }
+            
+            // DEBUG: Check for Agentless in row cells
+            let row_text = row_cells.join(" ");
+            if row_text.contains("Agentless") || row_text.contains("25.20") {
+                println!("🔴 ROW WITH AGENTLESS/25.20: {} cells", row_cells.len());
+                for (idx, cell) in row_cells.iter().enumerate() {
+                    println!("   cell[{}]: {:?}", idx, cell);
+                }
+            }
+
             rows.push(row_cells);
         }
 
-        // 3. Format as Markdown Table
+        // FIRST PRINCIPLES: Detect empty header row and look for text above table
+        // PDFs often position table headers ABOVE the grid lines, not inside the first row's bounds.
+        // If first row is entirely empty but data rows exist, look for text just above the table.
+        if !rows.is_empty() && rows.len() >= 2 {
+            let first_row_empty = rows[0].iter().all(|c| c.trim().is_empty());
+            let has_data_rows = rows.iter().skip(1).any(|row| row.iter().any(|c| !c.trim().is_empty()));
+            
+            if first_row_empty && has_data_rows {
+                // Look for text elements just above the table (within ~25pt of top edge)
+                let table_top = bbox.y2; // In PDF coords, y2 is typically the top
+                let search_above = 30.0; // Search 30pt above the table top
+                
+                // Find text elements above the table within the table's X range
+                let mut header_elements: Vec<&TextElement> = text_elements
+                    .iter()
+                    .filter(|elem| {
+                        let is_above = elem.y >= table_top && elem.y <= table_top + search_above;
+                        let is_within_x = elem.x >= bbox.x1 - 5.0 && elem.x <= bbox.x2 + 5.0;
+                        is_above && is_within_x
+                    })
+                    .collect();
+                
+                if !header_elements.is_empty() {
+                    // Sort by X position
+                    header_elements.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal));
+                    
+                    // Try to distribute header elements into columns based on X position
+                    // Use the column boundaries we already have
+                    let num_cols = rows[0].len();
+                    if num_cols >= 2 && unique_x.len() > num_cols {
+                        let mut header_row: Vec<String> = vec![String::new(); num_cols];
+                        
+                        for elem in &header_elements {
+                            // Find which column this element belongs to
+                            for col_idx in 0..num_cols {
+                                let col_left = unique_x[col_idx];
+                                let col_right = unique_x[col_idx + 1];
+                                
+                                if elem.x >= col_left - 5.0 && elem.x < col_right + 5.0 {
+                                    if !header_row[col_idx].is_empty() {
+                                        header_row[col_idx].push(' ');
+                                    }
+                                    header_row[col_idx].push_str(&elem.text);
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        // Only use if we found at least one header
+                        if header_row.iter().any(|h| !h.trim().is_empty()) {
+                            println!(
+                                "📋 DETECTED HEADERS ABOVE TABLE: {:?}",
+                                header_row
+                            );
+                            rows[0] = header_row;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. Content-based Validation (Heuristic 4)
+        // Reject tables that are mostly empty (likely grid noise over whitespace)
+        let total_cells: usize = rows.iter().map(|r| r.len()).sum();
+        let empty_cells: usize = rows
+            .iter()
+            .flatten()
+            .filter(|s| s.trim().is_empty())
+            .count();
+
+        if total_cells > 0 {
+            let empty_ratio = empty_cells as f32 / total_cells as f32;
+            if empty_ratio > 0.9 {
+                // tracing::info!("Rejecting table: Too many empty cells ({:.1}%)", empty_ratio * 100.0);
+                return None;
+            }
+
+            // 5. Text Density / Sentence Check (Heuristic 5)
+            // If a table has many columns but contains long sentences in single cells, it's likely text layout.
+            if num_cols > 3 {
+                // Calculate average cell length for non-empty cells
+                let non_empty_cells: Vec<&String> = rows
+                    .iter()
+                    .flatten()
+                    .filter(|s| !s.trim().is_empty())
+                    .collect();
+
+                // Check for "sentence-like" content (long text with spaces)
+                // Lowered threshold to 40 to catch shorter sentence fragments
+                let has_long_sentences = non_empty_cells
+                    .iter()
+                    .any(|s| s.len() > 40 && s.contains(' '));
+
+                // Also check average length
+                let avg_len = if !non_empty_cells.is_empty() {
+                    non_empty_cells.iter().map(|s| s.len()).sum::<usize>() as f32
+                        / non_empty_cells.len() as f32
+                } else {
+                    0.0
+                };
+
+                println!(
+                    "Table Check: cols={}, empty_ratio={:.2}, long_sentences={}, avg_len={:.1}",
+                    num_cols, empty_ratio, has_long_sentences, avg_len
+                );
+
+                if empty_ratio > 0.5 && (has_long_sentences || avg_len > 30.0) {
+                    println!("Rejecting table: Sparse table with sentence-like content (likely text layout)");
+                    return None;
+                }
+            }
+        }
+
+        // 3. Normalize Column Counts (Handle Merged Cells)
+        // FIRST PRINCIPLES: When cells are split by X-clustering, rows may have different column counts
+        // Find the maximum column count and pad shorter rows with empty cells
+        let max_cols = rows.iter().map(|r| r.len()).max().unwrap_or(0);
+
+        if max_cols == 0 {
+            return None;
+        }
+
+        for row in &mut rows {
+            while row.len() < max_cols {
+                row.push(String::new());
+            }
+        }
+
+        // Update num_cols to reflect actual column count after splitting
+        let num_cols = max_cols;
+        
+        // FIRST PRINCIPLES: Handle merged text in single cells
+        // Some PDFs have one text element containing multiple values that should be in separate columns
+        // Detection: Cell has many whitespace-separated tokens, and row has many empty trailing cells
+        for row in &mut rows {
+            // Check if any cell contains Agentless
+            let has_agentless = row.iter().any(|c| c.contains("Agentless"));
+            if has_agentless {
+                println!("🎯 PROCESSING AGENTLESS ROW: {} cells", row.len());
+                for (idx, cell) in row.iter().enumerate() {
+                    println!("   Cell {}: {:?}", idx, cell);
+                }
+            }
+            
+            let empty_count = row.iter().filter(|s| s.trim().is_empty()).count();
+            let empty_ratio = empty_count as f32 / row.len() as f32;
+            
+            if has_agentless {
+                println!("   Empty ratio: {:.2} ({}/{})", empty_ratio, empty_count, row.len());
+            }
+            
+            // Only process rows that are mostly empty (suggests merged text in one cell)
+            if empty_ratio > 0.3 {
+                // Find cells with many tokens
+                let mut new_row = Vec::new();
+                for cell in row.iter() {
+                    let tokens: Vec<&str> = cell.split_whitespace().collect();
+                    
+                    // If cell has many tokens and looks like merged data (has numbers)
+                    let has_numbers = tokens.iter().any(|t| {
+                        t.parse::<f32>().is_ok() || t.chars().all(|c| c.is_ascii_digit() || c == '.')
+                    });
+                    
+                    if tokens.len() > 5 && has_numbers {
+                        // Split into separate cells
+                        println!("📦 SPLITTING MERGED TEXT: {} tokens from {:?}", tokens.len(), cell);
+                        for token in tokens {
+                            new_row.push(token.to_string());
+                        }
+                    } else {
+                        new_row.push(cell.clone());
+                    }
+                }
+                *row = new_row;
+            }
+        }
+        
+        // Re-normalize columns after splitting
+        let max_cols = rows.iter().map(|r| r.len()).max().unwrap_or(0);
+        for row in &mut rows {
+            while row.len() < max_cols {
+                row.push(String::new());
+            }
+        }
+        let num_cols = max_cols;
+
+        // 4. Format as Markdown Table
         let mut markdown = String::new();
 
         if !rows.is_empty() {
+            // DEBUG: Show rows before formatting
+            for (idx, row) in rows.iter().enumerate() {
+                let row_text = row.join(" | ");
+                if row_text.contains("Agentless") || row_text.contains("25.20") {
+                    println!("🔥 TABLE ROW {}: {} cells, content: {}", idx, row.len(), row_text);
+                }
+            }
+            
             // Header row
             markdown.push_str("| ");
             markdown.push_str(&rows[0].join(" | "));
@@ -314,6 +810,10 @@ impl LatticeEngine {
 
         let mut block = Block::new(BlockType::Table, bbox);
         block.text = markdown;
+        println!(
+            "Accepted table: bbox={:?}, cols={}, rows={}",
+            bbox, num_cols, num_rows
+        );
         Some(block)
     }
 
@@ -350,23 +850,25 @@ impl LatticeEngine {
         // 2. Sort coordinates
         x_coords.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
-        // 3. Compute adaptive epsilon (10th percentile of inter-element distances)
-        let mut distances: Vec<f32> = x_coords
-            .windows(2)
-            .map(|w| w[1] - w[0])
-            .filter(|&d| d > 0.5) // Ignore sub-point distances
-            .collect();
+        // 3. FIRST PRINCIPLES: Use fixed epsilon for column detection
+        // Rationale: We want to cluster X-positions that represent the SAME COLUMN,
+        // not every individual character. A column must be at least wide enough
+        // for a few characters (~20-30pt minimum).
+        //
+        // Using adaptive epsilon from 10th percentile fails because:
+        // - In prose text, characters are <1pt apart
+        // - This creates 50-100+ clusters (one per character position)
+        // - crossing_ratio check then rejects these as invalid tables
+        //
+        // Fixed epsilon of 15pt means:
+        // - Text elements within 15pt horizontally are same column
+        // - Handles slight alignment variations (ragged columns)
+        // - Minimum column width is effectively ~30pt (15pt * 2)
+        let epsilon = 15.0; // Points
 
-        if distances.is_empty() {
-            return Vec::new();
-        }
-
-        distances.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let p10_idx = ((distances.len() as f32 * 0.10).ceil() as usize).min(distances.len() - 1);
-        let epsilon = distances[p10_idx];
-
-        // 4. Apply DBSCAN clustering
-        let clusters: Vec<Vec<f32>> = dbscan_1d(&x_coords, epsilon, 1);
+        // 4. Apply DBSCAN clustering with min_samples=2
+        // This requires at least 2 elements to form a column (reject single outliers)
+        let clusters: Vec<Vec<f32>> = dbscan_1d(&x_coords, epsilon, 2);
 
         // 5. Extract column boundaries (cluster centroids)
         let mut col_boundaries: Vec<f32> = Vec::new();
@@ -502,6 +1004,9 @@ impl LatticeEngine {
         unique
     }
 
+    /// Extract text from cell, detecting merged cells by X-position clustering.
+    /// Returns Vec<String> where each element is text from one logical column.
+    /// Single-column cells return Vec with one element.
     fn extract_text_in_rect(
         &self,
         text_elements: &[TextElement],
@@ -509,48 +1014,124 @@ impl LatticeEngine {
         min_y: f32,
         max_x: f32,
         max_y: f32,
-    ) -> String {
-        // Use center-point containment with moderate tolerance
-        // Reduced from original 2.0pt but increased from 1.0pt to 1.5pt
-        // Balance: prevent adjacent cell pollution while handling PDF coordinate imprecision
+    ) -> Vec<String> {
         let tol = 1.5;
 
         let mut contained: Vec<&TextElement> = text_elements
             .iter()
             .filter(|elem| {
-                let cx = elem.x;
-                let cy = elem.y;
-                
-                // Center-point based containment check
-                // This is imperfect (doesn't account for glyph width) but TextElement
-                // doesn't provide bbox information, so we use center + tolerance
-                cx >= min_x - tol && cx <= max_x + tol && 
-                cy >= min_y - tol && cy <= max_y + tol
+                let inside = elem.x >= min_x - tol
+                    && elem.x <= max_x + tol
+                    && elem.y >= min_y - tol
+                    && elem.y <= max_y + tol;
+                inside
             })
             .collect();
 
-        // Sort by Y (descending for top-to-bottom), then X (ascending for left-to-right)
-        // Removed 5pt Y-binning: use exact Y coordinates with 1pt threshold for same-row detection
+        if contained.is_empty() {
+            return vec![String::new()];
+        }
+
+        // Sort by Y then X
         contained.sort_by(|a, b| {
-            // Use 1pt threshold instead of 5pt binning for same-row detection
-            // This prevents vertical spillover while handling typical baseline variations
             if (a.y - b.y).abs() < 1.0 {
-                // Same row - sort by X ascending (left to right)
                 a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal)
             } else {
-                // Different rows - sort by Y descending (top to bottom in PDF coordinates)
                 b.y.partial_cmp(&a.y).unwrap_or(std::cmp::Ordering::Equal)
             }
         });
 
-        let mut text = String::new();
-        for (i, elem) in contained.iter().enumerate() {
-            if i > 0 {
-                text.push(' ');
-            }
-            text.push_str(&elem.text);
+        // Filter decorative text
+        let filtered: Vec<&TextElement> = contained
+            .into_iter()
+            .filter(|elem| {
+                let is_decorative = elem.text.len() > 1
+                    && elem
+                        .text
+                        .chars()
+                        .all(|c| !c.is_alphanumeric() && !c.is_whitespace());
+                !is_decorative
+            })
+            .collect();
+
+        if filtered.is_empty() {
+            return vec![String::new()];
         }
-        text
+        
+        // DEBUG: Show cells containing specific text
+        let joined_text = filtered.iter().map(|e| e.text.as_str()).collect::<Vec<_>>().join(" ");
+        if joined_text.contains("Agentless") || joined_text.contains("25.20") {
+            println!("📋 TARGET CELL: bbox=[{:.1},{:.1},{:.1},{:.1}], {} elems", 
+                     min_x, min_y, max_x, max_y, filtered.len());
+            println!("   text: {:?}", joined_text);
+            for (idx, elem) in filtered.iter().enumerate() {
+                println!("   [{}] x={:.1}, text={:?}", idx, elem.x, elem.text);
+            }
+        }
+
+        // FIRST PRINCIPLES: Detect merged cells by X-position clustering
+        // Problem: PDF has one grid cell containing text at multiple X-positions
+        // Solution: Cluster by X, treat each cluster as separate logical cell
+
+        // Cluster by X-position (20pt tolerance for same column)
+        let epsilon = 20.0;
+        let x_coords: Vec<f32> = filtered.iter().map(|e| e.x).collect();
+        
+        let clusters = dbscan_1d(&x_coords, epsilon, 1);
+
+        if clusters.len() > 1 {
+            println!(
+                "  → Merged cell detected: {} X-position clusters in cell bbox [{:.1}, {:.1}]",
+                clusters.len(),
+                min_x,
+                max_x
+            );
+        }
+
+        if clusters.len() <= 1 {
+            // Single column - return as one string
+            let text: String = filtered
+                .iter()
+                .map(|e| e.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
+            return vec![text];
+        }
+
+        // Multiple columns detected - this is a MERGED CELL
+        // Sort clusters by leftmost X-coordinate
+        let mut sorted_clusters: Vec<(f32, Vec<f32>)> = clusters
+            .iter()
+            .map(|cluster| {
+                let min_x = cluster.iter().fold(f32::INFINITY, |acc, &x| acc.min(x));
+                (min_x, cluster.clone())
+            })
+            .collect();
+        sorted_clusters.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+
+        // Assign each element to its cluster
+        let mut cluster_texts: Vec<Vec<&TextElement>> = vec![Vec::new(); sorted_clusters.len()];
+        for elem in &filtered {
+            // Find which cluster this element belongs to
+            for (cluster_id, (_min_x, cluster)) in sorted_clusters.iter().enumerate() {
+                if cluster.iter().any(|&x| (x - elem.x).abs() < 0.5) {
+                    cluster_texts[cluster_id].push(elem);
+                    break;
+                }
+            }
+        }
+
+        // Build result strings, filtering empty clusters
+        cluster_texts
+            .iter()
+            .map(|elems| {
+                elems
+                    .iter()
+                    .map(|e| e.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            })
+            .collect()
     }
 
     fn create_fallback_table_block(

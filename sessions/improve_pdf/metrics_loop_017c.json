@@ -1,0 +1,59 @@
+{
+  "summary": {
+    "table_accuracy": 27.19893110642983,
+    "style_accuracy": 35.508965272024476,
+    "robustness": 100.0,
+    "performance": 90.0,
+    "composite": 44.08315855138172,
+    "document_count": 5,
+    "crash_count": 0,
+    "invalid_markdown_count": 0
+  },
+  "documents": [
+    {
+      "name": "2900_Goyal_et_al",
+      "table_accuracy": 98.27586206896552,
+      "style_accuracy": 37.57575757575757,
+      "robustness": 100.0,
+      "performance_ms": null,
+      "composite": 73.34064785788924,
+      "errors": []
+    },
+    {
+      "name": "AlphaEvolve",
+      "table_accuracy": 30.39982142992588,
+      "style_accuracy": 50.28264727524564,
+      "robustness": 100.0,
+      "performance_ms": null,
+      "composite": 51.27298748206861,
+      "errors": []
+    },
+    {
+      "name": "agent_2510.09244v1",
+      "table_accuracy": 0.0,
+      "style_accuracy": 58.769506580287654,
+      "robustness": 100.0,
+      "performance_ms": null,
+      "composite": 42.507802632115066,
+      "errors": []
+    },
+    {
+      "name": "ccn_2512.21804v1",
+      "table_accuracy": 0.0,
+      "style_accuracy": 7.017543859649124,
+      "robustness": 100.0,
+      "performance_ms": null,
+      "composite": 21.80701754385965,
+      "errors": []
+    },
+    {
+      "name": "one_tool_2512.20957v2",
+      "table_accuracy": 7.318972033257746,
+      "style_accuracy": 23.899371069182386,
+      "robustness": 100.0,
+      "performance_ms": null,
+      "composite": 31.487337240976053,
+      "errors": []
+    }
+  ]
+}

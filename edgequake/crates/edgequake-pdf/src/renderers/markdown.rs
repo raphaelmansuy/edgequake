@@ -444,7 +444,53 @@ impl MarkdownRenderer {
             result = result.replace("\r\n", "\n").replace('\r', "\n");
         }
 
+        // FIRST PRINCIPLES: Escape leading pipe characters that might be misinterpreted as table syntax.
+        // Lines starting with | that are NOT followed by another | (i.e., not table rows)
+        // should have the | escaped to prevent markdown table rendering.
+        // Examples to escape: "|Y ∩ *Y*ˆ ∗|", "| symbol tables..."
+        // Examples to preserve: "| col1 | col2 |" (actual table rows)
+        result = self.escape_non_table_pipes(&result);
+
         result.trim().to_string()
+    }
+
+    /// Escape leading pipe characters that are not part of markdown tables.
+    /// A markdown table row must have: |col1|col2| or | col1 | col2 |
+    /// A single leading | followed by text (no second |) is NOT a table.
+    fn escape_non_table_pipes(&self, text: &str) -> String {
+        let mut result = String::with_capacity(text.len());
+        
+        for line in text.lines() {
+            let trimmed = line.trim();
+            
+            // Check if line starts with | but is NOT a valid table row
+            if trimmed.starts_with('|') {
+                // A valid table row should have at least 2 pipe characters
+                // (e.g., "| cell |" has pipes at start and end)
+                let pipe_count = trimmed.chars().filter(|&c| c == '|').count();
+                
+                // Also check for separator row pattern: |---|---|
+                let is_separator = trimmed.chars().all(|c| c == '|' || c == '-' || c == ':' || c.is_whitespace());
+                
+                // If only 1 pipe, or the line doesn't have proper table structure, escape it
+                if pipe_count < 2 && !is_separator {
+                    // Escape the leading pipe
+                    result.push_str(&line.replacen("|", r"\|", 1));
+                    result.push('\n');
+                    continue;
+                }
+            }
+            
+            result.push_str(line);
+            result.push('\n');
+        }
+        
+        // Remove trailing newline if original didn't have it
+        if !text.ends_with('\n') && result.ends_with('\n') {
+            result.pop();
+        }
+        
+        result
     }
 
     /// Normalize excessive whitespace in final output.

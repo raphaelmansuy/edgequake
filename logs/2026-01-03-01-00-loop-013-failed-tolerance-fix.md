@@ -32,15 +32,18 @@ Friday, January 3, 2026 01:00:00 HKT
 ## Next Steps
 
 1. **Add comprehensive debug logging**:
+
    - Log cell boundaries for each cell [i][j]
    - Log which text elements pass containment check
    - Identify coordinate mismatch pattern
 
 2. **Investigate column detection path**:
+
    - Check if tables use vertical lines or clustering
    - Determine why text only appears in column 0
 
 3. **Create minimal reproduction test**:
+
    - Extract single table from one_tool PDF
    - Unit test extract_text_in_rect() with known coordinates
    - Isolate the exact failure mode
@@ -62,12 +65,14 @@ Friday, January 3, 2026 01:00:00 HKT
 ## Metrics Summary
 
 **Before Loop 013:**
+
 - Composite: 32.5/100
 - Table Accuracy: 2.4%
 - Style Accuracy: 31.5%
 - Tests: 113/113 ✅
 
 **After Loop 013:**
+
 - Composite: 32.5/100 (NO CHANGE)
 - Table Accuracy: 2.4% (NO CHANGE)
 - Style Accuracy: 31.5% (NO CHANGE)
@@ -86,12 +91,14 @@ Friday, January 3, 2026 01:00:00 HKT
 ## Problem Statement for Loop 014
 
 **What we know:**
+
 - Column boundaries ARE being detected (correct number of `|` separators)
 - Text assignment IS broken (all data in first column)
 - Tolerance tuning DOES NOT help (tried 0.5-1.5pt, no difference)
 - Y-binning removal DID help conceptually (better row detection)
 
 **What we don't know:**
+
 - Are tables using line-based or clustering-based column detection?
 - What are the actual cell boundary coordinates?
 - What are the actual text element coordinates?

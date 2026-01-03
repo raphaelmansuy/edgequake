@@ -16,7 +16,7 @@ Pankaj Kumar Goyal1, Sumit Singh1 , 2 ,*, and Uma Shanker Tiwary1
 
 *Correspondence: Sumit Singh, sumitrsch@gmail.com
 
-**Abstract.**This paper presents the participation of the silpnlp team in the LLMs4OL 2025
+**Abstract. This paper presents the participation of the silp**nlp team in the LLMs4OL 2025
 
 Challenge, where we addressed four core tasks in ontology learning: Text2Onto (Task
 
@@ -43,8 +43,6 @@ tasks like Term Typing and Taxonomy Discovery, they struggle with semantically
 
 ---
 
-Goyal et al.|Open Conf Proc 6 (2025) "LLMs4OL 2025: The 2nd Large Language Models for Ontology Learning Challenge at the
-
 complex relation extraction, where hybrid or knowledge-enriched methods yield better performance.
 
 LLMs4OL Challenge [1], which introduced a more comprehensive benchmark composed 
@@ -53,7 +51,7 @@ Taxonomic Relation Extraction. These tasks together aimed to facilitate the tran
 
 from unstructured text to structured ontologies, encompassing entity and class extraction,
 
-representational strengths of state-of-the-art LLMs to address the complexity of these ontology learning tasks. Specifically, we employed domain-specialized transformer models such as pranav-s/MaterialsBERT [2],dmis-lab/biobert-v1.1 [3], and LLMs from grok.co and grok.com [4]. These models were selected for their domain alignment
+representational strengths of state-of-the-art LLMs to address the complexity of these ontology learning tasks. Specifically, we employed domain-specialized transformer models such as pranav-s/MaterialsBERT [2],dmis-lab/biobert-v1.1 [3], and LLMs from grok.coand grok.com [4]. These models were selected for their domain alignment
 
 with the sub-tasks of the challenge, allowing us to form semantically coherent clusters
 
@@ -91,12 +89,8 @@ The results across multiple subtasks confirm that clustering-driven representati
 
 Details of the primary tasks: Text2Onto, Term Typing, Taxonomy Discovery, and
 
-24th ISWC"
-
 
 ---
-
-Goyal et al.|Open Conf Proc 6 (2025) "LLMs4OL 2025: The 2nd Large Language Models for Ontology Learning Challenge at the
 
 ### 1.4 Task D: Non-Taxonomic Relation Extraction
 
@@ -146,28 +140,20 @@ demonstrating promising results in term typing and relationship extraction, but 
 
 [12] propose a RAG-based pipeline for automated ontology learning using LLMs,
 
-24th ISWC"
-
 
 ---
-
-Goyal et al.|Open Conf Proc 6 (2025) "LLMs4OL 2025: The 2nd Large Language Models for Ontology Learning Challenge at the
 
 ## 3. Methodology
 
 ### 3.1 Methodology for Task A: Text-to-Ontology (Text2Onto)
 
-Our approach targets three specialized domains-ecology, engineering, and scholrecord contains a unique document identifier, title, and textual body. These corpora were
-
-arly-and leverages the inferential capabilities of the large language model (LLM) gemini-2.5-flash. The overall pipeline is organized into three primary phases:
+ gemini-2.5-flash. The overall pipeline is organized into three primary phases:
 
 #### 3.1.1 Corpus Preparation and Representation
 
-Domain-specific corpora were provided in JSON Lines (.jsonl) format, where each
+Domain-specific corpora were provided in JSON Lines (.jsonl ) format, where each record contains a unique document identifier, title, and textual body. These corpora were uniformly processed across methods.
 
-uniformly processed across methods.
-
-For **Method B**, we constructed a knowledge-enriched training set by explicitly
+For Method B, we constructed a knowledge-enriched training set by explicitly
 
 associating each training document with validated term-type (ontology) mappings. This yielded a structured, searchable exemplar database that supports semantic retrieval in subsequent steps.
 
@@ -195,7 +181,8 @@ enriches prompts with highly relevant, domain-specific exemplars retrieved from 
 
 For each candidate document, the prompt included:
 
- • Clear instructions to identify and extract terms alongside their corresponding types.
+•Clear instructions to identify and extract terms alongside their corresponding types.
+
  • A one-shot example demonstrating the expected input-output JSON format.
  • A strict constraint preventing the generation of any terms or types not present in
 
@@ -207,21 +194,15 @@ the source text to minimize hallucination.
 
 The retrieval process involves:
 
-24th ISWC"
-
 
 ---
 
-Goyal et al.|Open Conf Proc 6 (2025) "LLMs4OL 2025: The 2nd Large Language Models for Ontology Learning Challenge at the
-
- 1. **Text Vectorization:**Concatenating the title and body of each document, the entire
+ 1. Text Vectorization:Concatenating the title and body of each document, the entire
 
 corpus was vectorized using the**Term Frequency-Inverse Document Frequency**
 
-**(TF-IDF)**algorithm.
-
- 2. **Similarity Computation:**For each test document, cosine similarity was computed
- 3. **Best-Match Retrieval:**The highest scoring training document was selected as the
+ 2. Similarity Computation:For each test document, cosine similarity was computed
+ 3. Best-Match Retrieval:The highest scoring training document was selected as the
 
 #### 3.1.3 LLM Inference and Knowledge Consolidation
 
@@ -247,6 +228,8 @@ defined lexical clusters, computed separately for training and test sets.
 
 lexical overlap. The union of semantic types within this cluster formed a candidate type pool for that term. For test clusters, candidate pools of member terms were merged to form a final candidate type list. Terms lacking lexical matches defaulted to the full set of training types to maximize recall.
 
+**(TF-IDF) algorithm.**
+
 against all training document vectors.
 
 exemplar for prompt augmentation.
@@ -269,12 +252,8 @@ The extracted term-type pairs were consolidated across documents and methods,
 
 For each test term, the best matching training cluster was selected based on maximal
 
-24th ISWC"
-
 
 ---
-
-Goyal et al.|Open Conf Proc 6 (2025) "LLMs4OL 2025: The 2nd Large Language Models for Ontology Learning Challenge at the
 
 #### 3.2.2 LLM-based Semantic Disambiguation and Final Classification
 
@@ -298,8 +277,9 @@ Large Language Model (LLM)-based relation extraction.
 
 We explored two clustering strategies:
 
- • **Lexical-Based Clustering:**Using a training set of known parent-child pairs, we
- • **Semantic-Based Clustering (Preferred):** Terms were embedded into a high-
+•Lexical-Based Clustering: Using a training set of known parent-child pairs, we
+
+•Semantic-Based Clustering (Preferred): Terms were embedded into a high-
 
 #### 3.3.2 Phase 2: Fine-Grained Relation Extraction via LLM
 
@@ -312,7 +292,8 @@ The prompt engineered for the LLM included:
 materials, and units.
 
  • Explicit scoping of domain knowledge relevant to the task.
- • Constrained classification instructions requiring selection solely from the candidate
+
+•Constrained classification instructions requiring selection solely from the candidate
 
 type pool.
 
@@ -329,24 +310,20 @@ constructed a lexical scaffold via a Union-Find graph algorithm connecting paren
 
 dimensional vector space using domain-specific transformer models (e.g., SciBERT, BioBERT). The K-Means algorithm, with cluster count chosen by the Elbow Method [13] on Within-Cluster Sum of Squares (WCSS), partitioned terms into semantically coherent clusters.
 
-prompt togemini-2.5-flash instructed the model to:
+prompt to gemini-2.5-flashinstructed the model to:
 
- • Recognize that terms belong to the Schema.org vocabulary and understand its
+•Recognize that terms belong to the Schema.org vocabulary and understand its
 
 hierarchical semantics.
 
  • Extract explicit parent-child (superclass-subclass) relationships within the cluster.
 
-24th ISWC"
-
- • Follow structured JSON output formatting, listing pairs as objects withparent and
+•Follow structured JSON output formatting, listing pairs as objects withparent and
 
 child keys.
 
 
 ---
-
-Goyal et al.|Open Conf Proc 6 (2025) "LLMs4OL 2025: The 2nd Large Language Models for Ontology Learning Challenge at the
 
 #### 3.3.3 Phase 3: Consolidation
 
@@ -354,7 +331,9 @@ The extracted parent-child pairs from all clusters were aggregated to form a com
 
 taxonomic hierarchy. This final structure represents the inferred superclass-subclass organization of the original term list.
 
-**Note:** The semantic clustering strategy is preferred due to its ability to capture conceptual similarity beyond surface lexical overlap, leading to more coherent clusters and improved hierarchical inference.
+**Note: The semantic clustering strategy is preferred due to its ability to capture conceptual**
+
+similarity beyond surface lexical overlap, leading to more coherent clusters and improved hierarchical inference.
 
 #### 3.3.4 Methodology for ask D: Non-Taxonomic Relation Extraction
 
@@ -380,9 +359,7 @@ The process begins with the challenge of an uncontextualized set of entities. Gi
 
 list of terms and a list of potential relationship types, the first objective is to identify the underlying knowledge domain.
 
- 2. **Process**: We prompt a large language model ( gemini-2.5-flash) to act as a
-
-cise 'domain name' (e.g., "Food Science and Production") and a detailed 'domain description'. This description outlines the general area of study, the nature of
+ 2. Process: We prompt a large language model ( gemini-2.5-flash) to act as a
 
 #### 3.3.7 Phase 2: LLM-Inferred Semantic Clustering
 
@@ -391,28 +368,22 @@ With the domain now explicitly defined, the next phase aims to group the terms i
 semantically coherent clusters. This step reduces the problem space from an all-pairs comparison to a more focused, intra-cluster analysis.
 
  • Use provided illustrative examples to guide accurate relationship extraction.
- 1. **Input**: A list of terms and a list of candidate relationship names.
+ 1. Input: A list of terms and a list of candidate relationship names.
 
 knowledge representation expert. The model is instructed to analyze the collective semantics of the terms and relations to deduce their common theme or scientific field.
 
- 3. **Output**: The model generates a structured JSON object containing a con-
+ 3. Output: The model generates a structured JSON object containing a con-
 
-the concepts, and the typical function of the relationships. This inferred context is critical, as it serves as the foundational knowledge base for all subsequent steps.
-
-24th ISWC"
+ the concepts, and the typical function of the relationships. This inferred context is critical, as it serves as the foundational knowledge base for all subsequent steps.
 
 
 ---
 
-Goyal et al.|Open Conf Proc 6 (2025) "LLMs4OL 2025: The 2nd Large Language Models for Ontology Learning Challenge at the
-
-24th ISWC"
-
- 1. **Input**: The list of terms, the list of candidate relationships, and the domain context
+ 1. Input: The list of terms, the list of candidate relationships, and the domain context
 
 (name and description) generated in Phase 1.
 
- 2. **Process**: A new prompt is sent to the LLM. This prompt provides the full domain
+ 2. Process: A new prompt is sent to the LLM. This prompt provides the full domain
 
 context and instructs the model to act as an ontology reasoner. The LLM is tasked
 
@@ -420,7 +391,7 @@ with building an implicit knowledge graph where terms are nodes. It evaluates ev
 
 pair of terms, and if its internal knowledge of the identified domain suggests a valid connection exists via one of the specified relationship types, an undirected edge is formed. The model then identifies the connected components of this graph.
 
- 3. **Output**: The model returns a list of lists, where each inner list represents a cluster
+ 3. Output: The model returns a list of lists, where each inner list represents a cluster
 
 of semantically related terms. Terms with no inferred connections form their own singleton clusters.
 
@@ -428,17 +399,17 @@ of semantically related terms. Terms with no inferred connections form their own
 
 This final phase performs the high-precision task of explicitly defining the relationships within the semantically-related groups identified in the previous step.
 
- 1. **Input**: Each individual term cluster and the list of candidate relationships, again
+ 1. Input: Each individual term cluster and the list of candidate relationships, again
 
 contextualized by the domain description.
 
- 2. **Process**: To ensure the highest degree of reasoning, we employ a more powerful
+ 2. Process: To ensure the highest degree of reasoning, we employ a more powerful
 
-model (gemini-2.5-pro) for this task. For each cluster, a new prompt instructs the 
+model ( gemini-2.5-pro) for this task. For each cluster, a new prompt instructs the 
 
 that can be formed using the provided list of relationships.
 
- 3. **Output**: The model returns a list of relationship triplets for each cluster. These are
+ 3. Output: The model returns a list of relationship triplets for each cluster. These are
 
 then aggregated into a single, comprehensive list of all non-taxonomic relationships discovered in the corpus.
 
@@ -454,10 +425,10 @@ This phase converts the list of terms into a numerical representation that captu
 
 semantic meaning.
 
- 1. **Input**: A list of terms.
- 2. **Process**: We utilize a domain-specific, pre-trained transformer model (e.g.,
+ 1. Input: A list of terms.
+ 2. Process: We utilize a domain-specific, pre-trained transformer model (e.g.,
 
-BioBERT for biological terms,RecipeBERT for food-related terms) to generate a high-dimensional vector embedding for each term. This process maps terms with similar meanings to points that are close to each other in vector space.
+BioBERT for biological terms, RecipeBERTfor food-related terms) to generate a high-dimensional vector embedding for each term. This process maps terms with similar meanings to points that are close to each other in vector space.
 
 #### 3.4.2 Phase 2: Unsupervised Algorithmic Clustering
 
@@ -465,18 +436,69 @@ With the terms represented as vectors, we apply a standard clustering algorithm 
 
 group them based on semantic proximity.
 
- 1. **Input**: The term embeddings generated in the previous step.
- 2. **Process**: We employ the **K-Means** clustering algorithm. To determine the optimal
+ 1. Input: The term embeddings generated in the previous step.
+ 2. Process: We employ the **K-Means** clustering algorithm. To determine the optimal
 
-number of clusters (*k*), we use the**Elbow Method**, which analyzes the Within-
-
-
----
+number of clusters (*k ), we use the Elbow Method*, which analyzes the Within-
 
 
 ---
 
-Goyal et al.|Open Conf Proc 6 (2025) "LLMs4OL 2025: The 2nd Large Language Models for Ontology Learning Challenge at the
+Cluster Sum of Squares (WCSS) across a range of*k values to find the point of*
+
+ 3. Output: The algorithm partitions the terms into *k distinct clusters based on the*
+
+#### 3.4.3 Phase 3: LLM-based Intra-Cluster Relation Identification
+
+This final step is analogous to Phase 3 of Method A. Having obtained clusters through
+
+algorithmic means, we now use an LLM for the final, high-precision extraction of relationship triplets within each cluster, following the same prompting and reasoning strategy described in Section 1.1.3.
+
+## 4. Results and Analysis
+
+We evaluated our clustering-driven, LLM-enhanced framework across four major
+
+ontology learning tasks defined in the LLMs4OL 2025 challenge. Table 1 summarizes the F1-scores and rankings achieved in each subtask.
+
+| Task | Sub-task | F1-score | Rank |
+|---|---|---|---|
+| Term Extraction | A1.2 - Scholarly | 0.4578 | 4 |
+| Term Extraction | A1.3 - Engineering | 0.4302 | 6 |
+| Type Extraction | A2.1 - Ecology | 0.5535 | 4 |
+| Type Extraction | A2.2 - Scholarly | 0.2500 | 7 |
+| Type Extraction | A2.3 - Engineering | 0.2545 | 5 |
+| Term Typing | B1 - OBI | 0.8021 | 5 |
+| Term Typing | B2 - MatOnto | 0.4872 | 5 |
+| Term Typing | B3 - SWEET | 0.3297 | 7 |
+| Taxonomy Discovery | C1 - OBI | 0.2273 | 3 |
+| Taxonomy Discovery | C2 - MatOnto | 0.4473 | 4 |
+| Taxonomy Discovery | C5 - SchemaOrg | 0.2609 | 4 |
+| Taxonomy Discovery | C6 - PROCO | 0.2601 | 1 |
+| Taxonomy Discovery | C8 - PO | 0.2106 | 3 |
+| Taxonomy Discovery | C10 - Blind | 0.5735 | 1 |
+| Taxonomy Discovery | C11 - Blind | 0.4684 | 1 |
+| Non-Taxonomic Relation Extraction | D1 - SWEET | 0.6263 | 1 |
+| Non-Taxonomic Relation Extraction | D2 - FoodOn | 0.0084 | 1 |
+| Non-Taxonomic Relation Extraction | D4 - Blind | 0.5051 | 1 |
+
+requiring generalization across unseen domains (e.g., C6-C11 and D1-D4). Notably, our semantic clustering coupled with transformer-based embeddings (e.g., BioBERT, MaterialsBERT) enabled accurate identification of taxonomic and non-taxonomic relationships. The strong performance in blind subtasks (C10, C11, D4) underscores the adaptability of our LLM-inference framework to unknown domains.
+
+- SWEET) exhibited lower F1-scores, revealing limitations in contextual understanding
+
+and type assignment precision, even with clustering assistance. These results affirm that clustering offers structural benefits, but domain adaptation remains essential for enhanced type inference.
+
+diminishing returns.
+
+similarity of their semantic embeddings.
+
+Our model consistently ranked among the top performers, particularly in subtasks
+
+However, subtasks involving domain-specific jargon (e.g., A2.2 - Scholarly and B3
+
+*Table 1. F1-scores and Rankings for Each Sub-task in LLMs4OL 2025*
+
+
+---
 
 varied ontology learning tasks, validating the efficacy of combining clustering with
 
@@ -516,73 +538,99 @@ The authors declare that they have no competing interests.
 
 **References**
 
-Overall, our system demonstrated robustness and competitive performance across
-
-The experimental results confirm that clustering-driven representations, when cou-
-
-Future work will explore fine-tuning with curriculum learning, enhancing prompt
-
 [1] H. Babaei Giglou, J. D'Souza, N. Mihindukulasooriya, and S. Auer, "Llms4ol 2025 overview:
 
 The 2nd large language models for ontology learning challenge",Open Conference
 
-Proceedings, 2025.
-
-24th ISWC"
-
 [2] P. Shetty et al., "A general-purpose material property data extraction pipeline from large
 
-polymer corpora using natural language processing",npj Computational Materials, vol. 9,
+Overall, our system demonstrated robustness and competitive performance across
+
+The experimental results confirm that clustering-driven representations, when coupolymer corpora using natural language processing",npj Computational Materials, vol. 9,
+
+Future work will explore fine-tuning with curriculum learning, enhancing prompt
+
+Proceedings, 2025.
 
 
 ---
 
-Goyal et al.|Open Conf Proc 6 (2025) "LLMs4OL 2025: The 2nd Large Language Models for Ontology Learning Challenge at the
-
-no. 1, p. 52, 2023, Implements and releases MaterialsBERT as 'pranav-s/MaterialsBERT' on Hugging Face. DOI:10.1038/s41524-023-00994-5.
+on Hugging Face. DOI:10.1038/s41524-023-00994-5
 
 [3] J. Lee et al., "Biobert: A pre-trained biomedical language representation model for
 
-biomedical text mining",Bioinformatics, vol. 36, no. 4, pp. 1234-1240, 2020.
+biomedical text mining", Bioinformatics, vol. 36, no. 4, pp. 1234-1240, 2020.
 
-[4] Chat & ask ai: Your advanced ai chatbot, https://askaichat.app/chat, Accessed July 2025. [5] Y. Peng, Y. Mou, B. Zhu, S. Sowe, and S. Decker, "Rwth-dbis at llms4ol 2024 tasks a and
+[4] Chat & ask ai: Your advanced ai chatbot, https://askaichat.app/chat [5] Y. Peng, Y. Mou, B. Zhu, S. Sowe, and S. Decker, "Rwth-dbis at llms4ol 2024 tasks a and
 
-b: Knowledge-enhanced domain-specific continual learning and prompt-tuning of large language models for ontology learning",Open Conference Proceedings, vol. 4, pp. 49-63, Oct. 2024. DOI:10.52825/ocp.v4i.2491. [Online]. Available: https://www.tib-op.org/ojs/ind ex.php/ocp/article/view/2491.
+b: Knowledge-enhanced domain-specific continual learning and prompt-tuning of large language models for ontology learning", Oct. 2024. DOI:10.52825/ocp.v4i.2491. [Online]. Available: ex.php/ocp/article/view/2491
 
-[6] P. Kumar Goyal, S. Singh, and U. Shanker Tiwary, "Silpnlp at llms4ol 2024 tasks a, b, and
+[6] P. Kumar Goyal, S. Singh, and U. Shanker Tiwary, "Silp
 
-c: Ontology learning through prompts with llms",Open Conference Proceedings, vol. 4, pp. 31-38, Oct. 2024. DOI:10.52825/ocp.v4i.2485. [Online]. Available: https://www.tib-op .org/ojs/index.php/ocp/article/view/2485.
+c: Ontology learning through prompts with llms", pp. 31-38, Oct. 2024. DOI:10.52825/ocp.v4i.2485. [Online]. Available: .org/ojs/index.php/ocp/article/view/2485
 
 [7] H. Abi Akl, "Dsti at llms4ol 2024 task a: Intrinsic versus extrinsic knowledge for type
 
-classification: Applications on wordnet and geonames datasets",Open Conference Proceedings, vol. 4, pp. 93-101, Oct. 2024. DOI: 10 . 52825 / ocp . v4i . 2492. [Online].
+classification: Applications on wordnet and geonames datasets", Proceedings, vol. 4, pp. 93-101, Oct. 2024. DOI:
 
-Available:https://www.tib-op.org/ojs/index.php/ocp/article/view/2492.
+Available: https://www.tib-op.org/ojs/index.php/ocp/article/view/2492
 
 [8] A. Barua, S. Saki Norouzi, and P. Hitzler, "Daselab at llms4ol 2024 task a: Towards term
 
-typing in ontology learning",Open Conference Proceedings, vol. 4, pp. 77-84, Oct. 2024. DOI: 10.52825/ocp.v4i.2489. [Online]. Available: https://www.tib-op.org/ojs/index.php/ocp
+, vol. 4, pp. 77-84, Oct. 2024.
+
+DOI: 10.52825/ocp.v4i.2489. [Online]. Available:
 
 /article/view/2489.
 
 [9] T. Phuttaamart, N. Kertkeidkachorn, and A. Trongratsameethong, "The ghost at llms4ol
 
-2024 task a: Prompt-tuning-based large language models for term typing",Open Conference Proceedings, vol. 4, pp. 85-91, Oct. 2024. DOI: 10 . 52825 / ocp . v4i . 2486. [Online]. Available:https://www.tib-op.org/ojs/index.php/ocp/article/view/2486.
+2024 task a: Prompt-tuning-based large language models for term typing", , vol. 4, pp. 85-91, Oct. 2024. DOI: [Online]. Available: https://www.tib-op.org/ojs/index.php/ocp/article/view/2486
 
-Taxonomy discovery in ontologies using bert and llama 3",Open Conference Proceedings, vol. 4, pp. 103-111, Oct. 2024. DOI:10.52825/ocp.v4i.2483. [Online]. Available: https://w ww.tib-op.org/ojs/index.php/ocp/article/view/2483.
+Taxonomy discovery in ontologies using bert and llama 3", vol. 4, pp. 103-111, Oct. 2024. DOI:10.52825/ocp.v4i.2483. [Online]. Available: ww.tib-op.org/ojs/index.php/ocp/article/view/2483
 
 [11] C. A. Atezong Ymele and A. Jiomekong, "Tsotsalearning at llms4ol tasks a and b
 
-: Combining rules to large language model for ontology learning",Open Conference Proceedings, vol. 4, pp. 65-76, Oct. 2024. DOI: 10.52825/ocp.v4i.2484. [Online]. Available: https://www.tib-op.org/ojs/index.php/ocp/article/view/2484.
+: Combining rules to large language model for ontology learning",
+
+Proceedings, vol. 4, pp. 65-76, Oct. 2024. DOI: https://www.tib-op.org/ojs/index.php/ocp/article/view/2484
 
 [12] M. Sanaei, F. Azizi, and H. Babaei Giglou, "Phoenixes at llms4ol 2024 tasks a, b, and c:
 
-Retrieval augmented generation for ontology learning",Open Conference Proceedings, vol. 4, pp. 39-47, Oct. 2024. DOI:10.52825/ocp.v4i.2482. [Online]. Available: https://www .tib-op.org/ojs/index.php/ocp/article/view/2482.
+Retrieval augmented generation for ontology learning", vol. 4, pp. 39-47, Oct. 2024. DOI: 10.52825/ocp.v4i.2482. [Online]. Available: .tib-op.org/ojs/index.php/ocp/article/view/2482
 
-the elbow method and early centroid determination based on mean and median formula",
+the elbow method and early centroid determination based on mean and median formula", in Proceedings of the 2nd International Seminar on Science and Technology (ISSTEC
 
-24th ISWC"
+2019), Atlantis Press, 2020, pp. 121-129, ISBN: 978-94-6239-168-0. DOI: r.k.201010.019. [Online]. Available: https://doi.org/10.2991/assehr.k.201010.019
 
-inProceedings of the 2nd International Seminar on Science and Technology (ISSTEC
+, Accessed July 2025.
 
-2019), Atlantis Press, 2020, pp. 121-129, ISBN: 978-94-6239-168-0. DOI:10.2991/asseh r.k.201010.019. [Online]. Available: https://doi.org/10.2991/assehr.k.201010.019.
+https://www.tib-op.org/ojs/ind
+
+nlp at llms4ol 2024 tasks a, b, and
+
+, vol. 4,
+
+https://www.tib-op
+
+https://www.tib-op.org/ojs/index.php/ocp
+
+Open
+
+https://w
+
+10.52825/ocp.v4i.2484. [Online]. Available:
+
+https://www
+
+no. 1, p. 52, 2023, Implements and releases MaterialsBERT as 'pranav-s/MaterialsBERT'
+
+Open Conference
+
+typing in ontology learning", Open Conference Proceedings
+
+Conference Proceedings
+
+Open Conference
+
+10.2991/asseh

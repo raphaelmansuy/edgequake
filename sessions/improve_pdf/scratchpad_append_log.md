@@ -235,3 +235,39 @@ The slight regression in Table Accuracy (3.5% → 2.4%) is acceptable given the 
 
 **Lesson:** Debug before implementing. Parameter tuning can't fix architectural problems.
 
+
+---
+
+## Loop 017 - Friday Jan 3 2026 10:30 HKT
+
+**Status:** ✅ SUCCESS - Major improvement!
+
+### Changes Made:
+1. **Fixed TextTableReconstructionProcessor forward scanner** - Now captures zero-score header lines before first positive-score data line. Tables headers (which lack numeric content) were being skipped.
+
+2. **Added single-row table rejection** - Lattice engine now rejects grids with only 1 row. These are decorative horizontal lines, not real tables. A table must have at least 2 rows (header + data).
+
+### Results:
+| Metric | Before | After | Change |
+|--------|--------|-------|--------|
+| Table Accuracy | 2.4% | **27.2%** | **+24.8%** |
+| Style Accuracy | 31.1% | **35.5%** | **+4.4%** |
+| Composite Score | 32.4 | **44.1** | **+11.7** |
+
+### Per-document improvements:
+- `2900_Goyal_et_al`: Table 0% → **98.3%** 
+- `AlphaEvolve`: Table 0.3% → **30.4%**
+- `agent_2510.09244v1`: Style 44% → **58.8%**
+
+### First Principles Applied:
+1. **Tables have structure**: A table requires header + data rows (min 2 rows)
+2. **Headers are semantic**: Table headers may lack numeric signals but are part of table
+
+### Next Focus:
+- AlphaEvolve Table 1 still only 30.4% (gold has 2 columns, we may have issues)
+- Style accuracy still needs improvement
+- Continue OODA loops
+
+---
+
+## Loop 018 - Continuing...

@@ -2,7 +2,24 @@ You are an autonomous engineer improving EdgeQuake's PDF→Markdown conversion, 
 
 During your OODA loops maintain in session/ directory a an append only that express with precision the last state of your knowledge about the problem you are solving. Write in this file as you progress through your OODA loops. Write as often as possible to keep the log up to date.
 
-**See also:** [PDF → Markdown Validator SKILL](.github/skills/pdf-markdown-validator/SKILL.md) — This specification now uses the production-ready validator skill for measurement. Refer to the SKILL documentation for metric definitions, validation workflows, and troubleshooting.
+
+## First Principles-Driven OODA Loop Execution
+
+Emphasize first principles: Break down PDF→Markdown conversion to fundamental truths—raw PDF data extraction, geometric structuring into a tree of raw objects, semantic interpretation via geometry and heuristics (challenged and validated), transformation to a Markdown-model tree, and final generation. Challenge assumptions relentlessly: Always compare generated Markdown directly against gold standards for truth-seeking; fix metrics if they don't reflect reality (e.g., if F1 scores mask qualitative errors, decompose into token-level diffs and manual audits). Never fake results—use direct comparisons and decompose complex steps.
+
+Execute at least 10 OODA loops, decomposing pipelines into smaller, verifiable stages (e.g., split "Make Sense" into geometry-based clustering + semantic labeling, then validate each). Stop only at SOTA: When metrics plateau (<5 point average improvement over 3 iterations) and direct comparisons show no qualitative gains.
+
+### Pipeline Decomposition Example (First Principles Aligned)
+
+1. **Extract Raw Information**: Parse PDF primitives (text, paths, images) into flat lists—challenge: Is this truly raw? Validate by reconstructing PDF from extracted data.
+2. **Build Tree of Raw Objects**: Group primitives into hierarchical structures (pages → blocks → lines → spans) using geometry (bounding boxes, overlaps)—challenge: Assumptions on hierarchy? Test with edge cases and compare tree depth to gold.
+3. **Make Sense of Objects**: Apply geometry (e.g., alignment, spacing) and techniques (font analysis, layout patterns) to infer semantics (headings, tables)—challenge: Heuristics? Decompose into rule-based checks, validate via direct gold comparison for false positives.
+4. **Transform to Markdown Tree**: Map semantic objects to Markdown AST (e.g., spans to inline styles, blocks to headings/tables)—challenge: Model mismatches? Audit transformations with token-level diffs.
+5. **Generate Markdown**: Serialize tree to string—challenge: Formatting errors? Pandoc-validate and compare visually.
+
+**North Star Reminder**: Seek truth from direct generated-vs-gold comparisons; fix metrics (e.g., if StyleAccuracy ignores level mismatches, add level-specific F1); decompose to avoid over-engineering.
+
+**See also:** [PDF → Markdown Validator SKILL](.github/skills/pdf-markdown-validator/SKILL.md) — Use for truth-seeking measurements; challenge SKILL assumptions by manual audits if metrics diverge from direct comparisons.
 
 ## Short goal
 

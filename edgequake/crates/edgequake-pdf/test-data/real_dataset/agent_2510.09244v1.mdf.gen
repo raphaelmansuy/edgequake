@@ -98,10 +98,10 @@ To achieve these ob jectives, some challenges need to be overcome.
 
 agents [13, 15, 16], reveal key limitations in multimodal agents, highlighting the following issues:
 
-1. **Difficulties in GUI grounding and operational knowledge:** Agents
-2. **Repetitive actions:** Agents frequently predict repetitive actions, indicating
-3. **Inability to handle unexpected window noise:** Agents are not robust to
-4. **Limitations in exploration and adaptability:** Particularly for agents
+1. Difficulties in GUI grounding and operational knowledge: Agents
+2. Repetitive actions: Agents frequently predict repetitive actions, indicating
+3. Inability to handle unexpected window noise: Agents are not robust to
+4. Limitations in exploration and adaptability: Particularly for agents
 5. **Significant performance gap with human capabilities:** As reported on
 
 To address these challenges and guide the investigation of agent design, this
@@ -132,15 +132,15 @@ the OSworld website [43], humans achieve a task completion rate of more than
 
 (as of June 2025), indicating a substantial gap with human performance.
 
-1. **RQ1, Design space,** What architectural options exist for the core subsys-
+1. RQ1, Design space, What architectural options exist for the core subsys-
 
 tems of LLM-based agents, perception, reasoning and planning, memory, and execution, and how can they be systematically organized for practitioner use?
 
-2. **RQ2, Integration,** Which subsystem integration patterns enable reliable
+2. RQ2, Integration, Which subsystem integration patterns enable reliable
 
 closed-loop autonomy in realistic software environments, for example, GUI and web tasks that combine visual grounding with structured signals such as DOM or accessibility trees [30, 56]?
 
-3. **RQ3, Reasoning efficacy,** How do reasoning strategies, for example, CoT,
+3. RQ3, Reasoning efficacy, How do reasoning strategies, for example, CoT,
 
 ToT, Re Act, and parallel planning, such as DPPM or MCTS-based approaches,
 
@@ -152,8 +152,8 @@ Building Autonomous LLM Agents 3
 ---
 
 4. **RQ4, Memory impact,** How do long-term and short-term memory mech-
-5. **RQ5, Failures and mitigation,** What are the principal failure modes
-6. **RQ6, Evaluation and generalization,** Which benchmarks and metrics are
+5. RQ5, Failures and mitigation, What are the principal failure modes
+6. RQ6, Evaluation and generalization, Which benchmarks and metrics are
 
 LLM-based agents.
 
@@ -298,7 +298,7 @@ The general architecture of MM-LLMs typically comprises a structured
 
 pipeline with distinct components [67]:
 
-**- Modality Encoder (ME):** This component is responsible for encoding
+**-Modality Encoder (ME):** This component is responsible for encoding
 
 inputs from various modalities, such as images, videos, or even audio and
 
@@ -308,7 +308,7 @@ specialized encoders like Convolutional Neural Networks (CNNs) or Vision
 
 Transformers (ViT) are used to extract rich visual representations [34, 45].
 
-- Input Pro jector: This component aligns the encoded features from nontextual modalities (e.g., visual embeddings) with the text feature space of the
+-Input Pro jector: This component aligns the encoded features from nontextual modalities (e.g., visual embeddings) with the text feature space of the
 
 LLM. It acts as a bridge, transforming the visual embeddings into a format that the LLM can comprehend and integrate alongside textual inputs. This processing ensures that the visual embeddings are effectively supplied to the LLM, enabling the LLM to leverage its pre-trained linguistic knowledge for multimodal reasoning [34, 50].
 
@@ -321,11 +321,11 @@ aligned multimodal representations (visual embeddings and textual features)
 
 are fed to the LLM. The LLM processes these representations, answering using the semantic understanding of the inputs.
 
-- Output Pro jector (for multimodal generation): For tasks requiring outputs in other modalities (e.g., generating images), this component maps signal
+-Output Pro jector (for multimodal generation): For tasks requiring outputs in other modalities (e.g., generating images), this component maps signal
 
 token representations from the LLM Backbone into features understandable by a Modality Generator.
 
-**- Modality Generator (for multimodal generation):** This component is
+**-Modality Generator (for multimodal generation):** This component is
 
 tasked with producing outputs in distinct modalities, such as synthesizing images using models like Latent Diffusion Models.
 
@@ -355,7 +355,7 @@ These encoders, which can be separate models, extract relevant information from
 
 images to help the MM-LLM interpret them more effectively. While this approach doesn't match the performance gains of directly improving each component of the MM-LLM, it offers a practical trade-off by significantly improving results at a much lower computational and developmental cost. These are different ways to enhance visual perception with visual encoders:
 
-**- Segmentation and Depth Maps:** VCoder enhances MM-LLM capabilities
+**-Segmentation and Depth Maps:** VCoder enhances MM-LLM capabilities
 
 through a specialized adaptive architecture and the integration of additional
 
@@ -368,7 +368,7 @@ perception modalities. It functions as an adapter to a base MM-LLM, enabling the
 
 *Fig. 3. Usage of segmentation and depth maps for MM-LLM perception [28]*
 
-**- Set-of-Mark Operation:** To enhance the model's ability to handle complex
+**-Set-of-Mark Operation:** To enhance the model's ability to handle complex
 
 visual tasks, Set-of-Mark (SoM) operation provides a structured approach to
 
@@ -389,7 +389,7 @@ through targeted annotations and prompting, structured data approaches, such as 
 
 ### 3.3 Information Tree/Structured Data Perception
 
-**- Accessibility Tree Utilization:** OSCAR [56] utilizes an A11y tree gener-
+**-Accessibility Tree Utilization:** OSCAR [56] utilizes an A11y tree gener-
 
 **- HTML Utilization:** Meanwhile, DUALVCR [30] captures both the visual
 
@@ -407,7 +407,7 @@ ated by the Windows API for representing GUI components, incorporating descripti
 
 features of the screenshot and the descriptions of associated HTML elements to obtain a robust representation of the visual screenshot.
 
-**- Web Search and Information Retrieval APIs:** These tools allow agents
+**-Web Search and Information Retrieval APIs:** These tools allow agents
 
 to access vast amounts of up-to-date information, facts, and specific data points from the internet. By issuing queries to search engines (e.g., Google Search API) or structured knowledge bases (e.g., Wikipedia API), agents can
 
@@ -422,11 +422,11 @@ perceive real-time events, verify facts, or retrieve details beyond their traini
 
 44, 47].
 
-**- Specialized APIs:** Agents can use domain-specific APIs designed for specific
+**-Specialized APIs:** Agents can use domain-specific APIs designed for specific
 
 data types. Examples include weather APIs (for perceiving current and forecasted climatic conditions), stock market APIs (for real-time financial data), or scientific databases and literature APIs (for accessing specialized research papers and experimental data). These tools enable agents to perceive specific information relevant to niche tasks [32, 44], and can be implemented as document-centric microservices for knowledge discovery [17].
 
-**- Sensor Integration (Conceptual via Intermediary Tools):** While an
+**-Sensor Integration (Conceptual via Intermediary Tools):** While an
 
 LLM agent does not directly interface with physical hardware sensors, its perception system can be augmented to interpret data originating from them.
 
@@ -487,23 +487,23 @@ While significant progress has been made in empowering LLM agents with
 
 advanced perceptual capabilities, several critical challenges and limitations persist across all approaches:
 
-**- Hallucination:** The tendency for models to "hallucinate" non-existent ob jects
+**-Hallucination:** The tendency for models to "hallucinate" non-existent ob jects
 
 or misinterpret visual cues remains a significant hurdle. This can lead to agents making decisions based on incorrect interpretations, resulting in errors or undesirable behavior [25].
 
-**- Latency in Inference Pipelines:** Integrating complex perception modules,
+**-Latency in Inference Pipelines:** Integrating complex perception modules,
 
 especially those involving multimodal processing or external tool calls, can introduce substantial latency. Real-world applications, particularly those requiring real-time interaction (e.g., robotics, dynamic GUI automation), demand rapid perceptual updates. The sequential nature of many perception pipelines, from raw data acquisition to final LLM interpretation, can create bottlenecks, hindering the agent's responsiveness.
 
-**- Context Window Limits:** Large inputs, such as high-resolution images or
+**-Context Window Limits:** Large inputs, such as high-resolution images or
 
 extensive structured data, can generate a vast amount of tokens or embeddings. Encoding and feeding this entire information into the LLM's context window can quickly exceed its limitations [57].
 
-- Data Collection: Training robust perception systems, particularly for multimodal or specialized domains, often requires large volumes of high-quality,
+-Data Collection: Training robust perception systems, particularly for multimodal or specialized domains, often requires large volumes of high-quality,
 
 annotated data. The collection of this data can be costly and time-consuming.
 
-- Computational Resources: High-fidelity perception, especially with multimodal inputs, requires high computational resources for both training
+-Computational Resources: High-fidelity perception, especially with multimodal inputs, requires high computational resources for both training
 
 and inference. This can be a barrier for execution in resource-constrained environments or for widespread adoption.
 
@@ -522,25 +522,27 @@ component, but fundamental enablers for building more intelligent, reliable, and
 
 *Table 1. Summary of Perception Approaches for LLM-Based Agents*
 
-| Value |  |  |  |  |  |  |  |  |  |  |  |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Text-Based Plain text None (relies on LLM's Low computational Limited to text-only |  |  |  |  |  |  |  |  |  |  |  |
-| Perception descriptions native text processing)overhead; seamless environments; cannot |  |  |  |  |  |  |  |  |  |  |  |
-| Multimodal Text, Vision-Language Models Processes diverse data types;High computational cost, |  |  |  |  |  |  |  |  |  |  |  |
-| Building Autonomous LLM Agents 13Perception image/video (e.g., CLIP, ViT), suitable for GUIs and struggles with precise |  |  |  |  |  |  |  |  |  |  |  |
-| embeddings, Multimodal LLMs, real-world tasks; leveragesspatial tasks and requires |  |  |  |  |  |  |  |  |  |  |  |
-| audio transcriptspreprocessing tools (e.g.,advanced VLMs extensive training data |  |  |  |  |  |  |  |  |  |  |  |
-| CNNs, ASR) |  |  |  |  |  |  |  |  |  |  |  |
-| integration with LLM; idealprocess visual or other |  |  |  |  |  |  |  |  |  |  |  |
-| for text-driven environmentsnon-textual data |  |  |  |  |  |  |  |  |  |  |  |
-| Information JSON, XML, Parsers, database query Precise semantic Limited to environments |  |  |  |  |  |  |  |  |  |  |  |
-| Tree/Structured database records,tools, accessibility understanding; efficient forwith structured data and |  |  |  |  |  |  |  |  |  |  |  |
-| Data Perception A11y trees frameworks structured environments likerequires predefined schemas |  |  |  |  |  |  |  |  |  |  |  |
-| GUIs or databases or parsing logic |  |  |  |  |  |  |  |  |  |  |  |
-| Tool-Augmented Tool outputs External APIs, code Extends perception to Dependent on tool |  |  |  |  |  |  |  |  |  |  |  |
-| Perception (text, JSON, interpreters, sensor real-time and specialized availability and reliability, |  |  |  |  |  |  |  |  |  |  |  |
-| numerical data) interfaces, web search data; highly flexible and complex integration and |  |  |  |  |  |  |  |  |  |  |  |
-| tools dynamic error handling |  |  |  |  |  |  |  |  |  |  |  |
+Text-Based Plain text None (relies on LLM's Low computational Limited to text-only Perception descriptions native text processing)overhead; seamless environments; cannot
+
+Multimodal Text, Vision-Language Models Processes diverse data types;High computational cost,
+
+Building Autonomous LLM Agents 13Perception image/video (e.g., CLIP, ViT), suitable for GUIs and struggles with precise
+
+embeddings, Multimodal LLMs, real-world tasks; leveragesspatial tasks and requires audio transcriptspreprocessing tools (e.g.,advanced VLMs extensive training data
+
+CNNs, ASR)
+
+Information JSON, XML, Parsers, database query Precise semantic Limited to environments
+
+Tree/Structured database records,tools, accessibility understanding; efficient forwith structured data and
+
+Data Perception A11y trees frameworks structured environments likerequires predefined schemas
+
+Tool-Augmented Tool outputs External APIs, code Extends perception to Dependent on tool Perception (text, JSON, interpreters, sensor real-time and specialized availability and reliability,
+
+numerical data) interfaces, web search data; highly flexible and complex integration and
+
+tools dynamic error handling
 
 
 ---
@@ -608,7 +610,7 @@ There are various strategies:
 
 paths and their corresponding answers using Chain of Thought (CoT), then selects the answer with the highest frequency as the final output [58].
 
-- Tree-of-Thought (ToT) and Graph of Thoughts (GoT): ToT generates plans using a tree-like reasoning structure where each node represents
+-Tree-of-Thought (ToT) and Graph of Thoughts (GoT): ToT generates plans using a tree-like reasoning structure where each node represents
 
 an intermediate "thought." The selection of these steps is based on LLM evaluations. Unlike CoT-SC, ToT queries LLMs for each reasoning step [65]. Graph-of-Thought (GoT) extends the tree-like reasoning structure of ToT to graph structures. It supports arbitrary thought aggregation and allows 
 
@@ -645,11 +647,11 @@ Reflection, in the context of LLM agents, refers to the agent's ability to criti
 
 Key characteristics of reflection include:
 
-**- Self-Evaluation:** The agent examines its completed (or ongoing) task, its
+**-Self-Evaluation:** The agent examines its completed (or ongoing) task, its
 
 generated plans, and the results of its actions. This often involves comparing actual and expected outcomes.
 
-**- Error Detection and Analysis:** Identifying where things went wrong,
+**-Error Detection and Analysis:** Identifying where things went wrong,
 
 why a plan failed, or where the reasoning failed. This can be due to misunates actionable insights. This might involve modifying its planning strategy,
 
@@ -657,11 +659,11 @@ derstandings of the prompt, incorrect tool usage, logical inconsistencies, or en
 
 where agents analyze their own outputs or execution traces to pinpoint issues.
 
-- Correction and Improvement: Based on the analysis, the agent generactions [6, 38].
+-Correction and Improvement: Based on the analysis, the agent generactions [6, 38].
 
 correcting its reasoning process, learning better ways to use tools, updating its "memory" or state [49], or generating a revised plan or a new set of
 
-**- Goal-Driven Reflection:** Agents can reflect not just on errors, but also on
+**-Goal-Driven Reflection:** Agents can reflect not just on errors, but also on
 
 efficiency or completeness, aiming to optimize their path to the goal even if no explicit error occurred.
 
@@ -680,15 +682,15 @@ storing and using these reflections in the next iterations. Here's a brief expla
 
 Core Components:
 
-**- Actor:** This is typically a LLM that generates text and actions based on the
+**-Actor:** This is typically a LLM that generates text and actions based on the
 
 current state observations and its memory.
 
-**- Evaluator:** This component assesses the quality of the Actor's generated
+**-Evaluator:** This component assesses the quality of the Actor's generated
 
 outputs. It takes a complete tra jectory (sequence of actions and observations) and computes a reward score. Evaluation can be based on exact match grading, predefined heuristics, or even another LLM instance.
 
-**- Self-Reflection Model:** Another LLM serves as the self-reflection model
+**-Self-Reflection Model:** Another LLM serves as the self-reflection model
 
 and is responsible for generating verbal self-reflections. Given a sparse reward signal (e.g., success/fail) and the current tra jectory, it produces nuanced and specific feedback.
 
@@ -757,11 +759,11 @@ Having illustrated how a single LLM agent can leverage a reasoning system
 
 Expanding on the idea of multi-agent systems, a single agent can be made up of different specialized "experts," each of whom focuses on a distinct aspect of the interaction or reasoning. This modularity enables specialization at each step, increasing its capabilities and robustness [5]. Here are some examples of such useful experts that an LLM agent could integrate:
 
-**- Planning Expert:** This expert focuses on strategic thinking and task
+**-Planning Expert:** This expert focuses on strategic thinking and task
 
 decomposition. Its role is to break down complex ob jectives into a series of manageable subtasks. This aligns with the actor component discussed in the reflection system, where agents perform reasoning and planning to undertake complex tasks [33].
 
-**- Reflection Expert:** It is dedicated to evaluating plans, responses, and
+**-Reflection Expert:** It is dedicated to evaluating plans, responses, and
 
 overall performance. This aligns with the evaluator component discussed in the reflection system [33].
 
@@ -769,11 +771,11 @@ overall performance. This aligns with the evaluator component discussed in the r
 
 and suggesting recovery strategies for errors. This expert could analyze logs, identify common failure patterns, and propose fixes. For example, it could propose to scroll down if an item is not found in a webpage [51]. It can also support self-healing behaviors in adaptive architectures [19].
 
-**- Memory Management Expert:** Responsible for handling the agent's
+**-Memory Management Expert:** Responsible for handling the agent's
 
 memory. This expert ensures that relevant information is retrieved efficiently and that the agent's context is maintained effectively, which is a critical challenge in LLM-based multi-agent systems [23, 33].
 
-**- Action Expert:** This expert knows how to translate plans into concrete
+**-Action Expert:** This expert knows how to translate plans into concrete
 
 interactions with the environment. It's skilled in generating the necessary commands or API calls to interact with external tools, web interfaces, or other systems. For example, it is responsible for creating the move and click mouse movements in benchmarks like OSWorld. [21, 33, 71].
 
@@ -802,15 +804,15 @@ step is to precisely define the "distinctive attributes and roles" [51] of your 
 
 This involves:
 
-**- Clear Specialization:** What specific task, domain, or reasoning capability
+**-Clear Specialization:** What specific task, domain, or reasoning capability
 
 will this expert excel at? (e.g., planning, code generation, error handling).
 
-**- Input and Output:** What kind of information does this expert take as
+**-Input and Output:** What kind of information does this expert take as
 
 input, and what kind of output does it produce?
 
-**- Boundaries:** What are the limitations of its expertise? When should other
+**-Boundaries:** What are the limitations of its expertise? When should other
 
 experts be consulted or take over? [33].
 
@@ -820,7 +822,7 @@ experts be consulted or take over? [33].
 
 LLM toward performing as the expert, incorporating specific prompting techniques such as Chain-of-Thought to enhance its reasoning process.
 
-**- Fine-tuning (if applicable):** For highly specialized tasks, fine-tuning a
+**-Fine-tuning (if applicable):** For highly specialized tasks, fine-tuning a
 
 base LLM on a dataset relevant to the expert's domain can enhance its performance.
 
@@ -828,7 +830,7 @@ base LLM on a dataset relevant to the expert's domain can enhance its performanc
 
 databases that provide specific, up-to-date, or proprietary knowledge relevant to its role [21].
 
-- Memory Integration: The expert may have access to its memory (shortterm context and long-term knowledge) which can store past experiences or
+-Memory Integration: The expert may have access to its memory (shortterm context and long-term knowledge) which can store past experiences or
 
 knowledge relevant to its task [23, 33].
 
@@ -864,31 +866,37 @@ To improve its recommendations, the memory expert retrieves past experiences
 
 *Table 2. Key Components and Techniques for the Reasoning System (Part 1)*
 
-| Value |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Task Breaks down complex - Sequential Decomposition: Divides - Simplifies complex- DPPM struggles with |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Decomposition tasks into manageabletasks into sequential subgoals and plansproblem-solving. unexpected environmental |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| subtasks to simplify (e.g., Divide-and-Conquer). - DPPM reduces changes. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| planning and - Interleaved Decomposition: cascading errors via- Interleaved methods may |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| execution. Dynamically adjusts subtasks based on parallel planning. lead to hallucinations or |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| feedback (e.g., Chain-of-Thought [CoT],- Interleaved methodsdeviation in long tasks. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Re Act). enhance fault |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| - DPPM (Decompose, Plan in tolerance. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Building Autonomous LLM Agents 23 Parallel, Merge): Decomposes tasks, |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| plans subtasks concurrently, and merges |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| into a coherent global plan. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Multi-Plan Generates multiple - Self-consistent CoT (CoT-SC): - Explores diverse - High computational |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Generation and candidate plans and Generates multiple reasoning paths and solutions for robustdemands. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Selection selects the optimal oneselects the most frequent answer. planning. - Stochastic nature of LLMs |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| to address task - Tree-of-Thought (ToT): Uses tree-like - Scalable for may affect plan consistency. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| uncertainty. reasoning structures for plan generation.complex tasks with - Challenges in ranking and |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| - Graph-of-Thoughts (GoT): Extends large search spaces.evaluating plans. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| ToT with graph structures for flexible |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| aggregation. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| - LLM-MCTS and RAP: Use Monte |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Carlo Tree Search for plan generation and |  |  |  |  |  |  |  |  |  |  |  |  |  |
+**Task** Breaks down complex - Sequential Decomposition: Divides - Simplifies complex- DPPM struggles with
 
-selection.
+**Decomposition** tasks into manageabletasks into sequential subgoals and plansproblem-solving. unexpected environmental
+
+subtasks to simplify (e.g., Divide-and-Conquer). - DPPM reduces changes. planning and - Interleaved Decomposition: cascading errors via- Interleaved methods may execution. Dynamically adjusts subtasks based on parallel planning. lead to hallucinations or
+
+feedback (e.g., Chain-of-Thought [CoT],- Interleaved methodsdeviation in long tasks. Re Act). enhance fault
+
+ - DPPM (Decompose, Plan in tolerance.
+
+Building Autonomous LLM Agents 23 **Parallel, Merge)**: Decomposes tasks,
+
+plans subtasks concurrently, and merges into a coherent global plan.
+
+**Multi-Plan** Generates multiple **Self-consistent CoT (CoT-SC)**: - Explores diverse - High computational
+
+**Generation and** candidate plans and Generates multiple reasoning paths and solutions for robustdemands.
+
+**Selection** selects the optimal oneselects the most frequent answer. planning. - Stochastic nature of LLMs
+
+to address task **Tree-of-Thought (ToT)**: Uses tree-like - Scalable for may affect plan consistency. uncertainty. reasoning structures for plan generation.complex tasks with - Challenges in ranking and
+
+ **Graph-of-Thoughts (GoT)**: Extends large search spaces.evaluating plans.
+
+ToT with graph structures for flexible
+
+aggregation.
+
+ **LLM-MCTS and RAP**: Use Monte
+
+Carlo Tree Search for plan generation and selection.
 
 
 ---
@@ -897,28 +905,31 @@ selection.
 
 *Table 3. Key Components and Techniques for the Reasoning System (Part 2)*
 
-| Value |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Reflection Allows agents to - Self-Evaluation: Compares actual vs. - Enables learning - Requires robust feedback |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| evaluate actions expected outcomes. from mistakes mechanisms. |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| post-execution, - Error Detection and Analysis: without human - May be limited by the |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| identify errors, and Identifies and analyzes errors (e.g., intervention. agent's ability to accurately |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| improve future incorrect tool usage, logical flaws). - Enhances self-evaluate. |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| performance. - Correction and Improvement: adaptability and |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Adjusts plans or strategies based on efficiency. |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| - Anticipatory Reflection (DEVIL'S reflection improves |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| ADVOCATE): Proactively considers consistency. |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| potential failures before execution. |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Multi-Agent Distributes reasoning- Planning Expert: Handles task - Enhances - Requires careful |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Systems tasks across decomposition and strategic planning. modularity and coordination between |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| specialized "experts"- Reflection Expert: Evaluates plans and robustness. experts. |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| for scalability and suggests improvements. - Leverages - Potential for increased |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| efficiency. - Error Handling Expert: Diagnoses specialized expertisecomplexity in system design. |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| and proposes fixes for runtime errors. for complex tasks. - Security risks in |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| - Others: Includes Memory Management, - Improves scalabilitymulti-agent interactions. |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Action, Coding, Information Retrieval, through division of |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Dialogue Management, HCI, Constraint labor. |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Satisfaction, and Security Experts. |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+**Reflection** Allows agents to **Self-Evaluation**: Compares actual vs. - Enables learning - Requires robust feedback
+
+evaluate actions expected outcomes. from mistakes mechanisms. post-execution, - Error Detection and Analysis: without human - May be limited by the identify errors, and Identifies and analyzes errors (e.g., intervention. agent's ability to accurately improve future incorrect tool usage, logical flaws). - Enhances self-evaluate. performance. - Correction and Improvement: adaptability and
+
+Adjusts plans or strategies based on efficiency.
+
+ - Anticipatory Reflection (DEVIL'S reflection improves
+
+**ADVOCATE)**: Proactively considers consistency.
+
+potential failures before execution.
+
+**Multi-Agent** Distributes reasoning- Planning Expert: Handles task - Enhances - Requires careful
+
+**Systems** tasks across decomposition and strategic planning. modularity and coordination between
+
+specialized "experts"- Reflection Expert: Evaluates plans and robustness. experts. for scalability and suggests improvements. - Leverages - Potential for increased efficiency. - Error Handling Expert: Diagnoses specialized expertisecomplexity in system design.
+
+and proposes fixes for runtime errors. for complex tasks. - Security risks in
+
+ - Others: Includes Memory Management, - Improves scalabilitymulti-agent interactions.
+
+Action, Coding, Information Retrieval, through division of
+
+Dialogue Management, HCI, Constraint labor. Satisfaction, and Security Experts.
 
 
 ---
@@ -941,17 +952,17 @@ while short-term memory facilitates immediate contextual awareness.
 
 Long-term memory in LLM agents is crucial for sustained interaction and for the models to evolve and adapt over time. It allows agents to store relevant past memories and learn information from previous interactions. It also enables the agent to retain knowledge apart from its pre-trained knowledge. There are different ways of implementing it:
 
-**- Embodied Memory:** In the context of LLMs, "embodied memory" often
+**-Embodied Memory:** In the context of LLMs, "embodied memory" often
 
 refers to the idea that an agent's experiences and learned behaviors become ingrained directly within its model parameters (weights) through continuous learning processes like fine-tuning. Unlike external memory systems, this type of memory is build into the model itself. When an LLM is fine-tuned on new data, it adjusts its weights, effectively encoding new "facts" or "experiences" directly into its neural network. This causes the model to act in ways similar to what it has learned from these experiences [62].
 
-**- RAG:** Retrieval-Augmented Generation (RAG) is a technique that enhances
+**-RAG:** Retrieval-Augmented Generation (RAG) is a technique that enhances
 
 LLMs by using external knowledge to improve the accuracy of its responses. It operates in two main phases: retrieval and augmentation. Using a query, a retriever component first looks through an external knowledge base (often indexed by vector embeddings) to locate relevant documents. This gives the LLM access to updated and precise information that might not be encoded in its training data or within its immediate context window. Once the relevant information is retrieved, it is added to the LLM context 
 
 the response precise for the specific use case and reducing the likelihood of "hallucinations" [31].
 
-**- SQL Database:** SQL databases are used to store structured knowledge, such
+**-SQL Database:** SQL databases are used to store structured knowledge, such
 
 as information about employees, orders, or other data that can be stored in a table. By converting natural language queries into SQL queries, text-to-SQL techniques facilitate reliable database interaction. Transformer-based models are especially well-suited for producing intricate SQL queries because of their attention mechanism [72].
 
@@ -976,7 +987,7 @@ This stored data is then used to make better decisions, enabling the agent to
 
 accumulate experiences, evolve, and behave in a more consistent and effective manner.
 
-**- Experiences:** It is beneficial to store records of both successful and failed
+**-Experiences:** It is beneficial to store records of both successful and failed
 
 tasks. Research has indicated that even failed experiences, when appropriately logged and distinguished as such, can be valuable. By explicitly noting a "failed experience," LLMs can learn to avoid repeating similar mistakes in the future.
 
@@ -984,17 +995,17 @@ This continuous learning from past interactions, including the identification
 
 of "invalid action filtering," contributes to the agent's robust development and ability to adapt [1, 22]. To store an experience, you capture a task's natural language instruction (e.g., "Who ordered order 0130?") and the sequence of steps taken to solve it, where each step includes the agent's observation of the environment (e.g., "The current page shows order 0130") and the action performed (e.g., click("126") or stop()). This data, structured as an experience with the instruction and a tra jectory of observation-action pairs, is saved in a storage system like a database or a JSON file within a collection of experiences. This format ensures that the experience is retrievable for later use, such as inducing a workflow with a summarized description and generalized steps, which can then be integrated into the agent's memory to guide future tasks [59].
 
-- Procedures: LLM agents can learn reusable task workflows from past experiences to guide future actions, similar to humans. Agent Workflow Memory
+-Procedures: LLM agents can learn reusable task workflows from past experiences to guide future actions, similar to humans. Agent Workflow Memory
 
 (AWM) is a method that induces commonly reused routines (workflows) from
 
 training examples and then selectively provides these workflows to the agent to guide subsequent generations [59].
 
-**- Knowledge:** This category encompasses external information received as
+**-Knowledge:** This category encompasses external information received as
 
 facts, such as data from articles, company-specific information, details about 
 
-**- User information:** Beyond just user preferences, this includes personal
+**-User information:** Beyond just user preferences, this includes personal
 
 information that the user has supplied, such as details about their past activities (e.g., where they spent the last Christmas) or background (e.g., where
 
@@ -1019,7 +1030,7 @@ The primary impact of a limited context window is that LLMs cannot directly
 
 integrate or utilize all information in very long sequences. The easiest way to overcome this is to truncate large texts or summarize them [57].
 
-**- Memory Duplication:** When storing information in memory, a potential
+**-Memory Duplication:** When storing information in memory, a potential
 
 issue is handling data that is similar to existing records. Various methods have 
 
@@ -1032,28 +1043,33 @@ sequences related to the same sub-goal are stored in a list. Once this list reac
 
 *Table 4. Memory Components for LLM-Based Agents (Part 1)*
 
-| Value |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Long-term Stores knowledge for- Embodied Memory: Experiences are - Enables persistent- Fine-tuning for embodied |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Memory sustained retention,ingrained in the model's parameters knowledge retention.memory is computationally |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| enabling agents to through continuous learning (e.g., - RAG reduces expensive. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| recall past fine-tuning). hallucinations by - RAG requires efficient |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| experiences and - Retrieval-Augmented Generation grounding responses indexing and retrieval |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| synthesize (RAG): Retrieves relevant documents in verifiable sources.systems. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| information from from an external knowledge base using - SQL databases - Text-to-SQL generation |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| 28 de Lamo et al. previous interactions.vector embeddings to enhance responses.support structured, may struggle with complex |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| - SQL Database: Stores structured data queryable data queries or dependencies. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| (e.g., employee or order details) accessibleaccess. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| via text-to-SQL queries generated by |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| LLMs. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Short-term Acts as a temporary - Context Window Management: - Facilitates - Limited by context |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Memory workspace within the Maintains recent conversational or inputimmediate contextualwindow size, leading to |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| LLM's context data within the transformer's limited awareness. truncation of older data. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| window, holding context window. - Chunking and - Summarization may omit |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| immediate contextual- Chunking and Summarization: summarization critical details if not |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| information for Breaks down large inputs into manageableprevent information carefully designed. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| ongoing tasks. pieces and condenses essential informationloss in long |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| to fit within the context window. sequences. |  |  |  |  |  |  |  |  |  |  |  |  |  |
+**Long-term** Stores knowledge for- Embodied Memory: Experiences are - Enables persistent- Fine-tuning for embodied
+
+**Memory** sustained retention,ingrained in the model's parameters knowledge retention.memory is computationally
+
+enabling agents to through continuous learning (e.g., - RAG reduces expensive. recall past fine-tuning). hallucinations by - RAG requires efficient experiences and **Retrieval-Augmented Generation** grounding responses indexing and retrieval synthesize **(RAG)**: Retrieves relevant documents in verifiable sources.systems. information from from an external knowledge base using - SQL databases - Text-to-SQL generation
+
+28 de Lamo et al. previous interactions.vector embeddings to enhance responses.support structured, may struggle with complex
+
+ - SQL Database: Stores structured data queryable data queries or dependencies.
+
+(e.g., employee or order details) accessibleaccess.
+
+via text-to-SQL queries generated by
+
+LLMs.
+
+**Short-term** Acts as a temporary - Context Window Management: - Facilitates - Limited by context
+
+**Memory** workspace within the Maintains recent conversational or inputimmediate contextualwindow size, leading to
+
+LLM's context data within the transformer's limited awareness. truncation of older data.
+
+window, holding context window. - Chunking and - Summarization may omit
+
+immediate contextual- Chunking and Summarization: summarization critical details if not information for Breaks down large inputs into manageableprevent information carefully designed. ongoing tasks. pieces and condenses essential informationloss in long
+
+to fit within the context window. sequences.
 
 
 ---
@@ -1062,25 +1078,33 @@ sequences related to the same sub-goal are stored in a list. Once this list reac
 
 *Table 5. Memory Components for LLM-Based Agents (Part 2)*
 
-| Value |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Types information stored to Memory - AWM): Stores reusable task efficiency by reusingtypes requires robust |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| support agent workflows derived from past experiences orsuccessful routines.storage systems. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| functionality. queries to guide future actions. - External knowledge- Privacy concerns with |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| - Knowledge: Includes external facts (e.g., enhances response storing user information. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| articles, company rules) for accuracy. - Risk of outdated or |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Building Autonomous LLM Agents 29 context-specific responses. - User information irrelevant knowledge |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| - User Information: Stores personal user supports affecting performance. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| details (e.g., preferences, past activities)personalized |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| via systems like Memory Bank for interactions. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| personalized responses. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Memory Addresses challenges - Memory Duplication: Consolidates - Reduces - Duplication consolidation |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Management in storing and similar records (e.g., combining successfulredundancy and may lose nuanced details. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| Issues retrieving informationaction sequences into a unified plan orstorage inefficiency.- FIFO overwriting risks |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| efficiently. aggregating counts). losing valuable older data. |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| - Requires careful design to |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| balance storage and |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| retrieval efficiency. |  |  |  |  |  |  |  |  |  |  |  |  |  |
+**Data Storage** Defines the types of - Procedures (Agent Workflow - Workflows improve - Managing diverse data
+
+**Types** information stored to**Memory - AWM)**: Stores reusable task efficiency by reusingtypes requires robust
+
+support agent workflows derived from past experiences orsuccessful routines.storage systems. functionality. queries to guide future actions. - External knowledge- Privacy concerns with
+
+ - Knowledge: Includes external facts (e.g., enhances response storing user information.
+
+articles, company rules) for accuracy. - Risk of outdated or
+
+Building Autonomous LLM Agents 29 context-specific responses. - User information irrelevant knowledge
+
+ - User Information: Stores personal user supports affecting performance.
+
+details (e.g., preferences, past activities)personalized
+
+via systems like Memory Bank for interactions.
+
+personalized responses.
+
+**Memory** Addresses challenges - Memory Duplication: Consolidates - Reduces - Duplication consolidation
+
+**Management** in storing and similar records (e.g., combining successfulredundancy and may lose nuanced details.
+
+**Issues** retrieving informationaction sequences into a unified plan orstorage inefficiency.- FIFO overwriting risks
+
+efficiently. aggregating counts). losing valuable older data.
 
 
 ---
@@ -1204,18 +1228,26 @@ and generalized LLM agents, moving beyond simple workflow automation towards tru
 **References**
 
 1. Alazraki, L., Mozes, M., Campos, J.A., Yi-Chern, T., Rei, M., Bartolo, M.: No
+2. Anthony Brohan, e.a.: Rt-2: Vision-language-action models transfer web knowledge
+3. Anthropic: Building effective agents. https://www.anthropic.com/engineering/
+4. Besta, M., Blach, N., Kubicek, A., Gerstenberger, R., Podstawski, M., Gianinazzi,
+5. Cai, W., Jiang, J., Wang, F., Tang, J., Kim, S., Huang, J.: A survey on mixture
+6. Chen, X., Lin, M., Schärli, N., Zhou, D.: Teaching large language models to self-
+7. Chen, Y., Cui, W., Chen, Y., Tan, M., Zhang, X., Zhao, D., Wang, H.: Robogpt:
+8. Deng, X., Gu, Y., Zheng, B., Chen, S., Stevens, S., Wang, B., Sun, H., Su, Y.:
+9. Florian Bordes, e.a.: An introduction to vision-language models. arXiv preprint
+10. Gao, L., Madaan, A., Zhou, S., Alon, U., Liu, P., Yang, Y., Callan, J., Neubig, G.:
+11. Gao, Y., Xiong, Y., Gao, X., Jia, K., Pan, J., Bi, Y., Dai, Y., Sun, J., Wang, M.,
+12. Gidey, H.K., Collins, A., Marmsoler, D.: Modeling and verifying dynamic architec-
+13. Gidey, H.K., Hillmann, P., Karcher, A., Knoll, A.: Towards cognitive bots: Archi-
+14. Gidey, H.K., Hillmann, P., Karcher, A., Knoll, A.: User-like bots for cognitive
+15. Gidey, H.K., Huber, N., Lenz, A., Knoll, A.: Affordance representation and recogni-
 
 need for explanations: Llms can implicitly learn from mistakes in-context. arXiv preprint (2025), https://arxiv.org/abs/2502.08550
 
-2. Anthony Brohan, e.a.: Rt-2: Vision-language-action models transfer web knowledge
-
 to robotic control. arXiv preprint (2023), https://arxiv.org/abs/2307.15818
 
-3. Anthropic: Building effective agents. https://www.anthropic.com/engineering/
-
 building- effective- agents (2024), accessed: June 5 2025
-
-4. Besta, M., Blach, N., Kubicek, A., Gerstenberger, R., Podstawski, M., Gianinazzi,
 
 L., Ga jda, J., Lehmann, T., Niewiadomski, H., Nyczyk, P., Hoefler, T.: Graph of
 
@@ -1223,49 +1255,31 @@ Thoughts: Solving Elaborate Problems with Large Language Models. arXiv preprint
 
 (2023), https://arxiv.org/abs/2308.09687
 
-5. Cai, W., Jiang, J., Wang, F., Tang, J., Kim, S., Huang, J.: A survey on mixture
-
 of experts in large language models. arXiv preprint (2025), https://arxiv.org/pdf/
 
 2407.06204.pdf
 
-6. Chen, X., Lin, M., Schärli, N., Zhou, D.: Teaching large language models to self-
-
 debug. arXiv preprint (2023), https://arxiv.org/abs/2304.05128
 
-7. Chen, Y., Cui, W., Chen, Y., Tan, M., Zhang, X., Zhao, D., Wang, H.: Robogpt:
-
 an intelligent agent of making embodied long-term decisions for daily instruction tasks. arXiv preprint (2024), https://arxiv.org/abs/2311.15649
-
-8. Deng, X., Gu, Y., Zheng, B., Chen, S., Stevens, S., Wang, B., Sun, H., Su, Y.:
 
 Mind2web: Towards a generalist agent for the web. arXiv preprint (2023), https:
 
 //arxiv.org/abs/2306.06070
 
-9. Florian Bordes, e.a.: An introduction to vision-language models. arXiv preprint
-
 arXiv:2405.17247 (2024), https://arxiv.org/pdf/2405.17247.pdf
-
-10. Gao, L., Madaan, A., Zhou, S., Alon, U., Liu, P., Yang, Y., Callan, J., Neubig, G.:
 
 Pal: Program-aided language models. arXiv preprint (2023), https://arxiv.org/abs/
 
 2211.10435Pal: Program-aided language models. arXiv preprint (2023), https://arxiv.org/abs/
 
-11. Gao, Y., Xiong, Y., Gao, X., Jia, K., Pan, J., Bi, Y., Dai, Y., Sun, J., Wang, M.,
-
 Wang, H.: Retrieval-augmented generation for large language models: A survey.
 
 arXiv preprint (2024), https://arxiv.org/abs/2312.10997
 
-12. Gidey, H.K., Collins, A., Marmsoler, D.: Modeling and verifying dynamic architec-
-
 tures with factum studio. In: Formal Aspects of Component Software,FACS 2019,. Springer (2019). https://doi.org/10.1007/978- 3- 030- 40914- 2_13, https://doi.org/
 
 10.1007/978- 3- 030- 40914- 2_13
-
-13. Gidey, H.K., Hillmann, P., Karcher, A., Knoll, A.: Towards cognitive bots: Archi-
 
 tectural research challenges. In: Artificial General Intelligence, AGI 2023,. Springer
 
@@ -1273,13 +1287,9 @@ tectural research challenges. In: Artificial General Intelligence, AGI 2023,. Sp
 
 978- 3- 031- 33469- 6_11
 
-14. Gidey, H.K., Hillmann, P., Karcher, A., Knoll, A.: User-like bots for cognitive
-
 automation: A survey. In: Machine Learning, Optimization, and Data Science, LOD 2023,. Springer (2023). https://doi.org/10.1007/978- 3- 031- 53966- 4_29, https:
 
 //doi.org/10.1007/978- 3- 031- 53966- 4_29
-
-15. Gidey, H.K., Huber, N., Lenz, A., Knoll, A.: Affordance representation and recogni-
 
 tion for Autonomous Agents. In: Proceedings of the Second International Workshop on Hypermedia Multi-Agent Systems (Hyper Agents 2025), in conjunction with the
 
@@ -1378,31 +1388,32 @@ Building Autonomous LLM Agents 35
 
 ---
 
-augmented generation for knowledge-intensive nlp tasks. arXiv preprint (2021), https://arxiv.org/abs/2005.11401
-
 32. Li, M., Zhao, Y., Yu, B., Song, F., Li, H., Yu, H., Li, Z., Huang, F., Li, Y.: Api-
+33. Li, X., Wang, S., Zeng, S., Wu, Y., Yang, Y.: A survey on LLM-based multi-agent
+34. Li, Y., Lai, Z., Bao, W., Tan, Z., Dao, A., Sui, K., Shen, J., Liu, D., Liu, H., Kong,
+35. Liu, T., Ren, J., Zhang, C.: Planning with large language models via corrective
+36. Lu, Z., Lu, W., Tao, Y., Dai, Y., Chen, Z., Zhuang, H., Chen, C., Peng, H.,
+37. Macedo, J., Gidey, H.K., Rebuli, K.B., Machado, P.: Evolving user interfaces: A
+38. Madaan, A., Tandon, N., Gupta, P., Hallinan, S., Gao, L., Wiegreffe, S., Alon,
+39. Mi, Y., Gao, Z., Ma, X., Li, Q.: Building llm agents by incorporating insights from
+40. Nakano, R., Hilton, J., Bala ji, S., Wu, J., Ouyang, L., Kim, C., Hesse, C., Jain,
+41. Niu, R., Li, J., Wang, S., Fu, Y., Hu, X., Leng, X., Kong, H., Chang, Y., Wang,
+42. OpenAI: Code interpreter. OpenAI Platform (2025), https://platform.openai.com/
+43. OSWorld Team: Osworld: Benchmarking multimodal agents for open-ended tasks
+
+augmented generation for knowledge-intensive nlp tasks. arXiv preprint (2021), https://arxiv.org/abs/2005.11401
 
 bank: A comprehensive benchmark for tool-augmented llms. arXiv preprint (2023), https://arxiv.org/abs/2304.08244
 
-33. Li, X., Wang, S., Zeng, S., Wu, Y., Yang, Y.: A survey on LLM-based multi-agent
-
 systems: workflow, infrastructure, and challenges. Vicinagearth **1**, 9 (2024). https:// doi.org/10.1007/s44336- 024- 00009- 2, https://doi.org/10.1007/s44336- 024- 00009- 2
-
-34. Li, Y., Lai, Z., Bao, W., Tan, Z., Dao, A., Sui, K., Shen, J., Liu, D., Liu, H., Kong,
 
 Y.: Visual large language models for generalized and specialized applications. arXiv
 
 preprint arXiv:2501.02765 (2025), https://arxiv.org/abs/2501.02765
 
-35. Liu, T., Ren, J., Zhang, C.: Planning with large language models via corrective
-
 re-prompting. arXiv preprint (2023), https://arxiv.org/pdf/2305.018323.pdf
 
-36. Lu, Z., Lu, W., Tao, Y., Dai, Y., Chen, Z., Zhuang, H., Chen, C., Peng, H.,
-
 Zeng, Z.: Decompose, plan in parallel, and merge: A novel paradigm for large language models based planning with multiple constraints. arXiv preprint (2025), https://arxiv.org/abs/2506.02683
-
-37. Macedo, J., Gidey, H.K., Rebuli, K.B., Machado, P.: Evolving user interfaces: A
 
 neuroevolution approach for natural human-machine interaction. In: Johnson, C., Rebelo, S.M., Santos, I. (eds.) Artificial Intelligence in Music, Sound, Art and Design: 13th International Conference, EvoMUSART 2024, Held as Part of Evo Star
 
@@ -1412,21 +1423,13 @@ Science, vol. 14633, pp. 246-264. Springer, Cham (Apr 2024). https://doi.org/10.
 
 1007/978- 3- 031- 56992- 0_16, https://doi.org/10.1007/978- 3- 031- 56992- 0_16
 
-38. Madaan, A., Tandon, N., Gupta, P., Hallinan, S., Gao, L., Wiegreffe, S., Alon,
-
 U., Dziri, N., Prabhumoye, S., Yang, Y., Gupta, S., Ma jumder, B.P., Hermann, K., Welleck, S., Yazdanbakhsh, A., Clark, P.: Self-refine: Iterative refinement with self-feedback. arXiv preprint (2023), https://arxiv.org/abs/2303.17651
-
-39. Mi, Y., Gao, Z., Ma, X., Li, Q.: Building llm agents by incorporating insights from
 
 computer systems. arXiv preprint arXiv:2504.04485 (2025), https://arxiv.org/pdf/
 
 2504.04485v1.pdf
 
-40. Nakano, R., Hilton, J., Bala ji, S., Wu, J., Ouyang, L., Kim, C., Hesse, C., Jain,
-
 S., Kosara ju, V., Saunders, W., Jiang, X., Cobbe, K., Eloundou, T., Krueger, G., Button, K., Knight, M., Chess, B., Schulman, J.: Webgpt: Browser-assisted question-answering with human feedback. arXiv preprint (2022), https://arxiv.org/ abs/2112.09332
-
-41. Niu, R., Li, J., Wang, S., Fu, Y., Hu, X., Leng, X., Kong, H., Chang, Y., Wang,
 
 Q.: Screenagent: A vision language model-driven computer control agent. In: Proceedings of the Thirty-Third International Joint Conference on Artificial Intelcial Intelligence Organization (Aug 2024). https://doi.org/10.24963/ijcai.2024/711,
 
@@ -1434,11 +1437,7 @@ ligence. pp. 6433-6441. IJCAI-2024, International Joint Conferences on Artifiin 
 
 http://dx.doi.org/10.24963/ijcai.2024/711
 
-42. OpenAI: Code interpreter. OpenAI Platform (2025), https://platform.openai.com/
-
 docs/assistants/tools/code- interpreter, accessed: 26 July 2025
-
-43. OSWorld Team: Osworld: Benchmarking multimodal agents for open-ended tasks
 
 July 2025
 

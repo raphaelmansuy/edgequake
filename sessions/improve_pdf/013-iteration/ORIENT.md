@@ -23,7 +23,7 @@ fn extract_text_in_rect(
             let cx = elem.x;  // ❌ Using center point, not bbox
             let cy = elem.y;
             let tol = 2.0;  // ❌ ±2pt tolerance = 4pt total slop
-            cx >= min_x - tol && cx <= max_x + tol && 
+            cx >= min_x - tol && cx <= max_x + tol &&
             cy >= min_y - tol && cy <= max_y + tol
         })
         .collect();
@@ -45,6 +45,7 @@ fn extract_text_in_rect(
 **Impact:** Text elements with centers up to 2pt outside the cell boundary are included.
 
 **Concrete Example:**
+
 ```
 Cell boundary: x ∈ [100, 200], y ∈ [50, 70]
 Text element: x=98, y=68 (center 2pt left of boundary)
@@ -62,6 +63,7 @@ Result: INCLUDED (should be in next cell!)
 **Impact:** Text elements whose centers are inside the cell but whose rendered glyphs extend outside are included, and vice versa.
 
 **Concrete Example:**
+
 ```
 Text "Performance" with wide glyphs:
 - elem.x (center): 150
@@ -79,6 +81,7 @@ Reality: Text extends 140-120=20pt left, 180-160=20pt right → OVERLAPS 2 CELLS
 **Impact:** Text elements within 5pt vertically are treated as same row, causing vertical spillover.
 
 **Concrete Example:**
+
 ```
 Row 1: y ∈ [100, 110]
 Row 2: y ∈ [90, 100]
@@ -93,6 +96,7 @@ Result: Same bin! Both texts assigned to same cell despite being in different ro
 ### Architecture Context
 
 **Table Extraction Pipeline:**
+
 ```
 detect_tables()
   ↓
@@ -105,11 +109,13 @@ create_table_block()
 ```
 
 **What's Working:**
+
 - Grid structure detection: rows and columns correctly identified
 - Column clustering (Loop 012): 2 → 13 columns, matches gold standard
 - Row boundaries: Extracted from horizontal lines in PDF
 
 **What's Broken:**
+
 - Cell text assignment: extract_text_in_rect() includes wrong text
 
 ### Evidence from Real Data
@@ -117,11 +123,13 @@ create_table_block()
 **Document:** `one_tool_2512.20957v2.mdf.gen`
 
 **Generated Output (Line 3):**
+
 ```
 | Locating the files and functions requiring modifi- cation in large open-source software (OSS) repos- itories is challenging due to their scale and struc- tural complexity... [ENTIRE ABSTRACT IN ONE CELL] |
 ```
 
 **Gold Standard (Lines 135-141):**
+
 ```
 | Agent Pipeline | Model | Function-level Recall | Funct Precision | ... |
 | --- | --- | --- | --- | --- |
@@ -129,6 +137,7 @@ create_table_block()
 ```
 
 **Analysis:**
+
 - Generated: 13 columns detected (correct structure!) but cell [0][0] contains entire abstract
 - Gold: 10 columns with clean cell values
 - **Hypothesis:** Abstract text is near table Y-coordinates, within ±2pt + 5pt binning → gets assigned to first cell
@@ -137,11 +146,13 @@ create_table_block()
 ### Quantitative Impact Assessment
 
 **Current Metrics:**
+
 - Table Accuracy: 2.4% (140 table:mismatch drifts)
 - Best document: 11.4% (one_tool_2512.20957v2)
 - Worst documents: 0.0% (60% of test set)
 
 **Expected Improvement with Fix:**
+
 - Eliminate text spillover: +5-8% table accuracy
 - Fix cell boundary precision: +5-7% table accuracy
 - Remove Y-binning artifacts: +2-4% table accuracy
@@ -156,16 +167,18 @@ create_table_block()
 **Goal:** Assign each text element to exactly ONE cell in the table grid, based on geometric containment.
 
 **Constraints:**
+
 1. **Exclusivity:** Text belongs to one cell only (no duplicates)
 2. **Precision:** Text fully contained within cell boundaries → include
 3. **Completeness:** All text within table bbox → assigned to some cell
 4. **Robustness:** Handle minor PDF rendering variations (±0.5pt tolerance MAX)
 
 **Correct Algorithm:**
+
 ```
 For each cell (row_i, col_j):
   cell_bbox = [unique_x[j], unique_y[i+1], unique_x[j+1], unique_y[i]]
-  
+
   For each text_element in text_elements:
     If text_element.bbox FULLY CONTAINED IN cell_bbox (with minimal tolerance):
       Assign text_element to cell
@@ -175,6 +188,7 @@ End For
 ```
 
 **Key Differences from Current Implementation:**
+
 1. Use text_element.bbox for containment check, not center point
 2. Tight tolerance: 0.5pt instead of 2.0pt
 3. No Y-binning: Use actual Y-coordinates from grid
@@ -182,12 +196,12 @@ End For
 
 ### Why Current Implementation Fails This Test
 
-| Principle | Current Code | Consequence |
-|-----------|-------------|-------------|
-| **Exclusivity** | ±2pt tolerance allows overlaps | Text in multiple cells |
-| **Precision** | Uses center point, not bbox | Wide text spans multiple cells |
-| **Completeness** | Y-binning merges rows | Text from adjacent rows mixed |
-| **Robustness** | 2.0pt tolerance too large | Text from outside table included |
+| Principle        | Current Code                   | Consequence                      |
+| ---------------- | ------------------------------ | -------------------------------- |
+| **Exclusivity**  | ±2pt tolerance allows overlaps | Text in multiple cells           |
+| **Precision**    | Uses center point, not bbox    | Wide text spans multiple cells   |
+| **Completeness** | Y-binning merges rows          | Text from adjacent rows mixed    |
+| **Robustness**   | 2.0pt tolerance too large      | Text from outside table included |
 
 ## Design Constraints
 
@@ -204,11 +218,13 @@ End For
 ### Required Tolerance Analysis
 
 **Why tolerance is needed:**
+
 - PDF rendering imprecision: Line at y=100 might be y=100.2
 - Font positioning: Baseline vs glyph top varies
 - Grid construction: Horizontal lines might not perfectly align with text baselines
 
 **How much tolerance:**
+
 - **0.5pt:** Safe for PDF rounding errors (~0.01 inch at 72 DPI)
 - **1.0pt:** Conservative for font variations
 - **2.0pt:** TOO LARGE - overlaps adjacent cells in compact tables
@@ -220,17 +236,20 @@ End For
 ### What gold files show us:
 
 **Example Table (one_tool_2512.20957v2.gold.md, line 135):**
+
 ```
 | Agent Pipeline | Model | Function-level Recall | Funct Precision | ...
 ```
 
 **Cell characteristics:**
+
 - Single value per cell (no multi-word spanning issues)
 - Clean boundaries (no text from adjacent cells)
 - Correct vertical alignment (no row mixing)
 - Proper column assignment (matches visual layout)
 
 **Implication:** Gold markdown was created by a tool/human that:
+
 1. Accurately identified cell boundaries
 2. Assigned text based on strict geometric containment
 3. Did not merge adjacent text based on proximity heuristics
@@ -242,12 +261,14 @@ End For
 The path forward is clear:
 
 1. **Rewrite extract_text_in_rect():**
+
    - Use elem.bbox for containment, not center point
    - Reduce tolerance to 0.5pt
    - Remove Y-binning (use actual grid coordinates)
    - Implement strict geometric containment test
 
 2. **Add robust cell-text assignment:**
+
    - Check if text bbox overlaps multiple cells → assign to cell with largest overlap
    - Handle edge cases: text exactly on boundary → assign to left/top cell
    - Filter out text completely outside table bbox

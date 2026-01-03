@@ -1,0 +1,133 @@
+warning: unused import: `dictionary`
+ --> /Users/raphaelmansuy/Github/03-working/edgequake/lopdf/src/object_stream.rs:2:13
+  |
+2 | use crate::{dictionary, Document, Error, Object, ObjectId, Result, Stream};
+  |             ^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `0` is never read
+   --> /Users/raphaelmansuy/Github/03-working/edgequake/lopdf/src/datetime.rs:157:21
+    |
+157 | pub struct DateTime(String);
+    |            -------- ^^^^^^
+    |            |
+    |            field in this struct
+    |
+    = help: consider removing this field
+    = note: `DateTime` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `lopdf` (lib) generated 2 warnings (run `cargo fix --lib -p lopdf` to apply 1 suggestion)
+warning: unused import: `SectionPatternProcessor`
+  --> crates/edgequake-pdf/src/extractor.rs:19:5
+   |
+19 |     SectionPatternProcessor, StyleDetectionProcessor, TextTableReconstructionProcessor,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `avg_density`
+    --> crates/edgequake-pdf/src/backend/sota_backend.rs:1736:13
+     |
+1736 |         let avg_density = if proj.is_empty() {
+     |             ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_avg_density`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `body_size`
+    --> crates/edgequake-pdf/src/backend/sota_backend.rs:2340:13
+     |
+2340 |         let body_size = font_size_counts
+     |             ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_body_size`
+
+warning: unused variable: `avg_freq`
+   --> crates/edgequake-pdf/src/processors/llm_enhance.rs:288:13
+    |
+288 |         let avg_freq = total_alnum as f32 / char_counts.len() as f32;
+    |             ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_avg_freq`
+
+warning: unused variable: `is_bold`
+    --> crates/edgequake-pdf/src/processors/processor.rs:2345:25
+     |
+2345 |                     let is_bold = weight >= 600;
+     |                         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_is_bold`
+
+warning: unused variable: `avg_block_size`
+   --> crates/edgequake-pdf/src/schema/document.rs:218:13
+    |
+218 |         let avg_block_size = if block_count > 0 {
+    |             ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_avg_block_size`
+
+warning: unused variable: `text_density`
+   --> crates/edgequake-pdf/src/schema/document.rs:228:13
+    |
+228 |         let text_density = if page_area > 0.0 {
+    |             ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_text_density`
+
+warning: methods `detect_columns_by_whitespace` and `create_fallback_table_block` are never used
+   --> crates/edgequake-pdf/src/backend/lattice.rs:434:8
+    |
+ 12 | impl LatticeEngine {
+    | ------------------ methods in this implementation
+...
+434 |     fn detect_columns_by_whitespace(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+613 |     fn create_fallback_table_block(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `calculate_header_level` is never used
+    --> crates/edgequake-pdf/src/backend/sota_backend.rs:2429:8
+     |
+1248 | impl SotaBackend {
+     | ---------------- method in this implementation
+...
+2429 |     fn calculate_header_level(&self, font_size: f32, body_size: f32) -> u8 {
+     |        ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: field `id` is never read
+   --> crates/edgequake-pdf/src/layout/geometric.rs:263:5
+    |
+262 | pub struct Cluster {
+    |            ------- field in this struct
+263 |     id: usize,
+    |     ^^
+    |
+    = note: `Cluster` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: `edgequake-pdf` (lib) generated 10 warnings (run `cargo fix --lib -p edgequake-pdf` to apply 7 suggestions)
+warning: fields `camel_join`, `hyphen_break`, `double_space`, and `arxiv_header` are never read
+  --> crates/edgequake-pdf/examples/real_dataset_eval.rs:68:5
+   |
+67 | struct PatternCounts {
+   |        ------------- fields in this struct
+68 |     camel_join: usize,
+   |     ^^^^^^^^^^
+69 |     hyphen_break: usize,
+   |     ^^^^^^^^^^^^
+70 |     double_space: usize,
+   |     ^^^^^^^^^^^^
+71 |     arxiv_header: usize,
+   |     ^^^^^^^^^^^^
+   |
+   = note: `PatternCounts` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `edgequake-pdf` (example "real_dataset_eval") generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.12s
+     Running `target/debug/examples/real_dataset_eval --write`
+Real-dataset evaluation: 5 PDFs
+Write outputs: true
+- 2900_Goyal_et_al: chars=33297, f1=0.948 (p=0.944, r=0.953), patterns=PatternCounts { camel_join: 1, hyphen_break: 14, double_space: 144, arxiv_header: 0 }
+  wrote: /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/test-data/real_dataset/2900_Goyal_et_al.mdf.gen
+- AlphaEvolve: chars=101281, f1=0.630 (p=0.467, r=0.967), patterns=PatternCounts { camel_join: 57, hyphen_break: 53, double_space: 344, arxiv_header: 28 }
+  wrote: /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/test-data/real_dataset/AlphaEvolve.mdf.gen
+- agent_2510.09244v1: chars=88214, f1=0.955 (p=0.960, r=0.951), patterns=PatternCounts { camel_join: 68, hyphen_break: 55, double_space: 1306, arxiv_header: 11 }
+  wrote: /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/test-data/real_dataset/agent_2510.09244v1.mdf.gen
+- ccn_2512.21804v1: chars=25379, f1=0.833 (p=0.857, r=0.809), patterns=PatternCounts { camel_join: 0, hyphen_break: 11, double_space: 77, arxiv_header: 0 }
+  wrote: /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/test-data/real_dataset/ccn_2512.21804v1.mdf.gen
+- one_tool_2512.20957v2: chars=43857, f1=0.732 (p=0.631, r=0.872), patterns=PatternCounts { camel_join: 61, hyphen_break: 24, double_space: 529, arxiv_header: 23 }
+  wrote: /Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-pdf/test-data/real_dataset/one_tool_2512.20957v2.mdf.gen

@@ -202,34 +202,60 @@ impl MarginFilterProcessor {
         &self,
         block: &Block,
         page_width: f32,
-        page_height: f32,
+        _page_height: f32,
         left_margin: f32,
         right_margin: f32,
-        top_margin: f32,
+        _top_margin: f32,
         bottom_margin: f32,
         line_number_edge: f32,
     ) -> bool {
         let bbox = &block.bbox;
 
-        // Check if block is entirely in left margin
+        // First principles: content outside the main text region (true margins) is almost never
+        // semantically meaningful in scientific PDFs (line numbers, crop marks, etc.).
         if bbox.x2 < left_margin {
-            // Also check if it's short text (likely line number)
-            if block.text.trim().len() <= 3 {
-                tracing::debug!("Filtering left margin content: '{}'", block.text.trim());
-                return true;
-            }
+            tracing::debug!("Filtering left margin block: '{}'", block.text.trim());
+            return true;
+        }
+        if bbox.x1 > page_width - right_margin {
+            tracing::debug!("Filtering right margin block: '{}'", block.text.trim());
+            return true;
         }
 
-        // Check if block is entirely in right margin
-        if bbox.x1 > page_width - right_margin {
-            if block.text.trim().len() <= 3 {
-                tracing::debug!("Filtering right margin content: '{}'", block.text.trim());
-                return true;
+        // First principles: line numbering manifests as long runs of integers near the page edge.
+        // This catches cases where line numbers get merged into one block and are no longer "short".
+        let trimmed = block.text.trim();
+        let edge_adjacent = bbox.x1 < line_number_edge || bbox.x2 > page_width - line_number_edge;
+        if edge_adjacent {
+            let tokens: Vec<&str> = trimmed.split_whitespace().collect();
+            if tokens.len() >= 6
+                && tokens
+                    .iter()
+                    .all(|t| !t.is_empty() && t.chars().all(|c| c.is_ascii_digit()))
+            {
+                let mut nums: Vec<i32> = Vec::with_capacity(tokens.len());
+                for t in tokens {
+                    if let Ok(n) = t.parse::<i32>() {
+                        nums.push(n);
+                    } else {
+                        nums.clear();
+                        break;
+                    }
+                }
+
+                if !nums.is_empty() {
+                    let all_same = nums.iter().all(|n| *n == nums[0]);
+                    let consecutive = nums.windows(2).all(|w| w[1] == w[0].saturating_add(1));
+                    if all_same || consecutive {
+                        tracing::debug!("Filtering edge numeric run: '{}'", trimmed);
+                        return true;
+                    }
+                }
             }
         }
 
         // Check if block is single digit/letter at edge of content (likely line number)
-        let text = block.text.trim();
+        let text = trimmed;
         if text.len() <= 2
             && text
                 .chars()
@@ -242,21 +268,21 @@ impl MarginFilterProcessor {
             }
         }
 
-        // Check top margin (headers)
-        if bbox.y2 < top_margin && block.text.len() < 100 {
-            // Only filter short texts in header (not full header lines)
-            // Skip - we want to keep page headers
-        }
+        // NOTE: PDF coordinates: Y=0 at bottom, higher Y = higher on page.
+        // Footer region is near Y=0, header region is near Y=page_height.
 
-        // Check bottom margin (footers)
-        if bbox.y1 > page_height - bottom_margin && block.text.len() < 100 {
-            // Check for page number pattern
+        // Check bottom margin (footers): filter page numbers
+        let in_footer = bbox.y1 <= bottom_margin;
+        if in_footer {
             let trimmed = block.text.trim();
             if trimmed.parse::<i32>().is_ok() {
                 tracing::debug!("Filtering footer page number: '{}'", trimmed);
                 return true;
             }
         }
+
+        // Header/footer removal for running headers is handled at document-level in process()
+        // (needs repetition stats across pages).
 
         false
     }
@@ -270,6 +296,75 @@ impl Default for MarginFilterProcessor {
 
 impl Processor for MarginFilterProcessor {
     fn process(&self, mut document: Document) -> Result<Document> {
+        use std::collections::{HashMap, HashSet};
+
+        // First pass: collect repeated margin texts across pages.
+        // This targets running headers/footers without over-detecting section headers.
+        let mut header_counts: HashMap<String, usize> = HashMap::new();
+        let mut footer_counts: HashMap<String, usize> = HashMap::new();
+
+        let normalize = |text: &str| -> String {
+            let collapsed = text.split_whitespace().collect::<Vec<_>>().join(" ");
+            collapsed.to_lowercase()
+        };
+
+        for page in &document.pages {
+            let page_height = page.height;
+            let top_margin = page_height * 0.05;
+            let bottom_margin = page_height * 0.05;
+
+            let mut header_seen: HashSet<String> = HashSet::new();
+            let mut footer_seen: HashSet<String> = HashSet::new();
+
+            for block in &page.blocks {
+                let trimmed = block.text.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                // Only consider reasonably short texts as running header/footer candidates.
+                // (Long blocks in margins are more likely actual content.)
+                if trimmed.len() < 10 || trimmed.len() > 220 {
+                    continue;
+                }
+
+                let bbox = &block.bbox;
+                let in_header = bbox.y2 >= page_height - top_margin;
+                let in_footer = bbox.y1 <= bottom_margin;
+
+                if in_header {
+                    let key = normalize(trimmed);
+                    if header_seen.insert(key.clone()) {
+                        *header_counts.entry(key).or_insert(0) += 1;
+                    }
+                }
+
+                if in_footer {
+                    // Skip pure page numbers; they are handled separately.
+                    if trimmed.parse::<i32>().is_ok() {
+                        continue;
+                    }
+                    let key = normalize(trimmed);
+                    if footer_seen.insert(key.clone()) {
+                        *footer_counts.entry(key).or_insert(0) += 1;
+                    }
+                }
+            }
+        }
+
+        // Text appearing on >= half of pages (at least 3) is likely running header/footer.
+        let threshold = (document.pages.len() / 2).max(3);
+        let running_headers: HashSet<String> = header_counts
+            .into_iter()
+            .filter(|(_, count)| *count >= threshold)
+            .map(|(k, _)| k)
+            .collect();
+        let running_footers: HashSet<String> = footer_counts
+            .into_iter()
+            .filter(|(_, count)| *count >= threshold)
+            .map(|(k, _)| k)
+            .collect();
+
+        // Second pass: filter margins + remove running header/footer blocks.
         for page in &mut document.pages {
             let page_width = page.width;
             let page_height = page.height;
@@ -283,7 +378,7 @@ impl Processor for MarginFilterProcessor {
             let line_number_edge = page_width * 0.10; // 10% of page width (line number detection)
 
             page.blocks.retain(|block| {
-                !self.is_margin_content(
+                if self.is_margin_content(
                     block,
                     page_width,
                     page_height,
@@ -292,7 +387,30 @@ impl Processor for MarginFilterProcessor {
                     top_margin,
                     bottom_margin,
                     line_number_edge,
-                )
+                ) {
+                    return false;
+                }
+
+                let trimmed = block.text.trim();
+                if trimmed.is_empty() {
+                    return true;
+                }
+
+                let bbox = &block.bbox;
+                let in_header = bbox.y2 >= page_height - top_margin;
+                let in_footer = bbox.y1 <= bottom_margin;
+                let key = normalize(trimmed);
+
+                if in_header && running_headers.contains(&key) {
+                    tracing::debug!("Filtering running header: '{}'", trimmed);
+                    return false;
+                }
+                if in_footer && running_footers.contains(&key) {
+                    tracing::debug!("Filtering running footer: '{}'", trimmed);
+                    return false;
+                }
+
+                true
             });
         }
 
@@ -461,7 +579,18 @@ impl Default for GarbledTextFilterProcessor {
 impl Processor for GarbledTextFilterProcessor {
     fn process(&self, mut document: Document) -> Result<Document> {
         for page in &mut document.pages {
-            page.blocks.retain(|block| !self.is_garbled(&block.text));
+            page.blocks.retain(|block| {
+                // Tables (and other structured blocks) often contain many short tokens (e.g. '|')
+                // that would be falsely flagged as "garbled".
+                if matches!(
+                    block.block_type,
+                    BlockType::Table | BlockType::Code | BlockType::Equation
+                ) {
+                    return true;
+                }
+
+                !self.is_garbled(&block.text)
+            });
         }
 
         Ok(document)
@@ -817,29 +946,71 @@ impl TextTableReconstructionProcessor {
         t == "---" || block.block_type == BlockType::SectionHeader
     }
 
+    fn looks_like_pipe_table(text: &str) -> bool {
+        let t = text.trim();
+        if !t.starts_with('|') {
+            return false;
+        }
+
+        let mut lines: Vec<&str> = t
+            .lines()
+            .map(|l| l.trim())
+            .filter(|l| !l.is_empty())
+            .collect();
+        if lines.len() < 2 {
+            return false;
+        }
+
+        // Detect a markdown table separator line like: | --- | ---: | :--- |
+        let has_separator = lines.iter().any(|l| {
+            l.starts_with('|')
+                && l.chars()
+                    .all(|c| c == '|' || c == '-' || c == ':' || c == ' ' || c == '\t')
+        });
+
+        // Many extracted tables come as multi-line text with several pipe-prefixed rows.
+        let pipe_lines = lines
+            .iter()
+            .filter(|l| l.starts_with('|') && l.matches('|').count() >= 2)
+            .count();
+
+        has_separator && pipe_lines >= 2
+    }
+
     fn table_like_score(text: &str) -> i32 {
         let t = text.trim();
         if t.is_empty() {
             return 0;
         }
 
-        // Strong signal: lots of spacing columns.
-        let multi_space_runs = t.split_whitespace().count() < t.len() / 6;
-        let digits = t.chars().filter(|c| c.is_ascii_digit()).count();
+        // Be conservative: avoid treating normal prose as a table.
+        // Strong signals:
+        // - explicit pipe separators
+        // - repeated multi-space alignment (common in extracted tables)
+        // - numeric suffix patterns (e.g. "... 0.4578 4")
         let pipes = t.matches('|').count();
+        let has_multi_space = t.contains("  ") || t.contains('\t');
+
+        let cleaned = Self::sanitize_table_line(t);
+        let num_tokens = cleaned
+            .split_whitespace()
+            .filter(|tok| tok.parse::<f64>().is_ok())
+            .count();
+        let has_numeric_suffix = Self::parse_numeric_suffix(&cleaned).is_some();
 
         let mut score = 0;
-        if multi_space_runs {
-            score += 2;
-        }
-        if digits >= 3 {
-            score += 2;
-        } else if digits >= 1 {
-            score += 1;
-        }
         if pipes >= 2 {
             score += 3;
         }
+        if has_multi_space {
+            score += 2;
+        }
+        if has_numeric_suffix {
+            score += 3;
+        } else if num_tokens >= 2 {
+            score += 2;
+        }
+
         score
     }
 
@@ -990,7 +1161,24 @@ impl Default for TextTableReconstructionProcessor {
 
 impl Processor for TextTableReconstructionProcessor {
     fn process(&self, mut document: Document) -> Result<Document> {
-        for page in &mut document.pages {
+        // Pre-scan *previous-page* table candidates so we can guard reconstruction even if the
+        // caption drifts onto the next page (common around page breaks).
+        // We include both structured tables and pre-rendered pipe tables.
+        let page_table_bboxes: Vec<Vec<crate::schema::BoundingBox>> = document
+            .pages
+            .iter()
+            .map(|p| {
+                p.blocks
+                    .iter()
+                    .filter(|b| {
+                        b.block_type == BlockType::Table || Self::looks_like_pipe_table(&b.text)
+                    })
+                    .map(|b| b.bbox)
+                    .collect()
+            })
+            .collect();
+
+        for (page_idx, page) in document.pages.iter_mut().enumerate() {
             if page.blocks.is_empty() {
                 continue;
             }
@@ -1002,6 +1190,96 @@ impl Processor for TextTableReconstructionProcessor {
 
                 if !Self::looks_like_table_caption(&block.text) {
                     new_blocks.push(block.clone());
+                    i += 1;
+                    continue;
+                }
+
+                // If the backend already produced a structured Table block near this caption,
+                // do NOT attempt text-based reconstruction. Table blocks often have empty
+                // `.text` and would otherwise be missed by the text-only heuristics below.
+                let mut has_structured_table = false;
+                let caption_bbox = block.bbox;
+
+                let consider_table_bbox = |table_bbox: crate::schema::BoundingBox| -> bool {
+                    let overlap_x = (caption_bbox.x2.min(table_bbox.x2)
+                        - caption_bbox.x1.max(table_bbox.x1))
+                    .max(0.0);
+                    let min_w = caption_bbox.width().min(table_bbox.width()).max(1.0);
+                    let x_overlap_ratio = overlap_x / min_w;
+                    x_overlap_ratio >= 0.30
+                };
+
+                // Spatial check: if there's any table on this page that is reasonably aligned
+                // (X overlap / same column band), skip reconstruction.
+                // FIRST PRINCIPLES: Check ALL tables on the page (before AND after caption).
+                // The lattice engine may have detected a table from grid lines that will be
+                // rendered at the proper position. We must avoid creating duplicate text-tables.
+                // Check for tables BEFORE the caption in block order.
+                if i > 0 {
+                    has_structured_table = page.blocks[..i].iter().any(|b| {
+                        (b.block_type == BlockType::Table || Self::looks_like_pipe_table(&b.text))
+                            && consider_table_bbox(b.bbox)
+                    });
+                }
+
+                // Also check for tables AFTER the caption in block order.
+                // This handles the case where lattice detection placed the table after the caption.
+                if !has_structured_table && i + 1 < page.blocks.len() {
+                    has_structured_table = page.blocks[(i + 1)..].iter().any(|b| {
+                        b.block_type == BlockType::Table && consider_table_bbox(b.bbox)
+                    });
+                }
+
+                // Previous page (caption spills to next page in some PDFs).
+                if !has_structured_table && page_idx > 0 {
+                    if let Some(prev_tables) = page_table_bboxes.get(page_idx - 1) {
+                        has_structured_table =
+                            prev_tables.iter().any(|bb| consider_table_bbox(*bb));
+                    }
+                }
+
+                if has_structured_table {
+                    new_blocks.push(block.clone());
+                    // If this caption is followed by a duplicate pipe-table fragment, drop it.
+                    // This prevents a second (often garbled) table from being emitted when the
+                    // real table already exists (sometimes on the previous page).
+                    const MAX_DUP_SCAN_BLOCKS: usize = 32;
+                    let mut first_pipe_idx: Option<usize> = None;
+                    for j in (i + 1)..page.blocks.len().min(i + 1 + MAX_DUP_SCAN_BLOCKS) {
+                        let t = page.blocks[j].text.trim();
+                        if t.is_empty() {
+                            break;
+                        }
+                        if Self::is_hard_break(&page.blocks[j]) || Self::looks_like_table_caption(t)
+                        {
+                            break;
+                        }
+                        if t.starts_with('|') {
+                            first_pipe_idx = Some(j);
+                            break;
+                        }
+                    }
+
+                    if let Some(pipe_start) = first_pipe_idx {
+                        let mut consumed_until = pipe_start;
+                        for j in pipe_start..page.blocks.len().min(pipe_start + MAX_DUP_SCAN_BLOCKS)
+                        {
+                            let b = &page.blocks[j];
+                            let t = b.text.trim();
+                            if t.is_empty() {
+                                break;
+                            }
+                            if Self::is_hard_break(b) || Self::looks_like_table_caption(t) {
+                                break;
+                            }
+                            consumed_until = j + 1;
+                        }
+
+                        // Consume everything from the caption up through the pipe table.
+                        i = consumed_until;
+                        continue;
+                    }
+
                     i += 1;
                     continue;
                 }
@@ -1025,11 +1303,15 @@ impl Processor for TextTableReconstructionProcessor {
                 const MAX_SCAN_BLOCKS: usize = 22;
 
                 // Scan forward for contiguous table-like lines (caption-before-table).
+                // First pass: collect all candidate lines up to a hard break.
+                // Track skipped zero-score lines so we can include them as potential headers.
                 let mut forward_lines: Vec<(usize, String, i32)> = Vec::new();
                 let mut forward_score = 0;
+                let mut skipped_zeros: Vec<(usize, String, i32)> = Vec::new();
                 let mut started = false;
                 let mut consecutive_zeros = 0;
                 const MAX_ZERO_LINES: usize = 2; // Allow up to 2 zero-score lines within table
+                const MAX_LEADING_ZEROS: usize = 3; // Allow up to 3 header lines before data
                 for j in (i + 1)..page.blocks.len().min(i + 1 + MAX_SCAN_BLOCKS) {
                     let b = &page.blocks[j];
                     let t = b.text.trim();
@@ -1042,9 +1324,17 @@ impl Processor for TextTableReconstructionProcessor {
                     let s = Self::table_like_score(t);
                     if !started {
                         if s == 0 {
+                            // Track zero-score lines before we start - could be table headers
+                            if skipped_zeros.len() < MAX_LEADING_ZEROS {
+                                skipped_zeros.push((j, t.to_string(), s));
+                            }
                             continue;
                         }
+                        // Found first positive-score line - prepend skipped header lines
                         started = true;
+                        for skipped in skipped_zeros.drain(..) {
+                            forward_lines.push(skipped);
+                        }
                         consecutive_zeros = 0;
                     } else if s == 0 {
                         consecutive_zeros += 1;
@@ -1387,6 +1677,25 @@ impl Processor for TextTableReconstructionProcessor {
                     continue;
                 }
 
+                // Guard against a common failure mode:
+                // the scanned "table" lines are actually multi-line Markdown (already containing pipes),
+                // but our numeric parsing failed, so we fell back to a 1-col "Value" table.
+                // That produces nested/garbled pipe tables and nukes precision.
+                let is_value_header = rows
+                    .first()
+                    .map(|h| {
+                        !h.is_empty()
+                            && h[0].eq_ignore_ascii_case("Value")
+                            && h.iter().skip(1).all(|c| c.trim().is_empty())
+                    })
+                    .unwrap_or(false);
+
+                if is_value_header {
+                    new_blocks.push(block.clone());
+                    i += 1;
+                    continue;
+                }
+
                 // Compute bbox union over captured blocks.
                 let mut table_bbox = block.bbox;
                 for (idx, _, _) in &lines {
@@ -1551,6 +1860,7 @@ impl BlockMergeProcessor {
         let vertical_gap = (a.bbox.y1 - b.bbox.y2).abs();
 
         if vertical_gap > vertical_threshold {
+            // tracing::debug!("BlockMerge: NOT merging - vertical gap {:.1} > {:.1}", vertical_gap, vertical_threshold);
             return false;
         }
 
@@ -2303,7 +2613,9 @@ impl Processor for HeaderDetectionProcessor {
                 // Single number section headers are H2
                 // For single number patterns (e.g., "1 Introduction"), use multi-signal detection
                 // First Principles: no keyword matching, use font properties + structure
-                if is_short_for_heading && single_number_heading.is_match(text) {
+                // FIRST PRINCIPLES: Addresses like "353 Serra Mall, Stanford, CA" should NOT be headings
+                // Addresses contain commas for city/state separation; section headers don't.
+                if is_short_for_heading && single_number_heading.is_match(text) && !text.contains(',') {
                     // Extract text after the number
                     let after_number: String = text
                         .chars()

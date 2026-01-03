@@ -1697,6 +1697,107 @@ impl SotaBackend {
         }
     }
 
+    /// Deduplicate text elements that are identical and at the same position.
+    /// This handles PDF layers (e.g. OCR + Visible) that duplicate text.
+    fn deduplicate_elements(&self, elements: Vec<TextElement>) -> Vec<TextElement> {
+        if elements.is_empty() {
+            return Vec::new();
+        }
+
+        // Sort by Y (descending), then X (ascending)
+        let mut sorted = elements;
+        sorted.sort_by(|a, b| {
+            b.y.partial_cmp(&a.y)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal))
+        });
+
+        let mut unique = Vec::new();
+        unique.push(sorted[0].clone());
+
+        for elem in sorted.into_iter().skip(1) {
+            let prev = unique.last().unwrap();
+
+            // Check for overlap
+            let same_pos = (elem.x - prev.x).abs() < 2.0 && (elem.y - prev.y).abs() < 2.0;
+
+            if same_pos {
+                // If text is identical, skip
+                if elem.text == prev.text {
+                    continue;
+                }
+                // If one contains the other, keep the longer one
+                if elem.text.contains(&prev.text) {
+                    unique.pop(); // Remove shorter prev
+                    unique.push(elem);
+                    continue;
+                }
+                if prev.text.contains(&elem.text) {
+                    continue; // Skip shorter elem
+                }
+            }
+
+            unique.push(elem);
+        }
+
+        unique
+    }
+
+    /// Merge text elements that are physically adjacent on the same line.
+    /// This fixes fragmentation caused by PDF operators (Tj) splitting words or sentences.
+    fn merge_text_elements(&self, elements: Vec<TextElement>) -> Vec<TextElement> {
+        if elements.is_empty() {
+            return Vec::new();
+        }
+
+        // Sort by Y (descending), then X (ascending)
+        let mut sorted = elements;
+        sorted.sort_by(|a, b| {
+            b.y.partial_cmp(&a.y)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal))
+        });
+
+        let mut merged = Vec::new();
+        let mut current = sorted[0].clone();
+
+        for next in sorted.into_iter().skip(1) {
+            // Check if on same line
+            if (next.y - current.y).abs() < 2.0 {
+                // Check horizontal distance
+                // Use font size from current element to estimate char width
+                let char_width = if current.font_size > 0.0 {
+                    current.font_size * 0.4 // Conservative estimate
+                } else {
+                    4.0
+                };
+
+                let current_width = current.text.len() as f32 * char_width;
+                let current_end = current.x + current_width;
+                let gap = next.x - current_end;
+
+                // If gap is small (e.g. < 2 chars), merge
+                // Allow slight negative gap (overlap) due to kerning
+                if gap > -char_width && gap < char_width * 2.5 {
+                    // Merge!
+                    // Add space if gap is significant (> 0.3 char width)
+                    if gap > char_width * 0.3 {
+                        current.text.push(' ');
+                    }
+                    current.text.push_str(&next.text);
+                    continue;
+                }
+            }
+
+            // Push current and start new
+            merged.push(current);
+            current = next;
+        }
+        merged.push(current);
+
+        merged
+    }
+
     // ============================================================================
     // SOTA Column Detection using Vertical Projection Histograms (XY-Cut approach)
     // Based on spec_algo.md: Enhanced XY-Cut with Adaptive Thresholds
@@ -1793,8 +1894,16 @@ impl SotaBackend {
 
         if let Some(&boundary) = center_gap {
             // Verify with element distribution
-            let left_count = elements.iter().filter(|e| e.x < boundary - 10.0).count();
-            let right_count = elements.iter().filter(|e| e.x > boundary + 10.0).count();
+            // The gap position is the START of the gap (whitespace column).
+            // Text in the right column starts AFTER the gap, not at the gap.
+            // Use asymmetric thresholds: elements ending before gap = left, elements starting after gap = right
+            // For now, use boundary as the rough separation point with wider margin
+            
+            // Find elements that are clearly in left column (well before boundary)
+            // and elements that are in right column (at or after boundary)
+            // A gap at X means content is sparse there - left column ends before X, right column starts at or after X
+            let left_count = elements.iter().filter(|e| e.x < boundary).count();
+            let right_count = elements.iter().filter(|e| e.x >= boundary).count();
 
             // Both columns should have significant content and be somewhat balanced
             let balance = if left_count > right_count {
@@ -1809,10 +1918,7 @@ impl SotaBackend {
             );
 
             if left_count >= 5 && right_count >= 5 && balance > 0.25 {
-                debug!(
-                    "Detected TWO-COLUMN layout with boundary at {:.1}",
-                    boundary
-                );
+                debug!("Detected TWO-COLUMN layout with boundary at {:.1}", boundary);
                 return Some(boundary);
             }
         }
@@ -2320,12 +2426,10 @@ impl SotaBackend {
                 .join("");
             let y = line.first().map(|e| e.y).unwrap_or(0.0);
             let x = line.first().map(|e| e.x).unwrap_or(0.0);
+            let preview: String = text.chars().take(40).collect();
             debug!(
                 "  Block input line {}: Y={:.1} X={:.1} '{}'",
-                i,
-                y,
-                x,
-                &text[..text.len().min(40)]
+                i, y, x, preview
             );
         }
 
@@ -2358,6 +2462,9 @@ impl SotaBackend {
         // Section pattern regex
         let _section_pattern = regex::Regex::new(r"^(\d+\.)+\s+[A-Z]").ok();
 
+        let mut last_bbox: Option<BoundingBox> = None;
+        let mut last_text: String = String::new();
+
         for (idx, line) in lines.iter().enumerate() {
             if line.is_empty() {
                 continue;
@@ -2383,6 +2490,29 @@ impl SotaBackend {
             let y = line.first().map(|e| e.y).unwrap_or(0.0);
 
             let bbox = BoundingBox::new(min_x, y, max_x, y + merged.avg_font_size);
+
+            // Deduplication: Check if this block is a duplicate of the previous one
+            // (e.g. hidden OCR layer overlapping with visible text)
+            if let Some(prev_bbox) = &last_bbox {
+                // Check vertical overlap (lines are sorted by Y, so duplicates should be adjacent)
+                let overlap_y = prev_bbox.y2.min(bbox.y2) - prev_bbox.y1.max(bbox.y1);
+                let min_h = (prev_bbox.y2 - prev_bbox.y1).min(bbox.y2 - bbox.y1);
+
+                if overlap_y > min_h * 0.5 {
+                    // Significant vertical overlap (>50%). Check text similarity.
+                    // We check for exact match or containment to handle slight OCR variations
+                    if text == last_text
+                        || (text.len() > 5
+                            && (text.contains(&last_text) || last_text.contains(text)))
+                    {
+                        // tracing::debug!("Skipping duplicate block: '{}'", text);
+                        continue;
+                    }
+                }
+            }
+
+            last_bbox = Some(bbox.clone());
+            last_text = text.to_string();
 
             // Detect block type
             let normalized = text.to_lowercase();
@@ -2544,6 +2674,13 @@ impl SotaBackend {
 
         // Extract text and graphical elements
         let (elements, pdf_lines) = self.extract_page_elements(&content_bytes, &fonts)?;
+
+        // Deduplicate elements (OCR layers)
+        let elements = self.deduplicate_elements(elements);
+
+        // Merge fragmented text elements
+        let elements = self.merge_text_elements(elements);
+
         debug!(
             "Page {} has {} text elements and {} graphical lines",
             page_num,
@@ -2616,21 +2753,6 @@ impl SotaBackend {
             })
             .collect();
 
-        if !tables.is_empty() {
-            warn!(
-                "Table detection filtered all text elements on page {}, skipping text processing for this page.",
-                page_num
-            );
-            return Ok(Page {
-                number: page_num,
-                width: page_width,
-                height: page_height,
-                blocks: tables,
-                stats: PageStats::default(),
-                ..Page::new(page_num, page_width, page_height)
-            });
-        }
-
         // Filter out text elements that are inside tables
         let mut non_table_elements = Vec::new();
         for elem in &elements {
@@ -2667,8 +2789,32 @@ impl SotaBackend {
         // Convert to blocks
         let mut blocks = self.lines_to_blocks(lines, page_width, page_height);
 
-        // Add tables
-        blocks.extend(tables);
+        // Insert detected tables back into the existing reading order.
+        // We intentionally do NOT re-sort `blocks` globally (that can break multi-column reading
+        // order), but we also do not want tables to be appended at the end of the page.
+        // Instead, place each table at the first position where subsequent blocks appear below
+        // the table on the page.
+        let mut tables = tables;
+        tables.sort_by(|a, b| {
+            // Top-to-bottom insertion (higher Y first).
+            b.bbox
+                .y2
+                .partial_cmp(&a.bbox.y2)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        for table in tables {
+            let table_y = (table.bbox.y1 + table.bbox.y2) * 0.5;
+            let mut insert_idx = blocks.len();
+            for (idx, blk) in blocks.iter().enumerate() {
+                let blk_y = (blk.bbox.y1 + blk.bbox.y2) * 0.5;
+                if blk_y < table_y {
+                    insert_idx = idx;
+                    break;
+                }
+            }
+            blocks.insert(insert_idx, table);
+        }
 
         // NOTE: Do NOT sort blocks here! The reading order has already been established by
         // group_into_lines() -> group_two_column_layout() or group_single_column_layout().
