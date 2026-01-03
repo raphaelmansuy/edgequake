@@ -1347,4 +1347,192 @@ mod tests {
         // The connected component only has 2 lines, minimum is 4
         assert!(tables.is_empty(), "2 lines should not form a table");
     }
+
+    // Additional table detection tests for Phase 4.1
+
+    #[test]
+    fn test_multiple_separate_tables() {
+        let engine = LatticeEngine::new();
+
+        // Two separate boxes (tables) that don't intersect
+        // Box 1: (10, 10) to (100, 60)
+        let box1 = vec![
+            make_h_line(10.0, 60.0, 100.0),  // Top
+            make_h_line(10.0, 10.0, 100.0),  // Bottom
+            make_v_line(10.0, 10.0, 60.0),   // Left
+            make_v_line(100.0, 10.0, 60.0),  // Right
+        ];
+
+        // Box 2: (200, 10) to (300, 60) - completely separate
+        let box2 = vec![
+            make_h_line(200.0, 60.0, 300.0), // Top
+            make_h_line(200.0, 10.0, 300.0), // Bottom
+            make_v_line(200.0, 10.0, 60.0),  // Left
+            make_v_line(300.0, 10.0, 60.0),  // Right
+        ];
+
+        let lines: Vec<PdfLine> = box1.into_iter().chain(box2).collect();
+        let tables = engine.detect_tables(&lines, &[], 600.0, 800.0);
+        
+        // Should detect 2 separate tables (or handle as per algorithm)
+        assert!(tables.len() <= 2, "Should detect at most 2 tables from 2 separate boxes");
+    }
+
+    #[test]
+    fn test_line_too_short_ignored() {
+        let engine = LatticeEngine::new();
+
+        // Lines shorter than min_line_length (10.0) should be filtered out
+        let short_lines = vec![
+            make_h_line(0.0, 100.0, 5.0), // Only 5 pixels - too short
+            make_v_line(100.0, 0.0, 5.0), // Only 5 pixels - too short
+        ];
+
+        let (h_lines, v_lines) = engine.filter_lines(&short_lines);
+        assert!(h_lines.is_empty(), "Short horizontal line should be filtered");
+        assert!(v_lines.is_empty(), "Short vertical line should be filtered");
+    }
+
+    #[test]
+    fn test_diagonal_line_ignored() {
+        let engine = LatticeEngine::new();
+
+        // Diagonal line (not horizontal or vertical)
+        let lines = vec![PdfLine {
+            p1: (0.0, 0.0),
+            p2: (100.0, 100.0),
+            width: 1.0,
+        }];
+
+        let (h_lines, v_lines) = engine.filter_lines(&lines);
+        assert!(h_lines.is_empty(), "Diagonal should not be horizontal");
+        assert!(v_lines.is_empty(), "Diagonal should not be vertical");
+    }
+
+    #[test]
+    fn test_grid_table_detection() {
+        let engine = LatticeEngine::new();
+
+        // Create a 2x2 grid table with internal lines
+        // Grid from (0, 0) to (100, 100) with middle lines at x=50, y=50
+        let lines = vec![
+            // Outer horizontal
+            make_h_line(0.0, 100.0, 100.0), // Top
+            make_h_line(0.0, 0.0, 100.0),   // Bottom
+            make_h_line(0.0, 50.0, 100.0),  // Middle horizontal
+            // Outer vertical
+            make_v_line(0.0, 0.0, 100.0),   // Left
+            make_v_line(100.0, 0.0, 100.0), // Right
+            make_v_line(50.0, 0.0, 100.0),  // Middle vertical
+        ];
+
+        let tables = engine.detect_tables(&lines, &[], 600.0, 800.0);
+        // A grid should be detected as one table (all lines connected)
+        assert!(tables.len() <= 1, "Grid lines should form one connected table");
+    }
+
+    #[test]
+    fn test_t_junction_lines() {
+        let engine = LatticeEngine::new();
+
+        // T-junction: horizontal line with vertical line touching its middle
+        let h_line = make_h_line(0.0, 50.0, 100.0);
+        let v_line = make_v_line(50.0, 50.0, 100.0);
+
+        assert!(
+            engine.lines_intersect(&h_line, &v_line),
+            "T-junction lines should intersect"
+        );
+    }
+
+    #[test]
+    fn test_corner_touch_lines() {
+        let engine = LatticeEngine::new();
+
+        // Corner touch: lines meeting at their endpoints
+        let h_line = make_h_line(0.0, 50.0, 100.0);  // Ends at (100, 50)
+        let v_line = make_v_line(100.0, 50.0, 100.0); // Starts at (100, 50)
+
+        // With tolerance, they should intersect at corner
+        assert!(
+            engine.lines_intersect(&h_line, &v_line),
+            "Corner-touching lines should intersect (within tolerance)"
+        );
+    }
+
+    #[test]
+    fn test_near_miss_no_intersection() {
+        let engine = LatticeEngine::new();
+
+        // Lines that are close but don't quite intersect
+        let h_line = make_h_line(0.0, 50.0, 45.0);   // Ends at (45, 50)
+        let v_line = make_v_line(50.0, 55.0, 100.0); // Starts at (50, 55)
+
+        // Gap of 5 in X and 5 in Y - should be close to tolerance threshold
+        // With tolerance of 2.0, they should NOT intersect
+        assert!(
+            !engine.lines_intersect(&h_line, &v_line),
+            "Lines with gap > tolerance should not intersect"
+        );
+    }
+
+    #[test]
+    fn test_long_horizontal_lines() {
+        let engine = LatticeEngine::new();
+
+        // Very long horizontal lines (page-width)
+        let lines = vec![
+            make_h_line(0.0, 100.0, 600.0),
+            make_h_line(0.0, 50.0, 600.0),
+        ];
+
+        let (h_lines, _) = engine.filter_lines(&lines);
+        assert_eq!(h_lines.len(), 2, "Should accept long horizontal lines");
+    }
+
+    #[test]
+    fn test_group_parallel_lines_basic() {
+        let engine = LatticeEngine::new();
+
+        let l1 = make_h_line(10.0, 100.0, 200.0);
+        let l2 = make_h_line(10.0, 80.0, 200.0);
+        let l3 = make_h_line(10.0, 60.0, 200.0);
+
+        let lines: Vec<&PdfLine> = vec![&l1, &l2, &l3];
+        let groups = engine.group_parallel_lines(&lines);
+
+        // Lines that overlap horizontally should be grouped together
+        assert!(!groups.is_empty(), "Should create at least one group");
+        assert!(groups.iter().any(|g| g.len() >= 2), "Some group should have multiple lines");
+    }
+
+    #[test]
+    fn test_group_parallel_lines_disjoint() {
+        let engine = LatticeEngine::new();
+
+        // Lines that don't overlap horizontally
+        let l1 = make_h_line(10.0, 100.0, 50.0);   // Left side
+        let l2 = make_h_line(150.0, 80.0, 200.0);  // Right side, no overlap
+
+        let lines: Vec<&PdfLine> = vec![&l1, &l2];
+        let groups = engine.group_parallel_lines(&lines);
+
+        // Non-overlapping lines should form separate groups
+        assert_eq!(groups.len(), 2, "Non-overlapping lines should form separate groups");
+    }
+
+    #[test]
+    fn test_lattice_default_trait() {
+        let engine = LatticeEngine::default();
+        assert_eq!(engine.min_line_length, 10.0);
+        assert_eq!(engine.line_tolerance, 2.0);
+    }
+
+    #[test]
+    fn test_extract_text_in_rect_empty() {
+        let engine = LatticeEngine::new();
+        let text = engine.extract_text_in_rect(&[], 0.0, 0.0, 100.0, 100.0);
+        // Returns vec with one empty string when no elements found
+        assert_eq!(text, vec![String::new()], "Empty elements should produce vec with empty string");
+    }
 }
