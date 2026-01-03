@@ -9,8 +9,6 @@
 //! - Two-column layout detection
 //! - Table detection using lattice analysis
 
-#![cfg(feature = "lopdf")]
-
 use async_trait::async_trait;
 use std::collections::BTreeMap;
 use tracing::{debug, info, warn};

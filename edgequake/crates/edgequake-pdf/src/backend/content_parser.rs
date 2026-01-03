@@ -83,8 +83,8 @@ impl ContentParser {
                 "cm" => {
                     if op.operands.len() >= 6 {
                         let mut new_matrix = [0.0; 6];
-                        for i in 0..6 {
-                            new_matrix[i] = Self::get_number(&op.operands[i]).unwrap_or(0.0);
+                        for (i, operand) in op.operands.iter().enumerate().take(6) {
+                            new_matrix[i] = Self::get_number(operand).unwrap_or(0.0);
                         }
                         // Multiply ctm * new_matrix
                         // [a b 0]   [a' b' 0]
@@ -218,8 +218,8 @@ impl ContentParser {
                 // Text matrix: a b c d e f Tm
                 "Tm" => {
                     if op.operands.len() >= 6 {
-                        for i in 0..6 {
-                            if let Some(v) = Self::get_number(&op.operands[i]) {
+                        for (i, operand) in op.operands.iter().enumerate().take(6) {
+                            if let Some(v) = Self::get_number(operand) {
                                 text_matrix[i] = v;
                             }
                         }
