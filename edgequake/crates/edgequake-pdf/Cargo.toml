@@ -32,6 +32,9 @@ futures.workspace = true
 # lopdf - local path dependency for PDF parsing
 lopdf = { path = "../../../lopdf", optional = true, default-features = false }
 
+# Parallel processing for multi-core extraction
+rayon = "1.10"
+
 # Image processing (match pdf_oxide's version)
 image = "0.24"
 base64 = "0.22"
