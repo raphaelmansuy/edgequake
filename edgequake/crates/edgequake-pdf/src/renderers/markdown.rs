@@ -712,4 +712,162 @@ mod tests {
         let trimmed = renderer.clean_text("  spaced  ");
         assert_eq!(trimmed, "spaced");
     }
+
+    // Additional markdown renderer tests for Phase 4.1
+
+    #[test]
+    fn test_default_style() {
+        let style = MarkdownStyle::default();
+        assert!(style.page_breaks);
+        assert!(style.page_numbers);
+        assert_eq!(style.max_heading_level, 6);
+        assert!(style.atx_headers);
+        assert!(style.fenced_code);
+        assert!(!style.include_block_ids);
+    }
+
+    #[test]
+    fn test_renderer_extension() {
+        let renderer = MarkdownRenderer::new();
+        assert_eq!(renderer.extension(), "md");
+    }
+
+    #[test]
+    fn test_renderer_mime_type() {
+        let renderer = MarkdownRenderer::new();
+        assert_eq!(renderer.mime_type(), "text/markdown");
+    }
+
+    #[test]
+    fn test_empty_document() {
+        let renderer = MarkdownRenderer::new();
+        let doc = Document::new();
+        let result = renderer.render(&doc).unwrap();
+        // Empty doc should produce empty or minimal output
+        assert!(result.is_empty() || result.trim().is_empty());
+    }
+
+    #[test]
+    fn test_document_with_title() {
+        let renderer = MarkdownRenderer::new();
+        let mut doc = Document::new();
+        doc.metadata.title = Some("My Title".to_string());
+        let result = renderer.render(&doc).unwrap();
+        assert!(result.contains("# My Title"));
+    }
+
+    #[test]
+    fn test_code_block_rendering() {
+        let renderer = MarkdownRenderer::new();
+        
+        let mut doc = Document::new();
+        let mut page = Page::new(1, 612.0, 792.0);
+        page.add_block(Block::code(
+            "let x = 42;",
+            BoundingBox::new(72.0, 100.0, 540.0, 120.0),
+        ));
+        doc.add_page(page);
+        
+        let result = renderer.render(&doc).unwrap();
+        assert!(result.contains("```"));
+        assert!(result.contains("let x = 42;"));
+    }
+
+    #[test]
+    fn test_table_rendering() {
+        let renderer = MarkdownRenderer::new();
+        
+        let mut doc = Document::new();
+        let mut page = Page::new(1, 612.0, 792.0);
+        
+        let mut table_block = Block::new(
+            BlockType::Table,
+            BoundingBox::new(72.0, 100.0, 540.0, 200.0),
+        );
+        table_block.text = "A\tB\tC\n1\t2\t3".to_string();
+        page.add_block(table_block);
+        doc.add_page(page);
+        
+        let result = renderer.render(&doc).unwrap();
+        // Should contain the table content in some form
+        assert!(result.contains("A") && result.contains("B") && result.contains("C"));
+    }
+
+    #[test]
+    fn test_multiple_pages() {
+        let renderer = MarkdownRenderer::new();
+        
+        let mut doc = Document::new();
+        let mut page1 = Page::new(1, 612.0, 792.0);
+        page1.add_block(Block::text("Page one content", BoundingBox::default()));
+        doc.add_page(page1);
+        
+        let mut page2 = Page::new(2, 612.0, 792.0);
+        page2.add_block(Block::text("Page two content", BoundingBox::default()));
+        doc.add_page(page2);
+        
+        let result = renderer.render(&doc).unwrap();
+        assert!(result.contains("Page 1"));
+        assert!(result.contains("Page 2"));
+        assert!(result.contains("Page one content"));
+        assert!(result.contains("Page two content"));
+    }
+
+    #[test]
+    fn test_heading_levels() {
+        let renderer = MarkdownRenderer::new();
+        
+        let mut doc = Document::new();
+        let mut page = Page::new(1, 612.0, 792.0);
+        page.add_block(Block::header("H1", 1, BoundingBox::default()));
+        page.add_block(Block::header("H2", 2, BoundingBox::default()));
+        page.add_block(Block::header("H3", 3, BoundingBox::default()));
+        doc.add_page(page);
+        
+        let result = renderer.render(&doc).unwrap();
+        assert!(result.contains("# H1"));
+        assert!(result.contains("## H2") || result.contains("### H2")); // Depends on page number header
+        assert!(result.contains("### H3") || result.contains("#### H3"));
+    }
+
+    #[test]
+    fn test_nested_list_items() {
+        let renderer = MarkdownRenderer::new();
+        
+        let mut doc = Document::new();
+        let mut page = Page::new(1, 612.0, 792.0);
+        
+        let mut item1 = Block::list_item("Item 1", BoundingBox::default());
+        item1.metadata.insert("level".to_string(), serde_json::json!(0));
+        page.add_block(item1);
+        
+        let mut item2 = Block::list_item("Nested item", BoundingBox::default());
+        item2.metadata.insert("level".to_string(), serde_json::json!(1));
+        page.add_block(item2);
+        
+        doc.add_page(page);
+        
+        let result = renderer.render(&doc).unwrap();
+        assert!(result.contains("Item 1"));
+        assert!(result.contains("Nested item"));
+    }
+
+    #[test]
+    fn test_max_heading_level() {
+        let style = MarkdownStyle {
+            max_heading_level: 3,
+            ..Default::default()
+        };
+        let renderer = MarkdownRenderer::with_style(style);
+        
+        let mut doc = Document::new();
+        let mut page = Page::new(1, 612.0, 792.0);
+        page.add_block(Block::header("Deep heading", 6, BoundingBox::default()));
+        doc.add_page(page);
+        
+        let result = renderer.render(&doc).unwrap();
+        // Level 6 should be clamped to max 3
+        assert!(result.contains("###"));
+        assert!(!result.contains("######"));
+    }
 }
