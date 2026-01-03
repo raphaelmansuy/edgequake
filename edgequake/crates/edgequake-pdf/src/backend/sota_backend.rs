@@ -634,7 +634,12 @@ impl SotaBackend {
     }
 
     /// Deduplicate text elements that are identical and at the same position.
-    /// This handles PDF layers (e.g. OCR + Visible) that duplicate text.
+    ///
+    /// **WHY deduplication is critical:**
+    /// - PDF files often contain invisible text layers (e.g., OCR layer + visible layer)
+    /// - Without dedup, we get doubled text like "TheThe ProblemProblem"
+    /// - Position tolerance of 2pt handles slight rendering variations
+    /// - Keep element with more text if one is prefix of another (OCR sometimes partial)
     fn deduplicate_elements(&self, elements: Vec<TextElement>) -> Vec<TextElement> {
         if elements.is_empty() {
             return Vec::new();
@@ -680,7 +685,12 @@ impl SotaBackend {
     }
 
     /// Merge text elements that are physically adjacent on the same line.
-    /// This fixes fragmentation caused by PDF operators (Tj) splitting words or sentences.
+    ///
+    /// **WHY merging is essential:**
+    /// - PDF operators (Tj, TJ) emit individual words or even characters
+    /// - "Hello World" might come as ["Hello", " ", "World"] at different positions
+    /// - Merge threshold uses font size to estimate character width
+    /// - Result: contiguous text runs for proper word/sentence extraction
     fn merge_text_elements(&self, elements: Vec<TextElement>) -> Vec<TextElement> {
         if elements.is_empty() {
             return Vec::new();
@@ -804,8 +814,14 @@ impl SotaBackend {
         gaps
     }
 
-    /// Detect if page has two-column layout using projection histogram
-    /// Returns Some(column_boundary_x) if two-column layout detected, None otherwise
+    /// Detect if page has two-column layout using projection histogram.
+    /// Returns Some(column_boundary_x) if two-column layout detected, None otherwise.
+    ///
+    /// **WHY projection histogram approach:**
+    /// - Academic papers commonly use two-column layout with a "gutter" in the middle
+    /// - Vertical projection histograms count text elements per horizontal bin
+    /// - A gap in the histogram (near page center) indicates the column separator
+    /// - This is more robust than x-position clustering for varying column widths
     fn detect_columns(&self, elements: &[TextElement], page_width: f32) -> Option<f32> {
         if elements.len() < 10 {
             return None;
