@@ -20,20 +20,21 @@ use crate::config::PdfConfig;
 use crate::error::PdfError;
 use crate::extractor::PdfInfo;
 use crate::schema::{
-    Block, BlockId, BlockType, BoundingBox, Document, ExtractionMethod, Page, PageStats,
+    Block, BlockType, BoundingBox, Document, ExtractionMethod, Page, PageStats,
     Point,
 };
 use crate::{DocumentMetadata, Result};
 
 use lopdf::{Document as LopdfDocument, Object, ObjectId};
 
+use super::block_builder::BlockBuilder;
 use super::column_detection::ColumnDetector;
 use super::content_parser::ContentParser;
 use super::element_processing::ElementProcessor;
 use super::elements::TextElement;
 use super::font_handling::FontInfo;
 use super::lattice::LatticeEngine;
-use super::text_grouping::{MergedLine, TextGrouper};
+use super::text_grouping::TextGrouper;
 
 /// PDF extraction engine with proper encoding support.
 ///
@@ -49,6 +50,7 @@ pub struct ExtractionEngine {
     column_detector: ColumnDetector,
     content_parser: ContentParser,
     element_processor: ElementProcessor,
+    block_builder: BlockBuilder,
 }
 
 impl ExtractionEngine {
@@ -64,6 +66,7 @@ impl ExtractionEngine {
             column_detector: ColumnDetector::new(),
             content_parser: ContentParser::new(),
             element_processor: ElementProcessor::new(),
+            block_builder: BlockBuilder::new(),
         }
     }
 
@@ -197,174 +200,6 @@ impl ExtractionEngine {
         (lines, columns)
     }
 
-    /// Convert lines to blocks with type detection
-    fn lines_to_blocks(
-        &self,
-        lines: Vec<Vec<TextElement>>,
-        page_width: f32,
-        _page_height: f32,
-    ) -> Vec<Block> {
-        let mut blocks = Vec::new();
-
-        // Debug: Log first 10 lines being processed
-        debug!("Converting {} lines to blocks", lines.len());
-        for (i, line) in lines.iter().take(10).enumerate() {
-            let text: String = line
-                .iter()
-                .map(|e| e.text.as_str())
-                .collect::<Vec<_>>()
-                .join("");
-            let y = line.first().map(|e| e.y).unwrap_or(0.0);
-            let x = line.first().map(|e| e.x).unwrap_or(0.0);
-            let preview: String = text.chars().take(40).collect();
-            debug!(
-                "  Block input line {}: Y={:.1} X={:.1} '{}'",
-                i, y, x, preview
-            );
-        }
-
-        // Calculate body font size (most common)
-        let mut font_size_counts: BTreeMap<i32, usize> = BTreeMap::new();
-        for line in &lines {
-            for elem in line {
-                let key = (elem.font_size * 10.0) as i32;
-                *font_size_counts.entry(key).or_insert(0) += 1;
-            }
-        }
-        let _body_size = font_size_counts
-            .iter()
-            .max_by_key(|&(_, count)| count)
-            .map(|(&size, _)| size as f32 / 10.0)
-            .unwrap_or(12.0);
-
-        // Track text occurrences for running header detection
-        let mut text_occurrences: std::collections::HashMap<String, usize> =
-            std::collections::HashMap::new();
-        let line_texts: Vec<MergedLine> = lines.iter().map(|line| self.text_grouper.merge_line(line)).collect();
-
-        for merged in &line_texts {
-            let normalized = merged.text.trim().to_lowercase();
-            if !normalized.is_empty() && normalized.len() < 100 {
-                *text_occurrences.entry(normalized).or_insert(0) += 1;
-            }
-        }
-
-        // Section pattern regex
-        let _section_pattern = regex::Regex::new(r"^(\d+\.)+\s+[A-Z]").ok();
-
-        let mut last_bbox: Option<BoundingBox> = None;
-        let mut last_text: String = String::new();
-
-        for (idx, line) in lines.iter().enumerate() {
-            if line.is_empty() {
-                continue;
-            }
-
-            let merged = &line_texts[idx];
-            let text = merged.text.trim();
-            if text.is_empty() {
-                continue;
-            }
-
-            // Get bounding box
-            let min_x = line
-                .iter()
-                .map(|e| e.x)
-                .min_by(|a, b| a.partial_cmp(b).unwrap())
-                .unwrap_or(0.0);
-            let max_x = line
-                .iter()
-                .map(|e| e.x)
-                .max_by(|a, b| a.partial_cmp(b).unwrap())
-                .unwrap_or(page_width);
-            let y = line.first().map(|e| e.y).unwrap_or(0.0);
-
-            let bbox = BoundingBox::new(min_x, y, max_x, y + merged.avg_font_size);
-
-            // Deduplication: Check if this block is a duplicate of the previous one
-            // (e.g. hidden OCR layer overlapping with visible text)
-            if let Some(prev_bbox) = &last_bbox {
-                // Check vertical overlap (lines are sorted by Y, so duplicates should be adjacent)
-                let overlap_y = prev_bbox.y2.min(bbox.y2) - prev_bbox.y1.max(bbox.y1);
-                let min_h = (prev_bbox.y2 - prev_bbox.y1).min(bbox.y2 - bbox.y1);
-
-                if overlap_y > min_h * 0.5 {
-                    // Significant vertical overlap (>50%). Check text similarity.
-                    // We check for exact match or containment to handle slight OCR variations
-                    if text == last_text
-                        || (text.len() > 5
-                            && (text.contains(&last_text) || last_text.contains(text)))
-                    {
-                        // tracing::debug!("Skipping duplicate block: '{}'", text);
-                        continue;
-                    }
-                }
-            }
-
-            last_bbox = Some(bbox);
-            last_text = text.to_string();
-
-            // Detect block type
-            let normalized = text.to_lowercase();
-            let is_running_header = text_occurrences.get(&normalized).copied().unwrap_or(0) >= 3;
-
-            let block_type = if is_running_header {
-                BlockType::PageHeader
-            } else {
-                BlockType::Text
-            };
-
-            let spans = merged
-                .spans
-                .iter()
-                .cloned()
-                .map(|mut s| {
-                    s.bbox = Some(bbox);
-                    s
-                })
-                .collect::<Vec<_>>();
-
-            let block = Block {
-                id: BlockId::with_indices(0, blocks.len()),
-                block_type,
-                text: text.to_string(),
-                bbox,
-                page: 0,
-                position: blocks.len(),
-                level: None,
-                spans,
-                ..Default::default()
-            };
-
-            blocks.push(block);
-        }
-
-        blocks
-    }
-
-    #[allow(dead_code)]
-    fn calculate_header_level(&self, font_size: f32, body_size: f32) -> u8 {
-        let ratio = font_size / body_size;
-        if ratio >= 2.0 {
-            1
-        } else if ratio >= 1.5 {
-            2
-        } else if ratio >= 1.3 {
-            3
-        } else {
-            4
-        }
-    }
-
-    /// Calculate adaptive region thresholds based on actual content distribution.
-    ///
-    /// This is a first-principles approach that analyzes the document's
-    /// actual layout to determine appropriate thresholds for header/footer/title
-    /// detection, instead of using hardcoded magic numbers.
-    ///
-    /// # Arguments
-    /// * `elements` - Text elements to analyze
-    ///
     /// Get page dimensions
     fn get_page_dimensions(&self, doc: &LopdfDocument, page_id: ObjectId) -> Result<(f32, f32)> {
         let page_dict = doc
@@ -520,8 +355,8 @@ impl ExtractionEngine {
             columns.len()
         );
 
-        // Convert to blocks
-        let mut blocks = self.lines_to_blocks(lines, page_width, page_height);
+        // Convert lines to blocks using BlockBuilder
+        let mut blocks = self.block_builder.build(lines, page_width);
 
         // Insert detected tables back into the existing reading order.
         // We intentionally do NOT re-sort `blocks` globally (that can break multi-column reading
