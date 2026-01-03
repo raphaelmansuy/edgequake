@@ -24,6 +24,16 @@ impl LatticeEngine {
     }
 
     /// Detect tables using lattice method (graphical lines)
+    ///
+    /// WHY: PDF tables often have visible grid lines (borders). By finding
+    /// connected components of intersecting lines, we can identify table
+    /// structures without relying on text positioning alone.
+    ///
+    /// Algorithm:
+    /// 1. Filter lines into horizontal and vertical categories
+    /// 2. Build an adjacency graph where edges connect intersecting lines
+    /// 3. Find connected components using DFS
+    /// 4. Components with ≥4 lines form table candidates (minimum: a box)
     pub fn detect_tables(
         &self,
         lines: &[PdfLine],
@@ -31,7 +41,7 @@ impl LatticeEngine {
         _page_width: f32,
         _page_height: f32,
     ) -> Vec<Block> {
-        // 1. Filter relevant lines (horizontal and vertical)
+        // WHY: Filter first to avoid processing decorative/unrelated lines
         let (h_lines, v_lines) = self.filter_lines(lines);
         let all_lines: Vec<&PdfLine> = h_lines.iter().chain(v_lines.iter()).collect();
 
@@ -39,7 +49,8 @@ impl LatticeEngine {
             return Vec::new();
         }
 
-        // 2. Build adjacency list (graph)
+        // WHY: Build adjacency list for connected component detection
+        // Using graph representation enables O(V+E) component finding
         let mut adj = vec![Vec::new(); all_lines.len()];
         for i in 0..all_lines.len() {
             for j in i + 1..all_lines.len() {
@@ -50,7 +61,8 @@ impl LatticeEngine {
             }
         }
 
-        // 3. Find connected components
+        // WHY: DFS-based connected component detection is cache-friendly
+        // and handles arbitrary graph topologies
         let mut visited = vec![false; all_lines.len()];
         let mut tables = Vec::new();
 
@@ -70,8 +82,8 @@ impl LatticeEngine {
                     }
                 }
 
-                // 4. Create table block from component
-                // Minimum lines for a connected component table: 4 (a box)
+                // WHY: Minimum 4 lines forms a box (simplest table)
+                // Fewer lines are likely decorative or partial borders
                 if component.len() >= 4 {
                     if let Some(table_block) = self.create_table_block(component, text_elements) {
                         tables.push(table_block);
