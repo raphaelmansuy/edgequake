@@ -48,6 +48,7 @@ pub mod backend;
 pub mod config;
 pub mod error;
 pub mod extractor;
+pub mod formula;
 pub mod layout;
 pub mod processors;
 pub mod renderers;
@@ -76,6 +77,9 @@ pub use processors::{
     BlockMergeProcessor, ByteProvider, FileProvider, LayoutProcessor, LlmEnhanceConfig,
     LlmEnhanceProcessor, LlmEnhanced, PdfProvider, PostProcessor, Processor, ProcessorChain,
 };
+
+// Re-export formula detection types
+pub use formula::{Formula, FormulaConfig, FormulaDetector, SymbolMap, MATH_SYMBOL_MAP};
 
 // Re-export renderer types
 pub use renderers::{JsonRenderer, MarkdownRenderer, MarkdownStyle, Renderer};
