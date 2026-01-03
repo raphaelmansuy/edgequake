@@ -578,4 +578,73 @@ mod tests {
         assert!(result.contains(r"\int"));
         assert!(result.contains(r"\partial"));
     }
+
+    #[test]
+    fn test_formula_struct_fields() {
+        let formula = Formula {
+            latex: "x".to_string(),
+            bbox: BoundingBox::new(10.0, 20.0, 30.0, 40.0),
+            confidence: 0.75,
+            is_display: false,
+            source_block_idx: 5,
+        };
+        assert_eq!(formula.latex, "x");
+        assert_eq!(formula.source_block_idx, 5);
+        assert!(!formula.is_display);
+    }
+
+    #[test]
+    fn test_detector_custom_threshold() {
+        let config = FormulaConfig {
+            min_math_density: 0.5,
+            ..Default::default()
+        };
+        let detector = FormulaDetector::new(config);
+        // With higher threshold, regular text won't trigger
+        let block = make_block("x + α");
+        let page = make_page(vec![block]);
+        let formulas = detector.detect_formulas(&page);
+        assert!(formulas.is_empty());
+    }
+
+    #[test]
+    fn test_empty_page_detection() {
+        let detector = FormulaDetector::with_defaults();
+        let page = make_page(vec![]);
+        let formulas = detector.detect_formulas(&page);
+        assert!(formulas.is_empty());
+    }
+
+    #[test]
+    fn test_multiple_formulas_in_page() {
+        let detector = FormulaDetector::with_defaults();
+        let page = make_page(vec![
+            make_block("∑ αβγ ∫ δε"),
+            make_block("Regular text"),
+            make_block("∂∇ ∈ ∀∃"),
+        ]);
+        let formulas = detector.detect_formulas(&page);
+        assert!(formulas.len() >= 2);
+    }
+
+    #[test]
+    fn test_relations_converted() {
+        let detector = FormulaDetector::with_defaults();
+        let result = detector.convert_to_latex("≤ ≥ ≠ ≈");
+        assert!(result.contains(r"\leq") || result.contains(r"\le"));
+    }
+
+    #[test]
+    fn test_infinity_converted() {
+        let detector = FormulaDetector::with_defaults();
+        let result = detector.convert_to_latex("∞");
+        assert!(result.contains(r"\infty"));
+    }
+
+    #[test]
+    fn test_root_symbol_converted() {
+        let detector = FormulaDetector::with_defaults();
+        let result = detector.convert_to_latex("√");
+        assert!(result.contains(r"\sqrt"));
+    }
 }
