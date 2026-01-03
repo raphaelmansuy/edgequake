@@ -1,4 +1,5 @@
 use super::elements::{PdfLine, TextElement};
+use super::spatial::{LineRect, LineSpatialIndex};
 use crate::layout::dbscan_1d;
 use crate::schema::{Block, BlockType, BoundingBox};
 
@@ -31,9 +32,10 @@ impl LatticeEngine {
     ///
     /// Algorithm:
     /// 1. Filter lines into horizontal and vertical categories
-    /// 2. Build an adjacency graph where edges connect intersecting lines
-    /// 3. Find connected components using DFS
-    /// 4. Components with ≥4 lines form table candidates (minimum: a box)
+    /// 2. Build R-tree spatial index for O(n log n) intersection queries
+    /// 3. Build adjacency graph using spatial queries (not O(n²) all-pairs)
+    /// 4. Find connected components using DFS
+    /// 5. Components with ≥4 lines form table candidates (minimum: a box)
     pub fn detect_tables(
         &self,
         lines: &[PdfLine],
@@ -49,12 +51,23 @@ impl LatticeEngine {
             return Vec::new();
         }
 
-        // WHY: Build adjacency list for connected component detection
-        // Using graph representation enables O(V+E) component finding
+        // WHY: Build R-tree spatial index for O(n log n) intersection queries
+        // This replaces the O(n²) all-pairs check with spatial locality queries
+        let line_rects: Vec<LineRect> = all_lines
+            .iter()
+            .enumerate()
+            .map(|(idx, line)| LineRect::new(idx, line.p1.0, line.p1.1, line.p2.0, line.p2.1))
+            .collect();
+        let spatial_index = LineSpatialIndex::new(line_rects.clone());
+
+        // WHY: Build adjacency list using spatial queries instead of all-pairs
+        // Each line only checks neighbors whose bboxes overlap (much fewer)
         let mut adj = vec![Vec::new(); all_lines.len()];
-        for i in 0..all_lines.len() {
-            for j in i + 1..all_lines.len() {
-                if self.lines_intersect(all_lines[i], all_lines[j]) {
+        for line_rect in &line_rects {
+            let i = line_rect.idx;
+            // Query only lines whose bounding boxes overlap ours (with tolerance)
+            for j in spatial_index.query_near_line(line_rect, self.line_tolerance) {
+                if i < j && self.lines_intersect(all_lines[i], all_lines[j]) {
                     adj[i].push(j);
                     adj[j].push(i);
                 }

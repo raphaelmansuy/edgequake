@@ -35,6 +35,9 @@ lopdf = { path = "../../../lopdf", optional = true, default-features = false }
 # Parallel processing for multi-core extraction
 rayon = "1.10"
 
+# R-tree spatial indexing for O(n log n) spatial queries
+rstar = "0.12"
+
 # Image processing (match pdf_oxide's version)
 image = "0.24"
 base64 = "0.22"
