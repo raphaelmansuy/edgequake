@@ -10,7 +10,7 @@ use crate::backend::mock::MockBackend;
 use crate::backend::PdfBackend;
 
 use crate::config::PdfConfig;
-use crate::error::PdfError;
+use crate::error::{PageError, PdfError};
 use crate::processors::{
     BlockMergeProcessor, CaptionDetectionProcessor, CodeBlockDetectionProcessor,
     GarbledTextFilterProcessor, HeaderDetectionProcessor, HyphenContinuationProcessor,
@@ -52,19 +52,77 @@ pub struct PageContent {
     pub images: Vec<ExtractedImage>,
 }
 
-/// Result of full document extraction
+/// Result of full document extraction.
+///
+/// # Error Recovery
+/// The extraction result tracks both successful pages and page-level errors.
+/// This enables **graceful degradation**: if a single page fails to extract,
+/// the remaining pages are still returned with the errors logged.
+///
+/// ## WHY: Graceful Degradation
+/// Real-world PDFs often contain problematic pages:
+/// - Corrupt font references
+/// - Unsupported encodings
+/// - Malformed content streams
+///
+/// Instead of failing the entire document, we:
+/// 1. Extract all pages that succeed
+/// 2. Track failures in `page_errors`
+/// 3. Include partial content when possible
+/// 4. Let callers decide how to handle degraded results
 #[derive(Debug, Clone)]
 pub struct ExtractionResult {
     /// Total number of pages in the document
     pub page_count: usize,
-    /// Combined Markdown output
+    /// Combined Markdown output (from successfully extracted pages)
     pub markdown: String,
-    /// Individual page contents
+    /// Individual page contents (only successfully extracted pages)
     pub pages: Vec<PageContent>,
     /// All extracted images
     pub images: Vec<ExtractedImage>,
     /// Document metadata
     pub metadata: crate::schema::DocumentMetadata,
+    /// Errors encountered during extraction (per-page)
+    ///
+    /// Empty if all pages extracted successfully.
+    /// Contains entries for each page that failed or partially extracted.
+    pub page_errors: Vec<PageError>,
+}
+
+impl ExtractionResult {
+    /// Returns `true` if all pages were extracted without errors.
+    pub fn is_complete(&self) -> bool {
+        self.page_errors.is_empty()
+    }
+
+    /// Returns the number of pages that failed to extract.
+    pub fn failed_page_count(&self) -> usize {
+        self.page_errors.len()
+    }
+
+    /// Returns the percentage of pages successfully extracted.
+    pub fn success_rate(&self) -> f64 {
+        if self.page_count == 0 {
+            return 100.0;
+        }
+        let successful = self.page_count - self.page_errors.len();
+        (successful as f64 / self.page_count as f64) * 100.0
+    }
+
+    /// Returns a summary of extraction status.
+    pub fn status_summary(&self) -> String {
+        if self.is_complete() {
+            format!("Extracted {} pages successfully", self.page_count)
+        } else {
+            format!(
+                "Extracted {}/{} pages ({:.1}% success), {} failures",
+                self.pages.len(),
+                self.page_count,
+                self.success_rate(),
+                self.page_errors.len()
+            )
+        }
+    }
 }
 
 /// Main PDF extractor that converts PDFs to Markdown using AI enhancement.
@@ -93,7 +151,9 @@ impl PdfExtractor {
             #[cfg(feature = "lopdf")]
             {
                 info!("Using ExtractionEngine (lopdf) for PDF extraction");
-                Box::new(crate::backend::ExtractionEngine::with_config(config.clone()))
+                Box::new(crate::backend::ExtractionEngine::with_config(
+                    config.clone(),
+                ))
             }
             #[cfg(not(feature = "lopdf"))]
             {
@@ -217,6 +277,7 @@ impl PdfExtractor {
             pages,
             images: Vec::new(),
             metadata: doc.metadata.clone(),
+            page_errors: Vec::new(), // No errors in successful extraction
         })
     }
 

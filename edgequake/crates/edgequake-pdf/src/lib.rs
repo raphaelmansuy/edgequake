@@ -56,7 +56,7 @@ pub mod vision;
 
 pub use backend::PdfBackend;
 pub use config::{ExtractionMode, LayoutConfig, OutputFormat, PdfConfig};
-pub use error::PdfError;
+pub use error::{PageError, PdfError};
 pub use extractor::{ExtractedImage, ExtractionResult, PageContent, PdfExtractor, PdfInfo};
 
 // Re-export schema types for convenience

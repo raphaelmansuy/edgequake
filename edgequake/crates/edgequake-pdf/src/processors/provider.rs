@@ -70,7 +70,7 @@ impl FileProvider {
 
 impl PdfProvider for FileProvider {
     fn get_bytes(&self) -> Result<Vec<u8>> {
-        std::fs::read(&self.path).map_err(PdfError::Io)
+        std::fs::read(&self.path).map_err(|e| PdfError::Io(e.to_string()))
     }
 
     fn source(&self) -> Option<String> {
