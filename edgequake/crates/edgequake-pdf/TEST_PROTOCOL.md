@@ -44,18 +44,15 @@ test-data/
 └── metrics.json             # Quantitative evaluation results
 ```
 
-### Document Categories (105 total)
+### Document Categories (120 total gold files)
 
-1. **Basics (15 docs)**: Plain text, minimal formatting
-
-   - Simple paragraphs (3)
-   - Whitespace handling (3)
+1. **Basics (9 docs)**: Plain text and simple structures
    - Line breaks and spacing (3)
-   - Page breaks (3)
-   - Mixed content blocks (3)
+   - Blockquotes and horizontal rules (2)
+   - Numbers, symbols, punctuation (3)
+   - URLs and dates (1)
 
 2. **Formatting (15 docs)**: Typography and styling
-
    - Bold text (3)
    - Italic text (3)
    - Bold-italic combinations (3)
@@ -63,7 +60,6 @@ test-data/
    - Mixed bold/italic/normal (3)
 
 3. **Headers (15 docs)**: Title and heading hierarchy
-
    - Single H1 (3)
    - H1→H6 hierarchy (3)
    - Mixed header placement (3)
@@ -71,7 +67,6 @@ test-data/
    - Deep nesting (3)
 
 4. **Lists (15 docs)**: Bullet and numbered lists
-
    - Simple bullet lists (3)
    - Simple numbered lists (3)
    - Nested lists (3)
@@ -79,7 +74,6 @@ test-data/
    - Lists with formatting (3)
 
 5. **Tables (15 docs)**: Tabular data
-
    - Simple 2×3 tables (3)
    - Wide tables (4+ cols) (3)
    - Tall tables (6+ rows) (3)
@@ -87,7 +81,6 @@ test-data/
    - Tables with formatting (3)
 
 6. **Code (10 docs)**: Code blocks and inline code
-
    - Inline code (2)
    - Simple code blocks (2)
    - Multi-language blocks (2)
@@ -95,9 +88,32 @@ test-data/
    - Code with special chars (2)
 
 7. **Multi-Column (10 docs)**: Advanced layouts
-
    - 2-column text (3)
    - 3-column text (3)
+   - Mixed column layouts (2)
+   - Column breaks (2)
+
+8. **Complex (10 docs)**: Real-world documents
+   - Academic papers (2)
+   - Technical specs (2)
+   - Reports with sections (2)
+   - Mixed complex layouts (4)
+
+9. **Edge Cases (5 docs)**: Boundary conditions
+   - Unicode handling (1)
+   - Math formulas (1)
+   - Footnotes (1)
+   - Rotated text (1)
+   - Overlapping elements (1)
+
+10. **Adversarial (10 docs)**: Challenging PDFs
+    - Corrupted structures (2)
+    - Embedded fonts (2)
+    - Digital signatures (2)
+    - Password-protected (1)
+    - Complex vector graphics (3)
+
+**Total: 120 gold markdown files across 10 categories**
    - Mixed single and multi (2)
    - 4+ columns (2)
 
@@ -325,10 +341,56 @@ For each evaluation run, generate:
 - Evaluation runner script `eval.sh`
 - Report generator `report.py`
 
+## Test Execution
+
+### Running Tests
+
+```bash
+# Run all PDF extraction tests
+cd edgequake/crates/edgequake-pdf
+cargo test
+
+# Run specific test suites
+cargo test --test quality_evaluation
+cargo test --test integration_tests
+cargo test --test edge_cases_and_complex
+
+# Run lib tests only (fast)
+cargo test --lib
+
+# Run with coverage
+cargo test --lib -- --nocapture
+```
+
+### Current Test Status (January 2026)
+
+- **Total Tests**: 239 passing
+- **Lib Tests**: 164 passing
+- **Integration Tests**: 75 passing
+- **Clippy Warnings**: 6 (acceptable intentional patterns)
+
+### Test Categories
+
+1. **Unit Tests** (164 in lib):
+   - Encoding tests (17)
+   - Lattice engine tests (7)
+   - SotaBackend tests (6)
+   - Layout tests (20+)
+   - Processor tests (50+)
+   - Renderer tests (40+)
+
+2. **Integration Tests** (75):
+   - Quality evaluation (5)
+   - Edge cases (19)
+   - Comprehensive data (53)
+   - Smoke tests (1)
+   - Layout tests (1)
+
 ---
 
 ## Version History
 
-| Version | Date       | Changes                     |
-| ------- | ---------- | --------------------------- |
-| 1.0     | 2025-01-03 | Initial protocol definition |
+| Version | Date       | Changes                                      |
+| ------- | ---------- | -------------------------------------------- |
+| 1.0     | 2025-01-03 | Initial protocol definition                  |
+| 1.1     | 2026-01-03 | Updated counts (120 gold files), test status |
