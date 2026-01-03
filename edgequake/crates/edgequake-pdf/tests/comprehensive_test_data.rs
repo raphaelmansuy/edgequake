@@ -61,6 +61,7 @@ async fn test_all_test_data_pdfs() {
 
     if pdfs.is_empty() {
         println!("⚠️  No test PDFs found in test-data directory");
+        println!("Run test-data/generate_simple_pdfs.py to create fallback PDFs for evaluation.");
         return;
     }
 
