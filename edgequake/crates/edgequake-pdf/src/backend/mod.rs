@@ -20,6 +20,8 @@ pub trait PdfBackend: Send + Sync {
 pub mod column_detection;
 #[cfg(feature = "lopdf")]
 pub mod content_parser;
+#[cfg(feature = "lopdf")]
+pub mod element_processing;
 pub mod elements;
 #[cfg(feature = "lopdf")]
 pub mod encodings;

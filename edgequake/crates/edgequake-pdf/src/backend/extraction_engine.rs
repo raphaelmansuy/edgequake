@@ -29,6 +29,7 @@ use lopdf::{Document as LopdfDocument, Object, ObjectId};
 
 use super::column_detection::ColumnDetector;
 use super::content_parser::ContentParser;
+use super::element_processing::ElementProcessor;
 use super::elements::TextElement;
 use super::font_handling::FontInfo;
 use super::lattice::LatticeEngine;
@@ -47,6 +48,7 @@ pub struct ExtractionEngine {
     text_grouper: TextGrouper,
     column_detector: ColumnDetector,
     content_parser: ContentParser,
+    element_processor: ElementProcessor,
 }
 
 impl ExtractionEngine {
@@ -61,6 +63,7 @@ impl ExtractionEngine {
             text_grouper: TextGrouper::new(),
             column_detector: ColumnDetector::new(),
             content_parser: ContentParser::new(),
+            element_processor: ElementProcessor::new(),
         }
     }
 
@@ -150,117 +153,6 @@ impl ExtractionEngine {
                 .map_err(|e| PdfError::PdfParse(format!("Failed to decompress: {}", e))),
             _ => Err(PdfError::PdfParse("Invalid Contents type".to_string())),
         }
-    }
-
-    /// Deduplicate text elements that are identical and at the same position.
-    ///
-    /// **WHY deduplication is critical:**
-    /// - PDF files often contain invisible text layers (e.g., OCR layer + visible layer)
-    /// - Without dedup, we get doubled text like "TheThe ProblemProblem"
-    /// - Position tolerance of 2pt handles slight rendering variations
-    /// - Keep element with more text if one is prefix of another (OCR sometimes partial)
-    fn deduplicate_elements(&self, elements: Vec<TextElement>) -> Vec<TextElement> {
-        if elements.is_empty() {
-            return Vec::new();
-        }
-
-        // Sort by Y (descending), then X (ascending)
-        let mut sorted = elements;
-        sorted.sort_by(|a, b| {
-            b.y.partial_cmp(&a.y)
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then(a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal))
-        });
-
-        let mut unique = Vec::new();
-        unique.push(sorted[0].clone());
-
-        for elem in sorted.into_iter().skip(1) {
-            let prev = unique.last().unwrap();
-
-            // Check for overlap
-            let same_pos = (elem.x - prev.x).abs() < 2.0 && (elem.y - prev.y).abs() < 2.0;
-
-            if same_pos {
-                // If text is identical, skip
-                if elem.text == prev.text {
-                    continue;
-                }
-                // If one contains the other, keep the longer one
-                if elem.text.contains(&prev.text) {
-                    unique.pop(); // Remove shorter prev
-                    unique.push(elem);
-                    continue;
-                }
-                if prev.text.contains(&elem.text) {
-                    continue; // Skip shorter elem
-                }
-            }
-
-            unique.push(elem);
-        }
-
-        unique
-    }
-
-    /// Merge text elements that are physically adjacent on the same line.
-    ///
-    /// **WHY merging is essential:**
-    /// - PDF operators (Tj, TJ) emit individual words or even characters
-    /// - "Hello World" might come as ["Hello", " ", "World"] at different positions
-    /// - Merge threshold uses font size to estimate character width
-    /// - Result: contiguous text runs for proper word/sentence extraction
-    fn merge_text_elements(&self, elements: Vec<TextElement>) -> Vec<TextElement> {
-        if elements.is_empty() {
-            return Vec::new();
-        }
-
-        // Sort by Y (descending), then X (ascending)
-        let mut sorted = elements;
-        sorted.sort_by(|a, b| {
-            b.y.partial_cmp(&a.y)
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then(a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal))
-        });
-
-        let mut merged = Vec::new();
-        let mut current = sorted[0].clone();
-
-        for next in sorted.into_iter().skip(1) {
-            // Check if on same line
-            if (next.y - current.y).abs() < 2.0 {
-                // Check horizontal distance
-                // Use font size from current element to estimate char width
-                let char_width = if current.font_size > 0.0 {
-                    current.font_size * 0.4 // Conservative estimate
-                } else {
-                    4.0
-                };
-
-                let current_width = current.text.len() as f32 * char_width;
-                let current_end = current.x + current_width;
-                let gap = next.x - current_end;
-
-                // If gap is small (e.g. < 2 chars), merge
-                // Allow slight negative gap (overlap) due to kerning
-                if gap > -char_width && gap < char_width * 2.5 {
-                    // Merge!
-                    // Add space if gap is significant (> 0.3 char width)
-                    if gap > char_width * 0.3 {
-                        current.text.push(' ');
-                    }
-                    current.text.push_str(&next.text);
-                    continue;
-                }
-            }
-
-            // Push current and start new
-            merged.push(current);
-            current = next;
-        }
-        merged.push(current);
-
-        merged
     }
 
     /// Detect if page has two-column layout.
@@ -520,11 +412,8 @@ impl ExtractionEngine {
         // Extract text and graphical elements using ContentParser
         let (elements, pdf_lines) = self.content_parser.parse(&content_bytes, &fonts)?;
 
-        // Deduplicate elements (OCR layers)
-        let elements = self.deduplicate_elements(elements);
-
-        // Merge fragmented text elements
-        let elements = self.merge_text_elements(elements);
+        // Preprocess elements: deduplicate OCR layers and merge fragmented text
+        let elements = self.element_processor.process(elements);
 
         debug!(
             "Page {} has {} text elements and {} graphical lines",
@@ -825,7 +714,7 @@ mod tests {
 
     #[test]
     fn test_deduplicate_removes_exact_duplicates() {
-        let backend = ExtractionEngine::new();
+        let processor = ElementProcessor::new();
 
         let elements = vec![
             make_text_element("Hello", 10.0, 700.0),
@@ -833,13 +722,13 @@ mod tests {
             make_text_element("World", 60.0, 700.0),
         ];
 
-        let deduped = backend.deduplicate_elements(elements);
+        let deduped = processor.deduplicate(elements);
         assert_eq!(deduped.len(), 2, "Should remove exact duplicates");
     }
 
     #[test]
     fn test_deduplicate_keeps_near_elements() {
-        let backend = ExtractionEngine::new();
+        let processor = ElementProcessor::new();
 
         let elements = vec![
             make_text_element("Hello", 10.0, 700.0),
@@ -847,14 +736,14 @@ mod tests {
             make_text_element("World", 60.0, 700.0),
         ];
 
-        let deduped = backend.deduplicate_elements(elements);
+        let deduped = processor.deduplicate(elements);
         // Near duplicates should also be removed
         assert!(deduped.len() <= 2, "Should handle near-duplicates");
     }
 
     #[test]
     fn test_merge_text_elements_horizontal() {
-        let backend = ExtractionEngine::new();
+        let processor = ElementProcessor::new();
 
         let elements = vec![
             make_text_element("Hel", 10.0, 700.0),
@@ -862,21 +751,21 @@ mod tests {
             make_text_element("World", 60.0, 700.0), // Same line
         ];
 
-        let merged = backend.merge_text_elements(elements);
+        let merged = processor.merge(elements);
         // Should merge into fewer elements
         assert!(merged.len() <= 2, "Should merge horizontally adjacent text");
     }
 
     #[test]
     fn test_merge_preserves_vertical_separation() {
-        let backend = ExtractionEngine::new();
+        let processor = ElementProcessor::new();
 
         let elements = vec![
             make_text_element("Line 1", 10.0, 700.0),
             make_text_element("Line 2", 10.0, 680.0), // Different Y
         ];
 
-        let merged = backend.merge_text_elements(elements);
+        let merged = processor.merge(elements);
         assert_eq!(
             merged.len(),
             2,
@@ -886,11 +775,11 @@ mod tests {
 
     #[test]
     fn test_empty_elements() {
-        let backend = ExtractionEngine::new();
+        let processor = ElementProcessor::new();
 
         let empty: Vec<TextElement> = vec![];
 
-        assert!(backend.deduplicate_elements(empty.clone()).is_empty());
-        assert!(backend.merge_text_elements(empty).is_empty());
+        assert!(processor.deduplicate(empty.clone()).is_empty());
+        assert!(processor.merge(empty).is_empty());
     }
 }
