@@ -1,0 +1,106 @@
+%PDF-1.3
+%����
+1 0 obj
+<<
+/Producer (pypdf)
+>>
+endobj
+2 0 obj
+<<
+/Type /Pages
+/Count 1
+/Kids [ 4 0 R ]
+>>
+endobj
+3 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R
+/Names 9 0 R
+>>
+endobj
+4 0 obj
+<<
+/Contents 5 0 R
+/MediaBox [ 0 0 612 792 ]
+/Resources <<
+/Font 6 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+5 0 obj
+<<
+/Filter [ /ASCII85Decode /FlateDecode ]
+/Length 136
+>>
+stream
+Gap@E0a`Ou'ErhZ0r:borF/;>U/_PYIt<UVAIYf%H[hbU*_\9s:N4A8cRH\/Ba-k,F@NjQ6f7N>*+#dISE"U5BVO"dm#8-!k]crZV2p=<JU(B-T<k/!Z7XZCqF,>c'u^\-i>m"~>
+endstream
+endobj
+6 0 obj
+<<
+/F1 7 0 R
+>>
+endobj
+7 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+8 0 obj
+<<
+/Type /EmbeddedFile
+/Length 30
+>>
+stream
+This is an embedded text file.
+endstream
+endobj
+9 0 obj
+<<
+/EmbeddedFiles 10 0 R
+>>
+endobj
+10 0 obj
+<<
+/Names [ (note\056txt) <<
+/Type /Filespec
+/F (note\056txt)
+/EF <<
+/F 8 0 R
+>>
+>> ]
+>>
+endobj
+xref
+0 11
+0000000000 65535 f 
+0000000015 00000 n 
+0000000054 00000 n 
+0000000113 00000 n 
+0000000175 00000 n 
+0000000364 00000 n 
+0000000591 00000 n 
+0000000622 00000 n 
+0000000729 00000 n 
+0000000829 00000 n 
+0000000872 00000 n 
+trailer
+<<
+/Size 11
+/Root 3 0 R
+/Info 1 0 R
+>>
+startxref
+977
+%%EOF

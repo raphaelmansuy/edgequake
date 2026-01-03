@@ -1,0 +1,257 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+  - alert [ref=e11]
+  - generic [ref=e12]:
+    - link "Skip to main content" [ref=e13] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary "Sidebar navigation" [ref=e14]:
+      - generic [ref=e15]:
+        - link "EdgeQuake" [ref=e17] [cursor=pointer]:
+          - /url: /
+          - img [ref=e19]
+          - generic [ref=e24]: EdgeQuake
+        - navigation "Navigation" [ref=e25]:
+          - link "Dashboard" [ref=e26] [cursor=pointer]:
+            - /url: /
+            - img [ref=e27]
+            - generic [ref=e30]: Dashboard
+          - link "Knowledge Graph" [ref=e31] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e32]
+            - generic [ref=e37]: Knowledge Graph
+          - link "Documents" [ref=e38] [cursor=pointer]:
+            - /url: /documents
+            - img [ref=e39]
+            - generic [ref=e42]: Documents
+          - link "Query" [ref=e43] [cursor=pointer]:
+            - /url: /query
+            - img [ref=e44]
+            - generic [ref=e46]: Query
+          - link "Costs" [ref=e47] [cursor=pointer]:
+            - /url: /costs
+            - img [ref=e48]
+            - generic [ref=e50]: Costs
+          - link "API Explorer" [ref=e51] [cursor=pointer]:
+            - /url: /api-explorer
+            - img [ref=e52]
+            - generic [ref=e54]: API Explorer
+          - link "Settings" [ref=e55] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e56]
+            - generic [ref=e59]: Settings
+        - generic [ref=e60]:
+          - button "Collapse sidebar" [ref=e61]:
+            - img
+            - generic [ref=e62]: Collapse
+          - generic [ref=e63]:
+            - img [ref=e65]
+            - generic [ref=e70]:
+              - generic [ref=e71]: EdgeQuake
+              - generic [ref=e72]: v0.1.0
+    - generic [ref=e73]:
+      - banner [ref=e74]:
+        - button "Default Workspac..." [ref=e77]:
+          - img
+          - generic [ref=e78]: Default Workspac...
+          - img
+        - generic [ref=e79]:
+          - generic [ref=e80]:
+            - img [ref=e81]
+            - generic [ref=e83]: v0.1.0
+          - button "Change language" [ref=e84]:
+            - img
+            - generic [ref=e85]: Change language
+          - button "Toggle theme" [ref=e86]:
+            - img
+            - generic [ref=e87]: Toggle theme
+          - button "User menu" [ref=e88]:
+            - img
+            - generic [ref=e89]: User menu
+      - navigation "breadcrumb" [ref=e91]:
+        - list [ref=e92]:
+          - listitem [ref=e93]:
+            - link "EdgeQuake" [ref=e94] [cursor=pointer]:
+              - /url: /
+              - img [ref=e95]
+              - generic [ref=e98]: EdgeQuake
+          - listitem [ref=e99]:
+            - img [ref=e100]
+          - listitem [ref=e102]:
+            - link "Knowledge Graph" [disabled] [ref=e103]:
+              - img [ref=e104]
+              - generic [ref=e109]: Knowledge Graph
+      - main [ref=e110]:
+        - generic [ref=e112]:
+          - complementary "Entity browser" [ref=e113]:
+            - generic [ref=e114]:
+              - generic [ref=e115]:
+                - img [ref=e116]
+                - heading "Entities" [level=2] [ref=e121]
+                - generic [ref=e122]: "3"
+              - button "Collapse entity browser" [ref=e123]:
+                - img
+            - generic [ref=e125]:
+              - img [ref=e126]
+              - textbox "Search entities by name, type, or description" [active] [ref=e129]:
+                - /placeholder: Search entities...
+              - generic [ref=e130]: Type to filter the list of entities. Results update automatically.
+            - group "Sort controls" [ref=e131]:
+              - generic [ref=e132]: "Sort:"
+              - button "Name" [pressed] [ref=e133]
+              - button "Degree" [ref=e134]
+              - button "Sort ascending, click to sort descending" [ref=e135]:
+                - img
+            - tablist "View mode" [ref=e136]:
+              - tab "Grouped" [selected] [ref=e137]
+              - tab "List" [ref=e138]
+            - tabpanel [ref=e139]:
+              - generic [ref=e143]:
+                - generic [ref=e144]:
+                  - button "PERSON 1 entities" [expanded] [ref=e145]:
+                    - generic [ref=e148]: PERSON
+                    - generic [ref=e149]:
+                      - generic "1 entities" [ref=e150]: "1"
+                      - img
+                  - group "PERSON entities" [ref=e152]:
+                    - option "DR_MARTINEZ PERSON · 2" [ref=e153]:
+                      - generic [ref=e155]:
+                        - paragraph [ref=e156]: DR_MARTINEZ
+                        - generic [ref=e157]:
+                          - generic [ref=e158]: PERSON
+                          - generic [ref=e159]: ·
+                          - generic [ref=e163]: "2"
+                - generic [ref=e164]:
+                  - button "PRODUCT 1 entities" [expanded] [ref=e165]:
+                    - generic [ref=e168]: PRODUCT
+                    - generic [ref=e169]:
+                      - generic "1 entities" [ref=e170]: "1"
+                      - img
+                  - group "PRODUCT entities" [ref=e172]:
+                    - option "EdgeQuake PRODUCT · 2" [ref=e173]:
+                      - generic [ref=e175]:
+                        - paragraph [ref=e176]: EdgeQuake
+                        - generic [ref=e177]:
+                          - generic [ref=e178]: PRODUCT
+                          - generic [ref=e179]: ·
+                          - generic [ref=e183]: "2"
+                - generic [ref=e184]:
+                  - button "EVENT 1 entities" [expanded] [ref=e185]:
+                    - generic [ref=e188]: EVENT
+                    - generic [ref=e189]:
+                      - generic "1 entities" [ref=e190]: "1"
+                      - img
+                  - group "EVENT entities" [ref=e192]:
+                    - option "PROJECT_ALPHA EVENT · 2" [ref=e193]:
+                      - generic [ref=e195]:
+                        - paragraph [ref=e196]: PROJECT_ALPHA
+                        - generic [ref=e197]:
+                          - generic [ref=e198]: EVENT
+                          - generic [ref=e199]: ·
+                          - generic [ref=e203]: "2"
+            - generic [ref=e205]:
+              - generic [ref=e207]: 3 types
+              - generic [ref=e208]:
+                - img [ref=e209]
+                - generic [ref=e212]: "3"
+                - generic [ref=e213]: connections
+          - generic [ref=e214]:
+            - generic [ref=e215]:
+              - heading "Knowledge Graph" [level=2] [ref=e217]
+              - generic [ref=e218]:
+                - button "Search nodes..." [ref=e220]:
+                  - img
+                  - generic [ref=e221]: Search nodes...
+                  - generic [ref=e222]:
+                    - generic [ref=e223]: ⌘
+                    - text: K
+                - generic [ref=e224]:
+                  - img [ref=e225]
+                  - generic [ref=e229]: 3 / 3
+                  - generic [ref=e230]: (100%)
+                - button "Layout" [ref=e232]:
+                  - img
+                - generic [ref=e233]:
+                  - button "Start Animation" [ref=e234]:
+                    - img
+                  - button "Apply Layout" [ref=e235]:
+                    - img
+                - button "Export graph" [ref=e236]:
+                  - img
+                  - generic [ref=e237]: Export graph
+                - button "Graph Settings" [ref=e238]:
+                  - img
+                - button "Keyboard shortcuts" [ref=e240]:
+                  - img
+                - button "Start guided tour" [ref=e241]:
+                  - img
+                - button "Refresh" [ref=e243]:
+                  - img
+                - button "Zoom In" [ref=e244]:
+                  - img
+                - button "Zoom Out" [ref=e245]:
+                  - img
+                - button "Reset View" [ref=e246]:
+                  - img
+            - generic [ref=e247]:
+              - generic [ref=e257]:
+                - img [ref=e258]
+                - generic [ref=e260]:
+                  - generic [ref=e261]: "3"
+                  - generic [ref=e262]: of
+                  - generic [ref=e263]: "3"
+                  - generic [ref=e264]: nodes
+                  - generic [ref=e265]: (100%)
+              - button [ref=e267]:
+                - img
+              - generic "Click to navigate" [ref=e270]
+              - button "Show bookmarks" [ref=e272]:
+                - img
+              - toolbar "Graph controls" [ref=e274]:
+                - button "Zoom In" [ref=e275]:
+                  - img
+                - button "Zoom Out" [ref=e276]:
+                  - img
+                - button "Rotate Clockwise" [ref=e277]:
+                  - img
+                - button "Rotate Counter-Clockwise" [ref=e278]:
+                  - img
+                - button "Reset View" [ref=e279]:
+                  - img
+                - button "Fullscreen" [ref=e280]:
+                  - img
+              - region "Legend" [ref=e282]:
+                - generic [ref=e284]:
+                  - generic [ref=e285]:
+                    - img [ref=e286]
+                    - text: Legend
+                  - button "Collapse legend" [ref=e292]:
+                    - img
+                - list "Entity type visibility controls" [ref=e297]:
+                  - 'listitem "Person: 1 entities. Click to hide" [ref=e298]':
+                    - generic [ref=e300]: Person
+                    - generic [ref=e301]: "1"
+                    - img [ref=e302]
+                  - 'listitem "Product: 1 entities. Click to hide" [ref=e305]':
+                    - generic [ref=e307]: Product
+                    - generic [ref=e308]: "1"
+                    - img [ref=e309]
+                  - 'listitem "Event: 1 entities. Click to hide" [ref=e312]':
+                    - generic [ref=e314]: Event
+                    - generic [ref=e315]: "1"
+                    - img [ref=e316]
+          - generic [ref=e319]:
+            - separator "Resize details panel" [ref=e320]
+            - generic [ref=e324]:
+              - generic [ref=e325]:
+                - heading "Details & Filters" [level=3] [ref=e326]
+                - button "Collapse details panel" [ref=e327]:
+                  - img
+              - generic [ref=e332]:
+                - img [ref=e334]
+                - paragraph [ref=e339]: Click on a node to view details
+  - region "Notifications alt+T"
+```

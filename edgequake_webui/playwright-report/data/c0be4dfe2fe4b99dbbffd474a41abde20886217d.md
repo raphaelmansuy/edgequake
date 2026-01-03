@@ -1,0 +1,192 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+  - alert [ref=e11]
+  - generic [ref=e12]:
+    - link "Skip to main content" [ref=e13] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary "Sidebar navigation" [ref=e14]:
+      - generic [ref=e15]:
+        - link "EdgeQuake" [ref=e17] [cursor=pointer]:
+          - /url: /
+          - img [ref=e19]
+          - generic [ref=e24]: EdgeQuake
+        - navigation "Navigation" [ref=e25]:
+          - link "Dashboard" [ref=e26] [cursor=pointer]:
+            - /url: /
+            - img [ref=e27]
+            - generic [ref=e30]: Dashboard
+          - link "Knowledge Graph" [ref=e31] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e32]
+            - generic [ref=e37]: Knowledge Graph
+          - link "Documents" [ref=e38] [cursor=pointer]:
+            - /url: /documents
+            - img [ref=e39]
+            - generic [ref=e42]: Documents
+          - link "Query" [ref=e43] [cursor=pointer]:
+            - /url: /query
+            - img [ref=e44]
+            - generic [ref=e46]: Query
+          - link "Costs" [ref=e47] [cursor=pointer]:
+            - /url: /costs
+            - img [ref=e48]
+            - generic [ref=e50]: Costs
+          - link "API Explorer" [ref=e51] [cursor=pointer]:
+            - /url: /api-explorer
+            - img [ref=e52]
+            - generic [ref=e54]: API Explorer
+          - link "Settings" [ref=e55] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e56]
+            - generic [ref=e59]: Settings
+        - generic [ref=e60]:
+          - button "Collapse sidebar" [ref=e61]:
+            - img
+            - generic [ref=e62]: Collapse
+          - generic [ref=e63]:
+            - img [ref=e65]
+            - generic [ref=e70]:
+              - generic [ref=e71]: EdgeQuake
+              - generic [ref=e72]: v0.1.0
+    - generic [ref=e73]:
+      - banner [ref=e74]:
+        - button "Default Workspac..." [ref=e77]:
+          - img
+          - generic [ref=e78]: Default Workspac...
+          - img
+        - generic [ref=e79]:
+          - generic [ref=e80]:
+            - img [ref=e81]
+            - generic [ref=e83]: v0.1.0
+          - button "Change language" [ref=e84]:
+            - img
+            - generic [ref=e85]: Change language
+          - button "Toggle theme" [ref=e86]:
+            - img
+            - generic [ref=e87]: Toggle theme
+          - button "User menu" [ref=e88]:
+            - img
+            - generic [ref=e89]: User menu
+      - navigation "breadcrumb" [ref=e91]:
+        - list [ref=e92]:
+          - listitem [ref=e93]:
+            - link "EdgeQuake" [ref=e94] [cursor=pointer]:
+              - /url: /
+              - img [ref=e95]
+              - generic [ref=e98]: EdgeQuake
+          - listitem [ref=e99]:
+            - img [ref=e100]
+          - listitem [ref=e102]:
+            - link "Knowledge Graph" [disabled] [ref=e103]:
+              - img [ref=e104]
+              - generic [ref=e109]: Knowledge Graph
+      - main [ref=e110]:
+        - generic [ref=e112]:
+          - complementary "Entity browser" [ref=e113]:
+            - generic [ref=e114]:
+              - generic [ref=e115]:
+                - img [ref=e116]
+                - heading "Entities" [level=2] [ref=e121]
+                - generic [ref=e122]: "0"
+              - button "Collapse entity browser" [ref=e123]:
+                - img
+            - generic [ref=e125]:
+              - img [ref=e126]
+              - textbox "Search entities by name, type, or description" [ref=e129]:
+                - /placeholder: Search entities...
+              - generic [ref=e130]: Type to filter the list of entities. Results update automatically.
+            - group "Sort controls" [ref=e131]:
+              - generic [ref=e132]: "Sort:"
+              - button "Name" [pressed] [ref=e133]
+              - button "Degree" [ref=e134]
+              - button "Sort ascending, click to sort descending" [ref=e135]:
+                - img
+            - tablist "View mode" [ref=e136]:
+              - tab "Grouped" [selected] [ref=e137]
+              - tab "List" [ref=e138]
+            - tabpanel [ref=e139]:
+              - status [ref=e140]:
+                - img [ref=e141]
+                - paragraph [ref=e146]: No entities yet
+            - generic [ref=e148]:
+              - generic [ref=e150]: 0 types
+              - generic [ref=e151]:
+                - img [ref=e152]
+                - generic [ref=e155]: "0"
+                - generic [ref=e156]: connections
+          - generic [ref=e157]:
+            - generic [ref=e158]:
+              - heading "Knowledge Graph" [level=2] [ref=e160]
+              - generic [ref=e161]:
+                - button "Search nodes..." [ref=e163]:
+                  - img
+                  - generic [ref=e164]: Search nodes...
+                  - generic [ref=e165]:
+                    - generic [ref=e166]: ⌘
+                    - text: K
+                - button "Layout" [ref=e168]:
+                  - img
+                - button "Export graph" [disabled]:
+                  - img
+                  - generic: Export graph
+                - button "Graph Settings" [ref=e169]:
+                  - img
+                - button "Keyboard shortcuts" [ref=e171]:
+                  - img
+                - button "Start guided tour" [ref=e172]:
+                  - img
+                - button "Refresh" [ref=e174]:
+                  - img
+                - button "Zoom In" [ref=e175]:
+                  - img
+                - button "Zoom Out" [ref=e176]:
+                  - img
+                - button "Reset View" [ref=e177]:
+                  - img
+            - generic [ref=e178]:
+              - generic [ref=e180]:
+                - img [ref=e182]
+                - heading "No knowledge graph yet" [level=3] [ref=e210]
+                - paragraph [ref=e211]: Your knowledge graph is empty. Upload documents to automatically extract entities and relationships.
+                - button "Upload Documents" [ref=e212]:
+                  - img
+                  - text: Upload Documents
+              - button [ref=e214]:
+                - img
+              - toolbar "Graph controls" [ref=e216]:
+                - button "Zoom In" [ref=e217]:
+                  - img
+                - button "Zoom Out" [ref=e218]:
+                  - img
+                - button "Rotate Clockwise" [ref=e219]:
+                  - img
+                - button "Rotate Counter-Clockwise" [ref=e220]:
+                  - img
+                - button "Reset View" [ref=e221]:
+                  - img
+                - button "Fullscreen" [ref=e222]:
+                  - img
+          - generic [ref=e223]:
+            - separator "Resize details panel" [ref=e224]
+            - generic [ref=e228]:
+              - generic [ref=e229]:
+                - heading "Details & Filters" [level=3] [ref=e230]
+                - button "Collapse details panel" [ref=e231]:
+                  - img
+              - generic [ref=e236]:
+                - img [ref=e238]
+                - paragraph [ref=e243]: Click on a node to view details
+  - region "Notifications alt+T":
+    - list:
+      - listitem [ref=e245]:
+        - button "Close toast" [ref=e246] [cursor=pointer]:
+          - img [ref=e247]
+        - img [ref=e251]
+        - generic [ref=e254]:
+          - generic [ref=e255]: Workspace "Default Workspace" selected
+          - generic [ref=e256]: You can change this anytime from the selector above
+```

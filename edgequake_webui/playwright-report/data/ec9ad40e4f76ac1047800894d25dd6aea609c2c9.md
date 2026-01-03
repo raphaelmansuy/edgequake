@@ -1,0 +1,180 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+  - alert [ref=e11]
+  - generic [ref=e12]:
+    - link "Skip to main content" [ref=e13] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary "Sidebar navigation" [ref=e14]:
+      - generic [ref=e15]:
+        - link "EdgeQuake" [ref=e17] [cursor=pointer]:
+          - /url: /
+          - img [ref=e19]
+          - generic [ref=e24]: EdgeQuake
+        - navigation "Navigation" [ref=e25]:
+          - link "Dashboard" [ref=e26] [cursor=pointer]:
+            - /url: /
+            - img [ref=e27]
+            - generic [ref=e30]: Dashboard
+          - link "Knowledge Graph" [ref=e31] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e32]
+            - generic [ref=e37]: Knowledge Graph
+          - link "Documents" [ref=e38] [cursor=pointer]:
+            - /url: /documents
+            - img [ref=e39]
+            - generic [ref=e42]: Documents
+          - link "Query" [ref=e43] [cursor=pointer]:
+            - /url: /query
+            - img [ref=e44]
+            - generic [ref=e46]: Query
+          - link "Costs" [ref=e47] [cursor=pointer]:
+            - /url: /costs
+            - img [ref=e48]
+            - generic [ref=e50]: Costs
+          - link "API Explorer" [ref=e51] [cursor=pointer]:
+            - /url: /api-explorer
+            - img [ref=e52]
+            - generic [ref=e54]: API Explorer
+          - link "Settings" [ref=e55] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e56]
+            - generic [ref=e59]: Settings
+        - generic [ref=e60]:
+          - button "Collapse sidebar" [ref=e61]:
+            - img
+            - generic [ref=e62]: Collapse
+          - generic [ref=e63]:
+            - img [ref=e65]
+            - generic [ref=e70]:
+              - generic [ref=e71]: EdgeQuake
+              - generic [ref=e72]: v0.1.0
+    - generic [ref=e73]:
+      - banner [ref=e74]:
+        - button "Default Workspac..." [ref=e77]:
+          - img
+          - generic [ref=e78]: Default Workspac...
+          - img
+        - generic [ref=e79]:
+          - generic [ref=e80]:
+            - img [ref=e81]
+            - generic [ref=e83]: v0.1.0
+          - button "Change language" [ref=e84]:
+            - img
+            - generic [ref=e85]: Change language
+          - button "Toggle theme" [ref=e86]:
+            - img
+            - generic [ref=e87]: Toggle theme
+          - button "User menu" [ref=e88]:
+            - img
+            - generic [ref=e89]: User menu
+      - navigation "breadcrumb" [ref=e91]:
+        - list [ref=e92]:
+          - listitem [ref=e93]:
+            - link "EdgeQuake" [ref=e94] [cursor=pointer]:
+              - /url: /
+              - img [ref=e95]
+              - generic [ref=e98]: EdgeQuake
+          - listitem [ref=e99]:
+            - img [ref=e100]
+          - listitem [ref=e102]:
+            - link "Query" [disabled] [ref=e103]:
+              - img [ref=e104]
+              - generic [ref=e106]: Query
+      - main [ref=e107]:
+        - generic [ref=e108]:
+          - generic [ref=e109]:
+            - generic [ref=e110]:
+              - generic [ref=e111]:
+                - heading "Query" [level=1] [ref=e112]
+                - generic [ref=e113]: Ask questions about your knowledge graph
+              - generic [ref=e114]:
+                - button "New" [ref=e115]:
+                  - img
+                  - text: New
+                - generic [ref=e116]:
+                  - button "Select Local query mode" [ref=e117]:
+                    - img [ref=e118]
+                    - generic [ref=e122]: Local
+                  - button "Select Global query mode" [ref=e123]:
+                    - img [ref=e124]
+                    - generic [ref=e127]: Global
+                  - button "Select Hybrid query mode" [pressed] [ref=e128]:
+                    - img [ref=e129]
+                    - generic [ref=e133]: Hybrid
+                  - button "Select Simple query mode" [ref=e134]:
+                    - img [ref=e135]
+                    - generic [ref=e137]: Simple
+                - button [ref=e138]:
+                  - img
+            - generic [ref=e143]:
+              - generic [ref=e145]:
+                - paragraph [ref=e147]: What is EdgeQuake?
+                - img [ref=e150]
+              - generic [ref=e154]:
+                - img [ref=e157]
+                - generic [ref=e160]:
+                  - generic [ref=e161]:
+                    - generic [ref=e162]: EdgeQuake
+                    - generic [ref=e163]: 06:43 PM
+                  - paragraph [ref=e168]: EdgeQuake is an advanced Retrieval-Augmented Generation (RAG) framework designed for knowledge graph construction and semantic search. It leverages technologies such as Apache AGE for graph database capabilities, pgvector for vector similarity search, and OpenAI GPT-4 for entity extraction. The architecture includes core services like an API layer, a pipeline for document ingestion and entity extraction, and a storage layer for managing multi-tenant graph and vector data.
+                  - generic [ref=e169]:
+                    - generic [ref=e170]:
+                      - generic [ref=e171]:
+                        - img [ref=e172]
+                        - text: "119"
+                      - generic [ref=e174]:
+                        - img [ref=e175]
+                        - text: 4.8s
+                    - generic [ref=e178]:
+                      - button [ref=e179]:
+                        - img
+                      - button [ref=e180]:
+                        - img
+                  - 'button "Source citations: 1 sources, 0 topics, Good confidence" [ref=e183]':
+                    - generic [ref=e184]:
+                      - img
+                      - generic [ref=e185]: 1 Source · 0 Topics
+                      - generic [ref=e186]:
+                        - 'generic "Confidence: 38%" [ref=e187]'
+                        - generic [ref=e193]: Good (38%)
+                    - img
+            - form "Query form" [ref=e195]:
+              - generic [ref=e196]:
+                - generic [ref=e197]:
+                  - textbox "Ask a question..." [ref=e198]
+                  - generic [ref=e199]: Press Enter to send, Shift+Enter for new line
+                  - generic [ref=e200]:
+                    - button "Send" [disabled]:
+                      - img
+                - paragraph [ref=e201]: Press Enter to send, Shift+Enter for new line
+          - complementary "History" [ref=e202]:
+            - generic [ref=e203]:
+              - heading "History" [level=2] [ref=e204]
+              - generic [ref=e205]:
+                - button "New conversation" [ref=e206]:
+                  - img
+                - button "Collapse history" [ref=e207]:
+                  - img
+            - generic [ref=e209]:
+              - img [ref=e210]
+              - textbox "Search conversations..." [ref=e213]
+            - generic [ref=e215]:
+              - button "All Conversations" [ref=e216] [cursor=pointer]:
+                - img [ref=e217]
+                - generic [ref=e220]: All Conversations
+              - button "New Folder" [ref=e221]:
+                - img
+                - text: New Folder
+            - button "New Conversation 0 messages · 06:43 PM More options" [pressed] [ref=e225] [cursor=pointer]:
+              - img [ref=e227]
+              - generic [ref=e229]:
+                - paragraph [ref=e231]: New Conversation
+                - paragraph [ref=e232]: 0 messages · 06:43 PM
+              - button "More options" [ref=e233]:
+                - img
+  - region "Notifications alt+T"
+```

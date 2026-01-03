@@ -1,0 +1,83 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+  - alert [ref=e11]
+  - generic [ref=e12]:
+    - link "Skip to main content" [ref=e13] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=e14]:
+      - banner [ref=e15]:
+        - generic [ref=e16]:
+          - button "Toggle menu" [ref=e17]:
+            - img
+            - generic [ref=e18]: Toggle menu
+          - generic [ref=e19]: EdgeQuake
+        - generic [ref=e20]:
+          - img [ref=e22]
+          - button "Change language" [ref=e24]:
+            - img
+            - generic [ref=e25]: Change language
+          - button "Toggle theme" [ref=e26]:
+            - img
+            - generic [ref=e27]: Toggle theme
+          - button "User menu" [ref=e28]:
+            - img
+            - generic [ref=e29]: User menu
+      - navigation "breadcrumb" [ref=e31]:
+        - list [ref=e32]:
+          - listitem [ref=e33]:
+            - link "EdgeQuake" [ref=e34] [cursor=pointer]:
+              - /url: /
+              - img [ref=e35]
+              - generic [ref=e38]: EdgeQuake
+          - listitem [ref=e39]:
+            - img [ref=e40]
+          - listitem [ref=e42]:
+            - link "Documents" [disabled] [ref=e43]:
+              - img [ref=e44]
+              - generic [ref=e47]: Documents
+      - main [ref=e48]:
+        - generic [ref=e49]:
+          - generic [ref=e50]:
+            - generic [ref=e51]:
+              - generic [ref=e52]:
+                - generic [ref=e53]:
+                  - heading "Documents" [level=1] [ref=e54]
+                  - paragraph [ref=e55]: Upload and manage documents for knowledge graph extraction
+                - button "Refresh" [ref=e57]:
+                  - img
+                  - text: Refresh
+              - generic [ref=e58]:
+                - generic [ref=e59]:
+                  - img [ref=e60]
+                  - textbox "Search documents..." [ref=e63]
+                - generic [ref=e64]:
+                  - combobox [ref=e65]:
+                    - generic: All Status (0)
+                    - img
+                  - generic [ref=e66]:
+                    - generic [ref=e67]: "Sort by:"
+                    - button "Created" [ref=e68]:
+                      - text: Created
+                      - img
+                    - button "Updated" [ref=e69]
+              - generic [ref=e70] [cursor=pointer]:
+                - button "Choose File" [ref=e71]
+                - img [ref=e73]
+                - paragraph [ref=e77]: Drag & drop or click to upload • TXT, MD, JSON (max 10MB)
+            - generic [ref=e79]:
+              - generic [ref=e80]:
+                - img [ref=e81]
+                - generic [ref=e84]: Documents (0)
+              - generic [ref=e85]:
+                - img [ref=e86]
+                - paragraph [ref=e89]: No documents yet
+                - paragraph [ref=e90]: Upload documents to build your knowledge graph
+          - button "Expand Preview" [ref=e91] [cursor=pointer]:
+            - img [ref=e92]
+            - generic [ref=e94]: Preview
+  - region "Notifications alt+T"
+```
