@@ -249,11 +249,13 @@ pub fn is_math_symbol(ch: char) -> bool {
 }
 
 /// Convert a single character to its LaTeX equivalent.
+#[allow(dead_code)] // Public API for future use
 pub fn to_latex(ch: char) -> Option<&'static str> {
     MATH_SYMBOL_MAP.get(&ch).copied()
 }
 
 /// Convert a string with math symbols to LaTeX.
+#[allow(dead_code)] // Public API for future use
 pub fn convert_to_latex(text: &str) -> String {
     let mut result = String::with_capacity(text.len() * 2);
     for ch in text.chars() {

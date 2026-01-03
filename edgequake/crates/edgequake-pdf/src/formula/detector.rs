@@ -208,7 +208,7 @@ impl FormulaDetector {
 
         Some(Formula {
             latex,
-            bbox: block.bbox.clone(),
+            bbox: block.bbox,
             confidence,
             is_display: true,
             source_block_idx: idx,
@@ -221,7 +221,6 @@ impl FormulaDetector {
     /// superscripts or subscripts. We detect these by comparing span
     /// baselines to the block baseline.
     fn reconstruct_formula(&self, block: &Block, idx: usize, is_display: bool) -> Option<Formula> {
-        let mut latex = String::new();
         let block_baseline = self.estimate_baseline(block);
 
         // Process spans if available
@@ -233,8 +232,8 @@ impl FormulaDetector {
             }
         }
 
-        // Fall back to converting the entire text
-        latex = self.convert_with_structure(&block.text, block_baseline, block);
+        // Convert the entire text to LaTeX
+        let latex = self.convert_with_structure(&block.text, block_baseline, block);
 
         if latex.is_empty() {
             return None;
@@ -244,7 +243,7 @@ impl FormulaDetector {
 
         Some(Formula {
             latex,
-            bbox: block.bbox.clone(),
+            bbox: block.bbox,
             confidence,
             is_display,
             source_block_idx: idx,
