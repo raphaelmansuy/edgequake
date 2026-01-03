@@ -764,7 +764,11 @@ impl SotaBackend {
             // Count each element's contribution to bins it spans
             let start_bin = (elem.x / bin_size) as usize;
             let end_bin = ((elem.x + 20.0) / bin_size) as usize; // Approximate text width
-            for bin in proj.iter_mut().take((end_bin + 1).min(num_bins)).skip(start_bin) {
+            for bin in proj
+                .iter_mut()
+                .take((end_bin + 1).min(num_bins))
+                .skip(start_bin)
+            {
                 *bin += 1;
             }
         }

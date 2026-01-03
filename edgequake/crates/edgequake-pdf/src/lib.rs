@@ -16,6 +16,14 @@
 //! - **extractor**: Main PDF extraction logic
 //! - **backend**: Pluggable PDF extraction backends
 //!
+// Intentional clippy suppression:
+// - manual_clamp: We use min().max() chains for NaN-safe clamping
+// - too_many_arguments: Complex layout functions need many parameters
+// - should_implement_trait: BoundingBox::add is semantic, not std::ops::Add
+#![allow(clippy::manual_clamp)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::should_implement_trait)]
+
 //! # Example
 //!
 //! ```rust,no_run

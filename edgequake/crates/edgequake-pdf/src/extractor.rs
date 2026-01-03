@@ -136,8 +136,10 @@ impl PdfExtractor {
 
         let doc = self.extract_document(pdf_bytes).await?;
 
-        let mut style = MarkdownStyle::default();
-        style.page_numbers = self.config.include_page_numbers;
+        let style = MarkdownStyle {
+            page_numbers: self.config.include_page_numbers,
+            ..Default::default()
+        };
 
         let renderer = MarkdownRenderer::with_style(style);
         renderer.render(&doc)

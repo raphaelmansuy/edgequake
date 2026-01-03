@@ -1184,7 +1184,7 @@ mod tests {
     fn test_identity_odd_bytes_handled() {
         let encoding = Encoding::Identity;
         // Odd number of bytes - Identity encoding handles gracefully
-        let text = encoding.decode(&[0x00, 0x41, 0x00]); 
+        let text = encoding.decode(&[0x00, 0x41, 0x00]);
         // Should produce at least 'A' from first pair
         assert!(text.contains('A'));
     }

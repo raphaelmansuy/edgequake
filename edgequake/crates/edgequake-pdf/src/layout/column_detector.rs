@@ -218,10 +218,12 @@ impl ColumnDetector {
     }
 
     /// Check if the detected columns actually look like a table structure.
+    ///
     /// Tables typically have:
     /// - Many items per row (3+)
     /// - Short items (single words or numbers) relative to column width
     /// - Uniform row structure with items significantly shorter than columns
+    ///
     /// Multi-column text layouts have:
     /// - Longer text blocks that fill most of the column width
     /// - Items close to column width
