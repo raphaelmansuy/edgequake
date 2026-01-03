@@ -159,6 +159,9 @@ impl LatticeEngine {
         let mut merged_indices: std::collections::HashSet<usize> = std::collections::HashSet::new();
         let mut result: Vec<Block> = Vec::new();
 
+        // WHY: Index loops here because we need both indices to modify merged_indices
+        // and access tables[i] and tables[j] simultaneously for comparison
+        #[allow(clippy::needless_range_loop)]
         for i in 0..tables.len() {
             if merged_indices.contains(&i) {
                 continue;
@@ -167,6 +170,7 @@ impl LatticeEngine {
             let mut merged_table = tables[i].clone();
             let mut merged_count = 1;
 
+            #[allow(clippy::needless_range_loop)]
             for j in (i + 1)..tables.len() {
                 if merged_indices.contains(&j) {
                     continue;
@@ -981,6 +985,9 @@ impl LatticeEngine {
         let mut gap_start = 0;
         let min_gap_width = 5; // Reduced from 10 to 5 points
 
+        // WHY: Index loop because we need both i (position) and projection[i] (value),
+        // and gap detection logic requires comparing positions (gap_start to i)
+        #[allow(clippy::needless_range_loop)]
         for i in 0..width {
             if projection[i] == 0 {
                 if !in_gap {
