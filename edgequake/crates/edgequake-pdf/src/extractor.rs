@@ -383,4 +383,146 @@ mod tests {
         let _result = extractor.get_info(invalid_bytes);
         // Same here
     }
+
+    // Additional extractor tests for Phase 4.1
+
+    #[test]
+    fn test_extraction_result_is_complete() {
+        let result = ExtractionResult {
+            page_count: 5,
+            markdown: String::new(),
+            pages: vec![],
+            images: vec![],
+            metadata: crate::schema::DocumentMetadata::default(),
+            page_errors: vec![],
+        };
+        assert!(result.is_complete());
+    }
+
+    #[test]
+    fn test_extraction_result_with_errors() {
+        let result = ExtractionResult {
+            page_count: 5,
+            markdown: String::new(),
+            pages: vec![],
+            images: vec![],
+            metadata: crate::schema::DocumentMetadata::default(),
+            page_errors: vec![
+                PageError::new(2, PdfError::Io("test error".to_string())),
+            ],
+        };
+        assert!(!result.is_complete());
+        assert_eq!(result.failed_page_count(), 1);
+    }
+
+    #[test]
+    fn test_extraction_result_success_rate() {
+        let result = ExtractionResult {
+            page_count: 10,
+            markdown: String::new(),
+            pages: vec![],
+            images: vec![],
+            metadata: crate::schema::DocumentMetadata::default(),
+            page_errors: vec![
+                PageError::new(2, PdfError::Io("test".to_string())),
+                PageError::new(5, PdfError::Io("test".to_string())),
+            ],
+        };
+        assert!((result.success_rate() - 80.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_extraction_result_success_rate_empty() {
+        let result = ExtractionResult {
+            page_count: 0,
+            markdown: String::new(),
+            pages: vec![],
+            images: vec![],
+            metadata: crate::schema::DocumentMetadata::default(),
+            page_errors: vec![],
+        };
+        // Empty doc should be 100% success
+        assert_eq!(result.success_rate(), 100.0);
+    }
+
+    #[test]
+    fn test_extraction_result_status_summary() {
+        let complete = ExtractionResult {
+            page_count: 5,
+            markdown: String::new(),
+            pages: vec![],
+            images: vec![],
+            metadata: crate::schema::DocumentMetadata::default(),
+            page_errors: vec![],
+        };
+        assert!(complete.status_summary().contains("5 pages successfully"));
+
+        let partial = ExtractionResult {
+            page_count: 5,
+            markdown: String::new(),
+            pages: vec![
+                PageContent { page_number: 0, text: String::new(), markdown: String::new(), images: vec![] },
+                PageContent { page_number: 1, text: String::new(), markdown: String::new(), images: vec![] },
+            ],
+            images: vec![],
+            metadata: crate::schema::DocumentMetadata::default(),
+            page_errors: vec![
+                PageError::new(2, PdfError::Io("test".to_string())),
+            ],
+        };
+        assert!(partial.status_summary().contains("failures"));
+    }
+
+    #[test]
+    fn test_extracted_image_struct() {
+        let image = ExtractedImage {
+            id: "img_0".to_string(),
+            mime_type: "image/png".to_string(),
+            page: 1,
+            index: 0,
+            description: Some("A chart".to_string()),
+            dimensions: Some((800, 600)),
+        };
+        assert_eq!(image.id, "img_0");
+        assert_eq!(image.mime_type, "image/png");
+        assert_eq!(image.dimensions, Some((800, 600)));
+    }
+
+    #[test]
+    fn test_page_content_struct() {
+        let content = PageContent {
+            page_number: 3,
+            text: "Raw text".to_string(),
+            markdown: "# Markdown".to_string(),
+            images: vec![],
+        };
+        assert_eq!(content.page_number, 3);
+        assert_eq!(content.text, "Raw text");
+        assert_eq!(content.markdown, "# Markdown");
+    }
+
+    #[test]
+    fn test_pdf_info_struct() {
+        let info = PdfInfo {
+            page_count: 10,
+            pdf_version: "1.7".to_string(),
+            has_images: true,
+            image_count: 5,
+            file_size: 1024000,
+        };
+        assert_eq!(info.page_count, 10);
+        assert_eq!(info.pdf_version, "1.7");
+        assert!(info.has_images);
+        assert_eq!(info.image_count, 5);
+        assert_eq!(info.file_size, 1024000);
+    }
+
+    #[test]
+    fn test_extractor_default_config() {
+        let extractor = create_test_extractor();
+        let config = extractor.config();
+        assert!(config.include_page_numbers);
+        assert!(config.extract_images);
+        assert_eq!(config.vision_dpi, 150);
+    }
 }
