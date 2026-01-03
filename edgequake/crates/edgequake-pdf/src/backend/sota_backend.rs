@@ -487,7 +487,7 @@ impl SotaBackend {
                     if !op.operands.is_empty() {
                         if let Some(text) = self.decode_text_operand(&op.operands[0], current_font)
                         {
-                            let text = text.replace('\n', "").replace('\r', "");
+                            let text = text.replace(['\n', '\r'], "");
                             if !text.is_empty() {
                                 let (is_bold, is_italic) = current_font
                                     .map(|f| (f.is_bold, f.is_italic))
@@ -764,8 +764,8 @@ impl SotaBackend {
             // Count each element's contribution to bins it spans
             let start_bin = (elem.x / bin_size) as usize;
             let end_bin = ((elem.x + 20.0) / bin_size) as usize; // Approximate text width
-            for i in start_bin..=end_bin.min(num_bins - 1) {
-                proj[i] += 1;
+            for bin in proj.iter_mut().take((end_bin + 1).min(num_bins)).skip(start_bin) {
+                *bin += 1;
             }
         }
         proj

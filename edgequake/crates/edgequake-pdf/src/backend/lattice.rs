@@ -9,6 +9,12 @@ pub struct LatticeEngine {
     line_tolerance: f32,
 }
 
+impl Default for LatticeEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LatticeEngine {
     pub fn new() -> Self {
         Self {
@@ -115,9 +121,9 @@ impl LatticeEngine {
         // Wide tables in academic PDFs are often split into left/right halves with a gap.
         // If two tables have overlapping Y-bands (>80%) and are side-by-side (X gap < 50pt),
         // they should be merged into a single table.
-        let tables = self.merge_horizontal_table_halves(tables, text_elements);
+        
 
-        tables
+        self.merge_horizontal_table_halves(tables, text_elements)
     }
 
     /// Merge tables that appear to be left/right halves of the same table.
@@ -813,7 +819,7 @@ impl LatticeEngine {
             markdown.push_str(" |\n");
 
             // Separator row
-            markdown.push_str("|");
+            markdown.push('|');
             for _ in 0..rows[0].len() {
                 markdown.push_str("---|");
             }
@@ -970,14 +976,12 @@ impl LatticeEngine {
                     in_gap = true;
                     gap_start = i;
                 }
-            } else {
-                if in_gap {
-                    in_gap = false;
-                    if i - gap_start >= min_gap_width {
-                        // Found a gap. The column boundary is the middle of the gap.
-                        let boundary_x = start_x as f32 + (gap_start + i) as f32 / 2.0;
-                        column_boundaries.push(boundary_x);
-                    }
+            } else if in_gap {
+                in_gap = false;
+                if i - gap_start >= min_gap_width {
+                    // Found a gap. The column boundary is the middle of the gap.
+                    let boundary_x = start_x as f32 + (gap_start + i) as f32 / 2.0;
+                    column_boundaries.push(boundary_x);
                 }
             }
         }
@@ -996,8 +1000,7 @@ impl LatticeEngine {
                 column_boundaries.len() - 1,
                 bbox
             );
-        } else {
-        }
+        } 
 
         column_boundaries
     }
@@ -1040,11 +1043,11 @@ impl LatticeEngine {
         let mut contained: Vec<&TextElement> = text_elements
             .iter()
             .filter(|elem| {
-                let inside = elem.x >= min_x - tol
+                
+                elem.x >= min_x - tol
                     && elem.x <= max_x + tol
                     && elem.y >= min_y - tol
-                    && elem.y <= max_y + tol;
-                inside
+                    && elem.y <= max_y + tol
             })
             .collect();
 

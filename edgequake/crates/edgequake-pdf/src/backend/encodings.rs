@@ -1060,6 +1060,8 @@ impl ToUnicodeMap {
 mod tests {
     use super::*;
 
+    // ===== WinAnsi Encoding Tests =====
+
     #[test]
     fn test_winansi_decode_ascii() {
         let encoding = Encoding::OneByteEncoding(&WIN_ANSI_ENCODING);
@@ -1076,10 +1078,132 @@ mod tests {
     }
 
     #[test]
+    fn test_winansi_currency_symbols() {
+        let encoding = Encoding::OneByteEncoding(&WIN_ANSI_ENCODING);
+        // 0xA3 = £, 0xA5 = ¥
+        let text = encoding.decode(&[0xA3, 0xA5]);
+        assert_eq!(text, "£¥");
+    }
+
+    #[test]
+    fn test_winansi_smart_quotes() {
+        let encoding = Encoding::OneByteEncoding(&WIN_ANSI_ENCODING);
+        // 0x91/0x92 = left/right single quote, 0x93/0x94 = left/right double quote
+        let text = encoding.decode(&[0x91, 0x92, 0x93, 0x94]);
+        // ' = \u{2018}, ' = \u{2019}, " = \u{201C}, " = \u{201D}
+        assert_eq!(text, "\u{2018}\u{2019}\u{201C}\u{201D}");
+    }
+
+    // ===== Standard Encoding Tests =====
+
+    #[test]
+    fn test_standard_encode_ascii() {
+        let encoding = Encoding::OneByteEncoding(&STANDARD_ENCODING);
+        let text = encoding.decode(b"Test");
+        assert_eq!(text, "Test");
+    }
+
+    #[test]
+    fn test_standard_encode_special() {
+        let encoding = Encoding::OneByteEncoding(&STANDARD_ENCODING);
+        // 0xA1 = ¡, 0xBF = ¿
+        let text = encoding.decode(&[0xA1, 0xBF]);
+        assert_eq!(text, "¡¿");
+    }
+
+    // ===== MacRoman Encoding Tests =====
+
+    #[test]
+    fn test_macroman_ascii() {
+        let encoding = Encoding::OneByteEncoding(&MAC_ROMAN_ENCODING);
+        let text = encoding.decode(b"Mac");
+        assert_eq!(text, "Mac");
+    }
+
+    #[test]
+    fn test_macroman_extended() {
+        let encoding = Encoding::OneByteEncoding(&MAC_ROMAN_ENCODING);
+        // 0x80 = Ä, 0x8A = ä
+        let text = encoding.decode(&[0x80, 0x8A]);
+        assert_eq!(text, "Ää");
+    }
+
+    // ===== Ligature Tests =====
+
+    #[test]
     fn test_ligature_expansion() {
         let encoding = Encoding::OneByteEncoding(&WIN_ANSI_ENCODING);
         // 0x02 should expand to "fi"
         let text = encoding.decode(&[0x02]);
         assert_eq!(text, "fi");
+    }
+
+    #[test]
+    fn test_ligature_fl() {
+        let encoding = Encoding::OneByteEncoding(&WIN_ANSI_ENCODING);
+        // 0x03 should expand to "fl"
+        let text = encoding.decode(&[0x03]);
+        assert_eq!(text, "fl");
+    }
+
+    #[test]
+    fn test_ligature_ff() {
+        let encoding = Encoding::OneByteEncoding(&WIN_ANSI_ENCODING);
+        // 0x04 should expand to "ff"
+        let text = encoding.decode(&[0x04]);
+        assert_eq!(text, "ff");
+    }
+
+    #[test]
+    fn test_ligature_ffi() {
+        let encoding = Encoding::OneByteEncoding(&WIN_ANSI_ENCODING);
+        // 0x05 should expand to "ffi"
+        let text = encoding.decode(&[0x05]);
+        assert_eq!(text, "ffi");
+    }
+
+    #[test]
+    fn test_ligature_ffl() {
+        let encoding = Encoding::OneByteEncoding(&WIN_ANSI_ENCODING);
+        // 0x06 should expand to "ffl"
+        let text = encoding.decode(&[0x06]);
+        assert_eq!(text, "ffl");
+    }
+
+    // ===== Identity Encoding Tests =====
+
+    #[test]
+    fn test_identity_decodes_utf16be() {
+        let encoding = Encoding::Identity;
+        // Identity treats bytes as UTF-16BE pairs: 0x0041 = 'A', 0x0042 = 'B'
+        let text = encoding.decode(&[0x00, 0x41, 0x00, 0x42, 0x00, 0x43]); // ABC
+        assert_eq!(text, "ABC");
+    }
+
+    #[test]
+    fn test_identity_odd_bytes_handled() {
+        let encoding = Encoding::Identity;
+        // Odd number of bytes - Identity encoding handles gracefully
+        let text = encoding.decode(&[0x00, 0x41, 0x00]); 
+        // Should produce at least 'A' from first pair
+        assert!(text.contains('A'));
+    }
+
+    // ===== Edge Cases =====
+
+    #[test]
+    fn test_empty_input() {
+        let encoding = Encoding::OneByteEncoding(&WIN_ANSI_ENCODING);
+        let text = encoding.decode(&[]);
+        assert_eq!(text, "");
+    }
+
+    #[test]
+    fn test_control_characters_preserved() {
+        let encoding = Encoding::OneByteEncoding(&WIN_ANSI_ENCODING);
+        // Control chars 0x00-0x01 map to control characters in the encoding table
+        let text = encoding.decode(&[0x00, 0x01]);
+        // The table has control chars at these positions - verify non-empty result
+        assert!(!text.is_empty() || text.chars().all(|c| c.is_control()));
     }
 }

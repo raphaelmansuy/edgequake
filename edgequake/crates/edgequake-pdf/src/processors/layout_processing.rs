@@ -322,11 +322,9 @@ impl MarginFilterProcessor {
         let text = trimmed;
         if text.len() <= 2
             && text.chars().all(|c| c.is_ascii_digit() || c.is_ascii_uppercase())
-        {
-            if bbox.x1 < line_number_edge || bbox.x1 > page_width - line_number_edge {
+            && (bbox.x1 < line_number_edge || bbox.x1 > page_width - line_number_edge) {
                 return true;
             }
-        }
 
         // Filter footer page numbers
         let in_footer = bbox.y1 <= bottom_margin;
@@ -531,14 +529,13 @@ impl Processor for SectionNumberMergeProcessor {
                     let title_y_center = (title_block.bbox.y1 + title_block.bbox.y2) / 2.0;
                     let y_gap = (sec_y - title_y_center).abs();
 
-                    if y_gap < 25.0 && title_block.bbox.x1 > *sec_x {
-                        if Self::looks_like_section_title(title_text) {
+                    if y_gap < 25.0 && title_block.bbox.x1 > *sec_x
+                        && Self::looks_like_section_title(title_text) {
                             let merged_text =
                                 format!("{}. {}", sec_text.trim_end_matches('.'), title_text);
                             merge_map.insert(*sec_idx, (title_idx, merged_text));
                             break;
                         }
-                    }
                 }
             }
 

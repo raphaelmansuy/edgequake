@@ -448,7 +448,7 @@ impl GarbledTextFilterProcessor {
             .filter(|w| {
                 let w_lower = w.to_lowercase();
                 let len = w_lower.len();
-                if len >= 4 && len <= 8 && w_lower.chars().all(|c| c.is_alphabetic()) {
+                if (4..=8).contains(&len) && w_lower.chars().all(|c| c.is_alphabetic()) {
                     let garbled_patterns = ["iliar", "hich", "erlook", "ec", "tion", "xec"];
                     garbled_patterns
                         .iter()
@@ -527,8 +527,7 @@ impl HyphenContinuationProcessor {
     /// Get word fragment before hyphen.
     fn get_hyphen_fragment(text: &str) -> Option<String> {
         let trimmed = text.trim_end();
-        if trimmed.ends_with('-') {
-            let without_hyphen = &trimmed[..trimmed.len() - 1];
+        if let Some(without_hyphen) = trimmed.strip_suffix('-') {
             let last_word = without_hyphen.split_whitespace().last()?;
             Some(last_word.to_lowercase())
         } else {
@@ -580,8 +579,7 @@ impl Processor for HyphenContinuationProcessor {
 
                 if Self::ends_with_explicit_hyphen(&current_text)
                     && Self::is_valid_continuation(&next_text)
-                {
-                    if Self::get_hyphen_fragment(&current_text).is_some() {
+                    && Self::get_hyphen_fragment(&current_text).is_some() {
                         // Join the blocks
                         let mut new_current_text = current_text.trim_end().to_string();
                         // Remove the hyphen
@@ -614,7 +612,6 @@ impl Processor for HyphenContinuationProcessor {
                         page.blocks.remove(i + 1);
                         continue; // Don't increment i, check again
                     }
-                }
 
                 i += 1;
             }

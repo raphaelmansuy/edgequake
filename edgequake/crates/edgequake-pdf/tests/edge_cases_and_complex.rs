@@ -1,10 +1,8 @@
-//! Comprehensive Edge Cases and Complex Scenario Tests (50+ tests)
+//! Edge Cases and Complex Scenario Tests
 //!
 //! This test suite covers:
-//! - Edge cases (empty, boundary, maximum)
-//! - Complex scenarios (stress, performance, interaction)
+//! - Edge cases (empty, boundary, maximum values)
 //! - Error conditions and recovery
-//! - Concurrent operations
 //! - Configuration permutations
 
 use edgequake_llm::providers::mock::MockProvider;

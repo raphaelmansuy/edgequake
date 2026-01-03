@@ -531,7 +531,7 @@ pub fn dbscan_1d(values: &[f32], eps: f32, min_samples: usize) -> Vec<Vec<f32>> 
         if label >= 0 {
             clusters
                 .entry(label)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(values[i]);
         }
     }

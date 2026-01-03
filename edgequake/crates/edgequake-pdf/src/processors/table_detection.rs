@@ -253,7 +253,7 @@ impl TableDetectionProcessor {
         }
 
         let mut table_block = Block::new(BlockType::Table, table_bbox);
-        table_block.page = page.number as usize - 1;
+        table_block.page = page.number - 1;
 
         // Add blocks as table cells (clone block content, not bbox)
         for &row_idx in table_rows {
@@ -556,24 +556,22 @@ impl TextTableReconstructionProcessor {
         };
 
         // Check before caption
-        if caption_idx > 0 {
-            if page.blocks[..caption_idx].iter().any(|b| {
+        if caption_idx > 0
+            && page.blocks[..caption_idx].iter().any(|b| {
                 (b.block_type == BlockType::Table || Self::looks_like_pipe_table(&b.text))
                     && consider_table_bbox(b.bbox)
             }) {
                 return true;
             }
-        }
 
         // Check after caption
-        if caption_idx + 1 < page.blocks.len() {
-            if page.blocks[(caption_idx + 1)..]
+        if caption_idx + 1 < page.blocks.len()
+            && page.blocks[(caption_idx + 1)..]
                 .iter()
                 .any(|b| b.block_type == BlockType::Table && consider_table_bbox(b.bbox))
             {
                 return true;
             }
-        }
 
         // Check previous page
         if page_idx > 0 {
@@ -660,7 +658,7 @@ impl TextTableReconstructionProcessor {
         }
 
         let mut table_block = Block::new(BlockType::Table, table_bbox);
-        table_block.page = page.number as usize - 1;
+        table_block.page = page.number - 1;
         table_block.children = Self::build_table_cells(table_bbox, table_block.page, &rows);
         table_block
             .metadata
