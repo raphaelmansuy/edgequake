@@ -210,6 +210,7 @@ The slight regression in Table Accuracy (3.5% → 2.4%) is acceptable given the 
 **Status:** ⚠️ FAILED - Zero improvement
 
 **Attempted:** Fix extract_text_in_rect() tolerance (0.5pt, 1.0pt, 1.5pt)
+
 - Removed 5pt Y-binning → 1pt same-row threshold ✓
 - Tightened tolerance to prevent spillover
 - Improved Y-coordinate sorting
@@ -217,24 +218,26 @@ The slight regression in Table Accuracy (3.5% → 2.4%) is acceptable given the 
 **Result:** Table Accuracy 2.4% (UNCHANGED), Composite 32.5/100 (UNCHANGED)
 
 **Discovery:** Tolerance tuning doesn't solve the problem!
+
 - At 0.5pt: Empty cells (27k chars)
 - At 1.0pt: All data in first column (40k chars)
 - At 1.5pt: All data in first column (41k chars)
 - Character count varies but table structure identical → tolerance affects quantity, not quality
 
 **Root Cause:** Cell boundaries don't match text coordinates
+
 - extract_text_in_rect() only finds text for column 0
 - Columns 1+ get empty strings
 - This is NOT a tolerance issue - it's a coordinate mismatch
 
 **Next Loop 014 Strategy:**
+
 1. Add debug logging to understand actual coordinates
 2. Check if tables use line-based vs clustering column detection
 3. Create minimal repro test case
 4. Consider forcing clustering path or using text X-coords directly
 
 **Lesson:** Debug before implementing. Parameter tuning can't fix architectural problems.
-
 
 ---
 
@@ -243,27 +246,32 @@ The slight regression in Table Accuracy (3.5% → 2.4%) is acceptable given the 
 **Status:** ✅ SUCCESS - Major improvement!
 
 ### Changes Made:
+
 1. **Fixed TextTableReconstructionProcessor forward scanner** - Now captures zero-score header lines before first positive-score data line. Tables headers (which lack numeric content) were being skipped.
 
 2. **Added single-row table rejection** - Lattice engine now rejects grids with only 1 row. These are decorative horizontal lines, not real tables. A table must have at least 2 rows (header + data).
 
 ### Results:
-| Metric | Before | After | Change |
-|--------|--------|-------|--------|
-| Table Accuracy | 2.4% | **27.2%** | **+24.8%** |
-| Style Accuracy | 31.1% | **35.5%** | **+4.4%** |
-| Composite Score | 32.4 | **44.1** | **+11.7** |
+
+| Metric          | Before | After     | Change     |
+| --------------- | ------ | --------- | ---------- |
+| Table Accuracy  | 2.4%   | **27.2%** | **+24.8%** |
+| Style Accuracy  | 31.1%  | **35.5%** | **+4.4%**  |
+| Composite Score | 32.4   | **44.1**  | **+11.7**  |
 
 ### Per-document improvements:
-- `2900_Goyal_et_al`: Table 0% → **98.3%** 
+
+- `2900_Goyal_et_al`: Table 0% → **98.3%**
 - `AlphaEvolve`: Table 0.3% → **30.4%**
 - `agent_2510.09244v1`: Style 44% → **58.8%**
 
 ### First Principles Applied:
+
 1. **Tables have structure**: A table requires header + data rows (min 2 rows)
 2. **Headers are semantic**: Table headers may lack numeric signals but are part of table
 
 ### Next Focus:
+
 - AlphaEvolve Table 1 still only 30.4% (gold has 2 columns, we may have issues)
 - Style accuracy still needs improvement
 - Continue OODA loops

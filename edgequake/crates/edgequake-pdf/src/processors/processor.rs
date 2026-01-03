@@ -1225,9 +1225,9 @@ impl Processor for TextTableReconstructionProcessor {
                 // Also check for tables AFTER the caption in block order.
                 // This handles the case where lattice detection placed the table after the caption.
                 if !has_structured_table && i + 1 < page.blocks.len() {
-                    has_structured_table = page.blocks[(i + 1)..].iter().any(|b| {
-                        b.block_type == BlockType::Table && consider_table_bbox(b.bbox)
-                    });
+                    has_structured_table = page.blocks[(i + 1)..]
+                        .iter()
+                        .any(|b| b.block_type == BlockType::Table && consider_table_bbox(b.bbox));
                 }
 
                 // Previous page (caption spills to next page in some PDFs).
@@ -2615,7 +2615,10 @@ impl Processor for HeaderDetectionProcessor {
                 // First Principles: no keyword matching, use font properties + structure
                 // FIRST PRINCIPLES: Addresses like "353 Serra Mall, Stanford, CA" should NOT be headings
                 // Addresses contain commas for city/state separation; section headers don't.
-                if is_short_for_heading && single_number_heading.is_match(text) && !text.contains(',') {
+                if is_short_for_heading
+                    && single_number_heading.is_match(text)
+                    && !text.contains(',')
+                {
                     // Extract text after the number
                     let after_number: String = text
                         .chars()

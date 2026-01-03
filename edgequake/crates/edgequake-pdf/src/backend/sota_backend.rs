@@ -1898,7 +1898,7 @@ impl SotaBackend {
             // Text in the right column starts AFTER the gap, not at the gap.
             // Use asymmetric thresholds: elements ending before gap = left, elements starting after gap = right
             // For now, use boundary as the rough separation point with wider margin
-            
+
             // Find elements that are clearly in left column (well before boundary)
             // and elements that are in right column (at or after boundary)
             // A gap at X means content is sparse there - left column ends before X, right column starts at or after X
@@ -1918,7 +1918,10 @@ impl SotaBackend {
             );
 
             if left_count >= 5 && right_count >= 5 && balance > 0.25 {
-                debug!("Detected TWO-COLUMN layout with boundary at {:.1}", boundary);
+                debug!(
+                    "Detected TWO-COLUMN layout with boundary at {:.1}",
+                    boundary
+                );
                 return Some(boundary);
             }
         }

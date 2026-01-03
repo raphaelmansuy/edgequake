@@ -532,9 +532,12 @@ impl LatticeEngine {
         // 2. Build Cells and Extract Text
         // Note: extract_text_in_rect now returns Vec<String> to handle merged cells
         let mut rows = Vec::new();
-        
+
         // DEBUG: Show which table we're processing
-        println!("📊 BUILDING TABLE: grid={}x{} (rows x cols)", num_rows, num_cols);
+        println!(
+            "📊 BUILDING TABLE: grid={}x{} (rows x cols)",
+            num_rows, num_cols
+        );
 
         for i in 0..unique_y.len() - 1 {
             let top = unique_y[i];
@@ -577,7 +580,7 @@ impl LatticeEngine {
                     row_cells.len()
                 );
             }
-            
+
             // DEBUG: Check for Agentless in row cells
             let row_text = row_cells.join(" ");
             if row_text.contains("Agentless") || row_text.contains("25.20") {
@@ -595,13 +598,16 @@ impl LatticeEngine {
         // If first row is entirely empty but data rows exist, look for text just above the table.
         if !rows.is_empty() && rows.len() >= 2 {
             let first_row_empty = rows[0].iter().all(|c| c.trim().is_empty());
-            let has_data_rows = rows.iter().skip(1).any(|row| row.iter().any(|c| !c.trim().is_empty()));
-            
+            let has_data_rows = rows
+                .iter()
+                .skip(1)
+                .any(|row| row.iter().any(|c| !c.trim().is_empty()));
+
             if first_row_empty && has_data_rows {
                 // Look for text elements just above the table (within ~25pt of top edge)
                 let table_top = bbox.y2; // In PDF coords, y2 is typically the top
                 let search_above = 30.0; // Search 30pt above the table top
-                
+
                 // Find text elements above the table within the table's X range
                 let mut header_elements: Vec<&TextElement> = text_elements
                     .iter()
@@ -611,23 +617,24 @@ impl LatticeEngine {
                         is_above && is_within_x
                     })
                     .collect();
-                
+
                 if !header_elements.is_empty() {
                     // Sort by X position
-                    header_elements.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal));
-                    
+                    header_elements
+                        .sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal));
+
                     // Try to distribute header elements into columns based on X position
                     // Use the column boundaries we already have
                     let num_cols = rows[0].len();
                     if num_cols >= 2 && unique_x.len() > num_cols {
                         let mut header_row: Vec<String> = vec![String::new(); num_cols];
-                        
+
                         for elem in &header_elements {
                             // Find which column this element belongs to
                             for col_idx in 0..num_cols {
                                 let col_left = unique_x[col_idx];
                                 let col_right = unique_x[col_idx + 1];
-                                
+
                                 if elem.x >= col_left - 5.0 && elem.x < col_right + 5.0 {
                                     if !header_row[col_idx].is_empty() {
                                         header_row[col_idx].push(' ');
@@ -637,13 +644,10 @@ impl LatticeEngine {
                                 }
                             }
                         }
-                        
+
                         // Only use if we found at least one header
                         if header_row.iter().any(|h| !h.trim().is_empty()) {
-                            println!(
-                                "📋 DETECTED HEADERS ABOVE TABLE: {:?}",
-                                header_row
-                            );
+                            println!("📋 DETECTED HEADERS ABOVE TABLE: {:?}", header_row);
                             rows[0] = header_row;
                         }
                     }
@@ -720,7 +724,7 @@ impl LatticeEngine {
 
         // Update num_cols to reflect actual column count after splitting
         let num_cols = max_cols;
-        
+
         // FIRST PRINCIPLES: Handle merged text in single cells
         // Some PDFs have one text element containing multiple values that should be in separate columns
         // Detection: Cell has many whitespace-separated tokens, and row has many empty trailing cells
@@ -733,29 +737,39 @@ impl LatticeEngine {
                     println!("   Cell {}: {:?}", idx, cell);
                 }
             }
-            
+
             let empty_count = row.iter().filter(|s| s.trim().is_empty()).count();
             let empty_ratio = empty_count as f32 / row.len() as f32;
-            
+
             if has_agentless {
-                println!("   Empty ratio: {:.2} ({}/{})", empty_ratio, empty_count, row.len());
+                println!(
+                    "   Empty ratio: {:.2} ({}/{})",
+                    empty_ratio,
+                    empty_count,
+                    row.len()
+                );
             }
-            
+
             // Only process rows that are mostly empty (suggests merged text in one cell)
             if empty_ratio > 0.3 {
                 // Find cells with many tokens
                 let mut new_row = Vec::new();
                 for cell in row.iter() {
                     let tokens: Vec<&str> = cell.split_whitespace().collect();
-                    
+
                     // If cell has many tokens and looks like merged data (has numbers)
                     let has_numbers = tokens.iter().any(|t| {
-                        t.parse::<f32>().is_ok() || t.chars().all(|c| c.is_ascii_digit() || c == '.')
+                        t.parse::<f32>().is_ok()
+                            || t.chars().all(|c| c.is_ascii_digit() || c == '.')
                     });
-                    
+
                     if tokens.len() > 5 && has_numbers {
                         // Split into separate cells
-                        println!("📦 SPLITTING MERGED TEXT: {} tokens from {:?}", tokens.len(), cell);
+                        println!(
+                            "📦 SPLITTING MERGED TEXT: {} tokens from {:?}",
+                            tokens.len(),
+                            cell
+                        );
                         for token in tokens {
                             new_row.push(token.to_string());
                         }
@@ -766,7 +780,7 @@ impl LatticeEngine {
                 *row = new_row;
             }
         }
-        
+
         // Re-normalize columns after splitting
         let max_cols = rows.iter().map(|r| r.len()).max().unwrap_or(0);
         for row in &mut rows {
@@ -784,10 +798,15 @@ impl LatticeEngine {
             for (idx, row) in rows.iter().enumerate() {
                 let row_text = row.join(" | ");
                 if row_text.contains("Agentless") || row_text.contains("25.20") {
-                    println!("🔥 TABLE ROW {}: {} cells, content: {}", idx, row.len(), row_text);
+                    println!(
+                        "🔥 TABLE ROW {}: {} cells, content: {}",
+                        idx,
+                        row.len(),
+                        row_text
+                    );
                 }
             }
-            
+
             // Header row
             markdown.push_str("| ");
             markdown.push_str(&rows[0].join(" | "));
@@ -1057,12 +1076,22 @@ impl LatticeEngine {
         if filtered.is_empty() {
             return vec![String::new()];
         }
-        
+
         // DEBUG: Show cells containing specific text
-        let joined_text = filtered.iter().map(|e| e.text.as_str()).collect::<Vec<_>>().join(" ");
+        let joined_text = filtered
+            .iter()
+            .map(|e| e.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
         if joined_text.contains("Agentless") || joined_text.contains("25.20") {
-            println!("📋 TARGET CELL: bbox=[{:.1},{:.1},{:.1},{:.1}], {} elems", 
-                     min_x, min_y, max_x, max_y, filtered.len());
+            println!(
+                "📋 TARGET CELL: bbox=[{:.1},{:.1},{:.1},{:.1}], {} elems",
+                min_x,
+                min_y,
+                max_x,
+                max_y,
+                filtered.len()
+            );
             println!("   text: {:?}", joined_text);
             for (idx, elem) in filtered.iter().enumerate() {
                 println!("   [{}] x={:.1}, text={:?}", idx, elem.x, elem.text);
@@ -1076,7 +1105,7 @@ impl LatticeEngine {
         // Cluster by X-position (20pt tolerance for same column)
         let epsilon = 20.0;
         let x_coords: Vec<f32> = filtered.iter().map(|e| e.x).collect();
-        
+
         let clusters = dbscan_1d(&x_coords, epsilon, 1);
 
         if clusters.len() > 1 {

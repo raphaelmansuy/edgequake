@@ -459,19 +459,21 @@ impl MarkdownRenderer {
     /// A single leading | followed by text (no second |) is NOT a table.
     fn escape_non_table_pipes(&self, text: &str) -> String {
         let mut result = String::with_capacity(text.len());
-        
+
         for line in text.lines() {
             let trimmed = line.trim();
-            
+
             // Check if line starts with | but is NOT a valid table row
             if trimmed.starts_with('|') {
                 // A valid table row should have at least 2 pipe characters
                 // (e.g., "| cell |" has pipes at start and end)
                 let pipe_count = trimmed.chars().filter(|&c| c == '|').count();
-                
+
                 // Also check for separator row pattern: |---|---|
-                let is_separator = trimmed.chars().all(|c| c == '|' || c == '-' || c == ':' || c.is_whitespace());
-                
+                let is_separator = trimmed
+                    .chars()
+                    .all(|c| c == '|' || c == '-' || c == ':' || c.is_whitespace());
+
                 // If only 1 pipe, or the line doesn't have proper table structure, escape it
                 if pipe_count < 2 && !is_separator {
                     // Escape the leading pipe
@@ -480,16 +482,16 @@ impl MarkdownRenderer {
                     continue;
                 }
             }
-            
+
             result.push_str(line);
             result.push('\n');
         }
-        
+
         // Remove trailing newline if original didn't have it
         if !text.ends_with('\n') && result.ends_with('\n') {
             result.pop();
         }
-        
+
         result
     }
 
