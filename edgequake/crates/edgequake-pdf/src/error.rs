@@ -175,4 +175,73 @@ mod tests {
         assert!(err.partial_content.is_some());
         assert_eq!(err.partial_content.unwrap(), "Some text recovered");
     }
+
+    // Additional error handling tests for Phase 4.1
+
+    #[test]
+    fn test_error_display_format() {
+        let err = PdfError::PdfParse("invalid object".into());
+        assert!(format!("{}", err).contains("PDF parsing error"));
+        assert!(format!("{}", err).contains("invalid object"));
+    }
+
+    #[test]
+    fn test_ai_processing_error() {
+        let err = PdfError::AiProcessing("LLM timeout".into());
+        assert!(format!("{}", err).contains("AI processing error"));
+        assert!(!err.is_recoverable());
+    }
+
+    #[test]
+    fn test_unsupported_error() {
+        let err = PdfError::Unsupported("XFA forms".into());
+        assert!(format!("{}", err).contains("Unsupported operation"));
+        assert!(!err.is_recoverable());
+    }
+
+    #[test]
+    fn test_encrypted_error() {
+        let err = PdfError::Encrypted;
+        assert!(format!("{}", err).contains("password required"));
+        assert!(!err.is_recoverable());
+    }
+
+    #[test]
+    fn test_page_extraction_error() {
+        let err = PdfError::PageExtraction {
+            page: 42,
+            message: "corrupt stream".into(),
+        };
+        assert!(format!("{}", err).contains("page 42"));
+        assert!(format!("{}", err).contains("corrupt stream"));
+        assert!(err.is_recoverable());
+    }
+
+    #[test]
+    fn test_io_error_from_std() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file missing");
+        let pdf_err: PdfError = io_err.into();
+        assert!(matches!(pdf_err, PdfError::Io(_)));
+        assert!(!pdf_err.is_recoverable());
+    }
+
+    #[test]
+    fn test_page_error_clone() {
+        let err = PageError::new(1, PdfError::FontDecoding("test".into()));
+        let cloned = err.clone();
+        assert_eq!(cloned.page, err.page);
+    }
+
+    #[test]
+    fn test_error_clone() {
+        let err = PdfError::Config("bad config".into());
+        let cloned = err.clone();
+        assert!(format!("{}", cloned).contains("bad config"));
+    }
+
+    #[test]
+    fn test_page_error_factory() {
+        let err = PdfError::page_error(99, "stream decode failed");
+        assert!(matches!(err, PdfError::PageExtraction { page: 99, .. }));
+    }
 }
