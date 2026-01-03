@@ -65,7 +65,7 @@ impl Default for LayoutConfig {
 }
 
 /// Configuration for PDF extraction operations.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PdfConfig {
     /// Extraction mode (text, vision, hybrid).
     #[serde(default)]
@@ -308,5 +308,77 @@ mod tests {
 
         let parsed: PdfConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.mode, config.mode);
+    }
+
+    // Additional config tests for Phase 4.1
+
+    #[test]
+    fn test_all_extraction_modes() {
+        assert_eq!(ExtractionMode::default(), ExtractionMode::Text);
+
+        let modes = vec![ExtractionMode::Text, ExtractionMode::Vision, ExtractionMode::Hybrid];
+        for mode in modes {
+            let json = serde_json::to_string(&mode).unwrap();
+            let parsed: ExtractionMode = serde_json::from_str(&json).unwrap();
+            assert_eq!(parsed, mode);
+        }
+    }
+
+    #[test]
+    fn test_all_output_formats() {
+        assert_eq!(OutputFormat::default(), OutputFormat::Markdown);
+
+        let formats = vec![
+            OutputFormat::Markdown,
+            OutputFormat::Json,
+            OutputFormat::Html,
+            OutputFormat::Chunks,
+        ];
+        for fmt in formats {
+            let json = serde_json::to_string(&fmt).unwrap();
+            let parsed: OutputFormat = serde_json::from_str(&json).unwrap();
+            assert_eq!(parsed, fmt);
+        }
+    }
+
+    #[test]
+    fn test_layout_config_builder() {
+        let layout = LayoutConfig {
+            detect_columns: false,
+            detect_tables: true,
+            detect_equations: false,
+            column_gap_threshold: 30.0,
+            use_xy_cut: false,
+        };
+        assert!(!layout.detect_columns);
+        assert!(layout.detect_tables);
+        assert_eq!(layout.column_gap_threshold, 30.0);
+    }
+
+    #[test]
+    fn test_config_debug_display() {
+        let config = PdfConfig::default();
+        // Ensure Debug is implemented
+        let debug_str = format!("{:?}", config);
+        assert!(debug_str.contains("PdfConfig"));
+        assert!(debug_str.contains("mode"));
+    }
+
+    #[test]
+    fn test_config_no_max_pages() {
+        let config = PdfConfig::new();
+        assert!(config.max_pages.is_none());
+    }
+
+    #[test]
+    fn test_config_with_all_options() {
+        let config = PdfConfig::new()
+            .with_mode(ExtractionMode::Vision)
+            .with_output_format(OutputFormat::Html)
+            .with_max_pages(100);
+
+        assert_eq!(config.mode, ExtractionMode::Vision);
+        assert_eq!(config.output_format, OutputFormat::Html);
+        assert_eq!(config.max_pages, Some(100));
     }
 }
