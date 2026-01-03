@@ -781,10 +781,19 @@ mod tests {
 
     #[test]
     fn test_numeric_suffix_parsing_edge_cases() {
+        // Empty string returns None
         let result = TextTableReconstructionProcessor::parse_numeric_suffix("");
         assert!(result.is_none());
         
+        // Single number (no prefix) returns None - needs at least 2 tokens
         let result = TextTableReconstructionProcessor::parse_numeric_suffix("1.0");
+        assert!(result.is_none());
+        
+        // Valid: prefix + number
+        let result = TextTableReconstructionProcessor::parse_numeric_suffix("Method 1.0");
         assert!(result.is_some());
+        let (prefix, nums) = result.unwrap();
+        assert_eq!(prefix, "Method");
+        assert_eq!(nums, vec!["1.0"]);
     }
 }

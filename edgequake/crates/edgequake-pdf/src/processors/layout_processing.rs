@@ -632,9 +632,10 @@ mod tests {
     fn test_section_number_merge_adjacency() {
         let processor = SectionNumberMergeProcessor::new();
         let doc = create_test_document();
+        let initial_block_count = doc.pages[0].blocks.len();
         let result = processor.process(doc).unwrap();
         // Should maintain block count (no merges in this simple test doc)
-        assert_eq!(result.pages[0].blocks.len(), doc.pages[0].blocks.len());
+        assert_eq!(result.pages[0].blocks.len(), initial_block_count);
     }
 
     #[test]

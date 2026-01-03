@@ -133,7 +133,6 @@ impl LatticeEngine {
         // Wide tables in academic PDFs are often split into left/right halves with a gap.
         // If two tables have overlapping Y-bands (>80%) and are side-by-side (X gap < 50pt),
         // they should be merged into a single table.
-        
 
         self.merge_horizontal_table_halves(tables, text_elements)
     }
@@ -1012,7 +1011,7 @@ impl LatticeEngine {
                 column_boundaries.len() - 1,
                 bbox
             );
-        } 
+        }
 
         column_boundaries
     }
@@ -1055,7 +1054,6 @@ impl LatticeEngine {
         let mut contained: Vec<&TextElement> = text_elements
             .iter()
             .filter(|elem| {
-                
                 elem.x >= min_x - tol
                     && elem.x <= max_x + tol
                     && elem.y >= min_y - tol
@@ -1272,7 +1270,7 @@ mod tests {
         let engine = LatticeEngine::new();
         let h_line = make_h_line(0.0, 100.0, 200.0);
         let v_line = make_v_line(100.0, 50.0, 150.0);
-        
+
         // They should intersect at (100, 100)
         assert!(
             engine.lines_intersect(&h_line, &v_line),
@@ -1285,7 +1283,7 @@ mod tests {
         let engine = LatticeEngine::new();
         let line1 = make_h_line(0.0, 100.0, 200.0);
         let line2 = make_h_line(0.0, 150.0, 200.0);
-        
+
         assert!(
             !engine.lines_intersect(&line1, &line2),
             "Parallel horizontal lines should not intersect"
@@ -1295,33 +1293,36 @@ mod tests {
     #[test]
     fn test_simple_box_table_detection() {
         let engine = LatticeEngine::new();
-        
+
         // Create a simple box (4 lines forming a rectangle)
         // Box from (10,10) to (110,60)
         let lines = vec![
-            make_h_line(10.0, 60.0, 110.0),  // Top horizontal
-            make_h_line(10.0, 10.0, 110.0),  // Bottom horizontal
-            make_v_line(10.0, 10.0, 60.0),   // Left vertical
-            make_v_line(110.0, 10.0, 60.0),  // Right vertical
+            make_h_line(10.0, 60.0, 110.0), // Top horizontal
+            make_h_line(10.0, 10.0, 110.0), // Bottom horizontal
+            make_v_line(10.0, 10.0, 60.0),  // Left vertical
+            make_v_line(110.0, 10.0, 60.0), // Right vertical
         ];
-        
+
         // This tests that detect_tables runs without panic
         // Actual table detection depends on complex intersection logic
         let tables = engine.detect_tables(&lines, &[], 600.0, 800.0);
         // Even if no tables found, the function should complete
-        assert!(tables.len() <= 1, "At most one table from 4 connected lines");
+        assert!(
+            tables.len() <= 1,
+            "At most one table from 4 connected lines"
+        );
     }
 
     #[test]
     fn test_not_enough_lines_for_table() {
         let engine = LatticeEngine::new();
-        
+
         // Only 2 lines - not enough for a table
         let lines = vec![
             make_h_line(10.0, 100.0, 110.0),
             make_v_line(10.0, 50.0, 100.0),
         ];
-        
+
         let tables = engine.detect_tables(&lines, &[], 600.0, 800.0);
         // The connected component only has 2 lines, minimum is 4
         assert!(tables.is_empty(), "2 lines should not form a table");

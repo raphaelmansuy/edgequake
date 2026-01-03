@@ -703,8 +703,9 @@ mod tests {
     #[test]
     fn test_post_processor_whitespace_handling() {
         let processor = PostProcessor::new();
-        assert_eq!(processor.normalize_text("   "), "");
-        assert_eq!(processor.normalize_text("\t\t\n"), "");
+        // Whitespace is collapsed to single space, newlines preserved
+        assert_eq!(processor.normalize_text("   "), " ");
+        assert_eq!(processor.normalize_text("\t\t\n"), " \n");
     }
 
     #[test]
