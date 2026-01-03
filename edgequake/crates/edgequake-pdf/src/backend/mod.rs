@@ -18,6 +18,8 @@ pub trait PdfBackend: Send + Sync {
 
 pub mod elements;
 #[cfg(feature = "lopdf")]
+pub mod encodings;
+#[cfg(feature = "lopdf")]
 pub mod lattice;
 pub mod mock;
 #[cfg(feature = "lopdf")]
