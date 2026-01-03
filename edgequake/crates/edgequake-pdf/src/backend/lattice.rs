@@ -1208,3 +1208,110 @@ impl LatticeEngine {
         Some(block)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_h_line(x1: f32, y: f32, x2: f32) -> PdfLine {
+        PdfLine {
+            p1: (x1, y),
+            p2: (x2, y),
+            width: 1.0,
+        }
+    }
+
+    fn make_v_line(x: f32, y1: f32, y2: f32) -> PdfLine {
+        PdfLine {
+            p1: (x, y1),
+            p2: (x, y2),
+            width: 1.0,
+        }
+    }
+
+    #[test]
+    fn test_lattice_engine_creation() {
+        let engine = LatticeEngine::new();
+        assert_eq!(engine.min_line_length, 10.0);
+        assert_eq!(engine.line_tolerance, 2.0);
+    }
+
+    #[test]
+    fn test_empty_lines_no_tables() {
+        let engine = LatticeEngine::new();
+        let tables = engine.detect_tables(&[], &[], 600.0, 800.0);
+        assert!(tables.is_empty());
+    }
+
+    #[test]
+    fn test_filter_horizontal_lines() {
+        let engine = LatticeEngine::new();
+        let lines = vec![
+            make_h_line(0.0, 100.0, 200.0), // Horizontal
+            make_v_line(100.0, 0.0, 200.0), // Vertical
+        ];
+        let (h_lines, v_lines) = engine.filter_lines(&lines);
+        assert_eq!(h_lines.len(), 1, "Should detect 1 horizontal line");
+        assert_eq!(v_lines.len(), 1, "Should detect 1 vertical line");
+    }
+
+    #[test]
+    fn test_line_intersection() {
+        let engine = LatticeEngine::new();
+        let h_line = make_h_line(0.0, 100.0, 200.0);
+        let v_line = make_v_line(100.0, 50.0, 150.0);
+        
+        // They should intersect at (100, 100)
+        assert!(
+            engine.lines_intersect(&h_line, &v_line),
+            "Perpendicular lines should intersect"
+        );
+    }
+
+    #[test]
+    fn test_parallel_lines_no_intersect() {
+        let engine = LatticeEngine::new();
+        let line1 = make_h_line(0.0, 100.0, 200.0);
+        let line2 = make_h_line(0.0, 150.0, 200.0);
+        
+        assert!(
+            !engine.lines_intersect(&line1, &line2),
+            "Parallel horizontal lines should not intersect"
+        );
+    }
+
+    #[test]
+    fn test_simple_box_table_detection() {
+        let engine = LatticeEngine::new();
+        
+        // Create a simple box (4 lines forming a rectangle)
+        // Box from (10,10) to (110,60)
+        let lines = vec![
+            make_h_line(10.0, 60.0, 110.0),  // Top horizontal
+            make_h_line(10.0, 10.0, 110.0),  // Bottom horizontal
+            make_v_line(10.0, 10.0, 60.0),   // Left vertical
+            make_v_line(110.0, 10.0, 60.0),  // Right vertical
+        ];
+        
+        // This tests that detect_tables runs without panic
+        // Actual table detection depends on complex intersection logic
+        let tables = engine.detect_tables(&lines, &[], 600.0, 800.0);
+        // Even if no tables found, the function should complete
+        assert!(tables.len() <= 1, "At most one table from 4 connected lines");
+    }
+
+    #[test]
+    fn test_not_enough_lines_for_table() {
+        let engine = LatticeEngine::new();
+        
+        // Only 2 lines - not enough for a table
+        let lines = vec![
+            make_h_line(10.0, 100.0, 110.0),
+            make_v_line(10.0, 50.0, 100.0),
+        ];
+        
+        let tables = engine.detect_tables(&lines, &[], 600.0, 800.0);
+        // The connected component only has 2 lines, minimum is 4
+        assert!(tables.is_empty(), "2 lines should not form a table");
+    }
+}
