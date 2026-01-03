@@ -64,6 +64,114 @@ impl Default for LayoutConfig {
     }
 }
 
+/// Configuration for LLM-based image OCR.
+///
+/// When enabled, embedded images and figures in the PDF are sent to a
+/// multimodal LLM (like GPT-4o) for text extraction and description.
+/// This is more accurate than traditional OCR for complex diagrams,
+/// charts, and handwritten text.
+///
+/// # Cost Warning
+/// Each image processed incurs LLM API costs based on image dimensions.
+/// A typical 1024x1024 image costs ~765 tokens with GPT-4o.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImageOcrConfig {
+    /// Enable LLM-based OCR for images. **Disabled by default**.
+    ///
+    /// When enabled, images are extracted from the PDF and sent to the
+    /// configured LLM provider for text extraction and description.
+    pub enabled: bool,
+
+    /// Extract text from images (OCR functionality).
+    ///
+    /// When true, the LLM will attempt to read any text visible in images.
+    pub extract_text: bool,
+
+    /// Generate descriptions for images and figures.
+    ///
+    /// When true, the LLM will provide a natural language description
+    /// of the image content, useful for accessibility and indexing.
+    pub generate_descriptions: bool,
+
+    /// Analyze charts and diagrams for structured data.
+    ///
+    /// When true, the LLM will attempt to extract data from charts,
+    /// graphs, and diagrams into markdown tables.
+    pub analyze_charts: bool,
+
+    /// Model to use for image OCR. Defaults to vision-capable model.
+    ///
+    /// Examples: "gpt-4o", "gpt-4o-mini", "claude-3-5-sonnet-latest"
+    pub model: String,
+
+    /// Minimum image size (in pixels) to process.
+    ///
+    /// Images smaller than this threshold are skipped to avoid
+    /// processing icons and decorative elements.
+    pub min_image_size: u32,
+
+    /// Maximum number of images to process per page.
+    ///
+    /// Limits cost and processing time for image-heavy documents.
+    pub max_images_per_page: usize,
+
+    /// Detail level for OpenAI vision API ("low", "high", "auto").
+    ///
+    /// - "low": 85 tokens per image, faster and cheaper
+    /// - "high": More tokens, better for text-heavy images
+    /// - "auto": Let the model decide
+    pub detail_level: String,
+}
+
+impl Default for ImageOcrConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false, // Disabled by default
+            extract_text: true,
+            generate_descriptions: true,
+            analyze_charts: false,
+            model: "gpt-4o-mini".to_string(),
+            min_image_size: 50, // Skip very small images
+            max_images_per_page: 10,
+            detail_level: "auto".to_string(),
+        }
+    }
+}
+
+impl ImageOcrConfig {
+    /// Create a new config with image OCR enabled.
+    pub fn enabled() -> Self {
+        Self {
+            enabled: true,
+            ..Default::default()
+        }
+    }
+
+    /// Enable OCR mode.
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    /// Set the model for image OCR.
+    pub fn with_model(mut self, model: impl Into<String>) -> Self {
+        self.model = model.into();
+        self
+    }
+
+    /// Set detail level for vision API.
+    pub fn with_detail(mut self, detail: impl Into<String>) -> Self {
+        self.detail_level = detail.into();
+        self
+    }
+
+    /// Enable chart analysis.
+    pub fn with_chart_analysis(mut self, enabled: bool) -> Self {
+        self.analyze_charts = enabled;
+        self
+    }
+}
+
 /// Configuration for PDF extraction operations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -113,6 +221,13 @@ pub struct PdfConfig {
 
     /// Quality threshold for hybrid mode (below this, switch to vision).
     pub quality_threshold: f32,
+
+    /// LLM-based image OCR configuration. **Disabled by default**.
+    ///
+    /// When enabled, images and figures in the PDF are processed by a
+    /// multimodal LLM for text extraction and description generation.
+    #[serde(default)]
+    pub image_ocr: ImageOcrConfig,
 }
 
 impl Default for PdfConfig {
@@ -133,6 +248,7 @@ impl Default for PdfConfig {
             layout: LayoutConfig::default(),
             vision_dpi: 150,
             quality_threshold: 0.5,
+            image_ocr: ImageOcrConfig::default(),
         }
     }
 }
@@ -245,6 +361,30 @@ impl PdfConfig {
         self
     }
 
+    /// Set the image OCR configuration.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use edgequake_pdf::{PdfConfig, ImageOcrConfig};
+    ///
+    /// let config = PdfConfig::new()
+    ///     .with_image_ocr(ImageOcrConfig::enabled());
+    /// ```
+    pub fn with_image_ocr(mut self, config: ImageOcrConfig) -> Self {
+        self.image_ocr = config;
+        self
+    }
+
+    /// Enable LLM-based image OCR with default settings.
+    ///
+    /// This is a convenience method to quickly enable image OCR.
+    /// For more control, use `with_image_ocr()` with a custom config.
+    pub fn with_image_ocr_enabled(mut self) -> Self {
+        self.image_ocr = ImageOcrConfig::enabled();
+        self
+    }
+
     /// Load configuration from a TOML file.
     ///
     /// # Example
@@ -274,8 +414,7 @@ impl PdfConfig {
     /// Save configuration to a TOML file.
     pub fn to_toml_file(&self, path: impl AsRef<std::path::Path>) -> Result<(), ConfigError> {
         let toml_str = self.to_toml()?;
-        std::fs::write(path.as_ref(), toml_str)
-            .map_err(|e| ConfigError::IoError(e.to_string()))?;
+        std::fs::write(path.as_ref(), toml_str).map_err(|e| ConfigError::IoError(e.to_string()))?;
         Ok(())
     }
 
@@ -412,7 +551,11 @@ mod tests {
     fn test_all_extraction_modes() {
         assert_eq!(ExtractionMode::default(), ExtractionMode::Text);
 
-        let modes = vec![ExtractionMode::Text, ExtractionMode::Vision, ExtractionMode::Hybrid];
+        let modes = vec![
+            ExtractionMode::Text,
+            ExtractionMode::Vision,
+            ExtractionMode::Hybrid,
+        ];
         for mode in modes {
             let json = serde_json::to_string(&mode).unwrap();
             let parsed: ExtractionMode = serde_json::from_str(&json).unwrap();
@@ -484,7 +627,7 @@ mod tests {
     fn test_config_to_toml() {
         let config = PdfConfig::default();
         let toml_str = config.to_toml().expect("Should serialize to TOML");
-        
+
         assert!(toml_str.contains("mode = \"Text\""));
         assert!(toml_str.contains("output_format = \"Markdown\""));
         assert!(toml_str.contains("ocr_threshold = 0.8"));
@@ -546,7 +689,7 @@ mod tests {
     fn test_config_validate_invalid_ocr_threshold() {
         let mut config = PdfConfig::default();
         config.ocr_threshold = 1.5; // Invalid: > 1.0
-        
+
         let result = config.validate();
         assert!(result.is_err());
         if let Err(ConfigError::ValidationError(msg)) = result {
@@ -558,7 +701,7 @@ mod tests {
     fn test_config_validate_invalid_quality_threshold() {
         let mut config = PdfConfig::default();
         config.quality_threshold = -0.1; // Invalid: < 0.0
-        
+
         let result = config.validate();
         assert!(result.is_err());
         if let Err(ConfigError::ValidationError(msg)) = result {
@@ -570,7 +713,7 @@ mod tests {
     fn test_config_validate_invalid_ai_temperature() {
         let mut config = PdfConfig::default();
         config.ai_temperature = 2.5; // Invalid: > 2.0
-        
+
         let result = config.validate();
         assert!(result.is_err());
         if let Err(ConfigError::ValidationError(msg)) = result {
@@ -582,7 +725,7 @@ mod tests {
     fn test_config_validate_invalid_vision_dpi() {
         let mut config = PdfConfig::default();
         config.vision_dpi = 50; // Invalid: < 72
-        
+
         let result = config.validate();
         assert!(result.is_err());
         if let Err(ConfigError::ValidationError(msg)) = result {
@@ -594,7 +737,7 @@ mod tests {
     fn test_config_validate_invalid_column_gap() {
         let mut config = PdfConfig::default();
         config.layout.column_gap_threshold = -5.0; // Invalid: < 0.0
-        
+
         let result = config.validate();
         assert!(result.is_err());
         if let Err(ConfigError::ValidationError(msg)) = result {
@@ -612,22 +755,22 @@ mod tests {
     #[test]
     fn test_config_toml_file_roundtrip() {
         use std::fs;
-        
+
         let config = PdfConfig::new()
             .with_mode(ExtractionMode::Vision)
             .with_max_pages(25);
 
         let temp_path = std::env::temp_dir().join("test_config.toml");
-        
+
         // Write to file
         config.to_toml_file(&temp_path).expect("Should write file");
-        
+
         // Read back
         let loaded = PdfConfig::from_toml_file(&temp_path).expect("Should read file");
-        
+
         assert_eq!(loaded.mode, config.mode);
         assert_eq!(loaded.max_pages, config.max_pages);
-        
+
         // Cleanup
         fs::remove_file(&temp_path).ok();
     }

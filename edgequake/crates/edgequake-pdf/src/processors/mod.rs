@@ -13,6 +13,7 @@
 //! - `table_detection`: Table detection and reconstruction
 //! - `text_cleanup`: Text normalization, OCR fixes, hyphenation
 //! - `llm_enhance`: LLM-based document enhancement
+//! - `image_processor`: Image extraction and OCR preparation
 //! - `stats`: Document statistics
 
 // DEPRECATED: builder module depends on pdf_oxide which has been removed.
@@ -20,6 +21,8 @@
 
 mod font_analysis;
 mod heading_classifier;
+#[cfg(feature = "lopdf")]
+mod image_processor;
 mod layout_processing;
 mod llm_enhance;
 mod processor;
@@ -58,3 +61,7 @@ pub use table_detection::{TableDetectionProcessor, TextTableReconstructionProces
 
 // Text cleanup processors
 pub use text_cleanup::{GarbledTextFilterProcessor, HyphenContinuationProcessor, PostProcessor};
+
+// Image extraction processor
+#[cfg(feature = "lopdf")]
+pub use image_processor::{ImageExtractionProcessor, ImagePageStats};

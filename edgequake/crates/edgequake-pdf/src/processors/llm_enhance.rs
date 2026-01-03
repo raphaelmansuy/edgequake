@@ -4,11 +4,14 @@
 //! - Format tables into proper markdown
 //! - Convert inline math to LaTeX
 //! - Improve text quality
-//! - Add image descriptions
+//! - Add image descriptions (using LLM vision when available)
 
+use crate::config::ImageOcrConfig;
+use crate::image_ocr::{ImageData, ImageOcrProcessor};
 use crate::schema::{Block, BlockType, Document};
 use crate::Result;
 use async_trait::async_trait;
+use base64::Engine;
 use edgequake_llm::traits::{ChatMessage, CompletionOptions, LLMProvider};
 use std::sync::Arc;
 use tracing::debug;
@@ -87,17 +90,41 @@ impl LlmEnhanceConfig {
 pub struct LlmEnhanceProcessor {
     provider: Arc<dyn LLMProvider>,
     config: LlmEnhanceConfig,
+    /// Optional image OCR configuration for LLM-based image description.
+    image_ocr_config: Option<ImageOcrConfig>,
 }
 
 impl LlmEnhanceProcessor {
     /// Create a new LLM enhancement processor.
     pub fn new(provider: Arc<dyn LLMProvider>, config: LlmEnhanceConfig) -> Self {
-        Self { provider, config }
+        Self {
+            provider,
+            config,
+            image_ocr_config: None,
+        }
     }
 
     /// Create with default config.
     pub fn with_defaults(provider: Arc<dyn LLMProvider>) -> Self {
         Self::new(provider, LlmEnhanceConfig::default())
+    }
+
+    /// Enable LLM-based image OCR with the given configuration.
+    ///
+    /// When enabled, the processor will use vision LLM to describe images
+    /// that have image data available in their metadata.
+    pub fn with_image_ocr(mut self, config: ImageOcrConfig) -> Self {
+        self.image_ocr_config = Some(config);
+        self
+    }
+
+    /// Enable LLM-based image OCR with default configuration.
+    pub fn with_image_ocr_enabled(mut self) -> Self {
+        self.image_ocr_config = Some(ImageOcrConfig {
+            enabled: true,
+            ..Default::default()
+        });
+        self
     }
 
     /// Process a document, enhancing all applicable blocks.
@@ -191,15 +218,161 @@ Output:"#,
     }
 
     /// Add description to an image/figure block.
+    ///
+    /// If image data is available in block metadata and ImageOcrConfig is enabled,
+    /// uses LLM vision to generate a description. Otherwise, uses a placeholder.
+    ///
+    /// # Metadata keys checked
+    /// - `image_data`: Base64-encoded image data
+    /// - `image_mime_type`: MIME type of the image (e.g., "image/png")
+    /// - `image_width`: Width in pixels
+    /// - `image_height`: Height in pixels
     async fn describe_image(&self, block: &mut Block) -> Result<()> {
-        // For now, just add a placeholder. Vision mode would provide actual image.
-        debug!("Image description requested (requires vision mode)");
+        debug!("Image description requested");
 
+        // Check if we have image data in metadata and ImageOCR is enabled
+        if let Some(ref ocr_config) = self.image_ocr_config {
+            if ocr_config.enabled {
+                if let Some(image_data) = self.extract_image_data_from_block(block) {
+                    debug!(
+                        "Processing image with LLM vision: {}x{} {}",
+                        image_data.width, image_data.height, image_data.mime_type
+                    );
+
+                    // Create ImageOcrProcessor and process the image
+                    let ocr_processor =
+                        ImageOcrProcessor::new(Arc::clone(&self.provider), ocr_config.clone());
+                    match ocr_processor.process_image(&image_data).await {
+                        Ok(result) => {
+                            // Build description from OCR result
+                            let mut description_parts = Vec::new();
+
+                            // Add image type if known
+                            description_parts.push(format!("[{:?}]", result.image_type));
+
+                            // Add extracted text if available
+                            if let Some(ref text) = result.text {
+                                if !text.is_empty() {
+                                    description_parts.push(format!("Text: {}", text));
+                                }
+                            }
+
+                            // Add description
+                            if let Some(ref desc) = result.description {
+                                if !desc.is_empty() {
+                                    description_parts.push(desc.clone());
+                                }
+                            }
+
+                            // Add chart data if available
+                            if let Some(ref chart_data) = result.chart_data {
+                                if !chart_data.is_empty() {
+                                    description_parts.push(format!("Data: {}", chart_data));
+                                }
+                            }
+
+                            block.text = description_parts.join("\n\n");
+
+                            // Store the full result in metadata
+                            block.metadata.insert(
+                                "image_ocr_result".to_string(),
+                                serde_json::to_value(&result).unwrap_or_default(),
+                            );
+
+                            debug!("Image description generated successfully");
+                            return Ok(());
+                        }
+                        Err(e) => {
+                            debug!("Failed to process image with LLM: {:?}", e);
+                            // Fall through to placeholder
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fallback: use placeholder if no image data or OCR failed
         if block.text.is_empty() {
             block.text = "[Image]".to_string();
         }
 
         Ok(())
+    }
+
+    /// Extract image data from block metadata.
+    ///
+    /// Looks for image_data (base64), image_mime_type, image_width, image_height
+    /// in the block's metadata hashmap.
+    fn extract_image_data_from_block(&self, block: &Block) -> Option<ImageData> {
+        // Get base64-encoded image data
+        let data_base64 = block.metadata.get("image_data")?.as_str()?;
+
+        // Decode base64 to bytes
+        let data = base64::engine::general_purpose::STANDARD
+            .decode(data_base64)
+            .ok()?;
+
+        // Get MIME type (default to PNG)
+        let mime_type = block
+            .metadata
+            .get("image_mime_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("image/png")
+            .to_string();
+
+        // Get dimensions (default to 0 if not available)
+        let width = block
+            .metadata
+            .get("image_width")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as u32;
+        let height = block
+            .metadata
+            .get("image_height")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as u32;
+
+        // Get page and index if available
+        let page = block
+            .metadata
+            .get("image_page")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as usize;
+        let index = block
+            .metadata
+            .get("image_index")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as usize;
+
+        // Get bounding box if available
+        let bbox = if let Some(bbox_arr) = block.metadata.get("image_bbox") {
+            if let Some(arr) = bbox_arr.as_array() {
+                if arr.len() == 4 {
+                    Some((
+                        arr[0].as_f64().unwrap_or(0.0) as f32,
+                        arr[1].as_f64().unwrap_or(0.0) as f32,
+                        arr[2].as_f64().unwrap_or(0.0) as f32,
+                        arr[3].as_f64().unwrap_or(0.0) as f32,
+                    ))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        Some(ImageData {
+            data,
+            mime_type,
+            width,
+            height,
+            page,
+            index,
+            bbox,
+        })
     }
 
     /// Improve text quality (fix OCR errors, etc.).
