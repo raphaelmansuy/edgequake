@@ -579,39 +579,40 @@ impl Processor for HyphenContinuationProcessor {
 
                 if Self::ends_with_explicit_hyphen(&current_text)
                     && Self::is_valid_continuation(&next_text)
-                    && Self::get_hyphen_fragment(&current_text).is_some() {
-                        // Join the blocks
-                        let mut new_current_text = current_text.trim_end().to_string();
-                        // Remove the hyphen
-                        new_current_text.pop();
+                    && Self::get_hyphen_fragment(&current_text).is_some()
+                {
+                    // Join the blocks
+                    let mut new_current_text = current_text.trim_end().to_string();
+                    // Remove the hyphen
+                    new_current_text.pop();
 
-                        // Get continuation word
-                        let cont_trimmed = next_text.trim_start();
-                        let first_word = cont_trimmed.split_whitespace().next().unwrap_or("");
+                    // Get continuation word
+                    let cont_trimmed = next_text.trim_start();
+                    let first_word = cont_trimmed.split_whitespace().next().unwrap_or("");
 
-                        // Combine
-                        let joined_text = format!("{}{}", new_current_text, first_word);
+                    // Combine
+                    let joined_text = format!("{}{}", new_current_text, first_word);
 
-                        // Rest of continuation
-                        let rest = cont_trimmed
-                            .strip_prefix(first_word)
-                            .unwrap_or("")
-                            .trim_start();
-                        let final_text = if rest.is_empty() {
-                            joined_text
-                        } else {
-                            format!("{} {}", joined_text, rest)
-                        };
+                    // Rest of continuation
+                    let rest = cont_trimmed
+                        .strip_prefix(first_word)
+                        .unwrap_or("")
+                        .trim_start();
+                    let final_text = if rest.is_empty() {
+                        joined_text
+                    } else {
+                        format!("{} {}", joined_text, rest)
+                    };
 
-                        // Update current block (no borrow conflict now)
-                        let current_bbox = page.blocks[i].bbox;
-                        page.blocks[i].text = final_text;
-                        page.blocks[i].bbox = current_bbox.union(&next_bbox);
+                    // Update current block (no borrow conflict now)
+                    let current_bbox = page.blocks[i].bbox;
+                    page.blocks[i].text = final_text;
+                    page.blocks[i].bbox = current_bbox.union(&next_bbox);
 
-                        // Remove next block
-                        page.blocks.remove(i + 1);
-                        continue; // Don't increment i, check again
-                    }
+                    // Remove next block
+                    page.blocks.remove(i + 1);
+                    continue; // Don't increment i, check again
+                }
 
                 i += 1;
             }
@@ -719,8 +720,12 @@ mod tests {
     #[test]
     fn test_hyphen_continuation_edge_cases() {
         assert!(!HyphenContinuationProcessor::ends_with_explicit_hyphen(""));
-        assert!(!HyphenContinuationProcessor::ends_with_explicit_hyphen("test"));
-        assert!(HyphenContinuationProcessor::ends_with_explicit_hyphen("test-"));
+        assert!(!HyphenContinuationProcessor::ends_with_explicit_hyphen(
+            "test"
+        ));
+        assert!(HyphenContinuationProcessor::ends_with_explicit_hyphen(
+            "test-"
+        ));
     }
 
     #[test]

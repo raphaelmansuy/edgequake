@@ -16,9 +16,13 @@ pub trait PdfBackend: Send + Sync {
     fn get_info(&self, pdf_bytes: &[u8]) -> Result<PdfInfo>;
 }
 
+#[cfg(feature = "lopdf")]
+pub mod column_detection;
 pub mod elements;
 #[cfg(feature = "lopdf")]
 pub mod encodings;
+#[cfg(feature = "lopdf")]
+pub mod font_handling;
 #[cfg(feature = "lopdf")]
 pub mod lattice;
 pub mod mock;
@@ -26,8 +30,6 @@ pub mod mock;
 pub mod sota_backend;
 #[cfg(feature = "lopdf")]
 pub mod text_grouping;
-#[cfg(feature = "lopdf")]
-pub mod column_detection;
 
 pub use mock::MockBackend;
 #[cfg(feature = "lopdf")]

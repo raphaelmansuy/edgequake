@@ -560,18 +560,19 @@ impl TextTableReconstructionProcessor {
             && page.blocks[..caption_idx].iter().any(|b| {
                 (b.block_type == BlockType::Table || Self::looks_like_pipe_table(&b.text))
                     && consider_table_bbox(b.bbox)
-            }) {
-                return true;
-            }
+            })
+        {
+            return true;
+        }
 
         // Check after caption
         if caption_idx + 1 < page.blocks.len()
             && page.blocks[(caption_idx + 1)..]
                 .iter()
                 .any(|b| b.block_type == BlockType::Table && consider_table_bbox(b.bbox))
-            {
-                return true;
-            }
+        {
+            return true;
+        }
 
         // Check previous page
         if page_idx > 0 {
@@ -759,16 +760,22 @@ mod tests {
 
     #[test]
     fn test_table_caption_edge_cases() {
-        assert!(!TextTableReconstructionProcessor::looks_like_table_caption(""));
-        assert!(!TextTableReconstructionProcessor::looks_like_table_caption("Random text"));
-        assert!(TextTableReconstructionProcessor::looks_like_table_caption("table 5"));
+        assert!(!TextTableReconstructionProcessor::looks_like_table_caption(
+            ""
+        ));
+        assert!(!TextTableReconstructionProcessor::looks_like_table_caption(
+            "Random text"
+        ));
+        assert!(TextTableReconstructionProcessor::looks_like_table_caption(
+            "table 5"
+        ));
     }
 
     #[test]
     fn test_table_like_score_edge_cases() {
         // Empty string
         assert_eq!(TextTableReconstructionProcessor::table_like_score(""), 0);
-        
+
         // Pure pipes but no content
         assert!(TextTableReconstructionProcessor::table_like_score("|||") >= 1);
     }
@@ -784,11 +791,11 @@ mod tests {
         // Empty string returns None
         let result = TextTableReconstructionProcessor::parse_numeric_suffix("");
         assert!(result.is_none());
-        
+
         // Single number (no prefix) returns None - needs at least 2 tokens
         let result = TextTableReconstructionProcessor::parse_numeric_suffix("1.0");
         assert!(result.is_none());
-        
+
         // Valid: prefix + number
         let result = TextTableReconstructionProcessor::parse_numeric_suffix("Method 1.0");
         assert!(result.is_some());
