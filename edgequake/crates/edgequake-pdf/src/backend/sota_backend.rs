@@ -1940,4 +1940,83 @@ mod tests {
         assert_eq!(merged.spans[1].text, "World");
         assert_eq!(merged.spans[1].style.weight, Some(700));
     }
+
+    fn make_text_element(text: &str, x: f32, y: f32) -> TextElement {
+        TextElement {
+            text: text.to_string(),
+            x,
+            y,
+            font_size: 12.0,
+            font_name: "Times-Roman".to_string(),
+            is_bold: false,
+            is_italic: false,
+        }
+    }
+
+    #[test]
+    fn test_deduplicate_removes_exact_duplicates() {
+        let backend = SotaBackend::new();
+        
+        let elements = vec![
+            make_text_element("Hello", 10.0, 700.0),
+            make_text_element("Hello", 10.0, 700.0), // Exact duplicate
+            make_text_element("World", 60.0, 700.0),
+        ];
+        
+        let deduped = backend.deduplicate_elements(elements);
+        assert_eq!(deduped.len(), 2, "Should remove exact duplicates");
+    }
+
+    #[test]
+    fn test_deduplicate_keeps_near_elements() {
+        let backend = SotaBackend::new();
+        
+        let elements = vec![
+            make_text_element("Hello", 10.0, 700.0),
+            make_text_element("Hello", 10.5, 700.5), // Near duplicate (within tolerance)
+            make_text_element("World", 60.0, 700.0),
+        ];
+        
+        let deduped = backend.deduplicate_elements(elements);
+        // Near duplicates should also be removed
+        assert!(deduped.len() <= 2, "Should handle near-duplicates");
+    }
+
+    #[test]
+    fn test_merge_text_elements_horizontal() {
+        let backend = SotaBackend::new();
+        
+        let elements = vec![
+            make_text_element("Hel", 10.0, 700.0),
+            make_text_element("lo", 30.0, 700.0),   // Same line, close X
+            make_text_element("World", 60.0, 700.0), // Same line
+        ];
+        
+        let merged = backend.merge_text_elements(elements);
+        // Should merge into fewer elements
+        assert!(merged.len() <= 2, "Should merge horizontally adjacent text");
+    }
+
+    #[test]
+    fn test_merge_preserves_vertical_separation() {
+        let backend = SotaBackend::new();
+        
+        let elements = vec![
+            make_text_element("Line 1", 10.0, 700.0),
+            make_text_element("Line 2", 10.0, 680.0), // Different Y
+        ];
+        
+        let merged = backend.merge_text_elements(elements);
+        assert_eq!(merged.len(), 2, "Vertically separated text should not merge");
+    }
+
+    #[test]
+    fn test_empty_elements() {
+        let backend = SotaBackend::new();
+        
+        let empty: Vec<TextElement> = vec![];
+        
+        assert!(backend.deduplicate_elements(empty.clone()).is_empty());
+        assert!(backend.merge_text_elements(empty).is_empty());
+    }
 }
