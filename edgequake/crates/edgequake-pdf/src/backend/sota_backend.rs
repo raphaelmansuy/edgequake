@@ -1479,10 +1479,6 @@ impl SotaBackend {
                 BlockType::Text
             };
 
-            if text.contains("thei") {
-                debug!("Creating block with 'thei': '{}'", text);
-            }
-
             let spans = merged
                 .spans
                 .iter()
@@ -1569,11 +1565,11 @@ impl SotaBackend {
         let header_min = (page_height - 100.0).max(0.0);
         let header_max = (page_height - 20.0).max(header_min);
         let header_threshold = header_threshold.clamp(header_min, header_max);
-        
+
         let title_min = page_bottom + 100.0;
         let title_max = (page_height - 50.0).max(title_min);
         let title_threshold = title_threshold.clamp(title_min, title_max);
-        
+
         let affiliation_threshold = affiliation_threshold.clamp(60.0, 120.0);
         let large_font_threshold = large_font_threshold.clamp(10.0, 14.0);
 
