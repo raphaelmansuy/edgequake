@@ -246,7 +246,7 @@ impl PdfExtractor {
             .add(StyleDetectionProcessor::new()) // Detect bold/italic styles and H1/H2+ levels (spec_algo_2.md)
             // .add(TableDetectionProcessor::new()) // DISABLED - causing malformed output
             .add(HeaderDetectionProcessor::new())
-            // .add(SectionPatternProcessor::new()) // DISABLED - causes over-detection
+            .add(SectionPatternProcessor::new()) // RE-ENABLED: Now has font-size based heading detection
             .add(CaptionDetectionProcessor::new())
             .add(TextTableReconstructionProcessor::new())
             .add(ListDetectionProcessor::new())

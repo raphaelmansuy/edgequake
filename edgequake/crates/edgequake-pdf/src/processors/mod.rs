@@ -9,12 +9,16 @@
 // DEPRECATED: builder module depends on pdf_oxide which has been removed.
 // mod builder;
 
+mod font_analysis;
+mod heading_classifier;
 mod llm_enhance;
 mod processor;
 mod provider;
 mod stats;
 
 // pub use builder::{DocumentBuilder, PageBuilder};
+pub use font_analysis::FontAnalyzer;
+pub use heading_classifier::HeadingClassifier;
 pub use llm_enhance::{LlmEnhanceConfig, LlmEnhanceProcessor, LlmEnhanced};
 pub use processor::{
     BlockMergeProcessor, CaptionDetectionProcessor, CodeBlockDetectionProcessor,

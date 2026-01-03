@@ -1988,16 +1988,24 @@ impl Processor for BlockMergeProcessor {
 
 /// Processor to detect section headers from text patterns.
 ///
-/// This processor works without font information by detecting:
-/// - Numbered section patterns: "1. Introduction", "3.2. Related Work"
-/// - Special section names: "Abstract", "References", "Conclusion"
-/// - Running headers (repeated text across pages)
+/// This processor combines multiple strategies for robust heading detection:
+/// - Pattern-based: Numbered sections like "1. Introduction", "3.2. Related Work"
+/// - Semantic: Known section names like "Abstract", "References", "Conclusion"
+/// - Geometric: Font-size ratios using HeadingClassifier
+/// - Heuristic: Running header detection across pages
+///
+/// Single Responsibility: Section header detection and classification.
+/// Delegates font analysis to FontAnalyzer and heading classification to HeadingClassifier.
 #[allow(dead_code)]
 pub struct SectionPatternProcessor {
     /// Section number pattern regex
     section_regex: Regex,
     /// Special section names to detect
     special_sections: Vec<&'static str>,
+    /// Font analyzer for body font size detection
+    font_analyzer: super::FontAnalyzer,
+    /// Heading classifier for font-size based detection
+    heading_classifier: super::HeadingClassifier,
 }
 
 #[allow(dead_code)]
@@ -2029,6 +2037,8 @@ impl SectionPatternProcessor {
                 "Bibliography",
                 "Appendix",
             ],
+            font_analyzer: super::FontAnalyzer::new(),
+            heading_classifier: super::HeadingClassifier::new(),
         }
     }
 
@@ -2090,10 +2100,20 @@ impl Default for SectionPatternProcessor {
 
 impl Processor for SectionPatternProcessor {
     fn process(&self, mut document: Document) -> Result<Document> {
-        // First pass: identify running headers
+        // First pass: detect body font size using FontAnalyzer
+        // Why: Establishes baseline for geometric heading detection via font size ratios
+        let body_font_size = self.font_analyzer.detect_body_font_size(&document);
+        tracing::debug!("Detected body font size: {:.1}pt", body_font_size);
+
+        // Second pass: identify running headers
+        // Why: Prevents false positives from repeated page headers being classified as section headers
         let running_headers = self.find_running_headers(&document);
 
-        // Second pass: process blocks
+        // Third pass: process blocks with hierarchical classification strategy
+        // 1. Running headers (highest priority - prevents false positives)
+        // 2. Numbered sections (explicit structure)
+        // 3. Special section names (semantic detection)
+        // 4. Font-size based (geometric fallback using HeadingClassifier)
         for page in &mut document.pages {
             for block in &mut page.blocks {
                 // Skip if already classified as something other than Text
@@ -2103,14 +2123,14 @@ impl Processor for SectionPatternProcessor {
 
                 let text = block.text.trim();
 
-                // Check for running headers
+                // Strategy 1: Check for running headers (prevents false positives)
                 if running_headers.contains(&text.to_lowercase()) {
                     block.block_type = BlockType::PageHeader;
                     tracing::debug!("Marked running header: '{}'", text);
                     continue;
                 }
 
-                // Check for numbered section headers
+                // Strategy 2: Check for numbered section headers (explicit structure)
                 if let Some(captures) = self.section_regex.captures(text) {
                     if let (Some(num), Some(title)) = (captures.get(1), captures.get(2)) {
                         let section_num = num.as_str();
@@ -2129,11 +2149,35 @@ impl Processor for SectionPatternProcessor {
                         }
                     }
                 }
-                // Check for special section names
+                // Strategy 3: Check for special section names (semantic detection)
                 else if self.is_special_section(text) {
                     block.block_type = BlockType::SectionHeader;
                     block.level = Some(2); // Special sections are H2
                     tracing::debug!("Detected special section: '{}'", text);
+                }
+                // Strategy 4: Try font-size based detection using HeadingClassifier (geometric fallback)
+                // Why: Catches headings without explicit patterns or known names
+                else {
+                    let (is_heading, level) =
+                        self.heading_classifier.classify(block, body_font_size);
+                    if is_heading {
+                        block.block_type = BlockType::SectionHeader;
+                        block.level = Some(level);
+                        tracing::debug!(
+                            "Detected heading by font size: '{}' -> level {} (ratio: {:.2})",
+                            text,
+                            level,
+                            block
+                                .spans
+                                .iter()
+                                .filter_map(|s| s.style.size)
+                                .max_by(|a, b| a
+                                    .partial_cmp(b)
+                                    .unwrap_or(std::cmp::Ordering::Equal))
+                                .unwrap_or(0.0)
+                                / body_font_size
+                        );
+                    }
                 }
             }
         }
