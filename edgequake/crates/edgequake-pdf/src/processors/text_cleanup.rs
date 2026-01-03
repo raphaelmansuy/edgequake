@@ -692,4 +692,51 @@ mod tests {
             "The next section"
         ));
     }
+
+    #[test]
+    fn test_post_processor_empty_text() {
+        let processor = PostProcessor::new();
+        assert_eq!(processor.normalize_text(""), "");
+        assert_eq!(processor.fix_ocr_text(""), "");
+    }
+
+    #[test]
+    fn test_post_processor_whitespace_handling() {
+        let processor = PostProcessor::new();
+        assert_eq!(processor.normalize_text("   "), "");
+        assert_eq!(processor.normalize_text("\t\t\n"), "");
+    }
+
+    #[test]
+    fn test_garbled_detection_edge_cases() {
+        let processor = GarbledTextFilterProcessor::new();
+        assert!(!processor.is_garbled(""));
+        assert!(!processor.is_garbled("Normal sentence."));
+        assert!(processor.is_garbled("a b c d e f"));
+    }
+
+    #[test]
+    fn test_hyphen_continuation_edge_cases() {
+        assert!(!HyphenContinuationProcessor::ends_with_explicit_hyphen(""));
+        assert!(!HyphenContinuationProcessor::ends_with_explicit_hyphen("test"));
+        assert!(HyphenContinuationProcessor::ends_with_explicit_hyphen("test-"));
+    }
+
+    #[test]
+    fn test_post_processor_default() {
+        let processor = PostProcessor::default();
+        assert_eq!(processor.name(), "PostProcessor");
+    }
+
+    #[test]
+    fn test_garbled_filter_default() {
+        let processor = GarbledTextFilterProcessor::default();
+        assert_eq!(processor.name(), "GarbledTextFilterProcessor");
+    }
+
+    #[test]
+    fn test_hyphen_continuation_default() {
+        let processor = HyphenContinuationProcessor::default();
+        assert_eq!(processor.name(), "HyphenContinuationProcessor");
+    }
 }

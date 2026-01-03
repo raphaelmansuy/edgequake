@@ -618,4 +618,46 @@ mod tests {
         assert!(!SectionNumberMergeProcessor::looks_like_section_title("lower case"));
         assert!(!SectionNumberMergeProcessor::looks_like_section_title(""));
     }
+
+    #[test]
+    fn test_margin_filter_basic() {
+        let processor = MarginFilterProcessor::new();
+        let doc = create_test_document();
+        let result = processor.process(doc).unwrap();
+        // Should process without errors
+        assert!(!result.pages.is_empty());
+    }
+
+    #[test]
+    fn test_section_number_merge_adjacency() {
+        let processor = SectionNumberMergeProcessor::new();
+        let doc = create_test_document();
+        let result = processor.process(doc).unwrap();
+        // Should maintain block count (no merges in this simple test doc)
+        assert_eq!(result.pages[0].blocks.len(), doc.pages[0].blocks.len());
+    }
+
+    #[test]
+    fn test_layout_processor_default() {
+        let processor = LayoutProcessor::default();
+        assert_eq!(processor.name(), "LayoutProcessor");
+    }
+
+    #[test]
+    fn test_block_merge_processor_default() {
+        let processor = BlockMergeProcessor::default();
+        assert_eq!(processor.name(), "BlockMergeProcessor");
+    }
+
+    #[test]
+    fn test_margin_filter_processor_default() {
+        let processor = MarginFilterProcessor::default();
+        assert_eq!(processor.name(), "MarginFilterProcessor");
+    }
+
+    #[test]
+    fn test_section_number_merge_processor_default() {
+        let processor = SectionNumberMergeProcessor::default();
+        assert_eq!(processor.name(), "SectionNumberMergeProcessor");
+    }
 }

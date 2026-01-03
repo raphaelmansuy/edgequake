@@ -756,4 +756,35 @@ mod tests {
         assert_eq!(prefix, "Method A");
         assert_eq!(nums, vec!["0.95", "3"]);
     }
+
+    #[test]
+    fn test_table_caption_edge_cases() {
+        assert!(!TextTableReconstructionProcessor::looks_like_table_caption(""));
+        assert!(!TextTableReconstructionProcessor::looks_like_table_caption("Random text"));
+        assert!(TextTableReconstructionProcessor::looks_like_table_caption("table 5"));
+    }
+
+    #[test]
+    fn test_table_like_score_edge_cases() {
+        // Empty string
+        assert_eq!(TextTableReconstructionProcessor::table_like_score(""), 0);
+        
+        // Pure pipes but no content
+        assert!(TextTableReconstructionProcessor::table_like_score("|||") >= 1);
+    }
+
+    #[test]
+    fn test_numeric_suffix_parsing_no_numbers() {
+        let result = TextTableReconstructionProcessor::parse_numeric_suffix("Method A");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_numeric_suffix_parsing_edge_cases() {
+        let result = TextTableReconstructionProcessor::parse_numeric_suffix("");
+        assert!(result.is_none());
+        
+        let result = TextTableReconstructionProcessor::parse_numeric_suffix("1.0");
+        assert!(result.is_some());
+    }
 }
