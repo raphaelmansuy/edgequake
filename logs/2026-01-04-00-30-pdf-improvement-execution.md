@@ -35,10 +35,10 @@
 
 ## Commits This Session
 
-| Hash    | Message                                                      |
-| ------- | ------------------------------------------------------------ |
+| Hash    | Message                                                       |
+| ------- | ------------------------------------------------------------- |
 | c759996 | perf(pdf): Add R-tree spatial indexing for O(n log n) queries |
-| 2e759e9 | docs: Update execution log - Phase 1 & 2 complete            |
+| 2e759e9 | docs: Update execution log - Phase 1 & 2 complete             |
 
 ## Test Results
 
