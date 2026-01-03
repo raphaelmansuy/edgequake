@@ -208,4 +208,120 @@ mod tests {
         assert_eq!(index.len(), 0);
         assert!(index.query_region(0.0, 0.0, 100.0, 100.0).is_empty());
     }
+
+    // Additional spatial tests for Phase 4.1
+
+    #[test]
+    fn test_single_line_index() {
+        let lines = vec![LineRect::new(0, 10.0, 10.0, 50.0, 10.0)];
+        let index = LineSpatialIndex::new(lines);
+        
+        assert_eq!(index.len(), 1);
+        assert!(!index.is_empty());
+    }
+
+    #[test]
+    fn test_query_no_matches() {
+        let lines = vec![
+            LineRect::new(0, 0.0, 0.0, 10.0, 0.0),
+            LineRect::new(1, 0.0, 10.0, 10.0, 10.0),
+        ];
+        let index = LineSpatialIndex::new(lines);
+
+        // Query region far from all lines
+        let result = index.query_region(1000.0, 1000.0, 2000.0, 2000.0);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_line_rect_expanded() {
+        let line = LineRect::new(0, 10.0, 20.0, 30.0, 40.0);
+        let expanded = line.expanded(5.0);
+        let lower = expanded.lower();
+        let upper = expanded.upper();
+        
+        assert_eq!(lower[0], 5.0);   // 10 - 5
+        assert_eq!(lower[1], 15.0);  // 20 - 5
+        assert_eq!(upper[0], 35.0);  // 30 + 5
+        assert_eq!(upper[1], 45.0);  // 40 + 5
+    }
+
+    #[test]
+    fn test_all_lines_iterator() {
+        let lines = vec![
+            LineRect::new(0, 0.0, 0.0, 10.0, 0.0),
+            LineRect::new(1, 20.0, 20.0, 30.0, 20.0),
+        ];
+        let index = LineSpatialIndex::new(lines);
+        
+        let all: Vec<_> = index.all_lines().collect();
+        assert_eq!(all.len(), 2);
+    }
+
+    #[test]
+    fn test_overlapping_lines_query() {
+        // Two overlapping horizontal lines
+        let lines = vec![
+            LineRect::new(0, 0.0, 10.0, 100.0, 10.0),
+            LineRect::new(1, 50.0, 10.0, 150.0, 10.0),  // Overlaps 0 at x=50-100
+        ];
+        let index = LineSpatialIndex::new(lines.clone());
+
+        let near = index.query_near_line(&lines[0], 2.0);
+        assert!(near.contains(&1), "Overlapping lines should be near each other");
+    }
+
+    #[test]
+    fn test_query_self_excluded() {
+        let lines = vec![
+            LineRect::new(0, 0.0, 0.0, 100.0, 0.0),
+            LineRect::new(1, 0.0, 0.0, 100.0, 0.0),  // Same position, different idx
+        ];
+        let index = LineSpatialIndex::new(lines.clone());
+
+        // When querying near line 0, line 0 should NOT be in results
+        let near = index.query_near_line(&lines[0], 5.0);
+        assert!(!near.contains(&0), "Self should be excluded from results");
+        assert!(near.contains(&1), "Other overlapping line should be included");
+    }
+
+    #[test]
+    fn test_vertical_line_envelope() {
+        // Vertical line: x1 == x2
+        let line = LineRect::new(0, 50.0, 0.0, 50.0, 100.0);
+        let env = line.envelope();
+        let lower = env.lower();
+        let upper = env.upper();
+        
+        assert_eq!(lower[0], 50.0);
+        assert_eq!(lower[1], 0.0);
+        assert_eq!(upper[0], 50.0);
+        assert_eq!(upper[1], 100.0);
+    }
+
+    #[test]
+    fn test_point_line() {
+        // Degenerate line: single point
+        let line = LineRect::new(0, 50.0, 50.0, 50.0, 50.0);
+        let env = line.envelope();
+        
+        // Should still have valid envelope (point)
+        assert_eq!(env.lower()[0], 50.0);
+        assert_eq!(env.upper()[0], 50.0);
+    }
+
+    #[test]
+    fn test_large_index_performance() {
+        // Create 100 lines
+        let lines: Vec<LineRect> = (0..100)
+            .map(|i| LineRect::new(i, i as f32 * 10.0, 0.0, i as f32 * 10.0 + 100.0, 0.0))
+            .collect();
+        
+        let index = LineSpatialIndex::new(lines);
+        assert_eq!(index.len(), 100);
+        
+        // Query should still work efficiently
+        let result = index.query_region(0.0, -5.0, 1000.0, 5.0);
+        assert!(!result.is_empty());
+    }
 }
