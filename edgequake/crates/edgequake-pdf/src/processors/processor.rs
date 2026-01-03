@@ -160,7 +160,7 @@ impl SectionPatternProcessor {
     /// "3.2.1." → level 4 (H4)
     fn calculate_level(&self, section_num: &str) -> u8 {
         let dots = section_num.matches('.').count();
-        (dots + 1).min(6).max(2) as u8
+        ((dots + 1) as u8).clamp(2, 6)
     }
 
     /// Check if text is a special section name.

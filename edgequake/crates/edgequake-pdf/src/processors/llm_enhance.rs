@@ -285,7 +285,7 @@ Output:"#,
 
         // Calculate character frequency distribution
         let total_alnum: usize = char_counts.values().sum();
-        let avg_freq = total_alnum as f32 / char_counts.len() as f32;
+        let _avg_freq = total_alnum as f32 / char_counts.len() as f32;
 
         // Check for unusual character frequency patterns
         // (e.g., many single occurrences might indicate OCR errors)

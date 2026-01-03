@@ -180,7 +180,7 @@ impl Processor for HeaderDetectionProcessor {
                 if let Some(span) = block.spans.first() {
                     let size = span.style.size.unwrap_or(10.0);
                     let weight = span.style.weight.unwrap_or(400);
-                    let is_bold = weight >= 600;
+                    let _is_bold = weight >= 600; // Reserved for potential future use
 
                     let text_lower = text.to_lowercase();
                     let is_arxiv_or_meta = text_lower.starts_with("arxiv:")
@@ -431,26 +431,25 @@ impl Processor for CodeBlockDetectionProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::processors::test_helpers::{
+        code_block as make_code_block, doc_with_blocks, styled_block, text_block,
+    };
     use crate::schema::{BoundingBox, FontStyle, Page, TextSpan};
 
+    /// Create a minimal test document with one paragraph.
     fn create_test_document() -> Document {
-        let mut doc = Document::new();
-        let mut page = Page::new(1, 612.0, 792.0);
-        page.add_block(Block::text(
+        doc_with_blocks(vec![text_block(
             "Test paragraph",
-            BoundingBox::new(72.0, 100.0, 540.0, 130.0),
-        ));
-        doc.add_page(page);
-        doc
+            (72.0, 100.0, 540.0, 130.0),
+        )])
     }
 
     #[test]
     fn test_caption_detection() {
-        let mut doc = create_test_document();
-        doc.pages[0].blocks.push(Block::text(
-            "Figure 1: Test figure",
-            BoundingBox::new(72.0, 200.0, 540.0, 220.0),
-        ));
+        let doc = doc_with_blocks(vec![
+            text_block("Test paragraph", (72.0, 100.0, 540.0, 130.0)),
+            text_block("Figure 1: Test figure", (72.0, 200.0, 540.0, 220.0)),
+        ]);
 
         let processor = CaptionDetectionProcessor::new();
         let result = processor.process(doc).unwrap();
@@ -460,15 +459,11 @@ mod tests {
 
     #[test]
     fn test_list_detection() {
-        let mut doc = create_test_document();
-        doc.pages[0].blocks.push(Block::text(
-            "- First item",
-            BoundingBox::new(72.0, 200.0, 540.0, 220.0),
-        ));
-        doc.pages[0].blocks.push(Block::text(
-            "1. Numbered item",
-            BoundingBox::new(72.0, 230.0, 540.0, 250.0),
-        ));
+        let doc = doc_with_blocks(vec![
+            text_block("Test paragraph", (72.0, 100.0, 540.0, 130.0)),
+            text_block("- First item", (72.0, 200.0, 540.0, 220.0)),
+            text_block("1. Numbered item", (72.0, 230.0, 540.0, 250.0)),
+        ]);
 
         let processor = ListDetectionProcessor::new();
         let result = processor.process(doc).unwrap();
@@ -479,40 +474,13 @@ mod tests {
 
     #[test]
     fn test_code_block_detection() {
-        let mut doc = Document::new();
-        let mut page = Page::new(1, 612.0, 792.0);
+        use crate::processors::test_helpers::monospace_block;
 
-        // Add code-like block with monospace font
-        let mut code_block = Block::text(
-            "def hello():",
-            BoundingBox::new(72.0, 100.0, 540.0, 115.0),
-        );
-        code_block.spans = vec![TextSpan::styled(
-            "def hello():",
-            FontStyle {
-                family: Some("Courier".to_string()),
-                size: Some(10.0),
-                ..Default::default()
-            },
-        )];
-        page.add_block(code_block);
-
-        // Add second code line
-        let mut code_block2 = Block::text(
-            "    print('Hello')",
-            BoundingBox::new(72.0, 120.0, 540.0, 135.0),
-        );
-        code_block2.spans = vec![TextSpan::styled(
-            "    print('Hello')",
-            FontStyle {
-                family: Some("Courier".to_string()),
-                size: Some(10.0),
-                ..Default::default()
-            },
-        )];
-        page.add_block(code_block2);
-
-        doc.add_page(page);
+        // Two monospace blocks should be merged into one Code block
+        let doc = doc_with_blocks(vec![
+            monospace_block("def hello():", (72.0, 100.0, 540.0, 115.0)),
+            monospace_block("    print('Hello')", (72.0, 120.0, 540.0, 135.0)),
+        ]);
 
         let processor = CodeBlockDetectionProcessor::new();
         let result = processor.process(doc).unwrap();
@@ -525,40 +493,11 @@ mod tests {
 
     #[test]
     fn test_header_detection_numeric_sections() {
-        let mut doc = Document::new();
-        let mut page = Page::new(1, 612.0, 792.0);
-
-        // Body text to establish baseline
-        let mut body = Block::text(
-            "This is body text.",
-            BoundingBox::new(72.0, 200.0, 540.0, 220.0),
-        );
-        body.spans = vec![TextSpan::styled(
-            "This is body text.",
-            FontStyle {
-                size: Some(10.0),
-                weight: Some(400),
-                ..Default::default()
-            },
-        )];
-        page.add_block(body);
-
-        // Bold section header
-        let mut heading = Block::text(
-            "1. Introduction",
-            BoundingBox::new(72.0, 100.0, 540.0, 120.0),
-        );
-        heading.spans = vec![TextSpan::styled(
-            "1. Introduction",
-            FontStyle {
-                size: Some(10.0),
-                weight: Some(700),
-                ..Default::default()
-            },
-        )];
-        page.add_block(heading);
-
-        doc.add_page(page);
+        // Body text to establish baseline, then bold section header
+        let doc = doc_with_blocks(vec![
+            styled_block("This is body text.", (72.0, 200.0, 540.0, 220.0), 10.0, 400),
+            styled_block("1. Introduction", (72.0, 100.0, 540.0, 120.0), 10.0, 700),
+        ]);
 
         let processor = HeaderDetectionProcessor::new();
         let result = processor.process(doc).unwrap();

@@ -2,10 +2,20 @@
 //!
 //! **Single Responsibility:** Test fixture creation and common assertions.
 //!
+//! **WHY centralized fixtures:**
+//! - Eliminates duplicate document creation code across 10+ test modules
+//! - Ensures consistent test data (same dimensions, margins, font sizes)
+//! - Makes tests more readable by hiding boilerplate
+//! - Simplifies maintenance when schema changes occur
+//!
 //! Provides reusable functions for creating test documents, blocks, and pages
 //! to reduce duplication across processor test modules.
 
-use crate::schema::{Block, BoundingBox, Document, FontStyle, Page, TextSpan};
+use crate::schema::{Block, BlockType, BoundingBox, Document, FontStyle, Page, TextSpan};
+
+// =============================================================================
+// Document Fixtures
+// =============================================================================
 
 /// Create a minimal test document with default pages.
 ///
@@ -26,6 +36,49 @@ pub fn create_test_document() -> Document {
     doc.add_page(page);
     doc
 }
+
+/// Create a document with a single page containing given blocks.
+pub fn doc_with_blocks(blocks: Vec<Block>) -> Document {
+    let mut doc = Document::new();
+    let mut page = test_page(1);
+
+    for block in blocks {
+        page.add_block(block);
+    }
+
+    doc.add_page(page);
+    doc
+}
+
+/// Create a document with multiple pages.
+pub fn doc_with_pages(page_blocks: Vec<Vec<Block>>) -> Document {
+    let mut doc = Document::new();
+
+    for (i, blocks) in page_blocks.into_iter().enumerate() {
+        let mut page = test_page(i + 1);
+        for block in blocks {
+            page.add_block(block);
+        }
+        doc.add_page(page);
+    }
+
+    doc
+}
+
+// =============================================================================
+// Page Fixtures
+// =============================================================================
+
+/// Create a test page with standard dimensions.
+///
+/// **Default:** US Letter (612 x 792 points)
+pub fn test_page(page_num: usize) -> Page {
+    Page::new(page_num, 612.0, 792.0)
+}
+
+// =============================================================================
+// Block Fixtures
+// =============================================================================
 
 /// Create a test block with plain text.
 ///
@@ -63,24 +116,68 @@ pub fn styled_block(
     block
 }
 
-/// Create a test page with standard dimensions.
-///
-/// **Default:** US Letter (612 x 792 points)
-pub fn test_page(page_num: usize) -> Page {
-    Page::new(page_num, 612.0, 792.0)
+/// Create a bold header block.
+pub fn header_block(text: &str, bbox: (f32, f32, f32, f32), level: u8) -> Block {
+    let mut block = styled_block(text, bbox, 14.0, 700);
+    block.block_type = BlockType::SectionHeader;
+    block.level = Some(level);
+    block
 }
 
-/// Create a document with a single page containing given blocks.
-pub fn doc_with_blocks(blocks: Vec<Block>) -> Document {
-    let mut doc = Document::new();
-    let mut page = test_page(1);
+/// Create a code block with monospace font.
+pub fn code_block(text: &str, bbox: (f32, f32, f32, f32)) -> Block {
+    let mut block = Block::text(text, BoundingBox::new(bbox.0, bbox.1, bbox.2, bbox.3));
+    block.block_type = BlockType::Code;
+    block.spans = vec![TextSpan::styled(
+        text,
+        FontStyle {
+            family: Some("Courier".to_string()),
+            size: Some(10.0),
+            weight: Some(400),
+            italic: false,
+            ..Default::default()
+        },
+    )];
+    block
+}
 
-    for block in blocks {
-        page.add_block(block);
-    }
+/// Create a text block with monospace font (for testing code detection).
+/// Unlike `code_block()`, this does NOT set block_type to Code.
+pub fn monospace_block(text: &str, bbox: (f32, f32, f32, f32)) -> Block {
+    let mut block = Block::text(text, BoundingBox::new(bbox.0, bbox.1, bbox.2, bbox.3));
+    block.spans = vec![TextSpan::styled(
+        text,
+        FontStyle {
+            family: Some("Courier".to_string()),
+            size: Some(10.0),
+            weight: Some(400),
+            italic: false,
+            ..Default::default()
+        },
+    )];
+    block
+}
 
-    doc.add_page(page);
-    doc
+/// Create a table cell block.
+pub fn table_cell(text: &str, bbox: (f32, f32, f32, f32)) -> Block {
+    let mut block = Block::text(text, BoundingBox::new(bbox.0, bbox.1, bbox.2, bbox.3));
+    block.block_type = BlockType::TableCell;
+    block
+}
+
+// =============================================================================
+// Standard Bounding Boxes
+// =============================================================================
+
+/// Standard content area (72pt margins on US Letter)
+pub const CONTENT_LEFT: f32 = 72.0;
+pub const CONTENT_RIGHT: f32 = 540.0;
+pub const CONTENT_TOP: f32 = 720.0;
+pub const CONTENT_BOTTOM: f32 = 72.0;
+
+/// Create a bounding box for a row at given Y position.
+pub fn row_bbox(y: f32, height: f32) -> (f32, f32, f32, f32) {
+    (CONTENT_LEFT, y, CONTENT_RIGHT, y + height)
 }
 
 #[cfg(test)]
@@ -105,5 +202,21 @@ mod tests {
         let block = styled_block("Bold text", (0.0, 0.0, 100.0, 20.0), 14.0, 700);
         assert_eq!(block.spans.len(), 1);
         assert_eq!(block.spans[0].style.weight, Some(700));
+    }
+
+    #[test]
+    fn test_header_block() {
+        let block = header_block("Introduction", (0.0, 0.0, 100.0, 20.0), 2);
+        assert_eq!(block.block_type, BlockType::SectionHeader);
+        assert_eq!(block.level, Some(2));
+    }
+
+    #[test]
+    fn test_doc_with_pages() {
+        let doc = doc_with_pages(vec![
+            vec![text_block("Page 1", (0.0, 0.0, 100.0, 20.0))],
+            vec![text_block("Page 2", (0.0, 0.0, 100.0, 20.0))],
+        ]);
+        assert_eq!(doc.pages.len(), 2);
     }
 }

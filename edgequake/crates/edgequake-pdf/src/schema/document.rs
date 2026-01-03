@@ -214,8 +214,8 @@ impl Page {
         let text_len: usize = self.blocks.iter().map(|b| b.text.len()).sum();
         let block_count = self.blocks.len();
 
-        // Calculate average block size
-        let avg_block_size = if block_count > 0 {
+        // Calculate average block size (currently reserved for future use)
+        let _avg_block_size = if block_count > 0 {
             text_len as f32 / block_count as f32
         } else {
             0.0
@@ -225,7 +225,8 @@ impl Page {
         let page_area = self.width * self.height;
 
         // Calculate text density (characters per square point)
-        let text_density = if page_area > 0.0 {
+        // NOTE: Currently unused but may be useful for future adaptive thresholds
+        let _text_density = if page_area > 0.0 {
             text_len as f32 / page_area
         } else {
             0.0

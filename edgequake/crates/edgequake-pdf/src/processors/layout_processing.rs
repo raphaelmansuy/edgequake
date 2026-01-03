@@ -585,22 +585,7 @@ impl Processor for SectionNumberMergeProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::{BoundingBox, Page};
-
-    fn create_test_document() -> Document {
-        let mut doc = Document::new();
-        let mut page = Page::new(1, 612.0, 792.0);
-        page.add_block(Block::text(
-            "First paragraph.",
-            BoundingBox::new(72.0, 100.0, 540.0, 130.0),
-        ));
-        page.add_block(Block::text(
-            "Second paragraph.",
-            BoundingBox::new(72.0, 150.0, 540.0, 180.0),
-        ));
-        doc.add_page(page);
-        doc
-    }
+    use crate::processors::test_helpers::create_test_document;
 
     #[test]
     fn test_layout_processor() {

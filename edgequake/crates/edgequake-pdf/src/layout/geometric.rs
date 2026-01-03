@@ -260,6 +260,7 @@ enum Label {
 /// A cluster of points from DBSCAN.
 #[derive(Debug, Clone)]
 pub struct Cluster {
+    #[allow(dead_code)]
     id: usize,
     points: Vec<(f32, f32, usize)>, // (x, y, original_index)
 }

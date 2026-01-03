@@ -77,7 +77,7 @@ impl TableDetectionProcessor {
     fn group_blocks_by_row(&self, page: &crate::schema::Page) -> Vec<Vec<usize>> {
         let mut rows: Vec<Vec<usize>> = Vec::new();
         let mut sorted_indices: Vec<usize> = (0..page.blocks.len()).collect();
-        
+
         sorted_indices.sort_by(|&a, &b| {
             page.blocks[a]
                 .bbox
@@ -89,11 +89,11 @@ impl TableDetectionProcessor {
         for idx in sorted_indices {
             let block = &page.blocks[idx];
             let mut found = false;
-            
+
             for row in rows.iter_mut() {
                 let first_idx = row[0];
                 let b1 = &page.blocks[first_idx];
-                
+
                 // Check Y-coordinate overlap
                 let overlap_y = b1.bbox.y2.min(block.bbox.y2) - b1.bbox.y1.max(block.bbox.y1);
                 let min_h = (b1.bbox.y2 - b1.bbox.y1).min(block.bbox.y2 - block.bbox.y1);
@@ -106,7 +106,7 @@ impl TableDetectionProcessor {
                     break;
                 }
             }
-            
+
             if !found {
                 rows.push(vec![idx]);
             }
@@ -135,7 +135,7 @@ impl TableDetectionProcessor {
             // Table candidate: row with multiple blocks
             if rows[i].len() > 1 {
                 let table_rows = self.find_table_extent(&rows, i, page);
-                
+
                 if self.is_likely_table(&table_rows, &rows) {
                     let table_block = self.create_table_block(&table_rows, &rows, page);
                     new_blocks.push(table_block);
@@ -160,7 +160,12 @@ impl TableDetectionProcessor {
     }
 
     /// Find extent of table starting at given row index.
-    fn find_table_extent(&self, rows: &[Vec<usize>], start: usize, page: &crate::schema::Page) -> Vec<usize> {
+    fn find_table_extent(
+        &self,
+        rows: &[Vec<usize>],
+        start: usize,
+        page: &crate::schema::Page,
+    ) -> Vec<usize> {
         let mut table_rows = vec![start];
         let mut j = start + 1;
 
@@ -188,7 +193,7 @@ impl TableDetectionProcessor {
                 // Check if single block aligns with table columns
                 let block = &page.blocks[current_row_blocks[0]];
                 let mut aligns = false;
-                
+
                 for &prev_row_idx in &table_rows {
                     for &prev_block_idx in &rows[prev_row_idx] {
                         let prev_block = &page.blocks[prev_block_idx];
@@ -196,7 +201,7 @@ impl TableDetectionProcessor {
                             - prev_block.bbox.x1.max(block.bbox.x1);
                         let min_w = (prev_block.bbox.x2 - prev_block.bbox.x1)
                             .min(block.bbox.x2 - block.bbox.x1);
-                        
+
                         // WHY 0.8: Strong column alignment required (80% overlap)
                         if overlap_x > min_w * 0.8 {
                             aligns = true;
@@ -225,7 +230,7 @@ impl TableDetectionProcessor {
     /// Check if table candidate is likely a real table.
     fn is_likely_table(&self, table_rows: &[usize], rows: &[Vec<usize>]) -> bool {
         let has_multi_col = table_rows.iter().any(|&r| rows[r].len() > 1);
-        
+
         // WHY: Require multiple rows with columns to avoid false positives
         // 6+ rows or 4+ rows with 4+ columns
         (table_rows.len() >= 6 && has_multi_col)
@@ -233,9 +238,14 @@ impl TableDetectionProcessor {
     }
 
     /// Create Table block from detected rows.
-    fn create_table_block(&self, table_rows: &[usize], rows: &[Vec<usize>], page: &crate::schema::Page) -> Block {
+    fn create_table_block(
+        &self,
+        table_rows: &[usize],
+        rows: &[Vec<usize>],
+        page: &crate::schema::Page,
+    ) -> Block {
         let mut table_bbox = page.blocks[rows[table_rows[0]][0]].bbox;
-        
+
         for &row_idx in table_rows {
             for &block_idx in &rows[row_idx] {
                 table_bbox = table_bbox.union(&page.blocks[block_idx].bbox);
@@ -245,13 +255,15 @@ impl TableDetectionProcessor {
         let mut table_block = Block::new(BlockType::Table, table_bbox);
         table_block.page = page.number as usize - 1;
 
-        // Add blocks as table cells
+        // Add blocks as table cells (clone block content, not bbox)
         for &row_idx in table_rows {
             for &block_idx in &rows[row_idx] {
-                table_block.children.push(page.blocks[block_idx].clone());
+                let mut cell = page.blocks[block_idx].clone();
+                cell.block_type = BlockType::TableCell;
+                table_block.children.push(cell);
             }
         }
-        
+
         table_block
     }
 }
@@ -316,7 +328,7 @@ impl TextTableReconstructionProcessor {
             .map(|l| l.trim())
             .filter(|l| !l.is_empty())
             .collect();
-        
+
         if lines.len() < 2 {
             return false;
         }
@@ -409,7 +421,7 @@ impl TextTableReconstructionProcessor {
         if rows.is_empty() {
             return Vec::new();
         }
-        
+
         let col_count = rows.iter().map(|r| r.len()).max().unwrap_or(0);
         if col_count == 0 {
             return Vec::new();
@@ -503,7 +515,7 @@ impl TextTableReconstructionProcessor {
 
             // Check if structured table already exists nearby
             let has_existing_table = self.has_existing_table(page, i, page_idx, page_table_bboxes);
-            
+
             if has_existing_table {
                 new_blocks.push(block.clone());
                 i += 1;
@@ -512,7 +524,7 @@ impl TextTableReconstructionProcessor {
 
             // Scan for table content
             let (table_block, consumed) = self.scan_for_table(page, i);
-            
+
             if let Some(table) = table_block {
                 new_blocks.push(block.clone()); // Keep caption
                 new_blocks.push(table);
@@ -537,9 +549,8 @@ impl TextTableReconstructionProcessor {
         let caption_bbox = page.blocks[caption_idx].bbox;
 
         let consider_table_bbox = |table_bbox: BoundingBox| -> bool {
-            let overlap_x = (caption_bbox.x2.min(table_bbox.x2)
-                - caption_bbox.x1.max(table_bbox.x1))
-            .max(0.0);
+            let overlap_x =
+                (caption_bbox.x2.min(table_bbox.x2) - caption_bbox.x1.max(table_bbox.x1)).max(0.0);
             let min_w = caption_bbox.width().min(table_bbox.width()).max(1.0);
             overlap_x / min_w >= 0.30
         };
@@ -578,7 +589,11 @@ impl TextTableReconstructionProcessor {
 
     /// Scan for table content after caption.
     /// Returns (optional table block, next index to process).
-    fn scan_for_table(&self, page: &crate::schema::Page, caption_idx: usize) -> (Option<Block>, usize) {
+    fn scan_for_table(
+        &self,
+        page: &crate::schema::Page,
+        caption_idx: usize,
+    ) -> (Option<Block>, usize) {
         const MAX_SCAN: usize = 22;
         const MAX_ZERO_LINES: usize = 2;
         const MAX_LEADING_ZEROS: usize = 3;
@@ -592,13 +607,13 @@ impl TextTableReconstructionProcessor {
         for j in (caption_idx + 1)..page.blocks.len().min(caption_idx + 1 + MAX_SCAN) {
             let b = &page.blocks[j];
             let t = b.text.trim();
-            
+
             if t.is_empty() || Self::is_hard_break(b) || Self::looks_like_table_caption(t) {
                 break;
             }
 
             let score = Self::table_like_score(t);
-            
+
             if !started {
                 if score == 0 {
                     if skipped_zeros.len() < MAX_LEADING_ZEROS {
@@ -606,7 +621,7 @@ impl TextTableReconstructionProcessor {
                     }
                     continue;
                 }
-                
+
                 // Found first positive-score line
                 started = true;
                 for skipped in skipped_zeros.drain(..) {
@@ -633,7 +648,7 @@ impl TextTableReconstructionProcessor {
 
         // Build table from lines
         let rows = self.parse_rows(&lines);
-        
+
         if rows.len() < 2 {
             return (None, caption_idx + 1);
         }
@@ -651,7 +666,10 @@ impl TextTableReconstructionProcessor {
             .metadata
             .insert("reconstructed".to_string(), serde_json::json!(true));
 
-        let consumed = lines.last().map(|(idx, _, _)| *idx + 1).unwrap_or(caption_idx + 1);
+        let consumed = lines
+            .last()
+            .map(|(idx, _, _)| *idx + 1)
+            .unwrap_or(caption_idx + 1);
         (Some(table_block), consumed)
     }
 
@@ -700,29 +718,43 @@ mod tests {
 
     #[test]
     fn test_table_caption_detection() {
-        assert!(TextTableReconstructionProcessor::looks_like_table_caption("Table 1."));
-        assert!(TextTableReconstructionProcessor::looks_like_table_caption("TABLE 2"));
-        assert!(TextTableReconstructionProcessor::looks_like_table_caption("Table S1"));
-        assert!(TextTableReconstructionProcessor::looks_like_table_caption("#### Table 1."));
-        assert!(!TextTableReconstructionProcessor::looks_like_table_caption("Figure 1."));
+        assert!(TextTableReconstructionProcessor::looks_like_table_caption(
+            "Table 1."
+        ));
+        assert!(TextTableReconstructionProcessor::looks_like_table_caption(
+            "TABLE 2"
+        ));
+        assert!(TextTableReconstructionProcessor::looks_like_table_caption(
+            "Table S1"
+        ));
+        assert!(TextTableReconstructionProcessor::looks_like_table_caption(
+            "#### Table 1."
+        ));
+        assert!(!TextTableReconstructionProcessor::looks_like_table_caption(
+            "Figure 1."
+        ));
     }
 
     #[test]
     fn test_table_like_score() {
         // High score for pipe tables
         assert!(TextTableReconstructionProcessor::table_like_score("| A | B |") >= 3);
-        
+
         // Score for numeric data
         assert!(TextTableReconstructionProcessor::table_like_score("Method  0.95  3") >= 2);
-        
+
         // Low score for plain text
-        assert_eq!(TextTableReconstructionProcessor::table_like_score("Hello world"), 0);
+        assert_eq!(
+            TextTableReconstructionProcessor::table_like_score("Hello world"),
+            0
+        );
     }
 
     #[test]
     fn test_numeric_suffix_parsing() {
-        let (prefix, nums) = TextTableReconstructionProcessor::parse_numeric_suffix("Method A 0.95 3")
-            .expect("should parse");
+        let (prefix, nums) =
+            TextTableReconstructionProcessor::parse_numeric_suffix("Method A 0.95 3")
+                .expect("should parse");
         assert_eq!(prefix, "Method A");
         assert_eq!(nums, vec!["0.95", "3"]);
     }

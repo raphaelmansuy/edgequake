@@ -1834,7 +1834,7 @@ impl SotaBackend {
         // Calculate adaptive threshold based on content distribution
         // This is a first-principles approach that adapts to document density
         let total: usize = proj.iter().sum();
-        let avg_density = if proj.is_empty() {
+        let _avg_density = if proj.is_empty() {
             0
         } else {
             total / proj.len()
@@ -2444,7 +2444,7 @@ impl SotaBackend {
                 *font_size_counts.entry(key).or_insert(0) += 1;
             }
         }
-        let body_size = font_size_counts
+        let _body_size = font_size_counts
             .iter()
             .max_by_key(|&(_, count)| count)
             .map(|(&size, _)| size as f32 / 10.0)
@@ -2559,6 +2559,7 @@ impl SotaBackend {
         blocks
     }
 
+    #[allow(dead_code)]
     fn calculate_header_level(&self, font_size: f32, body_size: f32) -> u8 {
         let ratio = font_size / body_size;
         if ratio >= 2.0 {

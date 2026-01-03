@@ -723,7 +723,7 @@ impl LatticeEngine {
         }
 
         // Update num_cols to reflect actual column count after splitting
-        let num_cols = max_cols;
+        let _num_cols = max_cols;
 
         // FIRST PRINCIPLES: Handle merged text in single cells
         // Some PDFs have one text element containing multiple values that should be in separate columns
@@ -906,6 +906,7 @@ impl LatticeEngine {
         col_boundaries
     }
 
+    #[allow(dead_code)]
     fn detect_columns_by_whitespace(
         &self,
         text_elements: &[TextElement],
@@ -1163,6 +1164,7 @@ impl LatticeEngine {
             .collect()
     }
 
+    #[allow(dead_code)]
     fn create_fallback_table_block(
         &self,
         bbox: BoundingBox,
