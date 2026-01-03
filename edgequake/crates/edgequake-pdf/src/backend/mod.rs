@@ -22,15 +22,15 @@ pub mod elements;
 #[cfg(feature = "lopdf")]
 pub mod encodings;
 #[cfg(feature = "lopdf")]
+pub mod extraction_engine;
+#[cfg(feature = "lopdf")]
 pub mod font_handling;
 #[cfg(feature = "lopdf")]
 pub mod lattice;
 pub mod mock;
 #[cfg(feature = "lopdf")]
-pub mod sota_backend;
-#[cfg(feature = "lopdf")]
 pub mod text_grouping;
 
 pub use mock::MockBackend;
 #[cfg(feature = "lopdf")]
-pub use sota_backend::SotaBackend;
+pub use extraction_engine::ExtractionEngine;

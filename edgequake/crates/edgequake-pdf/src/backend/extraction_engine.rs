@@ -1,4 +1,4 @@
-//! SOTA PDF extraction backend using lopdf with proper character encoding.
+//! PDF extraction engine using lopdf with proper character encoding.
 //!
 //! This module provides production-quality PDF text extraction with:
 //! - Proper font encoding support (WinAnsi, ToUnicode CMap, etc.)
@@ -6,6 +6,8 @@
 //! - Bold/italic detection from font names
 //! - Section pattern detection
 //! - Running header removal
+//! - Two-column layout detection
+//! - Table detection using lattice analysis
 
 #![cfg(feature = "lopdf")]
 
@@ -32,15 +34,21 @@ use super::lattice::LatticeEngine;
 use super::text_grouping::{MergedLine, TextGrouper};
 use super::column_detection::ColumnDetector;
 
-/// SOTA PDF backend with proper encoding support
-pub struct SotaBackend {
+/// PDF extraction engine with proper encoding support.
+///
+/// Uses lopdf for parsing and provides:
+/// - Column detection (single/multi-column layouts)
+/// - Text grouping into logical lines and blocks
+/// - Font style detection (bold/italic)
+/// - Table detection via lattice analysis
+pub struct ExtractionEngine {
     config: PdfConfig,
     lattice_engine: LatticeEngine,
     text_grouper: TextGrouper,
     column_detector: ColumnDetector,
 }
 
-impl SotaBackend {
+impl ExtractionEngine {
     pub fn new() -> Self {
         Self::with_config(PdfConfig::default())
     }
@@ -1056,14 +1064,14 @@ impl SotaBackend {
     }
 }
 
-impl Default for SotaBackend {
+impl Default for ExtractionEngine {
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[async_trait]
-impl PdfBackend for SotaBackend {
+impl PdfBackend for ExtractionEngine {
     async fn extract(&self, pdf_bytes: &[u8]) -> Result<Document> {
         info!("Extracting PDF with SOTA backend");
 
@@ -1134,7 +1142,7 @@ mod tests {
 
     #[test]
     fn test_merge_line_preserves_style_runs_as_spans() {
-        let backend = SotaBackend::new();
+        let backend = ExtractionEngine::new();
 
         let elems = vec![
             TextElement {
@@ -1180,7 +1188,7 @@ mod tests {
 
     #[test]
     fn test_deduplicate_removes_exact_duplicates() {
-        let backend = SotaBackend::new();
+        let backend = ExtractionEngine::new();
 
         let elements = vec![
             make_text_element("Hello", 10.0, 700.0),
@@ -1194,7 +1202,7 @@ mod tests {
 
     #[test]
     fn test_deduplicate_keeps_near_elements() {
-        let backend = SotaBackend::new();
+        let backend = ExtractionEngine::new();
 
         let elements = vec![
             make_text_element("Hello", 10.0, 700.0),
@@ -1209,7 +1217,7 @@ mod tests {
 
     #[test]
     fn test_merge_text_elements_horizontal() {
-        let backend = SotaBackend::new();
+        let backend = ExtractionEngine::new();
 
         let elements = vec![
             make_text_element("Hel", 10.0, 700.0),
@@ -1224,7 +1232,7 @@ mod tests {
 
     #[test]
     fn test_merge_preserves_vertical_separation() {
-        let backend = SotaBackend::new();
+        let backend = ExtractionEngine::new();
 
         let elements = vec![
             make_text_element("Line 1", 10.0, 700.0),
@@ -1241,7 +1249,7 @@ mod tests {
 
     #[test]
     fn test_empty_elements() {
-        let backend = SotaBackend::new();
+        let backend = ExtractionEngine::new();
 
         let empty: Vec<TextElement> = vec![];
 

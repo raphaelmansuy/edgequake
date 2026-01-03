@@ -85,15 +85,15 @@ impl PdfExtractor {
     /// Create a PDF extractor with custom configuration.
     ///
     /// Backend priority:
-    /// 1. SotaBackend (if lopdf feature enabled) - SOTA pure Rust with font analysis
+    /// 1. ExtractionEngine (if lopdf feature enabled) - Pure Rust with font analysis
     /// 2. MockBackend - empty documents, for testing only
     pub fn with_config(llm_provider: Arc<dyn LLMProvider>, config: PdfConfig) -> Self {
         // Select backend based on features
         let backend: Box<dyn PdfBackend> = {
             #[cfg(feature = "lopdf")]
             {
-                info!("Using SotaBackend (lopdf) for PDF extraction");
-                Box::new(crate::backend::SotaBackend::with_config(config.clone()))
+                info!("Using ExtractionEngine (lopdf) for PDF extraction");
+                Box::new(crate::backend::ExtractionEngine::with_config(config.clone()))
             }
             #[cfg(not(feature = "lopdf"))]
             {
