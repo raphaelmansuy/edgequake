@@ -25,14 +25,14 @@ use crate::schema::{
 };
 use crate::{DocumentMetadata, Result};
 
-use lopdf::content::Content;
 use lopdf::{Document as LopdfDocument, Object, ObjectId};
 
-use super::elements::{PdfLine, TextElement};
+use super::column_detection::ColumnDetector;
+use super::content_parser::ContentParser;
+use super::elements::TextElement;
 use super::font_handling::FontInfo;
 use super::lattice::LatticeEngine;
 use super::text_grouping::{MergedLine, TextGrouper};
-use super::column_detection::ColumnDetector;
 
 /// PDF extraction engine with proper encoding support.
 ///
@@ -46,6 +46,7 @@ pub struct ExtractionEngine {
     lattice_engine: LatticeEngine,
     text_grouper: TextGrouper,
     column_detector: ColumnDetector,
+    content_parser: ContentParser,
 }
 
 impl ExtractionEngine {
@@ -59,6 +60,7 @@ impl ExtractionEngine {
             lattice_engine: LatticeEngine::new(),
             text_grouper: TextGrouper::new(),
             column_detector: ColumnDetector::new(),
+            content_parser: ContentParser::new(),
         }
     }
 
@@ -147,371 +149,6 @@ impl ExtractionEngine {
                 .decompressed_content()
                 .map_err(|e| PdfError::PdfParse(format!("Failed to decompress: {}", e))),
             _ => Err(PdfError::PdfParse("Invalid Contents type".to_string())),
-        }
-    }
-
-    /// Extract text and graphical elements from content stream
-    fn extract_page_elements(
-        &self,
-        content_bytes: &[u8],
-        fonts: &BTreeMap<Vec<u8>, FontInfo>,
-    ) -> Result<(Vec<TextElement>, Vec<PdfLine>)> {
-        let content = Content::decode(content_bytes)
-            .map_err(|e| PdfError::PdfParse(format!("Failed to decode content: {}", e)))?;
-
-        let mut text_elements = Vec::new();
-        let mut line_elements = Vec::new();
-
-        let mut current_font: Option<&FontInfo> = None;
-        let mut current_font_name = String::new();
-        let mut font_size: f32 = 12.0;
-
-        // Text matrices
-        let mut text_matrix = [1.0f32, 0.0, 0.0, 1.0, 0.0, 0.0];
-        let mut line_matrix = [1.0f32, 0.0, 0.0, 1.0, 0.0, 0.0];
-
-        // Graphics state
-        let mut ctm = [1.0f32, 0.0, 0.0, 1.0, 0.0, 0.0];
-        let mut line_width = 1.0;
-        let mut current_point = (0.0, 0.0);
-        let mut graphics_stack = Vec::new(); // Stack for q/Q
-
-        for op in &content.operations {
-            match op.operator.as_str() {
-                // --- Graphics State ---
-                "q" => {
-                    graphics_stack.push((ctm, line_width));
-                }
-                "Q" => {
-                    if let Some((saved_ctm, saved_width)) = graphics_stack.pop() {
-                        ctm = saved_ctm;
-                        line_width = saved_width;
-                    }
-                }
-                "cm" => {
-                    if op.operands.len() >= 6 {
-                        let mut new_matrix = [0.0; 6];
-                        for i in 0..6 {
-                            new_matrix[i] = Self::get_number(&op.operands[i]).unwrap_or(0.0);
-                        }
-                        // Multiply ctm * new_matrix
-                        // [a b 0]   [a' b' 0]
-                        // [c d 0] * [c' d' 0]
-                        // [e f 1]   [e' f' 1]
-                        let a = ctm[0];
-                        let b = ctm[1];
-                        let c = ctm[2];
-                        let d = ctm[3];
-                        let e = ctm[4];
-                        let f = ctm[5];
-
-                        let a_p = new_matrix[0];
-                        let b_p = new_matrix[1];
-                        let c_p = new_matrix[2];
-                        let d_p = new_matrix[3];
-                        let e_p = new_matrix[4];
-                        let f_p = new_matrix[5];
-
-                        ctm[0] = a * a_p + b * c_p;
-                        ctm[1] = a * b_p + b * d_p;
-                        ctm[2] = c * a_p + d * c_p;
-                        ctm[3] = c * b_p + d * d_p;
-                        ctm[4] = e * a_p + f * c_p + e_p;
-                        ctm[5] = e * b_p + f * d_p + f_p;
-                    }
-                }
-                "w" => {
-                    if let Some(w) = Self::get_number(&op.operands[0]) {
-                        // Scale line width by CTM expansion factor (approx)
-                        let scale = (ctm[0].abs() + ctm[3].abs()) / 2.0;
-                        line_width = w * scale;
-                    }
-                }
-
-                // --- Path Construction ---
-                "m" => {
-                    if op.operands.len() >= 2 {
-                        let x = Self::get_number(&op.operands[0]).unwrap_or(0.0);
-                        let y = Self::get_number(&op.operands[1]).unwrap_or(0.0);
-                        // Transform point
-                        let tx = x * ctm[0] + y * ctm[2] + ctm[4];
-                        let ty = x * ctm[1] + y * ctm[3] + ctm[5];
-                        current_point = (tx, ty);
-                    }
-                }
-                "l" => {
-                    if op.operands.len() >= 2 {
-                        let x = Self::get_number(&op.operands[0]).unwrap_or(0.0);
-                        let y = Self::get_number(&op.operands[1]).unwrap_or(0.0);
-                        // Transform point
-                        let tx = x * ctm[0] + y * ctm[2] + ctm[4];
-                        let ty = x * ctm[1] + y * ctm[3] + ctm[5];
-
-                        line_elements.push(PdfLine {
-                            p1: current_point,
-                            p2: (tx, ty),
-                            width: line_width,
-                        });
-                        current_point = (tx, ty);
-                    }
-                }
-                "re" => {
-                    if op.operands.len() >= 4 {
-                        let x = Self::get_number(&op.operands[0]).unwrap_or(0.0);
-                        let y = Self::get_number(&op.operands[1]).unwrap_or(0.0);
-                        let w = Self::get_number(&op.operands[2]).unwrap_or(0.0);
-                        let h = Self::get_number(&op.operands[3]).unwrap_or(0.0);
-
-                        // Transform all 4 corners
-                        let p1 = (
-                            x * ctm[0] + y * ctm[2] + ctm[4],
-                            x * ctm[1] + y * ctm[3] + ctm[5],
-                        );
-                        let p2 = (
-                            (x + w) * ctm[0] + y * ctm[2] + ctm[4],
-                            (x + w) * ctm[1] + y * ctm[3] + ctm[5],
-                        );
-                        let p3 = (
-                            (x + w) * ctm[0] + (y + h) * ctm[2] + ctm[4],
-                            (x + w) * ctm[1] + (y + h) * ctm[3] + ctm[5],
-                        );
-                        let p4 = (
-                            x * ctm[0] + (y + h) * ctm[2] + ctm[4],
-                            x * ctm[1] + (y + h) * ctm[3] + ctm[5],
-                        );
-
-                        line_elements.push(PdfLine {
-                            p1,
-                            p2,
-                            width: line_width,
-                        });
-                        line_elements.push(PdfLine {
-                            p1: p2,
-                            p2: p3,
-                            width: line_width,
-                        });
-                        line_elements.push(PdfLine {
-                            p1: p3,
-                            p2: p4,
-                            width: line_width,
-                        });
-                        line_elements.push(PdfLine {
-                            p1: p4,
-                            p2: p1,
-                            width: line_width,
-                        });
-                    }
-                }
-
-                // --- Text Objects ---
-                // Begin text block - reset matrices
-                "BT" => {
-                    text_matrix = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
-                    line_matrix = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
-                }
-                // Set font: /FontName Size Tf
-                "Tf" => {
-                    if op.operands.len() >= 2 {
-                        if let Object::Name(name) = &op.operands[0] {
-                            current_font = fonts.get(name);
-                            current_font_name = current_font
-                                .map(|f| f.base_font.clone())
-                                .unwrap_or_else(|| String::from_utf8_lossy(name).to_string());
-                        }
-                        if let Some(size) = Self::get_number(&op.operands[1]) {
-                            font_size = size.abs();
-                        }
-                    }
-                }
-                // Text matrix: a b c d e f Tm
-                "Tm" => {
-                    if op.operands.len() >= 6 {
-                        for i in 0..6 {
-                            if let Some(v) = Self::get_number(&op.operands[i]) {
-                                text_matrix[i] = v;
-                            }
-                        }
-                        line_matrix = text_matrix;
-                    }
-                }
-                // Move text position: tx ty Td
-                "Td" => {
-                    if op.operands.len() >= 2 {
-                        let tx = Self::get_number(&op.operands[0]).unwrap_or(0.0);
-                        let ty = Self::get_number(&op.operands[1]).unwrap_or(0.0);
-                        line_matrix[4] += tx;
-                        line_matrix[5] += ty;
-                        text_matrix = line_matrix;
-                    }
-                }
-                // Move text position and set leading: tx ty TD
-                "TD" => {
-                    if op.operands.len() >= 2 {
-                        let tx = Self::get_number(&op.operands[0]).unwrap_or(0.0);
-                        let ty = Self::get_number(&op.operands[1]).unwrap_or(0.0);
-                        line_matrix[4] += tx;
-                        line_matrix[5] += ty;
-                        text_matrix = line_matrix;
-                    }
-                }
-                // Move to next line: T*
-                "T*" => {
-                    // Use default leading (we don't track TL operator)
-                    line_matrix[5] -= font_size;
-                    text_matrix = line_matrix;
-                }
-                // Show text: (string) Tj
-                "Tj" => {
-                    if !op.operands.is_empty() {
-                        if let Some(text) = self.decode_text_operand(&op.operands[0], current_font)
-                        {
-                            let text = text.replace(['\n', '\r'], "");
-                            if !text.is_empty() {
-                                let (is_bold, is_italic) = current_font
-                                    .map(|f| (f.is_bold, f.is_italic))
-                                    .unwrap_or((false, false));
-
-                                text_elements.push(TextElement {
-                                    text,
-                                    x: text_matrix[4],
-                                    y: text_matrix[5],
-                                    font_size,
-                                    font_name: current_font_name.clone(),
-                                    is_bold,
-                                    is_italic,
-                                });
-                            }
-                        }
-                    }
-                }
-                // Show text with spacing: [...] TJ
-                "TJ" => {
-                    if !op.operands.is_empty() {
-                        if let Object::Array(arr) = &op.operands[0] {
-                            let mut combined_text = String::new();
-
-                            for item in arr {
-                                match item {
-                                    Object::String(_, _) => {
-                                        if let Some(text) =
-                                            self.decode_text_operand(item, current_font)
-                                        {
-                                            combined_text.push_str(&text);
-                                        }
-                                    }
-                                    Object::Integer(n) => {
-                                        // In TJ arrays, negative kerning values often encode word spaces.
-                                        // Be more permissive to avoid missing spaces in real-world PDFs.
-                                        if *n < -50 {
-                                            combined_text.push(' ');
-                                        }
-                                    }
-                                    Object::Real(n) => {
-                                        if *n < -50.0 {
-                                            combined_text.push(' ');
-                                        }
-                                    }
-                                    _ => {}
-                                }
-                            }
-
-                            if !combined_text.is_empty() {
-                                let (is_bold, is_italic) = current_font
-                                    .map(|f| (f.is_bold, f.is_italic))
-                                    .unwrap_or((false, false));
-
-                                // Remove CR/LF which can appear in PDF strings
-                                let cleaned: String = combined_text
-                                    .chars()
-                                    .filter(|&c| c != '\n' && c != '\r')
-                                    .collect();
-
-                                text_elements.push(TextElement {
-                                    text: cleaned,
-                                    x: text_matrix[4],
-                                    y: text_matrix[5],
-                                    font_size,
-                                    font_name: current_font_name.clone(),
-                                    is_bold,
-                                    is_italic,
-                                });
-                            }
-                        }
-                    }
-                }
-                // Show text and go to next line: (string) '
-                "'" => {
-                    line_matrix[5] -= font_size;
-                    text_matrix = line_matrix;
-
-                    if !op.operands.is_empty() {
-                        if let Some(text) = self.decode_text_operand(&op.operands[0], current_font)
-                        {
-                            // Remove CR/LF which can appear in PDF strings
-                            let cleaned: String =
-                                text.chars().filter(|&c| c != '\n' && c != '\r').collect();
-
-                            if !cleaned.is_empty() {
-                                let (is_bold, is_italic) = current_font
-                                    .map(|f| (f.is_bold, f.is_italic))
-                                    .unwrap_or((false, false));
-
-                                text_elements.push(TextElement {
-                                    text: cleaned,
-                                    x: text_matrix[4],
-                                    y: text_matrix[5],
-                                    font_size,
-                                    font_name: current_font_name.clone(),
-                                    is_bold,
-                                    is_italic,
-                                });
-                            }
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        Ok((text_elements, line_elements))
-    }
-
-    /// Decode a PDF text operand to a Unicode string.
-    ///
-    /// Uses the font's encoding (ToUnicode CMap, WinAnsi, etc.) if available.
-    /// Falls back to UTF-16BE with BOM detection, then Latin-1.
-    fn decode_text_operand(&self, obj: &Object, font: Option<&FontInfo>) -> Option<String> {
-        if let Object::String(bytes, _) = obj {
-            if let Some(font) = font {
-                Some(font.encoding.decode(bytes))
-            } else {
-                // Fallback: try UTF-16BE then Latin-1
-                if bytes.len() >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF {
-                    let utf16: Vec<u16> = bytes[2..]
-                        .chunks(2)
-                        .map(|c| {
-                            if c.len() == 2 {
-                                u16::from_be_bytes([c[0], c[1]])
-                            } else {
-                                0xFFFD
-                            }
-                        })
-                        .collect();
-                    Some(String::from_utf16_lossy(&utf16))
-                } else {
-                    Some(bytes.iter().map(|&b| b as char).collect())
-                }
-            }
-        } else {
-            None
-        }
-    }
-
-    fn get_number(obj: &Object) -> Option<f32> {
-        match obj {
-            Object::Integer(i) => Some(*i as f32),
-            Object::Real(f) => Some(*f),
-            _ => None,
         }
     }
 
@@ -846,15 +483,15 @@ impl ExtractionEngine {
         if let Ok(media_box) = page_dict.get(b"MediaBox") {
             if let Object::Array(arr) = media_box {
                 if arr.len() >= 4 {
-                    let width = Self::get_number(&arr[2]).unwrap_or(612.0);
-                    let height = Self::get_number(&arr[3]).unwrap_or(792.0);
+                    let width = ContentParser::get_number(&arr[2]).unwrap_or(612.0);
+                    let height = ContentParser::get_number(&arr[3]).unwrap_or(792.0);
                     return Ok((width, height));
                 }
             } else if let Object::Reference(id) = media_box {
                 if let Ok(Object::Array(arr)) = doc.get_object(*id) {
                     if arr.len() >= 4 {
-                        let width = Self::get_number(&arr[2]).unwrap_or(612.0);
-                        let height = Self::get_number(&arr[3]).unwrap_or(792.0);
+                        let width = ContentParser::get_number(&arr[2]).unwrap_or(612.0);
+                        let height = ContentParser::get_number(&arr[3]).unwrap_or(792.0);
                         return Ok((width, height));
                     }
                 }
@@ -880,8 +517,8 @@ impl ExtractionEngine {
         // Get content
         let content_bytes = self.get_page_content(doc, page_id)?;
 
-        // Extract text and graphical elements
-        let (elements, pdf_lines) = self.extract_page_elements(&content_bytes, &fonts)?;
+        // Extract text and graphical elements using ContentParser
+        let (elements, pdf_lines) = self.content_parser.parse(&content_bytes, &fonts)?;
 
         // Deduplicate elements (OCR layers)
         let elements = self.deduplicate_elements(elements);
