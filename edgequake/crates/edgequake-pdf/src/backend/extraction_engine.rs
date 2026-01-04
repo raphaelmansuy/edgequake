@@ -254,9 +254,17 @@ impl ExtractionEngine {
         );
 
         // Detect tables using lattice-based line detection
-        let tables: Vec<Block> = self
-            .lattice_engine
-            .detect_tables(&pdf_lines, &elements, page_width, page_height)
+        let detected_tables =
+            self.lattice_engine
+                .detect_tables(&pdf_lines, &elements, page_width, page_height);
+
+        tracing::info!(
+            "Lattice detected {} tables on page {}",
+            detected_tables.len(),
+            page_num
+        );
+
+        let tables: Vec<Block> = detected_tables
             .into_iter()
             .filter(|table| {
                 // Exclude tables that are too small (< 50x50 points)
@@ -278,9 +286,11 @@ impl ExtractionEngine {
                 let max_height = page_height * 0.8;
                 if table.bbox.width() > max_width || table.bbox.height() > max_height {
                     debug!(
-                        "Filtered out table: too large ({:.1}x{:.1})",
+                        "Filtered out table: too large ({:.1}x{:.1}), page={}x{}",
                         table.bbox.width(),
-                        table.bbox.height()
+                        table.bbox.height(),
+                        page_width,
+                        page_height
                     );
                     return false;
                 }
@@ -293,7 +303,10 @@ impl ExtractionEngine {
                     || table.bbox.x2 > page_width - margin_threshold
                     || table.bbox.y2 > page_height - margin_threshold
                 {
-                    debug!("Filtered out table: too close to page edges");
+                    debug!(
+                        "Filtered out table: too close to page edges (bbox={:?}, page={}x{})",
+                        table.bbox, page_width, page_height
+                    );
                     return false;
                 }
 
@@ -314,6 +327,11 @@ impl ExtractionEngine {
                     return false;
                 }
 
+                tracing::info!(
+                    "Table passed all filters: bbox={:?}, text_len={}",
+                    table.bbox,
+                    table.text.len()
+                );
                 true
             })
             .collect();

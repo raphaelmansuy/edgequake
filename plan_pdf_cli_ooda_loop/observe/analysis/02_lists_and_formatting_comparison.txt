@@ -1,0 +1,106 @@
+=== 02_lists_and_formatting ===
+Original length:       65 lines
+Converted length:       72 lines
+
+--- input/02_lists_and_formatting.md	2026-01-04 10:12:05
++++ output/02_lists_and_formatting_converted.md	2026-01-04 10:14:53
+@@ -3,63 +3,70 @@
+ ## Unordered Lists
+ 
+ ### Simple List
+-- First item
+-- Second item
+-- Third item
+ 
++•First item •Second item •Third item
++
+ ### Nested Lists
+-- Level 1 item A
+-  - Level 2 item A1
+-  - Level 2 item A2
+-    - Level 3 item A2a
+-- Level 1 item B
+-  - Level 2 item B1
+ 
++•Level 1 item A
++
++**-Level 2 item A1** **-Level 2 item A2**
++
++∗Level 3 item A2a
++
++•Level 1 item B
++
++**-Level 2 item B1**
++
+ ## Ordered Lists
+ 
+ ### Simple Numbered List
++
+ 1. First step
+ 2. Second step
+ 3. Third step
+ 
+ ### Nested Numbered List
++
+ 1. Main task one
+-   1. Subtask 1.1
+-   2. Subtask 1.2
++  1. Subtask 1.1
++  2. Subtask 1.2
+ 2. Main task two
+-   1. Subtask 2.1
+-   2. Subtask 2.2
++  1. Subtask 2.1
++  2. Subtask 2.2
+ 
+ ## Mixed Lists
+ 
+ 1. Ordered item
+-   - Unordered sub-item
+-   - Another unordered sub-item
++
++•Unordered sub-item •Another unordered sub-item
++
+ 2. Another ordered item
+-   1. Ordered sub-item
+-   - Mixed unordered
++  1. Ordered sub-item
+ 
++•Mixed unordered
++
+ ## Text Formatting
+ 
+-This is **bold text** and this is *italic text*.
++This is bold textand this is italic text.
+ 
+-This is ***bold and italic***.
+ 
+-This is `inline code`.
++---
+ 
+-> This is a blockquote.
+-> It can span multiple lines.
++This is bold and italic.
+ 
++This is inline code.
++
+ ## Code Blocks
+ 
+-```python
++```
+ def hello_world():
+-    print("Hello, World!")
+-    return True
+ ```
+ 
+-```javascript
+-function greet(name) {
+-    console.log(`Hello, ${name}!`);
+-}
++This is a blockquote. It can span multiple lines.
++
+ ```
++print ( "Hello, World!")
++return True
++function greet (name) {
++```

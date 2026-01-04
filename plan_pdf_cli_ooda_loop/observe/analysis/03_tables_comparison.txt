@@ -1,0 +1,76 @@
+=== 03_tables ===
+Original length:       50 lines
+Converted length:       38 lines
+
+--- input/03_tables.md	2026-01-04 10:12:13
++++ output/03_tables_converted.md	2026-01-04 10:14:53
+@@ -2,49 +2,37 @@
+ 
+ ## Simple 2x3 Table
+ 
+-| Header 1 | Header 2 |
+-|----------|----------|
+-| Row 1 Col 1 | Row 1 Col 2 |
+-| Row 2 Col 1 | Row 2 Col 2 |
+-| Row 3 Col 1 | Row 3 Col 2 |
+-
+ ## Table with Alignment
+ 
+-| Left Aligned | Center Aligned | Right Aligned |
+-|:------------|:--------------:|--------------:|
+-| Left        | Center         | Right         |
+-| A           | B              | C             |
+-| 123         | 456            | 789           |
++Left Center Right 123 456 789
+ 
+ ## Complex Table with More Columns
+ 
+-| Name | Age | City | Country | Occupation |
+-|------|-----|------|---------|------------|
+-| Alice | 30 | New York | USA | Engineer |
+-| Bob | 25 | London | UK | Designer |
+-| Charlie | 35 | Tokyo | Japan | Manager |
+-| Diana | 28 | Paris | France | Developer |
++Name Age City Country Occupation
+ 
++Diana 28 Paris France Developer
++
+ ## Table with Long Content
+ 
+-| Feature | Description | Status |
+-|---------|-------------|--------|
+-| PDF Extraction | Extracts text from PDF documents with high accuracy | Complete |
+-| Table Detection | Identifies and reconstructs table structures | In Progress |
+-| Layout Analysis | Analyzes document layout including multi-column text | Complete |
+-| Heading Detection | Detects headings based on font size and style | Complete |
++Feature Description Status PDF Extraction Extracts text from PDF Complete Table Detection Identifies and reconstructs In Progress Layout Analysis Analyzes document layout Complete Heading Detection Detects headings based on font Complete
+ 
+ ## Narrow Table
+ 
+-| ID | Value |
+-|----|-------|
+-| 1  | A     |
+-| 2  | B     |
+-| 3  | C     |
++Left Aligned Center Aligned Right Aligned
+ 
++Alice 30 New York USA Engineer Charlie 35 Tokyo Japan Manager
++
++Header 1 Header 2 Row 1 Col 1 Row 1 Col 2 Row 2 Col 1 Row 2 Col 2 Row 3 Col 1 Row 3 Col 2
++
++documents with high accuracy table structures including multi-column text size and style
++
++
++---
++
++ID Value
++
+ ## Wide Table with Numbers
+ 
+-| Q1 Revenue | Q2 Revenue | Q3 Revenue | Q4 Revenue | Total | Growth % |
+-|------------|------------|------------|------------|-------|----------|
+-| $1,234,567 | $1,345,678 | $1,456,789 | $1,567,890 | $5,604,924 | 15.3% |
+-| $987,654   | $1,098,765 | $1,209,876 | $1,320,987 | $4,617,282 | 12.7% |
++Growth
++
++$1,234,567 $1,345,678 $1,456,789 $1,567,890 $5,604,92415.3% $987,654 $1,098,765 $1,209,876 $1,320,987 $4,617,28212.7%

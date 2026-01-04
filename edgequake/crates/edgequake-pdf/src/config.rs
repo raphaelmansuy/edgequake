@@ -239,7 +239,7 @@ impl Default for PdfConfig {
             max_pages: None,
             include_page_numbers: true,
             extract_images: true,
-            enhance_tables: true,
+            enhance_tables: false, // WHY: Disabled by default - LLM enhancement can corrupt lattice-generated tables
             ai_temperature: 0.1,
             normalize_spacing: true,
             consolidate_headers: true,

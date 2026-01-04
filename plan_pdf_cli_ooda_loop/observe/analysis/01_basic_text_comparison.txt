@@ -1,0 +1,33 @@
+=== 01_basic_text ===
+Original length:       26 lines
+Converted length:       25 lines
+
+--- input/01_basic_text.md	2026-01-04 10:11:57
++++ output/01_basic_text_converted.md	2026-01-04 10:14:53
+@@ -6,16 +6,15 @@
+ 
+ ### Purpose
+ 
+-The purpose of this document is to verify that:
+-- Plain text is extracted correctly
+-- Paragraph breaks are preserved
+-- Basic formatting is maintained
++The purpose of this document is to verify that: - Plain text is extracted correctly
+ 
++- Paragraph breaks are preserved - Basic formatting is maintained
++
+ ## Body Content
+ 
+ Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+ 
+-Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
++Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut
+ 
+ ### Subsection
+ 
+@@ -23,4 +22,4 @@
+ 
+ ## Conclusion
+ 
+-Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
++Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia de-

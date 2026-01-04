@@ -16,7 +16,8 @@ use crate::processors::{
     GarbledTextFilterProcessor, HeaderDetectionProcessor, HyphenContinuationProcessor,
     LayoutProcessor, ListDetectionProcessor, LlmEnhanceConfig, LlmEnhanceProcessor,
     MarginFilterProcessor, PostProcessor, ProcessorChain, SectionNumberMergeProcessor,
-    SectionPatternProcessor, StyleDetectionProcessor, TextTableReconstructionProcessor,
+    SectionPatternProcessor, StyleDetectionProcessor, TableDetectionProcessor,
+    TextTableReconstructionProcessor,
 };
 use crate::renderers::{MarkdownRenderer, MarkdownStyle, Renderer};
 use crate::schema::Document;
@@ -213,10 +214,30 @@ impl PdfExtractor {
         let doc = self.backend.extract(pdf_bytes).await?;
 
         // Debug: show first few blocks of page 1 BEFORE processing
+        let table_count_before: usize = doc
+            .pages
+            .iter()
+            .map(|p| {
+                p.blocks
+                    .iter()
+                    .filter(|b| b.block_type == crate::schema::BlockType::Table)
+                    .count()
+            })
+            .sum();
+        tracing::info!(
+            "BEFORE processors: {} total Table blocks",
+            table_count_before
+        );
+
         if let Some(page) = doc.pages.first() {
             for (i, block) in page.blocks.iter().take(20).enumerate() {
                 let text_preview: String = block.text.chars().take(60).collect();
-                tracing::info!("BEFORE processors - page1 block {}: '{}'", i, text_preview);
+                tracing::info!(
+                    "BEFORE processors - page1 block {} ({:?}): '{}'",
+                    i,
+                    block.block_type,
+                    text_preview
+                );
             }
         }
 
@@ -224,10 +245,27 @@ impl PdfExtractor {
         let mut doc = self.apply_processors(doc).await?;
 
         // Debug: show first few blocks of page 1 after all processing
+        let table_count_after: usize = doc
+            .pages
+            .iter()
+            .map(|p| {
+                p.blocks
+                    .iter()
+                    .filter(|b| b.block_type == crate::schema::BlockType::Table)
+                    .count()
+            })
+            .sum();
+        tracing::info!("AFTER processors: {} total Table blocks", table_count_after);
+
         if let Some(page) = doc.pages.first() {
             for (i, block) in page.blocks.iter().take(10).enumerate() {
                 let text_preview: String = block.text.chars().take(60).collect();
-                tracing::debug!("After processors - page1 block {}: '{}'", i, text_preview);
+                tracing::debug!(
+                    "After processors - page1 block {} ({:?}): '{}'",
+                    i,
+                    block.block_type,
+                    text_preview
+                );
             }
         }
 
@@ -321,7 +359,7 @@ impl PdfExtractor {
             .add(ListDetectionProcessor::new()) // MOVED EARLY: Detect lists BEFORE heading processors
             .add(SectionNumberMergeProcessor::new()) // Merge standalone section numbers with titles
             .add(StyleDetectionProcessor::new()) // Detect bold/italic styles and H1/H2+ levels
-            // .add(TableDetectionProcessor::new()) // DISABLED - causing malformed output
+            .add(TableDetectionProcessor::new()) // RE-ENABLED for OODA loop testing (2026-01-04)
             .add(HeaderDetectionProcessor::new())
             .add(SectionPatternProcessor::new()) // Pattern-based section detection
             .add(CaptionDetectionProcessor::new())

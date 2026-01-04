@@ -106,6 +106,14 @@ impl MarkdownRenderer {
 
     /// Render a block to Markdown.
     fn render_block(&self, block: &Block, output: &mut String) {
+        if block.block_type == BlockType::Table {
+            tracing::info!(
+                "render_block: Found Table block with text_len={}, text='{}'",
+                block.text.len(),
+                block.text
+            );
+        }
+
         if self.style.include_block_ids {
             output.push_str(&format!("<!-- {} -->\n", block.id));
         }
@@ -410,14 +418,25 @@ impl MarkdownRenderer {
 
     /// Render a table.
     fn render_table(&self, block: &Block, output: &mut String) {
+        tracing::debug!(
+            "render_table called: has_children={}, text_len={}",
+            !block.children.is_empty(),
+            block.text.len()
+        );
+
         // If we have children (table cells), render as proper table
         if !block.children.is_empty() {
             self.render_table_from_children(block, output);
         } else {
-            // Plain text table
-            let text = self.clean_text(&block.text);
-            output.push_str(&text);
-            output.push_str("\n\n");
+            // WHY: Lattice-generated tables have pre-formatted markdown syntax in block.text.
+            // We must NOT call clean_text() which would escape pipe characters!
+            // Simply render the markdown table syntax directly.
+            tracing::debug!("Rendering lattice table with {} chars", block.text.len());
+            output.push_str(&block.text);
+            if !block.text.ends_with('\n') {
+                output.push('\n');
+            }
+            output.push('\n');
         }
     }
 

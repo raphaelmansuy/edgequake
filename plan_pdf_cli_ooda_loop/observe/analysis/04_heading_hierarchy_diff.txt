@@ -1,0 +1,2 @@
+=== Comparing 04_heading_hierarchy ===
+diff: output/04_heading_hierarchy_converted.md: No such file or directory

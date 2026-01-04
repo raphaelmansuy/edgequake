@@ -1,0 +1,5 @@
+# 11_horizontal_rules
+
+## Document with Separators
+
+First section content. Second section after horizontal rule. Third section after asterisk rule. Fourth section after underscore rule.
