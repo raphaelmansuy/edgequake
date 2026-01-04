@@ -550,6 +550,85 @@ impl HyphenContinuationProcessor {
                 .map(|c| c.is_lowercase())
                 .unwrap_or(false)
     }
+
+    /// Process hyphenation within a single block's text (line-to-line).
+    ///
+    /// **WHY:** Academic papers have multi-line paragraph blocks with
+    /// embedded line breaks like "gener-\nating". This function joins
+    /// hyphenated words WITHIN a block's text before block-to-block
+    /// processing happens.
+    fn process_intra_block_hyphens(text: &str) -> String {
+        let mut current_text = text.to_string();
+        let mut changed = true;
+
+        // Iteratively process until no more changes (handles cascade effects)
+        while changed {
+            changed = false;
+            let lines: Vec<&str> = current_text.lines().collect();
+
+            if lines.len() <= 1 {
+                break;
+            }
+
+            let mut result = String::new();
+            let mut i = 0;
+
+            while i < lines.len() {
+                let line = lines[i];
+                let line_trimmed = line.trim_end();
+
+                // Check if this line ends with hyphen and there's a next line
+                if i + 1 < lines.len() && Self::ends_with_explicit_hyphen(line_trimmed) {
+                    let next_line = lines[i + 1];
+                    let next_trimmed = next_line.trim_start();
+
+                    if Self::is_valid_continuation(next_trimmed) {
+                        // Remove hyphen from current line
+                        let without_hyphen = &line_trimmed[..line_trimmed.len() - 1];
+
+                        // Get first word from next line
+                        let first_word = next_trimmed.split_whitespace().next().unwrap_or("");
+
+                        // Join: "gener" + "ating"
+                        result.push_str(without_hyphen);
+                        result.push_str(first_word);
+
+                        // Get rest of next line (after first word)
+                        let rest = next_trimmed
+                            .strip_prefix(first_word)
+                            .unwrap_or("")
+                            .trim_start();
+
+                        if !rest.is_empty() {
+                            result.push(' ');
+                            result.push_str(rest);
+                        }
+
+                        // Mark that we made a change
+                        changed = true;
+
+                        // Skip next line (we consumed it)
+                        i += 2;
+                        continue;
+                    }
+                }
+
+                // No hyphen continuation - add line as-is
+                result.push_str(line);
+
+                // Add line break if not last line
+                if i + 1 < lines.len() {
+                    result.push('\n');
+                }
+
+                i += 1;
+            }
+
+            current_text = result;
+        }
+
+        current_text
+    }
 }
 
 impl Default for HyphenContinuationProcessor {
@@ -560,6 +639,16 @@ impl Default for HyphenContinuationProcessor {
 
 impl Processor for HyphenContinuationProcessor {
     fn process(&self, mut document: Document) -> Result<Document> {
+        // PHASE 1: Process intra-block hyphenation (line-to-line within each block)
+        for page in &mut document.pages {
+            for block in &mut page.blocks {
+                if matches!(block.block_type, BlockType::Text | BlockType::Paragraph) {
+                    block.text = Self::process_intra_block_hyphens(&block.text);
+                }
+            }
+        }
+
+        // PHASE 2: Process inter-block hyphenation (block-to-block)
         for page in &mut document.pages {
             let mut i = 0;
             while i < page.blocks.len().saturating_sub(1) {
@@ -744,5 +833,50 @@ mod tests {
     fn test_hyphen_continuation_default() {
         let processor = HyphenContinuationProcessor::default();
         assert_eq!(processor.name(), "HyphenContinuationProcessor");
+    }
+
+    #[test]
+    fn test_intra_block_hyphen_continuation() {
+        // Test basic hyphenation within a block
+        let input = "This is a gener-\nating system";
+        let expected = "This is a generating system";
+        let result = HyphenContinuationProcessor::process_intra_block_hyphens(input);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_intra_block_hyphen_multiple() {
+        // Test multiple hyphenations in same block
+        let input = "gener-\nating and render-\ning models";
+        let expected = "generating and rendering models";
+        let result = HyphenContinuationProcessor::process_intra_block_hyphens(input);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_intra_block_hyphen_preserves_intentional() {
+        // Test that intentional hyphens (with capital letter after) are preserved
+        let input = "This is state-\nOf-the-art";
+        let expected = "This is state-\nOf-the-art"; // Capital O means not continuation
+        let result = HyphenContinuationProcessor::process_intra_block_hyphens(input);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_intra_block_hyphen_with_rest_of_line() {
+        // Test hyphen with continuation word plus more text
+        let input = "This is a gener-\nating system with features";
+        let expected = "This is a generating system with features";
+        let result = HyphenContinuationProcessor::process_intra_block_hyphens(input);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_intra_block_no_hyphen() {
+        // Test that regular line breaks are preserved
+        let input = "Line one\nLine two\nLine three";
+        let expected = "Line one\nLine two\nLine three";
+        let result = HyphenContinuationProcessor::process_intra_block_hyphens(input);
+        assert_eq!(result, expected);
     }
 }

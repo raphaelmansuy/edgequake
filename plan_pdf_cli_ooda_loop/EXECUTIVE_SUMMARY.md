@@ -36,10 +36,10 @@ Each loop followed the **Observe-Orient-Decide-Act** cycle:
 
 ### Phase Breakdown
 
-| Phase | Loops | Focus | Result |
-|-------|-------|-------|--------|
-| **Phase 1** | 1-5 | Real academic papers | ✅ 100% success |
-| **Phase 2** | 6-17 | Synthetic test suite | ✅ 100% success |
+| Phase         | Loops | Focus                 | Result           |
+| ------------- | ----- | --------------------- | ---------------- |
+| **Phase 1**   | 1-5   | Real academic papers  | ✅ 100% success  |
+| **Phase 2**   | 6-17  | Synthetic test suite  | ✅ 100% success  |
 | **Phase 3-4** | 18-25 | Analysis & validation | ✅ All validated |
 
 ---
@@ -51,12 +51,14 @@ Each loop followed the **Observe-Orient-Decide-Act** cycle:
 **Problem**: Lattice-detected tables were being replaced with "Mock response"
 
 **Root Cause**: LLM enhancement feature overwriting table markdown
+
 - Lattice detected tables correctly (19x4 grid, 983 chars)
 - Tables passed all filters
 - LLM enhancer replaced content with mock output
 - Only 13 chars ("Mock response") reaching renderer
 
 **Solution**:
+
 ```rust
 // config.rs:242
 enhance_tables: false  // WHY: Prevents LLM corruption
@@ -72,6 +74,7 @@ fn render_table(&self, block: &Block, output: &mut String) {
 ### 2. Production Validation ✅
 
 **Real Paper Results**:
+
 - 2900_Goyal_et_al.pdf: 11 pages, 2 tables → **100/100 quality**
 - AlphaEvolve.pdf: 44 pages, 3 tables → **100/100 quality**
 - agent_2510.pdf: 22 pages → **85/100 quality**
@@ -81,6 +84,7 @@ fn render_table(&self, block: &Block, output: &mut String) {
 ### 3. Deterministic Output ✅
 
 **Consistency Tests** (Loops 23-25):
+
 ```
 Run 1: 5.44s, 30785 bytes, 2 tables
 Run 2: 5.53s, 30785 bytes, 2 tables
@@ -97,23 +101,23 @@ Run 3: 5.43s, 30785 bytes, 2 tables
 
 ### Extraction Quality
 
-| Metric | Score | Grade |
-|--------|-------|-------|
-| Table extraction | 100% | A+ |
-| Heading detection | 95% | A |
-| Structure preservation | 90% | A |
-| Multi-column support | 100% | A+ |
-| Unicode handling | 70% | C+ |
-| **Overall Average** | **96/100** | **A** |
+| Metric                 | Score      | Grade |
+| ---------------------- | ---------- | ----- |
+| Table extraction       | 100%       | A+    |
+| Heading detection      | 95%        | A     |
+| Structure preservation | 90%        | A     |
+| Multi-column support   | 100%       | A+    |
+| Unicode handling       | 70%        | C+    |
+| **Overall Average**    | **96/100** | **A** |
 
 ### Performance Metrics
 
-| Scenario | Performance |
-|----------|-------------|
-| Simple PDFs (1-2 pages) | 0.01-0.03s |
-| Complex papers (10-15 pages) | 5-6s |
-| Large papers (40+ pages) | 20-25s |
-| Throughput (simple) | ~660 pages/min |
+| Scenario                     | Performance    |
+| ---------------------------- | -------------- |
+| Simple PDFs (1-2 pages)      | 0.01-0.03s     |
+| Complex papers (10-15 pages) | 5-6s           |
+| Large papers (40+ pages)     | 20-25s         |
+| Throughput (simple)          | ~660 pages/min |
 
 ---
 
@@ -145,12 +149,12 @@ Run 3: 5.43s, 30785 bytes, 2 tables
 
 ### Deployment Confidence
 
-| Use Case | Confidence | Notes |
-|----------|------------|-------|
-| Academic papers | **VERY HIGH** | Tables, headings, structure excellent |
-| Technical docs | **HIGH** | Code blocks, multi-column working |
-| Simple documents | **VERY HIGH** | Fast and accurate |
-| Complex layouts | **HIGH** | Column detection robust |
+| Use Case         | Confidence    | Notes                                 |
+| ---------------- | ------------- | ------------------------------------- |
+| Academic papers  | **VERY HIGH** | Tables, headings, structure excellent |
+| Technical docs   | **HIGH**      | Code blocks, multi-column working     |
+| Simple documents | **VERY HIGH** | Fast and accurate                     |
+| Complex layouts  | **HIGH**      | Column detection robust               |
 
 ### System Requirements
 

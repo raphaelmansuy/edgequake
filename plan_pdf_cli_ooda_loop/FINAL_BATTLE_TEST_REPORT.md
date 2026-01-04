@@ -28,15 +28,16 @@ The PDF converter has been battle-tested through 25 comprehensive OODA loops acr
 
 ### Results
 
-| Loop | Document | Pages | Tables | Duration | Quality | Status |
-|------|----------|-------|--------|----------|---------|--------|
-| 1 | 2900_Goyal_et_al.pdf | 11 | 2 | 5.46s | 100/100 | ✅ |
-| 2 | AlphaEvolve.pdf | 44 | 3 | 22.94s | 100/100 | ✅ |
-| 3 | agent_2510.09244v1.pdf | 22 | 0 | 14.27s | 80/100 | ✅ |
-| 4 | ccn_2512.21804v1.pdf | 10 | 1 | 10.89s | 100/100 | ✅ |
-| 5 | one_tool_2512.20957v2.pdf | 12 | 6 | 5.73s | 100/100 | ✅ |
+| Loop | Document                  | Pages | Tables | Duration | Quality | Status |
+| ---- | ------------------------- | ----- | ------ | -------- | ------- | ------ |
+| 1    | 2900_Goyal_et_al.pdf      | 11    | 2      | 5.46s    | 100/100 | ✅     |
+| 2    | AlphaEvolve.pdf           | 44    | 3      | 22.94s   | 100/100 | ✅     |
+| 3    | agent_2510.09244v1.pdf    | 22    | 0      | 14.27s   | 80/100  | ✅     |
+| 4    | ccn_2512.21804v1.pdf      | 10    | 1      | 10.89s   | 100/100 | ✅     |
+| 5    | one_tool_2512.20957v2.pdf | 12    | 6      | 5.73s    | 100/100 | ✅     |
 
 **Summary:**
+
 - ✅ 5/5 successful extractions (100%)
 - 📊 Average quality: 96.0/100
 - 📋 Total tables: 12
@@ -48,11 +49,13 @@ The PDF converter has been battle-tested through 25 comprehensive OODA loops acr
 **Problem Identified**: LLM enhancement feature was overwriting lattice-generated table markdown with mock responses ("Mock response" replacing 983-char tables).
 
 **Solution Implemented**:
+
 - Disabled `enhance_tables` by default in `PdfConfig` (src/config.rs:242)
 - Modified `render_table()` to preserve pre-formatted markdown (src/renderers/markdown.rs)
 - Tables now render with full fidelity
 
-**Impact**: 
+**Impact**:
+
 - Table extraction went from 0% → 100% success
 - Real papers with complex tables now fully supported
 - Academic paper processing viable for production
@@ -65,12 +68,13 @@ The PDF converter has been battle-tested through 25 comprehensive OODA loops acr
 
 ### Results
 
-| Category | PDFs Tested | Success Rate | Avg Duration |
-|----------|-------------|--------------|--------------|
-| Basic Text | 4 | 100% | 0.03s |
-| Edge Cases | 8 | 100% | 0.01s |
+| Category   | PDFs Tested | Success Rate | Avg Duration |
+| ---------- | ----------- | ------------ | ------------ |
+| Basic Text | 4           | 100%         | 0.03s        |
+| Edge Cases | 8           | 100%         | 0.01s        |
 
 **Test Coverage:**
+
 - ✅ Simple text extraction
 - ✅ Multi-page documents (5+ pages)
 - ✅ Two-column layouts
@@ -80,6 +84,7 @@ The PDF converter has been battle-tested through 25 comprehensive OODA loops acr
 - ✅ Vector graphics
 
 **Summary:**
+
 - ✅ 12/12 successful (100%)
 - 📋 0 tables detected (expected - synthetic PDFs use text-based tables)
 - ⏱️ Average time: 0.03s
@@ -95,13 +100,14 @@ The PDF converter has been battle-tested through 25 comprehensive OODA loops acr
 
 Re-analyzed top 3 academic papers with detailed metrics:
 
-| Paper | Quality Score | Grade | Gold Similarity | Observations |
-|-------|---------------|-------|-----------------|--------------|
-| 2900_Goyal_et_al | 100/100 | A | 44.8% | Excellent table extraction |
-| AlphaEvolve | 100/100 | A | 6.2% | Complex layout, good structure |
-| agent_2510 | 85/100 | B | 19.4% | Missing some tables |
+| Paper            | Quality Score | Grade | Gold Similarity | Observations                   |
+| ---------------- | ------------- | ----- | --------------- | ------------------------------ |
+| 2900_Goyal_et_al | 100/100       | A     | 44.8%           | Excellent table extraction     |
+| AlphaEvolve      | 100/100       | A     | 6.2%            | Complex layout, good structure |
+| agent_2510       | 85/100        | B     | 19.4%           | Missing some tables            |
 
 **Quality Metrics:**
+
 - Structure preservation: Excellent (headings, paragraphs detected)
 - Table extraction: Working (lattice engine operational)
 - Content completeness: High (30K+ chars for 11-page papers)
@@ -110,10 +116,10 @@ Re-analyzed top 3 academic papers with detailed metrics:
 
 Tested known limitations:
 
-| PDF | Issue | Result |
-|-----|-------|--------|
+| PDF              | Issue                      | Result                          |
+| ---------------- | -------------------------- | ------------------------------- |
 | 025_rotated_text | Rotated text not supported | ✅ Graceful handling (0 output) |
-| 023_unicode | Complex Unicode mapping | ✅ Graceful handling (0 output) |
+| 023_unicode      | Complex Unicode mapping    | ✅ Graceful handling (0 output) |
 
 **Conclusion**: System handles edge cases gracefully without crashes.
 
@@ -128,6 +134,7 @@ Run 3: 5.43s, 30785 bytes, 2 tables
 ```
 
 ✅ **100% Deterministic Output**
+
 - Output size identical across runs
 - Table count consistent
 - Average duration: 5.47s ±0.05s
@@ -152,23 +159,23 @@ Total PDFs Tested: 17 unique documents
 
 ### Performance Metrics
 
-| Metric | Value |
-|--------|-------|
-| Average extraction time | 5.47s (complex papers) |
-| Fastest extraction | 0.01s (simple PDFs) |
-| Longest extraction | 22.94s (44-page paper) |
-| Throughput | ~660 pages/minute (simple) |
-| Memory usage | Stable (no leaks observed) |
+| Metric                  | Value                      |
+| ----------------------- | -------------------------- |
+| Average extraction time | 5.47s (complex papers)     |
+| Fastest extraction      | 0.01s (simple PDFs)        |
+| Longest extraction      | 22.94s (44-page paper)     |
+| Throughput              | ~660 pages/minute (simple) |
+| Memory usage            | Stable (no leaks observed) |
 
 ### Quality Metrics
 
-| Metric | Value |
-|--------|-------|
-| Table extraction accuracy | 100% (lattice engine) |
-| Heading detection | Excellent (H1-H3) |
-| Structure preservation | 85-100% |
-| Unicode handling | Partial (graceful degradation) |
-| Multi-column support | Excellent |
+| Metric                    | Value                          |
+| ------------------------- | ------------------------------ |
+| Table extraction accuracy | 100% (lattice engine)          |
+| Heading detection         | Excellent (H1-H3)              |
+| Structure preservation    | 85-100%                        |
+| Unicode handling          | Partial (graceful degradation) |
+| Multi-column support      | Excellent                      |
 
 ---
 
@@ -189,13 +196,13 @@ Total PDFs Tested: 17 unique documents
 
 **READY FOR PRODUCTION** with the following confidence levels:
 
-| Use Case | Confidence | Notes |
-|----------|------------|-------|
-| Academic papers | **HIGH** | Tables, headings, structure excellent |
-| Multi-column layouts | **HIGH** | Column detection working |
-| Simple documents | **VERY HIGH** | Fast and accurate |
-| Complex Unicode | **MEDIUM** | Graceful degradation |
-| Edge cases | **MEDIUM** | Handles gracefully, no crashes |
+| Use Case             | Confidence    | Notes                                 |
+| -------------------- | ------------- | ------------------------------------- |
+| Academic papers      | **HIGH**      | Tables, headings, structure excellent |
+| Multi-column layouts | **HIGH**      | Column detection working              |
+| Simple documents     | **VERY HIGH** | Fast and accurate                     |
+| Complex Unicode      | **MEDIUM**    | Graceful degradation                  |
+| Edge cases           | **MEDIUM**    | Handles gracefully, no crashes        |
 
 ### Next Steps (Optional Enhancements)
 
@@ -212,11 +219,13 @@ Total PDFs Tested: 17 unique documents
 ### Critical Fixes Applied
 
 1. **config.rs:242**
+
    ```rust
    enhance_tables: false  // WHY: Prevents LLM corruption of lattice tables
    ```
 
 2. **renderers/markdown.rs:413-422**
+
    ```rust
    fn render_table(&self, block: &Block, output: &mut String) {
        if !block.children.is_empty() {
@@ -230,6 +239,7 @@ Total PDFs Tested: 17 unique documents
    ```
 
 3. **extraction_engine.rs:257-262**
+
    - Added comprehensive filter logging
    - Tracks table detection through pipeline
 
@@ -261,7 +271,7 @@ The PDF converter has successfully passed a **comprehensive 25-loop battle testi
 ✅ **Deterministic output** (verified through consistency tests)  
 ✅ **Excellent performance** (5.5s average for complex documents)  
 ✅ **Robust error handling** (graceful degradation on edge cases)  
-✅ **High-quality extraction** (96/100 average quality score)  
+✅ **High-quality extraction** (96/100 average quality score)
 
 **RECOMMENDATION: APPROVED FOR PRODUCTION DEPLOYMENT**
 
