@@ -557,77 +557,52 @@ impl HyphenContinuationProcessor {
     /// embedded line breaks like "gener-\nating". This function joins
     /// hyphenated words WITHIN a block's text before block-to-block
     /// processing happens.
+    ///
+    /// Algorithm:
+    /// 1. Collapse all line breaks to spaces (making one continuous line)
+    /// 2. Fix hyphenation patterns like "gener- ating" → "generating"
     fn process_intra_block_hyphens(text: &str) -> String {
-        let mut current_text = text.to_string();
+        // Step 1: Collapse newlines to spaces, normalizing whitespace
+        let collapsed = text
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<&str>>()
+            .join(" ");
+
+        // Step 2: Fix hyphenation patterns "word- continuation" → "wordcontinuation"
+        let mut result = collapsed;
         let mut changed = true;
 
-        // Iteratively process until no more changes (handles cascade effects)
         while changed {
             changed = false;
-            let lines: Vec<&str> = current_text.lines().collect();
+            // Find pattern: word ending with hyphen followed by space and lowercase word
+            if let Some(pos) = result.find("- ") {
+                // Check if next word starts with lowercase
+                let after_hyphen = &result[pos + 2..];
+                if let Some(first_char) = after_hyphen.chars().next() {
+                    if first_char.is_lowercase() {
+                        // Find end of continuation word
+                        let cont_end = after_hyphen
+                            .find(|c: char| c.is_whitespace())
+                            .unwrap_or(after_hyphen.len());
+                        let continuation = &after_hyphen[..cont_end];
 
-            if lines.len() <= 1 {
-                break;
-            }
-
-            let mut result = String::new();
-            let mut i = 0;
-
-            while i < lines.len() {
-                let line = lines[i];
-                let line_trimmed = line.trim_end();
-
-                // Check if this line ends with hyphen and there's a next line
-                if i + 1 < lines.len() && Self::ends_with_explicit_hyphen(line_trimmed) {
-                    let next_line = lines[i + 1];
-                    let next_trimmed = next_line.trim_start();
-
-                    if Self::is_valid_continuation(next_trimmed) {
-                        // Remove hyphen from current line
-                        let without_hyphen = &line_trimmed[..line_trimmed.len() - 1];
-
-                        // Get first word from next line
-                        let first_word = next_trimmed.split_whitespace().next().unwrap_or("");
-
-                        // Join: "gener" + "ating"
-                        result.push_str(without_hyphen);
-                        result.push_str(first_word);
-
-                        // Get rest of next line (after first word)
-                        let rest = next_trimmed
-                            .strip_prefix(first_word)
-                            .unwrap_or("")
-                            .trim_start();
-
-                        if !rest.is_empty() {
-                            result.push(' ');
-                            result.push_str(rest);
-                        }
-
-                        // Mark that we made a change
+                        // Replace "word- continuation" with "wordcontinuation"
+                        let new_result = format!(
+                            "{}{}{}",
+                            &result[..pos],
+                            continuation,
+                            &after_hyphen[cont_end..]
+                        );
+                        result = new_result;
                         changed = true;
-
-                        // Skip next line (we consumed it)
-                        i += 2;
-                        continue;
                     }
                 }
-
-                // No hyphen continuation - add line as-is
-                result.push_str(line);
-
-                // Add line break if not last line
-                if i + 1 < lines.len() {
-                    result.push('\n');
-                }
-
-                i += 1;
             }
-
-            current_text = result;
         }
 
-        current_text
+        result
     }
 }
 
@@ -856,8 +831,10 @@ mod tests {
     #[test]
     fn test_intra_block_hyphen_preserves_intentional() {
         // Test that intentional hyphens (with capital letter after) are preserved
+        // The hyphen is kept because "Of" starts with capital (not a word continuation)
+        // Newline is collapsed to space since this is paragraph processing
         let input = "This is state-\nOf-the-art";
-        let expected = "This is state-\nOf-the-art"; // Capital O means not continuation
+        let expected = "This is state- Of-the-art"; // Capital O means not continuation
         let result = HyphenContinuationProcessor::process_intra_block_hyphens(input);
         assert_eq!(result, expected);
     }
@@ -873,9 +850,10 @@ mod tests {
 
     #[test]
     fn test_intra_block_no_hyphen() {
-        // Test that regular line breaks are preserved
+        // For paragraph blocks, line breaks are collapsed to spaces
+        // (they represent soft wrapping for column width)
         let input = "Line one\nLine two\nLine three";
-        let expected = "Line one\nLine two\nLine three";
+        let expected = "Line one Line two Line three";
         let result = HyphenContinuationProcessor::process_intra_block_hyphens(input);
         assert_eq!(result, expected);
     }

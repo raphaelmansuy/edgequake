@@ -1,4 +1,5 @@
 # OODA Loop 49: Root Cause Identified - Hyphenation Artifacts
+
 ## SpaceTimePilot Paper (01_2512.25075v1.pdf)
 
 **Date**: 2026-01-04  
@@ -12,6 +13,7 @@
 ### Side-by-Side Comparison: Abstract
 
 **Gold (markitdown)**:
+
 ```
 We present SpaceTimePilot, a video diffusion model that
 disentangles space and time for controllable generative ren-
@@ -27,6 +29,7 @@ sequence with respect to that of the source video.
 ```
 
 **Current (edgequake-pdf)**:
+
 ```
 We present Space Time Pilot, a video diffusion model that
 
@@ -40,6 +43,7 @@ and time. To achieve this, we introduce an effective an- sequence with respect t
 ### Critical Observation ⚠️🔥
 
 Notice the pattern:
+
 1. **Line ends with "ren-"** → Next line should start with "dering" → But it's GONE!
 2. **Line ends with "an-"** → Next line should start with "imation" → But it's GONE!
 
@@ -55,20 +59,23 @@ The text **ISN'T MISSING from the PDF** - it's being **INCORRECTLY JOINED** duri
 **Component**: `HyphenContinuationProcessor`
 
 **Current Behavior** (WRONG):
+
 ```
 "ren-" + "\ndering" → "ren-dering" (keeps hyphen) OR "ren" (drops continuation)
 "an-" + "\nimation" → "an-imation" (keeps hyphen) OR "an" (drops continuation)
 ```
 
 **Expected Behavior** (CORRECT):
+
 ```
 "ren-" + "\ndering" → "rendering"
-"an-" + "\nimation" → "animation"  
+"an-" + "\nimation" → "animation"
 ```
 
 ### Why This Causes 76% Abstract Loss ❌❌
 
 **Cascade Effect**:
+
 1. First sentence ends with "ren-"
 2. Hyphen continuation fails → sentence breaks
 3. Rest of paragraph orphaned
@@ -76,6 +83,7 @@ The text **ISN'T MISSING from the PDF** - it's being **INCORRECTLY JOINED** duri
 5. **Result**: Only first ~200 characters of abstract survive
 
 **Evidence from Page 1 Block Count**:
+
 - Page 1: Only **28 blocks** detected (extremely low!)
 - Page 2: **96 blocks** (normal)
 - Page 3: **95 blocks** (normal)
@@ -87,16 +95,20 @@ Page 1's low block count suggests text is being fragmented/discarded during proc
 ## 🎯 DECIDE: Fix Strategy
 
 ### Option 1: Fix HyphenContinuation Logic ✅ PREFERRED
+
 **Pros**:
+
 - Addresses root cause directly
 - Will fix abstract, introduction, and all other affected text
 - Standard PDF feature that MUST work correctly
 
 **Cons**:
+
 - Need to ensure fix doesn't break existing tests
 - Edge cases (em-dash vs hyphen vs soft hyphen)
 
 **Implementation**:
+
 ```rust
 // Current (buggy):
 if line.ends_with('-') {
@@ -112,11 +124,14 @@ if line.ends_with('-') && !next_line.is_empty() {
 ```
 
 ### Option 2: Improve Block Merging ⚠️ SECONDARY
+
 **Pros**:
+
 - Could recover orphaned text blocks
 - Complementary to Option 1
 
 **Cons**:
+
 - Doesn't fix root cause
 - Treating symptoms, not disease
 
@@ -125,17 +140,20 @@ if line.ends_with('-') && !next_line.is_empty() {
 ## ⚡ ACT: Implementation Plan for Loop 50
 
 ### Step 1: Locate HyphenContinuationProcessor
+
 ```bash
 cd edgequake/crates/edgequake-pdf/src/processors
 grep -A 20 "HyphenContinuation" text_cleanup.rs
 ```
 
 ### Step 2: Examine Current Implementation
+
 - Check how hyphens are detected
 - Verify how line joining works
 - Identify why continuation text is lost
 
 ### Step 3: Write Test Case
+
 ```rust
 #[test]
 fn test_hyphen_continuation_mid_word() {
@@ -146,11 +164,13 @@ fn test_hyphen_continuation_mid_word() {
 ```
 
 ### Step 4: Fix Implementation
+
 - Ensure hyphen is removed
 - Ensure next line is joined (not lost!)
 - Handle edge cases (em-dash, en-dash, soft hyphen)
 
 ### Step 5: Validate
+
 - Run full test suite (must pass all 133 tests)
 - Re-extract SpaceTimePilot paper
 - Verify abstract retention improves from 23% to >80%
@@ -160,23 +180,29 @@ fn test_hyphen_continuation_mid_word() {
 ## 📊 RESULT: Loop 49 Insights
 
 ### Key Discovery 🔥
+
 **Root cause identified**: Hyphenation continuation processing is either:
+
 1. **Removing hyphens but not joining lines** (most likely), OR
 2. **Treating hyphenated continuations as separate blocks**
 
 ### Impact Assessment
+
 - **Abstract**: 23.4% retention → Expect 80%+ after fix
 - **Introduction**: 29.3% retention → Expect 70%+ after fix
 - **Method**: 66.9% retention → Expect 85%+ after fix
 - **Results**: 55.5% retention → Expect 75%+ after fix
 
 ### Confidence Level
+
 - **Hyphenation bug hypothesis**: 95% confidence ✅✅✅
 - **Fix will improve extraction**: 90% confidence ✅
 - **Won't break existing tests**: 85% confidence ⚠️ (need to verify)
 
 ### Expected Outcome
+
 If fix is successful:
+
 - Overall retention: 71.1% → **85-90%**
 - Abstract retention: 23.4% → **80%+**
 - Introduction retention: 29.3% → **70%+**
@@ -184,6 +210,7 @@ If fix is successful:
 ---
 
 ## 🎯 Commit Message
+
 ```
 docs(pdf): OODA Loop 49 - Root cause identified: Hyphenation bug
 

@@ -1,4 +1,5 @@
 # OODA Loop 47: First Principles Root Cause Analysis
+
 ## SpaceTimePilot Paper (01_2512.25075v1.pdf)
 
 **Date**: 2026-01-04  
@@ -10,6 +11,7 @@
 ## 🔍 OBSERVE: Gap Analysis Results
 
 ### Quantitative Metrics
+
 - **Gold standard**: 1,564 lines (markitdown output)
 - **Current extraction**: 805 lines (edgequake-pdf output)
 - **Gap**: 759 lines (48.5%)
@@ -18,6 +20,7 @@
 ### Structural Differences
 
 #### Formatting Patterns
+
 ```
 Gold (markitdown):
 - 58 single-character lines (3.7%) - OCR artifacts
@@ -35,6 +38,7 @@ Current (edgequake-pdf):
 #### First 50 Lines Comparison
 
 **Gold (verbose, character-by-character)**:
+
 ```
 1: '5\n'
 2: '2\n'
@@ -46,6 +50,7 @@ Current (edgequake-pdf):
 ```
 
 **Current (compact, structured)**:
+
 ```
 1: '# Space Time Pilot: Generative Rendering...\n'
 3: '## Space and Time\n'
@@ -59,26 +64,31 @@ Current (edgequake-pdf):
 ## 🧭 ORIENT: Root Cause Hypothesis (First Principles)
 
 ### Hypothesis 1: Markitdown Verbosity Artifact ✅ PRIMARY
+
 **Observation**: Gold has character-by-character OCR output from PDF metadata/arXiv header
 **Evidence**: Lines 1-39 are literally "5", "2", "0", "2", "c", "e", "D"... spelling out "5202ceD13...]VC.sc[1v5705.2152:viXra"
 **Conclusion**: ~40 lines of gold are pure OCR noise, not actual content
 **Impact**: Accounts for ~5% of gap, but more importantly shows gold is verbose/noisy baseline
 
 ### Hypothesis 2: Line Wrapping Philosophy ✅ CONFIRMED
+
 **Observation**: Gold avg 50.7 chars/line vs Current 123.6 chars/line (2.4x difference)
 **Evidence**: Current uses natural markdown flow, gold wraps aggressively
 **Conclusion**: Same content, different formatting → accounts for ~30-40% of line count gap
 **Impact**: This is GOOD - our extractor produces cleaner markdown
 
 ### Hypothesis 3: Missing Content ⚠️ NEEDS INVESTIGATION
+
 **Observation**: 76.1% character retention means 23.9% (15,635 chars) are missing
-**Evidence**: 
+**Evidence**:
+
 - Gold middle section (lines 400-450): Shows equations, detailed method descriptions
 - Current middle section: Shows references section prematurely
-**Conclusion**: Some substantive content IS missing (not just formatting)
-**Impact**: This is the REAL problem - need to identify what's lost
+  **Conclusion**: Some substantive content IS missing (not just formatting)
+  **Impact**: This is the REAL problem - need to identify what's lost
 
 ### Hypothesis 4: Section Ordering/Structure 🔍 SUSPICIOUS
+
 **Observation**: Current output jumps from methods to references abruptly
 **Evidence**: Line 400 in gold is mid-methods, current is in references
 **Conclusion**: Either methods section is incomplete OR references started too early
@@ -89,23 +99,28 @@ Current (edgequake-pdf):
 ## 🎯 DECIDE: What to Fix (Priority Order)
 
 ### ❌ DON'T FIX (Red Herrings)
+
 1. **Line count mismatch**: Gold's verbose formatting is inferior
 2. **Single-character lines**: Gold's OCR artifacts
 3. **Header format**: Current's markdown headers are superior
 4. **Average line length**: Current's natural wrapping is better
 
 ### ✅ DO INVESTIGATE (Real Issues)
+
 1. **Missing 15,635 characters** (Priority 1)
+
    - Compare section-by-section to find gaps
    - Check if equations/formulas are missing
    - Verify all method subsections present
 
 2. **Section ordering** (Priority 2)
+
    - Verify methods section is complete
    - Check if references are extracted properly
    - Ensure no page ordering issues
 
 3. **Figure captions** (Priority 3)
+
    - Count figures in gold vs current
    - Check caption completeness
 
@@ -118,7 +133,9 @@ Current (edgequake-pdf):
 ## ⚡ ACT: Next Steps for Loop 48
 
 ### Step 1: Section-by-Section Comparison Script
+
 Create detailed diff showing:
+
 - Introduction presence/completeness
 - Abstract (already confirmed present)
 - Related Work section
@@ -128,17 +145,22 @@ Create detailed diff showing:
 - References/Bibliography
 
 ### Step 2: Equation/Formula Detection
+
 Check if mathematical formulas are:
+
 - Extracted as LaTeX
 - Converted to Unicode
 - Or missing entirely
 
 ### Step 3: Figure Caption Analysis
+
 Count and compare:
+
 - Figure 1, 2, 3, 4 captions
 - Length and completeness of each
 
 ### Step 4: Deep Dive into Methods Section
+
 Compare lines 200-600 in gold vs current to see where divergence starts
 
 ---
@@ -146,17 +168,20 @@ Compare lines 200-600 in gold vs current to see where divergence starts
 ## 📊 RESULT: Loop 47 Insights
 
 ### Key Findings
+
 1. **48.5% line gap is MOSTLY formatting artifact** (gold is verbose)
 2. **23.9% character gap is REAL missing content** (need to find it)
 3. **Current extractor produces better markdown** (headers, structure)
 4. **Focus next 9 loops on missing 15,635 characters**, not line count
 
 ### Confidence Assessment
+
 - **Formatting hypothesis**: 95% confidence ✅
 - **Missing content hypothesis**: 85% confidence ⚠️
 - **Section ordering hypothesis**: 60% confidence 🔍
 
 ### Success Criteria for Loops 48-56
+
 - Reduce character gap from 23.9% to <10%
 - Maintain or improve markdown structure quality
 - Don't regress any of 133 passing tests
@@ -165,6 +190,7 @@ Compare lines 200-600 in gold vs current to see where divergence starts
 ---
 
 ## 🎯 Commit Message
+
 ```
 docs(pdf): OODA Loop 47 - First principles root cause analysis
 
