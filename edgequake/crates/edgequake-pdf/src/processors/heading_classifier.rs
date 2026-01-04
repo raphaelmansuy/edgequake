@@ -125,26 +125,28 @@ impl HeadingClassifier {
 
     /// Calculate heading level from size ratio.
     ///
-    /// **Mapping:**
-    /// - >= 1.8x body size → H2 (very large, main sections)
-    /// - >= 1.5x → H3 (large, subsections)
-    /// - >= 1.3x → H4 (moderate, sub-subsections)
-    /// - < 1.3x → H5 (slightly large, minor sections)
+    /// **Mapping (aligned with StyleDetectionProcessor):**
+    /// - >= 1.5x body size → H1 (very large, document title)
+    /// - >= 1.3x → H2 (large, main sections)
+    /// - >= 1.2x → H3 (moderate, subsections)
+    /// - < 1.2x → H4 (slightly large, minor sections)
     ///
-    /// **Why start at H2?**
-    /// - H1 reserved for document title
-    /// - Follows academic paper convention
+    /// **WHY these thresholds?**
+    /// - Aligned with StyleDetectionProcessor ratios
+    /// - H1: ratio > 1.5 (main title)
+    /// - H2: ratio > 1.2 (numbered sections)
+    /// - H3: ratio > 1.1 (subsections)
     fn calculate_level(&self, max_size: f32, body_size: f32) -> u8 {
         let ratio = max_size / body_size;
 
-        if ratio >= 1.8 {
-            2
-        } else if ratio >= 1.5 {
-            3
+        if ratio >= 1.5 {
+            1
         } else if ratio >= 1.3 {
-            4
+            2
+        } else if ratio >= 1.2 {
+            3
         } else {
-            5
+            4
         }
     }
 }
@@ -174,17 +176,17 @@ mod tests {
     fn test_level_calculation() {
         let classifier = HeadingClassifier::new();
 
-        // Very large = H2
-        assert_eq!(classifier.calculate_level(21.6, 12.0), 2);
+        // Very large (>= 1.5x) = H1
+        assert_eq!(classifier.calculate_level(18.0, 12.0), 1); // 1.5x
 
-        // Large = H3
-        assert_eq!(classifier.calculate_level(18.0, 12.0), 3);
+        // Large (>= 1.3x) = H2
+        assert_eq!(classifier.calculate_level(15.6, 12.0), 2); // 1.3x
 
-        // Moderate = H4
-        assert_eq!(classifier.calculate_level(15.6, 12.0), 4);
+        // Moderate (>= 1.2x) = H3
+        assert_eq!(classifier.calculate_level(14.5, 12.0), 3); // 1.208x - safely above 1.2
 
-        // Small = H5
-        assert_eq!(classifier.calculate_level(14.0, 12.0), 5);
+        // Slightly large (< 1.2x) = H4
+        assert_eq!(classifier.calculate_level(14.0, 12.0), 4); // 1.17x
     }
 
     #[test]

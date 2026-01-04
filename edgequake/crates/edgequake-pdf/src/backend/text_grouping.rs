@@ -7,8 +7,8 @@
 //! - Line merging with proper spacing
 //! - Vertical gap detection for separating content regions
 
-use crate::schema::{FontStyle, TextSpan};
 use super::elements::TextElement;
+use crate::schema::{FontStyle, TextSpan};
 use tracing::debug;
 
 /// Merged line with text, font size, and style spans
@@ -392,9 +392,7 @@ impl TextGrouper {
 
 /// Calculate adaptive region thresholds based on content distribution.
 /// Returns tuple of (footer_threshold, header_threshold, title_threshold, affiliation_threshold, large_font_threshold).
-fn calculate_adaptive_region_thresholds(
-    elements: &[TextElement],
-) -> (f32, f32, f32, f32, f32) {
+fn calculate_adaptive_region_thresholds(elements: &[TextElement]) -> (f32, f32, f32, f32, f32) {
     if elements.is_empty() {
         // Fallback to reasonable defaults for empty documents
         return (60.0, 730.0, 650.0, 80.0, 11.0);
@@ -592,4 +590,3 @@ mod tests {
         assert!(result.len() <= 2);
     }
 }
-

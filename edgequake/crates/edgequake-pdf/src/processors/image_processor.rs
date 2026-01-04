@@ -164,7 +164,10 @@ impl ImageExtractionProcessor {
 
         // Store bounding box if available
         if let Some((x1, y1, x2, y2)) = image_data.bbox {
-            metadata.insert("image_bbox".to_string(), serde_json::json!([x1, y1, x2, y2]));
+            metadata.insert(
+                "image_bbox".to_string(),
+                serde_json::json!([x1, y1, x2, y2]),
+            );
         }
 
         // Calculate bounding box

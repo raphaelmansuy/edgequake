@@ -69,9 +69,18 @@ impl DocumentStats {
         Self::percentile(&sizes, 0.5)
     }
 
-    /// Calculate median vertical gap between consecutive blocks.
+    /// Calculate typical intra-paragraph line spacing (gap between wrapped lines).
     ///
-    /// Filters outliers (gaps > 3x body size) which are likely paragraph breaks.
+    /// **WHY 1.5x body_font_size filter?** In typical typesetting:
+    /// - Intra-paragraph gaps: ~1.2-1.4x font size (single line spacing)
+    /// - Inter-paragraph gaps: ~2.0-3.0x font size (paragraph break)
+    /// Using 1.5x excludes paragraph breaks, focusing only on wrapped line gaps.
+    ///
+    /// **WHY 30th percentile?** Intra-paragraph gaps cluster at the low end.
+    /// The 30th percentile captures the typical line gap while ignoring outliers.
+    ///
+    /// **WHY cap at 1.5x body_font_size?** Even if document has mostly paragraph
+    /// breaks, we want a reasonable intra-line threshold for merge decisions.
     fn calculate_line_spacing(doc: &Document, body_font_size: f32) -> f32 {
         let mut gaps: Vec<f32> = Vec::new();
 
@@ -79,26 +88,33 @@ impl DocumentStats {
             let blocks: Vec<&Block> = page.blocks.iter().collect();
             for window in blocks.windows(2) {
                 let gap = (window[0].bbox.y1 - window[1].bbox.y2).abs();
-                // Filter outliers: gaps > 3x body size are paragraph/section breaks
-                if gap > 0.0 && gap < body_font_size * 3.0 {
+                // Filter: only intra-paragraph gaps (< 1.5x body size)
+                // WHY: Inter-paragraph gaps are ~2-3x body size, we want line gaps only
+                if gap > 0.0 && gap < body_font_size * 1.5 {
                     gaps.push(gap);
                 }
             }
         }
 
         if gaps.is_empty() {
-            // Default leading factor 1.4 (typical for academic papers)
-            return body_font_size * 1.4;
+            // Default leading factor 1.2 (tight single spacing)
+            return body_font_size * 1.2;
         }
 
         gaps.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        Self::percentile(&gaps, 0.5)
+        // WHY 30th percentile: We want the low-end typical gap, not median
+        let calculated = Self::percentile(&gaps, 0.3);
+        // Cap at 1.5x body font size to ensure paragraph breaks aren't merged
+        calculated.min(body_font_size * 1.5)
     }
 
     /// Calculate X-coordinate alignment tolerance using nearest-neighbor analysis.
     ///
     /// Uses 10th percentile of nearest-neighbor distances to find natural alignment clusters.
     /// Similar to DBSCAN epsilon calculation.
+    ///
+    /// **WHY minimum 2.0?** PDF rendering can have sub-point variations (kerning, font metrics).
+    /// A tolerance below 2pt risks splitting blocks that visually align.
     fn calculate_alignment_tolerance(doc: &Document) -> f32 {
         let mut x_coords: Vec<f32> = doc
             .pages
@@ -129,7 +145,9 @@ impl DocumentStats {
 
         nearest_dists.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         // 10th percentile: tight enough for alignment, loose enough for minor variations
-        Self::percentile(&nearest_dists, 0.1)
+        let calculated = Self::percentile(&nearest_dists, 0.1);
+        // Ensure minimum tolerance of 2.0 points to account for PDF rendering variations
+        calculated.max(2.0)
     }
 
     /// Find most common page size in document.
@@ -168,7 +186,8 @@ mod tests {
         let stats = DocumentStats::from_document(&doc);
         // Should return sensible defaults
         assert_eq!(stats.body_font_size, 10.0);
-        assert_eq!(stats.typical_line_spacing, 14.0); // 10.0 * 1.4
+        // WHY 12.0: Changed from 1.4x to 1.2x for tighter line spacing detection
+        assert_eq!(stats.typical_line_spacing, 12.0); // 10.0 * 1.2
         assert_eq!(stats.column_alignment_tolerance, 20.0);
         assert_eq!(stats.page_width, 612.0); // Letter
         assert_eq!(stats.page_height, 792.0);

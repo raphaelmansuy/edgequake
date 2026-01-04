@@ -217,6 +217,12 @@ impl Processor for SectionPatternProcessor {
         // Third pass: process blocks
         for page in &mut document.pages {
             for block in &mut page.blocks {
+                // Skip blocks already classified as list items
+                // WHY: List items like "1. Item" should not become headers
+                if block.block_type == BlockType::ListItem {
+                    continue;
+                }
+
                 if block.block_type != BlockType::Text && block.block_type != BlockType::Paragraph {
                     continue;
                 }
@@ -336,6 +342,15 @@ impl StyleDetectionProcessor {
     }
 
     fn detect_headers(&self, block: &mut Block) {
+        self.detect_headers_with_context(block, false);
+    }
+
+    /// Detect headers with page/block context.
+    ///
+    /// **WHY context matters:**
+    /// First block on first page is typically the document title,
+    /// so we lower the font ratio threshold for H1 detection.
+    fn detect_headers_with_context(&self, block: &mut Block, is_first_block_on_first_page: bool) {
         if block.block_type != BlockType::Text {
             return;
         }
@@ -364,8 +379,45 @@ impl StyleDetectionProcessor {
             return;
         }
 
-        let looks_like_section = text.starts_with(|c: char| c.is_ascii_digit())
-            || text.chars().all(|c| c.is_uppercase() || c.is_whitespace() || c.is_ascii_digit());
+        // Detect list items (should not be headers)
+        // Pattern: starts with "N." or "N)" where N is 1-3 digits
+        let is_list_item = {
+            let trimmed = text.trim();
+            if let Some(first_word) = trimmed.split_whitespace().next() {
+                // Matches: "1.", "2.", "10.", "1)", "2)"
+                (first_word.ends_with('.') || first_word.ends_with(')'))
+                    && first_word.len() >= 2
+                    && first_word[..first_word.len() - 1]
+                        .chars()
+                        .all(|c| c.is_ascii_digit())
+            } else {
+                false
+            }
+        };
+
+        if is_list_item {
+            return; // Don't classify list items as headers
+        }
+
+        // Section pattern: starts with digit OR is all caps
+        let looks_like_numbered_section = text.starts_with(|c: char| c.is_ascii_digit());
+        let looks_like_caps_section = text
+            .chars()
+            .all(|c| c.is_uppercase() || c.is_whitespace() || c.is_ascii_digit());
+
+        // Title case: first char uppercase, contains lowercase (mixed case)
+        let has_uppercase_start = text
+            .chars()
+            .next()
+            .map(|c| c.is_uppercase())
+            .unwrap_or(false);
+        let has_lowercase = text.chars().any(|c| c.is_lowercase());
+        let looks_like_title_case = has_uppercase_start && has_lowercase;
+
+        // Expanded section detection
+        let looks_like_section = looks_like_numbered_section
+            || looks_like_caps_section
+            || (looks_like_title_case && is_short);
 
         let is_abstract_or_keywords = text_lower == "abstract"
             || text_lower.starts_with("abstract.")
@@ -376,6 +428,13 @@ impl StyleDetectionProcessor {
             block.block_type = BlockType::SectionHeader;
             block.level = Some(3);
         } else if ratio > 1.5 && is_short {
+            // Large font ratio (>=1.5x) is always H1
+            block.block_type = BlockType::SectionHeader;
+            block.level = Some(1);
+        } else if is_first_block_on_first_page && ratio > 1.2 && is_short && looks_like_title_case {
+            // WHY: First block on first page with title-case text and larger font
+            // is almost always the document title, even if ratio < 1.5
+            // Pandoc typically uses ~1.3x for H1 titles
             block.block_type = BlockType::SectionHeader;
             block.level = Some(1);
         } else if ratio > 1.2 && is_short && looks_like_section {
@@ -398,6 +457,9 @@ impl StyleDetectionProcessor {
                 .map(|c| c.is_uppercase())
                 .unwrap_or(false);
 
+            // WHY: Bold text with body-sized font is typically H3 or H4
+            // In LaTeX/pandoc, H3 is often rendered with same font size as body but bold
+            // H2 is typically rendered with slightly larger font (ratio > 1.1)
             if is_bold
                 && is_short
                 && is_first_char_upper
@@ -406,7 +468,13 @@ impl StyleDetectionProcessor {
                 && !is_abstract_or_keywords
             {
                 block.block_type = BlockType::SectionHeader;
-                block.level = Some(2);
+                // If font is body-sized (ratio <= 1.1), it's H3; otherwise H2
+                // WHY: Distinguishes "bold + slightly larger" (H2) from "bold + body-sized" (H3)
+                if ratio <= 1.05 {
+                    block.level = Some(3);
+                } else {
+                    block.level = Some(2);
+                }
             }
         }
     }
@@ -424,13 +492,17 @@ impl Processor for StyleDetectionProcessor {
         processor.compute_body_size(&document);
 
         for page in &mut document.pages {
-            for block in &mut page.blocks {
+            let is_first_page = page.number == 1;
+
+            for (block_idx, block) in page.blocks.iter_mut().enumerate() {
                 processor.detect_styles(block);
-                processor.detect_headers(block);
+                // Pass context: first block on first page is likely the title
+                let is_first_block = is_first_page && block_idx == 0;
+                processor.detect_headers_with_context(block, is_first_block);
 
                 for child in &mut block.children {
                     processor.detect_styles(child);
-                    processor.detect_headers(child);
+                    processor.detect_headers_with_context(child, false);
                 }
             }
         }

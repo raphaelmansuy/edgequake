@@ -115,7 +115,11 @@ impl ImageExtractor {
                             images.push(image_data);
                         }
                         Ok(None) => {
-                            debug!("Image {} on page {} could not be converted", index, page_number + 1);
+                            debug!(
+                                "Image {} on page {} could not be converted",
+                                index,
+                                page_number + 1
+                            );
                         }
                         Err(e) => {
                             warn!(
@@ -129,7 +133,11 @@ impl ImageExtractor {
                 }
             }
             Err(e) => {
-                debug!("No images found on page {} or error: {}", page_number + 1, e);
+                debug!(
+                    "No images found on page {} or error: {}",
+                    page_number + 1,
+                    e
+                );
             }
         }
 
@@ -254,7 +262,7 @@ impl ImageExtractor {
     ) -> Result<(Vec<u8>, String)> {
         // Try to create an image from the raw data
         let expected_len = (width * height * components) as usize;
-        
+
         // If data matches expected size, try to create image directly
         if data.len() >= expected_len {
             let result = match components {
@@ -288,7 +296,10 @@ impl ImageExtractor {
         // Fallback: return empty if we can't decode
         debug!(
             "Could not encode image {}x{} with {} components from {} bytes",
-            width, height, components, data.len()
+            width,
+            height,
+            components,
+            data.len()
         );
         Ok((Vec::new(), String::new()))
     }
@@ -331,11 +342,7 @@ impl ImageExtractor {
     }
 
     /// Get image statistics for a PDF page.
-    pub fn get_page_image_stats(
-        &self,
-        doc: &LopdfDocument,
-        page_id: ObjectId,
-    ) -> PageImageStats {
+    pub fn get_page_image_stats(&self, doc: &LopdfDocument, page_id: ObjectId) -> PageImageStats {
         match doc.get_page_images(page_id) {
             Ok(images) => {
                 let total_count = images.len();
@@ -437,10 +444,10 @@ mod tests {
     fn test_extract_disabled_returns_empty() {
         let config = ImageOcrConfig::default(); // disabled by default
         let extractor = ImageExtractor::new(config);
-        
+
         // Create a minimal lopdf document
         let doc = lopdf::Document::with_version("1.5");
-        
+
         // Should return empty when disabled
         let result = extractor.extract_all_images(&doc);
         assert!(result.is_ok());

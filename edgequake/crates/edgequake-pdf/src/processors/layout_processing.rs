@@ -126,11 +126,21 @@ impl BlockMergeProcessor {
             b.block_type,
             BlockType::Text | BlockType::SectionHeader | BlockType::ListItem
         ) {
+            tracing::debug!(
+                "BlockMerge: skip - not mergeable types {:?}/{:?}",
+                a.block_type,
+                b.block_type
+            );
             return false;
         }
 
         // Types must match
         if a.block_type != b.block_type {
+            tracing::debug!(
+                "BlockMerge: skip - type mismatch {:?} vs {:?}",
+                a.block_type,
+                b.block_type
+            );
             return false;
         }
 
@@ -143,6 +153,7 @@ impl BlockMergeProcessor {
                 && trimmed_b.chars().next().unwrap().is_ascii_digit()
                 && trimmed_b.contains(". "))
         {
+            tracing::debug!("BlockMerge: skip - b looks like list item");
             return false;
         }
 
@@ -151,12 +162,22 @@ impl BlockMergeProcessor {
             let size_a = span_a.style.size.unwrap_or(0.0);
             let size_b = span_b.style.size.unwrap_or(0.0);
             if (size_a - size_b).abs() > 1.5 {
+                tracing::debug!(
+                    "BlockMerge: skip - font size diff {:.1} vs {:.1}",
+                    size_a,
+                    size_b
+                );
                 return false;
             }
 
             let weight_a = span_a.style.weight.unwrap_or(400);
             let weight_b = span_b.style.weight.unwrap_or(400);
             if (weight_a >= 600) != (weight_b >= 600) {
+                tracing::debug!(
+                    "BlockMerge: skip - weight mismatch {} vs {}",
+                    weight_a,
+                    weight_b
+                );
                 return false;
             }
         }
@@ -173,7 +194,15 @@ impl BlockMergeProcessor {
 
         // Check vertical proximity (PDF Y: higher = up)
         let vertical_gap = (a.bbox.y1 - b.bbox.y2).abs();
+        tracing::debug!(
+            "BlockMerge: '{}...' vs '{}...' gap={:.1} threshold={:.1}",
+            &a.text[..a.text.len().min(15)],
+            &b.text[..b.text.len().min(15)],
+            vertical_gap,
+            vertical_threshold
+        );
         if vertical_gap > vertical_threshold {
+            tracing::debug!("BlockMerge: REJECT - gap too large");
             return false;
         }
 
@@ -188,10 +217,25 @@ impl BlockMergeProcessor {
         // Column separation: blocks in different columns shouldn't merge
         let horizontal_zone_threshold = stats.page_width * 0.15;
         if margin_diff > horizontal_zone_threshold {
+            tracing::debug!(
+                "BlockMerge: REJECT - horizontal zone {} > {}",
+                margin_diff,
+                horizontal_zone_threshold
+            );
             return false;
         }
 
-        margin_diff <= max_margin
+        let accept = margin_diff <= max_margin;
+        if !accept {
+            tracing::debug!(
+                "BlockMerge: REJECT - margin {} > {}",
+                margin_diff,
+                max_margin
+            );
+        } else {
+            tracing::debug!("BlockMerge: ACCEPT - merging blocks");
+        }
+        accept
     }
 
     fn merge_page_blocks(&self, blocks: Vec<Block>, stats: &DocumentStats) -> Vec<Block> {
@@ -238,10 +282,22 @@ impl Default for BlockMergeProcessor {
 impl Processor for BlockMergeProcessor {
     fn process(&self, mut document: Document) -> Result<Document> {
         let stats = DocumentStats::from_document(&document);
+        tracing::debug!(
+            "BlockMergeProcessor: line_spacing={:.1}",
+            stats.typical_line_spacing
+        );
 
         for page in &mut document.pages {
+            let block_count_before = page.blocks.len();
             let blocks = std::mem::take(&mut page.blocks);
             page.blocks = self.merge_page_blocks(blocks, &stats);
+            let block_count_after = page.blocks.len();
+            tracing::debug!(
+                "BlockMergeProcessor: page {} blocks {} -> {}",
+                page.number,
+                block_count_before,
+                block_count_after
+            );
             page.update_stats();
         }
 
@@ -304,9 +360,7 @@ impl MarginFilterProcessor {
         let edge_adjacent = bbox.x1 < line_number_edge || bbox.x2 > page_width - line_number_edge;
         if edge_adjacent {
             let tokens: Vec<&str> = trimmed.split_whitespace().collect();
-            if tokens.len() >= 6
-                && tokens.iter().all(|t| t.chars().all(|c| c.is_ascii_digit()))
-            {
+            if tokens.len() >= 6 && tokens.iter().all(|t| t.chars().all(|c| c.is_ascii_digit())) {
                 let nums: Vec<i32> = tokens.iter().filter_map(|t| t.parse().ok()).collect();
                 if nums.len() == tokens.len() {
                     let all_same = nums.iter().all(|n| *n == nums[0]);
@@ -321,15 +375,41 @@ impl MarginFilterProcessor {
         // Filter isolated digits/letters at page edge (likely line numbers)
         let text = trimmed;
         if text.len() <= 2
-            && text.chars().all(|c| c.is_ascii_digit() || c.is_ascii_uppercase())
-            && (bbox.x1 < line_number_edge || bbox.x1 > page_width - line_number_edge) {
-                return true;
-            }
+            && text
+                .chars()
+                .all(|c| c.is_ascii_digit() || c.is_ascii_uppercase())
+            && (bbox.x1 < line_number_edge || bbox.x1 > page_width - line_number_edge)
+        {
+            return true;
+        }
 
-        // Filter footer page numbers
+        // Filter footer page numbers (strict 5% bottom margin)
         let in_footer = bbox.y1 <= bottom_margin;
         if in_footer && trimmed.parse::<i32>().is_ok() {
             return true;
+        }
+
+        // Extended page number detection - bottom 12% of page
+        // WHY: Pandoc and other tools place page numbers at varying heights.
+        // This catches standalone page numbers that aren't in the strict margin.
+        let page_height = _page_height;
+        let extended_footer = bbox.y1 <= page_height * 0.12;
+        if extended_footer {
+            // Standalone page number: 1-4 digits only
+            if let Ok(num) = trimmed.parse::<u32>() {
+                if num <= 9999 && trimmed.len() <= 4 {
+                    return true;
+                }
+            }
+            // "Page N" or "Page N of M" format
+            let text_lower = trimmed.to_lowercase();
+            if text_lower.starts_with("page ") {
+                let rest = text_lower.strip_prefix("page ").unwrap_or("");
+                let first_word = rest.split_whitespace().next().unwrap_or("");
+                if first_word.parse::<u32>().is_ok() {
+                    return true;
+                }
+            }
         }
 
         false
@@ -351,7 +431,10 @@ impl Processor for MarginFilterProcessor {
         let mut footer_counts: HashMap<String, usize> = HashMap::new();
 
         let normalize = |text: &str| -> String {
-            text.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
+            text.split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .to_lowercase()
         };
 
         for page in &document.pages {
@@ -482,7 +565,11 @@ impl SectionNumberMergeProcessor {
         if !all_digit_or_dot {
             return false;
         }
-        trimmed.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false)
+        trimmed
+            .chars()
+            .next()
+            .map(|c| c.is_ascii_digit())
+            .unwrap_or(false)
             && trimmed.chars().any(|c| c.is_ascii_digit())
     }
 
@@ -491,7 +578,11 @@ impl SectionNumberMergeProcessor {
         if trimmed.is_empty() || trimmed.len() > 100 {
             return false;
         }
-        trimmed.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
+        trimmed
+            .chars()
+            .next()
+            .map(|c| c.is_uppercase())
+            .unwrap_or(false)
     }
 }
 
@@ -529,13 +620,15 @@ impl Processor for SectionNumberMergeProcessor {
                     let title_y_center = (title_block.bbox.y1 + title_block.bbox.y2) / 2.0;
                     let y_gap = (sec_y - title_y_center).abs();
 
-                    if y_gap < 25.0 && title_block.bbox.x1 > *sec_x
-                        && Self::looks_like_section_title(title_text) {
-                            let merged_text =
-                                format!("{}. {}", sec_text.trim_end_matches('.'), title_text);
-                            merge_map.insert(*sec_idx, (title_idx, merged_text));
-                            break;
-                        }
+                    if y_gap < 25.0
+                        && title_block.bbox.x1 > *sec_x
+                        && Self::looks_like_section_title(title_text)
+                    {
+                        let merged_text =
+                            format!("{}. {}", sec_text.trim_end_matches('.'), title_text);
+                        merge_map.insert(*sec_idx, (title_idx, merged_text));
+                        break;
+                    }
                 }
             }
 
@@ -607,15 +700,23 @@ mod tests {
         assert!(SectionNumberMergeProcessor::is_section_number("1."));
         assert!(SectionNumberMergeProcessor::is_section_number("2"));
         assert!(SectionNumberMergeProcessor::is_section_number("1.1."));
-        assert!(!SectionNumberMergeProcessor::is_section_number("Introduction"));
+        assert!(!SectionNumberMergeProcessor::is_section_number(
+            "Introduction"
+        ));
         assert!(!SectionNumberMergeProcessor::is_section_number(""));
     }
 
     #[test]
     fn test_section_title_detection() {
-        assert!(SectionNumberMergeProcessor::looks_like_section_title("Introduction"));
-        assert!(SectionNumberMergeProcessor::looks_like_section_title("Related Work"));
-        assert!(!SectionNumberMergeProcessor::looks_like_section_title("lower case"));
+        assert!(SectionNumberMergeProcessor::looks_like_section_title(
+            "Introduction"
+        ));
+        assert!(SectionNumberMergeProcessor::looks_like_section_title(
+            "Related Work"
+        ));
+        assert!(!SectionNumberMergeProcessor::looks_like_section_title(
+            "lower case"
+        ));
         assert!(!SectionNumberMergeProcessor::looks_like_section_title(""));
     }
 

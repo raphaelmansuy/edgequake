@@ -1,0 +1,200 @@
+=== DIFF: 01_simple_text.md ===
+--- 00-test-suite/01_simple_text.md	2026-01-04 08:33:08
++++ 02-converted-markdown/01_simple_text.md	2026-01-04 08:33:11
+@@ -1,11 +1,15 @@
+-# Simple Text Document
++#### Simple Text Document
+ 
+ This is a basic paragraph with simple text content. It should be extracted cleanly without any issues.
+ 
+-## Second Level Heading
++##### Second Level Heading
+ 
+-Another paragraph here with some basic content. The text flows naturally across multiple sentences. This tests basic paragraph detection.
++Another paragraph here with some basic content. The text flows naturally across
+ 
+-### Third Level Heading
++multiple sentences. This tests basic paragraph detection.
+ 
++**Third Level Heading**
++
+ Final paragraph in this simple document.
++
++1
+
+=== DIFF: 02_formatted_text.md ===
+--- 00-test-suite/02_formatted_text.md	2026-01-04 08:33:08
++++ 02-converted-markdown/02_formatted_text.md	2026-01-04 08:33:29
+@@ -1,13 +1,13 @@
+-# Formatted Text Document
++#### Formatted Text Document
+ 
+-This paragraph has **bold text** and _italic text_ mixed together.
++This paragraph has **bold text** and *italic text* mixed together.
+ 
+-## Mixed Formatting
++##### Mixed Formatting
+ 
+-Here we have **bold**, _italic_, and **_bold italic_** text in one paragraph.
++Here we have **bold**, *italic*, and ***bold italic*** text in one paragraph. Some text with` inline code` that should be preserved.
+ 
+-Some text with `inline code` that should be preserved.
++**Special Characters**
+ 
+-### Special Characters
+-
+ Text with special characters: e, n, u, ss, o, ae, and symbols.
++
++1
+
+=== DIFF: 03_lists.md ===
+--- 00-test-suite/03_lists.md	2026-01-04 08:33:08
++++ 02-converted-markdown/03_lists.md	2026-01-04 08:33:30
+@@ -1,21 +1,29 @@
+-# Lists Document
++#### Lists Document
+ 
+-## Bullet List
++##### Bullet List
+ 
+-- First item
+-- Second item
+-- Third item with longer text that spans multiple words
++ • First item
++ • Second item
++ • Third item with longer text that spans multiple words
+ 
+-## Numbered List
++##### Numbered List
+ 
+-1. First numbered item
+-2. Second numbered item
+-3. Third numbered item
++## 1. First numbered item
+ 
+-## Nested List
++## 2. Second numbered item
+ 
+-- Parent item
+-  - Child item one
+-  - Child item two
+-- Another parent
+-  - Another child
++## 3. Third numbered item
++
++##### Nested List
++
++ • Parent item
++
++**-** Child item one
++
++**-** Child item two
++
++ • Another parent
++
++**-** Another child
++
++1
+
+=== DIFF: 04_tables.md ===
+--- 00-test-suite/04_tables.md	2026-01-04 08:33:08
++++ 02-converted-markdown/04_tables.md	2026-01-04 08:33:30
+@@ -1,17 +1,11 @@
+-# Simple Table
++#### Simple Table
+ 
+-## Basic Table
++##### Basic Table
+ 
+-| Name  | Age | City     |
+-| ----- | --- | -------- |
+-| Alice | 30  | New York |
+-| Bob   | 25  | London   |
+-| Carol | 35  | Paris    |
++Name Age City Alice 30 New York Bob 25 London Carol 35 Paris
+ 
+-## Another Table
++##### Another Table
+ 
+-| Product | Price | Quantity |
+-| ------- | ----- | -------- |
+-| Apple   | 1.50  | 100      |
+-| Orange  | 2.00  | 50       |
+-| Banana  | 0.75  | 200      |
++Product Price Quantity Apple 1.50 100 Orange 2.00 50 Banana 0.75 200
++
++1
+
+=== DIFF: 05_code_blocks.md ===
+--- 00-test-suite/05_code_blocks.md	2026-01-04 08:33:08
++++ 02-converted-markdown/05_code_blocks.md	2026-01-04 08:33:31
+@@ -1,24 +1,24 @@
+-# Code Block Document
++#### Code Block Document
+ 
+-## Inline Code
++##### Inline Code
+ 
+-Use the `print()` function to output text.
++Use the` print()` function to output text.
+ 
+-## Code Block
++##### Code Block
+ 
+-```python
++```
+ def hello_world():
+-    print("Hello, World!")
+-    return True
+-
++print("Hello, World!")
++return True
+ if __name__ == "__main__":
+-    hello_world()
++hello_world()
+ ```
+ 
+-## Another Code Block
++##### Another Code Block
+ 
+-```javascript
++```
+ function greet(name) {
+-  console.log(`Hello, ${name}!`);
+-}
++console.log(`Hello, ${name}!`);
+ ```
++
++1
+
+=== DIFF: 06_multi_paragraph.md ===
+--- 00-test-suite/06_multi_paragraph.md	2026-01-04 08:33:08
++++ 02-converted-markdown/06_multi_paragraph.md	2026-01-04 08:33:32
+@@ -1,19 +1,17 @@
+-# Multi-Paragraph Document
++#### Multi-Paragraph Document
+ 
+ ## Introduction
+ 
+-This is the first paragraph of the introduction section. It contains multiple sentences that flow together naturally. The goal is to test how well paragraph boundaries are detected.
++This is the first paragraph of the introduction section. It contains multiple sentences that flow together naturally. The goal is to test how well paragraph boundaries are detected. This is the second paragraph. It should be separated from the first one by a blank line in the output. Proper paragraph detection is crucial for readability.
+ 
+-This is the second paragraph. It should be separated from the first one by a blank line in the output. Proper paragraph detection is crucial for readability.
++##### Main Content
+ 
+-## Main Content
++The main content section starts here. This paragraph discusses the primary topic of the document. It has several sentences. Here is another paragraph within the main content. It provides additional details and context. Good extraction preserves these paragraph boundaries. A third paragraph adds even more information. Each paragraph should remain
+ 
+-The main content section starts here. This paragraph discusses the primary topic of the document. It has several sentences.
++distinct in the extracted output.
+ 
+-Here is another paragraph within the main content. It provides additional details and context. Good extraction preserves these paragraph boundaries.
+-
+-A third paragraph adds even more information. Each paragraph should remain distinct in the extracted output.
+-
+ ## Conclusion
+ 
+ The conclusion wraps up the document. It summarizes the key points discussed above.
++
++1
+

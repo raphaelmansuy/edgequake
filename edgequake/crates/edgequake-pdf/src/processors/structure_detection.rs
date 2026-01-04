@@ -77,6 +77,12 @@ impl Processor for HeaderDetectionProcessor {
 
         for page in &mut document.pages {
             for block in &mut page.blocks {
+                // Skip blocks already classified as list items (by ListDetectionProcessor)
+                // WHY: List items like "1. First item" should not become headers
+                if block.block_type == BlockType::ListItem {
+                    continue;
+                }
+
                 if !matches!(block.block_type, BlockType::Text | BlockType::SectionHeader) {
                     continue;
                 }
@@ -307,16 +313,26 @@ impl Default for ListDetectionProcessor {
 
 impl Processor for ListDetectionProcessor {
     fn process(&self, mut document: Document) -> Result<Document> {
-        let bullet_regex = Regex::new(r"^[-*•]\s+").unwrap();
+        // WHY include en-dash and em-dash: PDF generators (like pandoc) use these
+        // for nested lists. Also include common Unicode bullet characters.
+        let bullet_regex = Regex::new(r"^[-–—*•◦▪]\s+").unwrap();
         let number_regex = Regex::new(r"^\d+[\.)]\s+").unwrap();
 
         for page in &mut document.pages {
             // Find left margin for indentation calculation
+            // WHY: We need a reference point for indentation levels
             let min_x = page
                 .blocks
                 .iter()
+                .filter(|b| matches!(b.block_type, BlockType::Text | BlockType::ListItem))
                 .map(|b| b.bbox.x1)
                 .fold(f32::MAX, |a, b| a.min(b));
+
+            tracing::info!(
+                "ListDetectionProcessor: page {} min_x={:.1}",
+                page.number,
+                min_x
+            );
 
             for block in &mut page.blocks {
                 if block.block_type != BlockType::Text {
@@ -330,6 +346,14 @@ impl Processor for ListDetectionProcessor {
                     // Calculate indentation level (20pts per level)
                     let indent = block.bbox.x1 - min_x;
                     let level = (indent / 20.0).round() as i32;
+
+                    tracing::info!(
+                        "  ListItem '{}' x1={:.1} indent={:.1} level={}",
+                        text.chars().take(30).collect::<String>(),
+                        block.bbox.x1,
+                        indent,
+                        level
+                    );
 
                     block
                         .metadata

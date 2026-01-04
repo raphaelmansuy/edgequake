@@ -188,41 +188,123 @@ impl MarkdownRenderer {
 
     /// Render a list item.
     fn render_list_item(&self, block: &Block, output: &mut String) {
-        let text = if !block.spans.is_empty() {
-            self.render_spans(&block.spans)
-        } else {
-            self.clean_text(&block.text)
-        };
-
         // Handle indentation for nested lists
-        let level = if let Some(lvl) = block.metadata.get("level").and_then(|v| v.as_u64()) {
-            lvl as usize
+        let level = if let Some(lvl) = block.metadata.get("level").and_then(|v| v.as_i64()) {
+            // WHY as_i64: JSON stores i32 from ListDetectionProcessor as Number
+            // as_u64 would fail on negative values
+            tracing::debug!("  Rendering list item with level={}", lvl);
+            lvl.max(0) as usize
         } else if let Some(indent) = block.metadata.get("indent").and_then(|v| v.as_f64()) {
             // Fallback to old logic if level not present
-            ((indent - 72.0).max(0.0) / 20.0).floor() as usize
+            let lvl = ((indent - 72.0).max(0.0) / 20.0).floor() as usize;
+            tracing::debug!(
+                "  Rendering list item with indent={:.1} -> level={}",
+                indent,
+                lvl
+            );
+            lvl
+        } else {
+            tracing::debug!("  Rendering list item with no level/indent metadata");
+            0
+        };
+
+        // WHY subtract 1: level=1 is the base level (no indent), level=2 gets one indent
+        let adjusted_level = level.saturating_sub(1);
+        let len_before_indent = output.len();
+        for i in 0..adjusted_level {
+            output.push_str("  "); // Two ASCII spaces (0x20 0x20)
+        }
+        let len_after_indent = output.len();
+        if adjusted_level > 0 {
+            // Show the actual bytes we added
+            let added_bytes: Vec<u8> = output[len_before_indent..len_after_indent]
+                .bytes()
+                .collect();
+            tracing::debug!(
+                "  Indentation: before={} after={} bytes={:02x?}",
+                len_before_indent,
+                len_after_indent,
+                added_bytes
+            );
+        }
+
+        // Use raw text for pattern matching to avoid bold markers interfering
+        // WHY: render_spans may wrap bullet chars in **bold** from PDF font info
+        let raw_text = block.text.trim();
+
+        // Trace the start of the list item in output buffer
+        if raw_text.contains("Child") {
+            tracing::debug!(
+                "  At child item: output len before prefix = {}",
+                output.len()
+            );
+        }
+
+        // Check for various bullet/number patterns in RAW text
+        let has_dash =
+            raw_text.starts_with("- ") || raw_text.starts_with("– ") || raw_text.starts_with("— ");
+        let has_asterisk = raw_text.starts_with("* ");
+        let has_bullet =
+            raw_text.starts_with("• ") || raw_text.starts_with("◦ ") || raw_text.starts_with("▪ ");
+        let has_number = raw_text
+            .chars()
+            .next()
+            .map(|c| c.is_ascii_digit())
+            .unwrap_or(false);
+
+        // Get content after the bullet/prefix for rendering with spans
+        let content_start = if has_bullet || has_dash || has_asterisk {
+            // Find first space after bullet and skip to content
+            raw_text.find(' ').map(|i| i + 1).unwrap_or(0)
+        } else if has_number {
+            // For numbered lists like "1. ", find the ". " or ") " and skip
+            raw_text
+                .find(". ")
+                .map(|i| i + 2)
+                .or_else(|| raw_text.find(") ").map(|i| i + 2))
+                .unwrap_or(0)
         } else {
             0
         };
 
-        for _ in 0..level {
-            output.push_str("  ");
-        }
+        // Render content with formatting (from spans if available)
+        let content = if content_start > 0 && !block.spans.is_empty() {
+            // Get the text content after the prefix
+            let after_prefix = &raw_text[content_start..];
+            // For simplicity, use clean text since spans may not align well with prefix removal
+            self.clean_text(after_prefix)
+        } else if !block.spans.is_empty() {
+            self.render_spans(&block.spans)
+        } else {
+            self.clean_text(raw_text)
+        };
 
-        // Check if already has bullet/number prefix
-        let trimmed = text.trim();
-        let needs_prefix = !trimmed.starts_with("- ")
-            && !trimmed.starts_with("* ")
-            && !trimmed.starts_with("• ")
-            && !trimmed
-                .chars()
-                .next()
-                .map(|c| c.is_ascii_digit())
-                .unwrap_or(false);
-
-        if needs_prefix {
+        // Output the normalized list item
+        if has_bullet || has_dash {
+            let before = output.len();
             output.push_str("- ");
+            output.push_str(&content);
+            let after = output.len();
+            if content.contains("Child") {
+                tracing::debug!(
+                    "  Output for child: added {} bytes, content='{}', raw_text='{}'",
+                    after - before,
+                    content,
+                    raw_text
+                );
+            }
+        } else if has_number {
+            // Preserve the number prefix
+            let prefix: String = raw_text.chars().take(content_start).collect();
+            output.push_str(&prefix);
+            output.push_str(&content);
+        } else if has_asterisk {
+            output.push_str(&content);
+        } else {
+            // No prefix, add dash
+            output.push_str("- ");
+            output.push_str(&content);
         }
-        output.push_str(&text);
         output.push('\n');
     }
 
@@ -252,7 +334,18 @@ impl MarkdownRenderer {
             let is_subscript = span.style.subscript;
 
             if is_code {
-                result.push_str(&format!("`{}`", content));
+                // WHY preserve leading/trailing space? In "the `print()` function",
+                // the space before `print()` must be outside the backticks.
+                let leading_space = content.starts_with(' ');
+                let trailing_space = content.ends_with(' ');
+                let trimmed = content.trim();
+                if leading_space {
+                    result.push(' ');
+                }
+                result.push_str(&format!("`{}`", trimmed));
+                if trailing_space {
+                    result.push(' ');
+                }
             } else {
                 let trimmed = content.trim();
                 if trimmed.is_empty() {
@@ -496,11 +589,13 @@ impl MarkdownRenderer {
     }
 
     /// Normalize excessive whitespace in final output.
-    /// Removes double spaces while preserving intentional formatting (code blocks, tables, etc.)
+    /// Removes double spaces while preserving:
+    /// - Code blocks
+    /// - Tables
+    /// - Leading indentation (for nested lists)
     fn normalize_excessive_whitespace(&self, text: &str) -> String {
         let mut result = String::with_capacity(text.len());
         let mut in_code_block = false;
-        let mut prev_char = '\0';
 
         for line in text.lines() {
             // Detect code block boundaries
@@ -508,7 +603,6 @@ impl MarkdownRenderer {
                 in_code_block = !in_code_block;
                 result.push_str(line);
                 result.push('\n');
-                prev_char = '\n';
                 continue;
             }
 
@@ -516,21 +610,28 @@ impl MarkdownRenderer {
             if in_code_block || line.trim_start().starts_with('|') {
                 result.push_str(line);
                 result.push('\n');
-                prev_char = '\n';
                 continue;
             }
 
-            // Normalize double spaces in regular text
-            for ch in line.chars() {
+            // Preserve leading whitespace (indentation), normalize rest of line
+            let leading_spaces = line.len() - line.trim_start().len();
+            let leading_indent = &line[..leading_spaces];
+            let rest_of_line = &line[leading_spaces..];
+
+            // Add preserved leading indent
+            result.push_str(leading_indent);
+
+            // Normalize double spaces only in the non-indent portion
+            let mut prev_char = '\0';
+            for ch in rest_of_line.chars() {
                 if ch == ' ' && prev_char == ' ' {
-                    // Skip consecutive spaces
+                    // Skip consecutive spaces in content (not indent)
                     continue;
                 }
                 result.push(ch);
                 prev_char = ch;
             }
             result.push('\n');
-            prev_char = '\n';
         }
 
         result

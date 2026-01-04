@@ -5,9 +5,9 @@
 //! - Bold/italic detection from font naming conventions
 //! - Encoding resolution (ToUnicode, WinAnsi, MacRoman, etc.)
 
-use lopdf::{Dictionary, Document as LopdfDocument, Object, Stream};
 use super::encodings;
 use super::encodings::Encoding;
+use lopdf::{Dictionary, Document as LopdfDocument, Object, Stream};
 
 /// Information about a font in the PDF
 #[derive(Debug)]
@@ -179,8 +179,8 @@ mod tests {
             "Helvetica-Bold",
             "ArialMT-Black",
             "TimesNewRomanPS-HeavyMT",
-            "SFBX1200+Bold",      // LaTeX bold
-            "CMBX10",             // Computer Modern Bold
+            "SFBX1200+Bold", // LaTeX bold
+            "CMBX10",        // Computer Modern Bold
         ];
 
         for name in bold_names {
@@ -199,9 +199,9 @@ mod tests {
         let italic_names = vec![
             "Helvetica-Italic",
             "ArialMT-Oblique",
-            "SFTI0900",           // LaTeX italic
-            "CMTI10",             // Computer Modern italic
-            "CMMI10",             // Computer Modern math italic
+            "SFTI0900", // LaTeX italic
+            "CMTI10",   // Computer Modern italic
+            "CMMI10",   // Computer Modern math italic
         ];
 
         for name in italic_names {
@@ -217,19 +217,13 @@ mod tests {
 
     #[test]
     fn test_regular_font_not_bold_or_italic() {
-        let regular_names = vec![
-            "Helvetica",
-            "ArialMT",
-            "TimesNewRomanPSMT",
-        ];
+        let regular_names = vec!["Helvetica", "ArialMT", "TimesNewRomanPSMT"];
 
         for name in regular_names {
             let lower = name.to_lowercase();
-            let is_bold = lower.contains("bold")
-                || lower.contains("black")
-                || lower.contains("heavy");
-            let is_italic = lower.contains("italic")
-                || lower.contains("oblique");
+            let is_bold =
+                lower.contains("bold") || lower.contains("black") || lower.contains("heavy");
+            let is_italic = lower.contains("italic") || lower.contains("oblique");
             assert!(!is_bold, "Expected '{}' NOT to be bold", name);
             assert!(!is_italic, "Expected '{}' NOT to be italic", name);
         }
@@ -278,4 +272,3 @@ mod tests {
         assert!(is_italic);
     }
 }
-

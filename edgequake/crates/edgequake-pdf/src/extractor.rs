@@ -300,19 +300,32 @@ impl PdfExtractor {
     }
 
     /// Apply post-processing pipeline to improve text quality
+    ///
+    /// **WHY this order matters:**
+    /// 1. MarginFilter: Remove page numbers, headers, footers FIRST
+    /// 2. GarbledTextFilter: Remove noise before layout analysis
+    /// 3. LayoutProcessor: Establish block structure
+    /// 4. ListDetectionProcessor: BEFORE heading detection to prevent "1. Item" → H2
+    /// 5. SectionNumberMerge: Merge "1" + "Introduction" blocks
+    /// 6. StyleDetection: Font-based heading detection
+    /// 7. HeaderDetection: Content-based heading detection
+    /// 8. SectionPattern: Pattern-based section detection
+    /// 9. Caption/Table/Code: Semantic block detection
+    /// 10. BlockMerge: Join related blocks
+    /// 11. PostProcessor: Final cleanup
     async fn apply_processors(&self, document: Document) -> Result<Document> {
         let chain = ProcessorChain::new()
             .add(MarginFilterProcessor::new()) // Filter margin content (line numbers, page numbers)
             .add(GarbledTextFilterProcessor::new()) // Filter garbled figure annotations
             .add(LayoutProcessor::new())
+            .add(ListDetectionProcessor::new()) // MOVED EARLY: Detect lists BEFORE heading processors
             .add(SectionNumberMergeProcessor::new()) // Merge standalone section numbers with titles
-            .add(StyleDetectionProcessor::new()) // Detect bold/italic styles and H1/H2+ levels (spec_algo_2.md)
+            .add(StyleDetectionProcessor::new()) // Detect bold/italic styles and H1/H2+ levels
             // .add(TableDetectionProcessor::new()) // DISABLED - causing malformed output
             .add(HeaderDetectionProcessor::new())
-            .add(SectionPatternProcessor::new()) // RE-ENABLED: Now has font-size based heading detection
+            .add(SectionPatternProcessor::new()) // Pattern-based section detection
             .add(CaptionDetectionProcessor::new())
             .add(TextTableReconstructionProcessor::new())
-            .add(ListDetectionProcessor::new())
             .add(CodeBlockDetectionProcessor::new())
             .add(HyphenContinuationProcessor::new()) // Fix hyphenated words at line breaks
             .add(BlockMergeProcessor::new())
@@ -407,9 +420,7 @@ mod tests {
             pages: vec![],
             images: vec![],
             metadata: crate::schema::DocumentMetadata::default(),
-            page_errors: vec![
-                PageError::new(2, PdfError::Io("test error".to_string())),
-            ],
+            page_errors: vec![PageError::new(2, PdfError::Io("test error".to_string()))],
         };
         assert!(!result.is_complete());
         assert_eq!(result.failed_page_count(), 1);
@@ -461,14 +472,22 @@ mod tests {
             page_count: 5,
             markdown: String::new(),
             pages: vec![
-                PageContent { page_number: 0, text: String::new(), markdown: String::new(), images: vec![] },
-                PageContent { page_number: 1, text: String::new(), markdown: String::new(), images: vec![] },
+                PageContent {
+                    page_number: 0,
+                    text: String::new(),
+                    markdown: String::new(),
+                    images: vec![],
+                },
+                PageContent {
+                    page_number: 1,
+                    text: String::new(),
+                    markdown: String::new(),
+                    images: vec![],
+                },
             ],
             images: vec![],
             metadata: crate::schema::DocumentMetadata::default(),
-            page_errors: vec![
-                PageError::new(2, PdfError::Io("test".to_string())),
-            ],
+            page_errors: vec![PageError::new(2, PdfError::Io("test".to_string()))],
         };
         assert!(partial.status_summary().contains("failures"));
     }

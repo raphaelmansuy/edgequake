@@ -206,4 +206,3 @@ mod tests {
         assert!(result.contains("540.0") || result.contains("540"));
     }
 }
-
