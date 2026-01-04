@@ -1,0 +1,222 @@
+[
+  {
+    "success": true,
+    "duration": 0.009280920028686523,
+    "table_count": 1,
+    "output_size": 236,
+    "output_lines": 2,
+    "error": null,
+    "loop": 27,
+    "pdf": "legacy/002_formatted_text_bold_italic.pdf",
+    "pdf_name": "002_formatted_text_bold_italic"
+  },
+  {
+    "success": true,
+    "duration": 0.008121967315673828,
+    "table_count": 1,
+    "output_size": 181,
+    "output_lines": 2,
+    "error": null,
+    "loop": 28,
+    "pdf": "legacy/005_mixed_styles.pdf",
+    "pdf_name": "005_mixed_styles"
+  },
+  {
+    "success": true,
+    "duration": 0.013872146606445312,
+    "table_count": 1,
+    "output_size": 391,
+    "output_lines": 10,
+    "error": null,
+    "loop": 29,
+    "pdf": "legacy/006_multi_column_layout.pdf",
+    "pdf_name": "006_multi_column_layout"
+  },
+  {
+    "success": true,
+    "duration": 0.010025978088378906,
+    "table_count": 1,
+    "output_size": 256,
+    "output_lines": 6,
+    "error": null,
+    "loop": 30,
+    "pdf": "legacy/007_mixed_content_complex.pdf",
+    "pdf_name": "007_mixed_content_complex"
+  },
+  {
+    "success": true,
+    "duration": 0.006429910659790039,
+    "table_count": 1,
+    "output_size": 67,
+    "output_lines": 2,
+    "error": null,
+    "loop": 31,
+    "pdf": "legacy/009_code_blocks.pdf",
+    "pdf_name": "009_code_blocks"
+  },
+  {
+    "success": true,
+    "duration": 0.008209943771362305,
+    "table_count": 1,
+    "output_size": 112,
+    "output_lines": 4,
+    "error": null,
+    "loop": 32,
+    "pdf": "legacy/010_complex_tables.pdf",
+    "pdf_name": "010_complex_tables"
+  },
+  {
+    "success": true,
+    "duration": 0.006294965744018555,
+    "table_count": 1,
+    "output_size": 198,
+    "output_lines": 2,
+    "error": null,
+    "loop": 33,
+    "pdf": "legacy/012_mixed_languages.pdf",
+    "pdf_name": "012_mixed_languages"
+  },
+  {
+    "success": true,
+    "duration": 0.006957054138183594,
+    "table_count": 1,
+    "output_size": 170,
+    "output_lines": 2,
+    "error": null,
+    "loop": 34,
+    "pdf": "legacy/013_nested_lists_deep.pdf",
+    "pdf_name": "013_nested_lists_deep"
+  },
+  {
+    "success": true,
+    "duration": 0.008374929428100586,
+    "table_count": 1,
+    "output_size": 139,
+    "output_lines": 2,
+    "error": null,
+    "loop": 35,
+    "pdf": "legacy/016_mixed_fonts_sizes.pdf",
+    "pdf_name": "016_mixed_fonts_sizes"
+  },
+  {
+    "success": true,
+    "duration": 0.012551307678222656,
+    "table_count": 1,
+    "output_size": 109,
+    "output_lines": 6,
+    "error": null,
+    "loop": 36,
+    "pdf": "legacy/018_table_multiheader.pdf",
+    "pdf_name": "018_table_multiheader"
+  },
+  {
+    "success": true,
+    "duration": 0.005897998809814453,
+    "table_count": 1,
+    "output_size": 0,
+    "output_lines": 1,
+    "error": null,
+    "loop": 37,
+    "pdf": "legacy/020_unicode_special_chars.pdf",
+    "pdf_name": "020_unicode_special_chars"
+  },
+  {
+    "success": true,
+    "duration": 0.0054819583892822266,
+    "table_count": 0,
+    "output_size": 0,
+    "output_lines": 1,
+    "error": null,
+    "loop": 38,
+    "pdf": "legacy/023_incomplete_unicode_mapping.pdf",
+    "pdf_name": "023_incomplete_unicode_mapping"
+  },
+  {
+    "success": true,
+    "duration": 0.005339145660400391,
+    "table_count": 0,
+    "output_size": 0,
+    "output_lines": 1,
+    "error": null,
+    "loop": 39,
+    "pdf": "legacy/024_embedded_fonts_obfuscated.pdf",
+    "pdf_name": "024_embedded_fonts_obfuscated"
+  },
+  {
+    "success": true,
+    "duration": 0.005533933639526367,
+    "table_count": 0,
+    "output_size": 0,
+    "output_lines": 1,
+    "error": null,
+    "loop": 40,
+    "pdf": "legacy/025_rotated_text.pdf",
+    "pdf_name": "025_rotated_text"
+  },
+  {
+    "success": true,
+    "duration": 0.00526881217956543,
+    "table_count": 0,
+    "output_size": 0,
+    "output_lines": 1,
+    "error": null,
+    "loop": 41,
+    "pdf": "legacy/026_overlapping_text_layers.pdf",
+    "pdf_name": "026_overlapping_text_layers"
+  },
+  {
+    "success": true,
+    "duration": 0.3192017078399658,
+    "table_count": 11,
+    "output_size": 30798,
+    "output_lines": 609,
+    "error": null,
+    "loop": 42,
+    "pdf": "real_dataset/2900_Goyal_et_al.pdf",
+    "pdf_name": "2900_Goyal_et_al"
+  },
+  {
+    "success": true,
+    "duration": 1.7996010780334473,
+    "table_count": 44,
+    "output_size": 97538,
+    "output_lines": 2144,
+    "error": null,
+    "loop": 43,
+    "pdf": "real_dataset/AlphaEvolve.pdf",
+    "pdf_name": "AlphaEvolve"
+  },
+  {
+    "success": true,
+    "duration": 0.8495810031890869,
+    "table_count": 38,
+    "output_size": 85368,
+    "output_lines": 2035,
+    "error": null,
+    "loop": 44,
+    "pdf": "real_dataset/agent_2510.09244v1.pdf",
+    "pdf_name": "agent_2510.09244v1"
+  },
+  {
+    "success": true,
+    "duration": 0.3583376407623291,
+    "table_count": 9,
+    "output_size": 26736,
+    "output_lines": 469,
+    "error": null,
+    "loop": 45,
+    "pdf": "real_dataset/ccn_2512.21804v1.pdf",
+    "pdf_name": "ccn_2512.21804v1"
+  },
+  {
+    "success": true,
+    "duration": 0.5996630191802979,
+    "table_count": 14,
+    "output_size": 42058,
+    "output_lines": 830,
+    "error": null,
+    "loop": 46,
+    "pdf": "real_dataset/one_tool_2512.20957v2.pdf",
+    "pdf_name": "one_tool_2512.20957v2"
+  }
+]

@@ -11,6 +11,7 @@
 ## OBSERVE
 
 **Extraction Results**:
+
 - ✅ Successfully extracted 17 pages
 - 📋 **2 tables detected** by lattice engine (pages 5-6)
 - 📊 Output size: 805 lines, 50,850 bytes
@@ -20,6 +21,7 @@
 **Table Detection Details**:
 
 Table 1 (Page 5):
+
 ```
 Table grid: 4 rows (from lines), 0 cols (from lines), 5 cols (from clustering)
 Table Check: crossing_ratio=0.17 (7/41)
@@ -31,6 +33,7 @@ Accepted table: bbox=BoundingBox { x1: 190.17, y1: 336.38, x2: 426.42, y2: 440.5
 ```
 
 Table 2 (Page 6):
+
 ```
 Table grid: 2 rows (from lines), 0 cols (from lines), 6 cols (from clustering)
 Table Check: crossing_ratio=0.00 (0/30)
@@ -42,16 +45,17 @@ Accepted table: bbox=BoundingBox { x1: 73.58, y1: 623.20, x2: 538.41, y2: 677.38
 ```
 
 **Document Structure**:
+
 - Multi-column layout (2 columns) on all pages
 - Academic research paper with:
-  * Abstract
-  * Introduction (Section 1)
-  * Related work (Section 2)
-  * Method (Section 3)
-  * Experiments (Section 4)
-  * Conclusion (Section 5)
-  * Acknowledgement (Section 6)
-  * References
+  - Abstract
+  - Introduction (Section 1)
+  - Related work (Section 2)
+  - Method (Section 3)
+  - Experiments (Section 4)
+  - Conclusion (Section 5)
+  - Acknowledgement (Section 6)
+  - References
 - Complex figures and equations
 - Two data tables with performance metrics
 
@@ -62,6 +66,7 @@ Accepted table: bbox=BoundingBox { x1: 73.58, y1: 623.20, x2: 538.41, y2: 677.38
 **Quality Analysis**:
 
 Strengths ✅:
+
 1. **Table extraction working**: Both tables detected and extracted
 2. **Multi-column handling**: 2-column layout properly handled
 3. **Structure preservation**: Sections, headings, and flow maintained
@@ -69,6 +74,7 @@ Strengths ✅:
 5. **Fast performance**: 1.5s for 17-page document
 
 Issues ⚠️:
+
 1. **Output size difference**: 805 lines (ours) vs. 1,564 lines (gold)
    - Ratio: 51% of gold standard
    - Potential missing content or formatting differences
@@ -78,6 +84,7 @@ Issues ⚠️:
 5. **References**: May need better formatting
 
 **Comparison with Gold Standard**:
+
 ```bash
 # Our output: 805 lines, 50,850 bytes
 # Gold (markitdown): 1,564 lines, ~? bytes
@@ -85,6 +92,7 @@ Issues ⚠️:
 ```
 
 **Quality Score Estimation**: 75/100
+
 - Table extraction: 100/100 (2/2 tables found)
 - Structure: 85/100 (sections preserved, some formatting loss)
 - Completeness: 60/100 (significant line count difference suggests missing content)
@@ -97,6 +105,7 @@ Issues ⚠️:
 **Analysis**:
 
 This is a **large academic paper** (17 pages) with complex content including:
+
 - Dual-column layout
 - Technical figures
 - Performance tables
@@ -104,6 +113,7 @@ This is a **large academic paper** (17 pages) with complex content including:
 - Extensive references
 
 **Key Findings**:
+
 1. ✅ Table extraction breakthrough continues to work well
 2. ⚠️ Significant content gap (805 vs 1564 lines = 48.5% missing)
 3. ✅ Clean extraction with no errors or crashes
@@ -111,12 +121,14 @@ This is a **large academic paper** (17 pages) with complex content including:
 
 **Root Cause Hypothesis**:
 The 48.5% line difference likely stems from:
+
 1. **Figure descriptions**: Markitdown may extract alt-text/captions we don't
 2. **Equation rendering**: Math formulas converted to text by markitdown
 3. **References**: Different formatting approaches
 4. **Whitespace**: Markitdown may insert more blank lines
 
 **Action Required**:
+
 1. Manual spot-check comparison with gold standard
 2. Identify specific content categories missing
 3. Assess if missing content is critical or formatting artifacts
@@ -129,17 +141,20 @@ The 48.5% line difference likely stems from:
 **Decision**: ✅ **CONTINUE WITH VALIDATION**
 
 The extraction is functionally successful:
+
 - Tables detected and extracted (core requirement)
 - Structure preserved
 - No crashes or errors
 - Fast performance
 
 The line count difference requires investigation but doesn't indicate a critical failure. This is likely a difference in:
+
 - Formatting philosophy (compact vs. verbose)
 - Figure/equation handling
 - Reference formatting
 
 **Next Steps**:
+
 1. Run quality validation script
 2. Compare specific sections manually
 3. Assess if differences are acceptable
@@ -161,6 +176,7 @@ The line count difference requires investigation but doesn't indicate a critical
 - Status: Tables working, content gap requires investigation
 
 **Production Confidence**: 🟡 **MEDIUM-HIGH**
+
 - Core functionality (tables) working perfectly
 - Content completeness needs validation
 - No errors or crashes
