@@ -179,6 +179,8 @@ impl ExtractionEngine {
         // First, detect if this is a two-column layout
         let column_boundary = self.detect_columns(&elements, page_width);
 
+        info!("ENG-COLUMN: boundary = {:?}", column_boundary);
+
         // Use TextGrouper to group elements into lines
         let lines =
             self.text_grouper
