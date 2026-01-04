@@ -10,7 +10,7 @@
 //! - This is more robust than x-position clustering for varying column widths
 
 use super::elements::TextElement;
-use tracing::info;
+use tracing::{debug, info};
 
 /// Column detection engine using vertical projection histograms
 pub struct ColumnDetector {
@@ -32,12 +32,12 @@ impl ColumnDetector {
     /// Returns Some(column_boundary_x) if two-column layout detected, None otherwise.
     pub fn detect_columns(&self, elements: &[TextElement], page_width: f32) -> Option<f32> {
         if elements.len() < 10 {
-            debug!("Too few elements ({}) for column detection", elements.len());
+            info!("COL-DEBUG: Too few elements ({}) for column detection", elements.len());
             return None;
         }
 
-        debug!(
-            "Column detection: {} elements, page_width={:.1}",
+        info!(
+            "COL-DEBUG: Column detection start: {} elements, page_width={:.1}",
             elements.len(),
             page_width
         );
@@ -47,7 +47,7 @@ impl ColumnDetector {
 
         // Find gaps - minimum gap of 4 bins (20pt) for column separator
         let gaps = self.find_projection_gaps(&proj);
-        debug!("Projection gaps found: {:?}", gaps);
+        info!("COL-DEBUG: Projection gaps found: {:?}", gaps);
 
         // Look for a gap near the center of the page (column boundary)
         // In academic papers, the gutter is typically around 45-55% of page width
@@ -78,20 +78,20 @@ impl ColumnDetector {
                 left_count as f32 / right_count as f32
             };
 
-            debug!(
-                "Projection gap at X={:.1}: left={}, right={}, balance={:.2}",
+            info!(
+                "COL-DEBUG: Projection gap at X={:.1}: left={}, right={}, balance={:.2}",
                 boundary, left_count, right_count, balance
             );
 
             if left_count >= 5 && right_count >= 5 && balance > 0.25 {
-                debug!(
-                    "Detected TWO-COLUMN layout with boundary at {:.1}",
+                info!(
+                    "COL-DEBUG: Detected TWO-COLUMN layout with boundary at {:.1}",
                     boundary
                 );
                 return Some(boundary);
             } else {
-                debug!(
-                    "Projection gap rejected: left={}, right={}, balance={:.2} (need >=5 each, balance>0.25)",
+                info!(
+                    "COL-DEBUG: Projection gap rejected: left={}, right={}, balance={:.2} (need >=5 each, balance>0.25)",
                     left_count, right_count, balance
                 );
             }
@@ -149,20 +149,20 @@ impl ColumnDetector {
                         left_count as f32 / right_count as f32
                     };
 
-                    debug!(
-                        "Bottom-only Projection gap at X={:.1}: left={}, right={}, balance={:.2}",
+                    info!(
+                        "COL-DEBUG: Bottom-only Projection gap at X={:.1}: left={}, right={}, balance={:.2}",
                         boundary, left_count, right_count, balance
                     );
 
                     if left_count >= 5 && right_count >= 5 && balance > 0.25 {
-                        debug!(
-                            "Detected TWO-COLUMN layout (bottom-only) with boundary at {:.1}",
+                        info!(
+                            "COL-DEBUG: Detected TWO-COLUMN layout (bottom-only) with boundary at {:.1}",
                             boundary
                         );
                         return Some(boundary);
                     } else {
-                        debug!(
-                            "Bottom-only gap rejected: left={}, right={}, balance={:.2}",
+                        info!(
+                            "COL-DEBUG: Bottom-only gap rejected: left={}, right={}, balance={:.2}",
                             left_count, right_count, balance
                         );
                     }
@@ -205,8 +205,8 @@ impl ColumnDetector {
         // Two-column layout if:
         // 1. Most elements start clearly in left or right zones
         // 2. Both columns have significant content
-        // 3. Columns are somewhat balanced
-        if left_starts >= 5 && right_starts >= 5 && balance_ratio > 0.3 {
+        // 3. Columns are somewhat balanced (>0.25 matches projection threshold)
+        if left_starts >= 5 && right_starts >= 5 && balance_ratio > 0.25 {
             info!(
                 "Detected TWO-COLUMN layout with boundary at {:.1}",
                 column_boundary
