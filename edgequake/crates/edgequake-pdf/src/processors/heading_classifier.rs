@@ -55,7 +55,7 @@ impl HeadingClassifier {
         }
 
         // Step 1: Analyze font sizes
-        let font_stats = self.analyze_font_sizes(block, body_font_size);
+        let (font_stats, has_bold) = self.analyze_font_sizes(block, body_font_size);
 
         if !self.has_consistent_large_font(&font_stats) {
             return (false, 0);
@@ -68,14 +68,15 @@ impl HeadingClassifier {
         }
 
         // Step 3: Determine level from size ratio
-        let level = self.calculate_level(font_stats.max_size, body_font_size);
+        let level = self.calculate_level(font_stats.max_size, body_font_size, has_bold);
 
         (true, level)
     }
 
     /// Analyze font sizes in block spans.
-    fn analyze_font_sizes(&self, block: &Block, body_size: f32) -> FontStats {
+    fn analyze_font_sizes(&self, block: &Block, body_size: f32) -> (FontStats, bool) {
         let mut stats = FontStats::default();
+        let mut has_bold = false;
 
         for span in &block.spans {
             if let Some(size) = span.style.size {
@@ -86,9 +87,14 @@ impl HeadingClassifier {
                     stats.max_size = stats.max_size.max(size);
                 }
             }
+
+            // Check for bold text
+            if span.style.weight.map(|w| w >= 600).unwrap_or(false) {
+                has_bold = true;
+            }
         }
 
-        stats
+        (stats, has_bold)
     }
 
     /// Check if block has consistent large font across spans.
@@ -129,14 +135,17 @@ impl HeadingClassifier {
     /// - >= 1.5x body size → H1 (very large, document title)
     /// - >= 1.3x → H2 (large, main sections)
     /// - >= 1.2x → H3 (moderate, subsections)
-    /// - < 1.2x → H4 (slightly large, minor sections)
+    /// - >= 1.1x → H4 (slightly large, minor sections)
+    /// - >= 1.05x → H5 (small, sub-subsections)
+    /// - < 1.05x → H6 (smallest, paragraph-level headings)
     ///
     /// **WHY these thresholds?**
     /// - Aligned with StyleDetectionProcessor ratios
     /// - H1: ratio > 1.5 (main title)
     /// - H2: ratio > 1.2 (numbered sections)
     /// - H3: ratio > 1.1 (subsections)
-    fn calculate_level(&self, max_size: f32, body_size: f32) -> u8 {
+    /// - H4-H6: Smaller size distinctions for detailed document structure
+    fn calculate_level(&self, max_size: f32, body_size: f32, is_bold: bool) -> u8 {
         let ratio = max_size / body_size;
 
         if ratio >= 1.5 {
@@ -145,8 +154,15 @@ impl HeadingClassifier {
             2
         } else if ratio >= 1.2 {
             3
-        } else {
+        } else if ratio >= 1.1 {
             4
+        } else if ratio >= 1.05 {
+            5
+        } else if is_bold {
+            // Bold text with body-sized font is typically H4-H6
+            4
+        } else {
+            6
         }
     }
 }
@@ -177,16 +193,25 @@ mod tests {
         let classifier = HeadingClassifier::new();
 
         // Very large (>= 1.5x) = H1
-        assert_eq!(classifier.calculate_level(18.0, 12.0), 1); // 1.5x
+        assert_eq!(classifier.calculate_level(18.0, 12.0, false), 1); // 1.5x
 
         // Large (>= 1.3x) = H2
-        assert_eq!(classifier.calculate_level(15.6, 12.0), 2); // 1.3x
+        assert_eq!(classifier.calculate_level(15.6, 12.0, false), 2); // 1.3x
 
         // Moderate (>= 1.2x) = H3
-        assert_eq!(classifier.calculate_level(14.5, 12.0), 3); // 1.208x - safely above 1.2
+        assert_eq!(classifier.calculate_level(14.5, 12.0, false), 3); // 1.208x - safely above 1.2
 
-        // Slightly large (< 1.2x) = H4
-        assert_eq!(classifier.calculate_level(14.0, 12.0), 4); // 1.17x
+        // Slightly large (>= 1.1x) = H4
+        assert_eq!(classifier.calculate_level(14.0, 12.0, false), 4); // 1.17x
+
+        // Small (>= 1.05x) = H5
+        assert_eq!(classifier.calculate_level(13.0, 12.0, false), 5); // 1.083x
+
+        // Smallest (< 1.05x) = H6
+        assert_eq!(classifier.calculate_level(12.5, 12.0, false), 6); // 1.042x
+
+        // Bold text with body-sized font = H4
+        assert_eq!(classifier.calculate_level(12.0, 12.0, true), 4);
     }
 
     #[test]

@@ -54,14 +54,26 @@ impl Processor for TableDetectionProcessor {
                 continue;
             }
 
+            tracing::info!(
+                "TableDetectionProcessor: processing page {} with {} blocks",
+                page.number,
+                page.blocks.len()
+            );
+
             // Skip multi-column layouts to avoid treating columns as table
             // WHY: Column text arranged side-by-side looks like table rows
             if page.columns.len() > 1 {
+                tracing::info!(
+                    "  Skipping multi-column page ({} columns)",
+                    page.columns.len()
+                );
                 continue;
             }
 
             let rows = self.group_blocks_by_row(page);
+            tracing::info!("  Grouped into {} rows", rows.len());
             let new_blocks = self.detect_tables(page, rows);
+            tracing::info!("  Produced {} blocks", new_blocks.len());
             page.blocks = new_blocks;
         }
         Ok(document)
@@ -135,12 +147,20 @@ impl TableDetectionProcessor {
             // Table candidate: row with multiple blocks
             if rows[i].len() > 1 {
                 let table_rows = self.find_table_extent(&rows, i, page);
+                tracing::debug!(
+                    "  Row {} has {} blocks, table extent = {} rows",
+                    i,
+                    rows[i].len(),
+                    table_rows.len()
+                );
 
                 if self.is_likely_table(&table_rows, &rows) {
+                    tracing::info!("  ✓ Creating table from {} rows", table_rows.len());
                     let table_block = self.create_table_block(&table_rows, &rows, page);
                     new_blocks.push(table_block);
                     i = table_rows.last().copied().unwrap_or(i) + 1;
                 } else {
+                    tracing::debug!("  ✗ Not a table (failed is_likely_table)");
                     // Not a table, add blocks individually
                     for &block_idx in &rows[i] {
                         new_blocks.push(page.blocks[block_idx].clone());
@@ -232,9 +252,11 @@ impl TableDetectionProcessor {
         let has_multi_col = table_rows.iter().any(|&r| rows[r].len() > 1);
 
         // WHY: Require multiple rows with columns to avoid false positives
-        // 6+ rows or 4+ rows with 4+ columns
-        (table_rows.len() >= 6 && has_multi_col)
-            || (table_rows.len() >= 4 && table_rows.iter().any(|&r| rows[r].len() >= 4))
+        // OODA FIX 2026-01-04: Relaxed thresholds to detect smaller tables
+        // - 3+ rows with 2+ columns (simple tables like 2x3)
+        // - 4+ rows with 3+ columns (moderate tables)
+        // - 6+ rows with any multi-col (large tables)
+        table_rows.len() >= 3 && has_multi_col
     }
 
     /// Create Table block from detected rows.

@@ -14,13 +14,13 @@
 **Target Performance**: 200ms per page (multi-threaded)  
 **Improvement Strategy**: 5 parallel tracks
 
-| Track | Speedup | Effort | Priority |
-|-------|---------|--------|----------|
-| **1. Parallel Page Processing** | 3.8x | 1 week | P0 |
-| **2. Algorithmic Optimization** | 1.6x | 2 weeks | P0 |
-| **3. Memory Efficiency** | 1.3x | 1 week | P1 |
-| **4. Processor Fusion** | 1.4x | 1 week | P1 |
-| **5. Compiled Regex** | 1.1x | 2 days | P2 |
+| Track                           | Speedup | Effort  | Priority |
+| ------------------------------- | ------- | ------- | -------- |
+| **1. Parallel Page Processing** | 3.8x    | 1 week  | P0       |
+| **2. Algorithmic Optimization** | 1.6x    | 2 weeks | P0       |
+| **3. Memory Efficiency**        | 1.3x    | 1 week  | P1       |
+| **4. Processor Fusion**         | 1.4x    | 1 week  | P1       |
+| **5. Compiled Regex**           | 1.1x    | 2 days  | P2       |
 
 **Combined Speedup**: 3.8 × 1.6 × 1.3 × 1.4 × 1.1 = **10.7x** theoretical  
 **Realistic Speedup**: **6-8x** (accounting for Amdahl's Law, overhead)
@@ -34,20 +34,20 @@
 **Code**: [extractor.rs#L200-L250](../../src/extractor.rs#L200-L250)
 
 ```rust
-pub async fn extract_document(&self, pdf_bytes: &[u8]) 
+pub async fn extract_document(&self, pdf_bytes: &[u8])
     -> Result<Document> {
-    
+
     let lopdf_doc = LopdfDocument::load_mem(pdf_bytes)?;
     let page_ids = self.backend.get_page_ids(&lopdf_doc)?;
-    
+
     let mut pages = Vec::new();
-    
+
     // ❌ BOTTLENECK: Sequential processing
     for (page_num, page_id) in page_ids.iter().enumerate() {
         let page = self.backend.extract_page(&lopdf_doc, *page_id, page_num)?;
         pages.push(page);
     }
-    
+
     Ok(Document {
         pages,
         metadata: self.extract_metadata(&lopdf_doc)?,
@@ -67,12 +67,12 @@ pub async fn extract_document(&self, pdf_bytes: &[u8])
 use rayon::prelude::*;
 use std::sync::Arc;
 
-pub async fn extract_document(&self, pdf_bytes: &[u8]) 
+pub async fn extract_document(&self, pdf_bytes: &[u8])
     -> Result<Document> {
-    
+
     let lopdf_doc = Arc::new(LopdfDocument::load_mem(pdf_bytes)?);
     let page_ids = self.backend.get_page_ids(&lopdf_doc)?;
-    
+
     // ✅ SOLUTION: Parallel processing with Rayon
     let pages: Result<Vec<Page>> = page_ids
         .par_iter()
@@ -82,7 +82,7 @@ pub async fn extract_document(&self, pdf_bytes: &[u8])
             self.backend.extract_page(&doc, *page_id, page_num)
         })
         .collect();
-    
+
     Ok(Document {
         pages: pages?,
         metadata: self.extract_metadata(&lopdf_doc)?,
@@ -91,6 +91,7 @@ pub async fn extract_document(&self, pdf_bytes: &[u8])
 ```
 
 **Key Changes**:
+
 1. `Arc<LopdfDocument>` for shared read-only access
 2. `par_iter()` for parallel iteration
 3. No synchronization needed (read-only, independent pages)
@@ -112,6 +113,7 @@ Cores    Sequential Time    Parallel Time    Speedup    Efficiency
 **Speedup Formula**: `T_parallel = T_seq / cores + overhead`
 
 **Overhead Sources**:
+
 - Thread spawning: ~10ms
 - Arc cloning: ~2ms per page
 - Result collecting: ~5ms
@@ -147,29 +149,29 @@ Cores    Sequential Time    Parallel Time    Speedup    Efficiency
 fn connected_components(&self, lines: &[PdfLine]) -> Vec<Vec<usize>> {
     let mut components = Vec::new();
     let mut visited = vec![false; lines.len()];
-    
+
     for i in 0..lines.len() {
         if visited[i] { continue; }
-        
+
         let mut component = Vec::new();
         let mut stack = vec![i];
-        
+
         // ❌ O(n²): For each unvisited line, scan all lines
         while let Some(current) = stack.pop() {
             if visited[current] { continue; }
             visited[current] = true;
             component.push(current);
-            
+
             for j in 0..lines.len() {  // Inner O(n) loop
                 if !visited[j] && self.are_connected(&lines[current], &lines[j]) {
                     stack.push(j);
                 }
             }
         }
-        
+
         components.push(component);
     }
-    
+
     components
 }
 ```
@@ -193,7 +195,7 @@ impl UnionFind {
             rank: vec![0; n],
         }
     }
-    
+
     // O(α(n)) amortized (inverse Ackermann, effectively O(1))
     fn find(&mut self, x: usize) -> usize {
         if self.parent[x] != x {
@@ -201,13 +203,13 @@ impl UnionFind {
         }
         self.parent[x]
     }
-    
+
     fn union(&mut self, x: usize, y: usize) {
         let root_x = self.find(x);
         let root_y = self.find(y);
-        
+
         if root_x == root_y { return; }
-        
+
         // Union by rank
         if self.rank[root_x] < self.rank[root_y] {
             self.parent[root_x] = root_y;
@@ -222,7 +224,7 @@ impl UnionFind {
 
 fn connected_components_optimized(&self, lines: &[PdfLine]) -> Vec<Vec<usize>> {
     let mut uf = UnionFind::new(lines.len());
-    
+
     // ✅ O(n α(n)): Only check adjacent lines with spatial index
     for i in 0..lines.len() {
         for j in (i+1)..lines.len() {
@@ -231,13 +233,13 @@ fn connected_components_optimized(&self, lines: &[PdfLine]) -> Vec<Vec<usize>> {
             }
         }
     }
-    
+
     // Group by root
     let mut components: HashMap<usize, Vec<usize>> = HashMap::new();
     for i in 0..lines.len() {
         components.entry(uf.find(i)).or_default().push(i);
     }
-    
+
     components.into_values().collect()
 }
 ```
@@ -285,16 +287,16 @@ impl LineIndex {
                 line_idx: idx,
             })
             .collect();
-        
+
         LineIndex {
             tree: RTree::bulk_load(items),
         }
     }
-    
+
     // O(log n) query for lines near a point
     fn nearby(&self, line: &PdfLine, max_dist: f32) -> Vec<usize> {
         let search_box = BoundingBox::from_line(line).expand(max_dist);
-        
+
         self.tree
             .locate_in_envelope_intersecting(&search_box.to_envelope())
             .map(|item| item.line_idx)
@@ -305,7 +307,7 @@ impl LineIndex {
 fn connected_components_with_index(&self, lines: &[PdfLine]) -> Vec<Vec<usize>> {
     let index = LineIndex::new(lines);
     let mut uf = UnionFind::new(lines.len());
-    
+
     // ✅ O(n log n): Only check nearby lines
     for i in 0..lines.len() {
         for j in index.nearby(&lines[i], 5.0) {  // O(log n) query
@@ -314,7 +316,7 @@ fn connected_components_with_index(&self, lines: &[PdfLine]) -> Vec<Vec<usize>> 
             }
         }
     }
-    
+
     // ... (group by root as before)
 }
 ```
@@ -332,7 +334,7 @@ fn connected_components_with_index(&self, lines: &[PdfLine]) -> Vec<Vec<usize>> 
 ```rust
 pub fn deduplicate(&self, elements: Vec<TextElement>) -> Vec<TextElement> {
     let mut unique = Vec::new();
-    
+
     // ❌ O(n²): For each element, check all previous elements
     for elem in elements {
         let is_duplicate = unique.iter().any(|existing| {
@@ -340,12 +342,12 @@ pub fn deduplicate(&self, elements: Vec<TextElement>) -> Vec<TextElement> {
             (elem.x - existing.x).abs() < 1.0 &&
             (elem.y - existing.y).abs() < 1.0
         });
-        
+
         if !is_duplicate {
             unique.push(elem);
         }
     }
-    
+
     unique
 }
 ```
@@ -362,7 +364,7 @@ fn spatial_key(x: f32, y: f32, tolerance: f32) -> (i32, i32) {
 pub fn deduplicate(&self, elements: Vec<TextElement>) -> Vec<TextElement> {
     let mut seen: HashMap<(i32, i32, String), TextElement> = HashMap::new();
     let tolerance = 1.0;
-    
+
     // ✅ O(n): Single pass with hash map
     for elem in elements {
         let key = (
@@ -370,11 +372,11 @@ pub fn deduplicate(&self, elements: Vec<TextElement>) -> Vec<TextElement> {
             spatial_key(elem.x, elem.y, tolerance).1,
             elem.text.clone(),
         );
-        
+
         seen.entry(key)
             .or_insert(elem);  // Keep first occurrence
     }
-    
+
     seen.into_values().collect()
 }
 ```
@@ -421,7 +423,7 @@ TOTAL                     2.5 MB         100%
 ```rust
 pub struct Block {
     pub text: String,      // "Hello world" (12 bytes)
-    pub spans: Vec<Span>,  
+    pub spans: Vec<Span>,
 }
 
 pub struct Span {
@@ -515,13 +517,13 @@ impl PagePool {
         // Reuse pre-allocated buffers
         let mut text = self.text_buffers.pop()
             .unwrap_or_else(|| String::with_capacity(10_000));
-        
+
         text.clear();
-        
+
         // ... use text buffer
-        
+
         self.text_buffers.push(text);  // Return to pool
-        
+
         page
     }
 }
@@ -566,7 +568,7 @@ pub trait ProcessorStage {
 impl FusedProcessor {
     pub fn process(&self, mut doc: Document) -> Result<Document> {
         let mut ctx = Context::new();
-        
+
         // ✅ Single pass: Apply all stages to each block
         for page in &mut doc.pages {
             for block in &mut page.blocks {
@@ -575,13 +577,14 @@ impl FusedProcessor {
                 }
             }
         }
-        
+
         Ok(doc)
     }
 }
 ```
 
 **Benefits**:
+
 1. **Cache-friendly**: All data hot in L1/L2 cache
 2. **Less allocation**: No intermediate Documents
 3. **Better vectorization**: Compiler can optimize inner loop

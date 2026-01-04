@@ -30,17 +30,17 @@ Low Impact  │ (3d, +20pts)     │ (1w, UX)        │
 
 ### Priority Rankings
 
-| Priority | Feature | Effort | Impact | ROI | Dependencies |
-|----------|---------|--------|--------|-----|--------------|
-| **P0A** | Parallel Processing | 2 weeks | 3.8x speedup | 🔥🔥🔥🔥🔥 | None |
-| **P0B** | Algorithm Optimization | 2 weeks | 1.6x speedup | 🔥🔥🔥🔥 | None |
-| **P0C** | OCR Integration | 4 weeks | +40 quality pts | 🔥🔥🔥 | P0A (parallelism) |
-| **P1A** | Error Recovery | 3 days | +20 reliability pts | 🔥🔥🔥 | None |
-| **P1B** | Math Formulas | 2 weeks | +30 quality pts | 🔥🔥🔥 | P0B (font info) |
-| **P1C** | Testing Expansion | 6 weeks | +18% coverage | 🔥🔥 | Ongoing |
-| **P2A** | Plugin System | 3 weeks | Extensibility | 🔥🔥 | P0B (refactor) |
-| **P2B** | Streaming API | 2 weeks | UX improvement | 🔥🔥 | P0A (parallelism) |
-| **P2C** | Config System | 1 week | Developer UX | 🔥 | None |
+| Priority | Feature                | Effort  | Impact              | ROI        | Dependencies      |
+| -------- | ---------------------- | ------- | ------------------- | ---------- | ----------------- |
+| **P0A**  | Parallel Processing    | 2 weeks | 3.8x speedup        | 🔥🔥🔥🔥🔥 | None              |
+| **P0B**  | Algorithm Optimization | 2 weeks | 1.6x speedup        | 🔥🔥🔥🔥   | None              |
+| **P0C**  | OCR Integration        | 4 weeks | +40 quality pts     | 🔥🔥🔥     | P0A (parallelism) |
+| **P1A**  | Error Recovery         | 3 days  | +20 reliability pts | 🔥🔥🔥     | None              |
+| **P1B**  | Math Formulas          | 2 weeks | +30 quality pts     | 🔥🔥🔥     | P0B (font info)   |
+| **P1C**  | Testing Expansion      | 6 weeks | +18% coverage       | 🔥🔥       | Ongoing           |
+| **P2A**  | Plugin System          | 3 weeks | Extensibility       | 🔥🔥       | P0B (refactor)    |
+| **P2B**  | Streaming API          | 2 weeks | UX improvement      | 🔥🔥       | P0A (parallelism) |
+| **P2C**  | Config System          | 1 week  | Developer UX        | 🔥         | None              |
 
 ---
 
@@ -72,7 +72,7 @@ impl PdfExtractor {
     pub fn extract_document_parallel(&self, pdf_bytes: &[u8]) -> Result<Document> {
         let lopdf_doc = LopdfDocument::load_mem(pdf_bytes)?;
         let page_ids = self.backend.get_page_ids(&lopdf_doc)?;
-        
+
         // Parallel page extraction
         let pages: Result<Vec<Page>> = page_ids
             .par_iter()
@@ -81,13 +81,14 @@ impl PdfExtractor {
                 self.backend.extract_page(&lopdf_doc, *page_id, idx)
             })
             .collect();
-        
+
         Ok(Document { pages: pages?, ..Default::default() })
     }
 }
 ```
 
 **Validation**:
+
 - [ ] Run benchmarks: `cargo bench extraction_scaling`
 - [ ] Verify 3.5x+ speedup on 4-core machine
 - [ ] Test thread safety with `cargo test --features parallel`
@@ -120,7 +121,7 @@ impl PdfExtractor {
     pub fn extract_with_recovery(&self, pdf_bytes: &[u8]) -> Result<ExtractionResult> {
         let mut pages = Vec::new();
         let mut errors = Vec::new();
-        
+
         for (idx, page_id) in page_ids.iter().enumerate() {
             match self.backend.extract_page(&lopdf_doc, *page_id, idx) {
                 Ok(page) => pages.push(page),
@@ -133,7 +134,7 @@ impl PdfExtractor {
                 }
             }
         }
-        
+
         Ok(ExtractionResult { document: Document { pages, .. }, errors, warnings: vec![] })
     }
 }
@@ -151,6 +152,7 @@ impl PdfError {
 ```
 
 **Validation**:
+
 - [ ] Test with 10 corrupted PDFs
 - [ ] Verify partial extraction works
 - [ ] Validate error categorization
@@ -174,6 +176,7 @@ cargo clippy --package edgequake-pdf -- -D warnings
 ```
 
 **Validation**:
+
 - [ ] Zero clippy warnings
 - [ ] All tests pass
 
@@ -215,7 +218,7 @@ impl UnionFind {
             rank: vec![0; size],
         }
     }
-    
+
     pub fn find(&mut self, mut x: usize) -> usize {
         while self.parent[x] != x {
             self.parent[x] = self.parent[self.parent[x]];  // Path compression
@@ -223,13 +226,13 @@ impl UnionFind {
         }
         x
     }
-    
+
     pub fn union(&mut self, x: usize, y: usize) {
         let root_x = self.find(x);
         let root_y = self.find(y);
-        
+
         if root_x == root_y { return; }
-        
+
         // Union by rank
         if self.rank[root_x] < self.rank[root_y] {
             self.parent[root_x] = root_y;
@@ -247,24 +250,24 @@ impl LatticeEngine {
     fn connected_components_fast(&self, grid: &Grid) -> Vec<Vec<(usize, usize)>> {
         let cell_count = grid.rows * grid.cols;
         let mut uf = UnionFind::new(cell_count);
-        
+
         // Union adjacent cells
         for row in 0..grid.rows {
             for col in 0..grid.cols {
                 let idx = row * grid.cols + col;
-                
+
                 // Right neighbor
                 if col + 1 < grid.cols {
                     uf.union(idx, idx + 1);
                 }
-                
+
                 // Bottom neighbor
                 if row + 1 < grid.rows {
                     uf.union(idx, idx + grid.cols);
                 }
             }
         }
-        
+
         // Group by root
         let mut components: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
         for row in 0..grid.rows {
@@ -274,13 +277,14 @@ impl LatticeEngine {
                 components.entry(root).or_default().push((row, col));
             }
         }
-        
+
         components.into_values().collect()
     }
 }
 ```
 
 **Validation**:
+
 - [ ] Benchmark: `cargo bench table_detection_complexity`
 - [ ] Verify 10x+ speedup for 1000-cell tables
 - [ ] Test correctness with existing test suite
@@ -316,26 +320,26 @@ impl ElementProcessor {
                 BlockNode { idx, bbox: block.bbox.clone() }
             }).collect()
         );
-        
+
         let mut keep = vec![true; blocks.len()];
-        
+
         for (i, block) in blocks.iter().enumerate() {
             if !keep[i] { continue; }
-            
+
             // Query nearby blocks (within 2 pixels)
             let search_box = block.bbox.expand(2.0);
-            
+
             for neighbor in tree.locate_in_envelope(&search_box.to_aabb()) {
                 let j = neighbor.idx;
                 if i >= j || !keep[j] { continue; }
-                
+
                 let other = &blocks[j];
                 if self.is_duplicate(block, other) {
                     keep[j] = false;
                 }
             }
         }
-        
+
         blocks.into_iter().enumerate()
             .filter_map(|(i, block)| if keep[i] { Some(block) } else { None })
             .collect()
@@ -349,7 +353,7 @@ struct BlockNode {
 
 impl rstar::RTreeObject for BlockNode {
     type Envelope = AABB<[f32; 2]>;
-    
+
     fn envelope(&self) -> Self::Envelope {
         AABB::from_corners(
             [self.bbox.x1, self.bbox.y1],
@@ -360,6 +364,7 @@ impl rstar::RTreeObject for BlockNode {
 ```
 
 **Validation**:
+
 - [ ] Benchmark: O(n log n) vs O(n²)
 - [ ] Verify 5x+ speedup for 1000+ blocks
 - [ ] Test correctness with golden files
@@ -407,13 +412,13 @@ impl OcrEngine {
         let tess = Tesseract::new(None, Some(lang))?;
         Ok(Self { tess })
     }
-    
+
     pub fn recognize_image(&mut self, image_bytes: &[u8]) -> Result<OcrResult> {
         self.tess.set_image_from_mem(image_bytes)?;
-        
+
         let text = self.tess.get_text()?;
         let confidence = self.tess.get_mean_confidence();
-        
+
         Ok(OcrResult { text, confidence })
     }
 }
@@ -426,16 +431,16 @@ impl OcrEngine {
 use pdf_render::Renderer;
 
 impl PdfExtractor {
-    fn render_page_to_image(&self, pdf: &[u8], page_num: usize, dpi: u32) 
+    fn render_page_to_image(&self, pdf: &[u8], page_num: usize, dpi: u32)
         -> Result<Vec<u8>> {
-        
+
         let renderer = Renderer::new(pdf)?;
         let image = renderer.render_page(page_num, dpi)?;
-        
+
         // Convert to PNG bytes
         let mut png_bytes = Vec::new();
         image.write_to(&mut png_bytes, ImageFormat::Png)?;
-        
+
         Ok(png_bytes)
     }
 }
@@ -448,7 +453,7 @@ impl PdfExtractor {
 impl PdfExtractor {
     fn detect_page_type(&self, page: &Page) -> PageType {
         let text_density = page.blocks.len() as f32 / page.bbox.area();
-        
+
         if text_density < 0.001 && page.images.len() > 0 {
             PageType::Scanned
         } else if text_density > 0.01 {
@@ -465,11 +470,11 @@ impl PdfExtractor {
 ```rust
 // Merge OCR with native text
 impl PdfExtractor {
-    pub async fn extract_with_ocr(&self, pdf: &[u8], config: OcrConfig) 
+    pub async fn extract_with_ocr(&self, pdf: &[u8], config: OcrConfig)
         -> Result<Document> {
-        
+
         let doc = self.extract_document(pdf)?;
-        
+
         for (idx, page) in doc.pages.iter_mut().enumerate() {
             match self.detect_page_type(page) {
                 PageType::Scanned => {
@@ -487,13 +492,14 @@ impl PdfExtractor {
                 }
             }
         }
-        
+
         Ok(doc)
     }
 }
 ```
 
 **Validation**:
+
 - [ ] Test with 20 scanned documents
 - [ ] Verify 85%+ OCR accuracy
 - [ ] Benchmark OCR overhead (should be <2s/page)
@@ -521,21 +527,21 @@ pub struct FormulaDetector {
 impl FormulaDetector {
     pub fn detect_formulas(&self, page: &Page) -> Vec<Formula> {
         let mut formulas = Vec::new();
-        
+
         for block in &page.blocks {
-            let math_density = self.count_math_symbols(&block.text) 
+            let math_density = self.count_math_symbols(&block.text)
                 / block.text.len() as f32;
-            
+
             if math_density > 0.15 {
                 if let Some(formula) = self.reconstruct_formula(block) {
                     formulas.push(formula);
                 }
             }
         }
-        
+
         formulas
     }
-    
+
     fn count_math_symbols(&self, text: &str) -> usize {
         text.chars().filter(|c| self.symbol_map.contains_key(c)).count()
     }
@@ -548,11 +554,11 @@ impl FormulaDetector {
 impl FormulaDetector {
     fn reconstruct_formula(&self, block: &Block) -> Option<Formula> {
         let mut latex = String::new();
-        
+
         // Detect superscripts/subscripts from Y-offset
         for span in &block.spans {
             let y_offset = span.bbox.y1 - block.bbox.y1;
-            
+
             if y_offset < -2.0 {
                 latex.push_str(&format!("^{{{}}}", self.convert_symbols(&span.text)));
             } else if y_offset > 2.0 {
@@ -561,16 +567,16 @@ impl FormulaDetector {
                 latex.push_str(&self.convert_symbols(&span.text));
             }
         }
-        
+
         let confidence = self.calculate_confidence(&latex);
-        
+
         Some(Formula {
             latex,
             bbox: block.bbox.clone(),
             confidence,
         })
     }
-    
+
     fn convert_symbols(&self, text: &str) -> String {
         let mut result = String::new();
         for ch in text.chars() {
@@ -586,6 +592,7 @@ impl FormulaDetector {
 ```
 
 **Validation**:
+
 - [ ] Test with 100 arXiv papers
 - [ ] Verify 90%+ formula accuracy
 - [ ] Compare with gold standard LaTeX
@@ -607,6 +614,7 @@ impl FormulaDetector {
 ### Task 4.1: Unit Test Expansion (P1C)
 
 **Week 1-2**: Add 91 unit tests
+
 - [ ] 20 font encoding tests
 - [ ] 25 math formula tests
 - [ ] 18 table detection tests
@@ -614,6 +622,7 @@ impl FormulaDetector {
 - [ ] 13 edge case tests
 
 **Week 3-4**: Integration tests
+
 - [ ] 10 arXiv paper tests
 - [ ] 5 financial report tests
 - [ ] 5 legal document tests
@@ -621,11 +630,13 @@ impl FormulaDetector {
 - [ ] 10 large document tests
 
 **Week 5-6**: Performance benchmarks
+
 - [ ] 10 extraction scaling benchmarks
 - [ ] 10 algorithm complexity benchmarks
 - [ ] 10 memory usage benchmarks
 
 **Validation**:
+
 - [ ] Run coverage: `cargo tarpaulin --out Html`
 - [ ] Verify 90%+ coverage
 - [ ] All tests pass on CI
@@ -684,6 +695,7 @@ cargo fuzz run pdf_parsing -- -max_total_time=3600
 **Implementation**: See [ARCHITECTURE_EVOLUTION.md](ARCHITECTURE_EVOLUTION.md) Section 1
 
 **Validation**:
+
 - [ ] Test with 3rd party processor plugin
 - [ ] Verify plugin loading works
 - [ ] Benchmark plugin overhead (<5%)
@@ -701,6 +713,7 @@ cargo fuzz run pdf_parsing -- -max_total_time=3600
 **Implementation**: See [ARCHITECTURE_EVOLUTION.md](ARCHITECTURE_EVOLUTION.md) Section 2
 
 **Validation**:
+
 - [ ] Test with 200-page document
 - [ ] Verify progress callbacks work
 - [ ] Measure memory usage (should be constant)
@@ -718,6 +731,7 @@ cargo fuzz run pdf_parsing -- -max_total_time=3600
 **Implementation**: See [ARCHITECTURE_EVOLUTION.md](ARCHITECTURE_EVOLUTION.md) Section 5
 
 **Validation**:
+
 - [ ] Test TOML config loading
 - [ ] Verify config validation
 - [ ] Test environment variable override
@@ -811,13 +825,13 @@ cargo fuzz run pdf_parsing -- -max_total_time=3600
 
 ### High-Risk Items
 
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| **OCR accuracy insufficient** | Medium | High | Implement confidence thresholds, fallback to manual review |
-| **Parallel extraction race conditions** | Low | High | Extensive testing, use thread-safe data structures |
-| **Performance regression** | Medium | Medium | Automated benchmarks in CI, alerting on >10% slowdown |
-| **Breaking API changes** | Low | High | Deprecation warnings, migration guide, semantic versioning |
-| **Test maintenance burden** | High | Low | Generate tests from templates, automate golden file updates |
+| Risk                                    | Probability | Impact | Mitigation                                                  |
+| --------------------------------------- | ----------- | ------ | ----------------------------------------------------------- |
+| **OCR accuracy insufficient**           | Medium      | High   | Implement confidence thresholds, fallback to manual review  |
+| **Parallel extraction race conditions** | Low         | High   | Extensive testing, use thread-safe data structures          |
+| **Performance regression**              | Medium      | Medium | Automated benchmarks in CI, alerting on >10% slowdown       |
+| **Breaking API changes**                | Low         | High   | Deprecation warnings, migration guide, semantic versioning  |
+| **Test maintenance burden**             | High        | Low    | Generate tests from templates, automate golden file updates |
 
 ---
 

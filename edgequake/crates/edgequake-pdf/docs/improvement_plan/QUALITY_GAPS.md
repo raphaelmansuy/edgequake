@@ -10,15 +10,16 @@
 
 ## Executive Summary
 
-| Category | Current | Target | Gap | Priority |
-|----------|---------|--------|-----|----------|
-| **Text Extraction** | 95/100 | 99/100 | -4% | P0 |
-| **Math Formula Support** | 40/100 | 90/100 | -50% | P0 |
-| **Table Quality** | 85/100 | 95/100 | -10% | P1 |
-| **OCR Integration** | 0/100 | 85/100 | -85% | P0 |
-| **Error Recovery** | 60/100 | 90/100 | -30% | P1 |
+| Category                 | Current | Target | Gap  | Priority |
+| ------------------------ | ------- | ------ | ---- | -------- |
+| **Text Extraction**      | 95/100  | 99/100 | -4%  | P0       |
+| **Math Formula Support** | 40/100  | 90/100 | -50% | P0       |
+| **Table Quality**        | 85/100  | 95/100 | -10% | P1       |
+| **OCR Integration**      | 0/100   | 85/100 | -85% | P0       |
+| **Error Recovery**       | 60/100  | 90/100 | -30% | P1       |
 
 **Key Missing Features**:
+
 1. Scanned PDF support (OCR)
 2. Math formula/equation handling
 3. Merged table cell detection
@@ -64,28 +65,28 @@ pub enum OcrEngine {
 }
 
 impl PdfExtractor {
-    pub async fn extract_with_ocr(&self, pdf_bytes: &[u8], config: OcrConfig) 
+    pub async fn extract_with_ocr(&self, pdf_bytes: &[u8], config: OcrConfig)
         -> Result<Document> {
-        
+
         let doc = self.extract_document(pdf_bytes)?;
-        
+
         // Detect pages with low text confidence
         for (idx, page) in doc.pages.iter().enumerate() {
             if page.stats.text_confidence < 0.5 {
                 // Render page to image
                 let image = self.render_page_to_image(pdf_bytes, idx, config.dpi)?;
-                
+
                 // Run OCR
                 let ocr_text = self.run_ocr(&image, &config).await?;
-                
+
                 // Merge OCR results with native text
                 page = self.merge_ocr_results(page, ocr_text)?;
             }
         }
-        
+
         Ok(doc)
     }
-    
+
     async fn run_ocr(&self, image: &Image, config: &OcrConfig) -> Result<OcrResult> {
         match config.engine {
             OcrEngine::Tesseract => {
@@ -107,6 +108,7 @@ impl PdfExtractor {
 ### 1.3 Implementation Plan
 
 **Week 1-2**: Tesseract Integration
+
 - [ ] Add `tesseract-sys` Rust bindings
 - [ ] Implement page rendering (PDF → PNG via `image` crate)
 - [ ] Add OCR text extraction
@@ -114,12 +116,14 @@ impl PdfExtractor {
 - [ ] Test with scanned documents
 
 **Week 3**: Cloud OCR Providers
+
 - [ ] Add Azure Vision API client
 - [ ] Add AWS Textract client
 - [ ] Add rate limiting and retry logic
 - [ ] Add cost estimation
 
 **Week 4**: OCR Result Merging
+
 - [ ] Detect hybrid pages (native + scanned)
 - [ ] Merge OCR bounding boxes with native text
 - [ ] Resolve conflicts (overlapping regions)
@@ -150,6 +154,7 @@ Expected:      $E = mc^2$
 ```
 
 **Root Cause**: No special handling for:
+
 1. Subscript/superscript positioning
 2. Symbol recognition (∫, ∑, ∂)
 3. Fraction bars (horizontal lines)
@@ -167,37 +172,37 @@ pub struct FormulaDetector {
 impl FormulaDetector {
     pub fn detect_formulas(&self, page: &Page) -> Vec<Formula> {
         let mut formulas = Vec::new();
-        
+
         for block in &page.blocks {
             // Check for math symbols
-            let math_density = self.count_math_symbols(&block.text) 
+            let math_density = self.count_math_symbols(&block.text)
                 / block.text.len() as f32;
-            
+
             if math_density > 0.15 {  // 15% math symbols
                 let formula = self.reconstruct_formula(block)?;
                 formulas.push(formula);
             }
         }
-        
+
         formulas
     }
-    
+
     fn count_math_symbols(&self, text: &str) -> usize {
         text.chars().filter(|c| {
-            matches!(c, 
-                '∫' | '∑' | '∏' | '√' | '∂' | '∞' | '≠' | '≤' | '≥' | 
+            matches!(c,
+                '∫' | '∑' | '∏' | '√' | '∂' | '∞' | '≠' | '≤' | '≥' |
                 'α' | 'β' | 'γ' | 'δ' | 'ε' | 'π' | 'σ' | 'θ' | 'λ' | 'μ'
             )
         }).count()
     }
-    
+
     fn reconstruct_formula(&self, block: &Block) -> Result<Formula> {
         let mut latex = String::new();
-        
+
         // Analyze element positioning to detect super/subscripts
         for span in &block.spans {
             let y_offset = span.bbox.y1 - block.bbox.y1;
-            
+
             if y_offset < -2.0 {
                 // Superscript (above baseline)
                 latex.push_str(&format!("^{{{}}}", span.text));
@@ -209,12 +214,12 @@ impl FormulaDetector {
                 latex.push_str(&span.text);
             }
         }
-        
+
         // Convert Unicode symbols to LaTeX
         for (unicode, tex) in &self.symbol_patterns {
             latex = latex.replace(*unicode, tex);
         }
-        
+
         Ok(Formula {
             latex,
             bbox: block.bbox.clone(),
@@ -238,21 +243,21 @@ fn build_symbol_map() -> HashMap<char, &'static str> {
         'Δ' => r"\Delta",
         'π' => r"\pi",
         'σ' => r"\sigma",
-        
+
         // Math operators
         '∫' => r"\int",
         '∑' => r"\sum",
         '∏' => r"\prod",
         '√' => r"\sqrt",
         '∂' => r"\partial",
-        
+
         // Relations
         '≠' => r"\neq",
         '≤' => r"\leq",
         '≥' => r"\geq",
         '≈' => r"\approx",
         '∞' => r"\infty",
-        
+
         // Arrows
         '→' => r"\rightarrow",
         '←' => r"\leftarrow",
@@ -303,11 +308,11 @@ Expected (with merged header):
 impl LatticeEngine {
     fn detect_merged_cells(&self, grid: &Grid) -> Vec<MergedCell> {
         let mut merged = Vec::new();
-        
+
         for row in 0..grid.rows {
             for col in 0..grid.cols {
                 let cell = &grid.cells[row][col];
-                
+
                 // Check horizontal merge (no vertical line between cells)
                 let mut span = 1;
                 for next_col in (col + 1)..grid.cols {
@@ -317,7 +322,7 @@ impl LatticeEngine {
                         break;
                     }
                 }
-                
+
                 if span > 1 {
                     merged.push(MergedCell {
                         row,
@@ -328,7 +333,7 @@ impl LatticeEngine {
                 }
             }
         }
-        
+
         merged
     }
 }
@@ -348,15 +353,15 @@ impl LatticeEngine {
 fn detect_text_tables(&self, blocks: &[Block]) -> Vec<Table> {
     // Group blocks by Y-position (rows)
     let rows = self.group_into_rows(blocks);
-    
+
     // For each row, detect column alignment
     let col_positions = self.detect_column_positions(&rows);
-    
+
     // If 3+ aligned columns across 3+ rows → table
     if col_positions.len() >= 3 && rows.len() >= 3 {
         return self.construct_table(rows, col_positions);
     }
-    
+
     vec![]
 }
 ```
@@ -412,7 +417,7 @@ pub const ARABIC_ENCODING: &[(u16, char)] = &[
 impl FontInfo {
     fn get_encoding(&self, doc: &LopdfDocument, font_dict: &Dictionary) -> Encoding {
         // ... existing logic
-        
+
         // Add CJK detection
         if let Some(encoding_name) = self.detect_cjk_encoding(font_dict) {
             return match encoding_name {
@@ -422,12 +427,12 @@ impl FontInfo {
                 _ => Encoding::Identity,
             };
         }
-        
+
         // Add Arabic detection
         if self.is_arabic_font(font_dict) {
             return Encoding::Arabic;
         }
-        
+
         // ... fallback
     }
 }
@@ -469,12 +474,12 @@ pub struct PageError {
 }
 
 impl PdfExtractor {
-    pub fn extract_with_recovery(&self, pdf_bytes: &[u8]) 
+    pub fn extract_with_recovery(&self, pdf_bytes: &[u8])
         -> Result<ExtractionResult> {
-        
+
         let mut pages = Vec::new();
         let mut errors = Vec::new();
-        
+
         for (page_num, page_id) in page_ids.iter().enumerate() {
             match self.backend.extract_page(&lopdf_doc, *page_id, page_num) {
                 Ok(page) => pages.push(page),
@@ -497,7 +502,7 @@ impl PdfExtractor {
                 }
             }
         }
-        
+
         Ok(ExtractionResult {
             document: Document { pages, .. },
             errors,
@@ -514,17 +519,17 @@ impl PdfExtractor {
 
 ## 6. Missing Features Summary
 
-| Feature | Status | Priority | Effort | Impact |
-|---------|--------|----------|--------|--------|
-| **OCR Integration** | ❌ Not started | P0 | 4 weeks | +40 pts |
-| **Math Formula Support** | ❌ Not started | P0 | 2 weeks | +30 pts |
-| **Merged Cell Detection** | ❌ Not started | P1 | 5 days | +10 pts |
-| **CJK/Arabic Support** | ❌ Not started | P1 | 2 weeks | Enabler |
-| **Error Recovery** | ⚠️ Partial | P1 | 3 days | +20 pts |
-| **Progress Callbacks** | ❌ Not started | P2 | 2 days | UX |
-| **Incremental Rendering** | ❌ Not started | P2 | 1 week | UX |
-| **Equation Delimiter Detection** | ❌ Not started | P2 | 3 days | +5 pts |
-| **Headerless Table Detection** | ⚠️ Partial | P2 | 7 days | +5 pts |
+| Feature                          | Status         | Priority | Effort  | Impact  |
+| -------------------------------- | -------------- | -------- | ------- | ------- |
+| **OCR Integration**              | ❌ Not started | P0       | 4 weeks | +40 pts |
+| **Math Formula Support**         | ❌ Not started | P0       | 2 weeks | +30 pts |
+| **Merged Cell Detection**        | ❌ Not started | P1       | 5 days  | +10 pts |
+| **CJK/Arabic Support**           | ❌ Not started | P1       | 2 weeks | Enabler |
+| **Error Recovery**               | ⚠️ Partial     | P1       | 3 days  | +20 pts |
+| **Progress Callbacks**           | ❌ Not started | P2       | 2 days  | UX      |
+| **Incremental Rendering**        | ❌ Not started | P2       | 1 week  | UX      |
+| **Equation Delimiter Detection** | ❌ Not started | P2       | 3 days  | +5 pts  |
+| **Headerless Table Detection**   | ⚠️ Partial     | P2       | 7 days  | +5 pts  |
 
 **Total Effort**: ~12 weeks (3 months)  
 **Quality Improvement**: 88/100 → 95+/100 (7+ point gain)

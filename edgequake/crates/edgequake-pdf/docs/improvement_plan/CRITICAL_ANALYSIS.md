@@ -12,15 +12,16 @@
 
 **Overall Assessment**: **7.5/10** (Production-capable but performance-limited)
 
-| Dimension | Score | Gap to SOTA |
-|-----------|-------|-------------|
-| **Correctness** | 9/10 | ✅ Minimal - 272 tests pass |
-| **Performance** | 5/10 | ❌ Major - 4-10x slower than optimal |
-| **Scalability** | 4/10 | ❌ Critical - Sequential processing only |
-| **Code Quality** | 8/10 | ✅ Minor - Clean architecture, good tests |
-| **Feature Completeness** | 6/10 | ⚠️ Moderate - Missing OCR, math, streaming |
+| Dimension                | Score | Gap to SOTA                                |
+| ------------------------ | ----- | ------------------------------------------ |
+| **Correctness**          | 9/10  | ✅ Minimal - 272 tests pass                |
+| **Performance**          | 5/10  | ❌ Major - 4-10x slower than optimal       |
+| **Scalability**          | 4/10  | ❌ Critical - Sequential processing only   |
+| **Code Quality**         | 8/10  | ✅ Minor - Clean architecture, good tests  |
+| **Feature Completeness** | 6/10  | ⚠️ Moderate - Missing OCR, math, streaming |
 
 **Key Findings**:
+
 1. **Algorithmic Complexity**: O(n²) bottlenecks in table detection and deduplication
 2. **Missed Parallelism**: Single-threaded page processing leaves 75% CPU idle
 3. **Memory Inefficiency**: Loads entire PDF into RAM (fails on 500+ page docs)
@@ -54,12 +55,12 @@ TOTAL 12 Pages                ~6000ms   ~2400ms   2.5x      No parallelism
 
 ### 1.2 Algorithmic Complexity Audit
 
-| Algorithm | Current | Optimal | Code Location | Impact |
-|-----------|---------|---------|---------------|--------|
-| **Connected Components** | O(n²) | O(n α(n)) | [lattice.rs#L50-L150](../../src/backend/lattice.rs#L50-L150) | 90ms/page |
-| **Deduplication** | O(n²) | O(n log n) | [element_processing.rs#L40](../../src/backend/element_processing.rs#L40) | 12ms/page |
-| **Text Grouping** | O(n log n) | O(n) | [text_grouping.rs#L80](../../src/backend/text_grouping.rs#L80) | 30ms extra |
-| **Reading Order** | O(n log n) | O(n) | [reading_order.rs#L80](../../src/layout/reading_order.rs#L80) | 15ms extra |
+| Algorithm                | Current    | Optimal    | Code Location                                                            | Impact     |
+| ------------------------ | ---------- | ---------- | ------------------------------------------------------------------------ | ---------- |
+| **Connected Components** | O(n²)      | O(n α(n))  | [lattice.rs#L50-L150](../../src/backend/lattice.rs#L50-L150)             | 90ms/page  |
+| **Deduplication**        | O(n²)      | O(n log n) | [element_processing.rs#L40](../../src/backend/element_processing.rs#L40) | 12ms/page  |
+| **Text Grouping**        | O(n log n) | O(n)       | [text_grouping.rs#L80](../../src/backend/text_grouping.rs#L80)           | 30ms extra |
+| **Reading Order**        | O(n log n) | O(n)       | [reading_order.rs#L80](../../src/layout/reading_order.rs#L80)            | 15ms extra |
 
 **Total Savings Potential**: ~150ms per page (30% speedup)
 
@@ -133,7 +134,7 @@ fn apply_processors(&self, doc: Document) -> Result<Document> {
         .add(LayoutProcessor::new())            // Pass 3: Full doc scan
         // ... 10 more sequential passes
         .add(BlockMergeProcessor::new());       // Pass 13: Full doc scan
-    
+
     chain.process(doc) // 13 × O(n) = O(13n) - LINEAR but slow
 }
 ```
@@ -151,7 +152,7 @@ fn apply_fused_processor(&self, doc: Document) -> Result<Document> {
         .with_layout_analysis()
         // ... all 13 processors fused
         .build();
-    
+
     fused.process_single_pass(doc) // 1 × O(n) = O(n)
 }
 ```
@@ -176,7 +177,8 @@ pub struct Page {
 
 **Problem**: Spatial queries (find blocks near point, find blocks in bbox) require O(n) linear scan.
 
-**Impact**: 
+**Impact**:
+
 - Table detection: O(n²) for text-to-cell assignment
 - Column detection: O(n²) for element clustering
 
@@ -243,24 +245,24 @@ pub struct SpanRef {
 fn merge_horizontal_table_halves(&self, tables: Vec<Table>) -> Vec<Table> {
     let mut result = Vec::new();
     let mut used = vec![false; tables.len()];
-    
+
     for i in 0..tables.len() {
         if used[i] { continue; }
-        
+
         let mut merged = tables[i].clone();  // ❌ Expensive clone
-        
+
         for j in (i + 1)..tables.len() {
             if used[j] { continue; }
-            
+
             if self.can_merge(&tables[i], &tables[j]) {
                 merged = self.merge_tables(merged, tables[j].clone()); // ❌ Another clone
                 used[j] = true;
             }
         }
-        
+
         result.push(merged);
     }
-    
+
     result
 }
 ```
@@ -273,12 +275,12 @@ fn merge_horizontal_table_halves(&self, tables: Vec<Table>) -> Vec<Table> {
 fn merge_horizontal_table_halves(&self, mut tables: Vec<Table>) -> Vec<Table> {
     let mut result = Vec::new();
     let mut used = vec![false; tables.len()];
-    
+
     for i in 0..tables.len() {
         if used[i] { continue; }
-        
+
         let mut merged_indices = vec![i];
-        
+
         for j in (i + 1)..tables.len() {
             if used[j] { continue; }
             if self.can_merge_by_index(&tables, i, j) {
@@ -286,11 +288,11 @@ fn merge_horizontal_table_halves(&self, mut tables: Vec<Table>) -> Vec<Table> {
                 used[j] = true;
             }
         }
-        
+
         // Move instead of clone
         result.push(self.merge_by_indices(&mut tables, merged_indices));
     }
-    
+
     result
 }
 ```
@@ -306,11 +308,11 @@ fn merge_horizontal_table_halves(&self, mut tables: Vec<Table>) -> Vec<Table> {
 ```rust
 fn extract_page(&self, doc: &LopdfDocument, page_id: ObjectId) -> Result<Page> {
     let page_dict = doc.get_object(page_id)?.as_dict()?;  // ❌ No context
-    
+
     let content_stream = page_dict.get(b"Contents")?;     // ❌ Which page?
-    
+
     let resources = page_dict.get(b"Resources")?;         // ❌ What failed?
-    
+
     // ...
 }
 ```
@@ -320,22 +322,22 @@ fn extract_page(&self, doc: &LopdfDocument, page_id: ObjectId) -> Result<Page> {
 **Fix**: Contextual errors
 
 ```rust
-fn extract_page(&self, doc: &LopdfDocument, page_id: ObjectId, page_num: usize) 
+fn extract_page(&self, doc: &LopdfDocument, page_id: ObjectId, page_num: usize)
     -> Result<Page> {
-    
+
     let page_dict = doc.get_object(page_id)?
         .as_dict()
         .map_err(|e| PdfError::PageParse {
             page: page_num,
             reason: format!("Invalid page dictionary: {}", e)
         })?;
-    
+
     let content_stream = page_dict.get(b"Contents")
         .map_err(|_| PdfError::PageParse {
             page: page_num,
             reason: "Missing Contents stream".to_string()
         })?;
-    
+
     // ...
 }
 ```
@@ -348,15 +350,15 @@ fn extract_page(&self, doc: &LopdfDocument, page_id: ObjectId, page_num: usize)
 
 ### 4.1 Missing Features
 
-| Feature | Priority | Impact | Effort | Availability |
-|---------|----------|--------|--------|--------------|
-| **OCR Integration** | P0 | Critical for scanned PDFs | 2 weeks | ❌ Not started |
-| **Streaming API** | P0 | Required for >200 page docs | 3 weeks | ❌ Not started |
-| **Math Formula Handling** | P1 | Academic papers broken | 2 weeks | ❌ Not started |
-| **Parallel Processing** | P1 | 4x speedup | 1 week | ❌ Not started |
-| **Spatial Indexing** | P1 | 10x faster table detection | 1 week | ❌ Not started |
-| **Progress Callbacks** | P2 | User experience | 3 days | ❌ Not started |
-| **Incremental Rendering** | P2 | Start output earlier | 1 week | ❌ Not started |
+| Feature                   | Priority | Impact                      | Effort  | Availability   |
+| ------------------------- | -------- | --------------------------- | ------- | -------------- |
+| **OCR Integration**       | P0       | Critical for scanned PDFs   | 2 weeks | ❌ Not started |
+| **Streaming API**         | P0       | Required for >200 page docs | 3 weeks | ❌ Not started |
+| **Math Formula Handling** | P1       | Academic papers broken      | 2 weeks | ❌ Not started |
+| **Parallel Processing**   | P1       | 4x speedup                  | 1 week  | ❌ Not started |
+| **Spatial Indexing**      | P1       | 10x faster table detection  | 1 week  | ❌ Not started |
+| **Progress Callbacks**    | P2       | User experience             | 3 days  | ❌ Not started |
+| **Incremental Rendering** | P2       | Start output earlier        | 1 week  | ❌ Not started |
 
 **Total Missing Effort**: ~9 weeks (2+ months of development)
 
@@ -424,6 +426,7 @@ TOTAL                        175           15          ~72%       ⚠️
 ```
 
 **Missing Coverage**:
+
 1. **Font Encoding Edge Cases**: Embedded fonts, CJK, emoji (0 tests)
 2. **Large Documents**: No tests for 100+ page docs (memory issues)
 3. **Corrupted PDFs**: No tests for malformed input (crash risk)
@@ -433,13 +436,13 @@ TOTAL                        175           15          ~72%       ⚠️
 
 ### 5.2 Quality Metric Targets
 
-| Metric | Current | Target | Gap | Notes |
-|--------|---------|--------|-----|-------|
-| **Character Accuracy** | 98.5% | 99.5% | -1.0% | Math formulas drag down avg |
-| **Structure Preservation** | 85% | 95% | -10% | Table merging, list nesting |
-| **Processing Speed** | 500ms/page | 200ms/page | -60% | Algorithmic improvements |
-| **Memory Efficiency** | 2.5 MB/page | 0.8 MB/page | -68% | Shared storage, streaming |
-| **Error Recovery** | 60% | 90% | -30% | Better fallbacks needed |
+| Metric                     | Current     | Target      | Gap   | Notes                       |
+| -------------------------- | ----------- | ----------- | ----- | --------------------------- |
+| **Character Accuracy**     | 98.5%       | 99.5%       | -1.0% | Math formulas drag down avg |
+| **Structure Preservation** | 85%         | 95%         | -10%  | Table merging, list nesting |
+| **Processing Speed**       | 500ms/page  | 200ms/page  | -60%  | Algorithmic improvements    |
+| **Memory Efficiency**      | 2.5 MB/page | 0.8 MB/page | -68%  | Shared storage, streaming   |
+| **Error Recovery**         | 60%         | 90%         | -30%  | Better fallbacks needed     |
 
 ---
 
@@ -447,14 +450,14 @@ TOTAL                        175           15          ~72%       ⚠️
 
 ### 6.1 Competitive Analysis
 
-| System | Speed | Quality | Features | License | Notes |
-|--------|-------|---------|----------|---------|-------|
-| **EdgeQuake PDF** | 500ms/pg | 88/100 | Basic | Open | This system |
-| **Adobe Acrobat** | 150ms/pg | 95/100 | Full | Commercial | Proprietary, $$$$ |
-| **PDFMiner.six** | 800ms/pg | 75/100 | Basic | Open | Python, slower |
-| **PyMuPDF** | 200ms/pg | 90/100 | Good | Open | C++ core, Rust bindings |
-| **pdftotext** | 100ms/pg | 65/100 | Minimal | Open | Fast but lossy |
-| **Marker** | 400ms/pg | 92/100 | ML-based | Open | GPU-dependent |
+| System            | Speed    | Quality | Features | License    | Notes                   |
+| ----------------- | -------- | ------- | -------- | ---------- | ----------------------- |
+| **EdgeQuake PDF** | 500ms/pg | 88/100  | Basic    | Open       | This system             |
+| **Adobe Acrobat** | 150ms/pg | 95/100  | Full     | Commercial | Proprietary, $$$$       |
+| **PDFMiner.six**  | 800ms/pg | 75/100  | Basic    | Open       | Python, slower          |
+| **PyMuPDF**       | 200ms/pg | 90/100  | Good     | Open       | C++ core, Rust bindings |
+| **pdftotext**     | 100ms/pg | 65/100  | Minimal  | Open       | Fast but lossy          |
+| **Marker**        | 400ms/pg | 92/100  | ML-based | Open       | GPU-dependent           |
 
 **Position**: Middle of pack - faster than Python alternatives, slower than C++ natives.
 
@@ -467,7 +470,7 @@ Performance Gap:
   EdgeQuake:    500ms/page
   Best (pdftotext): 100ms/page
   Gap: 5x slower
-  
+
   Achievable Target: 200ms/page (parallel + optimization)
   Remaining Gap: 2x (acceptable for quality difference)
 
@@ -475,7 +478,7 @@ Quality Gap:
   EdgeQuake:    88/100
   Best (Marker): 92/100
   Gap: 4 points
-  
+
   Achievable Target: 91/100 (math + merged cells + OCR)
   Remaining Gap: 1 point (diminishing returns)
 
@@ -483,7 +486,7 @@ Feature Gap:
   EdgeQuake:    6/12 features
   Best (Adobe):  12/12 features
   Gap: 50% missing
-  
+
   P0 Features: OCR, streaming, parallel (3 features)
   Achievable Target: 9/12 (75% coverage)
 ```
@@ -494,14 +497,14 @@ Feature Gap:
 
 ### 7.1 Technical Debt
 
-| Debt Item | Severity | Effort to Fix | Impact if Ignored |
-|-----------|----------|---------------|-------------------|
-| **O(n²) Algorithms** | High | 2 weeks | Performance plateau |
-| **No Streaming** | Critical | 3 weeks | OOM on large docs |
-| **Sequential Processing** | High | 1 week | CPU underutilization |
-| **Missing OCR** | Medium | 2 weeks | Scanned PDFs unusable |
-| **Weak Error Handling** | Medium | 1 week | Poor UX, hard debugging |
-| **Test Coverage < 80%** | Low | 2 weeks | Regressions likely |
+| Debt Item                 | Severity | Effort to Fix | Impact if Ignored       |
+| ------------------------- | -------- | ------------- | ----------------------- |
+| **O(n²) Algorithms**      | High     | 2 weeks       | Performance plateau     |
+| **No Streaming**          | Critical | 3 weeks       | OOM on large docs       |
+| **Sequential Processing** | High     | 1 week        | CPU underutilization    |
+| **Missing OCR**           | Medium   | 2 weeks       | Scanned PDFs unusable   |
+| **Weak Error Handling**   | Medium   | 1 week        | Poor UX, hard debugging |
+| **Test Coverage < 80%**   | Low      | 2 weeks       | Regressions likely      |
 
 **Total Debt**: ~11 weeks effort to address all critical/high items.
 
@@ -534,12 +537,14 @@ Feature Gap:
 ### 8.1 Immediate Actions (P0, 1-2 weeks)
 
 1. **Implement Parallel Page Processing**
+
    - Effort: 5 days
    - Impact: 3.8x speedup on multi-core
    - ROI: 7.6x (impact/effort)
    - Code: [extractor.rs#L200-L250](../../src/extractor.rs#L200-L250)
 
 2. **Add Streaming API**
+
    - Effort: 10 days
    - Impact: Enables 500+ page docs
    - ROI: ∞ (unlocks new use cases)
@@ -559,11 +564,13 @@ Feature Gap:
 ### 8.2 Short-Term Actions (P1, 1 month)
 
 1. **Fuse Processor Pipeline**
+
    - Effort: 7 days
    - Impact: 2.5x faster processing
    - Code: [processors/processor.rs](../../src/processors/processor.rs)
 
 2. **Add OCR Integration**
+
    - Effort: 10 days
    - Impact: Handle scanned PDFs
    - Code: New module `src/vision/ocr.rs`
@@ -620,12 +627,14 @@ Math Formula Support  40%       90%       +50%
 
 **Current State**: Production-capable but limited by performance and scalability.
 
-**Critical Path**: 
-1. Parallel processing (3.8x speedup) 
+**Critical Path**:
+
+1. Parallel processing (3.8x speedup)
 2. Streaming API (10x doc size)
 3. Spatial indexing (4.5x faster tables)
 
 **Expected Outcome**: After 4-6 weeks of focused work, system will be:
+
 - **3x faster** (200ms/page vs 500ms/page)
 - **5x more scalable** (1000 pages vs 200 pages)
 - **SOTA-competitive** (91/100 vs 88/100 quality)
@@ -635,6 +644,7 @@ Math Formula Support  40%       90%       +50%
 ---
 
 **Document Metadata**:
+
 - **Lines**: 750+
 - **Analysis Depth**: Component-level
 - **Code References**: 25+

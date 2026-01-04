@@ -13,6 +13,7 @@
 **Current Architecture**: Monolithic with tight coupling  
 **Target Architecture**: Modular with clear boundaries  
 **Key Improvements**:
+
 1. **Plugin System** for processors (extensibility)
 2. **Streaming API** for large documents (scalability)
 3. **Backend Abstraction** completed (portability)
@@ -36,12 +37,13 @@ fn apply_processors(&self, doc: Document) -> Result<Document> {
         .add(LayoutProcessor::new())
         // ... 10 more hardcoded processors
         .add(BlockMergeProcessor::new());
-    
+
     chain.process(doc)
 }
 ```
 
 **Limitations**:
+
 1. Users cannot add custom processors
 2. Cannot disable default processors
 3. No processor configuration
@@ -69,12 +71,12 @@ impl ProcessorRegistry {
     pub fn new() -> Self {
         Self { plugins: Vec::new() }
     }
-    
+
     pub fn register(&mut self, plugin: Box<dyn ProcessorPlugin>) {
         self.plugins.push(plugin);
         self.plugins.sort_by_key(|p| p.priority());
     }
-    
+
     pub fn process(&self, mut doc: Document, config: &Config) -> Result<Document> {
         for plugin in &self.plugins {
             if plugin.can_process(&doc) {
@@ -100,6 +102,7 @@ let processed = registry.process(doc, &config)?;
 ```
 
 **Benefits**:
+
 1. **Extensibility**: Users can add domain-specific processors
 2. **Flexibility**: Can disable/reorder processors via priority
 3. **Configurability**: Each processor gets config object
@@ -118,7 +121,7 @@ pub struct RedactionProcessor {
 impl ProcessorPlugin for RedactionProcessor {
     fn name(&self) -> &str { "redaction" }
     fn priority(&self) -> i32 { 50 }  // Early in pipeline
-    
+
     fn process(&self, mut doc: Document, config: &Config) -> Result<Document> {
         for page in &mut doc.pages {
             for block in &mut page.blocks {
@@ -129,7 +132,7 @@ impl ProcessorPlugin for RedactionProcessor {
         }
         Ok(doc)
     }
-    
+
     fn can_process(&self, doc: &Document) -> bool {
         // Only process if document has text blocks
         doc.pages.iter().any(|p| !p.blocks.is_empty())
@@ -149,13 +152,13 @@ impl ProcessorPlugin for RedactionProcessor {
 // ❌ OOM on large documents (>200 pages)
 pub async fn extract_document(&self, pdf_bytes: &[u8]) -> Result<Document> {
     let lopdf_doc = LopdfDocument::load_mem(pdf_bytes)?;  // 500MB for 500-page doc
-    
+
     let mut pages = Vec::new();
     for (page_num, page_id) in page_ids.iter().enumerate() {
         let page = self.backend.extract_page(&lopdf_doc, *page_id, page_num)?;
         pages.push(page);  // Accumulate all pages in RAM
     }
-    
+
     Ok(Document { pages, .. })  // Document holds 500+ pages
 }
 ```
@@ -187,7 +190,7 @@ impl PdfExtractor {
                     return;
                 }
             };
-            
+
             let page_ids = match self.backend.get_page_ids(&lopdf_doc) {
                 Ok(ids) => ids,
                 Err(e) => {
@@ -195,7 +198,7 @@ impl PdfExtractor {
                     return;
                 }
             };
-            
+
             for (page_num, page_id) in page_ids.into_iter().enumerate() {
                 match self.backend.extract_page(&lopdf_doc, page_id, page_num) {
                     Ok(page) => yield Ok(page),
@@ -204,7 +207,7 @@ impl PdfExtractor {
             }
         }
     }
-    
+
     // New: Write directly to file without accumulating pages
     pub async fn extract_to_file_streaming(
         &self,
@@ -213,15 +216,15 @@ impl PdfExtractor {
     ) -> Result<()> {
         let mut file = tokio::fs::File::create(output_path).await?;
         let renderer = MarkdownRenderer::new();
-        
+
         let mut stream = self.extract_pages_stream(pdf_bytes);
-        
+
         while let Some(page_result) = stream.next().await {
             let page = page_result?;
             let markdown = renderer.render_page(&page)?;
             file.write_all(markdown.as_bytes()).await?;
         }
-        
+
         Ok(())
     }
 }
@@ -239,10 +242,10 @@ let mut stream = extractor.extract_pages_stream(&pdf_bytes);
 
 while let Some(page_result) = stream.next().await {
     let page = page_result?;
-    
+
     // Process page immediately (constant memory)
     process_page(page)?;
-    
+
     // Page is dropped here, memory freed
 }
 
@@ -272,14 +275,15 @@ extractor.extract_to_file_streaming(&pdf_bytes, Path::new("output.md")).await?;
 
 ```rust
 pub trait PdfBackend: Send + Sync {
-    fn extract_page(&self, doc: &LopdfDocument, page_id: ObjectId, page_num: usize) 
+    fn extract_page(&self, doc: &LopdfDocument, page_id: ObjectId, page_num: usize)
         -> Result<Page>;
-    
+
     fn get_page_ids(&self, doc: &LopdfDocument) -> Result<Vec<ObjectId>>;
 }
 ```
 
 **Limitations**:
+
 1. Tied to `lopdf` types (not truly abstract)
 2. No incremental extraction
 3. No backend-specific configuration
@@ -293,27 +297,28 @@ pub trait PdfBackend: Send + Sync {
 pub trait PdfBackend: Send + Sync {
     type Document: Send + Sync;
     type PageId: Send + Sync + Clone;
-    
+
     // Core extraction
     fn load_document(&self, bytes: &[u8]) -> Result<Self::Document>;
     fn get_page_count(&self, doc: &Self::Document) -> usize;
-    fn extract_page(&self, doc: &Self::Document, page_id: &Self::PageId, page_num: usize) 
+    fn extract_page(&self, doc: &Self::Document, page_id: &Self::PageId, page_num: usize)
         -> Result<Page>;
-    
+
     // Metadata
     fn get_metadata(&self, doc: &Self::Document) -> Result<DocumentMetadata>;
     fn get_page_ids(&self, doc: &Self::Document) -> Result<Vec<Self::PageId>>;
-    
+
     // Capabilities
     fn supports_ocr(&self) -> bool { false }
     fn supports_incremental(&self) -> bool { false }
-    
+
     // Optional: Progress reporting
     fn set_progress_callback(&mut self, callback: Box<dyn Fn(usize, usize) + Send + Sync>) {}
 }
 ```
 
 **Benefits**:
+
 1. **Portability**: Can implement for PyMuPDF, PDFium, etc.
 2. **Flexibility**: Backend-specific document types
 3. **Observability**: Progress callbacks
@@ -332,27 +337,27 @@ pub struct PyMuPdfBackend {
 impl PdfBackend for PyMuPdfBackend {
     type Document = fitz::Document;
     type PageId = usize;
-    
+
     fn load_document(&self, bytes: &[u8]) -> Result<Self::Document> {
         fitz::Document::from_bytes(bytes)
             .map_err(|e| PdfError::LoadFailed(e.to_string()))
     }
-    
-    fn extract_page(&self, doc: &Self::Document, page_id: &usize, page_num: usize) 
+
+    fn extract_page(&self, doc: &Self::Document, page_id: &usize, page_num: usize)
         -> Result<Page> {
         let page = doc.load_page(*page_id)?;
-        
+
         // Use PyMuPDF's native text extraction (3x faster than lopdf)
         let text = page.get_text("text")?;
         let blocks = self.parse_text_blocks(&text)?;
-        
+
         if let Some(callback) = &self.progress_callback {
             callback(page_num, doc.page_count());
         }
-        
+
         Ok(Page { blocks, .. })
     }
-    
+
     fn supports_ocr(&self) -> bool { true }
     fn supports_incremental(&self) -> bool { true }
 }
@@ -371,16 +376,17 @@ impl PdfBackend for PyMuPdfBackend {
 pub enum PdfError {
     #[error("PDF parsing failed: {0}")]
     PdfParse(String),  // ❌ Too vague
-    
+
     #[error("Processing error: {0}")]
     Processor(String),  // ❌ No context
-    
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 }
 ```
 
 **Problems**:
+
 1. **No Context**: Which page failed? Which processor?
 2. **No Recovery Hints**: How can user fix the issue?
 3. **No Error Codes**: Hard to programmatically handle errors
@@ -398,14 +404,14 @@ pub enum PdfError {
         file_size: usize,
         hint: String,
     },
-    
+
     #[error("Page {page} extraction failed: {reason}")]
     PageExtraction {
         page: usize,
         reason: String,
         recoverable: bool,
     },
-    
+
     #[error("Processor '{processor}' failed at page {page}: {reason}")]
     ProcessorFailed {
         processor: String,
@@ -413,14 +419,14 @@ pub enum PdfError {
         reason: String,
         backtrace: Backtrace,
     },
-    
+
     #[error("Font '{font}' encoding error: {reason}")]
     FontEncoding {
         font: String,
         reason: String,
         hint: String,
     },
-    
+
     #[error("Table detection failed: {reason}")]
     TableDetection {
         reason: String,
@@ -437,7 +443,7 @@ impl PdfError {
             _ => false,
         }
     }
-    
+
     pub fn recovery_hint(&self) -> Option<&str> {
         match self {
             PdfError::LoadFailed { hint, .. } => Some(hint),
@@ -452,9 +458,9 @@ impl PdfError {
 
 ```rust
 // Example: Better error reporting
-fn extract_page(&self, doc: &LopdfDocument, page_id: ObjectId, page_num: usize) 
+fn extract_page(&self, doc: &LopdfDocument, page_id: ObjectId, page_num: usize)
     -> Result<Page> {
-    
+
     let page_dict = doc.get_object(page_id)?
         .as_dict()
         .map_err(|_| PdfError::PageExtraction {
@@ -462,14 +468,14 @@ fn extract_page(&self, doc: &LopdfDocument, page_id: ObjectId, page_num: usize)
             reason: "Page dictionary is not a dictionary object".to_string(),
             recoverable: false,
         })?;
-    
+
     let fonts = self.load_fonts(page_dict)
         .map_err(|e| PdfError::PageExtraction {
             page: page_num,
             reason: format!("Font loading failed: {}", e),
             recoverable: true,  // Can continue with default font
         })?;
-    
+
     // ...
 }
 ```
@@ -527,7 +533,7 @@ pub struct LayoutConfig {
 pub struct ProcessorConfig {
     pub enabled_processors: Vec<String>,
     pub processor_priorities: HashMap<String, i32>,
-    
+
     pub heading: HeadingConfig,
     pub table: TableConfig,
     pub list: ListConfig,
@@ -563,12 +569,12 @@ impl ExtractionConfig {
         let config: ExtractionConfig = toml::from_str(&contents)?;
         Ok(config)
     }
-    
+
     // Load from environment
     pub fn from_env() -> Result<Self> {
         envy::from_env().map_err(|e| PdfError::ConfigError(e.to_string()))
     }
-    
+
     // Default configuration
     pub fn default() -> Self {
         // ...
@@ -654,15 +660,15 @@ pub struct PdfExtractor {
 }
 
 impl PdfExtractor {
-    pub fn with_progress<R>(mut self, reporter: R) -> Self 
+    pub fn with_progress<R>(mut self, reporter: R) -> Self
     where R: ProgressReporter + 'static {
         self.progress = Some(Arc::new(reporter));
         self
     }
-    
+
     pub async fn extract_document(&self, pdf_bytes: &[u8]) -> Result<Document> {
         // ... extract pages
-        
+
         for (page_num, page_id) in page_ids.iter().enumerate() {
             if let Some(reporter) = &self.progress {
                 reporter.report_progress(
@@ -671,11 +677,11 @@ impl PdfExtractor {
                     &format!("Extracting page {}", page_num + 1)
                 );
             }
-            
+
             let page = self.backend.extract_page(&lopdf_doc, *page_id, page_num)?;
             pages.push(page);
         }
-        
+
         // ...
     }
 }
@@ -711,16 +717,16 @@ pub struct ExtractionMetrics {
 }
 
 impl PdfExtractor {
-    pub fn extract_with_metrics(&self, pdf_bytes: &[u8]) 
+    pub fn extract_with_metrics(&self, pdf_bytes: &[u8])
         -> Result<(Document, ExtractionMetrics)> {
-        
+
         let start = Instant::now();
         let mut metrics = ExtractionMetrics::default();
-        
+
         // ... extraction with timing
-        
+
         metrics.total_time = start.elapsed();
-        
+
         Ok((doc, metrics))
     }
 }
@@ -762,6 +768,7 @@ impl PdfExtractor {
 ## 8. Implementation Checklist
 
 ### Plugin System
+
 - [ ] Define `ProcessorPlugin` trait
 - [ ] Create `ProcessorRegistry` struct
 - [ ] Add priority-based sorting
@@ -771,6 +778,7 @@ impl PdfExtractor {
 - [ ] Update documentation
 
 ### Streaming API
+
 - [ ] Add `async-stream` dependency
 - [ ] Implement `extract_pages_stream()`
 - [ ] Add `extract_to_file_streaming()`
@@ -779,6 +787,7 @@ impl PdfExtractor {
 - [ ] Update examples
 
 ### Backend Abstraction
+
 - [ ] Refactor `PdfBackend` trait with associated types
 - [ ] Add progress callback support
 - [ ] Add capability queries
@@ -787,6 +796,7 @@ impl PdfExtractor {
 - [ ] Update documentation
 
 ### Error Handling
+
 - [ ] Define new `PdfError` variants
 - [ ] Add context fields (page, processor, etc.)
 - [ ] Implement recovery hints
@@ -795,6 +805,7 @@ impl PdfExtractor {
 - [ ] Add error handling examples
 
 ### Configuration System
+
 - [ ] Define `ExtractionConfig` structs
 - [ ] Add TOML serialization
 - [ ] Add environment variable loading

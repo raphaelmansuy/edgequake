@@ -29,7 +29,11 @@ fn get_test_pdf(name: &str) -> PathBuf {
 /// Helper to create a temporary output path.
 fn temp_output_path(suffix: &str) -> PathBuf {
     let mut path = std::env::temp_dir();
-    path.push(format!("edgequake-pdf-test-{}-{}.md", std::process::id(), suffix));
+    path.push(format!(
+        "edgequake-pdf-test-{}-{}.md",
+        std::process::id(),
+        suffix
+    ));
     path
 }
 
@@ -88,7 +92,10 @@ fn test_cli_convert_help() {
     );
     assert!(stdout.contains("--format"), "Should show format option");
     assert!(stdout.contains("--stdout"), "Should show stdout option");
-    assert!(stdout.contains("--max-pages"), "Should show max-pages option");
+    assert!(
+        stdout.contains("--max-pages"),
+        "Should show max-pages option"
+    );
 }
 
 #[test]
@@ -129,7 +136,14 @@ fn test_cli_info_json_format() {
     }
 
     let output = Command::new(&binary)
-        .args(["info", "-i", test_pdf.to_str().unwrap(), "--format", "json", "-q"])
+        .args([
+            "info",
+            "-i",
+            test_pdf.to_str().unwrap(),
+            "--format",
+            "json",
+            "-q",
+        ])
         .output()
         .expect("Failed to execute command");
 
@@ -142,10 +156,13 @@ fn test_cli_info_json_format() {
     let json_str = &stdout[json_start..];
 
     // Should be valid JSON
-    let json: serde_json::Value = serde_json::from_str(json_str)
-        .expect("Output should be valid JSON");
+    let json: serde_json::Value =
+        serde_json::from_str(json_str).expect("Output should be valid JSON");
     assert!(json.get("pages").is_some(), "JSON should have pages field");
-    assert!(json.get("version").is_some(), "JSON should have version field");
+    assert!(
+        json.get("version").is_some(),
+        "JSON should have version field"
+    );
 }
 
 #[test]
@@ -284,8 +301,8 @@ fn test_cli_convert_json_format() {
     );
 
     // Should be valid JSON
-    let json: serde_json::Value = serde_json::from_str(&stdout)
-        .expect("Output should be valid JSON");
+    let json: serde_json::Value =
+        serde_json::from_str(&stdout).expect("Output should be valid JSON");
     assert!(json.get("pages").is_some(), "JSON should have pages field");
 }
 

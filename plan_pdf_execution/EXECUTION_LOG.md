@@ -49,9 +49,9 @@
 
 ## Session 4 Commits (2026-01-04)
 
-| Time | Hash    | Message                                                    | Tests |
-| ---- | ------- | ---------------------------------------------------------- | ----- |
-| -    | 0b5b6f4 | test(pdf): Add 42 tests (column, text_grouping, font, parser, json) | +42 |
+| Time | Hash    | Message                                                             | Tests |
+| ---- | ------- | ------------------------------------------------------------------- | ----- |
+| -    | 0b5b6f4 | test(pdf): Add 42 tests (column, text_grouping, font, parser, json) | +42   |
 
 ## Session 3 Commits (2026-01-04 - Continued)
 

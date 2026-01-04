@@ -192,10 +192,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Environment Variables
 
-| Variable         | Description                            | Default        |
-| ---------------- | -------------------------------------- | -------------- |
-| `OPENAI_API_KEY` | OpenAI API key for vision features     | (required for vision) |
-| `RUST_LOG`       | Log level (debug, info, warn, error)   | `info`         |
+| Variable         | Description                          | Default               |
+| ---------------- | ------------------------------------ | --------------------- |
+| `OPENAI_API_KEY` | OpenAI API key for vision features   | (required for vision) |
+| `RUST_LOG`       | Log level (debug, info, warn, error) | `info`                |
 
 ## Homebrew Tap Setup
 

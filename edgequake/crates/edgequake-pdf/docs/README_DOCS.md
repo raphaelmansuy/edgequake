@@ -233,13 +233,14 @@
 
 **Total Documentation**: ~8,000 lines across 10 files
 
-| Category | Files | Lines | Code Refs |
-|----------|-------|-------|-----------|
-| **Technical Docs** | 4 | 4,509 | 200+ |
-| **Improvement Plan** | 6 | 3,500+ | 50+ |
-| **Total** | 10 | ~8,000+ | 250+ |
+| Category             | Files | Lines   | Code Refs |
+| -------------------- | ----- | ------- | --------- |
+| **Technical Docs**   | 4     | 4,509   | 200+      |
+| **Improvement Plan** | 6     | 3,500+  | 50+       |
+| **Total**            | 10    | ~8,000+ | 250+      |
 
 **Coverage**:
+
 - ✅ 7 core modules documented
 - ✅ 16 processors explained
 - ✅ 1330 LOC lattice algorithm detailed
@@ -253,18 +254,18 @@
 
 ### "How do I...?"
 
-| Question | Document | Section |
-|----------|----------|---------|
-| Understand overall system architecture? | [ARCHITECTURE.md](ARCHITECTURE.md) | System Overview |
-| Add a new processor? | [PIPELINE.md](PIPELINE.md) | Processor Contract |
-| Fix table extraction bugs? | [TABLE_DETECTION.md](TABLE_DETECTION.md) | Phase 2: Geometric Validation |
-| Debug font encoding issues? | [EXTRACTION_ENGINE.md](EXTRACTION_ENGINE.md) | Stage 1: Font Resolution |
-| Handle multi-column layouts? | [ARCHITECTURE.md](ARCHITECTURE.md) | Column Detection |
-| Improve header detection? | [PIPELINE.md](PIPELINE.md) | HeaderDetectionProcessor |
-| **Optimize performance?** | [improvement_plan/PERFORMANCE_ROADMAP.md](improvement_plan/PERFORMANCE_ROADMAP.md) | 5 Optimization Tracks |
-| **Add OCR support?** | [improvement_plan/QUALITY_GAPS.md](improvement_plan/QUALITY_GAPS.md) | Section 1: OCR Integration |
-| **Plan implementation?** | [improvement_plan/IMPLEMENTATION_PRIORITIES.md](improvement_plan/IMPLEMENTATION_PRIORITIES.md) | Phase 1: Quick Wins |
-| **Understand current gaps?** | [improvement_plan/CRITICAL_ANALYSIS.md](improvement_plan/CRITICAL_ANALYSIS.md) | Performance Analysis |
+| Question                                | Document                                                                                       | Section                       |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------- |
+| Understand overall system architecture? | [ARCHITECTURE.md](ARCHITECTURE.md)                                                             | System Overview               |
+| Add a new processor?                    | [PIPELINE.md](PIPELINE.md)                                                                     | Processor Contract            |
+| Fix table extraction bugs?              | [TABLE_DETECTION.md](TABLE_DETECTION.md)                                                       | Phase 2: Geometric Validation |
+| Debug font encoding issues?             | [EXTRACTION_ENGINE.md](EXTRACTION_ENGINE.md)                                                   | Stage 1: Font Resolution      |
+| Handle multi-column layouts?            | [ARCHITECTURE.md](ARCHITECTURE.md)                                                             | Column Detection              |
+| Improve header detection?               | [PIPELINE.md](PIPELINE.md)                                                                     | HeaderDetectionProcessor      |
+| **Optimize performance?**               | [improvement_plan/PERFORMANCE_ROADMAP.md](improvement_plan/PERFORMANCE_ROADMAP.md)             | 5 Optimization Tracks         |
+| **Add OCR support?**                    | [improvement_plan/QUALITY_GAPS.md](improvement_plan/QUALITY_GAPS.md)                           | Section 1: OCR Integration    |
+| **Plan implementation?**                | [improvement_plan/IMPLEMENTATION_PRIORITIES.md](improvement_plan/IMPLEMENTATION_PRIORITIES.md) | Phase 1: Quick Wins           |
+| **Understand current gaps?**            | [improvement_plan/CRITICAL_ANALYSIS.md](improvement_plan/CRITICAL_ANALYSIS.md)                 | Performance Analysis          |
 
 ---
 
@@ -329,15 +330,15 @@ Processors (Document → Enhanced Document)
 
 ## Algorithm Complexity Reference
 
-| Algorithm            | Time Complexity | Space Complexity | Location                                                           | Optimization |
-| -------------------- | --------------- | ---------------- | ------------------------------------------------------------------ | ------------ |
-| Connected Components | O(n²) ⚠️ | O(n) | [lattice.rs#L50](../../src/backend/lattice.rs#L50) | → Union-Find O(α(n)) |
-| DBSCAN Clustering    | O(n log n) ✅ | O(n) | [lattice.rs#L850](../../src/backend/lattice.rs#L850) | Optimal |
-| Column Detection     | O(n) ✅ | O(bins) | [column_detection.rs#L45](../../src/backend/column_detection.rs#L45) | Optimal |
-| XY-Cut Layout        | O(n log n) ✅ | O(log n) | [xy_cut.rs#L30](../../src/layout/xy_cut.rs#L30) | Optimal |
-| Reading Order        | O(n log n) ✅ | O(n) | [reading_order.rs#L80](../../src/layout/reading_order.rs#L80) | Optimal |
-| Deduplication        | O(n²) ⚠️ | O(n) | [element_processing.rs#L40](../../src/backend/element_processing.rs#L40) | → HashMap O(n) |
-| Text Grouping        | O(n log n) ✅ | O(n) | [text_grouping.rs#L80](../../src/backend/text_grouping.rs#L80) | Optimal |
+| Algorithm            | Time Complexity | Space Complexity | Location                                                                 | Optimization         |
+| -------------------- | --------------- | ---------------- | ------------------------------------------------------------------------ | -------------------- |
+| Connected Components | O(n²) ⚠️        | O(n)             | [lattice.rs#L50](../../src/backend/lattice.rs#L50)                       | → Union-Find O(α(n)) |
+| DBSCAN Clustering    | O(n log n) ✅   | O(n)             | [lattice.rs#L850](../../src/backend/lattice.rs#L850)                     | Optimal              |
+| Column Detection     | O(n) ✅         | O(bins)          | [column_detection.rs#L45](../../src/backend/column_detection.rs#L45)     | Optimal              |
+| XY-Cut Layout        | O(n log n) ✅   | O(log n)         | [xy_cut.rs#L30](../../src/layout/xy_cut.rs#L30)                          | Optimal              |
+| Reading Order        | O(n log n) ✅   | O(n)             | [reading_order.rs#L80](../../src/layout/reading_order.rs#L80)            | Optimal              |
+| Deduplication        | O(n²) ⚠️        | O(n)             | [element_processing.rs#L40](../../src/backend/element_processing.rs#L40) | → HashMap O(n)       |
+| Text Grouping        | O(n log n) ✅   | O(n)             | [text_grouping.rs#L80](../../src/backend/text_grouping.rs#L80)           | Optimal              |
 
 ⚠️ = Optimization target (see [PERFORMANCE_ROADMAP.md](improvement_plan/PERFORMANCE_ROADMAP.md))
 
