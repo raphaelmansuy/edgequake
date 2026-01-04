@@ -10,7 +10,7 @@
 //! - This is more robust than x-position clustering for varying column widths
 
 use super::elements::TextElement;
-use tracing::debug;
+use tracing::info;
 
 /// Column detection engine using vertical projection histograms
 pub struct ColumnDetector {
@@ -23,8 +23,8 @@ pub struct ColumnDetector {
 impl ColumnDetector {
     pub fn new() -> Self {
         Self {
-            bin_size: 5.0,      // 5pt bins for fine granularity
-            min_gap_bins: 4,    // Minimum 4 bins (20pt) for column separator
+            bin_size: 5.0,   // 5pt bins for fine granularity
+            min_gap_bins: 4, // Minimum 4 bins (20pt) for column separator
         }
     }
 
@@ -32,8 +32,15 @@ impl ColumnDetector {
     /// Returns Some(column_boundary_x) if two-column layout detected, None otherwise.
     pub fn detect_columns(&self, elements: &[TextElement], page_width: f32) -> Option<f32> {
         if elements.len() < 10 {
+            debug!("Too few elements ({}) for column detection", elements.len());
             return None;
         }
+
+        debug!(
+            "Column detection: {} elements, page_width={:.1}",
+            elements.len(),
+            page_width
+        );
 
         // Use projection histogram approach from spec_algo.md
         let proj = self.compute_vertical_projection(elements, page_width);
@@ -82,6 +89,11 @@ impl ColumnDetector {
                     boundary
                 );
                 return Some(boundary);
+            } else {
+                debug!(
+                    "Projection gap rejected: left={}, right={}, balance={:.2} (need >=5 each, balance>0.25)",
+                    left_count, right_count, balance
+                );
             }
         }
 
@@ -148,6 +160,11 @@ impl ColumnDetector {
                             boundary
                         );
                         return Some(boundary);
+                    } else {
+                        debug!(
+                            "Bottom-only gap rejected: left={}, right={}, balance={:.2}",
+                            left_count, right_count, balance
+                        );
                     }
                 }
             }
@@ -190,24 +207,23 @@ impl ColumnDetector {
         // 2. Both columns have significant content
         // 3. Columns are somewhat balanced
         if left_starts >= 5 && right_starts >= 5 && balance_ratio > 0.3 {
-            debug!(
+            info!(
                 "Detected TWO-COLUMN layout with boundary at {:.1}",
                 column_boundary
             );
             Some(column_boundary)
         } else {
-            debug!("Detected SINGLE-COLUMN layout");
+            info!(
+                "Detected SINGLE-COLUMN layout (left_starts={}, right_starts={}, balance={:.2})",
+                left_starts, right_starts, balance_ratio
+            );
             None
         }
     }
 
     /// Compute vertical projection histogram from text elements.
     /// Returns a vector where each bin contains the density (count) of elements.
-    fn compute_vertical_projection(
-        &self,
-        elements: &[TextElement],
-        page_width: f32,
-    ) -> Vec<usize> {
+    fn compute_vertical_projection(&self, elements: &[TextElement], page_width: f32) -> Vec<usize> {
         let num_bins = (page_width / self.bin_size).ceil() as usize;
         let mut proj = vec![0; num_bins];
 
@@ -405,4 +421,3 @@ mod tests {
         assert!(result.is_some());
     }
 }
-

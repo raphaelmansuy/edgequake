@@ -9,7 +9,7 @@
 
 use super::elements::TextElement;
 use crate::schema::{FontStyle, TextSpan};
-use tracing::debug;
+use tracing::{debug, info};
 
 /// Merged line with text, font size, and style spans
 #[derive(Debug, Clone)]
@@ -50,9 +50,14 @@ impl TextGrouper {
 
         // If two-column layout detected, separate columns first
         if let Some(boundary) = column_boundary {
+            info!(
+                "TG-TWOCOL: Using two-column layout with boundary={:.1}",
+                boundary
+            );
             return self.group_two_column_layout(elements, boundary, page_width);
         }
 
+        info!("TG-SINGLE: Using single-column layout");
         // Single-column layout: group into Y-bands
         self.group_single_column_layout(elements)
     }
@@ -68,7 +73,8 @@ impl TextGrouper {
         let mut left_column: Vec<TextElement> = Vec::new();
         let mut right_column: Vec<TextElement> = Vec::new();
         let mut spanning_elements: Vec<TextElement> = Vec::new();
-        let mut footer_elements: Vec<TextElement> = Vec::new();
+        let mut left_footer: Vec<TextElement> = Vec::new();
+        let mut right_footer: Vec<TextElement> = Vec::new();
 
         // Calculate adaptive thresholds based on actual content distribution
         // This is a first-principles approach that adapts to different document layouts
@@ -119,9 +125,20 @@ impl TextGrouper {
 
             if is_spanning {
                 // Spanning elements go to beginning (will be processed first)
+                if elem.text.contains("trajectory") || elem.text.contains("temporal") {
+                    info!(
+                        "SPANNING: Y={:.1} X={:.1} title_zone={} large_font={} '{}'",
+                        elem.y,
+                        elem.x,
+                        is_title_zone,
+                        is_large_font,
+                        &elem.text[..elem.text.len().min(40)]
+                    );
+                }
                 spanning_elements.push(elem);
             } else if is_footer || is_header || is_affiliation {
-                // Footer/header/affiliation: add to separate collection (will appear at end)
+                // WHY: Footer/header/affiliation must ALSO respect column boundaries
+                // FIXED: Separate left and right footer to prevent cross-column line merging
                 debug!(
                     "Footer/affiliation element: Y={:.1} X={:.1} affil={} '{}'",
                     elem.y,
@@ -129,32 +146,118 @@ impl TextGrouper {
                     is_affiliation,
                     &elem.text[..elem.text.len().min(40)]
                 );
-                footer_elements.push(elem);
+
+                // Assign footer to appropriate column
+                if elem.x < column_boundary {
+                    left_footer.push(elem);
+                } else {
+                    right_footer.push(elem);
+                }
             } else if elem.x < column_boundary - margin {
                 // Clearly in left column
+                // Log if text contains suspicious patterns
+                if elem.text.contains("paradigm")
+                    || elem.text.contains("updated")
+                    || elem.text.contains("approach")
+                    || elem.text.contains("trajectory")
+                    || elem.text.contains("temporal-control")
+                {
+                    info!(
+                        "LEFT-COL: Y={:.1} X={:.1} boundary={:.1} '{}'",
+                        elem.y,
+                        elem.x,
+                        column_boundary,
+                        &elem.text[..elem.text.len().min(50)]
+                    );
+                }
                 left_column.push(elem);
             } else if elem.x > column_boundary + margin {
                 // Clearly in right column
+                if elem.text.contains("paradigm")
+                    || elem.text.contains("updated")
+                    || elem.text.contains("approach")
+                    || elem.text.contains("trajectory")
+                    || elem.text.contains("temporal-control")
+                {
+                    info!(
+                        "RIGHT-COL: Y={:.1} X={:.1} boundary={:.1} '{}'",
+                        elem.y,
+                        elem.x,
+                        column_boundary,
+                        &elem.text[..elem.text.len().min(50)]
+                    );
+                }
                 right_column.push(elem);
             } else {
-                // In the gap - use element width to decide
-                // If it's a continuation of left column text, it belongs to left
-                // Short elements in gap likely belong to whichever column has more content at this Y
-                if elem.text.starts_with(|c: char| c.is_lowercase()) {
-                    // Starts with lowercase = likely continuation
+                // WHY: Element is in the gap between columns (within ±15pt of boundary)
+                // FIXED: Use element's X position relative to boundary
+                // Elements starting left of boundary go to left column
+                if elem.x < column_boundary {
+                    info!(
+                        "GAP->LEFT: Y={:.1} X={:.1} boundary={:.1} '{}'",
+                        elem.y,
+                        elem.x,
+                        column_boundary,
+                        &elem.text[..elem.text.len().min(30)]
+                    );
                     left_column.push(elem);
                 } else {
+                    info!(
+                        "GAP->RIGHT: Y={:.1} X={:.1} boundary={:.1} '{}'",
+                        elem.y,
+                        elem.x,
+                        column_boundary,
+                        &elem.text[..elem.text.len().min(30)]
+                    );
                     right_column.push(elem);
                 }
             }
         }
 
         debug!(
-            "Two-column separation: spanning={}, left={}, right={}, footer={}",
+            "Two-column separation: spanning={}, left={}, right={}, left_footer={}, right_footer={}",
             spanning_elements.len(),
             left_column.len(),
             right_column.len(),
-            footer_elements.len()
+            left_footer.len(),
+            right_footer.len()
+        );
+
+        // Log statistics about element lengths
+        let left_avg_len: f32 = if !left_column.is_empty() {
+            left_column.iter().map(|e| e.text.len()).sum::<usize>() as f32
+                / left_column.len() as f32
+        } else {
+            0.0
+        };
+        let right_avg_len: f32 = if !right_column.is_empty() {
+            right_column.iter().map(|e| e.text.len()).sum::<usize>() as f32
+                / right_column.len() as f32
+        } else {
+            0.0
+        };
+
+        // Check X-coordinate ranges in each column
+        let left_min_x = left_column
+            .iter()
+            .map(|e| e.x)
+            .fold(f32::INFINITY, f32::min);
+        let left_max_x = left_column
+            .iter()
+            .map(|e| e.x)
+            .fold(f32::NEG_INFINITY, f32::max);
+        let right_min_x = right_column
+            .iter()
+            .map(|e| e.x)
+            .fold(f32::INFINITY, f32::min);
+        let right_max_x = right_column
+            .iter()
+            .map(|e| e.x)
+            .fold(f32::NEG_INFINITY, f32::max);
+
+        info!(
+            "Column stats: left avg_len={:.1} X=[{:.1},{:.1}], right avg_len={:.1} X=[{:.1},{:.1}]",
+            left_avg_len, left_min_x, left_max_x, right_avg_len, right_min_x, right_max_x
         );
 
         // Process spanning elements first (titles, etc.)
@@ -164,15 +267,17 @@ impl TextGrouper {
         let left_lines = self.group_single_column_layout(left_column);
         let right_lines = self.group_single_column_layout(right_column);
 
-        // Process footer/header elements last
-        let footer_lines = self.group_single_column_layout(footer_elements);
+        // WHY: Process footer elements separately per column to prevent cross-column line merging
+        let left_footer_lines = self.group_single_column_layout(left_footer);
+        let right_footer_lines = self.group_single_column_layout(right_footer);
 
         debug!(
-            "Grouped: spanning={}, left={} lines, right={} lines, footer={} lines",
+            "Grouped: spanning={}, left={} lines, right={} lines, left_footer={}, right_footer={} lines",
             spanning_lines.len(),
             left_lines.len(),
             right_lines.len(),
-            footer_lines.len()
+            left_footer_lines.len(),
+            right_footer_lines.len()
         );
 
         // Log first few lines of each section
@@ -201,8 +306,9 @@ impl TextGrouper {
             debug!("Right line {}: '{}'", i, &text[..text.len().min(50)]);
         }
 
-        // Combine: spanning elements first, then left column, then right column, then footer
-        // This ensures titles/headers appear before column content
+        // WHY: Two-column reading order must interleave by Y-coordinate
+        // Academic papers should read: left-top, right-top, left-next, right-next, etc.
+        // NOT: all-left-lines, then all-right-lines (which causes cross-column merging)
         let mut result = Vec::new();
         result.extend(spanning_lines);
 
@@ -211,9 +317,23 @@ impl TextGrouper {
         let (left_main, left_bottom) = self.split_by_vertical_gap(left_lines, 30.0);
         let (right_main, right_bottom) = self.split_by_vertical_gap(right_lines, 30.0);
 
+        info!(
+            "TG-BEFORE-CONCAT: left_main={} right_main={}",
+            left_main.len(),
+            right_main.len()
+        );
+
+        // WHY: Academic papers are read column-by-column, NOT interleaved by Y
+        // Correct reading order: ALL left column (top to bottom), THEN ALL right column (top to bottom)
+        // WRONG approach: Interleaving by Y causes block_builder to merge lines from different columns
         result.extend(left_main);
         result.extend(right_main);
-        result.extend(footer_lines); // Footer at the end
+
+        info!("TG-AFTER-CONCAT: total={}", result.len());
+
+        // WHY: Footer lines must also follow column order: left footer, then right footer
+        result.extend(left_footer_lines);
+        result.extend(right_footer_lines);
         result.extend(left_bottom); // Bottom content after footer
         result.extend(right_bottom); // Bottom content after footer
 
@@ -261,6 +381,47 @@ impl TextGrouper {
         }
     }
 
+    /// Interleave left and right column lines by Y-coordinate.
+    /// WHY: Academic two-column papers should read left-top, right-top, left-next, right-next
+    /// NOT all-left then all-right (which causes cross-column text merging).
+    ///
+    /// Algorithm:
+    /// 1. Collect lines with their Y-coordinates (use first element's Y)
+    /// 2. Sort all lines by Y descending (top to bottom)
+    /// 3. Return sorted sequence
+    ///
+    /// This ensures proper reading order and prevents backend from creating blocks
+    /// that span column boundaries when text at similar Y-coordinates exists in both columns.
+    fn interleave_columns_by_y(
+        &self,
+        left_lines: Vec<Vec<TextElement>>,
+        right_lines: Vec<Vec<TextElement>>,
+    ) -> Vec<Vec<TextElement>> {
+        // Create (Y, line) tuples for sorting
+        let mut all_lines: Vec<(f32, Vec<TextElement>)> = Vec::new();
+
+        for line in left_lines {
+            let y = line.first().map(|e| e.y).unwrap_or(0.0);
+            all_lines.push((y, line));
+        }
+
+        for line in right_lines {
+            let y = line.first().map(|e| e.y).unwrap_or(0.0);
+            all_lines.push((y, line));
+        }
+
+        // Sort by Y descending (top of page first)
+        all_lines.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+
+        debug!(
+            "Interleaved {} lines from left and right columns by Y-coordinate",
+            all_lines.len()
+        );
+
+        // Extract just the lines (drop Y values)
+        all_lines.into_iter().map(|(_, line)| line).collect()
+    }
+
     /// Group elements into lines for single-column layout
     fn group_single_column_layout(&self, mut elements: Vec<TextElement>) -> Vec<Vec<TextElement>> {
         if elements.is_empty() {
@@ -285,6 +446,41 @@ impl TextGrouper {
                         current_line.sort_by(|a, b| {
                             a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal)
                         });
+
+                        // Log X-coordinate range for this line
+                        let min_x = current_line
+                            .iter()
+                            .map(|e| e.x)
+                            .fold(f32::INFINITY, f32::min);
+                        let max_x = current_line
+                            .iter()
+                            .map(|e| e.x)
+                            .fold(f32::NEG_INFINITY, f32::max);
+                        let x_range = max_x - min_x;
+                        let text: String = current_line.iter().map(|e| e.text.as_str()).collect();
+
+                        if x_range > 200.0 {
+                            // Log individual elements in this line
+                            for (i, e) in current_line.iter().enumerate() {
+                                info!(
+                                    "  LINE-ELEM[{}]: X={:.1} Y={:.1} text='{}'",
+                                    i,
+                                    e.x,
+                                    e.y,
+                                    &e.text[..e.text.len().min(40)]
+                                );
+                            }
+                            info!(
+                                "LINE-XRANGE: Y={:.1} X=[{:.1},{:.1}] range={:.1} elements={} text='{}'",
+                                current_y.unwrap_or(0.0),
+                                min_x,
+                                max_x,
+                                x_range,
+                                current_line.len(),
+                                &text[..text.len().min(80)]
+                            );
+                        }
+
                         lines.push(std::mem::take(&mut current_line));
                     }
                     current_y = Some(elem.y);
@@ -297,6 +493,31 @@ impl TextGrouper {
 
         if !current_line.is_empty() {
             current_line.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal));
+
+            // Log X-coordinate range for final line
+            let min_x = current_line
+                .iter()
+                .map(|e| e.x)
+                .fold(f32::INFINITY, f32::min);
+            let max_x = current_line
+                .iter()
+                .map(|e| e.x)
+                .fold(f32::NEG_INFINITY, f32::max);
+            let x_range = max_x - min_x;
+            let text: String = current_line.iter().map(|e| e.text.as_str()).collect();
+
+            if x_range > 200.0 {
+                info!(
+                    "LINE-XRANGE: Y={:.1} X=[{:.1},{:.1}] range={:.1} elements={} text='{}'",
+                    current_y.unwrap_or(0.0),
+                    min_x,
+                    max_x,
+                    x_range,
+                    current_line.len(),
+                    &text[..text.len().min(80)]
+                );
+            }
+
             lines.push(current_line);
         }
 

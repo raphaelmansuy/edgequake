@@ -119,6 +119,19 @@ impl BlockBuilder {
                 spans,
                 ..Default::default()
             };
+            
+            // Log blocks with wide X-ranges (potential cross-column spans)
+            let x_range = bbox.x2 - bbox.x1;
+            if x_range > 200.0 {
+                tracing::info!(
+                    "BLOCK-XRANGE: pos={} bbox=[{:.1},{:.1}] range={:.1} text='{}'",
+                    blocks.len(),
+                    bbox.x1,
+                    bbox.x2,
+                    x_range,
+                    &text[..text.len().min(80)]
+                );
+            }
 
             blocks.push(block);
         }

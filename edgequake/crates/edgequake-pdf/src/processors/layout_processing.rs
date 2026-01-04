@@ -14,7 +14,7 @@
 //! - Reading order follows column structure (left-to-right, top-to-bottom)
 
 use crate::layout::LayoutAnalyzer;
-use crate::schema::{Block, BlockType, Document};
+use crate::schema::{Block, BlockType, BoundingBox, Document};
 use crate::Result;
 
 use super::stats::DocumentStats;
@@ -71,6 +71,17 @@ impl Processor for LayoutProcessor {
 
             let layout = self.analyzer.analyze(&page.blocks, page.width, page.height);
 
+            // WHY: Check for bullet list markers to avoid misclassifying lists as tables
+            // Bullet lists have short items in rows but are NOT tables
+            let has_bullets = page.blocks.iter().any(|b| {
+                let text = b.text.trim();
+                text.starts_with("•")
+                    || text.starts_with("*")
+                    || text.starts_with("-")
+                    || text.starts_with("1.")
+                    || text.starts_with("2.")
+            });
+
             // Check if detected columns look like a table structure
             let bboxes: Vec<crate::schema::BoundingBox> =
                 page.blocks.iter().map(|b| b.bbox).collect();
@@ -79,7 +90,7 @@ impl Processor for LayoutProcessor {
                 .column_detector()
                 .is_likely_table(&bboxes, &layout.columns);
 
-            if is_table {
+            if is_table && !has_bullets {
                 // Table-like layouts: use single column to preserve natural order
                 page.columns = vec![];
                 tracing::debug!("Detected table-like layout, skipping column-based reading order");
@@ -120,7 +131,32 @@ impl BlockMergeProcessor {
     }
 
     /// Check if two blocks should be merged.
-    fn should_merge(&self, a: &Block, b: &Block, stats: &DocumentStats) -> bool {
+    ///
+    /// **WHY columns parameter:** Prevents merging blocks from different columns in multi-column layouts.
+    /// This is critical to preserve reading order (left column → right column).
+    fn should_merge(
+        &self,
+        a: &Block,
+        b: &Block,
+        stats: &DocumentStats,
+        columns: &[BoundingBox],
+    ) -> bool {
+        // **CRITICAL**: Never merge blocks from different columns
+        // WHY: Multi-column layouts must preserve left→right reading order
+        if columns.len() >= 2 {
+            let a_column = self.get_block_column(a, columns);
+            let b_column = self.get_block_column(b, columns);
+
+            if a_column != b_column {
+                tracing::debug!(
+                    "BlockMerge: REJECT - different columns (col {} vs col {})",
+                    a_column,
+                    b_column
+                );
+                return false;
+            }
+        }
+
         // Only merge text/header/list blocks
         if !matches!(
             a.block_type,
@@ -241,9 +277,60 @@ impl BlockMergeProcessor {
         accept
     }
 
-    fn merge_page_blocks(&self, blocks: Vec<Block>, stats: &DocumentStats) -> Vec<Block> {
+    /// Determine which column a block belongs to.
+    ///
+    /// **WHY:** Allows BlockMergeProcessor to respect column boundaries.
+    /// Returns the index of the column that contains the block's center point.
+    /// If no column contains the block, returns the closest column.
+    fn get_block_column(&self, block: &Block, columns: &[BoundingBox]) -> usize {
+        let center = block.bbox.center();
+
+        // Find column containing the block's center
+        for (idx, col) in columns.iter().enumerate() {
+            if col.contains_point(&center) {
+                return idx;
+            }
+        }
+
+        // Fallback: find closest column by X-coordinate
+        columns
+            .iter()
+            .enumerate()
+            .min_by_key(|(_, col): &(usize, &BoundingBox)| {
+                let col_center = col.center().x;
+                ((col_center - center.x).abs() * 1000.0) as i32
+            })
+            .map(|(idx, _)| idx)
+            .unwrap_or(0)
+    }
+
+    fn merge_page_blocks(
+        &self,
+        blocks: Vec<Block>,
+        stats: &DocumentStats,
+        columns: &[BoundingBox],
+    ) -> Vec<Block> {
         if blocks.len() < 2 {
             return blocks;
+        }
+
+        // Log column count for debugging
+        tracing::info!(
+            "BlockMerge: Processing {} blocks with {} columns",
+            blocks.len(),
+            columns.len()
+        );
+
+        // Log column bounding boxes
+        for (i, col) in columns.iter().enumerate() {
+            tracing::info!(
+                "BlockMerge: Column {} bbox: x1={:.1} y1={:.1} x2={:.1} y2={:.1}",
+                i,
+                col.x1,
+                col.y1,
+                col.x2,
+                col.y2
+            );
         }
 
         let mut merged = Vec::new();
@@ -252,7 +339,11 @@ impl BlockMergeProcessor {
         // DEBUG: Log blocks at BlockMerge start for blocks containing key text
         let is_debug_page = blocks.iter().any(|b| b.text.contains("disentangles space"));
         if is_debug_page {
-            tracing::info!("BLOCKMERGE-START: {} blocks total", blocks.len());
+            tracing::info!(
+                "BLOCKMERGE-START: {} blocks total, {} columns",
+                blocks.len(),
+                columns.len()
+            );
             for (idx, block) in blocks.iter().enumerate() {
                 if block.text.contains("disentangles")
                     || block.text.contains("dering")
@@ -285,7 +376,7 @@ impl BlockMergeProcessor {
             }
 
             if let Some(mut cur) = current.take() {
-                if self.should_merge(&cur, &block, stats) {
+                if self.should_merge(&cur, &block, stats, columns) {
                     // DEBUG: Log merges involving our target blocks
                     if cur.text.contains("ren-")
                         || block.text.contains("dering")
@@ -338,13 +429,15 @@ impl Processor for BlockMergeProcessor {
         for page in &mut document.pages {
             let block_count_before = page.blocks.len();
             let blocks = std::mem::take(&mut page.blocks);
-            page.blocks = self.merge_page_blocks(blocks, &stats);
+            let columns = &page.columns; // Capture columns before moving blocks
+            page.blocks = self.merge_page_blocks(blocks, &stats, columns);
             let block_count_after = page.blocks.len();
             tracing::debug!(
-                "BlockMergeProcessor: page {} blocks {} -> {}",
+                "BlockMergeProcessor: page {} blocks {} -> {} (columns={})",
                 page.number,
                 block_count_before,
-                block_count_after
+                block_count_after,
+                columns.len()
             );
             page.update_stats();
         }
