@@ -39,6 +39,7 @@
 //!     height: 600,
 //!     page: 1,
 //!     index: 0,
+//!     bbox: None,
 //! };
 //!
 //! let result = processor.process_image(&image).await?;
