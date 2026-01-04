@@ -230,12 +230,17 @@ impl PdfExtractor {
         );
 
         if let Some(page) = doc.pages.first() {
-            for (i, block) in page.blocks.iter().take(20).enumerate() {
-                let text_preview: String = block.text.chars().take(60).collect();
+            for (i, block) in page.blocks.iter().take(50).enumerate() {
+                let text_preview: String = block.text.chars().take(100).collect();
+                let text_len = block.text.len();
                 tracing::info!(
-                    "BEFORE processors - page1 block {} ({:?}): '{}'",
+                    "BEFORE - block {} len={} bbox=[{:.0},{:.0},{:.0},{:.0}]: '{}'",
                     i,
-                    block.block_type,
+                    text_len,
+                    block.bbox.x1,
+                    block.bbox.y1,
+                    block.bbox.x2,
+                    block.bbox.y2,
                     text_preview
                 );
             }

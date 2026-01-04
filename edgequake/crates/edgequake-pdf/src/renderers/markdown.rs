@@ -87,7 +87,31 @@ impl MarkdownRenderer {
             output.push_str(&format!("## Page {}\n\n", page.number));
         }
 
+        // DEBUG: Log page columns info
+        if page.number == 1 {
+            tracing::info!(
+                "PAGE1-COLUMNS: count={}, cols={:?}",
+                page.columns.len(),
+                page.columns
+                    .iter()
+                    .map(|c| format!("x1={:.0}-x2={:.0}", c.x1, c.x2))
+                    .collect::<Vec<_>>()
+            );
+        }
+
         for (i, block) in page.blocks.iter().enumerate() {
+            // DEBUG: Log ALL page 1 blocks to understand ordering
+            if page.number == 1 && i < 30 {
+                tracing::info!(
+                    "PAGE1-BLOCK: idx={} x1={:.0} y1={:.0} len={}: '{}'",
+                    i,
+                    block.bbox.x1,
+                    block.bbox.y1,
+                    block.text.len(),
+                    &block.text[..block.text.len().min(80)]
+                );
+            }
+
             self.render_block(block, output);
 
             // Add extra newline after list items if the next block is not a list item
@@ -182,7 +206,20 @@ impl MarkdownRenderer {
 
     /// Render text paragraph.
     fn render_text(&self, block: &Block, output: &mut String) {
-        let text = if !block.spans.is_empty() {
+        // WHY: After HyphenContinuation and BlockMerge, spans may be stale.
+        // We check if spans text matches block.text. If they don't match, use block.text.
+        // This prevents rendering stale span text from before hyphenation fixes.
+        let span_text: String = block.spans.iter().map(|s| s.text.as_str()).collect();
+        let spans_valid = if block.spans.is_empty() {
+            false
+        } else {
+            // Spans are valid if they contain the same content as block.text
+            let normalized_span = span_text.split_whitespace().collect::<Vec<_>>().join(" ");
+            let normalized_text = block.text.split_whitespace().collect::<Vec<_>>().join(" ");
+            normalized_span == normalized_text || normalized_text.starts_with(&normalized_span)
+        };
+
+        let text = if spans_valid {
             self.render_spans(&block.spans)
         } else {
             self.clean_text(&block.text)

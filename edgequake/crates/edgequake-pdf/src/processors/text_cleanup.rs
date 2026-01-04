@@ -625,6 +625,14 @@ impl Processor for HyphenContinuationProcessor {
 
         // PHASE 2: Process inter-block hyphenation (block-to-block)
         for page in &mut document.pages {
+            // WHY: Calculate page center for column detection
+            // In multi-column layouts, blocks in different columns have very different X positions.
+            // A typical 2-column academic paper has left column at ~60-290 and right at ~310-540.
+            // We use page center (typically ~306 for 612pt page) to detect column boundaries.
+            let page_center = page.width / 2.0;
+            // WHY: 50pt tolerance allows for slight variations but catches column jumps (~120pt gap)
+            let column_tolerance = 50.0;
+
             let mut i = 0;
             while i < page.blocks.len().saturating_sub(1) {
                 // Only process text blocks
@@ -638,13 +646,46 @@ impl Processor for HyphenContinuationProcessor {
 
                 // Check conditions without holding references
                 let current_text = page.blocks[i].text.clone();
+                let current_bbox = page.blocks[i].bbox;
                 let next_text = page.blocks[i + 1].text.clone();
                 let next_bbox = page.blocks[i + 1].bbox;
+
+                // WHY: Check if blocks are in the same column before merging
+                // This prevents merging the last block of left column with first block of right column.
+                // Two blocks are in different columns if they straddle the page center with significant gap.
+                let current_center = current_bbox.center().x;
+                let next_center = next_bbox.center().x;
+                let crosses_columns = (current_center < page_center && next_center > page_center)
+                    || (current_center > page_center && next_center < page_center);
+                let significant_x_gap = (next_center - current_center).abs() > column_tolerance;
+
+                // Skip if blocks are in different columns
+                if crosses_columns && significant_x_gap {
+                    tracing::debug!(
+                        "HyphenContinuation: SKIPPING cross-column merge: '{}...' -> '{}...' (current_center={:.1}, next_center={:.1}, page_center={:.1})",
+                        current_text.chars().take(30).collect::<String>(),
+                        next_text.chars().take(30).collect::<String>(),
+                        current_center,
+                        next_center,
+                        page_center
+                    );
+                    i += 1;
+                    continue;
+                }
 
                 if Self::ends_with_explicit_hyphen(&current_text)
                     && Self::is_valid_continuation(&next_text)
                     && Self::get_hyphen_fragment(&current_text).is_some()
                 {
+                    tracing::debug!(
+                        "HyphenContinuation: MERGING blocks: '{}...' + '{}...' (current_center={:.1}, next_center={:.1}, page_center={:.1}, page_width={:.1})",
+                        current_text.chars().take(30).collect::<String>(),
+                        next_text.chars().take(30).collect::<String>(),
+                        current_center,
+                        next_center,
+                        page_center,
+                        page.width
+                    );
                     // Join the blocks
                     let mut new_current_text = current_text.trim_end().to_string();
                     // Remove the hyphen
@@ -669,11 +710,15 @@ impl Processor for HyphenContinuationProcessor {
                     };
 
                     // Update current block (no borrow conflict now)
-                    let current_bbox = page.blocks[i].bbox;
                     page.blocks[i].text = final_text;
                     page.blocks[i].bbox = current_bbox.union(&next_bbox);
 
-                    // Remove next block
+                    // WHY: Clear spans because they contain the OLD text with hyphen.
+                    // The renderer now validates spans against text, but clearing here
+                    // ensures consistency and avoids stale span accumulation.
+                    page.blocks[i].spans.clear();
+
+                    // Remove next block (its text has been merged into current)
                     page.blocks.remove(i + 1);
                     continue; // Don't increment i, check again
                 }

@@ -75,14 +75,14 @@ impl ColumnDetector {
 
     /// Detect columns from a list of bounding boxes using geometric clustering.
     pub fn detect(&self, items: &[BoundingBox], page_width: f32) -> Vec<BoundingBox> {
-        debug!(
-            "ColumnDetector::detect: {} items, page_width={}",
+        tracing::info!(
+            "COLUMN-DETECT: {} items, page_width={}",
             items.len(),
             page_width
         );
 
         if items.is_empty() {
-            debug!("ColumnDetector::detect: no items, returning empty");
+            tracing::info!("COLUMN-DETECT: no items, returning empty");
             return Vec::new();
         }
 
@@ -93,8 +93,8 @@ impl ColumnDetector {
             .cloned()
             .collect();
 
-        debug!(
-            "ColumnDetector::detect: filtered {} items to {} items (removed wide items)",
+        tracing::info!(
+            "COLUMN-DETECT: filtered {} items to {} (removed wide items)",
             items.len(),
             filtered_items.len()
         );
@@ -108,14 +108,16 @@ impl ColumnDetector {
         // Use geometric clustering to detect columns
         let columns = self.clusterer.detect_columns(items_to_use, page_width);
 
-        debug!(
-            "ColumnDetector::detect: detected {} columns: {:?}",
+        tracing::info!(
+            "COLUMN-DETECT: clusterer found {} columns: {:?}",
             columns.len(),
             columns.iter().map(|c| (c.x1, c.x2)).collect::<Vec<_>>()
         );
 
         // Convert geometric columns to bounding boxes
-        self.columns_to_bboxes(&columns, items)
+        let result = self.columns_to_bboxes(&columns, items);
+        tracing::info!("COLUMN-DETECT: returning {} columns", result.len());
+        result
     }
 
     /// Convert geometric columns to bounding boxes.

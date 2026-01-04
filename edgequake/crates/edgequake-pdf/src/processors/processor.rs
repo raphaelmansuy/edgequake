@@ -76,7 +76,36 @@ impl ProcessorChain {
     pub fn process(&self, mut document: Document) -> Result<Document> {
         for processor in &self.processors {
             tracing::debug!("Running processor: {}", processor.name());
+            
+            // DEBUG: Track block 20 content through processors - check ALL pages
+            let mut found_page = None;
+            for (page_idx, page) in document.pages.iter().enumerate() {
+                if page.blocks.iter().any(|b| b.text.contains("dering. Given")) {
+                    found_page = Some(page_idx + 1);
+                    break;
+                }
+            }
+            if let Some(pn) = found_page {
+                tracing::info!("CHAIN-TRACE [BEFORE {}]: 'dering. Given' on page {}", processor.name(), pn);
+            } else {
+                tracing::info!("CHAIN-TRACE [BEFORE {}]: 'dering. Given' MISSING from all pages", processor.name());
+            }
+            
             document = processor.process(document)?;
+            
+            // DEBUG: Check if block 20 survived - check ALL pages
+            let mut found_page = None;
+            for (page_idx, page) in document.pages.iter().enumerate() {
+                if page.blocks.iter().any(|b| b.text.contains("dering. Given")) {
+                    found_page = Some(page_idx + 1);
+                    break;
+                }
+            }
+            if let Some(pn) = found_page {
+                tracing::info!("CHAIN-TRACE [AFTER {}]: 'dering. Given' on page {}", processor.name(), pn);
+            } else {
+                tracing::info!("CHAIN-TRACE [AFTER {}]: 'dering. Given' MISSING from all pages", processor.name());
+            }
         }
         Ok(document)
     }

@@ -66,12 +66,20 @@ impl ReadingOrderDetector {
             return Vec::new();
         }
 
+        tracing::info!(
+            "READING-ORDER: blocks={} columns={}",
+            blocks.len(),
+            columns.len()
+        );
+
         if columns.is_empty() || columns.len() == 1 {
             // Single column: simple top-to-bottom, left-to-right
+            tracing::info!("READING-ORDER: using single_column_order");
             return self.single_column_order(blocks);
         }
 
         // Multi-column layout: process column by column
+        tracing::info!("READING-ORDER: using multi_column_order");
         self.multi_column_order(blocks, columns)
     }
 
@@ -114,6 +122,19 @@ impl ReadingOrderDetector {
 
             match column_idx {
                 Some(ColumnAssignment::Single(col)) => {
+                    // DEBUG: Track interesting blocks
+                    if block.text.contains("disentangles")
+                        || block.text.contains("ren-")
+                        || block.text.contains("independently")
+                    {
+                        tracing::info!(
+                            "ASSIGN: block {} '{}...' x1={:.0} -> column {}",
+                            idx,
+                            &block.text[..block.text.len().min(30)],
+                            block.bbox.x1,
+                            col
+                        );
+                    }
                     column_blocks[col].push(idx);
                 }
                 Some(ColumnAssignment::Spanning) => {
@@ -124,6 +145,14 @@ impl ReadingOrderDetector {
                 }
             }
         }
+
+        tracing::info!(
+            "MULTI-COL: col0={} blocks, col1={} blocks, spanning={}, unassigned={}",
+            column_blocks.get(0).map(|v| v.len()).unwrap_or(0),
+            column_blocks.get(1).map(|v| v.len()).unwrap_or(0),
+            spanning_blocks.len(),
+            unassigned.len()
+        );
 
         // Sort blocks within each column
         for col_blocks in &mut column_blocks {

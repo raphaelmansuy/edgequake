@@ -56,13 +56,16 @@ impl Default for LayoutProcessor {
 impl Processor for LayoutProcessor {
     fn process(&self, mut document: Document) -> Result<Document> {
         for page in &mut document.pages {
-            // Skip if page already has columns set (backend handled it)
+            // If page already has columns set by backend, still need to sort by reading order
             if !page.columns.is_empty() {
-                tracing::debug!(
-                    "Page {} already has {} columns set, skipping layout reanalysis",
+                tracing::info!(
+                    "LAYOUT: Page {} has {} columns from backend, sorting blocks by reading order",
                     page.number,
                     page.columns.len()
                 );
+                // Sort blocks by reading order using the pre-detected columns
+                self.analyzer
+                    .sort_by_reading_order(&mut page.blocks, &page.columns);
                 continue;
             }
 
@@ -246,9 +249,54 @@ impl BlockMergeProcessor {
         let mut merged = Vec::new();
         let mut current: Option<Block> = None;
 
-        for block in blocks {
+        // DEBUG: Log blocks at BlockMerge start for blocks containing key text
+        let is_debug_page = blocks.iter().any(|b| b.text.contains("disentangles space"));
+        if is_debug_page {
+            tracing::info!("BLOCKMERGE-START: {} blocks total", blocks.len());
+            for (idx, block) in blocks.iter().enumerate() {
+                if block.text.contains("disentangles")
+                    || block.text.contains("dering")
+                    || block.text.contains("independently")
+                {
+                    tracing::info!(
+                        "BLOCKMERGE-KEY idx={}: x1={:.0} y1={:.0} len={} FULL: '{}'",
+                        idx,
+                        block.bbox.x1,
+                        block.bbox.y1,
+                        block.text.len(),
+                        &block.text
+                    );
+                }
+            }
+        }
+
+        for (idx, block) in blocks.into_iter().enumerate() {
+            // DEBUG: Log blocks that contain "ren-" or "dering" or "independently"
+            if block.text.contains("ren-")
+                || block.text.contains("dering")
+                || block.text.starts_with("independently")
+            {
+                tracing::info!(
+                    "MERGE-TRACE block {}: '{}...' x1={:.0}",
+                    idx,
+                    &block.text[..block.text.len().min(50)],
+                    block.bbox.x1
+                );
+            }
+
             if let Some(mut cur) = current.take() {
                 if self.should_merge(&cur, &block, stats) {
+                    // DEBUG: Log merges involving our target blocks
+                    if cur.text.contains("ren-")
+                        || block.text.contains("dering")
+                        || block.text.starts_with("independently")
+                    {
+                        tracing::info!(
+                            "MERGE-HAPPENING: '{}...' + '{}...'",
+                            &cur.text[cur.text.len().saturating_sub(20)..],
+                            &block.text[..block.text.len().min(20)]
+                        );
+                    }
                     cur.merge(&block);
                     current = Some(cur);
                 } else {
