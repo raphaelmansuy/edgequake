@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+
+# Test results
+test-results/
+playwright-report/
+coverage/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Environment files (will be injected by Cloud Run)
+.env
+.env.*
+!.env.example
+!.env.local.example
+
+# Misc
+audit_ui/
+e2e/
+*.tsbuildinfo
+build_*.log
+*_pid.txt
+debug_*.js
+test-*.mjs

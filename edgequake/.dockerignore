@@ -1,0 +1,50 @@
+# Build artifacts
+target/
+**/target/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Rust cache
+**/*.rs.bk
+Cargo.lock.backup
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Testing
+test-results/
+**/test-results/
+
+# Logs
+*.log
+logs/
+**/logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Docker
+docker/
+Dockerfile*
+.dockerignore
+
+# Misc
+audit_*/
+benches/
+examples/
+.env
+.env.*
+debug_output.txt
+validation_report.json
