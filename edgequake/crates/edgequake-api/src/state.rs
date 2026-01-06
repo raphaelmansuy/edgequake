@@ -254,13 +254,16 @@ impl AppState {
         ));
 
         // Create SOTA query engine with LightRAG-style enhancements
+        // WHY: MockReranker uses term overlap to boost chunks containing exact query terms,
+        // preventing model-name confusion (e.g., "2008" vs "3008")
+        let reranker = Arc::new(edgequake_llm::reranker::MockReranker::new());
         let sota_engine = Arc::new(SOTAQueryEngine::new(
             SOTAQueryConfig::default(),
             Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
             Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
             Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
             Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
-        ));
+        ).with_reranker(reranker));
 
         // Create auth services
         let auth_config = AuthConfig::default();
@@ -507,13 +510,16 @@ impl AppState {
         ));
 
         // Create SOTA query engine with LightRAG-style enhancements
+        // WHY: MockReranker uses term overlap to boost chunks containing exact query terms,
+        // preventing model-name confusion (e.g., "2008" vs "3008")
+        let reranker = Arc::new(edgequake_llm::reranker::MockReranker::new());
         let sota_engine = Arc::new(SOTAQueryEngine::new(
             SOTAQueryConfig::default(),
             Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
             Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
             Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
             Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
-        ));
+        ).with_reranker(reranker));
 
         // Create auth services
         let auth_config = AuthConfig::default();

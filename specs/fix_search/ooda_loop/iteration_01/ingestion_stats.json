@@ -1,0 +1,122 @@
+{
+  "total": 16,
+  "success": 16,
+  "failed": 0,
+  "entities_total": 355,
+  "relationships_total": 256,
+  "chunks_total": 46,
+  "details": [
+    {
+      "title": "EF-extract-Renault-Arkana",
+      "document_id": "38c6a261-687f-4edb-8c2a-d551fcb8922e",
+      "entities": 8,
+      "relationships": 6,
+      "chunks": 1
+    },
+    {
+      "title": "EF-Extract-BYD-Seal",
+      "document_id": "dec41c17-5273-4ccd-a853-9518f5a27c64",
+      "entities": 36,
+      "relationships": 24,
+      "chunks": 4
+    },
+    {
+      "title": "EF-extract-new-308",
+      "document_id": "c854f4a7-d1d8-47bb-a32b-8a78462f389e",
+      "entities": 16,
+      "relationships": 14,
+      "chunks": 2
+    },
+    {
+      "title": "EF-extract-BYD HAN",
+      "document_id": "59883745-fc87-41f6-840b-5731afcd13f6",
+      "entities": 19,
+      "relationships": 10,
+      "chunks": 2
+    },
+    {
+      "title": "EF-extract-2008",
+      "document_id": "aef997f4-a590-4514-bc72-8e710f9b810f",
+      "entities": 15,
+      "relationships": 11,
+      "chunks": 2
+    },
+    {
+      "title": "EF-extract-Renault-CAPTUR",
+      "document_id": "97c648fa-efd4-4098-bf04-4ca1bb7f6267",
+      "entities": 25,
+      "relationships": 18,
+      "chunks": 4
+    },
+    {
+      "title": "EF-Extract-Renault-Symbioz",
+      "document_id": "2187c9ca-d21d-482b-9deb-1f925222d383",
+      "entities": 12,
+      "relationships": 9,
+      "chunks": 2
+    },
+    {
+      "title": "EF-extract-CT_3008",
+      "document_id": "a7f3306f-9637-43a9-9789-9f389f2c1f45",
+      "entities": 93,
+      "relationships": 77,
+      "chunks": 13
+    },
+    {
+      "title": "EF-extract-5008",
+      "document_id": "c5c11277-368e-470c-9640-554abced26f3",
+      "entities": 16,
+      "relationships": 13,
+      "chunks": 2
+    },
+    {
+      "title": "EF-extract-208",
+      "document_id": "c3a062ed-2563-49a8-b7d0-6962d7c36873",
+      "entities": 8,
+      "relationships": 7,
+      "chunks": 1
+    },
+    {
+      "title": "EF-extract-3008",
+      "document_id": "cf847ed5-0145-4f71-9812-f446208ed1fc",
+      "entities": 7,
+      "relationships": 7,
+      "chunks": 1
+    },
+    {
+      "title": "EF-Extract-Peugeot-Traveller",
+      "document_id": "b8a26ca6-eb47-456a-9c8d-0a556a716d74",
+      "entities": 49,
+      "relationships": 25,
+      "chunks": 5
+    },
+    {
+      "title": "EF-extract-RENAULT 5-e-tech",
+      "document_id": "4f1d2553-889c-4bbd-8c44-f903d1dc3af5",
+      "entities": 13,
+      "relationships": 10,
+      "chunks": 2
+    },
+    {
+      "title": "EF-Extract-RENAULT CLIO FULL HYBRID E-TECH",
+      "document_id": "9af8ee34-2027-4e29-bd46-6265af156161",
+      "entities": 24,
+      "relationships": 14,
+      "chunks": 2
+    },
+    {
+      "title": "EF-Extract-Renault-Scenic",
+      "document_id": "db572e53-c2c6-4681-b02a-cbf1d6cb8043",
+      "entities": 6,
+      "relationships": 5,
+      "chunks": 1
+    },
+    {
+      "title": "EF-Extract-Renault-Autral",
+      "document_id": "f21cc1b7-2c7b-47df-816e-1546a8aa54a5",
+      "entities": 8,
+      "relationships": 6,
+      "chunks": 2
+    }
+  ]
+}

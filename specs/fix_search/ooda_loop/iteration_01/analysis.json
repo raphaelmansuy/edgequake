@@ -1,0 +1,33 @@
+{
+  "total_queries": 11,
+  "empty_results": 0,
+  "no_entities": 0,
+  "no_relationships": 0,
+  "no_chunks": 0,
+  "mode_comparison": {
+    "hybrid": {
+      "avg_entities": 0.0,
+      "avg_relationships": 0.0,
+      "avg_chunks": 0.0,
+      "empty_count": 11
+    },
+    "local": {
+      "avg_entities": 0.0,
+      "avg_relationships": 0.0,
+      "avg_chunks": 0.0,
+      "empty_count": 11
+    },
+    "global": {
+      "avg_entities": 0.0,
+      "avg_relationships": 0.0,
+      "avg_chunks": 0.0,
+      "empty_count": 11
+    },
+    "naive": {
+      "avg_entities": 0.0,
+      "avg_relationships": 0.0,
+      "avg_chunks": 0.0,
+      "empty_count": 11
+    }
+  }
+}
