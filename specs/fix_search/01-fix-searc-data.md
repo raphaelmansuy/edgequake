@@ -73,6 +73,11 @@ YOU MUST perform at least 10 OODA loops, documenting each step thoroughly, in co
 
 You can use a scratchpad_log.md file to document your thinking process, but it will not be part of the deliverables in  specs/fix_search/scratchpad_log.md
 
+
+You must ensure to test for Postgres and in Memory storage backends, and document any differences observed.
+
+Postgres first.
+
 # Deliverables
 
 - Improved search algorithm/code in edgequake
@@ -81,3 +86,19 @@ You can use a scratchpad_log.md file to document your thinking process, but it w
 
 
 Be Relentless in your pursuit of excellence in search functionality!
+
+If the OODA loop iterations lead to code changes, you must commit them with clear commit messages referencing the OODA loop iteration and decision.
+
+If OODA loop iterations contains files continue from previous iterations, you must document the differences and changes made in each iteration.
+
+# Roadblockers
+
+If you encounter any roadblocks or challenges during the mission, document them in a separate markdown file located at:
+
+specs/fix_search/roadblockers.md and describe how you overcame them or propose potential solutions.
+
+For example must document any issues regarding starting postgres locally, edgequake setup, data ingestion issues, code understanding issues, etc.
+
+You must refer to this file in each OODA loop iteration if any roadblockers were encountered.
+
+

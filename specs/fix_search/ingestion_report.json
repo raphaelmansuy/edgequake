@@ -1,0 +1,103 @@
+{
+  "timestamp": "2026-01-06 14:56:51",
+  "initial_stats": {
+    "documents": 0,
+    "entities": 0,
+    "relationships": 0,
+    "chunks": 0
+  },
+  "final_stats": {
+    "documents": 0,
+    "entities": 0,
+    "relationships": 0,
+    "chunks": 0
+  },
+  "results": [
+    {
+      "file": "EF-Extract-BYD-Seal.md",
+      "success": true,
+      "elapsed": 21.06986689567566
+    },
+    {
+      "file": "EF-Extract-Peugeot-Traveller.md",
+      "success": true,
+      "elapsed": 17.406399965286255
+    },
+    {
+      "file": "EF-Extract-RENAULT CLIO FULL HYBRID E-TECH.md",
+      "success": true,
+      "elapsed": 17.973366022109985
+    },
+    {
+      "file": "EF-Extract-Renault-Autral.md",
+      "success": true,
+      "elapsed": 14.581179857254028
+    },
+    {
+      "file": "EF-Extract-Renault-Scenic.md",
+      "success": true,
+      "elapsed": 11.289674043655396
+    },
+    {
+      "file": "EF-Extract-Renault-Symbioz.md",
+      "success": true,
+      "elapsed": 13.454996824264526
+    },
+    {
+      "file": "EF-extract-2008.md",
+      "success": true,
+      "elapsed": 12.746196985244751
+    },
+    {
+      "file": "EF-extract-208.md",
+      "success": true,
+      "elapsed": 13.186902046203613
+    },
+    {
+      "file": "EF-extract-3008.md",
+      "success": true,
+      "elapsed": 10.592477321624756
+    },
+    {
+      "file": "EF-extract-5008.md",
+      "success": true,
+      "elapsed": 17.03364896774292
+    },
+    {
+      "file": "EF-extract-BYD HAN.md",
+      "success": true,
+      "elapsed": 10.096884965896606
+    },
+    {
+      "file": "EF-extract-CT_3008.md",
+      "success": true,
+      "elapsed": 17.630713939666748
+    },
+    {
+      "file": "EF-extract-RENAULT 5-e-tech.md",
+      "success": true,
+      "elapsed": 10.8577561378479
+    },
+    {
+      "file": "EF-extract-Renault-Arkana.md",
+      "success": true,
+      "elapsed": 11.387545108795166
+    },
+    {
+      "file": "EF-extract-Renault-CAPTUR.md",
+      "success": true,
+      "elapsed": 17.077695846557617
+    },
+    {
+      "file": "EF-extract-new-308.md",
+      "success": true,
+      "elapsed": 13.914552927017212
+    }
+  ],
+  "summary": {
+    "total": 16,
+    "successful": 16,
+    "failed": 0,
+    "total_time": 230.29985785484314
+  }
+}

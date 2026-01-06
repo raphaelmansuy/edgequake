@@ -61,11 +61,11 @@ The catch-all `_ =>` case converted arrays to JSON strings like `'["chunk-001", 
 
 Apache AGE uses Cypher query language. Arrays must use native Cypher list syntax:
 
-| JSON | Cypher (Correct) | Cypher (Bug) |
-|------|------------------|--------------|
-| `["a", "b"]` | `['a', 'b']` | `'["a", "b"]'` |
-| `[1, 2, 3]` | `[1, 2, 3]` | `'[1, 2, 3]'` |
-| `{"x": 1}` | `{x: 1}` | `'{"x": 1}'` |
+| JSON         | Cypher (Correct) | Cypher (Bug)   |
+| ------------ | ---------------- | -------------- |
+| `["a", "b"]` | `['a', 'b']`     | `'["a", "b"]'` |
+| `[1, 2, 3]`  | `[1, 2, 3]`      | `'[1, 2, 3]'`  |
+| `{"x": 1}`   | `{x: 1}`         | `'{"x": 1}'`   |
 
 ### Impact Assessment
 
@@ -167,11 +167,11 @@ SOLUTION:
 
 ## Summary
 
-| Metric | Before | After |
-|--------|--------|-------|
-| PostgreSQL Tests | 17/18 | 19/19 |
-| Source Tracking | ❌ BROKEN | ✅ WORKING |
-| Array Properties | Corrupted | Preserved |
-| Nested Objects | Corrupted | Preserved |
+| Metric           | Before    | After      |
+| ---------------- | --------- | ---------- |
+| PostgreSQL Tests | 17/18     | 19/19      |
+| Source Tracking  | ❌ BROKEN | ✅ WORKING |
+| Array Properties | Corrupted | Preserved  |
+| Nested Objects   | Corrupted | Preserved  |
 
 **Key Insight**: The catch-all pattern in match statements can hide type-specific bugs. Always explicitly handle complex types like arrays and objects.

@@ -6,12 +6,12 @@ Over 10 OODA loop iterations, we identified and fixed two critical issues affect
 
 ## Key Metrics
 
-| Metric | Before | After | Improvement |
-|--------|--------|-------|-------------|
-| Precision (model-specific queries) | ~60% | 100% | +40% |
-| Recall (entity-based search) | Broken | Working | Fixed |
-| Test Coverage | 0 tests | 18 tests | +18 tests |
-| Query Modes Working | 4/4 | 4/4 | Maintained |
+| Metric                             | Before  | After    | Improvement |
+| ---------------------------------- | ------- | -------- | ----------- |
+| Precision (model-specific queries) | ~60%    | 100%     | +40%        |
+| Recall (entity-based search)       | Broken  | Working  | Fixed       |
+| Test Coverage                      | 0 tests | 18 tests | +18 tests   |
+| Query Modes Working                | 4/4     | 4/4      | Maintained  |
 
 ## Critical Fixes
 
@@ -41,6 +41,7 @@ let sota_engine = Arc::new(SOTAQueryEngine::new(...)
 ```
 
 **Algorithm**:
+
 ```
 score_boost = query_term_overlap / max(query_terms, chunk_terms)
 ```
@@ -113,37 +114,38 @@ Average Latency: 2682ms
 
 ## Performance Analysis
 
-| Operation | Latency | Bottleneck |
-|-----------|---------|------------|
-| Health check | 136ms | Network |
-| Simple query | ~2.5s | OpenAI API |
-| Complex query | ~10s | OpenAI generation |
-| Retrieval | ~0ms | In-memory |
-| Embedding | ~700ms | OpenAI API |
-| Generation | 1-10s | OpenAI API |
+| Operation     | Latency | Bottleneck        |
+| ------------- | ------- | ----------------- |
+| Health check  | 136ms   | Network           |
+| Simple query  | ~2.5s   | OpenAI API        |
+| Complex query | ~10s    | OpenAI generation |
+| Retrieval     | ~0ms    | In-memory         |
+| Embedding     | ~700ms  | OpenAI API        |
+| Generation    | 1-10s   | OpenAI API        |
 
 **Conclusion**: Latency is API-bound, not code-bound. No optimization needed.
 
 ## Files Modified
 
-| File | Change |
-|------|--------|
-| `edgequake-api/src/state.rs` | Added MockReranker to constructors |
-| `edgequake-api/src/handlers/documents.rs` | Fixed entity embedding storage |
+| File                                      | Change                             |
+| ----------------------------------------- | ---------------------------------- |
+| `edgequake-api/src/state.rs`              | Added MockReranker to constructors |
+| `edgequake-api/src/handlers/documents.rs` | Fixed entity embedding storage     |
 
 ## Test Scripts Delivered
 
-| Script | Purpose |
-|--------|---------|
+| Script                   | Purpose                     |
+| ------------------------ | --------------------------- |
 | `test_search_quality.py` | Comprehensive 18-test suite |
-| `test_precision.py` | Precision-focused tests |
-| `test_edge_cases.py` | Edge case validation |
-| `test_performance.py` | Performance benchmarks |
-| `ingest_test.py` | Test data ingestion |
+| `test_precision.py`      | Precision-focused tests     |
+| `test_edge_cases.py`     | Edge case validation        |
+| `test_performance.py`    | Performance benchmarks      |
+| `ingest_test.py`         | Test data ingestion         |
 
 ## Test Data
 
 4 Peugeot French car specification documents:
+
 - `peugeot-2008-ENVY-spec.md`
 - `peugeot-208-spec.md`
 - `peugeot-3008-spec.md`
@@ -151,10 +153,10 @@ Average Latency: 2682ms
 
 ## Commits
 
-| Hash | Message |
-|------|---------|
-| `e94dd7c` | fix(search): Add MockReranker for precision improvement |
-| Previous | fix(search): Store entity embeddings in document handler |
+| Hash      | Message                                                  |
+| --------- | -------------------------------------------------------- |
+| `e94dd7c` | fix(search): Add MockReranker for precision improvement  |
+| Previous  | fix(search): Store entity embeddings in document handler |
 
 ## Architecture Diagram
 
@@ -178,6 +180,7 @@ Average Latency: 2682ms
 ## Conclusion
 
 The EdgeQuake search functionality is now production-ready with:
+
 - ✅ Entity embeddings properly stored
 - ✅ MockReranker improving precision
 - ✅ All query modes working (local, global, hybrid, naive)
@@ -187,7 +190,7 @@ The EdgeQuake search functionality is now production-ready with:
 
 ---
 
-*Report generated after completing 10 OODA loop iterations*
+_Report generated after completing 10 OODA loop iterations_
 
 ---
 
@@ -195,11 +198,11 @@ The EdgeQuake search functionality is now production-ready with:
 
 Added real BM25Reranker with term frequency-inverse document frequency scoring:
 
-| Metric | MockReranker | BM25Reranker |
-|--------|--------------|--------------|
-| Algorithm | Keyword overlap | TF-IDF with saturation |
-| French support | Basic | Proper Unicode handling |
-| Performance | O(n) | O(n log n) |
+| Metric         | MockReranker    | BM25Reranker            |
+| -------------- | --------------- | ----------------------- |
+| Algorithm      | Keyword overlap | TF-IDF with saturation  |
+| French support | Basic           | Proper Unicode handling |
+| Performance    | O(n)            | O(n log n)              |
 
 **Commit**: `fix(search): Replace MockReranker with BM25Reranker`
 
@@ -214,18 +217,19 @@ PostgreSQL AGE graph storage was corrupting array properties like `source_chunk_
 **Root Cause**: The `properties_to_cypher()` function was converting JSON arrays to strings instead of Cypher list literals.
 
 **Fix**: Added recursive `value_to_cypher()` function:
+
 - Arrays → `[val1, val2, val3]` (Cypher list)
 - Objects → `{key1: val1, key2: val2}` (Cypher map)
 
 ### Test Results After Fix
 
-| Test Suite | Count | Status |
-|------------|-------|--------|
-| PostgreSQL Integration | 19 | ✅ PASS |
-| E2E Storage Backends | 37 | ✅ PASS |
-| Query Engine | 31 | ✅ PASS |
-| Core Lib | 102 | ✅ PASS |
-| **Total** | **189+** | **✅ ALL** |
+| Test Suite             | Count    | Status     |
+| ---------------------- | -------- | ---------- |
+| PostgreSQL Integration | 19       | ✅ PASS    |
+| E2E Storage Backends   | 37       | ✅ PASS    |
+| Query Engine           | 31       | ✅ PASS    |
+| Core Lib               | 102      | ✅ PASS    |
+| **Total**              | **189+** | **✅ ALL** |
 
 **Commit**: `fix(storage): Fix Cypher array serialization for source_chunk_ids`
 
@@ -239,4 +243,4 @@ See [iteration_22_31/observe_orient_decide_act.md](iteration_22_31/observe_orien
 
 ---
 
-*Last updated: OODA Loop 31 completed*
+_Last updated: OODA Loop 31 completed_
