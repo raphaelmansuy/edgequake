@@ -55,7 +55,7 @@ impl HeadingClassifier {
         }
 
         // Step 1: Analyze font sizes
-        let (font_stats, has_bold) = self.analyze_font_sizes(block, body_font_size);
+        let font_stats = self.analyze_font_sizes(block, body_font_size);
 
         if !self.has_consistent_large_font(&font_stats) {
             return (false, 0);
@@ -68,15 +68,14 @@ impl HeadingClassifier {
         }
 
         // Step 3: Determine level from size ratio
-        let level = self.calculate_level(font_stats.max_size, body_font_size, has_bold);
+        let level = self.calculate_level(font_stats.max_size, body_font_size);
 
         (true, level)
     }
 
     /// Analyze font sizes in block spans.
-    fn analyze_font_sizes(&self, block: &Block, body_size: f32) -> (FontStats, bool) {
+    fn analyze_font_sizes(&self, block: &Block, body_size: f32) -> FontStats {
         let mut stats = FontStats::default();
-        let mut has_bold = false;
 
         for span in &block.spans {
             if let Some(size) = span.style.size {
@@ -87,14 +86,9 @@ impl HeadingClassifier {
                     stats.max_size = stats.max_size.max(size);
                 }
             }
-
-            // Check for bold text
-            if span.style.weight.map(|w| w >= 600).unwrap_or(false) {
-                has_bold = true;
-            }
         }
 
-        (stats, has_bold)
+        stats
     }
 
     /// Check if block has consistent large font across spans.
@@ -193,25 +187,22 @@ mod tests {
         let classifier = HeadingClassifier::new();
 
         // Very large (>= 1.5x) = H1
-        assert_eq!(classifier.calculate_level(18.0, 12.0, false), 1); // 1.5x
+        assert_eq!(classifier.calculate_level(18.0, 12.0), 1); // 1.5x
 
         // Large (>= 1.3x) = H2
-        assert_eq!(classifier.calculate_level(15.6, 12.0, false), 2); // 1.3x
+        assert_eq!(classifier.calculate_level(15.6, 12.0), 2); // 1.3x
 
         // Moderate (>= 1.2x) = H3
-        assert_eq!(classifier.calculate_level(14.5, 12.0, false), 3); // 1.208x - safely above 1.2
+        assert_eq!(classifier.calculate_level(14.5, 12.0), 3); // 1.208x - safely above 1.2
 
         // Slightly large (>= 1.1x) = H4
-        assert_eq!(classifier.calculate_level(14.0, 12.0, false), 4); // 1.17x
+        assert_eq!(classifier.calculate_level(14.0, 12.0), 4); // 1.17x
 
         // Small (>= 1.05x) = H5
-        assert_eq!(classifier.calculate_level(13.0, 12.0, false), 5); // 1.083x
+        assert_eq!(classifier.calculate_level(13.0, 12.0), 5); // 1.083x
 
         // Smallest (< 1.05x) = H6
-        assert_eq!(classifier.calculate_level(12.5, 12.0, false), 6); // 1.042x
-
-        // Bold text with body-sized font = H4
-        assert_eq!(classifier.calculate_level(12.0, 12.0, true), 4);
+        assert_eq!(classifier.calculate_level(12.5, 12.0), 6); // 1.042x
     }
 
     #[test]

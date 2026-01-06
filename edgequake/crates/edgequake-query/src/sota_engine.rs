@@ -828,6 +828,22 @@ impl SOTAQueryEngine {
         // Step 2: Filter to entity vectors only (LightRAG Local mode)
         let entity_vectors = filter_by_type(vector_results, VectorType::Entity);
 
+        // Step 2.5: Build entity scores map to preserve vector similarity scores
+        let entity_scores: HashMap<String, f32> = entity_vectors
+            .iter()
+            .filter(|r| r.score >= self.config.min_score)
+            .filter(|r| self.matches_tenant_filter(&r.metadata, &tenant_id, &workspace_id))
+            .filter_map(|r| {
+                let entity_name = r
+                    .metadata
+                    .get("entity_name")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| r.id.clone());
+                Some((entity_name, r.score))
+            })
+            .collect();
+
         // Step 3: Extract entity IDs from vector results
         let entity_ids: Vec<String> = entity_vectors
             .iter()
@@ -891,7 +907,11 @@ impl SOTAQueryEngine {
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
 
-            let mut entity = RetrievedEntity::new(id, entity_type, description).with_degree(degree);
+            // Use preserved similarity score from vector search (fixes score=0.0 bug)
+            let entity_score = entity_scores.get(id).copied().unwrap_or(0.0);
+            let mut entity = RetrievedEntity::new(id, entity_type, description)
+                .with_degree(degree)
+                .with_score(entity_score);
             if !source_chunk_ids.is_empty() {
                 entity = entity.with_source_chunk_ids(source_chunk_ids);
             }

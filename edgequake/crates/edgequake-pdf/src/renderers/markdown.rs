@@ -256,7 +256,7 @@ impl MarkdownRenderer {
         // WHY subtract 1: level=1 is the base level (no indent), level=2 gets one indent
         let adjusted_level = level.saturating_sub(1);
         let len_before_indent = output.len();
-        for _i in 0..adjusted_level {
+        for i in 0..adjusted_level {
             output.push_str("  "); // Two ASCII spaces (0x20 0x20)
         }
         let len_after_indent = output.len();
