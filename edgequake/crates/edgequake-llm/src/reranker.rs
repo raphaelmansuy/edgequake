@@ -87,7 +87,9 @@ impl RerankConfig {
     pub fn aliyun(api_key: impl Into<String>) -> Self {
         Self {
             model: "gte-rerank-v2".to_string(),
-            base_url: "https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank".to_string(),
+            base_url:
+                "https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank"
+                    .to_string(),
             api_key: Some(api_key.into()),
             ..Default::default()
         }
@@ -189,7 +191,7 @@ impl HttpReranker {
     /// Create a new HTTP reranker with the given config.
     pub fn new(config: RerankConfig) -> Self {
         let (response_format, request_format) = Self::detect_format(&config.base_url);
-        
+
         let client = Client::builder()
             .timeout(config.timeout)
             .build()
@@ -235,7 +237,12 @@ impl HttpReranker {
         }
     }
 
-    fn build_request(&self, query: &str, documents: &[String], top_n: Option<usize>) -> serde_json::Value {
+    fn build_request(
+        &self,
+        query: &str,
+        documents: &[String],
+        top_n: Option<usize>,
+    ) -> serde_json::Value {
         match self.request_format {
             RequestFormat::Standard => {
                 let mut payload = serde_json::json!({
@@ -267,19 +274,17 @@ impl HttpReranker {
 
     fn parse_response(&self, response: serde_json::Value) -> Result<Vec<RerankResult>> {
         let results = match self.response_format {
-            ResponseFormat::Standard => {
-                response.get("results")
-                    .and_then(|r| r.as_array())
-                    .cloned()
-                    .unwrap_or_default()
-            }
-            ResponseFormat::Aliyun => {
-                response.get("output")
-                    .and_then(|o| o.get("results"))
-                    .and_then(|r| r.as_array())
-                    .cloned()
-                    .unwrap_or_default()
-            }
+            ResponseFormat::Standard => response
+                .get("results")
+                .and_then(|r| r.as_array())
+                .cloned()
+                .unwrap_or_default(),
+            ResponseFormat::Aliyun => response
+                .get("output")
+                .and_then(|o| o.get("results"))
+                .and_then(|r| r.as_array())
+                .cloned()
+                .unwrap_or_default(),
         };
 
         if results.is_empty() {
@@ -289,14 +294,18 @@ impl HttpReranker {
 
         let mut rerank_results = Vec::with_capacity(results.len());
         for result in results {
-            let index = result.get("index")
+            let index = result
+                .get("index")
                 .and_then(|i| i.as_u64())
                 .ok_or_else(|| LlmError::Unknown("Missing index in rerank result".to_string()))?
                 as usize;
-            let score = result.get("relevance_score")
+            let score = result
+                .get("relevance_score")
                 .and_then(|s| s.as_f64())
-                .ok_or_else(|| LlmError::Unknown("Missing relevance_score in rerank result".to_string()))?;
-            
+                .ok_or_else(|| {
+                    LlmError::Unknown("Missing relevance_score in rerank result".to_string())
+                })?;
+
             rerank_results.push(RerankResult {
                 index,
                 relevance_score: score,
@@ -304,7 +313,11 @@ impl HttpReranker {
         }
 
         // Sort by relevance score descending
-        rerank_results.sort_by(|a, b| b.relevance_score.partial_cmp(&a.relevance_score).unwrap_or(std::cmp::Ordering::Equal));
+        rerank_results.sort_by(|a, b| {
+            b.relevance_score
+                .partial_cmp(&a.relevance_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         Ok(rerank_results)
     }
@@ -343,7 +356,11 @@ impl HttpReranker {
             }
         }
 
-        debug!("Chunked {} documents into {} chunks", documents.len(), chunked.len());
+        debug!(
+            "Chunked {} documents into {} chunks",
+            documents.len(),
+            chunked.len()
+        );
         (chunked, indices)
     }
 
@@ -374,7 +391,9 @@ impl HttpReranker {
             .filter(|(_, scores)| !scores.is_empty())
             .map(|(idx, scores)| {
                 let final_score = match aggregation {
-                    ScoreAggregation::Max => scores.iter().cloned().fold(f64::NEG_INFINITY, f64::max),
+                    ScoreAggregation::Max => {
+                        scores.iter().cloned().fold(f64::NEG_INFINITY, f64::max)
+                    }
                     ScoreAggregation::Mean => scores.iter().sum::<f64>() / scores.len() as f64,
                     ScoreAggregation::First => scores[0],
                 };
@@ -385,7 +404,11 @@ impl HttpReranker {
             })
             .collect();
 
-        aggregated.sort_by(|a, b| b.relevance_score.partial_cmp(&a.relevance_score).unwrap_or(std::cmp::Ordering::Equal));
+        aggregated.sort_by(|a, b| {
+            b.relevance_score
+                .partial_cmp(&a.relevance_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         aggregated
     }
 }
@@ -421,15 +444,24 @@ impl Reranker for HttpReranker {
         // Handle chunking
         let (chunked_docs, doc_indices) = self.chunk_documents(documents);
         let original_top_n = top_n;
-        
+
         // When chunking, disable top_n at API level to get all chunk scores
-        let api_top_n = if self.config.enable_chunking { None } else { top_n };
+        let api_top_n = if self.config.enable_chunking {
+            None
+        } else {
+            top_n
+        };
 
         let payload = self.build_request(query, &chunked_docs, api_top_n);
 
-        debug!("Rerank request: {} documents, model: {}", chunked_docs.len(), self.config.model);
+        debug!(
+            "Rerank request: {} documents, model: {}",
+            chunked_docs.len(),
+            self.config.model
+        );
 
-        let mut request = self.client
+        let mut request = self
+            .client
             .post(&self.config.base_url)
             .header("Content-Type", "application/json");
 
@@ -453,7 +485,9 @@ impl Reranker for HttpReranker {
             )));
         }
 
-        let response_json: serde_json::Value = response.json().await
+        let response_json: serde_json::Value = response
+            .json()
+            .await
             .map_err(|e| LlmError::Unknown(format!("Failed to parse rerank response: {}", e)))?;
 
         let mut results = self.parse_response(response_json)?;
@@ -477,30 +511,58 @@ impl Reranker for HttpReranker {
     }
 }
 
-/// A mock reranker for testing that doesn't require API access.
-pub struct MockReranker {
+/// Term overlap reranker using simple Jaccard-like scoring.
+///
+/// WHY this reranker: Provides a fast, no-external-dependency reranker for:
+/// - Testing and development (no API keys required)
+/// - Fallback when BM25 isn't needed
+/// - Simple use cases where full BM25 is overkill
+///
+/// ## Algorithm
+///
+/// Scores documents by computing the fraction of query terms that appear in the document:
+/// `score = |query_terms ∩ doc_terms| / |query_terms|`
+///
+/// ## Limitations
+///
+/// - No IDF weighting (rare terms not prioritized)
+/// - No term frequency consideration (TF=1 vs TF=10 same score)
+/// - No length normalization
+///
+/// For production use, prefer `BM25Reranker` which addresses all these limitations.
+///
+/// ## Backward Compatibility
+///
+/// Previously named `MockReranker`. The type alias `MockReranker = TermOverlapReranker`
+/// is provided for backward compatibility.
+pub struct TermOverlapReranker {
     model: String,
 }
 
-impl MockReranker {
-    /// Create a new mock reranker.
+impl TermOverlapReranker {
+    /// Create a new term overlap reranker.
     pub fn new() -> Self {
         Self {
-            model: "mock-reranker".to_string(),
+            model: "term-overlap-reranker".to_string(),
         }
     }
 }
 
-impl Default for MockReranker {
+impl Default for TermOverlapReranker {
     fn default() -> Self {
         Self::new()
     }
 }
 
+/// Backward compatibility alias for `TermOverlapReranker`.
+///
+/// Deprecated: Use `TermOverlapReranker` for new code.
+pub type MockReranker = TermOverlapReranker;
+
 #[async_trait]
-impl Reranker for MockReranker {
+impl Reranker for TermOverlapReranker {
     fn name(&self) -> &str {
-        "mock"
+        "term-overlap"
     }
 
     fn model(&self) -> &str {
@@ -513,7 +575,7 @@ impl Reranker for MockReranker {
         documents: &[String],
         top_n: Option<usize>,
     ) -> Result<Vec<RerankResult>> {
-        // Simple mock: score based on query term overlap
+        // Score based on query term overlap (Jaccard-like metric)
         let query_lower = query.to_lowercase();
         let query_terms: std::collections::HashSet<String> = query_lower
             .split_whitespace()
@@ -529,7 +591,7 @@ impl Reranker for MockReranker {
                     .split_whitespace()
                     .map(|s| s.to_string())
                     .collect();
-                
+
                 let overlap = query_terms.intersection(&doc_terms).count();
                 let max_terms = query_terms.len().max(1);
                 let score = overlap as f64 / max_terms as f64;
@@ -542,7 +604,11 @@ impl Reranker for MockReranker {
             .collect();
 
         // Sort by score descending
-        results.sort_by(|a, b| b.relevance_score.partial_cmp(&a.relevance_score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.relevance_score
+                .partial_cmp(&a.relevance_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         // Apply top_n
         if let Some(n) = top_n {
@@ -554,43 +620,116 @@ impl Reranker for MockReranker {
 }
 
 /// BM25 reranker for high-quality text-based reranking.
-/// 
+///
 /// WHY BM25: Industry-standard ranking algorithm used by Elasticsearch, Lucene, etc.
 /// Advantages over simple term overlap:
 /// - IDF weighting: rare terms score higher (e.g., "ENVY" vs "the")
 /// - Term frequency saturation: diminishing returns for repeated terms
 /// - Length normalization: long docs don't dominate short focused ones
 ///
-/// Parameters:
-/// - k1 ∈ [1.2, 2.0]: Term frequency saturation (higher = more TF influence)
-/// - b ∈ [0, 1]: Length normalization (0 = no normalization, 1 = full normalization)
+/// This implementation is SOTA-compliant based on the Okapi BM25 algorithm
+/// (Robertson et al.) with optional BM25+ extension for better long document handling.
+///
+/// ## Parameters
+///
+/// - `k1` ∈ [1.2, 2.0]: Term frequency saturation (higher = more TF influence)
+/// - `b` ∈ [0, 1]: Length normalization (0 = no normalization, 1 = full normalization)
+/// - `delta` ≥ 0: BM25+ extension parameter (0 = standard BM25, 1.0 = BM25+)
+///
+/// ## IDF Formula (SOTA)
+///
+/// `IDF(q) = ln((N - n(q) + 0.5) / (n(q) + 0.5) + 1)`
+///
+/// The `+1` inside the logarithm ensures IDF is always non-negative.
+///
+/// ## Scoring Formula
+///
+/// Standard BM25:
+/// `score = Σ IDF(q) × f(q,D)×(k1+1) / (f(q,D) + k1×(1-b+b×|D|/avgdl))`
+///
+/// BM25+ (when delta > 0):
+/// `score = Σ IDF(q) × (f(q,D)×(k1+1) / (f(q,D) + k1×(1-b+b×|D|/avgdl)) + delta)`
+///
+/// ## References
+///
+/// - Wikipedia: <https://en.wikipedia.org/wiki/Okapi_BM25>
+/// - Robertson, S., Zaragoza, H. (2009). The Probabilistic Relevance Framework: BM25 and Beyond
+/// - Lv, Y., Zhai, C. (2011). Lower-Bounding Term Frequency Normalization (BM25+)
 pub struct BM25Reranker {
-    /// Term frequency saturation parameter
+    /// Term frequency saturation parameter (k1).
+    /// WHY: Controls how quickly term frequency saturates. Higher values give
+    /// more weight to repeated terms. Standard range: [1.2, 2.0].
     k1: f64,
-    /// Length normalization parameter  
+    /// Length normalization parameter (b).
+    /// WHY: Controls document length penalty. b=0 means no length normalization,
+    /// b=1 means full normalization. Standard value: 0.75.
     b: f64,
+    /// BM25+ delta parameter for long document handling.
+    /// WHY: Standard BM25 can penalize long documents unfairly even when they
+    /// contain all query terms. Adding delta ensures a minimum score contribution.
+    /// Set to 0.0 for standard BM25, 1.0 for BM25+.
+    delta: f64,
     /// Model name for trait compliance
     model: String,
 }
 
 impl BM25Reranker {
     /// Create a new BM25 reranker with default parameters.
-    /// 
-    /// Defaults: k1 = 1.5, b = 0.75 (standard values from literature)
+    ///
+    /// Defaults: k1 = 1.5, b = 0.75, delta = 0.0 (standard BM25)
     pub fn new() -> Self {
         Self {
             k1: 1.5,
             b: 0.75,
+            delta: 0.0, // Standard BM25, not BM25+
             model: "bm25-reranker".to_string(),
         }
     }
 
+    /// Create a BM25+ reranker with delta = 1.0 for better long document handling.
+    ///
+    /// BM25+ adds a delta parameter to prevent long documents from being
+    /// penalized too heavily, ensuring each matching term contributes at least
+    /// delta to the score.
+    pub fn bm25_plus() -> Self {
+        Self {
+            k1: 1.5,
+            b: 0.75,
+            delta: 1.0, // BM25+ extension
+            model: "bm25-plus-reranker".to_string(),
+        }
+    }
+
     /// Create with custom parameters.
+    ///
+    /// # Arguments
+    /// - `k1`: Term frequency saturation [0.0, 3.0]
+    /// - `b`: Length normalization [0.0, 1.0]
     pub fn with_params(k1: f64, b: f64) -> Self {
         Self {
             k1: k1.clamp(0.0, 3.0),
             b: b.clamp(0.0, 1.0),
+            delta: 0.0,
             model: "bm25-reranker".to_string(),
+        }
+    }
+
+    /// Create with full custom parameters including BM25+ delta.
+    ///
+    /// # Arguments
+    /// - `k1`: Term frequency saturation [0.0, 3.0]
+    /// - `b`: Length normalization [0.0, 1.0]
+    /// - `delta`: BM25+ extension parameter (0 = standard, ≥1.0 recommended for BM25+)
+    pub fn with_full_params(k1: f64, b: f64, delta: f64) -> Self {
+        Self {
+            k1: k1.clamp(0.0, 3.0),
+            b: b.clamp(0.0, 1.0),
+            delta: delta.max(0.0),
+            model: if delta > 0.0 {
+                "bm25-plus-reranker".to_string()
+            } else {
+                "bm25-reranker".to_string()
+            },
         }
     }
 
@@ -618,19 +757,37 @@ impl BM25Reranker {
     }
 
     /// Compute IDF for a term across documents.
-    /// 
+    ///
+    /// WHY this formula: Robertson et al. introduced the +1 inside ln() to ensure
+    /// IDF is always non-negative, preventing negative scores for very common terms.
+    ///
     /// Formula: ln((N - n(q) + 0.5) / (n(q) + 0.5) + 1)
+    ///
+    /// Where:
+    /// - N = total number of documents
+    /// - n(q) = number of documents containing term q
     fn compute_idf(term: &str, doc_terms_list: &[Vec<String>]) -> f64 {
         let n = doc_terms_list.len() as f64;
         let containing_docs = doc_terms_list
             .iter()
             .filter(|terms| terms.contains(&term.to_string()))
             .count() as f64;
-        
+
         ((n - containing_docs + 0.5) / (containing_docs + 0.5) + 1.0).ln()
     }
 
-    /// Compute BM25 score for a single document.
+    /// Compute BM25/BM25+ score for a single document.
+    ///
+    /// WHY this implementation:
+    /// - Standard BM25 formula with TF saturation and length normalization
+    /// - BM25+ extension (delta > 0) addresses the "long document penalty" issue
+    ///   where long documents are unfairly penalized even when containing query terms
+    ///
+    /// Formula (BM25):
+    /// `score = Σ IDF(q) × f(q,D)×(k1+1) / (f(q,D) + k1×(1-b+b×|D|/avgdl))`
+    ///
+    /// Formula (BM25+):
+    /// `score = Σ IDF(q) × (f(q,D)×(k1+1) / (f(q,D) + k1×(1-b+b×|D|/avgdl)) + delta)`
     fn compute_bm25_score(
         &self,
         query_terms: &[String],
@@ -647,7 +804,9 @@ impl BM25Reranker {
             if tf > 0.0 {
                 let idf = idf_cache.get(term).copied().unwrap_or(0.0);
                 let tf_component = (tf * (self.k1 + 1.0)) / (tf + self.k1 * length_norm);
-                score += idf * tf_component;
+                // BM25+: Add delta to ensure minimum contribution per matching term
+                // WHY: Prevents long documents from being penalized too heavily
+                score += idf * (tf_component + self.delta);
             }
         }
         score
@@ -687,15 +846,16 @@ impl Reranker for BM25Reranker {
             let results: Vec<RerankResult> = documents
                 .iter()
                 .enumerate()
-                .map(|(idx, _)| RerankResult { index: idx, relevance_score: 0.0 })
+                .map(|(idx, _)| RerankResult {
+                    index: idx,
+                    relevance_score: 0.0,
+                })
                 .collect();
             return Ok(results);
         }
 
-        let doc_terms_list: Vec<Vec<String>> = documents
-            .iter()
-            .map(|d| Self::tokenize(d))
-            .collect();
+        let doc_terms_list: Vec<Vec<String>> =
+            documents.iter().map(|d| Self::tokenize(d)).collect();
 
         // Compute average document length
         let avgdl = doc_terms_list.iter().map(|d| d.len()).sum::<usize>() as f64
@@ -772,7 +932,7 @@ impl RRFReranker {
     }
 
     /// Fuse multiple ranked lists using RRF.
-    /// 
+    ///
     /// Each inner Vec contains document indices in ranked order (best first).
     pub fn fuse(&self, ranked_lists: &[Vec<usize>], num_docs: usize) -> Vec<RerankResult> {
         let mut scores = vec![0.0f64; num_docs];
@@ -832,11 +992,11 @@ impl Reranker for RRFReranker {
         // For true RRF, use the fuse() method with multiple ranking sources
         let bm25 = BM25Reranker::new();
         let mut results = bm25.rerank(query, documents, None).await?;
-        
+
         if let Some(n) = top_n {
             results.truncate(n);
         }
-        
+
         Ok(results)
     }
 }
@@ -862,7 +1022,7 @@ impl HybridReranker {
     }
 
     /// Rerank with both text and vector signals.
-    /// 
+    ///
     /// Arguments:
     /// - query: The search query
     /// - documents: Document texts
@@ -969,7 +1129,7 @@ mod tests {
         ];
 
         let results = reranker.rerank(query, &documents, Some(2)).await.unwrap();
-        
+
         assert_eq!(results.len(), 2);
         // First result should be about France (has "capital" and "of")
         assert_eq!(results[0].index, 0);
@@ -986,21 +1146,26 @@ mod tests {
     #[test]
     fn test_score_aggregation() {
         let reranker = HttpReranker::new(RerankConfig::default());
-        
+
         let chunk_results = vec![
-            RerankResult { index: 0, relevance_score: 0.9 },
-            RerankResult { index: 1, relevance_score: 0.8 },
-            RerankResult { index: 2, relevance_score: 0.7 },
+            RerankResult {
+                index: 0,
+                relevance_score: 0.9,
+            },
+            RerankResult {
+                index: 1,
+                relevance_score: 0.8,
+            },
+            RerankResult {
+                index: 2,
+                relevance_score: 0.7,
+            },
         ];
         let doc_indices = vec![0, 0, 1]; // Two chunks for doc 0, one for doc 1
-        
-        let aggregated = reranker.aggregate_scores(
-            chunk_results,
-            &doc_indices,
-            2,
-            ScoreAggregation::Max,
-        );
-        
+
+        let aggregated =
+            reranker.aggregate_scores(chunk_results, &doc_indices, 2, ScoreAggregation::Max);
+
         assert_eq!(aggregated.len(), 2);
         // Doc 0 should have max(0.9, 0.8) = 0.9
         assert_eq!(aggregated[0].index, 0);
@@ -1013,14 +1178,14 @@ mod tests {
             .with_chunking(true)
             .with_max_tokens(50); // Small for testing
         let reranker = HttpReranker::new(config);
-        
+
         let documents = vec![
             "Short document.".to_string(),
             "A".repeat(1000), // Long document that will be chunked
         ];
-        
+
         let (chunked, indices) = reranker.chunk_documents(&documents);
-        
+
         // Should have more chunks than original documents
         assert!(chunked.len() > 2);
         // All chunks should map back to original documents
@@ -1040,7 +1205,7 @@ mod tests {
         ];
 
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         assert_eq!(results.len(), 3);
         // First result should be about France (has "France" which is unique)
         assert_eq!(results[0].index, 0);
@@ -1059,7 +1224,7 @@ mod tests {
         ];
 
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // Doc 0 has ENVY (rare) + Peugeot, should score highest
         assert_eq!(results[0].index, 0);
         // ENVY is unique to doc 0, so it should have much higher score
@@ -1072,13 +1237,13 @@ mod tests {
         let reranker = BM25Reranker::new();
         let query = "2008";
         let documents = vec![
-            "The Peugeot 208 is a compact car.".to_string(),       // index 0
-            "The Peugeot 2008 is an SUV.".to_string(),             // index 1
-            "The Peugeot 3008 is a larger SUV.".to_string(),       // index 2
+            "The Peugeot 208 is a compact car.".to_string(), // index 0
+            "The Peugeot 2008 is an SUV.".to_string(),       // index 1
+            "The Peugeot 3008 is a larger SUV.".to_string(), // index 2
         ];
 
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // "2008" should be first because it exactly matches the query term
         assert_eq!(results[0].index, 1, "2008 document should be first");
         // "208" should NOT be first (this was the precision bug)
@@ -1095,7 +1260,7 @@ mod tests {
         ];
 
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // Should match despite accent differences (normalized)
         assert_eq!(results[0].index, 0);
         assert!(results[0].relevance_score > 0.0);
@@ -1127,7 +1292,10 @@ mod tests {
             "Gamma document.".to_string(),
         ];
 
-        let results = reranker.rerank("document", &documents, Some(2)).await.unwrap();
+        let results = reranker
+            .rerank("document", &documents, Some(2))
+            .await
+            .unwrap();
         assert_eq!(results.len(), 2);
     }
 
@@ -1149,18 +1317,100 @@ mod tests {
         assert_eq!(reranker.b, 0.5);
     }
 
+    // =========== BM25+ Extension Tests ===========
+
+    #[test]
+    fn test_bm25_plus_constructor() {
+        let reranker = BM25Reranker::bm25_plus();
+        assert_eq!(reranker.k1, 1.5);
+        assert_eq!(reranker.b, 0.75);
+        assert_eq!(reranker.delta, 1.0);
+        assert_eq!(reranker.model(), "bm25-plus-reranker");
+    }
+
+    #[test]
+    fn test_bm25_with_full_params() {
+        let reranker = BM25Reranker::with_full_params(1.2, 0.8, 0.5);
+        assert_eq!(reranker.k1, 1.2);
+        assert_eq!(reranker.b, 0.8);
+        assert_eq!(reranker.delta, 0.5);
+    }
+
+    #[tokio::test]
+    async fn test_bm25_plus_long_document_handling() {
+        // BM25+ should help long documents score better
+        let bm25 = BM25Reranker::new(); // Standard BM25 (delta = 0)
+        let bm25_plus = BM25Reranker::bm25_plus(); // BM25+ (delta = 1)
+
+        let query = "Peugeot";
+        let documents = vec![
+            "Peugeot".to_string(), // Short doc with term
+            "Peugeot cars are great. They have been making cars for over a century. The French automaker is known for quality. They produce sedans, SUVs, and more.".to_string(), // Long doc with term
+        ];
+
+        let results_bm25 = bm25.rerank(query, &documents, None).await.unwrap();
+        let results_bm25_plus = bm25_plus.rerank(query, &documents, None).await.unwrap();
+
+        // Both should rank docs with the term, but BM25+ gives long doc higher relative score
+        assert!(results_bm25[0].relevance_score > 0.0);
+        assert!(results_bm25_plus[0].relevance_score > 0.0);
+
+        // BM25+ should give higher score to long doc compared to standard BM25
+        // Because delta adds a floor to the score contribution
+        let bm25_long_score = results_bm25.iter().find(|r| r.index == 1).unwrap().relevance_score;
+        let bm25_plus_long_score = results_bm25_plus.iter().find(|r| r.index == 1).unwrap().relevance_score;
+        assert!(bm25_plus_long_score > bm25_long_score, "BM25+ should score long doc higher");
+    }
+
+    #[test]
+    fn test_bm25_params_clamping() {
+        // k1 should be clamped to [0, 3]
+        let reranker = BM25Reranker::with_full_params(10.0, 2.0, -1.0);
+        assert_eq!(reranker.k1, 3.0); // Clamped from 10.0
+        assert_eq!(reranker.b, 1.0); // Clamped from 2.0
+        assert_eq!(reranker.delta, 0.0); // Clamped from -1.0
+    }
+
+    // =========== TermOverlapReranker Tests ===========
+
+    #[tokio::test]
+    async fn test_term_overlap_reranker() {
+        let reranker = TermOverlapReranker::new();
+        let query = "capital of France";
+        let documents = vec![
+            "The capital of France is Paris.".to_string(),
+            "Tokyo is the capital of Japan.".to_string(),
+        ];
+
+        let results = reranker.rerank(query, &documents, None).await.unwrap();
+        
+        // France doc should score higher (has "France" + "capital" + "of")
+        assert_eq!(results[0].index, 0);
+        assert_eq!(reranker.name(), "term-overlap");
+    }
+
+    #[test]
+    fn test_mock_reranker_alias() {
+        // Verify MockReranker is a type alias for TermOverlapReranker
+        let mock: MockReranker = MockReranker::new();
+        let term_overlap: TermOverlapReranker = TermOverlapReranker::new();
+        
+        // Both should have same behavior
+        assert_eq!(mock.name(), term_overlap.name());
+    }
+
     // =========== RRF Reranker Tests ===========
 
     #[test]
     fn test_rrf_fusion_basic() {
         let rrf = RRFReranker::new();
-        
+
         // Two ranking lists
         let list1 = vec![0, 1, 2]; // BM25 ranking: doc0 best, then doc1, doc2
         let list2 = vec![2, 1, 0]; // Vector ranking: doc2 best, then doc1, doc0
-        
+
         let results = rrf.fuse(&[list1, list2], 3);
-        
+
         // Doc1 should be top because it's rank 2 in both lists
         // score(doc1) = 1/(60+2) + 1/(60+2) = 0.032
         // score(doc0) = 1/(60+1) + 1/(60+3) = 0.016 + 0.016 = 0.032
@@ -1172,13 +1422,13 @@ mod tests {
     #[test]
     fn test_rrf_fusion_clear_winner() {
         let rrf = RRFReranker::with_k(1); // Low k for clearer differences
-        
+
         // Doc 0 is first in both lists
         let list1 = vec![0, 1, 2];
         let list2 = vec![0, 2, 1];
-        
+
         let results = rrf.fuse(&[list1, list2], 3);
-        
+
         // Doc 0 should be first (rank 1 in both)
         assert_eq!(results[0].index, 0);
         // Score should be 1/(1+1) + 1/(1+1) = 1.0
@@ -1195,7 +1445,7 @@ mod tests {
         ];
 
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         assert_eq!(results.len(), 2);
         // First doc should score higher (has "test")
         assert_eq!(results[0].index, 0);
@@ -1213,7 +1463,7 @@ mod tests {
         ];
 
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // Should work like BM25 without vector rankings
         assert_eq!(results[0].index, 0); // "test" appears in doc 0
     }
@@ -1231,8 +1481,11 @@ mod tests {
         // Vector search says doc 1 is best (different from BM25)
         let vector_rankings = vec![1, 2, 0];
 
-        let results = reranker.rerank_hybrid(query, &documents, Some(vector_rankings), None).await.unwrap();
-        
+        let results = reranker
+            .rerank_hybrid(query, &documents, Some(vector_rankings), None)
+            .await
+            .unwrap();
+
         assert_eq!(results.len(), 3);
         // Result should balance BM25 (prefers 0, 2) with vector (prefers 1)
     }
@@ -1250,18 +1503,21 @@ mod tests {
     async fn test_bm25_very_long_document() {
         let reranker = BM25Reranker::new();
         let query = "Peugeot 2008";
-        
+
         // Create a very long document with the target terms buried inside
         let long_prefix = "Lorem ipsum dolor sit amet. ".repeat(100);
-        let long_doc = format!("{}The Peugeot 2008 is an excellent SUV.{}", long_prefix, long_prefix);
-        
+        let long_doc = format!(
+            "{}The Peugeot 2008 is an excellent SUV.{}",
+            long_prefix, long_prefix
+        );
+
         let documents = vec![
             "Peugeot 2008 is great.".to_string(), // Short focused doc
-            long_doc.clone(),                       // Long doc with same info
+            long_doc.clone(),                     // Long doc with same info
         ];
 
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // Short focused doc should score better due to length normalization
         assert_eq!(results[0].index, 0, "Short focused doc should rank first");
     }
@@ -1277,7 +1533,7 @@ mod tests {
         ];
 
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // Should still work with special characters filtered out
         assert!(!results.is_empty());
         // Doc with "programming" should score
@@ -1296,7 +1552,7 @@ mod tests {
         ];
 
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // All docs should have similar low scores since query is mostly stop words
         // (Note: We filter single-char tokens, so scores should be low overall)
         assert_eq!(results.len(), 3);
@@ -1307,13 +1563,13 @@ mod tests {
         let reranker = BM25Reranker::new();
         let query = "Peugeot 2008";
         let documents = vec![
-            "Peugeot 2008".to_string(),                     // Exact match
-            "Peugeot 2008 Peugeot 2008".to_string(),        // Double match
-            "The Peugeot 2008 is a car.".to_string(),       // Match with context
+            "Peugeot 2008".to_string(),               // Exact match
+            "Peugeot 2008 Peugeot 2008".to_string(),  // Double match
+            "The Peugeot 2008 is a car.".to_string(), // Match with context
         ];
 
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // Exact match should score very high
         // Double match has more TF but longer doc, so saturation should help
         assert!(results[0].relevance_score > 0.0);
@@ -1330,12 +1586,15 @@ mod tests {
         ];
 
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // All should match equally (case insensitive)
         // All docs have both terms, so scores should be similar
-        let score_variance = results.iter()
+        let score_variance = results
+            .iter()
             .map(|r| r.relevance_score)
-            .fold((0.0, 0.0), |acc, s| (acc.0 + s, (acc.1 - s).abs().max(acc.1)));
+            .fold((0.0, 0.0), |acc, s| {
+                (acc.0 + s, (acc.1 - s).abs().max(acc.1))
+            });
         assert!(score_variance.0 > 0.0, "Should have non-zero scores");
     }
 
@@ -1352,7 +1611,7 @@ mod tests {
         ];
 
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // "2008" should match exactly only doc 1
         assert_eq!(results[0].index, 1, "Exact year match should rank first");
     }
@@ -1363,12 +1622,12 @@ mod tests {
         let query = "cafe francais elegance";
         let documents = vec![
             "Le café français a de l'élégance.".to_string(),
-            "The French cafe has elegance.".to_string(),  // English version
+            "The French cafe has elegance.".to_string(), // English version
             "Random unrelated text here.".to_string(),
         ];
 
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // Both French and English docs should score well
         assert!(results[0].relevance_score > results[2].relevance_score);
         assert!(results[1].relevance_score > results[2].relevance_score);
@@ -1381,7 +1640,7 @@ mod tests {
         let documents = vec!["Single document with test.".to_string()];
 
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].index, 0);
         // With single doc, IDF is 0 (ln(1/1 + 1) = ln(1.5) ≈ 0.4)
@@ -1393,7 +1652,7 @@ mod tests {
         // Comparative test: BM25 should outperform MockReranker on precision
         let bm25 = BM25Reranker::new();
         let mock = MockReranker::new();
-        
+
         let query = "2008";
         let documents = vec![
             "The Peugeot 208 is a compact car.".to_string(),
@@ -1402,10 +1661,10 @@ mod tests {
 
         let bm25_results = bm25.rerank(query, &documents, None).await.unwrap();
         let _mock_results = mock.rerank(query, &documents, None).await.unwrap();
-        
+
         // BM25 should correctly identify "2008" (index 1) as top
         assert_eq!(bm25_results[0].index, 1, "BM25 should rank 2008 first");
-        
+
         // MockReranker might fail this (term overlap doesn't distinguish)
         // This test documents the improvement
     }
@@ -1422,7 +1681,7 @@ mod tests {
         let reranker = RRFReranker::new();
         let single_list = vec![2, 0, 1]; // doc2 first, then doc0, doc1
         let results = reranker.fuse(&[single_list], 3);
-        
+
         assert_eq!(results.len(), 3);
         assert_eq!(results[0].index, 2);
     }
@@ -1433,15 +1692,21 @@ mod tests {
     async fn test_bm25_stress_100_documents() {
         let reranker = BM25Reranker::new();
         let query = "target keyword";
-        
+
         // Create 100 documents, only one contains the target
         let mut documents: Vec<String> = (0..99)
-            .map(|i| format!("Document {} has some random content about various topics.", i))
+            .map(|i| {
+                format!(
+                    "Document {} has some random content about various topics.",
+                    i
+                )
+            })
             .collect();
-        documents.push("This document contains the target keyword we are searching for.".to_string());
-        
+        documents
+            .push("This document contains the target keyword we are searching for.".to_string());
+
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // Document with target should be first
         assert_eq!(results[0].index, 99, "Target document should rank first");
         assert!(results[0].relevance_score > 0.0);
@@ -1451,22 +1716,29 @@ mod tests {
     async fn test_bm25_stress_1000_documents() {
         let reranker = BM25Reranker::new();
         let query = "unique identifier xyz";
-        
+
         // Create 1000 documents
         let mut documents: Vec<String> = (0..999)
             .map(|i| format!("Document number {} with generic content.", i))
             .collect();
         documents.push("This text contains unique identifier xyz marker.".to_string());
-        
+
         let start = std::time::Instant::now();
         let results = reranker.rerank(query, &documents, Some(10)).await.unwrap();
         let elapsed = start.elapsed();
-        
+
         // Performance: should complete in under 1 second
-        assert!(elapsed.as_millis() < 1000, "Should complete in under 1s, took {:?}", elapsed);
-        
+        assert!(
+            elapsed.as_millis() < 1000,
+            "Should complete in under 1s, took {:?}",
+            elapsed
+        );
+
         // Precision: target should be in top 10
-        assert!(results.iter().any(|r| r.index == 999), "Target should be in top 10");
+        assert!(
+            results.iter().any(|r| r.index == 999),
+            "Target should be in top 10"
+        );
     }
 
     #[tokio::test]
@@ -1474,16 +1746,16 @@ mod tests {
         let reranker = BM25Reranker::new();
         // Very long query with many terms
         let query = "The quick brown fox jumps over the lazy dog and runs through the forest while the sun sets behind the mountains creating beautiful shadows";
-        
+
         let documents = vec![
             "A fox runs quickly.".to_string(),
             "The brown dog is lazy.".to_string(),
             "Mountains have beautiful sunsets.".to_string(),
             "Completely unrelated content here.".to_string(),
         ];
-        
+
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // All docs with matching terms should score
         assert!(results[0].relevance_score > results[3].relevance_score);
     }
@@ -1493,15 +1765,15 @@ mod tests {
         let reranker = BM25Reranker::new();
         // Query with repeated terms
         let query = "test test test test test";
-        
+
         let documents = vec![
             "This is a test document.".to_string(),
             "Another test here.".to_string(),
             "No relevant content.".to_string(),
         ];
-        
+
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // Should handle repeated terms gracefully (TF saturation)
         assert_eq!(results.len(), 3);
         assert!(results[0].relevance_score > 0.0);
@@ -1511,14 +1783,14 @@ mod tests {
     async fn test_bm25_stress_all_same_content() {
         let reranker = BM25Reranker::new();
         let query = "test content";
-        
+
         // All documents have identical content
         let documents: Vec<String> = (0..10)
             .map(|_| "This is test content for evaluation.".to_string())
             .collect();
-        
+
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // All should have the same score
         let first_score = results[0].relevance_score;
         for result in &results {
@@ -1530,16 +1802,16 @@ mod tests {
     async fn test_bm25_stress_empty_documents_in_list() {
         let reranker = BM25Reranker::new();
         let query = "test query";
-        
+
         let documents = vec![
             "".to_string(),
             "   ".to_string(),
             "Actual content with test.".to_string(),
             "".to_string(),
         ];
-        
+
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // Non-empty document should rank first
         assert_eq!(results[0].index, 2);
     }
@@ -1548,16 +1820,16 @@ mod tests {
     async fn test_bm25_stress_unicode_heavy() {
         let reranker = BM25Reranker::new();
         let query = "recherche voiture";
-        
+
         let documents = vec![
             "Recherche de voiture électrique en France.".to_string(),
-            "日本語テスト文書".to_string(),  // Japanese
-            "مستند عربي".to_string(),          // Arabic
-            "Русский документ".to_string(),   // Russian
+            "日本語テスト文書".to_string(), // Japanese
+            "مستند عربي".to_string(),       // Arabic
+            "Русский документ".to_string(), // Russian
         ];
-        
+
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // French doc should rank first
         assert_eq!(results[0].index, 0);
     }
@@ -1569,9 +1841,9 @@ mod tests {
         let reranker = BM25Reranker::new();
         let query = "test";
         let documents = vec!["test document".to_string()];
-        
+
         let results = reranker.rerank(query, &documents, Some(0)).await.unwrap();
-        
+
         // top_n = 0 should return empty
         assert!(results.is_empty());
     }
@@ -1580,13 +1852,10 @@ mod tests {
     async fn test_bm25_boundary_top_n_larger_than_docs() {
         let reranker = BM25Reranker::new();
         let query = "test";
-        let documents = vec![
-            "test one".to_string(),
-            "test two".to_string(),
-        ];
-        
+        let documents = vec!["test one".to_string(), "test two".to_string()];
+
         let results = reranker.rerank(query, &documents, Some(100)).await.unwrap();
-        
+
         // Should return all 2 docs, not 100
         assert_eq!(results.len(), 2);
     }
@@ -1596,9 +1865,9 @@ mod tests {
         let reranker = BM25Reranker::new();
         let query = "a";
         let documents = vec!["a document".to_string(), "another".to_string()];
-        
+
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // Single char filtered out, should have 0 scores
         assert_eq!(results.len(), 2);
     }
@@ -1608,9 +1877,9 @@ mod tests {
         let reranker = BM25Reranker::new();
         let query = "   \t\n   ";
         let documents = vec!["some document".to_string()];
-        
+
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // Whitespace query should return all docs with 0 score
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].relevance_score, 0.0);
@@ -1621,13 +1890,13 @@ mod tests {
         let reranker = BM25Reranker::new();
         let query = "test";
         let documents = vec![
-            "t".to_string(),   // Too short
+            "t".to_string(),    // Too short
             "test".to_string(), // Exact match
             "testing".to_string(),
         ];
-        
+
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // Exact match should rank high
         assert!(results[0].index == 1 || results[1].index == 1);
     }
@@ -1636,7 +1905,7 @@ mod tests {
     async fn test_bm25_french_peugeot_full_spec() {
         let reranker = BM25Reranker::new();
         let query = "Peugeot 2008 ENVY motorisation";
-        
+
         // Realistic car spec documents
         let documents = vec![
             "Peugeot 2008 ENVY: Motorisation PureTech 130ch, boîte automatique EAT8.".to_string(),
@@ -1644,12 +1913,12 @@ mod tests {
             "Citroën C3 Aircross: Essence PureTech 110ch.".to_string(),
             "Renault Captur: Moteur TCe 100ch hybride.".to_string(),
         ];
-        
+
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // Peugeot 2008 ENVY doc should be first (has all terms)
         assert_eq!(results[0].index, 0, "2008 ENVY doc should rank first");
-        
+
         // Should have significantly higher score
         assert!(results[0].relevance_score > results[1].relevance_score * 1.2);
     }
@@ -1657,14 +1926,12 @@ mod tests {
     #[tokio::test]
     async fn test_rrf_boundary_many_rankings() {
         let reranker = RRFReranker::new();
-        
+
         // 10 ranking lists all agreeing
-        let rankings: Vec<Vec<usize>> = (0..10)
-            .map(|_| vec![0, 1, 2])
-            .collect();
-        
+        let rankings: Vec<Vec<usize>> = (0..10).map(|_| vec![0, 1, 2]).collect();
+
         let results = reranker.fuse(&rankings, 3);
-        
+
         // Doc 0 should have highest score (first in all 10 lists)
         assert_eq!(results[0].index, 0);
     }
@@ -1677,13 +1944,15 @@ mod tests {
             "test document here".to_string(),
             "another document".to_string(),
         ];
-        
+
         // No vector rankings provided
-        let results = reranker.rerank_hybrid(query, &documents, None, None).await.unwrap();
-        
+        let results = reranker
+            .rerank_hybrid(query, &documents, None, None)
+            .await
+            .unwrap();
+
         // Should fall back to BM25 only
         assert_eq!(results.len(), 2);
         assert!(results[0].relevance_score >= results[1].relevance_score);
     }
 }
-

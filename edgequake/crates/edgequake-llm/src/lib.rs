@@ -42,7 +42,7 @@ pub use providers::openai::OpenAIProvider;
 pub use rate_limiter::{RateLimitedProvider, RateLimiter, RateLimiterConfig};
 pub use reranker::{
     BM25Reranker, HttpReranker, HybridReranker, MockReranker, RRFReranker, RerankConfig,
-    RerankResult, Reranker, ScoreAggregation,
+    RerankResult, Reranker, ScoreAggregation, TermOverlapReranker,
 };
 pub use tokenizer::Tokenizer;
 pub use traits::{EmbeddingProvider, LLMProvider, LLMResponse};
