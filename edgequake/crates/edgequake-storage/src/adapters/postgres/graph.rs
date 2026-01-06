@@ -1350,6 +1350,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
         })?;
 
         let escaped_query = Self::escape_sql_string(query);
+        tracing::debug!(query = %query, escaped = %escaped_query, "search_labels starting");
 
         // Try full-text search first (best for word matching)
         let fts_sql = format!(
@@ -1383,22 +1384,25 @@ impl GraphStorage for PostgresAGEGraphStorage {
             }
         }
 
-        // Fallback to trigram similarity for fuzzy matching (typos, partial matches)
+        // WHY: Fallback to trigram similarity for fuzzy matching (typos, partial matches)
+        // WHY: pg_trgm extension is in ag_catalog schema, so we must use OPERATOR(ag_catalog.%)
+        //      and ag_catalog.similarity() explicitly to avoid "function not found" errors
         let trgm_sql = format!(
             "SELECT \
                 ag_catalog.agtype_to_json(properties)->>'node_id' as label, \
-                similarity( \
+                ag_catalog.similarity( \
                     ag_catalog.agtype_to_json(properties)->>'node_id', \
                     '{}' \
                 ) as sim \
              FROM {}.\"_ag_label_vertex\" \
-             WHERE ag_catalog.agtype_to_json(properties)->>'node_id' % '{}' \
+             WHERE ag_catalog.agtype_to_json(properties)->>'node_id' OPERATOR(ag_catalog.%) '{}' \
              ORDER BY sim DESC \
              LIMIT {}",
             escaped_query, self.graph_name, escaped_query, limit
         );
 
         let trgm_rows = sqlx::query(&trgm_sql).fetch_all(&mut *conn).await;
+        tracing::debug!(sql = %trgm_sql, result = ?trgm_rows.as_ref().map(|r| r.len()).unwrap_or(0), "trigram search");
 
         // If trigram search finds results, return them
         if let Ok(rows) = trgm_rows {
@@ -1407,6 +1411,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
                     .iter()
                     .filter_map(|row| row.get::<Option<String>, _>("label"))
                     .collect();
+                tracing::debug!(labels = ?labels, "trigram search found labels");
 
                 if !labels.is_empty() {
                     return Ok(labels);
