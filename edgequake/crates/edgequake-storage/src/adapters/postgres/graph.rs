@@ -288,6 +288,11 @@ impl PostgresAGEGraphStorage {
     }
 
     /// Convert properties HashMap to Cypher map literal.
+    ///
+    /// # WHY: Proper array serialization
+    /// Arrays must be converted to Cypher list syntax `[a, b, c]` not JSON strings.
+    /// Without this, source_chunk_ids and other array properties become strings
+    /// like `'["chunk1", "chunk2"]'` instead of proper lists, breaking array operations.
     fn properties_to_cypher(props: &HashMap<String, serde_json::Value>) -> String {
         if props.is_empty() {
             return "{}".to_string();
@@ -296,18 +301,43 @@ impl PostgresAGEGraphStorage {
         let parts: Vec<String> = props
             .iter()
             .map(|(k, v)| {
-                let value_str = match v {
-                    serde_json::Value::String(s) => format!("'{}'", Self::escape_cypher_string(s)),
-                    serde_json::Value::Number(n) => n.to_string(),
-                    serde_json::Value::Bool(b) => b.to_string(),
-                    serde_json::Value::Null => "null".to_string(),
-                    _ => format!("'{}'", Self::escape_cypher_string(&v.to_string())),
-                };
+                let value_str = Self::value_to_cypher(v);
                 format!("{}: {}", k, value_str)
             })
             .collect();
 
         format!("{{{}}}", parts.join(", "))
+    }
+
+    /// Convert a single JSON value to Cypher literal syntax.
+    ///
+    /// Handles:
+    /// - Strings: escaped with single quotes
+    /// - Numbers: raw numeric literals
+    /// - Booleans: `true`/`false`
+    /// - Null: `null`
+    /// - Arrays: `[val1, val2, ...]` (recursive)
+    /// - Objects: `{key1: val1, ...}` (recursive)
+    fn value_to_cypher(v: &serde_json::Value) -> String {
+        match v {
+            serde_json::Value::String(s) => format!("'{}'", Self::escape_cypher_string(s)),
+            serde_json::Value::Number(n) => n.to_string(),
+            serde_json::Value::Bool(b) => b.to_string(),
+            serde_json::Value::Null => "null".to_string(),
+            serde_json::Value::Array(arr) => {
+                // Convert to Cypher list: [val1, val2, val3]
+                let items: Vec<String> = arr.iter().map(Self::value_to_cypher).collect();
+                format!("[{}]", items.join(", "))
+            }
+            serde_json::Value::Object(obj) => {
+                // Convert to nested Cypher map: {key1: val1, key2: val2}
+                let items: Vec<String> = obj
+                    .iter()
+                    .map(|(k, val)| format!("{}: {}", k, Self::value_to_cypher(val)))
+                    .collect();
+                format!("{{{}}}", items.join(", "))
+            }
+        }
     }
 
     /// Create the AGE graph if it doesn't exist.

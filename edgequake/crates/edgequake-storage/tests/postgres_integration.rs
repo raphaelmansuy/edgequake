@@ -1407,3 +1407,114 @@ async fn test_postgres_source_tracking_e2e() {
         .expect("Failed to clear vector");
     graph_storage.clear().await.expect("Failed to clear graph");
 }
+
+/// Test that nested arrays and objects are properly serialized in Cypher
+/// This validates the recursive `value_to_cypher` function
+#[tokio::test]
+async fn test_postgres_nested_array_and_object_properties() {
+    let config = require_postgres!();
+    let graph_storage = PostgresAGEGraphStorage::new(config);
+
+    graph_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize");
+
+    // Create node with nested structures
+    let mut props = HashMap::new();
+    props.insert("name".to_string(), serde_json::json!("TestEntity"));
+
+    // Simple array (already tested, but good to have)
+    props.insert(
+        "tags".to_string(),
+        serde_json::json!(["alpha", "beta", "gamma"]),
+    );
+
+    // Array of numbers
+    props.insert("scores".to_string(), serde_json::json!([95, 87, 92, 78]));
+
+    // Mixed type array
+    props.insert(
+        "mixed".to_string(),
+        serde_json::json!(["text", 42, true, null]),
+    );
+
+    // Nested object
+    props.insert(
+        "metadata".to_string(),
+        serde_json::json!({
+            "version": "1.0",
+            "count": 5,
+            "active": true
+        }),
+    );
+
+    // Array of objects
+    props.insert(
+        "references".to_string(),
+        serde_json::json!([
+            {"id": "ref-001", "type": "citation"},
+            {"id": "ref-002", "type": "source"}
+        ]),
+    );
+
+    graph_storage
+        .upsert_node("TEST_NESTED", props)
+        .await
+        .expect("Failed to upsert node with nested properties");
+
+    // Retrieve and verify
+    let node = graph_storage
+        .get_node("TEST_NESTED")
+        .await
+        .expect("Failed to get node")
+        .expect("Node should exist");
+
+    // Verify simple array
+    let tags = node.properties.get("tags").and_then(|v| v.as_array());
+    assert!(tags.is_some(), "tags should be an array");
+    let tags = tags.unwrap();
+    assert_eq!(tags.len(), 3);
+    assert!(tags.contains(&serde_json::json!("alpha")));
+    assert!(tags.contains(&serde_json::json!("beta")));
+    assert!(tags.contains(&serde_json::json!("gamma")));
+
+    // Verify number array
+    let scores = node.properties.get("scores").and_then(|v| v.as_array());
+    assert!(scores.is_some(), "scores should be an array");
+    let scores = scores.unwrap();
+    assert_eq!(scores.len(), 4);
+    assert!(scores.contains(&serde_json::json!(95)));
+
+    // Verify mixed type array
+    let mixed = node.properties.get("mixed").and_then(|v| v.as_array());
+    assert!(mixed.is_some(), "mixed should be an array");
+    let mixed = mixed.unwrap();
+    assert_eq!(mixed.len(), 4);
+    assert!(mixed.contains(&serde_json::json!("text")));
+    assert!(mixed.contains(&serde_json::json!(42)));
+    assert!(mixed.contains(&serde_json::json!(true)));
+
+    // Verify nested object
+    let metadata = node.properties.get("metadata").and_then(|v| v.as_object());
+    assert!(metadata.is_some(), "metadata should be an object");
+    let metadata = metadata.unwrap();
+    assert_eq!(
+        metadata.get("version").and_then(|v| v.as_str()),
+        Some("1.0")
+    );
+    assert_eq!(metadata.get("count").and_then(|v| v.as_i64()), Some(5));
+    assert_eq!(metadata.get("active").and_then(|v| v.as_bool()), Some(true));
+
+    // Verify array of objects
+    let refs = node.properties.get("references").and_then(|v| v.as_array());
+    assert!(refs.is_some(), "references should be an array");
+    let refs = refs.unwrap();
+    assert_eq!(refs.len(), 2);
+    let ref0 = refs[0].as_object().expect("should be object");
+    assert_eq!(ref0.get("id").and_then(|v| v.as_str()), Some("ref-001"));
+    assert_eq!(ref0.get("type").and_then(|v| v.as_str()), Some("citation"));
+
+    // Cleanup
+    graph_storage.clear().await.expect("Failed to clear");
+}
