@@ -203,6 +203,9 @@ pub struct SOTAQueryEngine {
     tokenizer: Arc<dyn Tokenizer>,
     /// Optional reranker for improved retrieval precision.
     reranker: Option<Arc<dyn Reranker>>,
+    /// Cache for keyword validation (keyword -> exists_in_graph).
+    /// WHY: Avoids repeated graph lookups for the same keywords.
+    keyword_validation_cache: Arc<tokio::sync::RwLock<std::collections::HashMap<String, bool>>>,
 }
 
 impl SOTAQueryEngine {
@@ -232,6 +235,7 @@ impl SOTAQueryEngine {
             keyword_extractor,
             tokenizer: Arc::new(SimpleTokenizer),
             reranker: None, // No reranker by default
+            keyword_validation_cache: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         }
     }
 
@@ -260,6 +264,7 @@ impl SOTAQueryEngine {
             keyword_extractor,
             tokenizer: Arc::new(SimpleTokenizer),
             reranker: None,
+            keyword_validation_cache: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         }
     }
 
@@ -387,18 +392,36 @@ impl SOTAQueryEngine {
         let mut dropped_keywords = Vec::new();
 
         for keyword in &keywords.low_level {
-            // Search for entities matching this keyword
-            let matches = self.graph_storage.search_labels(keyword, 1).await;
+            // Check cache first
+            let cache_key = keyword.to_lowercase();
+            let cached_result = {
+                let cache = self.keyword_validation_cache.read().await;
+                cache.get(&cache_key).copied()
+            };
 
-            match matches {
-                Ok(labels) if !labels.is_empty() => {
-                    // Keyword has matching entities - keep it
-                    validated_low_level.push(keyword.clone());
+            let exists = if let Some(exists) = cached_result {
+                // Cache hit
+                exists
+            } else {
+                // Cache miss - check graph
+                let matches = self.graph_storage.search_labels(keyword, 1).await;
+                let exists = matches.map(|labels| !labels.is_empty()).unwrap_or(false);
+                
+                // Update cache
+                {
+                    let mut cache = self.keyword_validation_cache.write().await;
+                    // Limit cache size to prevent unbounded growth
+                    if cache.len() < 10000 {
+                        cache.insert(cache_key, exists);
+                    }
                 }
-                _ => {
-                    // Keyword has no matching entities - drop it
-                    dropped_keywords.push(keyword.clone());
-                }
+                exists
+            };
+
+            if exists {
+                validated_low_level.push(keyword.clone());
+            } else {
+                dropped_keywords.push(keyword.clone());
             }
         }
 

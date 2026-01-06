@@ -216,32 +216,73 @@ impl QueryEngine {
         })
     }
 
-    /// Local RAG: Entity-centric retrieval using BATCH operations.
+    /// Local RAG: Entity-centric retrieval using BATCH operations + keyword extraction.
     ///
-    /// This is the LightRAG-inspired optimized version that uses O(1) batch queries
-    /// instead of O(N) individual queries for graph retrieval.
+    /// This is the LightRAG-inspired optimized version that uses:
+    /// 1. O(1) batch queries instead of O(N) individual queries for graph retrieval
+    /// 2. Keyword extraction for semantic understanding (closing gap with LightRAG)
+    /// 3. Multi-vector search: query + low-level keywords for better entity recall
     ///
     /// Performance: ~10ms for 50 entities (vs ~500ms with individual queries)
     async fn query_local(&self, query: &str, params: &QueryParams) -> Result<QueryResult> {
         let retrieval_start = std::time::Instant::now();
 
-        // 1. Embed query
-        let query_embeddings = self
+        // WHY: Extract keywords first (LightRAG pattern) to understand query semantics
+        // This helps find entities that match specific terms like "BYD Seal U" or "STLA Medium"
+        let keyword_extractor = KeywordExtractor::new(Arc::clone(&self.llm));
+        let keywords = keyword_extractor.extract(query).await.unwrap_or_else(|e| {
+            tracing::warn!("Keyword extraction failed: {}, using empty keywords", e);
+            ExtractedKeywords::default()
+        });
+
+        tracing::debug!(
+            low_level = ?keywords.low_level,
+            high_level = ?keywords.high_level,
+            "Extracted keywords for local query"
+        );
+
+        // 1. Build search texts: query + low-level keywords for multi-vector search
+        // WHY: Low-level keywords capture specific entity names that may not match
+        // the overall query embedding (e.g., "STLA Medium" in French query)
+        let mut search_texts = vec![query.to_string()];
+        search_texts.extend(keywords.low_level.iter().take(5).cloned()); // Limit to top 5 keywords
+
+        let all_embeddings = self
             .embedding
-            .embed(&[query.to_string()])
+            .embed(&search_texts)
             .await
             .map_err(|e| crate::error::Error::internal(format!("Embedding error: {}", e)))?;
 
-        let query_embedding = query_embeddings
-            .first()
-            .ok_or_else(|| crate::error::Error::internal("No embedding generated"))?;
+        // 2. Multi-vector search: search with each embedding and collect results
+        // WHY: This ensures we find entities matching specific keywords even if
+        // they don't match the overall query embedding well
+        let per_vector_k = (params.top_k / all_embeddings.len().max(1)).max(3);
+        let mut all_entity_results = Vec::new();
+        let mut seen_ids = HashSet::new();
 
-        // 2. Search vector store for entities
-        let entity_results = self
-            .vector_storage
-            .query(query_embedding, params.top_k, None)
-            .await
-            .map_err(|e| crate::error::Error::internal(format!("Vector search error: {}", e)))?;
+        for embedding in &all_embeddings {
+            let results = self
+                .vector_storage
+                .query(embedding, per_vector_k, None)
+                .await
+                .map_err(|e| {
+                    crate::error::Error::internal(format!("Vector search error: {}", e))
+                })?;
+
+            for result in results {
+                if seen_ids.insert(result.id.clone()) {
+                    all_entity_results.push(result);
+                }
+            }
+        }
+
+        // Sort by score and take top_k
+        all_entity_results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        let entity_results: Vec<_> = all_entity_results.into_iter().take(params.top_k).collect();
 
         // 3. Filter and collect entity IDs (pre-filter step)
         let mut entity_ids = Vec::new();
@@ -777,7 +818,11 @@ Response:"#,
         })
     }
 
-    /// Hybrid RAG: Combines local and global modes (without naive chunks).
+    /// Hybrid RAG: Combines local and global modes with round-robin interleaving.
+    ///
+    /// WHY: Uses LightRAG-style round-robin merge to ensure both local (entity-centric)
+    /// and global (relationship-centric) results are well-represented in the final context.
+    /// Simple concatenation would bias toward local mode, causing global context to be cut off.
     async fn query_hybrid(&self, query: &str, params: &QueryParams) -> Result<QueryResult> {
         let retrieval_start = std::time::Instant::now();
 
@@ -787,29 +832,28 @@ Response:"#,
         // 2. Run global query (relationship-centric)
         let global_result = self.query_global(query, params).await?;
 
-        // 3. Merge contexts
-        let mut merged_entities = local_result.context.entities;
-        let mut merged_relationships = global_result.context.relationships;
+        // 3. Round-robin merge contexts (LightRAG pattern)
+        // WHY: Interleaved merge ensures diverse context from both local and global
+        // Pattern: [L1, G1, L2, G2, ...] instead of [L1, L2, ..., G1, G2, ...]
+        let merged_entities = Self::round_robin_merge_entities(
+            &local_result.context.entities,
+            &global_result.context.entities,
+        );
 
-        // Add entities from global that aren't in local
-        let seen_entity_names: HashSet<_> =
-            merged_entities.iter().map(|e| e.name.clone()).collect();
-        for entity in global_result.context.entities {
-            if !seen_entity_names.contains(&entity.name) {
-                merged_entities.push(entity);
-            }
-        }
+        let merged_relationships = Self::round_robin_merge_relationships(
+            &local_result.context.relationships,
+            &global_result.context.relationships,
+        );
 
-        // Add relationships from local
-        let seen_rels: HashSet<_> = merged_relationships
-            .iter()
-            .map(|r| (r.source.clone(), r.target.clone()))
-            .collect();
-        for rel in local_result.context.relationships {
-            if !seen_rels.contains(&(rel.source.clone(), rel.target.clone())) {
-                merged_relationships.push(rel);
-            }
-        }
+        tracing::debug!(
+            local_entities = local_result.context.entities.len(),
+            global_entities = global_result.context.entities.len(),
+            merged_entities = merged_entities.len(),
+            local_rels = local_result.context.relationships.len(),
+            global_rels = global_result.context.relationships.len(),
+            merged_rels = merged_relationships.len(),
+            "Hybrid merge stats (round-robin)"
+        );
 
         // Build context
         let mut context_text = String::new();
@@ -940,5 +984,67 @@ Response:"#,
             low_level_keywords = keywords.low_level.join(", "),
             query = query
         )
+    }
+
+    /// Round-robin interleave merge for entities.
+    ///
+    /// WHY: Simple concatenation (local ++ global) biases toward local mode, causing
+    /// global context to be cut off. LightRAG uses interleaved merging to ensure
+    /// both local and global results are represented in the final context.
+    ///
+    /// Pattern: [L1, G1, L2, G2, L3, G3, ...] instead of [L1, L2, L3, G1, G2, G3]
+    fn round_robin_merge_entities(
+        local: &[ContextEntity],
+        global: &[ContextEntity],
+    ) -> Vec<ContextEntity> {
+        let mut merged = Vec::new();
+        let mut seen_names = HashSet::new();
+        let max_len = local.len().max(global.len());
+
+        for i in 0..max_len {
+            // Add local item at position i (if not already seen)
+            if let Some(entity) = local.get(i) {
+                if seen_names.insert(entity.name.clone()) {
+                    merged.push(entity.clone());
+                }
+            }
+
+            // Add global item at position i (if not already seen)
+            if let Some(entity) = global.get(i) {
+                if seen_names.insert(entity.name.clone()) {
+                    merged.push(entity.clone());
+                }
+            }
+        }
+
+        merged
+    }
+
+    /// Round-robin interleave merge for relationships.
+    fn round_robin_merge_relationships(
+        local: &[ContextRelationship],
+        global: &[ContextRelationship],
+    ) -> Vec<ContextRelationship> {
+        let mut merged = Vec::new();
+        let mut seen_rels: HashSet<(String, String)> = HashSet::new();
+        let max_len = local.len().max(global.len());
+
+        for i in 0..max_len {
+            if let Some(rel) = local.get(i) {
+                let key = (rel.source.clone(), rel.target.clone());
+                if seen_rels.insert(key) {
+                    merged.push(rel.clone());
+                }
+            }
+
+            if let Some(rel) = global.get(i) {
+                let key = (rel.source.clone(), rel.target.clone());
+                if seen_rels.insert(key) {
+                    merged.push(rel.clone());
+                }
+            }
+        }
+
+        merged
     }
 }
