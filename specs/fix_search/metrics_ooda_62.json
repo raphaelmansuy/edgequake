@@ -1,0 +1,71 @@
+{
+  "timestamp": "2026-01-06T10:00:00Z",
+  "ooda_loop": 62,
+  "fix_type": "keyword_validation",
+  "description": "Drop non-existent keywords before embedding computation to prevent semantic dilution",
+  "before": {
+    "french_challenge_hybrid": {
+      "response_length": 639,
+      "quality": "no_information",
+      "keywords_used": ["BYD Seal U", "batterie LFP", "plateforme STLA Medium", "E-3008", "autoroute"]
+    },
+    "french_challenge_global": {
+      "response_length": 579,
+      "quality": "no_information"
+    },
+    "french_challenge_local": {
+      "response_length": 1314,
+      "quality": "partial"
+    },
+    "stla_medium_e3008_hybrid": {
+      "response_length": 298,
+      "quality": "no_information"
+    }
+  },
+  "after": {
+    "french_challenge_hybrid": {
+      "response_length": 2226,
+      "quality": "detailed_specs",
+      "keywords_used": ["BYD Seal U", "batterie LFP", "E-3008"],
+      "keywords_dropped": ["plateforme STLA Medium", "autoroute"]
+    },
+    "french_challenge_global": {
+      "response_length": 1464,
+      "quality": "detailed_specs"
+    },
+    "french_challenge_local": {
+      "response_length": 2102,
+      "quality": "detailed_specs"
+    },
+    "stla_medium_e3008_hybrid": {
+      "response_length": 1279,
+      "quality": "detailed_specs",
+      "keywords_used": ["E-3008", "Peugeot", "battery"],
+      "keywords_dropped": ["STLA Medium"]
+    }
+  },
+  "improvements": {
+    "french_challenge_hybrid": {
+      "length_increase": "3.5x",
+      "quality_change": "no_information → detailed_specs"
+    },
+    "french_challenge_global": {
+      "length_increase": "2.5x",
+      "quality_change": "no_information → detailed_specs"
+    },
+    "stla_medium_e3008_hybrid": {
+      "length_increase": "4.3x",
+      "quality_change": "no_information → detailed_specs"
+    }
+  },
+  "root_cause": {
+    "problem": "Non-existent keywords (e.g., STLA Medium) included in embedding computation",
+    "effect": "Semantic dilution - query embedding doesn't match entity embeddings",
+    "solution": "Validate keywords against graph before embedding, drop those with no matches"
+  },
+  "files_modified": [
+    "edgequake/crates/edgequake-query/src/sota_engine.rs"
+  ],
+  "lines_added": 60,
+  "principle": "First principles: fix the data flow, not the LLM prompt"
+}

@@ -370,6 +370,62 @@ impl SOTAQueryEngine {
         );
     }
 
+    /// Validate keywords against the knowledge graph.
+    ///
+    /// WHY: When a query contains terms that don't exist in the knowledge base
+    /// (e.g., "STLA Medium"), including them in the embedding computation dilutes
+    /// the semantic search and reduces retrieval quality for terms that DO exist.
+    ///
+    /// This method checks each low-level keyword against the graph and drops
+    /// those with zero entity matches, preventing embedding dilution.
+    async fn validate_keywords(&self, keywords: &ExtractedKeywords) -> ExtractedKeywords {
+        if keywords.low_level.is_empty() {
+            return keywords.clone();
+        }
+
+        let mut validated_low_level = Vec::new();
+        let mut dropped_keywords = Vec::new();
+
+        for keyword in &keywords.low_level {
+            // Search for entities matching this keyword
+            let matches = self.graph_storage.search_labels(keyword, 1).await;
+
+            match matches {
+                Ok(labels) if !labels.is_empty() => {
+                    // Keyword has matching entities - keep it
+                    validated_low_level.push(keyword.clone());
+                }
+                _ => {
+                    // Keyword has no matching entities - drop it
+                    dropped_keywords.push(keyword.clone());
+                }
+            }
+        }
+
+        if !dropped_keywords.is_empty() {
+            tracing::info!(
+                dropped = ?dropped_keywords,
+                kept = ?validated_low_level,
+                "Dropped keywords with no graph matches"
+            );
+        }
+
+        // If ALL keywords were dropped, fall back to original to avoid empty search
+        if validated_low_level.is_empty() {
+            tracing::warn!(
+                original = ?keywords.low_level,
+                "All keywords dropped - falling back to original keywords"
+            );
+            return keywords.clone();
+        }
+
+        ExtractedKeywords::new(
+            keywords.high_level.clone(),
+            validated_low_level,
+            keywords.query_intent,
+        )
+    }
+
     /// Execute a query with full SOTA pipeline.
     pub async fn query(
         &self,
@@ -379,7 +435,7 @@ impl SOTAQueryEngine {
         let mut stats = crate::engine::QueryStats::default();
 
         // Step 1: Extract keywords (with caching)
-        let keywords = if self.config.use_keyword_extraction {
+        let raw_keywords = if self.config.use_keyword_extraction {
             let kw_start = std::time::Instant::now();
             let kw = self
                 .keyword_extractor
@@ -397,6 +453,10 @@ impl SOTAQueryEngine {
         } else {
             ExtractedKeywords::new(vec![], vec![], QueryIntent::Exploratory)
         };
+
+        // Step 1.5: Validate keywords against knowledge graph
+        // WHY: Drop keywords with no graph matches to prevent embedding dilution
+        let keywords = self.validate_keywords(&raw_keywords).await;
 
         // Step 2: Determine query mode
         let mode = if let Some(m) = request.mode {
@@ -534,13 +594,17 @@ impl SOTAQueryEngine {
         use futures::StreamExt;
 
         // Step 1: Extract keywords (with caching)
-        let keywords = if self.config.use_keyword_extraction {
+        let raw_keywords = if self.config.use_keyword_extraction {
             self.keyword_extractor
                 .extract_extended(&request.query)
                 .await?
         } else {
             ExtractedKeywords::new(vec![], vec![], QueryIntent::Exploratory)
         };
+
+        // Step 1.5: Validate keywords against knowledge graph
+        // WHY: Drop keywords with no graph matches to prevent embedding dilution
+        let keywords = self.validate_keywords(&raw_keywords).await;
 
         // Step 2: Determine query mode
         let mode = if let Some(m) = request.mode {
@@ -707,13 +771,17 @@ impl SOTAQueryEngine {
         request: &crate::engine::QueryRequest,
     ) -> Result<(QueryContext, QueryMode)> {
         // Step 1: Extract keywords (with caching)
-        let keywords = if self.config.use_keyword_extraction {
+        let raw_keywords = if self.config.use_keyword_extraction {
             self.keyword_extractor
                 .extract_extended(&request.query)
                 .await?
         } else {
             ExtractedKeywords::new(vec![], vec![], QueryIntent::Exploratory)
         };
+
+        // Step 1.5: Validate keywords against knowledge graph
+        // WHY: Drop keywords with no graph matches to prevent embedding dilution
+        let keywords = self.validate_keywords(&raw_keywords).await;
 
         // Step 2: Determine query mode
         let mode = if let Some(m) = request.mode {
@@ -859,7 +927,7 @@ impl SOTAQueryEngine {
             })
             .take(self.config.max_entities)
             .collect();
-        
+
         if entity_ids.is_empty() {
             // Fallback to popular entities
             return self.fallback_to_popular(tenant_id, workspace_id).await;
@@ -1768,6 +1836,11 @@ impl SOTAQueryEngine {
     }
 
     /// Build prompt for LLM.
+    ///
+    /// WHY: The prompt is designed to maximize information extraction from available context.
+    /// When comparing products where one term doesn't exist in the knowledge base, we still
+    /// want to provide useful information about what IS available, rather than just saying
+    /// "no information found."
     fn build_prompt(&self, query: &str, context: &QueryContext) -> String {
         if context.is_empty() {
             return "I'm sorry, but I couldn't find any relevant information in my knowledge base to answer your question.".to_string();
@@ -1776,7 +1849,7 @@ impl SOTAQueryEngine {
         let context_text = context.to_context_string();
 
         format!(
-            r#"You are a helpful assistant. Answer the user's question based on the following context.
+            r#"You are a helpful assistant. Answer the user's question based ONLY on the context below.
 
 ## Context
 {context_text}
@@ -1784,8 +1857,17 @@ impl SOTAQueryEngine {
 ## Question
 {query}
 
-## Answer
-Provide a clear, accurate answer based on the context above. If the context doesn't contain enough information to answer the question, say so."#
+## CRITICAL Instructions
+1. **EXTRACT MAXIMUM VALUE**: Even if the question asks about items not fully covered, provide ALL available information about related items in the context.
+2. **COMPARISON HANDLING**: For comparison queries (X vs Y):
+   - If you have data for BOTH items: Compare them directly with specific numbers.
+   - If you have data for only ONE item: Provide detailed specs for that item, then briefly note the other item lacks data.
+   - NEVER respond with just "no information" - always share what you found.
+3. **TECHNICAL DETAILS REQUIRED**: Include battery capacity (kWh), charging speed (kW), autonomy (km), efficiency metrics.
+4. **LANGUAGE**: Respond in the SAME language as the question.
+5. **BE HELPFUL**: The user needs actionable information. A partial answer with specific data is better than a generic "insufficient information" response.
+
+## Answer"#
         )
     }
 
