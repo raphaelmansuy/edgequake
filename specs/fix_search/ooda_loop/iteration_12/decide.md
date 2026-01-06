@@ -5,6 +5,7 @@
 ### Rationale
 
 1. **BM25Reranker** - Primary reranker for text relevance
+
    - Industry standard (used by Elasticsearch, Lucene, etc.)
    - No external dependencies
    - Well-understood parameters
@@ -17,11 +18,11 @@
 
 ### Parameters Chosen
 
-| Parameter | Value | Reason |
-|-----------|-------|--------|
-| k1 | 1.5 | Balance between TF saturation (1.2-2.0 range) |
-| b | 0.75 | Standard length normalization |
-| RRF k | 60 | Standard constant from literature |
+| Parameter | Value | Reason                                        |
+| --------- | ----- | --------------------------------------------- |
+| k1        | 1.5   | Balance between TF saturation (1.2-2.0 range) |
+| b         | 0.75  | Standard length normalization                 |
+| RRF k     | 60    | Standard constant from literature             |
 
 ### Implementation Order
 
@@ -51,11 +52,11 @@
 
 ### File Changes
 
-| File | Change |
-|------|--------|
-| `edgequake-llm/src/reranker.rs` | Add BM25Reranker, RRFReranker |
-| `edgequake-llm/src/lib.rs` | Export new rerankers |
-| `edgequake-api/src/state.rs` | Switch from MockReranker to BM25Reranker |
+| File                            | Change                                   |
+| ------------------------------- | ---------------------------------------- |
+| `edgequake-llm/src/reranker.rs` | Add BM25Reranker, RRFReranker            |
+| `edgequake-llm/src/lib.rs`      | Export new rerankers                     |
+| `edgequake-api/src/state.rs`    | Switch from MockReranker to BM25Reranker |
 
 ### Success Criteria
 
@@ -65,4 +66,5 @@
 4. **Performance**: Reranking < 10ms for 100 documents
 
 ## Next Step
+
 Act - Write the code

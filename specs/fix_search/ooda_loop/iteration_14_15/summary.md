@@ -5,22 +5,24 @@
 ## Summary
 
 ### OODA Loop 14: Full Test Suite
+
 All reranker tests pass:
+
 - **Unit tests**: 34 passing
-- **E2E tests**: 6 passing  
+- **E2E tests**: 6 passing
 - **Total**: 40 reranker tests
 
 ### OODA Loop 15: Integration Tests with Query Engine
 
 Added 5 new integration tests in `e2e_sota_engine.rs`:
 
-| Test | Purpose | Status |
-|------|---------|--------|
-| `test_bm25_reranker_with_query_engine` | Full engine integration | ✅ PASS |
-| `test_bm25_reranker_car_models` | Peugeot car spec precision | ✅ PASS |
-| `test_bm25_french_car_specs` | French accent normalization | ✅ PASS |
-| `test_bm25_idf_rare_terms` | ENVY rare term boosting | ✅ PASS |
-| `test_bm25_reranker_trait` | Trait implementation | ✅ PASS |
+| Test                                   | Purpose                     | Status  |
+| -------------------------------------- | --------------------------- | ------- |
+| `test_bm25_reranker_with_query_engine` | Full engine integration     | ✅ PASS |
+| `test_bm25_reranker_car_models`        | Peugeot car spec precision  | ✅ PASS |
+| `test_bm25_french_car_specs`           | French accent normalization | ✅ PASS |
+| `test_bm25_idf_rare_terms`             | ENVY rare term boosting     | ✅ PASS |
+| `test_bm25_reranker_trait`             | Trait implementation        | ✅ PASS |
 
 ### Integration Points Validated
 

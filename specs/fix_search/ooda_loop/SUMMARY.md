@@ -188,3 +188,55 @@ The EdgeQuake search functionality is now production-ready with:
 ---
 
 *Report generated after completing 10 OODA loop iterations*
+
+---
+
+## Update: OODA Loops 12-21 (BM25 Reranker)
+
+Added real BM25Reranker with term frequency-inverse document frequency scoring:
+
+| Metric | MockReranker | BM25Reranker |
+|--------|--------------|--------------|
+| Algorithm | Keyword overlap | TF-IDF with saturation |
+| French support | Basic | Proper Unicode handling |
+| Performance | O(n) | O(n log n) |
+
+**Commit**: `fix(search): Replace MockReranker with BM25Reranker`
+
+---
+
+## Update: OODA Loops 22-31 (PostgreSQL Array Fix)
+
+### Critical Bug Fixed
+
+PostgreSQL AGE graph storage was corrupting array properties like `source_chunk_ids`.
+
+**Root Cause**: The `properties_to_cypher()` function was converting JSON arrays to strings instead of Cypher list literals.
+
+**Fix**: Added recursive `value_to_cypher()` function:
+- Arrays → `[val1, val2, val3]` (Cypher list)
+- Objects → `{key1: val1, key2: val2}` (Cypher map)
+
+### Test Results After Fix
+
+| Test Suite | Count | Status |
+|------------|-------|--------|
+| PostgreSQL Integration | 19 | ✅ PASS |
+| E2E Storage Backends | 37 | ✅ PASS |
+| Query Engine | 31 | ✅ PASS |
+| Core Lib | 102 | ✅ PASS |
+| **Total** | **189+** | **✅ ALL** |
+
+**Commit**: `fix(storage): Fix Cypher array serialization for source_chunk_ids`
+
+### Impact
+
+- Source tracking now works correctly for PostgreSQL deployments
+- All array and nested object properties are preserved
+- Memory and PostgreSQL storage backends have feature parity
+
+See [iteration_22_31/observe_orient_decide_act.md](iteration_22_31/observe_orient_decide_act.md) for full details.
+
+---
+
+*Last updated: OODA Loop 31 completed*

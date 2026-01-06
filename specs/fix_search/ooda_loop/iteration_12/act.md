@@ -7,6 +7,7 @@
 Added three new rerankers to `edgequake-llm/src/reranker.rs`:
 
 #### BM25Reranker (Primary)
+
 ```rust
 pub struct BM25Reranker {
     k1: f64,  // Term frequency saturation (default: 1.5)
@@ -15,11 +16,13 @@ pub struct BM25Reranker {
 ```
 
 **Algorithm**:
+
 - IDF weighting: Rare terms score higher
 - TF saturation: Diminishing returns for repeated terms
 - Length normalization: Fair comparison of docs of different lengths
 
-#### RRFReranker 
+#### RRFReranker
+
 ```rust
 pub struct RRFReranker {
     k: u32,  // Ranking constant (default: 60)
@@ -29,6 +32,7 @@ pub struct RRFReranker {
 **Algorithm**: `score = Σ 1/(k + rank)` for combining multiple rankings
 
 #### HybridReranker
+
 ```rust
 pub struct HybridReranker {
     bm25: BM25Reranker,
@@ -41,12 +45,14 @@ pub struct HybridReranker {
 ### 2. Integration Changes
 
 Updated `edgequake-api/src/state.rs`:
+
 - Memory storage constructor: MockReranker → BM25Reranker
 - PostgreSQL constructor: MockReranker → BM25Reranker
 
 ### 3. Exports Updated
 
 Updated `edgequake-llm/src/lib.rs` to export:
+
 - `BM25Reranker`
 - `RRFReranker`
 - `HybridReranker`
@@ -77,7 +83,7 @@ async fn test_bm25_2008_vs_208_precision() {
     ];
 
     let results = reranker.rerank(query, &documents, None).await.unwrap();
-    
+
     // "2008" should be first because it exactly matches
     assert_eq!(results[0].index, 1, "2008 document should be first");
 }
@@ -87,20 +93,20 @@ async fn test_bm25_2008_vs_208_precision() {
 
 ## Why BM25 > MockReranker
 
-| Feature | MockReranker | BM25Reranker |
-|---------|--------------|--------------|
-| "2008" vs "208" | Both equal | 2008 wins (exact match) |
-| "ENVY" scoring | Same as "Peugeot" | Higher (rare term IDF) |
-| Long doc bias | Yes | No (length norm) |
-| TF saturation | No | Yes (k1 param) |
+| Feature         | MockReranker      | BM25Reranker            |
+| --------------- | ----------------- | ----------------------- |
+| "2008" vs "208" | Both equal        | 2008 wins (exact match) |
+| "ENVY" scoring  | Same as "Peugeot" | Higher (rare term IDF)  |
+| Long doc bias   | Yes               | No (length norm)        |
+| TF saturation   | No                | Yes (k1 param)          |
 
 ## Files Changed
 
-| File | Change |
-|------|--------|
+| File          | Change                         |
+| ------------- | ------------------------------ |
 | `reranker.rs` | +400 lines (BM25, RRF, Hybrid) |
-| `lib.rs` | Export new types |
-| `state.rs` | Use BM25Reranker |
+| `lib.rs`      | Export new types               |
+| `state.rs`    | Use BM25Reranker               |
 
 ## Build Status
 

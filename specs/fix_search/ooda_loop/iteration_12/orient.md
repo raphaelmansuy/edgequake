@@ -36,6 +36,7 @@ Where:
 ```
 
 **Example**:
+
 - "2008" appears in 1/4 docs → IDF ≈ 1.1
 - "Peugeot" appears in 4/4 docs → IDF ≈ 0.3
 
@@ -50,6 +51,7 @@ Where k1 = 1.2 (default)
 ```
 
 **Example**:
+
 - TF=1 → saturation = 1.1/2.2 = 0.55
 - TF=5 → saturation = 5.5/6.2 = 0.89
 - TF=10 → saturation = 10.1/11.2 = 0.90
@@ -65,6 +67,7 @@ Where b = 0.75 (default)
 ```
 
 **Example** (avgdl = 200):
+
 - 100 word doc: norm = 0.25 + 0.75 × 0.5 = 0.625
 - 200 word doc: norm = 0.25 + 0.75 × 1.0 = 1.0
 - 400 word doc: norm = 0.25 + 0.75 × 2.0 = 1.75
@@ -133,12 +136,13 @@ pub struct BM25Reranker {
 
 ## Test Plan
 
-| Test Case | Query | Expected First | Metric |
-|-----------|-------|----------------|--------|
-| Exact match | "2008 ENVY" | peugeot-2008-envy.md | score > 2.0 |
-| Similar numbers | "2008" | 2008 doc (not 208) | 2008 >> 208 |
-| French terms | "motorisation" | Multiple docs | recall >= 3 |
-| Rare term | "ENVY" | Only 2008-envy | IDF boost |
+| Test Case       | Query          | Expected First       | Metric      |
+| --------------- | -------------- | -------------------- | ----------- |
+| Exact match     | "2008 ENVY"    | peugeot-2008-envy.md | score > 2.0 |
+| Similar numbers | "2008"         | 2008 doc (not 208)   | 2008 >> 208 |
+| French terms    | "motorisation" | Multiple docs        | recall >= 3 |
+| Rare term       | "ENVY"         | Only 2008-envy       | IDF boost   |
 
 ## Next Step
+
 Implement BM25Reranker in Rust
