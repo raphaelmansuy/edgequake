@@ -11,11 +11,14 @@
 //! # Start the API server first
 //! make dev
 //!
-//! # Then run the ignored tests
+//! # Setup fresh workspace and run tests
 //! cargo test --package edgequake-query --test api_integration_tests -- --ignored --nocapture
 //! ```
 
+mod test_fixtures;
+
 use std::time::Duration;
+use test_fixtures::{setup_fresh_workspace, SetupOptions};
 
 /// API base URL (can be overridden with API_BASE_URL env var)
 fn get_base_url() -> String {
@@ -235,6 +238,33 @@ struct QualityResult {
 // =============================================================================
 // API Integration Tests (require running server)
 // =============================================================================
+
+/// Setup fresh workspace with test data - run this FIRST
+/// This clears existing documents and ingests all test fixtures
+#[tokio::test]
+#[ignore = "Requires running API server"]
+async fn test_00_setup_fresh_workspace() {
+    println!("\n🔧 Setting up fresh workspace with test data...\n");
+    
+    let result = setup_fresh_workspace(SetupOptions::default())
+        .await
+        .expect("Failed to setup fresh workspace");
+    
+    println!("\n📊 Setup Results:");
+    println!("   Documents cleared:  {}", result.documents_cleared);
+    println!("   Documents ingested: {}", result.documents_ingested);
+    println!("   Documents failed:   {}", result.documents_failed);
+    println!("   Total documents:    {}", result.total_documents);
+    
+    assert!(
+        result.documents_ingested > 0,
+        "Should have ingested at least one document"
+    );
+    assert_eq!(
+        result.documents_failed, 0,
+        "No documents should have failed to ingest"
+    );
+}
 
 /// Test API health endpoint
 #[tokio::test]
