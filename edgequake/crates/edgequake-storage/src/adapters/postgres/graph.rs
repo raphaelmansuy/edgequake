@@ -287,6 +287,16 @@ impl PostgresAGEGraphStorage {
             .replace('\t', "\\t")
     }
 
+    /// Escape a string for use in SQL queries.
+    ///
+    /// # WHY: SQL uses different escaping than Cypher
+    /// SQL uses doubled single quotes ('') to escape single quotes,
+    /// not backslash (\') like Cypher. Using backslash in SQL IN clauses
+    /// causes "syntax error at or near \" errors in PostgreSQL.
+    fn escape_sql_string(s: &str) -> String {
+        s.replace('\'', "''")
+    }
+
     /// Convert properties HashMap to Cypher map literal.
     ///
     /// # WHY: Proper array serialization
@@ -747,22 +757,22 @@ impl GraphStorage for PostgresAGEGraphStorage {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
 
-        let escaped_id = Self::escape_cypher_string(node_id);
+        let escaped_id = Self::escape_sql_string(node_id);
 
-        // FAST SQL query: Count both outgoing (start_id) and incoming (end_id) edges
-        // Uses UNION to combine counts from both directions
+        // WHY: Use ::text cast for graphid comparison - Apache AGE's graphid type
+        // lacks a native equality operator, but text comparison works correctly.
         let sql = format!(
             "WITH node_vid AS ( \
-                SELECT id FROM {}.\"_ag_label_vertex\" \
+                SELECT id::text as id_text FROM {}.\"_ag_label_vertex\" \
                 WHERE ag_catalog.agtype_to_json(properties)->>'node_id' = '{}' \
              ), \
              out_edges AS ( \
                 SELECT COUNT(*) as cnt FROM {}.\"_ag_label_edge\" e \
-                JOIN node_vid n ON e.start_id = n.id \
+                JOIN node_vid n ON e.start_id::text = n.id_text \
              ), \
              in_edges AS ( \
                 SELECT COUNT(*) as cnt FROM {}.\"_ag_label_edge\" e \
-                JOIN node_vid n ON e.end_id = n.id \
+                JOIN node_vid n ON e.end_id::text = n.id_text \
              ) \
              SELECT COALESCE(o.cnt, 0) + COALESCE(i.cnt, 0) as degree \
              FROM out_edges o, in_edges i",
@@ -795,28 +805,30 @@ impl GraphStorage for PostgresAGEGraphStorage {
         })?;
 
         // Build escaped ID list for SQL ANY clause
+        // Use SQL escaping (doubling single quotes) not Cypher escaping (backslash)
         let ids_list: Vec<String> = node_ids
             .iter()
-            .map(|id| Self::escape_cypher_string(id))
+            .map(|id| Self::escape_sql_string(id))
             .collect();
 
-        // FAST SQL query: Batch degree calculation counting BOTH incoming and outgoing edges
+        // WHY: Use ::text cast for graphid comparison - Apache AGE's graphid type
+        // lacks a native equality operator, but text comparison works correctly.
         let sql = format!(
             "WITH target_nodes AS ( \
-                SELECT id, ag_catalog.agtype_to_json(properties)->>'node_id' as node_id \
+                SELECT id::text as id_text, ag_catalog.agtype_to_json(properties)->>'node_id' as node_id \
                 FROM {}.\"_ag_label_vertex\" \
                 WHERE ag_catalog.agtype_to_json(properties)->>'node_id' IN ({}) \
              ), \
              out_degrees AS ( \
                 SELECT n.node_id, COUNT(*) as out_deg \
                 FROM {}.\"_ag_label_edge\" e \
-                JOIN target_nodes n ON e.start_id = n.id \
+                JOIN target_nodes n ON e.start_id::text = n.id_text \
                 GROUP BY n.node_id \
              ), \
              in_degrees AS ( \
                 SELECT n.node_id, COUNT(*) as in_deg \
                 FROM {}.\"_ag_label_edge\" e \
-                JOIN target_nodes n ON e.end_id = n.id \
+                JOIN target_nodes n ON e.end_id::text = n.id_text \
                 GROUP BY n.node_id \
              ) \
              SELECT t.node_id, COALESCE(o.out_deg, 0) + COALESCE(i.in_deg, 0) as degree \
@@ -832,6 +844,8 @@ impl GraphStorage for PostgresAGEGraphStorage {
             self.graph_name,
             self.graph_name
         );
+
+        tracing::debug!(target: "edgequake_storage", "Batch degree SQL: {}", &sql[..sql.len().min(500)]);
 
         let rows = sqlx::query(&sql)
             .fetch_all(&mut *conn)
@@ -1335,7 +1349,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
 
-        let escaped_query = Self::escape_cypher_string(query);
+        let escaped_query = Self::escape_sql_string(query);
 
         // Try full-text search first (best for word matching)
         let fts_sql = format!(
@@ -1489,7 +1503,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
         let mut where_conditions = Vec::new();
 
         if let Some(et) = entity_type {
-            let escaped_et = Self::escape_cypher_string(et);
+            let escaped_et = Self::escape_sql_string(et);
             where_conditions.push(format!(
                 "ag_catalog.agtype_to_json(v.properties)->>'entity_type' = '{}'",
                 escaped_et
@@ -1497,7 +1511,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
         }
 
         if let Some(tid) = tenant_id {
-            let escaped_tid = Self::escape_cypher_string(tid);
+            let escaped_tid = Self::escape_sql_string(tid);
             where_conditions.push(format!(
                 "ag_catalog.agtype_to_json(v.properties)->>'tenant_id' = '{}'",
                 escaped_tid
@@ -1505,7 +1519,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
         }
 
         if let Some(wid) = workspace_id {
-            let escaped_wid = Self::escape_cypher_string(wid);
+            let escaped_wid = Self::escape_sql_string(wid);
             where_conditions.push(format!(
                 "ag_catalog.agtype_to_json(v.properties)->>'workspace_id' = '{}'",
                 escaped_wid
