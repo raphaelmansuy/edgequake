@@ -254,9 +254,11 @@ impl AppState {
         ));
 
         // Create SOTA query engine with LightRAG-style enhancements
-        // WHY: MockReranker uses term overlap to boost chunks containing exact query terms,
-        // preventing model-name confusion (e.g., "2008" vs "3008")
-        let reranker = Arc::new(edgequake_llm::reranker::MockReranker::new());
+        // WHY: BM25Reranker uses IDF-weighted term matching for precision:
+        // - Rare terms like "ENVY" get higher weight than common terms like "Peugeot"
+        // - Length normalization prevents long documents from dominating
+        // - Solves "2008" vs "208" precision issue better than simple term overlap
+        let reranker = Arc::new(edgequake_llm::reranker::BM25Reranker::new());
         let sota_engine = Arc::new(SOTAQueryEngine::new(
             SOTAQueryConfig::default(),
             Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
@@ -510,9 +512,11 @@ impl AppState {
         ));
 
         // Create SOTA query engine with LightRAG-style enhancements
-        // WHY: MockReranker uses term overlap to boost chunks containing exact query terms,
-        // preventing model-name confusion (e.g., "2008" vs "3008")
-        let reranker = Arc::new(edgequake_llm::reranker::MockReranker::new());
+        // WHY: BM25Reranker uses IDF-weighted term matching for precision:
+        // - Rare terms like "ENVY" get higher weight than common terms like "Peugeot"
+        // - Length normalization prevents long documents from dominating
+        // - Solves "2008" vs "208" precision issue better than simple term overlap
+        let reranker = Arc::new(edgequake_llm::reranker::BM25Reranker::new());
         let sota_engine = Arc::new(SOTAQueryEngine::new(
             SOTAQueryConfig::default(),
             Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,

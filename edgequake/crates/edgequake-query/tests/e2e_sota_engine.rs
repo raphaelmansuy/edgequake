@@ -244,6 +244,9 @@ mod sota_config_tests {
             use_adaptive_mode: false,
             truncation: Default::default(),
             keyword_cache_ttl_secs: 3600,
+            enable_rerank: true,
+            min_rerank_score: 0.3,
+            rerank_top_k: 10,
         };
         
         assert_eq!(config.default_mode, QueryMode::Local);
@@ -759,3 +762,122 @@ mod keywords_tests {
         ));
     }
 }
+
+// =============================================================================
+// BM25 Reranker Integration Tests (OODA Loop 15)
+// =============================================================================
+
+mod reranker_integration_tests {
+    use super::*;
+    use edgequake_llm::{BM25Reranker, Reranker};
+
+    /// Test BM25 reranker integration with query engine.
+    #[tokio::test]
+    async fn test_bm25_reranker_with_query_engine() {
+        let vector_storage = create_test_vector_storage().await;
+        let graph_storage = create_test_graph_storage().await;
+        let llm = create_mock_provider();
+        let embedding = create_mock_embedding();
+        
+        let config = SOTAQueryConfig {
+            enable_rerank: true,
+            min_rerank_score: 0.01, // Low threshold for test
+            rerank_top_k: 10,
+            ..Default::default()
+        };
+        
+        let reranker = Arc::new(BM25Reranker::new());
+        
+        let engine = SOTAQueryEngine::with_mock_keywords(
+            config,
+            vector_storage,
+            graph_storage,
+            embedding,
+            llm,
+        ).with_reranker(reranker);
+        
+        let request = QueryRequest::new("EdgeQuake knowledge graph").with_mode(QueryMode::Naive);
+        
+        let response = engine.query(request).await.unwrap();
+        
+        // Should return a response (context found and reranked)
+        assert!(!response.answer.is_empty());
+    }
+
+    /// Test BM25 precision for car model queries.
+    #[tokio::test]
+    async fn test_bm25_reranker_car_models() {
+        let reranker = BM25Reranker::new();
+        
+        // Simulating Peugeot car spec search
+        let query = "Peugeot 2008 ENVY";
+        let documents = vec![
+            "Peugeot 208 is a compact hatchback.".to_string(),
+            "Peugeot 2008 ENVY is an SUV with premium features.".to_string(),
+            "Peugeot 3008 GT is a larger crossover.".to_string(),
+            "Citroën C3 is a city car.".to_string(),
+        ];
+        
+        let results = reranker.rerank(query, &documents, None).await.unwrap();
+        
+        // "2008 ENVY" should rank first due to exact match
+        assert_eq!(results[0].index, 1, "Peugeot 2008 ENVY should be first");
+        
+        // Score should be significantly higher than others
+        assert!(results[0].relevance_score > results[1].relevance_score * 1.3);
+    }
+
+    /// Test BM25 handles French accent normalization.
+    #[tokio::test]
+    async fn test_bm25_french_car_specs() {
+        let reranker = BM25Reranker::new();
+        
+        let query = "vehicule electrique";
+        let documents = vec![
+            "Le véhicule électrique Peugeot e-2008 offre 320km d'autonomie.".to_string(),
+            "La motorisation diesel reste populaire.".to_string(),
+            "Le système hybrid rechargeable combine deux moteurs.".to_string(),
+        ];
+        
+        let results = reranker.rerank(query, &documents, None).await.unwrap();
+        
+        // Electric vehicle doc should rank first
+        assert_eq!(results[0].index, 0);
+        assert!(results[0].relevance_score > 0.0);
+    }
+
+    /// Test BM25 IDF weighting with rare terms.
+    #[tokio::test]
+    async fn test_bm25_idf_rare_terms() {
+        let reranker = BM25Reranker::new();
+        
+        // "ENVY" is rare (1 doc), "Peugeot" is common (all docs)
+        let query = "ENVY";
+        let documents = vec![
+            "Peugeot 208 Style is available.".to_string(),
+            "Peugeot 2008 ENVY has premium trim.".to_string(),
+            "Peugeot 3008 GT Line offers sport styling.".to_string(),
+        ];
+        
+        let results = reranker.rerank(query, &documents, None).await.unwrap();
+        
+        // Doc with rare "ENVY" term should rank first
+        assert_eq!(results[0].index, 1);
+        // Other docs should have 0 score (no matching term)
+        assert_eq!(results[1].relevance_score, 0.0);
+        assert_eq!(results[2].relevance_score, 0.0);
+    }
+
+    /// Test reranker trait is properly implemented.
+    #[tokio::test]
+    async fn test_bm25_reranker_trait() {
+        let reranker: Arc<dyn Reranker> = Arc::new(BM25Reranker::new());
+        
+        assert_eq!(reranker.name(), "bm25");
+        assert_eq!(reranker.model(), "bm25-reranker");
+        
+        let results = reranker.rerank("test", &["test document".to_string()], None).await.unwrap();
+        assert_eq!(results.len(), 1);
+    }
+}
+
