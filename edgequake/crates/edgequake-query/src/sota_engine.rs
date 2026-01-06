@@ -235,7 +235,9 @@ impl SOTAQueryEngine {
             keyword_extractor,
             tokenizer: Arc::new(SimpleTokenizer),
             reranker: None, // No reranker by default
-            keyword_validation_cache: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+            keyword_validation_cache: Arc::new(tokio::sync::RwLock::new(
+                std::collections::HashMap::new(),
+            )),
         }
     }
 
@@ -264,7 +266,9 @@ impl SOTAQueryEngine {
             keyword_extractor,
             tokenizer: Arc::new(SimpleTokenizer),
             reranker: None,
-            keyword_validation_cache: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+            keyword_validation_cache: Arc::new(tokio::sync::RwLock::new(
+                std::collections::HashMap::new(),
+            )),
         }
     }
 
@@ -406,7 +410,7 @@ impl SOTAQueryEngine {
                 // Cache miss - check graph
                 let matches = self.graph_storage.search_labels(keyword, 1).await;
                 let exists = matches.map(|labels| !labels.is_empty()).unwrap_or(false);
-                
+
                 // Update cache
                 {
                     let mut cache = self.keyword_validation_cache.write().await;

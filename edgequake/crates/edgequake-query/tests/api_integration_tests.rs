@@ -128,8 +128,13 @@ fn get_test_queries() -> Vec<ApiTestQuery> {
 async fn check_health() -> bool {
     let client = reqwest::Client::new();
     let url = format!("{}/health", get_base_url());
-    
-    match client.get(&url).timeout(Duration::from_secs(5)).send().await {
+
+    match client
+        .get(&url)
+        .timeout(Duration::from_secs(5))
+        .send()
+        .await
+    {
         Ok(resp) => resp.status().is_success(),
         Err(_) => false,
     }
@@ -139,13 +144,13 @@ async fn check_health() -> bool {
 async fn query_api(query: &str, mode: &str) -> Result<ApiResponse, String> {
     let client = reqwest::Client::new();
     let url = format!("{}/api/v1/query", get_base_url());
-    
+
     let body = serde_json::json!({
         "query": query,
         "mode": mode,
         "top_k": 10
     });
-    
+
     match client
         .post(&url)
         .json(&body)
@@ -158,7 +163,10 @@ async fn query_api(query: &str, mode: &str) -> Result<ApiResponse, String> {
                 let data: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
                 let answer = data["answer"].as_str().unwrap_or("").to_string();
                 let sources = data["sources"].as_array().map(|a| a.len()).unwrap_or(0);
-                Ok(ApiResponse { answer, sources_count: sources })
+                Ok(ApiResponse {
+                    answer,
+                    sources_count: sources,
+                })
             } else {
                 Err(format!("HTTP {}", resp.status()))
             }
@@ -177,7 +185,7 @@ struct ApiResponse {
 fn assess_quality(response: &ApiResponse, expected_entities: &[&str]) -> QualityResult {
     let content = response.answer.to_lowercase();
     let length = response.answer.len();
-    
+
     // Check for no-info indicators
     let no_info_phrases = [
         "ne contient pas d'information",
@@ -186,20 +194,20 @@ fn assess_quality(response: &ApiResponse, expected_entities: &[&str]) -> Quality
         "cannot find any relevant",
     ];
     let has_no_info = no_info_phrases.iter().any(|p| content.contains(p)) && length < 300;
-    
+
     // Count entities found
     let entities_found: Vec<&str> = expected_entities
         .iter()
         .filter(|e| content.contains(&e.to_lowercase()))
         .copied()
         .collect();
-    
+
     let entity_recall = if expected_entities.is_empty() {
         1.0
     } else {
         entities_found.len() as f64 / expected_entities.len() as f64
     };
-    
+
     // Determine quality level
     let (quality, base_score) = if has_no_info {
         ("NO_INFO", 0.0)
@@ -212,11 +220,11 @@ fn assess_quality(response: &ApiResponse, expected_entities: &[&str]) -> Quality
     } else {
         ("EXCELLENT", 100.0)
     };
-    
+
     // Add entity bonus
     let entity_bonus = entity_recall * 30.0;
     let score = (base_score + entity_bonus).min(100.0);
-    
+
     QualityResult {
         quality: quality.to_string(),
         score,
@@ -245,17 +253,17 @@ struct QualityResult {
 #[ignore = "Requires running API server"]
 async fn test_00_setup_fresh_workspace() {
     println!("\n🔧 Setting up fresh workspace with test data...\n");
-    
+
     let result = setup_fresh_workspace(SetupOptions::default())
         .await
         .expect("Failed to setup fresh workspace");
-    
+
     println!("\n📊 Setup Results:");
     println!("   Documents cleared:  {}", result.documents_cleared);
     println!("   Documents ingested: {}", result.documents_ingested);
     println!("   Documents failed:   {}", result.documents_failed);
     println!("   Total documents:    {}", result.total_documents);
-    
+
     assert!(
         result.documents_ingested > 0,
         "Should have ingested at least one document"
@@ -271,7 +279,10 @@ async fn test_00_setup_fresh_workspace() {
 #[ignore = "Requires running API server"]
 async fn test_api_health() {
     let healthy = check_health().await;
-    assert!(healthy, "API should be healthy. Did you start it with `make dev`?");
+    assert!(
+        healthy,
+        "API should be healthy. Did you start it with `make dev`?"
+    );
 }
 
 /// Full test suite matching OODA 63 extended_challenge_query.py
@@ -282,30 +293,34 @@ async fn test_full_api_quality_suite() {
     println!("  API INTEGRATION TEST SUITE");
     println!("  (Matching OODA 63 extended_challenge_query.py)");
     println!("========================================\n");
-    
+
     if !check_health().await {
         panic!("API is not running. Start with `make dev` first.");
     }
     println!("✓ API is healthy\n");
-    
+
     let queries = get_test_queries();
     let mut total_score = 0.0;
     let mut passed = 0;
     let mut failed = 0;
-    
+
     for query in &queries {
         print!("{:20} | ", query.id);
-        
+
         match query_api(query.query, query.mode).await {
             Ok(response) => {
                 let quality = assess_quality(&response, &query.expected_entities);
-                
+
                 let status = if quality.score >= 50.0 { "✓" } else { "✗" };
                 println!(
                     "{} {:10} | {:4} chars | {:5.1} score | {:.1}% recall",
-                    status, quality.quality, quality.length, quality.score, quality.entity_recall * 100.0
+                    status,
+                    quality.quality,
+                    quality.length,
+                    quality.score,
+                    quality.entity_recall * 100.0
                 );
-                
+
                 total_score += quality.score;
                 if quality.score >= 50.0 {
                     passed += 1;
@@ -319,10 +334,10 @@ async fn test_full_api_quality_suite() {
             }
         }
     }
-    
+
     let avg_score = total_score / queries.len() as f64;
     let pass_rate = passed as f64 / queries.len() as f64 * 100.0;
-    
+
     println!("\n----------------------------------------");
     println!("SUMMARY:");
     println!("  Total:     {} tests", queries.len());
@@ -330,7 +345,7 @@ async fn test_full_api_quality_suite() {
     println!("  Failed:    {}", failed);
     println!("  Avg Score: {:.1}", avg_score);
     println!("----------------------------------------");
-    
+
     // OODA 63 target: 100% pass rate with EXCELLENT quality
     assert!(
         pass_rate >= 80.0,
@@ -351,22 +366,24 @@ async fn test_french_challenge_query() {
     if !check_health().await {
         panic!("API is not running");
     }
-    
+
     let query = "J'ai testé le BYD Seal U qui offre une grosse batterie LFP à un prix très bas. \
                  Concrètement, qu'est-ce que le E-3008 apporte de plus pour justifier la différence de prix ? \
                  Surtout sur l'autoroute où l'autonomie réelle chute avec la plateforme STLA Medium.";
-    
-    let response = query_api(query, "hybrid").await.expect("Query should succeed");
-    
+
+    let response = query_api(query, "hybrid")
+        .await
+        .expect("Query should succeed");
+
     println!("\n=== French Challenge Query ===");
     println!("Query: {}...", &query[..80]);
     println!("Answer length: {} chars", response.answer.len());
     println!("Sources: {}", response.sources_count);
-    
+
     // OODA 71 target: 2226+ chars for this query
     let quality = assess_quality(&response, &["BYD Seal U", "E-3008", "LFP", "STLA Medium"]);
     println!("Quality: {} (score: {:.1})", quality.quality, quality.score);
-    
+
     // After OODA 62 fix, should be at least GOOD quality
     assert!(
         quality.length >= GOOD_THRESHOLD,
@@ -383,13 +400,15 @@ async fn test_offtopic_graceful_degradation() {
     if !check_health().await {
         panic!("API is not running");
     }
-    
+
     let query = "Best pizza restaurants in New York";
-    let response = query_api(query, "hybrid").await.expect("Query should succeed even for off-topic");
-    
+    let response = query_api(query, "hybrid")
+        .await
+        .expect("Query should succeed even for off-topic");
+
     println!("\n=== Off-Topic Query (Pizza) ===");
     println!("Answer length: {} chars", response.answer.len());
-    
+
     // Should gracefully decline rather than crash
     assert!(response.answer.len() > 0, "Should return some response");
 }
@@ -401,13 +420,15 @@ async fn test_adjacent_domain_tesla() {
     if !check_health().await {
         panic!("API is not running");
     }
-    
+
     let query = "Tesla Model 3 specifications and range";
-    let response = query_api(query, "hybrid").await.expect("Query should succeed");
-    
+    let response = query_api(query, "hybrid")
+        .await
+        .expect("Query should succeed");
+
     println!("\n=== Adjacent Domain (Tesla) ===");
     println!("Answer length: {} chars", response.answer.len());
-    
+
     // Should respond gracefully, possibly suggesting alternatives
     assert!(response.answer.len() > 0, "Should return some response");
 }
@@ -419,9 +440,9 @@ async fn test_all_query_modes() {
     if !check_health().await {
         panic!("API is not running");
     }
-    
+
     let query = "Caractéristiques du E-3008";
-    
+
     for mode in ["local", "global", "hybrid"] {
         let response = query_api(query, mode).await;
         assert!(
@@ -447,7 +468,7 @@ fn test_quality_assessment_logic() {
     };
     let quality = assess_quality(&resp, &["test"]);
     assert_eq!(quality.quality, "EXCELLENT");
-    
+
     // Test GOOD
     let resp = ApiResponse {
         answer: "A".repeat(800),
@@ -455,7 +476,7 @@ fn test_quality_assessment_logic() {
     };
     let quality = assess_quality(&resp, &[]);
     assert_eq!(quality.quality, "GOOD");
-    
+
     // Test TOO_SHORT
     let resp = ApiResponse {
         answer: "Short".to_string(),
@@ -472,7 +493,7 @@ fn test_entity_recall_calculation() {
         sources_count: 5,
     };
     let quality = assess_quality(&resp, &["E-3008", "BYD Seal U", "Tesla"]);
-    
+
     // Found 2 out of 3 entities
     assert!(quality.entity_recall > 0.6 && quality.entity_recall < 0.7);
     assert_eq!(quality.entities_found.len(), 2);

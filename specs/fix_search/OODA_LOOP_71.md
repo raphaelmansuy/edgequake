@@ -9,6 +9,7 @@
 The French query challenge has been resolved using first principles thinking, not prompt hacks. The system now achieves **100% EXCELLENT scores** across all 11 test queries.
 
 ## Problem Statement (Original)
+
 User: "J'ai testé le BYD Seal U qui offre une grosse batterie LFP à un prix très bas. Concrètement, qu'est-ce que le E-3008 apporte de plus pour justifier la différence de prix ? Surtout sur l'autoroute où l'autonomie réelle chute avec la plateforme STLA Medium."
 
 **Before fix**: 639 characters, vague response, missing key specs
@@ -17,6 +18,7 @@ User: "J'ai testé le BYD Seal U qui offre une grosse batterie LFP à un prix tr
 ## Root Cause Analysis
 
 ### The First Principles Approach
+
 Instead of adding French language prompts or keyword boosting (heuristics), we traced the data flow:
 
 ```
@@ -31,6 +33,7 @@ User Query → LLM Extraction → Keywords → EMBEDDING → Vector Search → R
 **Root Cause**: Non-existent keywords dilute the embedding space, pulling the search away from relevant entities like "E-3008" and "BYD Seal U".
 
 ### The Fix
+
 Validate keywords against the knowledge graph BEFORE computing embeddings:
 
 ```rust
@@ -53,32 +56,34 @@ async fn validate_keywords(&self, keywords: &ExtractedKeywords) -> ExtractedKeyw
 
 ## OODA Loop Summary (62-71)
 
-| Loop | Focus | Key Action | Result |
-|------|-------|------------|--------|
-| 62 | First principles fix | Added `validate_keywords()` | 3.5x improvement |
-| 63 | Extended validation | Tested 11 queries | 100.0/100 |
-| 64 | Edge cases | Verified fallback | Working |
-| 65 | Performance | Added keyword cache | ~45ms saved/query |
-| 66 | Complex queries | Multi-entity tests | All EXCELLENT |
-| 67 | Schema fix | pg_trgm in ag_catalog | Trigram matching fixed |
-| 68 | Data gap analysis | Identified missing entities | Expected behavior |
-| 69 | Out-of-domain | Pizza/Tesla queries | Graceful degradation |
-| 70 | Performance | Cache effectiveness | Documented |
-| 71 | Summary | This document | Complete |
+| Loop | Focus                | Key Action                  | Result                 |
+| ---- | -------------------- | --------------------------- | ---------------------- |
+| 62   | First principles fix | Added `validate_keywords()` | 3.5x improvement       |
+| 63   | Extended validation  | Tested 11 queries           | 100.0/100              |
+| 64   | Edge cases           | Verified fallback           | Working                |
+| 65   | Performance          | Added keyword cache         | ~45ms saved/query      |
+| 66   | Complex queries      | Multi-entity tests          | All EXCELLENT          |
+| 67   | Schema fix           | pg_trgm in ag_catalog       | Trigram matching fixed |
+| 68   | Data gap analysis    | Identified missing entities | Expected behavior      |
+| 69   | Out-of-domain        | Pizza/Tesla queries         | Graceful degradation   |
+| 70   | Performance          | Cache effectiveness         | Documented             |
+| 71   | Summary              | This document               | Complete               |
 
 ## Test Results
 
 ### Before Fix
+
 - French challenge: 639 chars, generic response
 - Missing: Battery specs, charging speeds, WLTP data
 
 ### After Fix
-| Query | Mode | Chars | Score | Entities Found |
-|-------|------|-------|-------|----------------|
-| French Challenge | HYBRID | 2226 | EXCELLENT | E-3008, BYD Seal U, LFP |
-| French Challenge | GLOBAL | 1955 | EXCELLENT | All specs |
-| French Challenge | LOCAL | 1778 | EXCELLENT | Detailed comparison |
-| Extended Suite (11) | Mixed | Avg 1500 | 100.0/100 | All correct |
+
+| Query               | Mode   | Chars    | Score     | Entities Found          |
+| ------------------- | ------ | -------- | --------- | ----------------------- |
+| French Challenge    | HYBRID | 2226     | EXCELLENT | E-3008, BYD Seal U, LFP |
+| French Challenge    | GLOBAL | 1955     | EXCELLENT | All specs               |
+| French Challenge    | LOCAL  | 1778     | EXCELLENT | Detailed comparison     |
+| Extended Suite (11) | Mixed  | Avg 1500 | 100.0/100 | All correct             |
 
 ## Commits Made
 
@@ -89,12 +94,14 @@ async fn validate_keywords(&self, keywords: &ExtractedKeywords) -> ExtractedKeyw
 ## Key Insights
 
 ### What Worked
+
 1. **First principles > heuristics**: Fixing data flow, not LLM prompts
 2. **Minimal code change**: ~60 lines added, massive impact
 3. **Graceful degradation**: Fallback prevents complete failures
 4. **Caching**: Reduces repeated lookups
 
 ### What We Learned
+
 1. Embedding dilution is a real problem in RAG systems
 2. Keyword validation should happen BEFORE embedding
 3. PostgreSQL extension schemas matter (ag_catalog)
@@ -116,13 +123,13 @@ Query → Extract Keywords → Validate → Embed VALID → Search → Excellent
 
 ## Metrics
 
-| Metric | Before | After | Improvement |
-|--------|--------|-------|-------------|
-| Challenge response length | 639 chars | 2226 chars | 3.5x |
-| Extended suite score | N/A | 100.0/100 | Baseline |
-| Keywords validated correctly | 0% | 100% | ∞ |
-| Out-of-domain handling | Poor | Graceful | ✓ |
-| Cache hit rate (estimated) | 0% | ~60% | ∞ |
+| Metric                       | Before    | After      | Improvement |
+| ---------------------------- | --------- | ---------- | ----------- |
+| Challenge response length    | 639 chars | 2226 chars | 3.5x        |
+| Extended suite score         | N/A       | 100.0/100  | Baseline    |
+| Keywords validated correctly | 0%        | 100%       | ∞           |
+| Out-of-domain handling       | Poor      | Graceful   | ✓           |
+| Cache hit rate (estimated)   | 0%        | ~60%       | ∞           |
 
 ## Future Recommendations
 

@@ -148,10 +148,10 @@ pub mod test_data {
     /// Get core test documents (subset for faster testing)
     pub fn core_documents() -> Vec<(&'static str, &'static str)> {
         vec![
-            EF_EXTRACT_3008,      // Key Peugeot document
-            EF_EXTRACT_CT_3008,   // Detailed 3008 specs
-            EF_EXTRACT_BYD_SEAL,  // Key competitor
-            EF_EXTRACT_NEW_308,   // Hybrid models
+            EF_EXTRACT_3008,           // Key Peugeot document
+            EF_EXTRACT_CT_3008,        // Detailed 3008 specs
+            EF_EXTRACT_BYD_SEAL,       // Key competitor
+            EF_EXTRACT_NEW_308,        // Hybrid models
             EF_EXTRACT_RENAULT_SCENIC, // Competitor
         ]
     }

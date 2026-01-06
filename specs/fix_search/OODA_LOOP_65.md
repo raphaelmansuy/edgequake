@@ -7,6 +7,7 @@ After implementing keyword validation in OODA 62, we observed that each query pe
 ## Orient
 
 ### Current Flow (Before)
+
 ```
 Query → Extract Keywords → For each keyword:
                               → search_labels(keyword) [DB call]
@@ -15,6 +16,7 @@ Query → Extract Keywords → For each keyword:
 ```
 
 ### Optimized Flow (After)
+
 ```
 Query → Extract Keywords → For each keyword:
                               → Check validation cache [memory]
@@ -26,6 +28,7 @@ Query → Extract Keywords → For each keyword:
 ## Decide
 
 Add an in-memory cache (`HashMap<String, bool>`) for keyword validation results:
+
 - Key: lowercase keyword
 - Value: exists in graph (true/false)
 - Max size: 10,000 entries (prevents unbounded growth)
@@ -36,11 +39,13 @@ Add an in-memory cache (`HashMap<String, bool>`) for keyword validation results:
 ### Changes to `SOTAQueryEngine`
 
 1. Added new field:
+
 ```rust
 keyword_validation_cache: Arc<tokio::sync::RwLock<HashMap<String, bool>>>,
 ```
 
 2. Updated `validate_keywords()` to check cache first:
+
 ```rust
 // Check cache first
 let cache_key = keyword.to_lowercase();
@@ -56,7 +61,7 @@ let exists = if let Some(exists) = cached_result {
     // Cache miss - check graph
     let matches = self.graph_storage.search_labels(keyword, 1).await;
     let exists = matches.map(|labels| !labels.is_empty()).unwrap_or(false);
-    
+
     // Update cache (with size limit)
     {
         let mut cache = self.keyword_validation_cache.write().await;
@@ -76,19 +81,21 @@ let exists = if let Some(exists) = cached_result {
 
 ### Cache Benefits
 
-| Scenario | Before (DB calls) | After (DB calls) |
-|----------|-------------------|------------------|
-| First query with "BYD Seal U" | 1 | 1 |
-| Second query with "BYD Seal U" | 1 | 0 (cache hit) |
-| Similar queries in session | N * keywords | 1 per unique keyword |
+| Scenario                       | Before (DB calls) | After (DB calls)     |
+| ------------------------------ | ----------------- | -------------------- |
+| First query with "BYD Seal U"  | 1                 | 1                    |
+| Second query with "BYD Seal U" | 1                 | 0 (cache hit)        |
+| Similar queries in session     | N \* keywords     | 1 per unique keyword |
 
 ## Files Modified
+
 - `edgequake/crates/edgequake-query/src/sota_engine.rs`
   - Added `keyword_validation_cache` field
   - Updated constructors
   - Modified `validate_keywords()` to use cache
 
 ## Next Steps (OODA 66+)
+
 - Consider cache TTL for long-running servers
 - Monitor cache hit rate in production
 - Potential: persist cache to Redis for distributed setups
