@@ -4,15 +4,15 @@
 
 ### Executive Summary
 
-| Aspect | EdgeQuake | LightRAG |
-|--------|-----------|----------|
-| **Language** | Rust | Python |
-| **Performance** | ~3-10x faster (compiled) | Interpreted |
-| **Graph DB** | PostgreSQL AGE | Neo4J, PostgreSQL AGE, NetworkX |
-| **Vector DB** | PostgreSQL pgvector | Milvus, PG, Qdrant, Faiss, etc. |
-| **Reranking** | Built-in BM25 (SOTA) | External APIs (Cohere, Jina) |
-| **API Keys Required** | Optional (OpenAI for LLM only) | Required for reranking |
-| **Deployment** | Single binary + PostgreSQL | Python + multiple services |
+| Aspect                | EdgeQuake                      | LightRAG                        |
+| --------------------- | ------------------------------ | ------------------------------- |
+| **Language**          | Rust                           | Python                          |
+| **Performance**       | ~3-10x faster (compiled)       | Interpreted                     |
+| **Graph DB**          | PostgreSQL AGE                 | Neo4J, PostgreSQL AGE, NetworkX |
+| **Vector DB**         | PostgreSQL pgvector            | Milvus, PG, Qdrant, Faiss, etc. |
+| **Reranking**         | Built-in BM25 (SOTA)           | External APIs (Cohere, Jina)    |
+| **API Keys Required** | Optional (OpenAI for LLM only) | Required for reranking          |
+| **Deployment**        | Single binary + PostgreSQL     | Python + multiple services      |
 
 ---
 
@@ -29,6 +29,7 @@ let reranker = BM25Reranker::bm25_plus(); // BM25+ for better long doc handling
 ```
 
 **Features:**
+
 - ✅ SOTA IDF formula: `ln((N - n(q) + 0.5) / (n(q) + 0.5) + 1)`
 - ✅ Configurable parameters: k1 ∈ [1.2, 2.0], b ∈ [0, 1]
 - ✅ BM25+ extension with delta parameter
@@ -48,6 +49,7 @@ ali_rerank()     # Requires DASHSCOPE_API_KEY
 ```
 
 **Limitations:**
+
 - ❌ API key required for reranking
 - ❌ Network latency per query
 - ❌ Cost per API call
@@ -64,18 +66,19 @@ class QueryParam:
     mode: Literal["local", "global", "hybrid", "naive", "mix", "bypass"]
 ```
 
-| Mode | Description |
-|------|-------------|
-| `local` | Entity-focused, context-dependent |
-| `global` | Knowledge graph relationships |
-| `hybrid` | Combines local + global |
-| `naive` | Basic vector search |
-| `mix` | KG + vector (recommended with reranker) |
-| `bypass` | Skip retrieval, direct LLM |
+| Mode     | Description                             |
+| -------- | --------------------------------------- |
+| `local`  | Entity-focused, context-dependent       |
+| `global` | Knowledge graph relationships           |
+| `hybrid` | Combines local + global                 |
+| `naive`  | Basic vector search                     |
+| `mix`    | KG + vector (recommended with reranker) |
+| `bypass` | Skip retrieval, direct LLM              |
 
 ### EdgeQuake Query Strategy
 
 EdgeQuake uses a unified **SOTA query engine** with:
+
 - Hybrid retrieval (vector + keyword)
 - BM25 reranking by default
 - RRF (Reciprocal Rank Fusion) for combining rankings
@@ -95,23 +98,23 @@ pub struct SotaQueryEngine {
 
 ### Graph Storage
 
-| Backend | EdgeQuake | LightRAG |
-|---------|-----------|----------|
+| Backend        | EdgeQuake  | LightRAG     |
+| -------------- | ---------- | ------------ |
 | PostgreSQL AGE | ✅ Primary | ✅ Supported |
-| Neo4J | ❌ | ✅ Supported |
-| NetworkX | ❌ | ✅ Default |
-| Memgraph | ❌ | ✅ Supported |
+| Neo4J          | ❌         | ✅ Supported |
+| NetworkX       | ❌         | ✅ Default   |
+| Memgraph       | ❌         | ✅ Supported |
 
 ### Vector Storage
 
-| Backend | EdgeQuake | LightRAG |
-|---------|-----------|----------|
+| Backend             | EdgeQuake  | LightRAG     |
+| ------------------- | ---------- | ------------ |
 | PostgreSQL pgvector | ✅ Primary | ✅ Supported |
-| Milvus | ❌ | ✅ Supported |
-| Qdrant | ❌ | ✅ Supported |
-| Faiss | ❌ | ✅ Supported |
-| NanoVectorDB | ❌ | ✅ Default |
-| MongoDB | ❌ | ✅ Supported |
+| Milvus              | ❌         | ✅ Supported |
+| Qdrant              | ❌         | ✅ Supported |
+| Faiss               | ❌         | ✅ Supported |
+| NanoVectorDB        | ❌         | ✅ Default   |
+| MongoDB             | ❌         | ✅ Supported |
 
 **EdgeQuake Philosophy:** Single database (PostgreSQL) for simplicity and operational efficiency.
 
@@ -121,12 +124,12 @@ pub struct SotaQueryEngine {
 
 ## 4. Performance Benchmarks (Theoretical)
 
-| Metric | EdgeQuake | LightRAG | Notes |
-|--------|-----------|----------|-------|
-| Rerank latency | ~1-5ms | ~50-200ms | Built-in vs API call |
-| Query throughput | ~100-500 qps | ~10-50 qps | Rust vs Python |
-| Memory efficiency | High | Moderate | Compiled vs interpreted |
-| Cold start time | ~50ms | ~2-5s | Single binary vs Python imports |
+| Metric            | EdgeQuake    | LightRAG   | Notes                           |
+| ----------------- | ------------ | ---------- | ------------------------------- |
+| Rerank latency    | ~1-5ms       | ~50-200ms  | Built-in vs API call            |
+| Query throughput  | ~100-500 qps | ~10-50 qps | Rust vs Python                  |
+| Memory efficiency | High         | Moderate   | Compiled vs interpreted         |
+| Cold start time   | ~50ms        | ~2-5s      | Single binary vs Python imports |
 
 ---
 

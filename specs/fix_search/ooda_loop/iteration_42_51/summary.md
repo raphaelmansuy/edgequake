@@ -3,6 +3,7 @@
 ## Summary
 
 This document summarizes the improvements made during OODA loops 42-51, focusing on:
+
 1. Validating BM25 implementation against SOTA (State of the Art)
 2. Adding BM25+ extension for better long document handling
 3. Renaming MockReranker to TermOverlapReranker
@@ -15,6 +16,7 @@ This document summarizes the improvements made during OODA loops 42-51, focusing
 **Source:** Wikipedia Okapi BM25
 
 **Key Findings:**
+
 - IDF Formula: `ln((N - n(q) + 0.5) / (n(q) + 0.5) + 1)`
 - Standard parameters: k1 ∈ [1.2, 2.0], b = 0.75
 - BM25+ adds delta parameter to address long document penalty
@@ -27,12 +29,12 @@ This document summarizes the improvements made during OODA loops 42-51, focusing
 
 **Audit Result:** ✅ SOTA Compliant
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| IDF Formula | ✅ Correct | Matches Wikipedia exactly |
-| TF Saturation | ✅ Correct | (k1 + 1) formula |
+| Component            | Status     | Notes                      |
+| -------------------- | ---------- | -------------------------- |
+| IDF Formula          | ✅ Correct | Matches Wikipedia exactly  |
+| TF Saturation        | ✅ Correct | (k1 + 1) formula           |
 | Length Normalization | ✅ Correct | b parameter implementation |
-| Default Parameters | ✅ Optimal | k1=1.5, b=0.75 |
+| Default Parameters   | ✅ Optimal | k1=1.5, b=0.75             |
 
 ---
 
@@ -56,11 +58,13 @@ let reranker = BM25Reranker::with_full_params(k1, b, delta);
 ### Formula Change
 
 Standard BM25:
+
 ```
 score = Σ IDF(q) × f(q,D)×(k1+1) / (f(q,D) + k1×(1-b+b×|D|/avgdl))
 ```
 
 BM25+ (delta > 0):
+
 ```
 score = Σ IDF(q) × (f(q,D)×(k1+1) / (f(q,D) + k1×(1-b+b×|D|/avgdl)) + delta)
 ```
@@ -73,6 +77,7 @@ score = Σ IDF(q) × (f(q,D)×(k1+1) / (f(q,D) + k1×(1-b+b×|D|/avgdl)) + delta
 **After:** `TermOverlapReranker`
 
 **Rationale:**
+
 - "Mock" implies fake/testing-only when it's a valid algorithm
 - "TermOverlap" accurately describes the scoring mechanism
 - Backward compatibility maintained via type alias
@@ -88,14 +93,14 @@ pub type MockReranker = TermOverlapReranker;
 
 **Added 8 new tests:**
 
-| Test | Purpose |
-|------|---------|
-| `test_bm25_plus_constructor` | Verify BM25+ factory method |
-| `test_bm25_with_full_params` | Verify full parameter constructor |
+| Test                                    | Purpose                               |
+| --------------------------------------- | ------------------------------------- |
+| `test_bm25_plus_constructor`            | Verify BM25+ factory method           |
+| `test_bm25_with_full_params`            | Verify full parameter constructor     |
 | `test_bm25_plus_long_document_handling` | Verify delta improves long doc scores |
-| `test_bm25_params_clamping` | Verify parameter bounds |
-| `test_term_overlap_reranker` | Verify renamed reranker works |
-| `test_mock_reranker_alias` | Verify backward compatibility |
+| `test_bm25_params_clamping`             | Verify parameter bounds               |
+| `test_term_overlap_reranker`            | Verify renamed reranker works         |
+| `test_mock_reranker_alias`              | Verify backward compatibility         |
 
 **Total tests:** 55 passed, 0 failed
 
@@ -107,12 +112,12 @@ See: [lightrag_comparison.md](lightrag_comparison.md)
 
 ### Key Differences
 
-| Feature | EdgeQuake | LightRAG |
-|---------|-----------|----------|
-| Language | Rust | Python |
-| Reranking | Built-in BM25 | External API |
-| Graph DB | PostgreSQL AGE | Multiple options |
-| Deployment | Single binary | Python + services |
+| Feature    | EdgeQuake      | LightRAG          |
+| ---------- | -------------- | ----------------- |
+| Language   | Rust           | Python            |
+| Reranking  | Built-in BM25  | External API      |
+| Graph DB   | PostgreSQL AGE | Multiple options  |
+| Deployment | Single binary  | Python + services |
 
 ### EdgeQuake Advantages
 
@@ -125,11 +130,11 @@ See: [lightrag_comparison.md](lightrag_comparison.md)
 
 ## Files Changed
 
-| File | Changes |
-|------|---------|
-| `edgequake-llm/src/reranker.rs` | BM25+ extension, TermOverlapReranker |
-| `edgequake-llm/src/lib.rs` | Export TermOverlapReranker |
-| `specs/fix_search/ooda_loop/iteration_42_51/*.md` | Documentation |
+| File                                              | Changes                              |
+| ------------------------------------------------- | ------------------------------------ |
+| `edgequake-llm/src/reranker.rs`                   | BM25+ extension, TermOverlapReranker |
+| `edgequake-llm/src/lib.rs`                        | Export TermOverlapReranker           |
+| `specs/fix_search/ooda_loop/iteration_42_51/*.md` | Documentation                        |
 
 ---
 
