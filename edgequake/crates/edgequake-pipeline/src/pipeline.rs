@@ -290,6 +290,26 @@ impl Pipeline {
                 // Use parallel extraction for better performance
                 extractions = self.extract_parallel(&chunks, extractor).await?;
 
+                // CRITICAL FIX: Link entities and relationships to their source chunks
+                // Without this, Local/Global modes cannot find related chunks during query
+                for extraction in &mut extractions {
+                    let chunk_id = extraction.source_chunk_id.clone();
+                    tracing::info!(
+                        "Linking {} entities and {} relationships to chunk {}",
+                        extraction.entities.len(),
+                        extraction.relationships.len(),
+                        chunk_id
+                    );
+                    for entity in &mut extraction.entities {
+                        entity.add_source_chunk_id(&chunk_id);
+                    }
+                    for rel in &mut extraction.relationships {
+                        if rel.source_chunk_id.is_none() {
+                            rel.source_chunk_id = Some(chunk_id.clone());
+                        }
+                    }
+                }
+
                 // Aggregate statistics from all extractions
                 for extraction in &extractions {
                     stats.entity_count += extraction.entities.len();

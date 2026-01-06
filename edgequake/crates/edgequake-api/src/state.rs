@@ -259,13 +259,16 @@ impl AppState {
         // - Length normalization prevents long documents from dominating
         // - Solves "2008" vs "208" precision issue better than simple term overlap
         let reranker = Arc::new(edgequake_llm::reranker::BM25Reranker::new());
-        let sota_engine = Arc::new(SOTAQueryEngine::new(
-            SOTAQueryConfig::default(),
-            Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
-            Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
-            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
-            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
-        ).with_reranker(reranker));
+        let sota_engine = Arc::new(
+            SOTAQueryEngine::new(
+                SOTAQueryConfig::default(),
+                Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
+                Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
+                Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+                Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+            )
+            .with_reranker(reranker),
+        );
 
         // Create auth services
         let auth_config = AuthConfig::default();
@@ -517,13 +520,16 @@ impl AppState {
         // - Length normalization prevents long documents from dominating
         // - Solves "2008" vs "208" precision issue better than simple term overlap
         let reranker = Arc::new(edgequake_llm::reranker::BM25Reranker::new());
-        let sota_engine = Arc::new(SOTAQueryEngine::new(
-            SOTAQueryConfig::default(),
-            Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
-            Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
-            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
-            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
-        ).with_reranker(reranker));
+        let sota_engine = Arc::new(
+            SOTAQueryEngine::new(
+                SOTAQueryConfig::default(),
+                Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
+                Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
+                Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+                Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+            )
+            .with_reranker(reranker),
+        );
 
         // Create auth services
         let auth_config = AuthConfig::default();

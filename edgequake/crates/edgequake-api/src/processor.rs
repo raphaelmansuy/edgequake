@@ -203,6 +203,8 @@ impl DocumentTaskProcessor {
                 properties.insert("description".to_string(), json!(entity.description));
                 properties.insert("importance".to_string(), json!(entity.importance));
                 properties.insert("source_ids".to_string(), json!(vec![&document_id]));
+                // CRITICAL: Store source_chunk_ids for Local/Global query mode chunk retrieval
+                properties.insert("source_chunk_ids".to_string(), json!(&entity.source_chunk_ids));
                 // Add tenant scoping
                 if let Some(ref tid) = tenant_id {
                     properties.insert("tenant_id".to_string(), json!(tid));
@@ -222,6 +224,10 @@ impl DocumentTaskProcessor {
                 properties.insert("weight".to_string(), json!(relationship.weight));
                 properties.insert("keywords".to_string(), json!(relationship.keywords));
                 properties.insert("source_ids".to_string(), json!(vec![&document_id]));
+                // CRITICAL: Store source_chunk_id for relationship chunk linkage
+                if let Some(ref chunk_id) = relationship.source_chunk_id {
+                    properties.insert("source_chunk_ids".to_string(), json!(vec![chunk_id]));
+                }
                 // Add tenant scoping
                 if let Some(ref tid) = tenant_id {
                     properties.insert("tenant_id".to_string(), json!(tid));
@@ -246,6 +252,35 @@ impl DocumentTaskProcessor {
                 );
             } else {
                 info!("Batch stored {} entities", nodes_batch.len());
+            }
+        }
+
+        // CRITICAL: Store entity embeddings in vector storage for query_local retrieval
+        for extraction in &result.extractions {
+            for entity in &extraction.entities {
+                if let Some(embedding) = &entity.embedding {
+                    let mut metadata = json!({
+                        "type": "entity",
+                        "entity_name": entity.name,
+                        "entity_type": entity.entity_type,
+                        "description": entity.description,
+                        "document_id": document_id,
+                        "source_chunk_ids": entity.source_chunk_ids,
+                    });
+                    if let Some(ref tid) = tenant_id {
+                        metadata["tenant_id"] = json!(tid);
+                    }
+                    metadata["workspace_id"] = json!(&workspace_id_meta);
+                    
+                    let entity_id = format!("entity:{}", entity.name);
+                    if let Err(e) = self
+                        .vector_storage
+                        .upsert(&[(entity_id.clone(), embedding.clone(), metadata)])
+                        .await
+                    {
+                        warn!("Failed to store entity embedding {}: {}", entity_id, e);
+                    }
+                }
             }
         }
 

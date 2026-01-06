@@ -11,10 +11,10 @@
 use std::sync::Arc;
 
 use edgequake_pipeline::{
-    CharacterBasedChunking, Chunker, ChunkerConfig, ChunkingStrategy,
-    DescriptionSummarizer, EntityExtractor, ExtractedEntity, ExtractedRelationship,
-    ExtractionResult, GleaningConfig, KnowledgeGraphMerger, MergerConfig, Pipeline,
-    PipelineConfig, SimpleSummarizer, SummarizerConfig,
+    CharacterBasedChunking, Chunker, ChunkerConfig, ChunkingStrategy, DescriptionSummarizer,
+    EntityExtractor, ExtractedEntity, ExtractedRelationship, ExtractionResult, GleaningConfig,
+    KnowledgeGraphMerger, MergerConfig, Pipeline, PipelineConfig, SimpleSummarizer,
+    SummarizerConfig,
 };
 use edgequake_storage::{GraphStorage, MemoryGraphStorage, MemoryVectorStorage, VectorStorage};
 
@@ -227,8 +227,8 @@ mod extraction_tests {
 
     #[test]
     fn test_extracted_entity_with_importance() {
-        let entity = ExtractedEntity::new("EdgeQuake", "SOFTWARE", "A RAG framework")
-            .with_importance(0.9);
+        let entity =
+            ExtractedEntity::new("EdgeQuake", "SOFTWARE", "A RAG framework").with_importance(0.9);
 
         assert_eq!(entity.importance, 0.9);
     }
@@ -246,8 +246,7 @@ mod extraction_tests {
 
     #[test]
     fn test_extracted_entity_with_source_span() {
-        let entity = ExtractedEntity::new("Test", "TYPE", "Desc")
-            .with_source_span("source text");
+        let entity = ExtractedEntity::new("Test", "TYPE", "Desc").with_source_span("source text");
 
         assert_eq!(entity.source_spans.len(), 1);
         assert_eq!(entity.source_spans[0], "source text");
@@ -255,8 +254,7 @@ mod extraction_tests {
 
     #[test]
     fn test_extracted_relationship_creation() {
-        let rel =
-            ExtractedRelationship::new("Sarah Chen", "EdgeQuake", "DESIGNED");
+        let rel = ExtractedRelationship::new("Sarah Chen", "EdgeQuake", "DESIGNED");
 
         assert_eq!(rel.source, "Sarah Chen");
         assert_eq!(rel.target, "EdgeQuake");
@@ -302,7 +300,7 @@ mod extraction_tests {
     #[tokio::test]
     async fn test_simple_extractor_with_chunk() {
         use edgequake_pipeline::SimpleExtractor;
-        
+
         let extractor = SimpleExtractor::default();
 
         let chunk = TextChunk::new("chunk-1", "Sarah Chen works on EdgeQuake.", 0, 0, 30);
@@ -349,8 +347,7 @@ mod gleaning_tests {
 mod merger_tests {
     use super::*;
 
-    async fn create_merger(
-    ) -> KnowledgeGraphMerger<MemoryGraphStorage, MemoryVectorStorage> {
+    async fn create_merger() -> KnowledgeGraphMerger<MemoryGraphStorage, MemoryVectorStorage> {
         let graph = MemoryGraphStorage::new("test");
         let vector = MemoryVectorStorage::new("test", 1536);
         graph.initialize().await.unwrap();
@@ -377,6 +374,7 @@ mod merger_tests {
             description_decay: 0.8,
             min_importance: 0.2,
             max_sources: 20,
+            use_llm_summarization: true,
         };
 
         assert_eq!(config.max_description_length, 8192);
@@ -415,7 +413,11 @@ mod merger_tests {
         let merger = create_merger().await;
 
         let mut result = ExtractionResult::new("chunk-1");
-        result.add_entity(ExtractedEntity::new("EdgeQuake", "SOFTWARE", "A RAG framework"));
+        result.add_entity(ExtractedEntity::new(
+            "EdgeQuake",
+            "SOFTWARE",
+            "A RAG framework",
+        ));
 
         let stats = merger.merge(vec![result]).await.unwrap();
 
@@ -429,7 +431,11 @@ mod merger_tests {
         let mut result = ExtractionResult::new("chunk-1");
         result.add_entity(ExtractedEntity::new("EdgeQuake", "SOFTWARE", "Framework"));
         result.add_entity(ExtractedEntity::new("Sarah Chen", "PERSON", "Scientist"));
-        result.add_entity(ExtractedEntity::new("Stanford", "ORGANIZATION", "University"));
+        result.add_entity(ExtractedEntity::new(
+            "Stanford",
+            "ORGANIZATION",
+            "University",
+        ));
 
         let stats = merger.merge(vec![result]).await.unwrap();
 
@@ -531,7 +537,8 @@ mod summarizer_tests {
         let config = SummarizerConfig::default().with_target_length(100);
         let summarizer = SimpleSummarizer::new(config);
 
-        let text = "First sentence. Second sentence. Third sentence. Fourth sentence. Fifth sentence.";
+        let text =
+            "First sentence. Second sentence. Third sentence. Fourth sentence. Fifth sentence.";
         let result = summarizer.summarize(text).await.unwrap();
 
         // Should end at a sentence boundary
@@ -594,11 +601,10 @@ mod pipeline_tests {
     #[tokio::test]
     async fn test_pipeline_process_with_simple_extractor() {
         use edgequake_pipeline::SimpleExtractor;
-        
+
         let extractor = Arc::new(SimpleExtractor::default());
 
-        let pipeline = Pipeline::default_pipeline()
-            .with_extractor(extractor);
+        let pipeline = Pipeline::default_pipeline().with_extractor(extractor);
 
         let result = pipeline.process("doc-1", SAMPLE_DOCUMENT).await.unwrap();
 
@@ -625,7 +631,7 @@ mod pipeline_tests {
     #[tokio::test]
     async fn test_pipeline_stats_tracking() {
         use edgequake_pipeline::SimpleExtractor;
-        
+
         let extractor = Arc::new(SimpleExtractor::default());
 
         let pipeline = Pipeline::default_pipeline().with_extractor(extractor);
@@ -781,10 +787,18 @@ mod integration_tests {
             ExtractedEntity::new("Sarah Chen", "PERSON", "A computer scientist")
                 .with_importance(0.9),
         );
-        result1.add_entity(ExtractedEntity::new("Stanford", "ORGANIZATION", "University"));
+        result1.add_entity(ExtractedEntity::new(
+            "Stanford",
+            "ORGANIZATION",
+            "University",
+        ));
 
         let mut result2 = ExtractionResult::new("chunk-2");
-        result2.add_entity(ExtractedEntity::new("EdgeQuake", "SOFTWARE", "RAG framework"));
+        result2.add_entity(ExtractedEntity::new(
+            "EdgeQuake",
+            "SOFTWARE",
+            "RAG framework",
+        ));
         result2.add_relationship(
             ExtractedRelationship::new("Sarah Chen", "EdgeQuake", "DESIGNED")
                 .with_description("Sarah designed EdgeQuake"),
@@ -811,7 +825,7 @@ mod integration_tests {
     #[tokio::test]
     async fn test_chunker_extractor_integration() {
         use edgequake_pipeline::SimpleExtractor;
-        
+
         let extractor = SimpleExtractor::default();
 
         // Chunk document

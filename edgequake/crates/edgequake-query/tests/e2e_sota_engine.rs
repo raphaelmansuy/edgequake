@@ -9,14 +9,12 @@
 
 use std::sync::Arc;
 
-use edgequake_llm::{MockProvider, EmbeddingProvider};
+use edgequake_llm::{EmbeddingProvider, MockProvider};
 use edgequake_query::{
-    MockKeywordExtractor, QueryMode, QueryRequest, SOTAQueryConfig, SOTAQueryEngine,
-    ExtractedKeywords, QueryIntent, Keywords, KeywordExtractor,
+    ExtractedKeywords, KeywordExtractor, Keywords, MockKeywordExtractor, QueryIntent, QueryMode,
+    QueryRequest, SOTAQueryConfig, SOTAQueryEngine,
 };
-use edgequake_storage::{
-    GraphStorage, MemoryGraphStorage, MemoryVectorStorage, VectorStorage,
-};
+use edgequake_storage::{GraphStorage, MemoryGraphStorage, MemoryVectorStorage, VectorStorage};
 use serde_json::json;
 
 // =============================================================================
@@ -37,7 +35,7 @@ fn create_mock_embedding() -> Arc<dyn EmbeddingProvider> {
 async fn create_test_vector_storage() -> Arc<MemoryVectorStorage> {
     let storage = Arc::new(MemoryVectorStorage::new("test", 1536)); // Match MockProvider dimension
     storage.initialize().await.unwrap();
-    
+
     // Add test chunks
     let chunk_data = vec![
         (
@@ -69,7 +67,7 @@ async fn create_test_vector_storage() -> Arc<MemoryVectorStorage> {
         ),
     ];
     storage.upsert(&chunk_data).await.unwrap();
-    
+
     // Add test entity vectors
     let entity_data = vec![
         (
@@ -104,7 +102,7 @@ async fn create_test_vector_storage() -> Arc<MemoryVectorStorage> {
         ),
     ];
     storage.upsert(&entity_data).await.unwrap();
-    
+
     // Add test relationship vectors
     let relationship_data = vec![
         (
@@ -131,7 +129,7 @@ async fn create_test_vector_storage() -> Arc<MemoryVectorStorage> {
         ),
     ];
     storage.upsert(&relationship_data).await.unwrap();
-    
+
     storage
 }
 
@@ -139,43 +137,63 @@ async fn create_test_vector_storage() -> Arc<MemoryVectorStorage> {
 async fn create_test_graph_storage() -> Arc<MemoryGraphStorage> {
     let storage = Arc::new(MemoryGraphStorage::new("test_graph"));
     storage.initialize().await.unwrap();
-    
+
     // Add test nodes using the correct API: upsert_node(node_id, properties)
     let nodes = vec![
         (
             "EDGEQUAKE",
             [
                 ("entity_type".to_string(), json!("SOFTWARE")),
-                ("description".to_string(), json!("A knowledge graph RAG system built in Rust")),
-            ].into_iter().collect::<std::collections::HashMap<_, _>>(),
+                (
+                    "description".to_string(),
+                    json!("A knowledge graph RAG system built in Rust"),
+                ),
+            ]
+            .into_iter()
+            .collect::<std::collections::HashMap<_, _>>(),
         ),
         (
             "LIGHTRAG",
             [
                 ("entity_type".to_string(), json!("SOFTWARE")),
-                ("description".to_string(), json!("A RAG framework with graph enhancement")),
-            ].into_iter().collect::<std::collections::HashMap<_, _>>(),
+                (
+                    "description".to_string(),
+                    json!("A RAG framework with graph enhancement"),
+                ),
+            ]
+            .into_iter()
+            .collect::<std::collections::HashMap<_, _>>(),
         ),
         (
             "POSTGRESQL",
             [
                 ("entity_type".to_string(), json!("DATABASE")),
-                ("description".to_string(), json!("An open-source relational database")),
-            ].into_iter().collect::<std::collections::HashMap<_, _>>(),
+                (
+                    "description".to_string(),
+                    json!("An open-source relational database"),
+                ),
+            ]
+            .into_iter()
+            .collect::<std::collections::HashMap<_, _>>(),
         ),
         (
             "KEYWORD_EXTRACTION",
             [
                 ("entity_type".to_string(), json!("TECHNIQUE")),
-                ("description".to_string(), json!("Extracting keywords from queries for retrieval")),
-            ].into_iter().collect::<std::collections::HashMap<_, _>>(),
+                (
+                    "description".to_string(),
+                    json!("Extracting keywords from queries for retrieval"),
+                ),
+            ]
+            .into_iter()
+            .collect::<std::collections::HashMap<_, _>>(),
         ),
     ];
-    
+
     for (node_id, properties) in nodes {
         storage.upsert_node(node_id, properties).await.unwrap();
     }
-    
+
     // Add test edges using the correct API: upsert_edge(source, target, properties)
     let edges = vec![
         (
@@ -183,31 +201,49 @@ async fn create_test_graph_storage() -> Arc<MemoryGraphStorage> {
             "POSTGRESQL",
             [
                 ("relation_type".to_string(), json!("USES")),
-                ("description".to_string(), json!("EdgeQuake uses PostgreSQL for storage")),
-            ].into_iter().collect::<std::collections::HashMap<_, _>>(),
+                (
+                    "description".to_string(),
+                    json!("EdgeQuake uses PostgreSQL for storage"),
+                ),
+            ]
+            .into_iter()
+            .collect::<std::collections::HashMap<_, _>>(),
         ),
         (
             "LIGHTRAG",
             "KEYWORD_EXTRACTION",
             [
                 ("relation_type".to_string(), json!("IMPLEMENTS")),
-                ("description".to_string(), json!("LightRAG implements keyword extraction")),
-            ].into_iter().collect::<std::collections::HashMap<_, _>>(),
+                (
+                    "description".to_string(),
+                    json!("LightRAG implements keyword extraction"),
+                ),
+            ]
+            .into_iter()
+            .collect::<std::collections::HashMap<_, _>>(),
         ),
         (
             "EDGEQUAKE",
             "LIGHTRAG",
             [
                 ("relation_type".to_string(), json!("INSPIRED_BY")),
-                ("description".to_string(), json!("EdgeQuake is inspired by LightRAG")),
-            ].into_iter().collect::<std::collections::HashMap<_, _>>(),
+                (
+                    "description".to_string(),
+                    json!("EdgeQuake is inspired by LightRAG"),
+                ),
+            ]
+            .into_iter()
+            .collect::<std::collections::HashMap<_, _>>(),
         ),
     ];
-    
+
     for (source, target, properties) in edges {
-        storage.upsert_edge(source, target, properties).await.unwrap();
+        storage
+            .upsert_edge(source, target, properties)
+            .await
+            .unwrap();
     }
-    
+
     storage
 }
 
@@ -221,7 +257,7 @@ mod sota_config_tests {
     #[test]
     fn test_sota_config_default() {
         let config = SOTAQueryConfig::default();
-        
+
         assert_eq!(config.default_mode, QueryMode::Hybrid);
         assert!(config.use_keyword_extraction);
         assert!(config.use_adaptive_mode);
@@ -248,7 +284,7 @@ mod sota_config_tests {
             min_rerank_score: 0.3,
             rerank_top_k: 10,
         };
-        
+
         assert_eq!(config.default_mode, QueryMode::Local);
         assert_eq!(config.max_entities, 30);
         assert!(!config.use_keyword_extraction);
@@ -267,7 +303,7 @@ mod sota_engine_creation_tests {
         let vector_storage = create_test_vector_storage().await;
         let graph_storage = create_test_graph_storage().await;
         let provider = create_mock_provider();
-        
+
         let engine = SOTAQueryEngine::new(
             SOTAQueryConfig::default(),
             vector_storage,
@@ -275,7 +311,7 @@ mod sota_engine_creation_tests {
             provider.clone(),
             provider,
         );
-        
+
         assert_eq!(engine.config().default_mode, QueryMode::Hybrid);
     }
 
@@ -284,7 +320,7 @@ mod sota_engine_creation_tests {
         let vector_storage = create_test_vector_storage().await;
         let graph_storage = create_test_graph_storage().await;
         let provider = create_mock_provider();
-        
+
         let engine = SOTAQueryEngine::with_mock_keywords(
             SOTAQueryConfig::default(),
             vector_storage,
@@ -292,7 +328,7 @@ mod sota_engine_creation_tests {
             provider.clone(),
             provider,
         );
-        
+
         assert!(engine.config().use_keyword_extraction);
     }
 }
@@ -309,7 +345,7 @@ mod query_mode_tests {
         let vector_storage = create_test_vector_storage().await;
         let graph_storage = create_test_graph_storage().await;
         let provider = create_mock_provider();
-        
+
         let engine = SOTAQueryEngine::with_mock_keywords(
             SOTAQueryConfig::default(),
             vector_storage,
@@ -317,13 +353,13 @@ mod query_mode_tests {
             provider.clone(),
             provider,
         );
-        
+
         let request = QueryRequest::new("What is EdgeQuake?")
             .with_mode(QueryMode::Naive)
             .context_only();
-        
+
         let response = engine.query(request).await.unwrap();
-        
+
         assert_eq!(response.mode, QueryMode::Naive);
         // Naive mode should retrieve chunks but not entities
         // (depends on vector data having correct type metadata)
@@ -334,7 +370,7 @@ mod query_mode_tests {
         let vector_storage = create_test_vector_storage().await;
         let graph_storage = create_test_graph_storage().await;
         let provider = create_mock_provider();
-        
+
         let engine = SOTAQueryEngine::with_mock_keywords(
             SOTAQueryConfig::default(),
             vector_storage,
@@ -342,13 +378,13 @@ mod query_mode_tests {
             provider.clone(),
             provider,
         );
-        
+
         let request = QueryRequest::new("Tell me about EdgeQuake")
             .with_mode(QueryMode::Local)
             .context_only();
-        
+
         let response = engine.query(request).await.unwrap();
-        
+
         assert_eq!(response.mode, QueryMode::Local);
         // Local mode focuses on entities
     }
@@ -358,7 +394,7 @@ mod query_mode_tests {
         let vector_storage = create_test_vector_storage().await;
         let graph_storage = create_test_graph_storage().await;
         let provider = create_mock_provider();
-        
+
         let engine = SOTAQueryEngine::with_mock_keywords(
             SOTAQueryConfig::default(),
             vector_storage,
@@ -366,13 +402,13 @@ mod query_mode_tests {
             provider.clone(),
             provider,
         );
-        
+
         let request = QueryRequest::new("How do systems interact?")
             .with_mode(QueryMode::Global)
             .context_only();
-        
+
         let response = engine.query(request).await.unwrap();
-        
+
         assert_eq!(response.mode, QueryMode::Global);
         // Global mode focuses on relationships
     }
@@ -382,7 +418,7 @@ mod query_mode_tests {
         let vector_storage = create_test_vector_storage().await;
         let graph_storage = create_test_graph_storage().await;
         let provider = create_mock_provider();
-        
+
         let engine = SOTAQueryEngine::with_mock_keywords(
             SOTAQueryConfig::default(),
             vector_storage,
@@ -390,13 +426,13 @@ mod query_mode_tests {
             provider.clone(),
             provider,
         );
-        
+
         let request = QueryRequest::new("What is EdgeQuake and how does it work?")
             .with_mode(QueryMode::Hybrid)
             .context_only();
-        
+
         let response = engine.query(request).await.unwrap();
-        
+
         assert_eq!(response.mode, QueryMode::Hybrid);
         // Hybrid mode combines local and global
     }
@@ -406,7 +442,7 @@ mod query_mode_tests {
         let vector_storage = create_test_vector_storage().await;
         let graph_storage = create_test_graph_storage().await;
         let provider = create_mock_provider();
-        
+
         let engine = SOTAQueryEngine::with_mock_keywords(
             SOTAQueryConfig::default(),
             vector_storage,
@@ -414,13 +450,13 @@ mod query_mode_tests {
             provider.clone(),
             provider,
         );
-        
+
         let request = QueryRequest::new("Explain the full architecture")
             .with_mode(QueryMode::Mix)
             .context_only();
-        
+
         let response = engine.query(request).await.unwrap();
-        
+
         assert_eq!(response.mode, QueryMode::Mix);
         // Mix mode combines hybrid with direct chunk search
     }
@@ -438,11 +474,11 @@ mod adaptive_mode_tests {
         let vector_storage = create_test_vector_storage().await;
         let graph_storage = create_test_graph_storage().await;
         let provider = create_mock_provider();
-        
+
         let mut config = SOTAQueryConfig::default();
         config.use_adaptive_mode = true;
         config.use_keyword_extraction = true;
-        
+
         let engine = SOTAQueryEngine::with_mock_keywords(
             config,
             vector_storage,
@@ -450,16 +486,18 @@ mod adaptive_mode_tests {
             provider.clone(),
             provider,
         );
-        
+
         // Factual questions (what, when, who) should use Local mode
-        let request = QueryRequest::new("What is EdgeQuake?")
-            .context_only();
-        
+        let request = QueryRequest::new("What is EdgeQuake?").context_only();
+
         let response = engine.query(request).await.unwrap();
-        
+
         // The mode should be adaptively selected based on intent
         // MockKeywordExtractor uses heuristics to classify intent
-        assert!(matches!(response.mode, QueryMode::Local | QueryMode::Hybrid | QueryMode::Naive));
+        assert!(matches!(
+            response.mode,
+            QueryMode::Local | QueryMode::Hybrid | QueryMode::Naive
+        ));
     }
 
     #[tokio::test]
@@ -467,10 +505,10 @@ mod adaptive_mode_tests {
         let vector_storage = create_test_vector_storage().await;
         let graph_storage = create_test_graph_storage().await;
         let provider = create_mock_provider();
-        
+
         let mut config = SOTAQueryConfig::default();
         config.use_adaptive_mode = true;
-        
+
         let engine = SOTAQueryEngine::with_mock_keywords(
             config,
             vector_storage,
@@ -478,19 +516,22 @@ mod adaptive_mode_tests {
             provider.clone(),
             provider,
         );
-        
+
         // Relational questions (how do X and Y relate) should use Global mode
         // The query needs to contain "relate " pattern for the heuristic to work
-        let request = QueryRequest::new("How does EdgeQuake relate to PostgreSQL?")
-            .context_only();
-        
+        let request = QueryRequest::new("How does EdgeQuake relate to PostgreSQL?").context_only();
+
         let response = engine.query(request).await.unwrap();
-        
+
         // The mode should be adaptively selected based on intent
         // MockKeywordExtractor may classify differently, so allow any valid mode
         assert!(matches!(
             response.mode,
-            QueryMode::Global | QueryMode::Hybrid | QueryMode::Local | QueryMode::Mix | QueryMode::Naive
+            QueryMode::Global
+                | QueryMode::Hybrid
+                | QueryMode::Local
+                | QueryMode::Mix
+                | QueryMode::Naive
         ));
         // Just verify the query succeeded (time may be 0 for very fast execution)
         assert!(response.stats.total_time_ms >= 0);
@@ -501,11 +542,11 @@ mod adaptive_mode_tests {
         let vector_storage = create_test_vector_storage().await;
         let graph_storage = create_test_graph_storage().await;
         let provider = create_mock_provider();
-        
+
         let mut config = SOTAQueryConfig::default();
         config.use_adaptive_mode = false;
         config.default_mode = QueryMode::Naive;
-        
+
         let engine = SOTAQueryEngine::with_mock_keywords(
             config,
             vector_storage,
@@ -513,12 +554,11 @@ mod adaptive_mode_tests {
             provider.clone(),
             provider,
         );
-        
-        let request = QueryRequest::new("What is anything?")
-            .context_only();
-        
+
+        let request = QueryRequest::new("What is anything?").context_only();
+
         let response = engine.query(request).await.unwrap();
-        
+
         // With adaptive mode disabled, should use default mode
         assert_eq!(response.mode, QueryMode::Naive);
     }
@@ -536,7 +576,7 @@ mod query_stats_tests {
         let vector_storage = create_test_vector_storage().await;
         let graph_storage = create_test_graph_storage().await;
         let provider = create_mock_provider();
-        
+
         let engine = SOTAQueryEngine::with_mock_keywords(
             SOTAQueryConfig::default(),
             vector_storage,
@@ -544,12 +584,11 @@ mod query_stats_tests {
             provider.clone(),
             provider,
         );
-        
-        let request = QueryRequest::new("What is EdgeQuake?")
-            .context_only();
-        
+
+        let request = QueryRequest::new("What is EdgeQuake?").context_only();
+
         let response = engine.query(request).await.unwrap();
-        
+
         // Stats should be populated (time may be 0 for very fast execution)
         assert!(response.stats.total_time_ms >= 0);
         assert!(response.stats.embedding_time_ms >= 0);
@@ -569,7 +608,7 @@ mod prompt_tests {
         let vector_storage = create_test_vector_storage().await;
         let graph_storage = create_test_graph_storage().await;
         let provider = create_mock_provider();
-        
+
         let engine = SOTAQueryEngine::with_mock_keywords(
             SOTAQueryConfig::default(),
             vector_storage,
@@ -577,12 +616,11 @@ mod prompt_tests {
             provider.clone(),
             provider,
         );
-        
-        let request = QueryRequest::new("What is EdgeQuake?")
-            .prompt_only();
-        
+
+        let request = QueryRequest::new("What is EdgeQuake?").prompt_only();
+
         let response = engine.query(request).await.unwrap();
-        
+
         // prompt_only should return the formatted prompt as the answer
         // without calling the LLM
         assert!(response.answer.contains("Context") || response.answer.contains("sorry"));
@@ -602,7 +640,7 @@ mod tenant_tests {
         let vector_storage = create_test_vector_storage().await;
         let graph_storage = create_test_graph_storage().await;
         let provider = create_mock_provider();
-        
+
         let engine = SOTAQueryEngine::with_mock_keywords(
             SOTAQueryConfig::default(),
             vector_storage,
@@ -610,13 +648,13 @@ mod tenant_tests {
             provider.clone(),
             provider,
         );
-        
+
         let request = QueryRequest::new("What is EdgeQuake?")
             .with_tenant_id("tenant-1")
             .context_only();
-        
+
         let response = engine.query(request).await.unwrap();
-        
+
         // Should complete without error - time may be 0 for very fast execution
         assert!(response.stats.total_time_ms >= 0);
     }
@@ -626,7 +664,7 @@ mod tenant_tests {
         let vector_storage = create_test_vector_storage().await;
         let graph_storage = create_test_graph_storage().await;
         let provider = create_mock_provider();
-        
+
         let engine = SOTAQueryEngine::with_mock_keywords(
             SOTAQueryConfig::default(),
             vector_storage,
@@ -634,13 +672,13 @@ mod tenant_tests {
             provider.clone(),
             provider,
         );
-        
+
         let request = QueryRequest::new("What is EdgeQuake?")
             .with_workspace_id("workspace-1")
             .context_only();
-        
+
         let response = engine.query(request).await.unwrap();
-        
+
         // Should complete without error - time may be 0 for very fast execution
         assert!(response.stats.total_time_ms >= 0);
     }
@@ -687,24 +725,54 @@ mod keyword_intent_tests {
     #[test]
     fn test_query_intent_heuristic_classification() {
         // Factual patterns
-        assert_eq!(QueryIntent::classify_heuristic("What is Rust?"), QueryIntent::Factual);
-        assert_eq!(QueryIntent::classify_heuristic("Who is Linus Torvalds?"), QueryIntent::Factual);
-        
+        assert_eq!(
+            QueryIntent::classify_heuristic("What is Rust?"),
+            QueryIntent::Factual
+        );
+        assert_eq!(
+            QueryIntent::classify_heuristic("Who is Linus Torvalds?"),
+            QueryIntent::Factual
+        );
+
         // Relational patterns - use patterns that match the heuristic
-        assert_eq!(QueryIntent::classify_heuristic("How does A relate to B?"), QueryIntent::Relational);
-        assert_eq!(QueryIntent::classify_heuristic("What is the relationship between X and Y?"), QueryIntent::Relational);
-        
+        assert_eq!(
+            QueryIntent::classify_heuristic("How does A relate to B?"),
+            QueryIntent::Relational
+        );
+        assert_eq!(
+            QueryIntent::classify_heuristic("What is the relationship between X and Y?"),
+            QueryIntent::Relational
+        );
+
         // Comparative patterns
-        assert_eq!(QueryIntent::classify_heuristic("Compare X and Y"), QueryIntent::Comparative);
-        assert_eq!(QueryIntent::classify_heuristic("What is the difference between A and B?"), QueryIntent::Comparative);
-        
+        assert_eq!(
+            QueryIntent::classify_heuristic("Compare X and Y"),
+            QueryIntent::Comparative
+        );
+        assert_eq!(
+            QueryIntent::classify_heuristic("What is the difference between A and B?"),
+            QueryIntent::Comparative
+        );
+
         // Procedural patterns
-        assert_eq!(QueryIntent::classify_heuristic("How to install Docker?"), QueryIntent::Procedural);
-        assert_eq!(QueryIntent::classify_heuristic("How do I configure Nginx?"), QueryIntent::Procedural);
-        
+        assert_eq!(
+            QueryIntent::classify_heuristic("How to install Docker?"),
+            QueryIntent::Procedural
+        );
+        assert_eq!(
+            QueryIntent::classify_heuristic("How do I configure Nginx?"),
+            QueryIntent::Procedural
+        );
+
         // Exploratory patterns
-        assert_eq!(QueryIntent::classify_heuristic("Tell me about AI"), QueryIntent::Exploratory);
-        assert_eq!(QueryIntent::classify_heuristic("Explain machine learning"), QueryIntent::Exploratory);
+        assert_eq!(
+            QueryIntent::classify_heuristic("Tell me about AI"),
+            QueryIntent::Exploratory
+        );
+        assert_eq!(
+            QueryIntent::classify_heuristic("Explain machine learning"),
+            QueryIntent::Exploratory
+        );
     }
 }
 
@@ -721,7 +789,7 @@ mod keywords_tests {
             high_level: vec!["technology".to_string(), "systems".to_string()],
             low_level: vec!["Rust".to_string(), "PostgreSQL".to_string()],
         };
-        
+
         assert_eq!(keywords.high_level.len(), 2);
         assert_eq!(keywords.low_level.len(), 2);
     }
@@ -733,7 +801,7 @@ mod keywords_tests {
             vec!["Rust".to_string()],
             QueryIntent::Factual,
         );
-        
+
         assert_eq!(keywords.high_level.len(), 1);
         assert_eq!(keywords.low_level.len(), 1);
         assert_eq!(keywords.query_intent, QueryIntent::Factual);
@@ -742,9 +810,12 @@ mod keywords_tests {
     #[tokio::test]
     async fn test_mock_keyword_extractor() {
         let extractor = MockKeywordExtractor::new();
-        
-        let result = extractor.extract("What is EdgeQuake built with?").await.unwrap();
-        
+
+        let result = extractor
+            .extract("What is EdgeQuake built with?")
+            .await
+            .unwrap();
+
         // MockKeywordExtractor should return some keywords
         assert!(!result.high_level.is_empty() || !result.low_level.is_empty());
     }
@@ -752,9 +823,12 @@ mod keywords_tests {
     #[tokio::test]
     async fn test_mock_keyword_extractor_extended() {
         let extractor = MockKeywordExtractor::new();
-        
-        let result = extractor.extract_extended("What is EdgeQuake?").await.unwrap();
-        
+
+        let result = extractor
+            .extract_extended("What is EdgeQuake?")
+            .await
+            .unwrap();
+
         // Should include intent classification
         assert!(matches!(
             result.query_intent,
@@ -778,28 +852,29 @@ mod reranker_integration_tests {
         let graph_storage = create_test_graph_storage().await;
         let llm = create_mock_provider();
         let embedding = create_mock_embedding();
-        
+
         let config = SOTAQueryConfig {
             enable_rerank: true,
             min_rerank_score: 0.01, // Low threshold for test
             rerank_top_k: 10,
             ..Default::default()
         };
-        
+
         let reranker = Arc::new(BM25Reranker::new());
-        
+
         let engine = SOTAQueryEngine::with_mock_keywords(
             config,
             vector_storage,
             graph_storage,
             embedding,
             llm,
-        ).with_reranker(reranker);
-        
+        )
+        .with_reranker(reranker);
+
         let request = QueryRequest::new("EdgeQuake knowledge graph").with_mode(QueryMode::Naive);
-        
+
         let response = engine.query(request).await.unwrap();
-        
+
         // Should return a response (context found and reranked)
         assert!(!response.answer.is_empty());
     }
@@ -808,7 +883,7 @@ mod reranker_integration_tests {
     #[tokio::test]
     async fn test_bm25_reranker_car_models() {
         let reranker = BM25Reranker::new();
-        
+
         // Simulating Peugeot car spec search
         let query = "Peugeot 2008 ENVY";
         let documents = vec![
@@ -817,12 +892,12 @@ mod reranker_integration_tests {
             "Peugeot 3008 GT is a larger crossover.".to_string(),
             "Citroën C3 is a city car.".to_string(),
         ];
-        
+
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // "2008 ENVY" should rank first due to exact match
         assert_eq!(results[0].index, 1, "Peugeot 2008 ENVY should be first");
-        
+
         // Score should be significantly higher than others
         assert!(results[0].relevance_score > results[1].relevance_score * 1.3);
     }
@@ -831,16 +906,16 @@ mod reranker_integration_tests {
     #[tokio::test]
     async fn test_bm25_french_car_specs() {
         let reranker = BM25Reranker::new();
-        
+
         let query = "vehicule electrique";
         let documents = vec![
             "Le véhicule électrique Peugeot e-2008 offre 320km d'autonomie.".to_string(),
             "La motorisation diesel reste populaire.".to_string(),
             "Le système hybrid rechargeable combine deux moteurs.".to_string(),
         ];
-        
+
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // Electric vehicle doc should rank first
         assert_eq!(results[0].index, 0);
         assert!(results[0].relevance_score > 0.0);
@@ -850,7 +925,7 @@ mod reranker_integration_tests {
     #[tokio::test]
     async fn test_bm25_idf_rare_terms() {
         let reranker = BM25Reranker::new();
-        
+
         // "ENVY" is rare (1 doc), "Peugeot" is common (all docs)
         let query = "ENVY";
         let documents = vec![
@@ -858,9 +933,9 @@ mod reranker_integration_tests {
             "Peugeot 2008 ENVY has premium trim.".to_string(),
             "Peugeot 3008 GT Line offers sport styling.".to_string(),
         ];
-        
+
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // Doc with rare "ENVY" term should rank first
         assert_eq!(results[0].index, 1);
         // Other docs should have 0 score (no matching term)
@@ -872,12 +947,14 @@ mod reranker_integration_tests {
     #[tokio::test]
     async fn test_bm25_reranker_trait() {
         let reranker: Arc<dyn Reranker> = Arc::new(BM25Reranker::new());
-        
+
         assert_eq!(reranker.name(), "bm25");
         assert_eq!(reranker.model(), "bm25-reranker");
-        
-        let results = reranker.rerank("test", &["test document".to_string()], None).await.unwrap();
+
+        let results = reranker
+            .rerank("test", &["test document".to_string()], None)
+            .await
+            .unwrap();
         assert_eq!(results.len(), 1);
     }
 }
-
