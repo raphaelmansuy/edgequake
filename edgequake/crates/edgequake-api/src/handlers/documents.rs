@@ -381,11 +381,41 @@ pub async fn upload_document(
                     "source_ids".to_string(),
                     serde_json::json!(vec![&document_id]),
                 );
+                // CRITICAL: Store source_chunk_ids for Local/Global query mode chunk retrieval
+                properties.insert(
+                    "source_chunk_ids".to_string(),
+                    serde_json::json!(&entity.source_chunk_ids),
+                );
 
                 state
                     .graph_storage
                     .upsert_node(&entity.name, properties)
                     .await?;
+
+                // CRITICAL: Also store entity embedding in vector storage for query_local retrieval
+                if let Some(embedding) = &entity.embedding {
+                    let mut metadata = serde_json::json!({
+                        "type": "entity",
+                        "entity_name": entity.name,
+                        "entity_type": entity.entity_type,
+                        "description": entity.description,
+                        "document_id": document_id,
+                        "source_chunk_ids": entity.source_chunk_ids,
+                    });
+                    if let Some(ref tid) = tenant_id_for_storage {
+                        metadata["tenant_id"] = serde_json::json!(tid);
+                    }
+                    metadata["workspace_id"] = serde_json::json!(&workspace_id_for_storage);
+                    
+                    let entity_id = format!("entity:{}", entity.name);
+                    if let Err(e) = state
+                        .vector_storage
+                        .upsert(&[(entity_id.clone(), embedding.clone(), metadata)])
+                        .await
+                    {
+                        tracing::error!(entity_id = %entity_id, error = %e, "Failed to store entity embedding");
+                    }
+                }
             }
 
             for relationship in &extraction.relationships {
@@ -407,6 +437,13 @@ pub async fn upload_document(
                     "source_ids".to_string(),
                     serde_json::json!(vec![&document_id]),
                 );
+                // CRITICAL: Store source_chunk_id for relationship chunk linkage
+                if let Some(ref chunk_id) = relationship.source_chunk_id {
+                    properties.insert(
+                        "source_chunk_ids".to_string(),
+                        serde_json::json!(vec![chunk_id]),
+                    );
+                }
 
                 state
                     .graph_storage
@@ -2023,7 +2060,12 @@ pub async fn upload_file(
             "GRAPH STORAGE: Extraction content"
         );
         for entity in &extraction.entities {
-            tracing::info!(entity_name = %entity.name, entity_type = %entity.entity_type, "GRAPH STORAGE: Storing entity");
+            tracing::info!(
+                entity_name = %entity.name,
+                entity_type = %entity.entity_type,
+                source_chunk_ids = ?entity.source_chunk_ids,
+                "GRAPH STORAGE: Storing entity with chunk linkage"
+            );
             let mut properties = std::collections::HashMap::new();
             properties.insert(
                 "entity_type".to_string(),
@@ -2040,6 +2082,11 @@ pub async fn upload_file(
             properties.insert(
                 "source_ids".to_string(),
                 serde_json::json!(vec![&document_id]),
+            );
+            // CRITICAL: Store source_chunk_ids for Local/Global query mode chunk retrieval
+            properties.insert(
+                "source_chunk_ids".to_string(),
+                serde_json::json!(&entity.source_chunk_ids),
             );
             // Add tenant scoping
             if let Some(ref tid) = tenant_id_for_storage {
@@ -2060,6 +2107,40 @@ pub async fn upload_file(
                 }
                 Err(e) => {
                     tracing::error!(entity_name = %entity.name, error = %e, "GRAPH STORAGE: Failed to store entity")
+                }
+            }
+            
+            // CRITICAL: Also store entity embedding in vector storage for query_local retrieval
+            tracing::info!(
+                entity_name = %entity.name,
+                has_embedding = entity.embedding.is_some(),
+                embedding_dim = entity.embedding.as_ref().map(|e| e.len()).unwrap_or(0),
+                "Checking entity embedding for storage"
+            );
+            if let Some(embedding) = &entity.embedding {
+                let mut metadata = serde_json::json!({
+                    "type": "entity",
+                    "entity_name": entity.name,
+                    "entity_type": entity.entity_type,
+                    "description": entity.description,
+                    "document_id": document_id,
+                    "source_chunk_ids": entity.source_chunk_ids,
+                });
+                if let Some(ref tid) = tenant_id_for_storage {
+                    metadata["tenant_id"] = serde_json::json!(tid);
+                }
+                metadata["workspace_id"] = serde_json::json!(&workspace_id_for_storage);
+                
+                // Use entity name as vector ID for dedup
+                let entity_id = format!("entity:{}", entity.name);
+                if let Err(e) = state
+                    .vector_storage
+                    .upsert(&[(entity_id.clone(), embedding.clone(), metadata)])
+                    .await
+                {
+                    tracing::error!(entity_id = %entity_id, error = %e, "VECTOR STORAGE: Failed to store entity embedding");
+                } else {
+                    tracing::info!(entity_id = %entity_id, "VECTOR STORAGE: Entity embedding stored OK");
                 }
             }
         }
@@ -2083,6 +2164,13 @@ pub async fn upload_file(
                 "source_ids".to_string(),
                 serde_json::json!(vec![&document_id]),
             );
+            // CRITICAL: Store source_chunk_id for relationship chunk linkage
+            if let Some(ref chunk_id) = relationship.source_chunk_id {
+                properties.insert(
+                    "source_chunk_ids".to_string(),
+                    serde_json::json!(vec![chunk_id]),
+                );
+            }
             // Add tenant scoping
             if let Some(ref tid) = tenant_id_for_storage {
                 properties.insert("tenant_id".to_string(), serde_json::json!(tid));

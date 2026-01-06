@@ -859,7 +859,7 @@ impl SOTAQueryEngine {
             })
             .take(self.config.max_entities)
             .collect();
-
+        
         if entity_ids.is_empty() {
             // Fallback to popular entities
             return self.fallback_to_popular(tenant_id, workspace_id).await;
@@ -988,6 +988,12 @@ impl SOTAQueryEngine {
                 chunk_ids.insert(chunk_id.clone());
             }
         }
+
+        tracing::info!(
+            total_chunk_ids = chunk_ids.len(),
+            entity_count = context.entities.len(),
+            "Local mode chunk collection"
+        );
 
         // Retrieve chunks from vector storage if any chunk IDs were collected
         if !chunk_ids.is_empty() {
