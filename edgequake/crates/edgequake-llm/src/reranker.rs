@@ -907,6 +907,7 @@ impl BM25Reranker {
     /// Where:
     /// - N = total number of documents
     /// - n(q) = number of documents containing term q
+    #[allow(dead_code)] // Keep for backward compatibility and testing
     fn compute_idf(term: &str, doc_terms_list: &[Vec<String>]) -> f64 {
         let n = doc_terms_list.len() as f64;
         let containing_docs = doc_terms_list
@@ -914,7 +915,39 @@ impl BM25Reranker {
             .filter(|terms| terms.contains(&term.to_string()))
             .count() as f64;
 
-        ((n - containing_docs + 0.5) / (containing_docs + 0.5) + 1.0).ln()
+        Self::compute_idf_from_df(n, containing_docs)
+    }
+
+    /// Compute IDF from pre-computed document frequency.
+    ///
+    /// WHY: O(1) computation instead of O(n) scan per term.
+    /// Used with compute_document_frequencies() for batch processing.
+    #[inline]
+    fn compute_idf_from_df(n: f64, df: f64) -> f64 {
+        ((n - df + 0.5) / (df + 0.5) + 1.0).ln()
+    }
+
+    /// Build document frequency map for all terms in corpus.
+    ///
+    /// WHY: Pre-computing DF allows O(1) IDF lookups instead of O(n) per term.
+    /// For k query terms × n documents, this reduces complexity from O(k×n) to O(n + k).
+    ///
+    /// Returns: HashMap<term, count of documents containing term>
+    fn compute_document_frequencies(doc_terms_list: &[Vec<String>]) -> HashMap<String, usize> {
+        use std::collections::HashSet;
+
+        let mut df_map: HashMap<String, usize> = HashMap::new();
+
+        for doc_terms in doc_terms_list {
+            // WHY: Use HashSet to count each term only once per document.
+            // This handles documents with repeated terms correctly.
+            let unique_terms: HashSet<&String> = doc_terms.iter().collect();
+            for term in unique_terms {
+                *df_map.entry(term.clone()).or_insert(0) += 1;
+            }
+        }
+
+        df_map
     }
 
     /// Compute BM25/BM25+ score for a single document.
@@ -1020,10 +1053,17 @@ impl Reranker for BM25Reranker {
             / doc_terms_list.len().max(1) as f64;
         let avgdl = avgdl.max(1.0); // Avoid division by zero
 
-        // Pre-compute IDF for all query terms
+        // WHY: Pre-compute document frequency (DF) map for O(1) IDF lookups.
+        // This changes IDF computation from O(n×m) to O(1) per term.
+        // For a corpus of 1000 docs with 50 terms each, this is ~50x faster.
+        let df_map = Self::compute_document_frequencies(&doc_terms_list);
+        let n = doc_terms_list.len() as f64;
+
+        // Pre-compute IDF for all query terms using DF map
         let mut idf_cache = std::collections::HashMap::new();
         for term in &query_terms {
-            let idf = Self::compute_idf(term, &doc_terms_list);
+            let df = df_map.get(term).copied().unwrap_or(0) as f64;
+            let idf = Self::compute_idf_from_df(n, df);
             idf_cache.insert(term.clone(), idf);
         }
 
@@ -2237,5 +2277,80 @@ mod tests {
         let tokens = reranker.tokenize_with_config("parlons français facilement");
         // French stemmer should stem these
         assert!(!tokens.is_empty());
+    }
+
+    // =========================================================================
+    // IDF Optimization Tests (OODA Loop 4)
+    // =========================================================================
+
+    #[test]
+    fn test_document_frequency_computation() {
+        let docs = vec![
+            vec!["the".to_string(), "quick".to_string(), "brown".to_string()],
+            vec!["the".to_string(), "lazy".to_string(), "dog".to_string()],
+            vec!["quick".to_string(), "fox".to_string()],
+        ];
+
+        let df_map = BM25Reranker::compute_document_frequencies(&docs);
+
+        assert_eq!(df_map.get("the"), Some(&2)); // appears in 2 docs
+        assert_eq!(df_map.get("quick"), Some(&2)); // appears in 2 docs
+        assert_eq!(df_map.get("brown"), Some(&1)); // appears in 1 doc
+        assert_eq!(df_map.get("fox"), Some(&1)); // appears in 1 doc
+        assert_eq!(df_map.get("missing"), None); // doesn't exist
+    }
+
+    #[test]
+    fn test_idf_from_df_equivalence() {
+        // Verify compute_idf_from_df produces same result as compute_idf
+        let docs = vec![
+            vec!["apple".to_string(), "banana".to_string()],
+            vec!["apple".to_string(), "cherry".to_string()],
+            vec!["banana".to_string(), "date".to_string()],
+        ];
+
+        let n = docs.len() as f64;
+        let df_map = BM25Reranker::compute_document_frequencies(&docs);
+
+        // Test "apple" (appears in 2/3 docs)
+        let idf_old = BM25Reranker::compute_idf("apple", &docs);
+        let idf_new = BM25Reranker::compute_idf_from_df(n, *df_map.get("apple").unwrap() as f64);
+        assert!((idf_old - idf_new).abs() < 1e-10);
+
+        // Test "date" (appears in 1/3 docs)
+        let idf_old = BM25Reranker::compute_idf("date", &docs);
+        let idf_new = BM25Reranker::compute_idf_from_df(n, *df_map.get("date").unwrap() as f64);
+        assert!((idf_old - idf_new).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_repeated_terms_in_document() {
+        // Ensure repeated terms in a single doc count as 1 for DF
+        let docs = vec![
+            vec!["the".to_string(), "the".to_string(), "the".to_string()], // 3x "the"
+            vec!["cat".to_string()],
+        ];
+
+        let df_map = BM25Reranker::compute_document_frequencies(&docs);
+
+        // "the" appears 3 times but only in 1 document
+        assert_eq!(df_map.get("the"), Some(&1));
+        assert_eq!(df_map.get("cat"), Some(&1));
+    }
+
+    #[test]
+    fn test_idf_edge_cases() {
+        // Test IDF for term in all documents (should be low but positive)
+        let idf_all = BM25Reranker::compute_idf_from_df(10.0, 10.0);
+        assert!(idf_all > 0.0); // +1 in formula ensures non-negative
+
+        // Test IDF for term in no documents (should be high)
+        let idf_none = BM25Reranker::compute_idf_from_df(10.0, 0.0);
+        assert!(idf_none > idf_all);
+
+        // Test IDF for term in half the documents
+        let idf_half = BM25Reranker::compute_idf_from_df(10.0, 5.0);
+        assert!(idf_half > idf_all);
+        assert!(idf_half < idf_none);
     }
 }
