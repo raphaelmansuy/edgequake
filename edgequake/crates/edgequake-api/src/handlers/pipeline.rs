@@ -198,4 +198,40 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("cancellation_requested"));
     }
+
+    #[test]
+    fn test_pipeline_message_response_serialization() {
+        let msg = PipelineMessageResponse {
+            timestamp: "2024-01-01T00:00:00Z".to_string(),
+            level: "error".to_string(),
+            message: "Failed to process".to_string(),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"level\":\"error\""));
+        assert!(json.contains("Failed to process"));
+    }
+
+    #[test]
+    fn test_pipeline_status_idle_state() {
+        let response = EnhancedPipelineStatusResponse {
+            is_busy: false,
+            job_name: None,
+            job_start: None,
+            total_documents: 0,
+            processed_documents: 0,
+            current_batch: 0,
+            total_batches: 0,
+            latest_message: None,
+            history_messages: vec![],
+            cancellation_requested: false,
+            pending_tasks: 0,
+            processing_tasks: 0,
+            completed_tasks: 0,
+            failed_tasks: 0,
+        };
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"is_busy\":false"));
+        // Optional fields should be skipped when None
+        assert!(!json.contains("job_name"));
+    }
 }
