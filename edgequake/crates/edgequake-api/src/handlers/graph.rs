@@ -6,100 +6,18 @@ use axum::{
     Json,
 };
 use futures::stream::StreamExt;
-use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, warn};
-use utoipa::ToSchema;
 
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 
-/// Graph node response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct GraphNodeResponse {
-    /// Node ID.
-    pub id: String,
-
-    /// Node label/name.
-    pub label: String,
-
-    /// Node type.
-    pub node_type: String,
-
-    /// Node description.
-    pub description: String,
-
-    /// Number of connections.
-    pub degree: usize,
-
-    /// Additional properties.
-    pub properties: serde_json::Value,
-}
-
-/// Graph edge response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct GraphEdgeResponse {
-    /// Source node ID.
-    pub source: String,
-
-    /// Target node ID.
-    pub target: String,
-
-    /// Edge type.
-    pub edge_type: String,
-
-    /// Edge weight.
-    pub weight: f32,
-
-    /// Additional properties.
-    pub properties: serde_json::Value,
-}
-
-/// Knowledge graph response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct KnowledgeGraphResponse {
-    /// Nodes in the graph.
-    pub nodes: Vec<GraphNodeResponse>,
-
-    /// Edges in the graph.
-    pub edges: Vec<GraphEdgeResponse>,
-
-    /// Whether the graph was truncated.
-    pub is_truncated: bool,
-
-    /// Total node count in storage.
-    pub total_nodes: usize,
-
-    /// Total edge count in storage.
-    pub total_edges: usize,
-}
-
-/// Graph query parameters.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct GraphQueryParams {
-    /// Starting node ID.
-    pub start_node: Option<String>,
-
-    /// Maximum traversal depth.
-    #[serde(default = "default_depth")]
-    pub depth: usize,
-
-    /// Maximum nodes to return.
-    #[serde(default = "default_max_nodes")]
-    pub max_nodes: usize,
-}
-
-fn default_depth() -> usize {
-    2
-}
-
-fn default_max_nodes() -> usize {
-    100
-}
+// Re-export DTOs from graph_types module
+pub use crate::handlers::graph_types::*;
 
 /// Get knowledge graph.
 #[utoipa::path(
@@ -434,28 +352,6 @@ pub async fn get_node(
     }))
 }
 
-/// Search labels query.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct SearchLabelsQuery {
-    /// Search query.
-    pub q: String,
-
-    /// Maximum results.
-    #[serde(default = "default_limit")]
-    pub limit: usize,
-}
-
-fn default_limit() -> usize {
-    20
-}
-
-/// Search labels response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct SearchLabelsResponse {
-    /// Matching labels.
-    pub labels: Vec<String>,
-}
-
 /// Search for node labels.
 #[utoipa::path(
     get,
@@ -484,52 +380,6 @@ pub async fn search_labels(
 // ============================================
 // GAP-036: Popular Labels / Entities
 // ============================================
-
-/// Query parameters for popular labels.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct PopularLabelsQuery {
-    /// Maximum number of labels to return.
-    #[serde(default = "default_popular_limit")]
-    pub limit: usize,
-
-    /// Minimum degree (connections) to include.
-    #[serde(default)]
-    pub min_degree: Option<usize>,
-
-    /// Filter by entity type.
-    #[serde(default)]
-    pub entity_type: Option<String>,
-}
-
-fn default_popular_limit() -> usize {
-    50
-}
-
-/// Popular label with metadata.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct PopularLabel {
-    /// Label/entity name.
-    pub label: String,
-
-    /// Entity type.
-    pub entity_type: String,
-
-    /// Number of connections (degree).
-    pub degree: usize,
-
-    /// Brief description.
-    pub description: String,
-}
-
-/// Response with popular labels.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct PopularLabelsResponse {
-    /// List of popular labels sorted by degree.
-    pub labels: Vec<PopularLabel>,
-
-    /// Total entity count in graph.
-    pub total_entities: usize,
-}
 
 /// Get popular entities/labels sorted by connection count.
 #[utoipa::path(
@@ -599,33 +449,6 @@ pub async fn get_popular_labels(
 // SOTA Batch Operations
 // ============================================
 
-/// Request body for batch degree query.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct BatchDegreeRequest {
-    /// List of node IDs to query.
-    pub node_ids: Vec<String>,
-}
-
-/// Response for a single node degree.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct NodeDegree {
-    /// Node ID.
-    pub node_id: String,
-
-    /// Number of connections.
-    pub degree: usize,
-}
-
-/// Response for batch degree query.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct BatchDegreeResponse {
-    /// Degrees for each requested node.
-    pub degrees: Vec<NodeDegree>,
-
-    /// Number of nodes queried.
-    pub count: usize,
-}
-
 /// Get degrees for multiple nodes in a single optimized query.
 ///
 /// This endpoint uses the optimized `node_degrees_batch()` method which is
@@ -669,85 +492,8 @@ pub async fn get_degrees_batch(
 }
 
 // ============================================================================
-// Graph Streaming Types and Handler
+// Graph Streaming Handler
 // ============================================================================
-
-/// Query parameters for streaming graph endpoint.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct GraphStreamQueryParams {
-    /// Starting node ID for traversal.
-    pub start_node: Option<String>,
-
-    /// Maximum nodes to return.
-    #[serde(default = "default_stream_max_nodes")]
-    pub max_nodes: usize,
-
-    /// Batch size for streaming (how many nodes per chunk).
-    #[serde(default = "default_stream_batch_size")]
-    pub batch_size: usize,
-}
-
-fn default_stream_max_nodes() -> usize {
-    200
-}
-
-fn default_stream_batch_size() -> usize {
-    50
-}
-
-/// Events sent during graph streaming.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-#[serde(tag = "type")]
-pub enum GraphStreamEvent {
-    /// Initial metadata about the graph.
-    #[serde(rename = "metadata")]
-    Metadata {
-        /// Total nodes in graph.
-        total_nodes: usize,
-        /// Total edges in graph.
-        total_edges: usize,
-        /// Nodes to be streamed.
-        nodes_to_stream: usize,
-        /// Edges to be streamed (estimated).
-        edges_to_stream: usize,
-    },
-
-    /// Batch of nodes.
-    #[serde(rename = "nodes")]
-    Nodes {
-        /// Current batch number.
-        batch: usize,
-        /// Total batches expected.
-        total_batches: usize,
-        /// Nodes in this batch.
-        nodes: Vec<GraphNodeResponse>,
-    },
-
-    /// Batch of edges.
-    #[serde(rename = "edges")]
-    Edges {
-        /// Edges in this batch.
-        edges: Vec<GraphEdgeResponse>,
-    },
-
-    /// Stream complete.
-    #[serde(rename = "done")]
-    Done {
-        /// Total nodes streamed.
-        nodes_count: usize,
-        /// Total edges streamed.
-        edges_count: usize,
-        /// Duration in milliseconds.
-        duration_ms: u64,
-    },
-
-    /// Error during streaming.
-    #[serde(rename = "error")]
-    Error {
-        /// Error message.
-        message: String,
-    },
-}
 
 /// Stream graph data progressively via SSE.
 ///
