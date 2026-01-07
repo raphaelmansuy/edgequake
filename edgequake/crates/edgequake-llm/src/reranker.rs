@@ -671,6 +671,11 @@ pub struct BM25Reranker {
     /// contain all query terms. Adding delta ensures a minimum score contribution.
     /// Set to 0.0 for standard BM25, 1.0 for BM25+.
     delta: f64,
+    /// Phrase boost parameter for adjacent term matching.
+    /// WHY: Standard BM25 treats "knowledge graph" and "graph knowledge" the same.
+    /// Phrase boosting adds a bonus when query terms appear in order.
+    /// Set to 0.0 to disable, 0.5-1.0 for moderate boost.
+    phrase_boost: f64,
     /// Model name for trait compliance
     model: String,
     /// Tokenizer configuration for enhanced text processing.
@@ -757,6 +762,7 @@ impl BM25Reranker {
             k1: 1.5,
             b: 0.75,
             delta: 0.0, // Standard BM25, not BM25+
+            phrase_boost: 0.0, // No phrase boosting by default
             model: "bm25-reranker".to_string(),
             tokenizer_config: TokenizerConfig::minimal(), // Backward compatible
         }
@@ -771,6 +777,7 @@ impl BM25Reranker {
             k1: 1.5,
             b: 0.75,
             delta: 0.0,
+            phrase_boost: 0.0,
             model: "bm25-enhanced-reranker".to_string(),
             tokenizer_config: TokenizerConfig::enhanced(),
         }
@@ -786,6 +793,7 @@ impl BM25Reranker {
             k1: 1.5,
             b: 0.75,
             delta: 1.0, // BM25+ extension
+            phrase_boost: 0.0,
             model: "bm25-plus-reranker".to_string(),
             tokenizer_config: TokenizerConfig::minimal(),
         }
@@ -806,6 +814,7 @@ impl BM25Reranker {
             k1: 1.2,
             b: 0.3,
             delta: 0.0,
+            phrase_boost: 0.0,
             model: "bm25-short-docs".to_string(),
             tokenizer_config: TokenizerConfig::enhanced(),
         }
@@ -822,6 +831,7 @@ impl BM25Reranker {
             k1: 1.5,
             b: 0.75,
             delta: 1.0,
+            phrase_boost: 0.0,
             model: "bm25-long-docs".to_string(),
             tokenizer_config: TokenizerConfig::enhanced(),
         }
@@ -838,6 +848,7 @@ impl BM25Reranker {
             k1: 2.0,
             b: 0.5,
             delta: 0.0,
+            phrase_boost: 0.0,
             model: "bm25-technical".to_string(),
             tokenizer_config: TokenizerConfig::minimal(), // No stemming for exact matches
         }
@@ -855,6 +866,7 @@ impl BM25Reranker {
             k1: 1.5,
             b: 0.75,
             delta: 0.5,
+            phrase_boost: 0.3, // Moderate phrase boosting for RAG queries
             model: "bm25-rag".to_string(),
             tokenizer_config: TokenizerConfig::enhanced(),
         }
@@ -870,6 +882,7 @@ impl BM25Reranker {
             k1: k1.clamp(0.0, 3.0),
             b: b.clamp(0.0, 1.0),
             delta: 0.0,
+            phrase_boost: 0.0,
             model: "bm25-reranker".to_string(),
             tokenizer_config: TokenizerConfig::minimal(),
         }
@@ -886,6 +899,7 @@ impl BM25Reranker {
             k1: k1.clamp(0.0, 3.0),
             b: b.clamp(0.0, 1.0),
             delta: delta.max(0.0),
+            phrase_boost: 0.0,
             model: if delta > 0.0 {
                 "bm25-plus-reranker".to_string()
             } else {
@@ -901,6 +915,35 @@ impl BM25Reranker {
     pub fn with_tokenizer_config(mut self, config: TokenizerConfig) -> Self {
         self.tokenizer_config = config;
         self
+    }
+
+    /// Set phrase boost factor.
+    ///
+    /// WHY: Phrase boosting rewards documents where query terms appear in order.
+    /// This helps distinguish "knowledge graph" from "graph of knowledge".
+    ///
+    /// # Arguments
+    /// - `boost`: Phrase boost factor [0.0, 2.0]. 0.0 disables, 0.5-1.0 recommended.
+    pub fn with_phrase_boost(mut self, boost: f64) -> Self {
+        self.phrase_boost = boost.clamp(0.0, 2.0);
+        self
+    }
+
+    /// Create a phrase-boosted reranker for semantic queries.
+    ///
+    /// WHY these parameters:
+    /// - Enhanced tokenization for semantic matching
+    /// - phrase_boost=0.5 for moderate phrase preference
+    /// - Standard BM25+ parameters for balanced scoring
+    pub fn for_semantic() -> Self {
+        Self {
+            k1: 1.5,
+            b: 0.75,
+            delta: 0.5,
+            phrase_boost: 0.5,
+            model: "bm25-semantic".to_string(),
+            tokenizer_config: TokenizerConfig::enhanced(),
+        }
     }
 
     /// Check if a word is a stop word.
@@ -1031,6 +1074,45 @@ impl BM25Reranker {
     ///
     /// Formula (BM25+):
     /// `score = Σ IDF(q) × (f(q,D)×(k1+1) / (f(q,D) + k1×(1-b+b×|D|/avgdl)) + delta)`
+    /// Compute phrase match bonus for adjacent query term pairs.
+    ///
+    /// WHY: Standard BM25 treats "knowledge graph" and "graph knowledge" the same.
+    /// This method adds a bonus when consecutive query terms appear adjacent
+    /// in the document, rewarding phrase matches.
+    ///
+    /// # Algorithm
+    /// For each consecutive pair of query terms (a, b):
+    /// - Search for occurrences of "a" followed immediately by "b" in the document
+    /// - Count matches and return normalized bonus
+    ///
+    /// # Complexity
+    /// O(q × d) where q = query length, d = document length
+    fn compute_phrase_bonus(&self, query_terms: &[String], doc_terms: &[String]) -> f64 {
+        if query_terms.len() < 2 || doc_terms.len() < 2 {
+            return 0.0;
+        }
+
+        let mut phrase_matches = 0;
+        let total_pairs = query_terms.len().saturating_sub(1);
+
+        // Check each consecutive query term pair
+        for window in query_terms.windows(2) {
+            let (term_a, term_b) = (&window[0], &window[1]);
+
+            // Search for adjacent occurrences in document
+            for doc_window in doc_terms.windows(2) {
+                if &doc_window[0] == term_a && &doc_window[1] == term_b {
+                    phrase_matches += 1;
+                    break; // Count each phrase pair once per query pair
+                }
+            }
+        }
+
+        // Normalize by number of query pairs to keep bonus in [0, 1] range
+        // WHY: Ensures phrase_boost parameter has consistent effect regardless of query length
+        phrase_matches as f64 / total_pairs.max(1) as f64
+    }
+
     fn compute_bm25_score(
         &self,
         query_terms: &[String],
@@ -1141,10 +1223,22 @@ impl Reranker for BM25Reranker {
             .iter()
             .enumerate()
             .map(|(idx, doc_terms)| {
-                let score = self.compute_bm25_score(&query_terms, doc_terms, avgdl, &idf_cache);
+                let bm25_score =
+                    self.compute_bm25_score(&query_terms, doc_terms, avgdl, &idf_cache);
+
+                // WHY: Phrase boosting adds bonus for documents where query terms
+                // appear in order. This helps distinguish "knowledge graph" from
+                // "graph of knowledge" which standard BM25 would score equally.
+                let phrase_bonus = if self.phrase_boost > 0.0 {
+                    self.compute_phrase_bonus(&query_terms, doc_terms)
+                } else {
+                    0.0
+                };
+
+                let final_score = bm25_score + (self.phrase_boost * phrase_bonus);
                 RerankResult {
                     index: idx,
-                    relevance_score: score,
+                    relevance_score: final_score,
                 }
             })
             .collect();
@@ -1644,6 +1738,131 @@ mod tests {
         assert_eq!(reranker.delta, 0.5); // Mild BM25+ for mixed chunks
         assert_eq!(reranker.model(), "bm25-rag");
         assert!(reranker.tokenizer_config.enable_stemming);
+        assert_eq!(reranker.phrase_boost, 0.3); // RAG has moderate phrase boost
+    }
+
+    // =========== Phrase Boosting Tests (OODA Loop 7) ===========
+
+    #[test]
+    fn test_for_semantic_preset() {
+        let reranker = BM25Reranker::for_semantic();
+        assert_eq!(reranker.k1, 1.5);
+        assert_eq!(reranker.b, 0.75);
+        assert_eq!(reranker.phrase_boost, 0.5);
+        assert_eq!(reranker.model(), "bm25-semantic");
+    }
+
+    #[test]
+    fn test_with_phrase_boost_builder() {
+        let reranker = BM25Reranker::new().with_phrase_boost(0.7);
+        assert_eq!(reranker.phrase_boost, 0.7);
+
+        // Test clamping
+        let clamped = BM25Reranker::new().with_phrase_boost(5.0);
+        assert_eq!(clamped.phrase_boost, 2.0); // Clamped to max
+    }
+
+    #[test]
+    fn test_phrase_bonus_calculation() {
+        let reranker = BM25Reranker::new();
+
+        // Query: "knowledge graph"
+        // Doc: "...knowledge graph extraction..."
+        let query = vec!["knowledge".to_string(), "graph".to_string()];
+        let doc_with_phrase = vec![
+            "some".to_string(),
+            "knowledge".to_string(),
+            "graph".to_string(),
+            "extraction".to_string(),
+        ];
+        let doc_without_phrase = vec![
+            "graph".to_string(),
+            "of".to_string(),
+            "knowledge".to_string(),
+        ];
+
+        let bonus_with = reranker.compute_phrase_bonus(&query, &doc_with_phrase);
+        let bonus_without = reranker.compute_phrase_bonus(&query, &doc_without_phrase);
+
+        assert!(
+            bonus_with > 0.0,
+            "Should have phrase bonus for adjacent terms"
+        );
+        assert_eq!(
+            bonus_without, 0.0,
+            "Should have no bonus for non-adjacent terms"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_phrase_boost_ranking_effect() {
+        // Phrase boost should prefer "knowledge graph" over "graph knowledge"
+        let no_boost = BM25Reranker::new(); // phrase_boost = 0
+        let with_boost = BM25Reranker::for_semantic(); // phrase_boost = 0.5
+
+        let query = "knowledge graph";
+        let documents = vec![
+            "This document discusses knowledge graph extraction.".to_string(),
+            "The graph of knowledge is complex.".to_string(),
+            "Something about graphs and some knowledge.".to_string(),
+        ];
+
+        let results_no_boost = no_boost.rerank(query, &documents, None).await.unwrap();
+        let results_with_boost = with_boost.rerank(query, &documents, None).await.unwrap();
+
+        // Both should have doc 0 or 1 in top position (both contain the terms)
+        // With phrase boost, doc 0 should score higher
+        let phrase_doc_score_boosted = results_with_boost
+            .iter()
+            .find(|r| r.index == 0)
+            .unwrap()
+            .relevance_score;
+        let non_phrase_doc_score_boosted = results_with_boost
+            .iter()
+            .find(|r| r.index == 1)
+            .unwrap()
+            .relevance_score;
+
+        assert!(
+            phrase_doc_score_boosted > non_phrase_doc_score_boosted,
+            "Phrase match should score higher with boost: {} vs {}",
+            phrase_doc_score_boosted,
+            non_phrase_doc_score_boosted
+        );
+
+        // Verify boost has effect
+        let phrase_score_no_boost = results_no_boost
+            .iter()
+            .find(|r| r.index == 0)
+            .unwrap()
+            .relevance_score;
+        assert!(
+            phrase_doc_score_boosted > phrase_score_no_boost,
+            "Boosted score should be higher than non-boosted"
+        );
+    }
+
+    #[test]
+    fn test_phrase_bonus_edge_cases() {
+        let reranker = BM25Reranker::new();
+
+        // Empty query
+        let bonus_empty = reranker.compute_phrase_bonus(&[], &["test".to_string()]);
+        assert_eq!(bonus_empty, 0.0);
+
+        // Single term query (no pairs)
+        let bonus_single = reranker.compute_phrase_bonus(
+            &["test".to_string()],
+            &["test".to_string(), "doc".to_string()],
+        );
+        assert_eq!(bonus_single, 0.0);
+
+        // Empty document
+        let bonus_empty_doc = reranker.compute_phrase_bonus(
+            &["a".to_string(), "b".to_string()],
+            &[],
+        );
+        assert_eq!(bonus_empty_doc, 0.0);
     }
 
     #[tokio::test]
