@@ -928,14 +928,14 @@ impl SOTAQueryEngine {
             .iter()
             .filter(|r| r.score >= self.config.min_score)
             .filter(|r| self.matches_tenant_filter(&r.metadata, &tenant_id, &workspace_id))
-            .filter_map(|r| {
+            .map(|r| {
                 let entity_name = r
                     .metadata
                     .get("entity_name")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| r.id.clone());
-                Some((entity_name, r.score))
+                (entity_name, r.score)
             })
             .collect();
 

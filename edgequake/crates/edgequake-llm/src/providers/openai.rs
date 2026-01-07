@@ -234,7 +234,7 @@ impl LLMProvider for OpenAIProvider {
             completion_tokens: usage.completion_tokens as usize,
             total_tokens: usage.total_tokens as usize,
             model: response.model,
-            finish_reason: choice.finish_reason.clone().map(|r| format!("{:?}", r)),
+            finish_reason: choice.finish_reason.map(|r| format!("{:?}", r)),
             metadata,
         })
     }
@@ -290,6 +290,10 @@ impl EmbeddingProvider for OpenAIProvider {
         "openai"
     }
 
+    /// Returns the embedding model name (not completion model).
+    ///
+    /// Note: `model` field refers to completion, `embedding_model` is for embeddings.
+    #[allow(clippy::misnamed_getters)]
     fn model(&self) -> &str {
         &self.embedding_model
     }

@@ -1,5 +1,7 @@
 //! Authentication types and data models.
 
+use std::str::FromStr;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -9,12 +11,13 @@ use std::collections::HashMap;
 // ============================================================================
 
 /// User role.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
     /// Full system access.
     Admin,
     /// Regular user with read/write access.
+    #[default]
     User,
     /// Read-only access.
     Readonly,
@@ -22,23 +25,13 @@ pub enum Role {
 
 impl Role {
     /// Parse role from string. Defaults to User if not recognized.
-    pub fn from_str(s: &str) -> Self {
-        match s.to_lowercase().as_str() {
-            "admin" => Self::Admin,
-            "user" => Self::User,
-            "readonly" => Self::Readonly,
-            _ => Self::User, // Default to User
-        }
+    pub fn parse(s: &str) -> Self {
+        s.parse().unwrap_or_default()
     }
 
     /// Try to parse role from string, returns None if not recognized.
     pub fn try_from_str(s: &str) -> Option<Self> {
-        match s.to_lowercase().as_str() {
-            "admin" => Some(Self::Admin),
-            "user" => Some(Self::User),
-            "readonly" => Some(Self::Readonly),
-            _ => None,
-        }
+        s.parse().ok()
     }
 
     /// Convert role to string.
@@ -51,9 +44,16 @@ impl Role {
     }
 }
 
-impl Default for Role {
-    fn default() -> Self {
-        Self::User
+impl FromStr for Role {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "admin" => Ok(Self::Admin),
+            "user" => Ok(Self::User),
+            "readonly" => Ok(Self::Readonly),
+            _ => Err(format!("Unknown role: {}", s)),
+        }
     }
 }
 
@@ -422,11 +422,11 @@ mod tests {
 
     #[test]
     fn test_role_from_str() {
-        assert_eq!(Role::from_str("admin"), Role::Admin);
-        assert_eq!(Role::from_str("ADMIN"), Role::Admin);
-        assert_eq!(Role::from_str("user"), Role::User);
-        assert_eq!(Role::from_str("readonly"), Role::Readonly);
-        assert_eq!(Role::from_str("invalid"), Role::User); // Defaults to User
+        assert_eq!(Role::parse("admin"), Role::Admin);
+        assert_eq!(Role::parse("ADMIN"), Role::Admin);
+        assert_eq!(Role::parse("user"), Role::User);
+        assert_eq!(Role::parse("readonly"), Role::Readonly);
+        assert_eq!(Role::parse("invalid"), Role::User); // Defaults to User
     }
 
     #[test]

@@ -199,7 +199,7 @@ pub async fn execute_query(
     let mode = request
         .mode
         .as_ref()
-        .and_then(|m| QueryMode::from_str(m))
+        .and_then(|m| QueryMode::parse(m))
         .unwrap_or(QueryMode::Hybrid);
 
     // Build engine query request with conversation history and tenant context
@@ -425,7 +425,7 @@ pub async fn stream_query(
     let mode = request
         .mode
         .as_ref()
-        .and_then(|m| QueryMode::from_str(m))
+        .and_then(|m| QueryMode::parse(m))
         .unwrap_or(QueryMode::Hybrid);
 
     // Build engine query request with tenant context

@@ -738,7 +738,7 @@ impl QueryEngine {
                     entity.name, entity.entity_type, entity.description
                 ));
             }
-            context_text.push_str("\n");
+            context_text.push('\n');
         }
 
         // Add relationships section
@@ -750,7 +750,7 @@ impl QueryEngine {
                     rel.source, rel.target, rel.description
                 ));
             }
-            context_text.push_str("\n");
+            context_text.push('\n');
         }
 
         // Add chunks section

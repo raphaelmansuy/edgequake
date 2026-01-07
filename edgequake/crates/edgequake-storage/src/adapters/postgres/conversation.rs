@@ -387,8 +387,7 @@ impl PostgresConversationStorage {
             .await
             .map_err(|e| StorageError::Database(format!("Failed to get share_id: {}", e)))?;
 
-            return row
-                .and_then(|(sid,)| Some(sid))
+            return row.map(|(sid,)| sid)
                 .ok_or_else(|| StorageError::NotFound("Conversation not found".to_string()));
         }
 

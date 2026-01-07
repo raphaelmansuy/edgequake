@@ -433,6 +433,8 @@ impl EmbeddingProvider for OllamaProvider {
         "ollama"
     }
 
+    /// Returns the embedding model name (not completion model).
+    #[allow(clippy::misnamed_getters)]
     fn model(&self) -> &str {
         &self.embedding_model
     }

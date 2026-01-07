@@ -1,5 +1,7 @@
 //! Role-Based Access Control (RBAC) service.
 
+use std::str::FromStr;
+
 use crate::error::AuthError;
 use crate::types::Role;
 
@@ -105,50 +107,58 @@ impl Permission {
     }
 
     /// Parse permission from string.
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
+        s.parse().ok()
+    }
+}
+
+impl FromStr for Permission {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "document:read" => Some(Self::DocumentRead),
-            "document:create" => Some(Self::DocumentCreate),
-            "document:update" => Some(Self::DocumentUpdate),
-            "document:delete" => Some(Self::DocumentDelete),
+            "document:read" => Ok(Self::DocumentRead),
+            "document:create" => Ok(Self::DocumentCreate),
+            "document:update" => Ok(Self::DocumentUpdate),
+            "document:delete" => Ok(Self::DocumentDelete),
 
-            "entity:read" => Some(Self::EntityRead),
-            "entity:create" => Some(Self::EntityCreate),
-            "entity:update" => Some(Self::EntityUpdate),
-            "entity:delete" => Some(Self::EntityDelete),
+            "entity:read" => Ok(Self::EntityRead),
+            "entity:create" => Ok(Self::EntityCreate),
+            "entity:update" => Ok(Self::EntityUpdate),
+            "entity:delete" => Ok(Self::EntityDelete),
 
-            "relationship:read" => Some(Self::RelationshipRead),
-            "relationship:create" => Some(Self::RelationshipCreate),
-            "relationship:update" => Some(Self::RelationshipUpdate),
-            "relationship:delete" => Some(Self::RelationshipDelete),
+            "relationship:read" => Ok(Self::RelationshipRead),
+            "relationship:create" => Ok(Self::RelationshipCreate),
+            "relationship:update" => Ok(Self::RelationshipUpdate),
+            "relationship:delete" => Ok(Self::RelationshipDelete),
 
-            "query:execute" => Some(Self::QueryExecute),
-            "query:advanced" => Some(Self::QueryAdvanced),
+            "query:execute" => Ok(Self::QueryExecute),
+            "query:advanced" => Ok(Self::QueryAdvanced),
 
-            "workspace:read" => Some(Self::WorkspaceRead),
-            "workspace:create" => Some(Self::WorkspaceCreate),
-            "workspace:update" => Some(Self::WorkspaceUpdate),
-            "workspace:delete" => Some(Self::WorkspaceDelete),
-            "workspace:manage_members" => Some(Self::WorkspaceManageMembers),
+            "workspace:read" => Ok(Self::WorkspaceRead),
+            "workspace:create" => Ok(Self::WorkspaceCreate),
+            "workspace:update" => Ok(Self::WorkspaceUpdate),
+            "workspace:delete" => Ok(Self::WorkspaceDelete),
+            "workspace:manage_members" => Ok(Self::WorkspaceManageMembers),
 
-            "user:read" => Some(Self::UserRead),
-            "user:create" => Some(Self::UserCreate),
-            "user:update" => Some(Self::UserUpdate),
-            "user:delete" => Some(Self::UserDelete),
+            "user:read" => Ok(Self::UserRead),
+            "user:create" => Ok(Self::UserCreate),
+            "user:update" => Ok(Self::UserUpdate),
+            "user:delete" => Ok(Self::UserDelete),
 
-            "api_key:read" => Some(Self::ApiKeyRead),
-            "api_key:create" => Some(Self::ApiKeyCreate),
-            "api_key:revoke" => Some(Self::ApiKeyRevoke),
+            "api_key:read" => Ok(Self::ApiKeyRead),
+            "api_key:create" => Ok(Self::ApiKeyCreate),
+            "api_key:revoke" => Ok(Self::ApiKeyRevoke),
 
-            "system:admin" => Some(Self::SystemAdmin),
-            "system:metrics" => Some(Self::MetricsRead),
-            "system:audit_log" => Some(Self::AuditLogRead),
+            "system:admin" => Ok(Self::SystemAdmin),
+            "system:metrics" => Ok(Self::MetricsRead),
+            "system:audit_log" => Ok(Self::AuditLogRead),
 
-            "task:read" => Some(Self::TaskRead),
-            "task:create" => Some(Self::TaskCreate),
-            "task:cancel" => Some(Self::TaskCancel),
+            "task:read" => Ok(Self::TaskRead),
+            "task:create" => Ok(Self::TaskCreate),
+            "task:cancel" => Ok(Self::TaskCancel),
 
-            _ => None,
+            _ => Err(format!("Unknown permission: {}", s)),
         }
     }
 }
@@ -478,9 +488,9 @@ mod tests {
         let permission = Permission::DocumentRead;
         assert_eq!(permission.as_str(), "document:read");
         assert_eq!(
-            Permission::from_str("document:read"),
+            Permission::parse("document:read"),
             Some(Permission::DocumentRead)
         );
-        assert_eq!(Permission::from_str("invalid"), None);
+        assert_eq!(Permission::parse("invalid"), None);
     }
 }

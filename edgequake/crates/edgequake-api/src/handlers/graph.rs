@@ -935,7 +935,7 @@ pub async fn stream_graph(
 
         let nodes_to_stream = nodes_with_degrees.len();
         let total_batches =
-            (nodes_to_stream + params_clone.batch_size - 1) / params_clone.batch_size;
+            nodes_to_stream.div_ceil(params_clone.batch_size);
 
         // Send metadata event
         if tx

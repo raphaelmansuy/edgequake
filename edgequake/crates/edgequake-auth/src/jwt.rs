@@ -115,7 +115,7 @@ impl Claims {
 
     /// Get role from claims.
     pub fn role(&self) -> Role {
-        Role::from_str(&self.role)
+        Role::parse(&self.role)
     }
 
     /// Check if token is expired.

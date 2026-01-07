@@ -652,6 +652,7 @@ pub struct DocumentSummary {
         (status = 200, description = "Documents retrieved", body = ListDocumentsResponse)
     )
 )]
+#[allow(clippy::field_reassign_with_default)]
 pub async fn list_documents(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
@@ -728,6 +729,10 @@ pub async fn list_documents(
             if let Some(id) = obj.get("id").and_then(|v| v.as_str()) {
                 let title_val = obj.get("title");
                 debug!(doc_id = %id, title = ?title_val, "Extracted ID and title from metadata");
+                
+                // WHY: We build DocMetadata incrementally because fields are extracted
+                // conditionally from JSON, and some fields depend on others (e.g., file_name
+                // is derived from title). Struct initializer syntax doesn't work well here.
                 let mut meta = DocMetadata::default();
 
                 // Get title from metadata
@@ -1149,7 +1154,7 @@ pub async fn get_document(
     // Fetch document metadata
     let metadata_key = format!("{}-metadata", document_id);
     debug!(metadata_key = %metadata_key, "Looking up metadata key");
-    let metadata_values = state.kv_storage.get_by_ids(&[metadata_key.clone()]).await?;
+    let metadata_values = state.kv_storage.get_by_ids(std::slice::from_ref(&metadata_key)).await?;
     debug!(
         metadata_count = metadata_values.len(),
         "Metadata values retrieved"

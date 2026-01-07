@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Main configuration for EdgeQuake.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
     /// Storage configuration
     pub storage: StorageConfig,
@@ -17,18 +17,6 @@ pub struct Config {
     pub query: QueryConfig,
     /// API server configuration
     pub api: ApiConfig,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            storage: StorageConfig::default(),
-            llm: LlmConfig::default(),
-            pipeline: PipelineConfig::default(),
-            query: QueryConfig::default(),
-            api: ApiConfig::default(),
-        }
-    }
 }
 
 /// Storage backend configuration.
@@ -194,17 +182,27 @@ pub enum QueryMode {
     Bypass,
 }
 
-impl QueryMode {
-    /// Parse query mode from string.
-    pub fn from_str(s: &str) -> Option<Self> {
+use std::str::FromStr;
+
+impl FromStr for QueryMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "naive" => Some(Self::Naive),
-            "local" => Some(Self::Local),
-            "global" => Some(Self::Global),
-            "hybrid" => Some(Self::Hybrid),
-            "bypass" => Some(Self::Bypass),
-            _ => None,
+            "naive" => Ok(Self::Naive),
+            "local" => Ok(Self::Local),
+            "global" => Ok(Self::Global),
+            "hybrid" => Ok(Self::Hybrid),
+            "bypass" => Ok(Self::Bypass),
+            other => Err(format!("Unknown query mode: {}", other)),
         }
+    }
+}
+
+impl QueryMode {
+    /// Parse query mode from string (returns Option for backward compatibility).
+    pub fn parse(s: &str) -> Option<Self> {
+        Self::from_str(s).ok()
     }
 }
 
@@ -309,9 +307,9 @@ mod tests {
 
     #[test]
     fn test_query_mode_parsing() {
-        assert_eq!(QueryMode::from_str("hybrid"), Some(QueryMode::Hybrid));
-        assert_eq!(QueryMode::from_str("NAIVE"), Some(QueryMode::Naive));
-        assert_eq!(QueryMode::from_str("invalid"), None);
+        assert_eq!(QueryMode::parse("hybrid"), Some(QueryMode::Hybrid));
+        assert_eq!(QueryMode::parse("NAIVE"), Some(QueryMode::Naive));
+        assert_eq!(QueryMode::parse("invalid"), None);
     }
 
     #[test]

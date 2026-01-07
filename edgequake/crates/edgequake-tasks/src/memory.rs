@@ -87,10 +87,10 @@ impl TaskStorage for MemoryTaskStorage {
             .filter(|task| {
                 let status_match = filter
                     .status
-                    .map_or(true, |status| task.status == status);
+                    .is_none_or(|status| task.status == status);
                 let type_match = filter
                     .task_type
-                    .map_or(true, |task_type| task.task_type == task_type);
+                    .is_none_or(|task_type| task.task_type == task_type);
                 status_match && type_match
             })
             .cloned()

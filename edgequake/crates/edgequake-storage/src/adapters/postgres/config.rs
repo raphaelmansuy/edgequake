@@ -128,12 +128,14 @@ impl PostgresConfig {
 /// SSL connection mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum SslMode {
     /// Disable SSL.
     Disable,
     /// Allow SSL if available.
     Allow,
     /// Prefer SSL.
+    #[default]
     Prefer,
     /// Require SSL.
     Require,
@@ -143,29 +145,21 @@ pub enum SslMode {
     VerifyFull,
 }
 
-impl Default for SslMode {
-    fn default() -> Self {
-        Self::Prefer
-    }
-}
 
 /// Vector index type for pgvector.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum VectorIndexType {
     /// No index (brute force).
     None,
     /// IVFFlat index.
     IVFFlat,
     /// HNSW index.
+    #[default]
     HNSW,
 }
 
-impl Default for VectorIndexType {
-    fn default() -> Self {
-        Self::HNSW
-    }
-}
 
 #[cfg(test)]
 mod tests {

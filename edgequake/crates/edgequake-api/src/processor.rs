@@ -161,10 +161,11 @@ impl DocumentTaskProcessor {
                 }
                 metadata["workspace_id"] = json!(&workspace_id_meta);
 
-                if let Ok(_) = self
+                if self
                     .vector_storage
                     .upsert(&[(chunk.id.clone(), embedding.clone(), metadata)])
                     .await
+                    .is_ok()
                 {
                     chunk_embeddings_stored += 1;
                 }
