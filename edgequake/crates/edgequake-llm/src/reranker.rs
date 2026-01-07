@@ -3005,4 +3005,114 @@ mod tests {
         let idf_zero = BM25Reranker::compute_idf_from_df(0.0, 0.0);
         assert!(idf_zero.is_finite());
     }
+
+    // =========== Unicode Edge Case Tests (OODA Loop 9) ===========
+
+    #[tokio::test]
+    async fn test_unicode_cjk_chinese() {
+        // Chinese characters (no spaces between words)
+        let reranker = BM25Reranker::new();
+        let query = "机器学习"; // Machine learning
+
+        let documents = vec![
+            "机器学习是人工智能的一个分支。".to_string(), // Contains query
+            "深度学习很有趣。".to_string(), // Different topic
+            "Something in English.".to_string(),
+        ];
+
+        let results = reranker.rerank(query, &documents, None).await.unwrap();
+
+        // Should complete without error
+        assert_eq!(results.len(), 3);
+        // CJK chars are kept as-is (tokenization treats each char as token)
+        assert!(results[0].relevance_score >= 0.0);
+    }
+
+    #[tokio::test]
+    async fn test_unicode_emoji_in_content() {
+        // Emoji should be handled gracefully
+        let reranker = BM25Reranker::new();
+        let query = "happy celebration";
+
+        let documents = vec![
+            "Happy celebration 🎉🎊🥳!".to_string(),
+            "Sad day today.".to_string(),
+        ];
+
+        let results = reranker.rerank(query, &documents, None).await.unwrap();
+
+        // Happy document should rank first despite emoji
+        assert_eq!(results[0].index, 0);
+        assert!(results[0].relevance_score > results[1].relevance_score);
+    }
+
+    #[tokio::test]
+    async fn test_unicode_arabic_rtl() {
+        // Arabic (right-to-left) text
+        let reranker = BM25Reranker::new();
+        let query = "مرحبا"; // Hello in Arabic
+
+        let documents = vec![
+            "مرحبا بكم في موقعنا.".to_string(), // Contains query
+            "English text here.".to_string(),
+        ];
+
+        let results = reranker.rerank(query, &documents, None).await.unwrap();
+
+        // Should handle RTL correctly
+        assert_eq!(results.len(), 2);
+        // Arabic doc should score higher if terms match
+    }
+
+    #[tokio::test]
+    async fn test_unicode_math_symbols() {
+        // Mathematical symbols in technical content
+        let reranker = BM25Reranker::new();
+        let query = "summation formula";
+
+        let documents = vec![
+            "The summation formula: ∑(x) = Σxᵢ".to_string(),
+            "Simple math: 2 + 2 = 4".to_string(),
+        ];
+
+        let results = reranker.rerank(query, &documents, None).await.unwrap();
+
+        // Summation doc should rank first
+        assert_eq!(results[0].index, 0);
+    }
+
+    #[tokio::test]
+    async fn test_unicode_mixed_scripts() {
+        // Document with multiple scripts
+        let reranker = BM25Reranker::new();
+        let query = "coffee";
+
+        let documents = vec![
+            "I love coffee ☕ and café au lait.".to_string(),
+            "Tea is also good: 茶 お茶.".to_string(),
+        ];
+
+        let results = reranker.rerank(query, &documents, None).await.unwrap();
+
+        // Coffee doc should rank first
+        assert_eq!(results[0].index, 0);
+    }
+
+    #[tokio::test]
+    async fn test_unicode_zero_width_characters() {
+        // Zero-width joiners/spaces shouldn't break tokenization
+        let reranker = BM25Reranker::new();
+        let query = "test";
+
+        let documents = vec![
+            "This is a test\u{200B}document.".to_string(), // Zero-width space
+            "Another test document.".to_string(),
+        ];
+
+        let results = reranker.rerank(query, &documents, None).await.unwrap();
+
+        // Both should match "test"
+        assert!(results[0].relevance_score > 0.0);
+        assert!(results[1].relevance_score > 0.0);
+    }
 }
