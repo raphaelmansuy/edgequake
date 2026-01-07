@@ -657,15 +657,6 @@ impl Reranker for TermOverlapReranker {
 /// - Wikipedia: <https://en.wikipedia.org/wiki/Okapi_BM25>
 /// - Robertson, S., Zaragoza, H. (2009). The Probabilistic Relevance Framework: BM25 and Beyond
 /// - Lv, Y., Zhai, C. (2011). Lower-Bounding Term Frequency Normalization (BM25+)
-/// BM25 reranker for relevance scoring.
-///
-/// BM25 (Best Match 25) is a probabilistic ranking function used to score
-/// document relevance to a search query. This implementation supports:
-///
-/// - Standard BM25 with configurable k1 and b parameters
-/// - BM25+ extension with delta parameter for long documents
-/// - Phrase boosting for multi-word query matching
-/// - Enhanced tokenization with stemming and stop words
 ///
 /// # Example
 ///
