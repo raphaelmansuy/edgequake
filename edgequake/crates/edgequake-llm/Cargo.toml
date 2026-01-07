@@ -23,5 +23,9 @@ tiktoken-rs = "0.6"
 backoff = { version = "0.4", features = ["tokio"] }
 futures = "0.3"
 
+# BM25 tokenization improvements
+rust-stemmers = "1.2"
+unicode-normalization = "0.1"
+
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }

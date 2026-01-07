@@ -957,4 +957,75 @@ mod reranker_integration_tests {
             .unwrap();
         assert_eq!(results.len(), 1);
     }
+
+    /// Test for_rag() preset with stemming (OODA Loop 13).
+    ///
+    /// Verifies that stemming improves matching:
+    /// - Query "running" should match document containing "run"
+    #[tokio::test]
+    async fn test_bm25_for_rag_stemming() {
+        let reranker = BM25Reranker::for_rag();
+
+        // Query uses different morphological form
+        let query = "running fast";
+        let documents = vec![
+            "The athlete runs very fast in the race.".to_string(), // "runs" stems to "run"
+            "Swimming is a different sport.".to_string(),
+            "The car is parked.".to_string(),
+        ];
+
+        let results = reranker.rerank(query, &documents, None).await.unwrap();
+
+        // First doc should rank highest due to stemming match
+        assert_eq!(results[0].index, 0, "Stemming should match 'running' to 'runs'");
+        assert!(results[0].relevance_score > 0.0);
+    }
+
+    /// Test for_semantic() preset with phrase boosting (OODA Loop 13).
+    ///
+    /// Verifies that phrase boosting rewards adjacent terms:
+    /// - "knowledge graph" should score higher than "graph of knowledge"
+    #[tokio::test]
+    async fn test_bm25_for_semantic_phrase_boost() {
+        let reranker = BM25Reranker::for_semantic();
+
+        let query = "knowledge graph";
+        let documents = vec![
+            "A knowledge graph stores relationships between entities.".to_string(),
+            "The graph of knowledge is complex.".to_string(),
+            "Machine learning models are trained on data.".to_string(),
+        ];
+
+        let results = reranker.rerank(query, &documents, None).await.unwrap();
+
+        // Both first two docs have "knowledge" and "graph"
+        // But first should rank higher due to phrase adjacency
+        assert_eq!(results[0].index, 0, "Phrase boost should prefer adjacent terms");
+        
+        // First two should score higher than third (which has no matches)
+        assert!(results[0].relevance_score > results[2].relevance_score);
+        assert!(results[1].relevance_score > results[2].relevance_score);
+    }
+
+    /// Test new_enhanced() vs new() for Unicode handling (OODA Loop 13).
+    #[tokio::test]
+    async fn test_bm25_enhanced_unicode() {
+        let enhanced = BM25Reranker::new_enhanced();
+        let minimal = BM25Reranker::new();
+
+        // Query without accent
+        let query = "resume";
+        let documents = vec![
+            "Le résumé du document est clair.".to_string(), // French with accent
+            "A random sentence about nothing.".to_string(),
+        ];
+
+        let enhanced_results = enhanced.rerank(query, &documents, None).await.unwrap();
+        let minimal_results = minimal.rerank(query, &documents, None).await.unwrap();
+
+        // Both should normalize Unicode, but enhanced also stems
+        // Both should rank the French doc first
+        assert_eq!(enhanced_results[0].index, 0);
+        assert_eq!(minimal_results[0].index, 0);
+    }
 }
