@@ -245,4 +245,94 @@ mod tests {
         let err = result.unwrap_err();
         assert!(matches!(err, ApiError::BadRequest(_)));
     }
+
+    #[test]
+    fn test_validate_content_exactly_max_size() {
+        let content: String = (0..100).map(|_| 'a').collect();
+        let result = validate_content(&content, 100);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_content_one_over_max_size() {
+        let content: String = (0..101).map(|_| 'a').collect();
+        let result = validate_content(&content, 100);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_content_error_includes_max_size() {
+        let result = validate_content("Hello, world!", 5);
+        if let Err(ApiError::BadRequest(msg)) = result {
+            assert!(msg.contains("5"));
+        } else {
+            panic!("Expected BadRequest error");
+        }
+    }
+
+    #[test]
+    fn test_generate_content_summary_empty() {
+        let summary = generate_content_summary("");
+        assert_eq!(summary, "");
+    }
+
+    #[test]
+    fn test_generate_content_summary_201_chars() {
+        let content: String = (0..201).map(|_| 'a').collect();
+        let summary = generate_content_summary(&content);
+        assert!(summary.ends_with("..."));
+        assert_eq!(summary.len(), 203);
+    }
+
+    #[test]
+    fn test_validate_query_whitespace_only() {
+        let result = validate_query("   \n\t   ", 1000);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, ApiError::ValidationError(_)));
+    }
+
+    #[test]
+    fn test_validate_query_exactly_max_length() {
+        let query: String = (0..100).map(|_| 'a').collect();
+        let result = validate_query(&query, 100);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_query_one_over_max_length() {
+        let query: String = (0..101).map(|_| 'a').collect();
+        let result = validate_query(&query, 100);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_non_empty_with_inner_whitespace() {
+        let result = validate_non_empty("hello world", "field");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_non_empty_error_includes_field_name() {
+        let result = validate_non_empty("", "custom_field");
+        if let Err(ApiError::ValidationError(msg)) = result {
+            assert!(msg.contains("custom_field"));
+        } else {
+            panic!("Expected ValidationError");
+        }
+    }
+
+    #[test]
+    fn test_validate_content_with_newlines() {
+        let content = "Line 1\nLine 2\nLine 3";
+        let result = validate_content(content, 1000);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_content_only_newlines() {
+        let content = "\n\n\n";
+        let result = validate_content(content, 1000);
+        assert!(result.is_err());  // Only whitespace
+    }
 }
