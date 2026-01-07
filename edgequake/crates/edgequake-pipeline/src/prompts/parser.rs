@@ -2,6 +2,30 @@
 //!
 //! Provides parsers for both tuple-based (SOTA) and JSON-based extraction formats,
 //! plus a hybrid parser for graceful migration.
+//!
+//! # WHY Tuple Format Over JSON
+//!
+//! The tuple-delimited format (`entity<|#|>Name<|#|>TYPE<|#|>Description`) is used
+//! because it's significantly more robust than JSON for LLM outputs:
+//!
+//! 1. **Partial output recovery**: If LLM output is truncated or streaming is
+//!    interrupted, valid lines up to that point can still be parsed. JSON requires
+//!    complete, valid syntax to parse anything.
+//!
+//! 2. **No escaping issues**: JSON requires proper escaping of quotes, backslashes,
+//!    and special characters. LLMs frequently produce malformed JSON with:
+//!    - Unescaped quotes in descriptions
+//!    - Missing closing braces
+//!    - Invalid unicode escapes
+//!
+//! 3. **Line-by-line processing**: Each tuple is independent, allowing streaming
+//!    extraction and early termination without buffering the full response.
+//!
+//! 4. **LightRAG proven**: This format is battle-tested in the LightRAG paper
+//!    and implementation with millions of extractions.
+//!
+//! The hybrid parser falls back to JSON parsing for backward compatibility,
+//! but tuple format is preferred for production reliability.
 
 use super::normalizer::normalize_entity_name;
 use super::{DEFAULT_COMPLETION_DELIMITER, DEFAULT_TUPLE_DELIMITER};
