@@ -7,6 +7,7 @@
 ## Observe
 
 The query engine has complex mode selection and token budgeting logic that needs WHY documentation to explain:
+
 - Why multiple query modes exist
 - When to use each mode
 - Why token budgeting matters
@@ -15,6 +16,7 @@ The query engine has complex mode selection and token budgeting logic that needs
 ## Orient
 
 Query mode selection and token budgeting are critical for:
+
 1. **Query quality**: Wrong mode = poor results
 2. **API costs**: Wasted tokens = higher costs
 3. **Latency**: Over-fetching = slower responses
@@ -23,6 +25,7 @@ Query mode selection and token budgeting are critical for:
 ## Decide
 
 Add WHY documentation to:
+
 1. `modes.rs` - Explain when to use each query mode
 2. `truncation.rs` - Explain token budgeting strategy
 
@@ -33,6 +36,7 @@ Add WHY documentation to:
 [modes.rs](edgequake/crates/edgequake-query/src/modes.rs#L1-L32)
 
 Key points documented:
+
 - Question type → best mode mapping
 - Performance vs accuracy trade-offs
 - Why Hybrid is the default
@@ -42,6 +46,7 @@ Key points documented:
 [truncation.rs](edgequake/crates/edgequake-query/src/truncation.rs#L1-L34)
 
 Key points documented:
+
 - Why token limits matter (API errors, quality degradation)
 - Budget allocation strategy (50/50 entities/relationships)
 - Why order matters (relevance-sorted before truncation)
@@ -55,11 +60,11 @@ cargo build --package edgequake-query
 
 ## Code Added
 
-| File | Lines | Content |
-|------|-------|---------|
-| modes.rs | 30 | Query mode selection guidelines |
-| truncation.rs | 30 | Token budgeting rationale |
-| **Total** | **60** | Design decision documentation |
+| File          | Lines  | Content                         |
+| ------------- | ------ | ------------------------------- |
+| modes.rs      | 30     | Query mode selection guidelines |
+| truncation.rs | 30     | Token budgeting rationale       |
+| **Total**     | **60** | Design decision documentation   |
 
 ## Knowledge Graph
 

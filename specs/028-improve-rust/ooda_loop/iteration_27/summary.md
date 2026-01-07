@@ -3,18 +3,23 @@
 ## Date: 2025-01-04
 
 ## Observe
+
 - `extractor.rs` is 1011 lines - the entity extraction module
 - `LLMExtractor` lacks explanation of prompt design decisions
 - `GleaningExtractor` lacks explanation of multi-pass strategy benefits
 
 ## Orient
+
 Entity extraction is critical for knowledge graph quality:
+
 - Prompt design affects extraction accuracy
 - Gleaning (multi-pass) improves recall significantly
 - LightRAG research validates these approaches
 
 ## Decide
+
 Add WHY comments to:
+
 1. `LLMExtractor` - explain prompt design and entity type constraints
 2. `GleaningExtractor` - explain multi-pass extraction benefits and costs
 
@@ -23,6 +28,7 @@ Add WHY comments to:
 ### Changes Made
 
 #### 1. `LLMExtractor` - Structured Prompt Strategy
+
 ```rust
 /// # WHY: LLM Extraction Strategy
 ///
@@ -39,6 +45,7 @@ Add WHY comments to:
 ```
 
 #### 2. `GleaningExtractor` - Multi-Pass Strategy
+
 ```rust
 /// # WHY: Multi-Pass Extraction (Gleaning)
 ///
@@ -54,13 +61,16 @@ Add WHY comments to:
 ```
 
 ## Verification
+
 - `cargo build --package edgequake-pipeline`: ✅ No warnings
 - All tests still pass
 
 ## Files Modified
+
 1. `crates/edgequake-pipeline/src/extractor.rs` - Added WHY comments
 
 ## Impact
+
 - **Algorithm Understanding**: Developers understand prompt engineering choices
 - **Cost Optimization**: Clear tradeoffs for gleaning iterations
 - **Domain Customization**: Guidance for adding custom entity types

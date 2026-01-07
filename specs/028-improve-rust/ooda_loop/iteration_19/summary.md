@@ -16,12 +16,14 @@ cargo fmt --check
 ```
 
 Found:
+
 1. Import ordering in `query_bench.rs`
 2. Trailing whitespace in `engine.rs`
 
 ## Orient
 
 Rust formatting conventions (enforced by rustfmt):
+
 - Imports should be alphabetically sorted
 - No trailing whitespace
 - Consistent indentation
@@ -42,8 +44,8 @@ The trailing whitespace in `engine.rs` was blocking rustfmt from running.
 
 ```rust
 // Before (with trailing spaces):
-return Ok(futures::stream::once(async { 
-    Ok("I'm sorry...".to_string()) 
+return Ok(futures::stream::once(async {
+    Ok("I'm sorry...".to_string())
 }).boxed());
 
 // After (clean):
@@ -59,6 +61,7 @@ cargo fmt
 ```
 
 Fixed formatting in:
+
 - `benches/query_bench.rs` - import ordering
 
 ## Verify
@@ -75,18 +78,18 @@ cargo test --workspace 2>&1 | grep "test result"
 
 ## Metrics
 
-| Metric | Before | After |
-|--------|--------|-------|
-| rustfmt errors | 1 (trailing whitespace) | 0 |
-| Formatting diffs | 2 files | 0 |
-| Tests passing | 1953 | 1953 |
+| Metric           | Before                  | After |
+| ---------------- | ----------------------- | ----- |
+| rustfmt errors   | 1 (trailing whitespace) | 0     |
+| Formatting diffs | 2 files                 | 0     |
+| Tests passing    | 1953                    | 1953  |
 
 ## Quality Checklist
 
-| Check | Status |
-|-------|--------|
-| `cargo fmt --check` | ✅ Clean |
-| `cargo clippy` | ✅ No warnings in edgequake |
-| `cargo test` | ✅ 1953 passing |
-| `cargo build` | ✅ Compiles |
-| `cargo doc` | ✅ No warnings |
+| Check               | Status                      |
+| ------------------- | --------------------------- |
+| `cargo fmt --check` | ✅ Clean                    |
+| `cargo clippy`      | ✅ No warnings in edgequake |
+| `cargo test`        | ✅ 1953 passing             |
+| `cargo build`       | ✅ Compiles                 |
+| `cargo doc`         | ✅ No warnings              |

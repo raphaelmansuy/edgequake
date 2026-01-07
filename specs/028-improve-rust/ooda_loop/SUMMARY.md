@@ -10,15 +10,15 @@ Executed specification `specs/028-improve-rust/01-improve-rust-code-quality.md` 
 
 ## Final Metrics
 
-| Metric | Before | After | Change |
-|--------|--------|-------|--------|
-| Clippy Warnings (edgequake) | ~61 | 0 | **-100%** |
-| Build Errors | 3 | 0 | **Fixed** |
-| Tests Passing | ~1500 | 1953 | **+30%** |
-| Crates Improved | 0 | 11 | **All crates** |
-| WHY Comments Added | Few | 10+ modules | **Documented** |
-| PostgreSQL Backend | Untested | 19 tests | **Validated** |
-| Memory Backend | Untested | 91 tests | **Validated** |
+| Metric                      | Before   | After       | Change         |
+| --------------------------- | -------- | ----------- | -------------- |
+| Clippy Warnings (edgequake) | ~61      | 0           | **-100%**      |
+| Build Errors                | 3        | 0           | **Fixed**      |
+| Tests Passing               | ~1500    | 1953        | **+30%**       |
+| Crates Improved             | 0        | 11          | **All crates** |
+| WHY Comments Added          | Few      | 10+ modules | **Documented** |
+| PostgreSQL Backend          | Untested | 19 tests    | **Validated**  |
+| Memory Backend              | Untested | 91 tests    | **Validated**  |
 
 ## OODA Loop Summary
 
@@ -132,29 +132,29 @@ Branch: `feat/improve-code-quality`
 
 ### Phase 2: Testing & Cleanup (OODA 15-20)
 
-| Loop | Focus | Result |
-|------|-------|--------|
-| 15 | Flaky test fix | Removed timing assertion |
-| 16 | Clippy (vec! → array) | Fixed in production_pipeline.rs |
-| 17 | PostgreSQL validation | 19 integration tests pass |
-| 18 | Memory backend validation | 91 tests pass |
-| 19 | Rustfmt cleanup | Fixed engine.rs, query_bench.rs |
-| 20 | Mid-mission review | Verified alignment |
+| Loop | Focus                     | Result                          |
+| ---- | ------------------------- | ------------------------------- |
+| 15   | Flaky test fix            | Removed timing assertion        |
+| 16   | Clippy (vec! → array)     | Fixed in production_pipeline.rs |
+| 17   | PostgreSQL validation     | 19 integration tests pass       |
+| 18   | Memory backend validation | 91 tests pass                   |
+| 19   | Rustfmt cleanup           | Fixed engine.rs, query_bench.rs |
+| 20   | Mid-mission review        | Verified alignment              |
 
 ### Phase 3: WHY Documentation (OODA 21-30)
 
-| Loop | Module | Documentation Added |
-|------|--------|---------------------|
-| 21 | normalizer.rs, parser.rs | Entity normalization, tuple parsing |
-| 22 | modes.rs, truncation.rs | Query modes, token budgeting |
-| 23 | error.rs (LLM, API) | Error handling philosophy |
-| 24 | orchestrator.rs | 3-stage pipeline, cascade delete |
-| 25 | (review) | Mid-mission review |
-| 26 | sota_engine.rs | 5-stage query pipeline, modes |
-| 27 | extractor.rs | LLM extraction, gleaning |
-| 28 | graph.rs | Apache AGE design decisions |
-| 29 | state.rs | Conditional compilation fix |
-| 30 | (summary) | Final report |
+| Loop | Module                   | Documentation Added                 |
+| ---- | ------------------------ | ----------------------------------- |
+| 21   | normalizer.rs, parser.rs | Entity normalization, tuple parsing |
+| 22   | modes.rs, truncation.rs  | Query modes, token budgeting        |
+| 23   | error.rs (LLM, API)      | Error handling philosophy           |
+| 24   | orchestrator.rs          | 3-stage pipeline, cascade delete    |
+| 25   | (review)                 | Mid-mission review                  |
+| 26   | sota_engine.rs           | 5-stage query pipeline, modes       |
+| 27   | extractor.rs             | LLM extraction, gleaning            |
+| 28   | graph.rs                 | Apache AGE design decisions         |
+| 29   | state.rs                 | Conditional compilation fix         |
+| 30   | (summary)                | Final report                        |
 
 ## Commits (OODA 15-30)
 

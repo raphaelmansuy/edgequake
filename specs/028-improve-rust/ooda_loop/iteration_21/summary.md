@@ -9,6 +9,7 @@
 The codebase has good documentation but lacks "WHY" explanations for critical design decisions. Developers need to understand not just WHAT the code does, but WHY it was designed that way.
 
 Key areas needing WHY documentation:
+
 1. Entity name normalization
 2. Tuple format vs JSON for LLM parsing
 3. Keyword validation
@@ -16,6 +17,7 @@ Key areas needing WHY documentation:
 ## Orient
 
 WHY comments serve multiple purposes:
+
 - Prevent future developers from "optimizing" away critical features
 - Document lessons learned from production issues
 - Explain non-obvious design decisions
@@ -24,6 +26,7 @@ WHY comments serve multiple purposes:
 ## Decide
 
 Add comprehensive WHY comments to:
+
 1. `normalizer.rs` - Why normalization prevents graph fragmentation
 2. `parser.rs` - Why tuple format is more robust than JSON
 
@@ -40,7 +43,7 @@ Add comprehensive WHY comments to:
 //! be stored as separate nodes in the knowledge graph:
 //!
 //! - "John Doe" (from chunk 1)
-//! - "john doe" (from chunk 2)  
+//! - "john doe" (from chunk 2)
 //! - "JOHN DOE" (from chunk 3)
 //! - "The John Doe" (from chunk 4)
 //!
@@ -85,11 +88,11 @@ cargo build --package edgequake-pipeline
 
 ## Impact
 
-| File | Lines Added | Purpose |
-|------|-------------|---------|
-| normalizer.rs | 16 | Explain why normalization prevents graph fragmentation |
-| parser.rs | 24 | Explain why tuple format is more robust than JSON |
-| **Total** | **40** | Critical design decision documentation |
+| File          | Lines Added | Purpose                                                |
+| ------------- | ----------- | ------------------------------------------------------ |
+| normalizer.rs | 16          | Explain why normalization prevents graph fragmentation |
+| parser.rs     | 24          | Explain why tuple format is more robust than JSON      |
+| **Total**     | **40**      | Critical design decision documentation                 |
 
 ## Future WHY Comments Needed
 
