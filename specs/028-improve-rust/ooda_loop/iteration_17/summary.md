@@ -9,14 +9,16 @@
 Mission requirement: "You must ensure to test for Postgres and in Memory storage backends, **Postgres first**."
 
 PostgreSQL container status:
+
 ```bash
 docker exec edgequake-postgres psql -U edgequake -c "SELECT 'connected'"
-#   status   
+#   status
 # -----------
 #  connected
 ```
 
 Container environment:
+
 - `POSTGRES_USER=edgequake`
 - `POSTGRES_PASSWORD=edgequake_secret`
 - `POSTGRES_DB=edgequake`
@@ -24,17 +26,20 @@ Container environment:
 ## Orient
 
 The PostgreSQL integration tests require:
+
 1. Running Docker container with AGE and pgvector extensions
 2. Correct credentials passed via environment variables
 3. Feature flag `--features postgres` enabled
 
 Initial test runs failed due to credential mismatch:
+
 - Tests expected `POSTGRES_PASSWORD` env var
 - Container was configured with `edgequake_secret`
 
 ## Decide
 
 Run full PostgreSQL integration test suite with correct credentials to validate:
+
 1. KV storage operations
 2. Vector storage with pgvector
 3. Graph storage with Apache AGE
@@ -54,17 +59,17 @@ cargo test --package edgequake-storage \
 
 All 19 PostgreSQL integration tests passed:
 
-| Test Category | Tests | Status |
-|--------------|-------|--------|
-| KV Storage | 2 | ✅ |
-| Vector (pgvector) | 2 | ✅ |
-| Graph (AGE) Basic | 2 | ✅ |
-| AGE Cypher | 7 | ✅ |
-| Source Tracking | 3 | ✅ |
-| E2E Pipeline | 1 | ✅ |
-| Nested Properties | 1 | ✅ |
-| Bulk Operations | 1 | ✅ |
-| **Total** | **19** | **✅** |
+| Test Category     | Tests  | Status |
+| ----------------- | ------ | ------ |
+| KV Storage        | 2      | ✅     |
+| Vector (pgvector) | 2      | ✅     |
+| Graph (AGE) Basic | 2      | ✅     |
+| AGE Cypher        | 7      | ✅     |
+| Source Tracking   | 3      | ✅     |
+| E2E Pipeline      | 1      | ✅     |
+| Nested Properties | 1      | ✅     |
+| Bulk Operations   | 1      | ✅     |
+| **Total**         | **19** | **✅** |
 
 ### Tests Validated
 

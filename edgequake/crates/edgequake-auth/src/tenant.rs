@@ -199,8 +199,7 @@ impl TenantContext {
 
     /// Check if tenant is active.
     pub fn is_active(&self) -> bool {
-        self.tenant.is_active
-            && self.workspace.as_ref().map_or(true, |w| w.is_active)
+        self.tenant.is_active && self.workspace.as_ref().map_or(true, |w| w.is_active)
     }
 
     /// Check if user is tenant admin.
@@ -225,10 +224,7 @@ impl TenantService {
     }
 
     /// Validate tenant access.
-    pub fn validate_tenant_access(
-        &self,
-        context: &TenantContext,
-    ) -> Result<(), AuthError> {
+    pub fn validate_tenant_access(&self, context: &TenantContext) -> Result<(), AuthError> {
         if !context.tenant.is_active {
             return Err(AuthError::TenantNotFound);
         }
@@ -257,11 +253,7 @@ impl TenantService {
     }
 
     /// Check user limit for tenant.
-    pub fn check_user_limit(
-        &self,
-        tenant: &Tenant,
-        current_count: u32,
-    ) -> Result<(), AuthError> {
+    pub fn check_user_limit(&self, tenant: &Tenant, current_count: u32) -> Result<(), AuthError> {
         if current_count >= tenant.max_users {
             return Err(AuthError::TenantLimitExceeded {
                 limit: format!("max_users: {}", tenant.max_users),
@@ -379,8 +371,8 @@ mod tests {
         let workspace = test_workspace(tenant.tenant_id);
         let user_id = Uuid::new_v4();
 
-        let context = TenantContext::new(tenant.clone(), user_id, Role::Admin)
-            .with_workspace(workspace);
+        let context =
+            TenantContext::new(tenant.clone(), user_id, Role::Admin).with_workspace(workspace);
 
         assert!(context.is_active());
         assert!(context.is_tenant_admin());

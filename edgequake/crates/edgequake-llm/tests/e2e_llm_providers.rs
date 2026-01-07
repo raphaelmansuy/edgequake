@@ -17,12 +17,11 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use edgequake_llm::{
-    CacheConfig, CachedProvider, EmbeddingProvider,
-    LLMCache, LLMProvider, LLMResponse, MockProvider, RateLimitedProvider,
-    RateLimiterConfig, Tokenizer,
-};
 use edgequake_llm::traits::{ChatMessage, ChatRole, CompletionOptions};
+use edgequake_llm::{
+    CacheConfig, CachedProvider, EmbeddingProvider, LLMCache, LLMProvider, LLMResponse,
+    MockProvider, RateLimitedProvider, RateLimiterConfig, Tokenizer,
+};
 
 // ============================================================================
 // Mock Provider Tests - Full Coverage

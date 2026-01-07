@@ -139,7 +139,9 @@ pub trait LLMProvider: Send + Sync {
 
     /// Generate a streaming completion.
     async fn stream(&self, _prompt: &str) -> Result<BoxStream<'static, Result<String>>> {
-        Err(crate::error::LlmError::NotSupported("Streaming not supported".to_string()))
+        Err(crate::error::LlmError::NotSupported(
+            "Streaming not supported".to_string(),
+        ))
     }
 
     /// Check if the model supports streaming.

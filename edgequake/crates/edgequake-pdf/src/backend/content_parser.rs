@@ -441,7 +441,10 @@ mod tests {
     #[test]
     fn test_get_number_integer() {
         assert_eq!(ContentParser::get_number(&Object::Integer(42)), Some(42.0));
-        assert_eq!(ContentParser::get_number(&Object::Integer(-10)), Some(-10.0));
+        assert_eq!(
+            ContentParser::get_number(&Object::Integer(-10)),
+            Some(-10.0)
+        );
         assert_eq!(ContentParser::get_number(&Object::Integer(0)), Some(0.0));
     }
 
@@ -459,7 +462,10 @@ mod tests {
             None
         );
         assert_eq!(
-            ContentParser::get_number(&Object::String(b"bar".to_vec(), lopdf::StringFormat::Literal)),
+            ContentParser::get_number(&Object::String(
+                b"bar".to_vec(),
+                lopdf::StringFormat::Literal
+            )),
             None
         );
         assert_eq!(ContentParser::get_number(&Object::Boolean(true)), None);
@@ -547,4 +553,3 @@ mod tests {
         assert!(result.is_ok());
     }
 }
-

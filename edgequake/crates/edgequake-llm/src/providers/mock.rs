@@ -83,7 +83,10 @@ impl LLMProvider for MockProvider {
         self.complete("").await
     }
 
-    async fn stream(&self, prompt: &str) -> Result<futures::stream::BoxStream<'static, Result<String>>> {
+    async fn stream(
+        &self,
+        prompt: &str,
+    ) -> Result<futures::stream::BoxStream<'static, Result<String>>> {
         use futures::StreamExt;
         let response = self.complete(prompt).await?;
         let stream = futures::stream::iter(vec![Ok(response.content)]);
@@ -132,11 +135,11 @@ mod tests {
     async fn test_mock_provider() {
         let provider = MockProvider::new();
         provider.add_response("This is a mock response.").await;
-        
+
         // Test LLM
         let response = provider.complete("test").await.unwrap();
         assert_eq!(response.content, "This is a mock response.");
-        
+
         // Test embedding
         let embedding = provider.embed_one("test").await.unwrap();
         assert_eq!(embedding.len(), 1536);
@@ -146,7 +149,7 @@ mod tests {
     async fn test_custom_responses() {
         let provider = MockProvider::new();
         provider.add_response("Custom response").await;
-        
+
         let response = provider.complete("test").await.unwrap();
         assert_eq!(response.content, "Custom response");
     }

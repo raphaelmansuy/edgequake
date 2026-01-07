@@ -49,7 +49,11 @@ impl BlockBuilder {
         // Debug: Log first 10 lines being processed
         debug!("BlockBuilder: Converting {} lines to blocks", lines.len());
         for (i, line) in lines.iter().take(10).enumerate() {
-            let text: String = line.iter().map(|e| e.text.as_str()).collect::<Vec<_>>().join("");
+            let text: String = line
+                .iter()
+                .map(|e| e.text.as_str())
+                .collect::<Vec<_>>()
+                .join("");
             let y = line.first().map(|e| e.y).unwrap_or(0.0);
             let x = line.first().map(|e| e.x).unwrap_or(0.0);
             let preview: String = text.chars().take(40).collect();
@@ -119,7 +123,7 @@ impl BlockBuilder {
                 spans,
                 ..Default::default()
             };
-            
+
             // Log blocks with wide X-ranges (potential cross-column spans)
             let x_range = bbox.x2 - bbox.x1;
             if x_range > 200.0 {
@@ -212,8 +216,7 @@ impl BlockBuilder {
             if overlap_y > min_h * 0.5 {
                 // Significant vertical overlap (>50%). Check text similarity.
                 if text == last_text
-                    || (text.len() > 5
-                        && (text.contains(last_text) || last_text.contains(text)))
+                    || (text.len() > 5 && (text.contains(last_text) || last_text.contains(text)))
                 {
                     return true;
                 }
@@ -223,7 +226,11 @@ impl BlockBuilder {
     }
 
     /// Detect block type based on text content.
-    fn detect_block_type(&self, text: &str, text_occurrences: &HashMap<String, usize>) -> BlockType {
+    fn detect_block_type(
+        &self,
+        text: &str,
+        text_occurrences: &HashMap<String, usize>,
+    ) -> BlockType {
         let normalized = text.to_lowercase();
         let is_running_header = text_occurrences.get(&normalized).copied().unwrap_or(0) >= 3;
 

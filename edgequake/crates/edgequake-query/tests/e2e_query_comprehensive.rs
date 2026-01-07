@@ -12,9 +12,9 @@ use std::sync::Arc;
 
 use edgequake_llm::MockProvider;
 use edgequake_query::{
-    Keywords, MockKeywordExtractor, MockTokenizer, QueryContext, QueryEngine, QueryEngineConfig,
-    QueryError, QueryMode, QueryRequest, RetrievedContext, SimpleTokenizer, TruncationConfig,
-    ChunkSelectionMethod,
+    ChunkSelectionMethod, Keywords, MockKeywordExtractor, MockTokenizer, QueryContext, QueryEngine,
+    QueryEngineConfig, QueryError, QueryMode, QueryRequest, RetrievedContext, SimpleTokenizer,
+    TruncationConfig,
 };
 use edgequake_storage::{GraphStorage, MemoryGraphStorage, MemoryVectorStorage, VectorStorage};
 
@@ -225,7 +225,10 @@ mod keyword_tests {
     #[tokio::test]
     async fn test_mock_keyword_extractor_simple() {
         let extractor = MockKeywordExtractor::with_simple_extraction();
-        let keywords = extractor.extract("What is artificial intelligence").await.unwrap();
+        let keywords = extractor
+            .extract("What is artificial intelligence")
+            .await
+            .unwrap();
 
         // Simple extraction uses basic word splitting
         assert!(!keywords.high_level.is_empty());

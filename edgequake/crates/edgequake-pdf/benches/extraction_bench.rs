@@ -11,7 +11,7 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use edgequake_pdf::{
     formula::{FormulaConfig, FormulaDetector, MATH_SYMBOL_MAP},
-    BoundingBox, Block, BlockType, Page, Point,
+    Block, BlockType, BoundingBox, Page, Point,
 };
 
 /// Benchmark symbol map lookup operations.
@@ -56,9 +56,7 @@ fn bench_bounding_box(c: &mut Criterion) {
         b.iter(|| black_box(bbox1.intersection_area(&bbox2)))
     });
 
-    group.bench_function("union", |b| {
-        b.iter(|| black_box(bbox1.union(&bbox2)))
-    });
+    group.bench_function("union", |b| b.iter(|| black_box(bbox1.union(&bbox2))));
 
     group.bench_function("contains", |b| {
         let point = Point::new(50.0, 25.0);
@@ -149,7 +147,10 @@ fn bench_math_density(c: &mut Criterion) {
     for (name, text) in texts {
         group.bench_with_input(BenchmarkId::new("calculate", name), text, |b, t| {
             b.iter(|| {
-                let math_count = t.chars().filter(|c| MATH_SYMBOL_MAP.contains_key(c)).count();
+                let math_count = t
+                    .chars()
+                    .filter(|c| MATH_SYMBOL_MAP.contains_key(c))
+                    .count();
                 let total = t.chars().count();
                 black_box(if total > 0 {
                     math_count as f32 / total as f32

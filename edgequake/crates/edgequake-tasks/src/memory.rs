@@ -36,14 +36,14 @@ impl Default for MemoryTaskStorage {
 impl TaskStorage for MemoryTaskStorage {
     async fn create_task(&self, task: &Task) -> TaskResult<()> {
         let mut tasks = self.tasks.write().unwrap();
-        
+
         if tasks.contains_key(&task.track_id) {
             return Err(TaskError::StorageError(format!(
                 "Task already exists: {}",
                 task.track_id
             )));
         }
-        
+
         tasks.insert(task.track_id.clone(), task.clone());
         Ok(())
     }
@@ -55,39 +55,33 @@ impl TaskStorage for MemoryTaskStorage {
 
     async fn update_task(&self, task: &Task) -> TaskResult<()> {
         let mut tasks = self.tasks.write().unwrap();
-        
+
         if !tasks.contains_key(&task.track_id) {
             return Err(TaskError::TaskNotFound(task.track_id.clone()));
         }
-        
+
         tasks.insert(task.track_id.clone(), task.clone());
         Ok(())
     }
 
     async fn delete_task(&self, track_id: &str) -> TaskResult<()> {
         let mut tasks = self.tasks.write().unwrap();
-        
+
         if tasks.remove(track_id).is_none() {
             return Err(TaskError::TaskNotFound(track_id.to_string()));
         }
-        
+
         Ok(())
     }
 
-    async fn list_tasks(
-        &self,
-        filter: TaskFilter,
-        pagination: Pagination,
-    ) -> TaskResult<TaskList> {
+    async fn list_tasks(&self, filter: TaskFilter, pagination: Pagination) -> TaskResult<TaskList> {
         let tasks = self.tasks.read().unwrap();
-        
+
         // Filter tasks
         let mut filtered: Vec<Task> = tasks
             .values()
             .filter(|task| {
-                let status_match = filter
-                    .status
-                    .is_none_or(|status| task.status == status);
+                let status_match = filter.status.is_none_or(|status| task.status == status);
                 let type_match = filter
                     .task_type
                     .is_none_or(|task_type| task.task_type == task_type);
@@ -98,23 +92,19 @@ impl TaskStorage for MemoryTaskStorage {
 
         // Sort tasks
         match pagination.sort_by {
-            SortField::CreatedAt => filtered.sort_by(|a, b| {
-                match pagination.order {
-                    SortOrder::Asc => a.created_at.cmp(&b.created_at),
-                    SortOrder::Desc => b.created_at.cmp(&a.created_at),
-                }
+            SortField::CreatedAt => filtered.sort_by(|a, b| match pagination.order {
+                SortOrder::Asc => a.created_at.cmp(&b.created_at),
+                SortOrder::Desc => b.created_at.cmp(&a.created_at),
             }),
-            SortField::UpdatedAt => filtered.sort_by(|a, b| {
-                match pagination.order {
-                    SortOrder::Asc => a.updated_at.cmp(&b.updated_at),
-                    SortOrder::Desc => b.updated_at.cmp(&a.updated_at),
-                }
+            SortField::UpdatedAt => filtered.sort_by(|a, b| match pagination.order {
+                SortOrder::Asc => a.updated_at.cmp(&b.updated_at),
+                SortOrder::Desc => b.updated_at.cmp(&a.updated_at),
             }),
         }
 
         let total = filtered.len() as u64;
         let total_pages = ((total as f64) / (pagination.page_size as f64)).ceil() as u32;
-        
+
         // Paginate
         let start = ((pagination.page - 1) * pagination.page_size) as usize;
         let end = (start + pagination.page_size as usize).min(filtered.len());
@@ -131,9 +121,9 @@ impl TaskStorage for MemoryTaskStorage {
 
     async fn get_statistics(&self) -> TaskResult<TaskStatistics> {
         use crate::types::TaskStatus;
-        
+
         let tasks = self.tasks.read().unwrap();
-        
+
         let mut stats = TaskStatistics {
             pending: 0,
             processing: 0,
@@ -171,7 +161,7 @@ mod tests {
         );
 
         storage.create_task(&task).await.unwrap();
-        
+
         let retrieved = storage.get_task(&task.track_id).await.unwrap();
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().track_id, task.track_id);
@@ -180,16 +170,13 @@ mod tests {
     #[tokio::test]
     async fn test_update_task() {
         let storage = MemoryTaskStorage::new();
-        let mut task = Task::new(
-            TaskType::Insert,
-            serde_json::json!({"text": "test"}),
-        );
+        let mut task = Task::new(TaskType::Insert, serde_json::json!({"text": "test"}));
 
         storage.create_task(&task).await.unwrap();
-        
+
         task.mark_processing();
         storage.update_task(&task).await.unwrap();
-        
+
         let retrieved = storage.get_task(&task.track_id).await.unwrap().unwrap();
         assert_eq!(retrieved.status, TaskStatus::Processing);
     }
@@ -197,14 +184,11 @@ mod tests {
     #[tokio::test]
     async fn test_delete_task() {
         let storage = MemoryTaskStorage::new();
-        let task = Task::new(
-            TaskType::Scan,
-            serde_json::json!({"directory": "/data"}),
-        );
+        let task = Task::new(TaskType::Scan, serde_json::json!({"directory": "/data"}));
 
         storage.create_task(&task).await.unwrap();
         storage.delete_task(&task.track_id).await.unwrap();
-        
+
         let retrieved = storage.get_task(&task.track_id).await.unwrap();
         assert!(retrieved.is_none());
     }
@@ -212,7 +196,7 @@ mod tests {
     #[tokio::test]
     async fn test_list_tasks_with_filter() {
         let storage = MemoryTaskStorage::new();
-        
+
         // Create multiple tasks
         for i in 0..5 {
             let mut task = Task::new(
@@ -230,12 +214,12 @@ mod tests {
             status: Some(TaskStatus::Processing),
             task_type: None,
         };
-        
+
         let result = storage
             .list_tasks(filter, Pagination::default())
             .await
             .unwrap();
-        
+
         assert_eq!(result.tasks.len(), 2);
         assert_eq!(result.total, 2);
     }
@@ -243,21 +227,21 @@ mod tests {
     #[tokio::test]
     async fn test_get_statistics() {
         let storage = MemoryTaskStorage::new();
-        
+
         // Create tasks with different statuses
         let mut task1 = Task::new(TaskType::Upload, serde_json::json!({}));
         storage.create_task(&task1).await.unwrap();
-        
+
         let mut task2 = Task::new(TaskType::Insert, serde_json::json!({}));
         task2.mark_processing();
         storage.create_task(&task2).await.unwrap();
-        
+
         let mut task3 = Task::new(TaskType::Scan, serde_json::json!({}));
         task3.mark_success(serde_json::json!({"result": "ok"}));
         storage.create_task(&task3).await.unwrap();
-        
+
         let stats = storage.get_statistics().await.unwrap();
-        
+
         assert_eq!(stats.total, 3);
         assert_eq!(stats.pending, 1);
         assert_eq!(stats.processing, 1);

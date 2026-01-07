@@ -282,7 +282,11 @@ async fn create_test_graph_storage() -> Arc<MemoryGraphStorage> {
         ("I-COCKPIT", "FEATURE", "Système affichage Peugeot"),
         ("OPENR_LINK", "FEATURE", "Système multimédia Renault Google"),
         ("ALLURE_CARE", "SERVICE", "Garantie 8 ans 160000 km"),
-        ("HYBRID_136", "POWERTRAIN", "Motorisation hybride 48V e-DCS6"),
+        (
+            "HYBRID_136",
+            "POWERTRAIN",
+            "Motorisation hybride 48V e-DCS6",
+        ),
         ("I-TOGGLE", "FEATURE", "Raccourcis personnalisables 408"),
     ];
 
@@ -392,10 +396,7 @@ async fn test_q1_stla_byd_comparison() {
     println!("Entity recall: {:.1}%", quality.entity_recall * 100.0);
 
     // For mock provider, just verify query execution succeeds
-    assert!(
-        quality.total_score >= 0.0,
-        "Q1 should return a valid score"
-    );
+    assert!(quality.total_score >= 0.0, "Q1 should return a valid score");
 }
 
 #[tokio::test]
@@ -602,10 +603,7 @@ async fn test_full_suite_execution() {
     );
     println!("  Executed: {}", suite_metrics.total_tests);
     println!("  Avg Score: {:.1}", suite_metrics.average_score);
-    println!(
-        "  Avg Recall: {:.1}%",
-        suite_metrics.average_recall * 100.0
-    );
+    println!("  Avg Recall: {:.1}%", suite_metrics.average_recall * 100.0);
     println!("----------------------------------------\n");
 
     // With mock provider, just verify all queries executed
@@ -632,7 +630,11 @@ async fn test_global_mode_queries() {
         println!("{}: {:.1}", query.id, quality.total_score);
     }
 
-    assert_eq!(executed, global_queries.len(), "All global queries executed");
+    assert_eq!(
+        executed,
+        global_queries.len(),
+        "All global queries executed"
+    );
 }
 
 #[tokio::test]
@@ -673,7 +675,11 @@ async fn test_competitive_analysis_theme() {
         );
     }
 
-    assert_eq!(competitive_queries.len(), 3, "Should have 3 competitive analysis queries");
+    assert_eq!(
+        competitive_queries.len(),
+        3,
+        "Should have 3 competitive analysis queries"
+    );
 }
 
 // =============================================================================
@@ -772,7 +778,8 @@ fn test_metrics_precision_recall() {
 
 #[test]
 fn test_quality_assessment() {
-    let response = "Le Peugeot E-3008 est équipé d'une batterie NMC de 73 kWh avec une autonomie de 700 km. \
+    let response =
+        "Le Peugeot E-3008 est équipé d'une batterie NMC de 73 kWh avec une autonomie de 700 km. \
                     Le BYD Seal U concurrent utilise une batterie LFP.";
     let expected = vec![
         "E-3008".to_string(),

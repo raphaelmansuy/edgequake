@@ -18,16 +18,16 @@ done
 
 Found 8 undocumented modules:
 
-| Crate | File | Description |
-|-------|------|-------------|
-| edgequake-audit | lib.rs | Crate entry point |
-| edgequake-audit | event.rs | Audit event types |
-| edgequake-audit | logger.rs | Async audit logger |
-| edgequake-core | query.rs | RAG query engine |
-| edgequake-rate-limiter | lib.rs | Crate entry point |
-| edgequake-rate-limiter | config.rs | Rate limit configuration |
-| edgequake-rate-limiter | limiter.rs | Token bucket implementation |
-| edgequake-rate-limiter | middleware.rs | Axum middleware |
+| Crate                  | File          | Description                 |
+| ---------------------- | ------------- | --------------------------- |
+| edgequake-audit        | lib.rs        | Crate entry point           |
+| edgequake-audit        | event.rs      | Audit event types           |
+| edgequake-audit        | logger.rs     | Async audit logger          |
+| edgequake-core         | query.rs      | RAG query engine            |
+| edgequake-rate-limiter | lib.rs        | Crate entry point           |
+| edgequake-rate-limiter | config.rs     | Rate limit configuration    |
+| edgequake-rate-limiter | limiter.rs    | Token bucket implementation |
+| edgequake-rate-limiter | middleware.rs | Axum middleware             |
 
 ## Orient
 
@@ -40,6 +40,7 @@ Found 8 undocumented modules:
 ### Pre-existing Issues Noted
 
 During verification, found 6 tests failing in `e2e_advanced_retrieval.rs`:
+
 - `test_entity_degree_sorting`
 - `test_cross_document_entity_linking`
 - `test_response_quality_metrics`
@@ -48,6 +49,7 @@ During verification, found 6 tests failing in `e2e_advanced_retrieval.rs`:
 - `test_token_based_truncation`
 
 These failures are **pre-existing** (verified by stashing changes) and caused by:
+
 ```
 Pipeline error: Entity extraction error: Invalid JSON: expected value at line 1 column 1
 ```
@@ -56,17 +58,18 @@ This appears to be a mock LLM response issue, not related to documentation chang
 
 ## Decide
 
-| File | Action |
-|------|--------|
-| edgequake-audit/* | Add comprehensive module docs with examples |
-| edgequake-core/query.rs | Add architecture docs explaining pipeline stages |
-| edgequake-rate-limiter/* | Add usage examples and feature descriptions |
+| File                      | Action                                           |
+| ------------------------- | ------------------------------------------------ |
+| edgequake-audit/\*        | Add comprehensive module docs with examples      |
+| edgequake-core/query.rs   | Add architecture docs explaining pipeline stages |
+| edgequake-rate-limiter/\* | Add usage examples and feature descriptions      |
 
 ## Act
 
 ### Changes Made
 
 #### edgequake-audit/lib.rs
+
 ```rust
 //! Audit logging for EdgeQuake.
 //!
@@ -82,6 +85,7 @@ This appears to be a mock LLM response issue, not related to documentation chang
 ```
 
 #### edgequake-audit/event.rs
+
 ```rust
 //! Audit event types and builders.
 //!
@@ -90,6 +94,7 @@ This appears to be a mock LLM response issue, not related to documentation chang
 ```
 
 #### edgequake-audit/logger.rs
+
 ```rust
 //! Async audit logger implementation.
 //!
@@ -98,6 +103,7 @@ This appears to be a mock LLM response issue, not related to documentation chang
 ```
 
 #### edgequake-core/query.rs
+
 ```rust
 //! RAG query engine for EdgeQuake.
 //!
@@ -121,6 +127,7 @@ This appears to be a mock LLM response issue, not related to documentation chang
 ```
 
 #### edgequake-rate-limiter/lib.rs
+
 ```rust
 //! Rate limiting for EdgeQuake API.
 //!
@@ -136,6 +143,7 @@ This appears to be a mock LLM response issue, not related to documentation chang
 ```
 
 #### edgequake-rate-limiter/config.rs
+
 ```rust
 //! Rate limit configuration structures.
 //!
@@ -144,6 +152,7 @@ This appears to be a mock LLM response issue, not related to documentation chang
 ```
 
 #### edgequake-rate-limiter/limiter.rs
+
 ```rust
 //! Token bucket rate limiter implementation.
 //!
@@ -152,6 +161,7 @@ This appears to be a mock LLM response issue, not related to documentation chang
 ```
 
 #### edgequake-rate-limiter/middleware.rs
+
 ```rust
 //! Axum middleware for rate limiting.
 //!
@@ -168,12 +178,12 @@ cargo test --workspace   # ✅ Same test failures as before (pre-existing)
 
 ## Metrics
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Undocumented modules | 8 | 0 |
-| Lines added | 0 | ~120 |
-| Build status | ✅ | ✅ |
-| Test failures | 6 (pre-existing) | 6 (pre-existing) |
+| Metric               | Before           | After            |
+| -------------------- | ---------------- | ---------------- |
+| Undocumented modules | 8                | 0                |
+| Lines added          | 0                | ~120             |
+| Build status         | ✅               | ✅               |
+| Test failures        | 6 (pre-existing) | 6 (pre-existing) |
 
 ## Lessons Learned
 

@@ -8,13 +8,13 @@
 
 Ran `cargo clippy -p edgequake-storage` and identified 5 warnings:
 
-| File | Line | Warning | Type |
-|------|------|---------|------|
-| config.rs | 30 | `HNSW` should be `Hnsw` | upper_case_acronyms |
-| conversation.rs | 36 | `list_conversations` has 11 args | too_many_arguments |
-| conversation.rs | 70 | `create_message` has 11 args | too_many_arguments |
-| conversation.rs | 97 | `update_message` has 8 args | too_many_arguments |
-| graph.rs | 338 | filter_map always returns Some | useless_filter_map |
+| File            | Line | Warning                          | Type                |
+| --------------- | ---- | -------------------------------- | ------------------- |
+| config.rs       | 30   | `HNSW` should be `Hnsw`          | upper_case_acronyms |
+| conversation.rs | 36   | `list_conversations` has 11 args | too_many_arguments  |
+| conversation.rs | 70   | `create_message` has 11 args     | too_many_arguments  |
+| conversation.rs | 97   | `update_message` has 8 args      | too_many_arguments  |
+| graph.rs        | 338  | filter_map always returns Some   | useless_filter_map  |
 
 ## Orient
 
@@ -28,23 +28,25 @@ Ran `cargo clippy -p edgequake-storage` and identified 5 warnings:
 
 ## Decide
 
-| Warning | Decision | Rationale |
-|---------|----------|-----------|
-| upper_case_acronyms | Allow with doc | HNSW is standard algorithm name |
-| too_many_arguments (x3) | Allow with WHY | Semantic necessity for DB API |
-| useless_filter_map | Fix | Replace with .map() |
+| Warning                 | Decision       | Rationale                       |
+| ----------------------- | -------------- | ------------------------------- |
+| upper_case_acronyms     | Allow with doc | HNSW is standard algorithm name |
+| too_many_arguments (x3) | Allow with WHY | Semantic necessity for DB API   |
+| useless_filter_map      | Fix            | Replace with .map()             |
 
 ## Act
 
 ### Changes Made
 
 1. **config.rs:30** - Added targeted allow:
+
 ```rust
 #[allow(clippy::upper_case_acronyms)]
 HNSW,  // Hierarchical Navigable Small World - standard algorithm name
 ```
 
 2. **conversation.rs:36** - Added allow with documentation:
+
 ```rust
 /// WHY: All parameters semantically necessary for conversation listing query
 #[allow(clippy::too_many_arguments)]
@@ -52,6 +54,7 @@ async fn list_conversations(...)
 ```
 
 3. **conversation.rs:70** - Added allow with documentation:
+
 ```rust
 /// WHY: Message creation requires all identifiers + role/content/metadata
 #[allow(clippy::too_many_arguments)]
@@ -59,6 +62,7 @@ async fn create_message(...)
 ```
 
 4. **conversation.rs:97** - Added allow with documentation:
+
 ```rust
 /// WHY: Message update requires all identifiers + new content/metadata
 #[allow(clippy::too_many_arguments)]
@@ -66,6 +70,7 @@ async fn update_message(...)
 ```
 
 5. **graph.rs:338** - Changed from filter_map to map:
+
 ```rust
 // Before:
 .filter_map(|(relationship_type, ids)| Some((relationship_type, ids)))
@@ -83,11 +88,11 @@ cargo clippy -p edgequake-storage 2>&1 | grep -E 'warning.*edgequake-storage'
 
 ## Metrics
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Warnings | 5 | 0 |
-| Lines changed | 0 | ~10 |
-| Tests passing | ✅ | ✅ |
+| Metric        | Before | After |
+| ------------- | ------ | ----- |
+| Warnings      | 5      | 0     |
+| Lines changed | 0      | ~10   |
+| Tests passing | ✅     | ✅    |
 
 ## Lessons Learned
 

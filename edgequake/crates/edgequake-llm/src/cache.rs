@@ -6,9 +6,7 @@
 //! Based on LightRAG's caching approach with an in-memory LRU cache.
 
 use crate::error::Result;
-use crate::traits::{
-    ChatMessage, CompletionOptions, EmbeddingProvider, LLMProvider, LLMResponse,
-};
+use crate::traits::{ChatMessage, CompletionOptions, EmbeddingProvider, LLMProvider, LLMResponse};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -292,10 +290,7 @@ impl LLMCache {
         }
     }
 
-    async fn evict_lru_embeddings(
-        &self,
-        cache: &mut HashMap<CacheKey, CacheEntry<Vec<Vec<f32>>>>,
-    ) {
+    async fn evict_lru_embeddings(&self, cache: &mut HashMap<CacheKey, CacheEntry<Vec<Vec<f32>>>>) {
         if let Some(key) = cache
             .iter()
             .min_by_key(|(_, entry)| (entry.access_count, entry.created_at))
@@ -409,7 +404,7 @@ impl<P: EmbeddingProvider> EmbeddingProvider for CachedProvider<P> {
     async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
         // Convert to &str for cache lookup
         let text_refs: Vec<&str> = texts.iter().map(|s| s.as_str()).collect();
-        
+
         // Check cache first
         if let Some(cached) = self.cache.get_embeddings(&text_refs).await {
             tracing::debug!("Cache hit for embeddings");
@@ -420,7 +415,9 @@ impl<P: EmbeddingProvider> EmbeddingProvider for CachedProvider<P> {
         let embeddings = self.inner.embed(texts).await?;
 
         // Store in cache
-        self.cache.put_embeddings(&text_refs, embeddings.clone()).await;
+        self.cache
+            .put_embeddings(&text_refs, embeddings.clone())
+            .await;
 
         Ok(embeddings)
     }
@@ -494,8 +491,7 @@ mod tests {
     async fn test_cache_hit() {
         let cache = LLMCache::new(CacheConfig::default());
 
-        let response = LLMResponse::new("test response", "gpt-4")
-            .with_usage(10, 5);
+        let response = LLMResponse::new("test response", "gpt-4").with_usage(10, 5);
 
         cache.put_completion("test prompt", response.clone()).await;
         let result = cache.get_completion("test prompt").await;
@@ -511,8 +507,7 @@ mod tests {
     async fn test_cache_clear() {
         let cache = LLMCache::new(CacheConfig::default());
 
-        let response = LLMResponse::new("test", "gpt-4")
-            .with_usage(1, 1);
+        let response = LLMResponse::new("test", "gpt-4").with_usage(1, 1);
 
         cache.put_completion("prompt", response).await;
         assert_eq!(cache.stats().await.entries, 1);
@@ -552,8 +547,7 @@ mod tests {
             .with_embedding_caching(false);
         let cache = LLMCache::new(config);
 
-        let response = LLMResponse::new("test", "gpt-4")
-            .with_usage(1, 1);
+        let response = LLMResponse::new("test", "gpt-4").with_usage(1, 1);
 
         cache.put_completion("prompt", response).await;
         assert!(cache.get_completion("prompt").await.is_none());

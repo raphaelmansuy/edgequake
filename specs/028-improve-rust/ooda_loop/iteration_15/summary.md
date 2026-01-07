@@ -16,6 +16,7 @@ cargo test --package edgequake-storage  # ❌ 1 test flaky
 Failing test: `test_performance_comparison_batch_vs_individual`
 
 The test failed intermittently with:
+
 ```
 assertion failed: batch_elapsed.as_nanos() <= individual_elapsed.as_nanos() + 10_000
 ```
@@ -41,6 +42,7 @@ assert!(
 4. **Non-deterministic**: Same code can be faster or slower on different runs
 
 Observed timings across runs:
+
 - Run 1: Individual 2.75µs, Batch 3.17µs (batch slower!)
 - Run 2: Individual 3.00µs, Batch 2.50µs (batch faster)
 
@@ -49,6 +51,7 @@ Observed timings across runs:
 **Decision**: Remove the performance assertion, keep the test as a benchmark reference.
 
 **Rationale**:
+
 1. Performance tests should not have assertions in unit tests
 2. Timing is inherently non-deterministic
 3. The test still provides useful benchmark data
@@ -88,11 +91,11 @@ done
 
 ## Metrics
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Storage test suite | Flaky (fails ~50%) | Stable (100% pass) |
-| Test assertions | 1 flaky assertion | 0 flaky assertions |
-| Total workspace tests | 1953 | 1953 |
+| Metric                | Before             | After              |
+| --------------------- | ------------------ | ------------------ |
+| Storage test suite    | Flaky (fails ~50%) | Stable (100% pass) |
+| Test assertions       | 1 flaky assertion  | 0 flaky assertions |
+| Total workspace tests | 1953               | 1953               |
 
 ## Lessons Learned
 

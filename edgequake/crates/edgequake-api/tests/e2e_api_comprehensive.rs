@@ -16,7 +16,7 @@
 
 use axum::{
     body::Body,
-    http::{Request, StatusCode, header},
+    http::{header, Request, StatusCode},
 };
 use edgequake_api::{AppState, Server, ServerConfig};
 use serde_json::{json, Value};
@@ -988,7 +988,10 @@ mod workspace_tests {
             .await
             .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap_or_default();
-        let tenant_id = json.get("id").and_then(|v| v.as_str()).unwrap_or("test-tenant");
+        let tenant_id = json
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("test-tenant");
 
         // Now list workspaces for tenant
         let app = server.build_router();
@@ -1248,9 +1251,6 @@ mod metrics_tests {
             .unwrap();
 
         // Metrics may or may not be implemented
-        assert!(
-            response.status() == StatusCode::OK
-                || response.status() == StatusCode::NOT_FOUND
-        );
+        assert!(response.status() == StatusCode::OK || response.status() == StatusCode::NOT_FOUND);
     }
 }

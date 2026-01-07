@@ -30,6 +30,7 @@ The warning indicates using `vec![]` where the size is known at compile time. Th
 ## Decide
 
 Replace `vec![]` with array literal `[]` to:
+
 - Eliminate unnecessary heap allocation
 - Make intent clearer (fixed-size collection)
 - Follow clippy best practices
@@ -67,11 +68,11 @@ cargo test --workspace 2>&1 | grep "test result"
 
 ## Metrics
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Clippy warnings | 1 | 0 |
-| Heap allocations in example | 1 unnecessary | 0 |
-| Stack allocation | No | Yes (faster) |
+| Metric                      | Before        | After        |
+| --------------------------- | ------------- | ------------ |
+| Clippy warnings             | 1             | 0            |
+| Heap allocations in example | 1 unnecessary | 0            |
+| Stack allocation            | No            | Yes (faster) |
 
 ## Code Quality Audit Summary
 
@@ -83,18 +84,18 @@ Also verified during this iteration:
 
 ### TODOs Found (Technical Debt)
 
-| Location | Description |
-|----------|-------------|
-| `postgres_conversation_service.rs:210` | Implement cursor-based pagination |
-| `postgres_conversation_service.rs:390` | Implement import functionality |
-| `handlers/query.rs:291` | Resolve document_id to file_path |
-| `handlers/auth.rs:752,946` | Implement listing with pagination |
-| `handlers/metrics.rs:45` | Use prometheus crate for metrics |
-| `handlers/entities.rs:479` | Implement document references tracking |
-| `audit/logger.rs:191` | Implement dynamic query parameters |
-| `core/orchestrator.rs:864` | Retrieve from KV store |
-| `core/orchestrator.rs:1032` | Check all backend connections |
-| `pdf/extractor.rs:313` | Extract images |
-| `pdf/layout/mod.rs:212` | Calculate actual confidence |
-| `pipeline/cache.rs:355` | Store raw response in cache |
-| `rate-limiter/middleware.rs:81` | Calculate actual reset time |
+| Location                               | Description                            |
+| -------------------------------------- | -------------------------------------- |
+| `postgres_conversation_service.rs:210` | Implement cursor-based pagination      |
+| `postgres_conversation_service.rs:390` | Implement import functionality         |
+| `handlers/query.rs:291`                | Resolve document_id to file_path       |
+| `handlers/auth.rs:752,946`             | Implement listing with pagination      |
+| `handlers/metrics.rs:45`               | Use prometheus crate for metrics       |
+| `handlers/entities.rs:479`             | Implement document references tracking |
+| `audit/logger.rs:191`                  | Implement dynamic query parameters     |
+| `core/orchestrator.rs:864`             | Retrieve from KV store                 |
+| `core/orchestrator.rs:1032`            | Check all backend connections          |
+| `pdf/extractor.rs:313`                 | Extract images                         |
+| `pdf/layout/mod.rs:212`                | Calculate actual confidence            |
+| `pipeline/cache.rs:355`                | Store raw response in cache            |
+| `rate-limiter/middleware.rs:81`        | Calculate actual reset time            |

@@ -106,10 +106,10 @@ mod tests {
     fn test_llm_error_display() {
         let error = LlmError::ApiError("something went wrong".to_string());
         assert_eq!(error.to_string(), "API error: something went wrong");
-        
+
         let error = LlmError::RateLimited("too many requests".to_string());
         assert_eq!(error.to_string(), "Rate limit exceeded: too many requests");
-        
+
         let error = LlmError::InvalidRequest("bad params".to_string());
         assert_eq!(error.to_string(), "Invalid request: bad params");
     }
@@ -122,8 +122,14 @@ mod tests {
 
     #[test]
     fn test_llm_error_token_limit() {
-        let error = LlmError::TokenLimitExceeded { max: 4096, got: 5000 };
-        assert_eq!(error.to_string(), "Token limit exceeded: max 4096, got 5000");
+        let error = LlmError::TokenLimitExceeded {
+            max: 4096,
+            got: 5000,
+        };
+        assert_eq!(
+            error.to_string(),
+            "Token limit exceeded: max 4096, got 5000"
+        );
     }
 
     #[test]
@@ -179,7 +185,8 @@ mod tests {
     #[test]
     fn test_llm_error_from_serde_json() {
         let json_str = "not json at all";
-        let json_err: serde_json::Error = serde_json::from_str::<serde_json::Value>(json_str).unwrap_err();
+        let json_err: serde_json::Error =
+            serde_json::from_str::<serde_json::Value>(json_str).unwrap_err();
         let llm_err: LlmError = json_err.into();
         assert!(matches!(llm_err, LlmError::SerializationError(_)));
     }

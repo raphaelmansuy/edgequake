@@ -209,11 +209,23 @@ mod tests {
 
     #[test]
     fn test_all_error_status_codes() {
-        assert_eq!(ApiError::Unauthorized.status_code(), StatusCode::UNAUTHORIZED);
+        assert_eq!(
+            ApiError::Unauthorized.status_code(),
+            StatusCode::UNAUTHORIZED
+        );
         assert_eq!(ApiError::Forbidden.status_code(), StatusCode::FORBIDDEN);
-        assert_eq!(ApiError::Conflict("c".into()).status_code(), StatusCode::CONFLICT);
-        assert_eq!(ApiError::ValidationError("v".into()).status_code(), StatusCode::UNPROCESSABLE_ENTITY);
-        assert_eq!(ApiError::RateLimited.status_code(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            ApiError::Conflict("c".into()).status_code(),
+            StatusCode::CONFLICT
+        );
+        assert_eq!(
+            ApiError::ValidationError("v".into()).status_code(),
+            StatusCode::UNPROCESSABLE_ENTITY
+        );
+        assert_eq!(
+            ApiError::RateLimited.status_code(),
+            StatusCode::TOO_MANY_REQUESTS
+        );
     }
 
     #[test]
@@ -223,7 +235,10 @@ mod tests {
         assert_eq!(ApiError::Unauthorized.code(), "UNAUTHORIZED");
         assert_eq!(ApiError::Forbidden.code(), "FORBIDDEN");
         assert_eq!(ApiError::Conflict("c".into()).code(), "CONFLICT");
-        assert_eq!(ApiError::ValidationError("v".into()).code(), "VALIDATION_ERROR");
+        assert_eq!(
+            ApiError::ValidationError("v".into()).code(),
+            "VALIDATION_ERROR"
+        );
         assert_eq!(ApiError::RateLimited.code(), "RATE_LIMITED");
         assert_eq!(ApiError::Internal("i".into()).code(), "INTERNAL_ERROR");
     }
@@ -232,18 +247,17 @@ mod tests {
     fn test_error_display() {
         let error = ApiError::BadRequest("invalid input".to_string());
         assert_eq!(error.to_string(), "Bad request: invalid input");
-        
+
         let error = ApiError::NotFound("document".to_string());
         assert_eq!(error.to_string(), "Not found: document");
-        
+
         let error = ApiError::Unauthorized;
         assert_eq!(error.to_string(), "Unauthorized");
     }
 
     #[test]
     fn test_error_response_clone() {
-        let error = ErrorResponse::new("CODE", "Message")
-            .with_details(serde_json::json!({"x": 1}));
+        let error = ErrorResponse::new("CODE", "Message").with_details(serde_json::json!({"x": 1}));
         let cloned = error.clone();
         assert_eq!(error.code, cloned.code);
         assert_eq!(error.message, cloned.message);

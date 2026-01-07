@@ -351,7 +351,9 @@ mod tests {
         // Expected behavior: Batch operations should amortize overhead better,
         // but for simple in-memory lookups the difference is negligible.
         if speedup < 1.0 {
-            println!("  Note: Batch was slower - this is expected for small N with in-memory storage");
+            println!(
+                "  Note: Batch was slower - this is expected for small N with in-memory storage"
+            );
         }
     }
 

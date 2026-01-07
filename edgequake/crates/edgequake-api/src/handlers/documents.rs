@@ -406,7 +406,7 @@ pub async fn upload_document(
                         metadata["tenant_id"] = serde_json::json!(tid);
                     }
                     metadata["workspace_id"] = serde_json::json!(&workspace_id_for_storage);
-                    
+
                     let entity_id = format!("entity:{}", entity.name);
                     if let Err(e) = state
                         .vector_storage
@@ -729,7 +729,7 @@ pub async fn list_documents(
             if let Some(id) = obj.get("id").and_then(|v| v.as_str()) {
                 let title_val = obj.get("title");
                 debug!(doc_id = %id, title = ?title_val, "Extracted ID and title from metadata");
-                
+
                 // WHY: We build DocMetadata incrementally because fields are extracted
                 // conditionally from JSON, and some fields depend on others (e.g., file_name
                 // is derived from title). Struct initializer syntax doesn't work well here.
@@ -1154,7 +1154,10 @@ pub async fn get_document(
     // Fetch document metadata
     let metadata_key = format!("{}-metadata", document_id);
     debug!(metadata_key = %metadata_key, "Looking up metadata key");
-    let metadata_values = state.kv_storage.get_by_ids(std::slice::from_ref(&metadata_key)).await?;
+    let metadata_values = state
+        .kv_storage
+        .get_by_ids(std::slice::from_ref(&metadata_key))
+        .await?;
     debug!(
         metadata_count = metadata_values.len(),
         "Metadata values retrieved"
@@ -2114,7 +2117,7 @@ pub async fn upload_file(
                     tracing::error!(entity_name = %entity.name, error = %e, "GRAPH STORAGE: Failed to store entity")
                 }
             }
-            
+
             // CRITICAL: Also store entity embedding in vector storage for query_local retrieval
             tracing::info!(
                 entity_name = %entity.name,
@@ -2135,7 +2138,7 @@ pub async fn upload_file(
                     metadata["tenant_id"] = serde_json::json!(tid);
                 }
                 metadata["workspace_id"] = serde_json::json!(&workspace_id_for_storage);
-                
+
                 // Use entity name as vector ID for dedup
                 let entity_id = format!("entity:{}", entity.name);
                 if let Err(e) = state

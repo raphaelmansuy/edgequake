@@ -39,7 +39,7 @@ impl PostgresConversationStorage {
     async fn set_context(&self, tenant_id: Uuid, user_id: Option<Uuid>) -> Result<()> {
         // Set tenant context
         set_tenant_context(&self.pool, tenant_id, None).await?;
-        
+
         // Set user context if provided
         if let Some(uid) = user_id {
             let uid_str = uid.to_string();
@@ -47,9 +47,11 @@ impl PostgresConversationStorage {
                 .bind(&uid_str)
                 .execute(&*self.pool)
                 .await
-                .map_err(|e| StorageError::Database(format!("Failed to set user context: {}", e)))?;
+                .map_err(|e| {
+                    StorageError::Database(format!("Failed to set user context: {}", e))
+                })?;
         }
-        
+
         Ok(())
     }
 
@@ -200,9 +202,12 @@ impl PostgresConversationStorage {
 
         if updates.is_empty() {
             // Nothing to update, just return current state
-            return self.get_conversation(conversation_id).await?.ok_or_else(|| {
-                StorageError::NotFound(format!("Conversation {} not found", conversation_id))
-            });
+            return self
+                .get_conversation(conversation_id)
+                .await?
+                .ok_or_else(|| {
+                    StorageError::NotFound(format!("Conversation {} not found", conversation_id))
+                });
         }
 
         let query = format!(
@@ -210,8 +215,7 @@ impl PostgresConversationStorage {
             updates.join(", ")
         );
 
-        let mut query_builder = sqlx::query_as::<_, ConversationRow>(&query)
-            .bind(conversation_id);
+        let mut query_builder = sqlx::query_as::<_, ConversationRow>(&query).bind(conversation_id);
 
         if let Some(t) = &title {
             query_builder = query_builder.bind(t);
@@ -277,10 +281,7 @@ impl PostgresConversationStorage {
         self.set_context(tenant_id, Some(user_id)).await?;
 
         // Build query with filters
-        let mut where_clauses = vec![
-            "tenant_id = $1".to_string(),
-            "user_id = $2".to_string(),
-        ];
+        let mut where_clauses = vec!["tenant_id = $1".to_string(), "user_id = $2".to_string()];
         let mut param_count = 2;
 
         if archived.is_some() {
@@ -332,7 +333,7 @@ impl PostgresConversationStorage {
         let mut query_builder = sqlx::query_as::<_, ConversationRow>(&query)
             .bind(tenant_id)
             .bind(user_id);
-        
+
         let mut count_builder = sqlx::query_scalar::<_, i64>(&count_query)
             .bind(tenant_id)
             .bind(user_id);
@@ -384,15 +385,17 @@ impl PostgresConversationStorage {
 
         if result.rows_affected() == 0 {
             // Already shared, get existing share_id
-            let row: Option<(String,)> = sqlx::query_as(
-                "SELECT share_id FROM conversations WHERE conversation_id = $1",
-            )
-            .bind(conversation_id)
-            .fetch_optional(&*self.pool)
-            .await
-            .map_err(|e| StorageError::Database(format!("Failed to get share_id: {}", e)))?;
+            let row: Option<(String,)> =
+                sqlx::query_as("SELECT share_id FROM conversations WHERE conversation_id = $1")
+                    .bind(conversation_id)
+                    .fetch_optional(&*self.pool)
+                    .await
+                    .map_err(|e| {
+                        StorageError::Database(format!("Failed to get share_id: {}", e))
+                    })?;
 
-            return row.map(|(sid,)| sid)
+            return row
+                .map(|(sid,)| sid)
                 .ok_or_else(|| StorageError::NotFound("Conversation not found".to_string()));
         }
 
@@ -401,13 +404,14 @@ impl PostgresConversationStorage {
 
     /// Unshare a conversation (remove share_id).
     pub async fn unshare_conversation(&self, conversation_id: Uuid) -> Result<()> {
-        let result = sqlx::query(
-            "UPDATE conversations SET share_id = NULL WHERE conversation_id = $1",
-        )
-        .bind(conversation_id)
-        .execute(&*self.pool)
-        .await
-        .map_err(|e| StorageError::Database(format!("Failed to unshare conversation: {}", e)))?;
+        let result =
+            sqlx::query("UPDATE conversations SET share_id = NULL WHERE conversation_id = $1")
+                .bind(conversation_id)
+                .execute(&*self.pool)
+                .await
+                .map_err(|e| {
+                    StorageError::Database(format!("Failed to unshare conversation: {}", e))
+                })?;
 
         if result.rows_affected() == 0 {
             return Err(StorageError::NotFound(format!(
@@ -421,13 +425,14 @@ impl PostgresConversationStorage {
 
     /// Get a shared conversation by share_id.
     pub async fn get_shared_conversation(&self, share_id: &str) -> Result<Option<ConversationRow>> {
-        let row = sqlx::query_as::<_, ConversationRow>(
-            "SELECT * FROM conversations WHERE share_id = $1",
-        )
-        .bind(share_id)
-        .fetch_optional(&*self.pool)
-        .await
-        .map_err(|e| StorageError::Database(format!("Failed to get shared conversation: {}", e)))?;
+        let row =
+            sqlx::query_as::<_, ConversationRow>("SELECT * FROM conversations WHERE share_id = $1")
+                .bind(share_id)
+                .fetch_optional(&*self.pool)
+                .await
+                .map_err(|e| {
+                    StorageError::Database(format!("Failed to get shared conversation: {}", e))
+                })?;
 
         Ok(row)
     }
@@ -532,8 +537,7 @@ impl PostgresConversationStorage {
             updates.join(", ")
         );
 
-        let mut query_builder = sqlx::query_as::<_, MessageRow>(&query)
-            .bind(message_id);
+        let mut query_builder = sqlx::query_as::<_, MessageRow>(&query).bind(message_id);
 
         if let Some(c) = content {
             query_builder = query_builder.bind(c);
@@ -564,13 +568,11 @@ impl PostgresConversationStorage {
 
     /// Get a message by ID.
     pub async fn get_message(&self, message_id: Uuid) -> Result<Option<MessageRow>> {
-        let row = sqlx::query_as::<_, MessageRow>(
-            "SELECT * FROM messages WHERE message_id = $1",
-        )
-        .bind(message_id)
-        .fetch_optional(&*self.pool)
-        .await
-        .map_err(|e| StorageError::Database(format!("Failed to get message: {}", e)))?;
+        let row = sqlx::query_as::<_, MessageRow>("SELECT * FROM messages WHERE message_id = $1")
+            .bind(message_id)
+            .fetch_optional(&*self.pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("Failed to get message: {}", e)))?;
 
         Ok(row)
     }
@@ -615,13 +617,12 @@ impl PostgresConversationStorage {
         .await
         .map_err(|e| StorageError::Database(format!("Failed to list messages: {}", e)))?;
 
-        let total: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM messages WHERE conversation_id = $1",
-        )
-        .bind(conversation_id)
-        .fetch_one(&*self.pool)
-        .await
-        .map_err(|e| StorageError::Database(format!("Failed to count messages: {}", e)))?;
+        let total: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM messages WHERE conversation_id = $1")
+                .bind(conversation_id)
+                .fetch_one(&*self.pool)
+                .await
+                .map_err(|e| StorageError::Database(format!("Failed to count messages: {}", e)))?;
 
         Ok((rows, total))
     }
@@ -717,9 +718,10 @@ impl PostgresConversationStorage {
         }
 
         if updates.is_empty() {
-            return self.get_folder(folder_id).await?.ok_or_else(|| {
-                StorageError::NotFound(format!("Folder {} not found", folder_id))
-            });
+            return self
+                .get_folder(folder_id)
+                .await?
+                .ok_or_else(|| StorageError::NotFound(format!("Folder {} not found", folder_id)));
         }
 
         let query = format!(
@@ -727,8 +729,7 @@ impl PostgresConversationStorage {
             updates.join(", ")
         );
 
-        let mut query_builder = sqlx::query_as::<_, FolderRow>(&query)
-            .bind(folder_id);
+        let mut query_builder = sqlx::query_as::<_, FolderRow>(&query).bind(folder_id);
 
         if let Some(n) = name {
             query_builder = query_builder.bind(n);
@@ -750,13 +751,11 @@ impl PostgresConversationStorage {
 
     /// Get a folder by ID.
     pub async fn get_folder(&self, folder_id: Uuid) -> Result<Option<FolderRow>> {
-        let row = sqlx::query_as::<_, FolderRow>(
-            "SELECT * FROM folders WHERE folder_id = $1",
-        )
-        .bind(folder_id)
-        .fetch_optional(&*self.pool)
-        .await
-        .map_err(|e| StorageError::Database(format!("Failed to get folder: {}", e)))?;
+        let row = sqlx::query_as::<_, FolderRow>("SELECT * FROM folders WHERE folder_id = $1")
+            .bind(folder_id)
+            .fetch_optional(&*self.pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("Failed to get folder: {}", e)))?;
 
         Ok(row)
     }
@@ -768,7 +767,9 @@ impl PostgresConversationStorage {
             .bind(folder_id)
             .execute(&*self.pool)
             .await
-            .map_err(|e| StorageError::Database(format!("Failed to update conversations: {}", e)))?;
+            .map_err(|e| {
+                StorageError::Database(format!("Failed to update conversations: {}", e))
+            })?;
 
         let result = sqlx::query("DELETE FROM folders WHERE folder_id = $1")
             .bind(folder_id)
@@ -831,27 +832,25 @@ impl PostgresConversationStorage {
             return Ok(0);
         }
 
-        let result = sqlx::query(
-            "UPDATE conversations SET folder_id = $1 WHERE conversation_id = ANY($2)",
-        )
-        .bind(folder_id)
-        .bind(conversation_ids)
-        .execute(&*self.pool)
-        .await
-        .map_err(|e| StorageError::Database(format!("Failed to bulk move: {}", e)))?;
+        let result =
+            sqlx::query("UPDATE conversations SET folder_id = $1 WHERE conversation_id = ANY($2)")
+                .bind(folder_id)
+                .bind(conversation_ids)
+                .execute(&*self.pool)
+                .await
+                .map_err(|e| StorageError::Database(format!("Failed to bulk move: {}", e)))?;
 
         Ok(result.rows_affected() as usize)
     }
 
     /// Get message count for a conversation.
     pub async fn get_message_count(&self, conversation_id: Uuid) -> Result<i64> {
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM messages WHERE conversation_id = $1",
-        )
-        .bind(conversation_id)
-        .fetch_one(&*self.pool)
-        .await
-        .map_err(|e| StorageError::Database(format!("Failed to count messages: {}", e)))?;
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM messages WHERE conversation_id = $1")
+                .bind(conversation_id)
+                .fetch_one(&*self.pool)
+                .await
+                .map_err(|e| StorageError::Database(format!("Failed to count messages: {}", e)))?;
 
         Ok(count)
     }

@@ -8,12 +8,12 @@
 
 Ran `cargo clippy -p edgequake-pdf` and identified 4 warnings:
 
-| File | Line | Warning | Type |
-|------|------|---------|------|
-| text_grouping.rs | 395 | method `interleave_columns_by_y` is never used | dead_code |
-| processor.rs | 373 | method `detect_headers` is never used | dead_code |
-| stats.rs | 77 | doc list item without indentation | doc_lazy_continuation |
-| bin.rs | 250 | `map_or` can be simplified | option_map_or_transform |
+| File             | Line | Warning                                        | Type                    |
+| ---------------- | ---- | ---------------------------------------------- | ----------------------- |
+| text_grouping.rs | 395  | method `interleave_columns_by_y` is never used | dead_code               |
+| processor.rs     | 373  | method `detect_headers` is never used          | dead_code               |
+| stats.rs         | 77   | doc list item without indentation              | doc_lazy_continuation   |
+| bin.rs           | 250  | `map_or` can be simplified                     | option_map_or_transform |
 
 ## Orient
 
@@ -29,18 +29,19 @@ Ran `cargo clippy -p edgequake-pdf` and identified 4 warnings:
 
 ## Decide
 
-| Warning | Decision | Rationale |
-|---------|----------|-----------|
+| Warning                             | Decision       | Rationale                                               |
+| ----------------------------------- | -------------- | ------------------------------------------------------- |
 | dead_code (interleave_columns_by_y) | Allow with doc | Reserved for potential column interleaving optimization |
-| dead_code (detect_headers) | Allow with doc | Convenience wrapper for context-agnostic calls |
-| doc_lazy_continuation | Fix | Add proper indentation and separate list from prose |
-| option_map_or_transform | Fix | Use idiomatic `is_some_and()` |
+| dead_code (detect_headers)          | Allow with doc | Convenience wrapper for context-agnostic calls          |
+| doc_lazy_continuation               | Fix            | Add proper indentation and separate list from prose     |
+| option_map_or_transform             | Fix            | Use idiomatic `is_some_and()`                           |
 
 ## Act
 
 ### Changes Made
 
 1. **text_grouping.rs:395** - Added `#[allow(dead_code)]` with explanation:
+
 ```rust
 /// Reserved for potential Y-coordinate-based column interleaving optimization.
 #[allow(dead_code)]
@@ -48,6 +49,7 @@ fn interleave_columns_by_y(...)
 ```
 
 2. **processor.rs:373** - Added `#[allow(dead_code)]` with explanation:
+
 ```rust
 /// Simple wrapper for detect_headers_with_context.
 /// Reserved for future use in contexts where page position is unknown.
@@ -56,6 +58,7 @@ fn detect_headers(&self, block: &mut Block) {
 ```
 
 3. **stats.rs:77** - Fixed doc comment formatting:
+
 ```rust
 /// **WHY 1.5x body_font_size filter?** In typical typesetting:
 ///   - Intra-paragraph gaps: ~1.2-1.4x font size (single line spacing)
@@ -65,6 +68,7 @@ fn detect_headers(&self, block: &mut Block) {
 ```
 
 4. **bin.rs:250** - Replaced `map_or(false, ...)` with `is_some_and(...)`:
+
 ```rust
 // Before:
 .map_or(false, |e| e.eq_ignore_ascii_case("pdf"))
@@ -85,11 +89,11 @@ cargo test --package edgequake-pdf --lib 2>&1 | tail -3
 
 ## Metrics
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Warnings (edgequake-pdf) | 4 | 0 |
-| Lines changed | 0 | ~8 |
-| Tests passing | 398 | 398 ✅ |
+| Metric                   | Before | After  |
+| ------------------------ | ------ | ------ |
+| Warnings (edgequake-pdf) | 4      | 0      |
+| Lines changed            | 0      | ~8     |
+| Tests passing            | 398    | 398 ✅ |
 
 ## Lessons Learned
 
