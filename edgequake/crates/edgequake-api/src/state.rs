@@ -1,4 +1,57 @@
-//! Application state.
+//! Application state and storage mode configuration.
+//!
+//! This module manages the central application state shared across all handlers,
+//! including storage backends, service instances, and configuration.
+//!
+//! # Storage Modes
+//!
+//! EdgeQuake supports two storage modes:
+//!
+//! - **Memory**: In-memory storage (ephemeral, for testing)
+//! - **PostgreSQL**: Persistent storage with AGE graph extensions
+//!
+//! # State Components
+//!
+//! ```text
+//! AppState
+//! ├── Storage Adapters
+//! │   ├── KV Storage (documents, metadata)
+//! │   ├── Vector Storage (embeddings)
+//! │   └── Graph Storage (entities, relationships)
+//! ├── Services
+//! │   ├── QueryEngine (hybrid search)
+//! │   ├── Pipeline (document processing)
+//! │   ├── ConversationService
+//! │   └── WorkspaceService
+//! ├── Infrastructure
+//! │   ├── TaskQueue (async processing)
+//! │   ├── CacheManager (hot data)
+//! │   └── ProgressBroadcaster (real-time updates)
+//! └── Configuration
+//!     ├── AuthConfig
+//!     ├── RateLimitConfig
+//!     └── AppConfig
+//! ```
+//!
+//! # Example
+//!
+//! ```rust,ignore
+//! use edgequake_api::{AppState, StorageMode, AppConfig};
+//!
+//! let config = AppConfig {
+//!     storage_mode: StorageMode::Memory,
+//!     max_document_size: 10_000_000, // 10MB
+//!     max_query_length: 10_000,
+//!     ..Default::default()
+//! };
+//!
+//! let state = AppState::new(config).await?;
+//! ```
+//!
+//! # Thread Safety
+//!
+//! All state components use Arc for shared ownership and are designed
+//! for concurrent access across multiple request handlers.
 
 use std::sync::Arc;
 
