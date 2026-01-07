@@ -2,13 +2,14 @@
 
 ## Decision: Implement Domain-Specific Parameter Presets
 
-Based on the observation that BM25F is too invasive (requires structured input) and the 
+Based on the observation that BM25F is too invasive (requires structured input) and the
 orient finding that parameter presets can provide similar benefits with minimal API changes,
 we will:
 
 ### Chosen Approach
 
 1. **Add 4 domain-specific preset constructors**:
+
    - `for_short_docs()`: k1=1.2, b=0.3 - optimized for tweets, titles
    - `for_long_docs()`: k1=1.5, b=0.75, delta=1.0 - BM25+ for papers
    - `for_technical()`: k1=2.0, b=0.5, no stemming - code/API docs
@@ -25,6 +26,6 @@ we will:
 
 ### Expected Outcome
 
-Users can select appropriate BM25 configuration based on their use case without 
+Users can select appropriate BM25 configuration based on their use case without
 understanding the underlying math. The presets encapsulate expert knowledge about
 optimal parameters for different document types.

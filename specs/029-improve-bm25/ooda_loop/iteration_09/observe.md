@@ -2,7 +2,7 @@
 
 ## Unicode Edge Case Focus
 
-Loop 8 covered general edge cases. Loop 9 focuses specifically on Unicode 
+Loop 8 covered general edge cases. Loop 9 focuses specifically on Unicode
 handling which is critical for international content.
 
 ### Unicode Categories to Test
@@ -17,6 +17,7 @@ handling which is critical for international content.
 ### Current Unicode Support
 
 From Loop 2 implementation:
+
 - NFKD normalization for accent handling
 - Unicode-aware tokenization
 
@@ -28,5 +29,5 @@ From Loop 2 implementation:
 
 ## Observation Summary
 
-Need to verify Unicode handling across different character sets and add tests 
+Need to verify Unicode handling across different character sets and add tests
 to document expected behavior.

@@ -3,6 +3,7 @@
 ## Mission Re-read (Every 5 Loops)
 
 Key requirements from mission:
+
 - ✅ 30 OODA loops required (at Loop 10)
 - ✅ Non-regression is North Star (200+ tests passing)
 - ✅ Tantivy assessment complete (not integrating)
@@ -11,6 +12,7 @@ Key requirements from mission:
 ## Observe
 
 API layer integration needs verification:
+
 - BM25_ENHANCED env var wiring (done in Loop 3)
 - Query engine using BM25Reranker
 - SOTA engine integration
@@ -30,6 +32,7 @@ All integration points verified working. No code changes needed.
 ## Act
 
 Verified API and query engine tests pass with new BM25 features:
+
 - Enhanced tokenization (stemming, stop words)
 - Phrase boosting
 - Domain-specific presets

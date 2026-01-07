@@ -3,6 +3,7 @@
 ## Quality Improvement Focus
 
 Loops 1-6 focused on:
+
 - Performance (IDF optimization, benchmarks)
 - Flexibility (presets, enhanced tokenization)
 - API integration (env var config)
@@ -12,6 +13,7 @@ Loop 7 focuses on **query-document matching quality**.
 ## Current Matching Approach
 
 The BM25 reranker uses bag-of-words matching:
+
 - Tokenize query and documents
 - Count term frequencies
 - Compute BM25 scores with IDF weighting
@@ -27,17 +29,19 @@ The BM25 reranker uses bag-of-words matching:
 ## Current Limitations
 
 Looking at real-world queries in SOTA engine:
+
 - "What are the key entities in the document?"
 - "How does X relate to Y?"
 - "Summarize the knowledge about Z"
 
 These benefit from:
+
 - Phrase preservation ("key entities" should match together)
 - Semantic understanding (handled by embedding layer, not BM25)
 
 ## Scope Consideration
 
-BM25 is a reranker - it refines embedding-based results. 
+BM25 is a reranker - it refines embedding-based results.
 It shouldn't duplicate semantic understanding.
 
 Best fit for BM25 improvement: **Phrase/proximity boosting**

@@ -7,22 +7,27 @@
 6 Unicode edge case tests:
 
 1. **test_unicode_cjk_chinese**
+
    - Query: "机器学习" (machine learning)
    - Verifies CJK character handling
 
 2. **test_unicode_emoji_in_content**
+
    - Documents with emoji 🎉🎊🥳
    - Verifies emoji don't break tokenization
 
 3. **test_unicode_arabic_rtl**
+
    - Arabic right-to-left text
    - Verifies RTL scripts handled
 
 4. **test_unicode_math_symbols**
+
    - Mathematical symbols: ∑, Σ
    - Verifies technical content handling
 
 5. **test_unicode_mixed_scripts**
+
    - Mixed Latin, CJK, emoji
    - Verifies multi-script documents
 

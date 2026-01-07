@@ -5,12 +5,14 @@
 ### Categories of Edge Cases
 
 1. **Query edge cases**
+
    - Stop words only: All terms filtered = empty query
    - Numeric only: Years, IDs, versions
    - Mixed case: Should be case-insensitive
    - Punctuation: Should be stripped
 
 2. **Document edge cases**
+
    - No matching terms: All scores = 0
    - Identical documents: Should have identical scores
    - Very long repeated terms: Shouldn't overflow
@@ -29,6 +31,7 @@
 ### Implementation Priority
 
 Add tests for all identified edge cases to ensure robustness:
+
 1. Stop words only query
 2. Numeric queries
 3. No matching terms

@@ -7,13 +7,14 @@
 ### 1. BM25 Implementation Location
 
 The primary BM25 implementation is located at:
+
 - [edgequake/crates/edgequake-llm/src/reranker.rs](../../../edgequake/crates/edgequake-llm/src/reranker.rs#L658-L815) (1969 lines total)
 
 ### 2. BM25 Components Found
 
 ```
 BM25Reranker     - Core reranker with k1=1.5, b=0.75, delta=0 (standard BM25)
-BM25Reranker+    - Extension with delta=1.0 for long document handling  
+BM25Reranker+    - Extension with delta=1.0 for long document handling
 HybridReranker   - Combines BM25 + vector similarity via RRF
 RRFReranker      - Reciprocal Rank Fusion for combining rankings
 MockReranker     - Term overlap fallback (TermOverlapReranker alias)
@@ -31,6 +32,7 @@ Performance: 1000 docs reranked in <1s
 ### 4. Key Observations
 
 #### Strengths of Current Implementation:
+
 1. **SOTA-compliant**: Uses Robertson et al. formulas with correct IDF
 2. **BM25+ extension**: Supports delta parameter for long documents
 3. **Configurable parameters**: k1, b, delta all customizable
@@ -39,8 +41,9 @@ Performance: 1000 docs reranked in <1s
 6. **Hybrid support**: RRF fusion with vector rankings
 
 #### Potential Improvement Areas:
+
 1. **No tantivy integration**: Custom in-memory BM25, not using tantivy's optimized implementation
-2. **Re-tokenization on every query**: No inverted index, O(n*m) complexity
+2. **Re-tokenization on every query**: No inverted index, O(n\*m) complexity
 3. **No stemming**: "running" won't match "run"
 4. **Limited Unicode normalization**: Only French accents handled
 5. **No stop word removal**: Common words counted equally
@@ -77,6 +80,7 @@ chunk_retrieval.rs   - rerank_chunks_by_similarity (vector-based, not BM25)
 ### 7. Tantivy Assessment
 
 Tantivy is a full-text search engine library with:
+
 - Inverted index for O(log n) term lookup
 - BM25 scoring built-in (Bm25Weight struct)
 - Optimized SIMD compression
@@ -86,6 +90,7 @@ Tantivy is a full-text search engine library with:
 **Key Question**: Should we integrate tantivy for BM25?
 
 **Analysis**:
+
 - Current BM25 is a **reranker** (post-retrieval)
 - Tantivy is designed for **primary retrieval** (pre-retrieval)
 - Adding tantivy would add ~1.4MB dependency
@@ -96,13 +101,13 @@ Tantivy is a full-text search engine library with:
 
 ### 8. Files & Line Counts
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| reranker.rs | 1969 | BM25, RRF, Hybrid, HTTP rerankers |
-| sota_engine.rs | 2004 | Query engine with reranker integration |
-| engine.rs | 627 | Query engine config |
-| chunk_retrieval.rs | 325 | Vector-based chunk reranking |
-| graph.rs | 1784 | PostgreSQL full-text search (ts_vector) |
+| File               | Lines | Purpose                                 |
+| ------------------ | ----- | --------------------------------------- |
+| reranker.rs        | 1969  | BM25, RRF, Hybrid, HTTP rerankers       |
+| sota_engine.rs     | 2004  | Query engine with reranker integration  |
+| engine.rs          | 627   | Query engine config                     |
+| chunk_retrieval.rs | 325   | Vector-based chunk reranking            |
+| graph.rs           | 1784  | PostgreSQL full-text search (ts_vector) |
 
 ## Data Gathered
 

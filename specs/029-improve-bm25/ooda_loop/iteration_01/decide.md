@@ -9,6 +9,7 @@
 **DO NOT** integrate tantivy for the reranking use case.
 
 **DO** improve the existing BM25 implementation with:
+
 1. Enhanced Unicode normalization (beyond French)
 2. Optional stemming support (Porter2 algorithm)
 3. Configurable stop word filtering
@@ -74,12 +75,12 @@ unicode-normalization = "0.1"  # Unicode NFD/NFC
 
 ### Files to Modify
 
-| File | Change |
-|------|--------|
-| edgequake-llm/Cargo.toml | Add stemmer dependency |
-| reranker.rs:725-765 | Enhance tokenize() function |
-| reranker.rs:658 | Add stemmer field to BM25Reranker |
-| reranker.rs tests | Add stemming tests |
+| File                     | Change                            |
+| ------------------------ | --------------------------------- |
+| edgequake-llm/Cargo.toml | Add stemmer dependency            |
+| reranker.rs:725-765      | Enhance tokenize() function       |
+| reranker.rs:658          | Add stemmer field to BM25Reranker |
+| reranker.rs tests        | Add stemming tests                |
 
 ### Non-Goals
 
