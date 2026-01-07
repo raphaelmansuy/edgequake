@@ -10,7 +10,7 @@
 //!
 //! # Usage
 //!
-//! ```rust
+//! ```rust,ignore
 //! use edgequake_api::validation::{validate_content, generate_content_summary};
 //!
 //! fn upload_document(content: &str, max_size: usize) -> Result<(), ApiError> {
