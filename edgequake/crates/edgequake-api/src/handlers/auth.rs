@@ -1059,4 +1059,73 @@ mod tests {
         assert_eq!(info.email, "test@example.com");
         assert_eq!(info.role, "user");
     }
+
+    #[test]
+    fn test_create_user_request_deserialize() {
+        let json = r#"{"username": "newuser", "email": "new@example.com", "password": "secret123"}"#;
+        let request: CreateUserRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.username, "newuser");
+        assert_eq!(request.email, "new@example.com");
+        assert_eq!(request.password, "secret123");
+        assert!(request.role.is_none());
+    }
+
+    #[test]
+    fn test_create_user_request_with_role() {
+        let json = r#"{"username": "admin", "email": "admin@example.com", "password": "secret", "role": "admin"}"#;
+        let request: CreateUserRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.role, Some("admin".to_string()));
+    }
+
+    #[test]
+    fn test_api_key_summary_serialization() {
+        let summary = ApiKeySummary {
+            key_id: "key-123".to_string(),
+            prefix: "ek-abc".to_string(),
+            name: Some("My API Key".to_string()),
+            scopes: vec!["read".to_string(), "write".to_string()],
+            is_active: true,
+            last_used_at: Some("2024-01-15T10:00:00Z".to_string()),
+            expires_at: Some("2025-01-15T10:00:00Z".to_string()),
+            created_at: "2024-01-01T10:00:00Z".to_string(),
+        };
+        let json = serde_json::to_string(&summary).unwrap();
+        assert!(json.contains("\"key_id\":\"key-123\""));
+        assert!(json.contains("\"prefix\":\"ek-abc\""));
+        assert!(json.contains("\"is_active\":true"));
+    }
+
+    #[test]
+    fn test_create_api_key_request_defaults() {
+        let json = r#"{}"#;
+        let request: CreateApiKeyRequest = serde_json::from_str(json).unwrap();
+        assert!(request.name.is_none());
+        assert!(request.scopes.is_none());
+        assert!(request.expires_in_days.is_none());
+    }
+
+    #[test]
+    fn test_refresh_token_request_deserialize() {
+        let json = r#"{"refresh_token": "token-abc-123"}"#;
+        let request: RefreshTokenRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.refresh_token, "token-abc-123");
+    }
+
+    #[test]
+    fn test_list_users_response_serialization() {
+        let response = ListUsersResponse {
+            users: vec![
+                UserInfo {
+                    user_id: "u1".to_string(),
+                    username: "user1".to_string(),
+                    email: "u1@test.com".to_string(),
+                    role: "user".to_string(),
+                },
+            ],
+            total: 1,
+        };
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"total\":1"));
+        assert!(json.contains("\"username\":\"user1\""));
+    }
 }
