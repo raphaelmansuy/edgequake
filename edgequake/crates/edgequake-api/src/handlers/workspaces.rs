@@ -788,4 +788,86 @@ mod tests {
         assert_eq!(generate_slug("Test 123!"), "test-123");
         assert_eq!(generate_slug("  multiple   spaces  "), "multiple-spaces");
     }
+
+    #[test]
+    fn test_generate_slug_edge_cases() {
+        assert_eq!(generate_slug(""), "");
+        assert_eq!(generate_slug("UPPERCASE"), "uppercase");
+        assert_eq!(generate_slug("already-slug"), "already-slug");
+        assert_eq!(generate_slug("123"), "123");
+    }
+
+    #[test]
+    fn test_create_tenant_request_deserialization() {
+        let json = r#"{"name": "Test Tenant"}"#;
+        let request: Result<CreateTenantRequest, _> = serde_json::from_str(json);
+        assert!(request.is_ok());
+        let req = request.unwrap();
+        assert_eq!(req.name, "Test Tenant");
+        assert!(req.slug.is_none());
+        assert!(req.plan.is_none());
+    }
+
+    #[test]
+    fn test_update_tenant_request_partial() {
+        let json = r#"{"name": "Updated Name"}"#;
+        let request: Result<UpdateTenantRequest, _> = serde_json::from_str(json);
+        assert!(request.is_ok());
+        let req = request.unwrap();
+        assert_eq!(req.name, Some("Updated Name".to_string()));
+        assert!(req.is_active.is_none());
+    }
+
+    #[test]
+    fn test_create_workspace_request_deserialization() {
+        let json = r#"{"name": "Test Workspace", "description": "A test workspace"}"#;
+        let request: Result<CreateWorkspaceApiRequest, _> = serde_json::from_str(json);
+        assert!(request.is_ok());
+        let req = request.unwrap();
+        assert_eq!(req.name, "Test Workspace");
+        assert_eq!(req.description, Some("A test workspace".to_string()));
+    }
+
+    #[test]
+    fn test_pagination_params_defaults() {
+        let json = r#"{}"#;
+        let params: Result<PaginationParams, _> = serde_json::from_str(json);
+        assert!(params.is_ok());
+        let p = params.unwrap();
+        // Default values from serde(default)
+        assert_eq!(p.offset, 0);
+        assert_eq!(p.limit, 20);
+    }
+
+    #[test]
+    fn test_tenant_response_serialization() {
+        let response = TenantResponse {
+            id: Uuid::new_v4(),
+            name: "Test Tenant".to_string(),
+            slug: "test-tenant".to_string(),
+            plan: "free".to_string(),
+            is_active: true,
+            max_workspaces: 5,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+        let json = serde_json::to_string(&response);
+        assert!(json.is_ok());
+        assert!(json.unwrap().contains("test-tenant"));
+    }
+
+    #[test]
+    fn test_workspace_stats_response_serialization() {
+        let response = WorkspaceStatsResponse {
+            workspace_id: Uuid::new_v4(),
+            document_count: 100,
+            entity_count: 500,
+            relationship_count: 200,
+            chunk_count: 1000,
+            storage_bytes: 1024 * 1024,
+        };
+        let json = serde_json::to_string(&response);
+        assert!(json.is_ok());
+        assert!(json.unwrap().contains("\"document_count\":100"));
+    }
 }
