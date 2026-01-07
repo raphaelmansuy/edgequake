@@ -6,10 +6,14 @@ use axum::{
     Json,
 };
 use edgequake_tasks::{Pagination, SortField, SortOrder, TaskFilter, TaskStatus, TaskType};
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 
 use crate::{error::ApiError, state::AppState};
+
+// Re-export DTOs for backward compatibility
+pub use crate::handlers::tasks_types::{
+    ListTasksQuery, PaginationInfo, StatisticsInfo, TaskErrorResponse, TaskListResponse,
+    TaskResponse,
+};
 
 /// Get task status by track ID
 #[utoipa::path(
@@ -204,105 +208,6 @@ pub async fn retry_task(
         .map_err(|e| ApiError::Internal(format!("Failed to enqueue task: {}", e)))?;
 
     Ok(Json(TaskResponse::from(task)))
-}
-
-// === Request/Response Types ===
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct ListTasksQuery {
-    pub status: Option<String>,
-    pub task_type: Option<String>,
-    pub page: Option<u32>,
-    pub page_size: Option<u32>,
-    pub sort: Option<String>,
-    pub order: Option<String>,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct TaskResponse {
-    pub track_id: String,
-    pub task_type: String,
-    pub status: String,
-    pub created_at: String,
-    pub updated_at: String,
-    pub started_at: Option<String>,
-    pub completed_at: Option<String>,
-    /// Simple error message (backward compatibility).
-    pub error_message: Option<String>,
-    /// Detailed error information (Phase 1 enhancement).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<TaskErrorResponse>,
-    pub retry_count: i32,
-    pub max_retries: i32,
-    pub progress: Option<serde_json::Value>,
-    pub result: Option<serde_json::Value>,
-    pub metadata: Option<serde_json::Value>,
-}
-
-/// Detailed error response for failed tasks.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct TaskErrorResponse {
-    /// High-level error message.
-    pub message: String,
-    /// Processing step where failure occurred.
-    pub step: String,
-    /// Specific reason for the failure.
-    pub reason: String,
-    /// Suggested action to fix the issue.
-    pub suggestion: String,
-    /// Whether this error is retryable.
-    pub retryable: bool,
-}
-
-impl From<edgequake_tasks::Task> for TaskResponse {
-    fn from(task: edgequake_tasks::Task) -> Self {
-        Self {
-            track_id: task.track_id,
-            task_type: task.task_type.to_string(),
-            status: task.status.to_string(),
-            created_at: task.created_at.to_rfc3339(),
-            updated_at: task.updated_at.to_rfc3339(),
-            started_at: task.started_at.map(|t| t.to_rfc3339()),
-            completed_at: task.completed_at.map(|t| t.to_rfc3339()),
-            error_message: task.error_message,
-            error: task.error.map(|e| TaskErrorResponse {
-                message: e.message,
-                step: e.step,
-                reason: e.reason,
-                suggestion: e.suggestion,
-                retryable: e.retryable,
-            }),
-            retry_count: task.retry_count,
-            max_retries: task.max_retries,
-            progress: task.progress.and_then(|p| serde_json::to_value(p).ok()),
-            result: task.result,
-            metadata: task.metadata,
-        }
-    }
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct TaskListResponse {
-    pub tasks: Vec<TaskResponse>,
-    pub pagination: PaginationInfo,
-    pub statistics: StatisticsInfo,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct PaginationInfo {
-    pub total: u64,
-    pub page: u32,
-    pub page_size: u32,
-    pub total_pages: u32,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct StatisticsInfo {
-    pub pending: u64,
-    pub processing: u64,
-    pub indexed: u64,
-    pub failed: u64,
-    pub cancelled: u64,
 }
 
 // === Helper Functions ===
