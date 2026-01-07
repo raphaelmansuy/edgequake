@@ -977,7 +977,10 @@ mod reranker_integration_tests {
         let results = reranker.rerank(query, &documents, None).await.unwrap();
 
         // First doc should rank highest due to stemming match
-        assert_eq!(results[0].index, 0, "Stemming should match 'running' to 'runs'");
+        assert_eq!(
+            results[0].index, 0,
+            "Stemming should match 'running' to 'runs'"
+        );
         assert!(results[0].relevance_score > 0.0);
     }
 
@@ -1000,8 +1003,11 @@ mod reranker_integration_tests {
 
         // Both first two docs have "knowledge" and "graph"
         // But first should rank higher due to phrase adjacency
-        assert_eq!(results[0].index, 0, "Phrase boost should prefer adjacent terms");
-        
+        assert_eq!(
+            results[0].index, 0,
+            "Phrase boost should prefer adjacent terms"
+        );
+
         // First two should score higher than third (which has no matches)
         assert!(results[0].relevance_score > results[2].relevance_score);
         assert!(results[1].relevance_score > results[2].relevance_score);
