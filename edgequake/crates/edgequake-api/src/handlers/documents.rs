@@ -10,6 +10,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
+use crate::file_validation::validate_file;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 
@@ -1844,36 +1845,9 @@ pub async fn upload_file(
         return Err(ApiError::BadRequest("No file provided".to_string()));
     }
 
-    // Validate file size
-    if content.len() > state.config.max_document_size {
-        return Err(ApiError::BadRequest(format!(
-            "File exceeds maximum size of {} bytes",
-            state.config.max_document_size
-        )));
-    }
-
-    // Validate file extension
-    let extension = filename.rsplit('.').next().unwrap_or("").to_lowercase();
-
-    let allowed_extensions = [
-        "txt", "md", "json", "csv", "html", "htm", "xml", "yaml", "yml",
-    ];
-    if !allowed_extensions.contains(&extension.as_str()) {
-        return Err(ApiError::BadRequest(format!(
-            "Unsupported file type: .{}. Allowed types: {:?}",
-            extension, allowed_extensions
-        )));
-    }
-
-    // Convert to UTF-8 string
-    let text_content = String::from_utf8(content.clone())
-        .map_err(|e| ApiError::BadRequest(format!("File is not valid UTF-8: {}", e)))?;
-
-    if text_content.trim().is_empty() {
-        return Err(ApiError::ValidationError(
-            "File content cannot be empty".to_string(),
-        ));
-    }
+    // Validate file (size, extension, UTF-8, non-empty)
+    let (_extension, text_content, mime_type) =
+        validate_file(&filename, &content, state.config.max_document_size)?;
 
     // Calculate content hash for deduplication
     let mut hasher = Sha256::new();
@@ -1912,18 +1886,6 @@ pub async fn upload_file(
 
     // Generate content summary
     let content_summary = crate::validation::generate_content_summary(&text_content);
-
-    // Determine MIME type from extension
-    let mime_type = match extension.as_str() {
-        "txt" => "text/plain",
-        "md" => "text/markdown",
-        "json" => "application/json",
-        "csv" => "text/csv",
-        "html" | "htm" => "text/html",
-        "xml" => "application/xml",
-        "yaml" | "yml" => "application/x-yaml",
-        _ => "application/octet-stream",
-    };
 
     // Generate track ID
     let track_id = format!(
@@ -2355,37 +2317,9 @@ async fn process_single_file(
     filename: &str,
     content: &[u8],
 ) -> Result<(String, bool), ApiError> {
-    // Validate file size
-    if content.len() > state.config.max_document_size {
-        return Err(ApiError::BadRequest(format!(
-            "File {} exceeds maximum size",
-            filename
-        )));
-    }
-
-    // Validate extension
-    let extension = filename.rsplit('.').next().unwrap_or("").to_lowercase();
-
-    let allowed_extensions = [
-        "txt", "md", "json", "csv", "html", "htm", "xml", "yaml", "yml",
-    ];
-    if !allowed_extensions.contains(&extension.as_str()) {
-        return Err(ApiError::BadRequest(format!(
-            "Unsupported file type: .{}",
-            extension
-        )));
-    }
-
-    // Convert to UTF-8
-    let text_content = String::from_utf8(content.to_vec())
-        .map_err(|_| ApiError::BadRequest(format!("File {} is not valid UTF-8", filename)))?;
-
-    if text_content.trim().is_empty() {
-        return Err(ApiError::ValidationError(format!(
-            "File {} is empty",
-            filename
-        )));
-    }
+    // Validate file (size, extension, UTF-8, non-empty)
+    let (_extension, text_content, _mime_type) =
+        validate_file(filename, content, state.config.max_document_size)?;
 
     // Calculate hash
     let mut hasher = Sha256::new();
