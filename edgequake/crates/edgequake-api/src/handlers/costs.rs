@@ -12,9 +12,9 @@ use crate::state::AppState;
 
 // Re-export DTOs for backward compatibility
 pub use crate::handlers::costs_types::{
-    AvailablePricingResponse, BudgetInfo, CostHistoryPoint, CostHistoryQuery,
-    CostSummaryResponse, EstimateCostRequest, EstimateCostResponse, ModelPricingResponse,
-    OperationBreakdown, OperationCostResponse, WorkspaceCostSummaryResponse,
+    AvailablePricingResponse, BudgetInfo, CostHistoryPoint, CostHistoryQuery, CostSummaryResponse,
+    EstimateCostRequest, EstimateCostResponse, ModelPricingResponse, OperationBreakdown,
+    OperationCostResponse, WorkspaceCostSummaryResponse,
 };
 
 /// Get available model pricing configurations.
