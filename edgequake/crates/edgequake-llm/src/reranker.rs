@@ -657,6 +657,27 @@ impl Reranker for TermOverlapReranker {
 /// - Wikipedia: <https://en.wikipedia.org/wiki/Okapi_BM25>
 /// - Robertson, S., Zaragoza, H. (2009). The Probabilistic Relevance Framework: BM25 and Beyond
 /// - Lv, Y., Zhai, C. (2011). Lower-Bounding Term Frequency Normalization (BM25+)
+/// BM25 reranker for relevance scoring.
+///
+/// BM25 (Best Match 25) is a probabilistic ranking function used to score
+/// document relevance to a search query. This implementation supports:
+///
+/// - Standard BM25 with configurable k1 and b parameters
+/// - BM25+ extension with delta parameter for long documents
+/// - Phrase boosting for multi-word query matching
+/// - Enhanced tokenization with stemming and stop words
+///
+/// # Example
+///
+/// ```
+/// use edgequake_llm::reranker::BM25Reranker;
+///
+/// // Create a BM25 reranker with default parameters
+/// let reranker = BM25Reranker::new();
+///
+/// // Or use a preset for specific use cases
+/// let rag_reranker = BM25Reranker::for_rag();
+/// ```
 pub struct BM25Reranker {
     /// Term frequency saturation parameter (k1).
     /// WHY: Controls how quickly term frequency saturates. Higher values give
@@ -743,25 +764,32 @@ impl TokenizerConfig {
 /// Common English stop words.
 /// WHY: These high-frequency words don't carry semantic meaning and dilute IDF.
 const ENGLISH_STOP_WORDS: &[&str] = &[
-    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
-    "has", "he", "in", "is", "it", "its", "of", "on", "or", "that",
-    "the", "to", "was", "were", "will", "with", "this", "but", "they",
-    "have", "had", "what", "when", "where", "who", "which", "you", "your",
-    "we", "our", "can", "all", "there", "their", "been", "would", "could",
-    "should", "may", "might", "must", "do", "does", "did", "if", "not",
-    "no", "so", "up", "out", "just", "than", "then", "too", "very", "also",
+    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has", "he", "in", "is", "it",
+    "its", "of", "on", "or", "that", "the", "to", "was", "were", "will", "with", "this", "but",
+    "they", "have", "had", "what", "when", "where", "who", "which", "you", "your", "we", "our",
+    "can", "all", "there", "their", "been", "would", "could", "should", "may", "might", "must",
+    "do", "does", "did", "if", "not", "no", "so", "up", "out", "just", "than", "then", "too",
+    "very", "also",
 ];
 
 impl BM25Reranker {
     /// Create a new BM25 reranker with default parameters.
     ///
     /// Defaults: k1 = 1.5, b = 0.75, delta = 0.0 (standard BM25)
-    /// Uses enhanced tokenizer with stemming and stop words by default.
+    /// Uses minimal tokenizer (backward compatible, no stemming).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use edgequake_llm::reranker::BM25Reranker;
+    ///
+    /// let reranker = BM25Reranker::new();
+    /// ```
     pub fn new() -> Self {
         Self {
             k1: 1.5,
             b: 0.75,
-            delta: 0.0, // Standard BM25, not BM25+
+            delta: 0.0,        // Standard BM25, not BM25+
             phrase_boost: 0.0, // No phrase boosting by default
             model: "bm25-reranker".to_string(),
             tokenizer_config: TokenizerConfig::minimal(), // Backward compatible
@@ -772,6 +800,15 @@ impl BM25Reranker {
     ///
     /// This version includes stemming and stop word filtering for
     /// improved search relevance.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use edgequake_llm::reranker::BM25Reranker;
+    ///
+    /// // Enhanced reranker with stemming (running → run)
+    /// let reranker = BM25Reranker::new_enhanced();
+    /// ```
     pub fn new_enhanced() -> Self {
         Self {
             k1: 1.5,
@@ -861,6 +898,15 @@ impl BM25Reranker {
     /// - `b=0.75`: Standard length normalization
     /// - `delta=0.5`: Mild BM25+ for mixed-length chunks
     /// - Enhanced tokenization for semantic matching
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use edgequake_llm::reranker::BM25Reranker;
+    ///
+    /// // Best for EdgeQuake knowledge graph queries
+    /// let reranker = BM25Reranker::for_rag();
+    /// ```
     pub fn for_rag() -> Self {
         Self {
             k1: 1.5,
@@ -924,6 +970,16 @@ impl BM25Reranker {
     ///
     /// # Arguments
     /// - `boost`: Phrase boost factor [0.0, 2.0]. 0.0 disables, 0.5-1.0 recommended.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use edgequake_llm::reranker::BM25Reranker;
+    ///
+    /// // Add phrase boosting to any reranker
+    /// let reranker = BM25Reranker::new_enhanced()
+    ///     .with_phrase_boost(0.5);
+    /// ```
     pub fn with_phrase_boost(mut self, boost: f64) -> Self {
         self.phrase_boost = boost.clamp(0.0, 2.0);
         self
@@ -985,7 +1041,10 @@ impl BM25Reranker {
         // Apply stemming if enabled
         if self.tokenizer_config.enable_stemming {
             let stemmer = Stemmer::create(self.tokenizer_config.stemmer_algorithm);
-            filtered.into_iter().map(|t| stemmer.stem(&t).to_string()).collect()
+            filtered
+                .into_iter()
+                .map(|t| stemmer.stem(&t).to_string())
+                .collect()
         } else {
             filtered
         }
@@ -1166,13 +1225,12 @@ impl Reranker for BM25Reranker {
 
         // WHY: Use instance method for tokenization when enhanced config is active,
         // otherwise use static method for backward compatibility.
-        let query_terms = if self.tokenizer_config.enable_stemming
-            || self.tokenizer_config.enable_stop_words
-        {
-            self.tokenize_with_config(query)
-        } else {
-            Self::tokenize(query)
-        };
+        let query_terms =
+            if self.tokenizer_config.enable_stemming || self.tokenizer_config.enable_stop_words {
+                self.tokenize_with_config(query)
+            } else {
+                Self::tokenize(query)
+            };
 
         if query_terms.is_empty() {
             // Fall back to simple ordering if query is empty
@@ -1188,16 +1246,15 @@ impl Reranker for BM25Reranker {
         }
 
         // WHY: Tokenize documents with same config as query for consistency
-        let doc_terms_list: Vec<Vec<String>> = if self.tokenizer_config.enable_stemming
-            || self.tokenizer_config.enable_stop_words
-        {
-            documents
-                .iter()
-                .map(|d| self.tokenize_with_config(d))
-                .collect()
-        } else {
-            documents.iter().map(|d| Self::tokenize(d)).collect()
-        };
+        let doc_terms_list: Vec<Vec<String>> =
+            if self.tokenizer_config.enable_stemming || self.tokenizer_config.enable_stop_words {
+                documents
+                    .iter()
+                    .map(|d| self.tokenize_with_config(d))
+                    .collect()
+            } else {
+                documents.iter().map(|d| Self::tokenize(d)).collect()
+            };
 
         // Compute average document length
         let avgdl = doc_terms_list.iter().map(|d| d.len()).sum::<usize>() as f64
@@ -1858,10 +1915,8 @@ mod tests {
         assert_eq!(bonus_single, 0.0);
 
         // Empty document
-        let bonus_empty_doc = reranker.compute_phrase_bonus(
-            &["a".to_string(), "b".to_string()],
-            &[],
-        );
+        let bonus_empty_doc =
+            reranker.compute_phrase_bonus(&["a".to_string(), "b".to_string()], &[]);
         assert_eq!(bonus_empty_doc, 0.0);
     }
 
@@ -1877,8 +1932,14 @@ mod tests {
             "Python is great".to_string(),
         ];
 
-        let short_results = short_reranker.rerank(query, &short_docs, None).await.unwrap();
-        let long_results = long_reranker.rerank(query, &short_docs, None).await.unwrap();
+        let short_results = short_reranker
+            .rerank(query, &short_docs, None)
+            .await
+            .unwrap();
+        let long_results = long_reranker
+            .rerank(query, &short_docs, None)
+            .await
+            .unwrap();
 
         // Both should rank correctly
         assert_eq!(short_results[0].index, 0);
@@ -1902,7 +1963,7 @@ mod tests {
 
         // Technical should prefer exact "running" match
         assert_eq!(tech_results[0].index, 0);
-        
+
         // RAG with stemming might score "runs" higher due to stem matching
         // Both documents are relevant, but exact match wins for technical
         assert!(tech_results[0].relevance_score > 0.0);
@@ -2603,10 +2664,18 @@ mod tests {
         // Test that meaningful terms are preserved after processing
         let tokens = reranker.tokenize_with_config("artificial intelligence machine learning");
         // Should contain stems of key terms
-        assert!(tokens.iter().any(|t| t.contains("artifici") || t.contains("artificial")));
-        assert!(tokens.iter().any(|t| t.contains("intellig") || t.contains("intelligence")));
-        assert!(tokens.iter().any(|t| t.contains("machin") || t.contains("machine")));
-        assert!(tokens.iter().any(|t| t.contains("learn") || t.contains("learning")));
+        assert!(tokens
+            .iter()
+            .any(|t| t.contains("artifici") || t.contains("artificial")));
+        assert!(tokens
+            .iter()
+            .any(|t| t.contains("intellig") || t.contains("intelligence")));
+        assert!(tokens
+            .iter()
+            .any(|t| t.contains("machin") || t.contains("machine")));
+        assert!(tokens
+            .iter()
+            .any(|t| t.contains("learn") || t.contains("learning")));
     }
 
     #[test]
@@ -2621,8 +2690,7 @@ mod tests {
 
     #[test]
     fn test_bm25_with_tokenizer_config() {
-        let reranker = BM25Reranker::new()
-            .with_tokenizer_config(TokenizerConfig::enhanced());
+        let reranker = BM25Reranker::new().with_tokenizer_config(TokenizerConfig::enhanced());
         // Verify the config was applied
         assert!(reranker.tokenizer_config.enable_stemming);
     }
@@ -2632,9 +2700,9 @@ mod tests {
         // This test verifies that stemming improves recall by matching morphological variants
         let reranker = BM25Reranker::new_enhanced();
         let documents = vec![
-            "The runner runs daily".to_string(),      // contains "runner", "runs"
-            "Swimming is good exercise".to_string(),  // unrelated
-            "He was running yesterday".to_string(),   // contains "running"
+            "The runner runs daily".to_string(), // contains "runner", "runs"
+            "Swimming is good exercise".to_string(), // unrelated
+            "He was running yesterday".to_string(), // contains "running"
         ];
 
         let results = reranker.rerank("run", &documents, Some(3)).await.unwrap();
@@ -2647,8 +2715,7 @@ mod tests {
 
     #[test]
     fn test_french_tokenizer() {
-        let reranker = BM25Reranker::new()
-            .with_tokenizer_config(TokenizerConfig::french());
+        let reranker = BM25Reranker::new().with_tokenizer_config(TokenizerConfig::french());
         let tokens = reranker.tokenize_with_config("parlons français facilement");
         // French stemmer should stem these
         assert!(!tokens.is_empty());
@@ -2739,7 +2806,12 @@ mod tests {
 
         let query = "running quickly through the forest";
         let documents: Vec<String> = (0..1000)
-            .map(|i| format!("Document {} with content about running and forests and trees.", i))
+            .map(|i| {
+                format!(
+                    "Document {} with content about running and forests and trees.",
+                    i
+                )
+            })
             .collect();
 
         // Warm up
@@ -2807,8 +2879,7 @@ mod tests {
         let time_500 = times.iter().find(|(c, _)| *c == 500).unwrap().1;
         let time_2000 = times.iter().find(|(c, _)| *c == 2000).unwrap().1;
 
-        let scale_factor =
-            time_2000.as_micros() as f64 / time_500.as_micros().max(1) as f64;
+        let scale_factor = time_2000.as_micros() as f64 / time_500.as_micros().max(1) as f64;
         assert!(
             scale_factor < 6.0, // Allow some overhead
             "Scaling should be near-linear, was {:.2}x for 4x documents",
@@ -2923,8 +2994,16 @@ mod tests {
         let results = reranker.rerank(query, &documents, None).await.unwrap();
 
         // First two docs are identical, should have same score
-        let score0 = results.iter().find(|r| r.index == 0).unwrap().relevance_score;
-        let score1 = results.iter().find(|r| r.index == 1).unwrap().relevance_score;
+        let score0 = results
+            .iter()
+            .find(|r| r.index == 0)
+            .unwrap()
+            .relevance_score;
+        let score1 = results
+            .iter()
+            .find(|r| r.index == 1)
+            .unwrap()
+            .relevance_score;
         assert!(
             (score0 - score1).abs() < 0.0001,
             "Identical docs should have identical scores"
@@ -2938,11 +3017,11 @@ mod tests {
         let query = "test";
 
         // 1000 repetitions of "test"
-        let repeated_doc = std::iter::repeat("test").take(1000).collect::<Vec<_>>().join(" ");
-        let documents = vec![
-            repeated_doc,
-            "test document".to_string(),
-        ];
+        let repeated_doc = std::iter::repeat("test")
+            .take(1000)
+            .collect::<Vec<_>>()
+            .join(" ");
+        let documents = vec![repeated_doc, "test document".to_string()];
 
         let results = reranker.rerank(query, &documents, None).await.unwrap();
 
@@ -2990,17 +3069,17 @@ mod tests {
     #[test]
     fn test_edge_case_idf_extreme_values() {
         // IDF should handle extreme cases gracefully
-        
+
         // Term in every document (very common)
         let idf_common = BM25Reranker::compute_idf_from_df(1000.0, 1000.0);
         assert!(idf_common.is_finite());
         assert!(idf_common >= 0.0); // Should be non-negative
-        
+
         // Term in no documents (unknown term)
         let idf_rare = BM25Reranker::compute_idf_from_df(1000.0, 0.0);
         assert!(idf_rare.is_finite());
         assert!(idf_rare > idf_common); // Rare terms have higher IDF
-        
+
         // Zero documents edge case
         let idf_zero = BM25Reranker::compute_idf_from_df(0.0, 0.0);
         assert!(idf_zero.is_finite());
@@ -3016,7 +3095,7 @@ mod tests {
 
         let documents = vec![
             "机器学习是人工智能的一个分支。".to_string(), // Contains query
-            "深度学习很有趣。".to_string(), // Different topic
+            "深度学习很有趣。".to_string(),               // Different topic
             "Something in English.".to_string(),
         ];
 
