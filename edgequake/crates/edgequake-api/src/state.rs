@@ -585,7 +585,8 @@ impl AppState {
         use edgequake_core::{CreateWorkspaceRequest, Tenant, TenantPlan};
 
         // Define default user ID for anonymous/unauthenticated access
-        let default_user_id = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001")
+        // WHY: Prefixed with _ because it's only used in the postgres feature
+        let _default_user_id = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001")
             .expect("Invalid default user UUID");
 
         // Define default tenant ID for consistency

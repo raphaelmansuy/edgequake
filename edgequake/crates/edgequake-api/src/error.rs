@@ -1,4 +1,29 @@
 //! API error types.
+//!
+//! # Error Response Format
+//!
+//! All API errors return JSON with consistent structure:
+//!
+//! ```json
+//! {
+//!   "code": "NOT_FOUND",
+//!   "message": "Document not found: doc-123",
+//!   "details": { "document_id": "doc-123" }
+//! }
+//! ```
+//!
+//! # HTTP Status Code Mapping
+//!
+//! | Error | Status | Retry? | User Action |
+//! |-------|--------|--------|-------------|
+//! | `BadRequest` | 400 | No | Fix request parameters |
+//! | `Unauthorized` | 401 | No | Provide valid API key |
+//! | `Forbidden` | 403 | No | Check permissions |
+//! | `NotFound` | 404 | No | Use valid resource ID |
+//! | `Conflict` | 409 | No | Resolve conflict |
+//! | `RateLimited` | 429 | Yes | Wait and retry |
+//! | `Internal` | 500 | Maybe | Report if persistent |
+//! | `ServiceUnavailable` | 503 | Yes | Wait and retry |
 
 use axum::{
     http::StatusCode,

@@ -1,4 +1,21 @@
 //! LLM error types.
+//!
+//! # Error Handling Philosophy
+//!
+//! Errors should be:
+//! 1. **Actionable**: Tell the user what to do, not just what went wrong
+//! 2. **Specific**: Include relevant context (model name, token counts, etc.)
+//! 3. **Recoverable**: Distinguish transient errors (retry) from permanent ones
+//!
+//! # Common Errors and Solutions
+//!
+//! | Error | Cause | Solution |
+//! |-------|-------|----------|
+//! | `AuthError` | Invalid/expired API key | Check `OPENAI_API_KEY` env var |
+//! | `RateLimited` | Too many requests | Wait for `retry_after` seconds |
+//! | `TokenLimitExceeded` | Input too long | Reduce chunk size or context |
+//! | `ModelNotFound` | Invalid model name | Use `gpt-4o-mini` or `gpt-3.5-turbo` |
+//! | `Timeout` | Network slow | Increase timeout or retry |
 
 use thiserror::Error;
 
