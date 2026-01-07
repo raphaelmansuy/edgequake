@@ -1,6 +1,7 @@
 //! API request handlers.
 
 pub mod auth;
+pub mod auth_types;
 pub mod chat;
 pub mod conversations;
 pub mod conversations_types;
@@ -22,6 +23,7 @@ pub mod websocket;
 pub mod workspaces;
 
 pub use auth::*;
+pub use auth_types::*;
 pub use chat::*;
 pub use conversations::*;
 pub use conversations_types::*;
