@@ -2509,4 +2509,123 @@ mod tests {
         assert!(idf_half > idf_all);
         assert!(idf_half < idf_none);
     }
+
+    // =========== Performance Benchmarks (OODA Loop 6) ===========
+
+    #[tokio::test]
+    async fn test_performance_minimal_vs_enhanced_1000_docs() {
+        // Compare performance: minimal tokenization vs enhanced
+        let minimal = BM25Reranker::new(); // No stemming
+        let enhanced = BM25Reranker::new_enhanced(); // With stemming
+
+        let query = "running quickly through the forest";
+        let documents: Vec<String> = (0..1000)
+            .map(|i| format!("Document {} with content about running and forests and trees.", i))
+            .collect();
+
+        // Warm up
+        let _ = minimal.rerank(query, &documents, Some(10)).await;
+        let _ = enhanced.rerank(query, &documents, Some(10)).await;
+
+        // Benchmark minimal
+        let start = std::time::Instant::now();
+        for _ in 0..5 {
+            let _ = minimal.rerank(query, &documents, Some(10)).await;
+        }
+        let minimal_time = start.elapsed() / 5;
+
+        // Benchmark enhanced
+        let start = std::time::Instant::now();
+        for _ in 0..5 {
+            let _ = enhanced.rerank(query, &documents, Some(10)).await;
+        }
+        let enhanced_time = start.elapsed() / 5;
+
+        // Enhanced should be no more than 3x slower (stemming overhead)
+        let ratio = enhanced_time.as_micros() as f64 / minimal_time.as_micros().max(1) as f64;
+        assert!(
+            ratio < 3.0,
+            "Enhanced tokenization should be at most 3x slower, was {:.2}x",
+            ratio
+        );
+
+        // Both should complete in reasonable time
+        assert!(
+            minimal_time.as_millis() < 500,
+            "Minimal should complete in <500ms"
+        );
+        assert!(
+            enhanced_time.as_millis() < 1000,
+            "Enhanced should complete in <1s"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_performance_scale_comparison() {
+        // Test how performance scales with document count
+        let reranker = BM25Reranker::for_rag();
+        let query = "knowledge graph entity extraction";
+
+        let mut times: Vec<(usize, std::time::Duration)> = Vec::new();
+
+        for count in [100, 500, 1000, 2000] {
+            let documents: Vec<String> = (0..count)
+                .map(|i| {
+                    format!(
+                        "Document {} discusses knowledge graphs and entity extraction methods.",
+                        i
+                    )
+                })
+                .collect();
+
+            let start = std::time::Instant::now();
+            let _ = reranker.rerank(query, &documents, Some(10)).await;
+            let elapsed = start.elapsed();
+            times.push((count, elapsed));
+        }
+
+        // Linear scaling check: 2000 docs should be at most 4x slower than 500 docs
+        let time_500 = times.iter().find(|(c, _)| *c == 500).unwrap().1;
+        let time_2000 = times.iter().find(|(c, _)| *c == 2000).unwrap().1;
+
+        let scale_factor =
+            time_2000.as_micros() as f64 / time_500.as_micros().max(1) as f64;
+        assert!(
+            scale_factor < 6.0, // Allow some overhead
+            "Scaling should be near-linear, was {:.2}x for 4x documents",
+            scale_factor
+        );
+    }
+
+    #[tokio::test]
+    async fn test_performance_presets_comparison() {
+        // Verify all presets complete in reasonable time
+        let presets: Vec<(&str, BM25Reranker)> = vec![
+            ("minimal", BM25Reranker::new()),
+            ("enhanced", BM25Reranker::new_enhanced()),
+            ("short_docs", BM25Reranker::for_short_docs()),
+            ("long_docs", BM25Reranker::for_long_docs()),
+            ("technical", BM25Reranker::for_technical()),
+            ("rag", BM25Reranker::for_rag()),
+        ];
+
+        let query = "machine learning neural networks deep learning";
+        let documents: Vec<String> = (0..500)
+            .map(|i| format!("Research paper {} on machine learning and AI systems.", i))
+            .collect();
+
+        for (name, reranker) in presets {
+            let start = std::time::Instant::now();
+            let results = reranker.rerank(query, &documents, Some(10)).await.unwrap();
+            let elapsed = start.elapsed();
+
+            assert!(
+                elapsed.as_millis() < 500,
+                "Preset '{}' should complete in <500ms, took {:?}",
+                name,
+                elapsed
+            );
+            assert_eq!(results.len(), 10, "Should return 10 results");
+        }
+    }
 }
