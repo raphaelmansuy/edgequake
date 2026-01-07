@@ -61,7 +61,7 @@ You must improve the code quality as far as possible, using First Principles thi
 
 Never takes a shortcut, always go deep into the code and data to understand the real issues. Taking shortcuts will lead to failure in this mission, you will fail the alignment problem if you do so.
 
-YOU MUST perform at least 30 OODA loops, documenting each step thoroughly, in consise and high signal markdown files. Use ASCII diagrams if needed to illustrate your points.
+YOU MUST perform at least 50 OODA loops, documenting each step thoroughly, in consise and high signal markdown files. Use ASCII diagrams if needed to illustrate your points.
 
 Each 5 OODA loops you MUST read again your mission at specs/30-improve-api-and-modularity/01-improve-api-modularity.md to ensure you are aligned with the mission objectives
 
