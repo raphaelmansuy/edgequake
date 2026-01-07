@@ -107,6 +107,34 @@ pub fn validate_non_empty(query: &str, field_name: &str) -> ApiResult<()> {
     Ok(())
 }
 
+/// Validate a query string for emptiness and maximum length.
+///
+/// # Arguments
+///
+/// * `query` - The query string to validate
+/// * `max_length` - Maximum allowed length in characters
+///
+/// # Errors
+///
+/// * `ApiError::ValidationError` - If query is empty or whitespace only
+/// * `ApiError::BadRequest` - If query exceeds max length
+pub fn validate_query(query: &str, max_length: usize) -> ApiResult<()> {
+    if query.trim().is_empty() {
+        return Err(ApiError::ValidationError(
+            "Query cannot be empty".to_string(),
+        ));
+    }
+
+    if query.len() > max_length {
+        return Err(ApiError::BadRequest(format!(
+            "Query exceeds maximum length of {} characters",
+            max_length
+        )));
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,5 +221,28 @@ mod tests {
     fn test_validate_non_empty_whitespace() {
         let result = validate_non_empty("   ", "query");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_query_success() {
+        let result = validate_query("What is the meaning of life?", 1000);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_query_empty() {
+        let result = validate_query("", 1000);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, ApiError::ValidationError(_)));
+    }
+
+    #[test]
+    fn test_validate_query_too_long() {
+        let long_query: String = (0..200).map(|_| 'a').collect();
+        let result = validate_query(&long_query, 100);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, ApiError::BadRequest(_)));
     }
 }

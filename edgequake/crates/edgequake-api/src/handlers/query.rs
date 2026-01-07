@@ -7,6 +7,7 @@ use utoipa::ToSchema;
 
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
+use crate::validation::validate_query;
 use crate::state::AppState;
 use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
 
@@ -182,18 +183,7 @@ pub async fn execute_query(
         "Executing query with tenant context"
     );
 
-    if request.query.trim().is_empty() {
-        return Err(ApiError::ValidationError(
-            "Query cannot be empty".to_string(),
-        ));
-    }
-
-    if request.query.len() > state.config.max_query_length {
-        return Err(ApiError::BadRequest(format!(
-            "Query exceeds maximum length of {} characters",
-            state.config.max_query_length
-        )));
-    }
+    validate_query(&request.query, state.config.max_query_length)?;
 
     // Parse query mode
     let mode = request
@@ -415,11 +405,7 @@ pub async fn stream_query(
         "Executing streaming query with tenant context"
     );
 
-    if request.query.trim().is_empty() {
-        return Err(ApiError::ValidationError(
-            "Query cannot be empty".to_string(),
-        ));
-    }
+    validate_query(&request.query, state.config.max_query_length)?;
 
     // Parse query mode
     let mode = request
