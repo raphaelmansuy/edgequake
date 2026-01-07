@@ -501,4 +501,87 @@ mod tests {
         let result = stream_query(State(state), tenant_ctx, Json(request)).await;
         assert!(result.is_ok());
     }
+
+    #[tokio::test]
+    async fn test_query_modes() {
+        let state = AppState::test_state();
+        let modes = vec!["naive", "local", "global", "hybrid", "mix"];
+
+        for mode in modes {
+            let tenant_ctx = TenantContext::default();
+            let request = QueryRequest {
+                query: "Test query".to_string(),
+                mode: Some(mode.to_string()),
+                context_only: false,
+                prompt_only: false,
+                include_references: false,
+                max_results: None,
+                conversation_history: None,
+                enable_rerank: false,
+                rerank_model: None,
+                rerank_top_k: None,
+            };
+
+            let result = execute_query(State(state.clone()), tenant_ctx, Json(request)).await;
+            assert!(result.is_ok(), "Mode '{}' should succeed", mode);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_query_with_context_only() {
+        let state = AppState::test_state();
+        let tenant_ctx = TenantContext::default();
+
+        let request = QueryRequest {
+            query: "What is Rust?".to_string(),
+            mode: Some("naive".to_string()),
+            context_only: true,
+            prompt_only: false,
+            include_references: false,
+            max_results: Some(3),
+            conversation_history: None,
+            enable_rerank: false,
+            rerank_model: None,
+            rerank_top_k: None,
+        };
+
+        let result = execute_query(State(state), tenant_ctx, Json(request)).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_query_whitespace_only_fails() {
+        let state = AppState::test_state();
+        let tenant_ctx = TenantContext::default();
+
+        let request = QueryRequest {
+            query: "   \t\n   ".to_string(),
+            mode: None,
+            context_only: false,
+            prompt_only: false,
+            include_references: false,
+            max_results: None,
+            conversation_history: None,
+            enable_rerank: true,
+            rerank_model: None,
+            rerank_top_k: None,
+        };
+
+        let result = execute_query(State(state), tenant_ctx, Json(request)).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_stream_query_empty_fails() {
+        let state = AppState::test_state();
+        let tenant_ctx = TenantContext::default();
+
+        let request = StreamQueryRequest {
+            query: "".to_string(),
+            mode: None,
+        };
+
+        let result = stream_query(State(state), tenant_ctx, Json(request)).await;
+        assert!(result.is_err());
+    }
 }
