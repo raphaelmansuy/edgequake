@@ -3,6 +3,7 @@
 pub mod auth;
 pub mod chat;
 pub mod conversations;
+pub mod conversations_types;
 pub mod costs;
 pub mod documents;
 pub mod documents_types;
@@ -23,6 +24,7 @@ pub mod workspaces;
 pub use auth::*;
 pub use chat::*;
 pub use conversations::*;
+pub use conversations_types::*;
 pub use costs::*;
 pub use documents::*;
 pub use documents_types::*;
