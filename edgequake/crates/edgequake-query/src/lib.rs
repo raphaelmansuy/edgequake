@@ -25,6 +25,7 @@ pub mod chunk_retrieval;
 pub mod context;
 pub mod engine;
 pub mod error;
+pub mod helpers;
 pub mod keywords;
 pub mod modes;
 pub mod sota_engine;
