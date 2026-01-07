@@ -16,11 +16,13 @@ Doc B: "...graph of knowledge..."          → base only
 ### Implementation Options
 
 1. **Simple Adjacent Pairs**
+
    - Check if consecutive query terms appear adjacent in document
    - Boost by a fixed factor (e.g., 1.5x)
    - Complexity: O(n × m) where n=query terms, m=doc length
 
 2. **Proximity Window**
+
    - Score inversely proportional to distance between query terms
    - More nuanced but more complex
    - Complexity: O(n² × m)
@@ -33,6 +35,7 @@ Doc B: "...graph of knowledge..."          → base only
 ### Recommendation
 
 Option 1 (Adjacent Pairs) is best for this iteration:
+
 - Simple to implement
 - Low overhead
 - Meaningful quality improvement

@@ -44,5 +44,5 @@ Total LLM tests: 139 (136 + 3 new performance tests)
 
 ## Next Loop
 
-Loop 7 will focus on improving query-document matching quality, possibly 
+Loop 7 will focus on improving query-document matching quality, possibly
 exploring phrase matching or proximity scoring.

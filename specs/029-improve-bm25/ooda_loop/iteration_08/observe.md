@@ -7,6 +7,7 @@ Looking for potential edge cases that could cause issues in production:
 ### Existing Edge Case Tests
 
 The codebase already has tests for:
+
 - Empty query
 - Empty document list
 - Single document

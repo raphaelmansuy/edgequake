@@ -23,6 +23,7 @@ pub fn for_rag() -> Self         // k1=1.5, b=0.75, delta=0.5
 ### Tests Added
 
 6 new tests:
+
 - `test_for_short_docs_preset`: Verifies parameter values
 - `test_for_long_docs_preset`: Verifies BM25+ parameters
 - `test_for_technical_preset`: Verifies no stemming
@@ -50,5 +51,5 @@ pub fn for_rag() -> Self         // k1=1.5, b=0.75, delta=0.5
 
 ## Next Loop
 
-Loop 6 will focus on performance benchmarking - measuring actual latency improvements 
+Loop 6 will focus on performance benchmarking - measuring actual latency improvements
 from the optimizations implemented in Loops 1-5.

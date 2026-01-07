@@ -7,15 +7,18 @@ We will add optional phrase boosting to BM25Reranker.
 ### Implementation Plan
 
 1. **Add phrase_boost field to BM25Reranker**
+
    - Default: 0.0 (disabled)
    - Recommended: 0.5-1.0 for phrase-sensitive queries
 
 2. **Add compute_phrase_bonus method**
+
    - Input: query tokens, document tokens
    - Output: bonus score for adjacent pair matches
    - Algorithm: Count consecutive query term pairs found in document
 
 3. **Integrate into score calculation**
+
    ```rust
    let base_score = compute_bm25_score(...);
    let phrase_bonus = self.compute_phrase_bonus(&query_tokens, &doc_tokens);
@@ -23,6 +26,7 @@ We will add optional phrase boosting to BM25Reranker.
    ```
 
 4. **Add preset with phrase boosting**
+
    - `for_semantic()`: Includes phrase_boost = 0.5
 
 5. **Add tests**

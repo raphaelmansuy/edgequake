@@ -14,5 +14,5 @@ Need to add tests for edge cases not yet covered:
 
 ## Decision
 
-Add 6 Unicode edge case tests to document expected behavior and ensure 
+Add 6 Unicode edge case tests to document expected behavior and ensure
 international content is handled correctly.
