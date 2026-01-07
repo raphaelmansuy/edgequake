@@ -2,7 +2,7 @@
 
 **Mission**: Improve API Design, Code Quality, Readability, and Maintainability
 
-**Last Updated**: 2026-01-07
+**Last Updated**: 2026-01-08
 
 ## Iterations Completed
 
@@ -16,7 +16,8 @@
 | 06        | API validation module    | Extracted duplicated validation patterns        | `7f25ba4`            |
 | 07        | Warning fixes            | Removed unused import, fixed doctest            | `1f6a123`, `c9c4ef2` |
 | 08        | README update            | Updated project structure (6 → 11 crates)       | `af0c499`            |
-| 25        | documents.rs modularity  | Extracted 22 DTOs (882 lines), rolled back      | -                    |
+| 25        | documents.rs checkpoint  | Attempted submodule, learned sibling pattern    | `bf96c1a`, `7d91d95` |
+| 26        | Document DTOs extraction | Extract 22 DTOs to documents_types.rs           | `ba371f6`            |
 
 ## Metrics Summary
 
@@ -25,7 +26,8 @@
 | Metric                      | Before | After | Change        |
 | --------------------------- | ------ | ----- | ------------- |
 | sota_engine.rs lines        | 2,004  | 1,637 | -367 (-18.3%) |
-| documents.rs lines          | 3,664  | 3,638 | -26           |
+| documents.rs lines          | 3,573  | 2,902 | -671 (-19%)   |
+| documents_types.rs lines    | 0      | 1,012 | +1,012 (new)  |
 | Clippy warnings (edgequake) | 5+     | 0     | Clean         |
 | Rustdoc warnings            | 5      | 0     | Clean         |
 
@@ -33,7 +35,7 @@
 
 | Crate                        | Tests | Status  |
 | ---------------------------- | ----- | ------- |
-| edgequake-api                | 105   | ✅ Pass |
+| edgequake-api                | 201   | ✅ Pass |
 | edgequake-query              | 82    | ✅ Pass |
 | edgequake-storage (memory)   | 25    | ✅ Pass |
 | edgequake-storage (postgres) | 19    | ✅ Pass |
@@ -42,10 +44,11 @@
 
 ### New Code Added
 
-| File          | Lines | Purpose                  |
-| ------------- | ----- | ------------------------ |
-| helpers.rs    | 380   | Query processing helpers |
-| validation.rs | 196   | API validation helpers   |
+| File               | Lines | Purpose                  |
+| ------------------ | ----- | ------------------------ |
+| helpers.rs         | 380   | Query processing helpers |
+| validation.rs      | 196   | API validation helpers   |
+| documents_types.rs | 1,012 | Document DTOs + tests    |
 
 ## Non-Regression Status
 
@@ -57,9 +60,9 @@
 
 ## Next Steps
 
-- [ ] Continue OODA iterations 09-30+
-- [ ] Look for more extraction opportunities
-- [ ] Consider refactoring large files (reranker.rs, graph.rs)
+- [ ] Continue OODA iterations 27-50+
+- [ ] Extract handler groups from documents.rs (still 2,902 lines)
+- [ ] Apply same pattern to graph.rs, chat.rs
 - [ ] Add more documentation to key modules
 
 ## Commits Made (chronological)
@@ -71,3 +74,6 @@
 5. `1f6a123` - fix(api): Remove unused super::\* import in processor tests
 6. `c9c4ef2` - fix(api): Add ignore to doctest example to fix compilation
 7. `af0c499` - docs: Update README with complete crate list (11 crates)
+8. `bf96c1a` - docs(api): Add iteration 25 OODA checkpoint - submodule approach analysis
+9. `7d91d95` - docs(api): Add iteration 25 summary entry
+10. `ba371f6` - refactor(api): Extract 22 DTOs from documents.rs to documents_types.rs

@@ -9,6 +9,7 @@
 ### Issues Found
 
 1. **Unused import warning** in [processor.rs](../../../../../../edgequake/crates/edgequake-api/src/processor.rs):
+
    ```
    warning: unused import: `super::*`
       --> crates/edgequake-api/src/processor.rs:495:9
@@ -34,9 +35,9 @@
 
 ### Changes
 
-| File | Change | Commit |
-|------|--------|--------|
-| processor.rs | Remove `use super::*` | `1f6a123` |
+| File          | Change                  | Commit    |
+| ------------- | ----------------------- | --------- |
+| processor.rs  | Remove `use super::*`   | `1f6a123` |
 | validation.rs | Add `ignore` to doctest | `c9c4ef2` |
 
 ### Verification

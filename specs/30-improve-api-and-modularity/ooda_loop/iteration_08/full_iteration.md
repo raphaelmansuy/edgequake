@@ -11,6 +11,7 @@
 README.md listed only 6 crates but workspace has 11:
 
 **Before (outdated)**:
+
 - edgequake-core
 - edgequake-storage
 - edgequake-llm
@@ -19,6 +20,7 @@ README.md listed only 6 crates but workspace has 11:
 - edgequake-api
 
 **Missing crates**:
+
 - edgequake-audit
 - edgequake-auth
 - edgequake-pdf
