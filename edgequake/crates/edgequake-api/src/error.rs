@@ -303,4 +303,118 @@ mod tests {
         assert!(debug_str.contains("BadRequest"));
         assert!(debug_str.contains("debug test"));
     }
+
+    #[test]
+    fn test_not_implemented_error() {
+        let error = ApiError::NotImplemented {
+            feature: "batch_delete".to_string(),
+        };
+        assert_eq!(error.code(), "NOT_IMPLEMENTED");
+        assert_eq!(error.status_code(), StatusCode::NOT_IMPLEMENTED);
+        assert!(error.to_string().contains("batch_delete"));
+    }
+
+    #[test]
+    fn test_storage_error_status_code() {
+        use edgequake_storage::error::StorageError;
+        let storage_err = StorageError::NotFound("doc".to_string());
+        let api_err = ApiError::Storage(storage_err);
+        assert_eq!(api_err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(api_err.code(), "STORAGE_ERROR");
+    }
+
+    #[test]
+    fn test_llm_error_status_code() {
+        use edgequake_llm::error::LlmError;
+        let llm_err = LlmError::ApiError("timeout".to_string());
+        let api_err = ApiError::Llm(llm_err);
+        assert_eq!(api_err.status_code(), StatusCode::BAD_GATEWAY);
+        assert_eq!(api_err.code(), "LLM_ERROR");
+    }
+
+    #[test]
+    fn test_pipeline_error_status_code() {
+        use edgequake_pipeline::error::PipelineError;
+        let pipeline_err = PipelineError::ChunkingError("chunk failed".to_string());
+        let api_err = ApiError::Pipeline(pipeline_err);
+        assert_eq!(api_err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(api_err.code(), "PIPELINE_ERROR");
+    }
+
+    #[test]
+    fn test_query_error_status_code() {
+        use edgequake_query::error::QueryError;
+        let query_err = QueryError::InvalidQuery("bad query".to_string());
+        let api_err = ApiError::Query(query_err);
+        assert_eq!(api_err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(api_err.code(), "QUERY_ERROR");
+    }
+
+    #[test]
+    fn test_error_response_without_details() {
+        let error = ErrorResponse::new("CODE", "Message");
+        assert!(error.details.is_none());
+        
+        // Verify serialization skips None details
+        let json = serde_json::to_value(&error).unwrap();
+        assert!(!json.get("details").is_some());
+    }
+
+    #[test]
+    fn test_error_response_builder_pattern() {
+        let error = ErrorResponse::new("TEST", "Test")
+            .with_details(serde_json::json!({"a": 1}))
+            .with_details(serde_json::json!({"b": 2})); // Should overwrite
+        
+        assert_eq!(error.details.unwrap()["b"], 2);
+    }
+
+    #[test]
+    fn test_all_error_variants_have_status_code() {
+        // Ensure every error variant has a defined status code
+        let errors = vec![
+            ApiError::BadRequest("test".into()),
+            ApiError::NotFound("test".into()),
+            ApiError::Unauthorized,
+            ApiError::Forbidden,
+            ApiError::Conflict("test".into()),
+            ApiError::ValidationError("test".into()),
+            ApiError::RateLimited,
+            ApiError::NotImplemented { feature: "test".into() },
+            ApiError::Internal("test".into()),
+        ];
+        
+        for error in errors {
+            let status = error.status_code();
+            assert!(status.as_u16() >= 400 && status.as_u16() < 600);
+        }
+    }
+
+    #[test]
+    fn test_error_into_response() {
+        let error = ApiError::NotFound("resource".to_string());
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn test_api_result_type_alias() {
+        fn test_function() -> ApiResult<String> {
+            Ok("success".to_string())
+        }
+        
+        let result = test_function();
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "success");
+    }
+
+    #[test]
+    fn test_api_result_error() {
+        fn test_function() -> ApiResult<String> {
+            Err(ApiError::BadRequest("invalid".to_string()))
+        }
+        
+        let result = test_function();
+        assert!(result.is_err());
+    }
 }
