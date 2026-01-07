@@ -3,7 +3,7 @@
 //! Supports Azure OpenAI Service endpoints with API key or Entra ID authentication.
 //!
 //! # Environment Variables
-//! - `AZURE_OPENAI_ENDPOINT`: Azure OpenAI endpoint (e.g., https://myresource.openai.azure.com)
+//! - `AZURE_OPENAI_ENDPOINT`: Azure OpenAI endpoint (e.g., `https://myresource.openai.azure.com`)
 //! - `AZURE_OPENAI_API_KEY`: API key for authentication
 //! - `AZURE_OPENAI_DEPLOYMENT_NAME`: Deployment name for chat/completion model
 //! - `AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME`: Deployment name for embedding model
@@ -145,7 +145,7 @@ impl AzureOpenAIProvider {
     /// Create a new Azure OpenAI provider.
     ///
     /// # Arguments
-    /// * `endpoint` - Azure OpenAI endpoint (e.g., https://myresource.openai.azure.com)
+    /// * `endpoint` - Azure OpenAI endpoint (e.g., `https://myresource.openai.azure.com`)
     /// * `api_key` - API key for authentication
     /// * `deployment_name` - Deployment name for chat/completion model
     pub fn new(
