@@ -338,9 +338,13 @@ async fn test_update_entity_success() {
 
     let body = extract_json(update_response).await;
     assert_eq!(body.get("status").and_then(|v| v.as_str()), Some("success"));
-    
+
     let entity = body.get("entity").unwrap();
-    assert!(entity.get("description").and_then(|v| v.as_str()).unwrap().contains("Technology conglomerate"));
+    assert!(entity
+        .get("description")
+        .and_then(|v| v.as_str())
+        .unwrap()
+        .contains("Technology conglomerate"));
 
     let changes = body.get("changes").unwrap();
     let fields = changes.get("fields_updated").and_then(|v| v.as_array());
@@ -844,9 +848,12 @@ async fn test_merge_entities_with_strategy() {
 
     let body = extract_json(merge_response).await;
     let merged = body.get("merged_entity").unwrap();
-    
+
     // With prefer_source, description should contain the detailed source description
-    let description = merged.get("description").and_then(|v| v.as_str()).unwrap_or("");
+    let description = merged
+        .get("description")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
     assert!(description.contains("detailed") || description.contains("very"));
 }
 
@@ -895,7 +902,10 @@ async fn test_complete_entity_lifecycle() {
         .unwrap();
 
     let exists_body = extract_json(exists_response).await;
-    assert_eq!(exists_body.get("exists").and_then(|v| v.as_bool()), Some(true));
+    assert_eq!(
+        exists_body.get("exists").and_then(|v| v.as_bool()),
+        Some(true)
+    );
 
     // 3. Get full entity details
     let app = server.build_router();
@@ -961,5 +971,8 @@ async fn test_complete_entity_lifecycle() {
         .unwrap();
 
     let final_body = extract_json(final_check).await;
-    assert_eq!(final_body.get("exists").and_then(|v| v.as_bool()), Some(false));
+    assert_eq!(
+        final_body.get("exists").and_then(|v| v.as_bool()),
+        Some(false)
+    );
 }

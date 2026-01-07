@@ -392,6 +392,9 @@ impl TextGrouper {
     ///
     /// This ensures proper reading order and prevents backend from creating blocks
     /// that span column boundaries when text at similar Y-coordinates exists in both columns.
+    ///
+    /// Reserved for potential Y-coordinate-based column interleaving optimization.
+    #[allow(dead_code)]
     fn interleave_columns_by_y(
         &self,
         left_lines: Vec<Vec<TextElement>>,

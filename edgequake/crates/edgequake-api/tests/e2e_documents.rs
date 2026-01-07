@@ -73,7 +73,10 @@ async fn test_upload_document_success() {
 
     let body = extract_json(response).await;
     assert!(body.get("document_id").is_some());
-    assert_eq!(body.get("status").and_then(|v| v.as_str()), Some("processed"));
+    assert_eq!(
+        body.get("status").and_then(|v| v.as_str()),
+        Some("processed")
+    );
     assert!(body.get("chunk_count").is_some());
     assert!(body.get("entity_count").is_some());
     assert!(body.get("relationship_count").is_some());
@@ -310,10 +313,7 @@ async fn test_get_document_success() {
     assert_eq!(get_response.status(), StatusCode::OK);
 
     let body = extract_json(get_response).await;
-    assert_eq!(
-        body.get("id").and_then(|v| v.as_str()),
-        Some(document_id)
-    );
+    assert_eq!(body.get("id").and_then(|v| v.as_str()), Some(document_id));
     assert!(body.get("chunk_count").is_some());
     assert!(body.get("status").is_some());
 }

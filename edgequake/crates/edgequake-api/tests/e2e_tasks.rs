@@ -115,7 +115,7 @@ async fn test_get_task_response_fields() {
 
     let list_body = extract_json(list_response).await;
     let tasks = list_body.get("tasks").and_then(|v| v.as_array());
-    
+
     if let Some(tasks) = tasks {
         if let Some(first_task) = tasks.first() {
             // Verify task has required fields
@@ -188,7 +188,10 @@ async fn test_list_tasks_with_pagination() {
     let body = extract_json(response).await;
     let pagination = body.get("pagination").unwrap();
     assert_eq!(pagination.get("page").and_then(|v| v.as_u64()), Some(1));
-    assert_eq!(pagination.get("page_size").and_then(|v| v.as_u64()), Some(10));
+    assert_eq!(
+        pagination.get("page_size").and_then(|v| v.as_u64()),
+        Some(10)
+    );
 }
 
 #[tokio::test]
@@ -212,7 +215,13 @@ async fn test_list_tasks_page_size_limit() {
     let body = extract_json(response).await;
     let pagination = body.get("pagination").unwrap();
     // Should be capped at 100
-    assert!(pagination.get("page_size").and_then(|v| v.as_u64()).unwrap_or(0) <= 100);
+    assert!(
+        pagination
+            .get("page_size")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0)
+            <= 100
+    );
 }
 
 #[tokio::test]
@@ -408,7 +417,10 @@ async fn test_tasks_after_document_upload() {
     for i in 0..3 {
         let _body = upload_document(
             &server,
-            &format!("Document {} for task integration test. Contains various content.", i),
+            &format!(
+                "Document {} for task integration test. Contains various content.",
+                i
+            ),
         )
         .await;
     }

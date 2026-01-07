@@ -37,11 +37,12 @@ impl AuthState {
             .and_then(|value| value.to_str().ok())
             .ok_or(AuthError::MissingToken)?;
 
-        let token = auth_header
-            .strip_prefix("Bearer ")
-            .ok_or(AuthError::InvalidAuthorizationHeader {
-                reason: "Expected 'Bearer <token>' format".to_string(),
-            })?;
+        let token =
+            auth_header
+                .strip_prefix("Bearer ")
+                .ok_or(AuthError::InvalidAuthorizationHeader {
+                    reason: "Expected 'Bearer <token>' format".to_string(),
+                })?;
 
         let claims = self.jwt_service.verify_token(token)?;
         let user_id = claims.user_id()?;
@@ -111,10 +112,7 @@ where
 {
     type Rejection = AuthError;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &S,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let auth_state = AuthState::from_ref(state);
         auth_state.extract_user(parts)
     }
@@ -143,10 +141,7 @@ where
 {
     type Rejection = std::convert::Infallible;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &S,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let auth_state = AuthState::from_ref(state);
         Ok(OptionalAuth(auth_state.try_extract_user(parts)))
     }
@@ -175,7 +170,11 @@ impl ApiKeyAuth {
     }
 
     /// Validate scope for a permission.
-    pub fn validate_scope(&self, rbac: &RbacService, permission: Permission) -> Result<(), AuthError> {
+    pub fn validate_scope(
+        &self,
+        rbac: &RbacService,
+        permission: Permission,
+    ) -> Result<(), AuthError> {
         rbac.validate_api_key_scopes(&self.scopes, permission)
     }
 }
@@ -220,10 +219,7 @@ where
 {
     type Rejection = AuthError;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &S,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let auth_state = AuthState::from_ref(state);
         let user = auth_state.extract_user(parts)?;
 
@@ -248,14 +244,13 @@ where
 {
     type Rejection = AuthError;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &S,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let auth_state = AuthState::from_ref(state);
         let user = auth_state.extract_user(parts)?;
 
-        auth_state.rbac_service.require_role(&user.role, &Role::User)?;
+        auth_state
+            .rbac_service
+            .require_role(&user.role, &Role::User)?;
 
         Ok(RequireUser(user))
     }

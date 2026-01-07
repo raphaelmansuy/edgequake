@@ -433,6 +433,23 @@ impl EdgeQuake {
     }
 
     /// Insert a document for processing.
+    ///
+    /// # WHY: 3-Stage Pipeline Architecture
+    ///
+    /// The insert flow follows a 3-stage architecture (similar to LightRAG):
+    ///
+    /// 1. **Pipeline Processing** - Chunking → Entity Extraction → Embedding
+    ///    - WHY chunks: LLM context windows are limited; chunks enable parallel processing
+    ///    - WHY overlapping chunks: Entities spanning chunk boundaries are captured
+    ///
+    /// 2. **Knowledge Graph Merge** - Deduplicate and merge into graph storage
+    ///    - WHY merge instead of insert: Same entity may appear in multiple documents
+    ///    - WHY LLM summarization: Merge conflicting descriptions intelligently
+    ///    - WHY source tracking: Enable cascade delete when documents are removed
+    ///
+    /// 3. **Vector Storage** - Store embeddings for semantic search
+    ///    - WHY type metadata: Distinguish entity vectors from chunk vectors
+    ///    - WHY tenant isolation: Multi-tenancy requires vector filtering
     pub async fn insert(&self, content: &str, document_id: Option<&str>) -> Result<InsertResult> {
         if !self.initialized {
             return Err(Error::not_initialized("EdgeQuake not initialized"));
@@ -459,13 +476,16 @@ impl EdgeQuake {
             .as_ref()
             .ok_or_else(|| Error::not_initialized("Vector storage not initialized"))?;
 
-        // 1. Process document through pipeline (Chunking + Extraction + Embedding)
+        // Stage 1: Process document through pipeline (Chunking → Extraction → Embedding)
+        // WHY: Transforms raw text into structured knowledge graph elements
         let processing_result = pipeline
             .process(&doc_id, content)
             .await
             .map_err(|e| Error::internal(format!("Pipeline error: {}", e)))?;
 
-        // 2. Merge results into knowledge graph and vector store
+        // Stage 2: Merge results into knowledge graph
+        // WHY: Entities may exist from previous documents; merge avoids duplicates
+        // WHY LLM summarization: When merging descriptions, LLM produces coherent summary
         let llm = self
             .llm_provider
             .as_ref()
@@ -494,7 +514,9 @@ impl EdgeQuake {
             .await
             .map_err(|e| Error::internal(format!("Merge error: {}", e)))?;
 
-        // 3. Store chunk embeddings with type metadata
+        // Stage 3: Store chunk embeddings with type metadata
+        // WHY type: "chunk" metadata: Enables filtering entity vs chunk vectors at query time
+        // WHY tenant/workspace: Multi-tenancy isolation at vector level
         for chunk in &processing_result.chunks {
             if let Some(embedding) = &chunk.embedding {
                 let mut metadata = serde_json::json!({
@@ -574,11 +596,22 @@ impl EdgeQuake {
 
     /// Delete a document and cascade delete associated graph data.
     ///
-    /// This implements document suppression (P4-04) and cascade delete (P4-05)
-    /// from the ingestion pipeline specification:
-    /// 1. Finds all entities/relationships sourced from this document's chunks
-    /// 2. Removes those sources from the entity's source_id list
-    /// 3. Deletes entities/relationships that have no remaining sources
+    /// # WHY: Source-Tracking Cascade Delete
+    ///
+    /// This implements document suppression with cascade semantics:
+    ///
+    /// 1. **Source Tracking** - Every entity/relationship stores `source_id` listing all
+    ///    contributing chunks. WHY: A single entity (e.g., "Apple") may be mentioned
+    ///    in 100 documents. We can't delete the entity unless ALL sources are gone.
+    ///
+    /// 2. **Cascade Logic**:
+    ///    - If entity has ONLY sources from this document → DELETE entity
+    ///    - If entity has MIXED sources → UPDATE to remove this document's sources
+    ///
+    /// 3. **Edge Cleanup** - Edges connected to deleted nodes are also deleted.
+    ///    WHY: Orphan edges would corrupt graph queries.
+    ///
+    /// This matches LightRAG's P4-04 (Document Suppression) and P4-05 (Cascade Delete).
     pub async fn delete_document(&self, document_id: &str) -> Result<DocumentDeletionResult> {
         if !self.initialized {
             return Err(Error::not_initialized("EdgeQuake not initialized"));

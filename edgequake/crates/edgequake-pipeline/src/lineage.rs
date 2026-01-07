@@ -267,7 +267,9 @@ impl EntityLineage {
 
     /// Get current description.
     pub fn current_description(&self) -> Option<&str> {
-        self.description_history.last().map(|v| v.description.as_str())
+        self.description_history
+            .last()
+            .map(|v| v.description.as_str())
     }
 }
 
@@ -418,6 +420,10 @@ impl LineageBuilder {
     }
 
     /// Record a chunk extraction.
+    ///
+    /// Takes all chunk position and metadata parameters directly for performance.
+    /// Consider using a ChunkRecordParams struct if more parameters are needed.
+    #[allow(clippy::too_many_arguments)]
     pub fn record_chunk(
         &mut self,
         chunk_id: &str,
@@ -452,7 +458,12 @@ impl LineageBuilder {
         description: &str,
     ) {
         // Update chunk with entity ID
-        if let Some(chunk) = self.lineage.chunks.iter_mut().find(|c| c.chunk_id == chunk_id) {
+        if let Some(chunk) = self
+            .lineage
+            .chunks
+            .iter_mut()
+            .find(|c| c.chunk_id == chunk_id)
+        {
             if !chunk.entity_ids.contains(&entity_id.to_string()) {
                 chunk.entity_ids.push(entity_id.to_string());
             }
@@ -481,6 +492,9 @@ impl LineageBuilder {
     }
 
     /// Record a relationship extraction.
+    ///
+    /// Takes all relationship metadata parameters directly for performance.
+    #[allow(clippy::too_many_arguments)]
     pub fn record_relationship(
         &mut self,
         rel_id: &str,
@@ -492,7 +506,12 @@ impl LineageBuilder {
         description: &str,
     ) {
         // Update chunk with relationship ID
-        if let Some(chunk) = self.lineage.chunks.iter_mut().find(|c| c.chunk_id == chunk_id) {
+        if let Some(chunk) = self
+            .lineage
+            .chunks
+            .iter_mut()
+            .find(|c| c.chunk_id == chunk_id)
+        {
             if !chunk.relationship_ids.contains(&rel_id.to_string()) {
                 chunk.relationship_ids.push(rel_id.to_string());
             }

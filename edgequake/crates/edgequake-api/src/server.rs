@@ -88,8 +88,7 @@ impl Server {
         // Swagger UI
         if self.config.enable_swagger {
             app = app.merge(
-                SwaggerUi::new("/swagger-ui")
-                    .url("/api-docs/openapi.json", ApiDoc::openapi()),
+                SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()),
             );
         }
 

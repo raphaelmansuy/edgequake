@@ -250,7 +250,7 @@ async fn convert_pdf(opts: ConvertOptions) -> Result<(), Box<dyn std::error::Err
     if !opts
         .input
         .extension()
-        .map_or(false, |e| e.eq_ignore_ascii_case("pdf"))
+        .is_some_and(|e| e.eq_ignore_ascii_case("pdf"))
     {
         eprintln!("⚠️  Warning: Input file does not have .pdf extension");
     }

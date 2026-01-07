@@ -55,11 +55,7 @@ pub struct Claims {
 
 impl Claims {
     /// Create new claims for a user.
-    pub fn new(
-        user_id: Uuid,
-        role: Role,
-        expiry_seconds: i64,
-    ) -> Self {
+    pub fn new(user_id: Uuid, role: Role, expiry_seconds: i64) -> Self {
         let now = Utc::now();
         Self {
             sub: user_id.to_string(),
@@ -115,7 +111,7 @@ impl Claims {
 
     /// Get role from claims.
     pub fn role(&self) -> Role {
-        Role::from_str(&self.role)
+        Role::parse(&self.role)
     }
 
     /// Check if token is expired.
@@ -180,8 +176,8 @@ impl JwtService {
 
     /// Verify and decode a JWT.
     pub fn verify_token(&self, token: &str) -> Result<Claims, AuthError> {
-        let token_data: TokenData<Claims> =
-            decode(token, &self.decoding_key, &self.validation).map_err(|e| {
+        let token_data: TokenData<Claims> = decode(token, &self.decoding_key, &self.validation)
+            .map_err(|e| {
                 use jsonwebtoken::errors::ErrorKind;
                 match e.kind() {
                     ErrorKind::ExpiredSignature => AuthError::TokenExpired,
@@ -211,8 +207,8 @@ impl JwtService {
         validation.validate_exp = false;
         validation.validate_nbf = false;
 
-        let token_data: TokenData<Claims> =
-            decode(token, &self.decoding_key, &validation).map_err(|e| AuthError::InvalidToken {
+        let token_data: TokenData<Claims> = decode(token, &self.decoding_key, &validation)
+            .map_err(|e| AuthError::InvalidToken {
                 reason: e.to_string(),
             })?;
 

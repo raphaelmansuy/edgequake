@@ -13,11 +13,10 @@
 
 use uuid::Uuid;
 
-use edgequake_core::workspace_service::{InMemoryWorkspaceService, WorkspaceService};
 use edgequake_core::types::{
-    CreateWorkspaceRequest, Membership, MembershipRole, Tenant, TenantPlan,
-    UpdateWorkspaceRequest,
+    CreateWorkspaceRequest, Membership, MembershipRole, Tenant, TenantPlan, UpdateWorkspaceRequest,
 };
+use edgequake_core::workspace_service::{InMemoryWorkspaceService, WorkspaceService};
 
 // ============================================================================
 // Tenant CRUD Tests
@@ -30,8 +29,7 @@ mod tenant_crud_tests {
     async fn test_create_tenant_basic() {
         let service = InMemoryWorkspaceService::new();
 
-        let tenant = Tenant::new("Acme Corp", "acme-corp")
-            .with_plan(TenantPlan::Basic);
+        let tenant = Tenant::new("Acme Corp", "acme-corp").with_plan(TenantPlan::Basic);
 
         let created = service.create_tenant(tenant).await.unwrap();
 
@@ -53,11 +51,8 @@ mod tenant_crud_tests {
         ];
 
         for (i, plan) in plans.into_iter().enumerate() {
-            let tenant = Tenant::new(
-                &format!("Tenant {}", i),
-                &format!("tenant-{}", i),
-            )
-            .with_plan(plan);
+            let tenant =
+                Tenant::new(&format!("Tenant {}", i), &format!("tenant-{}", i)).with_plan(plan);
 
             let created = service.create_tenant(tenant).await.unwrap();
             assert_eq!(created.plan, plan);
@@ -147,7 +142,10 @@ mod tenant_crud_tests {
             description: None,
             max_documents: None,
         };
-        service.create_workspace(created.tenant_id, request).await.unwrap();
+        service
+            .create_workspace(created.tenant_id, request)
+            .await
+            .unwrap();
 
         // Delete tenant (should cascade to workspaces)
         service.delete_tenant(created.tenant_id).await.unwrap();
@@ -217,7 +215,10 @@ mod workspace_crud_tests {
 
         assert_eq!(workspace.name, "Knowledge Base");
         assert_eq!(workspace.slug, "kb");
-        assert_eq!(workspace.description, Some("Main knowledge base".to_string()));
+        assert_eq!(
+            workspace.description,
+            Some("Main knowledge base".to_string())
+        );
         assert!(workspace.is_active);
     }
 
@@ -255,7 +256,10 @@ mod workspace_crud_tests {
             description: None,
             max_documents: None,
         };
-        service.create_workspace(tenant.tenant_id, request1).await.unwrap();
+        service
+            .create_workspace(tenant.tenant_id, request1)
+            .await
+            .unwrap();
 
         let request2 = CreateWorkspaceRequest {
             name: "Workspace 2".to_string(),
@@ -286,8 +290,14 @@ mod workspace_crud_tests {
         };
 
         // Same slug in different tenants should work
-        service.create_workspace(tenant1.tenant_id, request.clone()).await.unwrap();
-        service.create_workspace(tenant2.tenant_id, request).await.unwrap();
+        service
+            .create_workspace(tenant1.tenant_id, request.clone())
+            .await
+            .unwrap();
+        service
+            .create_workspace(tenant2.tenant_id, request)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -305,7 +315,10 @@ mod workspace_crud_tests {
             description: None,
             max_documents: None,
         };
-        service.create_workspace(tenant.tenant_id, request1).await.unwrap();
+        service
+            .create_workspace(tenant.tenant_id, request1)
+            .await
+            .unwrap();
 
         // Second workspace fails
         let request2 = CreateWorkspaceRequest {
@@ -330,7 +343,10 @@ mod workspace_crud_tests {
             description: None,
             max_documents: None,
         };
-        let created = service.create_workspace(tenant.tenant_id, request).await.unwrap();
+        let created = service
+            .create_workspace(tenant.tenant_id, request)
+            .await
+            .unwrap();
 
         let retrieved = service.get_workspace(created.workspace_id).await.unwrap();
         assert!(retrieved.is_some());
@@ -348,7 +364,10 @@ mod workspace_crud_tests {
             description: None,
             max_documents: None,
         };
-        service.create_workspace(tenant.tenant_id, request).await.unwrap();
+        service
+            .create_workspace(tenant.tenant_id, request)
+            .await
+            .unwrap();
 
         let retrieved = service
             .get_workspace_by_slug(tenant.tenant_id, "slug-test")
@@ -368,7 +387,10 @@ mod workspace_crud_tests {
             description: None,
             max_documents: None,
         };
-        let created = service.create_workspace(tenant.tenant_id, request).await.unwrap();
+        let created = service
+            .create_workspace(tenant.tenant_id, request)
+            .await
+            .unwrap();
 
         let update = UpdateWorkspaceRequest {
             name: Some("Updated Name".to_string()),
@@ -397,9 +419,15 @@ mod workspace_crud_tests {
             description: None,
             max_documents: None,
         };
-        let created = service.create_workspace(tenant.tenant_id, request).await.unwrap();
+        let created = service
+            .create_workspace(tenant.tenant_id, request)
+            .await
+            .unwrap();
 
-        service.delete_workspace(created.workspace_id).await.unwrap();
+        service
+            .delete_workspace(created.workspace_id)
+            .await
+            .unwrap();
 
         let result = service.get_workspace(created.workspace_id).await.unwrap();
         assert!(result.is_none());
@@ -418,7 +446,10 @@ mod workspace_crud_tests {
                 description: None,
                 max_documents: None,
             };
-            service.create_workspace(tenant.tenant_id, request).await.unwrap();
+            service
+                .create_workspace(tenant.tenant_id, request)
+                .await
+                .unwrap();
         }
 
         let workspaces = service.list_workspaces(tenant.tenant_id).await.unwrap();
@@ -436,9 +467,15 @@ mod workspace_crud_tests {
             description: None,
             max_documents: None,
         };
-        let workspace = service.create_workspace(tenant.tenant_id, request).await.unwrap();
+        let workspace = service
+            .create_workspace(tenant.tenant_id, request)
+            .await
+            .unwrap();
 
-        let stats = service.get_workspace_stats(workspace.workspace_id).await.unwrap();
+        let stats = service
+            .get_workspace_stats(workspace.workspace_id)
+            .await
+            .unwrap();
         assert_eq!(stats.workspace_id, workspace.workspace_id);
         // In-memory returns zeros
         assert_eq!(stats.document_count, 0);
@@ -536,7 +573,10 @@ mod membership_tests {
             service.add_membership(membership).await.unwrap();
         }
 
-        let memberships = service.get_tenant_memberships(tenant.tenant_id).await.unwrap();
+        let memberships = service
+            .get_tenant_memberships(tenant.tenant_id)
+            .await
+            .unwrap();
         assert_eq!(memberships.len(), 4);
     }
 
@@ -562,10 +602,16 @@ mod membership_tests {
         let membership = Membership::new(user_id, tenant.tenant_id, MembershipRole::Member);
         let created = service.add_membership(membership).await.unwrap();
 
-        service.remove_membership(created.membership_id).await.unwrap();
+        service
+            .remove_membership(created.membership_id)
+            .await
+            .unwrap();
 
         // User should no longer have access
-        let has_access = service.check_tenant_access(user_id, tenant.tenant_id).await.unwrap();
+        let has_access = service
+            .check_tenant_access(user_id, tenant.tenant_id)
+            .await
+            .unwrap();
         assert!(!has_access);
     }
 
@@ -574,7 +620,10 @@ mod membership_tests {
         let (service, tenant, user_id) = setup().await;
 
         // No access initially
-        let access = service.check_tenant_access(user_id, tenant.tenant_id).await.unwrap();
+        let access = service
+            .check_tenant_access(user_id, tenant.tenant_id)
+            .await
+            .unwrap();
         assert!(!access);
 
         // Grant access
@@ -582,7 +631,10 @@ mod membership_tests {
         service.add_membership(membership).await.unwrap();
 
         // Now has access
-        let access = service.check_tenant_access(user_id, tenant.tenant_id).await.unwrap();
+        let access = service
+            .check_tenant_access(user_id, tenant.tenant_id)
+            .await
+            .unwrap();
         assert!(access);
     }
 
@@ -597,7 +649,10 @@ mod membership_tests {
             description: None,
             max_documents: None,
         };
-        let workspace = service.create_workspace(tenant.tenant_id, request).await.unwrap();
+        let workspace = service
+            .create_workspace(tenant.tenant_id, request)
+            .await
+            .unwrap();
 
         // No access without membership
         let access = service
@@ -623,7 +678,10 @@ mod membership_tests {
         let (service, tenant, user_id) = setup().await;
 
         // No role initially
-        let role = service.get_user_role(user_id, tenant.tenant_id).await.unwrap();
+        let role = service
+            .get_user_role(user_id, tenant.tenant_id)
+            .await
+            .unwrap();
         assert!(role.is_none());
 
         // Add membership with admin role
@@ -631,7 +689,10 @@ mod membership_tests {
         service.add_membership(membership).await.unwrap();
 
         // Should return Admin
-        let role = service.get_user_role(user_id, tenant.tenant_id).await.unwrap();
+        let role = service
+            .get_user_role(user_id, tenant.tenant_id)
+            .await
+            .unwrap();
         assert_eq!(role, Some(MembershipRole::Admin));
     }
 }
@@ -677,7 +738,10 @@ mod context_tests {
             description: None,
             max_documents: None,
         };
-        let workspace = service.create_workspace(tenant.tenant_id, request).await.unwrap();
+        let workspace = service
+            .create_workspace(tenant.tenant_id, request)
+            .await
+            .unwrap();
 
         let user_id = Uuid::new_v4();
         let membership = Membership::new(user_id, tenant.tenant_id, MembershipRole::Member);
@@ -857,7 +921,10 @@ mod concurrent_tests {
         assert!(all_ok);
 
         // Verify all memberships
-        let memberships = service.get_tenant_memberships(tenant.tenant_id).await.unwrap();
+        let memberships = service
+            .get_tenant_memberships(tenant.tenant_id)
+            .await
+            .unwrap();
         assert_eq!(memberships.len(), 20);
     }
 }

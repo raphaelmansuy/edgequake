@@ -1,3 +1,8 @@
+//! Token bucket rate limiter implementation.
+//!
+//! This module provides the core `RateLimiter` that uses a token bucket
+//! algorithm with concurrent access support via `DashMap`.
+
 use dashmap::DashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};

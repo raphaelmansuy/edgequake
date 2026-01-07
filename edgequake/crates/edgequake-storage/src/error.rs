@@ -115,7 +115,7 @@ mod tests {
 
     #[test]
     fn test_storage_error_from_serde_json() {
-        let json_err: serde_json::Error = 
+        let json_err: serde_json::Error =
             serde_json::from_str::<serde_json::Value>("not json").unwrap_err();
         let storage_err: StorageError = json_err.into();
         assert!(matches!(storage_err, StorageError::Serialization(_)));

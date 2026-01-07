@@ -150,9 +150,14 @@ impl FormulaDetector {
 
         // Sort by position (top to bottom, left to right)
         formulas.sort_by(|a, b| {
-            let y_cmp = a.bbox.y1.partial_cmp(&b.bbox.y1).unwrap_or(std::cmp::Ordering::Equal);
+            let y_cmp = a
+                .bbox
+                .y1
+                .partial_cmp(&b.bbox.y1)
+                .unwrap_or(std::cmp::Ordering::Equal);
             if y_cmp == std::cmp::Ordering::Equal {
-                a.bbox.x1
+                a.bbox
+                    .x1
                     .partial_cmp(&b.bbox.x1)
                     .unwrap_or(std::cmp::Ordering::Equal)
             } else {

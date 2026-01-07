@@ -2,6 +2,25 @@
 //!
 //! Provides consistent entity naming across extractions to ensure
 //! proper graph node merging.
+//!
+//! # WHY Normalization Matters
+//!
+//! Without normalization, the same entity extracted from different chunks might
+//! be stored as separate nodes in the knowledge graph:
+//!
+//! - "John Doe" (from chunk 1)
+//! - "john doe" (from chunk 2)  
+//! - "JOHN DOE" (from chunk 3)
+//! - "The John Doe" (from chunk 4)
+//!
+//! This leads to:
+//! 1. **Graph fragmentation**: Same entity exists as multiple disconnected nodes
+//! 2. **Lost relationships**: Edges only connect to one variant
+//! 3. **Query failures**: Search for "John Doe" misses "JOHN DOE" nodes
+//! 4. **Inflated entity counts**: 4 nodes instead of 1
+//!
+//! By normalizing to `JOHN_DOE`, all references merge into a single node,
+//! preserving the complete relationship graph.
 
 /// Normalize entity name to consistent format.
 ///

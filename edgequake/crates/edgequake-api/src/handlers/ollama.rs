@@ -82,8 +82,8 @@ impl OllamaSearchMode {
         ];
 
         for (prefix, mode, context_only) in prefixes {
-            if query.starts_with(prefix) {
-                return (query[prefix.len()..].to_string(), mode, context_only);
+            if let Some(rest) = query.strip_prefix(prefix) {
+                return (rest.to_string(), mode, context_only);
             }
         }
 

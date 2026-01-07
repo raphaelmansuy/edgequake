@@ -161,10 +161,11 @@ impl DocumentTaskProcessor {
                 }
                 metadata["workspace_id"] = json!(&workspace_id_meta);
 
-                if let Ok(_) = self
+                if self
                     .vector_storage
                     .upsert(&[(chunk.id.clone(), embedding.clone(), metadata)])
                     .await
+                    .is_ok()
                 {
                     chunk_embeddings_stored += 1;
                 }
@@ -204,7 +205,10 @@ impl DocumentTaskProcessor {
                 properties.insert("importance".to_string(), json!(entity.importance));
                 properties.insert("source_ids".to_string(), json!(vec![&document_id]));
                 // CRITICAL: Store source_chunk_ids for Local/Global query mode chunk retrieval
-                properties.insert("source_chunk_ids".to_string(), json!(&entity.source_chunk_ids));
+                properties.insert(
+                    "source_chunk_ids".to_string(),
+                    json!(&entity.source_chunk_ids),
+                );
                 // Add tenant scoping
                 if let Some(ref tid) = tenant_id {
                     properties.insert("tenant_id".to_string(), json!(tid));
@@ -271,7 +275,7 @@ impl DocumentTaskProcessor {
                         metadata["tenant_id"] = json!(tid);
                     }
                     metadata["workspace_id"] = json!(&workspace_id_meta);
-                    
+
                     let entity_id = format!("entity:{}", entity.name);
                     if let Err(e) = self
                         .vector_storage

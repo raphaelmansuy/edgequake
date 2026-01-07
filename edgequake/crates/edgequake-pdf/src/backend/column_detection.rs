@@ -10,7 +10,7 @@
 //! - This is more robust than x-position clustering for varying column widths
 
 use super::elements::TextElement;
-use tracing::info;
+use tracing::{debug, info};
 
 /// Column detection engine using vertical projection histograms
 pub struct ColumnDetector {

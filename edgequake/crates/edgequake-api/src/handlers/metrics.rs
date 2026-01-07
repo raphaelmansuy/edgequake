@@ -16,7 +16,10 @@ impl IntoResponse for PrometheusMetrics {
     fn into_response(self) -> Response {
         (
             StatusCode::OK,
-            [(header::CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")],
+            [(
+                header::CONTENT_TYPE,
+                "text/plain; version=0.0.4; charset=utf-8",
+            )],
             self.0,
         )
             .into_response()
@@ -167,7 +170,7 @@ mod tests {
     async fn test_metrics_format() {
         let response = get_metrics().await;
         let metrics = response.0;
-        
+
         // Check for required metrics
         assert!(metrics.contains("edgequake_info"));
         assert!(metrics.contains("edgequake_http_requests_total"));

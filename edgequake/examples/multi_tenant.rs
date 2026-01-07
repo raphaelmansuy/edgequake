@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use edgequake_llm::{MockProvider, EmbeddingProvider};
+use edgequake_llm::{EmbeddingProvider, MockProvider};
 use edgequake_pipeline::Chunker;
 use edgequake_storage::{
     GraphStorage, KVStorage, MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
@@ -28,7 +28,7 @@ impl TenantRAG {
     fn new(tenant_id: &str) -> Self {
         // Create namespaced storage for this tenant
         let namespace = format!("tenant_{}", tenant_id);
-        
+
         Self {
             tenant_id: tenant_id.to_string(),
             kv_storage: Arc::new(MemoryKVStorage::new(&namespace)),
@@ -269,7 +269,9 @@ async fn main() -> anyhow::Result<()> {
 
     println!("\n--- Querying Tenant B ---");
     let tenant_b = manager.get_tenant("healthplus").unwrap();
-    let results_b = tenant_b.query("What did HealthPlus get approved for?").await?;
+    let results_b = tenant_b
+        .query("What did HealthPlus get approved for?")
+        .await?;
     println!("HealthPlus results:");
     for (i, result) in results_b.iter().enumerate() {
         println!("  {}. {}", i + 1, &result[..result.len().min(100)]);
@@ -277,7 +279,7 @@ async fn main() -> anyhow::Result<()> {
 
     // === Verify data isolation ===
     println!("\n--- Verifying Data Isolation ---");
-    
+
     // Query TechCorp for HealthPlus data (should return nothing relevant)
     let tenant_a = manager.get_tenant("techcorp").unwrap();
     let cross_results = tenant_a.query("HealthPlus telemedicine FDA").await?;

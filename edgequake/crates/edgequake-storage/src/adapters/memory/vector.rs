@@ -75,12 +75,14 @@ impl VectorStorage for MemoryVectorStorage {
             )));
         }
 
-        let vectors = self.vectors.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
-        let metadata = self.metadata.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let vectors = self
+            .vectors
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let metadata = self
+            .metadata
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
 
         let filter_set: Option<std::collections::HashSet<&String>> =
             filter_ids.map(|ids| ids.iter().collect());
@@ -109,23 +111,25 @@ impl VectorStorage for MemoryVectorStorage {
             .map(|(id, score)| VectorSearchResult {
                 id: id.clone(),
                 score,
-                metadata: metadata.get(&id).cloned().unwrap_or(serde_json::Value::Null),
+                metadata: metadata
+                    .get(&id)
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null),
             })
             .collect();
 
         Ok(results)
     }
 
-    async fn upsert(
-        &self,
-        data: &[(String, Vec<f32>, serde_json::Value)],
-    ) -> Result<()> {
-        let mut vectors = self.vectors.write().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
-        let mut metadata = self.metadata.write().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+    async fn upsert(&self, data: &[(String, Vec<f32>, serde_json::Value)]) -> Result<()> {
+        let mut vectors = self
+            .vectors
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut metadata = self
+            .metadata
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
 
         for (id, vec, meta) in data {
             if vec.len() != self.dimension {
@@ -143,12 +147,14 @@ impl VectorStorage for MemoryVectorStorage {
     }
 
     async fn delete(&self, ids: &[String]) -> Result<()> {
-        let mut vectors = self.vectors.write().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
-        let mut metadata = self.metadata.write().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let mut vectors = self
+            .vectors
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut metadata = self
+            .metadata
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
 
         for id in ids {
             vectors.remove(id);
@@ -159,12 +165,14 @@ impl VectorStorage for MemoryVectorStorage {
     }
 
     async fn delete_entity(&self, entity_name: &str) -> Result<()> {
-        let mut vectors = self.vectors.write().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
-        let mut metadata = self.metadata.write().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let mut vectors = self
+            .vectors
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut metadata = self
+            .metadata
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
 
         let to_remove: Vec<String> = vectors
             .keys()
@@ -185,16 +193,18 @@ impl VectorStorage for MemoryVectorStorage {
     }
 
     async fn get_by_id(&self, id: &str) -> Result<Option<Vec<f32>>> {
-        let vectors = self.vectors.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let vectors = self
+            .vectors
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
         Ok(vectors.get(id).cloned())
     }
 
     async fn get_by_ids(&self, ids: &[String]) -> Result<Vec<(String, Vec<f32>)>> {
-        let vectors = self.vectors.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let vectors = self
+            .vectors
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
 
         let results: Vec<(String, Vec<f32>)> = ids
             .iter()
@@ -205,26 +215,30 @@ impl VectorStorage for MemoryVectorStorage {
     }
 
     async fn is_empty(&self) -> Result<bool> {
-        let vectors = self.vectors.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let vectors = self
+            .vectors
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
         Ok(vectors.is_empty())
     }
 
     async fn count(&self) -> Result<usize> {
-        let vectors = self.vectors.read().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let vectors = self
+            .vectors
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
         Ok(vectors.len())
     }
 
     async fn clear(&self) -> Result<()> {
-        let mut vectors = self.vectors.write().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
-        let mut metadata = self.metadata.write().map_err(|e| {
-            StorageError::Database(format!("Lock error: {}", e))
-        })?;
+        let mut vectors = self
+            .vectors
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut metadata = self
+            .metadata
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
 
         vectors.clear();
         metadata.clear();
@@ -243,9 +257,21 @@ mod tests {
 
         // Insert vectors
         let data = vec![
-            ("a".to_string(), vec![1.0, 0.0, 0.0], serde_json::json!({"name": "a"})),
-            ("b".to_string(), vec![0.0, 1.0, 0.0], serde_json::json!({"name": "b"})),
-            ("c".to_string(), vec![0.0, 0.0, 1.0], serde_json::json!({"name": "c"})),
+            (
+                "a".to_string(),
+                vec![1.0, 0.0, 0.0],
+                serde_json::json!({"name": "a"}),
+            ),
+            (
+                "b".to_string(),
+                vec![0.0, 1.0, 0.0],
+                serde_json::json!({"name": "b"}),
+            ),
+            (
+                "c".to_string(),
+                vec![0.0, 0.0, 1.0],
+                serde_json::json!({"name": "c"}),
+            ),
         ];
         storage.upsert(&data).await.unwrap();
 

@@ -1357,10 +1357,10 @@ mod tests {
         // Two separate boxes (tables) that don't intersect
         // Box 1: (10, 10) to (100, 60)
         let box1 = vec![
-            make_h_line(10.0, 60.0, 100.0),  // Top
-            make_h_line(10.0, 10.0, 100.0),  // Bottom
-            make_v_line(10.0, 10.0, 60.0),   // Left
-            make_v_line(100.0, 10.0, 60.0),  // Right
+            make_h_line(10.0, 60.0, 100.0), // Top
+            make_h_line(10.0, 10.0, 100.0), // Bottom
+            make_v_line(10.0, 10.0, 60.0),  // Left
+            make_v_line(100.0, 10.0, 60.0), // Right
         ];
 
         // Box 2: (200, 10) to (300, 60) - completely separate
@@ -1373,9 +1373,12 @@ mod tests {
 
         let lines: Vec<PdfLine> = box1.into_iter().chain(box2).collect();
         let tables = engine.detect_tables(&lines, &[], 600.0, 800.0);
-        
+
         // Should detect 2 separate tables (or handle as per algorithm)
-        assert!(tables.len() <= 2, "Should detect at most 2 tables from 2 separate boxes");
+        assert!(
+            tables.len() <= 2,
+            "Should detect at most 2 tables from 2 separate boxes"
+        );
     }
 
     #[test]
@@ -1389,7 +1392,10 @@ mod tests {
         ];
 
         let (h_lines, v_lines) = engine.filter_lines(&short_lines);
-        assert!(h_lines.is_empty(), "Short horizontal line should be filtered");
+        assert!(
+            h_lines.is_empty(),
+            "Short horizontal line should be filtered"
+        );
         assert!(v_lines.is_empty(), "Short vertical line should be filtered");
     }
 
@@ -1428,7 +1434,10 @@ mod tests {
 
         let tables = engine.detect_tables(&lines, &[], 600.0, 800.0);
         // A grid should be detected as one table (all lines connected)
-        assert!(tables.len() <= 1, "Grid lines should form one connected table");
+        assert!(
+            tables.len() <= 1,
+            "Grid lines should form one connected table"
+        );
     }
 
     #[test]
@@ -1450,7 +1459,7 @@ mod tests {
         let engine = LatticeEngine::new();
 
         // Corner touch: lines meeting at their endpoints
-        let h_line = make_h_line(0.0, 50.0, 100.0);  // Ends at (100, 50)
+        let h_line = make_h_line(0.0, 50.0, 100.0); // Ends at (100, 50)
         let v_line = make_v_line(100.0, 50.0, 100.0); // Starts at (100, 50)
 
         // With tolerance, they should intersect at corner
@@ -1465,7 +1474,7 @@ mod tests {
         let engine = LatticeEngine::new();
 
         // Lines that are close but don't quite intersect
-        let h_line = make_h_line(0.0, 50.0, 45.0);   // Ends at (45, 50)
+        let h_line = make_h_line(0.0, 50.0, 45.0); // Ends at (45, 50)
         let v_line = make_v_line(50.0, 55.0, 100.0); // Starts at (50, 55)
 
         // Gap of 5 in X and 5 in Y - should be close to tolerance threshold
@@ -1503,7 +1512,10 @@ mod tests {
 
         // Lines that overlap horizontally should be grouped together
         assert!(!groups.is_empty(), "Should create at least one group");
-        assert!(groups.iter().any(|g| g.len() >= 2), "Some group should have multiple lines");
+        assert!(
+            groups.iter().any(|g| g.len() >= 2),
+            "Some group should have multiple lines"
+        );
     }
 
     #[test]
@@ -1511,14 +1523,18 @@ mod tests {
         let engine = LatticeEngine::new();
 
         // Lines that don't overlap horizontally
-        let l1 = make_h_line(10.0, 100.0, 50.0);   // Left side
-        let l2 = make_h_line(150.0, 80.0, 200.0);  // Right side, no overlap
+        let l1 = make_h_line(10.0, 100.0, 50.0); // Left side
+        let l2 = make_h_line(150.0, 80.0, 200.0); // Right side, no overlap
 
         let lines: Vec<&PdfLine> = vec![&l1, &l2];
         let groups = engine.group_parallel_lines(&lines);
 
         // Non-overlapping lines should form separate groups
-        assert_eq!(groups.len(), 2, "Non-overlapping lines should form separate groups");
+        assert_eq!(
+            groups.len(),
+            2,
+            "Non-overlapping lines should form separate groups"
+        );
     }
 
     #[test]
@@ -1533,6 +1549,10 @@ mod tests {
         let engine = LatticeEngine::new();
         let text = engine.extract_text_in_rect(&[], 0.0, 0.0, 100.0, 100.0);
         // Returns vec with one empty string when no elements found
-        assert_eq!(text, vec![String::new()], "Empty elements should produce vec with empty string");
+        assert_eq!(
+            text,
+            vec![String::new()],
+            "Empty elements should produce vec with empty string"
+        );
     }
 }

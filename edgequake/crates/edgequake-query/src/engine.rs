@@ -84,7 +84,7 @@ pub struct QueryRequest {
 
     /// Additional parameters.
     pub params: HashMap<String, serde_json::Value>,
-    
+
     /// Conversation history for multi-turn context.
     #[serde(default)]
     pub conversation_history: Vec<ConversationMessage>,
@@ -103,7 +103,7 @@ pub struct QueryRequest {
 pub struct ConversationMessage {
     /// Role of the message sender (user, assistant, system).
     pub role: String,
-    
+
     /// Content of the message.
     pub content: String,
 }
@@ -141,7 +141,7 @@ impl QueryRequest {
         self.prompt_only = true;
         self
     }
-    
+
     /// Add conversation history.
     pub fn with_conversation_history(mut self, history: Vec<ConversationMessage>) -> Self {
         self.conversation_history = history;
@@ -150,24 +150,34 @@ impl QueryRequest {
 
     /// Set tenant ID for filtering.
     pub fn with_tenant_id(mut self, tenant_id: impl Into<String>) -> Self {
-        self.params.insert("tenant_id".to_string(), serde_json::json!(tenant_id.into()));
+        self.params
+            .insert("tenant_id".to_string(), serde_json::json!(tenant_id.into()));
         self
     }
 
     /// Set workspace ID for filtering.
     pub fn with_workspace_id(mut self, workspace_id: impl Into<String>) -> Self {
-        self.params.insert("workspace_id".to_string(), serde_json::json!(workspace_id.into()));
+        self.params.insert(
+            "workspace_id".to_string(),
+            serde_json::json!(workspace_id.into()),
+        );
         self
     }
 
     /// Get tenant ID from params.
     pub fn tenant_id(&self) -> Option<String> {
-        self.params.get("tenant_id").and_then(|v| v.as_str()).map(|s| s.to_string())
+        self.params
+            .get("tenant_id")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
     }
 
     /// Get workspace ID from params.
     pub fn workspace_id(&self) -> Option<String> {
-        self.params.get("workspace_id").and_then(|v| v.as_str()).map(|s| s.to_string())
+        self.params
+            .get("workspace_id")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
     }
 
     /// Override reranking for this request.
@@ -273,15 +283,20 @@ impl QueryEngine {
 
         // Step 1: Generate query embedding
         let embed_start = std::time::Instant::now();
-        let query_embedding = self
-            .embedding_provider
-            .embed_one(&request.query)
-            .await?;
+        let query_embedding = self.embedding_provider.embed_one(&request.query).await?;
         stats.embedding_time_ms = embed_start.elapsed().as_millis() as u64;
 
         // Step 2: Retrieve context based on mode
         let retrieval_start = std::time::Instant::now();
-        let context = self.retrieve_context(&request.query, &query_embedding, mode, request.tenant_id(), request.workspace_id()).await?;
+        let context = self
+            .retrieve_context(
+                &request.query,
+                &query_embedding,
+                mode,
+                request.tenant_id(),
+                request.workspace_id(),
+            )
+            .await?;
         stats.retrieval_time_ms = retrieval_start.elapsed().as_millis() as u64;
         stats.context_tokens = context.token_count;
 
@@ -293,11 +308,13 @@ impl QueryEngine {
             (self.build_prompt(&request.query, &context), 0)
         } else {
             let gen_start = std::time::Instant::now();
-            let (answer, tokens) = self.generate_answer_with_tokens(&request.query, &context).await?;
+            let (answer, tokens) = self
+                .generate_answer_with_tokens(&request.query, &context)
+                .await?;
             stats.generation_time_ms = gen_start.elapsed().as_millis() as u64;
             (answer, tokens)
         };
-        
+
         stats.generated_tokens = generated_tokens;
 
         stats.total_time_ms = start.elapsed().as_millis() as u64;
@@ -311,22 +328,30 @@ impl QueryEngine {
     }
 
     /// Execute a streaming query.
-    pub async fn query_stream(&self, request: QueryRequest) -> Result<futures::stream::BoxStream<'static, Result<String>>> {
+    pub async fn query_stream(
+        &self,
+        request: QueryRequest,
+    ) -> Result<futures::stream::BoxStream<'static, Result<String>>> {
         let mode = request.mode.unwrap_or(self.config.default_mode);
 
         // Step 1: Generate query embedding
-        let query_embedding = self
-            .embedding_provider
-            .embed_one(&request.query)
-            .await?;
+        let query_embedding = self.embedding_provider.embed_one(&request.query).await?;
 
         // Step 2: Retrieve context based on mode
-        let context = self.retrieve_context(&request.query, &query_embedding, mode, request.tenant_id(), request.workspace_id()).await?;
+        let context = self
+            .retrieve_context(
+                &request.query,
+                &query_embedding,
+                mode,
+                request.tenant_id(),
+                request.workspace_id(),
+            )
+            .await?;
 
         if context.is_empty() {
             use futures::StreamExt;
-            return Ok(futures::stream::once(async { 
-                Ok("I'm sorry, but I couldn't find any relevant information in my knowledge base to answer your question.".to_string()) 
+            return Ok(futures::stream::once(async {
+                Ok("I'm sorry, but I couldn't find any relevant information in my knowledge base to answer your question.".to_string())
             }).boxed());
         }
 
@@ -385,7 +410,9 @@ Provide a clear, accurate answer based on the context above. If the context does
 
             // Check workspace_id if set
             if let Some(ref ctx_workspace_id) = workspace_id {
-                if let Some(prop_workspace_id) = properties.get("workspace_id").and_then(|v| v.as_str()) {
+                if let Some(prop_workspace_id) =
+                    properties.get("workspace_id").and_then(|v| v.as_str())
+                {
                     if prop_workspace_id != ctx_workspace_id {
                         return false;
                     }
@@ -532,7 +559,11 @@ Provide a clear, accurate answer based on the context above. If the context does
     }
 
     /// Generate an answer using the LLM and return the token count.
-    async fn generate_answer_with_tokens(&self, query: &str, context: &QueryContext) -> Result<(String, usize)> {
+    async fn generate_answer_with_tokens(
+        &self,
+        query: &str,
+        context: &QueryContext,
+    ) -> Result<(String, usize)> {
         if context.is_empty() {
             return Ok(("I'm sorry, but I couldn't find any relevant information in my knowledge base to answer your question.".to_string(), 0));
         }
@@ -579,8 +610,7 @@ mod tests {
         assert!(!request.prompt_only);
 
         // Test prompt_only mode
-        let prompt_request = QueryRequest::new("What is Python?")
-            .prompt_only();
+        let prompt_request = QueryRequest::new("What is Python?").prompt_only();
 
         assert!(prompt_request.prompt_only);
         assert!(!prompt_request.context_only);

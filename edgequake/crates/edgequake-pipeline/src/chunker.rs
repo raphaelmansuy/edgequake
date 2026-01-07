@@ -442,9 +442,11 @@ impl Chunker {
 
     /// Create a chunker that splits by character only.
     pub fn character_chunker(split_character: impl Into<String>) -> Self {
-        let mut config = ChunkerConfig::default();
-        config.split_by_character = Some(split_character.into());
-        config.split_by_character_only = true;
+        let config = ChunkerConfig {
+            split_by_character: Some(split_character.into()),
+            split_by_character_only: true,
+            ..ChunkerConfig::default()
+        };
         Self {
             config,
             strategy: Arc::new(CharacterBasedChunking::by_newline()),

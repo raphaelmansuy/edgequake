@@ -1,3 +1,8 @@
+//! Async audit logger implementation.
+//!
+//! This module provides the main `AuditLogger` which processes audit events
+//! asynchronously via a background worker and persists them to PostgreSQL.
+
 use anyhow::Result;
 use sqlx::{Pool, Postgres};
 use tokio::sync::mpsc;
@@ -83,8 +88,8 @@ async fn write_audit_event(pool: &Pool<Postgres>, event: &AuditEvent) -> Result<
         )
         "#,
     )
-    .bind(&event.id)
-    .bind(&event.timestamp)
+    .bind(event.id)
+    .bind(event.timestamp)
     .bind(&event.tenant_id)
     .bind(&event.workspace_id)
     .bind(&event.user_id)
@@ -101,8 +106,8 @@ async fn write_audit_event(pool: &Pool<Postgres>, event: &AuditEvent) -> Result<
     .bind(&event.session_id)
     .bind(&event.metadata)
     .bind(&event.error_message)
-    .bind(&event.retention_days)
-    .bind(&event.duration_ms)
+    .bind(event.retention_days)
+    .bind(event.duration_ms)
     .execute(pool)
     .await?;
 

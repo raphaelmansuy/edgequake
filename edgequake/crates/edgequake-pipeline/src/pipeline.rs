@@ -348,10 +348,12 @@ impl Pipeline {
                 stats.cost_usd += extraction_cost;
 
                 // Initialize cost breakdown
-                let mut cost_breakdown = CostBreakdownStats::default();
-                cost_breakdown.extraction_cost_usd = extraction_cost;
-                cost_breakdown.extraction_input_tokens = total_input_tokens;
-                cost_breakdown.extraction_output_tokens = total_output_tokens;
+                let cost_breakdown = CostBreakdownStats {
+                    extraction_cost_usd: extraction_cost,
+                    extraction_input_tokens: total_input_tokens,
+                    extraction_output_tokens: total_output_tokens,
+                    ..CostBreakdownStats::default()
+                };
                 stats.cost_breakdown = Some(cost_breakdown);
             }
         }
@@ -502,9 +504,11 @@ impl Pipeline {
                 breakdown.embedding_cost_usd = embedding_cost;
                 breakdown.embedding_tokens = total_embed_tokens;
             } else {
-                let mut breakdown = CostBreakdownStats::default();
-                breakdown.embedding_cost_usd = embedding_cost;
-                breakdown.embedding_tokens = total_embed_tokens;
+                let breakdown = CostBreakdownStats {
+                    embedding_cost_usd: embedding_cost,
+                    embedding_tokens: total_embed_tokens,
+                    ..CostBreakdownStats::default()
+                };
                 stats.cost_breakdown = Some(breakdown);
             }
         }

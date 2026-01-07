@@ -186,11 +186,16 @@ impl RateLimiter {
     }
 
     /// Acquire permission to make a request.
-    /// 
+    ///
     /// Returns a guard that releases the concurrent slot on drop.
     pub async fn acquire(&self, estimated_tokens: usize) -> RateLimitGuard {
         // Acquire concurrent slot
-        let permit = self.concurrent_semaphore.clone().acquire_owned().await.unwrap();
+        let permit = self
+            .concurrent_semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .unwrap();
 
         // Wait for request rate limit
         loop {
@@ -200,8 +205,11 @@ impl RateLimiter {
             }
             let wait_time = bucket.time_to_acquire(1.0);
             drop(bucket);
-            
-            tracing::debug!(wait_ms = wait_time.as_millis(), "Rate limited: waiting for request slot");
+
+            tracing::debug!(
+                wait_ms = wait_time.as_millis(),
+                "Rate limited: waiting for request slot"
+            );
             tokio::time::sleep(wait_time).await;
         }
 
@@ -213,18 +221,20 @@ impl RateLimiter {
             }
             let wait_time = bucket.time_to_acquire(estimated_tokens as f64);
             drop(bucket);
-            
-            tracing::debug!(wait_ms = wait_time.as_millis(), estimated_tokens, "Rate limited: waiting for token budget");
+
+            tracing::debug!(
+                wait_ms = wait_time.as_millis(),
+                estimated_tokens,
+                "Rate limited: waiting for token budget"
+            );
             tokio::time::sleep(wait_time).await;
         }
 
-        RateLimitGuard {
-            _permit: permit,
-        }
+        RateLimitGuard { _permit: permit }
     }
 
     /// Try to acquire without waiting.
-    /// 
+    ///
     /// Returns None if rate limit would be exceeded.
     pub async fn try_acquire(&self, estimated_tokens: usize) -> Option<RateLimitGuard> {
         // Try to acquire concurrent slot
@@ -249,9 +259,7 @@ impl RateLimiter {
             }
         }
 
-        Some(RateLimitGuard {
-            _permit: permit,
-        })
+        Some(RateLimitGuard { _permit: permit })
     }
 
     /// Record actual token usage (for adjustment).
@@ -320,8 +328,8 @@ impl<P> RateLimitedProvider<P> {
     }
 }
 
-use crate::traits::{ChatMessage, CompletionOptions, EmbeddingProvider, LLMProvider, LLMResponse};
 use crate::error::Result;
+use crate::traits::{ChatMessage, CompletionOptions, EmbeddingProvider, LLMProvider, LLMResponse};
 use futures::stream::BoxStream;
 
 #[async_trait]
@@ -387,7 +395,10 @@ impl<P: LLMProvider + Send + Sync> LLMProvider for RateLimitedProvider<P> {
         options: Option<&CompletionOptions>,
     ) -> Result<LLMResponse> {
         let total_chars: usize = messages.iter().map(|m| m.content.len()).sum();
-        let estimated_tokens = total_chars / 4 + options.map(|o| o.max_tokens.unwrap_or(1000)).unwrap_or(1000);
+        let estimated_tokens = total_chars / 4
+            + options
+                .map(|o| o.max_tokens.unwrap_or(1000))
+                .unwrap_or(1000);
 
         let _guard = self.limiter.acquire(estimated_tokens).await;
 
@@ -409,7 +420,7 @@ impl<P: LLMProvider + Send + Sync> LLMProvider for RateLimitedProvider<P> {
         // For streaming, we acquire once at the start
         let estimated_tokens = prompt.len() / 4 + 2000;
         let _guard = self.limiter.acquire(estimated_tokens).await;
-        
+
         self.inner.stream(prompt).await
     }
 
@@ -471,7 +482,7 @@ mod tests {
     #[tokio::test]
     async fn test_rate_limiter_creation() {
         let limiter = RateLimiter::new(RateLimiterConfig::default());
-        
+
         assert!(limiter.available_requests().await > 0.0);
         assert!(limiter.available_tokens().await > 0.0);
     }

@@ -349,7 +349,7 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
         );
 
         // Update source document ID and file path if not already set
-        if node.properties.get("source_document_id").is_none() {
+        if !node.properties.contains_key("source_document_id") {
             if let Some(ref doc_id) = entity.source_document_id {
                 node.properties.insert(
                     "source_document_id".to_string(),
@@ -357,7 +357,7 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
                 );
             }
         }
-        if node.properties.get("source_file_path").is_none() {
+        if !node.properties.contains_key("source_file_path") {
             if let Some(ref file_path) = entity.source_file_path {
                 node.properties.insert(
                     "source_file_path".to_string(),

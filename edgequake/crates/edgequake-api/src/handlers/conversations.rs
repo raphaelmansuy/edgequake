@@ -15,9 +15,8 @@ use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 use edgequake_core::types::{
-    ConversationMode, ConversationSortField, CreateConversationRequest,
-    CreateMessageRequest, MessageRole, UpdateConversationRequest,
-    UpdateMessageRequest,
+    ConversationMode, ConversationSortField, CreateConversationRequest, CreateMessageRequest,
+    MessageRole, UpdateConversationRequest, UpdateMessageRequest,
 };
 
 // ============ Request/Response DTOs ============

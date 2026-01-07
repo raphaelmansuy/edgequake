@@ -290,7 +290,10 @@ impl MembershipRole {
 
     /// Check if this role can write data.
     pub fn can_write(&self) -> bool {
-        matches!(self, MembershipRole::Member | MembershipRole::Admin | MembershipRole::Owner)
+        matches!(
+            self,
+            MembershipRole::Member | MembershipRole::Admin | MembershipRole::Owner
+        )
     }
 
     /// Check if this role can manage users.
@@ -458,8 +461,8 @@ mod tests {
         let workspace_id = Uuid::new_v4();
 
         let owner = Membership::new(user_id, tenant_id, MembershipRole::Owner);
-        let member = Membership::new(user_id, tenant_id, MembershipRole::Member)
-            .for_workspace(workspace_id);
+        let member =
+            Membership::new(user_id, tenant_id, MembershipRole::Member).for_workspace(workspace_id);
 
         assert!(owner.has_role(MembershipRole::Admin));
         assert!(owner.can_access_workspace(&workspace_id));

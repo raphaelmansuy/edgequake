@@ -65,10 +65,7 @@ pub trait VectorStorage: Send + Sync {
     /// # Arguments
     ///
     /// * `data` - Vector of (id, embedding, metadata) tuples
-    async fn upsert(
-        &self,
-        data: &[(String, Vec<f32>, serde_json::Value)],
-    ) -> Result<()>;
+    async fn upsert(&self, data: &[(String, Vec<f32>, serde_json::Value)]) -> Result<()>;
 
     /// Delete vectors by IDs.
     async fn delete(&self, ids: &[String]) -> Result<()>;

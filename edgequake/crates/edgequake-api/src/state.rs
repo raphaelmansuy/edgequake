@@ -165,6 +165,12 @@ impl Default for AppConfig {
 
 impl AppState {
     /// Create a new application state.
+    ///
+    /// WHY: This constructor takes many arguments because AppState is the central
+    /// application container that wires together all major subsystems (storage, LLM,
+    /// query engines, pipeline, auth). Grouping these into intermediate structs would
+    /// add complexity without improving API clarity.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         kv_storage: Arc<dyn edgequake_storage::traits::KVStorage>,
         vector_storage: Arc<dyn edgequake_storage::traits::VectorStorage>,
@@ -579,6 +585,8 @@ impl AppState {
         use edgequake_core::{CreateWorkspaceRequest, Tenant, TenantPlan};
 
         // Define default user ID for anonymous/unauthenticated access
+        // WHY: Used only in postgres feature block, suppressed warning with allow
+        #[allow(unused_variables)]
         let default_user_id = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001")
             .expect("Invalid default user UUID");
 

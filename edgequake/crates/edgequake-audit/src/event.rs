@@ -1,3 +1,8 @@
+//! Audit event types and builders.
+//!
+//! This module defines the core audit event structure used to capture
+//! security-relevant actions and system events.
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
