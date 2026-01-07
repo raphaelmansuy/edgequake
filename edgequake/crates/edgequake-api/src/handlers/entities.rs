@@ -819,4 +819,101 @@ mod tests {
             "MACHINE_LEARNING"
         );
     }
+
+    #[test]
+    fn test_normalize_entity_name_edge_cases() {
+        // Single space replaced with underscore
+        assert_eq!(
+            normalize_entity_name("hello world"),
+            "HELLO_WORLD"
+        );
+        // Multiple spaces become multiple underscores (current behavior)
+        assert_eq!(
+            normalize_entity_name("hello  world"),
+            "HELLO__WORLD"
+        );
+        // Empty string
+        assert_eq!(normalize_entity_name(""), "");
+        // Already uppercase
+        assert_eq!(normalize_entity_name("ALREADY UPPERCASE"), "ALREADY_UPPERCASE");
+    }
+
+    #[test]
+    fn test_create_entity_request_deserialization() {
+        let json = r#"{
+            "entity_name": "test entity",
+            "entity_type": "CONCEPT",
+            "description": "A test entity",
+            "source_id": "manual_entry"
+        }"#;
+        let request: Result<CreateEntityRequest, _> = serde_json::from_str(json);
+        assert!(request.is_ok());
+        let req = request.unwrap();
+        assert_eq!(req.entity_name, "test entity");
+        assert_eq!(req.entity_type, "CONCEPT");
+    }
+
+    #[test]
+    fn test_update_entity_request_partial() {
+        // Only description
+        let json = r#"{"description": "Updated description"}"#;
+        let request: Result<UpdateEntityRequest, _> = serde_json::from_str(json);
+        assert!(request.is_ok());
+        let req = request.unwrap();
+        assert!(req.entity_type.is_none());
+        assert_eq!(req.description, Some("Updated description".to_string()));
+    }
+
+    #[test]
+    fn test_entity_response_serialization() {
+        let response = EntityResponse {
+            id: "test-id".to_string(),
+            entity_name: "TEST_ENTITY".to_string(),
+            entity_type: "CONCEPT".to_string(),
+            description: "A test".to_string(),
+            source_id: "doc-1".to_string(),
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+            degree: 5,
+            metadata: serde_json::Value::Null,
+        };
+        let json = serde_json::to_string(&response);
+        assert!(json.is_ok());
+        assert!(json.unwrap().contains("TEST_ENTITY"));
+    }
+
+    #[test]
+    fn test_merge_entities_request_deserialization() {
+        let json = r#"{
+            "source_entity": "ENTITY_A",
+            "target_entity": "ENTITY_B"
+        }"#;
+        let request: Result<MergeEntitiesRequest, _> = serde_json::from_str(json);
+        assert!(request.is_ok());
+        let req = request.unwrap();
+        assert_eq!(req.source_entity, "ENTITY_A");
+        assert_eq!(req.target_entity, "ENTITY_B");
+    }
+
+    #[test]
+    fn test_delete_entity_query_deserialization() {
+        let json = r#"{"delete_relationships": true, "confirm": true}"#;
+        let query: Result<DeleteEntityQuery, _> = serde_json::from_str(json);
+        assert!(query.is_ok());
+        let q = query.unwrap();
+        assert!(q.delete_relationships);
+        assert!(q.confirm);
+    }
+
+    #[test]
+    fn test_entity_statistics_serialization() {
+        let stats = EntityStatistics {
+            total_relationships: 100,
+            outgoing_count: 50,
+            incoming_count: 50,
+            document_references: 10,
+        };
+        let json = serde_json::to_string(&stats);
+        assert!(json.is_ok());
+    }
 }
