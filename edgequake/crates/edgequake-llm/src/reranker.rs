@@ -791,6 +791,75 @@ impl BM25Reranker {
         }
     }
 
+    // =========================================================================
+    // Domain-Specific Presets (OODA Loop 5)
+    // =========================================================================
+
+    /// Create reranker optimized for short documents (tweets, titles, snippets).
+    ///
+    /// WHY these parameters:
+    /// - `k1=1.2`: Lower saturation for short content where each term matters
+    /// - `b=0.3`: Reduced length normalization (short docs shouldn't be penalized)
+    /// - `delta=0`: Standard BM25 sufficient for short content
+    pub fn for_short_docs() -> Self {
+        Self {
+            k1: 1.2,
+            b: 0.3,
+            delta: 0.0,
+            model: "bm25-short-docs".to_string(),
+            tokenizer_config: TokenizerConfig::enhanced(),
+        }
+    }
+
+    /// Create reranker optimized for long documents (papers, articles, books).
+    ///
+    /// WHY these parameters:
+    /// - `k1=1.5`: Standard saturation
+    /// - `b=0.75`: Full length normalization
+    /// - `delta=1.0`: BM25+ extension prevents over-penalizing long relevant docs
+    pub fn for_long_docs() -> Self {
+        Self {
+            k1: 1.5,
+            b: 0.75,
+            delta: 1.0,
+            model: "bm25-long-docs".to_string(),
+            tokenizer_config: TokenizerConfig::enhanced(),
+        }
+    }
+
+    /// Create reranker optimized for technical content (code, APIs, docs).
+    ///
+    /// WHY these parameters:
+    /// - `k1=2.0`: Higher saturation gives more weight to repeated terms
+    /// - `b=0.5`: Moderate length normalization
+    /// - No stemming: Technical terms should match exactly
+    pub fn for_technical() -> Self {
+        Self {
+            k1: 2.0,
+            b: 0.5,
+            delta: 0.0,
+            model: "bm25-technical".to_string(),
+            tokenizer_config: TokenizerConfig::minimal(), // No stemming for exact matches
+        }
+    }
+
+    /// Create reranker optimized for RAG/knowledge graph queries.
+    ///
+    /// WHY these parameters:
+    /// - `k1=1.5`: Balanced saturation
+    /// - `b=0.75`: Standard length normalization
+    /// - `delta=0.5`: Mild BM25+ for mixed-length chunks
+    /// - Enhanced tokenization for semantic matching
+    pub fn for_rag() -> Self {
+        Self {
+            k1: 1.5,
+            b: 0.75,
+            delta: 0.5,
+            model: "bm25-rag".to_string(),
+            tokenizer_config: TokenizerConfig::enhanced(),
+        }
+    }
+
     /// Create with custom parameters.
     ///
     /// # Arguments
@@ -1532,6 +1601,93 @@ mod tests {
         assert_eq!(reranker.k1, 1.2);
         assert_eq!(reranker.b, 0.8);
         assert_eq!(reranker.delta, 0.5);
+    }
+
+    // =========== Domain-Specific Preset Tests (OODA Loop 5) ===========
+
+    #[test]
+    fn test_for_short_docs_preset() {
+        let reranker = BM25Reranker::for_short_docs();
+        assert_eq!(reranker.k1, 1.2);
+        assert_eq!(reranker.b, 0.3);
+        assert_eq!(reranker.delta, 0.0);
+        assert_eq!(reranker.model(), "bm25-short-docs");
+        assert!(reranker.tokenizer_config.enable_stemming);
+    }
+
+    #[test]
+    fn test_for_long_docs_preset() {
+        let reranker = BM25Reranker::for_long_docs();
+        assert_eq!(reranker.k1, 1.5);
+        assert_eq!(reranker.b, 0.75);
+        assert_eq!(reranker.delta, 1.0); // BM25+ for long docs
+        assert_eq!(reranker.model(), "bm25-long-docs");
+        assert!(reranker.tokenizer_config.enable_stemming);
+    }
+
+    #[test]
+    fn test_for_technical_preset() {
+        let reranker = BM25Reranker::for_technical();
+        assert_eq!(reranker.k1, 2.0);
+        assert_eq!(reranker.b, 0.5);
+        assert_eq!(reranker.delta, 0.0);
+        assert_eq!(reranker.model(), "bm25-technical");
+        // Technical preset uses minimal tokenization (no stemming)
+        assert!(!reranker.tokenizer_config.enable_stemming);
+    }
+
+    #[test]
+    fn test_for_rag_preset() {
+        let reranker = BM25Reranker::for_rag();
+        assert_eq!(reranker.k1, 1.5);
+        assert_eq!(reranker.b, 0.75);
+        assert_eq!(reranker.delta, 0.5); // Mild BM25+ for mixed chunks
+        assert_eq!(reranker.model(), "bm25-rag");
+        assert!(reranker.tokenizer_config.enable_stemming);
+    }
+
+    #[tokio::test]
+    async fn test_short_docs_preset_behavior() {
+        // Short docs preset should handle short content well
+        let short_reranker = BM25Reranker::for_short_docs();
+        let long_reranker = BM25Reranker::for_long_docs();
+
+        let query = "rust programming";
+        let short_docs = vec![
+            "Rust programming language".to_string(),
+            "Python is great".to_string(),
+        ];
+
+        let short_results = short_reranker.rerank(query, &short_docs, None).await.unwrap();
+        let long_results = long_reranker.rerank(query, &short_docs, None).await.unwrap();
+
+        // Both should rank correctly
+        assert_eq!(short_results[0].index, 0);
+        assert_eq!(long_results[0].index, 0);
+    }
+
+    #[tokio::test]
+    async fn test_technical_preset_exact_matching() {
+        // Technical preset should prefer exact matches (no stemming)
+        let tech = BM25Reranker::for_technical();
+        let rag = BM25Reranker::for_rag();
+
+        let query = "running";
+        let documents = vec![
+            "The process is running".to_string(),
+            "The runner runs quickly".to_string(), // Contains "runs" (stemmed = "run")
+        ];
+
+        let tech_results = tech.rerank(query, &documents, None).await.unwrap();
+        let rag_results = rag.rerank(query, &documents, None).await.unwrap();
+
+        // Technical should prefer exact "running" match
+        assert_eq!(tech_results[0].index, 0);
+        
+        // RAG with stemming might score "runs" higher due to stem matching
+        // Both documents are relevant, but exact match wins for technical
+        assert!(tech_results[0].relevance_score > 0.0);
+        assert!(rag_results[0].relevance_score > 0.0);
     }
 
     #[tokio::test]
