@@ -14,9 +14,9 @@ use crate::state::AppState;
 
 // Re-export DTOs for backward compatibility
 pub use crate::handlers::workspaces_types::{
-    CreateTenantRequest, CreateWorkspaceApiRequest, PaginationParams, TenantListResponse,
-    TenantResponse, UpdateTenantRequest, UpdateWorkspaceApiRequest, WorkspaceListResponse,
-    WorkspaceResponse, WorkspaceStatsResponse, default_limit,
+    default_limit, CreateTenantRequest, CreateWorkspaceApiRequest, PaginationParams,
+    TenantListResponse, TenantResponse, UpdateTenantRequest, UpdateWorkspaceApiRequest,
+    WorkspaceListResponse, WorkspaceResponse, WorkspaceStatsResponse,
 };
 
 // ============ Tenant Handlers ============
