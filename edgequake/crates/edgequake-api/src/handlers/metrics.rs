@@ -1,30 +1,7 @@
 //! Metrics handlers for observability.
 
-use axum::{
-    http::{header, StatusCode},
-    response::{IntoResponse, Response},
-};
-
-// ============================================================================
-// Types
-// ============================================================================
-
-/// Metrics response in Prometheus format.
-pub struct PrometheusMetrics(String);
-
-impl IntoResponse for PrometheusMetrics {
-    fn into_response(self) -> Response {
-        (
-            StatusCode::OK,
-            [(
-                header::CONTENT_TYPE,
-                "text/plain; version=0.0.4; charset=utf-8",
-            )],
-            self.0,
-        )
-            .into_response()
-    }
-}
+// Re-export DTOs from metrics_types for backwards compatibility
+pub use crate::handlers::metrics_types::PrometheusMetrics;
 
 // ============================================================================
 // Handlers
@@ -158,6 +135,7 @@ edgequake_graph_relationships_total 0
 mod tests {
     use super::*;
     use axum::http::StatusCode;
+    use axum::response::IntoResponse;
 
     #[tokio::test]
     async fn test_get_metrics() {
