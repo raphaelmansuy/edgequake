@@ -7,168 +7,17 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::error::ApiError;
 use crate::state::AppState;
 
-// ============ Request/Response DTOs ============
-
-/// Request to create a new tenant.
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct CreateTenantRequest {
-    /// Tenant name.
-    pub name: String,
-    /// URL-friendly slug (auto-generated if not provided).
-    pub slug: Option<String>,
-    /// Optional description.
-    pub description: Option<String>,
-    /// Plan type (free, basic, pro, enterprise).
-    pub plan: Option<String>,
-}
-
-/// Request to update a tenant.
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct UpdateTenantRequest {
-    /// New tenant name.
-    pub name: Option<String>,
-    /// New description.
-    pub description: Option<String>,
-    /// New plan.
-    pub plan: Option<String>,
-    /// Whether the tenant is active.
-    pub is_active: Option<bool>,
-}
-
-/// Request to create a new workspace.
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct CreateWorkspaceApiRequest {
-    /// Workspace name.
-    pub name: String,
-    /// URL-friendly slug (auto-generated if not provided).
-    pub slug: Option<String>,
-    /// Optional description.
-    pub description: Option<String>,
-    /// Maximum number of documents.
-    pub max_documents: Option<usize>,
-}
-
-/// Request to update a workspace.
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct UpdateWorkspaceApiRequest {
-    /// New workspace name.
-    pub name: Option<String>,
-    /// New description.
-    pub description: Option<String>,
-    /// Whether the workspace is active.
-    pub is_active: Option<bool>,
-    /// Maximum number of documents.
-    pub max_documents: Option<usize>,
-}
-
-/// Tenant response DTO.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct TenantResponse {
-    /// Tenant ID.
-    pub id: Uuid,
-    /// Tenant name.
-    pub name: String,
-    /// URL-friendly slug.
-    pub slug: String,
-    /// Plan type.
-    pub plan: String,
-    /// Whether the tenant is active.
-    pub is_active: bool,
-    /// Maximum workspaces allowed.
-    pub max_workspaces: usize,
-    /// Creation timestamp.
-    pub created_at: String,
-    /// Last update timestamp.
-    pub updated_at: String,
-}
-
-/// Workspace response DTO.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct WorkspaceResponse {
-    /// Workspace ID.
-    pub id: Uuid,
-    /// Parent tenant ID.
-    pub tenant_id: Uuid,
-    /// Workspace name.
-    pub name: String,
-    /// URL-friendly slug.
-    pub slug: String,
-    /// Description.
-    pub description: Option<String>,
-    /// Whether the workspace is active.
-    pub is_active: bool,
-    /// Maximum documents allowed.
-    pub max_documents: Option<usize>,
-    /// Creation timestamp.
-    pub created_at: String,
-    /// Last update timestamp.
-    pub updated_at: String,
-}
-
-/// List response with pagination info.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct TenantListResponse {
-    /// Items in this page.
-    pub items: Vec<TenantResponse>,
-    /// Total count.
-    pub total: usize,
-    /// Current offset.
-    pub offset: usize,
-    /// Page size limit.
-    pub limit: usize,
-}
-
-/// List response with pagination info.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct WorkspaceListResponse {
-    /// Items in this page.
-    pub items: Vec<WorkspaceResponse>,
-    /// Total count.
-    pub total: usize,
-    /// Current offset.
-    pub offset: usize,
-    /// Page size limit.
-    pub limit: usize,
-}
-
-/// Pagination query params.
-#[derive(Debug, Deserialize, ToSchema, utoipa::IntoParams)]
-pub struct PaginationParams {
-    /// Offset (default 0).
-    #[serde(default)]
-    pub offset: usize,
-    /// Limit (default 20, max 100).
-    #[serde(default = "default_limit")]
-    pub limit: usize,
-}
-
-fn default_limit() -> usize {
-    20
-}
-
-/// Workspace statistics response.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct WorkspaceStatsResponse {
-    /// Workspace ID.
-    pub workspace_id: Uuid,
-    /// Number of documents.
-    pub document_count: usize,
-    /// Number of entities.
-    pub entity_count: usize,
-    /// Number of relationships.
-    pub relationship_count: usize,
-    /// Number of chunks.
-    pub chunk_count: usize,
-    /// Storage used in bytes.
-    pub storage_bytes: u64,
-}
+// Re-export DTOs for backward compatibility
+pub use crate::handlers::workspaces_types::{
+    CreateTenantRequest, CreateWorkspaceApiRequest, PaginationParams, TenantListResponse,
+    TenantResponse, UpdateTenantRequest, UpdateWorkspaceApiRequest, WorkspaceListResponse,
+    WorkspaceResponse, WorkspaceStatsResponse, default_limit,
+};
 
 // ============ Tenant Handlers ============
 
