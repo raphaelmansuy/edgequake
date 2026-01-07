@@ -42,6 +42,27 @@ use crate::traits::{GraphEdge, GraphNode, GraphStorage, KnowledgeGraph};
 
 /// PostgreSQL graph storage using Apache AGE.
 ///
+/// # WHY: Apache AGE for Graph Storage
+///
+/// We chose Apache AGE (A Graph Extension) over alternatives:
+///
+/// 1. **Native PostgreSQL Integration**
+///    - WHY: Leverages PostgreSQL's ACID guarantees, replication, and ecosystem
+///    - WHY: No separate graph database to manage; uses existing Postgres infra
+///
+/// 2. **Cypher Query Language**
+///    - WHY: Industry-standard graph query language (Neo4j compatible)
+///    - WHY: Rich traversal syntax (variable-length paths, pattern matching)
+///
+/// 3. **Performance Optimizations**
+///    - WHY indexes_verified: AGE creates label tables lazily; indexes created on first use
+///    - WHY SQL fallback for degree: Cypher OPTIONAL MATCH is 10x slower than native SQL
+///    - WHY graphid::text: AGE's graphid type lacks native equality operator
+///
+/// 4. **Multi-Tenancy via Namespace**
+///    - WHY graph_name includes prefix: Each tenant gets isolated graph
+///    - WHY namespace tracking: Enables per-tenant vector filtering
+///
 /// Uses the AGE extension for native graph operations with Cypher queries.
 /// All operations use AGE's graph-optimized storage and query engine.
 pub struct PostgresAGEGraphStorage {
@@ -697,6 +718,16 @@ impl GraphStorage for PostgresAGEGraphStorage {
         Ok(Self::parse_vertex(&agtype_str))
     }
 
+    /// Upsert a node into the graph.
+    ///
+    /// # WHY: MERGE-Based Upsert
+    ///
+    /// Uses Cypher MERGE instead of separate CREATE/UPDATE:
+    /// - Atomic: No race conditions between check and insert
+    /// - Idempotent: Safe to retry on network failures
+    /// - Efficient: Single round-trip vs two queries
+    ///
+    /// Also triggers lazy index creation on first node.
     async fn upsert_node(
         &self,
         node_id: &str,
@@ -1326,11 +1357,11 @@ impl GraphStorage for PostgresAGEGraphStorage {
 
         let labels: Vec<String> = rows
             .iter()
-            .filter_map(|row| {
+            .map(|row| {
                 let json_value: serde_json::Value = row.get("node_id");
                 let node_id_str = json_value.to_string();
                 // Remove quotes from agtype string
-                Some(node_id_str.trim_matches('"').to_string())
+                node_id_str.trim_matches('"').to_string()
             })
             .collect();
 

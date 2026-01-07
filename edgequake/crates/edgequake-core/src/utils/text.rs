@@ -19,7 +19,7 @@ pub fn truncate_text(text: &str, max_len: usize) -> String {
 
 /// Split text into sentences (simple heuristic).
 pub fn split_sentences(text: &str) -> Vec<&str> {
-    text.split(|c| c == '.' || c == '!' || c == '?')
+    text.split(['.', '!', '?'])
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
         .collect()

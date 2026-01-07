@@ -14,7 +14,12 @@ use crate::types::{
 };
 
 /// Service trait for conversation management.
+///
+/// WHY: This trait has methods with many parameters because conversation operations
+/// require tenant_id, user_id, workspace_id, and request objects - these are semantically
+/// distinct and cannot be reasonably grouped further without losing API clarity.
 #[async_trait]
+#[allow(clippy::too_many_arguments)]
 pub trait ConversationService: Send + Sync {
     // ============ Conversation Operations ============
 

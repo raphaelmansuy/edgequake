@@ -20,11 +20,7 @@ pub trait TaskStorage: Send + Sync {
     async fn delete_task(&self, track_id: &str) -> TaskResult<()>;
 
     /// List tasks with filters and pagination
-    async fn list_tasks(
-        &self,
-        filter: TaskFilter,
-        pagination: Pagination,
-    ) -> TaskResult<TaskList>;
+    async fn list_tasks(&self, filter: TaskFilter, pagination: Pagination) -> TaskResult<TaskList>;
 
     /// Get task statistics
     async fn get_statistics(&self) -> TaskResult<TaskStatistics>;

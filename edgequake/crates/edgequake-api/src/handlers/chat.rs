@@ -157,7 +157,7 @@ fn parse_mode(mode: &Option<String>) -> ConversationMode {
 
 fn parse_query_mode(mode: &Option<String>) -> QueryMode {
     mode.as_ref()
-        .and_then(|m| QueryMode::from_str(m))
+        .and_then(|m| QueryMode::parse(m))
         .unwrap_or(QueryMode::Hybrid)
 }
 
@@ -408,7 +408,7 @@ pub async fn chat_completion(
                 workspace_id,
                 CreateConversationRequest {
                     title: None, // Will be auto-generated from first message
-                    mode: Some(mode.clone()),
+                    mode: Some(mode),
                     folder_id: None,
                 },
             )
@@ -632,7 +632,7 @@ pub async fn chat_completion_stream(
                 workspace_id,
                 CreateConversationRequest {
                     title: None,
-                    mode: Some(mode.clone()),
+                    mode: Some(mode),
                     folder_id: None,
                 },
             )
@@ -685,6 +685,7 @@ pub async fn chat_completion_stream(
         // Use StreamAccumulator for proper token tracking
         let mut accumulator = StreamAccumulator::new();
         // Track message context for saving after streaming completes
+        #[allow(unused_assignments)]
         let mut saved_message_context: Option<MessageContext> = None;
 
         // Build query request

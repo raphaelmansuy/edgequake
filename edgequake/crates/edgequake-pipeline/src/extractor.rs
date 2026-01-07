@@ -345,6 +345,27 @@ impl EntityExtractor for SimpleExtractor {
 }
 
 /// LLM-based entity extractor using structured prompts.
+///
+/// # WHY: LLM Extraction Strategy
+///
+/// LLM extraction is the core of knowledge graph construction:
+///
+/// 1. **Structured Prompt** - Uses a carefully designed prompt that:
+///    - Lists valid entity types to constrain LLM output
+///    - Requests JSON format for reliable parsing
+///    - Asks for descriptions to enrich entity/relationship context
+///    - WHY JSON: Tuples are faster but JSON is more reliable for complex relationships
+///
+/// 2. **Entity Type Constraints** - Pre-defined types (PERSON, ORG, LOCATION, etc.)
+///    - WHY: Constraining types improves extraction consistency
+///    - WHY custom types: Domain-specific extraction (e.g., PROTEIN for biomedical)
+///
+/// 3. **Relationship Extraction** - Source → Relationship → Target triples
+///    - WHY tuples: Graph databases need explicit source/target
+///    - WHY descriptions: Context for semantic search
+///
+/// 4. **Error-Tolerant Parsing** - Handles malformed LLM output
+///    - WHY: LLMs occasionally produce invalid JSON; we extract what we can
 pub struct LLMExtractor<L>
 where
     L: edgequake_llm::LLMProvider + ?Sized,
@@ -639,9 +660,25 @@ impl Default for GleaningConfig {
 
 /// A wrapper extractor that performs gleaning (re-extraction) to find missed entities.
 ///
+/// # WHY: Multi-Pass Extraction (Gleaning)
+///
+/// LLMs often miss entities in a single pass due to:
+/// - Attention limits on long texts
+/// - Implicit entities (e.g., "the company" referring to earlier-mentioned "Apple")
+/// - Context overload when many entities are present
+///
+/// **Gleaning Strategy:**
+/// 1. First pass: Normal extraction with base extractor
+/// 2. Subsequent passes: Re-prompt LLM with "What did you miss?"
+///    - Include previously-found entities to avoid duplicates
+///    - Focus on implicit/indirect entity mentions
+///
+/// **LightRAG Research Finding:**
+/// - 1-2 gleaning iterations improve recall by 15-25%
+/// - Diminishing returns after 2 iterations
+/// - Cost: Each iteration = 1 additional LLM call
+///
 /// This implements GAP-018: Max Gleaning from LightRAG.
-/// Gleaning is the process of asking the LLM to look again at the text
-/// for any entities or relationships that might have been missed in the first pass.
 pub struct GleaningExtractor {
     /// The underlying LLM provider.
     llm_provider: std::sync::Arc<dyn edgequake_llm::LLMProvider>,

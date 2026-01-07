@@ -1,11 +1,6 @@
 //! Worker pool for processing tasks from the queue.
 
-use crate::{
-    error::TaskResult,
-    queue::TaskQueue,
-    storage::TaskStorage,
-    types::Task,
-};
+use crate::{error::TaskResult, queue::TaskQueue, storage::TaskStorage, types::Task};
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
@@ -25,10 +20,10 @@ pub type SharedTaskProcessor = Arc<dyn TaskProcessor>;
 pub struct WorkerPoolConfig {
     /// Number of worker threads
     pub num_workers: usize,
-    
+
     /// Whether to retry failed tasks automatically
     pub auto_retry: bool,
-    
+
     /// Delay before retrying failed tasks (seconds)
     pub retry_delay_secs: u64,
 }
@@ -101,7 +96,7 @@ impl WorkerPool {
                             match result {
                                 Ok(mut task) => {
                                     info!("Worker {} processing task: {}", worker_id, task.track_id);
-                                    
+
                                     // Mark as processing
                                     task.mark_processing();
                                     if let Err(e) = storage.update_task(&task).await {
@@ -130,17 +125,17 @@ impl WorkerPool {
                                                     task.retry_count + 1,
                                                     task.max_retries
                                                 );
-                                                
+
                                                 // Schedule retry after delay
                                                 let retry_task = task.clone();
                                                 let retry_queue = Arc::clone(&queue);
                                                 let retry_delay = config.retry_delay_secs;
-                                                
+
                                                 tokio::spawn(async move {
                                                     tokio::time::sleep(
                                                         tokio::time::Duration::from_secs(retry_delay)
                                                     ).await;
-                                                    
+
                                                     if let Err(e) = retry_queue.send(retry_task).await {
                                                         error!("Failed to requeue task for retry: {}", e);
                                                     }
@@ -205,7 +200,7 @@ impl TaskProcessor for MockTaskProcessor {
     async fn process(&self, task: &mut Task) -> TaskResult<serde_json::Value> {
         // Simulate some work
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-        
+
         Ok(serde_json::json!({
             "status": "success",
             "task_id": task.track_id
@@ -240,10 +235,7 @@ mod tests {
         // Create and enqueue tasks
         let mut task_ids = Vec::new();
         for i in 0..5 {
-            let task = Task::new(
-                TaskType::Insert,
-                serde_json::json!({"index": i}),
-            );
+            let task = Task::new(TaskType::Insert, serde_json::json!({"index": i}));
             task_ids.push(task.track_id.clone());
             storage.create_task(&task).await.unwrap();
             queue.send(task).await.unwrap();

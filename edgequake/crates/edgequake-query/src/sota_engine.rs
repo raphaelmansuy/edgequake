@@ -454,6 +454,31 @@ impl SOTAQueryEngine {
     }
 
     /// Execute a query with full SOTA pipeline.
+    ///
+    /// # WHY: 5-Stage Query Pipeline
+    ///
+    /// The query flow follows LightRAG's proven architecture:
+    ///
+    /// 1. **Keyword Extraction** - Extract high/low-level keywords using LLM
+    ///    - WHY high-level: Relationships (e.g., "partnership", "acquired")
+    ///    - WHY low-level: Entities (e.g., "Apple", "Microsoft")
+    ///    - WHY caching: Same queries reuse extraction results (24h TTL)
+    ///
+    /// 2. **Keyword Validation** - Check keywords exist in knowledge graph
+    ///    - WHY: Non-existent keywords dilute embedding computation
+    ///    - Example: "STLA Medium" not in graph → drop it
+    ///
+    /// 3. **Mode Selection** - Choose retrieval strategy
+    ///    - Local: Entities + 1-hop neighbors (specific questions)
+    ///    - Global: Relationships + community summaries (broad themes)
+    ///    - Hybrid: Both local + global (best quality, higher cost)
+    ///    - Naive: Chunks only (keyword search fallback)
+    ///
+    /// 4. **Vector Retrieval** - Semantic search with mode-specific embedding
+    ///    - WHY different embeddings: low_level → entity search, high_level → relationship search
+    ///
+    /// 5. **Token Budgeting** - Fit context within LLM limits
+    ///    - WHY: LLM context windows are limited; we prioritize high-scoring content
     pub async fn query(
         &self,
         request: crate::engine::QueryRequest,
@@ -904,6 +929,22 @@ impl SOTAQueryEngine {
     }
 
     /// Local mode: Entity-centric search with low-level keywords.
+    ///
+    /// # WHY: Local Mode Strategy
+    ///
+    /// Local mode answers specific factual questions (e.g., "Who is the CEO of Apple?"):
+    ///
+    /// 1. **Low-level embedding** - Uses entity-focused keywords ("Apple", "CEO")
+    ///    WHY: These keywords match entity descriptions, not relationships
+    ///
+    /// 2. **Entity vector filter** - Only search entity vectors, ignore relationships
+    ///    WHY: Reduces noise; relationships are for Global mode
+    ///
+    /// 3. **1-hop graph expansion** - Fetch connected entities/relationships
+    ///    WHY: Immediate neighbors provide supporting context
+    ///
+    /// 4. **Degree-based ranking** - Higher-degree entities ranked first
+    ///    WHY: Well-connected entities are typically more important
     async fn query_local(
         &self,
         _keywords: &ExtractedKeywords,
@@ -928,14 +969,14 @@ impl SOTAQueryEngine {
             .iter()
             .filter(|r| r.score >= self.config.min_score)
             .filter(|r| self.matches_tenant_filter(&r.metadata, &tenant_id, &workspace_id))
-            .filter_map(|r| {
+            .map(|r| {
                 let entity_name = r
                     .metadata
                     .get("entity_name")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| r.id.clone());
-                Some((entity_name, r.score))
+                (entity_name, r.score)
             })
             .collect();
 
@@ -1141,6 +1182,22 @@ impl SOTAQueryEngine {
     }
 
     /// Global mode: Relationship-centric search with high-level keywords.
+    ///
+    /// # WHY: Global Mode Strategy
+    ///
+    /// Global mode answers thematic/analytical questions (e.g., "How do tech companies compete?"):
+    ///
+    /// 1. **High-level embedding** - Uses relationship-focused keywords ("compete", "partnership")
+    ///    WHY: These keywords match relationship descriptions, not entities
+    ///
+    /// 2. **Relationship vector filter** - Only search relationship vectors
+    ///    WHY: Relationships capture "how" and "why" connections between entities
+    ///
+    /// 3. **Entity hydration** - Fetch source/target entities for each relationship
+    ///    WHY: Relationships are meaningless without their endpoint context
+    ///
+    /// 4. **Community summaries** - Include pre-computed graph cluster summaries
+    ///    WHY: Provides high-level thematic context for broad questions
     async fn query_global(
         &self,
         _keywords: &ExtractedKeywords,

@@ -33,7 +33,7 @@ impl PgVectorStorage {
         let table_name = format!("public.eq_{}_vectors", prefix);
         let namespace = config.namespace.clone();
         let dimension = 1536; // Default OpenAI embedding dimension
-        let index_type = config.vector_index_type.clone();
+        let index_type = config.vector_index_type;
         let ivfflat_lists = config.ivfflat_lists;
         let hnsw_m = config.hnsw_m;
         let hnsw_ef_construction = config.hnsw_ef_construction;

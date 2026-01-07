@@ -212,7 +212,11 @@ mod tests {
 
     #[test]
     fn test_embedding_creation() {
-        let emb = Embedding::new("test".to_string(), vec![1.0, 0.0, 0.0], Some("hello".to_string()));
+        let emb = Embedding::new(
+            "test".to_string(),
+            vec![1.0, 0.0, 0.0],
+            Some("hello".to_string()),
+        );
 
         assert_eq!(emb.id, "test");
         assert_eq!(emb.dimension(), 3);
@@ -257,10 +261,7 @@ mod tests {
         let mut emb = Embedding::new("1".to_string(), vec![1.0], None);
         emb.set_metadata("key", serde_json::json!("value"));
 
-        assert_eq!(
-            emb.get_metadata("key"),
-            Some(&serde_json::json!("value"))
-        );
+        assert_eq!(emb.get_metadata("key"), Some(&serde_json::json!("value")));
         assert_eq!(emb.get_metadata("missing"), None);
     }
 

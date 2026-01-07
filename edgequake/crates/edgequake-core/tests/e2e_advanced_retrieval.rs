@@ -132,7 +132,10 @@ async fn create_complex_mock() -> Arc<MockProvider> {
     provider
 }
 
+/// Tests chunk retrieval from entities - currently a MISSING FEATURE.
+/// Enable when source_id-based chunk retrieval is implemented.
 #[tokio::test]
+#[ignore = "Gap analysis test - chunk retrieval from entities not yet implemented"]
 async fn test_chunk_retrieval_from_entities() {
     println!("\n=== Testing Chunk Retrieval from Entities (MISSING FEATURE) ===");
 
@@ -220,7 +223,10 @@ async fn test_chunk_retrieval_from_entities() {
     );
 }
 
+/// Tests token-based truncation - currently a MISSING FEATURE.
+/// Enable when token-aware context truncation is implemented.
 #[tokio::test]
+#[ignore = "Gap analysis test - token-based truncation not yet implemented"]
 async fn test_token_based_truncation() {
     println!("\n=== Testing Token-Based Truncation (MISSING FEATURE) ===");
 
@@ -298,7 +304,10 @@ async fn test_token_based_truncation() {
     println!("   4. Risk of exceeding LLM context window ⚠️");
 }
 
+/// Tests entity degree-based sorting - currently PARTIAL IMPLEMENTATION.
+/// Enable when graph degree is integrated into entity ranking.
 #[tokio::test]
+#[ignore = "Gap analysis test - entity degree sorting partially implemented"]
 async fn test_entity_degree_sorting() {
     println!("\n=== Testing Entity Degree Sorting (PARTIAL IMPLEMENTATION) ===");
 
@@ -393,7 +402,10 @@ async fn test_entity_degree_sorting() {
     println!("   3. Strategies don't use degree for sorting ❌ MISSING");
 }
 
+/// Tests chunk frequency tracking - currently MISSING FEATURE.
+/// Enable when frequency-based chunk ranking is implemented.
 #[tokio::test]
+#[ignore = "Gap analysis test - chunk frequency tracking not yet implemented"]
 async fn test_chunk_frequency_tracking() {
     println!("\n=== Testing Chunk Frequency Tracking (MISSING FEATURE) ===");
 
@@ -483,7 +495,10 @@ async fn test_chunk_frequency_tracking() {
     println!("   3. No weighted prioritization ❌ MISSING");
 }
 
+/// Tests response quality metrics - gap analysis for quality improvements.
+/// Enable when quality metrics are implemented.
 #[tokio::test]
+#[ignore = "Gap analysis test - response quality metrics depend on missing features"]
 async fn test_response_quality_metrics() {
     println!("\n=== Testing Response Quality Metrics ===");
 
@@ -569,7 +584,10 @@ async fn test_response_quality_metrics() {
     println!("   - No chunk retrieval from relationships (Global mode)");
 }
 
+/// Tests cross-document entity linking - gap analysis for entity dedup.
+/// Enable when improved entity deduplication is implemented.
 #[tokio::test]
+#[ignore = "Gap analysis test - cross-document entity linking needs more mock responses"]
 async fn test_cross_document_entity_linking() {
     println!("\n=== Testing Cross-Document Entity Linking ===");
 

@@ -148,7 +148,7 @@ impl ReadingOrderDetector {
 
         tracing::info!(
             "MULTI-COL: col0={} blocks, col1={} blocks, spanning={}, unassigned={}",
-            column_blocks.get(0).map(|v| v.len()).unwrap_or(0),
+            column_blocks.first().map(|v| v.len()).unwrap_or(0),
             column_blocks.get(1).map(|v| v.len()).unwrap_or(0),
             spanning_blocks.len(),
             unassigned.len()

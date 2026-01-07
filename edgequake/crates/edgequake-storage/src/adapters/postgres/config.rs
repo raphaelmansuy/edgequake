@@ -8,46 +8,46 @@ use std::time::Duration;
 pub struct PostgresConfig {
     /// Database host.
     pub host: String,
-    
+
     /// Database port.
     pub port: u16,
-    
+
     /// Database name.
     pub database: String,
-    
+
     /// Username.
     pub user: String,
-    
+
     /// Password.
     pub password: String,
-    
+
     /// Namespace/schema for this instance.
     pub namespace: String,
-    
+
     /// Maximum number of connections in the pool.
     pub max_connections: u32,
-    
+
     /// Minimum number of connections in the pool.
     pub min_connections: u32,
-    
+
     /// Connection timeout.
     pub connect_timeout: Duration,
-    
+
     /// Idle connection timeout.
     pub idle_timeout: Duration,
-    
+
     /// SSL mode.
     pub ssl_mode: SslMode,
-    
+
     /// Vector index type for pgvector.
     pub vector_index_type: VectorIndexType,
-    
+
     /// HNSW M parameter (for HNSW index).
     pub hnsw_m: u32,
-    
+
     /// HNSW ef_construction parameter.
     pub hnsw_ef_construction: u32,
-    
+
     /// IVFFlat lists parameter.
     pub ivfflat_lists: u32,
 }
@@ -92,25 +92,25 @@ impl PostgresConfig {
             ..Default::default()
         }
     }
-    
+
     /// Set the namespace.
     pub fn with_namespace(mut self, namespace: impl Into<String>) -> Self {
         self.namespace = namespace.into();
         self
     }
-    
+
     /// Set max connections.
     pub fn with_max_connections(mut self, max: u32) -> Self {
         self.max_connections = max;
         self
     }
-    
+
     /// Set vector index type.
     pub fn with_vector_index(mut self, index_type: VectorIndexType) -> Self {
         self.vector_index_type = index_type;
         self
     }
-    
+
     /// Build a connection URL.
     pub fn connection_url(&self) -> String {
         format!(
@@ -118,7 +118,7 @@ impl PostgresConfig {
             self.user, self.password, self.host, self.port, self.database
         )
     }
-    
+
     /// Get the table prefix for this namespace.
     pub fn table_prefix(&self) -> String {
         format!("eq_{}", self.namespace.replace('-', "_"))
@@ -128,12 +128,14 @@ impl PostgresConfig {
 /// SSL connection mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum SslMode {
     /// Disable SSL.
     Disable,
     /// Allow SSL if available.
     Allow,
     /// Prefer SSL.
+    #[default]
     Prefer,
     /// Require SSL.
     Require,
@@ -143,34 +145,25 @@ pub enum SslMode {
     VerifyFull,
 }
 
-impl Default for SslMode {
-    fn default() -> Self {
-        Self::Prefer
-    }
-}
-
 /// Vector index type for pgvector.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum VectorIndexType {
     /// No index (brute force).
     None,
     /// IVFFlat index.
     IVFFlat,
-    /// HNSW index.
+    /// HNSW index (Hierarchical Navigable Small World).
+    #[default]
+    #[allow(clippy::upper_case_acronyms)]
     HNSW,
-}
-
-impl Default for VectorIndexType {
-    fn default() -> Self {
-        Self::HNSW
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_config_default() {
         let config = PostgresConfig::default();
@@ -178,7 +171,7 @@ mod tests {
         assert_eq!(config.port, 5432);
         assert_eq!(config.max_connections, 10);
     }
-    
+
     #[test]
     fn test_connection_url() {
         let config = PostgresConfig::new("db.example.com", 5432, "mydb", "user", "pass123");
@@ -187,7 +180,7 @@ mod tests {
             "postgres://user:pass123@db.example.com:5432/mydb"
         );
     }
-    
+
     #[test]
     fn test_table_prefix() {
         let config = PostgresConfig::default().with_namespace("my-workspace");

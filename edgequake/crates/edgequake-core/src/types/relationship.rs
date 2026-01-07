@@ -84,9 +84,15 @@ impl GraphRelationship {
 
         // Sort alphabetically for consistent key regardless of direction
         if normalized_source <= normalized_target {
-            format!("{}{}{}", normalized_source, RELATIONSHIP_SEP, normalized_target)
+            format!(
+                "{}{}{}",
+                normalized_source, RELATIONSHIP_SEP, normalized_target
+            )
         } else {
-            format!("{}{}{}", normalized_target, RELATIONSHIP_SEP, normalized_source)
+            format!(
+                "{}{}{}",
+                normalized_target, RELATIONSHIP_SEP, normalized_source
+            )
         }
     }
 

@@ -12,7 +12,9 @@ use std::sync::Arc;
 
 use edgequake_pipeline::{Chunker, ChunkerConfig, TextChunk};
 use edgequake_query::QueryMode;
-use edgequake_storage::adapters::memory::{MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage};
+use edgequake_storage::adapters::memory::{
+    MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
+};
 use edgequake_storage::GraphStorage;
 
 #[tokio::main]
@@ -70,12 +72,17 @@ async fn main() -> anyhow::Result<()> {
     println!("\n4. Chunking document...");
     println!("   Generated {} chunks", chunks.len());
     for (i, chunk) in chunks.iter().enumerate() {
-        println!("   Chunk {}: {} chars, ~{} tokens", i + 1, chunk.content.len(), chunk.token_count);
+        println!(
+            "   Chunk {}: {} chars, ~{} tokens",
+            i + 1,
+            chunk.content.len(),
+            chunk.token_count
+        );
     }
 
     // 5. Store in graph (simplified)
     println!("\n5. Storing in knowledge graph...");
-    
+
     // Add some sample entities manually for demonstration
     let rust_props = serde_json::json!({
         "entity_type": "PROGRAMMING_LANGUAGE",
@@ -84,7 +91,12 @@ async fn main() -> anyhow::Result<()> {
     graph_storage
         .upsert_node(
             "RUST",
-            rust_props.as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+            rust_props
+                .as_object()
+                .unwrap()
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
         )
         .await?;
 
@@ -95,7 +107,12 @@ async fn main() -> anyhow::Result<()> {
     graph_storage
         .upsert_node(
             "MOZILLA RESEARCH",
-            mozilla_props.as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+            mozilla_props
+                .as_object()
+                .unwrap()
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
         )
         .await?;
 
@@ -108,7 +125,12 @@ async fn main() -> anyhow::Result<()> {
         .upsert_edge(
             "RUST",
             "MOZILLA RESEARCH",
-            rel_props.as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+            rel_props
+                .as_object()
+                .unwrap()
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
         )
         .await?;
 
@@ -126,9 +148,18 @@ async fn main() -> anyhow::Result<()> {
     // 7. Query modes explanation
     println!("\n7. Available Query Modes:");
     for mode in QueryMode::all() {
-        let vector = if mode.uses_vector_search() { "✓" } else { "✗" };
+        let vector = if mode.uses_vector_search() {
+            "✓"
+        } else {
+            "✗"
+        };
         let graph = if mode.uses_graph() { "✓" } else { "✗" };
-        println!("   - {:8} | Vector: {} | Graph: {}", mode.as_str(), vector, graph);
+        println!(
+            "   - {:8} | Vector: {} | Graph: {}",
+            mode.as_str(),
+            vector,
+            graph
+        );
     }
 
     println!("\n===========================");

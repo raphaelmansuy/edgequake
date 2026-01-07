@@ -529,10 +529,7 @@ pub fn dbscan_1d(values: &[f32], eps: f32, min_samples: usize) -> Vec<Vec<f32>> 
     let mut clusters: HashMap<i32, Vec<f32>> = HashMap::new();
     for (i, &label) in labels.iter().enumerate() {
         if label >= 0 {
-            clusters
-                .entry(label)
-                .or_default()
-                .push(values[i]);
+            clusters.entry(label).or_default().push(values[i]);
         }
     }
 

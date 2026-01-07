@@ -297,8 +297,8 @@ impl LLMCache for MemoryLLMCache {
         // Estimate savings based on gpt-4o-mini pricing
         let input_cost_per_1k = 0.00015;
         let output_cost_per_1k = 0.0006;
-        stats.estimated_savings_usd = (stats.total_tokens as f64 / 1000.0)
-            * ((input_cost_per_1k + output_cost_per_1k) / 2.0);
+        stats.estimated_savings_usd =
+            (stats.total_tokens as f64 / 1000.0) * ((input_cost_per_1k + output_cost_per_1k) / 2.0);
 
         stats
     }
@@ -336,7 +336,10 @@ where
     E: crate::extractor::EntityExtractor + Send + Sync,
     C: LLMCache + Send + Sync,
 {
-    async fn extract(&self, chunk: &crate::chunker::TextChunk) -> Result<crate::extractor::ExtractionResult> {
+    async fn extract(
+        &self,
+        chunk: &crate::chunker::TextChunk,
+    ) -> Result<crate::extractor::ExtractionResult> {
         let cache_key = generate_cache_key(&chunk.content, &self.model);
 
         // Check cache first

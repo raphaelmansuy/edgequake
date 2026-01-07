@@ -75,7 +75,7 @@ impl UserRecord {
             username: self.username.clone(),
             email: self.email.clone(),
             password_hash: self.password_hash.clone(),
-            role: Role::from_str(&self.role),
+            role: Role::parse(&self.role),
             is_active: self.is_active,
             created_at: self.created_at,
             updated_at: self.updated_at,
@@ -567,42 +567,43 @@ pub async fn get_me(
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .ok_or(ApiError::Unauthorized)?;
-    
+
     // Parse the Bearer token
     let token = auth_header
         .strip_prefix("Bearer ")
         .ok_or(ApiError::BadRequest(
             "Invalid Authorization header format. Expected 'Bearer <token>'".to_string(),
         ))?;
-    
+
     // Verify the JWT and extract claims
     let claims = state
         .jwt_service
         .verify_token(token)
         .map_err(|e| ApiError::BadRequest(format!("Invalid token: {}", e)))?;
-    
+
     // Get the user ID from claims
-    let user_id = claims.user_id()
+    let user_id = claims
+        .user_id()
         .map_err(|e| ApiError::BadRequest(format!("Invalid user ID in token: {}", e)))?;
-    
+
     // Fetch user from storage
     let user_key = format!("{}{}", USER_KEY_PREFIX, user_id);
-    
+
     let user_value = state
         .kv_storage
         .get_by_id(&user_key)
         .await
         .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?
         .ok_or_else(|| ApiError::NotFound(format!("User {} not found", user_id)))?;
-    
+
     let user_record: UserRecord = serde_json::from_value(user_value)
         .map_err(|e| ApiError::Internal(format!("Deserialization error: {}", e)))?;
-    
+
     // Check if user is active
     if !user_record.is_active {
         return Err(ApiError::Forbidden);
     }
-    
+
     Ok(Json(GetMeResponse {
         user: UserInfo {
             user_id: user_record.user_id,
@@ -684,7 +685,7 @@ pub async fn create_user(
     let role = request
         .role
         .as_ref()
-        .map(|r| Role::from_str(r))
+        .map(|r| Role::parse(r))
         .unwrap_or(Role::User);
 
     // Create user

@@ -1,3 +1,8 @@
+//! Axum middleware for rate limiting.
+//!
+//! This module provides Axum-compatible middleware that enforces rate limits
+//! on incoming requests based on tenant and workspace context.
+
 use axum::{
     body::Body,
     extract::State,

@@ -58,9 +58,10 @@ impl PasswordService {
 
     /// Verify a password against a hash.
     pub fn verify_password(&self, password: &str, hash: &str) -> Result<bool, AuthError> {
-        let parsed_hash = PasswordHash::new(hash).map_err(|e| AuthError::PasswordHashingFailed {
-            reason: format!("Invalid hash format: {}", e),
-        })?;
+        let parsed_hash =
+            PasswordHash::new(hash).map_err(|e| AuthError::PasswordHashingFailed {
+                reason: format!("Invalid hash format: {}", e),
+            })?;
 
         let argon2 = self.argon2()?;
 
@@ -170,8 +171,7 @@ mod tests {
 
     fn test_config() -> AuthConfig {
         // Use lower parameters for faster tests
-        AuthConfig::default()
-            .with_argon2_params(4096, 1, 1)
+        AuthConfig::default().with_argon2_params(4096, 1, 1)
     }
 
     #[test]
@@ -219,7 +219,7 @@ mod tests {
     #[test]
     fn test_valid_strong_password() {
         let service = PasswordService::new(test_config());
-        
+
         // These should all pass
         assert!(service.hash_password("Str0ng!Pass").is_ok());
         assert!(service.hash_password("MyC0mplexP@ss").is_ok());

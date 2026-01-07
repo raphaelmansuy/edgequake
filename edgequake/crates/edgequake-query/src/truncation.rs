@@ -2,6 +2,37 @@
 //!
 //! This module provides functions to truncate entities, relationships, and chunks
 //! to fit within LLM token limits.
+//!
+//! # WHY Token Budgeting is Critical
+//!
+//! LLMs have fixed context window sizes (e.g., 128K tokens for GPT-4 Turbo).
+//! Exceeding this limit causes:
+//!
+//! 1. **API errors**: Request rejected with "context length exceeded"
+//! 2. **Truncation by API**: Important context silently dropped
+//! 3. **Quality degradation**: Too much context dilutes attention
+//!
+//! ## The Token Budget Strategy
+//!
+//! We allocate tokens across context types:
+//!
+//! ```text
+//! Total Budget: 16,000 tokens (default)
+//! ├── Entities:      8,000 tokens (50%)
+//! ├── Relationships: 8,000 tokens (50%)
+//! └── System prompt: ~500 tokens (separate)
+//! ```
+//!
+//! ## WHY Entities and Relationships Get Equal Budget
+//!
+//! Entity descriptions provide factual grounding ("Sarah Chen is a PhD student").
+//! Relationship descriptions provide connections ("Sarah works with Michael").
+//! Both are equally important for comprehensive answers.
+//!
+//! ## Order Matters
+//!
+//! Items are already sorted by relevance (score/degree) before truncation.
+//! Truncation preserves the most relevant items while respecting token limits.
 
 use serde::{Deserialize, Serialize};
 

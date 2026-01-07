@@ -1,9 +1,41 @@
 //! Query modes.
+//!
+//! # WHY Multiple Query Modes
+//!
+//! Different questions require different retrieval strategies. Consider:
+//!
+//! - "What is machine learning?" → **Naive** (simple concept lookup)
+//! - "How does Alice work with Bob?" → **Local** (entity relationships)
+//! - "What are the main themes in this document?" → **Global** (topic clusters)
+//! - "Tell me about Project X and its impact" → **Hybrid** (entities + context)
+//!
+//! ## Mode Selection Guidelines
+//!
+//! | Question Type | Best Mode | Why |
+//! |--------------|-----------|-----|
+//! | Factual/specific | Naive | Direct vector match, fast |
+//! | Entity relationships | Local | Explores entity neighborhood in graph |
+//! | Broad/thematic | Global | Uses community detection for topics |
+//! | Complex/multi-faceted | Hybrid | Combines local specificity + global coverage |
+//!
+//! ## Performance vs Accuracy Trade-offs
+//!
+//! ```text
+//! Mode    | Speed | Accuracy | Context Size
+//! --------|-------|----------|-------------
+//! Naive   | Fast  | Good     | Small (chunks only)
+//! Local   | Med   | High     | Medium (entity + neighbors)
+//! Global  | Slow  | High     | Large (community summaries)
+//! Hybrid  | Slow  | Best     | Large (both approaches)
+//! ```
+//!
+//! Hybrid is the default because it provides the best accuracy for most
+//! real-world queries, which often combine specific entities with broader context.
 
 use serde::{Deserialize, Serialize};
 
 /// Query mode determining the search strategy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum QueryMode {
     /// Simple vector similarity search on chunks.
@@ -20,6 +52,7 @@ pub enum QueryMode {
 
     /// Combines local and global approaches.
     /// Balances specificity and coverage.
+    #[default]
     Hybrid,
 
     /// Weighted combination of naive and graph-based.
@@ -50,16 +83,9 @@ impl QueryMode {
         }
     }
 
-    /// Parse a mode from string.
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s.to_lowercase().as_str() {
-            "naive" => Some(Self::Naive),
-            "local" => Some(Self::Local),
-            "global" => Some(Self::Global),
-            "hybrid" => Some(Self::Hybrid),
-            "mix" => Some(Self::Mix),
-            _ => None,
-        }
+    /// Parse a mode from string (returns Option for backward compatibility).
+    pub fn parse(s: &str) -> Option<Self> {
+        s.parse().ok()
     }
 
     /// Whether this mode uses vector search.
@@ -74,9 +100,20 @@ impl QueryMode {
     }
 }
 
-impl Default for QueryMode {
-    fn default() -> Self {
-        Self::Hybrid
+use std::str::FromStr;
+
+impl FromStr for QueryMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "naive" => Ok(Self::Naive),
+            "local" => Ok(Self::Local),
+            "global" => Ok(Self::Global),
+            "hybrid" => Ok(Self::Hybrid),
+            "mix" => Ok(Self::Mix),
+            other => Err(format!("Unknown query mode: {}", other)),
+        }
     }
 }
 
@@ -98,9 +135,9 @@ mod tests {
 
     #[test]
     fn test_query_mode_parsing() {
-        assert_eq!(QueryMode::from_str("naive"), Some(QueryMode::Naive));
-        assert_eq!(QueryMode::from_str("HYBRID"), Some(QueryMode::Hybrid));
-        assert_eq!(QueryMode::from_str("unknown"), None);
+        assert_eq!(QueryMode::parse("naive"), Some(QueryMode::Naive));
+        assert_eq!(QueryMode::parse("HYBRID"), Some(QueryMode::Hybrid));
+        assert_eq!(QueryMode::parse("unknown"), None);
     }
 
     #[test]

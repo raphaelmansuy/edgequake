@@ -1357,9 +1357,20 @@ mod tests {
 
         // BM25+ should give higher score to long doc compared to standard BM25
         // Because delta adds a floor to the score contribution
-        let bm25_long_score = results_bm25.iter().find(|r| r.index == 1).unwrap().relevance_score;
-        let bm25_plus_long_score = results_bm25_plus.iter().find(|r| r.index == 1).unwrap().relevance_score;
-        assert!(bm25_plus_long_score > bm25_long_score, "BM25+ should score long doc higher");
+        let bm25_long_score = results_bm25
+            .iter()
+            .find(|r| r.index == 1)
+            .unwrap()
+            .relevance_score;
+        let bm25_plus_long_score = results_bm25_plus
+            .iter()
+            .find(|r| r.index == 1)
+            .unwrap()
+            .relevance_score;
+        assert!(
+            bm25_plus_long_score > bm25_long_score,
+            "BM25+ should score long doc higher"
+        );
     }
 
     #[test]
@@ -1383,7 +1394,7 @@ mod tests {
         ];
 
         let results = reranker.rerank(query, &documents, None).await.unwrap();
-        
+
         // France doc should score higher (has "France" + "capital" + "of")
         assert_eq!(results[0].index, 0);
         assert_eq!(reranker.name(), "term-overlap");
@@ -1394,7 +1405,7 @@ mod tests {
         // Verify MockReranker is a type alias for TermOverlapReranker
         let mock: MockReranker = MockReranker::new();
         let term_overlap: TermOverlapReranker = TermOverlapReranker::new();
-        
+
         // Both should have same behavior
         assert_eq!(mock.name(), term_overlap.name());
     }

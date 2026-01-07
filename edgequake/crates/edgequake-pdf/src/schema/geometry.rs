@@ -508,19 +508,19 @@ mod tests {
     #[test]
     fn test_bbox_corners() {
         let bbox = BoundingBox::new(10.0, 20.0, 30.0, 40.0);
-        
+
         let tl = bbox.top_left();
         assert_eq!(tl.x, 10.0);
         assert_eq!(tl.y, 20.0);
-        
+
         let tr = bbox.top_right();
         assert_eq!(tr.x, 30.0);
         assert_eq!(tr.y, 20.0);
-        
+
         let bl = bbox.bottom_left();
         assert_eq!(bl.x, 10.0);
         assert_eq!(bl.y, 40.0);
-        
+
         let br = bbox.bottom_right();
         assert_eq!(br.x, 30.0);
         assert_eq!(br.y, 40.0);
@@ -529,9 +529,9 @@ mod tests {
     #[test]
     fn test_bbox_contains_point() {
         let bbox = BoundingBox::new(0.0, 0.0, 100.0, 100.0);
-        
+
         assert!(bbox.contains_point(&Point::new(50.0, 50.0))); // Inside
-        assert!(bbox.contains_point(&Point::new(0.0, 0.0)));   // Corner
+        assert!(bbox.contains_point(&Point::new(0.0, 0.0))); // Corner
         assert!(bbox.contains_point(&Point::new(100.0, 100.0))); // Corner
         assert!(!bbox.contains_point(&Point::new(-1.0, 50.0))); // Outside left
         assert!(!bbox.contains_point(&Point::new(101.0, 50.0))); // Outside right
@@ -541,7 +541,7 @@ mod tests {
     fn test_bbox_intersection_box() {
         let box1 = BoundingBox::new(0.0, 0.0, 100.0, 100.0);
         let box2 = BoundingBox::new(50.0, 50.0, 150.0, 150.0);
-        
+
         let intersection = box1.intersection(&box2).unwrap();
         assert_eq!(intersection.x1, 50.0);
         assert_eq!(intersection.y1, 50.0);
@@ -553,7 +553,7 @@ mod tests {
     fn test_bbox_intersection_none() {
         let box1 = BoundingBox::new(0.0, 0.0, 50.0, 50.0);
         let box2 = BoundingBox::new(100.0, 100.0, 150.0, 150.0);
-        
+
         assert!(box1.intersection(&box2).is_none());
     }
 
@@ -561,7 +561,7 @@ mod tests {
     fn test_bbox_intersection_area() {
         let box1 = BoundingBox::new(0.0, 0.0, 100.0, 100.0);
         let box2 = BoundingBox::new(50.0, 50.0, 150.0, 150.0);
-        
+
         let area = box1.intersection_area(&box2);
         assert_eq!(area, 2500.0); // 50 x 50
     }
@@ -571,7 +571,7 @@ mod tests {
         let box1 = BoundingBox::new(0.0, 0.0, 50.0, 20.0);
         let box2 = BoundingBox::new(60.0, 0.0, 110.0, 20.0); // Same Y
         let box3 = BoundingBox::new(60.0, 100.0, 110.0, 120.0); // Different Y
-        
+
         assert!(box1.is_horizontally_aligned(&box2, 0.1));
         assert!(!box1.is_horizontally_aligned(&box3, 0.1));
     }
@@ -581,7 +581,7 @@ mod tests {
         let box1 = BoundingBox::new(0.0, 0.0, 20.0, 50.0);
         let box2 = BoundingBox::new(0.0, 60.0, 20.0, 110.0); // Same X
         let box3 = BoundingBox::new(100.0, 60.0, 120.0, 110.0); // Different X
-        
+
         assert!(box1.is_vertically_aligned(&box2, 0.1));
         assert!(!box1.is_vertically_aligned(&box3, 0.1));
     }
@@ -590,9 +590,9 @@ mod tests {
     fn test_bbox_to_polygon() {
         let bbox = BoundingBox::new(0.0, 0.0, 100.0, 100.0);
         let polygon = bbox.to_polygon();
-        
+
         assert_eq!(polygon.len(), 4);
-        assert_eq!(polygon[0], Point::new(0.0, 0.0));   // top-left
+        assert_eq!(polygon[0], Point::new(0.0, 0.0)); // top-left
         assert_eq!(polygon[1], Point::new(100.0, 0.0)); // top-right
         assert_eq!(polygon[2], Point::new(100.0, 100.0)); // bottom-right
         assert_eq!(polygon[3], Point::new(0.0, 100.0)); // bottom-left
@@ -601,12 +601,12 @@ mod tests {
     #[test]
     fn test_bbox_top_bottom_halves() {
         let bbox = BoundingBox::new(0.0, 0.0, 100.0, 100.0);
-        
+
         let top = bbox.top_half(50.0);
         assert_eq!(top.y1, 0.0);
         assert_eq!(top.y2, 50.0);
         assert_eq!(top.height(), 50.0);
-        
+
         let bottom = bbox.bottom_half(50.0);
         assert_eq!(bottom.y1, 50.0);
         assert_eq!(bottom.y2, 100.0);

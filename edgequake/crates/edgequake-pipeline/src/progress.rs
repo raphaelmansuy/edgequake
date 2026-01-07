@@ -21,8 +21,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// Overall ingestion status.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum IngestionStatus {
     /// Waiting to start.
     #[default]
@@ -36,7 +35,6 @@ pub enum IngestionStatus {
     /// Cancelled by user.
     Cancelled,
 }
-
 
 /// Pipeline processing stage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
@@ -94,8 +92,7 @@ impl PipelineStage {
 }
 
 /// Status of a single pipeline stage.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum StageStatus {
     /// Not started yet.
     #[default]
@@ -109,7 +106,6 @@ pub enum StageStatus {
     /// Failed with error.
     Failed,
 }
-
 
 /// Progress for a single pipeline stage.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -248,11 +244,7 @@ pub struct IngestionError {
 
 impl IngestionError {
     /// Create a new ingestion error.
-    pub fn new(
-        code: impl Into<String>,
-        message: impl Into<String>,
-        stage: PipelineStage,
-    ) -> Self {
+    pub fn new(code: impl Into<String>, message: impl Into<String>, stage: PipelineStage) -> Self {
         Self {
             code: code.into(),
             message: message.into(),
@@ -571,13 +563,7 @@ impl CostBreakdown {
     }
 
     /// Add cost for an operation.
-    pub fn add_operation_cost(
-        &mut self,
-        operation: &str,
-        input: usize,
-        output: usize,
-        cost: f64,
-    ) {
+    pub fn add_operation_cost(&mut self, operation: &str, input: usize, output: usize, cost: f64) {
         let op = self
             .operations
             .entry(operation.to_string())
@@ -604,11 +590,7 @@ pub struct CostTracker {
 
 impl CostTracker {
     /// Create new cost tracker.
-    pub fn new(
-        job_id: impl Into<String>,
-        model: impl Into<String>,
-        pricing: ModelPricing,
-    ) -> Self {
+    pub fn new(job_id: impl Into<String>, model: impl Into<String>, pricing: ModelPricing) -> Self {
         let model_str = model.into();
         Self {
             inner: Arc::new(RwLock::new(CostBreakdown::new(job_id, &model_str))),

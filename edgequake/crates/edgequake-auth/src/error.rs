@@ -214,7 +214,9 @@ impl From<jsonwebtoken::errors::Error> for AuthError {
         use jsonwebtoken::errors::ErrorKind;
         match err.kind() {
             ErrorKind::ExpiredSignature => Self::TokenExpired,
-            _ => Self::InvalidToken { reason: err.to_string() },
+            _ => Self::InvalidToken {
+                reason: err.to_string(),
+            },
         }
     }
 }
@@ -236,18 +238,21 @@ mod tests {
             StatusCode::UNAUTHORIZED
         );
         assert_eq!(
-            AuthError::Forbidden { required_permission: "test".to_string() }.status_code(),
+            AuthError::Forbidden {
+                required_permission: "test".to_string()
+            }
+            .status_code(),
             StatusCode::FORBIDDEN
         );
-        assert_eq!(
-            AuthError::UserNotFound.status_code(),
-            StatusCode::NOT_FOUND
-        );
+        assert_eq!(AuthError::UserNotFound.status_code(), StatusCode::NOT_FOUND);
     }
 
     #[test]
     fn test_error_codes() {
-        assert_eq!(AuthError::InvalidCredentials.error_code(), "invalid_credentials");
+        assert_eq!(
+            AuthError::InvalidCredentials.error_code(),
+            "invalid_credentials"
+        );
         assert_eq!(AuthError::TokenExpired.error_code(), "token_expired");
     }
 }

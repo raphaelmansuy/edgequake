@@ -39,7 +39,7 @@ impl ChannelTaskQueue {
     /// Create a new channel-based task queue
     pub fn new(capacity: usize) -> Self {
         let (sender, receiver) = mpsc::channel(capacity);
-        
+
         Self {
             sender,
             receiver: Arc::new(tokio::sync::Mutex::new(receiver)),
@@ -57,18 +57,18 @@ impl ChannelTaskQueue {
 impl TaskQueue for ChannelTaskQueue {
     async fn send(&self, task: Task) -> TaskResult<()> {
         debug!("Sending task to queue: {}", task.track_id);
-        
+
         self.sender
             .send(task)
             .await
             .map_err(|_| crate::error::TaskError::QueueClosed)?;
-        
+
         Ok(())
     }
 
     async fn receive(&self) -> TaskResult<Task> {
         let mut receiver = self.receiver.lock().await;
-        
+
         receiver
             .recv()
             .await
@@ -77,7 +77,7 @@ impl TaskQueue for ChannelTaskQueue {
 
     async fn try_receive(&self) -> TaskResult<Option<Task>> {
         let mut receiver = self.receiver.lock().await;
-        
+
         match receiver.try_recv() {
             Ok(task) => Ok(Some(task)),
             Err(mpsc::error::TryRecvError::Empty) => Ok(None),
@@ -108,7 +108,7 @@ impl UnboundedChannelTaskQueue {
     /// Create a new unbounded channel-based task queue
     pub fn new() -> Self {
         let (sender, receiver) = mpsc::unbounded_channel();
-        
+
         Self {
             sender,
             receiver: Arc::new(tokio::sync::Mutex::new(receiver)),
@@ -126,17 +126,17 @@ impl Default for UnboundedChannelTaskQueue {
 impl TaskQueue for UnboundedChannelTaskQueue {
     async fn send(&self, task: Task) -> TaskResult<()> {
         debug!("Sending task to unbounded queue: {}", task.track_id);
-        
+
         self.sender
             .send(task)
             .map_err(|_| crate::error::TaskError::QueueClosed)?;
-        
+
         Ok(())
     }
 
     async fn receive(&self) -> TaskResult<Task> {
         let mut receiver = self.receiver.lock().await;
-        
+
         receiver
             .recv()
             .await
@@ -145,7 +145,7 @@ impl TaskQueue for UnboundedChannelTaskQueue {
 
     async fn try_receive(&self) -> TaskResult<Option<Task>> {
         let mut receiver = self.receiver.lock().await;
-        
+
         match receiver.try_recv() {
             Ok(task) => Ok(Some(task)),
             Err(mpsc::error::TryRecvError::Empty) => Ok(None),
@@ -172,14 +172,11 @@ mod tests {
     #[tokio::test]
     async fn test_channel_queue_send_receive() {
         let queue = ChannelTaskQueue::new(10);
-        let task = Task::new(
-            TaskType::Upload,
-            serde_json::json!({"file": "test.pdf"}),
-        );
+        let task = Task::new(TaskType::Upload, serde_json::json!({"file": "test.pdf"}));
         let track_id = task.track_id.clone();
 
         queue.send(task).await.unwrap();
-        
+
         let received = queue.receive().await.unwrap();
         assert_eq!(received.track_id, track_id);
     }
@@ -187,13 +184,13 @@ mod tests {
     #[tokio::test]
     async fn test_channel_queue_capacity() {
         let queue = ChannelTaskQueue::new(2);
-        
+
         let task1 = Task::new(TaskType::Insert, serde_json::json!({}));
         let task2 = Task::new(TaskType::Insert, serde_json::json!({}));
-        
+
         queue.send(task1).await.unwrap();
         queue.send(task2).await.unwrap();
-        
+
         // Queue is now full (capacity=2)
         // Third send should block, so we use try_send approach in real code
         assert_eq!(queue.capacity(), 2);
@@ -202,7 +199,7 @@ mod tests {
     #[tokio::test]
     async fn test_try_receive_empty() {
         let queue = ChannelTaskQueue::new(10);
-        
+
         let result = queue.try_receive().await.unwrap();
         assert!(result.is_none());
     }
@@ -210,21 +207,18 @@ mod tests {
     #[tokio::test]
     async fn test_unbounded_queue() {
         let queue = UnboundedChannelTaskQueue::new();
-        
+
         // Send many tasks
         for i in 0..100 {
-            let task = Task::new(
-                TaskType::Insert,
-                serde_json::json!({"index": i}),
-            );
+            let task = Task::new(TaskType::Insert, serde_json::json!({"index": i}));
             queue.send(task).await.unwrap();
         }
-        
+
         // Receive all tasks
         for _ in 0..100 {
             let _task = queue.receive().await.unwrap();
         }
-        
+
         // Queue should be empty
         let result = queue.try_receive().await.unwrap();
         assert!(result.is_none());
