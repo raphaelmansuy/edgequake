@@ -3,10 +3,8 @@
 use axum::{extract::State, Json};
 use axum_extra::extract::Multipart;
 use chrono::Utc;
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tracing::debug;
-use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
@@ -14,116 +12,8 @@ use crate::file_validation::validate_file;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 
-/// Document upload request.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct UploadDocumentRequest {
-    /// Document content.
-    pub content: String,
-
-    /// Optional document title.
-    #[serde(default)]
-    pub title: Option<String>,
-
-    /// Optional document metadata.
-    #[serde(default)]
-    pub metadata: Option<serde_json::Value>,
-
-    /// Whether to process asynchronously (default: false for backwards compatibility)
-    #[serde(default)]
-    pub async_processing: bool,
-
-    /// Optional track ID for batch grouping. If not provided, one will be generated.
-    #[serde(default)]
-    pub track_id: Option<String>,
-
-    /// Enable gleaning (multiple extraction passes) for higher quality entity extraction.
-    #[serde(default = "default_enable_gleaning")]
-    pub enable_gleaning: bool,
-
-    /// Maximum number of gleaning passes (1-3 recommended).
-    #[serde(default = "default_max_gleaning")]
-    pub max_gleaning: usize,
-
-    /// Enable LLM-powered description summarization during merge.
-    #[serde(default = "default_use_llm_summarization")]
-    pub use_llm_summarization: bool,
-}
-
-fn default_enable_gleaning() -> bool {
-    true
-}
-
-fn default_max_gleaning() -> usize {
-    1
-}
-
-fn default_use_llm_summarization() -> bool {
-    true
-}
-
-/// Document upload response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct UploadDocumentResponse {
-    /// Generated document ID.
-    pub document_id: String,
-
-    /// Processing status.
-    pub status: String,
-
-    /// Task track ID (only set when async_processing is true).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub task_id: Option<String>,
-
-    /// Track ID for batch grouping.
-    pub track_id: String,
-
-    /// ID of existing document if this is a duplicate.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub duplicate_of: Option<String>,
-
-    /// Number of chunks created (only set for sync processing).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub chunk_count: Option<usize>,
-
-    /// Number of entities extracted (only set for sync processing).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub entity_count: Option<usize>,
-
-    /// Number of relationships extracted (only set for sync processing).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub relationship_count: Option<usize>,
-
-    /// Cost information (only set for sync processing).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cost: Option<DocumentCostInfo>,
-}
-
-/// Cost information for a processed document.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct DocumentCostInfo {
-    /// Total cost in USD.
-    pub total_cost_usd: f64,
-
-    /// Formatted cost string (e.g., "$0.0045").
-    pub formatted_cost: String,
-
-    /// Total input tokens used.
-    pub input_tokens: usize,
-
-    /// Total output tokens used.
-    pub output_tokens: usize,
-
-    /// Total tokens (input + output).
-    pub total_tokens: usize,
-
-    /// LLM model used.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub llm_model: Option<String>,
-
-    /// Embedding model used.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub embedding_model: Option<String>,
-}
+// Re-export DTOs from documents_types module
+pub use crate::handlers::documents_types::*;
 
 /// Upload a document for processing.
 #[utoipa::path(
@@ -501,131 +391,6 @@ pub async fn upload_document(
     }
 }
 
-/// List documents request.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct ListDocumentsRequest {
-    /// Page number.
-    #[serde(default = "default_page")]
-    pub page: usize,
-
-    /// Page size.
-    #[serde(default = "default_page_size")]
-    pub page_size: usize,
-}
-
-fn default_page() -> usize {
-    1
-}
-
-fn default_page_size() -> usize {
-    20
-}
-
-/// Status counts for document filtering.
-#[derive(Debug, Clone, Serialize, Default, ToSchema)]
-pub struct StatusCounts {
-    /// Number of pending documents.
-    pub pending: usize,
-    /// Number of processing documents.
-    pub processing: usize,
-    /// Number of completed documents.
-    pub completed: usize,
-    /// Number of failed documents.
-    pub failed: usize,
-}
-
-/// List documents response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct ListDocumentsResponse {
-    /// List of documents.
-    pub documents: Vec<DocumentSummary>,
-
-    /// Total document count.
-    pub total: usize,
-
-    /// Current page.
-    pub page: usize,
-
-    /// Page size.
-    pub page_size: usize,
-
-    /// Status counts for all documents (not just current page).
-    pub status_counts: StatusCounts,
-}
-
-/// Document summary.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct DocumentSummary {
-    /// Document ID.
-    pub id: String,
-
-    /// Document title.
-    pub title: Option<String>,
-
-    /// Original file name (used for display if title is not set).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub file_name: Option<String>,
-
-    /// First 200 characters of document content (preview).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub content_summary: Option<String>,
-
-    /// Total length of document content in characters.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub content_length: Option<usize>,
-
-    /// Number of chunks.
-    pub chunk_count: usize,
-
-    /// Number of entities extracted.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub entity_count: Option<usize>,
-
-    /// Document processing status.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub status: Option<String>,
-
-    /// Error message if processing failed.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error_message: Option<String>,
-
-    /// Track ID for batch grouping.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub track_id: Option<String>,
-
-    /// Creation timestamp (ISO 8601 format).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
-
-    /// Last update timestamp (ISO 8601 format).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
-
-    /// Total cost in USD for processing this document.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cost_usd: Option<f64>,
-
-    /// Input tokens used for processing.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub input_tokens: Option<usize>,
-
-    /// Output tokens used for processing.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub output_tokens: Option<usize>,
-
-    /// Total tokens (input + output).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_tokens: Option<usize>,
-
-    /// LLM model used for processing.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub llm_model: Option<String>,
-
-    /// Embedding model used for processing.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub embedding_model: Option<String>,
-}
-
 /// List all documents.
 #[utoipa::path(
     get,
@@ -951,161 +716,6 @@ pub async fn list_documents(
         page_size: 20,
         status_counts,
     }))
-}
-
-/// Get document by ID request.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct GetDocumentRequest {
-    /// Document ID.
-    pub document_id: String,
-}
-
-/// Document details response with full content.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct DocumentDetailResponse {
-    /// Document ID.
-    pub id: String,
-
-    /// Document title.
-    pub title: Option<String>,
-
-    /// Original file name.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub file_name: Option<String>,
-
-    /// Full document content.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub content: Option<String>,
-
-    /// Content summary (first 200 chars).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub content_summary: Option<String>,
-
-    /// Total content length in characters.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub content_length: Option<usize>,
-
-    /// Content hash (SHA-256) for deduplication.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub content_hash: Option<String>,
-
-    /// Number of chunks.
-    pub chunk_count: usize,
-
-    /// Number of entities extracted.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub entity_count: Option<usize>,
-
-    /// Number of relationships extracted.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub relationship_count: Option<usize>,
-
-    /// Document processing status.
-    pub status: String,
-
-    /// Error message if processing failed.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error_message: Option<String>,
-
-    /// Source type (file, text, url).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_type: Option<String>,
-
-    /// MIME type of the document.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mime_type: Option<String>,
-
-    /// File size in bytes.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub file_size: Option<usize>,
-
-    /// Track ID for batch grouping.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub track_id: Option<String>,
-
-    /// Tenant ID for multi-tenancy.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tenant_id: Option<String>,
-
-    /// Workspace ID for multi-tenancy.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub workspace_id: Option<String>,
-
-    /// Creation timestamp.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
-
-    /// Last update timestamp.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
-
-    /// Processing completed timestamp.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub processed_at: Option<String>,
-
-    /// Extraction lineage information.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub lineage: Option<DocumentLineage>,
-
-    /// Additional custom metadata.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<serde_json::Value>,
-}
-
-/// Extraction lineage information for a document.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct DocumentLineage {
-    /// LLM model used for entity extraction.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub llm_model: Option<String>,
-
-    /// Embedding model used for vector embeddings.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub embedding_model: Option<String>,
-
-    /// Embedding dimensions.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub embedding_dimensions: Option<usize>,
-
-    /// List of keywords extracted.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub keywords: Option<Vec<String>>,
-
-    /// Entity types extracted.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub entity_types: Option<Vec<String>>,
-
-    /// Relationship types extracted.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub relationship_types: Option<Vec<String>>,
-
-    /// Chunking strategy used.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub chunking_strategy: Option<String>,
-
-    /// Average chunk size in characters.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub avg_chunk_size: Option<usize>,
-
-    /// Processing duration in milliseconds.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub processing_duration_ms: Option<u64>,
-
-    /// Input tokens consumed during LLM processing.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub input_tokens: Option<usize>,
-
-    /// Output tokens generated during LLM processing.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub output_tokens: Option<usize>,
-
-    /// Total tokens (input + output).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_tokens: Option<usize>,
-
-    /// Estimated cost in USD.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cost_usd: Option<f64>,
 }
 
 /// Get a document by ID.
@@ -1438,25 +1048,6 @@ pub async fn get_document(
     }))
 }
 
-/// Document deletion response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct DeleteDocumentResponse {
-    /// Document ID.
-    pub document_id: String,
-
-    /// Whether the document was deleted.
-    pub deleted: bool,
-
-    /// Number of chunks deleted.
-    pub chunks_deleted: usize,
-
-    /// Number of entities affected.
-    pub entities_affected: usize,
-
-    /// Number of relationships affected.
-    pub relationships_affected: usize,
-}
-
 /// Delete a document by ID.
 #[utoipa::path(
     delete,
@@ -1610,31 +1201,6 @@ pub async fn delete_document(
     }))
 }
 
-/// Document deletion impact analysis response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct DeletionImpactResponse {
-    /// Document ID.
-    pub document_id: String,
-
-    /// Number of chunks that would be deleted.
-    pub chunks_to_delete: usize,
-
-    /// Number of entities that would be completely removed (no other sources).
-    pub entities_to_remove: usize,
-
-    /// Number of entities that would be updated (some sources remaining).
-    pub entities_to_update: usize,
-
-    /// Number of relationships that would be completely removed.
-    pub relationships_to_remove: usize,
-
-    /// Number of relationships that would be updated.
-    pub relationships_to_update: usize,
-
-    /// Preview is read-only; document NOT deleted.
-    pub preview_only: bool,
-}
-
 /// Analyze the impact of deleting a document before actually deleting it.
 ///
 /// This endpoint allows users to preview what would be affected by a document deletion
@@ -1736,37 +1302,6 @@ pub async fn analyze_deletion_impact(
 // ============================================================================
 // File Upload (Multipart)
 // ============================================================================
-
-/// File upload response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct FileUploadResponse {
-    /// Generated document ID.
-    pub document_id: String,
-
-    /// Original filename.
-    pub filename: String,
-
-    /// File size in bytes.
-    pub size: usize,
-
-    /// Content hash (SHA-256).
-    pub content_hash: String,
-
-    /// Processing status.
-    pub status: String,
-
-    /// Number of chunks created.
-    pub chunk_count: usize,
-
-    /// Number of entities extracted.
-    pub entity_count: usize,
-
-    /// Number of relationships extracted.
-    pub relationship_count: usize,
-
-    /// Whether this was a duplicate (already processed).
-    pub is_duplicate: bool,
-}
 
 /// Upload a file via multipart form.
 ///
@@ -2185,41 +1720,6 @@ pub async fn upload_file(
     }))
 }
 
-/// Batch file upload response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct BatchUploadResponse {
-    /// Total files received.
-    pub total_files: usize,
-
-    /// Successfully processed files.
-    pub processed: usize,
-
-    /// Duplicate files (skipped).
-    pub duplicates: usize,
-
-    /// Failed files.
-    pub failed: usize,
-
-    /// Results for each file.
-    pub results: Vec<BatchFileResult>,
-}
-
-/// Result for a single file in batch upload.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct BatchFileResult {
-    /// Original filename.
-    pub filename: String,
-
-    /// Document ID if successful.
-    pub document_id: Option<String>,
-
-    /// Status: processed, duplicate, or failed.
-    pub status: String,
-
-    /// Error message if failed.
-    pub error: Option<String>,
-}
-
 /// Upload multiple files via multipart form.
 #[utoipa::path(
     post,
@@ -2389,32 +1889,6 @@ async fn process_single_file(
 // ============================================================================
 // Track Status (Phase 2)
 // ============================================================================
-
-/// Track status response for batch grouping.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct TrackStatusResponse {
-    /// Track ID for this batch.
-    pub track_id: String,
-
-    /// When the first document was uploaded.
-    pub created_at: Option<String>,
-
-    /// Documents in this batch.
-    pub documents: Vec<DocumentSummary>,
-
-    /// Total number of documents.
-    pub total_count: usize,
-
-    /// Status summary for the batch.
-    pub status_summary: StatusCounts,
-
-    /// Whether processing is complete (all docs completed or failed).
-    pub is_complete: bool,
-
-    /// Latest processing message.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub latest_message: Option<String>,
-}
 
 /// Get track status by track ID.
 ///
@@ -2600,78 +2074,6 @@ pub async fn get_track_status(
 // ============================================
 // GAP-014: Document Scan API
 // ============================================
-
-/// Request to scan a directory for documents.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct ScanDirectoryRequest {
-    /// Path to the directory to scan.
-    pub path: String,
-
-    /// File extensions to include (e.g., ["txt", "md", "pdf"]).
-    /// If empty, all files are included.
-    #[serde(default)]
-    pub extensions: Vec<String>,
-
-    /// Whether to scan subdirectories recursively.
-    #[serde(default = "default_recursive")]
-    pub recursive: bool,
-
-    /// Maximum number of files to scan.
-    #[serde(default = "default_max_files")]
-    pub max_files: usize,
-
-    /// Whether to process documents asynchronously.
-    #[serde(default = "default_true")]
-    pub async_processing: bool,
-
-    /// Optional track ID for batch grouping.
-    #[serde(default)]
-    pub track_id: Option<String>,
-}
-
-fn default_recursive() -> bool {
-    true
-}
-
-fn default_max_files() -> usize {
-    1000
-}
-
-fn default_true() -> bool {
-    true
-}
-
-/// Response from directory scan.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct ScanDirectoryResponse {
-    /// Track ID for the scan batch.
-    pub track_id: String,
-
-    /// Number of files found.
-    pub files_found: usize,
-
-    /// Number of files queued for processing.
-    pub files_queued: usize,
-
-    /// Number of files skipped (already processed or filtered).
-    pub files_skipped: usize,
-
-    /// List of queued file paths.
-    pub queued_files: Vec<String>,
-
-    /// List of skipped file paths with reasons.
-    pub skipped_files: Vec<SkippedFile>,
-}
-
-/// Information about a skipped file.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct SkippedFile {
-    /// Path to the file.
-    pub path: String,
-
-    /// Reason for skipping.
-    pub reason: String,
-}
 
 /// Scan a directory and queue documents for processing.
 #[utoipa::path(
@@ -2931,38 +2333,6 @@ fn collect_files(
 // GAP-039: Reprocess Failed Documents
 // ============================================
 
-/// Request to reprocess failed documents.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct ReprocessFailedRequest {
-    /// Optional track ID to reprocess. If not provided, all failed documents are reprocessed.
-    #[serde(default)]
-    pub track_id: Option<String>,
-
-    /// Maximum number of documents to reprocess.
-    #[serde(default = "default_max_reprocess")]
-    pub max_documents: usize,
-}
-
-fn default_max_reprocess() -> usize {
-    100
-}
-
-/// Response from reprocess operation.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct ReprocessFailedResponse {
-    /// Track ID for the reprocess batch.
-    pub track_id: String,
-
-    /// Number of failed documents found.
-    pub failed_found: usize,
-
-    /// Number of documents queued for reprocessing.
-    pub requeued: usize,
-
-    /// List of document IDs being reprocessed.
-    pub document_ids: Vec<String>,
-}
-
 /// Reprocess failed documents.
 #[utoipa::path(
     post,
@@ -3101,46 +2471,6 @@ pub async fn reprocess_failed(
 // ============================================
 // Recovery for Stuck Processing Documents
 // ============================================
-
-/// Request to recover stuck processing documents.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct RecoverStuckRequest {
-    /// Minimum age in minutes for a document to be considered "stuck".
-    /// Default: 10 minutes.
-    #[serde(default = "default_stuck_threshold_minutes")]
-    pub stuck_threshold_minutes: u64,
-
-    /// Maximum number of documents to recover.
-    #[serde(default = "default_max_reprocess")]
-    pub max_documents: usize,
-
-    /// Optional list of specific document IDs to recover.
-    #[serde(default)]
-    pub document_ids: Option<Vec<String>>,
-}
-
-fn default_stuck_threshold_minutes() -> u64 {
-    10
-}
-
-/// Response from recover stuck operation.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct RecoverStuckResponse {
-    /// Track ID for the recovery batch.
-    pub track_id: String,
-
-    /// Number of stuck documents found.
-    pub stuck_found: usize,
-
-    /// Number of documents queued for reprocessing.
-    pub requeued: usize,
-
-    /// List of document IDs being recovered.
-    pub document_ids: Vec<String>,
-
-    /// List of document titles for reference.
-    pub document_titles: Vec<String>,
-}
 
 /// Recover documents stuck in "processing" status.
 ///
