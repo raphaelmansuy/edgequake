@@ -2847,4 +2847,162 @@ mod tests {
             assert_eq!(results.len(), 10, "Should return 10 results");
         }
     }
+
+    // =========== Edge Case Tests (OODA Loop 8) ===========
+
+    #[tokio::test]
+    async fn test_edge_case_stop_words_only_query() {
+        // Query with only stop words should still work
+        let reranker = BM25Reranker::new_enhanced();
+        let query = "the and or but";
+
+        let documents = vec![
+            "The quick brown fox.".to_string(),
+            "Something completely different.".to_string(),
+        ];
+
+        let results = reranker.rerank(query, &documents, None).await.unwrap();
+
+        // Should return results without panicking
+        assert_eq!(results.len(), 2);
+        // All stop words filtered = zero score for all
+        assert!(results.iter().all(|r| r.relevance_score >= 0.0));
+    }
+
+    #[tokio::test]
+    async fn test_edge_case_numeric_only_query() {
+        // Numeric queries like years should work
+        let reranker = BM25Reranker::new();
+        let query = "2024";
+
+        let documents = vec![
+            "Event in 2024 was successful.".to_string(),
+            "Looking back at 2023.".to_string(),
+            "No year mentioned here.".to_string(),
+        ];
+
+        let results = reranker.rerank(query, &documents, None).await.unwrap();
+
+        // 2024 doc should rank first
+        assert_eq!(results[0].index, 0, "2024 document should rank first");
+        assert!(results[0].relevance_score > 0.0);
+    }
+
+    #[tokio::test]
+    async fn test_edge_case_no_matching_terms() {
+        // When no terms match, all scores should be 0
+        let reranker = BM25Reranker::new();
+        let query = "xyzzy qwerty asdfgh";
+
+        let documents = vec![
+            "The quick brown fox.".to_string(),
+            "Lazy dog sleeps.".to_string(),
+        ];
+
+        let results = reranker.rerank(query, &documents, None).await.unwrap();
+
+        // All scores should be 0
+        assert!(
+            results.iter().all(|r| r.relevance_score == 0.0),
+            "No matching terms should give zero scores"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_edge_case_identical_documents() {
+        // Identical documents should have identical scores
+        let reranker = BM25Reranker::new();
+        let query = "test query";
+
+        let documents = vec![
+            "This is a test document with test query terms.".to_string(),
+            "This is a test document with test query terms.".to_string(),
+            "Different document content here.".to_string(),
+        ];
+
+        let results = reranker.rerank(query, &documents, None).await.unwrap();
+
+        // First two docs are identical, should have same score
+        let score0 = results.iter().find(|r| r.index == 0).unwrap().relevance_score;
+        let score1 = results.iter().find(|r| r.index == 1).unwrap().relevance_score;
+        assert!(
+            (score0 - score1).abs() < 0.0001,
+            "Identical docs should have identical scores"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_edge_case_very_long_repeated_term() {
+        // Document with term repeated many times shouldn't cause overflow
+        let reranker = BM25Reranker::new();
+        let query = "test";
+
+        // 1000 repetitions of "test"
+        let repeated_doc = std::iter::repeat("test").take(1000).collect::<Vec<_>>().join(" ");
+        let documents = vec![
+            repeated_doc,
+            "test document".to_string(),
+        ];
+
+        let results = reranker.rerank(query, &documents, None).await.unwrap();
+
+        // Should complete without overflow
+        assert!(results[0].relevance_score.is_finite());
+        assert!(results[1].relevance_score.is_finite());
+    }
+
+    #[tokio::test]
+    async fn test_edge_case_mixed_case_query() {
+        // Mixed case shouldn't affect results
+        let reranker = BM25Reranker::new();
+
+        let documents = vec![
+            "Rust programming language.".to_string(),
+            "Python is popular.".to_string(),
+        ];
+
+        let results_lower = reranker.rerank("rust", &documents, None).await.unwrap();
+        let results_upper = reranker.rerank("RUST", &documents, None).await.unwrap();
+        let results_mixed = reranker.rerank("RuSt", &documents, None).await.unwrap();
+
+        // All should rank the same
+        assert_eq!(results_lower[0].index, results_upper[0].index);
+        assert_eq!(results_lower[0].index, results_mixed[0].index);
+    }
+
+    #[tokio::test]
+    async fn test_edge_case_punctuation_in_query() {
+        // Punctuation should be handled correctly
+        let reranker = BM25Reranker::new();
+        let query = "Hello, World!";
+
+        let documents = vec![
+            "Hello World program.".to_string(),
+            "Goodbye World.".to_string(),
+        ];
+
+        let results = reranker.rerank(query, &documents, None).await.unwrap();
+
+        // Hello World doc should rank first
+        assert_eq!(results[0].index, 0);
+    }
+
+    #[test]
+    fn test_edge_case_idf_extreme_values() {
+        // IDF should handle extreme cases gracefully
+        
+        // Term in every document (very common)
+        let idf_common = BM25Reranker::compute_idf_from_df(1000.0, 1000.0);
+        assert!(idf_common.is_finite());
+        assert!(idf_common >= 0.0); // Should be non-negative
+        
+        // Term in no documents (unknown term)
+        let idf_rare = BM25Reranker::compute_idf_from_df(1000.0, 0.0);
+        assert!(idf_rare.is_finite());
+        assert!(idf_rare > idf_common); // Rare terms have higher IDF
+        
+        // Zero documents edge case
+        let idf_zero = BM25Reranker::compute_idf_from_df(0.0, 0.0);
+        assert!(idf_zero.is_finite());
+    }
 }
