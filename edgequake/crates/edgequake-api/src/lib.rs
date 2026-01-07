@@ -29,6 +29,7 @@ pub mod routes;
 pub mod server;
 pub mod state;
 pub mod streaming;
+pub mod validation;
 
 #[cfg(feature = "postgres")]
 pub mod postgres_conversation_service;

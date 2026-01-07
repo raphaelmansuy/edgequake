@@ -147,19 +147,8 @@ pub async fn upload_document(
         "Uploading document with tenant context"
     );
 
-    // Validate document size
-    if request.content.len() > state.config.max_document_size {
-        return Err(ApiError::BadRequest(format!(
-            "Document exceeds maximum size of {} bytes",
-            state.config.max_document_size
-        )));
-    }
-
-    if request.content.trim().is_empty() {
-        return Err(ApiError::ValidationError(
-            "Document content cannot be empty".to_string(),
-        ));
-    }
+    // Validate document content
+    crate::validation::validate_content(&request.content, state.config.max_document_size)?;
 
     // Generate or use provided track_id
     let track_id = request.track_id.unwrap_or_else(|| {
@@ -181,15 +170,8 @@ pub async fn upload_document(
     // Generate document ID
     let document_id = Uuid::new_v4().to_string();
 
-    // Generate content summary (first 200 chars)
-    let content_summary = if request.content.len() > 200 {
-        format!(
-            "{}...",
-            &request.content.chars().take(200).collect::<String>()
-        )
-    } else {
-        request.content.clone()
-    };
+    // Generate content summary
+    let content_summary = crate::validation::generate_content_summary(&request.content);
     let content_length = request.content.len();
 
     // Store document metadata (including title, content_summary, content_length, track_id, tenant context)
@@ -1928,12 +1910,8 @@ pub async fn upload_file(
         .upsert(&[(hash_key, serde_json::json!(document_id))])
         .await?;
 
-    // Generate content summary (first 200 chars)
-    let content_summary = if text_content.len() > 200 {
-        format!("{}...", &text_content.chars().take(200).collect::<String>())
-    } else {
-        text_content.clone()
-    };
+    // Generate content summary
+    let content_summary = crate::validation::generate_content_summary(&text_content);
 
     // Determine MIME type from extension
     let mime_type = match extension.as_str() {
@@ -2887,11 +2865,7 @@ pub async fn scan_directory(
         let document_id = Uuid::new_v4().to_string();
 
         // Generate content summary
-        let content_summary = if content.len() > 200 {
-            format!("{}...", &content.chars().take(200).collect::<String>())
-        } else {
-            content.clone()
-        };
+        let content_summary = crate::validation::generate_content_summary(&content);
 
         // Store document metadata
         let doc_metadata_key = format!("{}-metadata", document_id);
