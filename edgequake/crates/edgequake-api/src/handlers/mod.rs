@@ -35,37 +35,23 @@ pub mod websocket_types;
 pub mod workspaces;
 pub mod workspaces_types;
 
+// Re-export handler functions and types.
+// Note: Each handler module already re-exports its *_types module contents,
+// so we only need to re-export the handler modules themselves.
 pub use auth::*;
-pub use auth_types::*;
 pub use chat::*;
-pub use chat_types::*;
 pub use conversations::*;
-pub use conversations_types::*;
 pub use costs::*;
-pub use costs_types::*;
 pub use documents::*;
-pub use documents_types::*;
 pub use entities::*;
-pub use entities_types::*;
 pub use graph::*;
-pub use graph_types::*;
 pub use health::*;
-pub use health_types::*;
 pub use lineage::*;
-pub use lineage_types::*;
 pub use metrics::*;
-pub use metrics_types::*;
 pub use ollama::*;
-pub use ollama_types::*;
 pub use pipeline::*;
-pub use pipeline_types::*;
 pub use query::*;
-pub use query_types::*;
 pub use relationships::*;
-pub use relationships_types::*;
 pub use tasks::*;
-pub use tasks_types::*;
 pub use websocket::*;
-pub use websocket_types::*;
 pub use workspaces::*;
-pub use workspaces_types::*;
