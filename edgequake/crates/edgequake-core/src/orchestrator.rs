@@ -1108,6 +1108,50 @@ mod tests {
         assert!(params.stream);
     }
 
+    #[test]
+    fn test_config_default_values() {
+        let config = EdgeQuakeConfig::default();
+        assert_eq!(config.namespace, "default");
+        assert_eq!(config.embedding_dim, 1536);
+        assert!(!config.entity_types.is_empty());
+    }
+
+    #[test]
+    fn test_config_with_chunk_config() {
+        let config = EdgeQuakeConfig::new()
+            .with_chunk_config(500, 100);
+        assert_eq!(config.chunk_token_size, 500);
+        assert_eq!(config.chunk_overlap_token_size, 100);
+    }
+
+    #[test]
+    fn test_query_params_defaults() {
+        let params = QueryParams::new();
+        assert_eq!(params.mode, QueryMode::Hybrid);
+        assert_eq!(params.top_k, 60);
+        assert!(!params.stream);
+    }
+
+    #[test]
+    fn test_config_with_gleaning() {
+        let config = EdgeQuakeConfig::new()
+            .with_gleaning(true, 3);
+        assert!(config.enable_gleaning);
+        assert_eq!(config.max_gleaning, 3);
+    }
+
+    #[test]
+    fn test_storage_backend_default() {
+        let backend = StorageBackend::default();
+        assert!(matches!(backend, StorageBackend::Memory));
+    }
+
+    #[test]
+    fn test_storage_config_default() {
+        let config = StorageConfig::default();
+        assert!(matches!(config.backend, StorageBackend::Memory));
+    }
+
     #[tokio::test]
     async fn test_edgequake_lifecycle() {
         use edgequake_llm::MockProvider;
