@@ -21,6 +21,7 @@
 
 pub mod cache_manager;
 pub mod error;
+pub mod file_validation;
 pub mod handlers;
 pub mod middleware;
 pub mod openapi;
