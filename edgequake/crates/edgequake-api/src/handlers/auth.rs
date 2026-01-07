@@ -12,12 +12,14 @@ use chrono::{Duration, Utc};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
-use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::error::ApiError;
 use crate::state::AppState;
 use edgequake_auth::{Role, User};
+
+// Re-export DTOs from auth_types module
+pub use crate::handlers::auth_types::*;
 
 // ============================================================================
 // Constants
@@ -30,7 +32,7 @@ const REFRESH_TOKEN_PREFIX: &str = "auth:refresh_token:";
 const API_KEY_PREFIX: &str = "auth:api_key:";
 
 // ============================================================================
-// Storage Record Types
+// Internal Storage Record Types
 // ============================================================================
 
 /// Internal user record for storage.
@@ -83,181 +85,6 @@ impl UserRecord {
             metadata: self.metadata.clone(),
         }
     }
-}
-
-// ============================================================================
-// Request/Response Types
-// ============================================================================
-
-/// Login request.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct LoginRequest {
-    /// Username or email.
-    pub username: String,
-    /// Password.
-    pub password: String,
-}
-
-/// Login response with tokens.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct LoginResponse {
-    /// JWT access token.
-    pub access_token: String,
-    /// Token type (always "Bearer").
-    pub token_type: String,
-    /// Expires in seconds.
-    pub expires_in: i64,
-    /// Refresh token.
-    pub refresh_token: String,
-    /// User information.
-    pub user: UserInfo,
-}
-
-/// User information (safe for API responses).
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct UserInfo {
-    /// User ID.
-    pub user_id: String,
-    /// Username.
-    pub username: String,
-    /// Email address.
-    pub email: String,
-    /// User role.
-    pub role: String,
-}
-
-impl From<&User> for UserInfo {
-    fn from(user: &User) -> Self {
-        Self {
-            user_id: user.user_id.clone(),
-            username: user.username.clone(),
-            email: user.email.clone(),
-            role: user.role.to_string(),
-        }
-    }
-}
-
-/// Refresh token request.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct RefreshTokenRequest {
-    /// Refresh token.
-    pub refresh_token: String,
-}
-
-/// Refresh token response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct RefreshTokenResponse {
-    /// New access token.
-    pub access_token: String,
-    /// Token type.
-    pub token_type: String,
-    /// Expires in seconds.
-    pub expires_in: i64,
-}
-
-/// Create user request.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct CreateUserRequest {
-    /// Username.
-    pub username: String,
-    /// Email address.
-    pub email: String,
-    /// Password.
-    pub password: String,
-    /// Role (optional, defaults to "user").
-    pub role: Option<String>,
-}
-
-/// Create user response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct CreateUserResponse {
-    /// Created user information.
-    pub user: UserInfo,
-    /// Creation timestamp.
-    pub created_at: String,
-}
-
-/// User list response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct ListUsersResponse {
-    /// List of users.
-    pub users: Vec<UserInfo>,
-    /// Total count.
-    pub total: usize,
-}
-
-/// Create API key request.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct CreateApiKeyRequest {
-    /// Key name (optional).
-    pub name: Option<String>,
-    /// Scopes for the key.
-    pub scopes: Option<Vec<String>>,
-    /// Expiration in days (optional).
-    pub expires_in_days: Option<i64>,
-}
-
-/// Create API key response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct CreateApiKeyResponse {
-    /// Key ID.
-    pub key_id: String,
-    /// The actual API key (only shown once).
-    pub api_key: String,
-    /// Key prefix.
-    pub prefix: String,
-    /// Scopes.
-    pub scopes: Vec<String>,
-    /// Expiration date.
-    pub expires_at: Option<String>,
-    /// Creation timestamp.
-    pub created_at: String,
-}
-
-/// API key summary (for listing).
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct ApiKeySummary {
-    /// Key ID.
-    pub key_id: String,
-    /// Key prefix.
-    pub prefix: String,
-    /// Key name.
-    pub name: Option<String>,
-    /// Scopes.
-    pub scopes: Vec<String>,
-    /// Is active.
-    pub is_active: bool,
-    /// Last used.
-    pub last_used_at: Option<String>,
-    /// Expires at.
-    pub expires_at: Option<String>,
-    /// Created at.
-    pub created_at: String,
-}
-
-/// List API keys response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct ListApiKeysResponse {
-    /// API keys.
-    pub keys: Vec<ApiKeySummary>,
-    /// Total count.
-    pub total: usize,
-}
-
-/// Revoke API key response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct RevokeApiKeyResponse {
-    /// Revoked key ID.
-    pub key_id: String,
-    /// Message.
-    pub message: String,
-}
-
-/// Get current user response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct GetMeResponse {
-    /// User information.
-    pub user: UserInfo,
 }
 
 /// Stored refresh token record.
@@ -1062,7 +889,8 @@ mod tests {
 
     #[test]
     fn test_create_user_request_deserialize() {
-        let json = r#"{"username": "newuser", "email": "new@example.com", "password": "secret123"}"#;
+        let json =
+            r#"{"username": "newuser", "email": "new@example.com", "password": "secret123"}"#;
         let request: CreateUserRequest = serde_json::from_str(json).unwrap();
         assert_eq!(request.username, "newuser");
         assert_eq!(request.email, "new@example.com");
@@ -1114,14 +942,12 @@ mod tests {
     #[test]
     fn test_list_users_response_serialization() {
         let response = ListUsersResponse {
-            users: vec![
-                UserInfo {
-                    user_id: "u1".to_string(),
-                    username: "user1".to_string(),
-                    email: "u1@test.com".to_string(),
-                    role: "user".to_string(),
-                },
-            ],
+            users: vec![UserInfo {
+                user_id: "u1".to_string(),
+                username: "user1".to_string(),
+                email: "u1@test.com".to_string(),
+                role: "user".to_string(),
+            }],
             total: 1,
         };
         let json = serde_json::to_string(&response).unwrap();
