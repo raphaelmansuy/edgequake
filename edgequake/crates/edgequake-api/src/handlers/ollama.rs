@@ -848,4 +848,25 @@ mod tests {
         let name = model_name();
         assert!(name.contains("edgequake"));
     }
+
+    #[test]
+    fn test_ollama_constants() {
+        assert_eq!(OLLAMA_MODEL_NAME, "edgequake");
+        assert_eq!(OLLAMA_MODEL_TAG, "latest");
+        assert_eq!(OLLAMA_API_VERSION, "0.9.3");
+    }
+
+    #[test]
+    fn test_search_mode_naive() {
+        let (query, mode, _) = OllamaSearchMode::from_query("/naive simple search");
+        assert_eq!(query, "simple search");
+        assert_eq!(mode, OllamaSearchMode::Naive);
+    }
+
+    #[test]
+    fn test_search_mode_mix() {
+        let (query, mode, _) = OllamaSearchMode::from_query("/mix combined");
+        assert_eq!(query, "combined");
+        assert_eq!(mode, OllamaSearchMode::Mix);
+    }
 }
