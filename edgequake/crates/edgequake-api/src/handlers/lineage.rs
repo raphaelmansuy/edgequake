@@ -774,4 +774,42 @@ mod tests {
         assert!(json.contains("JOHN_DOE"));
         assert!(json.contains("works_at"));
     }
+
+    #[test]
+    fn test_line_range_info_serialization() {
+        let info = LineRangeInfo {
+            start_line: 10,
+            end_line: 20,
+        };
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(json.contains("\"start_line\":10"));
+        assert!(json.contains("\"end_line\":20"));
+    }
+
+    #[test]
+    fn test_extraction_stats_response_serialization() {
+        let stats = ExtractionStatsResponse {
+            total_entities: 100,
+            unique_entities: 50,
+            total_relationships: 200,
+            unique_relationships: 80,
+            processing_time_ms: None,
+        };
+        let json = serde_json::to_string(&stats).unwrap();
+        assert!(json.contains("\"total_entities\":100"));
+        assert!(json.contains("\"unique_entities\":50"));
+    }
+
+    #[test]
+    fn test_description_version_response() {
+        let version = DescriptionVersionResponse {
+            version: 1,
+            description: "Initial description".to_string(),
+            source_chunk_id: Some("chunk-123".to_string()),
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+        let json = serde_json::to_string(&version).unwrap();
+        assert!(json.contains("\"version\":1"));
+        assert!(json.contains("Initial description"));
+    }
 }
