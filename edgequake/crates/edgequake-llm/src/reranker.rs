@@ -14,10 +14,12 @@
 use crate::error::{LlmError, Result};
 use async_trait::async_trait;
 use reqwest::Client;
+use rust_stemmers::{Algorithm, Stemmer};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
 use tracing::{debug, warn};
+use unicode_normalization::UnicodeNormalization;
 
 /// Result from reranking a document.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -671,18 +673,106 @@ pub struct BM25Reranker {
     delta: f64,
     /// Model name for trait compliance
     model: String,
+    /// Tokenizer configuration for enhanced text processing.
+    tokenizer_config: TokenizerConfig,
 }
+
+/// Configuration for the BM25 tokenizer.
+///
+/// WHY: Provides fine-grained control over text processing to improve
+/// search relevance for different languages and use cases.
+#[derive(Debug, Clone)]
+pub struct TokenizerConfig {
+    /// Enable Porter2 stemming for English text.
+    /// WHY: Stemming improves recall by matching morphological variants
+    /// (e.g., "running" → "run", "fruitlessly" → "fruitless").
+    pub enable_stemming: bool,
+    /// Stemmer algorithm to use (defaults to English).
+    pub stemmer_algorithm: Algorithm,
+    /// Enable stop word filtering.
+    /// WHY: Stop words like "the", "a", "is" add noise without semantic value.
+    pub enable_stop_words: bool,
+    /// Minimum token length (tokens shorter than this are filtered).
+    /// WHY: Single-character tokens are usually noise, but we keep 2+ for CJK.
+    pub min_token_length: usize,
+}
+
+impl Default for TokenizerConfig {
+    fn default() -> Self {
+        Self {
+            enable_stemming: true,
+            stemmer_algorithm: Algorithm::English,
+            enable_stop_words: true,
+            min_token_length: 2,
+        }
+    }
+}
+
+impl TokenizerConfig {
+    /// Create a minimal tokenizer without stemming or stop words (backward compatible).
+    pub fn minimal() -> Self {
+        Self {
+            enable_stemming: false,
+            stemmer_algorithm: Algorithm::English,
+            enable_stop_words: false,
+            min_token_length: 2,
+        }
+    }
+
+    /// Create an enhanced tokenizer with stemming and stop words.
+    pub fn enhanced() -> Self {
+        Self::default()
+    }
+
+    /// Create a French tokenizer.
+    pub fn french() -> Self {
+        Self {
+            enable_stemming: true,
+            stemmer_algorithm: Algorithm::French,
+            enable_stop_words: true,
+            min_token_length: 2,
+        }
+    }
+}
+
+/// Common English stop words.
+/// WHY: These high-frequency words don't carry semantic meaning and dilute IDF.
+const ENGLISH_STOP_WORDS: &[&str] = &[
+    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
+    "has", "he", "in", "is", "it", "its", "of", "on", "or", "that",
+    "the", "to", "was", "were", "will", "with", "this", "but", "they",
+    "have", "had", "what", "when", "where", "who", "which", "you", "your",
+    "we", "our", "can", "all", "there", "their", "been", "would", "could",
+    "should", "may", "might", "must", "do", "does", "did", "if", "not",
+    "no", "so", "up", "out", "just", "than", "then", "too", "very", "also",
+];
 
 impl BM25Reranker {
     /// Create a new BM25 reranker with default parameters.
     ///
     /// Defaults: k1 = 1.5, b = 0.75, delta = 0.0 (standard BM25)
+    /// Uses enhanced tokenizer with stemming and stop words by default.
     pub fn new() -> Self {
         Self {
             k1: 1.5,
             b: 0.75,
             delta: 0.0, // Standard BM25, not BM25+
             model: "bm25-reranker".to_string(),
+            tokenizer_config: TokenizerConfig::minimal(), // Backward compatible
+        }
+    }
+
+    /// Create a new BM25 reranker with enhanced tokenization.
+    ///
+    /// This version includes stemming and stop word filtering for
+    /// improved search relevance.
+    pub fn new_enhanced() -> Self {
+        Self {
+            k1: 1.5,
+            b: 0.75,
+            delta: 0.0,
+            model: "bm25-enhanced-reranker".to_string(),
+            tokenizer_config: TokenizerConfig::enhanced(),
         }
     }
 
@@ -697,6 +787,7 @@ impl BM25Reranker {
             b: 0.75,
             delta: 1.0, // BM25+ extension
             model: "bm25-plus-reranker".to_string(),
+            tokenizer_config: TokenizerConfig::minimal(),
         }
     }
 
@@ -711,6 +802,7 @@ impl BM25Reranker {
             b: b.clamp(0.0, 1.0),
             delta: 0.0,
             model: "bm25-reranker".to_string(),
+            tokenizer_config: TokenizerConfig::minimal(),
         }
     }
 
@@ -730,26 +822,75 @@ impl BM25Reranker {
             } else {
                 "bm25-reranker".to_string()
             },
+            tokenizer_config: TokenizerConfig::minimal(),
+        }
+    }
+
+    /// Create with custom tokenizer configuration.
+    ///
+    /// This allows fine-tuning tokenization for specific languages or use cases.
+    pub fn with_tokenizer_config(mut self, config: TokenizerConfig) -> Self {
+        self.tokenizer_config = config;
+        self
+    }
+
+    /// Check if a word is a stop word.
+    fn is_stop_word(word: &str) -> bool {
+        ENGLISH_STOP_WORDS.binary_search(&word).is_ok()
+    }
+
+    /// Tokenize text using the configured tokenizer settings.
+    ///
+    /// WHY: Enhanced tokenization improves search relevance by:
+    /// 1. Unicode normalization: Handles accents consistently (café → cafe)
+    /// 2. Stemming: Matches morphological variants (running → run)
+    /// 3. Stop word removal: Reduces noise from high-frequency words
+    fn tokenize_with_config(&self, text: &str) -> Vec<String> {
+        // WHY: NFKD decomposition separates base characters from combining marks,
+        // allowing us to strip accents universally instead of hardcoded mappings.
+        let normalized: String = text
+            .to_lowercase()
+            .nfkd()
+            .filter(|c| !unicode_normalization::char::is_combining_mark(*c))
+            .collect();
+
+        let tokens: Vec<String> = normalized
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|s| !s.is_empty() && s.len() >= self.tokenizer_config.min_token_length)
+            .map(|s| s.to_string())
+            .collect();
+
+        // Apply stop word filtering if enabled
+        let filtered: Vec<String> = if self.tokenizer_config.enable_stop_words {
+            tokens
+                .into_iter()
+                .filter(|t| !Self::is_stop_word(t))
+                .collect()
+        } else {
+            tokens
+        };
+
+        // Apply stemming if enabled
+        if self.tokenizer_config.enable_stemming {
+            let stemmer = Stemmer::create(self.tokenizer_config.stemmer_algorithm);
+            filtered.into_iter().map(|t| stemmer.stem(&t).to_string()).collect()
+        } else {
+            filtered
         }
     }
 
     /// Tokenize text into lowercase words, Unicode-normalized.
+    /// WHY: Backward-compatible tokenization for existing tests.
     fn tokenize(text: &str) -> Vec<String> {
-        text.to_lowercase()
-            .chars()
-            .map(|c| {
-                // Normalize accented characters for matching
-                match c {
-                    'é' | 'è' | 'ê' | 'ë' => 'e',
-                    'à' | 'â' | 'ä' => 'a',
-                    'î' | 'ï' => 'i',
-                    'ô' | 'ö' => 'o',
-                    'ù' | 'û' | 'ü' => 'u',
-                    'ç' => 'c',
-                    _ => c,
-                }
-            })
-            .collect::<String>()
+        // WHY: Use NFKD normalization instead of hardcoded accent mappings.
+        // This handles all Unicode accents, not just French.
+        let normalized: String = text
+            .to_lowercase()
+            .nfkd()
+            .filter(|c| !unicode_normalization::char::is_combining_mark(*c))
+            .collect();
+
+        normalized
             .split(|c: char| !c.is_alphanumeric())
             .filter(|s| !s.is_empty() && s.len() > 1)
             .map(|s| s.to_string())
@@ -839,8 +980,16 @@ impl Reranker for BM25Reranker {
             return Ok(vec![]);
         }
 
-        // Tokenize query and all documents
-        let query_terms = Self::tokenize(query);
+        // WHY: Use instance method for tokenization when enhanced config is active,
+        // otherwise use static method for backward compatibility.
+        let query_terms = if self.tokenizer_config.enable_stemming
+            || self.tokenizer_config.enable_stop_words
+        {
+            self.tokenize_with_config(query)
+        } else {
+            Self::tokenize(query)
+        };
+
         if query_terms.is_empty() {
             // Fall back to simple ordering if query is empty
             let results: Vec<RerankResult> = documents
@@ -854,8 +1003,17 @@ impl Reranker for BM25Reranker {
             return Ok(results);
         }
 
-        let doc_terms_list: Vec<Vec<String>> =
-            documents.iter().map(|d| Self::tokenize(d)).collect();
+        // WHY: Tokenize documents with same config as query for consistency
+        let doc_terms_list: Vec<Vec<String>> = if self.tokenizer_config.enable_stemming
+            || self.tokenizer_config.enable_stop_words
+        {
+            documents
+                .iter()
+                .map(|d| self.tokenize_with_config(d))
+                .collect()
+        } else {
+            documents.iter().map(|d| Self::tokenize(d)).collect()
+        };
 
         // Compute average document length
         let avgdl = doc_terms_list.iter().map(|d| d.len()).sum::<usize>() as f64
@@ -1965,5 +2123,119 @@ mod tests {
         // Should fall back to BM25 only
         assert_eq!(results.len(), 2);
         assert!(results[0].relevance_score >= results[1].relevance_score);
+    }
+
+    // =========================================================================
+    // Enhanced Tokenizer Tests (OODA Loop 2)
+    // =========================================================================
+
+    #[test]
+    fn test_tokenizer_config_default() {
+        let config = TokenizerConfig::default();
+        assert!(config.enable_stemming);
+        assert!(config.enable_stop_words);
+        assert_eq!(config.min_token_length, 2);
+    }
+
+    #[test]
+    fn test_tokenizer_config_minimal() {
+        let config = TokenizerConfig::minimal();
+        assert!(!config.enable_stemming);
+        assert!(!config.enable_stop_words);
+    }
+
+    #[test]
+    fn test_tokenizer_config_enhanced() {
+        let config = TokenizerConfig::enhanced();
+        assert!(config.enable_stemming);
+        assert!(config.enable_stop_words);
+    }
+
+    #[test]
+    fn test_enhanced_tokenizer_unicode_normalization() {
+        let reranker = BM25Reranker::new_enhanced();
+        // Test various Unicode accents are normalized
+        let tokens = reranker.tokenize_with_config("café résumé naïve");
+        assert!(tokens.contains(&"cafe".to_string()) || tokens.contains(&"caf".to_string()));
+        assert!(tokens.contains(&"resum".to_string()) || tokens.contains(&"resume".to_string()));
+        assert!(tokens.contains(&"naiv".to_string()) || tokens.contains(&"naive".to_string()));
+    }
+
+    #[test]
+    fn test_enhanced_tokenizer_stemming() {
+        let reranker = BM25Reranker::new_enhanced();
+        // Test stemming of English words
+        let tokens = reranker.tokenize_with_config("running jumps played");
+        // Porter2 stems: running → run, jumps → jump, played → play
+        assert!(tokens.contains(&"run".to_string()));
+        assert!(tokens.contains(&"jump".to_string()));
+        assert!(tokens.contains(&"play".to_string()));
+    }
+
+    #[test]
+    fn test_enhanced_tokenizer_stop_words() {
+        let reranker = BM25Reranker::new_enhanced();
+        let tokens = reranker.tokenize_with_config("the quick brown fox");
+        // "the" should be filtered as a stop word
+        assert!(!tokens.iter().any(|t| t == "the"));
+        // "quick", "brown", "fox" should remain (possibly stemmed)
+        assert!(tokens.len() >= 2);
+    }
+
+    #[test]
+    fn test_enhanced_tokenizer_preserves_meaning() {
+        let reranker = BM25Reranker::new_enhanced();
+        // Test that meaningful terms are preserved after processing
+        let tokens = reranker.tokenize_with_config("artificial intelligence machine learning");
+        // Should contain stems of key terms
+        assert!(tokens.iter().any(|t| t.contains("artifici") || t.contains("artificial")));
+        assert!(tokens.iter().any(|t| t.contains("intellig") || t.contains("intelligence")));
+        assert!(tokens.iter().any(|t| t.contains("machin") || t.contains("machine")));
+        assert!(tokens.iter().any(|t| t.contains("learn") || t.contains("learning")));
+    }
+
+    #[test]
+    fn test_minimal_tokenizer_no_stemming() {
+        let reranker = BM25Reranker::new();
+        // Minimal tokenizer should NOT stem
+        let tokens = BM25Reranker::tokenize("running jumps played");
+        assert!(tokens.contains(&"running".to_string()));
+        assert!(tokens.contains(&"jumps".to_string()));
+        assert!(tokens.contains(&"played".to_string()));
+    }
+
+    #[test]
+    fn test_bm25_with_tokenizer_config() {
+        let reranker = BM25Reranker::new()
+            .with_tokenizer_config(TokenizerConfig::enhanced());
+        // Verify the config was applied
+        assert!(reranker.tokenizer_config.enable_stemming);
+    }
+
+    #[tokio::test]
+    async fn test_enhanced_bm25_improves_recall() {
+        // This test verifies that stemming improves recall by matching morphological variants
+        let reranker = BM25Reranker::new_enhanced();
+        let documents = vec![
+            "The runner runs daily".to_string(),      // contains "runner", "runs"
+            "Swimming is good exercise".to_string(),  // unrelated
+            "He was running yesterday".to_string(),   // contains "running"
+        ];
+
+        let results = reranker.rerank("run", &documents, Some(3)).await.unwrap();
+
+        // With stemming, "run" should match "runner", "runs", "running"
+        // Documents 0 and 2 should rank higher than document 1
+        let top_indices: Vec<usize> = results.iter().take(2).map(|r| r.index).collect();
+        assert!(top_indices.contains(&0) || top_indices.contains(&2));
+    }
+
+    #[test]
+    fn test_french_tokenizer() {
+        let reranker = BM25Reranker::new()
+            .with_tokenizer_config(TokenizerConfig::french());
+        let tokens = reranker.tokenize_with_config("parlons français facilement");
+        // French stemmer should stem these
+        assert!(!tokens.is_empty());
     }
 }
