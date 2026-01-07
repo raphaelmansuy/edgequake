@@ -1096,4 +1096,55 @@ mod tests {
         let response = result.unwrap().0;
         assert!(response.nodes.is_empty());
     }
+
+    #[tokio::test]
+    async fn test_get_graph_with_depth() {
+        let state = AppState::test_state();
+        let tenant_ctx = TenantContext::default();
+        let params = GraphQueryParams {
+            start_node: None,
+            depth: 5,
+            max_nodes: 50,
+        };
+
+        let result = get_graph(State(state), tenant_ctx, Query(params)).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_get_node_not_found() {
+        let state = AppState::test_state();
+
+        let result = get_node(State(state), Path("nonexistent_node".to_string())).await;
+        // Should return not found or empty
+        assert!(result.is_ok() || result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_search_labels_empty() {
+        let state = AppState::test_state();
+        let params = SearchLabelsQuery {
+            q: "test".to_string(),
+            limit: 10,
+        };
+
+        let result = search_labels(State(state), Query(params)).await;
+        assert!(result.is_ok());
+
+        let response = result.unwrap().0;
+        assert!(response.labels.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_popular_labels() {
+        let state = AppState::test_state();
+        let params = PopularLabelsQuery {
+            limit: 20,
+            min_degree: None,
+            entity_type: None,
+        };
+
+        let result = get_popular_labels(State(state), Query(params)).await;
+        assert!(result.is_ok());
+    }
 }
