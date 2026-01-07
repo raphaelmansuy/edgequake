@@ -22,6 +22,7 @@ pub mod query;
 pub mod query_types;
 pub mod relationships;
 pub mod tasks;
+pub mod tasks_types;
 pub mod websocket;
 pub mod workspaces;
 
@@ -47,5 +48,6 @@ pub use query::*;
 pub use query_types::*;
 pub use relationships::*;
 pub use tasks::*;
+pub use tasks_types::*;
 pub use websocket::*;
 pub use workspaces::*;
