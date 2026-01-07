@@ -6,6 +6,7 @@
 ## Implementation Plan
 
 ### Step 1: Create query_types.rs ✅
+
 ```rust
 // Structure:
 // - Module documentation
@@ -18,6 +19,7 @@
 **Validation:** File compiles with all required traits
 
 ### Step 2: Update mod.rs ✅
+
 ```rust
 // Add:
 pub mod query_types;
@@ -27,6 +29,7 @@ pub use query_types::*;
 **Validation:** Module exports correctly
 
 ### Step 3: Refactor query.rs ✅
+
 ```rust
 // Replace inline DTOs with:
 pub use crate::handlers::query_types::{
@@ -38,6 +41,7 @@ pub use crate::handlers::query_types::{
 **Validation:** File compiles without DTO definitions
 
 ### Step 4: Run Tests ✅
+
 ```bash
 cargo test --package edgequake-api --lib
 ```
@@ -45,8 +49,10 @@ cargo test --package edgequake-api --lib
 **Expected:** 261 tests passing (252 + 9 new)
 
 ### Step 5: Fix Test Issues ✅
+
 **Issue:** Floating point comparison failed
 **Fix:** Use epsilon comparison instead of equality
+
 ```rust
 // Before:
 assert_eq!(json["score"], 0.95);
@@ -59,6 +65,7 @@ assert!((score - 0.95).abs() < 0.01);
 **Validation:** All tests passing
 
 ### Step 6: Commit Changes ✅
+
 ```bash
 git add -A
 git commit -m "refactor(api): Extract 6 DTOs from query.rs to query_types.rs (iteration 32)"
@@ -91,6 +98,7 @@ git commit -m "refactor(api): Extract 6 DTOs from query.rs to query_types.rs (it
 ## Next Steps
 
 Continue to iteration 33:
+
 - Target: tasks.rs (475 lines)
 - Identify DTOs for extraction
 - Follow established pattern

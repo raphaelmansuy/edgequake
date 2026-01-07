@@ -7,6 +7,7 @@
 ## Actions
 
 1. **Iteration 32 (query.rs):**
+
    - Created query_types.rs (320 lines, 6 DTOs + helper)
    - Added 10 unit tests
    - Fixed float comparison with epsilon
@@ -14,12 +15,14 @@
    - Commit: c35cb55
 
 2. **Iteration 33 (tasks.rs):**
+
    - Created tasks_types.rs (400+ lines, 6 DTOs + From impl)
    - Added 9 unit tests
    - Tests: 261 → 270 (+9)
    - Commit: 2b56996
 
 3. **Iteration 34 (costs.rs):**
+
    - Created costs_types.rs (450+ lines, 11 DTOs)
    - Added 11 unit tests
    - Tests: 270 → 281 (+11)
@@ -30,7 +33,7 @@
 
 ## Decisions
 
-- Maintained sibling file pattern (*_types.rs) consistently
+- Maintained sibling file pattern (\*\_types.rs) consistently
 - Used epsilon comparison for floating point assertions
 - Re-exported all DTOs via `pub use` for backward compatibility
 - Included trait implementations (From) in types files

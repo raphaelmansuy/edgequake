@@ -7,6 +7,7 @@
 ## Current State
 
 ### File Analysis
+
 - **query.rs:** 588 lines
   - Handler functions for query execution and streaming
   - 6 inline DTOs: ConversationMessage, QueryRequest, QueryResponse, SourceReference, QueryStats, StreamQueryRequest
@@ -14,6 +15,7 @@
   - OpenAPI documentation with utoipa annotations
 
 ### DTO Identification
+
 ```rust
 // Line 16
 pub struct ConversationMessage { role, content }
@@ -49,33 +51,37 @@ fn default_enable_rerank() -> bool { true }
 ```
 
 ### Dependencies
+
 - Used by chat.rs and chat_types.rs (imports QueryStats, SourceReference)
 - Core query execution and streaming logic
 - Integration with edgequake-query engine
 
 ### Test Coverage
+
 - **Before:** 252 tests passing
 - **Pattern:** Sibling query_types.rs with 8-10 unit tests
 
 ## Metrics
 
-| Metric | Value |
-|--------|-------|
-| File size | 588 lines |
-| DTOs to extract | 6 |
-| Helper functions | 1 |
-| Expected reduction | ~27% |
-| Current test count | 252 |
-| Expected new tests | +9 |
+| Metric             | Value     |
+| ------------------ | --------- |
+| File size          | 588 lines |
+| DTOs to extract    | 6         |
+| Helper functions   | 1         |
+| Expected reduction | ~27%      |
+| Current test count | 252       |
+| Expected new tests | +9        |
 
 ## Risk Assessment
 
 **Low Risk:**
+
 - Established pattern (7th extraction this session)
 - All previous extractions successful
 - Clean DTO structure with no circular dependencies
 
 **Considerations:**
+
 - QueryStats and SourceReference imported by other handlers
 - Must re-export for backward compatibility
 - Floating point comparisons in tests need epsilon checks
