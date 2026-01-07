@@ -679,3 +679,77 @@ impl AppState {
         Ok(())
     }
 }
+
+// ============================================================================
+// Unit Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_storage_mode_as_str() {
+        assert_eq!(StorageMode::Memory.as_str(), "memory");
+        assert_eq!(StorageMode::PostgreSQL.as_str(), "postgresql");
+    }
+
+    #[test]
+    fn test_storage_mode_is_memory() {
+        assert!(StorageMode::Memory.is_memory());
+        assert!(!StorageMode::PostgreSQL.is_memory());
+    }
+
+    #[test]
+    fn test_storage_mode_is_postgresql() {
+        assert!(StorageMode::PostgreSQL.is_postgresql());
+        assert!(!StorageMode::Memory.is_postgresql());
+    }
+
+    #[test]
+    fn test_storage_mode_serialization() {
+        let memory = StorageMode::Memory;
+        let json = serde_json::to_string(&memory).unwrap();
+        assert_eq!(json, "\"memory\"");
+
+        let postgresql = StorageMode::PostgreSQL;
+        let json = serde_json::to_string(&postgresql).unwrap();
+        assert_eq!(json, "\"postgresql\"");
+    }
+
+    #[test]
+    fn test_storage_mode_deserialization() {
+        let memory: StorageMode = serde_json::from_str("\"memory\"").unwrap();
+        assert_eq!(memory, StorageMode::Memory);
+
+        let postgresql: StorageMode = serde_json::from_str("\"postgresql\"").unwrap();
+        assert_eq!(postgresql, StorageMode::PostgreSQL);
+    }
+
+    #[test]
+    fn test_app_config_default() {
+        let config = AppConfig::default();
+        assert_eq!(config.workspace_id, "default");
+        assert_eq!(config.max_document_size, 10 * 1024 * 1024); // 10 MB
+        assert_eq!(config.max_query_length, 10000);
+    }
+
+    #[test]
+    fn test_app_config_custom() {
+        let config = AppConfig {
+            workspace_id: "custom-workspace".to_string(),
+            max_document_size: 5 * 1024 * 1024, // 5 MB
+            max_query_length: 5000,
+        };
+        assert_eq!(config.workspace_id, "custom-workspace");
+        assert_eq!(config.max_document_size, 5 * 1024 * 1024);
+        assert_eq!(config.max_query_length, 5000);
+    }
+
+    #[tokio::test]
+    async fn test_app_state_test_state() {
+        let state = AppState::test_state();
+        assert!(state.storage_mode.is_memory());
+        assert_eq!(state.config.workspace_id, "default");
+    }
+}
