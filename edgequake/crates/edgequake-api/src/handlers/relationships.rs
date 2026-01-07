@@ -6,189 +6,23 @@ use axum::{
 };
 use chrono::Utc;
 use edgequake_storage::GraphEdge;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
+// Re-export DTOs for backward compatibility
+pub use crate::handlers::relationships_types::{
+    default_weight, CreateRelationshipRequest, CreateRelationshipResponse,
+    DeleteRelationshipResponse, EntitySummary, GetRelationshipResponse,
+    RelationshipChangesSummary, RelationshipEntities, RelationshipResponse,
+    UpdateRelationshipRequest, UpdateRelationshipResponse,
+};
+
 // ============================================================================
-// Request/Response Types
+// Request/Response Types (REMOVED - now in relationships_types.rs)
 // ============================================================================
-
-/// Create relationship request.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct CreateRelationshipRequest {
-    /// Source entity ID.
-    pub src_id: String,
-
-    /// Target entity ID.
-    pub tgt_id: String,
-
-    /// Keywords describing the relationship.
-    pub keywords: String,
-
-    /// Relationship weight (0.0 to 1.0).
-    #[serde(default = "default_weight")]
-    pub weight: f64,
-
-    /// Relationship description.
-    pub description: String,
-
-    /// Source document ID (use "manual_entry" for manual entries).
-    pub source_id: String,
-
-    /// Additional metadata.
-    #[serde(default)]
-    pub metadata: serde_json::Value,
-}
-
-fn default_weight() -> f64 {
-    0.8
-}
-
-/// Update relationship request.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct UpdateRelationshipRequest {
-    /// Updated keywords.
-    pub keywords: Option<String>,
-
-    /// Updated weight.
-    pub weight: Option<f64>,
-
-    /// Updated description.
-    pub description: Option<String>,
-
-    /// Updated metadata.
-    pub metadata: Option<serde_json::Value>,
-}
-
-/// Relationship response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct RelationshipResponse {
-    /// Relationship ID.
-    pub id: String,
-
-    /// Source entity ID.
-    pub src_id: String,
-
-    /// Target entity ID.
-    pub tgt_id: String,
-
-    /// Relationship type.
-    pub relation_type: String,
-
-    /// Keywords.
-    pub keywords: String,
-
-    /// Weight.
-    pub weight: f64,
-
-    /// Description.
-    pub description: String,
-
-    /// Source document ID.
-    pub source_id: String,
-
-    /// Creation timestamp.
-    pub created_at: String,
-
-    /// Last update timestamp.
-    pub updated_at: String,
-
-    /// Additional metadata.
-    pub metadata: serde_json::Value,
-}
-
-/// Create relationship response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct CreateRelationshipResponse {
-    /// Operation status.
-    pub status: String,
-
-    /// Success message.
-    pub message: String,
-
-    /// Created relationship.
-    pub relationship: RelationshipResponse,
-}
-
-/// Get relationship response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct GetRelationshipResponse {
-    /// Relationship data.
-    pub relationship: RelationshipResponse,
-
-    /// Entities involved.
-    pub entities: RelationshipEntities,
-}
-
-/// Entities in a relationship.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct RelationshipEntities {
-    /// Source entity.
-    pub source: EntitySummary,
-
-    /// Target entity.
-    pub target: EntitySummary,
-}
-
-/// Entity summary.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct EntitySummary {
-    /// Entity ID.
-    pub id: String,
-
-    /// Entity type.
-    pub entity_type: String,
-}
-
-/// Update relationship response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct UpdateRelationshipResponse {
-    /// Operation status.
-    pub status: String,
-
-    /// Success message.
-    pub message: String,
-
-    /// Updated relationship.
-    pub relationship: RelationshipResponse,
-
-    /// Changes made.
-    pub changes: RelationshipChangesSummary,
-}
-
-/// Relationship changes summary.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct RelationshipChangesSummary {
-    /// Fields that were updated.
-    pub fields_updated: Vec<String>,
-
-    /// Previous weight if changed.
-    pub previous_weight: Option<f64>,
-}
-
-/// Delete relationship response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct DeleteRelationshipResponse {
-    /// Operation status.
-    pub status: String,
-
-    /// Success message.
-    pub message: String,
-
-    /// Deleted relationship ID.
-    pub deleted_relationship_id: String,
-
-    /// Source entity ID.
-    pub src_id: String,
-
-    /// Target entity ID.
-    pub tgt_id: String,
-}
 
 // ============================================================================
 // Helper Functions
