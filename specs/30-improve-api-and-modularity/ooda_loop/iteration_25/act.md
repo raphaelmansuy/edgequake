@@ -3,9 +3,11 @@
 ## Actions Taken
 
 ### 1. Created DTO Module Structure
+
 **File**: `edgequake/crates/edgequake-api/src/handlers/documents/dtos.rs` (882 lines)
 
 Extracted all 22 DTOs and helper functions:
+
 - Upload DTOs: `UploadDocumentRequest`, `UploadDocumentResponse`, `DocumentCostInfo`
 - List DTOs: `ListDocumentsRequest`, `ListDocumentsResponse`, `DocumentSummary`, `StatusCounts`
 - Detail DTOs: `GetDocumentRequest`, `DocumentDetailResponse`, `DocumentLineage`
@@ -18,18 +20,22 @@ Extracted all 22 DTOs and helper functions:
 - Recovery DTOs: `RecoverStuckRequest`, `RecoverStuckResponse`
 
 **Helper Functions** extracted:
+
 - `default_enable_gleaning()`, `default_max_gleaning()`, `default_use_llm_summarization()`
-- `default_page()`, `default_page_size()`  
+- `default_page()`, `default_page_size()`
 - `default_recursive()`, `default_max_files()`, `default_true()`
 - `default_max_reprocess()`, `default_stuck_threshold_minutes()`
 
 ### 2. Module Organization
+
 Created `documents/mod.rs` with:
+
 - Documentation of current and planned structure
 - Module exports for `dtos`
 - Re-exports of DTOs via `pub use dtos::*;`
 
 ### 3. Integration Attempt & Rollback
+
 **Attempted**: Creating `documents/` subdirectory with DTOs separate from handlers
 **Issue**: Cargo build failed - the handler functions (upload_document, list_documents, etc.) were still in documents.rs, but the module structure caused export issues
 **Resolution**: Rolled back to flat structure - removed documents/ subdirectory
@@ -38,12 +44,14 @@ Created `documents/mod.rs` with:
 ## Current State
 
 ### File: documents.rs (3,577 lines)
+
 Still contains:
+
 - 22 DTO definitions (lines 21-498)
 - Helper functions (lines 58-68, and scattered throughout)
 - 9 handler functions:
   - `upload_document` (lines 140-500)
-  - `list_documents` (lines 639-1084)  
+  - `list_documents` (lines 639-1084)
   - `get_document` (lines 1125-1473)
   - `delete_document` (lines 1494-1655)
   - `analyze_deletion_impact` (lines 1686-1786)
@@ -57,6 +65,7 @@ Still contains:
   - Helper: `collect_files` (lines 2888-2935)
 
 ### Test Results
+
 ```bash
 cargo test --package edgequake-api --lib
 test result: ok. 188 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
@@ -65,17 +74,21 @@ test result: ok. 188 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ## Learnings
 
 ### What Worked
+
 1. ✅ DTOs extracted cleanly to separate file (882 lines)
-2. ✅ Helper functions grouped with DTOs  
+2. ✅ Helper functions grouped with DTOs
 3. ✅ Comprehensive documentation of extraction plan
 4. ✅ Non-regression: All 188 tests pass
 
 ### What Didn't Work
+
 1. ❌ Submodule approach (`documents/`) conflicted with existing flat handler structure
 2. ❌ Attempted to refactor before understanding full handler export patterns
 
 ### Key Insight
+
 The current codebase uses a **flat handler structure**: `handlers/documents.rs` is a single file, not a directory. To modularize without breaking exports, we need to:
+
 1. Keep `documents.rs` as the entry point
 2. Use inline modules or extract to sibling files
 3. Alternative: Extract common code (DTOs, helpers) to a separate `documents_types.rs` file
@@ -83,6 +96,7 @@ The current codebase uses a **flat handler structure**: `handlers/documents.rs` 
 ## Next Steps for Iteration 26
 
 ### Option A: Extract DTOs to Sibling File (Recommended)
+
 ```
 handlers/
   documents.rs         (2,695 lines: handlers only)
@@ -93,6 +107,7 @@ handlers/
 **Cons**: Two files instead of one, "types" naming convention
 
 ### Option B: Inline Modules
+
 ```rust
 // In documents.rs
 mod dtos {
@@ -107,6 +122,7 @@ use dtos::*;
 **Cons**: Still 3,577 lines total, harder to navigate
 
 ### Option C: Extract Handler Groups to Sibling Files
+
 ```
 handlers/
   documents.rs           (upload_document, core logic)
@@ -126,6 +142,7 @@ handlers/
 ## Recommendation
 
 **Go with Option A for Iteration 26**: Extract DTOs to `documents_types.rs` as a proof-of-concept. This gives us:
+
 - Immediate reduction: 3,577 → 2,695 lines in documents.rs
 - Non-breaking change: Same exports, just different source
 - Foundation for future extractions
@@ -142,13 +159,13 @@ handlers/
 
 ## Metrics
 
-| Metric | Before | After | Change |
-|--------|--------|-------|--------|
-| documents.rs lines | 3,573 | 3,577 | +4 (module directive overhead) |
-| Test pass rate | 188/188 | 188/188 | ✅ No regression |
-| Build time | ~2.5s | ~2.5s | No change |
-| DTO extraction | Inline | Separate file created | ✅ Ready for integration |
-| Handler extraction | Not started | Analysis complete | Plan documented |
+| Metric             | Before      | After                 | Change                         |
+| ------------------ | ----------- | --------------------- | ------------------------------ |
+| documents.rs lines | 3,573       | 3,577                 | +4 (module directive overhead) |
+| Test pass rate     | 188/188     | 188/188               | ✅ No regression               |
+| Build time         | ~2.5s       | ~2.5s                 | No change                      |
+| DTO extraction     | Inline      | Separate file created | ✅ Ready for integration       |
+| Handler extraction | Not started | Analysis complete     | Plan documented                |
 
 ## Commit Log
 
@@ -169,6 +186,7 @@ handlers/
 ## Confidence Level
 
 **Medium-High (75%)** that Option A (documents_types.rs) will succeed in iteration 26 because:
+
 - ✅ DTOs fully extracted and validated
 - ✅ Flat handler structure preserved
 - ✅ Similar pattern used in other handler files

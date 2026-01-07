@@ -47,32 +47,36 @@ docker run -p 8080:8080 -e OPENAI_API_KEY=your-key edgequake
 ## API Endpoints
 
 ### Health
+
 - `GET /health` - Health check with component status
 - `GET /ready` - Kubernetes readiness probe
 - `GET /live` - Kubernetes liveness probe
 
 ### Documents
+
 - `POST /api/v1/documents` - Upload a document for processing
 - `GET /api/v1/documents` - List all documents
 
 ### Query
+
 - `POST /api/v1/query` - Execute a query
 - `POST /api/v1/query/stream` - Streaming query (SSE)
 
 ### Knowledge Graph
+
 - `GET /api/v1/graph` - Get knowledge graph
 - `GET /api/v1/graph/nodes/{id}` - Get specific node
 - `GET /api/v1/graph/labels/search` - Search labels
 
 ## Query Modes
 
-| Mode | Description | Use Case |
-|------|-------------|----------|
-| `naive` | Simple vector similarity | Fast, basic queries |
-| `local` | Entity-centric with local context | Specific entity queries |
-| `global` | Community-based search | Broad topic exploration |
-| `hybrid` | Combines local and global | Balanced approach |
-| `mix` | Weighted combination | Maximum flexibility |
+| Mode     | Description                       | Use Case                |
+| -------- | --------------------------------- | ----------------------- |
+| `naive`  | Simple vector similarity          | Fast, basic queries     |
+| `local`  | Entity-centric with local context | Specific entity queries |
+| `global` | Community-based search            | Broad topic exploration |
+| `hybrid` | Combines local and global         | Balanced approach       |
+| `mix`    | Weighted combination              | Maximum flexibility     |
 
 ## Project Structure
 
@@ -98,13 +102,13 @@ edgequake/
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `HOST` | Server host | `0.0.0.0` |
-| `PORT` | Server port | `8080` |
-| `OPENAI_API_KEY` | OpenAI API key | Required |
+| Variable          | Description         | Default        |
+| ----------------- | ------------------- | -------------- |
+| `HOST`            | Server host         | `0.0.0.0`      |
+| `PORT`            | Server port         | `8080`         |
+| `OPENAI_API_KEY`  | OpenAI API key      | Required       |
 | `OPENAI_BASE_URL` | Custom API base URL | OpenAI default |
-| `LOG_LEVEL` | Logging level | `info` |
+| `LOG_LEVEL`       | Logging level       | `info`         |
 
 ## Development
 
@@ -127,17 +131,20 @@ cargo clippy --all-targets
 EdgeQuake follows a modular architecture:
 
 1. **Document Ingestion**
+
    - Text chunking with overlap
    - Entity extraction via LLM
    - Relationship extraction
    - Embedding generation
 
 2. **Storage Layer**
+
    - Key-value store for documents
    - Vector store for embeddings
    - Graph store for knowledge graph
 
 3. **Query Engine**
+
    - Multi-mode retrieval
    - Context assembly
    - LLM answer generation
@@ -154,6 +161,7 @@ Contributions are welcome! Please read our contributing guidelines before submit
 ## License
 
 Licensed under either of:
+
 - Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 - MIT License ([LICENSE-MIT](LICENSE-MIT))
 
