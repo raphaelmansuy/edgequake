@@ -72,8 +72,9 @@ impl DocumentStats {
     /// Calculate typical intra-paragraph line spacing (gap between wrapped lines).
     ///
     /// **WHY 1.5x body_font_size filter?** In typical typesetting:
-    /// - Intra-paragraph gaps: ~1.2-1.4x font size (single line spacing)
-    /// - Inter-paragraph gaps: ~2.0-3.0x font size (paragraph break)
+    ///   - Intra-paragraph gaps: ~1.2-1.4x font size (single line spacing)
+    ///   - Inter-paragraph gaps: ~2.0-3.0x font size (paragraph break)
+    ///
     /// Using 1.5x excludes paragraph breaks, focusing only on wrapped line gaps.
     ///
     /// **WHY 30th percentile?** Intra-paragraph gaps cluster at the low end.

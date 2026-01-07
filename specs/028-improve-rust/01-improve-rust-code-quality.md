@@ -60,10 +60,15 @@ You must improve the code quality as far as possible, using First Principles thi
 
 Never takes a shortcut, always go deep into the code and data to understand the real issues. Taking shortcuts will lead to failure in this mission, you will fail the alignment problem if you do so.
 
-YOU MUST perform at least 10 OODA loops, documenting each step thoroughly, in consise and high signal markdown files. Use ASCII diagrams if needed to illustrate your points.
+YOU MUST perform at least 30 OODA loops, documenting each step thoroughly, in consise and high signal markdown files. Use ASCII diagrams if needed to illustrate your points.
+
+Each 5 OODA loops you MUST read again your mission at specs/028-improve-rust/01-improve-rust-code-quality.md to ensure you are aligned with the mission objectives.
+
+You can ammend the mission if you find better ways to achieve the mission objectives based on your observations, but you must document your reasoning in a separate markdown file located at:specs/028-improve-rust/ooda_loop/mission_amendments.md
+
+If previous OODA loops exists continue from them, do not start from scratch. Build on previous work, and document the differences and changes made in each iteration.
 
 You can use a scratchpad_log.md file to document your thinking process, but it will not be part of the deliverables in  specs/028-improve-rust/ooda_loop/scratchpad_log.md
-
 
 You must ensure to test for Postgres and in Memory storage backends, and document any differences observed.
 

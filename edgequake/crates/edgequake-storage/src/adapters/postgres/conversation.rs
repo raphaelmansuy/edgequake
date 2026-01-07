@@ -256,6 +256,11 @@ impl PostgresConversationStorage {
     }
 
     /// List conversations with filtering and pagination.
+    ///
+    /// WHY: This function has many parameters because it implements a comprehensive
+    /// filtering/pagination API that must support tenant_id, user_id, archived, pinned,
+    /// folder_id, search, sorting, and pagination - all semantically distinct concerns.
+    #[allow(clippy::too_many_arguments)]
     pub async fn list_conversations(
         &self,
         tenant_id: Uuid,
@@ -430,6 +435,10 @@ impl PostgresConversationStorage {
     // ============ Message Operations ============
 
     /// Create a new message.
+    ///
+    /// WHY: Message creation requires all these parameters to properly record
+    /// conversation context, role, content, metrics, and error state.
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_message(
         &self,
         conversation_id: Uuid,
@@ -470,6 +479,10 @@ impl PostgresConversationStorage {
     }
 
     /// Update a message.
+    ///
+    /// WHY: Message updates allow partial updates to any of these fields,
+    /// each representing a distinct aspect of the message (content, metrics, context).
+    #[allow(clippy::too_many_arguments)]
     pub async fn update_message(
         &self,
         message_id: Uuid,

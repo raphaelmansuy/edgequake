@@ -1326,11 +1326,11 @@ impl GraphStorage for PostgresAGEGraphStorage {
 
         let labels: Vec<String> = rows
             .iter()
-            .filter_map(|row| {
+            .map(|row| {
                 let json_value: serde_json::Value = row.get("node_id");
                 let node_id_str = json_value.to_string();
                 // Remove quotes from agtype string
-                Some(node_id_str.trim_matches('"').to_string())
+                node_id_str.trim_matches('"').to_string()
             })
             .collect();
 

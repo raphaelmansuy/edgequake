@@ -155,8 +155,9 @@ pub enum VectorIndexType {
     None,
     /// IVFFlat index.
     IVFFlat,
-    /// HNSW index.
+    /// HNSW index (Hierarchical Navigable Small World).
     #[default]
+    #[allow(clippy::upper_case_acronyms)]
     HNSW,
 }
 

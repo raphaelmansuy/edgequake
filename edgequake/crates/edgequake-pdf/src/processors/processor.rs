@@ -370,6 +370,9 @@ impl StyleDetectionProcessor {
         }
     }
 
+    /// Simple wrapper for detect_headers_with_context.
+    /// Reserved for future use in contexts where page position is unknown.
+    #[allow(dead_code)]
     fn detect_headers(&self, block: &mut Block) {
         self.detect_headers_with_context(block, false);
     }
