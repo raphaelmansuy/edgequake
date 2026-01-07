@@ -81,12 +81,17 @@ edgequake/
 ├── Cargo.toml              # Workspace manifest
 ├── src/main.rs             # Server entry point
 └── crates/
-    ├── edgequake-core/     # Core types and utilities
-    ├── edgequake-storage/  # Storage abstractions
-    ├── edgequake-llm/      # LLM provider traits
-    ├── edgequake-pipeline/ # Document processing
-    ├── edgequake-query/    # Query engine
-    └── edgequake-api/      # REST API server
+    ├── edgequake-api/      # REST API server (Axum)
+    ├── edgequake-audit/    # Audit logging and compliance
+    ├── edgequake-auth/     # Authentication and authorization
+    ├── edgequake-core/     # Core types, orchestration
+    ├── edgequake-llm/      # LLM providers and reranking
+    ├── edgequake-pdf/      # PDF parsing and extraction
+    ├── edgequake-pipeline/ # Document processing pipeline
+    ├── edgequake-query/    # SOTA query engine
+    ├── edgequake-rate-limiter/ # Rate limiting middleware
+    ├── edgequake-storage/  # Storage backends (Memory, PostgreSQL)
+    └── edgequake-tasks/    # Background task processing
 ```
 
 ## Configuration
