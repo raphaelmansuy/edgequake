@@ -18,6 +18,64 @@
 //! - `POST /api/v1/query` - Execute queries
 //! - `GET /api/v1/graph` - Explore knowledge graph
 //! - `GET /api/v1/health` - Health check
+//!
+//! # Architecture
+//!
+//! ```text
+//! ┌─────────────┐
+//! │   Client    │
+//! └──────┬──────┘
+//!        │ HTTP/JSON
+//!        ▼
+//! ┌─────────────┐
+//! │ Middleware  │ ← Authentication, Rate Limiting, Tenant Context
+//! └──────┬──────┘
+//!        │
+//!        ▼
+//! ┌─────────────┐
+//! │  Handlers   │ ← Request validation, business logic
+//! └──────┬──────┘
+//!        │
+//!        ▼
+//! ┌─────────────┐
+//! │  Services   │ ← Storage adapters, LLM clients, Cache
+//! └─────────────┘
+//! ```
+//!
+//! # Quick Start
+//!
+//! ```rust,ignore
+//! use edgequake_api::{Server, ServerConfig, StorageMode};
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let config = ServerConfig {
+//!         host: "0.0.0.0".to_string(),
+//!         port: 8000,
+//!         storage_mode: StorageMode::Memory,
+//!         ..Default::default()
+//!     };
+//!
+//!     let server = Server::new(config).await?;
+//!     server.run().await?;
+//!     Ok(())
+//! }
+//! ```
+//!
+//! # Features
+//!
+//! - `postgres`: Enable PostgreSQL storage backend (default)
+//!
+//! # Module Organization
+//!
+//! - **handlers**: HTTP request handlers (documents, query, graph, etc.)
+//! - **middleware**: Authentication, rate limiting, tenant context
+//! - **state**: Application state and storage mode configuration
+//! - **streaming**: Real-time streaming response management
+//! - **cache_manager**: LRU cache with TTL for hot data
+//! - **processor**: Async document processing pipeline
+//! - **validation**: Input validation helpers
+//! - **error**: API error types and HTTP status mapping
 
 pub mod cache_manager;
 pub mod error;
