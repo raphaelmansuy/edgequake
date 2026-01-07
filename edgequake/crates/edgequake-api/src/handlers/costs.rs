@@ -534,4 +534,40 @@ mod tests {
         assert_eq!(request.input_tokens, 1000);
         assert_eq!(request.output_tokens, 500);
     }
+
+    #[test]
+    fn test_estimate_cost_response_serialization() {
+        let response = EstimateCostResponse {
+            model: "gpt-4o".to_string(),
+            input_tokens: 5000,
+            output_tokens: 2000,
+            estimated_cost_usd: 0.025,
+            formatted_cost: "$0.025000".to_string(),
+        };
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"model\":\"gpt-4o\""));
+        assert!(json.contains("\"input_tokens\":5000"));
+        assert!(json.contains("\"formatted_cost\":\"$0.025000\""));
+    }
+
+    #[test]
+    fn test_operation_cost_response_serialization() {
+        let response = OperationCostResponse {
+            operation: "summarize".to_string(),
+            call_count: 10,
+            input_tokens: 5000,
+            output_tokens: 1000,
+            cost_usd: 0.00135,
+        };
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"operation\":\"summarize\""));
+        assert!(json.contains("\"call_count\":10"));
+    }
+
+    #[test]
+    fn test_available_pricing_response_empty() {
+        let response = AvailablePricingResponse { models: vec![] };
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"models\":[]"));
+    }
 }
