@@ -5,6 +5,7 @@
 ### Current Performance Profile
 
 From Loop 6 benchmarks:
+
 - Minimal tokenization: ~50ms for 1000 docs
 - Enhanced tokenization: ~100ms for 1000 docs
 - Phrase boosting: +10ms overhead
@@ -19,6 +20,7 @@ From Loop 6 benchmarks:
 ### Observation: Stemmer Creation
 
 Current code creates stemmer in tokenize loop:
+
 ```rust
 let stemmer = Stemmer::create(self.tokenizer_config.stemmer_algorithm);
 filtered.iter().map(|t| stemmer.stem(&t).to_string())
@@ -33,6 +35,7 @@ The tokenization path allocates strings for each token. This is necessary for th
 ### Assessment
 
 The current implementation is already well-optimized:
+
 - IDF is O(1) via DF map
 - Stemmer creation is cheap
 - Allocations are necessary for the algorithm

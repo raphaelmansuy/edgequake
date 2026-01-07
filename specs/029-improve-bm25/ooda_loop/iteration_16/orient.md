@@ -12,6 +12,7 @@
 ### Theoretical Lower Bound
 
 BM25 scoring requires:
+
 - Tokenizing query: O(q) where q = query tokens
 - Tokenizing documents: O(d×n) where d = docs, n = avg tokens
 - Computing scores: O(d×q)
@@ -23,6 +24,7 @@ This is the theoretical lower bound - we must read all documents at least once.
 ### Assessment
 
 The current implementation achieves the theoretical lower bound:
+
 - No redundant computations
 - No unnecessary allocations
 - Efficient data structures throughout

@@ -3,17 +3,20 @@
 ## Focus: PostgreSQL Backend Verification
 
 Per the mission requirements:
+
 > "You must ensure to test for Postgres and in Memory storage backends, and document any differences observed. Postgres first."
 
 ### Current State
 
 BM25 improvements have been tested with:
+
 - ✅ In-memory storage (all unit tests)
 - ❓ PostgreSQL backend (needs verification)
 
 ### BM25 Architecture Analysis
 
 BM25Reranker is **storage-agnostic**:
+
 - Takes `query: &str` and `documents: &[String]`
 - No database access - pure text scoring
 - Storage backend retrieves candidates, BM25 reranks them

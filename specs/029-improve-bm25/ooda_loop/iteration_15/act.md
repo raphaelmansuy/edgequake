@@ -7,6 +7,7 @@
 **Issue**: Duplicate doc blocks with empty line between them
 
 **Before**:
+
 ```rust
 /// - Lv, Y., Zhai, C. (2011). Lower-Bounding Term Frequency Normalization (BM25+)
 
@@ -14,6 +15,7 @@
 ```
 
 **After**:
+
 ```rust
 /// - Lv, Y., Zhai, C. (2011). Lower-Bounding Term Frequency Normalization (BM25+)
 ///

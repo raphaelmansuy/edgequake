@@ -30,6 +30,7 @@ Total doc tests: 5 passing
 ### Out-of-Scope Warnings
 
 The 3 warnings are in provider files, not BM25:
+
 - gemini.rs
 - azure_openai.rs
 

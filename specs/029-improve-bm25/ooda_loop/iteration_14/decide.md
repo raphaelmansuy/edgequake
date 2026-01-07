@@ -5,6 +5,7 @@
 ### Assessment
 
 BM25 is **already storage-agnostic** by design:
+
 - Takes `Vec<String>` as input
 - Returns `Vec<RerankResult>` as output
 - No database access whatsoever
@@ -29,6 +30,7 @@ async fn rerank(
 ```
 
 This interface guarantees:
+
 - No database connection needed
 - Pure in-memory operation
 - Same behavior regardless of document source

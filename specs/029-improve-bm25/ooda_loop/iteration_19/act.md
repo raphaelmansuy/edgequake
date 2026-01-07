@@ -13,13 +13,13 @@ cargo test --package edgequake-llm --lib -- bm25 --list | grep "::" | wc -l
 
 Mapped all tests to code paths:
 
-| Code Path | Test Count | Status |
-|-----------|------------|--------|
-| Tokenization | 10+ | ✅ Covered |
-| IDF computation | 5+ | ✅ Covered |
-| Score calculation | 20+ | ✅ Covered |
-| Phrase boosting | 3+ | ✅ Covered |
-| Edge cases | 15+ | ✅ Covered |
+| Code Path         | Test Count | Status     |
+| ----------------- | ---------- | ---------- |
+| Tokenization      | 10+        | ✅ Covered |
+| IDF computation   | 5+         | ✅ Covered |
+| Score calculation | 20+        | ✅ Covered |
+| Phrase boosting   | 3+         | ✅ Covered |
+| Edge cases        | 15+        | ✅ Covered |
 
 ### 3. Integration Test Verification
 

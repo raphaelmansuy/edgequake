@@ -6,15 +6,15 @@ Re-read mission at `specs/029-improve-bm25/01-improve-bm25.md`.
 
 ### Mission Status Check
 
-| Requirement | Status | Notes |
-|-------------|--------|-------|
-| Improve BM25 algorithm | ✅ Complete | Enhanced tokenization, phrase boost |
-| Assess tantivy | ✅ Complete | Not integrating (overkill) |
-| Non-regression | ✅ Verified | 542 tests pass |
-| PostgreSQL backend | ✅ Verified | Storage-agnostic |
-| Memory backend | ✅ Verified | All unit tests |
-| 30 OODA loops | 🔄 In progress | Currently at 15 |
-| Documentation | 🔄 In progress | API ref done, examples done |
+| Requirement            | Status         | Notes                               |
+| ---------------------- | -------------- | ----------------------------------- |
+| Improve BM25 algorithm | ✅ Complete    | Enhanced tokenization, phrase boost |
+| Assess tantivy         | ✅ Complete    | Not integrating (overkill)          |
+| Non-regression         | ✅ Verified    | 542 tests pass                      |
+| PostgreSQL backend     | ✅ Verified    | Storage-agnostic                    |
+| Memory backend         | ✅ Verified    | All unit tests                      |
+| 30 OODA loops          | 🔄 In progress | Currently at 15                     |
+| Documentation          | 🔄 In progress | API ref done, examples done         |
 
 ### Remaining Work
 

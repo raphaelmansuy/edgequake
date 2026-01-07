@@ -34,6 +34,7 @@ BM25Reranker operates on `Vec<String>` documents in memory.
 - **BM25Reranker**: Scores retrieved text
 
 The BM25 algorithm is **completely independent** of storage backend:
+
 - No SQL queries
 - No database connections
 - Pure text processing
@@ -43,6 +44,7 @@ The BM25 algorithm is **completely independent** of storage backend:
 Full workspace test suite: **542 tests passed**
 
 Including:
+
 - 158 LLM crate tests (BM25 implementation)
 - 34 query engine tests (integration)
 - 23 API tests (end-to-end)
@@ -51,6 +53,7 @@ Including:
 ### Conclusion
 
 No PostgreSQL-specific testing needed for BM25 because:
+
 1. BM25 is storage-agnostic
 2. All existing integration tests pass
 3. The interface is `fn rerank(&[String])` - no database access

@@ -5,6 +5,7 @@
 ### Gap Identified
 
 The e2e tests all use `BM25Reranker::new()` (minimal). None test the enhanced presets:
+
 - `for_rag()`
 - `for_semantic()`
 - `new_enhanced()`
