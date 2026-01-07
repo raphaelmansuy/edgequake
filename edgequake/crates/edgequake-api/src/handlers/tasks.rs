@@ -343,3 +343,103 @@ fn parse_sort_order(s: &str) -> Result<SortOrder, String> {
         _ => Err(format!("Invalid sort order: {}", s)),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use edgequake_tasks::{SortField, SortOrder, TaskStatus, TaskType};
+
+    #[test]
+    fn test_parse_task_status_valid() {
+        assert!(matches!(parse_task_status("pending"), Ok(TaskStatus::Pending)));
+        assert!(matches!(parse_task_status("PROCESSING"), Ok(TaskStatus::Processing)));
+        assert!(matches!(parse_task_status("Indexed"), Ok(TaskStatus::Indexed)));
+        assert!(matches!(parse_task_status("failed"), Ok(TaskStatus::Failed)));
+        assert!(matches!(parse_task_status("cancelled"), Ok(TaskStatus::Cancelled)));
+    }
+
+    #[test]
+    fn test_parse_task_status_invalid() {
+        assert!(parse_task_status("invalid").is_err());
+        assert!(parse_task_status("").is_err());
+    }
+
+    #[test]
+    fn test_parse_task_type_valid() {
+        assert!(matches!(parse_task_type("upload"), Ok(TaskType::Upload)));
+        assert!(matches!(parse_task_type("INSERT"), Ok(TaskType::Insert)));
+        assert!(matches!(parse_task_type("scan"), Ok(TaskType::Scan)));
+        assert!(matches!(parse_task_type("Reindex"), Ok(TaskType::Reindex)));
+    }
+
+    #[test]
+    fn test_parse_task_type_invalid() {
+        assert!(parse_task_type("invalid").is_err());
+        assert!(parse_task_type("").is_err());
+    }
+
+    #[test]
+    fn test_parse_sort_field_valid() {
+        assert!(matches!(parse_sort_field("created_at"), Ok(SortField::CreatedAt)));
+        assert!(matches!(parse_sort_field("created"), Ok(SortField::CreatedAt)));
+        assert!(matches!(parse_sort_field("UPDATED_AT"), Ok(SortField::UpdatedAt)));
+        assert!(matches!(parse_sort_field("Updated"), Ok(SortField::UpdatedAt)));
+    }
+
+    #[test]
+    fn test_parse_sort_field_invalid() {
+        assert!(parse_sort_field("invalid").is_err());
+        assert!(parse_sort_field("").is_err());
+    }
+
+    #[test]
+    fn test_parse_sort_order_valid() {
+        assert!(matches!(parse_sort_order("asc"), Ok(SortOrder::Asc)));
+        assert!(matches!(parse_sort_order("ascending"), Ok(SortOrder::Asc)));
+        assert!(matches!(parse_sort_order("DESC"), Ok(SortOrder::Desc)));
+        assert!(matches!(parse_sort_order("descending"), Ok(SortOrder::Desc)));
+    }
+
+    #[test]
+    fn test_parse_sort_order_invalid() {
+        assert!(parse_sort_order("invalid").is_err());
+        assert!(parse_sort_order("").is_err());
+    }
+
+    #[test]
+    fn test_list_tasks_query_defaults() {
+        let json = r#"{}"#;
+        let query: Result<ListTasksQuery, _> = serde_json::from_str(json);
+        assert!(query.is_ok());
+        let q = query.unwrap();
+        assert!(q.status.is_none());
+        assert!(q.page.is_none());
+        assert!(q.page_size.is_none());
+    }
+
+    #[test]
+    fn test_pagination_info_serialization() {
+        let info = PaginationInfo {
+            total: 100,
+            page: 1,
+            page_size: 20,
+            total_pages: 5,
+        };
+        let json = serde_json::to_string(&info);
+        assert!(json.is_ok());
+    }
+
+    #[test]
+    fn test_statistics_info_serialization() {
+        let stats = StatisticsInfo {
+            pending: 10,
+            processing: 5,
+            indexed: 85,
+            failed: 0,
+            cancelled: 0,
+        };
+        let json = serde_json::to_string(&stats);
+        assert!(json.is_ok());
+        assert!(json.unwrap().contains("\"pending\":10"));
+    }
+}
