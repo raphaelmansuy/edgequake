@@ -351,11 +351,26 @@ mod tests {
 
     #[test]
     fn test_parse_task_status_valid() {
-        assert!(matches!(parse_task_status("pending"), Ok(TaskStatus::Pending)));
-        assert!(matches!(parse_task_status("PROCESSING"), Ok(TaskStatus::Processing)));
-        assert!(matches!(parse_task_status("Indexed"), Ok(TaskStatus::Indexed)));
-        assert!(matches!(parse_task_status("failed"), Ok(TaskStatus::Failed)));
-        assert!(matches!(parse_task_status("cancelled"), Ok(TaskStatus::Cancelled)));
+        assert!(matches!(
+            parse_task_status("pending"),
+            Ok(TaskStatus::Pending)
+        ));
+        assert!(matches!(
+            parse_task_status("PROCESSING"),
+            Ok(TaskStatus::Processing)
+        ));
+        assert!(matches!(
+            parse_task_status("Indexed"),
+            Ok(TaskStatus::Indexed)
+        ));
+        assert!(matches!(
+            parse_task_status("failed"),
+            Ok(TaskStatus::Failed)
+        ));
+        assert!(matches!(
+            parse_task_status("cancelled"),
+            Ok(TaskStatus::Cancelled)
+        ));
     }
 
     #[test]
@@ -380,10 +395,22 @@ mod tests {
 
     #[test]
     fn test_parse_sort_field_valid() {
-        assert!(matches!(parse_sort_field("created_at"), Ok(SortField::CreatedAt)));
-        assert!(matches!(parse_sort_field("created"), Ok(SortField::CreatedAt)));
-        assert!(matches!(parse_sort_field("UPDATED_AT"), Ok(SortField::UpdatedAt)));
-        assert!(matches!(parse_sort_field("Updated"), Ok(SortField::UpdatedAt)));
+        assert!(matches!(
+            parse_sort_field("created_at"),
+            Ok(SortField::CreatedAt)
+        ));
+        assert!(matches!(
+            parse_sort_field("created"),
+            Ok(SortField::CreatedAt)
+        ));
+        assert!(matches!(
+            parse_sort_field("UPDATED_AT"),
+            Ok(SortField::UpdatedAt)
+        ));
+        assert!(matches!(
+            parse_sort_field("Updated"),
+            Ok(SortField::UpdatedAt)
+        ));
     }
 
     #[test]
@@ -397,7 +424,10 @@ mod tests {
         assert!(matches!(parse_sort_order("asc"), Ok(SortOrder::Asc)));
         assert!(matches!(parse_sort_order("ascending"), Ok(SortOrder::Asc)));
         assert!(matches!(parse_sort_order("DESC"), Ok(SortOrder::Desc)));
-        assert!(matches!(parse_sort_order("descending"), Ok(SortOrder::Desc)));
+        assert!(matches!(
+            parse_sort_order("descending"),
+            Ok(SortOrder::Desc)
+        ));
     }
 
     #[test]

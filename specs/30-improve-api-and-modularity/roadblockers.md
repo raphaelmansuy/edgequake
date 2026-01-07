@@ -40,10 +40,12 @@ However, the `EdgeQuake` orchestrator in `edgequake-core/src/orchestrator.rs` st
 Attempted in Iteration 25. Result: Introduced a Cargo cycle (`edgequake-core` ↔ `edgequake-query`). Core cannot depend on query crate because `edgequake-query` already depends on `edgequake-core`.
 
 Blocked actions:
+
 - Adding `edgequake-query` to `edgequake-core` dependencies creates a cyclic dependency.
 - Replacing `query::QueryEngine` breaks the workspace graph.
 
 Decision:
+
 - Reverted orchestrator changes; added a guard test (`test_edgequake_query_uses_core_engine`) to assert current behavior.
 - Proceed with an architectural extraction before engine swap.
 
@@ -66,6 +68,7 @@ Leave the dead code in place until orchestrator refactor is complete. This is a 
 ### Architectural Refactor Plan (New)
 
 To break the cycle cleanly:
+
 - Extract a minimal `edgequake-query-api` (or `edgequake-common`) crate defining a `QueryService` trait and shared `QueryMode/QueryRequest/QueryResponse` types.
 - Make `edgequake-core` depend on this trait crate (no concrete engine).
 - Make `edgequake-query` implement `QueryService` and continue to depend on `edgequake-core` types as needed.

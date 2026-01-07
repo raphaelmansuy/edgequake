@@ -16,7 +16,7 @@ We have observed that the current Rust codebase in edgequake has areas that coul
 - Add tests where necessary to improve code coverage
 - Use clippy, rustfmt, and other Rust tooling to analyze the current code quality
 - Document the changes made and the rationale behind them, update docs/ and comments where necessary. Use very high signal way to document your changes
-- Non regression is your North Star, non negotiable requirement 
+- Non regression is your North Star, non negotiable requirement
 - Loosing a feature is not acceptable, and is a failure in this mission
 
 ## Process ; Use an OODA Loop (Observe, Orient, Decide, Act)
@@ -25,8 +25,7 @@ We have observed that the current Rust codebase in edgequake has areas that coul
 - Orient: Analyze the data to understand the root causes of code quality issues
 - Decide: Formulate a plan to address the identified issues, prioritizing non-regression, safety, and maintainability
 - Act: Implement the changes, update the doc, comments using high signal mind and test their effectiveness.
-- 
-Repeat the OODA loop as necessary until satisfactory performance is achieved. You must assess with brutal honesty if the code quality has improved, and if not, go back to the previous step and try again.
+- Repeat the OODA loop as necessary until satisfactory performance is achieved. You must assess with brutal honesty if the code quality has improved, and if not, go back to the previous step and try again.
 
 You must write the OODA loop steps you took and the results of each iteration in a high signal markdown file located at:
 
@@ -37,9 +36,8 @@ One directory per iteration, with a summary file at the root of the ooda_loop di
 Example structure:
 
 specs/30-improve-api-and-modularity/ooda_loop/
-    ├── iteration_01/
-    ├── iteration_02/
-
+├── iteration_01/
+├── iteration_02/
 
 For each iteration, include:
 
@@ -48,13 +46,13 @@ For each iteration, include:
 - The results of testing with the provided dataset
 - Any observations or insights gained
 
-Each describption must be high signal, concise and to the point and include link to real code base file, line number,  commits made, etc.
+Each describption must be high signal, concise and to the point and include link to real code base file, line number, commits made, etc.
 
 In each iteration for example for iteration_01, you can have write:
 
 - specs/30-improve-api-and-modularity/ooda_loop/iteration_01/observe.md
 - specs/30-improve-api-and-modularity/ooda_loop/ooda_loop/iteration_01/orient.md
--  specs/30-improve-api-and-modularity/ooda_loop/ooda_loop/iteration_01/decide.md
+- specs/30-improve-api-and-modularity/ooda_loop/ooda_loop/iteration_01/decide.md
 - specs/30-improve-api-and-modularity/ooda_loop/iteration_01/act.md
 
 You must improve the code quality as far as possible, using First Principles thinking and leveraging your knowledge of Rust, search algorithms, data structures, and edgequake's architecture and existing LightRag Code that is SOTA.
@@ -69,21 +67,19 @@ You can ammend the mission if you find better ways to achieve the mission object
 
 If previous OODA loops exists continue from them, do not start from scratch. Build on previous work, and document the differences and changes made in each iteration.
 
-You can use a scratchpad_log.md file to document your thinking process, but it will not be part of the deliverables in  specs/30-improve-api-and-modularity/scratchpad.md
+You can use a scratchpad_log.md file to document your thinking process, but it will not be part of the deliverables in specs/30-improve-api-and-modularity/scratchpad.md
 
 You must ensure to test for Postgres and in Memory storage backends, and document any differences observed.
 You must test the edgequake edgequake_webui as well to ensure no regression in the API used by the webui.
 
 You no need to maintains compatibility with the previous API versions, but you must document any breaking changes made to the API in a high signal way.
 
-
 # Deliverables
 
 - Improved search Code in edgequake
 - OODA loop documentation in specs/030-improve-api-and-modularity/ooda_loop/
-- 
+-
 - A summary report of the improvements made and their impact on search performance
-
 
 Be Relentless in your pursuit of excellence!
 
@@ -102,4 +98,3 @@ For example must document any issues regarding starting postgres locally, edgequ
 You must refer to this file in each OODA loop iteration if any roadblockers were encountered.
 
 Failure is not an option in this mission! Faking Alignment and cheating is failure!
-

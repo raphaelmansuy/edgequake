@@ -1,9 +1,11 @@
 # Iteration 25: Observe
 
 ## Date
+
 2026-01-07
 
 ## Focus
+
 Analyze documents.rs for modular extraction opportunities
 
 ## Current State
@@ -13,6 +15,7 @@ Analyze documents.rs for modular extraction opportunities
 **Size**: 3,573 lines (largest API handler file)
 
 **Structure**:
+
 ```
 Lines    | Section
 ---------|------------------------------------------
@@ -26,6 +29,7 @@ Lines    | Section
 ```
 
 **Identified Patterns**:
+
 1. **DTOs**: 15+ request/response types mixed with logic
 2. **Handlers**: 6 major endpoints in one file
 3. **Helper functions**: Validation, cost calculation, deduplication
@@ -34,6 +38,7 @@ Lines    | Section
 ## Test Coverage
 
 ### Current Tests
+
 ```bash
 cargo test -p edgequake-api documents
 ```
@@ -43,6 +48,7 @@ cargo test -p edgequake-api documents
 ## Modularity Issues
 
 ### Single Responsibility Violation
+
 - One file handles 6 distinct operations:
   1. Text upload
   2. File upload (single)
@@ -52,29 +58,32 @@ cargo test -p edgequake-api documents
   6. Delete + impact analysis
 
 ### Cognitive Load
+
 - 3,573 lines → difficult to navigate
 - Mixed concerns: DTOs, validation, business logic, cost calculation
 - Hard to find specific functionality
 
 ### Maintenance Risk
+
 - Changes to upload logic may affect delete logic (same file)
 - Test changes ripple across all document operations
 - New document operations bloat the file further
 
 ## Metrics
 
-| Metric                | Value |
-|-----------------------|-------|
-| Total lines           | 3,573 |
-| Public functions      | 6     |
-| DTOs                  | 15+   |
-| Test lines            | ~257  |
-| Largest handler       | ~366  |
-| Cognitive complexity  | High  |
+| Metric               | Value |
+| -------------------- | ----- |
+| Total lines          | 3,573 |
+| Public functions     | 6     |
+| DTOs                 | 15+   |
+| Test lines           | ~257  |
+| Largest handler      | ~366  |
+| Cognitive complexity | High  |
 
 ## Decision for Orient Phase
 
 Propose modular extraction:
+
 - Extract DTOs to `handlers/documents/dtos.rs`
 - Group related handlers by operation domain
 - Keep tests co-located with implementations
