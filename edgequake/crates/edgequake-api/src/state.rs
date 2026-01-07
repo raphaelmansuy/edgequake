@@ -18,6 +18,25 @@ use edgequake_storage::adapters::memory::{
 use edgequake_tasks::{PipelineState, SharedTaskQueue, SharedTaskStorage};
 use serde::{Deserialize, Serialize};
 
+/// Create the configured BM25 reranker.
+///
+///
+/// Enhanced mode (default) adds:
+/// - Porter2 stemming: "running" matches "run", "runner"
+/// - NFKD Unicode normalization: "café" matches "cafe"
+/// - Stop word filtering: Removes noise words like "the", "and"
+///
+/// Set `BM25_ENHANCED=false` to disable enhanced features.
+fn create_bm25_reranker() -> Arc<dyn edgequake_llm::Reranker> {
+    if std::env::var("BM25_ENHANCED").unwrap_or_default() == "false" {
+        tracing::info!("Using minimal BM25 reranker (BM25_ENHANCED=false)");
+        Arc::new(edgequake_llm::reranker::BM25Reranker::new())
+    } else {
+        tracing::info!("Using enhanced BM25 reranker with stemming and Unicode normalization");
+        Arc::new(edgequake_llm::reranker::BM25Reranker::new_enhanced())
+    }
+}
+
 /// Storage mode indicator for the application.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -260,11 +279,7 @@ impl AppState {
         ));
 
         // Create SOTA query engine with LightRAG-style enhancements
-        // WHY: BM25Reranker uses IDF-weighted term matching for precision:
-        // - Rare terms like "ENVY" get higher weight than common terms like "Peugeot"
-        // - Length normalization prevents long documents from dominating
-        // - Solves "2008" vs "208" precision issue better than simple term overlap
-        let reranker = Arc::new(edgequake_llm::reranker::BM25Reranker::new());
+        let reranker = create_bm25_reranker();
         let sota_engine = Arc::new(
             SOTAQueryEngine::new(
                 SOTAQueryConfig::default(),
@@ -521,11 +536,7 @@ impl AppState {
         ));
 
         // Create SOTA query engine with LightRAG-style enhancements
-        // WHY: BM25Reranker uses IDF-weighted term matching for precision:
-        // - Rare terms like "ENVY" get higher weight than common terms like "Peugeot"
-        // - Length normalization prevents long documents from dominating
-        // - Solves "2008" vs "208" precision issue better than simple term overlap
-        let reranker = Arc::new(edgequake_llm::reranker::BM25Reranker::new());
+        let reranker = create_bm25_reranker();
         let sota_engine = Arc::new(
             SOTAQueryEngine::new(
                 SOTAQueryConfig::default(),
