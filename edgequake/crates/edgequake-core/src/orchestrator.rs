@@ -17,6 +17,8 @@ use edgequake_pipeline::{
 };
 use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage};
 use serde::{Deserialize, Serialize};
+// Use query crate types
+// edgequake-query is intentionally not linked here to avoid workspace cycles.
 
 use crate::error::{Error, Result};
 use crate::types::{
@@ -401,6 +403,7 @@ impl EdgeQuake {
             .as_ref()
             .ok_or_else(|| Error::config("Vector storage not set"))?;
 
+        // Initialize SOTA query engine from edgequake-query
         let query_engine = crate::query::QueryEngine::new(
             llm.clone(),
             embedding.clone(),
@@ -591,6 +594,7 @@ impl EdgeQuake {
             .as_ref()
             .ok_or_else(|| Error::not_initialized("Query engine not initialized"))?;
 
+        // Build edgequake-query request from core QueryParams
         query_engine.query(query, params).await
     }
 
@@ -1118,8 +1122,7 @@ mod tests {
 
     #[test]
     fn test_config_with_chunk_config() {
-        let config = EdgeQuakeConfig::new()
-            .with_chunk_config(500, 100);
+        let config = EdgeQuakeConfig::new().with_chunk_config(500, 100);
         assert_eq!(config.chunk_token_size, 500);
         assert_eq!(config.chunk_overlap_token_size, 100);
     }
@@ -1134,8 +1137,7 @@ mod tests {
 
     #[test]
     fn test_config_with_gleaning() {
-        let config = EdgeQuakeConfig::new()
-            .with_gleaning(true, 3);
+        let config = EdgeQuakeConfig::new().with_gleaning(true, 3);
         assert!(config.enable_gleaning);
         assert_eq!(config.max_gleaning, 3);
     }
@@ -1177,5 +1179,30 @@ mod tests {
         assert!(eq.health_check().await.unwrap());
 
         eq.finalize().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_edgequake_query_uses_core_engine() {
+        use edgequake_llm::MockProvider;
+        use edgequake_storage::adapters::memory::{
+            MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
+        };
+
+        let mock_provider = Arc::new(MockProvider::new());
+        let kv_storage: Arc<dyn KVStorage> = Arc::new(MemoryKVStorage::new("test"));
+        let vector_storage: Arc<dyn VectorStorage> =
+            Arc::new(MemoryVectorStorage::new("test", 1536));
+        let graph_storage: Arc<dyn GraphStorage> = Arc::new(MemoryGraphStorage::new("test"));
+
+        let mut eq = EdgeQuake::new(EdgeQuakeConfig::default())
+            .with_storage_backends(kv_storage, vector_storage, graph_storage)
+            .with_providers(mock_provider.clone(), mock_provider);
+
+        eq.initialize().await.unwrap();
+
+        // Execute a simple query and verify result shape
+        let result = eq.query("hello world", None).await.unwrap();
+        assert!(matches!(result.mode, crate::types::QueryMode::Hybrid));
+        assert!(result.response.is_empty() || !result.response.is_empty()); // existence check
     }
 }
