@@ -89,7 +89,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 5. Ingest sample documents
     println!("\n📄 Ingesting documents...\n");
 
-    let documents = vec![
+    // WHY: Use array instead of vec! since size is known at compile time (clippy::useless_vec)
+    let documents = [
         (
             "Introduction to EdgeQuake",
             r#"
