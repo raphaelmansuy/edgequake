@@ -492,8 +492,6 @@ impl TaskProcessor for DocumentTaskProcessor {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_document_task_processor_new() {
         // Test that we can at least import and reference the struct
