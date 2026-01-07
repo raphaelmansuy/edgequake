@@ -12,13 +12,13 @@ Result: 3 warnings, but none in BM25 code (all in providers/).
 
 ### 2. Documentation Coverage Audit
 
-| Component | Docs | Example | WHY Comments |
-|-----------|------|---------|--------------|
-| BM25Reranker struct | ✅ | ✅ | ✅ |
-| 8 constructors | ✅ | 4/8 | ✅ |
-| 4 builder methods | ✅ | 1/4 | ✅ |
-| TokenizerConfig | ✅ | - | ✅ |
-| Private methods | - | - | ✅ |
+| Component           | Docs | Example | WHY Comments |
+| ------------------- | ---- | ------- | ------------ |
+| BM25Reranker struct | ✅   | ✅      | ✅           |
+| 8 constructors      | ✅   | 4/8     | ✅           |
+| 4 builder methods   | ✅   | 1/4     | ✅           |
+| TokenizerConfig     | ✅   | -       | ✅           |
+| Private methods     | -    | -       | ✅           |
 
 ### 3. Decision: No Changes Required
 

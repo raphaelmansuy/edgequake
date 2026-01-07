@@ -6,6 +6,7 @@
 
 1. **Add struct-level example** to `BM25Reranker` showing basic usage
 2. **Add examples to constructors**:
+
    - `new()` - minimal tokenization
    - `new_enhanced()` - full tokenization
    - `bm25_plus()` - delta parameter

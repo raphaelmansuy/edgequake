@@ -6,11 +6,11 @@
 
 New tests in `e2e_sota_engine.rs`:
 
-| Test | Preset | Verifies |
-|------|--------|----------|
-| `test_bm25_for_rag_stemming` | `for_rag()` | Stemming matches "running" to "runs" |
-| `test_bm25_for_semantic_phrase_boost` | `for_semantic()` | Adjacent terms score higher |
-| `test_bm25_enhanced_unicode` | `new_enhanced()` | Unicode normalization works |
+| Test                                  | Preset           | Verifies                             |
+| ------------------------------------- | ---------------- | ------------------------------------ |
+| `test_bm25_for_rag_stemming`          | `for_rag()`      | Stemming matches "running" to "runs" |
+| `test_bm25_for_semantic_phrase_boost` | `for_semantic()` | Adjacent terms score higher          |
+| `test_bm25_enhanced_unicode`          | `new_enhanced()` | Unicode normalization works          |
 
 ### 2. Test Results
 

@@ -11,14 +11,14 @@
 
 ### What Needs Examples
 
-| Item | Priority | Reason |
-|------|----------|--------|
-| `BM25Reranker::new()` | High | Default constructor |
-| `BM25Reranker::new_enhanced()` | High | Main enhanced entry point |
-| `BM25Reranker::for_rag()` | High | Most common use case |
-| `BM25Reranker::rerank()` | High | Core method |
-| `with_k1()`, `with_b()` | Medium | Builder pattern |
-| `TokenizerConfig` | Low | Internal type |
+| Item                           | Priority | Reason                    |
+| ------------------------------ | -------- | ------------------------- |
+| `BM25Reranker::new()`          | High     | Default constructor       |
+| `BM25Reranker::new_enhanced()` | High     | Main enhanced entry point |
+| `BM25Reranker::for_rag()`      | High     | Most common use case      |
+| `BM25Reranker::rerank()`       | High     | Core method               |
+| `with_k1()`, `with_b()`        | Medium   | Builder pattern           |
+| `TokenizerConfig`              | Low      | Internal type             |
 
 ### Constraints
 
@@ -29,6 +29,7 @@
 ### Decision Framework
 
 Add examples to:
+
 1. All public constructors (6 presets + 2 base)
 2. `rerank()` method
 3. Builder methods (chained example)

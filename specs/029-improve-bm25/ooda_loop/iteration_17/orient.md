@@ -21,12 +21,12 @@ rerank(query, documents, top_n) -> Result<Vec<RerankResult>>
 
 ### Edge Case Handling
 
-| Case | Handling |
-|------|----------|
-| Empty query | Returns all docs with score 0.0 |
-| Empty documents | Returns empty vec |
-| NaN scores | `unwrap_or(Ordering::Equal)` in sort |
-| Negative IDF | Impossible due to `ln(... + 1)` formula |
+| Case            | Handling                                |
+| --------------- | --------------------------------------- |
+| Empty query     | Returns all docs with score 0.0         |
+| Empty documents | Returns empty vec                       |
+| NaN scores      | `unwrap_or(Ordering::Equal)` in sort    |
+| Negative IDF    | Impossible due to `ln(... + 1)` formula |
 
 ### Conclusion
 

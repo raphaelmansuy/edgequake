@@ -31,10 +31,12 @@
 ### Verified Integration Points
 
 1. **API Layer** (`state.rs:24-37`):
+
    - `create_bm25_reranker()` checks `BM25_ENHANCED` env var
    - Returns `new_enhanced()` by default, `new()` if disabled
 
 2. **Query Layer** (`e2e_sota_engine.rs`):
+
    - 6 uses of BM25Reranker in tests
    - Tests cover: car models, query engine, hybrid mode
 

@@ -8,19 +8,20 @@ Ran `cargo test --workspace` to verify all components work together.
 
 **Result**: 542 tests passed across all packages
 
-| Package | Tests Passed |
-|---------|--------------|
-| edgequake-storage | 94 |
-| edgequake-llm | 158 |
-| edgequake-query | 34 |
-| edgequake-api | 23 |
-| edgequake-pipeline | 46 |
-| Others | 187 |
-| **Total** | **542** |
+| Package            | Tests Passed |
+| ------------------ | ------------ |
+| edgequake-storage  | 94           |
+| edgequake-llm      | 158          |
+| edgequake-query    | 34           |
+| edgequake-api      | 23           |
+| edgequake-pipeline | 46           |
+| Others             | 187          |
+| **Total**          | **542**      |
 
 ### 2. Storage-Agnostic Analysis
 
 Confirmed BM25Reranker is storage-agnostic:
+
 - Operates only on `Vec<String>` documents
 - No database access in the reranking path
 - Same behavior for Memory and PostgreSQL backends
@@ -28,6 +29,7 @@ Confirmed BM25Reranker is storage-agnostic:
 ### 3. No Additional Code Changes Needed
 
 The existing design already satisfies the PostgreSQL requirement:
+
 - Storage backend retrieves documents
 - BM25 reranks in-memory
 - No storage-specific code paths

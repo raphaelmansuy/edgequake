@@ -20,16 +20,16 @@ BM25Reranker::rerank()
 
 ### Coverage by Constructor
 
-| Constructor | Test |
-|-------------|------|
-| new() | test_bm25_reranker_basic |
-| new_enhanced() | test_enhanced_bm25_improves_recall |
-| bm25_plus() | test_bm25_plus_constructor |
-| for_short_docs() | (implicit via preset tests) |
-| for_long_docs() | test_bm25_plus_long_document_handling |
-| for_technical() | (implicit via preset tests) |
-| for_rag() | test_bm25_for_rag_stemming |
-| for_semantic() | test_bm25_for_semantic_phrase_boost |
+| Constructor      | Test                                  |
+| ---------------- | ------------------------------------- |
+| new()            | test_bm25_reranker_basic              |
+| new_enhanced()   | test_enhanced_bm25_improves_recall    |
+| bm25_plus()      | test_bm25_plus_constructor            |
+| for_short_docs() | (implicit via preset tests)           |
+| for_long_docs()  | test_bm25_plus_long_document_handling |
+| for_technical()  | (implicit via preset tests)           |
+| for_rag()        | test_bm25_for_rag_stemming            |
+| for_semantic()   | test_bm25_for_semantic_phrase_boost   |
 
 ### Assessment
 

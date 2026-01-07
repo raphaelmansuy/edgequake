@@ -6,13 +6,13 @@
 
 Added Rust documentation examples to key public APIs:
 
-| Method | Example Added | Doc Test Status |
-|--------|--------------|-----------------|
-| `BM25Reranker` (struct) | ✅ Basic usage | Passes |
-| `new()` | ✅ Default creation | Passes |
-| `new_enhanced()` | ✅ Enhanced tokenization | Passes |
-| `for_rag()` | ✅ RAG use case | Passes |
-| `with_phrase_boost()` | ✅ Builder pattern | Passes |
+| Method                  | Example Added            | Doc Test Status |
+| ----------------------- | ------------------------ | --------------- |
+| `BM25Reranker` (struct) | ✅ Basic usage           | Passes          |
+| `new()`                 | ✅ Default creation      | Passes          |
+| `new_enhanced()`        | ✅ Enhanced tokenization | Passes          |
+| `for_rag()`             | ✅ RAG use case          | Passes          |
+| `with_phrase_boost()`   | ✅ Builder pattern       | Passes          |
 
 ### 2. Ran Doc Tests
 

@@ -11,13 +11,13 @@
 
 ### Coverage Quality Assessment
 
-| Aspect | Coverage | Quality |
-|--------|----------|---------|
-| Happy path | ✅ Complete | All constructors tested |
-| Edge cases | ✅ Complete | Empty, single, boundary |
+| Aspect       | Coverage    | Quality                  |
+| ------------ | ----------- | ------------------------ |
+| Happy path   | ✅ Complete | All constructors tested  |
+| Edge cases   | ✅ Complete | Empty, single, boundary  |
 | Stress tests | ✅ Complete | 1000 docs, unicode heavy |
-| Integration | ✅ Complete | Query engine integration |
-| Regression | ✅ Complete | Before/after comparisons |
+| Integration  | ✅ Complete | Query engine integration |
+| Regression   | ✅ Complete | Before/after comparisons |
 
 ### Decision
 
