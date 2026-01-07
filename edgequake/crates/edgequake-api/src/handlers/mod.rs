@@ -28,6 +28,7 @@ pub mod relationships_types;
 pub mod tasks;
 pub mod tasks_types;
 pub mod websocket;
+pub mod websocket_types;
 pub mod workspaces;
 pub mod workspaces_types;
 
@@ -59,5 +60,6 @@ pub use relationships_types::*;
 pub use tasks::*;
 pub use tasks_types::*;
 pub use websocket::*;
+pub use websocket_types::*;
 pub use workspaces::*;
 pub use workspaces_types::*;
