@@ -1,4 +1,36 @@
 //! Query modes.
+//!
+//! # WHY Multiple Query Modes
+//!
+//! Different questions require different retrieval strategies. Consider:
+//!
+//! - "What is machine learning?" → **Naive** (simple concept lookup)
+//! - "How does Alice work with Bob?" → **Local** (entity relationships)
+//! - "What are the main themes in this document?" → **Global** (topic clusters)
+//! - "Tell me about Project X and its impact" → **Hybrid** (entities + context)
+//!
+//! ## Mode Selection Guidelines
+//!
+//! | Question Type | Best Mode | Why |
+//! |--------------|-----------|-----|
+//! | Factual/specific | Naive | Direct vector match, fast |
+//! | Entity relationships | Local | Explores entity neighborhood in graph |
+//! | Broad/thematic | Global | Uses community detection for topics |
+//! | Complex/multi-faceted | Hybrid | Combines local specificity + global coverage |
+//!
+//! ## Performance vs Accuracy Trade-offs
+//!
+//! ```text
+//! Mode    | Speed | Accuracy | Context Size
+//! --------|-------|----------|-------------
+//! Naive   | Fast  | Good     | Small (chunks only)
+//! Local   | Med   | High     | Medium (entity + neighbors)
+//! Global  | Slow  | High     | Large (community summaries)
+//! Hybrid  | Slow  | Best     | Large (both approaches)
+//! ```
+//!
+//! Hybrid is the default because it provides the best accuracy for most
+//! real-world queries, which often combine specific entities with broader context.
 
 use serde::{Deserialize, Serialize};
 
