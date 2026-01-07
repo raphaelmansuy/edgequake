@@ -1,3 +1,8 @@
+//! Async audit logger implementation.
+//!
+//! This module provides the main `AuditLogger` which processes audit events
+//! asynchronously via a background worker and persists them to PostgreSQL.
+
 use anyhow::Result;
 use sqlx::{Pool, Postgres};
 use tokio::sync::mpsc;

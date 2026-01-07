@@ -1,3 +1,23 @@
+//! RAG query engine for EdgeQuake.
+//!
+//! This module implements the core query engine that orchestrates retrieval-augmented
+//! generation by combining vector similarity search, knowledge graph traversal,
+//! and LLM-based answer synthesis.
+//!
+//! # Architecture
+//!
+//! The query engine follows a multi-stage pipeline:
+//! 1. **Embedding**: Convert query text to vector representation
+//! 2. **Retrieval**: Hybrid search across vector and graph storage
+//! 3. **Reranking**: Score and filter retrieved chunks
+//! 4. **Synthesis**: Generate final answer using LLM
+//!
+//! # Query Modes
+//!
+//! - `Naive`: Simple vector similarity search
+//! - `Hybrid`: Combines vector search with graph context
+//! - `Global`: Graph-focused retrieval for entity relationships
+
 use crate::error::Result;
 use crate::keyword_extractor::{ExtractedKeywords, KeywordExtractor};
 use crate::types::{

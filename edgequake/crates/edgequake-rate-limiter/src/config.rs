@@ -1,3 +1,8 @@
+//! Rate limit configuration structures.
+//!
+//! This module defines the configuration options for rate limiting,
+//! including per-tier settings and token bucket parameters.
+
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
