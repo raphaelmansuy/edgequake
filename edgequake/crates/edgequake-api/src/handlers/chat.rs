@@ -906,4 +906,53 @@ mod tests {
         assert!(json.contains("\"type\":\"done\""));
         assert!(json.contains("\"tokens_used\":100"));
     }
+
+    #[test]
+    fn test_chat_completion_request_defaults() {
+        let json = r#"{"message": "hello world"}"#;
+        let request: Result<ChatCompletionRequest, _> = serde_json::from_str(json);
+        assert!(request.is_ok());
+        let req = request.unwrap();
+        assert_eq!(req.message, "hello world");
+        assert!(req.stream); // default_stream() returns true
+        assert!(req.conversation_id.is_none());
+    }
+
+    #[test]
+    fn test_chat_completion_request_with_conversation() {
+        let json = r#"{
+            "message": "test",
+            "conversation_id": "00000000-0000-0000-0000-000000000001",
+            "mode": "global",
+            "stream": false
+        }"#;
+        let request: Result<ChatCompletionRequest, _> = serde_json::from_str(json);
+        assert!(request.is_ok());
+        let req = request.unwrap();
+        assert!(!req.stream);
+        assert_eq!(req.mode, Some("global".to_string()));
+        assert!(req.conversation_id.is_some());
+    }
+
+    #[test]
+    fn test_chat_stream_event_context() {
+        let event = ChatStreamEvent::Context {
+            sources: vec![],
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"type\":\"context\""));
+        assert!(json.contains("\"sources\":[]"));
+    }
+
+    #[test]
+    fn test_chat_stream_event_error() {
+        let event = ChatStreamEvent::Error {
+            message: "Something went wrong".to_string(),
+            code: "INTERNAL_ERROR".to_string(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"type\":\"error\""));
+        assert!(json.contains("Something went wrong"));
+        assert!(json.contains("INTERNAL_ERROR"));
+    }
 }
