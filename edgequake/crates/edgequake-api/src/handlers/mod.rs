@@ -28,6 +28,7 @@ pub mod tasks;
 pub mod tasks_types;
 pub mod websocket;
 pub mod workspaces;
+pub mod workspaces_types;
 
 pub use auth::*;
 pub use auth_types::*;
@@ -57,3 +58,4 @@ pub use tasks::*;
 pub use tasks_types::*;
 pub use websocket::*;
 pub use workspaces::*;
+pub use workspaces_types::*;
