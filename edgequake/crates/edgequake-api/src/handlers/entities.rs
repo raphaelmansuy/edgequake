@@ -67,6 +67,101 @@ fn node_to_entity_response(node: GraphNode, degree: usize) -> EntityResponse {
 // API Handlers
 // ============================================================================
 
+/// List entities with pagination and filtering.
+#[utoipa::path(
+    get,
+    path = "/api/v1/graph/entities",
+    tag = "Entities",
+    params(
+        ("page" = Option<u32>, Query, description = "Page number (1-indexed, default 1)"),
+        ("page_size" = Option<u32>, Query, description = "Page size (default 20, max 100)"),
+        ("entity_type" = Option<String>, Query, description = "Filter by entity type"),
+        ("search" = Option<String>, Query, description = "Search term for entity name or description")
+    ),
+    responses(
+        (status = 200, description = "Paginated list of entities", body = ListEntitiesResponse)
+    )
+)]
+pub async fn list_entities(
+    State(state): State<AppState>,
+    Query(query): Query<ListEntitiesQuery>,
+) -> ApiResult<Json<ListEntitiesResponse>> {
+    // Clamp page_size to range [1, 100]
+    let page_size = query.page_size.clamp(1, 100);
+    let page = query.page.max(1);
+    let offset = ((page - 1) * page_size) as usize;
+
+    // Get all nodes from graph storage
+    // WHY: We need to fetch all nodes and filter in memory because the storage
+    // interface doesn't support pagination/filtering yet. Future optimization
+    // would push these filters down to the storage layer.
+    let all_nodes = state.graph_storage.get_all_nodes().await?;
+
+    // Apply filters
+    let mut filtered_nodes: Vec<_> = all_nodes
+        .into_iter()
+        .filter(|node| {
+            // Filter by entity_type if specified
+            if let Some(ref entity_type) = query.entity_type {
+                let node_type = node
+                    .properties
+                    .get("entity_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                if !node_type.eq_ignore_ascii_case(entity_type) {
+                    return false;
+                }
+            }
+
+            // Filter by search term if specified
+            if let Some(ref search) = query.search {
+                let search_lower = search.to_lowercase();
+                let name_matches = node.id.to_lowercase().contains(&search_lower);
+                let desc_matches = node
+                    .properties
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_lowercase()
+                    .contains(&search_lower);
+                if !name_matches && !desc_matches {
+                    return false;
+                }
+            }
+
+            true
+        })
+        .collect();
+
+    // Sort by entity name for consistent ordering
+    filtered_nodes.sort_by(|a, b| a.id.cmp(&b.id));
+
+    let total = filtered_nodes.len();
+    let total_pages = ((total as f64) / (page_size as f64)).ceil() as u32;
+
+    // Apply pagination
+    let page_nodes: Vec<_> = filtered_nodes
+        .into_iter()
+        .skip(offset)
+        .take(page_size as usize)
+        .collect();
+
+    // Convert to response format
+    let mut items = Vec::with_capacity(page_nodes.len());
+    for node in page_nodes {
+        let degree = state.graph_storage.node_degree(&node.id).await.unwrap_or(0);
+        items.push(node_to_entity_response(node, degree));
+    }
+
+    Ok(Json(ListEntitiesResponse {
+        items,
+        total,
+        page,
+        page_size,
+        total_pages,
+    }))
+}
+
 /// Create a new entity.
 #[utoipa::path(
     post,
@@ -521,6 +616,133 @@ pub async fn merge_entities(
         merged_entity,
         merge_details,
     }))
+}
+
+/// Get entity neighborhood (connected nodes within specified depth).
+#[utoipa::path(
+    get,
+    path = "/api/v1/graph/entities/{entity_name}/neighborhood",
+    tag = "Entities",
+    params(
+        ("entity_name" = String, Path, description = "Entity name"),
+        ("depth" = Option<u32>, Query, description = "Traversal depth (default 1, max 3)")
+    ),
+    responses(
+        (status = 200, description = "Entity neighborhood", body = EntityNeighborhoodResponse),
+        (status = 404, description = "Entity not found")
+    )
+)]
+pub async fn get_entity_neighborhood(
+    State(state): State<AppState>,
+    Path(entity_name): Path<String>,
+    Query(query): Query<EntityNeighborhoodQuery>,
+) -> ApiResult<Json<EntityNeighborhoodResponse>> {
+    let entity_name = normalize_entity_name(&entity_name);
+
+    // Verify the entity exists
+    if state
+        .graph_storage
+        .get_node(&entity_name)
+        .await?
+        .is_none()
+    {
+        return Err(ApiError::NotFound(format!(
+            "Entity '{}' not found",
+            entity_name
+        )));
+    }
+
+    // Clamp depth to range [1, 3]
+    let depth = query.depth.clamp(1, 3);
+
+    // Collect nodes and edges using BFS
+    let mut visited_nodes = std::collections::HashSet::new();
+    let mut frontier = vec![entity_name.clone()];
+    visited_nodes.insert(entity_name.clone());
+
+    let mut all_edges = Vec::new();
+
+    // BFS traversal up to the specified depth
+    for _ in 0..depth {
+        let mut next_frontier = Vec::new();
+
+        for node_id in &frontier {
+            let edges = state.graph_storage.get_node_edges(node_id).await?;
+
+            for edge in edges {
+                // Check both directions
+                let neighbor = if edge.source == *node_id {
+                    &edge.target
+                } else {
+                    &edge.source
+                };
+
+                // Add edge to collection (dedup by edge id)
+                let edge_id = format!("{}_{}", edge.source, edge.target);
+                if !all_edges.iter().any(|(id, _): &(String, _)| id == &edge_id) {
+                    all_edges.push((edge_id, edge.clone()));
+                }
+
+                // Add neighbor to next frontier if not visited
+                if !visited_nodes.contains(neighbor) {
+                    visited_nodes.insert(neighbor.clone());
+                    next_frontier.push(neighbor.clone());
+                }
+            }
+        }
+
+        frontier = next_frontier;
+        if frontier.is_empty() {
+            break;
+        }
+    }
+
+    // Build response nodes
+    let mut nodes = Vec::with_capacity(visited_nodes.len());
+    for node_id in &visited_nodes {
+        if let Some(node) = state.graph_storage.get_node(node_id).await? {
+            let degree = state.graph_storage.node_degree(node_id).await.unwrap_or(0);
+            nodes.push(NeighborhoodNode {
+                id: node.id.clone(),
+                entity_type: node
+                    .properties
+                    .get("entity_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("UNKNOWN")
+                    .to_string(),
+                description: node
+                    .properties
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                degree,
+            });
+        }
+    }
+
+    // Build response edges
+    let edges: Vec<NeighborhoodEdge> = all_edges
+        .into_iter()
+        .map(|(id, edge)| NeighborhoodEdge {
+            id,
+            source: edge.source,
+            target: edge.target,
+            relation_type: edge
+                .properties
+                .get("relation_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("RELATED_TO")
+                .to_string(),
+            weight: edge
+                .properties
+                .get("weight")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(1.0),
+        })
+        .collect();
+
+    Ok(Json(EntityNeighborhoodResponse { nodes, edges }))
 }
 
 #[cfg(test)]

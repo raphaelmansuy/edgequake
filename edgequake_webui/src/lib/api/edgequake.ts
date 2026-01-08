@@ -525,29 +525,29 @@ export async function getEntities(
 
   const query = searchParams.toString();
   return api.get<PaginatedResponse<Entity>>(
-    `/entities${query ? `?${query}` : ""}`
+    `/graph/entities${query ? `?${query}` : ""}`
   );
 }
 
 export async function getEntity(entityId: string): Promise<Entity> {
-  return api.get<Entity>(`/entities/${entityId}`);
+  return api.get<Entity>(`/graph/entities/${entityId}`);
 }
 
 export async function updateEntity(
   entityId: string,
   data: Partial<Entity>
 ): Promise<Entity> {
-  return api.patch<Entity>(`/entities/${entityId}`, data);
+  return api.put<Entity>(`/graph/entities/${entityId}`, data);
 }
 
 export async function deleteEntity(entityId: string): Promise<void> {
-  return api.delete<void>(`/entities/${entityId}`);
+  return api.delete<void>(`/graph/entities/${entityId}`);
 }
 
 export async function mergeEntities(
   request: MergeEntitiesRequest
 ): Promise<MergeEntitiesResponse> {
-  return api.post<MergeEntitiesResponse>("/entities/merge", request);
+  return api.post<MergeEntitiesResponse>("/graph/entities/merge", request);
 }
 
 export async function getEntityNeighborhood(
@@ -556,7 +556,7 @@ export async function getEntityNeighborhood(
 ): Promise<{ nodes: GraphNode[]; edges: GraphEdge[] }> {
   const query = depth ? `?depth=${depth}` : "";
   return api.get<{ nodes: GraphNode[]; edges: GraphEdge[] }>(
-    `/entities/${entityId}/neighborhood${query}`
+    `/graph/entities/${entityId}/neighborhood${query}`
   );
 }
 
@@ -576,27 +576,27 @@ export async function getRelationships(
 
   const query = searchParams.toString();
   return api.get<PaginatedResponse<Relationship>>(
-    `/relationships${query ? `?${query}` : ""}`
+    `/graph/relationships${query ? `?${query}` : ""}`
   );
 }
 
 export async function getRelationship(
   relationshipId: string
 ): Promise<Relationship> {
-  return api.get<Relationship>(`/relationships/${relationshipId}`);
+  return api.get<Relationship>(`/graph/relationships/${relationshipId}`);
 }
 
 export async function updateRelationship(
   relationshipId: string,
   data: Partial<Relationship>
 ): Promise<Relationship> {
-  return api.patch<Relationship>(`/relationships/${relationshipId}`, data);
+  return api.put<Relationship>(`/graph/relationships/${relationshipId}`, data);
 }
 
 export async function deleteRelationship(
   relationshipId: string
 ): Promise<void> {
-  return api.delete<void>(`/relationships/${relationshipId}`);
+  return api.delete<void>(`/graph/relationships/${relationshipId}`);
 }
 
 // ============================================================================

@@ -62,9 +62,53 @@ pub struct UpdateRelationshipRequest {
     pub metadata: Option<serde_json::Value>,
 }
 
+/// List relationships query parameters.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct ListRelationshipsQuery {
+    /// Page number (1-indexed).
+    #[serde(default = "default_page")]
+    pub page: u32,
+
+    /// Page size (default 20, max 100).
+    #[serde(default = "default_page_size")]
+    pub page_size: u32,
+
+    /// Filter by relationship type.
+    pub relationship_type: Option<String>,
+}
+
+/// Default page number.
+fn default_page() -> u32 {
+    1
+}
+
+/// Default page size.
+fn default_page_size() -> u32 {
+    20
+}
+
 // ============================================================================
 // Response DTOs
 // ============================================================================
+
+/// Paginated list of relationships response.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ListRelationshipsResponse {
+    /// List of relationships.
+    pub items: Vec<RelationshipResponse>,
+
+    /// Total number of relationships matching the query.
+    pub total: usize,
+
+    /// Current page number.
+    pub page: u32,
+
+    /// Page size.
+    pub page_size: u32,
+
+    /// Total number of pages.
+    pub total_pages: u32,
+}
 
 /// Relationship response.
 #[derive(Debug, Clone, Serialize, ToSchema)]

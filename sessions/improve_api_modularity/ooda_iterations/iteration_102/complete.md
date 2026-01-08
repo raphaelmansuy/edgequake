@@ -8,6 +8,7 @@
 User asked: "What about having a stub of service in core and moving the storage part in edgequake-storage?"
 
 Current Architecture:
+
 ```
 edgequake-storage (no dep on core)
 ├── PostgresConversationStorage    ← Raw DB operations
@@ -27,21 +28,25 @@ edgequake-core (depends on storage)
 **Analysis**:
 
 ### Option A: Keep in Core (Current) ✅ CHOSEN
+
 - Services implement core traits → live next to traits
 - No circular dependency
 - Follows Hexagonal Architecture: Adapters can live with Ports
 
 ### Option B: Move to Storage ❌ BLOCKED
+
 - Would require storage → core dependency (for trait)
 - But core already → storage dependency (for storage types)
 - **CIRCULAR DEPENDENCY BLOCKER**
 
 ### Option C: Create edgequake-services crate
+
 - Could work but adds complexity
 - One more crate to maintain
 - Not worth it for 2 services
 
 ### Option D: Create edgequake-traits crate
+
 - Break traits out of core
 - storage → traits, core → traits, core → storage
 - Over-engineering for current needs
@@ -51,6 +56,7 @@ edgequake-core (depends on storage)
 **Decision: Keep current architecture (Option A)**
 
 The current design is correct because:
+
 1. **Rust Orphan Rule**: Cannot implement foreign trait for foreign type
 2. **Circular dependency prevention**: Storage cannot depend on Core
 3. **Hexagonal Architecture**: Adapters can co-locate with Ports
@@ -75,6 +81,7 @@ Current design follows DDD, Hexagonal Architecture, and Rust idioms correctly.
 ## Key Insight
 
 The two-layer design is **intentional**:
+
 - Storage layer: Raw database operations, returns `ConversationRow`
 - Service layer: Domain adapter, converts to `Conversation` domain type
 

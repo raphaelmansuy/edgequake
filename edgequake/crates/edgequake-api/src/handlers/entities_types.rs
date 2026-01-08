@@ -93,9 +93,56 @@ pub struct EntityExistsQuery {
     pub entity_name: String,
 }
 
+/// List entities query parameters.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct ListEntitiesQuery {
+    /// Page number (1-indexed).
+    #[serde(default = "default_page")]
+    pub page: u32,
+
+    /// Page size (default 20, max 100).
+    #[serde(default = "default_page_size")]
+    pub page_size: u32,
+
+    /// Filter by entity type.
+    pub entity_type: Option<String>,
+
+    /// Search term for entity name or description.
+    pub search: Option<String>,
+}
+
+/// Default page number.
+fn default_page() -> u32 {
+    1
+}
+
+/// Default page size.
+fn default_page_size() -> u32 {
+    20
+}
+
 // ============================================================================
 // Response DTOs
 // ============================================================================
+
+/// Paginated list of entities response.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ListEntitiesResponse {
+    /// List of entities.
+    pub items: Vec<EntityResponse>,
+
+    /// Total number of entities matching the query.
+    pub total: usize,
+
+    /// Current page number.
+    pub page: u32,
+
+    /// Page size.
+    pub page_size: u32,
+
+    /// Total number of pages.
+    pub total_pages: u32,
+}
 
 /// Entity response.
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -295,6 +342,64 @@ pub struct EntityStatistics {
 
     /// Document references count.
     pub document_references: usize,
+}
+
+/// Query parameters for entity neighborhood.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct EntityNeighborhoodQuery {
+    /// Traversal depth (default 1, max 3).
+    #[serde(default = "default_depth")]
+    pub depth: u32,
+}
+
+/// Default traversal depth.
+fn default_depth() -> u32 {
+    1
+}
+
+/// Entity neighborhood response.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct EntityNeighborhoodResponse {
+    /// Nodes in the neighborhood.
+    pub nodes: Vec<NeighborhoodNode>,
+
+    /// Edges between nodes.
+    pub edges: Vec<NeighborhoodEdge>,
+}
+
+/// Node in the neighborhood graph.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct NeighborhoodNode {
+    /// Node ID (entity name).
+    pub id: String,
+
+    /// Entity type.
+    pub entity_type: String,
+
+    /// Entity description.
+    pub description: String,
+
+    /// Node degree (number of connections).
+    pub degree: usize,
+}
+
+/// Edge in the neighborhood graph.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct NeighborhoodEdge {
+    /// Edge ID.
+    pub id: String,
+
+    /// Source node ID.
+    pub source: String,
+
+    /// Target node ID.
+    pub target: String,
+
+    /// Relationship type.
+    pub relation_type: String,
+
+    /// Edge weight.
+    pub weight: f64,
 }
 
 // ============================================================================
