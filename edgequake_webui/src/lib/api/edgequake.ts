@@ -188,7 +188,7 @@ export async function getDocuments(
 
   const query = searchParams.toString();
 
-  // API now returns { documents: [...], total, page, page_size, status_counts }
+  // API now returns { documents: [...], total, page, page_size, total_pages, has_more, status_counts }
   const response = await api.get<ListDocumentsResponse>(
     `/documents${query ? `?${query}` : ""}`
   );
@@ -198,7 +198,8 @@ export async function getDocuments(
     total: response.total || 0,
     page: response.page || 1,
     page_size: response.page_size || 20,
-    has_more: response.page * response.page_size < response.total,
+    total_pages: response.total_pages || Math.ceil((response.total || 0) / (response.page_size || 20)),
+    has_more: response.has_more ?? (response.page * response.page_size < response.total),
     status_counts: response.status_counts || {
       pending: 0,
       processing: 0,

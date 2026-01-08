@@ -137,6 +137,10 @@ export interface ListDocumentsResponse {
   total: number;
   page: number;
   page_size: number;
+  /** Total number of pages. */
+  total_pages?: number;
+  /** Whether there are more pages after this one. */
+  has_more?: boolean;
   status_counts: DocumentStatusCounts;
 }
 
@@ -547,6 +551,8 @@ export interface PaginatedResponse<T> {
   total: number;
   page: number;
   page_size: number;
+  /** Total number of pages. */
+  total_pages?: number;
   has_more: boolean;
 }
 
