@@ -7,6 +7,7 @@
 ## Observe
 
 Checked documentation and formatting:
+
 - cargo doc with strict warnings: 0 warnings
 - cargo fmt --check: found trailing whitespace issues
 
@@ -30,8 +31,8 @@ git commit -m 'style: Apply rustfmt to fix trailing whitespace issues'
 
 ## Results
 
-| Metric | Before | After |
-|--------|--------|-------|
+| Metric         | Before  | After   |
+| -------------- | ------- | ------- |
 | rustfmt issues | 4 files | 0 files |
-| Tests passing | 392 | 392 |
-| Doc warnings | 0 | 0 |
+| Tests passing  | 392     | 392     |
+| Doc warnings   | 0       | 0       |

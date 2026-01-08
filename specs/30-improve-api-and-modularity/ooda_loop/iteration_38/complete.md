@@ -5,14 +5,14 @@
 
 ## Test Counts by Crate
 
-| Crate | Tests | Status |
-|-------|-------|--------|
-| edgequake-api | 392 | ✅ |
-| edgequake-llm | 158 | ✅ |
-| edgequake-core | 109 | ✅ |
-| edgequake-query | 82 | ✅ |
-| edgequake-storage | 25 | ✅ |
-| **Total** | **766** | ✅ |
+| Crate             | Tests   | Status |
+| ----------------- | ------- | ------ |
+| edgequake-api     | 392     | ✅     |
+| edgequake-llm     | 158     | ✅     |
+| edgequake-core    | 109     | ✅     |
+| edgequake-query   | 82      | ✅     |
+| edgequake-storage | 25      | ✅     |
+| **Total**         | **766** | ✅     |
 
 ## Test Distribution
 
