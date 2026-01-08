@@ -220,11 +220,17 @@ pub struct ListDocumentsResponse {
     /// Total document count.
     pub total: usize,
 
-    /// Current page.
+    /// Current page (1-indexed).
     pub page: usize,
 
     /// Page size.
     pub page_size: usize,
+
+    /// Total number of pages.
+    pub total_pages: usize,
+
+    /// Whether there are more pages after this one.
+    pub has_more: bool,
 
     /// Status counts for all documents (not just current page).
     pub status_counts: StatusCounts,
@@ -897,6 +903,8 @@ mod tests {
             total: 1,
             page: 1,
             page_size: 20,
+            total_pages: 1,
+            has_more: false,
             status_counts: StatusCounts {
                 pending: 0,
                 processing: 0,
@@ -908,6 +916,8 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("doc-1"));
         assert!(json.contains("\"total\":1"));
+        assert!(json.contains("\"total_pages\":1"));
+        assert!(json.contains("\"has_more\":false"));
     }
 
     #[test]
