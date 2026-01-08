@@ -90,12 +90,6 @@ pub mod state;
 pub mod streaming;
 pub mod validation;
 
-#[cfg(feature = "postgres")]
-pub mod postgres_conversation_service;
-
-#[cfg(feature = "postgres")]
-pub mod postgres_workspace_service;
-
 // Re-export commonly used types
 pub use middleware::TenantContext;
 
@@ -106,8 +100,9 @@ pub use routes::create_router;
 pub use server::{Server, ServerConfig};
 pub use state::{AppState, StorageMode};
 
+// Re-export PostgreSQL services from edgequake-core when feature is enabled
 #[cfg(feature = "postgres")]
-pub use postgres_conversation_service::PostgresConversationService;
+pub use edgequake_core::PostgresConversationService;
 
 #[cfg(feature = "postgres")]
-pub use postgres_workspace_service::PostgresWorkspaceService;
+pub use edgequake_core::PostgresWorkspaceService;

@@ -121,9 +121,9 @@ impl StorageMode {
 }
 
 #[cfg(feature = "postgres")]
-use crate::PostgresConversationService;
+use edgequake_core::PostgresConversationService;
 #[cfg(feature = "postgres")]
-use crate::PostgresWorkspaceService;
+use edgequake_core::PostgresWorkspaceService;
 #[cfg(feature = "postgres")]
 use edgequake_storage::{
     GraphStorage, KVStorage, PgVectorStorage, PostgresAGEGraphStorage, PostgresKVStorage,

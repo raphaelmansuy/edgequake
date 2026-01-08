@@ -3,26 +3,45 @@
 //! This service provides persistent tenant and workspace management
 //! using PostgreSQL as the backend storage.
 //!
+//! # WHY: Service Layer in Core
+//! 
+//! This PostgreSQL service implementation lives in `edgequake-core` because:
+//! 1. It implements the `WorkspaceService` trait defined here
+//! 2. It sits alongside `InMemoryWorkspaceService` - same abstraction level
+//! 3. The API layer should only contain HTTP handling, not database services
+//!
 //! NOTE: The actual database schema stores plan, max_workspaces, max_users
 //! in the `metadata` JSONB column rather than as separate columns.
 
+#[cfg(feature = "postgres")]
 use async_trait::async_trait;
-use edgequake_core::{
-    CreateWorkspaceRequest, Error, Membership, MembershipRole, Result, Tenant, TenantContext,
-    TenantPlan, UpdateWorkspaceRequest, Workspace, WorkspaceService, WorkspaceStats,
-};
+#[cfg(feature = "postgres")]
 use sqlx::PgPool;
+#[cfg(feature = "postgres")]
 use std::collections::HashMap;
+#[cfg(feature = "postgres")]
 use uuid::Uuid;
+
+#[cfg(feature = "postgres")]
+use crate::{
+    error::{Error, Result},
+    types::{
+        CreateWorkspaceRequest, Membership, MembershipRole, Tenant, TenantContext, TenantPlan,
+        UpdateWorkspaceRequest, Workspace, WorkspaceStats,
+    },
+    workspace_service::WorkspaceService,
+};
 
 /// PostgreSQL-backed implementation of WorkspaceService.
 ///
 /// This implementation persists all tenant and workspace data directly
 /// to PostgreSQL, ensuring data survives application restarts.
+#[cfg(feature = "postgres")]
 pub struct PostgresWorkspaceService {
     pool: PgPool,
 }
 
+#[cfg(feature = "postgres")]
 impl PostgresWorkspaceService {
     /// Create a new PostgreSQL workspace service.
     pub fn new(pool: PgPool) -> Self {
@@ -120,6 +139,7 @@ impl PostgresWorkspaceService {
     }
 }
 
+#[cfg(feature = "postgres")]
 #[async_trait]
 impl WorkspaceService for PostgresWorkspaceService {
     // ============ Tenant Operations ============
@@ -699,6 +719,7 @@ impl WorkspaceService for PostgresWorkspaceService {
 
 /// Tenant row from PostgreSQL.
 /// The actual schema uses metadata JSONB for plan, max_workspaces, max_users, description.
+#[cfg(feature = "postgres")]
 #[derive(sqlx::FromRow)]
 struct TenantRow {
     tenant_id: Uuid,
@@ -710,6 +731,7 @@ struct TenantRow {
     updated_at: chrono::DateTime<chrono::Utc>,
 }
 
+#[cfg(feature = "postgres")]
 impl TenantRow {
     fn into_tenant(self) -> Tenant {
         // Extract values from metadata JSONB
@@ -751,6 +773,7 @@ impl TenantRow {
 }
 
 /// Workspace row from PostgreSQL.
+#[cfg(feature = "postgres")]
 #[derive(sqlx::FromRow)]
 struct WorkspaceRow {
     workspace_id: Uuid,
@@ -764,6 +787,7 @@ struct WorkspaceRow {
     updated_at: chrono::DateTime<chrono::Utc>,
 }
 
+#[cfg(feature = "postgres")]
 impl WorkspaceRow {
     fn into_workspace(self) -> Workspace {
         // Convert metadata from serde_json::Value to HashMap
@@ -789,6 +813,7 @@ impl WorkspaceRow {
 }
 
 /// Membership row from PostgreSQL.
+#[cfg(feature = "postgres")]
 #[derive(sqlx::FromRow)]
 struct MembershipRow {
     membership_id: Uuid,
@@ -800,6 +825,7 @@ struct MembershipRow {
     joined_at: chrono::DateTime<chrono::Utc>,
 }
 
+#[cfg(feature = "postgres")]
 impl MembershipRow {
     fn into_membership(self) -> Membership {
         Membership {
