@@ -7,10 +7,12 @@
 ## Observe
 
 Identified two files in `edgequake-api` that were misplaced:
+
 - `postgres_conversation_service.rs` (430 lines)
 - `postgres_workspace_service.rs` (817 lines)
 
 These files implement `ConversationService` and `WorkspaceService` traits, which are:
+
 1. Defined in `edgequake-core`
 2. Have in-memory implementations already in `edgequake-core`
 3. Are service-layer abstractions, not HTTP-layer code
@@ -20,6 +22,7 @@ These files implement `ConversationService` and `WorkspaceService` traits, which
 ## Orient
 
 Analyzed the dependency graph:
+
 ```
 edgequake-api → edgequake-core → edgequake-storage
                      ↑
@@ -28,6 +31,7 @@ edgequake-api → edgequake-core → edgequake-storage
 ```
 
 The PostgreSQL services:
+
 - Implement traits from `edgequake-core`
 - Use storage layer from `edgequake-storage`
 - Are logically siblings to `InMemoryWorkspaceService` and `InMemoryConversationService`
@@ -37,6 +41,7 @@ The PostgreSQL services:
 **Decision**: Move PostgreSQL service implementations to `edgequake-core`
 
 Changes required:
+
 1. Add `postgres` feature to `edgequake-core/Cargo.toml`
 2. Create new files in `edgequake-core/src/`:
    - `postgres_workspace_service.rs`
@@ -49,24 +54,30 @@ Changes required:
 ## Act
 
 ### 1. Updated edgequake-core/Cargo.toml
+
 Added features section:
+
 ```toml
 [features]
 default = []
 postgres = ["edgequake-storage/postgres", "dep:sqlx"]
 ```
+
 Added sqlx as optional dependency.
 
 ### 2. Created postgres_workspace_service.rs in edgequake-core
+
 - 820 lines with WHY documentation
 - Feature-gated with `#[cfg(feature = "postgres")]`
 - Uses `crate::` imports instead of `edgequake_core::`
 
 ### 3. Created postgres_conversation_service.rs in edgequake-core
+
 - 380 lines with WHY documentation
 - Feature-gated with `#[cfg(feature = "postgres")]`
 
 ### 4. Updated edgequake-core/src/lib.rs
+
 ```rust
 #[cfg(feature = "postgres")]
 mod postgres_conversation_service;
@@ -80,12 +91,15 @@ pub use postgres_workspace_service::PostgresWorkspaceService;
 ```
 
 ### 5. Updated edgequake-api/Cargo.toml
+
 ```toml
 postgres = ["edgequake-storage/postgres", "edgequake-core/postgres", "dep:sqlx"]
 ```
 
 ### 6. Updated edgequake-api/src/lib.rs
+
 Changed from local module to re-export:
+
 ```rust
 #[cfg(feature = "postgres")]
 pub use edgequake_core::PostgresConversationService;
@@ -95,6 +109,7 @@ pub use edgequake_core::PostgresWorkspaceService;
 ```
 
 ### 7. Updated edgequake-api/src/state.rs
+
 ```rust
 #[cfg(feature = "postgres")]
 use edgequake_core::PostgresConversationService;

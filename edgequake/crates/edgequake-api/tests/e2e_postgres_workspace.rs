@@ -1,6 +1,6 @@
-//! PostgreSQL Workspace Service Integration Tests
+//! Workspace Service Integration Tests
 //!
-//! These tests verify the PostgresWorkspaceService implementation
+//! These tests verify the WorkspaceServiceImpl implementation
 //! against a real PostgreSQL database.
 //!
 //! Run with:

@@ -121,9 +121,9 @@ impl StorageMode {
 }
 
 #[cfg(feature = "postgres")]
-use edgequake_core::PostgresConversationService;
+use edgequake_core::ConversationServiceImpl;
 #[cfg(feature = "postgres")]
-use edgequake_core::PostgresWorkspaceService;
+use edgequake_core::WorkspaceServiceImpl;
 #[cfg(feature = "postgres")]
 use edgequake_storage::{
     GraphStorage, KVStorage, PgVectorStorage, PostgresAGEGraphStorage, PostgresKVStorage,
@@ -549,18 +549,18 @@ impl AppState {
         // Create LLM provider
         let llm_provider = Arc::new(OpenAIProvider::new(llm_api_key));
 
-        // Create PostgreSQL-backed workspace service for full persistence
-        let pg_workspace_service = PostgresWorkspaceService::new(pool.clone());
+        // Create workspace service for full persistence
+        let workspace_service_impl = WorkspaceServiceImpl::new(pool.clone());
 
         // Ensure default tenant and workspace exist (critical for non-authenticated mode)
-        pg_workspace_service.ensure_defaults().await?;
+        workspace_service_impl.ensure_defaults().await?;
         tracing::info!("Default tenant and workspace ensured in PostgreSQL");
 
-        let workspace_service: SharedWorkspaceService = Arc::new(pg_workspace_service);
+        let workspace_service: SharedWorkspaceService = Arc::new(workspace_service_impl);
 
-        // Create PostgreSQL-backed conversation service
+        // Create conversation service
         let conversation_service: SharedConversationService =
-            Arc::new(PostgresConversationService::new(pool.clone()));
+            Arc::new(ConversationServiceImpl::new(pool.clone()));
 
         // Create pipeline with LLM and embedding providers configured
         use edgequake_pipeline::LLMExtractor;
@@ -640,7 +640,7 @@ impl AppState {
     /// Initialize default tenant and workspace for non-authenticated mode.
     /// This ensures that the system is usable without authentication.
     ///
-    /// When using PostgreSQL, the PostgresWorkspaceService already ensures
+    /// When using PostgreSQL, the WorkspaceServiceImpl already ensures
     /// defaults exist during construction, so this primarily handles the
     /// in-memory case and ensures the default user exists.
     pub async fn initialize_defaults(
@@ -659,7 +659,7 @@ impl AppState {
             .expect("Invalid default tenant UUID");
 
         // When using PostgreSQL, just ensure the default user exists
-        // The PostgresWorkspaceService already creates default tenant/workspace
+        // The WorkspaceServiceImpl already creates default tenant/workspace
         #[cfg(feature = "postgres")]
         if let Some(ref pool) = self.pg_pool {
             // Ensure default user exists in PostgreSQL (with tenant_id for FK constraints)
@@ -681,8 +681,8 @@ impl AppState {
                 "Ensured default user exists in PostgreSQL"
             );
 
-            // PostgreSQL mode: tenant and workspace already created by PostgresWorkspaceService
-            tracing::info!("PostgreSQL mode: defaults already ensured by PostgresWorkspaceService");
+            // PostgreSQL mode: tenant and workspace already created by WorkspaceServiceImpl
+            tracing::info!("PostgreSQL mode: defaults already ensured by WorkspaceServiceImpl");
             return Ok(());
         }
 
