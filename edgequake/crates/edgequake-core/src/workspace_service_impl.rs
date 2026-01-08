@@ -1,21 +1,28 @@
-//! PostgreSQL-backed workspace service implementation.
+//! Production implementation of WorkspaceService.
 //!
-//! This service provides persistent tenant and workspace management
-//! using PostgreSQL as the backend storage.
+//! This module provides the production-ready implementation of the WorkspaceService
+//! trait, backed by PostgreSQL (the system of record).
+//!
+//! # Architecture
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────────┐
+//! │                        edgequake-core                           │
+//! │  ┌─────────────────────┐    ┌────────────────────────────────┐ │
+//! │  │  WorkspaceService   │◄───│ WorkspaceServiceImpl           │ │
+//! │  │      (trait)        │    │ (production implementation)    │ │
+//! │  └─────────────────────┘    └────────────────────────────────┘ │
+//! └─────────────────────────────────────────────────────────────────┘
+//! ```
 //!
 //! # WHY: Service Layer in Core (not Storage)
 //!
-//! **BLOCKER**: Moving this to `edgequake-storage` would create a circular dependency:
-//! - `storage` would need `core` (to implement the trait)
-//! - `core` would need `storage` (to expose the service)
-//!
-//! This is a Rust Orphan Rule constraint. This service MUST live here because:
+//! This service MUST live in `edgequake-core` because:
 //! 1. It implements the `WorkspaceService` trait defined in this crate
-//! 2. It sits alongside `InMemoryWorkspaceService` - same abstraction level
-//! 3. The API layer should only contain HTTP handling, not database services
+//! 2. Moving to `edgequake-storage` would create a circular dependency
+//! 3. Follows Hexagonal Architecture: adapters live with ports
 //!
-//! NOTE: The actual database schema stores plan, max_workspaces, max_users
-//! in the `metadata` JSONB column rather than as separate columns.
+//! NOTE: Database schema stores plan, max_workspaces, max_users in `metadata` JSONB.
 
 #[cfg(feature = "postgres")]
 use async_trait::async_trait;
@@ -41,12 +48,12 @@ use crate::{
 /// This implementation persists all tenant and workspace data directly
 /// to PostgreSQL, ensuring data survives application restarts.
 #[cfg(feature = "postgres")]
-pub struct PostgresWorkspaceService {
+pub struct WorkspaceServiceImpl {
     pool: PgPool,
 }
 
 #[cfg(feature = "postgres")]
-impl PostgresWorkspaceService {
+impl WorkspaceServiceImpl {
     /// Create a new PostgreSQL workspace service.
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
@@ -145,7 +152,7 @@ impl PostgresWorkspaceService {
 
 #[cfg(feature = "postgres")]
 #[async_trait]
-impl WorkspaceService for PostgresWorkspaceService {
+impl WorkspaceService for WorkspaceServiceImpl {
     // ============ Tenant Operations ============
 
     async fn create_tenant(&self, tenant: Tenant) -> Result<Tenant> {
@@ -765,7 +772,7 @@ impl TenantRow {
             name: self.name,
             slug: self.slug.unwrap_or_default(),
             description,
-            plan: PostgresWorkspaceService::parse_plan(plan_str),
+            plan: WorkspaceServiceImpl::parse_plan(plan_str),
             is_active: self.is_active,
             max_workspaces,
             max_users,
@@ -837,7 +844,7 @@ impl MembershipRow {
             tenant_id: self.tenant_id,
             workspace_id: self.workspace_id,
             user_id: self.user_id,
-            role: PostgresWorkspaceService::parse_role(&self.role),
+            role: WorkspaceServiceImpl::parse_role(&self.role),
             is_active: self.is_active,
             joined_at: self.joined_at,
             metadata: HashMap::new(),

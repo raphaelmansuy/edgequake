@@ -100,9 +100,18 @@ pub use routes::create_router;
 pub use server::{Server, ServerConfig};
 pub use state::{AppState, StorageMode};
 
-// Re-export PostgreSQL services from edgequake-core when feature is enabled
+// Re-export production services from edgequake-core when feature is enabled
 #[cfg(feature = "postgres")]
+pub use edgequake_core::ConversationServiceImpl;
+
+#[cfg(feature = "postgres")]
+pub use edgequake_core::WorkspaceServiceImpl;
+
+// Legacy aliases for backward compatibility
+#[cfg(feature = "postgres")]
+#[allow(deprecated)]
 pub use edgequake_core::PostgresConversationService;
 
 #[cfg(feature = "postgres")]
+#[allow(deprecated)]
 pub use edgequake_core::PostgresWorkspaceService;
