@@ -709,11 +709,19 @@ pub async fn list_documents(
             .count(),
     };
 
+    let total = documents.len();
+    let page_size = 20usize;
+    let total_pages = (total + page_size - 1) / page_size.max(1);
+    let page = 1usize;
+    let has_more = page < total_pages;
+
     Ok(Json(ListDocumentsResponse {
-        total: documents.len(),
+        total,
         documents,
-        page: 1,
-        page_size: 20,
+        page,
+        page_size,
+        total_pages,
+        has_more,
         status_counts,
     }))
 }
@@ -2786,6 +2794,8 @@ mod tests {
             total: 1,
             page: 1,
             page_size: 20,
+            total_pages: 1,
+            has_more: false,
             status_counts: StatusCounts {
                 pending: 0,
                 processing: 0,
@@ -2797,6 +2807,8 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("doc-1"));
         assert!(json.contains("\"total\":1"));
+        assert!(json.contains("\"total_pages\":1"));
+        assert!(json.contains("\"has_more\":false"));
     }
 
     #[test]
