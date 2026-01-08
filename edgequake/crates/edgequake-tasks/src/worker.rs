@@ -1,4 +1,16 @@
 //! Worker pool for processing tasks from the queue.
+//!
+//! ## WHY Worker Pool Architecture?
+//!
+//! Document processing (PDF extraction, embedding generation) is CPU/IO intensive.
+//! The worker pool provides:
+//! - **Bounded concurrency**: Prevents resource exhaustion during burst uploads
+//! - **Task isolation**: One failing task doesn't affect others
+//! - **Graceful shutdown**: In-flight tasks complete before termination
+//! - **Retry logic**: Transient failures (network, rate limits) auto-recover
+//!
+//! Default worker count is `num_cpus` because embedding generation is CPU-bound.
+//! For IO-bound workloads (e.g., LLM API calls), consider increasing.
 
 use crate::{error::TaskResult, queue::TaskQueue, storage::TaskStorage, types::Task};
 use std::sync::Arc;
@@ -31,8 +43,14 @@ pub struct WorkerPoolConfig {
 impl Default for WorkerPoolConfig {
     fn default() -> Self {
         Self {
+            // WHY num_cpus: Embedding generation is CPU-bound (SIMD operations).
+            // Using all cores maximizes throughput without context-switching overhead.
+            // min(2) ensures we can still process tasks on single-core VMs.
             num_workers: num_cpus::get().max(2),
             auto_retry: true,
+            // WHY 5 seconds: Balances quick recovery from transient failures
+            // (network timeouts, rate limits) without hammering failing services.
+            // Exponential backoff should be added for production (future work).
             retry_delay_secs: 5,
         }
     }

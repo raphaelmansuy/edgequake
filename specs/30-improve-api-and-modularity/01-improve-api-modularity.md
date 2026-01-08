@@ -9,6 +9,8 @@ We have observed that the current Rust codebase in edgequake has areas that coul
 ## Your Tasks
 
 - Map the territory of the current edgequake system, code and local infrastructure
+- Identify better modularity and crates to split the code into, for example edgequake/crates/edgequake-api/src/postgres_conversation_service.rs and edgequake/crates/edgequake-api/src/postgres_workspace_service.rs seem like good candidates to be extracted into their own crates as a service layer.
+- Identify file name, module name, and function name improvements to enhance clarity and consistency: naming conventions, avoiding abbreviations, and ensuring names accurately reflect their purpose
 - Identify areas of the code that can be improved for better readability, maintainability
 - Propose and implement changes to enhance the Rust code quality, following best practices and idiomatic Rust guidelines
 - Follows Single Responsibility Principle (SRP) and modularity best practices
@@ -98,3 +100,6 @@ For example must document any issues regarding starting postgres locally, edgequ
 You must refer to this file in each OODA loop iteration if any roadblockers were encountered.
 
 Failure is not an option in this mission! Faking Alignment and cheating is failure!
+
+
+Fully continue from previous OODA loops if they exists, do not start from scratch. You must achieve at least 100 OODA loops.
