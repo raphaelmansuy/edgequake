@@ -143,7 +143,10 @@ impl JwtService {
         let mut validation = Validation::default();
         validation.validate_exp = true;
         validation.validate_nbf = true;
-        validation.leeway = 30; // 30 seconds leeway for clock skew
+        // WHY: 30-second leeway accommodates clock skew between distributed servers.
+        // Mobile clients and edge nodes often have slightly out-of-sync clocks.
+        // 30 seconds is the industry standard balance between security and usability.
+        validation.leeway = 30;
 
         Self {
             config: Arc::new(config),

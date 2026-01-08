@@ -1,50 +1,12 @@
 //! Health check handlers.
 
 use axum::{extract::State, Json};
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 
 use crate::error::ApiResult;
 use crate::state::AppState;
 
-/// Health check response.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct HealthResponse {
-    /// Service status.
-    pub status: String,
-
-    /// Service version.
-    pub version: String,
-
-    /// Storage mode: "memory" or "postgresql".
-    pub storage_mode: String,
-
-    /// Workspace ID.
-    pub workspace_id: String,
-
-    /// Component health.
-    pub components: ComponentHealth,
-
-    /// LLM provider name (e.g., "openai", "mock", "ollama").
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub llm_provider_name: Option<String>,
-}
-
-/// Component health status.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct ComponentHealth {
-    /// KV storage status.
-    pub kv_storage: bool,
-
-    /// Vector storage status.
-    pub vector_storage: bool,
-
-    /// Graph storage status.
-    pub graph_storage: bool,
-
-    /// LLM provider status.
-    pub llm_provider: bool,
-}
+// Re-export DTOs from health_types for backwards compatibility
+pub use crate::handlers::health_types::{ComponentHealth, HealthResponse};
 
 /// Health check endpoint.
 #[utoipa::path(

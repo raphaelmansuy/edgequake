@@ -847,3 +847,138 @@ async fn test_entity_with_relationships() {
     assert!(incoming.is_some());
     // Note: exact count depends on implementation details
 }
+
+// ============================================================================
+// List Relationships Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_list_relationships_empty() {
+    let app = create_test_app();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/graph/relationships")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = extract_json(response).await;
+    assert!(body.get("items").is_some());
+    assert!(body.get("total").is_some());
+    assert!(body.get("page").is_some());
+    assert!(body.get("page_size").is_some());
+    assert!(body.get("total_pages").is_some());
+}
+
+#[tokio::test]
+async fn test_list_relationships_with_pagination() {
+    let server = create_test_server();
+
+    // Create entities first
+    let _ = create_entity(&server, "rel_test_src", "CONCEPT").await;
+    let _ = create_entity(&server, "rel_test_tgt", "CONCEPT").await;
+
+    // Create some relationships
+    for i in 1..=5 {
+        let request = json!({
+            "src_id": "rel_test_src",
+            "tgt_id": "rel_test_tgt",
+            "keywords": format!("relation_{}", i),
+            "description": format!("Test relation {}", i),
+            "source_id": "test"
+        });
+
+        let app = server.build_router();
+        app.oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/graph/relationships")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    }
+
+    // List with pagination
+    let app = server.build_router();
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/graph/relationships?page=1&page_size=3")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = extract_json(response).await;
+    assert_eq!(body.get("page").and_then(|v| v.as_u64()), Some(1));
+    assert_eq!(body.get("page_size").and_then(|v| v.as_u64()), Some(3));
+}
+
+#[tokio::test]
+async fn test_list_relationships_with_type_filter() {
+    let server = create_test_server();
+
+    // Create entities
+    let _ = create_entity(&server, "filter_src", "CONCEPT").await;
+    let _ = create_entity(&server, "filter_tgt", "CONCEPT").await;
+
+    // Create relationships with different types
+    for keyword in ["WORKS_FOR", "MANAGES", "WORKS_FOR"] {
+        let request = json!({
+            "src_id": "filter_src",
+            "tgt_id": "filter_tgt",
+            "keywords": keyword,
+            "description": "Test",
+            "source_id": "test"
+        });
+
+        let app = server.build_router();
+        app.oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/graph/relationships")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    }
+
+    // Filter by relationship type
+    let app = server.build_router();
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/graph/relationships?relationship_type=WORKS_FOR")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = extract_json(response).await;
+    let items = body.get("items").and_then(|v| v.as_array()).unwrap();
+    // All returned items should have WORKS_FOR in keywords
+    for item in items {
+        let keywords = item.get("keywords").and_then(|v| v.as_str()).unwrap_or("");
+        assert!(keywords.contains("WORKS_FOR"));
+    }
+}

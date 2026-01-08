@@ -1,4 +1,67 @@
-//! API routes.
+//! EdgeQuake REST API Routes
+//!
+//! This module defines the complete HTTP routing configuration for the EdgeQuake API.
+//!
+//! # API Design Principles
+//!
+//! - **RESTful**: Resources are nouns, HTTP verbs indicate actions
+//! - **Versioned**: All business endpoints under `/api/v1/`
+//! - **Consistent**: Uniform error responses (see [`crate::error`])
+//! - **Documented**: OpenAPI 3.0 spec at `/swagger-ui/` (when enabled)
+//!
+//! # Route Structure
+//!
+//! ```text
+//! /                           # Root
+//! ├── health                  # Health check (GET)
+//! ├── ready                   # Kubernetes readiness probe (GET)
+//! ├── live                    # Kubernetes liveness probe (GET)
+//! ├── metrics                 # Prometheus metrics (GET)
+//! ├── ws/                     # WebSocket endpoints
+//! │   └── pipeline/progress   # Real-time pipeline updates
+//! ├── api/                    # Ollama-compatible API
+//! │   ├── version            # GET - Ollama version
+//! │   ├── tags               # GET - List available models
+//! │   ├── ps                 # GET - Running model processes
+//! │   ├── generate           # POST - Text generation
+//! │   └── chat               # POST - Chat completion
+//! └── api/v1/                 # Versioned API
+//!     ├── auth/              # Authentication
+//!     ├── users/             # User management
+//!     ├── api-keys/          # API key management
+//!     ├── tenants/           # Multi-tenant management
+//!     ├── workspaces/        # Workspace management
+//!     ├── documents/         # Document ingestion
+//!     ├── query/             # RAG queries
+//!     ├── chat/              # Chat completions
+//!     ├── conversations/     # Conversation history
+//!     ├── folders/           # Conversation organization
+//!     ├── shared/            # Public conversation access
+//!     └── graph/             # Knowledge graph operations
+//! ```
+//!
+//! # HTTP Methods
+//!
+//! | Method   | Purpose                   | Idempotent | Safe |
+//! |----------|---------------------------|------------|------|
+//! | `GET`    | Retrieve resource(s)      | Yes        | Yes  |
+//! | `POST`   | Create resource or action | No         | No   |
+//! | `PUT`    | Replace resource          | Yes        | No   |
+//! | `PATCH`  | Partial update            | No         | No   |
+//! | `DELETE` | Remove resource           | Yes        | No   |
+//!
+//! # Authentication
+//!
+//! Most endpoints require authentication via:
+//! - `Authorization: Bearer <JWT>` - Obtained from `/api/v1/auth/login`
+//! - `X-API-Key: <key>` - Created via `/api/v1/api-keys`
+//!
+//! # Multi-Tenancy
+//!
+//! Tenant context is automatically extracted from:
+//! 1. JWT claims (`tenant_id`, `workspace_id`)
+//! 2. Headers (`X-Tenant-ID`, `X-Workspace-ID`)
+//! 3. Default tenant (for non-authenticated deployments)
 
 use axum::{
     routing::{delete, get, patch, post, put},
@@ -182,7 +245,10 @@ fn api_v1_routes() -> Router<AppState> {
         .route("/graph/labels/popular", get(handlers::get_popular_labels))
         .route("/graph/degrees/batch", post(handlers::get_degrees_batch))
         // Entities (Phase 2)
-        .route("/graph/entities", post(handlers::create_entity))
+        .route(
+            "/graph/entities",
+            get(handlers::list_entities).post(handlers::create_entity),
+        )
         .route("/graph/entities/exists", get(handlers::entity_exists))
         .route("/graph/entities/merge", post(handlers::merge_entities))
         .route("/graph/entities/{entity_name}", get(handlers::get_entity))
@@ -194,8 +260,15 @@ fn api_v1_routes() -> Router<AppState> {
             "/graph/entities/{entity_name}",
             delete(handlers::delete_entity),
         )
+        .route(
+            "/graph/entities/{entity_name}/neighborhood",
+            get(handlers::get_entity_neighborhood),
+        )
         // Relationships (Phase 2)
-        .route("/graph/relationships", post(handlers::create_relationship))
+        .route(
+            "/graph/relationships",
+            get(handlers::list_relationships).post(handlers::create_relationship),
+        )
         .route(
             "/graph/relationships/{relationship_id}",
             get(handlers::get_relationship),

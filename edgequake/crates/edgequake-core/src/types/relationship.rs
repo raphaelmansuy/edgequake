@@ -16,7 +16,7 @@ pub const RELATIONSHIP_SEP: &str = "<SEP>";
 ///
 /// # ID Format
 ///
-/// Relationship IDs are formatted as "ENTITY1<SEP>ENTITY2" where the
+/// Relationship IDs are formatted as `ENTITY1<SEP>ENTITY2` where the
 /// entities are sorted alphabetically to ensure consistency regardless
 /// of which direction the relationship was discovered.
 ///
@@ -38,7 +38,7 @@ pub const RELATIONSHIP_SEP: &str = "<SEP>";
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphRelationship {
-    /// Composite key: "entity1<SEP>entity2" (alphabetically sorted)
+    /// Composite key: `entity1<SEP>entity2` (alphabetically sorted)
     pub id: String,
     /// Source entity name (normalized)
     pub source_entity: String,

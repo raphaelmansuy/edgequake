@@ -36,6 +36,26 @@ pub mod types;
 pub mod utils;
 pub mod workspace_service;
 
+// Production service implementations (feature-gated)
+#[cfg(feature = "postgres")]
+mod conversation_service_impl;
+#[cfg(feature = "postgres")]
+mod workspace_service_impl;
+
+// Re-export production services when feature is enabled
+#[cfg(feature = "postgres")]
+pub use conversation_service_impl::ConversationServiceImpl;
+#[cfg(feature = "postgres")]
+pub use workspace_service_impl::WorkspaceServiceImpl;
+
+// Legacy aliases for backward compatibility
+#[cfg(feature = "postgres")]
+#[deprecated(since = "0.2.0", note = "Use ConversationServiceImpl instead")]
+pub type PostgresConversationService = ConversationServiceImpl;
+#[cfg(feature = "postgres")]
+#[deprecated(since = "0.2.0", note = "Use WorkspaceServiceImpl instead")]
+pub type PostgresWorkspaceService = WorkspaceServiceImpl;
+
 // Re-export keyword extractor
 pub use keyword_extractor::{ExtractedKeywords, KeywordExtractor};
 

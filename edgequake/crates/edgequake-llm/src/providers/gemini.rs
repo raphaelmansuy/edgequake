@@ -200,7 +200,7 @@ impl GeminiProvider {
     /// Create a new Gemini provider using Google AI API key.
     ///
     /// # Arguments
-    /// * `api_key` - Google AI API key (from https://aistudio.google.com/app/apikey)
+    /// * `api_key` - Google AI API key (from <https://aistudio.google.com/app/apikey>)
     pub fn new(api_key: impl Into<String>) -> Self {
         Self {
             client: Client::new(),

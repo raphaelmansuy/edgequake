@@ -2,6 +2,16 @@
 //!
 //! This module provides the core `RateLimiter` that uses a token bucket
 //! algorithm with concurrent access support via `DashMap`.
+//!
+//! ## WHY Token Bucket Algorithm?
+//!
+//! We chose token bucket over alternatives for these reasons:
+//! - **vs Fixed Window**: Avoids burst spikes at window boundaries
+//! - **vs Sliding Window**: Lower memory overhead (O(1) per key vs O(n) requests)
+//! - **vs Leaky Bucket**: Allows controlled bursts while maintaining avg rate
+//!
+//! The token bucket naturally smooths traffic while permitting brief bursts,
+//! which is ideal for RAG workloads that may batch multiple queries.
 
 use dashmap::DashMap;
 use std::sync::Arc;
@@ -87,6 +97,9 @@ impl TokenBucket {
 /// Rate limiter using token bucket algorithm
 #[derive(Clone)]
 pub struct RateLimiter {
+    // WHY DashMap: Provides lock-free concurrent access without needing
+    // external synchronization. Each bucket can be updated independently,
+    // which is critical for high-throughput API servers.
     /// Buckets per key (tenant_id:workspace_id)
     buckets: Arc<DashMap<String, TokenBucket>>,
     /// Configuration

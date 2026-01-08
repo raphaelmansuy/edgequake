@@ -493,10 +493,240 @@ impl TaskProcessor for DocumentTaskProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use edgequake_storage::{MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage};
+
+    /// Create a test pipeline instance using default configuration
+    fn create_test_pipeline() -> Arc<Pipeline> {
+        Arc::new(Pipeline::default_pipeline())
+    }
+
+    /// Create test storage instances for testing
+    fn create_test_storages() -> (
+        Arc<dyn KVStorage>,
+        Arc<dyn VectorStorage>,
+        Arc<dyn GraphStorage>,
+    ) {
+        let kv = Arc::new(MemoryKVStorage::new("test_processor"));
+        // MemoryVectorStorage requires dimension - use 1536 (common embedding size)
+        let vector = Arc::new(MemoryVectorStorage::new("test_processor", 1536));
+        let graph = Arc::new(MemoryGraphStorage::new("test_processor"));
+        (kv, vector, graph)
+    }
 
     #[test]
     fn test_document_task_processor_new() {
-        // Test that we can at least import and reference the struct
-        // Full testing requires mock implementations
+        let pipeline = create_test_pipeline();
+        let (kv, vector, graph) = create_test_storages();
+        let pipeline_state = PipelineState::new();
+
+        let processor = DocumentTaskProcessor::new(pipeline, kv, vector, graph, pipeline_state);
+
+        // Verify processor was created successfully
+        assert!(std::mem::size_of_val(&processor) > 0);
+    }
+
+    #[tokio::test]
+    async fn test_processor_trait_implementation() {
+        let pipeline = create_test_pipeline();
+        let (kv, vector, graph) = create_test_storages();
+        let pipeline_state = PipelineState::new();
+
+        let processor = DocumentTaskProcessor::new(pipeline, kv, vector, graph, pipeline_state);
+
+        // Verify TaskProcessor trait is implemented
+        let _: &dyn TaskProcessor = &processor;
+    }
+
+    #[tokio::test]
+    async fn test_process_scan_task_returns_unsupported() {
+        let pipeline = create_test_pipeline();
+        let (kv, vector, graph) = create_test_storages();
+        let pipeline_state = PipelineState::new();
+
+        let processor = DocumentTaskProcessor::new(pipeline, kv, vector, graph, pipeline_state);
+
+        let mut task = Task::new(TaskType::Scan, json!({}));
+
+        let result = processor.process(&mut task).await;
+
+        // Scan should return UnsupportedOperation error
+        assert!(result.is_err());
+        if let Err(e) = result {
+            let error_msg = format!("{:?}", e);
+            assert!(error_msg.contains("UnsupportedOperation"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_process_reindex_task_returns_unsupported() {
+        let pipeline = create_test_pipeline();
+        let (kv, vector, graph) = create_test_storages();
+        let pipeline_state = PipelineState::new();
+
+        let processor = DocumentTaskProcessor::new(pipeline, kv, vector, graph, pipeline_state);
+
+        let mut task = Task::new(TaskType::Reindex, json!({}));
+
+        let result = processor.process(&mut task).await;
+
+        // Reindex should return UnsupportedOperation error
+        assert!(result.is_err());
+        if let Err(e) = result {
+            let error_msg = format!("{:?}", e);
+            assert!(error_msg.contains("UnsupportedOperation"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_process_insert_with_invalid_payload() {
+        let pipeline = create_test_pipeline();
+        let (kv, vector, graph) = create_test_storages();
+        let pipeline_state = PipelineState::new();
+
+        let processor = DocumentTaskProcessor::new(pipeline, kv, vector, graph, pipeline_state);
+
+        // Create task with invalid data (missing required fields)
+        let invalid_data = json!({
+            "invalid_field": "this is not TextInsertData"
+        });
+
+        let mut task = Task::new(TaskType::Insert, invalid_data);
+
+        let result = processor.process(&mut task).await;
+
+        // Should fail due to invalid payload
+        assert!(result.is_err());
+        if let Err(e) = result {
+            let error_msg = format!("{:?}", e);
+            assert!(error_msg.contains("InvalidPayload"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_update_document_status() {
+        let pipeline = create_test_pipeline();
+        let (kv, vector, graph) = create_test_storages();
+        let pipeline_state = PipelineState::new();
+
+        // Pre-populate metadata
+        let doc_id = "test-doc-status";
+        let metadata_key = format!("{}-metadata", doc_id);
+        kv.upsert(&[(
+            metadata_key.clone(),
+            json!({
+                "document_id": doc_id,
+                "status": "pending"
+            }),
+        )])
+        .await
+        .unwrap();
+
+        let processor =
+            DocumentTaskProcessor::new(pipeline, kv.clone(), vector, graph, pipeline_state);
+
+        // Update status to processing
+        let result = processor
+            .update_document_status(doc_id, "processing", None)
+            .await;
+        assert!(result.is_ok());
+
+        // Verify status was updated
+        let metadata = kv.get_by_id(&metadata_key).await.unwrap().unwrap();
+        assert_eq!(metadata["status"], "processing");
+    }
+
+    #[tokio::test]
+    async fn test_update_document_status_with_error_message() {
+        let pipeline = create_test_pipeline();
+        let (kv, vector, graph) = create_test_storages();
+        let pipeline_state = PipelineState::new();
+
+        let doc_id = "test-doc-error";
+        let metadata_key = format!("{}-metadata", doc_id);
+        kv.upsert(&[(
+            metadata_key.clone(),
+            json!({
+                "document_id": doc_id,
+                "status": "processing"
+            }),
+        )])
+        .await
+        .unwrap();
+
+        let processor =
+            DocumentTaskProcessor::new(pipeline, kv.clone(), vector, graph, pipeline_state);
+
+        // Update status with error
+        let result = processor
+            .update_document_status(doc_id, "failed", Some("Test error message"))
+            .await;
+        assert!(result.is_ok());
+
+        // Verify error was recorded
+        let metadata = kv.get_by_id(&metadata_key).await.unwrap().unwrap();
+        assert_eq!(metadata["status"], "failed");
+        assert_eq!(metadata["error_message"], "Test error message");
+    }
+
+    #[tokio::test]
+    async fn test_update_document_status_nonexistent_doc() {
+        let pipeline = create_test_pipeline();
+        let (kv, vector, graph) = create_test_storages();
+        let pipeline_state = PipelineState::new();
+
+        let processor = DocumentTaskProcessor::new(pipeline, kv, vector, graph, pipeline_state);
+
+        // Try to update status for non-existent document
+        let result = processor
+            .update_document_status("nonexistent-doc", "processing", None)
+            .await;
+
+        // Should succeed (no-op if document doesn't exist)
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_processor_fields_are_arc() {
+        // Verify that processor uses Arc for shared ownership
+        let pipeline = create_test_pipeline();
+        let (kv, vector, graph) = create_test_storages();
+        let pipeline_state = PipelineState::new();
+
+        let _processor = DocumentTaskProcessor::new(
+            pipeline.clone(),
+            kv.clone(),
+            vector.clone(),
+            graph.clone(),
+            pipeline_state,
+        );
+
+        // If we got here, Arc works correctly
+        // Verify we can still access the cloned Arcs
+        assert!(Arc::strong_count(&pipeline) >= 1);
+        assert!(Arc::strong_count(&kv) >= 1);
+        assert!(Arc::strong_count(&vector) >= 1);
+        assert!(Arc::strong_count(&graph) >= 1);
+    }
+
+    #[tokio::test]
+    async fn test_task_types_are_distinct() {
+        // Verify all task types are handled distinctly
+        let pipeline = create_test_pipeline();
+        let (kv, vector, graph) = create_test_storages();
+        let pipeline_state = PipelineState::new();
+
+        let processor = DocumentTaskProcessor::new(pipeline, kv, vector, graph, pipeline_state);
+
+        // Test that each unsupported task type goes through the right path
+        let types = [TaskType::Scan, TaskType::Reindex];
+
+        for task_type in types {
+            let mut task = Task::new(task_type.clone(), json!({}));
+
+            let result = processor.process(&mut task).await;
+
+            // Scan/Reindex fail on unsupported
+            assert!(result.is_err());
+        }
     }
 }

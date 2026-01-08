@@ -4,7 +4,7 @@
 //! user management (CRUD), and API key management.
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
@@ -12,12 +12,14 @@ use chrono::{Duration, Utc};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
-use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::error::ApiError;
 use crate::state::AppState;
 use edgequake_auth::{Role, User};
+
+// Re-export DTOs from auth_types module
+pub use crate::handlers::auth_types::*;
 
 // ============================================================================
 // Constants
@@ -30,7 +32,7 @@ const REFRESH_TOKEN_PREFIX: &str = "auth:refresh_token:";
 const API_KEY_PREFIX: &str = "auth:api_key:";
 
 // ============================================================================
-// Storage Record Types
+// Internal Storage Record Types
 // ============================================================================
 
 /// Internal user record for storage.
@@ -83,181 +85,6 @@ impl UserRecord {
             metadata: self.metadata.clone(),
         }
     }
-}
-
-// ============================================================================
-// Request/Response Types
-// ============================================================================
-
-/// Login request.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct LoginRequest {
-    /// Username or email.
-    pub username: String,
-    /// Password.
-    pub password: String,
-}
-
-/// Login response with tokens.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct LoginResponse {
-    /// JWT access token.
-    pub access_token: String,
-    /// Token type (always "Bearer").
-    pub token_type: String,
-    /// Expires in seconds.
-    pub expires_in: i64,
-    /// Refresh token.
-    pub refresh_token: String,
-    /// User information.
-    pub user: UserInfo,
-}
-
-/// User information (safe for API responses).
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct UserInfo {
-    /// User ID.
-    pub user_id: String,
-    /// Username.
-    pub username: String,
-    /// Email address.
-    pub email: String,
-    /// User role.
-    pub role: String,
-}
-
-impl From<&User> for UserInfo {
-    fn from(user: &User) -> Self {
-        Self {
-            user_id: user.user_id.clone(),
-            username: user.username.clone(),
-            email: user.email.clone(),
-            role: user.role.to_string(),
-        }
-    }
-}
-
-/// Refresh token request.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct RefreshTokenRequest {
-    /// Refresh token.
-    pub refresh_token: String,
-}
-
-/// Refresh token response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct RefreshTokenResponse {
-    /// New access token.
-    pub access_token: String,
-    /// Token type.
-    pub token_type: String,
-    /// Expires in seconds.
-    pub expires_in: i64,
-}
-
-/// Create user request.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct CreateUserRequest {
-    /// Username.
-    pub username: String,
-    /// Email address.
-    pub email: String,
-    /// Password.
-    pub password: String,
-    /// Role (optional, defaults to "user").
-    pub role: Option<String>,
-}
-
-/// Create user response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct CreateUserResponse {
-    /// Created user information.
-    pub user: UserInfo,
-    /// Creation timestamp.
-    pub created_at: String,
-}
-
-/// User list response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct ListUsersResponse {
-    /// List of users.
-    pub users: Vec<UserInfo>,
-    /// Total count.
-    pub total: usize,
-}
-
-/// Create API key request.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct CreateApiKeyRequest {
-    /// Key name (optional).
-    pub name: Option<String>,
-    /// Scopes for the key.
-    pub scopes: Option<Vec<String>>,
-    /// Expiration in days (optional).
-    pub expires_in_days: Option<i64>,
-}
-
-/// Create API key response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct CreateApiKeyResponse {
-    /// Key ID.
-    pub key_id: String,
-    /// The actual API key (only shown once).
-    pub api_key: String,
-    /// Key prefix.
-    pub prefix: String,
-    /// Scopes.
-    pub scopes: Vec<String>,
-    /// Expiration date.
-    pub expires_at: Option<String>,
-    /// Creation timestamp.
-    pub created_at: String,
-}
-
-/// API key summary (for listing).
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct ApiKeySummary {
-    /// Key ID.
-    pub key_id: String,
-    /// Key prefix.
-    pub prefix: String,
-    /// Key name.
-    pub name: Option<String>,
-    /// Scopes.
-    pub scopes: Vec<String>,
-    /// Is active.
-    pub is_active: bool,
-    /// Last used.
-    pub last_used_at: Option<String>,
-    /// Expires at.
-    pub expires_at: Option<String>,
-    /// Created at.
-    pub created_at: String,
-}
-
-/// List API keys response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct ListApiKeysResponse {
-    /// API keys.
-    pub keys: Vec<ApiKeySummary>,
-    /// Total count.
-    pub total: usize,
-}
-
-/// Revoke API key response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct RevokeApiKeyResponse {
-    /// Revoked key ID.
-    pub key_id: String,
-    /// Message.
-    pub message: String,
-}
-
-/// Get current user response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct GetMeResponse {
-    /// User information.
-    pub user: UserInfo,
 }
 
 /// Stored refresh token record.
@@ -741,6 +568,7 @@ pub async fn create_user(
     path = "/api/v1/users",
     tag = "User Management",
     security(("bearer_auth" = [])),
+    params(ListUsersQuery),
     responses(
         (status = 200, description = "List of users", body = ListUsersResponse),
         (status = 403, description = "Admin access required")
@@ -748,13 +576,19 @@ pub async fn create_user(
 )]
 pub async fn list_users(
     State(_state): State<AppState>,
+    Query(query): Query<ListUsersQuery>,
 ) -> Result<Json<ListUsersResponse>, ApiError> {
-    // TODO: Implement listing with pagination
-    // This requires the KV storage to support prefix scans
-    // For now, return an empty list
+    // TODO: Implement listing with prefix scan when KV storage supports it
+    // For now, return an empty paginated response
+    let page = query.page.max(1);
+    let page_size = query.page_size.clamp(1, 100);
+
     Ok(Json(ListUsersResponse {
         users: vec![],
         total: 0,
+        page,
+        page_size,
+        total_pages: 0,
     }))
 }
 
@@ -935,6 +769,7 @@ fn generate_api_key() -> String {
     path = "/api/v1/api-keys",
     tag = "API Keys",
     security(("bearer_auth" = [])),
+    params(ListApiKeysQuery),
     responses(
         (status = 200, description = "List of API keys", body = ListApiKeysResponse),
         (status = 401, description = "Not authenticated")
@@ -942,12 +777,18 @@ fn generate_api_key() -> String {
 )]
 pub async fn list_api_keys(
     State(_state): State<AppState>,
+    Query(query): Query<ListApiKeysQuery>,
 ) -> Result<Json<ListApiKeysResponse>, ApiError> {
-    // TODO: Implement listing with pagination
-    // This requires the KV storage to support prefix scans
+    // TODO: Implement listing with prefix scan when KV storage supports it
+    let page = query.page.max(1);
+    let page_size = query.page_size.clamp(1, 100);
+
     Ok(Json(ListApiKeysResponse {
         keys: vec![],
         total: 0,
+        page,
+        page_size,
+        total_pages: 0,
     }))
 }
 
@@ -1058,5 +899,78 @@ mod tests {
         assert_eq!(info.username, "testuser");
         assert_eq!(info.email, "test@example.com");
         assert_eq!(info.role, "user");
+    }
+
+    #[test]
+    fn test_create_user_request_deserialize() {
+        let json =
+            r#"{"username": "newuser", "email": "new@example.com", "password": "secret123"}"#;
+        let request: CreateUserRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.username, "newuser");
+        assert_eq!(request.email, "new@example.com");
+        assert_eq!(request.password, "secret123");
+        assert!(request.role.is_none());
+    }
+
+    #[test]
+    fn test_create_user_request_with_role() {
+        let json = r#"{"username": "admin", "email": "admin@example.com", "password": "secret", "role": "admin"}"#;
+        let request: CreateUserRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.role, Some("admin".to_string()));
+    }
+
+    #[test]
+    fn test_api_key_summary_serialization() {
+        let summary = ApiKeySummary {
+            key_id: "key-123".to_string(),
+            prefix: "ek-abc".to_string(),
+            name: Some("My API Key".to_string()),
+            scopes: vec!["read".to_string(), "write".to_string()],
+            is_active: true,
+            last_used_at: Some("2024-01-15T10:00:00Z".to_string()),
+            expires_at: Some("2025-01-15T10:00:00Z".to_string()),
+            created_at: "2024-01-01T10:00:00Z".to_string(),
+        };
+        let json = serde_json::to_string(&summary).unwrap();
+        assert!(json.contains("\"key_id\":\"key-123\""));
+        assert!(json.contains("\"prefix\":\"ek-abc\""));
+        assert!(json.contains("\"is_active\":true"));
+    }
+
+    #[test]
+    fn test_create_api_key_request_defaults() {
+        let json = r#"{}"#;
+        let request: CreateApiKeyRequest = serde_json::from_str(json).unwrap();
+        assert!(request.name.is_none());
+        assert!(request.scopes.is_none());
+        assert!(request.expires_in_days.is_none());
+    }
+
+    #[test]
+    fn test_refresh_token_request_deserialize() {
+        let json = r#"{"refresh_token": "token-abc-123"}"#;
+        let request: RefreshTokenRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.refresh_token, "token-abc-123");
+    }
+
+    #[test]
+    fn test_list_users_response_serialization() {
+        let response = ListUsersResponse {
+            users: vec![UserInfo {
+                user_id: "u1".to_string(),
+                username: "user1".to_string(),
+                email: "u1@test.com".to_string(),
+                role: "user".to_string(),
+            }],
+            total: 1,
+            page: 1,
+            page_size: 20,
+            total_pages: 1,
+        };
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"total\":1"));
+        assert!(json.contains("\"username\":\"user1\""));
+        assert!(json.contains("\"page\":1"));
+        assert!(json.contains("\"page_size\":20"));
     }
 }

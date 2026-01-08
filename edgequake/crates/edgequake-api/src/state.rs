@@ -1,4 +1,57 @@
-//! Application state.
+//! Application state and storage mode configuration.
+//!
+//! This module manages the central application state shared across all handlers,
+//! including storage backends, service instances, and configuration.
+//!
+//! # Storage Modes
+//!
+//! EdgeQuake supports two storage modes:
+//!
+//! - **Memory**: In-memory storage (ephemeral, for testing)
+//! - **PostgreSQL**: Persistent storage with AGE graph extensions
+//!
+//! # State Components
+//!
+//! ```text
+//! AppState
+//! ├── Storage Adapters
+//! │   ├── KV Storage (documents, metadata)
+//! │   ├── Vector Storage (embeddings)
+//! │   └── Graph Storage (entities, relationships)
+//! ├── Services
+//! │   ├── QueryEngine (hybrid search)
+//! │   ├── Pipeline (document processing)
+//! │   ├── ConversationService
+//! │   └── WorkspaceService
+//! ├── Infrastructure
+//! │   ├── TaskQueue (async processing)
+//! │   ├── CacheManager (hot data)
+//! │   └── ProgressBroadcaster (real-time updates)
+//! └── Configuration
+//!     ├── AuthConfig
+//!     ├── RateLimitConfig
+//!     └── AppConfig
+//! ```
+//!
+//! # Example
+//!
+//! ```rust,ignore
+//! use edgequake_api::{AppState, StorageMode, AppConfig};
+//!
+//! let config = AppConfig {
+//!     storage_mode: StorageMode::Memory,
+//!     max_document_size: 10_000_000, // 10MB
+//!     max_query_length: 10_000,
+//!     ..Default::default()
+//! };
+//!
+//! let state = AppState::new(config).await?;
+//! ```
+//!
+//! # Thread Safety
+//!
+//! All state components use Arc for shared ownership and are designed
+//! for concurrent access across multiple request handlers.
 
 use std::sync::Arc;
 
@@ -68,9 +121,9 @@ impl StorageMode {
 }
 
 #[cfg(feature = "postgres")]
-use crate::PostgresConversationService;
+use edgequake_core::ConversationServiceImpl;
 #[cfg(feature = "postgres")]
-use crate::PostgresWorkspaceService;
+use edgequake_core::WorkspaceServiceImpl;
 #[cfg(feature = "postgres")]
 use edgequake_storage::{
     GraphStorage, KVStorage, PgVectorStorage, PostgresAGEGraphStorage, PostgresKVStorage,
@@ -496,18 +549,18 @@ impl AppState {
         // Create LLM provider
         let llm_provider = Arc::new(OpenAIProvider::new(llm_api_key));
 
-        // Create PostgreSQL-backed workspace service for full persistence
-        let pg_workspace_service = PostgresWorkspaceService::new(pool.clone());
+        // Create workspace service for full persistence
+        let workspace_service_impl = WorkspaceServiceImpl::new(pool.clone());
 
         // Ensure default tenant and workspace exist (critical for non-authenticated mode)
-        pg_workspace_service.ensure_defaults().await?;
+        workspace_service_impl.ensure_defaults().await?;
         tracing::info!("Default tenant and workspace ensured in PostgreSQL");
 
-        let workspace_service: SharedWorkspaceService = Arc::new(pg_workspace_service);
+        let workspace_service: SharedWorkspaceService = Arc::new(workspace_service_impl);
 
-        // Create PostgreSQL-backed conversation service
+        // Create conversation service
         let conversation_service: SharedConversationService =
-            Arc::new(PostgresConversationService::new(pool.clone()));
+            Arc::new(ConversationServiceImpl::new(pool.clone()));
 
         // Create pipeline with LLM and embedding providers configured
         use edgequake_pipeline::LLMExtractor;
@@ -587,7 +640,7 @@ impl AppState {
     /// Initialize default tenant and workspace for non-authenticated mode.
     /// This ensures that the system is usable without authentication.
     ///
-    /// When using PostgreSQL, the PostgresWorkspaceService already ensures
+    /// When using PostgreSQL, the WorkspaceServiceImpl already ensures
     /// defaults exist during construction, so this primarily handles the
     /// in-memory case and ensures the default user exists.
     pub async fn initialize_defaults(
@@ -606,7 +659,7 @@ impl AppState {
             .expect("Invalid default tenant UUID");
 
         // When using PostgreSQL, just ensure the default user exists
-        // The PostgresWorkspaceService already creates default tenant/workspace
+        // The WorkspaceServiceImpl already creates default tenant/workspace
         #[cfg(feature = "postgres")]
         if let Some(ref pool) = self.pg_pool {
             // Ensure default user exists in PostgreSQL (with tenant_id for FK constraints)
@@ -628,8 +681,8 @@ impl AppState {
                 "Ensured default user exists in PostgreSQL"
             );
 
-            // PostgreSQL mode: tenant and workspace already created by PostgresWorkspaceService
-            tracing::info!("PostgreSQL mode: defaults already ensured by PostgresWorkspaceService");
+            // PostgreSQL mode: tenant and workspace already created by WorkspaceServiceImpl
+            tracing::info!("PostgreSQL mode: defaults already ensured by WorkspaceServiceImpl");
             return Ok(());
         }
 
@@ -677,5 +730,79 @@ impl AppState {
         );
 
         Ok(())
+    }
+}
+
+// ============================================================================
+// Unit Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_storage_mode_as_str() {
+        assert_eq!(StorageMode::Memory.as_str(), "memory");
+        assert_eq!(StorageMode::PostgreSQL.as_str(), "postgresql");
+    }
+
+    #[test]
+    fn test_storage_mode_is_memory() {
+        assert!(StorageMode::Memory.is_memory());
+        assert!(!StorageMode::PostgreSQL.is_memory());
+    }
+
+    #[test]
+    fn test_storage_mode_is_postgresql() {
+        assert!(StorageMode::PostgreSQL.is_postgresql());
+        assert!(!StorageMode::Memory.is_postgresql());
+    }
+
+    #[test]
+    fn test_storage_mode_serialization() {
+        let memory = StorageMode::Memory;
+        let json = serde_json::to_string(&memory).unwrap();
+        assert_eq!(json, "\"memory\"");
+
+        let postgresql = StorageMode::PostgreSQL;
+        let json = serde_json::to_string(&postgresql).unwrap();
+        assert_eq!(json, "\"postgresql\"");
+    }
+
+    #[test]
+    fn test_storage_mode_deserialization() {
+        let memory: StorageMode = serde_json::from_str("\"memory\"").unwrap();
+        assert_eq!(memory, StorageMode::Memory);
+
+        let postgresql: StorageMode = serde_json::from_str("\"postgresql\"").unwrap();
+        assert_eq!(postgresql, StorageMode::PostgreSQL);
+    }
+
+    #[test]
+    fn test_app_config_default() {
+        let config = AppConfig::default();
+        assert_eq!(config.workspace_id, "default");
+        assert_eq!(config.max_document_size, 10 * 1024 * 1024); // 10 MB
+        assert_eq!(config.max_query_length, 10000);
+    }
+
+    #[test]
+    fn test_app_config_custom() {
+        let config = AppConfig {
+            workspace_id: "custom-workspace".to_string(),
+            max_document_size: 5 * 1024 * 1024, // 5 MB
+            max_query_length: 5000,
+        };
+        assert_eq!(config.workspace_id, "custom-workspace");
+        assert_eq!(config.max_document_size, 5 * 1024 * 1024);
+        assert_eq!(config.max_query_length, 5000);
+    }
+
+    #[tokio::test]
+    async fn test_app_state_test_state() {
+        let state = AppState::test_state();
+        assert!(state.storage_mode.is_memory());
+        assert_eq!(state.config.workspace_id, "default");
     }
 }
