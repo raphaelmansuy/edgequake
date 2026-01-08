@@ -1,5 +1,6 @@
 //! Document ingestion handlers.
 
+use axum::http::StatusCode;
 use axum::{extract::State, Json};
 use axum_extra::extract::Multipart;
 use chrono::Utc;
@@ -31,7 +32,7 @@ pub async fn upload_document(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
     Json(request): Json<UploadDocumentRequest>,
-) -> ApiResult<Json<UploadDocumentResponse>> {
+) -> ApiResult<(StatusCode, Json<UploadDocumentResponse>)> {
     debug!(
         tenant_id = ?tenant_ctx.tenant_id,
         workspace_id = ?tenant_ctx.workspace_id,
@@ -148,7 +149,7 @@ pub async fn upload_document(
             .await
             .map_err(|e| ApiError::Internal(format!("Failed to queue task: {}", e)))?;
 
-        Ok(Json(UploadDocumentResponse {
+        Ok((StatusCode::CREATED, Json(UploadDocumentResponse {
             document_id,
             status: "pending".to_string(),
             task_id: Some(task_id),
@@ -158,7 +159,7 @@ pub async fn upload_document(
             entity_count: None,
             relationship_count: None,
             cost: None, // Cost will be calculated when processing completes
-        }))
+        })))
     } else {
         // Synchronous processing (original behavior)
         // Broadcast job started
@@ -377,7 +378,7 @@ pub async fn upload_document(
             embedding_model: result.stats.embedding_model.clone(),
         });
 
-        Ok(Json(UploadDocumentResponse {
+        Ok((StatusCode::CREATED, Json(UploadDocumentResponse {
             document_id,
             status: "processed".to_string(),
             task_id: None,
@@ -387,7 +388,7 @@ pub async fn upload_document(
             entity_count: Some(result.stats.entity_count),
             relationship_count: Some(result.stats.relationship_count),
             cost,
-        }))
+        })))
     }
 }
 
@@ -1330,7 +1331,7 @@ pub async fn upload_file(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
     mut multipart: Multipart,
-) -> ApiResult<Json<FileUploadResponse>> {
+) -> ApiResult<(StatusCode, Json<FileUploadResponse>)> {
     debug!(
         tenant_id = ?tenant_ctx.tenant_id,
         workspace_id = ?tenant_ctx.workspace_id,
@@ -1404,7 +1405,8 @@ pub async fn upload_file(
     if let Some(existing_doc_id) = state.kv_storage.get_by_id(&hash_key).await? {
         debug!(existing_doc_id = ?existing_doc_id, "Found existing document for hash");
         if let Some(doc_id_str) = existing_doc_id.as_str() {
-            return Ok(Json(FileUploadResponse {
+            // Note: Duplicates return 200 OK, not 201 CREATED
+            return Ok((StatusCode::OK, Json(FileUploadResponse {
                 document_id: doc_id_str.to_string(),
                 filename,
                 size: content.len(),
@@ -1414,7 +1416,7 @@ pub async fn upload_file(
                 entity_count: 0,
                 relationship_count: 0,
                 is_duplicate: true,
-            }));
+            })));
         }
     }
 
@@ -1715,7 +1717,7 @@ pub async fn upload_file(
         .upsert(&[(doc_metadata_key, completed_metadata)])
         .await?;
 
-    Ok(Json(FileUploadResponse {
+    Ok((StatusCode::CREATED, Json(FileUploadResponse {
         document_id,
         filename,
         size: content.len(),
@@ -1725,7 +1727,7 @@ pub async fn upload_file(
         entity_count: result.stats.entity_count,
         relationship_count: result.stats.relationship_count,
         is_duplicate: false,
-    }))
+    })))
 }
 
 /// Upload multiple files via multipart form.
@@ -1742,7 +1744,7 @@ pub async fn upload_file(
 pub async fn upload_files_batch(
     State(state): State<AppState>,
     mut multipart: Multipart,
-) -> ApiResult<Json<BatchUploadResponse>> {
+) -> ApiResult<(StatusCode, Json<BatchUploadResponse>)> {
     let mut results = Vec::new();
     let mut processed = 0usize;
     let mut duplicates = 0usize;
@@ -1810,13 +1812,13 @@ pub async fn upload_files_batch(
         }
     }
 
-    Ok(Json(BatchUploadResponse {
+    Ok((StatusCode::CREATED, Json(BatchUploadResponse {
         total_files: results.len(),
         processed,
         duplicates,
         failed,
         results,
-    }))
+    })))
 }
 
 /// Process a single file and return (document_id, is_duplicate).

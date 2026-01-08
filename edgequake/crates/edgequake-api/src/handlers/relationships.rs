@@ -2,6 +2,7 @@
 
 use axum::{
     extract::{Path, Query, State},
+    http::StatusCode,
     Json,
 };
 use chrono::Utc;
@@ -15,10 +16,9 @@ use crate::state::AppState;
 // Re-export DTOs for backward compatibility
 pub use crate::handlers::relationships_types::{
     default_weight, CreateRelationshipRequest, CreateRelationshipResponse,
-    DeleteRelationshipResponse, EntitySummary, GetRelationshipResponse,
-    ListRelationshipsQuery, ListRelationshipsResponse, RelationshipChangesSummary,
-    RelationshipEntities, RelationshipResponse, UpdateRelationshipRequest,
-    UpdateRelationshipResponse,
+    DeleteRelationshipResponse, EntitySummary, GetRelationshipResponse, ListRelationshipsQuery,
+    ListRelationshipsResponse, RelationshipChangesSummary, RelationshipEntities,
+    RelationshipResponse, UpdateRelationshipRequest, UpdateRelationshipResponse,
 };
 
 // ============================================================================
@@ -192,7 +192,7 @@ pub async fn list_relationships(
 pub async fn create_relationship(
     State(state): State<AppState>,
     Json(req): Json<CreateRelationshipRequest>,
-) -> ApiResult<Json<CreateRelationshipResponse>> {
+) -> ApiResult<(StatusCode, Json<CreateRelationshipResponse>)> {
     let src_id = normalize_entity_name(&req.src_id);
     let tgt_id = normalize_entity_name(&req.tgt_id);
 
@@ -246,11 +246,11 @@ pub async fn create_relationship(
 
     let relationship = edge_to_relationship_response(edge, &rel_id);
 
-    Ok(Json(CreateRelationshipResponse {
+    Ok((StatusCode::CREATED, Json(CreateRelationshipResponse {
         status: "success".to_string(),
         message: "Relationship created successfully".to_string(),
         relationship,
-    }))
+    })))
 }
 
 /// Get a relationship by ID.
