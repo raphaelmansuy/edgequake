@@ -36,6 +36,18 @@ pub mod types;
 pub mod utils;
 pub mod workspace_service;
 
+// PostgreSQL service implementations (feature-gated)
+#[cfg(feature = "postgres")]
+mod postgres_conversation_service;
+#[cfg(feature = "postgres")]
+mod postgres_workspace_service;
+
+// Re-export PostgreSQL services when feature is enabled
+#[cfg(feature = "postgres")]
+pub use postgres_conversation_service::PostgresConversationService;
+#[cfg(feature = "postgres")]
+pub use postgres_workspace_service::PostgresWorkspaceService;
+
 // Re-export keyword extractor
 pub use keyword_extractor::{ExtractedKeywords, KeywordExtractor};
 

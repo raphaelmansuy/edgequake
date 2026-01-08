@@ -2,6 +2,13 @@
 //!
 //! This module provides a PostgreSQL-backed implementation of the ConversationService
 //! trait for production use.
+//!
+//! # WHY: Service Layer in Core
+//!
+//! This PostgreSQL service implementation lives in `edgequake-core` because:
+//! 1. It implements the `ConversationService` trait defined here
+//! 2. It sits alongside `InMemoryConversationService` - same abstraction level
+//! 3. The API layer should only contain HTTP handling, not database services
 
 #[cfg(feature = "postgres")]
 use async_trait::async_trait;
@@ -13,7 +20,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 #[cfg(feature = "postgres")]
-use edgequake_core::{
+use crate::{
     conversation_service::ConversationService,
     error::{Error, Result},
     types::{

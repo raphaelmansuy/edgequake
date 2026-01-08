@@ -8,6 +8,10 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 
+[features]
+default = []
+postgres = ["edgequake-storage/postgres", "dep:sqlx"]
+
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -23,6 +27,7 @@ edgequake-storage.workspace = true
 edgequake-pipeline.workspace = true
 async-trait.workspace = true
 lru = "0.12"
+sqlx = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }
