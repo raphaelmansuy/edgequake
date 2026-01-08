@@ -7,8 +7,6 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
@@ -19,391 +17,8 @@ use edgequake_core::types::{
     MessageRole, UpdateConversationRequest, UpdateMessageRequest,
 };
 
-// ============ Request/Response DTOs ============
-
-/// Pagination and filter parameters for listing conversations.
-#[derive(Debug, Deserialize, ToSchema, utoipa::IntoParams)]
-pub struct ListConversationsParams {
-    /// Cursor for pagination.
-    pub cursor: Option<String>,
-    /// Maximum items to return (default 20, max 100).
-    #[serde(default = "default_limit")]
-    pub limit: usize,
-    /// Filter by mode (comma-separated: local,global,hybrid).
-    #[serde(rename = "filter[mode]")]
-    pub filter_mode: Option<String>,
-    /// Filter by archived status.
-    #[serde(rename = "filter[archived]")]
-    pub filter_archived: Option<bool>,
-    /// Filter by pinned status.
-    #[serde(rename = "filter[pinned]")]
-    pub filter_pinned: Option<bool>,
-    /// Filter by folder ID.
-    #[serde(rename = "filter[folder_id]")]
-    pub filter_folder_id: Option<Uuid>,
-    /// Search in title.
-    #[serde(rename = "filter[search]")]
-    pub filter_search: Option<String>,
-    /// Sort field (updated_at, created_at, title).
-    #[serde(default = "default_sort")]
-    pub sort: String,
-    /// Sort order (asc, desc).
-    #[serde(default = "default_order")]
-    pub order: String,
-}
-
-fn default_limit() -> usize {
-    20
-}
-fn default_sort() -> String {
-    "updated_at".to_string()
-}
-fn default_order() -> String {
-    "desc".to_string()
-}
-
-/// Pagination parameters for listing messages.
-#[derive(Debug, Deserialize, ToSchema, utoipa::IntoParams)]
-pub struct ListMessagesParams {
-    /// Cursor for pagination.
-    pub cursor: Option<String>,
-    /// Maximum items to return (default 50, max 200).
-    #[serde(default = "default_messages_limit")]
-    pub limit: usize,
-}
-
-fn default_messages_limit() -> usize {
-    50
-}
-
-/// Conversation response DTO.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct ConversationResponse {
-    /// Conversation ID.
-    pub id: Uuid,
-    /// Tenant ID.
-    pub tenant_id: Uuid,
-    /// Workspace ID.
-    pub workspace_id: Option<Uuid>,
-    /// Title.
-    pub title: String,
-    /// Query mode.
-    pub mode: String,
-    /// Pinned state.
-    pub is_pinned: bool,
-    /// Archived state.
-    pub is_archived: bool,
-    /// Folder ID.
-    pub folder_id: Option<Uuid>,
-    /// Share ID (if shared).
-    pub share_id: Option<String>,
-    /// Message count.
-    pub message_count: Option<usize>,
-    /// Preview of last message.
-    pub last_message_preview: Option<String>,
-    /// Creation timestamp.
-    pub created_at: String,
-    /// Last update timestamp.
-    pub updated_at: String,
-}
-
-impl From<edgequake_core::Conversation> for ConversationResponse {
-    fn from(c: edgequake_core::Conversation) -> Self {
-        Self {
-            id: c.conversation_id,
-            tenant_id: c.tenant_id,
-            workspace_id: c.workspace_id,
-            title: c.title,
-            mode: c.mode.to_string(),
-            is_pinned: c.is_pinned,
-            is_archived: c.is_archived,
-            folder_id: c.folder_id,
-            share_id: c.share_id,
-            message_count: c.message_count,
-            last_message_preview: c.last_message_preview,
-            created_at: c.created_at.to_rfc3339(),
-            updated_at: c.updated_at.to_rfc3339(),
-        }
-    }
-}
-
-/// Message response DTO.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct MessageResponse {
-    /// Message ID.
-    pub id: Uuid,
-    /// Conversation ID.
-    pub conversation_id: Uuid,
-    /// Parent message ID.
-    pub parent_id: Option<Uuid>,
-    /// Role (user, assistant, system).
-    pub role: String,
-    /// Content.
-    pub content: String,
-    /// Query mode used.
-    pub mode: Option<String>,
-    /// Tokens used.
-    pub tokens_used: Option<i32>,
-    /// Duration in ms.
-    pub duration_ms: Option<i32>,
-    /// Thinking time in ms.
-    pub thinking_time_ms: Option<i32>,
-    /// Context (sources, entities).
-    pub context: Option<serde_json::Value>,
-    /// Error state.
-    pub is_error: bool,
-    /// Creation timestamp.
-    pub created_at: String,
-    /// Last update timestamp.
-    pub updated_at: String,
-}
-
-impl From<edgequake_core::Message> for MessageResponse {
-    fn from(m: edgequake_core::Message) -> Self {
-        Self {
-            id: m.message_id,
-            conversation_id: m.conversation_id,
-            parent_id: m.parent_id,
-            role: m.role.to_string(),
-            content: m.content,
-            mode: m.mode.map(|m| m.to_string()),
-            tokens_used: m.tokens_used,
-            duration_ms: m.duration_ms,
-            thinking_time_ms: m.thinking_time_ms,
-            context: m
-                .context
-                .map(|c| serde_json::to_value(c).unwrap_or_default()),
-            is_error: m.is_error,
-            created_at: m.created_at.to_rfc3339(),
-            updated_at: m.updated_at.to_rfc3339(),
-        }
-    }
-}
-
-/// Folder response DTO.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct FolderResponse {
-    /// Folder ID.
-    pub id: Uuid,
-    /// Tenant ID.
-    pub tenant_id: Uuid,
-    /// Workspace ID.
-    pub workspace_id: Option<Uuid>,
-    /// Name.
-    pub name: String,
-    /// Parent folder ID.
-    pub parent_id: Option<Uuid>,
-    /// Position.
-    pub position: i32,
-    /// Creation timestamp.
-    pub created_at: String,
-    /// Last update timestamp.
-    pub updated_at: String,
-}
-
-impl From<edgequake_core::Folder> for FolderResponse {
-    fn from(f: edgequake_core::Folder) -> Self {
-        Self {
-            id: f.folder_id,
-            tenant_id: f.tenant_id,
-            workspace_id: f.workspace_id,
-            name: f.name,
-            parent_id: f.parent_id,
-            position: f.position,
-            created_at: f.created_at.to_rfc3339(),
-            updated_at: f.updated_at.to_rfc3339(),
-        }
-    }
-}
-
-/// Paginated conversations response.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct PaginatedConversationsResponse {
-    /// Conversation items.
-    pub items: Vec<ConversationResponse>,
-    /// Pagination metadata.
-    pub pagination: PaginationMetaResponse,
-}
-
-/// Paginated messages response.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct PaginatedMessagesResponse {
-    /// Message items.
-    pub items: Vec<MessageResponse>,
-    /// Pagination metadata.
-    pub pagination: PaginationMetaResponse,
-}
-
-/// Pagination metadata response.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct PaginationMetaResponse {
-    /// Cursor for next page.
-    pub next_cursor: Option<String>,
-    /// Cursor for previous page.
-    pub prev_cursor: Option<String>,
-    /// Total count (optional).
-    pub total: Option<usize>,
-    /// Whether more items exist.
-    pub has_more: bool,
-}
-
-/// Conversation with messages response.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct ConversationWithMessagesResponse {
-    /// Conversation details.
-    pub conversation: ConversationResponse,
-    /// Messages in the conversation.
-    pub messages: Vec<MessageResponse>,
-}
-
-/// Create conversation request DTO.
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct CreateConversationApiRequest {
-    /// Optional title.
-    pub title: Option<String>,
-    /// Query mode.
-    pub mode: Option<String>,
-    /// Folder ID.
-    pub folder_id: Option<Uuid>,
-}
-
-/// Update conversation request DTO.
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct UpdateConversationApiRequest {
-    /// New title.
-    pub title: Option<String>,
-    /// New mode.
-    pub mode: Option<String>,
-    /// Pinned state.
-    pub is_pinned: Option<bool>,
-    /// Archived state.
-    pub is_archived: Option<bool>,
-    /// Folder ID.
-    pub folder_id: Option<Uuid>,
-}
-
-/// Create message request DTO.
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct CreateMessageApiRequest {
-    /// Message content.
-    pub content: String,
-    /// Role (user, assistant, system).
-    pub role: String,
-    /// Parent message ID.
-    pub parent_id: Option<Uuid>,
-    /// Whether to stream response.
-    #[serde(default = "default_stream")]
-    pub stream: bool,
-}
-
-fn default_stream() -> bool {
-    true
-}
-
-/// Update message request DTO.
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct UpdateMessageApiRequest {
-    /// New content.
-    pub content: Option<String>,
-    /// Tokens used.
-    pub tokens_used: Option<i32>,
-    /// Duration in ms.
-    pub duration_ms: Option<i32>,
-    /// Thinking time in ms.
-    pub thinking_time_ms: Option<i32>,
-    /// Context.
-    pub context: Option<serde_json::Value>,
-    /// Error state.
-    pub is_error: Option<bool>,
-}
-
-/// Create folder request DTO.
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct CreateFolderApiRequest {
-    /// Folder name.
-    pub name: String,
-    /// Parent folder ID.
-    pub parent_id: Option<Uuid>,
-}
-
-/// Update folder request DTO.
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct UpdateFolderApiRequest {
-    /// New name.
-    pub name: Option<String>,
-    /// New parent.
-    pub parent_id: Option<Uuid>,
-    /// New position.
-    pub position: Option<i32>,
-}
-
-/// Bulk operation request.
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct BulkOperationRequest {
-    /// Conversation IDs.
-    pub conversation_ids: Vec<Uuid>,
-}
-
-/// Bulk archive request.
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct BulkArchiveRequest {
-    /// Conversation IDs.
-    pub conversation_ids: Vec<Uuid>,
-    /// Archive state.
-    pub archive: bool,
-}
-
-/// Bulk move request.
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct BulkMoveRequest {
-    /// Conversation IDs.
-    pub conversation_ids: Vec<Uuid>,
-    /// Target folder ID.
-    pub folder_id: Option<Uuid>,
-}
-
-/// Bulk operation response.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct BulkOperationResponse {
-    /// Number of items affected.
-    pub affected: usize,
-}
-
-/// Import request.
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct ImportConversationsRequest {
-    /// Conversations to import (from localStorage).
-    pub conversations: Vec<serde_json::Value>,
-}
-
-/// Import response.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct ImportConversationsResponse {
-    /// Number imported.
-    pub imported: usize,
-    /// Number failed.
-    pub failed: usize,
-    /// Errors.
-    pub errors: Vec<ImportErrorResponse>,
-}
-
-/// Import error.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct ImportErrorResponse {
-    /// Conversation ID.
-    pub id: String,
-    /// Error message.
-    pub error: String,
-}
-
-/// Share response.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct ShareResponse {
-    /// Share ID.
-    pub share_id: String,
-    /// Share URL.
-    pub share_url: String,
-}
+// Re-export DTOs from conversations_types module
+pub use crate::handlers::conversations_types::*;
 
 // ============ Handlers ============
 
@@ -1110,4 +725,88 @@ pub async fn delete_folder(
         .map_err(|e| ApiError::Internal(e.to_string()))?;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_list_conversations_params_defaults() {
+        let json_str = r#"{}"#;
+        let params: Result<ListConversationsParams, _> = serde_json::from_str(json_str);
+        assert!(params.is_ok());
+        let p = params.unwrap();
+        assert_eq!(p.limit, 20);
+        assert_eq!(p.sort, "updated_at");
+        assert_eq!(p.order, "desc");
+    }
+
+    #[test]
+    fn test_create_conversation_request_deserialization() {
+        let json_str = r#"{"title": "Test", "mode": "hybrid"}"#;
+        let request: Result<CreateConversationApiRequest, _> = serde_json::from_str(json_str);
+        assert!(request.is_ok());
+        let req = request.unwrap();
+        assert_eq!(req.title, Some("Test".to_string()));
+        assert_eq!(req.mode, Some("hybrid".to_string()));
+    }
+
+    #[test]
+    fn test_conversation_response_serialization() {
+        let response = ConversationResponse {
+            id: Uuid::new_v4(),
+            tenant_id: Uuid::new_v4(),
+            workspace_id: None,
+            title: "Test".to_string(),
+            mode: "hybrid".to_string(),
+            is_pinned: false,
+            is_archived: false,
+            folder_id: None,
+            share_id: None,
+            message_count: Some(0),
+            last_message_preview: None,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+        let json = serde_json::to_string(&response);
+        assert!(json.is_ok());
+    }
+
+    #[test]
+    fn test_folder_response_serialization() {
+        let response = FolderResponse {
+            id: Uuid::new_v4(),
+            tenant_id: Uuid::new_v4(),
+            workspace_id: None,
+            name: "Test Folder".to_string(),
+            parent_id: None,
+            position: 0,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+        let json = serde_json::to_string(&response);
+        assert!(json.is_ok());
+    }
+
+    #[test]
+    fn test_message_response_serialization() {
+        let response = MessageResponse {
+            id: Uuid::new_v4(),
+            conversation_id: Uuid::new_v4(),
+            parent_id: None,
+            role: "user".to_string(),
+            content: "Hello".to_string(),
+            mode: Some("hybrid".to_string()),
+            tokens_used: Some(10),
+            duration_ms: Some(100),
+            thinking_time_ms: None,
+            context: None,
+            is_error: false,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+        let json = serde_json::to_string(&response);
+        assert!(json.is_ok());
+    }
 }

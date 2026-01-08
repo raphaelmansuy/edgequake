@@ -1,163 +1,19 @@
 //! Query handlers.
 
 use axum::{extract::State, Json};
-use serde::{Deserialize, Serialize};
 use tracing::debug;
-use utoipa::ToSchema;
 
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
 use crate::state::AppState;
+use crate::validation::validate_query;
 use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
 
-/// A single message in the conversation history.
-#[derive(Debug, Clone, Deserialize, Serialize, ToSchema)]
-pub struct ConversationMessage {
-    /// Role of the message sender (user or assistant).
-    pub role: String,
-
-    /// Content of the message.
-    pub content: String,
-}
-
-/// Query request.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct QueryRequest {
-    /// The query text.
-    pub query: String,
-
-    /// Query mode (naive, local, global, hybrid, mix).
-    #[serde(default)]
-    pub mode: Option<String>,
-
-    /// Only return context, don't generate an answer.
-    #[serde(default)]
-    pub context_only: bool,
-
-    /// Return the formatted prompt instead of calling the LLM.
-    /// Useful for debugging or using your own LLM.
-    #[serde(default)]
-    pub prompt_only: bool,
-
-    /// Include detailed reference metadata (document_id, file_path, reference_id) in sources.
-    #[serde(default)]
-    pub include_references: bool,
-
-    /// Maximum number of results.
-    #[serde(default)]
-    pub max_results: Option<usize>,
-
-    /// Conversation history for multi-turn context.
-    #[serde(default)]
-    pub conversation_history: Option<Vec<ConversationMessage>>,
-
-    /// Enable reranking of retrieved chunks for better relevance.
-    #[serde(default = "default_enable_rerank")]
-    pub enable_rerank: bool,
-
-    /// Rerank model to use (e.g., "cohere-rerank-v3").
-    #[serde(default)]
-    pub rerank_model: Option<String>,
-
-    /// Top K chunks to keep after reranking.
-    #[serde(default)]
-    pub rerank_top_k: Option<usize>,
-}
-
-fn default_enable_rerank() -> bool {
-    true
-}
-
-/// Query response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct QueryResponse {
-    /// Generated answer.
-    pub answer: String,
-
-    /// Query mode used.
-    pub mode: String,
-
-    /// Retrieved context sources.
-    pub sources: Vec<SourceReference>,
-
-    /// Query statistics.
-    pub stats: QueryStats,
-
-    /// Conversation ID for multi-turn context.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub conversation_id: Option<String>,
-
-    /// Whether reranking was applied.
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
-    pub reranked: bool,
-}
-
-/// A source reference.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct SourceReference {
-    /// Source type (chunk, entity, relationship).
-    pub source_type: String,
-
-    /// Source ID.
-    pub id: String,
-
-    /// Relevance score.
-    pub score: f32,
-
-    /// Rerank score (if reranking was applied).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rerank_score: Option<f32>,
-
-    /// Content snippet.
-    pub snippet: Option<String>,
-
-    /// Reference ID for citation (1, 2, 3, ...).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub reference_id: Option<usize>,
-
-    /// Document ID that this reference came from.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub document_id: Option<String>,
-
-    /// Original file path of the source document.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub file_path: Option<String>,
-
-    /// Start line number in the document.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub start_line: Option<usize>,
-
-    /// End line number in the document.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_line: Option<usize>,
-
-    /// Chunk index in the document.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub chunk_index: Option<usize>,
-}
-
-/// Query statistics.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct QueryStats {
-    /// Embedding time in ms.
-    pub embedding_time_ms: u64,
-
-    /// Retrieval time in ms.
-    pub retrieval_time_ms: u64,
-
-    /// Generation time in ms.
-    pub generation_time_ms: u64,
-
-    /// Total time in ms.
-    pub total_time_ms: u64,
-
-    /// Number of sources retrieved.
-    pub sources_retrieved: usize,
-
-    /// Rerank time in ms (if reranking was applied).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rerank_time_ms: Option<u64>,
-}
+// Re-export DTOs for backward compatibility
+pub use crate::handlers::query_types::{
+    ConversationMessage, QueryRequest, QueryResponse, QueryStats, SourceReference,
+    StreamQueryRequest,
+};
 
 /// Execute a query.
 #[utoipa::path(
@@ -182,18 +38,7 @@ pub async fn execute_query(
         "Executing query with tenant context"
     );
 
-    if request.query.trim().is_empty() {
-        return Err(ApiError::ValidationError(
-            "Query cannot be empty".to_string(),
-        ));
-    }
-
-    if request.query.len() > state.config.max_query_length {
-        return Err(ApiError::BadRequest(format!(
-            "Query exceeds maximum length of {} characters",
-            state.config.max_query_length
-        )));
-    }
+    validate_query(&request.query, state.config.max_query_length)?;
 
     // Parse query mode
     let mode = request
@@ -378,17 +223,6 @@ pub async fn execute_query(
     Ok(Json(response))
 }
 
-/// Streaming query request.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct StreamQueryRequest {
-    /// The query text.
-    pub query: String,
-
-    /// Query mode.
-    #[serde(default)]
-    pub mode: Option<String>,
-}
-
 use axum::response::sse::{Event, Sse};
 use futures::StreamExt;
 
@@ -415,11 +249,7 @@ pub async fn stream_query(
         "Executing streaming query with tenant context"
     );
 
-    if request.query.trim().is_empty() {
-        return Err(ApiError::ValidationError(
-            "Query cannot be empty".to_string(),
-        ));
-    }
+    validate_query(&request.query, state.config.max_query_length)?;
 
     // Parse query mode
     let mode = request
@@ -514,5 +344,88 @@ mod tests {
 
         let result = stream_query(State(state), tenant_ctx, Json(request)).await;
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_query_modes() {
+        let state = AppState::test_state();
+        let modes = vec!["naive", "local", "global", "hybrid", "mix"];
+
+        for mode in modes {
+            let tenant_ctx = TenantContext::default();
+            let request = QueryRequest {
+                query: "Test query".to_string(),
+                mode: Some(mode.to_string()),
+                context_only: false,
+                prompt_only: false,
+                include_references: false,
+                max_results: None,
+                conversation_history: None,
+                enable_rerank: false,
+                rerank_model: None,
+                rerank_top_k: None,
+            };
+
+            let result = execute_query(State(state.clone()), tenant_ctx, Json(request)).await;
+            assert!(result.is_ok(), "Mode '{}' should succeed", mode);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_query_with_context_only() {
+        let state = AppState::test_state();
+        let tenant_ctx = TenantContext::default();
+
+        let request = QueryRequest {
+            query: "What is Rust?".to_string(),
+            mode: Some("naive".to_string()),
+            context_only: true,
+            prompt_only: false,
+            include_references: false,
+            max_results: Some(3),
+            conversation_history: None,
+            enable_rerank: false,
+            rerank_model: None,
+            rerank_top_k: None,
+        };
+
+        let result = execute_query(State(state), tenant_ctx, Json(request)).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_query_whitespace_only_fails() {
+        let state = AppState::test_state();
+        let tenant_ctx = TenantContext::default();
+
+        let request = QueryRequest {
+            query: "   \t\n   ".to_string(),
+            mode: None,
+            context_only: false,
+            prompt_only: false,
+            include_references: false,
+            max_results: None,
+            conversation_history: None,
+            enable_rerank: true,
+            rerank_model: None,
+            rerank_top_k: None,
+        };
+
+        let result = execute_query(State(state), tenant_ctx, Json(request)).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_stream_query_empty_fails() {
+        let state = AppState::test_state();
+        let tenant_ctx = TenantContext::default();
+
+        let request = StreamQueryRequest {
+            query: "".to_string(),
+            mode: None,
+        };
+
+        let result = stream_query(State(state), tenant_ctx, Json(request)).await;
+        assert!(result.is_err());
     }
 }

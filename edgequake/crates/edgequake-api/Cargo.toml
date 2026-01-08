@@ -9,7 +9,7 @@ description = "REST API server for EdgeQuake"
 
 [features]
 default = []
-postgres = ["edgequake-storage/postgres", "dep:sqlx"]
+postgres = ["edgequake-storage/postgres", "edgequake-core/postgres", "dep:sqlx"]
 
 [dependencies]
 edgequake-core = { path = "../edgequake-core" }

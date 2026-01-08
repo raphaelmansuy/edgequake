@@ -2,6 +2,19 @@
 //!
 //! This module provides the main `AuditLogger` which processes audit events
 //! asynchronously via a background worker and persists them to PostgreSQL.
+//!
+//! ## WHY Async Background Worker?
+//!
+//! Audit logging must never block API request processing. By using an
+//! unbounded channel with a background worker:
+//! - API handlers return immediately after sending to channel
+//! - Database latency doesn't affect user-facing response times
+//! - Audit writes can be batched for better throughput (future optimization)
+//!
+//! We use `unbounded_channel` because:
+//! - Audit events are small (< 1KB each)
+//! - Backpressure would block API requests (unacceptable)
+//! - Memory growth is bounded by request rate, which is already rate-limited
 
 use anyhow::Result;
 use sqlx::{Pool, Postgres};

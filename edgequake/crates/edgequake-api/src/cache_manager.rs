@@ -284,4 +284,168 @@ mod tests {
         let stats = cache.stats();
         assert_eq!(stats.conversation_stats.size, 0);
     }
+
+    #[test]
+    fn test_cache_config_default() {
+        let config = CacheConfig::default();
+        assert_eq!(config.conversation_capacity, 1000);
+        assert_eq!(config.conversation_ttl, Duration::from_secs(300));
+        assert_eq!(config.message_list_capacity, 500);
+        assert_eq!(config.message_list_ttl, Duration::from_secs(60));
+    }
+
+    #[test]
+    fn test_cache_config_custom() {
+        let config = CacheConfig {
+            conversation_capacity: 100,
+            conversation_ttl: Duration::from_secs(60),
+            message_list_capacity: 50,
+            message_list_ttl: Duration::from_secs(30),
+        };
+        assert_eq!(config.conversation_capacity, 100);
+        assert_eq!(config.message_list_capacity, 50);
+    }
+
+    #[test]
+    fn test_cache_manager_with_custom_config() {
+        let config = CacheConfig {
+            conversation_capacity: 10,
+            conversation_ttl: Duration::from_secs(1),
+            message_list_capacity: 5,
+            message_list_ttl: Duration::from_secs(1),
+        };
+        let cache = CacheManager::new(config);
+
+        let conv = create_test_conversation();
+        let id = conv.conversation_id;
+        cache.cache_conversation(conv.clone());
+
+        assert!(cache.get_conversation(id).is_some());
+    }
+
+    #[test]
+    fn test_cache_manager_default_trait() {
+        let cache = CacheManager::default();
+        let conv = create_test_conversation();
+        let id = conv.conversation_id;
+
+        cache.cache_conversation(conv);
+        assert!(cache.get_conversation(id).is_some());
+    }
+
+    #[test]
+    fn test_cache_miss_returns_none() {
+        let cache = CacheManager::with_defaults();
+        let nonexistent_id = Uuid::new_v4();
+
+        assert!(cache.get_conversation(nonexistent_id).is_none());
+        assert!(cache.get_messages(nonexistent_id).is_none());
+    }
+
+    #[test]
+    fn test_cache_overwrite() {
+        let cache = CacheManager::with_defaults();
+        let mut conv = create_test_conversation();
+        let id = conv.conversation_id;
+
+        cache.cache_conversation(conv.clone());
+
+        // Update and re-cache
+        conv.title = "Updated Title".to_string();
+        cache.cache_conversation(conv);
+
+        let cached = cache.get_conversation(id).unwrap();
+        assert_eq!(cached.title, "Updated Title");
+    }
+
+    #[test]
+    fn test_message_list_overwrite() {
+        let cache = CacheManager::with_defaults();
+        let conversation_id = Uuid::new_v4();
+
+        let messages1 = vec![create_test_message(conversation_id)];
+        cache.cache_messages(conversation_id, messages1);
+        assert_eq!(cache.get_messages(conversation_id).unwrap().len(), 1);
+
+        let messages2 = vec![
+            create_test_message(conversation_id),
+            create_test_message(conversation_id),
+            create_test_message(conversation_id),
+        ];
+        cache.cache_messages(conversation_id, messages2);
+        assert_eq!(cache.get_messages(conversation_id).unwrap().len(), 3);
+    }
+
+    #[test]
+    fn test_stats_tracks_message_cache() {
+        let cache = CacheManager::with_defaults();
+        let conversation_id = Uuid::new_v4();
+
+        let messages = vec![create_test_message(conversation_id)];
+        cache.cache_messages(conversation_id, messages);
+
+        // Hit
+        cache.get_messages(conversation_id);
+
+        // Miss
+        cache.get_messages(Uuid::new_v4());
+
+        let stats = cache.stats();
+        assert_eq!(stats.message_list_stats.hits, 1);
+        assert_eq!(stats.message_list_stats.misses, 1);
+    }
+
+    #[test]
+    fn test_purge_expired() {
+        let config = CacheConfig {
+            conversation_capacity: 10,
+            conversation_ttl: Duration::from_millis(1), // Very short TTL
+            message_list_capacity: 5,
+            message_list_ttl: Duration::from_millis(1),
+        };
+        let cache = CacheManager::new(config);
+
+        let conv = create_test_conversation();
+        let id = conv.conversation_id;
+        cache.cache_conversation(conv);
+
+        // Wait for expiration
+        std::thread::sleep(Duration::from_millis(10));
+
+        // Purge expired entries
+        cache.purge_expired();
+
+        // Entry should be gone
+        assert!(cache.get_conversation(id).is_none());
+    }
+
+    #[test]
+    fn test_cache_manager_clone() {
+        let cache = CacheManager::with_defaults();
+        let conv = create_test_conversation();
+        let id = conv.conversation_id;
+
+        cache.cache_conversation(conv);
+
+        // Clone the cache manager
+        let cache_clone = cache.clone();
+
+        // Both should access the same underlying cache
+        assert!(cache.get_conversation(id).is_some());
+        assert!(cache_clone.get_conversation(id).is_some());
+    }
+
+    #[test]
+    fn test_invalidate_nonexistent_entry() {
+        let cache = CacheManager::with_defaults();
+        let nonexistent_id = Uuid::new_v4();
+
+        // Should not panic
+        cache.invalidate_conversation(nonexistent_id);
+        cache.invalidate_messages(nonexistent_id);
+
+        // Stats should reflect no entries
+        let stats = cache.stats();
+        assert_eq!(stats.conversation_stats.size, 0);
+    }
 }

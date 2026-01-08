@@ -976,3 +976,232 @@ async fn test_complete_entity_lifecycle() {
         Some(false)
     );
 }
+
+// ============================================================================
+// List Entities Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_list_entities_empty() {
+    let app = create_test_app();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/graph/entities")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = extract_json(response).await;
+    assert!(body.get("items").is_some());
+    assert!(body.get("total").is_some());
+    assert!(body.get("page").is_some());
+    assert!(body.get("page_size").is_some());
+    assert!(body.get("total_pages").is_some());
+}
+
+#[tokio::test]
+async fn test_list_entities_with_pagination() {
+    let server = create_test_server();
+
+    // Create some entities first
+    for i in 1..=5 {
+        let app = server.build_router();
+        let request = json!({
+            "entity_name": format!("list_test_entity_{}", i),
+            "entity_type": "CONCEPT",
+            "description": format!("Test entity {}", i),
+            "source_id": "test"
+        });
+
+        app.oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/graph/entities")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    }
+
+    // List with pagination
+    let app = server.build_router();
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/graph/entities?page=1&page_size=3")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = extract_json(response).await;
+    assert_eq!(body.get("page").and_then(|v| v.as_u64()), Some(1));
+    assert_eq!(body.get("page_size").and_then(|v| v.as_u64()), Some(3));
+    // Should have at least 5 total (may have more from other tests)
+    assert!(body.get("total").and_then(|v| v.as_u64()).unwrap_or(0) >= 5);
+}
+
+#[tokio::test]
+async fn test_list_entities_with_type_filter() {
+    let server = create_test_server();
+
+    // Create entities with different types
+    for (name, entity_type) in [
+        ("filter_person_1", "PERSON"),
+        ("filter_org_1", "ORGANIZATION"),
+        ("filter_person_2", "PERSON"),
+    ] {
+        let app = server.build_router();
+        let request = json!({
+            "entity_name": name,
+            "entity_type": entity_type,
+            "description": "Test",
+            "source_id": "test"
+        });
+
+        app.oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/graph/entities")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    }
+
+    // Filter by PERSON type
+    let app = server.build_router();
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/graph/entities?entity_type=PERSON")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = extract_json(response).await;
+    let items = body.get("items").and_then(|v| v.as_array()).unwrap();
+    // All returned items should be PERSON type
+    for item in items {
+        assert_eq!(
+            item.get("entity_type").and_then(|v| v.as_str()),
+            Some("PERSON")
+        );
+    }
+}
+
+// ============================================================================
+// Entity Neighborhood Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_entity_neighborhood_not_found() {
+    let app = create_test_app();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/graph/entities/NONEXISTENT_ENTITY/neighborhood")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_entity_neighborhood_basic() {
+    let server = create_test_server();
+
+    // Create a central entity
+    let app = server.build_router();
+    let request = json!({
+        "entity_name": "neighborhood_center",
+        "entity_type": "CONCEPT",
+        "description": "Central node",
+        "source_id": "test"
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/graph/entities")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // Get neighborhood (should return just the node with no edges)
+    let app = server.build_router();
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/graph/entities/NEIGHBORHOOD_CENTER/neighborhood")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = extract_json(response).await;
+    assert!(body.get("nodes").is_some());
+    assert!(body.get("edges").is_some());
+
+    let nodes = body.get("nodes").and_then(|v| v.as_array()).unwrap();
+    assert!(!nodes.is_empty());
+    // The center node should be in the response
+    assert!(nodes
+        .iter()
+        .any(|n| n.get("id").and_then(|v| v.as_str()) == Some("NEIGHBORHOOD_CENTER")));
+}
+
+#[tokio::test]
+async fn test_entity_neighborhood_with_depth() {
+    let app = create_test_app();
+
+    // Test depth parameter parsing
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/graph/entities/TEST/neighborhood?depth=2")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Will be 404 since entity doesn't exist, but validates route parsing
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}

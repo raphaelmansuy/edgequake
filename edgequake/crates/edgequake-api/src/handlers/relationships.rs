@@ -1,194 +1,29 @@
 //! Relationship CRUD operations for manual knowledge graph management.
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
+    http::StatusCode,
     Json,
 };
 use chrono::Utc;
 use edgequake_storage::GraphEdge;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
+// Re-export DTOs for backward compatibility
+pub use crate::handlers::relationships_types::{
+    default_weight, CreateRelationshipRequest, CreateRelationshipResponse,
+    DeleteRelationshipResponse, EntitySummary, GetRelationshipResponse, ListRelationshipsQuery,
+    ListRelationshipsResponse, RelationshipChangesSummary, RelationshipEntities,
+    RelationshipResponse, UpdateRelationshipRequest, UpdateRelationshipResponse,
+};
+
 // ============================================================================
-// Request/Response Types
+// Request/Response Types (REMOVED - now in relationships_types.rs)
 // ============================================================================
-
-/// Create relationship request.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct CreateRelationshipRequest {
-    /// Source entity ID.
-    pub src_id: String,
-
-    /// Target entity ID.
-    pub tgt_id: String,
-
-    /// Keywords describing the relationship.
-    pub keywords: String,
-
-    /// Relationship weight (0.0 to 1.0).
-    #[serde(default = "default_weight")]
-    pub weight: f64,
-
-    /// Relationship description.
-    pub description: String,
-
-    /// Source document ID (use "manual_entry" for manual entries).
-    pub source_id: String,
-
-    /// Additional metadata.
-    #[serde(default)]
-    pub metadata: serde_json::Value,
-}
-
-fn default_weight() -> f64 {
-    0.8
-}
-
-/// Update relationship request.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct UpdateRelationshipRequest {
-    /// Updated keywords.
-    pub keywords: Option<String>,
-
-    /// Updated weight.
-    pub weight: Option<f64>,
-
-    /// Updated description.
-    pub description: Option<String>,
-
-    /// Updated metadata.
-    pub metadata: Option<serde_json::Value>,
-}
-
-/// Relationship response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct RelationshipResponse {
-    /// Relationship ID.
-    pub id: String,
-
-    /// Source entity ID.
-    pub src_id: String,
-
-    /// Target entity ID.
-    pub tgt_id: String,
-
-    /// Relationship type.
-    pub relation_type: String,
-
-    /// Keywords.
-    pub keywords: String,
-
-    /// Weight.
-    pub weight: f64,
-
-    /// Description.
-    pub description: String,
-
-    /// Source document ID.
-    pub source_id: String,
-
-    /// Creation timestamp.
-    pub created_at: String,
-
-    /// Last update timestamp.
-    pub updated_at: String,
-
-    /// Additional metadata.
-    pub metadata: serde_json::Value,
-}
-
-/// Create relationship response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct CreateRelationshipResponse {
-    /// Operation status.
-    pub status: String,
-
-    /// Success message.
-    pub message: String,
-
-    /// Created relationship.
-    pub relationship: RelationshipResponse,
-}
-
-/// Get relationship response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct GetRelationshipResponse {
-    /// Relationship data.
-    pub relationship: RelationshipResponse,
-
-    /// Entities involved.
-    pub entities: RelationshipEntities,
-}
-
-/// Entities in a relationship.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct RelationshipEntities {
-    /// Source entity.
-    pub source: EntitySummary,
-
-    /// Target entity.
-    pub target: EntitySummary,
-}
-
-/// Entity summary.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct EntitySummary {
-    /// Entity ID.
-    pub id: String,
-
-    /// Entity type.
-    pub entity_type: String,
-}
-
-/// Update relationship response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct UpdateRelationshipResponse {
-    /// Operation status.
-    pub status: String,
-
-    /// Success message.
-    pub message: String,
-
-    /// Updated relationship.
-    pub relationship: RelationshipResponse,
-
-    /// Changes made.
-    pub changes: RelationshipChangesSummary,
-}
-
-/// Relationship changes summary.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct RelationshipChangesSummary {
-    /// Fields that were updated.
-    pub fields_updated: Vec<String>,
-
-    /// Previous weight if changed.
-    pub previous_weight: Option<f64>,
-}
-
-/// Delete relationship response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct DeleteRelationshipResponse {
-    /// Operation status.
-    pub status: String,
-
-    /// Success message.
-    pub message: String,
-
-    /// Deleted relationship ID.
-    pub deleted_relationship_id: String,
-
-    /// Source entity ID.
-    pub src_id: String,
-
-    /// Target entity ID.
-    pub tgt_id: String,
-}
 
 // ============================================================================
 // Helper Functions
@@ -261,6 +96,88 @@ fn edge_to_relationship_response(edge: GraphEdge, rel_id: &str) -> RelationshipR
 // API Handlers
 // ============================================================================
 
+/// List relationships with pagination and filtering.
+#[utoipa::path(
+    get,
+    path = "/api/v1/graph/relationships",
+    tag = "Relationships",
+    params(
+        ("page" = Option<u32>, Query, description = "Page number (1-indexed, default 1)"),
+        ("page_size" = Option<u32>, Query, description = "Page size (default 20, max 100)"),
+        ("relationship_type" = Option<String>, Query, description = "Filter by relationship type")
+    ),
+    responses(
+        (status = 200, description = "Paginated list of relationships", body = ListRelationshipsResponse)
+    )
+)]
+pub async fn list_relationships(
+    State(state): State<AppState>,
+    Query(query): Query<ListRelationshipsQuery>,
+) -> ApiResult<Json<ListRelationshipsResponse>> {
+    // Clamp page_size to range [1, 100]
+    let page_size = query.page_size.clamp(1, 100);
+    let page = query.page.max(1);
+    let offset = ((page - 1) * page_size) as usize;
+
+    // Get all edges from graph storage
+    // WHY: We need to fetch all edges and filter in memory because the storage
+    // interface doesn't support pagination/filtering yet.
+    let all_edges = state.graph_storage.get_all_edges().await?;
+
+    // Apply filters
+    let mut filtered_edges: Vec<_> = all_edges
+        .into_iter()
+        .filter(|edge| {
+            // Filter by relationship_type if specified
+            if let Some(ref rel_type) = query.relationship_type {
+                let edge_type = edge
+                    .properties
+                    .get("relation_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                if !edge_type.eq_ignore_ascii_case(rel_type) {
+                    return false;
+                }
+            }
+            true
+        })
+        .collect();
+
+    // Sort by edge ID for consistent ordering
+    filtered_edges.sort_by(|a, b| {
+        let a_id = format!("{}_{}", a.source, a.target);
+        let b_id = format!("{}_{}", b.source, b.target);
+        a_id.cmp(&b_id)
+    });
+
+    let total = filtered_edges.len();
+    let total_pages = ((total as f64) / (page_size as f64)).ceil() as u32;
+
+    // Apply pagination
+    let page_edges: Vec<_> = filtered_edges
+        .into_iter()
+        .skip(offset)
+        .take(page_size as usize)
+        .collect();
+
+    // Convert to response format
+    let items: Vec<_> = page_edges
+        .into_iter()
+        .map(|edge| {
+            let rel_id = format!("{}_{}", edge.source, edge.target);
+            edge_to_relationship_response(edge, &rel_id)
+        })
+        .collect();
+
+    Ok(Json(ListRelationshipsResponse {
+        items,
+        total,
+        page,
+        page_size,
+        total_pages,
+    }))
+}
+
 /// Create a new relationship.
 #[utoipa::path(
     post,
@@ -275,7 +192,7 @@ fn edge_to_relationship_response(edge: GraphEdge, rel_id: &str) -> RelationshipR
 pub async fn create_relationship(
     State(state): State<AppState>,
     Json(req): Json<CreateRelationshipRequest>,
-) -> ApiResult<Json<CreateRelationshipResponse>> {
+) -> ApiResult<(StatusCode, Json<CreateRelationshipResponse>)> {
     let src_id = normalize_entity_name(&req.src_id);
     let tgt_id = normalize_entity_name(&req.tgt_id);
 
@@ -329,11 +246,11 @@ pub async fn create_relationship(
 
     let relationship = edge_to_relationship_response(edge, &rel_id);
 
-    Ok(Json(CreateRelationshipResponse {
+    Ok((StatusCode::CREATED, Json(CreateRelationshipResponse {
         status: "success".to_string(),
         message: "Relationship created successfully".to_string(),
         relationship,
-    }))
+    })))
 }
 
 /// Get a relationship by ID.
@@ -597,5 +514,52 @@ mod tests {
             normalize_entity_name("quantum computing"),
             "QUANTUM_COMPUTING"
         );
+    }
+
+    #[test]
+    fn test_create_relationship_request_defaults() {
+        let json = r#"{
+            "src_id": "ENTITY_A",
+            "tgt_id": "ENTITY_B",
+            "keywords": "works for",
+            "description": "Employment relationship",
+            "source_id": "manual_entry"
+        }"#;
+        let request: Result<CreateRelationshipRequest, _> = serde_json::from_str(json);
+        assert!(request.is_ok());
+        let req = request.unwrap();
+        assert_eq!(req.src_id, "ENTITY_A");
+        assert_eq!(req.weight, 0.8); // default
+    }
+
+    #[test]
+    fn test_create_relationship_request_custom_weight() {
+        let json = r#"{
+            "src_id": "A",
+            "tgt_id": "B",
+            "keywords": "connects",
+            "weight": 0.5,
+            "description": "test",
+            "source_id": "doc-1"
+        }"#;
+        let request: Result<CreateRelationshipRequest, _> = serde_json::from_str(json);
+        assert!(request.is_ok());
+        let req = request.unwrap();
+        assert!((req.weight - 0.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_update_relationship_request_partial() {
+        let json = r#"{"weight": 0.9}"#;
+        let request: Result<UpdateRelationshipRequest, _> = serde_json::from_str(json);
+        assert!(request.is_ok());
+        let req = request.unwrap();
+        assert_eq!(req.weight, Some(0.9));
+        assert!(req.keywords.is_none());
+    }
+
+    #[test]
+    fn test_default_weight() {
+        assert!((default_weight() - 0.8).abs() < f64::EPSILON);
     }
 }

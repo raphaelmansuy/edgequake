@@ -7,168 +7,17 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::error::ApiError;
 use crate::state::AppState;
 
-// ============ Request/Response DTOs ============
-
-/// Request to create a new tenant.
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct CreateTenantRequest {
-    /// Tenant name.
-    pub name: String,
-    /// URL-friendly slug (auto-generated if not provided).
-    pub slug: Option<String>,
-    /// Optional description.
-    pub description: Option<String>,
-    /// Plan type (free, basic, pro, enterprise).
-    pub plan: Option<String>,
-}
-
-/// Request to update a tenant.
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct UpdateTenantRequest {
-    /// New tenant name.
-    pub name: Option<String>,
-    /// New description.
-    pub description: Option<String>,
-    /// New plan.
-    pub plan: Option<String>,
-    /// Whether the tenant is active.
-    pub is_active: Option<bool>,
-}
-
-/// Request to create a new workspace.
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct CreateWorkspaceApiRequest {
-    /// Workspace name.
-    pub name: String,
-    /// URL-friendly slug (auto-generated if not provided).
-    pub slug: Option<String>,
-    /// Optional description.
-    pub description: Option<String>,
-    /// Maximum number of documents.
-    pub max_documents: Option<usize>,
-}
-
-/// Request to update a workspace.
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct UpdateWorkspaceApiRequest {
-    /// New workspace name.
-    pub name: Option<String>,
-    /// New description.
-    pub description: Option<String>,
-    /// Whether the workspace is active.
-    pub is_active: Option<bool>,
-    /// Maximum number of documents.
-    pub max_documents: Option<usize>,
-}
-
-/// Tenant response DTO.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct TenantResponse {
-    /// Tenant ID.
-    pub id: Uuid,
-    /// Tenant name.
-    pub name: String,
-    /// URL-friendly slug.
-    pub slug: String,
-    /// Plan type.
-    pub plan: String,
-    /// Whether the tenant is active.
-    pub is_active: bool,
-    /// Maximum workspaces allowed.
-    pub max_workspaces: usize,
-    /// Creation timestamp.
-    pub created_at: String,
-    /// Last update timestamp.
-    pub updated_at: String,
-}
-
-/// Workspace response DTO.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct WorkspaceResponse {
-    /// Workspace ID.
-    pub id: Uuid,
-    /// Parent tenant ID.
-    pub tenant_id: Uuid,
-    /// Workspace name.
-    pub name: String,
-    /// URL-friendly slug.
-    pub slug: String,
-    /// Description.
-    pub description: Option<String>,
-    /// Whether the workspace is active.
-    pub is_active: bool,
-    /// Maximum documents allowed.
-    pub max_documents: Option<usize>,
-    /// Creation timestamp.
-    pub created_at: String,
-    /// Last update timestamp.
-    pub updated_at: String,
-}
-
-/// List response with pagination info.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct TenantListResponse {
-    /// Items in this page.
-    pub items: Vec<TenantResponse>,
-    /// Total count.
-    pub total: usize,
-    /// Current offset.
-    pub offset: usize,
-    /// Page size limit.
-    pub limit: usize,
-}
-
-/// List response with pagination info.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct WorkspaceListResponse {
-    /// Items in this page.
-    pub items: Vec<WorkspaceResponse>,
-    /// Total count.
-    pub total: usize,
-    /// Current offset.
-    pub offset: usize,
-    /// Page size limit.
-    pub limit: usize,
-}
-
-/// Pagination query params.
-#[derive(Debug, Deserialize, ToSchema, utoipa::IntoParams)]
-pub struct PaginationParams {
-    /// Offset (default 0).
-    #[serde(default)]
-    pub offset: usize,
-    /// Limit (default 20, max 100).
-    #[serde(default = "default_limit")]
-    pub limit: usize,
-}
-
-fn default_limit() -> usize {
-    20
-}
-
-/// Workspace statistics response.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct WorkspaceStatsResponse {
-    /// Workspace ID.
-    pub workspace_id: Uuid,
-    /// Number of documents.
-    pub document_count: usize,
-    /// Number of entities.
-    pub entity_count: usize,
-    /// Number of relationships.
-    pub relationship_count: usize,
-    /// Number of chunks.
-    pub chunk_count: usize,
-    /// Storage used in bytes.
-    pub storage_bytes: u64,
-}
+// Re-export DTOs for backward compatibility
+pub use crate::handlers::workspaces_types::{
+    workspaces_default_limit, CreateTenantRequest, CreateWorkspaceApiRequest, PaginationParams,
+    TenantListResponse, TenantResponse, UpdateTenantRequest, UpdateWorkspaceApiRequest,
+    WorkspaceListResponse, WorkspaceResponse, WorkspaceStatsResponse,
+};
 
 // ============ Tenant Handlers ============
 
@@ -787,5 +636,87 @@ mod tests {
         assert_eq!(generate_slug("My Knowledge Base"), "my-knowledge-base");
         assert_eq!(generate_slug("Test 123!"), "test-123");
         assert_eq!(generate_slug("  multiple   spaces  "), "multiple-spaces");
+    }
+
+    #[test]
+    fn test_generate_slug_edge_cases() {
+        assert_eq!(generate_slug(""), "");
+        assert_eq!(generate_slug("UPPERCASE"), "uppercase");
+        assert_eq!(generate_slug("already-slug"), "already-slug");
+        assert_eq!(generate_slug("123"), "123");
+    }
+
+    #[test]
+    fn test_create_tenant_request_deserialization() {
+        let json = r#"{"name": "Test Tenant"}"#;
+        let request: Result<CreateTenantRequest, _> = serde_json::from_str(json);
+        assert!(request.is_ok());
+        let req = request.unwrap();
+        assert_eq!(req.name, "Test Tenant");
+        assert!(req.slug.is_none());
+        assert!(req.plan.is_none());
+    }
+
+    #[test]
+    fn test_update_tenant_request_partial() {
+        let json = r#"{"name": "Updated Name"}"#;
+        let request: Result<UpdateTenantRequest, _> = serde_json::from_str(json);
+        assert!(request.is_ok());
+        let req = request.unwrap();
+        assert_eq!(req.name, Some("Updated Name".to_string()));
+        assert!(req.is_active.is_none());
+    }
+
+    #[test]
+    fn test_create_workspace_request_deserialization() {
+        let json = r#"{"name": "Test Workspace", "description": "A test workspace"}"#;
+        let request: Result<CreateWorkspaceApiRequest, _> = serde_json::from_str(json);
+        assert!(request.is_ok());
+        let req = request.unwrap();
+        assert_eq!(req.name, "Test Workspace");
+        assert_eq!(req.description, Some("A test workspace".to_string()));
+    }
+
+    #[test]
+    fn test_pagination_params_defaults() {
+        let json = r#"{}"#;
+        let params: Result<PaginationParams, _> = serde_json::from_str(json);
+        assert!(params.is_ok());
+        let p = params.unwrap();
+        // Default values from serde(default)
+        assert_eq!(p.offset, 0);
+        assert_eq!(p.limit, 20);
+    }
+
+    #[test]
+    fn test_tenant_response_serialization() {
+        let response = TenantResponse {
+            id: Uuid::new_v4(),
+            name: "Test Tenant".to_string(),
+            slug: "test-tenant".to_string(),
+            plan: "free".to_string(),
+            is_active: true,
+            max_workspaces: 5,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+        let json = serde_json::to_string(&response);
+        assert!(json.is_ok());
+        assert!(json.unwrap().contains("test-tenant"));
+    }
+
+    #[test]
+    fn test_workspace_stats_response_serialization() {
+        let response = WorkspaceStatsResponse {
+            workspace_id: Uuid::new_v4(),
+            document_count: 100,
+            entity_count: 500,
+            relationship_count: 200,
+            chunk_count: 1000,
+            storage_bytes: 1024 * 1024,
+        };
+        let json = serde_json::to_string(&response);
+        assert!(json.is_ok());
+        assert!(json.unwrap().contains("\"document_count\":100"));
     }
 }

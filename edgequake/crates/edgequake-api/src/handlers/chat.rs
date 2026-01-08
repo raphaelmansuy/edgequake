@@ -16,12 +16,10 @@ use axum::{
     Json,
 };
 use futures::stream::StreamExt;
-use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, error, info, warn};
-use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
@@ -36,108 +34,8 @@ use edgequake_core::types::{
 };
 use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
 
-// ============================================================================
-// Request/Response Types
-// ============================================================================
-
-/// Unified chat completion request.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct ChatCompletionRequest {
-    /// Existing conversation ID. If null, creates a new conversation.
-    pub conversation_id: Option<Uuid>,
-
-    /// User message content.
-    pub message: String,
-
-    /// Query mode (local, global, hybrid, naive).
-    #[serde(default)]
-    pub mode: Option<String>,
-
-    /// Whether to stream the response.
-    #[serde(default = "default_stream")]
-    pub stream: bool,
-
-    /// Maximum tokens for response.
-    #[serde(default)]
-    pub max_tokens: Option<usize>,
-
-    /// Temperature for generation (0.0-2.0).
-    #[serde(default)]
-    pub temperature: Option<f32>,
-
-    /// Top K for retrieval.
-    #[serde(default)]
-    pub top_k: Option<usize>,
-
-    /// Parent message ID for threading.
-    #[serde(default)]
-    pub parent_id: Option<Uuid>,
-}
-
-fn default_stream() -> bool {
-    true
-}
-
-/// Non-streaming chat completion response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct ChatCompletionResponse {
-    /// Conversation ID (created or existing).
-    pub conversation_id: Uuid,
-
-    /// User message ID.
-    pub user_message_id: Uuid,
-
-    /// Assistant message ID.
-    pub assistant_message_id: Uuid,
-
-    /// Assistant response content.
-    pub content: String,
-
-    /// Query mode used.
-    pub mode: String,
-
-    /// Sources retrieved.
-    pub sources: Vec<SourceReference>,
-
-    /// Generation statistics.
-    pub stats: QueryStats,
-
-    /// Tokens used for generation.
-    pub tokens_used: u32,
-
-    /// Duration in milliseconds.
-    pub duration_ms: u64,
-}
-
-/// Streaming SSE event types.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum ChatStreamEvent {
-    /// Conversation and user message created/confirmed.
-    Conversation {
-        conversation_id: Uuid,
-        user_message_id: Uuid,
-    },
-
-    /// Context/sources retrieved.
-    Context { sources: Vec<SourceReference> },
-
-    /// Token generated during streaming.
-    Token { content: String },
-
-    /// Thinking/reasoning phase content.
-    Thinking { content: String },
-
-    /// Stream complete - assistant message saved.
-    Done {
-        assistant_message_id: Uuid,
-        tokens_used: u32,
-        duration_ms: u64,
-    },
-
-    /// Error occurred.
-    Error { message: String, code: String },
-}
+// Re-export DTOs from chat_types module
+pub use crate::handlers::chat_types::*;
 
 // ============================================================================
 // Helper Functions
@@ -905,5 +803,52 @@ mod tests {
         let json = serde_json::to_string(&event).unwrap();
         assert!(json.contains("\"type\":\"done\""));
         assert!(json.contains("\"tokens_used\":100"));
+    }
+
+    #[test]
+    fn test_chat_completion_request_defaults() {
+        let json = r#"{"message": "hello world"}"#;
+        let request: Result<ChatCompletionRequest, _> = serde_json::from_str(json);
+        assert!(request.is_ok());
+        let req = request.unwrap();
+        assert_eq!(req.message, "hello world");
+        assert!(req.stream); // default_stream() returns true
+        assert!(req.conversation_id.is_none());
+    }
+
+    #[test]
+    fn test_chat_completion_request_with_conversation() {
+        let json = r#"{
+            "message": "test",
+            "conversation_id": "00000000-0000-0000-0000-000000000001",
+            "mode": "global",
+            "stream": false
+        }"#;
+        let request: Result<ChatCompletionRequest, _> = serde_json::from_str(json);
+        assert!(request.is_ok());
+        let req = request.unwrap();
+        assert!(!req.stream);
+        assert_eq!(req.mode, Some("global".to_string()));
+        assert!(req.conversation_id.is_some());
+    }
+
+    #[test]
+    fn test_chat_stream_event_context() {
+        let event = ChatStreamEvent::Context { sources: vec![] };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"type\":\"context\""));
+        assert!(json.contains("\"sources\":[]"));
+    }
+
+    #[test]
+    fn test_chat_stream_event_error() {
+        let event = ChatStreamEvent::Error {
+            message: "Something went wrong".to_string(),
+            code: "INTERNAL_ERROR".to_string(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"type\":\"error\""));
+        assert!(json.contains("Something went wrong"));
+        assert!(json.contains("INTERNAL_ERROR"));
     }
 }

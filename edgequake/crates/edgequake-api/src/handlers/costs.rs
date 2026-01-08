@@ -6,59 +6,16 @@ use axum::{
     extract::{Query, State},
     Json,
 };
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 
 use crate::error::ApiResult;
 use crate::state::AppState;
 
-/// Model pricing information.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct ModelPricingResponse {
-    /// Model name.
-    pub model: String,
-    /// Cost per 1K input tokens (USD).
-    pub input_cost_per_1k: f64,
-    /// Cost per 1K output tokens (USD).
-    pub output_cost_per_1k: f64,
-}
-
-/// Cost summary for the current session.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct CostSummaryResponse {
-    /// Total input tokens used.
-    pub total_input_tokens: usize,
-    /// Total output tokens used.
-    pub total_output_tokens: usize,
-    /// Total cost in USD.
-    pub total_cost_usd: f64,
-    /// Formatted cost string.
-    pub formatted_cost: String,
-    /// Per-operation breakdown.
-    pub operations: Vec<OperationCostResponse>,
-}
-
-/// Cost for a single operation type.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct OperationCostResponse {
-    /// Operation name (extract, glean, summarize, embed).
-    pub operation: String,
-    /// Number of API calls.
-    pub call_count: usize,
-    /// Input tokens used.
-    pub input_tokens: usize,
-    /// Output tokens used.
-    pub output_tokens: usize,
-    /// Total cost (USD).
-    pub cost_usd: f64,
-}
-
-/// Available model pricing configurations.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct AvailablePricingResponse {
-    /// List of available model pricing configs.
-    pub models: Vec<ModelPricingResponse>,
-}
+// Re-export DTOs for backward compatibility
+pub use crate::handlers::costs_types::{
+    AvailablePricingResponse, BudgetInfo, CostHistoryPoint, CostHistoryQuery, CostSummaryResponse,
+    EstimateCostRequest, EstimateCostResponse, ModelPricingResponse, OperationBreakdown,
+    OperationCostResponse, WorkspaceCostSummaryResponse,
+};
 
 /// Get available model pricing configurations.
 #[utoipa::path(
@@ -84,32 +41,6 @@ pub async fn get_model_pricing(
         .collect();
 
     Ok(Json(AvailablePricingResponse { models }))
-}
-
-/// Cost estimation request.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct EstimateCostRequest {
-    /// Model to use for estimation.
-    pub model: String,
-    /// Estimated input tokens.
-    pub input_tokens: usize,
-    /// Estimated output tokens.
-    pub output_tokens: usize,
-}
-
-/// Cost estimation response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct EstimateCostResponse {
-    /// Model used.
-    pub model: String,
-    /// Input tokens.
-    pub input_tokens: usize,
-    /// Output tokens.
-    pub output_tokens: usize,
-    /// Estimated cost in USD.
-    pub estimated_cost_usd: f64,
-    /// Formatted cost.
-    pub formatted_cost: String,
 }
 
 /// Estimate cost for token usage.
@@ -148,63 +79,6 @@ pub async fn estimate_cost(
 // ============================================================================
 // Cost Summary Endpoint (WebUI Spec WEBUI-007)
 // ============================================================================
-
-/// Workspace cost summary response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct WorkspaceCostSummaryResponse {
-    /// Workspace ID.
-    pub workspace_id: String,
-    /// Total cost in USD.
-    pub total_cost: f64,
-    /// Total document count.
-    pub document_count: usize,
-    /// Total tokens used.
-    pub total_tokens: usize,
-    /// Average cost per document.
-    pub average_cost_per_document: f64,
-    /// Period start (ISO date).
-    pub period_start: Option<String>,
-    /// Period end (ISO date).
-    pub period_end: Option<String>,
-    /// Cost breakdown by operation.
-    pub by_operation: Vec<OperationBreakdown>,
-    /// Budget info if configured.
-    pub budget: Option<BudgetInfo>,
-}
-
-/// Operation cost breakdown.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct OperationBreakdown {
-    /// Operation name.
-    pub operation: String,
-    /// Cost in USD.
-    pub cost: f64,
-    /// Percentage of total cost.
-    pub percentage: f64,
-    /// Input tokens for this operation.
-    pub input_tokens: usize,
-    /// Output tokens for this operation.
-    pub output_tokens: usize,
-    /// Total tokens for this operation.
-    pub total_tokens: usize,
-    /// Number of API calls for this operation.
-    pub call_count: usize,
-}
-
-/// Budget information.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct BudgetInfo {
-    /// Monthly budget limit in USD.
-    pub monthly_budget_usd: f64,
-    /// Amount spent so far.
-    pub spent_usd: f64,
-    /// Remaining budget.
-    pub remaining_usd: f64,
-    /// Alert threshold percentage (0-100).
-    pub alert_threshold: f64,
-    /// Whether budget is exceeded.
-    pub is_over_budget: bool,
-}
 
 /// Get workspace cost summary.
 #[utoipa::path(
@@ -358,30 +232,6 @@ pub async fn update_budget(
 // Cost History Endpoint (WebUI Spec WEBUI-007)
 // ============================================================================
 
-/// Query parameters for cost history.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct CostHistoryQuery {
-    /// Start date (ISO 8601).
-    pub start_date: Option<String>,
-    /// End date (ISO 8601).
-    pub end_date: Option<String>,
-    /// Granularity: hour, day, week, month.
-    pub granularity: Option<String>,
-}
-
-/// Cost history data point.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct CostHistoryPoint {
-    /// Timestamp (ISO 8601).
-    pub timestamp: String,
-    /// Total cost in USD for this period.
-    pub total_cost: f64,
-    /// Total tokens for this period.
-    pub total_tokens: usize,
-    /// Document count for this period.
-    pub document_count: usize,
-}
-
 /// Get cost history over time.
 #[utoipa::path(
     get,
@@ -533,5 +383,41 @@ mod tests {
         assert_eq!(request.model, "gpt-4o-mini");
         assert_eq!(request.input_tokens, 1000);
         assert_eq!(request.output_tokens, 500);
+    }
+
+    #[test]
+    fn test_estimate_cost_response_serialization() {
+        let response = EstimateCostResponse {
+            model: "gpt-4o".to_string(),
+            input_tokens: 5000,
+            output_tokens: 2000,
+            estimated_cost_usd: 0.025,
+            formatted_cost: "$0.025000".to_string(),
+        };
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"model\":\"gpt-4o\""));
+        assert!(json.contains("\"input_tokens\":5000"));
+        assert!(json.contains("\"formatted_cost\":\"$0.025000\""));
+    }
+
+    #[test]
+    fn test_operation_cost_response_serialization() {
+        let response = OperationCostResponse {
+            operation: "summarize".to_string(),
+            call_count: 10,
+            input_tokens: 5000,
+            output_tokens: 1000,
+            cost_usd: 0.00135,
+        };
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"operation\":\"summarize\""));
+        assert!(json.contains("\"call_count\":10"));
+    }
+
+    #[test]
+    fn test_available_pricing_response_empty() {
+        let response = AvailablePricingResponse { models: vec![] };
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"models\":[]"));
     }
 }

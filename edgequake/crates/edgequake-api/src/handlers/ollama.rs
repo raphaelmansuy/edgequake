@@ -31,14 +31,19 @@ use axum::{
     Json,
 };
 use chrono::Utc;
-use serde::{Deserialize, Serialize};
 use std::time::Instant;
 use tokio_stream::wrappers::ReceiverStream;
-use utoipa::ToSchema;
 
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
+
+// Re-export DTOs for backward compatibility
+pub use crate::handlers::ollama_types::{
+    ollama_default_stream, OllamaChatRequest, OllamaChatResponse, OllamaGenerateRequest,
+    OllamaGenerateResponse, OllamaMessage, OllamaModel, OllamaModelDetails, OllamaPsResponse,
+    OllamaRunningModel, OllamaSearchMode, OllamaTagsResponse, OllamaVersionResponse,
+};
 
 /// Default model name for Ollama emulation.
 const OLLAMA_MODEL_NAME: &str = "edgequake";
@@ -50,307 +55,6 @@ const OLLAMA_MODEL_SIZE: u64 = 7_000_000_000; // 7GB placeholder
 const OLLAMA_MODEL_DIGEST: &str = "sha256:edgequake-rag-v1";
 /// API version string.
 const OLLAMA_API_VERSION: &str = "0.9.3";
-
-/// Query mode for Ollama API.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OllamaSearchMode {
-    Naive,
-    Local,
-    Global,
-    Hybrid,
-    Mix,
-    Bypass,
-    Context,
-}
-
-impl OllamaSearchMode {
-    /// Parse query prefix to determine search mode.
-    pub fn from_query(query: &str) -> (String, Self, bool) {
-        let prefixes = [
-            ("/localcontext ", Self::Local, true),
-            ("/globalcontext ", Self::Global, true),
-            ("/naivecontext ", Self::Naive, true),
-            ("/hybridcontext ", Self::Hybrid, true),
-            ("/mixcontext ", Self::Mix, true),
-            ("/context ", Self::Mix, true),
-            ("/local ", Self::Local, false),
-            ("/global ", Self::Global, false),
-            ("/naive ", Self::Naive, false),
-            ("/hybrid ", Self::Hybrid, false),
-            ("/mix ", Self::Mix, false),
-            ("/bypass ", Self::Bypass, false),
-        ];
-
-        for (prefix, mode, context_only) in prefixes {
-            if let Some(rest) = query.strip_prefix(prefix) {
-                return (rest.to_string(), mode, context_only);
-            }
-        }
-
-        (query.to_string(), Self::Hybrid, false)
-    }
-
-    /// Convert to EdgeQuake QueryMode.
-    pub fn to_query_mode(&self) -> Option<QueryMode> {
-        match self {
-            Self::Naive => Some(QueryMode::Naive),
-            Self::Local => Some(QueryMode::Local),
-            Self::Global => Some(QueryMode::Global),
-            Self::Hybrid => Some(QueryMode::Hybrid),
-            Self::Mix => Some(QueryMode::Mix),
-            Self::Bypass => None, // Bypass goes directly to LLM
-            Self::Context => Some(QueryMode::Mix),
-        }
-    }
-}
-
-// ============================================================================
-// Request/Response Types
-// ============================================================================
-
-/// Ollama message in a chat conversation.
-#[derive(Debug, Clone, Deserialize, Serialize, ToSchema)]
-pub struct OllamaMessage {
-    /// Role of the message sender (user, assistant, system).
-    pub role: String,
-
-    /// Content of the message.
-    pub content: String,
-
-    /// Optional images (base64 encoded, for multimodal models).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub images: Option<Vec<String>>,
-}
-
-/// Ollama chat request.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct OllamaChatRequest {
-    /// Model name (ignored, EdgeQuake handles all queries).
-    pub model: String,
-
-    /// Conversation messages.
-    pub messages: Vec<OllamaMessage>,
-
-    /// Whether to stream the response.
-    #[serde(default = "default_stream")]
-    pub stream: bool,
-
-    /// System prompt override.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub system: Option<String>,
-
-    /// Model options (temperature, top_p, etc.).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub options: Option<serde_json::Value>,
-}
-
-fn default_stream() -> bool {
-    true
-}
-
-/// Ollama chat response (non-streaming).
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct OllamaChatResponse {
-    /// Model name.
-    pub model: String,
-
-    /// Creation timestamp.
-    pub created_at: String,
-
-    /// Assistant's response message.
-    pub message: OllamaMessage,
-
-    /// Whether the response is complete.
-    pub done: bool,
-
-    /// Reason for completion.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub done_reason: Option<String>,
-
-    /// Total duration in nanoseconds.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_duration: Option<u64>,
-
-    /// Load duration in nanoseconds.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub load_duration: Option<u64>,
-
-    /// Prompt evaluation count.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prompt_eval_count: Option<u32>,
-
-    /// Prompt evaluation duration in nanoseconds.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prompt_eval_duration: Option<u64>,
-
-    /// Response evaluation count.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub eval_count: Option<u32>,
-
-    /// Response evaluation duration in nanoseconds.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub eval_duration: Option<u64>,
-}
-
-/// Ollama generate request.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct OllamaGenerateRequest {
-    /// Model name (ignored, EdgeQuake handles all queries).
-    pub model: String,
-
-    /// The prompt to generate a response for.
-    pub prompt: String,
-
-    /// Whether to stream the response.
-    #[serde(default)]
-    pub stream: bool,
-
-    /// System prompt override.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub system: Option<String>,
-
-    /// Model options.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub options: Option<serde_json::Value>,
-}
-
-/// Ollama generate response (non-streaming).
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct OllamaGenerateResponse {
-    /// Model name.
-    pub model: String,
-
-    /// Creation timestamp.
-    pub created_at: String,
-
-    /// Generated response text.
-    pub response: String,
-
-    /// Whether the response is complete.
-    pub done: bool,
-
-    /// Reason for completion.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub done_reason: Option<String>,
-
-    /// Context tokens (for continuation).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub context: Option<Vec<i32>>,
-
-    /// Total duration in nanoseconds.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_duration: Option<u64>,
-
-    /// Load duration in nanoseconds.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub load_duration: Option<u64>,
-
-    /// Prompt evaluation count.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prompt_eval_count: Option<u32>,
-
-    /// Prompt evaluation duration in nanoseconds.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prompt_eval_duration: Option<u64>,
-
-    /// Response evaluation count.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub eval_count: Option<u32>,
-
-    /// Response evaluation duration in nanoseconds.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub eval_duration: Option<u64>,
-}
-
-/// Ollama version response.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct OllamaVersionResponse {
-    /// API version.
-    pub version: String,
-}
-
-/// Ollama model details.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct OllamaModelDetails {
-    /// Parent model name.
-    pub parent_model: String,
-
-    /// Model format.
-    pub format: String,
-
-    /// Model family.
-    pub family: String,
-
-    /// Model families.
-    pub families: Vec<String>,
-
-    /// Parameter size.
-    pub parameter_size: String,
-
-    /// Quantization level.
-    pub quantization_level: String,
-}
-
-/// Ollama model information.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct OllamaModel {
-    /// Model name.
-    pub name: String,
-
-    /// Model identifier.
-    pub model: String,
-
-    /// Model size in bytes.
-    pub size: u64,
-
-    /// Model digest.
-    pub digest: String,
-
-    /// Modification timestamp.
-    pub modified_at: String,
-
-    /// Model details.
-    pub details: OllamaModelDetails,
-}
-
-/// Ollama tags response (list models).
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct OllamaTagsResponse {
-    /// Available models.
-    pub models: Vec<OllamaModel>,
-}
-
-/// Ollama running model details.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct OllamaRunningModel {
-    /// Model name.
-    pub name: String,
-
-    /// Model identifier.
-    pub model: String,
-
-    /// Model size in bytes.
-    pub size: u64,
-
-    /// Model digest.
-    pub digest: String,
-
-    /// Model details.
-    pub details: OllamaModelDetails,
-
-    /// Expiration timestamp.
-    pub expires_at: String,
-
-    /// VRAM usage in bytes.
-    pub size_vram: u64,
-}
-
-/// Ollama ps response (running models).
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct OllamaPsResponse {
-    /// Running models.
-    pub models: Vec<OllamaRunningModel>,
-}
 
 // ============================================================================
 // Utility Functions
@@ -847,5 +551,26 @@ mod tests {
     fn test_model_name() {
         let name = model_name();
         assert!(name.contains("edgequake"));
+    }
+
+    #[test]
+    fn test_ollama_constants() {
+        assert_eq!(OLLAMA_MODEL_NAME, "edgequake");
+        assert_eq!(OLLAMA_MODEL_TAG, "latest");
+        assert_eq!(OLLAMA_API_VERSION, "0.9.3");
+    }
+
+    #[test]
+    fn test_search_mode_naive() {
+        let (query, mode, _) = OllamaSearchMode::from_query("/naive simple search");
+        assert_eq!(query, "simple search");
+        assert_eq!(mode, OllamaSearchMode::Naive);
+    }
+
+    #[test]
+    fn test_search_mode_mix() {
+        let (query, mode, _) = OllamaSearchMode::from_query("/mix combined");
+        assert_eq!(query, "combined");
+        assert_eq!(mode, OllamaSearchMode::Mix);
     }
 }
