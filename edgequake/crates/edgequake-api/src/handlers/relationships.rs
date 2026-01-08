@@ -2,7 +2,6 @@
 
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
     Json,
 };
 use chrono::Utc;
@@ -192,7 +191,7 @@ pub async fn list_relationships(
 pub async fn create_relationship(
     State(state): State<AppState>,
     Json(req): Json<CreateRelationshipRequest>,
-) -> ApiResult<(StatusCode, Json<CreateRelationshipResponse>)> {
+) -> ApiResult<Json<CreateRelationshipResponse>> {
     let src_id = normalize_entity_name(&req.src_id);
     let tgt_id = normalize_entity_name(&req.tgt_id);
 
@@ -246,11 +245,11 @@ pub async fn create_relationship(
 
     let relationship = edge_to_relationship_response(edge, &rel_id);
 
-    Ok((StatusCode::CREATED, Json(CreateRelationshipResponse {
+    Ok(Json(CreateRelationshipResponse {
         status: "success".to_string(),
         message: "Relationship created successfully".to_string(),
         relationship,
-    })))
+    }))
 }
 
 /// Get a relationship by ID.
