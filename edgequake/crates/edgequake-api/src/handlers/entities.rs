@@ -2,6 +2,7 @@
 
 use axum::{
     extract::{Path, Query, State},
+    http::StatusCode,
     Json,
 };
 use chrono::Utc;
@@ -176,7 +177,7 @@ pub async fn list_entities(
 pub async fn create_entity(
     State(state): State<AppState>,
     Json(req): Json<CreateEntityRequest>,
-) -> ApiResult<Json<CreateEntityResponse>> {
+) -> ApiResult<(StatusCode, Json<CreateEntityResponse>)> {
     let entity_name = normalize_entity_name(&req.entity_name);
 
     // Check if entity already exists
@@ -212,11 +213,11 @@ pub async fn create_entity(
 
     let entity = node_to_entity_response(node, 0);
 
-    Ok(Json(CreateEntityResponse {
+    Ok((StatusCode::CREATED, Json(CreateEntityResponse {
         status: "success".to_string(),
         message: "Entity created successfully".to_string(),
         entity,
-    }))
+    })))
 }
 
 /// Get an entity by ID with relationships.
@@ -640,12 +641,7 @@ pub async fn get_entity_neighborhood(
     let entity_name = normalize_entity_name(&entity_name);
 
     // Verify the entity exists
-    if state
-        .graph_storage
-        .get_node(&entity_name)
-        .await?
-        .is_none()
-    {
+    if state.graph_storage.get_node(&entity_name).await?.is_none() {
         return Err(ApiError::NotFound(format!(
             "Entity '{}' not found",
             entity_name
