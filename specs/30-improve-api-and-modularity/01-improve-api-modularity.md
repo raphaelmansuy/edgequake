@@ -2,6 +2,17 @@
 
 Your mission is to improve the API Design, Code Quality, Readability, and Maintainability of the Rust codebase in edgequake, enhancing its modularity and overall structure.
 
+# Primary Goal (Updated 2025-01-08)
+
+**Improve REST API following best possible standards while ensuring `edgequake/` and `edgequake_webui/` work together with no regression.**
+
+Key constraints:
+
+- The current API is NOT used by external customers
+- Breaking changes ARE allowed if they don't break the `edgequake_webui ↔ edgequake` integration
+- All changes must be validated end-to-end with both backend and frontend
+- Target: 100+ OODA loop iterations for comprehensive improvement
+
 # Problem Statement
 
 We have observed that the current Rust codebase in edgequake has areas that could benefit from a better API design, improved readability, and enhanced maintainability. Better security practices, modularity, and adherence to Rust best practices will lead to a more robust and maintainable codebase, ultimately improving developer productivity and system reliability.
@@ -100,6 +111,5 @@ For example must document any issues regarding starting postgres locally, edgequ
 You must refer to this file in each OODA loop iteration if any roadblockers were encountered.
 
 Failure is not an option in this mission! Faking Alignment and cheating is failure!
-
 
 Fully continue from previous OODA loops if they exists, do not start from scratch. You must achieve at least 100 OODA loops.

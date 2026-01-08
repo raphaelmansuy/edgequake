@@ -245,7 +245,10 @@ fn api_v1_routes() -> Router<AppState> {
         .route("/graph/labels/popular", get(handlers::get_popular_labels))
         .route("/graph/degrees/batch", post(handlers::get_degrees_batch))
         // Entities (Phase 2)
-        .route("/graph/entities", post(handlers::create_entity))
+        .route(
+            "/graph/entities",
+            get(handlers::list_entities).post(handlers::create_entity),
+        )
         .route("/graph/entities/exists", get(handlers::entity_exists))
         .route("/graph/entities/merge", post(handlers::merge_entities))
         .route("/graph/entities/{entity_name}", get(handlers::get_entity))
@@ -257,8 +260,15 @@ fn api_v1_routes() -> Router<AppState> {
             "/graph/entities/{entity_name}",
             delete(handlers::delete_entity),
         )
+        .route(
+            "/graph/entities/{entity_name}/neighborhood",
+            get(handlers::get_entity_neighborhood),
+        )
         // Relationships (Phase 2)
-        .route("/graph/relationships", post(handlers::create_relationship))
+        .route(
+            "/graph/relationships",
+            get(handlers::list_relationships).post(handlers::create_relationship),
+        )
         .route(
             "/graph/relationships/{relationship_id}",
             get(handlers::get_relationship),
