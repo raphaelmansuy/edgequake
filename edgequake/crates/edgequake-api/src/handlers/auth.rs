@@ -4,7 +4,7 @@
 //! user management (CRUD), and API key management.
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
@@ -568,6 +568,7 @@ pub async fn create_user(
     path = "/api/v1/users",
     tag = "User Management",
     security(("bearer_auth" = [])),
+    params(ListUsersQuery),
     responses(
         (status = 200, description = "List of users", body = ListUsersResponse),
         (status = 403, description = "Admin access required")
@@ -575,13 +576,19 @@ pub async fn create_user(
 )]
 pub async fn list_users(
     State(_state): State<AppState>,
+    Query(query): Query<ListUsersQuery>,
 ) -> Result<Json<ListUsersResponse>, ApiError> {
-    // TODO: Implement listing with pagination
-    // This requires the KV storage to support prefix scans
-    // For now, return an empty list
+    // TODO: Implement listing with prefix scan when KV storage supports it
+    // For now, return an empty paginated response
+    let page = query.page.max(1);
+    let page_size = query.page_size.clamp(1, 100);
+
     Ok(Json(ListUsersResponse {
         users: vec![],
         total: 0,
+        page,
+        page_size,
+        total_pages: 0,
     }))
 }
 
@@ -762,6 +769,7 @@ fn generate_api_key() -> String {
     path = "/api/v1/api-keys",
     tag = "API Keys",
     security(("bearer_auth" = [])),
+    params(ListApiKeysQuery),
     responses(
         (status = 200, description = "List of API keys", body = ListApiKeysResponse),
         (status = 401, description = "Not authenticated")
@@ -769,12 +777,18 @@ fn generate_api_key() -> String {
 )]
 pub async fn list_api_keys(
     State(_state): State<AppState>,
+    Query(query): Query<ListApiKeysQuery>,
 ) -> Result<Json<ListApiKeysResponse>, ApiError> {
-    // TODO: Implement listing with pagination
-    // This requires the KV storage to support prefix scans
+    // TODO: Implement listing with prefix scan when KV storage supports it
+    let page = query.page.max(1);
+    let page_size = query.page_size.clamp(1, 100);
+
     Ok(Json(ListApiKeysResponse {
         keys: vec![],
         total: 0,
+        page,
+        page_size,
+        total_pages: 0,
     }))
 }
 
@@ -949,9 +963,14 @@ mod tests {
                 role: "user".to_string(),
             }],
             total: 1,
+            page: 1,
+            page_size: 20,
+            total_pages: 1,
         };
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"total\":1"));
         assert!(json.contains("\"username\":\"user1\""));
+        assert!(json.contains("\"page\":1"));
+        assert!(json.contains("\"page_size\":20"));
     }
 }

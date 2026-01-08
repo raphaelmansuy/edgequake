@@ -4,7 +4,7 @@
 //! Extracted from auth.rs for modularity and single responsibility.
 
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 
 use edgequake_auth::User;
 
@@ -108,6 +108,29 @@ pub struct CreateUserResponse {
     pub created_at: String,
 }
 
+/// List users query parameters.
+#[derive(Debug, Clone, Deserialize, IntoParams)]
+pub struct ListUsersQuery {
+    /// Page number (1-indexed, default 1).
+    #[serde(default = "default_page")]
+    pub page: u32,
+
+    /// Page size (default 20, max 100).
+    #[serde(default = "default_page_size")]
+    pub page_size: u32,
+
+    /// Filter by role.
+    pub role: Option<String>,
+}
+
+fn default_page() -> u32 {
+    1
+}
+
+fn default_page_size() -> u32 {
+    20
+}
+
 /// User list response.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ListUsersResponse {
@@ -115,6 +138,12 @@ pub struct ListUsersResponse {
     pub users: Vec<UserInfo>,
     /// Total count.
     pub total: usize,
+    /// Current page number.
+    pub page: u32,
+    /// Page size.
+    pub page_size: u32,
+    /// Total number of pages.
+    pub total_pages: u32,
 }
 
 /// Get current user response.
@@ -177,6 +206,18 @@ pub struct ApiKeySummary {
     pub created_at: String,
 }
 
+/// List API keys query parameters.
+#[derive(Debug, Clone, Deserialize, IntoParams)]
+pub struct ListApiKeysQuery {
+    /// Page number (1-indexed, default 1).
+    #[serde(default = "default_page")]
+    pub page: u32,
+
+    /// Page size (default 20, max 100).
+    #[serde(default = "default_page_size")]
+    pub page_size: u32,
+}
+
 /// List API keys response.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ListApiKeysResponse {
@@ -184,6 +225,12 @@ pub struct ListApiKeysResponse {
     pub keys: Vec<ApiKeySummary>,
     /// Total count.
     pub total: usize,
+    /// Current page number.
+    pub page: u32,
+    /// Page size.
+    pub page_size: u32,
+    /// Total number of pages.
+    pub total_pages: u32,
 }
 
 /// Revoke API key response.
@@ -305,10 +352,16 @@ mod tests {
         let resp = ListUsersResponse {
             users: vec![],
             total: 0,
+            page: 1,
+            page_size: 20,
+            total_pages: 0,
         };
         let json = serde_json::to_value(&resp).unwrap();
         assert_eq!(json["total"], 0);
         assert!(json["users"].as_array().unwrap().is_empty());
+        assert_eq!(json["page"], 1);
+        assert_eq!(json["page_size"], 20);
+        assert_eq!(json["total_pages"], 0);
     }
 
     #[test]
