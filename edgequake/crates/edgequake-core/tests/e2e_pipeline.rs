@@ -15,6 +15,9 @@ use edgequake_pipeline::{
 };
 use edgequake_storage::{GraphStorage, MemoryGraphStorage, MemoryVectorStorage};
 
+#[cfg(feature = "postgres")]
+use edgequake_storage::{KVStorage, VectorStorage};
+
 /// Create LLM provider from environment or use smart mock.
 ///
 /// Checks for OPENAI_API_KEY environment variable:
@@ -518,45 +521,83 @@ fn create_test_extraction(
 #[cfg(feature = "postgres")]
 #[tokio::test]
 async fn test_postgres_e2e_document_to_knowledge_graph() {
-    use edgequake_storage::{PostgresAGEGraphStorage, PostgresKVStorage, PostgresVectorStorage};
+    use edgequake_storage::{
+        PgVectorStorage, PostgresAGEGraphStorage, PostgresConfig, PostgresKVStorage,
+    };
+    use std::time::Duration;
 
-    // Get connection string from environment
-    let conn_str = std::env::var("POSTGRES_CONNECTION_STRING")
-        .unwrap_or_else(|_| "postgresql://localhost/edgequake_test".to_string());
+    // Get PostgreSQL configuration from environment
+    let password = match std::env::var("POSTGRES_PASSWORD") {
+        Ok(pwd) if !pwd.is_empty() => pwd,
+        _ => {
+            println!("Skipping test: POSTGRES_PASSWORD not set");
+            return;
+        }
+    };
 
-    let namespace = "test_postgres_e2e";
+    let config = PostgresConfig {
+        host: std::env::var("POSTGRES_HOST").unwrap_or_else(|_| "localhost".to_string()),
+        port: std::env::var("POSTGRES_PORT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(5432),
+        database: std::env::var("POSTGRES_DB").unwrap_or_else(|_| "edgequake".to_string()),
+        user: std::env::var("POSTGRES_USER").unwrap_or_else(|_| "edgequake".to_string()),
+        password,
+        namespace: format!(
+            "test_e2e_{}",
+            uuid::Uuid::new_v4().to_string().replace("-", "")[..8].to_string()
+        ),
+        max_connections: 5,
+        min_connections: 1,
+        connect_timeout: Duration::from_secs(10),
+        idle_timeout: Duration::from_secs(60),
+        ..Default::default()
+    };
 
     // Initialize PostgreSQL storage backends
-    let kv_storage = Arc::new(
-        PostgresKVStorage::new(&conn_str, namespace)
-            .await
-            .expect("Failed to create Postgres KV storage"),
-    );
-    let vector_storage = Arc::new(
-        PostgresVectorStorage::new(&conn_str, namespace, 1536)
-            .await
-            .expect("Failed to create Postgres vector storage"),
-    );
-    let graph_storage = Arc::new(
-        PostgresAGEGraphStorage::new(&conn_str, namespace)
-            .await
-            .expect("Failed to create Postgres AGE graph storage"),
-    );
+    let kv_storage: Arc<dyn KVStorage> = Arc::new(PostgresKVStorage::new(config.clone()));
+    let vector_storage: Arc<dyn VectorStorage> =
+        Arc::new(PgVectorStorage::with_dimension(config.clone(), 1536));
+    let graph_storage: Arc<dyn GraphStorage> =
+        Arc::new(PostgresAGEGraphStorage::new(config.clone()));
 
-    // Initialize graph
+    // Initialize all storage backends
+    kv_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize KV storage");
+    vector_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize vector storage");
     graph_storage
         .initialize()
         .await
         .expect("Failed to initialize graph");
 
-    // Create mock provider
+    // Create mock provider with valid extraction JSON
     let mock_provider = Arc::new(MockProvider::new());
+    mock_provider.add_response(r#"{
+  "entities": [
+    {"name": "EdgeQuake", "type": "TECHNOLOGY", "description": "A high-performance RAG system built in Rust"},
+    {"name": "Sarah Chen", "type": "PERSON", "description": "Lead architect of EdgeQuake"},
+    {"name": "Rust", "type": "TECHNOLOGY", "description": "Systems programming language"}
+  ],
+  "relationships": [
+    {"source": "EdgeQuake", "target": "Rust", "type": "BUILT_WITH", "description": "EdgeQuake is built using Rust"},
+    {"source": "Sarah Chen", "target": "EdgeQuake", "type": "DESIGNED", "description": "Sarah Chen designed EdgeQuake"}
+  ]
+}"#).await;
 
-    let config = EdgeQuakeConfig::new()
-        .with_namespace(namespace)
-        .with_postgres(&conn_str);
+    let edgequake_config = EdgeQuakeConfig::new()
+        .with_namespace(&config.namespace)
+        .with_storage(StorageConfig {
+            backend: StorageBackend::Postgres,
+            ..Default::default()
+        });
 
-    let mut edgequake = EdgeQuake::new(config)
+    let mut edgequake = EdgeQuake::new(edgequake_config)
         .with_storage_backends(kv_storage, vector_storage, graph_storage)
         .with_providers(
             mock_provider.clone() as Arc<dyn edgequake_llm::LLMProvider>,
@@ -571,25 +612,22 @@ async fn test_postgres_e2e_document_to_knowledge_graph() {
     // Insert document
     let result = edgequake
         .insert(SAMPLE_DOCUMENT, Some("doc-postgres-001"))
-        .await;
+        .await
+        .expect("Insert should succeed");
 
-    // With MockProvider, extraction will fail
-    match result {
-        Ok(res) => {
-            assert!(res.success, "Insert should succeed");
-            println!("PostgreSQL test: Created {} chunks", res.chunks_created);
-        }
-        Err(e) => {
-            // Expected: extraction error due to mock provider
-            println!("PostgreSQL test: Expected error with MockProvider: {:?}", e);
-            assert!(
-                format!("{:?}", e).contains("JSON") || format!("{:?}", e).contains("extraction"),
-                "Should fail with JSON/extraction error"
-            );
-        }
-    }
+    // Verify results
+    assert!(result.success, "Insert should succeed");
+    assert!(result.chunks_created > 0, "Should create chunks");
+    assert!(result.entities_extracted > 0, "Should extract entities");
+    assert!(
+        result.relationships_extracted > 0,
+        "Should extract relationships"
+    );
 
-    println!("PostgreSQL E2E test completed successfully");
+    println!("✓ PostgreSQL E2E test completed successfully");
+    println!("  - Chunks: {}", result.chunks_created);
+    println!("  - Entities: {}", result.entities_extracted);
+    println!("  - Relationships: {}", result.relationships_extracted);
 }
 
 /// Test that source tracking fields are properly populated through the extraction pipeline.
