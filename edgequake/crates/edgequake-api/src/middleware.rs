@@ -50,12 +50,14 @@ pub async fn request_logging(request: Request, next: Next) -> Response {
 pub async fn request_id(mut request: Request, next: Next) -> Response {
     let request_id = uuid::Uuid::new_v4().to_string();
 
+    // SAFETY: UUID hyphenated format is always valid ASCII, so unwrap is safe
     request
         .headers_mut()
         .insert("x-request-id", HeaderValue::from_str(&request_id).unwrap());
 
     let mut response = next.run(request).await;
 
+    // SAFETY: Same UUID, still valid ASCII
     response
         .headers_mut()
         .insert("x-request-id", HeaderValue::from_str(&request_id).unwrap());

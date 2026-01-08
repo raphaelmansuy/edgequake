@@ -7,12 +7,12 @@
 
 Completed workspace-wide code quality assessment:
 
-| Metric | Value |
-|--------|-------|
-| Crates audited | 5 |
-| Clippy warnings | 0 |
-| Tests passing | 700+ |
-| Files > 1000 lines | 6 |
+| Metric             | Value |
+| ------------------ | ----- |
+| Crates audited     | 5     |
+| Clippy warnings    | 0     |
+| Tests passing      | 700+  |
+| Files > 1000 lines | 6     |
 
 ## Verification
 
