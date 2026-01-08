@@ -1,4 +1,67 @@
-//! API routes.
+//! EdgeQuake REST API Routes
+//!
+//! This module defines the complete HTTP routing configuration for the EdgeQuake API.
+//!
+//! # API Design Principles
+//!
+//! - **RESTful**: Resources are nouns, HTTP verbs indicate actions
+//! - **Versioned**: All business endpoints under `/api/v1/`
+//! - **Consistent**: Uniform error responses (see [`crate::error`])
+//! - **Documented**: OpenAPI 3.0 spec at `/swagger-ui/` (when enabled)
+//!
+//! # Route Structure
+//!
+//! ```text
+//! /                           # Root
+//! ├── health                  # Health check (GET)
+//! ├── ready                   # Kubernetes readiness probe (GET)
+//! ├── live                    # Kubernetes liveness probe (GET)
+//! ├── metrics                 # Prometheus metrics (GET)
+//! ├── ws/                     # WebSocket endpoints
+//! │   └── pipeline/progress   # Real-time pipeline updates
+//! ├── api/                    # Ollama-compatible API
+//! │   ├── version            # GET - Ollama version
+//! │   ├── tags               # GET - List available models
+//! │   ├── ps                 # GET - Running model processes
+//! │   ├── generate           # POST - Text generation
+//! │   └── chat               # POST - Chat completion
+//! └── api/v1/                 # Versioned API
+//!     ├── auth/              # Authentication
+//!     ├── users/             # User management
+//!     ├── api-keys/          # API key management
+//!     ├── tenants/           # Multi-tenant management
+//!     ├── workspaces/        # Workspace management
+//!     ├── documents/         # Document ingestion
+//!     ├── query/             # RAG queries
+//!     ├── chat/              # Chat completions
+//!     ├── conversations/     # Conversation history
+//!     ├── folders/           # Conversation organization
+//!     ├── shared/            # Public conversation access
+//!     └── graph/             # Knowledge graph operations
+//! ```
+//!
+//! # HTTP Methods
+//!
+//! | Method   | Purpose                   | Idempotent | Safe |
+//! |----------|---------------------------|------------|------|
+//! | `GET`    | Retrieve resource(s)      | Yes        | Yes  |
+//! | `POST`   | Create resource or action | No         | No   |
+//! | `PUT`    | Replace resource          | Yes        | No   |
+//! | `PATCH`  | Partial update            | No         | No   |
+//! | `DELETE` | Remove resource           | Yes        | No   |
+//!
+//! # Authentication
+//!
+//! Most endpoints require authentication via:
+//! - `Authorization: Bearer <JWT>` - Obtained from `/api/v1/auth/login`
+//! - `X-API-Key: <key>` - Created via `/api/v1/api-keys`
+//!
+//! # Multi-Tenancy
+//!
+//! Tenant context is automatically extracted from:
+//! 1. JWT claims (`tenant_id`, `workspace_id`)
+//! 2. Headers (`X-Tenant-ID`, `X-Workspace-ID`)
+//! 3. Default tenant (for non-authenticated deployments)
 
 use axum::{
     routing::{delete, get, patch, post, put},

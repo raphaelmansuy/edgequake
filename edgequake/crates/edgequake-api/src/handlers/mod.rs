@@ -1,4 +1,55 @@
-//! API request handlers.
+//! REST API Request Handlers
+//!
+//! This module contains all HTTP request handlers for the EdgeQuake API.
+//! Each handler module is paired with a `*_types` module containing its DTOs.
+//!
+//! # Module Organization
+//!
+//! | Module | Description | Endpoints |
+//! |--------|-------------|-----------|
+//! | `auth` | Authentication & authorization | `/api/v1/auth/*` |
+//! | `chat` | Chat completions (OpenAI-compatible) | `/api/v1/chat/*` |
+//! | `conversations` | Conversation CRUD & history | `/api/v1/conversations/*` |
+//! | `documents` | Document ingestion & management | `/api/v1/documents/*` |
+//! | `entities` | Knowledge graph entities | `/api/v1/graph/entities/*` |
+//! | `graph` | Knowledge graph queries | `/api/v1/graph/*` |
+//! | `health` | Health probes | `/health`, `/ready`, `/live` |
+//! | `lineage` | Document-entity lineage | `/api/v1/lineage/*` |
+//! | `ollama` | Ollama emulation API | `/api/*` |
+//! | `query` | RAG query execution | `/api/v1/query/*` |
+//! | `relationships` | Knowledge graph relationships | `/api/v1/graph/relationships/*` |
+//! | `tasks` | Async task management | `/api/v1/tasks/*` |
+//! | `websocket` | Real-time pipeline updates | `/ws/pipeline/*` |
+//! | `workspaces` | Multi-tenant workspaces | `/api/v1/workspaces/*` |
+//!
+//! # Handler Pattern
+//!
+//! Each handler follows a consistent pattern:
+//!
+//! ```rust,ignore
+//! #[utoipa::path(/* OpenAPI metadata */)]
+//! pub async fn handler_name(
+//!     State(state): State<AppState>,  // Application state
+//!     tenant_ctx: TenantContext,       // Extracted tenant context
+//!     Json(request): Json<RequestDto>, // Request body (if applicable)
+//! ) -> ApiResult<Json<ResponseDto>> {
+//!     // 1. Validate input
+//!     // 2. Execute business logic
+//!     // 3. Return response or error
+//! }
+//! ```
+//!
+//! # Error Handling
+//!
+//! All handlers return `ApiResult<T>` which converts errors to consistent JSON:
+//!
+//! ```json
+//! {
+//!   "code": "NOT_FOUND",
+//!   "message": "Document not found: doc-123",
+//!   "details": { "document_id": "doc-123" }
+//! }
+//! ```
 
 pub mod auth;
 pub mod auth_types;
