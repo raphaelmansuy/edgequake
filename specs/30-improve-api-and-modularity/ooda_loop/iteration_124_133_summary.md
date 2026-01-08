@@ -56,13 +56,13 @@ This iteration focused on aligning HTTP response status codes with OpenAPI docum
 
 ### Affected Endpoints
 
-| Endpoint | OpenAPI Status | Actual Status | Fixed |
-|----------|----------------|---------------|-------|
-| POST /documents | 201 | 200 | ✅ 201 |
-| POST /documents/upload | 201 | 200 | ✅ 201 |
-| POST /documents/upload/batch | 201 | 200 | ✅ 201 |
-| POST /graph/entities | 201 | 200 | ✅ 201 |
-| POST /graph/relationships | 201 | 200 | ✅ 201 |
+| Endpoint                     | OpenAPI Status | Actual Status | Fixed  |
+| ---------------------------- | -------------- | ------------- | ------ |
+| POST /documents              | 201            | 200           | ✅ 201 |
+| POST /documents/upload       | 201            | 200           | ✅ 201 |
+| POST /documents/upload/batch | 201            | 200           | ✅ 201 |
+| POST /graph/entities         | 201            | 200           | ✅ 201 |
+| POST /graph/relationships    | 201            | 200           | ✅ 201 |
 
 ### Act
 
@@ -77,6 +77,7 @@ pub async fn upload_document(...) -> ApiResult<(StatusCode, Json<UploadDocumentR
 ```
 
 Special case for `upload_file`:
+
 - Returns 201 CREATED for new files
 - Returns 200 OK for duplicates (existing file reused)
 
@@ -110,10 +111,12 @@ Total: ~959 tests passing
 ```
 
 **Changes:**
+
 - 3 files changed
 - 27 insertions(+), 29 deletions(-)
 
 **Files Modified:**
+
 - [documents.rs](../../../edgequake/crates/edgequake-api/src/handlers/documents.rs)
 - [entities.rs](../../../edgequake/crates/edgequake-api/src/handlers/entities.rs)
 - [relationships.rs](../../../edgequake/crates/edgequake-api/src/handlers/relationships.rs)
@@ -128,7 +131,6 @@ Total: ~959 tests passing
   - `auth.rs`: Returns `StatusCode::NO_CONTENT` for logout, delete_api_key
   - `workspaces.rs`: Returns `StatusCode::NO_CONTENT` for delete operations
   - `conversations.rs`: Returns `StatusCode::NO_CONTENT` for deletes
-  
 - `delete_document` returns 200 with body (DeleteDocumentResponse) - this is acceptable as it provides information about what was deleted
 
 ---
@@ -151,13 +153,13 @@ Total: ~959 tests passing
 
 ### REST Best Practices Applied
 
-| Method | Success Status | When |
-|--------|----------------|------|
-| POST (create) | 201 Created | New resource created |
-| GET | 200 OK | Resource retrieved |
-| PUT | 200 OK | Resource updated |
-| DELETE | 200 OK or 204 No Content | Resource deleted |
-| Duplicate | 200 OK | Existing resource returned |
+| Method        | Success Status           | When                       |
+| ------------- | ------------------------ | -------------------------- |
+| POST (create) | 201 Created              | New resource created       |
+| GET           | 200 OK                   | Resource retrieved         |
+| PUT           | 200 OK                   | Resource updated           |
+| DELETE        | 200 OK or 204 No Content | Resource deleted           |
+| Duplicate     | 200 OK                   | Existing resource returned |
 
 ---
 
