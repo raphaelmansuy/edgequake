@@ -106,12 +106,12 @@ pub struct SearchLabelsQuery {
     pub q: String,
 
     /// Maximum results.
-    #[serde(default = "default_limit")]
+    #[serde(default = "graph_default_limit")]
     pub limit: usize,
 }
 
-/// Default search limit.
-pub fn default_limit() -> usize {
+/// Default search limit for graph operations.
+pub fn graph_default_limit() -> usize {
     20
 }
 

@@ -13,8 +13,8 @@ use crate::handlers::query::{QueryStats, SourceReference};
 // Default value helper functions
 // ============================================================================
 
-/// Default streaming mode (true).
-pub fn default_stream() -> bool {
+/// Default streaming mode for chat (true).
+pub fn chat_default_stream() -> bool {
     true
 }
 
@@ -36,7 +36,7 @@ pub struct ChatCompletionRequest {
     pub mode: Option<String>,
 
     /// Whether to stream the response.
-    #[serde(default = "default_stream")]
+    #[serde(default = "chat_default_stream")]
     pub stream: bool,
 
     /// Maximum tokens for response.
@@ -134,8 +134,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_default_stream() {
-        assert!(default_stream());
+    fn test_chat_default_stream() {
+        assert!(chat_default_stream());
     }
 
     #[test]

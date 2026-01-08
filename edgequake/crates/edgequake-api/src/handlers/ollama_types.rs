@@ -91,7 +91,7 @@ pub struct OllamaChatRequest {
     pub messages: Vec<OllamaMessage>,
 
     /// Whether to stream the response.
-    #[serde(default = "default_stream")]
+    #[serde(default = "ollama_default_stream")]
     pub stream: bool,
 
     /// System prompt override.
@@ -103,8 +103,8 @@ pub struct OllamaChatRequest {
     pub options: Option<serde_json::Value>,
 }
 
-/// Default stream value.
-pub fn default_stream() -> bool {
+/// Default stream value for Ollama operations.
+pub fn ollama_default_stream() -> bool {
     true
 }
 

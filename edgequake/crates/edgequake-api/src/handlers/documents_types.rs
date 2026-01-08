@@ -38,7 +38,8 @@ pub fn default_max_files() -> usize {
     1000
 }
 
-pub fn default_true() -> bool {
+/// Default true value for document-related boolean fields.
+pub fn documents_default_true() -> bool {
     true
 }
 
@@ -637,7 +638,7 @@ pub struct ScanDirectoryRequest {
     pub max_files: usize,
 
     /// Whether to process documents asynchronously.
-    #[serde(default = "default_true")]
+    #[serde(default = "documents_default_true")]
     pub async_processing: bool,
 
     /// Optional track ID for batch grouping.
