@@ -40,7 +40,7 @@ use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
 
 // Re-export DTOs for backward compatibility
 pub use crate::handlers::ollama_types::{
-    default_stream, OllamaChatRequest, OllamaChatResponse, OllamaGenerateRequest,
+    ollama_default_stream, OllamaChatRequest, OllamaChatResponse, OllamaGenerateRequest,
     OllamaGenerateResponse, OllamaMessage, OllamaModel, OllamaModelDetails, OllamaPsResponse,
     OllamaRunningModel, OllamaSearchMode, OllamaTagsResponse, OllamaVersionResponse,
 };

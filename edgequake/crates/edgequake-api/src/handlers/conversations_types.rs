@@ -12,7 +12,7 @@ use uuid::Uuid;
 // ============================================================================
 
 /// Default pagination limit for conversations.
-pub fn default_limit() -> usize {
+pub fn conversations_default_limit() -> usize {
     20
 }
 
@@ -31,8 +31,8 @@ pub fn default_messages_limit() -> usize {
     50
 }
 
-/// Default streaming mode.
-pub fn default_stream() -> bool {
+/// Default streaming mode for conversations.
+pub fn conversations_default_stream() -> bool {
     true
 }
 
@@ -46,7 +46,7 @@ pub struct ListConversationsParams {
     /// Cursor for pagination.
     pub cursor: Option<String>,
     /// Maximum items to return (default 20, max 100).
-    #[serde(default = "default_limit")]
+    #[serde(default = "conversations_default_limit")]
     pub limit: usize,
     /// Filter by mode (comma-separated: local,global,hybrid).
     #[serde(rename = "filter[mode]")]
@@ -314,7 +314,7 @@ pub struct CreateMessageApiRequest {
     /// Parent message ID.
     pub parent_id: Option<Uuid>,
     /// Whether to stream response.
-    #[serde(default = "default_stream")]
+    #[serde(default = "conversations_default_stream")]
     pub stream: bool,
 }
 
@@ -431,8 +431,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_default_limit() {
-        assert_eq!(default_limit(), 20);
+    fn test_conversations_default_limit() {
+        assert_eq!(conversations_default_limit(), 20);
     }
 
     #[test]
@@ -451,8 +451,8 @@ mod tests {
     }
 
     #[test]
-    fn test_default_stream() {
-        assert!(default_stream());
+    fn test_conversations_default_stream() {
+        assert!(conversations_default_stream());
     }
 
     #[test]

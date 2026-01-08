@@ -152,12 +152,12 @@ pub struct PaginationParams {
     #[serde(default)]
     pub offset: usize,
     /// Limit (default 20, max 100).
-    #[serde(default = "default_limit")]
+    #[serde(default = "workspaces_default_limit")]
     pub limit: usize,
 }
 
-/// Default limit for pagination.
-pub fn default_limit() -> usize {
+/// Default limit for workspace pagination.
+pub fn workspaces_default_limit() -> usize {
     20
 }
 

@@ -15,8 +15,8 @@ pub fn default_merge_strategy() -> String {
     "prefer_target".to_string()
 }
 
-/// Default true for delete_relationships.
-pub fn default_true() -> bool {
+/// Default true for delete_relationships (entities module).
+pub fn entities_default_true() -> bool {
     true
 }
 
@@ -79,7 +79,7 @@ pub struct MergeEntitiesRequest {
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct DeleteEntityQuery {
     /// Whether to delete relationships (default: true).
-    #[serde(default = "default_true")]
+    #[serde(default = "entities_default_true")]
     pub delete_relationships: bool,
 
     /// Confirmation flag (required).
@@ -311,8 +311,8 @@ mod tests {
     }
 
     #[test]
-    fn test_default_true() {
-        assert!(default_true());
+    fn test_entities_default_true() {
+        assert!(entities_default_true());
     }
 
     #[test]
