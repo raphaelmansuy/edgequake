@@ -333,6 +333,6 @@ mod tests {
     fn test_validate_content_only_newlines() {
         let content = "\n\n\n";
         let result = validate_content(content, 1000);
-        assert!(result.is_err());  // Only whitespace
+        assert!(result.is_err()); // Only whitespace
     }
 }

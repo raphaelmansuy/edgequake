@@ -354,7 +354,7 @@ mod tests {
     fn test_error_response_without_details() {
         let error = ErrorResponse::new("CODE", "Message");
         assert!(error.details.is_none());
-        
+
         // Verify serialization skips None details
         let json = serde_json::to_value(&error).unwrap();
         assert!(!json.get("details").is_some());
@@ -365,7 +365,7 @@ mod tests {
         let error = ErrorResponse::new("TEST", "Test")
             .with_details(serde_json::json!({"a": 1}))
             .with_details(serde_json::json!({"b": 2})); // Should overwrite
-        
+
         assert_eq!(error.details.unwrap()["b"], 2);
     }
 
@@ -380,10 +380,12 @@ mod tests {
             ApiError::Conflict("test".into()),
             ApiError::ValidationError("test".into()),
             ApiError::RateLimited,
-            ApiError::NotImplemented { feature: "test".into() },
+            ApiError::NotImplemented {
+                feature: "test".into(),
+            },
             ApiError::Internal("test".into()),
         ];
-        
+
         for error in errors {
             let status = error.status_code();
             assert!(status.as_u16() >= 400 && status.as_u16() < 600);
@@ -402,7 +404,7 @@ mod tests {
         fn test_function() -> ApiResult<String> {
             Ok("success".to_string())
         }
-        
+
         let result = test_function();
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "success");
@@ -413,7 +415,7 @@ mod tests {
         fn test_function() -> ApiResult<String> {
             Err(ApiError::BadRequest("invalid".to_string()))
         }
-        
+
         let result = test_function();
         assert!(result.is_err());
     }
