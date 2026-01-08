@@ -15,9 +15,9 @@ use crate::state::AppState;
 // Re-export DTOs for backward compatibility
 pub use crate::handlers::relationships_types::{
     default_weight, CreateRelationshipRequest, CreateRelationshipResponse,
-    DeleteRelationshipResponse, EntitySummary, GetRelationshipResponse,
-    RelationshipChangesSummary, RelationshipEntities, RelationshipResponse,
-    UpdateRelationshipRequest, UpdateRelationshipResponse,
+    DeleteRelationshipResponse, EntitySummary, GetRelationshipResponse, RelationshipChangesSummary,
+    RelationshipEntities, RelationshipResponse, UpdateRelationshipRequest,
+    UpdateRelationshipResponse,
 };
 
 // ============================================================================
