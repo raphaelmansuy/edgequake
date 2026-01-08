@@ -3,12 +3,24 @@
 //! This module provides a PostgreSQL-backed implementation of the ConversationService
 //! trait for production use.
 //!
-//! # WHY: Service Layer in Core
+//! # WHY: Service Layer in Core (not Storage)
 //!
-//! This PostgreSQL service implementation lives in `edgequake-core` because:
-//! 1. It implements the `ConversationService` trait defined here
+//! **BLOCKER**: Moving this to `edgequake-storage` would create a circular dependency:
+//! - `storage` would need `core` (to implement the trait)
+//! - `core` would need `storage` (to expose the service)
+//!
+//! This is a Rust Orphan Rule constraint. This service MUST live here because:
+//! 1. It implements the `ConversationService` trait defined in this crate
 //! 2. It sits alongside `InMemoryConversationService` - same abstraction level
 //! 3. The API layer should only contain HTTP handling, not database services
+//!
+//! # Two-Layer Design (Intentional)
+//!
+//! - `edgequake-storage::PostgresConversationStorage` → Raw DB operations, returns `ConversationRow`
+//! - `edgequake-core::PostgresConversationService` → Domain adapter, returns `Conversation`
+//!
+//! This separation follows Hexagonal Architecture: Storage is infrastructure,
+//! Service is the port adapter that converts infrastructure types to domain types.
 
 #[cfg(feature = "postgres")]
 use async_trait::async_trait;

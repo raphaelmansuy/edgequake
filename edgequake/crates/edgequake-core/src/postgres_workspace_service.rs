@@ -3,10 +3,14 @@
 //! This service provides persistent tenant and workspace management
 //! using PostgreSQL as the backend storage.
 //!
-//! # WHY: Service Layer in Core
-//! 
-//! This PostgreSQL service implementation lives in `edgequake-core` because:
-//! 1. It implements the `WorkspaceService` trait defined here
+//! # WHY: Service Layer in Core (not Storage)
+//!
+//! **BLOCKER**: Moving this to `edgequake-storage` would create a circular dependency:
+//! - `storage` would need `core` (to implement the trait)
+//! - `core` would need `storage` (to expose the service)
+//!
+//! This is a Rust Orphan Rule constraint. This service MUST live here because:
+//! 1. It implements the `WorkspaceService` trait defined in this crate
 //! 2. It sits alongside `InMemoryWorkspaceService` - same abstraction level
 //! 3. The API layer should only contain HTTP handling, not database services
 //!
