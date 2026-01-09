@@ -1,3 +1,17 @@
+/**
+ * @module DocumentDetailDialog
+ * @description Modal dialog showing full document metadata and actions.
+ * Displays status, statistics, chunks, and entities with reprocess option.
+ * 
+ * @implements UC0010 - User views document details
+ * @implements FEAT0631 - Document metadata display
+ * @implements FEAT0632 - Chunk/entity statistics
+ * 
+ * @enforces BR0621 - All document fields visible
+ * @enforces BR0302 - Reprocess action available for failed docs
+ * 
+ * @see {@link docs/use_cases.md} UC0010
+ */
 'use client';
 
 import { Badge } from '@/components/ui/badge';
