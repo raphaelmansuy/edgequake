@@ -1,4 +1,25 @@
-//! Vector storage trait.
+//! Vector storage trait for similarity search.
+//!
+//! # Implements
+//!
+//! - **FEAT0201**: Vector Similarity Search
+//!
+//! # Enforces
+//!
+//! - **BR0201**: Namespace-based tenant isolation
+//! - **BR0010**: Embedding dimension validated on insert
+//!
+//! # WHY: Separate Vector Storage
+//!
+//! Vector similarity search is specialized:
+//! - Requires optimized index structures (HNSW, IVF)
+//! - Benefits from GPU acceleration
+//! - Different scaling characteristics than graph/KV
+//!
+//! Abstracting as a trait allows using:
+//! - pgvector (PostgreSQL extension)
+//! - Pinecone, Weaviate, Qdrant (managed services)
+//! - In-memory brute-force (testing)
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
