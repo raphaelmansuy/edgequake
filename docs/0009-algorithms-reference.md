@@ -2,9 +2,40 @@
 
 > Detailed algorithm documentation for the EdgeQuake Graph-Enhanced RAG system
 
-**Version**: 0.1.0 | **Last Updated**: December 2025
+**Version**: 2.0.0 | **Last Updated**: January 2026
 
+> **Implements**: [FEAT0050](features.md#feat0050) Entity Extraction | [FEAT0051](features.md#feat0051) Knowledge Graph | [FEAT0052](features.md#feat0052) Query Modes
+> **Business Rules**: [BR0050](business_rules.md#br0050) Normalization Rules | [BR0051](business_rules.md#br0051) Merge Strategy | [BR0052](business_rules.md#br0052) Token Budgeting
+> **Use Cases**: [UC0001](use_cases.md#uc0001) Document Ingestion | [UC0002](use_cases.md#uc0002) Knowledge Query
 > **Code Reference**: See [edgequake/crates/edgequake-pipeline/](../edgequake/crates/edgequake-pipeline/) for pipeline algorithms and [edgequake/crates/edgequake-query/](../edgequake/crates/edgequake-query/) for query algorithms
+
+---
+
+## Quick Reference
+
+| I want to understand...       | Go to                                         |
+| ----------------------------- | --------------------------------------------- |
+| Overall pipeline flow         | [Document Ingestion Pipeline](#document-ingestion-pipeline) |
+| How entities are extracted    | [Entity Extraction Algorithm](#entity-extraction-algorithm) |
+| Multi-pass extraction         | [Gleaning Algorithm](#gleaning-algorithm)     |
+| Name normalization            | [Entity Normalization Algorithm](#entity-normalization-algorithm) |
+| Knowledge graph building      | [Knowledge Graph Merging Algorithm](#knowledge-graph-merging-algorithm) |
+| Query strategies              | [Query Modes](#query-modes-and-retrieval-strategies) |
+| Token management              | [Token Budget Management](#token-budget-management) |
+
+---
+
+## Algorithm Summary
+
+| Algorithm | Purpose | Complexity | Key Parameter |
+| --------- | ------- | ---------- | ------------- |
+| **Chunking** | Split documents | O(n) | `chunk_size` (1200) |
+| **Extraction** | Find entities/relations | O(chunks) | `max_entities_per_chunk` (20) |
+| **Gleaning** | Multi-pass extraction | O(passes × chunks) | `max_gleaning` (1) |
+| **Normalization** | Standardize names | O(1) | Uppercase + underscore |
+| **Merging** | Deduplicate graph | O(e log e) | `max_description_length` (4096) |
+| **Retrieval** | Find context | O(log n) | `top_k` (10) |
+| **Truncation** | Fit token budget | O(items) | `max_context_tokens` (4000) |
 
 ---
 
@@ -19,6 +50,8 @@
 7. [Query Modes and Retrieval Strategies](#query-modes-and-retrieval-strategies)
 8. [Context Truncation Algorithm](#context-truncation-algorithm)
 9. [Token Budget Management](#token-budget-management)
+10. [Performance Characteristics](#performance-characteristics)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -625,8 +658,55 @@ pub enum ContextSource {
 
 ---
 
+## Troubleshooting
+
+### Algorithm Issues
+
+| Symptom | Likely Cause | Solution |
+| ------- | ------------ | -------- |
+| Few entities extracted | Chunk size too small | Increase `chunk_size` to 1500-2000 |
+| Duplicate entities in graph | Normalization not applied | Ensure `normalize_entity_name()` called |
+| Query returns empty context | Wrong query mode | Try `hybrid` mode instead of `naive` |
+| Context too large error | Token budget exceeded | Reduce `max_context_tokens` or `top_k` |
+| Slow ingestion | Too many gleaning passes | Set `max_gleaning` to 0-1 |
+| Missing relationships | Entity types too restrictive | Add more entity types to config |
+| Low query relevance | Poor embeddings | Verify embedding model matches ingestion |
+| Graph traversal timeout | Depth too high | Reduce `max_graph_depth` to 2 |
+
+### Debug Commands
+
+```bash
+# Enable algorithm debug logging
+export RUST_LOG=edgequake_pipeline=debug,edgequake_query=debug
+
+# Check entity extraction output
+cargo run --example extract_entities -- --input sample.txt --verbose
+
+# Verify graph structure
+cargo run --example inspect_graph -- --namespace default --stats
+```
+
+### Quality Metrics
+
+| Metric | Target | How to Measure |
+| ------ | ------ | -------------- |
+| Entity deduplication ratio | 30-50% | Unique entities / Total extracted |
+| Relationship coverage | 1.5-2.5 per entity | Total relationships / Total entities |
+| Query latency P95 | <2s | Monitor `/metrics` endpoint |
+| Context utilization | 70-90% | Tokens used / Token budget |
+
+---
+
 ## Next Steps
 
-- [Storage Backends](0004-storage-backends.md) - Storage configuration
-- [LLM Integration](0005-llm-integration.md) - Provider setup
-- [Configuration Reference](0007-configuration-reference.md) - All options
+| Document | When to Read |
+| -------- | ------------ |
+| [Architecture Overview](0002-architecture-overview.md) | Understand system design |
+| [Storage Backends](0004-storage-backends.md) | Configure graph and vector storage |
+| [LLM Integration](0005-llm-integration.md) | Set up extraction LLM |
+| [Configuration Reference](0007-configuration-reference.md) | Tune algorithm parameters |
+| [API Reference](0003-api-reference.md) | Use ingestion and query endpoints |
+
+---
+
+**Document Navigation**: [← Multi-Tenancy](0008-multi-tenancy.md) | [README](README.md) | [Quick Start →](0001-quick-start.md)
