@@ -1,3 +1,26 @@
+/**
+ * Query Store - Manages query execution state and conversation history.
+ *
+ * @implements UC0201 - Execute Query
+ * @implements UC0202 - Query with Conversation History
+ * @implements UC0203 - Stream Query Response
+ * @implements FEAT0007 - Multi-Mode Query Execution (mode selection)
+ * @implements FEAT0601 - Knowledge Graph Visualization (context display)
+ *
+ * @enforces BR0104 - Conversation history included in context
+ * @enforces BR0105 - Empty queries are rejected (via UI validation)
+ *
+ * @description
+ * This Zustand store manages:
+ * - Current query input and execution state
+ * - Conversation message history (persisted to localStorage)
+ * - Streaming response accumulation
+ * - Query history with favorites
+ *
+ * @see useQueryUIStore for UI-specific query state
+ * @see useConversationStore for backend conversation sync
+ */
+
 "use client";
 
 import { generateUUID } from "@/lib/utils/uuid";
@@ -5,7 +28,11 @@ import type { QueryContext, QueryHistoryItem, QueryMode } from "@/types";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-// Message type for conversation
+/**
+ * Message type for conversation.
+ *
+ * @implements UC0202 - Conversation messages with history
+ */
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
