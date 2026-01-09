@@ -1,4 +1,21 @@
 //! Query context building and management.
+//!
+//! ## Implements
+//!
+//! - **FEAT0116**: Query context data structure
+//! - **FEAT0117**: Context token counting
+//! - **FEAT0118**: Context truncation tracking
+//!
+//! ## Use Cases
+//!
+//! - **UC2230**: System builds context from retrieved items
+//! - **UC2231**: System tracks token usage for budget enforcement
+//! - **UC2232**: System marks context as truncated when budget exceeded
+//!
+//! ## Enforces
+//!
+//! - **BR0115**: Token count must be updated on each addition
+//! - **BR0116**: Truncation flag must be set when content removed
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
