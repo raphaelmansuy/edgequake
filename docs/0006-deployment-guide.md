@@ -2,9 +2,58 @@
 
 > Production deployment for EdgeQuake API and WebUI
 
-**Version**: 0.1.0 | **Last Updated**: December 2025
+**Version**: 2.0.0 | **Last Updated**: January 2026
 
+> **Implements**: [FEAT0025](features.md#feat0025) Production Deployment | [FEAT0026](features.md#feat0026) Monitoring
+> **Business Rules**: [BR0020](business_rules.md#br0020) Health Checks | [BR0021](business_rules.md#br0021) High Availability
 > **Code Reference**: See [edgequake/src/main.rs](../edgequake/src/main.rs) for server configuration and [edgequake/docker/](../edgequake/docker/) for Docker files
+
+---
+
+## Quick Reference
+
+| I want to...                  | Go to                                         |
+| ----------------------------- | --------------------------------------------- |
+| Deploy with Docker            | [Docker Deployment](#docker-deployment)       |
+| Set up Kubernetes             | [Kubernetes Deployment](#kubernetes-deployment) |
+| Configure monitoring          | [Monitoring & Health](#monitoring--health)    |
+| Check production readiness    | [Pre-deployment Checklist](#pre-deployment-checklist) |
+| Troubleshoot issues           | [Troubleshooting](#troubleshooting)           |
+| Set up backups                | [Backup & Recovery](#backup--recovery)        |
+
+---
+
+## Pre-deployment Checklist
+
+Before going to production, verify all items:
+
+### Infrastructure
+- [ ] **PostgreSQL 15+** with extensions: `vector`, `age`, `pg_trgm`, `uuid-ossp`
+- [ ] **SSL/TLS certificates** configured for HTTPS
+- [ ] **Domain/DNS** configured for API and WebUI
+- [ ] **Firewall rules** allow ports 80, 443, 5432 (internal only)
+- [ ] **Load balancer** configured (if multi-instance)
+
+### Configuration
+- [ ] **DATABASE_URL** uses production credentials (not default `password`)
+- [ ] **OPENAI_API_KEY** set with valid key (or alternative LLM configured)
+- [ ] **CORS origins** restricted to production domains
+- [ ] **Rate limiting** enabled at load balancer or API level
+- [ ] **Log level** set to `info` (not `debug` in production)
+
+### Security
+- [ ] **Secrets** stored in vault/secret manager (not in code/env files)
+- [ ] **Database** not exposed to public internet
+- [ ] **API keys** rotated from development values
+- [ ] **Audit logging** enabled for sensitive operations
+- [ ] **Input validation** enabled (default)
+
+### Monitoring
+- [ ] **Health endpoints** responding at `/health`, `/live`, `/ready`
+- [ ] **Prometheus metrics** scraped from `/metrics`
+- [ ] **Alerting** configured for critical metrics
+- [ ] **Log aggregation** set up (Loki, ELK, CloudWatch)
+- [ ] **Error tracking** configured (Sentry, Honeybadger)
 
 ---
 
@@ -16,7 +65,8 @@
 4. [Kubernetes Deployment](#kubernetes-deployment)
 5. [Configuration](#configuration)
 6. [Monitoring & Health](#monitoring--health)
-7. [Troubleshooting](#troubleshooting)
+7. [Security Considerations](#security-considerations)
+8. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -524,6 +574,21 @@ scrape_configs:
 
 ## Troubleshooting
 
+### Quick Diagnosis Table
+
+| Symptom | Likely Cause | Solution |
+| ------- | ------------ | -------- |
+| API returns 502 | Container/process not running | Check `docker ps` or `systemctl status edgequake` |
+| Connection refused :8080 | Wrong host binding | Set `HOST=0.0.0.0` not `localhost` |
+| "database connection failed" | Wrong DATABASE_URL | Verify credentials with `psql $DATABASE_URL -c "SELECT 1"` |
+| "extension not found" | Missing PostgreSQL extensions | Run `CREATE EXTENSION IF NOT EXISTS vector;` etc. |
+| "unauthorized" from OpenAI | Invalid/expired API key | Test key: `curl -H "Authorization: Bearer $OPENAI_API_KEY" https://api.openai.com/v1/models` |
+| High latency (>5s) | Cold LLM or large queries | Check `top_k` setting, reduce to 30-40 for faster response |
+| Out of memory | Too many concurrent requests | Increase memory limits or add replicas |
+| "Too many connections" | Connection pool exhausted | Increase `pool_size` or use PgBouncer |
+| Metrics not appearing | Wrong scrape path | Verify `/metrics` endpoint returns Prometheus format |
+| SSL handshake failed | Certificate issues | Check cert chain, verify CN matches domain |
+
 ### Common Issues
 
 #### API Won't Start
@@ -563,6 +628,24 @@ curl -I https://api.openai.com/v1/models \
   -H "Authorization: Bearer $OPENAI_API_KEY" 2>&1 | grep -i rate
 ```
 
+### Debug Mode
+
+For detailed troubleshooting, enable debug logging:
+
+```bash
+# Full debug output
+export RUST_LOG=debug
+
+# Module-specific debugging
+export RUST_LOG=edgequake=debug,edgequake_api=trace
+
+# Database query logging
+export RUST_LOG=sqlx=debug
+
+# LLM request/response logging
+export RUST_LOG=edgequake_llm=debug
+```
+
 ### Performance Tuning
 
 ```bash
@@ -577,7 +660,72 @@ SELECT pg_reload_conf();
 # Use PgBouncer for high-concurrency deployments
 ```
 
-### Backup & Recovery
+---
+
+## Security Considerations
+
+### Network Security
+
+```yaml
+# Example: Restrict database to internal network only
+# docker-compose.prod.yml
+services:
+  postgres:
+    networks:
+      - internal
+    # NO ports exposed to host
+
+  edgequake-api:
+    networks:
+      - internal
+      - external
+    ports:
+      - "8080:8080"  # Only API exposed
+
+networks:
+  internal:
+    internal: true  # No external access
+  external:
+```
+
+### Secrets Management
+
+**DO NOT** store secrets in:
+- Docker images
+- Git repositories
+- Environment files committed to version control
+
+**DO** use:
+- Kubernetes Secrets (with encryption at rest)
+- HashiCorp Vault
+- AWS Secrets Manager / Azure Key Vault
+- Docker Swarm secrets
+
+```bash
+# Example: Docker secrets
+echo "sk-your-real-key" | docker secret create openai_api_key -
+
+# Reference in compose
+services:
+  edgequake-api:
+    secrets:
+      - openai_api_key
+    environment:
+      - OPENAI_API_KEY_FILE=/run/secrets/openai_api_key
+```
+
+### API Security Checklist
+
+- [ ] **HTTPS only** - Redirect HTTP to HTTPS
+- [ ] **Rate limiting** - Prevent abuse (100 req/min default)
+- [ ] **CORS restricted** - Only allow known origins
+- [ ] **Input size limits** - Max 10MB document upload
+- [ ] **Authentication** - Implement API keys or OAuth2
+- [ ] **Audit logging** - Log all document operations
+
+---
+
+## Backup & Recovery
 
 ```bash
 # Backup PostgreSQL
@@ -595,6 +743,14 @@ pg_restore -d $DATABASE_URL backup.dump
 
 ## Next Steps
 
-- **[Configuration Reference](0007-configuration-reference.md)** - All config options
-- **[API Reference](0003-api-reference.md)** - API documentation
-- **[Storage Backends](0004-storage-backends.md)** - Database setup
+| Document | When to Read |
+| -------- | ------------ |
+| [Configuration Reference](0007-configuration-reference.md) | For all environment variables and config options |
+| [API Reference](0003-api-reference.md) | To integrate with the API |
+| [Storage Backends](0004-storage-backends.md) | For database tuning and migration |
+| [Multi-Tenancy](0008-multi-tenancy.md) | For enterprise isolation patterns |
+| [LLM Integration](0005-llm-integration.md) | To configure alternative LLM providers |
+
+---
+
+**Document Navigation**: [← Storage Backends](0004-storage-backends.md) | [README](README.md) | [Configuration Reference →](0007-configuration-reference.md)
