@@ -1,4 +1,21 @@
 //! Query engine implementation.
+//!
+//! ## Implements
+//!
+//! - **FEAT0007**: Multi-Mode Query Execution orchestration
+//! - **FEAT0111**: Query engine configuration management
+//! - **FEAT0112**: Retrieval pipeline coordination
+//!
+//! ## Use Cases
+//!
+//! - **UC2210**: System executes query with configured mode
+//! - **UC2211**: System combines vector and graph results
+//! - **UC2212**: System generates LLM response with context
+//!
+//! ## Enforces
+//!
+//! - **BR0111**: Default mode must be Hybrid if not specified
+//! - **BR0112**: Minimum similarity score threshold enforced
 
 use std::collections::HashMap;
 use std::sync::Arc;
