@@ -1,4 +1,24 @@
 //! Relationship CRUD operations for manual knowledge graph management.
+//!
+//! ## Implements
+//!
+//! - **FEAT0530**: Relationship listing with pagination
+//! - **FEAT0531**: Relationship creation with entity normalization
+//! - **FEAT0532**: Relationship update with weight adjustment
+//! - **FEAT0533**: Relationship deletion with cleanup
+//!
+//! ## Use Cases
+//!
+//! - **UC2130**: User lists relationships between entities
+//! - **UC2131**: User creates manual relationship between two entities
+//! - **UC2132**: User updates relationship weight or description
+//! - **UC2133**: User deletes incorrect relationship from graph
+//!
+//! ## Enforces
+//!
+//! - **BR0530**: Entity names must be normalized (UPPERCASE with underscores)
+//! - **BR0531**: Relationships must have valid source and target entities
+//! - **BR0532**: Relationship weights must be between 0.0 and 1.0
 
 use axum::{
     extract::{Path, Query, State},

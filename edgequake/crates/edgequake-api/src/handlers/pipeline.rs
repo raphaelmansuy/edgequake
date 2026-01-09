@@ -1,4 +1,22 @@
 //! Pipeline status and control handlers (Phase 3).
+//!
+//! ## Implements
+//!
+//! - **FEAT0550**: Pipeline status retrieval with progress info
+//! - **FEAT0551**: Pipeline cancellation for long-running jobs
+//! - **FEAT0552**: History message retrieval for debugging
+//!
+//! ## Use Cases
+//!
+//! - **UC2150**: User checks current pipeline processing status
+//! - **UC2151**: User cancels stuck or unwanted pipeline job
+//! - **UC2152**: User reviews pipeline history for troubleshooting
+//!
+//! ## Enforces
+//!
+//! - **BR0550**: Pipeline status must include task statistics
+//! - **BR0551**: Cancellation must be graceful with cleanup
+//! - **BR0552**: History messages must be time-ordered
 
 use axum::{extract::State, Json};
 
