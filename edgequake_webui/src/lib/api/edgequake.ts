@@ -1,3 +1,18 @@
+/**
+ * @module edgequake-api
+ * @description TypeScript API client for EdgeQuake backend.
+ * Provides typed functions for all REST endpoints with streaming support.
+ * 
+ * @implements FEAT0007 - Query API with streaming responses
+ * @implements FEAT0001 - Document upload and ingestion API
+ * @implements FEAT0601 - Graph data API with SSE streaming
+ * @implements FEAT0501 - Authentication API (login/logout)
+ * 
+ * @enforces BR0001 - All API calls include tenant/workspace context
+ * @enforces BR0002 - Error responses follow consistent format
+ * 
+ * @see {@link specs/API.md} for endpoint specifications
+ */
 import type {
   Document,
   DocumentStatusCounts,
