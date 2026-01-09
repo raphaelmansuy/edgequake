@@ -3,10 +3,16 @@
 import { useEffect, useState } from "react";
 
 /**
- * useDebounce hook - Debounces a value by a specified delay.
+ * @module use-debounce
+ * @description useDebounce hook - Debounces a value by a specified delay.
  *
  * Useful for search inputs where you want to wait for the user
  * to stop typing before triggering an API call.
+ *
+ * @implements FEAT0635 - Debounced search to reduce API calls
+ * @implements FEAT0636 - Performance optimization for user input
+ *
+ * @enforces BR0622 - Minimum debounce of 200ms for search
  *
  * @param value - The value to debounce
  * @param delay - The debounce delay in milliseconds (default: 500ms)

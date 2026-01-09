@@ -4,6 +4,7 @@ use crate::layout::dbscan_1d;
 use crate::schema::{Block, BlockType, BoundingBox};
 
 /// Lattice Engine for table extraction based on graphical lines
+/// @implements FEAT0503
 pub struct LatticeEngine {
     // Configuration parameters
     min_line_length: f32,

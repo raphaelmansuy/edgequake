@@ -1,4 +1,40 @@
 //! Entity CRUD operations for manual knowledge graph management.
+//!
+//! # Implements
+//!
+//! - **UC0101**: Explore Entity Neighborhood
+//! - **UC0102**: Search Entities by Name
+//! - **UC0103**: Delete Entity from Graph
+//! - **FEAT0002**: Entity Extraction (view extracted entities)
+//! - **FEAT0202**: Graph Traversal
+//! - **FEAT0203**: Graph Mutation Operations
+//! - **FEAT0401**: REST API Service
+//!
+//! # Enforces
+//!
+//! - **BR0008**: Entity names normalized (UPPERCASE with underscores)
+//! - **BR0005**: Entity description max 512 tokens
+//! - **BR0201**: Tenant isolation
+//!
+//! # Endpoints
+//!
+//! | Method | Path | Handler | Description |
+//! |--------|------|---------|-------------|
+//! | GET | `/api/v1/graph/entities` | [`list_entities`] | List with pagination |
+//! | GET | `/api/v1/graph/entities/:id` | [`get_entity`] | Get single entity |
+//! | POST | `/api/v1/graph/entities` | [`create_entity`] | Manually create entity |
+//! | PUT | `/api/v1/graph/entities/:id` | [`update_entity`] | Update entity |
+//! | DELETE | `/api/v1/graph/entities/:id` | [`delete_entity`] | Delete with cascade |
+//! | GET | `/api/v1/graph/entities/:id/neighbors` | [`get_entity_neighbors`] | Get connected entities |
+//!
+//! # WHY: Manual Entity Management
+//!
+//! While entities are typically extracted automatically from documents, users need
+//! manual CRUD operations for:
+//! - Correcting extraction errors
+//! - Adding domain knowledge not in documents
+//! - Merging duplicate entities
+//! - Curating the knowledge graph
 
 use axum::{
     extract::{Path, Query, State},
@@ -19,6 +55,16 @@ pub use crate::handlers::entities_types::*;
 // ============================================================================
 
 /// Normalize entity name to UPPERCASE with underscores.
+///
+/// # Enforces
+///
+/// - **BR0008**: Entity names are normalized to UPPERCASE_WITH_UNDERSCORES
+///
+/// # WHY: Deduplication Key
+///
+/// Entity names serve as primary keys in the graph. Normalization ensures:
+/// - "John Smith" and "john smith" map to same entity
+/// - Case variations don't create duplicate nodes
 fn normalize_entity_name(name: &str) -> String {
     name.to_uppercase().replace(' ', "_")
 }

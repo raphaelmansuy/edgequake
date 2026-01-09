@@ -1,4 +1,22 @@
 //! PostgreSQL key-value storage using JSONB.
+//!
+//! Provides flexible key-value storage with full JSON query capabilities.
+//!
+//! ## Implements
+//!
+//! - [`FEAT0240`]: JSONB key-value storage
+//! - [`FEAT0241`]: GIN indexing for fast JSON path queries
+//! - [`FEAT0242`]: Atomic upsert operations
+//!
+//! ## Use Cases
+//!
+//! - [`UC0601`]: System stores document metadata
+//! - [`UC0605`]: System retrieves chunks by ID
+//!
+//! ## Enforces
+//!
+//! - [`BR0240`]: Namespace isolation per tenant
+//! - [`BR0241`]: Atomic batch operations
 
 use std::collections::HashSet;
 

@@ -1,8 +1,15 @@
 /**
- * WebSocket Status Component
- * 
- * Displays WebSocket connection status with visual indicator.
+ * @module WebSocketStatus
+ * @description Displays WebSocket connection status with visual indicator.
  * Based on WebUI Specification Document WEBUI-005 (14-webui-websocket-progress.md)
+ * 
+ * @implements FEAT0603 - WebSocket connection indicator
+ * @implements FEAT0638 - Visual reconnection status
+ * 
+ * @enforces BR0604 - Status updates in real-time
+ * @enforces BR0624 - Reconnection attempts visible to user
+ * 
+ * @see {@link specs/WEBUI-005.md} for specification
  */
 
 'use client';

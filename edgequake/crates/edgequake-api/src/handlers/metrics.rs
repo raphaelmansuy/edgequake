@@ -1,4 +1,22 @@
 //! Metrics handlers for observability.
+//!
+//! ## Implements
+//!
+//! - **FEAT0590**: Prometheus metrics endpoint for scraping
+//! - **FEAT0591**: HTTP request counter metrics
+//! - **FEAT0592**: Request duration histogram
+//! - **FEAT0593**: In-flight request gauge
+//!
+//! ## Use Cases
+//!
+//! - **UC2190**: DevOps scrapes metrics for Prometheus/Grafana dashboards
+//! - **UC2191**: Operator monitors request latency distribution
+//! - **UC2192**: Alert system triggers on high error rates
+//!
+//! ## Enforces
+//!
+//! - **BR0590**: Metrics must be in Prometheus text format
+//! - **BR0591**: Metrics endpoint must not require authentication
 
 // Re-export DTOs from metrics_types for backwards compatibility
 pub use crate::handlers::metrics_types::PrometheusMetrics;

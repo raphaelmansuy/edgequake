@@ -1,9 +1,17 @@
 /**
- * Unified Chat API Client
+ * @module chat-api
+ * @description Unified Chat API Client
  *
  * This module provides the client for the unified chat completions API.
  * The server-side endpoint handles message persistence, so the client
  * only needs to focus on displaying the response.
+ *
+ * @implements FEAT0772 - Chat completions API client
+ * @implements FEAT0773 - Streaming chat responses
+ * @implements FEAT0774 - Query mode selection
+ *
+ * @enforces BR0703 - Auto-create conversation if none provided
+ * @enforces BR0704 - Stream events include chunk, sources, done
  *
  * Key benefits:
  * - No client-side message saving required

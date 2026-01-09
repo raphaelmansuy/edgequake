@@ -4,6 +4,17 @@
 //! and respect provider limits. It implements token bucket algorithms for
 //! both request rate and token rate limiting.
 //!
+//! ## Implements
+//!
+//! - **FEAT0020**: API Rate Limiting
+//! - **FEAT0770**: Token bucket algorithm
+//! - **FEAT0771**: Concurrent request limits
+//!
+//! ## Enforces
+//!
+//! - **BR0301**: LLM API rate limits (configurable per provider)
+//! - **BR0770**: Exponential backoff on 429 errors
+//!
 //! Based on LightRAG's rate limiting: `lightrag/utils.py:priority_limit_async_func_call()`
 
 use async_trait::async_trait;

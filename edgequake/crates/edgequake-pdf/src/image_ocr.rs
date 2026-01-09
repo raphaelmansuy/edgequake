@@ -4,6 +4,16 @@
 //! images embedded in PDF documents using multimodal LLMs instead of traditional
 //! OCR engines like Tesseract.
 //!
+//! ## Implements
+//!
+//! @implements FEAT1004
+//! @implements FEAT1025
+//!
+//! ## Enforces
+//!
+//! - **BR1025**: OCR timeout after 30s per image
+//! - **BR1026**: Batch images to reduce API calls
+//!
 //! # Why LLM-based OCR?
 //!
 //! Traditional OCR engines struggle with:

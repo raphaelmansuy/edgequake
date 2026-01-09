@@ -1,4 +1,21 @@
 //! JWT (JSON Web Token) service for authentication.
+//!
+//! ## Implements
+//!
+//! - **FEAT0850**: JWT token generation with configurable TTL
+//! - **FEAT0851**: JWT token validation and claims extraction
+//! - **FEAT0852**: Refresh token support
+//!
+//! ## Use Cases
+//!
+//! - **UC2501**: System generates JWT on successful login
+//! - **UC2502**: System validates JWT on API request
+//! - **UC2503**: Client refreshes expired access token
+//!
+//! ## Enforces
+//!
+//! - **BR0850**: Tokens must include expiration claim
+//! - **BR0851**: Secret key must be at least 32 bytes
 
 use std::sync::Arc;
 

@@ -1,3 +1,15 @@
+/**
+ * @fileoverview Smart content renderer that adapts to document MIME type
+ *
+ * @implements FEAT1072 - MIME type-aware rendering
+ * @implements FEAT1073 - Text highlight and scroll-to
+ *
+ * @see UC1503 - User views document with appropriate renderer
+ * @see UC1504 - User navigates to highlighted citation
+ *
+ * @enforces BR1072 - Renderer selection by MIME type
+ * @enforces BR1073 - Smooth scroll to highlighted content
+ */
 // Smart content renderer that adapts to document MIME type
 'use client';
 

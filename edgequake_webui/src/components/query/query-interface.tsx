@@ -1,3 +1,22 @@
+/**
+ * @module QueryInterface
+ * @description Main query interface component for RAG knowledge graph queries.
+ * Provides chat-based interaction with context-aware retrieval augmented generation.
+ * 
+ * @implements UC0201 - User submits a natural language query
+ * @implements UC0202 - System retrieves relevant context from knowledge graph
+ * @implements UC0203 - System generates augmented response with citations
+ * @implements FEAT0007 - Natural Language Query Processing
+ * @implements FEAT0101-0106 - Query mode selection (naive, local, global, hybrid, mix, bypass)
+ * @implements FEAT0734 - Streaming responses with chain-of-thought display
+ * 
+ * @enforces BR0104 - Query response must include source citations
+ * @enforces BR0105 - Streaming must show progressive thinking indicators
+ * @enforces BR0401 - Conversation history persists across sessions
+ * 
+ * @see {@link docs/use_cases.md} UC0201-0203
+ * @see {@link docs/features.md} FEAT0007, FEAT0101-0106
+ */
 'use client';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -7,25 +26,25 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger,
 } from '@/components/ui/sheet';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
-  useConversation,
-  useConversations,
+    useConversation,
+    useConversations,
 } from '@/hooks/use-conversations';
 import { chatCompletion, chatCompletionStream } from '@/lib/api/chat';
 import { ApiRequestError } from '@/lib/api/client';
@@ -39,21 +58,21 @@ import { useTenantStore } from '@/stores/use-tenant-store';
 import type { QueryContext, ServerMessage } from '@/types';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  BookOpen,
-  Brain,
-  Gauge,
-  GitBranch,
-  Info,
-  Lightbulb,
-  Plus,
-  Search,
-  Send,
-  Settings2,
-  Sliders,
-  Sparkles,
-  StopCircle,
-  Thermometer,
-  Zap
+    BookOpen,
+    Brain,
+    Gauge,
+    GitBranch,
+    Info,
+    Lightbulb,
+    Plus,
+    Search,
+    Send,
+    Settings2,
+    Sliders,
+    Sparkles,
+    StopCircle,
+    Thermometer,
+    Zap
 } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';

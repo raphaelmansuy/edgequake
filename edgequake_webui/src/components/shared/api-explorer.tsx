@@ -1,3 +1,16 @@
+/**
+ * @module ApiExplorer
+ * @description Interactive API endpoint explorer for testing.
+ * Allows users to test API calls directly from the UI.
+ * 
+ * @implements UC0901 - Developer tests API endpoints
+ * @implements FEAT0639 - Interactive API testing
+ * @implements FEAT0640 - Request/response visualization
+ * 
+ * @enforces BR0625 - API responses formatted for readability
+ * 
+ * @see {@link specs/API.md} for endpoint specifications
+ */
 'use client';
 
 import { Badge } from '@/components/ui/badge';

@@ -1,5 +1,21 @@
 //! API error types.
 //!
+//! ## Implements
+//!
+//! - [`FEAT0401`]: Consistent API error format
+//! - [`FEAT0402`]: HTTP status code mapping
+//! - [`FEAT0403`]: Structured error details
+//!
+//! ## Use Cases
+//!
+//! - [`UC2001`]: System returns structured error response
+//! - [`UC2002`]: Client handles retryable vs non-retryable errors
+//!
+//! ## Enforces
+//!
+//! - [`BR0401`]: JSON error response structure
+//! - [`BR0402`]: Consistent error code naming
+//!
 //! # Error Response Format
 //!
 //! All API errors return JSON with consistent structure:
@@ -24,6 +40,8 @@
 //! | `RateLimited` | 429 | Yes | Wait and retry |
 //! | `Internal` | 500 | Maybe | Report if persistent |
 //! | `ServiceUnavailable` | 503 | Yes | Wait and retry |
+//!
+//! @implements FEAT0803
 
 use axum::{
     http::StatusCode,

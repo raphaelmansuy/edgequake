@@ -1,4 +1,20 @@
 //! PostgreSQL connection pool management.
+//!
+//! Provides connection pooling with lazy initialization and extension setup.
+//!
+//! ## Implements
+//!
+//! - [`FEAT0246`]: Connection pool with lazy initialization
+//! - [`FEAT0247`]: Extension auto-setup (pgvector, AGE, pgcrypto)
+//!
+//! ## Use Cases
+//!
+//! - [`UC0901`]: System establishes database connection
+//!
+//! ## Enforces
+//!
+//! - [`BR0246`]: Connection reuse via pooling
+//! - [`BR0247`]: Extension availability validation
 
 use std::sync::Arc;
 use tokio::sync::RwLock;

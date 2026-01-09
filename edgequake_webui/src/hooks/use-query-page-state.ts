@@ -1,5 +1,17 @@
 "use client";
 
+/**
+ * @module use-query-page-state
+ * @description Hook for managing query page state.
+ * Coordinates UI store with conversation data and streaming.
+ *
+ * @implements FEAT0645 - Query page state coordination
+ * @implements FEAT0646 - Conversation and streaming integration
+ *
+ * @enforces BR0630 - State synced with active conversation
+ * @enforces BR0631 - Streaming state resets on conversation change
+ */
+
 import {
   useActiveConversationId,
   useQueryUIStore,

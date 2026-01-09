@@ -1,5 +1,18 @@
 "use client";
 
+/**
+ * @module use-graph-keyboard-navigation
+ * @description Custom hook for keyboard navigation in the graph viewer.
+ * Provides accessibility features for graph interaction.
+ *
+ * @implements UC0306 - User navigates graph with keyboard
+ * @implements FEAT0639 - Keyboard navigation for graph nodes
+ * @implements FEAT0640 - Focus management for accessibility
+ *
+ * @enforces BR0625 - Escape key resets selection
+ * @enforces BR0626 - Arrow keys navigate between nodes
+ */
+
 import {
   focusCameraOnNode,
   resetCameraToFitGraph,

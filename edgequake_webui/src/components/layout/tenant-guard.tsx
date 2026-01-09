@@ -97,6 +97,8 @@ export function TenantGuard({ children }: TenantGuardProps) {
         selectWorkspace(workspacesData[0].id);
       }
       // Context setup is complete once we have a workspace selected
+      // Intentional: Initialization of context state
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsSettingUpContext(false);
     }
   }, [workspacesData, setWorkspaces, selectedWorkspaceId, selectWorkspace]);

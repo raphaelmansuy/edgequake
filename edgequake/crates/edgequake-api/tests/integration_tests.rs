@@ -122,7 +122,8 @@ async fn test_upload_document() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+    // WHY: POST /documents returns 201 Created per REST semantics (UC0001)
+    assert_eq!(response.status(), StatusCode::CREATED);
 
     let json = parse_json(response).await;
     assert!(json.get("document_id").is_some());

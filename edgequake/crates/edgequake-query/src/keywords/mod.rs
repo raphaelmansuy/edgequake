@@ -12,6 +12,8 @@
 //!                                      ↓ Miss
 //!                               LLMKeywordExtractor → LLM Call → Parse → Cache → Return
 //! ```
+//!
+//! @implements FEAT0107 (Keyword Extraction)
 
 mod cache;
 mod extractor;

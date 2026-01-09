@@ -1,3 +1,14 @@
+/**
+ * @module ThinkingDisplay
+ * @description Chain-of-thought reasoning display component.
+ * Shows LLM thinking process with collapsible sections.
+ *
+ * @implements FEAT0734 - Chain-of-thought display
+ * @implements FEAT0750 - Collapsible thinking sections
+ *
+ * @enforces BR0105 - Thinking shows progressive indicators
+ * @enforces BR0750 - Default collapsed for completed responses
+ */
 'use client';
 
 import { cn } from '@/lib/utils';

@@ -3,6 +3,22 @@
 //! This module manages the central application state shared across all handlers,
 //! including storage backends, service instances, and configuration.
 //!
+//! ## Implements
+//!
+//! - [`FEAT0460`]: Centralized application state
+//! - [`FEAT0461`]: Storage mode selection (Memory/PostgreSQL)
+//! - [`FEAT0462`]: Service instance management
+//!
+//! ## Use Cases
+//!
+//! - [`UC2060`]: System initializes storage adapters
+//! - [`UC2061`]: Handlers access shared services
+//!
+//! ## Enforces
+//!
+//! - [`BR0460`]: Thread-safe state via Arc
+//! - [`BR0461`]: Configurable storage backends
+//!
 //! # Storage Modes
 //!
 //! EdgeQuake supports two storage modes:

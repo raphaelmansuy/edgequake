@@ -1,0 +1,21 @@
+# Doc Traceability Validator Requirements
+#
+# This skill uses only Python standard library modules.
+# No external dependencies required.
+#
+# Python 3.9+ is required for:
+# - dataclasses (standard library)
+# - pathlib (standard library)
+# - argparse (standard library)
+# - json (standard library)
+# - re (standard library)
+# - collections (standard library)
+# - typing (standard library)
+# - datetime (standard library)
+# - sys (standard library)
+#
+# To run the scripts:
+#   python3 validate_features.py --help
+#   python3 validate_traceability.py --help
+#   python3 generate_registry.py --help
+#   python3 check_namespace.py --help

@@ -2,6 +2,26 @@
 //!
 //! Authentication and authorization module for EdgeQuake.
 //!
+//! ## Implements
+//!
+//! - [`FEAT0501`]: JWT-based user authentication
+//! - [`FEAT0502`]: API key authentication for services
+//! - [`FEAT0503`]: Role-based access control (RBAC)
+//! - [`FEAT0504`]: Multi-tenancy with workspace isolation
+//!
+//! ## Enforces
+//!
+//! - [`BR0501`]: All API endpoints require authentication
+//! - [`BR0502`]: JWT tokens expire after configured TTL
+//! - [`BR0503`]: API keys are hashed before storage
+//! - [`BR0504`]: Tenant isolation enforced at query level
+//!
+//! ## Use Cases
+//!
+//! - [`UC0501`]: User authenticates via email/password
+//! - [`UC0502`]: Service authenticates via API key
+//! - [`UC0503`]: Admin manages user roles and permissions
+//!
 //! This crate provides:
 //! - JWT-based authentication for user sessions
 //! - API key authentication for service-to-service communication

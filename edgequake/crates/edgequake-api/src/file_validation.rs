@@ -1,5 +1,21 @@
 //! File validation utilities for document handling.
 //!
+//! ## Implements
+//!
+//! - [`FEAT0430`]: File size validation
+//! - [`FEAT0431`]: Extension whitelist validation
+//! - [`FEAT0432`]: UTF-8 content validation
+//!
+//! ## Use Cases
+//!
+//! - [`UC2030`]: System validates file upload
+//! - [`UC2031`]: System rejects unsupported file types
+//!
+//! ## Enforces
+//!
+//! - [`BR0430`]: Maximum file size limit
+//! - [`BR0431`]: Extension whitelist enforcement
+//!
 //! This module provides reusable file validation functions to ensure DRY
 //! compliance across document upload handlers.
 

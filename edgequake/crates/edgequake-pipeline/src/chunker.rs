@@ -1,4 +1,29 @@
-//! Text chunking with overlap.
+//! Text chunking with overlap for document processing.
+//!
+//! @implements FEAT0002
+//! @implements FEAT0301
+//! @implements FEAT0302
+//!
+//! # Implements
+//!
+//! - **FEAT0002**: Text Chunking with Overlap
+//! - **FEAT0301**: Character-Based Chunking
+//! - **FEAT0302**: Token-Based Chunking
+//!
+//! # Enforces
+//!
+//! - **BR0002**: Chunk size 1200 tokens, overlap 100 tokens (default config)
+//!
+//! # WHY: Overlapping Chunks
+//!
+//! Overlap between chunks ensures:
+//! 1. Context continuity across chunk boundaries
+//! 2. Entity mentions spanning two chunks are captured
+//! 3. Better retrieval for queries at chunk boundaries
+//!
+//! The default 100-token overlap (~8% of chunk size) balances:
+//! - Coverage (entities not missed)
+//! - Efficiency (minimal duplicate processing)
 //!
 //! This module provides flexible text chunking with support for custom chunking functions.
 //! Users can implement the `ChunkingStrategy` trait to provide their own chunking logic.
@@ -273,6 +298,8 @@ impl ChunkingStrategy for TokenBasedChunking {
 /// Character-based chunking strategy (GAP-017).
 ///
 /// Splits text on a specific character (like newline) for pre-split content.
+///
+/// @implements FEAT0301 (Character-Based Chunking)
 pub struct CharacterBasedChunking {
     /// Character to split on.
     pub split_character: String,

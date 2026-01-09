@@ -1,8 +1,17 @@
 /**
- * WebSocket Client for Progress Tracking
+ * @module progress-websocket
+ * @description WebSocket Client for Progress Tracking
  *
  * Provides real-time progress updates for document ingestion.
  * Based on WebUI Specification Document WEBUI-005 (14-webui-websocket-progress.md)
+ *
+ * @implements FEAT0724 - Real-time ingestion progress
+ * @implements FEAT0725 - Heartbeat keep-alive
+ * @implements FEAT0726 - Subscription-based updates
+ *
+ * @enforces BR0721 - Heartbeat every 30s
+ * @enforces BR0722 - Max 5 reconnect attempts
+ * @enforces BR0723 - Clean disconnect on page unload
  */
 
 import type {

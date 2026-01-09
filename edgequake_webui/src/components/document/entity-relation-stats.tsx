@@ -1,3 +1,15 @@
+/**
+ * @fileoverview Entity and relation stats with link to graph
+ *
+ * @implements FEAT1078 - Entity/relationship count display
+ * @implements FEAT1079 - Graph navigation integration
+ *
+ * @see UC1509 - User views entity/relationship counts
+ * @see UC1510 - User navigates to graph view
+ *
+ * @enforces BR1078 - Color-coded stat cards
+ * @enforces BR1079 - Deep link to graph with document highlight
+ */
 // Entity and relation stats with link to graph
 'use client';
 

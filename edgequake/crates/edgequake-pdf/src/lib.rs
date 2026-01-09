@@ -4,6 +4,28 @@
 //! content from PDF documents and convert them to structured Markdown using
 //! AI enhancement through EdgeQuake's LLM providers.
 //!
+//! ## Implements
+//!
+//! - [`FEAT1001`]: PDF to Markdown conversion with structure preservation
+//! - [`FEAT1002`]: Table detection and extraction (lattice and stream modes)
+//! - [`FEAT1003`]: Multi-column layout detection and reading order
+//! - [`FEAT1004`]: Image extraction with optional OCR
+//! - [`FEAT1005`]: Formula detection and LaTeX conversion
+//! - [`FEAT1006`]: LLM-enhanced content cleaning and formatting
+//!
+//! ## Enforces
+//!
+//! - [`BR1001`]: Preserve document structure in output
+//! - [`BR1002`]: Handle malformed PDFs gracefully
+//! - [`BR1003`]: Maintain reading order accuracy >95%
+//! - [`BR1004`]: Table cell alignment preserved
+//!
+//! ## Use Cases
+//!
+//! - [`UC1001`]: User uploads PDF for knowledge graph ingestion
+//! - [`UC1002`]: System extracts text blocks with bounding boxes
+//! - [`UC1003`]: Pipeline converts tables to markdown tables
+//!
 //! # Architecture
 //!
 //! The crate is organized into several modules:

@@ -1,4 +1,24 @@
 //! Task management handlers.
+//!
+//! ## Implements
+//!
+//! - **FEAT0560**: Task status retrieval by track ID
+//! - **FEAT0561**: Task listing with filters and pagination
+//! - **FEAT0562**: Task cancellation for pending jobs
+//! - **FEAT0563**: Task statistics aggregation
+//!
+//! ## Use Cases
+//!
+//! - **UC2160**: User polls task status during async document processing
+//! - **UC2161**: User lists all pending and completed tasks
+//! - **UC2162**: User cancels queued task before processing starts
+//! - **UC2163**: Admin views task statistics for monitoring
+//!
+//! ## Enforces
+//!
+//! - **BR0560**: Track IDs must be valid UUIDs
+//! - **BR0561**: Task listing must support status and type filters
+//! - **BR0562**: Only pending tasks can be cancelled
 
 use axum::{
     extract::{Path, Query, State},
@@ -56,6 +76,7 @@ pub async fn get_task(
         (status = 200, description = "Tasks listed", body = TaskListResponse)
     )
 )]
+/// @implements FEAT0406
 pub async fn list_tasks(
     State(state): State<AppState>,
     Query(params): Query<ListTasksQuery>,

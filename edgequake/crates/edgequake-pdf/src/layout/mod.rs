@@ -151,6 +151,7 @@ impl PageMargins {
 }
 
 /// Layout analyzer for processing page blocks.
+/// @implements FEAT0502
 pub struct LayoutAnalyzer {
     /// Column detector
     column_detector: ColumnDetector,

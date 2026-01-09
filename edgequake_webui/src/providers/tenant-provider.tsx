@@ -1,3 +1,14 @@
+/**
+ * @module TenantProvider
+ * @description Provider for tenant and workspace context initialization.
+ * Auto-selects first available tenant/workspace on fresh start.
+ *
+ * @implements FEAT0861 - Multi-tenancy with workspace isolation
+ * @implements FEAT0868 - Auto-tenant selection
+ *
+ * @enforces BR0504 - All API calls include tenant/workspace context
+ * @enforces BR0868 - Default to first tenant if none selected
+ */
 'use client';
 
 import { getTenants, getWorkspaces } from '@/lib/api/edgequake';

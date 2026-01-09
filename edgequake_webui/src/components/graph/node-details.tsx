@@ -1,3 +1,20 @@
+/**
+ * @module NodeDetails
+ * @description Entity detail panel showing node properties and relationships.
+ * Supports editing, deletion, and relationship exploration.
+ * 
+ * @implements UC0102 - View entity details in side panel
+ * @implements UC0103 - Edit entity properties inline
+ * @implements UC0105 - Delete entity with cascade confirmation
+ * @implements FEAT0203 - Entity property editing
+ * @implements FEAT0204 - Relationship navigation
+ * 
+ * @enforces BR0201 - Panel syncs with graph selection
+ * @enforces BR0202 - Edit saves trigger graph refresh
+ * @enforces BR0203 - Deletion shows impact analysis
+ * 
+ * @see {@link docs/use_cases.md} UC0102-0105
+ */
 'use client';
 
 import { Badge } from '@/components/ui/badge';

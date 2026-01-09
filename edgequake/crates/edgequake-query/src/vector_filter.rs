@@ -2,6 +2,8 @@
 //!
 //! This module provides utilities for filtering vector search results by type,
 //! supporting the distinction between chunks, entities, and relationships.
+//!
+//! @implements FEAT0110 (Vector Filtering)
 
 use edgequake_storage::VectorSearchResult;
 

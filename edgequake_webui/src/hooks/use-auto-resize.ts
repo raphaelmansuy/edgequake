@@ -3,7 +3,13 @@
 import { RefObject, useCallback, useLayoutEffect } from "react";
 
 /**
- * Hook to auto-resize a textarea based on content
+ * @module use-auto-resize
+ * @description Hook to auto-resize a textarea based on content
+ *
+ * @implements FEAT0633 - Textarea auto-resize for chat input
+ * @implements FEAT0634 - Adaptive input height based on content
+ *
+ * @enforces BR0621 - Max height prevents viewport overflow
  *
  * @param textareaRef - Reference to the textarea element
  * @param value - Current value of the textarea

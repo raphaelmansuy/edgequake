@@ -1,3 +1,15 @@
+/**
+ * @fileoverview Key stats card (sticky at top of sidebar)
+ *
+ * @implements FEAT1086 - Key statistics summary
+ * @implements FEAT1087 - Processing duration display
+ *
+ * @see UC1517 - User sees document statistics at glance
+ * @see UC1518 - User views processing time
+ *
+ * @enforces BR1086 - Color-coded stat cards
+ * @enforces BR1087 - Sticky positioning in sidebar
+ */
 // Key stats card (sticky at top of sidebar)
 'use client';
 

@@ -1,5 +1,21 @@
 //! Document validation helpers.
 //!
+//! ## Implements
+//!
+//! - [`FEAT0420`]: Content size validation
+//! - [`FEAT0421`]: Empty content detection
+//! - [`FEAT0422`]: Content summary generation
+//!
+//! ## Use Cases
+//!
+//! - [`UC2020`]: System validates document before processing
+//! - [`UC2021`]: System generates content preview
+//!
+//! ## Enforces
+//!
+//! - [`BR0420`]: Maximum document size limit
+//! - [`BR0421`]: Non-empty content requirement
+//!
 //! # WHY: Single Responsibility
 //!
 //! Validation logic was duplicated across multiple handlers in documents.rs.

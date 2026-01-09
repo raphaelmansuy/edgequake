@@ -1,4 +1,17 @@
 //! PDF extraction functionality.
+//!
+//! This module provides the main [`PdfExtractor`] type for converting PDF documents
+//! to Markdown with optional LLM enhancement.
+//!
+//! ## Implements
+//!
+//! - [`FEAT1001`]: Core PDF to Markdown conversion
+//! - [`FEAT1006`]: LLM-enhanced content cleaning
+//!
+//! ## Use Cases
+//!
+//! - [`UC1001`]: User uploads PDF for extraction
+//! - [`UC1002`]: System extracts with graceful degradation
 
 use std::sync::Arc;
 use tracing::info;
@@ -127,6 +140,7 @@ impl ExtractionResult {
 }
 
 /// Main PDF extractor that converts PDFs to Markdown using AI enhancement.
+/// @implements FEAT0501
 pub struct PdfExtractor {
     backend: Box<dyn PdfBackend>,
     llm_provider: Arc<dyn LLMProvider>,

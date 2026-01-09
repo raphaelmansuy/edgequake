@@ -4,6 +4,23 @@
 //! to extracted entities and relationships. Enables full auditability
 //! and traceability of the extraction pipeline.
 //!
+//! ## Implements
+//!
+//! @implements FEAT0011 (Document-Chunk-Entity Lineage tracking)
+//! @implements FEAT0019 (Source span tracking with line numbers)
+//! @implements FEAT0020 (Description history for entity evolution)
+//!
+//! ## Use Cases
+//!
+//! - **UC2310**: User traces entity back to source document line
+//! - **UC2311**: System tracks description evolution through merges
+//! - **UC2312**: User views full extraction metadata
+//!
+//! ## Enforces
+//!
+//! - **BR0019**: Source spans must include line numbers
+//! - **BR0020**: Description history must be append-only
+//!
 //! # Lineage Chain
 //!
 //! Document → Chunks → Entities/Relationships

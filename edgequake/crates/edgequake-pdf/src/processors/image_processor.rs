@@ -1,5 +1,7 @@
 //! Image extraction processor for PDF documents.
 //!
+//! @implements FEAT1023
+//!
 //! This processor extracts embedded images from PDF pages and adds them
 //! as Figure/Picture blocks with image data in metadata for later
 //! LLM-based OCR processing.

@@ -1,0 +1,78 @@
+name: Documentation Traceability
+
+on:
+    push:
+        paths:
+            - "edgequake_webui/src/**"
+            - "edgequake/crates/**"
+            - "docs/features.md"
+            - ".github/skills/doc-traceability-validator/**"
+    pull_request:
+        paths:
+            - "edgequake_webui/src/**"
+            - "edgequake/crates/**"
+            - "docs/features.md"
+
+jobs:
+    validate-traceability:
+        runs-on: ubuntu-latest
+        name: Validate Feature Traceability
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
+
+            - name: Validate Frontend Features
+              id: frontend
+              run: |
+                  python3 .github/skills/doc-traceability-validator/scripts/validate_features.py \
+                    --code-dir edgequake_webui/src \
+                    --docs-file docs/features.md \
+                    --output-json /tmp/frontend_validation.json
+
+            - name: Validate Backend Features
+              id: backend
+              run: |
+                  python3 .github/skills/doc-traceability-validator/scripts/validate_features.py \
+                    --code-dir edgequake/crates \
+                    --docs-file docs/features.md \
+                    --output-json /tmp/backend_validation.json
+
+            - name: Check Namespace Violations
+              run: |
+                  python3 .github/skills/doc-traceability-validator/scripts/check_namespace.py \
+                    --code-dir edgequake_webui/src
+
+            - name: Generate Summary
+              if: always()
+              run: |
+                  echo "## Documentation Traceability Report" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "### Frontend Validation" >> $GITHUB_STEP_SUMMARY
+                  echo '```' >> $GITHUB_STEP_SUMMARY
+                  python3 .github/skills/doc-traceability-validator/scripts/validate_features.py \
+                    --code-dir edgequake_webui/src \
+                    --docs-file docs/features.md 2>&1 | head -30 >> $GITHUB_STEP_SUMMARY || true
+                  echo '```' >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "### Backend Validation" >> $GITHUB_STEP_SUMMARY
+                  echo '```' >> $GITHUB_STEP_SUMMARY
+                  python3 .github/skills/doc-traceability-validator/scripts/validate_features.py \
+                    --code-dir edgequake/crates \
+                    --docs-file docs/features.md 2>&1 | head -30 >> $GITHUB_STEP_SUMMARY || true
+                  echo '```' >> $GITHUB_STEP_SUMMARY
+
+            - name: Upload Validation Reports
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: validation-reports
+                  path: |
+                      /tmp/frontend_validation.json
+                      /tmp/backend_validation.json
+                  retention-days: 7

@@ -1,3 +1,17 @@
+/**
+ * @module ConversationHistoryPanel
+ * @description Sidebar panel for conversation history management.
+ * Lists conversations, handles folder organization, and supports CRUD operations.
+ *
+ * @implements UC0401 - User views conversation history
+ * @implements UC0402 - User renames conversation
+ * @implements UC0403 - User deletes conversation
+ * @implements FEAT0740 - Conversation sidebar with folders
+ * @implements FEAT0741 - Conversation search and filtering
+ *
+ * @enforces BR0740 - Conversations sorted by last updated
+ * @enforces BR0741 - Delete confirmation required
+ */
 "use client";
 
 import { Button } from "@/components/ui/button";

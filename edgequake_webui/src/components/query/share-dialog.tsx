@@ -8,27 +8,27 @@
 
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  useShareConversation,
-  useUnshareConversation,
+    useShareConversation,
+    useUnshareConversation,
 } from "@/hooks/use-conversations";
 import type { ConversationWithMessages } from "@/types";
 import {
-  Check,
-  Copy,
-  ExternalLink,
-  Link,
-  Loader2,
-  Share2,
-  Trash2,
+    Check,
+    Copy,
+    ExternalLink,
+    Link,
+    Loader2,
+    Share2,
+    Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -61,6 +61,8 @@ export function ShareDialog({
   // Reset copied state when dialog opens
   useEffect(() => {
     if (open) {
+      // Intentional: Resetting UI state when dialog opens
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCopied(false);
     }
   }, [open]);

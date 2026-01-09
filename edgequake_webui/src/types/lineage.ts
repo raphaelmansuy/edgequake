@@ -1,8 +1,17 @@
 /**
- * Lineage Tracking Types
- *
- * Types for document lineage, chunk exploration, and entity provenance.
+ * @module lineage-types
+ * @description Types for document lineage, chunk exploration, and entity provenance.
  * Based on WebUI Specification Document WEBUI-006 (15-webui-lineage-viz.md)
+ *
+ * @implements UC0301 - Explore document chunks and origins
+ * @implements UC0302 - View entity extraction provenance
+ * @implements FEAT0701 - Chunk lineage visualization
+ * @implements FEAT0702 - Entity-to-document tracing
+ *
+ * @enforces BR0701 - Lineage preserved for all entities
+ * @enforces BR0702 - Chunk positions accurate to source
+ *
+ * @see {@link specs/WEBUI-006.md} for specification
  */
 
 // ============================================================================

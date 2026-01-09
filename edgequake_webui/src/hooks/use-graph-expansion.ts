@@ -1,5 +1,18 @@
 "use client";
 
+/**
+ * @module use-graph-expansion
+ * @description Hook for expanding graph nodes by fetching neighbors.
+ * Uses ForceAtlas2 layout for node positioning with animation.
+ *
+ * @implements UC0305 - User expands entity to see neighbors
+ * @implements FEAT0637 - Node expansion with neighbor fetching
+ * @implements FEAT0638 - ForceAtlas2 layout for expanded nodes
+ *
+ * @enforces BR0623 - Max expansion depth to prevent infinite graphs
+ * @enforces BR0624 - Deduplicate edges on expansion
+ */
+
 import { getEntityNeighborhood } from "@/lib/api/edgequake";
 import { useGraphStore } from "@/stores/use-graph-store";
 import type { GraphEdge } from "@/types";

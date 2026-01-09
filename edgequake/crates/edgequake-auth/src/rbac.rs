@@ -1,4 +1,21 @@
 //! Role-Based Access Control (RBAC) service.
+//!
+//! ## Implements
+//!
+//! - **FEAT0860**: Role-to-permission mapping
+//! - **FEAT0861**: Permission checking for operations
+//! - **FEAT0862**: Hierarchical role support
+//!
+//! ## Use Cases
+//!
+//! - **UC2510**: System checks user permission before operation
+//! - **UC2511**: Admin grants role to user
+//! - **UC2512**: System denies access for insufficient permissions
+//!
+//! ## Enforces
+//!
+//! - **BR0860**: Each role has fixed permission set
+//! - **BR0861**: Admin role has all permissions
 
 use std::str::FromStr;
 

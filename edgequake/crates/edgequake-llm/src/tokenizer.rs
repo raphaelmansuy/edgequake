@@ -1,4 +1,14 @@
 //! Token counting utilities.
+//!
+//! ## Implements
+//!
+//! - **FEAT0777**: Token counting with tiktoken
+//! - **FEAT0778**: Model-specific tokenizer selection
+//!
+//! ## Enforces
+//!
+//! - **BR0302**: Token count respects context window limits
+//! - **BR0777**: Fallback to cl100k_base for unknown models
 
 use tiktoken_rs::{cl100k_base, o200k_base, CoreBPE};
 

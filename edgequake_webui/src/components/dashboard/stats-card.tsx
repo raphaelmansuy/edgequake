@@ -1,3 +1,15 @@
+/**
+ * @fileoverview Statistics card component for dashboard metrics display
+ *
+ * @implements FEAT1001 - Dashboard statistics visualization
+ * @implements FEAT1002 - Trend indicators for metrics
+ *
+ * @see UC1101 - User views knowledge base statistics
+ * @see UC1102 - User monitors entity/document counts
+ *
+ * @enforces BR1001 - Loading state with skeleton placeholders
+ * @enforces BR1002 - Color-coded variant styling
+ */
 'use client';
 
 import { Card, CardContent } from '@/components/ui/card';

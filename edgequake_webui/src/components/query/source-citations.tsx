@@ -1,3 +1,22 @@
+/**
+ * @module SourceCitations
+ * @description Displays source citations for RAG query responses.
+ * Shows entities, documents, chunks, and relationships with confidence scores.
+ * 
+ * @implements UC0203 - Display source citations in response
+ * @implements UC0302 - Navigate to source document from citation
+ * @implements UC0303 - Explore entity in knowledge graph from citation
+ * @implements FEAT0401 - Clickable entity citations with hover preview
+ * @implements FEAT0402 - Document deep-links with line numbers
+ * @implements FEAT0403 - Confidence score visualization
+ * 
+ * @enforces BR0104 - Every response shows relevant sources
+ * @enforces BR0201 - Entity click syncs with graph panel
+ * @enforces BR0402 - Document click opens preview with context
+ * 
+ * @see {@link specs/025-source-citations-deep-link/01-source-citations-ux-specification.md}
+ * @see {@link docs/features.md} FEAT0401-0403
+ */
 'use client';
 
 import { Badge } from '@/components/ui/badge';
@@ -5,22 +24,22 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
+    HoverCard,
+    HoverCardContent,
+    HoverCardTrigger,
 } from '@/components/ui/hover-card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { QueryContext } from '@/types';
 import {
-  BookOpen,
-  Brain,
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
-  FileText,
-  Network,
-  Sparkles
+    BookOpen,
+    Brain,
+    ChevronDown,
+    ChevronUp,
+    ExternalLink,
+    FileText,
+    Network,
+    Sparkles
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 

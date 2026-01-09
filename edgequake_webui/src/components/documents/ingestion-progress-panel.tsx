@@ -1,8 +1,14 @@
 /**
- * Ingestion Progress Panel Component
- * 
- * Real-time ingestion progress display with WebSocket support.
+ * @module IngestionProgressPanel
+ * @description Real-time ingestion progress display with WebSocket support.
  * Based on WebUI Specification Document WEBUI-004 (13-webui-components.md)
+ *
+ * @implements UC0007 - User monitors document processing progress
+ * @implements FEAT0602 - Real-time progress indicators
+ * @implements FEAT0760 - Stage-based progress visualization
+ *
+ * @enforces BR0760 - Progress updates at least every 5 seconds
+ * @enforces BR0761 - ETA shown when processing active
  */
 
 'use client';

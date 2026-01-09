@@ -33,6 +33,8 @@ use super::Processor;
 ///
 /// **WHY font ratios, not keywords:**
 /// Academic papers vary in section naming. Font metrics are universal.
+/// @implements FEAT1022
+/// @implements FEAT0505
 pub struct HeaderDetectionProcessor {}
 
 impl HeaderDetectionProcessor {

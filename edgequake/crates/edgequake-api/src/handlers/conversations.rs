@@ -1,6 +1,26 @@
 //! Conversation management handlers.
 //!
 //! Provides REST API endpoints for managing conversations, messages, and folders.
+//!
+//! ## Implements
+//!
+//! - **FEAT0580**: Conversation listing with pagination and filtering
+//! - **FEAT0581**: Conversation creation with mode selection
+//! - **FEAT0582**: Message management within conversations
+//! - **FEAT0583**: Folder organization for conversation grouping
+//!
+//! ## Use Cases
+//!
+//! - **UC2180**: User lists their conversations with optional mode filter
+//! - **UC2181**: User creates new conversation in specific folder
+//! - **UC2182**: User adds message to existing conversation
+//! - **UC2183**: User organizes conversations into folders
+//!
+//! ## Enforces
+//!
+//! - **BR0580**: Conversations must be scoped to authenticated user
+//! - **BR0581**: Messages must have valid roles (user/assistant/system)
+//! - **BR0582**: Folder names must be unique per user
 
 use axum::{
     extract::{Path, Query, State},

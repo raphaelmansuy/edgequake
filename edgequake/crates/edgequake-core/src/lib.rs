@@ -2,6 +2,18 @@
 //!
 //! Core types and utilities for the EdgeQuake RAG system.
 //!
+//! ## Implements
+//!
+//! - **FEAT0801**: Core domain types (Document, Chunk, Entity, Relationship)
+//! - **FEAT0802**: EdgeQuake orchestrator for RAG coordination
+//! - **FEAT0803**: Conversation and workspace services
+//! - **FEAT0804**: Multi-tenant isolation support
+//!
+//! ## Enforces
+//!
+//! - **BR0801**: All domain entities must be serializable
+//! - **BR0802**: Services must be async-trait compatible
+//!
 //! This crate provides the fundamental domain entities and error types
 //! used throughout the EdgeQuake system.
 //!

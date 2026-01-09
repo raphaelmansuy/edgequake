@@ -1,4 +1,22 @@
 //! In-memory key-value storage.
+//!
+//! Thread-safe key-value storage for document and chunk metadata.
+//!
+//! ## Implements
+//!
+//! - [`FEAT0230`]: In-memory KV storage
+//! - [`FEAT0231`]: Batch upsert operations
+//! - [`FEAT0232`]: Key filtering for deduplication
+//!
+//! ## Use Cases
+//!
+//! - [`UC0601`]: System stores document metadata
+//! - [`UC0605`]: System retrieves chunks by ID
+//!
+//! ## Enforces
+//!
+//! - [`BR0230`]: Thread-safe concurrent access via RwLock
+//! - [`BR0231`]: Atomic batch operations
 
 use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};

@@ -3,6 +3,9 @@
 //! Provides real-time progress monitoring and cost estimation for
 //! ingestion pipeline operations.
 //!
+//! @implements FEAT0012 (Progress Reporting)
+//! @implements FEAT0013 (Cost Tracking)
+//!
 //! # Progress Tracking
 //!
 //! Track ingestion progress across pipeline stages:

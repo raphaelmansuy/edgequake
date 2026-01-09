@@ -1,5 +1,18 @@
 "use client";
 
+/**
+ * @module use-migrate-conversations
+ * @description Hook for migrating localStorage conversations to server.
+ * Handles one-time migration with progress tracking.
+ *
+ * @implements UC0411 - User migrates local conversations to server
+ * @implements FEAT0643 - One-time localStorage migration
+ * @implements FEAT0644 - Migration progress tracking
+ *
+ * @enforces BR0628 - Migration runs once per browser
+ * @enforces BR0629 - Failed migration preserves local data
+ */
+
 import type { LocalStorageConversation } from "@/types";
 import { useEffect, useRef, useState } from "react";
 import { useImportConversations } from "./use-conversations";

@@ -2,6 +2,22 @@
 //!
 //! This module implements the `TaskProcessor` trait to process document
 //! upload tasks through the pipeline and update storage accordingly.
+//!
+//! ## Implements
+//!
+//! - [`FEAT0470`]: Async document processing
+//! - [`FEAT0471`]: Pipeline integration
+//! - [`FEAT0472`]: Progress tracking via PipelineState
+//!
+//! ## Use Cases
+//!
+//! - [`UC2070`]: System processes document asynchronously
+//! - [`UC2071`]: System updates storage after processing
+//!
+//! ## Enforces
+//!
+//! - [`BR0470`]: Task queue integration
+//! - [`BR0471`]: Error propagation to task result
 
 use std::sync::Arc;
 

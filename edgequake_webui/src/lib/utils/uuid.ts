@@ -1,8 +1,15 @@
 /**
- * UUID Generation Utilities
+ * @module uuid
+ * @description UUID Generation Utilities
  *
  * Provides cross-browser compatible UUID v4 generation.
  * crypto.randomUUID() is not available in all contexts (non-secure, older browsers).
+ *
+ * @implements FEAT0720 - Cross-browser UUID generation
+ * @implements FEAT0721 - Secure random fallback
+ *
+ * @enforces BR0717 - Use crypto.randomUUID when available
+ * @enforces BR0718 - Fallback to Math.random for legacy
  */
 
 /**

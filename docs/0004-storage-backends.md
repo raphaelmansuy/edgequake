@@ -1,10 +1,25 @@
 # EdgeQuake Storage Backends
 
+> **Implements**: [FEAT0030](features.md#feat0030) Storage Abstraction, [FEAT0031](features.md#feat0031) PostgreSQL Backend
+>
 > Complete guide to storage backend configuration and implementation
 
-**Version**: 0.1.0 | **Last Updated**: December 2025
+**Version**: 2.0.0 | **Last Updated**: January 2026
 
 > **Code Reference**: See [edgequake/crates/edgequake-storage/](../edgequake/crates/edgequake-storage/) for all storage implementations
+
+---
+
+## Quick Decision Guide
+
+| Environment     | Recommended Stack           | Persistence      | Performance              |
+| --------------- | --------------------------- | ---------------- | ------------------------ |
+| **Development** | Memory                      | None (ephemeral) | ⚡ Fastest               |
+| **Testing/CI**  | Memory                      | None (ephemeral) | ⚡ Fastest               |
+| **Staging**     | PostgreSQL + pgvector       | Full             | 🔄 Good                  |
+| **Production**  | PostgreSQL + pgvector + AGE | Full             | 🔄 Good + Graph features |
+
+> **Enforces**: [BR0001](business_rules.md#br0001) Tenant Isolation - All storage is namespace-scoped
 
 ---
 
@@ -740,6 +755,8 @@ let graph = MemoryGraphStorage::new("dev");
 
 ### Production
 
+> **Enforces**: [BR0015](business_rules.md#br0015) Connection Pooling, [BR0016](business_rules.md#br0016) Graceful Degradation
+
 ```rust
 use edgequake_storage::adapters::postgres::{PostgresConfig, PostgresPool};
 
@@ -771,8 +788,25 @@ async fn test_with_memory_storage() {
 
 ---
 
+## Troubleshooting
+
+| Problem                        | Cause                           | Solution                                |
+| ------------------------------ | ------------------------------- | --------------------------------------- |
+| "connection refused"           | PostgreSQL not running          | `docker compose up -d postgres`         |
+| "extension 'vector' not found" | pgvector not installed          | Use `ankane/pgvector` Docker image      |
+| "relation does not exist"      | Migrations not run              | Run `storage.run_migrations().await?`   |
+| Slow vector searches           | Missing HNSW index              | Create index: `CREATE INDEX USING hnsw` |
+| Memory OOM                     | Large dataset in memory storage | Switch to PostgreSQL for production     |
+
+---
+
 ## Next Steps
 
-- **[LLM Integration](0005-llm-integration.md)** - Configure LLM providers
-- **[Deployment Guide](0006-deployment-guide.md)** - Production deployment
-- **[Configuration Reference](0007-configuration-reference.md)** - All config options
+| Your Goal               | Next Document                                              |
+| ----------------------- | ---------------------------------------------------------- |
+| Configure LLM providers | [LLM Integration](0005-llm-integration.md)                 |
+| Deploy to production    | [Deployment Guide](0006-deployment-guide.md)               |
+| Configure all options   | [Configuration Reference](0007-configuration-reference.md) |
+| Set up multi-tenancy    | [Multi-Tenancy](0008-multi-tenancy.md)                     |
+
+> **See Also**: [Features Registry](features.md) | [Architecture Overview](0002-architecture-overview.md)

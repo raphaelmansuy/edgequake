@@ -1,5 +1,25 @@
 //! EdgeQuake Pipeline - Document Processing Pipeline
 //!
+//! # Implements
+//!
+//! - **FEAT0001**: Document Ingestion Pipeline
+//! - **FEAT0002**: Entity Extraction
+//! - **FEAT0003**: Relationship Discovery
+//! - **FEAT0004**: Semantic Chunking
+//! - **FEAT0005**: Embedding Generation
+//! - **FEAT0006**: Entity Deduplication
+//! - **FEAT0011**: Document-Chunk-Entity Lineage
+//!
+//! # Enforces
+//!
+//! - **BR0001**: Documents must be unique (content hash)
+//! - **BR0002**: Chunk size 1200 tokens, overlap 100 tokens
+//! - **BR0003**: Entity types from configurable list
+//! - **BR0004**: Relationship keywords max 5 per edge
+//! - **BR0005**: Entity description max 512 tokens
+//! - **BR0006**: Same-entity relationships forbidden
+//! - **BR0008**: Entity names normalized (UPPERCASE_UNDERSCORE)
+//!
 //! This crate handles the ingestion and processing of documents:
 //!
 //! - Document chunking with overlap and line number tracking
@@ -10,11 +30,13 @@
 //!
 //! # Pipeline Stages
 //!
-//! 1. **Chunking**: Split documents into overlapping chunks with line numbers
-//! 2. **Entity Extraction**: Use LLM to extract entities from chunks
-//! 3. **Relationship Extraction**: Use LLM to extract relationships
-//! 4. **Merging**: Merge entities and relationships into knowledge graph
-//! 5. **Embedding**: Generate and store embeddings for chunks and entities
+//! | Stage | FEAT | Description |
+//! |-------|------|-------------|
+//! | Chunking | FEAT0004 | Split documents into overlapping chunks |
+//! | Entity Extraction | FEAT0002 | Use LLM to extract entities |
+//! | Relationship Extraction | FEAT0003 | Use LLM to extract relationships |
+//! | Merging | FEAT0006 | Deduplicate and merge into graph |
+//! | Embedding | FEAT0005 | Generate and store embeddings |
 //!
 //! # Architecture
 //!
@@ -24,9 +46,15 @@
 //! # SOTA Features
 //!
 //! - **Tuple-based extraction**: More robust than JSON parsing
-//! - **Entity name normalization**: Consistent naming across extractions
-//! - **Line number tracking**: Full lineage support for chunks
+//! - **Entity name normalization**: Consistent naming across extractions (BR0008)
+//! - **Line number tracking**: Full lineage support for chunks (FEAT0011)
 //! - **Parallel processing**: Configurable concurrency for extractions
+//!
+//! # See Also
+//!
+//! - [`crate::pipeline`] for the main Pipeline struct
+//! - [`crate::extractor`] for entity/relationship extraction
+//! - [`crate::chunker`] for document chunking
 
 pub mod cache;
 pub mod chunker;

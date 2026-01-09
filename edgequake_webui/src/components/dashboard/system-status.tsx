@@ -1,3 +1,15 @@
+/**
+ * @fileoverview System health status card with API connection monitoring
+ *
+ * @implements FEAT1030 - System health monitoring
+ * @implements FEAT1031 - API connection status display
+ *
+ * @see UC1107 - User views API connection status
+ * @see UC1108 - User monitors system health
+ *
+ * @enforces BR1030 - Auto-refresh health checks every 30 seconds
+ * @enforces BR1031 - Graceful error handling for disconnected state
+ */
 'use client';
 
 import { Badge } from '@/components/ui/badge';

@@ -1,10 +1,15 @@
 /**
- * Centralized Storage Keys
+ * @module storage-keys
+ * @description Centralized Storage Keys
  *
  * Single source of truth for all localStorage keys used in EdgeQuake WebUI.
  * This prevents typos, enables easy refactoring, and documents all persistent state.
  *
- * @module storage-keys
+ * @implements FEAT0731 - Centralized storage key management
+ * @implements FEAT0732 - Storage migration support
+ *
+ * @enforces BR0728 - All keys prefixed with 'edgequake-'
+ * @enforces BR0729 - Never store sensitive data in localStorage
  */
 
 /**

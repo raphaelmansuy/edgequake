@@ -1,8 +1,17 @@
 /**
- * Cost Tracking Types
- *
- * Types for LLM cost monitoring and budget management.
+ * @module cost-types
+ * @description Types for LLM cost monitoring and budget management.
  * Based on WebUI Specification Document WEBUI-007 (16-webui-cost-monitoring.md)
+ *
+ * @implements UC0801 - Monitor LLM usage costs
+ * @implements UC0802 - Set and manage budgets
+ * @implements FEAT0850 - Per-document cost tracking
+ * @implements FEAT0853 - Token usage breakdown
+ *
+ * @enforces BR0801 - Costs tracked per operation
+ * @enforces BR0804 - Budget limits enforceable
+ *
+ * @see {@link specs/WEBUI-007.md} for specification
  */
 
 import type { IngestionStage } from "./ingestion";

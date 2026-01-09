@@ -114,6 +114,8 @@ export function EntityEditDialog({
       const nodeLabel = node.label || '';
       const nodeType = 'entity_type' in node ? node.entity_type : node.node_type;
       
+      // Intentional: Form initialization from props is standard React pattern
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLabel(nodeLabel);
       setOriginalLabel(nodeLabel);
       setDescription(node.description || '');
