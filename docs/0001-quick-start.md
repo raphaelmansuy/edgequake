@@ -1,8 +1,21 @@
 # EdgeQuake Quick Start Guide
 
+> **Implements**: [FEAT0001](features.md#feat0001) Document Ingestion, [FEAT0002](features.md#feat0002) Knowledge Graph Query
+>
 > **Code Reference**: Main implementation in [edgequake/crates/edgequake-core/](../edgequake/crates/edgequake-core/)
 
-Get up and running with EdgeQuake in 5 minutes.
+Get up and running with EdgeQuake in **5 minutes**.
+
+## Prerequisites Checklist
+
+Before you begin, ensure you have:
+
+- [ ] **Rust 1.78+** - Install via [rustup](https://rustup.rs/): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- [ ] **Node.js 20+** - For WebUI (optional): [nodejs.org](https://nodejs.org/)
+- [ ] **PostgreSQL 15+** - For production (optional): [postgresql.org](https://postgresql.org/)
+- [ ] **OpenAI API key** - For production LLM: [platform.openai.com](https://platform.openai.com/)
+
+> **Note**: For development/testing, no API key is needed - EdgeQuake uses a mock provider automatically.
 
 ## What is EdgeQuake?
 
@@ -177,6 +190,8 @@ let response = eq.query("question", Some(params)).await?;
 
 ## Quick Start (REST API)
 
+> **Implements**: [FEAT0003](features.md#feat0003) REST API, [UC0001](use_cases.md#uc0001) Document Upload
+>
 > **Code Reference**: See [edgequake/crates/edgequake-api/src/routes.rs](../edgequake/crates/edgequake-api/src/routes.rs) for API routes
 
 ### 1. Start the Server
@@ -252,6 +267,8 @@ curl "http://localhost:8080/api/v1/graph/labels/search?q=einstein"
 ---
 
 ## Quick Start (WebUI)
+
+> **Implements**: [FEAT0010](features.md#feat0010) WebUI Dashboard, [UC0005](use_cases.md#uc0005) Visual Graph Exploration
 
 ### 1. Start the WebUI
 
@@ -421,28 +438,79 @@ Explore these examples in the `edgequake/examples/` directory:
 
 ## Next Steps
 
-1. **[Architecture Overview](0002-architecture-overview.md)** - Understand EdgeQuake internals
-2. **[API Reference](0003-api-reference.md)** - Complete REST API documentation
-3. **[Storage Backends](0004-storage-backends.md)** - Configure production storage
-4. **[LLM Integration](0005-llm-integration.md)** - Configure LLM providers
-5. **[Deployment Guide](0006-deployment-guide.md)** - Deploy to production
-6. **[Configuration Reference](0007-configuration-reference.md)** - All config options
+Once you have EdgeQuake running, explore these guides:
+
+| Your Goal | Next Document |
+|-----------|---------------|
+| Understand the architecture | [Architecture Overview](0002-architecture-overview.md) |
+| Integrate via REST API | [API Reference](0003-api-reference.md) |
+| Configure storage for production | [Storage Backends](0004-storage-backends.md) |
+| Optimize LLM costs | [LLM Integration](0005-llm-integration.md) |
+| Deploy to production | [Deployment Guide](0006-deployment-guide.md) |
+| Set up multi-tenant isolation | [Multi-Tenancy](0008-multi-tenancy.md) |
+
+> **Implements**: [UC0001](use_cases.md#uc0001) Document Upload, [UC0002](use_cases.md#uc0002) Knowledge Graph Query
 
 ---
 
 ## Troubleshooting
 
-| Issue                           | Solution                                       |
-| ------------------------------- | ---------------------------------------------- |
-| `OPENAI_API_KEY not set`        | Export API key: `export OPENAI_API_KEY=sk-xxx` |
-| Build fails                     | Ensure Rust 1.78+: `rustup update`             |
-| Connection refused on port 8080 | Check if server is running                     |
-| WebUI shows "Network Error"     | Set `NEXT_PUBLIC_API_URL` correctly            |
-| Slow processing                 | Use async_processing: true for large docs      |
+### Common Issues and Solutions
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| `OPENAI_API_KEY not set` | Environment variable missing | `export OPENAI_API_KEY=sk-xxx` |
+| Build fails with "rustc version" | Rust too old | `rustup update && rustup default stable` |
+| Connection refused on port 8080 | Server not running | `./target/release/edgequake` in another terminal |
+| WebUI shows "Network Error" | CORS or wrong URL | Set `NEXT_PUBLIC_API_URL=http://localhost:8080` |
+| Slow processing | Large documents | Use `async_processing: true` for docs > 10KB |
+| "No entities extracted" | Text too short | Minimum ~100 words recommended per document |
+| PostgreSQL connection failed | Wrong credentials | Verify `DATABASE_URL` format and DB exists |
+| Out of memory | Large batch | Reduce batch size or increase system memory |
+
+### Debug Mode
+
+```bash
+# Enable debug logging
+RUST_LOG=edgequake=debug ./target/release/edgequake
+
+# Trace all HTTP requests
+RUST_LOG=edgequake_api=trace ./target/release/edgequake
+
+# Check LLM provider status
+curl http://localhost:8080/api/v1/health/providers
+```
+
+### Verify Your Installation
+
+```bash
+# 1. Check Rust version (should be 1.78+)
+rustc --version
+
+# 2. Build the project
+cargo build --release
+
+# 3. Run tests (should pass without API key)
+cargo test
+
+# 4. Start server and verify health
+./target/release/edgequake &
+curl http://localhost:8080/health
+# Expected: {"status":"healthy","version":"2.0.0"}
+
+# 5. Test document insertion
+curl -X POST http://localhost:8080/api/v1/documents \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Test document", "title": "Test"}'
+# Expected: 201 Created with document ID
+```
 
 ---
 
 **Need Help?**
 
-- GitHub Issues: https://github.com/raphaelmansuy/edgequake/issues
-- Documentation: [docs/](.)
+- 📖 [Full Documentation](README.md)
+- 🐛 [GitHub Issues](https://github.com/raphaelmansuy/edgequake/issues)
+- 💬 [Discussions](https://github.com/raphaelmansuy/edgequake/discussions)
+
+> **See Also**: [Deployment Troubleshooting](0006-deployment-guide.md#troubleshooting) for production issues
