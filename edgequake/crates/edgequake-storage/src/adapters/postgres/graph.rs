@@ -4,6 +4,25 @@
 //! for PostgreSQL. AGE provides native graph database capabilities with
 //! Cypher query language support.
 //!
+//! ## Implements
+//!
+//! - [`FEAT0203`]: Apache AGE graph storage
+//! - [`FEAT0310`]: Cypher query language support
+//! - [`FEAT0311`]: Variable-length path traversal
+//! - [`FEAT0312`]: Multi-tenant graph isolation
+//!
+//! ## Use Cases
+//!
+//! - [`UC0602`]: System stores entities and relationships
+//! - [`UC0701`]: System traverses knowledge graph
+//! - [`UC0702`]: System finds entity relationships
+//!
+//! ## Enforces
+//!
+//! - [`BR0203`]: ACID transactions for graph operations
+//! - [`BR0310`]: Namespace isolation per tenant
+//! - [`BR0311`]: Lazy index creation after first insert
+//!
 //! # Features
 //!
 //! - Native Cypher query language support
