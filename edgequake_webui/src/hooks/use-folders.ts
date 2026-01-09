@@ -1,7 +1,16 @@
 "use client";
 
 /**
- * React Query hooks for folder management.
+ * @module use-folders
+ * @description React Query hooks for folder management.
+ *
+ * @implements UC0408 - User creates folder for conversations
+ * @implements UC0409 - User moves conversations to folder
+ * @implements FEAT0583 - Folder organization for conversations
+ * @implements FEAT0628 - Folder CRUD operations
+ *
+ * @enforces BR0582 - Folder names unique per user
+ * @enforces BR0617 - Folder deletion moves conversations to root
  */
 
 import {

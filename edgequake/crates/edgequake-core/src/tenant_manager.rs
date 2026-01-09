@@ -3,6 +3,24 @@
 //! This module manages per-tenant and per-knowledge-base EdgeQuake instances,
 //! handling initialization, caching, cleanup, and proper isolation between tenants.
 //!
+//! ## Implements
+//!
+//! @implements FEAT0015 (Multi-Tenant Isolation)
+//! @implements FEAT0830 (Per-tenant EdgeQuake instance management)
+//! @implements FEAT0831 (Instance caching for performance)
+//! @implements FEAT0832 (Automatic cleanup of stale instances)
+//!
+//! ## Use Cases
+//!
+//! - **UC2420**: System creates EdgeQuake instance for new tenant
+//! - **UC2421**: System retrieves cached instance for existing tenant
+//! - **UC2422**: System cleans up instances for deleted tenants
+//!
+//! ## Enforces
+//!
+//! - **BR0830**: Instances must be isolated by tenant/KB combination
+//! - **BR0831**: Cache entries must have TTL for cleanup
+//!
 //! Based on LightRAG's tenant management: `lightrag/tenant_rag_manager.py`
 
 use crate::error::{Error, Result};

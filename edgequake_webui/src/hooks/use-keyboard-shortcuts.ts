@@ -1,5 +1,18 @@
 "use client";
 
+/**
+ * @module use-keyboard-shortcuts
+ * @description Hook for keyboard shortcut management.
+ * Provides global keyboard navigation and accessibility.
+ *
+ * @implements FEAT0630 - Keyboard shortcut system
+ * @implements FEAT0631 - Shortcut help modal
+ * @implements FEAT0632 - Accessibility keyboard navigation
+ *
+ * @enforces BR0619 - Shortcuts do not conflict with browser defaults
+ * @enforces BR0620 - Shortcuts visible in help dialog
+ */
+
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 

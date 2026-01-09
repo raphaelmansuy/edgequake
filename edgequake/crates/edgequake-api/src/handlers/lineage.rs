@@ -2,6 +2,26 @@
 //!
 //! Provides endpoints for querying document lineage, including
 //! entity provenance and extraction history.
+//!
+//! ## Implements
+//!
+//! - **FEAT0540**: Chunk detail retrieval with source tracking
+//! - **FEAT0541**: Entity provenance showing extraction origin
+//! - **FEAT0542**: Document lineage with graph relationships
+//! - **FEAT0543**: Extraction statistics per document
+//!
+//! ## Use Cases
+//!
+//! - **UC2140**: User views chunk detail with source document info
+//! - **UC2141**: User traces entity back to source document and line
+//! - **UC2142**: User explores document's contribution to knowledge graph
+//! - **UC2143**: User reviews extraction quality metrics
+//!
+//! ## Enforces
+//!
+//! - **BR0540**: Chunk IDs must be valid UUIDs
+//! - **BR0541**: Lineage queries must respect workspace isolation
+//! - **BR0542**: Extraction metadata must include version info
 
 use axum::{
     extract::{Path, State},

@@ -1,4 +1,15 @@
 //! Configuration for PDF extraction.
+//!
+//! ## Implements
+//!
+//! - **FEAT1020**: Configurable extraction modes
+//! - **FEAT1021**: Output format selection
+//! - **FEAT1022**: Image processing options
+//!
+//! ## Enforces
+//!
+//! - **BR1020**: Default to text mode for speed
+//! - **BR1021**: Validate configuration parameters
 
 use serde::{Deserialize, Serialize};
 

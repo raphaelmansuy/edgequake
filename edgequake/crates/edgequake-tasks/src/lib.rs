@@ -2,6 +2,26 @@
 //!
 //! Background task processing system for EdgeQuake.
 //!
+//! ## Implements
+//!
+//! - [`FEAT0901`]: Async background task processing
+//! - [`FEAT0902`]: Multi-backend storage (memory, PostgreSQL)
+//! - [`FEAT0903`]: Worker pool with configurable concurrency
+//! - [`FEAT0904`]: Automatic retry with exponential backoff
+//! - [`FEAT0905`]: Real-time task status tracking
+//!
+//! ## Enforces
+//!
+//! - [`BR0901`]: Failed tasks retry with backoff
+//! - [`BR0902`]: Task status visible via API
+//! - [`BR0903`]: Completed tasks retain for audit
+//!
+//! ## Use Cases
+//!
+//! - [`UC0901`]: System processes document upload async
+//! - [`UC0902`]: User monitors pipeline progress
+//! - [`UC0903`]: Admin views task queue status
+//!
 //! ## Features
 //!
 //! - Asynchronous task processing with tokio

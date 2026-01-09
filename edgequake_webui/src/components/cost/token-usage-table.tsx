@@ -3,6 +3,15 @@
  * 
  * Detailed table showing token usage by operation.
  * Based on WebUI Specification Document WEBUI-007 (16-webui-cost-monitoring.md)
+ *
+ * @implements FEAT1046 - Token usage breakdown table
+ * @implements FEAT1047 - Stage-wise input/output token tracking
+ *
+ * @see UC1207 - User analyzes token consumption by stage
+ * @see UC1208 - User identifies high-cost operations
+ *
+ * @enforces BR1046 - Sortable columns for analysis
+ * @enforces BR1047 - Accessible table structure
  */
 
 'use client';

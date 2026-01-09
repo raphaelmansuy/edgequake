@@ -1,4 +1,28 @@
-//! LLM provider traits.
+//! LLM provider traits for text completion and embedding.
+//!
+//! # Implements
+//!
+//! @implements FEAT0006 (Vector Embedding Generation via EmbeddingProvider trait)
+//! @implements FEAT0017 (Multi-Provider LLM Support via LLMProvider trait)
+//! @implements FEAT0018 (Embedding Provider Abstraction)
+//!
+//! # Enforces
+//!
+//! - **BR0303**: Token usage tracked in [`LLMResponse`]
+//! - **BR0010**: Embedding dimension validated by providers
+//!
+//! # WHY: Trait-Based Provider Abstraction
+//!
+//! Using traits instead of concrete types enables:
+//! - **Testing**: MockProvider for unit tests (no API calls)
+//! - **Flexibility**: Swap providers without code changes
+//! - **Cost control**: Route to different providers based on request type
+//! - **Resilience**: Fallback providers when primary is unavailable
+//!
+//! # Key Traits
+//!
+//! - [`LLMProvider`]: Text completion (chat, extraction prompts)
+//! - [`EmbeddingProvider`]: Vector embedding generation
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};

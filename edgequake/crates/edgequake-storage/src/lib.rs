@@ -2,6 +2,21 @@
 //!
 //! Storage abstractions and adapters for the EdgeQuake RAG system.
 //!
+//! # Implements
+//!
+//! - **FEAT0201**: Vector Similarity Search
+//! - **FEAT0202**: Graph Traversal  
+//! - **FEAT0203**: Graph Mutation Operations
+//! - **FEAT0204**: Graph Analytics
+//! - **FEAT0205**: Community Detection
+//! - **FEAT0010**: Document Metadata Storage
+//!
+//! # Enforces
+//!
+//! - **BR0201**: Tenant isolation (namespace-based scoping)
+//! - **BR0008**: Entity names normalized before storage
+//! - **BR0009**: Max 1000 nodes per query (paginated)
+//!
 //! This crate provides:
 //! - Storage traits for key-value, vector, and graph operations
 //! - In-memory implementations for testing
@@ -10,9 +25,20 @@
 //!
 //! ## Storage Types
 //!
-//! - [`KVStorage`] - Key-value storage for documents, chunks, and cache
-//! - [`VectorStorage`] - Vector similarity search for embeddings
-//! - [`GraphStorage`] - Knowledge graph storage for entities and relationships
+//! | Trait | FEAT | Implementation |
+//! |-------|------|----------------|
+//! | [`KVStorage`] | FEAT0010 | Postgres, Memory |
+//! | [`VectorStorage`] | FEAT0201 | pgvector, Memory |
+//! | [`GraphStorage`] | FEAT0202-0204 | Apache AGE, Memory |
+//!
+//! ## Adapter Selection
+//!
+//! ```text
+//! if DATABASE_URL set:
+//!     → PostgreSQL adapters (production)
+//! else:
+//!     → Memory adapters (testing)
+//! ```
 //!
 //! ## Example
 //!
@@ -22,6 +48,12 @@
 //! let storage = MemoryKVStorage::new("documents");
 //! storage.initialize().await?;
 //! ```
+//!
+//! # See Also
+//!
+//! - [`crate::traits`] for storage trait definitions
+//! - [`crate::adapters::memory`] for in-memory implementations
+//! - [`crate::adapters::postgres`] for PostgreSQL adapters
 
 pub mod adapters;
 pub mod community;

@@ -1,8 +1,17 @@
 /**
- * Entity Provenance Panel Component
- * 
- * Displays source information for an entity across documents.
+ * @module EntityProvenancePanel
+ * @description Displays source information for an entity across documents.
  * Based on WebUI Specification Document WEBUI-006 (15-webui-lineage-viz.md)
+ * 
+ * @implements UC0302 - User views entity extraction provenance
+ * @implements UC0305 - User navigates from entity to source chunk
+ * @implements FEAT0702 - Entity-to-document tracing
+ * @implements FEAT0705 - Related entity exploration
+ * 
+ * @enforces BR0702 - Chunk positions accurate to source
+ * @enforces BR0704 - All extraction sources shown
+ * 
+ * @see {@link specs/WEBUI-006.md} for specification
  */
 
 'use client';

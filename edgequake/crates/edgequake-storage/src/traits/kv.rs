@@ -1,4 +1,24 @@
-//! Key-value storage trait.
+//! Key-value storage trait for document and metadata storage.
+//!
+//! # Implements
+//!
+//! - **FEAT0010**: Document Metadata Storage
+//! - **FEAT0014**: Cache Storage (query cache, keyword cache)
+//!
+//! # Enforces
+//!
+//! - **BR0201**: Namespace-based tenant isolation
+//! - **BR0001**: Document uniqueness (via content hash keys)
+//!
+//! # WHY: Flexible Schema Storage
+//!
+//! Key-value storage is used for data with varying schemas:
+//! - Document metadata (title, hash, created_at)
+//! - Chunk content (text, embedding_id)
+//! - Cache entries (TTL-based expiration)
+//! - Task state (status, progress)
+//!
+//! JSON values provide flexibility without schema migrations.
 
 use async_trait::async_trait;
 use std::collections::HashSet;

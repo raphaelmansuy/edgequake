@@ -1,8 +1,18 @@
 /**
- * Lineage Explorer Component
- * 
- * Main container for lineage visualization with multiple view modes.
+ * @module LineageExplorer
+ * @description Main container for lineage visualization with multiple view modes.
  * Based on WebUI Specification Document WEBUI-006 (15-webui-lineage-viz.md)
+ * 
+ * @implements UC0301 - User explores document chunks and origins
+ * @implements UC0304 - User views lineage tree visualization
+ * @implements FEAT0701 - Document lineage visualization
+ * @implements FEAT0703 - Multiple view modes (tree, table, graph)
+ * @implements FEAT0704 - Chunk search and filtering
+ * 
+ * @enforces BR0701 - Lineage preserved for all entities
+ * @enforces BR0703 - View mode persists during session
+ * 
+ * @see {@link specs/WEBUI-006.md} for specification
  */
 
 'use client';

@@ -1,3 +1,13 @@
+/**
+ * @module RootLayout
+ * @description Root layout component for EdgeQuake WebUI.
+ * Provides theme, i18n, and React Query providers.
+ *
+ * @implements FEAT0800 - Theme support (light/dark/system)
+ * @implements FEAT0729 - Multi-language support
+ *
+ * @enforces BR0800 - Theme persisted in localStorage
+ */
 import { AppProviders } from '@/providers';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';

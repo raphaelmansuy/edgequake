@@ -1,3 +1,17 @@
+/**
+ * @module use-backend-store
+ * @description Zustand store for backend connection and pipeline status.
+ * Tracks health check results and processing pipeline state.
+ *
+ * @implements FEAT0611 - Backend health monitoring
+ * @implements FEAT0620 - Pipeline status tracking
+ * @implements FEAT0621 - Connection error handling
+ *
+ * @enforces BR0608 - Health updates periodically
+ * @enforces BR0613 - Error state clears on successful check
+ *
+ * @see {@link docs/features.md} FEAT0611, FEAT0620
+ */
 "use client";
 
 import type { HealthResponse, PipelineStatus } from "@/types";

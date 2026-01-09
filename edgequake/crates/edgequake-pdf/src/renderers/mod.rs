@@ -2,6 +2,8 @@
 //!
 //! Renderers convert the block-based document representation to
 //! various output formats like Markdown, JSON, HTML, etc.
+//!
+//! @implements FEAT0504 (PDF to Markdown Rendering)
 
 mod json;
 mod markdown;

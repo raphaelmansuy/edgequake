@@ -1,6 +1,42 @@
-//! Workspace management handlers.
+//! Workspace and tenant management handlers.
 //!
-//! Provides REST API endpoints for managing tenants and workspaces.
+//! # Implements
+//!
+//! - **UC0301**: Create Workspace
+//! - **UC0302**: List Workspaces
+//! - **UC0303**: Switch Workspace
+//! - **UC0304**: Delete Workspace
+//! - **FEAT0701**: Multi-Tenancy Support
+//! - **FEAT0702**: Workspace Isolation
+//! - **FEAT0401**: REST API Service
+//!
+//! # Enforces
+//!
+//! - **BR0201**: Tenant isolation (all operations scoped to tenant)
+//! - **BR0202**: Workspace quotas enforced by plan
+//! - **BR0203**: Resource limits per workspace
+//! - **BR0401**: Authentication required
+//!
+//! # Endpoints
+//!
+//! | Method | Path | Handler | Description |
+//! |--------|------|---------|-------------|
+//! | POST | `/api/v1/tenants` | [`create_tenant`] | Create new tenant |
+//! | GET | `/api/v1/tenants` | [`list_tenants`] | List all tenants |
+//! | POST | `/api/v1/workspaces` | [`create_workspace`] | Create workspace |
+//! | GET | `/api/v1/workspaces` | [`list_workspaces`] | List workspaces |
+//! | DELETE | `/api/v1/workspaces/:id` | [`delete_workspace`] | Delete workspace |
+//!
+//! # WHY: Hierarchical Multi-Tenancy
+//!
+//! EdgeQuake uses a two-level hierarchy:
+//! - **Tenant**: Organization/company level (billing, limits, users)
+//! - **Workspace**: Project/team level (isolated knowledge graphs)
+//!
+//! This enables:
+//! - SaaS deployment with multiple customers
+//! - Per-project knowledge isolation
+//! - Usage tracking and billing per tenant
 
 use axum::{
     extract::{Path, Query, State},
@@ -21,7 +57,15 @@ pub use crate::handlers::workspaces_types::{
 
 // ============ Tenant Handlers ============
 
-/// Create a new tenant.
+/// Create a new tenant (organization).
+///
+/// # Implements
+///
+/// - **FEAT0701**: Multi-Tenancy Support
+///
+/// # Enforces
+///
+/// - **BR0401**: Admin authentication required
 ///
 /// POST /api/v1/tenants
 #[utoipa::path(

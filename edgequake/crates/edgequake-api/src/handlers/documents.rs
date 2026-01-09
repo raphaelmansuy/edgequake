@@ -1,4 +1,41 @@
 //! Document ingestion handlers.
+//!
+//! @implements FEAT0401
+//! @implements FEAT0402
+//!
+//! # Implements
+//!
+//! - **UC0001**: Upload Document
+//! - **UC0002**: List Documents  
+//! - **UC0003**: View Document Details
+//! - **UC0005**: Delete Document
+//! - **FEAT0401**: Document Upload (Text)
+//! - **FEAT0402**: Document Upload (File)
+//! - **FEAT0001**: Document Ingestion Pipeline
+//!
+//! # Enforces
+//!
+//! - **BR0001**: Documents must be unique (SHA-256 content hash)
+//! - **BR0002**: Chunk size 1200 tokens, overlap 100 tokens
+//! - **BR0201**: Tenant isolation (workspace scoping)
+//! - **BR0401**: Authentication required for all endpoints
+//!
+//! # Endpoints
+//!
+//! | Method | Path | Handler | Description |
+//! |--------|------|---------|-------------|
+//! | POST | `/api/v1/documents` | [`upload_document`] | Upload text/file for ingestion |
+//! | GET | `/api/v1/documents` | [`list_documents`] | List all documents |
+//! | GET | `/api/v1/documents/:id` | [`get_document`] | Get document details |
+//! | DELETE | `/api/v1/documents/:id` | [`delete_document`] | Delete with cascade |
+//!
+//! # WHY: Two Ingestion Modes
+//!
+//! Documents can be processed synchronously or asynchronously:
+//! - **Sync**: Small documents (<10KB), immediate response with entities
+//! - **Async**: Large documents, returns task_id for polling
+//!
+//! Async mode prevents request timeouts for large PDFs (can take 30s+ to process).
 
 use axum::http::StatusCode;
 use axum::{extract::State, Json};
@@ -17,6 +54,35 @@ use crate::state::AppState;
 pub use crate::handlers::documents_types::*;
 
 /// Upload a document for processing.
+///
+/// # Implements
+///
+/// - **UC0001**: Upload Document
+/// - **FEAT0001**: Document Ingestion Pipeline
+/// - **FEAT0002**: Entity Extraction
+/// - **FEAT0003**: Relationship Discovery
+///
+/// # Enforces
+///
+/// - **BR0001**: Content uniqueness (SHA-256 hash computed)
+/// - **BR0201**: Tenant isolation (scoped to workspace)
+/// - **BR0302**: Document size limits enforced
+///
+/// # Request Flow
+///
+/// ```text
+/// POST /api/v1/documents
+///        ↓
+///   Validate content size
+///        ↓
+///   Compute SHA-256 hash
+///        ↓
+///   Store metadata + content
+///        ↓
+///   async_processing?
+///     ├─ true: Create task → Return task_id
+///     └─ false: Process inline → Return entities
+/// ```
 #[utoipa::path(
     post,
     path = "/api/v1/documents",
@@ -149,17 +215,20 @@ pub async fn upload_document(
             .await
             .map_err(|e| ApiError::Internal(format!("Failed to queue task: {}", e)))?;
 
-        Ok((StatusCode::CREATED, Json(UploadDocumentResponse {
-            document_id,
-            status: "pending".to_string(),
-            task_id: Some(task_id),
-            track_id,
-            duplicate_of: None,
-            chunk_count: None,
-            entity_count: None,
-            relationship_count: None,
-            cost: None, // Cost will be calculated when processing completes
-        })))
+        Ok((
+            StatusCode::CREATED,
+            Json(UploadDocumentResponse {
+                document_id,
+                status: "pending".to_string(),
+                task_id: Some(task_id),
+                track_id,
+                duplicate_of: None,
+                chunk_count: None,
+                entity_count: None,
+                relationship_count: None,
+                cost: None, // Cost will be calculated when processing completes
+            }),
+        ))
     } else {
         // Synchronous processing (original behavior)
         // Broadcast job started
@@ -378,17 +447,20 @@ pub async fn upload_document(
             embedding_model: result.stats.embedding_model.clone(),
         });
 
-        Ok((StatusCode::CREATED, Json(UploadDocumentResponse {
-            document_id,
-            status: "processed".to_string(),
-            task_id: None,
-            track_id,
-            duplicate_of: None,
-            chunk_count: Some(result.stats.chunk_count),
-            entity_count: Some(result.stats.entity_count),
-            relationship_count: Some(result.stats.relationship_count),
-            cost,
-        })))
+        Ok((
+            StatusCode::CREATED,
+            Json(UploadDocumentResponse {
+                document_id,
+                status: "processed".to_string(),
+                task_id: None,
+                track_id,
+                duplicate_of: None,
+                chunk_count: Some(result.stats.chunk_count),
+                entity_count: Some(result.stats.entity_count),
+                relationship_count: Some(result.stats.relationship_count),
+                cost,
+            }),
+        ))
     }
 }
 
@@ -1406,17 +1478,20 @@ pub async fn upload_file(
         debug!(existing_doc_id = ?existing_doc_id, "Found existing document for hash");
         if let Some(doc_id_str) = existing_doc_id.as_str() {
             // Note: Duplicates return 200 OK, not 201 CREATED
-            return Ok((StatusCode::OK, Json(FileUploadResponse {
-                document_id: doc_id_str.to_string(),
-                filename,
-                size: content.len(),
-                content_hash,
-                status: "duplicate".to_string(),
-                chunk_count: 0,
-                entity_count: 0,
-                relationship_count: 0,
-                is_duplicate: true,
-            })));
+            return Ok((
+                StatusCode::OK,
+                Json(FileUploadResponse {
+                    document_id: doc_id_str.to_string(),
+                    filename,
+                    size: content.len(),
+                    content_hash,
+                    status: "duplicate".to_string(),
+                    chunk_count: 0,
+                    entity_count: 0,
+                    relationship_count: 0,
+                    is_duplicate: true,
+                }),
+            ));
         }
     }
 
@@ -1717,17 +1792,20 @@ pub async fn upload_file(
         .upsert(&[(doc_metadata_key, completed_metadata)])
         .await?;
 
-    Ok((StatusCode::CREATED, Json(FileUploadResponse {
-        document_id,
-        filename,
-        size: content.len(),
-        content_hash,
-        status: "processed".to_string(),
-        chunk_count: result.stats.chunk_count,
-        entity_count: result.stats.entity_count,
-        relationship_count: result.stats.relationship_count,
-        is_duplicate: false,
-    })))
+    Ok((
+        StatusCode::CREATED,
+        Json(FileUploadResponse {
+            document_id,
+            filename,
+            size: content.len(),
+            content_hash,
+            status: "processed".to_string(),
+            chunk_count: result.stats.chunk_count,
+            entity_count: result.stats.entity_count,
+            relationship_count: result.stats.relationship_count,
+            is_duplicate: false,
+        }),
+    ))
 }
 
 /// Upload multiple files via multipart form.
@@ -1812,13 +1890,16 @@ pub async fn upload_files_batch(
         }
     }
 
-    Ok((StatusCode::CREATED, Json(BatchUploadResponse {
-        total_files: results.len(),
-        processed,
-        duplicates,
-        failed,
-        results,
-    })))
+    Ok((
+        StatusCode::CREATED,
+        Json(BatchUploadResponse {
+            total_files: results.len(),
+            processed,
+            duplicates,
+            failed,
+            results,
+        }),
+    ))
 }
 
 /// Process a single file and return (document_id, is_duplicate).

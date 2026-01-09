@@ -1,3 +1,17 @@
+/**
+ * @module use-query-ui-store
+ * @description Zustand store for query UI state management.
+ * Manages streaming state, pending messages, and conversation filters.
+ *
+ * @implements FEAT0625 - Query streaming UI state
+ * @implements FEAT0626 - Thinking indicator display
+ * @implements FEAT0627 - Conversation filtering and search
+ *
+ * @enforces BR0615 - Streaming state transitions are ordered
+ * @enforces BR0616 - Pending messages cleared on completion
+ *
+ * @see {@link use-query-store.ts} for query execution logic
+ */
 "use client";
 
 import type { ConversationMode } from "@/types";

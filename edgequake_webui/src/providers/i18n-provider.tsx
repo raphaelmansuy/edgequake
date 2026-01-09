@@ -1,3 +1,13 @@
+/**
+ * @module I18nProvider
+ * @description Internationalization provider with SSR-safe hydration.
+ *
+ * @implements FEAT0729 - Multi-language support (en, zh, fr)
+ * @implements FEAT0867 - SSR-safe i18n hydration
+ *
+ * @enforces BR0726 - Fallback to English for missing keys
+ * @enforces BR0867 - No hydration mismatch for i18n
+ */
 'use client';
 
 import '@/lib/i18n';

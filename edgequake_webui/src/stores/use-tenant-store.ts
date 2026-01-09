@@ -1,3 +1,19 @@
+/**
+ * @module use-tenant-store
+ * @description Zustand store for multi-tenant context management.
+ * Manages tenant/workspace selection and provides API context headers.
+ *
+ * @implements UC0506 - User selects tenant from available list
+ * @implements UC0507 - User selects workspace within tenant
+ * @implements FEAT0861 - Multi-tenancy with workspace isolation
+ * @implements FEAT0862 - Tenant context persisted across sessions
+ *
+ * @enforces BR0504 - All API calls include tenant/workspace headers
+ * @enforces BR0506 - Switching workspace clears stale data
+ * @enforces BR0507 - New users trigger onboarding flow
+ *
+ * @see {@link docs/features.md} FEAT0861, FEAT0862
+ */
 "use client";
 
 import { getTenantContext, setTenantContext } from "@/lib/api/client";
@@ -108,31 +124,35 @@ export const useTenantStore = create<TenantStore>()(
       }),
       /**
        * Migration function for handling schema changes
-       * 
+       *
        * Version 0 -> 1: Migrate from legacy localStorage keys
        */
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<TenantState>;
-        
+
         if (version === 0) {
           // Migrate from legacy keys if they exist
           if (typeof window !== "undefined") {
-            const legacyTenantId = localStorage.getItem(LEGACY_STORAGE_KEYS.TENANT_ID);
-            const legacyWorkspaceId = localStorage.getItem(LEGACY_STORAGE_KEYS.WORKSPACE_ID);
-            
+            const legacyTenantId = localStorage.getItem(
+              LEGACY_STORAGE_KEYS.TENANT_ID
+            );
+            const legacyWorkspaceId = localStorage.getItem(
+              LEGACY_STORAGE_KEYS.WORKSPACE_ID
+            );
+
             if (legacyTenantId && !state.selectedTenantId) {
               state.selectedTenantId = legacyTenantId;
             }
             if (legacyWorkspaceId && !state.selectedWorkspaceId) {
               state.selectedWorkspaceId = legacyWorkspaceId;
             }
-            
+
             // Clean up legacy keys after migration
             // Note: We keep them for now to maintain backward compat with client.ts
             // TODO: Remove once client.ts dual storage is fixed
           }
         }
-        
+
         return state as TenantState;
       },
       /**
@@ -146,10 +166,13 @@ export const useTenantStore = create<TenantStore>()(
           }
           // Mark as hydrated even on error (to prevent infinite loading)
           state?.setHasHydrated(true);
-          
+
           // Sync to API client after hydration
           if (state?.selectedTenantId) {
-            setTenantContext(state.selectedTenantId, state.selectedWorkspaceId ?? undefined);
+            setTenantContext(
+              state.selectedTenantId,
+              state.selectedWorkspaceId ?? undefined
+            );
           }
         };
       },
@@ -181,7 +204,8 @@ export const useTenantStoreHydrated = () => {
  * Useful for gating API calls that require tenant/workspace context
  */
 export const useHasValidContext = () => {
-  const { selectedTenantId, selectedWorkspaceId, _hasHydrated } = useTenantStore();
+  const { selectedTenantId, selectedWorkspaceId, _hasHydrated } =
+    useTenantStore();
   return _hasHydrated && !!selectedTenantId && !!selectedWorkspaceId;
 };
 

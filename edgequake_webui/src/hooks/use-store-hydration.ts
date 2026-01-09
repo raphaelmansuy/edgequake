@@ -1,17 +1,22 @@
 /**
- * Zustand Hydration Utilities
+ * @module use-store-hydration
+ * @description Zustand Hydration Utilities
  *
  * Provides SSR-safe hooks for accessing Zustand persisted stores.
  * Prevents hydration mismatches in Next.js by properly handling
  * the async nature of localStorage hydration.
  *
- * @module use-store-hydration
+ * @implements FEAT0649 - SSR-safe store hydration
+ * @implements FEAT0650 - Hydration mismatch prevention
+ *
+ * @enforces BR0634 - Server renders default state
+ * @enforces BR0635 - Client hydrates from localStorage
  */
 
-'use client';
+"use client";
 
-import { useEffect, useState, useSyncExternalStore } from 'react';
-import type { StoreApi, UseBoundStore } from 'zustand';
+import { useEffect, useState, useSyncExternalStore } from "react";
+import type { StoreApi, UseBoundStore } from "zustand";
 
 /**
  * Generic type for stores with persist middleware
@@ -127,11 +132,7 @@ export function useSyncStore<T, S>(
   const getSnapshot = () => selector(store.getState());
   const getServerSnapshot = () => serverFallback;
 
-  return useSyncExternalStore(
-    store.subscribe,
-    getSnapshot,
-    getServerSnapshot
-  );
+  return useSyncExternalStore(store.subscribe, getSnapshot, getServerSnapshot);
 }
 
 /**
@@ -214,7 +215,7 @@ export function useCrossTabSync<T>(
   storageKey: string
 ): void {
   useEffect(() => {
-    if (typeof window === 'undefined' || !store.persist) {
+    if (typeof window === "undefined" || !store.persist) {
       return;
     }
 
@@ -224,10 +225,10 @@ export function useCrossTabSync<T>(
       }
     };
 
-    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener("storage", handleStorageChange);
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener("storage", handleStorageChange);
     };
   }, [store, storageKey]);
 }

@@ -1,5 +1,14 @@
 //! Token-based truncation for context management.
 //!
+//! # Implements
+//!
+//! @implements FEAT0108 (Context Truncation)
+//!
+//! # Enforces
+//!
+//! - **BR0101**: Token budget must not exceed LLM context window
+//! - **BR0102**: Graph context takes priority over naive chunks
+//!
 //! This module provides functions to truncate entities, relationships, and chunks
 //! to fit within LLM token limits.
 //!
@@ -14,12 +23,13 @@
 //!
 //! ## The Token Budget Strategy
 //!
-//! We allocate tokens across context types:
+//! We allocate tokens across context types (BR0102):
 //!
 //! ```text
 //! Total Budget: 16,000 tokens (default)
-//! ├── Entities:      8,000 tokens (50%)
-//! ├── Relationships: 8,000 tokens (50%)
+//! ├── Entities:      8,000 tokens (50%)  ← Graph context (priority)
+//! ├── Relationships: 8,000 tokens (50%)  ← Graph context (priority)
+//! └── Chunks:        Remaining space     ← Naive context (secondary)
 //! └── System prompt: ~500 tokens (separate)
 //! ```
 //!

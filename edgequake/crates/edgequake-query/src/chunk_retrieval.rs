@@ -3,6 +3,22 @@
 //! This module provides functionality to retrieve text chunks that are related
 //! to retrieved entities and relationships, using either frequency-based or
 //! vector similarity-based methods.
+//!
+//! ## Implements
+//!
+//! - **FEAT0113**: Entity-based chunk retrieval via source tracking
+//! - **FEAT0114**: Weight-based chunk selection (frequency)
+//! - **FEAT0115**: Vector-based chunk reranking
+//!
+//! ## Use Cases
+//!
+//! - **UC2220**: System retrieves chunks mentioned by multiple entities
+//! - **UC2221**: System reranks chunks by query similarity
+//!
+//! ## Enforces
+//!
+//! - **BR0113**: Chunk frequency determines relevance weight
+//! - **BR0114**: Max chunks parameter limits result size
 
 use std::collections::HashMap;
 use std::sync::Arc;

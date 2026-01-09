@@ -1,11 +1,15 @@
-'use client';
-
 /**
- * WebSocket Provider
- * 
- * Provides WebSocket connection context for real-time progress tracking.
+ * @module WebSocketProvider
+ * @description WebSocket connection context for real-time progress tracking.
  * Based on WebUI Specification Document WEBUI-005 (14-webui-websocket-progress.md)
+ *
+ * @implements FEAT0724 - Real-time ingestion progress
+ * @implements FEAT0865 - WebSocket connection management
+ *
+ * @enforces BR0865 - Auto-reconnect on disconnect
+ * @enforces BR0866 - Clean disconnect on unmount
  */
+'use client';
 
 import type { ProgressWebSocket } from '@/lib/websocket';
 import { disconnectWebSocket, getWebSocketClient } from '@/lib/websocket';

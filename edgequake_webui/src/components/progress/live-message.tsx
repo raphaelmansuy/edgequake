@@ -3,6 +3,15 @@
  * 
  * Displays streaming/live ingestion messages.
  * Based on WebUI Specification Document WEBUI-004 (13-webui-components.md)
+ *
+ * @implements FEAT1064 - Real-time ingestion message stream
+ * @implements FEAT1065 - Message history display
+ *
+ * @see UC1405 - User sees live processing updates
+ * @see UC1406 - User reviews message history
+ *
+ * @enforces BR1064 - Animated message updates
+ * @enforces BR1065 - Auto-scroll to latest message
  */
 
 'use client';
@@ -56,6 +65,8 @@ export function LiveMessage({
     if (message && message !== displayedMessage) {
       // Add previous message to history if it exists
       if (displayedMessage) {
+        // Intentional: Syncing external state changes to local state
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setHistoryItems(prev => {
           const newHistory = [
             ...prev,
@@ -72,6 +83,8 @@ export function LiveMessage({
   // Note: This is a valid pattern - we're syncing external state changes
   useEffect(() => {
     if (history.length > 0) {
+      // Intentional: Syncing external prop to local state
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setHistoryItems(
         history.map(msg => ({ message: msg, timestamp: new Date() }))
           .slice(-maxHistory)

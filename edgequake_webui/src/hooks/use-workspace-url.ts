@@ -1,5 +1,21 @@
 "use client";
 
+/**
+ * @module use-workspace-url
+ * @description Hook to synchronize workspace context with URL.
+ *
+ * Supports two URL formats:
+ * 1. Query parameter: /query?workspace=my-project
+ * 2. Path segment: /w/my-project/query (future enhancement)
+ *
+ * @implements UC0508 - User shares workspace-scoped URL
+ * @implements FEAT0651 - Workspace slug in URL
+ * @implements FEAT0652 - URL-driven workspace selection
+ *
+ * @enforces BR0636 - Invalid slug redirects to default workspace
+ * @enforces BR0637 - Workspace change updates URL
+ */
+
 import { getWorkspaceBySlug } from "@/lib/api/edgequake";
 import { useTenantStore } from "@/stores/use-tenant-store";
 import type { Workspace } from "@/types";

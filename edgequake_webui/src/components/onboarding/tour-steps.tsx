@@ -1,3 +1,15 @@
+/**
+ * @fileoverview Tour step definitions for graph viewer onboarding
+ *
+ * @implements FEAT1052 - Graph viewer tour steps
+ * @implements FEAT1053 - Contextual help content
+ *
+ * @see UC1303 - User learns graph navigation
+ * @see UC1304 - User discovers keyboard shortcuts
+ *
+ * @enforces BR1052 - Accessible tour content
+ * @enforces BR1053 - Progressive disclosure of features
+ */
 'use client';
 
 import type { TourStep } from './tour-provider';

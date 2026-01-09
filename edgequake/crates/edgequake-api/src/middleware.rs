@@ -1,4 +1,25 @@
 //! HTTP middleware.
+//!
+//! Provides cross-cutting concerns for API request processing.
+//!
+//! ## Implements
+//!
+//! - [`FEAT0410`]: Request logging with timing
+//! - [`FEAT0411`]: Request ID tracking
+//! - [`FEAT0412`]: Rate limiting enforcement
+//! - [`FEAT0413`]: CORS configuration
+//!
+//! ## Use Cases
+//!
+//! - [`UC2010`]: System logs all API requests with timing
+//! - [`UC2011`]: System assigns unique ID to each request
+//! - [`UC2012`]: System enforces rate limits per client
+//!
+//! ## Enforces
+//!
+//! - [`BR0410`]: All requests logged with method, URI, status, duration
+//! - [`BR0411`]: X-Request-ID header propagation
+//! - [`BR0412`]: Rate limit headers in response
 
 use axum::{
     body::Body,
@@ -141,6 +162,7 @@ impl AuthState {
 ///
 /// Checks for a valid API key in the `Authorization` header or `X-API-Key` header.
 /// Format: `Bearer <api-key>` or just the key in `X-API-Key`.
+/// @implements FEAT0801
 pub async fn api_key_auth(
     axum::extract::State(auth_state): axum::extract::State<AuthState>,
     request: Request,

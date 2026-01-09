@@ -7,6 +7,20 @@
 //! - Knowledge graph exploration
 //! - Health and metrics
 //!
+//! ## Implements
+//!
+//! - **FEAT0400**: RESTful API with JSON
+//! - **FEAT0401**: OpenAPI/Swagger documentation
+//! - **FEAT0402**: Multi-tenant workspace isolation
+//! - **FEAT0008**: Authentication middleware
+//! - **FEAT0403**: SSE streaming for real-time updates
+//!
+//! ## Enforces
+//!
+//! - **BR0400**: All endpoints return JSON
+//! - **BR0401**: Errors follow RFC 7807 problem details
+//! - **BR0402**: Workspace context required for data endpoints
+//!
 //! # API Design
 //!
 //! The API follows REST conventions with OpenAPI documentation.

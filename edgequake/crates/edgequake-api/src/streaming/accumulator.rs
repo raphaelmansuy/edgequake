@@ -2,6 +2,22 @@
 //!
 //! This module provides accurate tracking of streaming response content,
 //! metadata, and token usage - replacing the incorrect chunk counting.
+//!
+//! ## Implements
+//!
+//! - [`FEAT0483`]: Content accumulation from chunks
+//! - [`FEAT0484`]: API response metadata extraction
+//! - [`FEAT0485`]: Token usage statistics
+//!
+//! ## Use Cases
+//!
+//! - [`UC2082`]: System accumulates streaming content
+//! - [`UC2083`]: System extracts finish reason and model info
+//!
+//! ## Enforces
+//!
+//! - [`BR0483`]: Timing tracking from first chunk
+//! - [`BR0484`]: Proper token counting from API metadata
 
 use serde::{Deserialize, Serialize};
 use std::time::Instant;

@@ -1,10 +1,24 @@
 # EdgeQuake Architecture Overview
 
+> **Implements**: [FEAT0001](features.md#feat0001) Document Ingestion, [FEAT0002](features.md#feat0002) Knowledge Graph Query
+>
 > Technical deep-dive into EdgeQuake's Graph-Enhanced RAG system architecture
 
-**Version**: 0.1.0 | **Last Updated**: December 2025 | **Language**: Rust
+**Version**: 2.0.0 | **Last Updated**: January 2026 | **Language**: Rust
 
 > **Code Reference**: Main crates in [edgequake/crates/](../edgequake/crates/)
+
+---
+
+## Quick Navigation
+
+| Section                                       | What You'll Learn                               |
+| --------------------------------------------- | ----------------------------------------------- |
+| [System Overview](#system-overview)           | High-level architecture and key differentiators |
+| [Crate Structure](#crate-structure)           | 11 Rust crates and their responsibilities       |
+| [Data Flow](#data-flow)                       | How documents flow through the system           |
+| [Query Pipeline](#query-pipeline)             | How queries are processed across 6 modes        |
+| [Storage Architecture](#storage-architecture) | KV, Vector, and Graph storage patterns          |
 
 ---
 
@@ -107,6 +121,38 @@ EdgeQuake is a **Graph-Enhanced Retrieval-Augmented Generation** framework imple
 ---
 
 ## Crate Structure
+
+EdgeQuake consists of **11 specialized Rust crates**, each with a single responsibility:
+
+### Core Crates (Business Logic)
+
+| Crate                | Lines   | Responsibility               | Key Features                               |
+| -------------------- | ------- | ---------------------------- | ------------------------------------------ |
+| `edgequake-core`     | ~15,500 | Orchestration, types, config | EdgeQuake class, QueryParams, InsertResult |
+| `edgequake-pipeline` | ~10,500 | Document processing          | Entity extraction, chunking, merging       |
+| `edgequake-query`    | ~11,900 | Query engine                 | 6 query modes, context assembly            |
+
+### Infrastructure Crates
+
+| Crate               | Lines   | Responsibility   | Key Features                          |
+| ------------------- | ------- | ---------------- | ------------------------------------- |
+| `edgequake-api`     | ~37,400 | REST API         | Axum handlers, OpenAPI, SSE streaming |
+| `edgequake-storage` | ~11,900 | Storage adapters | Memory, PostgreSQL, pgvector, AGE     |
+| `edgequake-llm`     | ~8,500  | LLM providers    | OpenAI, Mock, streaming               |
+
+### Specialized Crates
+
+| Crate                    | Lines   | Responsibility   | Key Features                  |
+| ------------------------ | ------- | ---------------- | ----------------------------- |
+| `edgequake-pdf`          | ~26,000 | PDF extraction   | Text, tables, layout analysis |
+| `edgequake-auth`         | ~2,900  | Authentication   | JWT, API keys, OAuth2         |
+| `edgequake-audit`        | ~580    | Audit logging    | Compliance, event tracking    |
+| `edgequake-tasks`        | ~3,400  | Background tasks | Async processing, job queue   |
+| `edgequake-rate-limiter` | ~1,000  | Rate limiting    | Tenant quotas, throttling     |
+
+> **Total Rust Code**: ~130,000 lines across 11 crates (as of January 2026)
+>
+> **Enforces**: [BR0003](business_rules.md#br0003) Modular Architecture, [BR0004](business_rules.md#br0004) Single Responsibility
 
 ### `edgequake-core` - Orchestration Layer
 
@@ -353,6 +399,65 @@ impl Pipeline {
 }
 ```
 
+### `edgequake-pdf` - PDF Extraction
+
+> **Code Reference**: [edgequake/crates/edgequake-pdf/src/](../edgequake/crates/edgequake-pdf/src/)
+>
+> **Implements**: [FEAT1001-FEAT1025](features.md#advanced-pdf-features-feat10xx) | **Enforces**: [BR1001-BR1026](business_rules.md#pdf-processing-rules-br10xx)
+
+Converts PDF documents to Markdown with structure preservation.
+
+```rust
+// PDF extraction pipeline architecture:
+//
+// ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+// │ SotaBackend │───▶│  Processor  │───▶│   Renderer  │───▶│  Markdown   │
+// │ (parsing)   │    │   Chain     │    │ (Markdown)  │    │   Output    │
+// └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+//       │                  │
+//       │                  ├─ LayoutProcessor
+//       │                  ├─ TableDetectionProcessor
+//       │                  ├─ HeaderDetectionProcessor
+//       │                  ├─ StyleDetectionProcessor
+//       │                  └─ PostProcessor
+//       │
+//       ├─ Font analysis
+//       ├─ Text extraction (lopdf)
+//       ├─ Image extraction
+//       └─ Table detection (lattice/stream)
+
+pub struct PdfExtractor {
+    backend: SotaBackend,
+    processor_chain: ProcessorChain,
+    renderer: MarkdownRenderer,
+}
+
+impl PdfExtractor {
+    pub async fn extract(&self, pdf_bytes: &[u8]) -> Result<ExtractionResult> {
+        // 1. Parse PDF and extract raw content
+        let document = self.backend.extract(pdf_bytes)?;
+
+        // 2. Process through chain (layout, tables, headings)
+        let processed = self.processor_chain.process(document)?;
+
+        // 3. Render to Markdown
+        let markdown = self.renderer.render(&processed)?;
+
+        Ok(ExtractionResult { markdown, pages: processed.pages.len() })
+    }
+}
+```
+
+**Key Components:**
+
+| Component           | Lines | Responsibility                  |
+| ------------------- | ----- | ------------------------------- |
+| `SotaBackend`       | ~3000 | PDF parsing, font/text analysis |
+| `LatticeEngine`     | ~600  | Table detection via line grid   |
+| `ProcessorChain`    | ~3000 | Content transformation pipeline |
+| `MarkdownRenderer`  | ~800  | Final Markdown generation       |
+| `ImageOcrProcessor` | ~500  | Vision LLM image understanding  |
+
 ---
 
 ## Data Flow
@@ -502,11 +607,106 @@ edgequake_webui/src/
 │       ├── client.ts      # HTTP client
 │       └── edgequake.ts   # API functions
 ├── stores/                # Zustand stores
-│   ├── use-auth-store.ts
-│   ├── use-graph-store.ts
-│   └── use-query-store.ts
+│   ├── use-auth-store.ts          # Authentication state
+│   ├── use-backend-store.ts       # Backend connection state
+│   ├── use-conversation-store.ts  # Chat conversation history
+│   ├── use-cost-store.ts          # Cost tracking
+│   ├── use-graph-store.ts         # Graph visualization state
+│   ├── use-ingestion-store.ts     # Document ingestion progress
+│   ├── use-query-store.ts         # Query execution state
+│   ├── use-query-ui-store.ts      # Query UI preferences
+│   ├── use-settings-store.ts      # User settings
+│   ├── use-tenant-store.ts        # Multi-tenant state
+│   └── use-ui-preferences-store.ts # UI theme/layout
 └── types/                 # TypeScript types
     └── index.ts
+```
+
+### State Management with Zustand
+
+The WebUI uses Zustand for lightweight, performant state management. Each store manages a specific domain:
+
+| Store                      | Responsibility                               | Persisted |
+| -------------------------- | -------------------------------------------- | --------- |
+| `use-auth-store`           | JWT tokens, user info, login/logout          | ✅        |
+| `use-backend-store`        | Backend URL, connection status               | ✅        |
+| `use-conversation-store`   | Chat history, message threading              | ✅        |
+| `use-cost-store`           | Token usage, estimated costs                 | ❌        |
+| `use-graph-store`          | Sigma.js instance, graph layout, filters     | ❌        |
+| `use-ingestion-store`      | Upload progress, processing status           | ❌        |
+| `use-query-store`          | Query mode, parameters, history              | ✅        |
+| `use-query-ui-store`       | UI toggles (sources panel, graph visibility) | ✅        |
+| `use-settings-store`       | LLM model, temperature, max tokens           | ✅        |
+| `use-tenant-store`         | Active tenant, workspace                     | ✅        |
+| `use-ui-preferences-store` | Dark mode, sidebar collapsed, language       | ✅        |
+
+```typescript
+// Example: use-query-store.ts
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+
+interface QueryStore {
+  mode: "naive" | "local" | "global" | "hybrid" | "mix" | "bypass";
+  topK: number;
+  maxTokens: number;
+  history: string[];
+  setMode: (mode: string) => void;
+  addToHistory: (query: string) => void;
+}
+
+export const useQueryStore = create<QueryStore>()(
+  persist(
+    (set) => ({
+      mode: "hybrid",
+      topK: 10,
+      maxTokens: 4000,
+      history: [],
+      setMode: (mode) => set({ mode }),
+      addToHistory: (query) =>
+        set((state) => ({
+          history: [query, ...state.history].slice(0, 50),
+        })),
+    }),
+    { name: "query-store" }
+  )
+);
+```
+
+### WebUI Data Flow
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│                          WebUI ↔ Backend Flow                              │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                            │
+│  ┌─────────────────┐                    ┌─────────────────────────────┐   │
+│  │   React 19      │                    │     Rust Backend (Axum)     │   │
+│  │   Components    │                    │     localhost:8080          │   │
+│  └────────┬────────┘                    └─────────────┬───────────────┘   │
+│           │                                           │                    │
+│           ▼                                           │                    │
+│  ┌─────────────────┐                                  │                    │
+│  │   Zustand       │  ◄──────────────────────────────┘                    │
+│  │   Stores        │        State Updates                                  │
+│  │  (auth, graph,  │                                                       │
+│  │   query, docs)  │                                                       │
+│  └────────┬────────┘                                                       │
+│           │                                                                │
+│           ▼                                                                │
+│  ┌─────────────────┐    HTTP/SSE          ┌──────────────────────────┐   │
+│  │  TanStack Query │ ───────────────────► │  REST API Endpoints      │   │
+│  │  (Data Fetch)   │ ◄─────────────────── │  /api/v1/documents       │   │
+│  └─────────────────┘    JSON Response     │  /api/v1/query           │   │
+│                                            │  /api/v1/graph           │   │
+│                         ┌──────────────── │  /api/v1/chat (SSE)      │   │
+│                         ▼                  └──────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────────┐  │
+│  │                    SSE Streaming (Query/Chat)                        │  │
+│  │     text/event-stream: data: {"token": "Hello"}\n\n                 │  │
+│  │     Rendered by StreamingMarkdownRenderer using marked.lexer()      │  │
+│  └─────────────────────────────────────────────────────────────────────┘  │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -571,9 +771,30 @@ pub struct ApiConfig {
 
 ---
 
+## Design Principles
+
+EdgeQuake follows these core architectural principles:
+
+| Principle                    | Implementation                                 | Rationale                                |
+| ---------------------------- | ---------------------------------------------- | ---------------------------------------- |
+| **Trait-based Abstraction**  | All storage and LLM providers implement traits | Enables easy swapping of implementations |
+| **Async-first**              | All I/O operations are async with Tokio        | High concurrency without blocking        |
+| **Zero-copy where possible** | Efficient buffer handling                      | Minimize memory allocations              |
+| **Fail-fast validation**     | Input validation at API boundary               | Clear error messages, no silent failures |
+| **Namespace isolation**      | All data scoped to tenant namespace            | Multi-tenancy without data leakage       |
+
+> **Enforces**: [BR0001](business_rules.md#br0001) Tenant Isolation, [BR0005](business_rules.md#br0005) Async Operations
+
+---
+
 ## Next Steps
 
-1. **[API Reference](0003-api-reference.md)** - Complete REST API documentation
-2. **[Storage Backends](0004-storage-backends.md)** - Configure storage
-3. **[LLM Integration](0005-llm-integration.md)** - LLM providers
-4. **[Deployment Guide](0006-deployment-guide.md)** - Production deployment
+| Your Goal                   | Next Document                                        |
+| --------------------------- | ---------------------------------------------------- |
+| Integrate via REST API      | [API Reference](0003-api-reference.md)               |
+| Configure storage backends  | [Storage Backends](0004-storage-backends.md)         |
+| Set up LLM providers        | [LLM Integration](0005-llm-integration.md)           |
+| Deploy to production        | [Deployment Guide](0006-deployment-guide.md)         |
+| Understand query algorithms | [Algorithms Reference](0009-algorithms-reference.md) |
+
+> **See Also**: [Features Registry](features.md) for complete FEAT0001-XXXX catalog

@@ -3,6 +3,25 @@
  *
  * Zustand store for managing real-time ingestion progress state.
  * Based on WebUI Specification Document WEBUI-005 (14-webui-websocket-progress.md)
+ *
+ * @implements UC0001 - Upload Document (progress tracking)
+ * @implements UC0007 - View Ingestion Progress
+ * @implements UC0008 - Cancel Ingestion
+ * @implements FEAT0001 - Document Ingestion Pipeline (frontend visibility)
+ * @implements FEAT0602 - Real-time Progress Updates (WebSocket)
+ *
+ * @enforces BR0302 - Document size limits (via backend, tracked here)
+ * @enforces BR0303 - Cost tracking per request (via CostUpdateEvent)
+ *
+ * @description
+ * This Zustand store manages:
+ * - Active ingestion tracks (Map by trackId)
+ * - WebSocket connection status
+ * - Completed and failed job history
+ * - Real-time progress updates from backend
+ *
+ * @see WEBUI-005 for WebSocket protocol specification
+ * @see useBackendStore for WebSocket connection management
  */
 
 import type { CostUpdateEvent } from "@/types/cost";

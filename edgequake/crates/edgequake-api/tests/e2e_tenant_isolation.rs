@@ -95,8 +95,9 @@ mod tenant_isolation_tests {
             .unwrap();
 
         let (status, upload_json) = extract_status_and_json(upload_response).await;
+        // WHY: POST /documents returns 201 Created per REST semantics (UC0001)
         assert!(
-            status == StatusCode::OK || status == StatusCode::ACCEPTED,
+            status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
             "Upload failed: {:?}",
             status
         );
@@ -174,8 +175,9 @@ mod tenant_isolation_tests {
             .await
             .unwrap();
 
+        // WHY: POST /documents returns 201 Created per REST semantics (UC0001)
         assert!(
-            upload1_response.status() == StatusCode::OK
+            upload1_response.status() == StatusCode::CREATED
                 || upload1_response.status() == StatusCode::ACCEPTED
         );
 
@@ -201,8 +203,9 @@ mod tenant_isolation_tests {
             .await
             .unwrap();
 
+        // WHY: POST /documents returns 201 Created per REST semantics (UC0001)
         assert!(
-            upload2_response.status() == StatusCode::OK
+            upload2_response.status() == StatusCode::CREATED
                 || upload2_response.status() == StatusCode::ACCEPTED
         );
 
@@ -824,8 +827,9 @@ mod persistence_tests {
             .unwrap();
 
         let (status, upload_json) = extract_status_and_json(upload_response).await;
+        // WHY: POST /documents returns 201 Created per REST semantics (UC0001)
         assert!(
-            status == StatusCode::OK || status == StatusCode::ACCEPTED,
+            status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
             "Upload failed: {:?}",
             status
         );

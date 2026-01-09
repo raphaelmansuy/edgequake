@@ -1,4 +1,37 @@
-//! Entity and relationship extraction.
+//! Entity and relationship extraction via LLM.
+//!
+//! @implements FEAT0003
+//! @implements FEAT0004
+//! @implements FEAT0304
+//!
+//! # Implements
+//!
+//! - **FEAT0003**: Entity Extraction
+//! - **FEAT0004**: Relationship Extraction
+//! - **FEAT0304**: Gleaning (iterative re-extraction for completeness)
+//!
+//! # Enforces
+//!
+//! - **BR0003**: Entity types from configurable list
+//! - **BR0004**: Relationship keywords max 5 per edge
+//! - **BR0005**: Entity description max 512 tokens
+//! - **BR0006**: Same-entity relationships forbidden
+//! - **BR0008**: Entity names normalized (UPPERCASE_UNDERSCORE)
+//!
+//! # WHY: LLM-Based Extraction
+//!
+//! Using LLMs for extraction provides:
+//! 1. Domain-agnostic entity recognition (no training required)
+//! 2. Rich semantic descriptions (not just labels)
+//! 3. Relationship inference beyond co-occurrence
+//!
+//! # Extraction Strategies
+//!
+//! | Strategy | Description | Use Case |
+//! |----------|-------------|----------|
+//! | [`SOTAExtractor`] | Tuple-based parsing | Production (robust) |
+//! | [`SimpleExtractor`] | JSON-based parsing | Development/testing |
+//! | [`GleaningExtractor`] | Iterative re-extraction | High-stakes domains |
 
 use async_trait::async_trait;
 use edgequake_llm::traits::ChatMessage;
@@ -266,6 +299,7 @@ impl ExtractedRelationship {
 
 /// Trait for entity extraction implementations.
 #[async_trait]
+/// @implements FEAT0009
 pub trait EntityExtractor: Send + Sync {
     /// Extract entities and relationships from a text chunk.
     async fn extract(&self, chunk: &TextChunk) -> Result<ExtractionResult>;
@@ -533,6 +567,8 @@ fn extract_json_from_response(response: &str) -> String {
 
 /// SOTA LLM-based entity extractor using tuple-format prompts.
 ///
+/// @implements FEAT0303
+///
 /// This extractor uses the SOTA prompt system ported from LightRAG,
 /// featuring tuple-based output format for more robust parsing.
 pub struct SOTAExtractor<L>
@@ -679,6 +715,7 @@ impl Default for GleaningConfig {
 /// - Cost: Each iteration = 1 additional LLM call
 ///
 /// This implements GAP-018: Max Gleaning from LightRAG.
+/// @implements FEAT0304
 pub struct GleaningExtractor {
     /// The underlying LLM provider.
     llm_provider: std::sync::Arc<dyn edgequake_llm::LLMProvider>,

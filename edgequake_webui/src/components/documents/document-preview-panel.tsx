@@ -1,3 +1,18 @@
+/**
+ * @module DocumentPreviewPanel
+ * @description Side panel for quick document preview and actions.
+ * Shows status, content preview, cost breakdown, and quick actions.
+ * 
+ * @implements UC0011 - User previews document in panel
+ * @implements FEAT0633 - Content preview with line numbers
+ * @implements FEAT0634 - Cost breakdown visualization
+ * @implements FEAT0635 - Quick action buttons
+ * 
+ * @enforces BR0622 - Preview loads without full content fetch
+ * @enforces BR0305 - Cost displayed per document
+ * 
+ * @see {@link docs/features.md} FEAT0633-0635
+ */
 'use client';
 
 import { Badge } from '@/components/ui/badge';

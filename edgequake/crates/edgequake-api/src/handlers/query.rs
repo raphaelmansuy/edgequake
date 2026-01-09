@@ -1,4 +1,47 @@
-//! Query handlers.
+//! Query execution handlers.
+//!
+//! @implements FEAT0403
+//! @implements FEAT0404
+//!
+//! # Implements
+//!
+//! - **UC0201**: Execute Query
+//! - **UC0202**: Query with Conversation History
+//! - **UC0203**: Stream Query Response
+//! - **FEAT0403**: Query Execution Endpoint
+//! - **FEAT0404**: Query Streaming Endpoint
+//! - **FEAT0007**: Multi-Mode Query Execution
+//! - **FEAT0101-0106**: Query modes (naive/local/global/hybrid/mix/bypass)
+//!
+//! # Enforces
+//!
+//! - **BR0101**: Token budget must not exceed LLM context window
+//! - **BR0103**: Query mode must be valid enum value
+//! - **BR0105**: Empty queries are rejected
+//! - **BR0201**: Tenant isolation (queries scoped to workspace)
+//!
+//! # Endpoints
+//!
+//! | Method | Path | Handler | Description |
+//! |--------|------|---------|-------------|
+//! | POST | `/api/v1/query` | [`execute_query`] | Execute RAG query |
+//! | POST | `/api/v1/query/stream` | [`execute_query_stream`] | Stream query response |
+//!
+//! # Query Flow
+//!
+//! ```text
+//! POST /api/v1/query
+//!        ↓
+//!   Validate query length
+//!        ↓
+//!   Parse mode (default: hybrid)
+//!        ↓
+//!   Add tenant context (BR0201)
+//!        ↓
+//!   Execute via SOTA engine
+//!        ↓
+//!   Format response + sources
+//! ```
 
 use axum::{extract::State, Json};
 use tracing::debug;
@@ -15,7 +58,30 @@ pub use crate::handlers::query_types::{
     StreamQueryRequest,
 };
 
-/// Execute a query.
+/// Execute a RAG query with multi-mode retrieval.
+///
+/// # Implements
+///
+/// - **UC0201**: Execute Query
+/// - **FEAT0007**: Multi-Mode Query Execution
+/// - **FEAT0101**: Naive mode (vector search only)
+/// - **FEAT0102**: Local mode (entity-centric)
+/// - **FEAT0103**: Global mode (community summaries)
+/// - **FEAT0104**: Hybrid mode (local + global)
+/// - **FEAT0105**: Mix mode (adaptive blend)
+/// - **FEAT0106**: Bypass mode (direct LLM, no RAG)
+///
+/// # Enforces
+///
+/// - **BR0101**: Token budget enforcement
+/// - **BR0103**: Mode validation
+/// - **BR0201**: Tenant/workspace scoping
+///
+/// # Returns
+///
+/// - `response`: LLM-generated answer
+/// - `sources`: Source references with document lineage
+/// - `stats`: Retrieval statistics (chunks, entities, latency)
 #[utoipa::path(
     post,
     path = "/api/v1/query",

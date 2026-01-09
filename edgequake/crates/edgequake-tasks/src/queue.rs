@@ -1,4 +1,21 @@
 //! Task queue implementations for background processing.
+//!
+//! ## Implements
+//!
+//! - **FEAT0920**: Task queue trait abstraction
+//! - **FEAT0921**: Channel-based queue for in-process tasks
+//! - **FEAT0922**: Bounded queue with backpressure
+//!
+//! ## Use Cases
+//!
+//! - **UC2610**: System enqueues document for async processing
+//! - **UC2611**: Worker receives task from queue
+//! - **UC2612**: System applies backpressure when queue full
+//!
+//! ## Enforces
+//!
+//! - **BR0920**: Queue capacity bounded to prevent memory exhaustion
+//! - **BR0921**: Queue must support concurrent send/receive
 
 use crate::{error::TaskResult, types::Task};
 use async_trait::async_trait;

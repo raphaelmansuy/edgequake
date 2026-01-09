@@ -1,5 +1,26 @@
 //! SOTA Query Engine - LightRAG-inspired implementation.
 //!
+//! # Implements
+//!
+//! - **FEAT0007**: Multi-Mode Query Execution
+//! - **FEAT0101**: Naive Mode (vector search only)
+//! - **FEAT0102**: Local Mode (entity-centric)
+//! - **FEAT0103**: Global Mode (community summaries)
+//! - **FEAT0104**: Hybrid Mode (local + global)
+//! - **FEAT0105**: Mix Mode (adaptive blend)
+//! - **FEAT0106**: Bypass Mode (direct LLM)
+//! - **FEAT0107**: LLM-Based Keyword Extraction
+//! - **FEAT0108**: Smart Context Truncation
+//! - **FEAT0109**: SOTA Query Delegation
+//!
+//! # Enforces
+//!
+//! - **BR0101**: Token budget must not exceed LLM context window
+//! - **BR0102**: Graph context takes priority over naive chunks
+//! - **BR0103**: Query mode must be valid enum value
+//! - **BR0104**: Conversation history included in context
+//! - **BR0106**: Keyword cache TTL 24 hours default
+//!
 //! This module provides the enhanced query engine with:
 //! - LLM-based keyword extraction with caching
 //! - Mode-specific vector search (entities vs relationships)
@@ -25,6 +46,29 @@
 //!                                 ↓
 //!                         LLM Generation
 //! ```
+//!
+//! # WHY: LightRAG Algorithm
+//!
+//! This implements the LightRAG paper's multi-level retrieval strategy:
+//!
+//! 1. **Keyword Extraction**: LLM extracts high-level (themes) and low-level
+//!    (entities) keywords from the query. WHY: Different keywords retrieve
+//!    different context types optimally.
+//!
+//! 2. **Mode-Specific Search**:
+//!    - Local: Uses low-level keywords to find entity nodes
+//!    - Global: Uses high-level keywords to find relationship clusters
+//!    - Naive: Direct query embedding against chunk vectors
+//!
+//! 3. **Token Budgeting**: Context is truncated to fit LLM window while
+//!    maintaining the most relevant information. Graph context is prioritized
+//!    over raw chunks because graph relationships are pre-summarized.
+//!
+//! # See Also
+//!
+//! - [`QueryMode`] for available modes
+//! - [`QueryRequest`] for query parameters
+//! - [docs/features.md](../../../../../../docs/features.md) for feature details
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -469,6 +513,8 @@ impl SOTAQueryEngine {
     ///
     /// 5. **Token Budgeting** - Fit context within LLM limits
     ///    - WHY: LLM context windows are limited; we prioritize high-scoring content
+    ///
+    /// @implements FEAT0109 (SOTA Query Engine)
     pub async fn query(
         &self,
         request: crate::engine::QueryRequest,
@@ -935,6 +981,8 @@ impl SOTAQueryEngine {
     ///
     /// 4. **Degree-based ranking** - Higher-degree entities ranked first
     ///    WHY: Well-connected entities are typically more important
+    ///
+    /// @implements FEAT0101 (Local Search Mode - entity-focused retrieval)
     async fn query_local(
         &self,
         _keywords: &ExtractedKeywords,
@@ -1092,6 +1140,8 @@ impl SOTAQueryEngine {
     ///
     /// 4. **Community summaries** - Include pre-computed graph cluster summaries
     ///    WHY: Provides high-level thematic context for broad questions
+    ///
+    /// @implements FEAT0102 (Global Search Mode - relationship-focused retrieval)
     async fn query_global(
         &self,
         _keywords: &ExtractedKeywords,
@@ -1303,6 +1353,8 @@ impl SOTAQueryEngine {
     }
 
     /// Hybrid mode: Combine local and global with round-robin merging.
+    ///
+    /// @implements FEAT0103 (Hybrid Search Mode - combined local+global)
     async fn query_hybrid(
         &self,
         keywords: &ExtractedKeywords,
@@ -1378,6 +1430,8 @@ impl SOTAQueryEngine {
     }
 
     /// Mix mode: Hybrid plus direct chunk search.
+    ///
+    /// @implements FEAT0105 (Mix Weighted Search - hybrid + direct chunks)
     async fn query_mix(
         &self,
         keywords: &ExtractedKeywords,
@@ -1422,6 +1476,8 @@ impl SOTAQueryEngine {
     }
 
     /// Naive mode: Direct chunk vector search only.
+    ///
+    /// @implements FEAT0106 (Bypass Mode - direct vector search without graph)
     async fn query_naive(
         &self,
         embeddings: &QueryEmbeddings,

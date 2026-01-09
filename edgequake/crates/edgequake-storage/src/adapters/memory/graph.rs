@@ -1,4 +1,22 @@
 //! In-memory graph storage.
+//!
+//! Provides graph storage using adjacency lists for efficient traversal.
+//!
+//! ## Implements
+//!
+//! - [`FEAT0210`]: In-memory graph storage
+//! - [`FEAT0211`]: Entity node management
+//! - [`FEAT0212`]: Relationship edge management
+//!
+//! ## Use Cases
+//!
+//! - [`UC0602`]: System stores entities and relationships
+//! - [`UC0701`]: System traverses knowledge graph
+//!
+//! ## Enforces
+//!
+//! - [`BR0210`]: Thread-safe concurrent access via RwLock
+//! - [`BR0211`]: Consistent edge key normalization
 
 use async_trait::async_trait;
 use std::collections::{HashMap, HashSet, VecDeque};

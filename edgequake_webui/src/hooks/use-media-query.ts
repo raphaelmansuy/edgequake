@@ -3,6 +3,17 @@
 import { useSyncExternalStore } from "react";
 
 /**
+ * @module use-media-query
+ * @description Hook to check if a media query matches.
+ * Uses useSyncExternalStore for proper SSR and hydration handling.
+ *
+ * @implements FEAT0641 - Responsive breakpoint detection
+ * @implements FEAT0642 - SSR-safe media query matching
+ *
+ * @enforces BR0627 - Server renders mobile-first layout
+ */
+
+/**
  * Get current match status for a media query (for SSR fallback)
  */
 function getServerSnapshot(): boolean {

@@ -1,9 +1,16 @@
 /**
- * Conversation Export Utilities
+ * @module export-conversation
+ * @description Conversation Export Utilities
  *
  * Provides functions to export conversations to various formats:
  * - Markdown (.md)
  * - JSON (.json)
+ *
+ * @implements FEAT0727 - Export conversation to Markdown
+ * @implements FEAT0728 - Export conversation to JSON
+ *
+ * @enforces BR0724 - Include message metadata in exports
+ * @enforces BR0725 - Sanitize filenames for download
  */
 
 import type { ConversationWithMessages, ServerMessage } from "@/types";

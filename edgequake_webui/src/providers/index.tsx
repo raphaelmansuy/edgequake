@@ -1,3 +1,13 @@
+/**
+ * @module AppProviders
+ * @description Root provider composition for EdgeQuake WebUI.
+ * Wraps application with theme, i18n, query, and WebSocket providers.
+ *
+ * @implements FEAT0860 - Provider composition pattern
+ * @implements FEAT0861 - Context layering for global state
+ *
+ * @enforces BR0860 - Provider order maintained for dependencies
+ */
 'use client';
 
 import { Toaster } from '@/components/ui/sonner';

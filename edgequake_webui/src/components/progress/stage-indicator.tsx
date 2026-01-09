@@ -3,14 +3,23 @@
  * 
  * Pipeline stage visualization with progress.
  * Based on WebUI Specification Document WEBUI-004 (13-webui-components.md)
+ *
+ * @implements FEAT1060 - Pipeline stage visualization
+ * @implements FEAT1061 - Stage progress tracking
+ *
+ * @see UC1401 - User monitors ingestion progress
+ * @see UC1402 - User identifies current processing stage
+ *
+ * @enforces BR1060 - Color-coded status indicators
+ * @enforces BR1061 - Horizontal/vertical layout variants
  */
 
 'use client';
 
-import { cn } from '@/lib/utils';
-import { Check, Loader2, AlertCircle, Circle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import type { IngestionStage } from '@/types/ingestion';
+import { AlertCircle, Check, Circle, Loader2 } from 'lucide-react';
 
 export interface Stage {
   id: IngestionStage;

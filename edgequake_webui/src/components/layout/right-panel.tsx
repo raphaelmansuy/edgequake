@@ -1,3 +1,17 @@
+/**
+ * @module RightPanel
+ * @description Reusable collapsible right panel for detail views.
+ * Used for entity details, document preview, and settings panels.
+ * 
+ * @implements FEAT0614 - Collapsible detail panels
+ * @implements FEAT0615 - Configurable panel widths
+ * @implements FEAT0616 - Scroll area for long content
+ * 
+ * @enforces BR0201 - Panel syncs with main view selection
+ * @enforces BR0610 - Panel state persists during session
+ * 
+ * @see {@link docs/features.md} FEAT0614-0616
+ */
 'use client';
 
 import { Button } from '@/components/ui/button';

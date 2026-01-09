@@ -2,6 +2,25 @@
 //!
 //! This module defines the service trait for conversation management and
 //! provides an in-memory implementation for testing.
+//!
+//! ## Implements
+//!
+//! - **FEAT0810**: Conversation CRUD operations
+//! - **FEAT0811**: Message management within conversations
+//! - **FEAT0812**: Folder organization for conversations
+//! - **FEAT0813**: Conversation import/export
+//!
+//! ## Use Cases
+//!
+//! - **UC2401**: User creates new conversation with mode
+//! - **UC2402**: User adds message to conversation
+//! - **UC2403**: User organizes conversations into folders
+//! - **UC2404**: User imports conversations from JSON
+//!
+//! ## Enforces
+//!
+//! - **BR0810**: Conversations scoped to user and workspace
+//! - **BR0811**: Messages must have valid role (user/assistant/system)
 
 use async_trait::async_trait;
 use uuid::Uuid;

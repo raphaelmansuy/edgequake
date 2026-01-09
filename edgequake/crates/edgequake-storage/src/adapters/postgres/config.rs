@@ -1,4 +1,21 @@
 //! PostgreSQL configuration.
+//!
+//! Provides configuration for PostgreSQL connections, pooling, and extensions.
+//!
+//! ## Implements
+//!
+//! - [`FEAT0243`]: Connection pool configuration
+//! - [`FEAT0244`]: SSL mode configuration
+//! - [`FEAT0245`]: Vector index type selection
+//!
+//! ## Use Cases
+//!
+//! - [`UC0901`]: System configures database connection
+//!
+//! ## Enforces
+//!
+//! - [`BR0243`]: Connection pool limits
+//! - [`BR0244`]: Timeout configuration
 
 use serde::{Deserialize, Serialize};
 use std::time::Duration;

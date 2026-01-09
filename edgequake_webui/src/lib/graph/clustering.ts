@@ -1,3 +1,15 @@
+/**
+ * @module clustering
+ * @description Graph clustering using Louvain community detection.
+ * Assigns colors to nodes based on detected communities.
+ *
+ * @implements FEAT0716 - Louvain community detection
+ * @implements FEAT0717 - Community-based node coloring
+ *
+ * @enforces BR0713 - Max 20 community colors, wrap around
+ * @enforces BR0714 - Isolated nodes get default color
+ */
+
 import Graph from "graphology";
 import louvain from "graphology-communities-louvain";
 

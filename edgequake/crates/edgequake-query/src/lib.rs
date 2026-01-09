@@ -1,4 +1,17 @@
-//! EdgeQuake Query - Query Engine for RAG
+//! EdgeQuake Query - SOTA Query Engine for RAG
+//!
+//! # Implements
+//!
+//! - **FEAT0007**: Multi-Mode Query Execution
+//! - **FEAT0101-0106**: All query mode strategies
+//! - **FEAT0107**: LLM-Based Keyword Extraction
+//! - **FEAT0108**: Smart Context Truncation
+//!
+//! # Enforces
+//!
+//! - **BR0101**: Token budget enforcement (configurable, default 4000)
+//! - **BR0102**: Graph context priority over naive chunks
+//! - **BR0104**: Conversation history in context
 //!
 //! This crate provides the query engine that combines:
 //! - Vector similarity search
@@ -7,19 +20,36 @@
 //!
 //! # Query Modes
 //!
-//! - **Naive**: Simple vector similarity search
-//! - **Local**: Entity-centric search with local graph context
-//! - **Global**: Community-based search using graph structure
-//! - **Hybrid**: Combines local and global approaches
-//! - **Mix**: Weighted combination of naive and graph-based search
+//! | Mode | FEAT | Description |
+//! |------|------|-------------|
+//! | Naive | FEAT0101 | Simple vector similarity search |
+//! | Local | FEAT0102 | Entity-centric search with graph context |
+//! | Global | FEAT0103 | Community-based search (relationship focus) |
+//! | Hybrid | FEAT0104 | Combines local and global approaches |
+//! | Mix | FEAT0105 | Weighted combination of naive + graph |
+//! | Bypass | FEAT0106 | Direct LLM, no RAG retrieval |
 //!
 //! # Architecture
 //!
 //! The query engine uses a multi-stage retrieval pipeline:
 //! 1. Query embedding generation
-//! 2. Candidate retrieval (vector + graph)
-//! 3. Context aggregation
-//! 4. LLM answer generation
+//! 2. Keyword extraction (FEAT0107)
+//! 3. Candidate retrieval (vector + graph)
+//! 4. Context aggregation + truncation (FEAT0108)
+//! 5. LLM answer generation
+//!
+//! # Key Components
+//!
+//! - [`SOTAQueryEngine`]: Main engine implementing LightRAG algorithm
+//! - [`QueryMode`]: Enum of all supported query modes
+//! - [`QueryContext`]: Retrieved context (entities, relationships, chunks)
+//! - [`TruncationConfig`]: Token budget configuration
+//!
+//! # See Also
+//!
+//! - [`crate::sota_engine`] for the SOTA implementation
+//! - [`crate::keywords`] for keyword extraction
+//! - [`crate::truncation`] for token budgeting
 
 pub mod chunk_retrieval;
 pub mod context;

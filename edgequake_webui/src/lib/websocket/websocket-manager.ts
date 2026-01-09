@@ -1,8 +1,15 @@
 /**
- * WebSocket Manager Singleton
+ * @module websocket-manager
+ * @description WebSocket Manager Singleton
  *
  * Provides a single shared WebSocket connection for the application.
  * Based on WebUI Specification Document WEBUI-005 (14-webui-websocket-progress.md)
+ *
+ * @implements FEAT0722 - Singleton WebSocket connection
+ * @implements FEAT0723 - Auto-reconnect on disconnect
+ *
+ * @enforces BR0719 - Single connection per browser tab
+ * @enforces BR0720 - Reconnect with exponential backoff
  */
 
 import { ProgressWebSocket } from "./progress-websocket";

@@ -1,3 +1,15 @@
+/**
+ * @module i18n
+ * @description Internationalization configuration.
+ * Supports English, Chinese, and French with browser language detection.
+ *
+ * @implements FEAT0729 - Multi-language support (en, zh, fr)
+ * @implements FEAT0730 - Browser language detection
+ *
+ * @enforces BR0726 - Fallback to English for missing keys
+ * @enforces BR0727 - Persist language preference
+ */
+
 import i18n from "i18next";
 import LanguageDetector from "i18next-browser-languagedetector";
 import { initReactI18next } from "react-i18next";

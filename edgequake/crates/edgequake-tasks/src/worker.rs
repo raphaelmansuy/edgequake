@@ -1,5 +1,22 @@
 //! Worker pool for processing tasks from the queue.
 //!
+//! ## Implements
+//!
+//! - **FEAT0910**: Worker pool with configurable concurrency
+//! - **FEAT0911**: Task processor trait abstraction
+//! - **FEAT0912**: Graceful shutdown with task completion
+//!
+//! ## Use Cases
+//!
+//! - **UC2601**: System spawns workers to process queued tasks
+//! - **UC2602**: System retries failed tasks with backoff
+//! - **UC2603**: System shuts down gracefully completing in-flight work
+//!
+//! ## Enforces
+//!
+//! - **BR0910**: Worker count bounded to prevent resource exhaustion
+//! - **BR0911**: In-flight tasks must complete before shutdown
+//!
 //! ## WHY Worker Pool Architecture?
 //!
 //! Document processing (PDF extraction, embedding generation) is CPU/IO intensive.

@@ -1,4 +1,23 @@
 //! HTTP server.
+//!
+//! Provides the main HTTP server with middleware and configuration.
+//!
+//! ## Implements
+//!
+//! - [`FEAT0440`]: HTTP server with Axum
+//! - [`FEAT0441`]: CORS configuration
+//! - [`FEAT0442`]: Response compression
+//! - [`FEAT0443`]: Swagger UI integration
+//!
+//! ## Use Cases
+//!
+//! - [`UC2040`]: System starts HTTP server
+//! - [`UC2041`]: System serves OpenAPI documentation
+//!
+//! ## Enforces
+//!
+//! - [`BR0440`]: Configurable host and port
+//! - [`BR0441`]: Optional feature toggles (CORS, compression, Swagger)
 
 use std::net::SocketAddr;
 

@@ -1,4 +1,22 @@
 //! In-memory vector storage.
+//!
+//! Provides vector storage using brute-force cosine similarity search.
+//!
+//! ## Implements
+//!
+//! - [`FEAT0220`]: In-memory vector storage
+//! - [`FEAT0221`]: Cosine similarity search
+//! - [`FEAT0222`]: Vector dimension validation
+//!
+//! ## Use Cases
+//!
+//! - [`UC0603`]: System performs vector similarity search
+//! - [`UC0604`]: System retrieves similar chunks
+//!
+//! ## Enforces
+//!
+//! - [`BR0220`]: Dimension consistency validation
+//! - [`BR0221`]: Thread-safe concurrent access via RwLock
 
 use async_trait::async_trait;
 use std::collections::HashMap;

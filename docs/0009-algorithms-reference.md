@@ -2,9 +2,40 @@
 
 > Detailed algorithm documentation for the EdgeQuake Graph-Enhanced RAG system
 
-**Version**: 0.1.0 | **Last Updated**: December 2025
+**Version**: 2.0.0 | **Last Updated**: January 2026
 
+> **Implements**: [FEAT0050](features.md#feat0050) Entity Extraction | [FEAT0051](features.md#feat0051) Knowledge Graph | [FEAT0052](features.md#feat0052) Query Modes
+> **Business Rules**: [BR0050](business_rules.md#br0050) Normalization Rules | [BR0051](business_rules.md#br0051) Merge Strategy | [BR0052](business_rules.md#br0052) Token Budgeting
+> **Use Cases**: [UC0001](use_cases.md#uc0001) Document Ingestion | [UC0002](use_cases.md#uc0002) Knowledge Query
 > **Code Reference**: See [edgequake/crates/edgequake-pipeline/](../edgequake/crates/edgequake-pipeline/) for pipeline algorithms and [edgequake/crates/edgequake-query/](../edgequake/crates/edgequake-query/) for query algorithms
+
+---
+
+## Quick Reference
+
+| I want to understand...    | Go to                                                                   |
+| -------------------------- | ----------------------------------------------------------------------- |
+| Overall pipeline flow      | [Document Ingestion Pipeline](#document-ingestion-pipeline)             |
+| How entities are extracted | [Entity Extraction Algorithm](#entity-extraction-algorithm)             |
+| Multi-pass extraction      | [Gleaning Algorithm](#gleaning-algorithm)                               |
+| Name normalization         | [Entity Normalization Algorithm](#entity-normalization-algorithm)       |
+| Knowledge graph building   | [Knowledge Graph Merging Algorithm](#knowledge-graph-merging-algorithm) |
+| Query strategies           | [Query Modes](#query-modes-and-retrieval-strategies)                    |
+| Token management           | [Token Budget Management](#token-budget-management)                     |
+
+---
+
+## Algorithm Summary
+
+| Algorithm         | Purpose                 | Complexity         | Key Parameter                   |
+| ----------------- | ----------------------- | ------------------ | ------------------------------- |
+| **Chunking**      | Split documents         | O(n)               | `chunk_size` (1200)             |
+| **Extraction**    | Find entities/relations | O(chunks)          | `max_entities_per_chunk` (20)   |
+| **Gleaning**      | Multi-pass extraction   | O(passes × chunks) | `max_gleaning` (1)              |
+| **Normalization** | Standardize names       | O(1)               | Uppercase + underscore          |
+| **Merging**       | Deduplicate graph       | O(e log e)         | `max_description_length` (4096) |
+| **Retrieval**     | Find context            | O(log n)           | `top_k` (10)                    |
+| **Truncation**    | Fit token budget        | O(items)           | `max_context_tokens` (4000)     |
 
 ---
 
@@ -19,6 +50,8 @@
 7. [Query Modes and Retrieval Strategies](#query-modes-and-retrieval-strategies)
 8. [Context Truncation Algorithm](#context-truncation-algorithm)
 9. [Token Budget Management](#token-budget-management)
+10. [Performance Characteristics](#performance-characteristics)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -95,12 +128,12 @@ fn estimate_tokens(text: &str) -> usize {
 
 **Configuration Parameters:**
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `chunk_size` | 1200 | Target chunk size in tokens |
-| `chunk_overlap` | 100 | Overlap between consecutive chunks |
-| `min_chunk_size` | 100 | Minimum chunk size (won't create smaller) |
-| `preserve_sentences` | true | Avoid splitting mid-sentence |
+| Parameter            | Default | Description                               |
+| -------------------- | ------- | ----------------------------------------- |
+| `chunk_size`         | 1200    | Target chunk size in tokens               |
+| `chunk_overlap`      | 100     | Overlap between consecutive chunks        |
+| `min_chunk_size`     | 100     | Minimum chunk size (won't create smaller) |
+| `preserve_sentences` | true    | Avoid splitting mid-sentence              |
 
 **Algorithm:**
 
@@ -128,6 +161,58 @@ pub trait ChunkingStrategy: Send + Sync {
 > **Code Reference**: [edgequake/crates/edgequake-pipeline/src/extractor.rs](../edgequake/crates/edgequake-pipeline/src/extractor.rs)
 
 Entity extraction uses LLM-based structured prompts to identify entities and relationships from text chunks.
+
+### Entity Extraction Pipeline
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      ENTITY EXTRACTION PIPELINE                         │
+└─────────────────────────────────────────────────────────────────────────┘
+
+    ┌────────────┐     ┌────────────────┐     ┌─────────────────┐
+    │ Text Chunk │────▶│  Build Prompt  │────▶│  LLM Provider   │
+    │  (512 tok) │     │ (entity types, │     │ (OpenAI/Ollama) │
+    └────────────┘     │  output format)│     └────────┬────────┘
+                       └────────────────┘              │
+                                                       ▼
+    ┌─────────────────────────────────────────────────────────────────┐
+    │                    LLM JSON Response                             │
+    │  {"entities": [...], "relationships": [...]}                     │
+    └────────────────────────────────────────┬────────────────────────┘
+                                             │
+                 ┌───────────────────────────┼───────────────────────────┐
+                 ▼                           ▼                           ▼
+    ┌────────────────────┐     ┌─────────────────────┐     ┌─────────────────┐
+    │  Parse Entities    │     │ Parse Relationships │     │  Error Handling │
+    │  - Normalize names │     │ - Link source/target│     │  - JSON repair  │
+    │  - Validate types  │     │ - Assign weights    │     │  - Fallback     │
+    │  - Score importance│     │ - Extract keywords  │     │    extraction   │
+    └─────────┬──────────┘     └──────────┬──────────┘     └─────────────────┘
+              │                           │
+              ▼                           ▼
+    ┌─────────────────────────────────────────────────────────────────┐
+    │                   GLEANING (Multi-Pass)                         │
+    │  ┌─────────┐    ┌─────────┐    ┌─────────┐                      │
+    │  │ Pass 1  │───▶│ Pass 2  │───▶│ Pass N  │  (max_gleaning_iter) │
+    │  │ Initial │    │ "What  │    │  Final  │                      │
+    │  │ Extract │    │  missed?"│    │  Merge  │                      │
+    │  └─────────┘    └─────────┘    └─────────┘                      │
+    └────────────────────────────────────────┬────────────────────────┘
+                                             │
+                                             ▼
+    ┌─────────────────────────────────────────────────────────────────┐
+    │               DEDUPLICATION & RESOLUTION                         │
+    │  - Merge entities by normalized name (MARIE_CURIE = Marie Curie) │
+    │  - Prefer longer descriptions                                    │
+    │  - Aggregate relationship weights                                │
+    └────────────────────────────────────────┬────────────────────────┘
+                                             │
+                                             ▼
+                           ┌─────────────────────────────────┐
+                           │  ExtractedEntity[]              │
+                           │  ExtractedRelationship[]        │
+                           └─────────────────────────────────┘
+```
 
 ### Extraction Prompt Structure
 
@@ -179,13 +264,13 @@ pub struct ExtractedRelationship {
 
 The extractor handles various LLM response formats:
 
-```rust
+````rust
 fn extract_json_from_response(response: &str) -> String {
     // 1. Try JSON code block markers: ```json ... ```
     // 2. Try to find JSON starting with { and ending with }
     // 3. Fall back to raw response
 }
-```
+````
 
 ---
 
@@ -237,7 +322,7 @@ fn merge_results(&self, original: &mut ExtractionResult, glean_entities, glean_r
     // For entities: compare normalized names (case-insensitive)
     //   - If exists: keep entity with longer description
     //   - If new: add to result
-    
+
     // For relationships: compare source+target (case-insensitive)
     //   - If exists: keep relationship with longer description
     //   - If new: add to result
@@ -267,13 +352,13 @@ pub fn normalize_entity_name(name: &str) -> String {
 
 ### Examples
 
-| Input | Output |
-|-------|--------|
-| `"John Doe"` | `"JOHN_DOE"` |
-| `"  Hello  World  "` | `"HELLO_WORLD"` |
-| `"O'Brien"` | `"OBRIEN"` |
-| `"AI/ML"` | `"AIML"` |
-| `"New York City"` | `"NEW_YORK_CITY"` |
+| Input                | Output            |
+| -------------------- | ----------------- |
+| `"John Doe"`         | `"JOHN_DOE"`      |
+| `"  Hello  World  "` | `"HELLO_WORLD"`   |
+| `"O'Brien"`          | `"OBRIEN"`        |
+| `"AI/ML"`            | `"AIML"`          |
+| `"New York City"`    | `"NEW_YORK_CITY"` |
 
 ---
 
@@ -350,7 +435,7 @@ fn truncate_description(text: &str, max_length: usize) -> String {
     if text.len() <= max_length {
         return text.to_string();
     }
-    
+
     // Find last sentence boundary (. ! ?) before max_length
     let mut end = max_length;
     for (i, c) in text.char_indices().take(max_length) {
@@ -358,7 +443,7 @@ fn truncate_description(text: &str, max_length: usize) -> String {
             end = i + 1;
         }
     }
-    
+
     text[..end].to_string()
 }
 ```
@@ -384,14 +469,14 @@ EdgeQuake supports 6 query modes, each optimized for different use cases.
 
 ### Query Mode Overview
 
-| Mode | Vector Search | Graph Traversal | Use Case |
-|------|--------------|-----------------|----------|
-| **Naive** | ✅ | ❌ | Fast factual lookups |
-| **Local** | ✅ | ✅ (entity-centric) | Specific entity questions |
-| **Global** | ❌ | ✅ (community-based) | Broad topic questions |
-| **Hybrid** | ❌ | ✅ (local + global) | General purpose (default) |
-| **Mix** | ✅ | ✅ (all strategies) | Maximum coverage |
-| **Bypass** | ❌ | ❌ | Direct LLM (no RAG) |
+| Mode       | Vector Search | Graph Traversal      | Use Case                  |
+| ---------- | ------------- | -------------------- | ------------------------- |
+| **Naive**  | ✅            | ❌                   | Fast factual lookups      |
+| **Local**  | ✅            | ✅ (entity-centric)  | Specific entity questions |
+| **Global** | ❌            | ✅ (community-based) | Broad topic questions     |
+| **Hybrid** | ❌            | ✅ (local + global)  | General purpose (default) |
+| **Mix**    | ✅            | ✅ (all strategies)  | Maximum coverage          |
+| **Bypass** | ❌            | ❌                   | Direct LLM (no RAG)       |
 
 ### Mode Capabilities
 
@@ -530,7 +615,7 @@ pub fn balance_context(
     let entity_budget = (config.max_context_tokens as f32 * config.entity_weight) as usize;
     let relationship_budget = (config.max_context_tokens as f32 * config.relationship_weight) as usize;
     let chunk_budget = (config.max_context_tokens as f32 * config.chunk_weight) as usize;
-    
+
     // 2. Sort each category by relevance/score
     // 3. Take items until budget exhausted, respecting minimums
     // 4. Return truncated lists
@@ -583,23 +668,23 @@ pub enum ContextSource {
 
 ### Ingestion Complexity
 
-| Stage | Complexity | Notes |
-|-------|-----------|-------|
-| Chunking | O(n) | Linear scan of document |
-| Embedding | O(n/b) | n tokens, b batch size |
-| Extraction | O(c) | c chunks, LLM calls |
-| Merging | O(e log e) | e entities, sorted operations |
-| Storage | O(e + r) | e entities, r relationships |
+| Stage      | Complexity | Notes                         |
+| ---------- | ---------- | ----------------------------- |
+| Chunking   | O(n)       | Linear scan of document       |
+| Embedding  | O(n/b)     | n tokens, b batch size        |
+| Extraction | O(c)       | c chunks, LLM calls           |
+| Merging    | O(e log e) | e entities, sorted operations |
+| Storage    | O(e + r)   | e entities, r relationships   |
 
 ### Query Complexity
 
-| Mode | Complexity | Notes |
-|------|-----------|-------|
-| Naive | O(log n) | Vector ANN search |
-| Local | O(k × d) | k entities, d depth |
-| Global | O(c) | c communities |
-| Hybrid | O(k × d + c) | Combined |
-| Mix | O(log n + k × d + c) | All strategies |
+| Mode   | Complexity           | Notes               |
+| ------ | -------------------- | ------------------- |
+| Naive  | O(log n)             | Vector ANN search   |
+| Local  | O(k × d)             | k entities, d depth |
+| Global | O(c)                 | c communities       |
+| Hybrid | O(k × d + c)         | Combined            |
+| Mix    | O(log n + k × d + c) | All strategies      |
 
 ---
 
@@ -625,8 +710,55 @@ pub enum ContextSource {
 
 ---
 
+## Troubleshooting
+
+### Algorithm Issues
+
+| Symptom                     | Likely Cause                 | Solution                                 |
+| --------------------------- | ---------------------------- | ---------------------------------------- |
+| Few entities extracted      | Chunk size too small         | Increase `chunk_size` to 1500-2000       |
+| Duplicate entities in graph | Normalization not applied    | Ensure `normalize_entity_name()` called  |
+| Query returns empty context | Wrong query mode             | Try `hybrid` mode instead of `naive`     |
+| Context too large error     | Token budget exceeded        | Reduce `max_context_tokens` or `top_k`   |
+| Slow ingestion              | Too many gleaning passes     | Set `max_gleaning` to 0-1                |
+| Missing relationships       | Entity types too restrictive | Add more entity types to config          |
+| Low query relevance         | Poor embeddings              | Verify embedding model matches ingestion |
+| Graph traversal timeout     | Depth too high               | Reduce `max_graph_depth` to 2            |
+
+### Debug Commands
+
+```bash
+# Enable algorithm debug logging
+export RUST_LOG=edgequake_pipeline=debug,edgequake_query=debug
+
+# Check entity extraction output
+cargo run --example extract_entities -- --input sample.txt --verbose
+
+# Verify graph structure
+cargo run --example inspect_graph -- --namespace default --stats
+```
+
+### Quality Metrics
+
+| Metric                     | Target             | How to Measure                       |
+| -------------------------- | ------------------ | ------------------------------------ |
+| Entity deduplication ratio | 30-50%             | Unique entities / Total extracted    |
+| Relationship coverage      | 1.5-2.5 per entity | Total relationships / Total entities |
+| Query latency P95          | <2s                | Monitor `/metrics` endpoint          |
+| Context utilization        | 70-90%             | Tokens used / Token budget           |
+
+---
+
 ## Next Steps
 
-- [Storage Backends](0004-storage-backends.md) - Storage configuration
-- [LLM Integration](0005-llm-integration.md) - Provider setup
-- [Configuration Reference](0007-configuration-reference.md) - All options
+| Document                                                   | When to Read                       |
+| ---------------------------------------------------------- | ---------------------------------- |
+| [Architecture Overview](0002-architecture-overview.md)     | Understand system design           |
+| [Storage Backends](0004-storage-backends.md)               | Configure graph and vector storage |
+| [LLM Integration](0005-llm-integration.md)                 | Set up extraction LLM              |
+| [Configuration Reference](0007-configuration-reference.md) | Tune algorithm parameters          |
+| [API Reference](0003-api-reference.md)                     | Use ingestion and query endpoints  |
+
+---
+
+**Document Navigation**: [← Multi-Tenancy](0008-multi-tenancy.md) | [README](README.md) | [Quick Start →](0001-quick-start.md)

@@ -1,4 +1,21 @@
 //! Document processing pipeline.
+//!
+//! ## Implements
+//!
+//! - **FEAT0001**: Document Ingestion Pipeline orchestration
+//! - **FEAT0017**: Pipeline configuration management
+//! - **FEAT0018**: Batch processing with concurrency control
+//!
+//! ## Use Cases
+//!
+//! - **UC2301**: System processes document through all pipeline stages
+//! - **UC2302**: System batches extraction for LLM rate limiting
+//! - **UC2303**: System generates embeddings for chunks and entities
+//!
+//! ## Enforces
+//!
+//! - **BR0017**: Maximum concurrent extractions enforced
+//! - **BR0018**: Pipeline stages can be independently enabled/disabled
 
 use std::sync::Arc;
 
