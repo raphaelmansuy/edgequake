@@ -267,7 +267,6 @@ pub struct RateLimitState {
 
 impl RateLimitState {
     /// Create a new rate limit state.
-/// @implements FEAT0018
     pub fn new(limiter: RateLimiter, enabled: bool) -> Self {
         Self { limiter, enabled }
     }

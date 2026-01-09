@@ -6,10 +6,10 @@
 //! ## Implements
 //!
 //! @implements FEAT0802 (JWT Token Support)
-//! @implements FEAT0570 (JWT login with access and refresh tokens)
-//! @implements FEAT0571 (Token refresh without re-authentication)
-//! @implements FEAT0572 (User CRUD operations with role management)
-//! @implements FEAT0573 (API key generation and validation)
+//! @implements FEAT0804 (JWT login with access and refresh tokens)
+//! @implements FEAT0805 (Token refresh without re-authentication)
+//! @implements FEAT0806 (User CRUD operations with role management)
+//! @implements FEAT0807 (API key generation and validation)
 //!
 //! ## Use Cases
 //!

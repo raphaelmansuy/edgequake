@@ -6,9 +6,8 @@
 //!
 //! ## Implements
 //!
-//! - **FEAT1004**: Image extraction with optional OCR
-//! - **FEAT1024**: LLM-based image understanding
-//! - **FEAT1025**: Chart and diagram data extraction
+//! @implements FEAT1004
+//! @implements FEAT1025
 //!
 //! ## Enforces
 //!
