@@ -2,6 +2,24 @@
 //!
 //! This module defines the complete HTTP routing configuration for the EdgeQuake API.
 //!
+//! ## Implements
+//!
+//! - [`FEAT0450`]: RESTful API routing
+//! - [`FEAT0451`]: Versioned API endpoints
+//! - [`FEAT0452`]: Health and readiness probes
+//! - [`FEAT0453`]: WebSocket endpoints
+//!
+//! ## Use Cases
+//!
+//! - [`UC2050`]: Client accesses versioned API
+//! - [`UC2051`]: Kubernetes checks health/readiness
+//! - [`UC2052`]: Client receives real-time updates via WebSocket
+//!
+//! ## Enforces
+//!
+//! - [`BR0450`]: All business endpoints under /api/v1/
+//! - [`BR0451`]: Consistent route naming conventions
+//!
 //! # API Design Principles
 //!
 //! - **RESTful**: Resources are nouns, HTTP verbs indicate actions
