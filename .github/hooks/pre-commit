@@ -1,0 +1,45 @@
+#!/bin/bash
+# Pre-commit hook for documentation traceability validation
+# Copy to .git/hooks/pre-commit and chmod +x
+
+set -e
+
+echo "🔍 Running documentation traceability validation..."
+
+# Check if Python is available
+if ! command -v python3 &> /dev/null; then
+    echo "⚠️  Python3 not found, skipping validation"
+    exit 0
+fi
+
+# Get the repo root
+REPO_ROOT=$(git rev-parse --show-toplevel)
+cd "$REPO_ROOT"
+
+# Run frontend validation
+echo "📊 Validating frontend features..."
+python3 .github/skills/doc-traceability-validator/scripts/validate_features.py \
+    --code-dir edgequake_webui/src \
+    --docs-file docs/features.md \
+    --fail-threshold 90 2>/dev/null
+
+if [ $? -ne 0 ]; then
+    echo "❌ Frontend validation failed!"
+    echo "   Run: python3 .github/skills/doc-traceability-validator/scripts/validate_features.py --code-dir edgequake_webui/src --docs-file docs/features.md --verbose"
+    exit 1
+fi
+
+# Run backend validation
+echo "📊 Validating backend features..."
+python3 .github/skills/doc-traceability-validator/scripts/validate_features.py \
+    --code-dir edgequake/crates \
+    --docs-file docs/features.md \
+    --fail-threshold 90 2>/dev/null
+
+if [ $? -ne 0 ]; then
+    echo "❌ Backend validation failed!"
+    exit 1
+fi
+
+echo "✅ Documentation traceability validation passed!"
+exit 0

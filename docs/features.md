@@ -3,7 +3,31 @@
 > Central registry of all features in EdgeQuake RAG system.
 > Use FEATXXXX references in code comments for traceability.
 
-**Version**: 1.4.0 | **Last Updated**: 2026-01-09
+**Version**: 1.5.0 | **Last Updated**: 2026-01-09
+
+---
+
+## Namespace Allocation
+
+| Range         | Module/Team          | Description                                    |
+| ------------- | -------------------- | ---------------------------------------------- |
+| FEAT00XX      | Core Pipeline        | Document ingestion, chunking, entity extraction |
+| FEAT01XX      | Query Engine         | Query modes, caching, optimization             |
+| FEAT02XX      | Graph Storage        | PostgreSQL AGE, traversal, community detection |
+| FEAT03XX      | Streaming/Pipeline   | Chunking strategies, async processing          |
+| FEAT04XX      | Conversations/API    | Citations, history, REST endpoints             |
+| FEAT05XX      | PDF/Lineage          | PDF extraction, document provenance            |
+| FEAT06XX      | WebUI Core           | React components, stores, state management     |
+| FEAT07XX      | WebUI API/Utils      | API client, hooks, utilities                   |
+| FEAT08XX      | Authentication       | API keys, JWT, tenant isolation                |
+| FEAT085X      | Cost Management      | Token tracking, cost estimation                |
+| FEAT086X      | WebUI Providers      | React context providers                        |
+| FEAT087X      | Auth UI              | Login, registration, auth components           |
+| FEAT09XX      | Dashboard            | Analytics, metrics, system monitoring          |
+| FEAT10XX      | Document Mgmt UI     | Upload, preview, folder management             |
+
+> **Note**: Cross-cutting features (same ID in types, stores, hooks, components) are intentional.
+> See [SKILL.md](../.github/skills/doc-traceability-validator/SKILL.md) for validation details.
 
 ---
 
