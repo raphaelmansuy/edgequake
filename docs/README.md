@@ -10,6 +10,16 @@
 
 ## Documentation Overview
 
+### Core Registries
+
+| Document                           | Description                                    |
+| ---------------------------------- | ---------------------------------------------- |
+| [**Features Registry**](features.md)       | Central registry of all features (FEAT0001-XXXX) |
+| [**Business Rules**](business_rules.md)    | All business rules enforced (BR0001-XXXX)        |
+| [**Use Cases**](use_cases.md)              | Complete use case catalog (UC0001-XXXX)          |
+
+### Technical Documentation
+
 | Document                                                   | Description                                       |
 | ---------------------------------------------------------- | ------------------------------------------------- |
 | [Quick Start](0001-quick-start.md)                         | Get up and running in 5 minutes                   |
