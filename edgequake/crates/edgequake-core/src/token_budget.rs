@@ -4,6 +4,23 @@
 //! prompts and context for LLM queries. It ensures that context fits within
 //! model-specific token limits.
 //!
+//! ## Implements
+//!
+//! - **FEAT0840**: Token counting with tiktoken
+//! - **FEAT0841**: Budget allocation across content sources
+//! - **FEAT0842**: Text truncation to fit limits
+//!
+//! ## Use Cases
+//!
+//! - **UC2430**: System counts tokens in context
+//! - **UC2431**: System allocates budget across entities/chunks
+//! - **UC2432**: System truncates content to fit model limit
+//!
+//! ## Enforces
+//!
+//! - **BR0840**: Token counts must use model-specific encoder
+//! - **BR0841**: Reserved space for response must be maintained
+//!
 //! Based on LightRAG's context management in `lightrag/operate.py`
 
 use tiktoken_rs::{get_bpe_from_model, CoreBPE};
