@@ -2,9 +2,43 @@
 
 > Namespace-based data isolation for multi-tenant deployments
 
-**Version**: 0.1.0 | **Last Updated**: December 2025
+**Version**: 2.0.0 | **Last Updated**: January 2026
 
+> **Implements**: [FEAT0040](features.md#feat0040) Multi-Tenancy | [FEAT0041](features.md#feat0041) Namespace Isolation
+> **Business Rules**: [BR0040](business_rules.md#br0040) Data Isolation | [BR0041](business_rules.md#br0041) Cross-Tenant Prevention
+> **Use Cases**: [UC0010](use_cases.md#uc0010) Enterprise SaaS Deployment
 > **Code Reference**: See [edgequake/examples/multi_tenant.rs](../edgequake/examples/multi_tenant.rs) for a working example
+
+---
+
+## Quick Reference
+
+| I want to...                  | Go to                                         |
+| ----------------------------- | --------------------------------------------- |
+| Understand isolation model    | [Namespace-Based Isolation](#namespace-based-isolation) |
+| Implement in Rust code        | [Implementation](#implementation)             |
+| Use PostgreSQL multi-tenant   | [PostgreSQL Multi-Tenancy](#postgresql-multi-tenancy) |
+| Set up via API                | [API Usage](#api-usage)                       |
+| Configure RBAC                | [RBAC and Permissions](#rbac-and-permissions) |
+| See security best practices   | [Security Considerations](#security-considerations) |
+
+---
+
+## Isolation Model Summary
+
+| Isolation Type | Mechanism | Data Affected |
+| -------------- | --------- | ------------- |
+| **Namespace** | String prefix in all storage | Documents, Chunks, Entities, Relationships |
+| **PostgreSQL** | `namespace` column + WHERE clause | All tables include namespace filtering |
+| **API** | `X-Workspace-ID` header | Per-request tenant routing |
+| **RBAC** | Role + Permission matrix | Action authorization |
+
+### Security Guarantees
+
+✅ **Complete data isolation** - No tenant can access another's data  
+✅ **Query-level enforcement** - All queries include namespace filter  
+✅ **API-level validation** - Workspace ID validated on every request  
+✅ **No cross-tenant joins** - Graph queries scoped to namespace  
 
 ---
 
@@ -15,7 +49,9 @@
 3. [Implementation](#implementation)
 4. [PostgreSQL Multi-Tenancy](#postgresql-multi-tenancy)
 5. [API Usage](#api-usage)
-6. [Best Practices](#best-practices)
+6. [RBAC and Permissions](#rbac-and-permissions)
+7. [Security Considerations](#security-considerations)
+8. [Best Practices](#best-practices)
 
 ---
 
@@ -311,6 +347,65 @@ Permissions are grouped by resource type:
 
 ---
 
+## Security Considerations
+
+### Threat Model
+
+| Threat | Mitigation | Status |
+| ------ | ---------- | ------ |
+| Cross-tenant data access | All queries include `WHERE namespace = ?` | ✅ Enforced |
+| Tenant ID manipulation | Validate workspace header server-side | ✅ API validation |
+| SQL injection in namespace | Parameterized queries only | ✅ No string concat |
+| Privilege escalation | RBAC enforcement on all endpoints | ✅ Role checks |
+| Mass data export | Rate limiting per tenant | ⚙️ Configurable |
+
+### Namespace Injection Prevention
+
+```rust
+// GOOD: Parameterized query
+sqlx::query("SELECT * FROM documents WHERE namespace = $1")
+    .bind(&namespace)
+    .fetch_all(&pool)
+    .await?;
+
+// BAD: String concatenation (NEVER DO THIS)
+// sqlx::query(&format!("SELECT * FROM documents WHERE namespace = '{}'", namespace))
+```
+
+### Audit Logging
+
+For compliance, enable audit logging for cross-tenant operations:
+
+```bash
+# Enable audit logging
+export EDGEQUAKE_AUDIT_LOG=true
+export EDGEQUAKE_AUDIT_PATH=/var/log/edgequake/audit.log
+```
+
+```json
+// Audit log entry format
+{
+  "timestamp": "2026-01-15T10:30:00Z",
+  "action": "document.create",
+  "tenant_id": "acme",
+  "user_id": "user_123",
+  "resource_id": "doc_abc",
+  "ip_address": "192.168.1.100",
+  "success": true
+}
+```
+
+### Compliance Checklist
+
+- [ ] **Data residency**: Tenant data stored in correct region
+- [ ] **Encryption at rest**: All storage encrypted (PostgreSQL TDE)
+- [ ] **Encryption in transit**: TLS 1.3 for all connections
+- [ ] **Audit trail**: All operations logged with tenant context
+- [ ] **Data retention**: Per-tenant retention policies
+- [ ] **Right to deletion**: Tenant deletion cascades to all data
+
+---
+
 ## Best Practices
 
 ### 1. Consistent Namespace Naming
@@ -387,8 +482,28 @@ cargo run --example multi_tenant
 
 ---
 
+## Troubleshooting
+
+| Symptom | Likely Cause | Solution |
+| ------- | ------------ | -------- |
+| Data visible across tenants | Missing namespace filter | Check all queries include `namespace = ?` |
+| "Invalid namespace" error | Special characters | Use alphanumeric + underscore only |
+| Empty query results | Wrong tenant context | Verify `X-Workspace-ID` header |
+| Connection pool exhausted | Too many tenants | Share pool with namespace routing |
+| Slow tenant switching | Creating new connections | Use connection pooling |
+
+---
+
 ## Next Steps
 
-- **[Storage Backends](0004-storage-backends.md)** - Configure storage
-- **[Configuration Reference](0007-configuration-reference.md)** - All config options
-- **[Deployment Guide](0006-deployment-guide.md)** - Production deployment
+| Document | When to Read |
+| -------- | ------------ |
+| [Storage Backends](0004-storage-backends.md) | Configure PostgreSQL for multi-tenancy |
+| [Configuration Reference](0007-configuration-reference.md) | All namespace-related config options |
+| [Deployment Guide](0006-deployment-guide.md) | Production deployment with isolation |
+| [API Reference](0003-api-reference.md) | Workspace API endpoints |
+| [Algorithms Reference](0009-algorithms-reference.md) | Query algorithms across namespaces |
+
+---
+
+**Document Navigation**: [← Configuration Reference](0007-configuration-reference.md) | [README](README.md) | [Algorithms Reference →](0009-algorithms-reference.md)
