@@ -3,6 +3,7 @@
 ## Observe
 
 **Input State:**
+
 - Validation reported 42 duplicates as "CRITICAL" failures
 - Uniqueness score: 79.1% (penalizing cross-cutting architecture)
 - All duplicates were actually intentional cross-layer implementations
@@ -11,17 +12,20 @@
 
 **Root Cause Analysis:**
 The validation tool treated ALL duplicates as errors, but in React/TypeScript architecture:
+
 - Same feature ID correctly appears in types, stores, hooks, components, lib
 - Example: FEAT0001 (Document Ingestion) in 5 layers = intentional
 - Example: FEAT0601 (Graph API) in 8 files across 6 layers = intentional
 
 **Classification Logic Needed:**
+
 - **Cross-cutting duplicates**: Same feature ID across multiple architectural layers → ACCEPT
 - **True collisions**: Same feature ID within single layer → FIX
 
 ## Decide
 
 **Enhancements:**
+
 1. Add `classify_layer()` function to identify architectural layers
 2. Add `is_intentional_duplicate()` function for smart classification
 3. Update `ValidationResult` with `cross_cutting_duplicates` and `true_collisions` properties
@@ -32,6 +36,7 @@ The validation tool treated ALL duplicates as errors, but in React/TypeScript ar
 ## Act
 
 **Changes to validate_features.py:**
+
 1. ✅ Added `classify_layer()` - recognizes types, stores, hooks, providers, pages, components/{subdomain}, lib
 2. ✅ Added `is_intentional_duplicate()` - accepts multi-layer OR ≤3 related components
 3. ✅ Updated `cross_cutting_duplicates` property
@@ -42,11 +47,13 @@ The validation tool treated ALL duplicates as errors, but in React/TypeScript ar
 8. ✅ Updated exit condition: fail only on true collisions
 
 **Changes to full_validation.py:**
+
 - Updated to show new metrics and scores
 
 ## Results
 
 **Before Iteration 75:**
+
 ```
 Uniqueness Score:    79.1%
 True Collisions:     Unknown (all treated as errors)
@@ -54,6 +61,7 @@ Exit Status:         FAILED
 ```
 
 **After Iteration 75:**
+
 ```
 Completeness Score:  100.0%
 Uniqueness Score:    100.0%
@@ -66,6 +74,7 @@ Exit Status:         PASSED ✅
 ## Key Insight
 
 Cross-cutting feature implementations are a **positive architectural pattern** in React/TypeScript:
+
 - Types define the shape
 - Stores manage state
 - Hooks provide reactive behavior
