@@ -2,9 +2,37 @@
 
 > Complete reference for all EdgeQuake configuration options
 
-**Version**: 0.1.0 | **Last Updated**: December 2025
+**Version**: 2.0.0 | **Last Updated**: January 2026
 
+> **Implements**: [FEAT0030](features.md#feat0030) Configuration System | [FEAT0015](features.md#feat0015) Environment Config
+> **Business Rules**: [BR0030](business_rules.md#br0030) Config Precedence | [BR0031](business_rules.md#br0031) Secure Defaults
 > **Code Reference**: See [edgequake/crates/edgequake-core/src/config.rs](../edgequake/crates/edgequake-core/src/config.rs) for configuration structures
+
+---
+
+## Quick Reference
+
+| I want to...                  | Go to                                         |
+| ----------------------------- | --------------------------------------------- |
+| See all environment variables | [Environment Variables](#environment-variables) |
+| Configure storage             | [Storage Configuration](#storage-configuration) |
+| Set up LLM                    | [LLM Configuration](#llm-configuration)       |
+| Tune query performance        | [Query Configuration](#query-configuration)   |
+| Use config file               | [Configuration File](#configuration-file)     |
+| See preset profiles           | [Profile Presets](#profile-presets)           |
+
+---
+
+## Configuration at a Glance
+
+| Category | Key Variables | Impact |
+| -------- | ------------- | ------ |
+| **API** | `HOST`, `PORT` | Where server listens |
+| **Storage** | `DATABASE_URL` | Data persistence |
+| **LLM** | `OPENAI_API_KEY`, `EDGEQUAKE_LLM_MODEL` | AI capabilities |
+| **Pipeline** | `EDGEQUAKE_CHUNK_SIZE` | Document processing quality |
+| **Query** | `EDGEQUAKE_DEFAULT_MODE` | Query strategy |
+| **Logging** | `RUST_LOG` | Debug visibility |
 
 ---
 
@@ -18,6 +46,8 @@
 6. [Query Configuration](#query-configuration)
 7. [Environment Variables](#environment-variables)
 8. [Configuration File](#configuration-file)
+9. [Profile Presets](#profile-presets)
+10. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -496,8 +526,64 @@ RUST_LOG=info
 
 ---
 
+## Troubleshooting
+
+### Configuration Issues
+
+| Symptom | Likely Cause | Solution |
+| ------- | ------------ | -------- |
+| "environment variable not found" | Missing required var | Check `OPENAI_API_KEY` or `DATABASE_URL` is set |
+| Config file not loaded | Wrong path | Use absolute path or verify working directory |
+| Env overrides not working | Wrong priority | Env vars override config file, check spelling |
+| "invalid value" error | Wrong type | Check numbers are numbers, booleans are true/false |
+| CORS errors in browser | Wrong origins | Add your domain to `cors_origins` array |
+| Connection pool exhausted | Too low `max_connections` | Increase to 20-50 for production |
+| Slow embeddings | Wrong model | Use `text-embedding-3-small` for speed |
+| Out of context errors | Chunk size too small | Increase `EDGEQUAKE_CHUNK_SIZE` to 1500+ |
+
+### Validation Commands
+
+```bash
+# Verify environment is set correctly
+env | grep -E '^(OPENAI|EDGEQUAKE|DATABASE|HOST|PORT|RUST)' | sort
+
+# Test database connection
+psql $DATABASE_URL -c "SELECT 1 AS connected"
+
+# Test OpenAI API key
+curl -s https://api.openai.com/v1/models \
+  -H "Authorization: Bearer $OPENAI_API_KEY" | head -c 100
+
+# Check config file syntax
+cat config.toml | toml-test  # if you have toml-test installed
+```
+
+### Default Value Reference
+
+```bash
+# Print all defaults (pseudo-code)
+HOST=0.0.0.0
+PORT=8080
+EDGEQUAKE_CHUNK_SIZE=1200
+EDGEQUAKE_CHUNK_OVERLAP=100
+EDGEQUAKE_LLM_MODEL=gpt-4o-mini
+EDGEQUAKE_EMBEDDING_MODEL=text-embedding-3-small
+EDGEQUAKE_EMBEDDING_DIM=1536
+EDGEQUAKE_DEFAULT_MODE=hybrid
+```
+
+---
+
 ## Next Steps
 
-- **[Quick Start](0001-quick-start.md)** - Get started in 5 minutes
-- **[LLM Integration](0005-llm-integration.md)** - LLM provider setup
-- **[Deployment Guide](0006-deployment-guide.md)** - Production deployment
+| Document | When to Read |
+| -------- | ------------ |
+| [Quick Start](0001-quick-start.md) | Get started in 5 minutes |
+| [LLM Integration](0005-llm-integration.md) | Configure LLM providers in detail |
+| [Deployment Guide](0006-deployment-guide.md) | Production deployment |
+| [Multi-Tenancy](0008-multi-tenancy.md) | Namespace isolation |
+| [Storage Backends](0004-storage-backends.md) | Database configuration |
+
+---
+
+**Document Navigation**: [← Deployment Guide](0006-deployment-guide.md) | [README](README.md) | [Multi-Tenancy →](0008-multi-tenancy.md)
