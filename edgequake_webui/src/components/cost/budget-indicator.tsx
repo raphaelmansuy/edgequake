@@ -3,6 +3,15 @@
  * 
  * Visual indicator for budget status and limits.
  * Based on WebUI Specification Document WEBUI-007 (16-webui-cost-monitoring.md)
+ *
+ * @implements FEAT1040 - Budget status visualization
+ * @implements FEAT1041 - Budget threshold alerts
+ *
+ * @see UC1201 - User monitors API budget usage
+ * @see UC1202 - User receives budget threshold warnings
+ *
+ * @enforces BR1040 - Visual progress bar with color coding
+ * @enforces BR1041 - Alert display for budget warnings
  */
 
 'use client';
