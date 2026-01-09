@@ -1,4 +1,36 @@
-//! Knowledge graph handlers.
+//! Knowledge graph API handlers for visualization and exploration.
+//!
+//! # Implements
+//!
+//! - **UC0101**: Explore Entity Neighborhood
+//! - **UC0104**: View Graph Statistics
+//! - **FEAT0202**: Graph Traversal
+//! - **FEAT0204**: Graph Analytics
+//! - **FEAT0601**: Knowledge Graph Visualization
+//! - **FEAT0401**: REST API Service
+//!
+//! # Enforces
+//!
+//! - **BR0201**: Tenant isolation (graph scoped to workspace)
+//! - **BR0009**: Max 1000 nodes per visualization request
+//!
+//! # Endpoints
+//!
+//! | Method | Path | Handler | Description |
+//! |--------|------|---------|-------------|
+//! | GET | `/api/v1/graph` | [`get_graph`] | Get full graph (paginated) |
+//! | GET | `/api/v1/graph/stats` | [`get_graph_stats`] | Node/edge counts |
+//! | GET | `/api/v1/graph/stream` | SSE streaming graph updates |
+//!
+//! # WHY: Separate Graph Visualization Layer
+//!
+//! Graph visualization is compute-intensive and has different requirements
+//! than query execution:
+//! - Needs pagination to handle large graphs
+//! - Requires layout hints for rendering
+//! - May need streaming for real-time updates
+//!
+//! Separating from query handlers enables independent optimization.
 
 use axum::{
     extract::{Path, Query, State},
@@ -19,7 +51,23 @@ use crate::state::AppState;
 // Re-export DTOs from graph_types module
 pub use crate::handlers::graph_types::*;
 
-/// Get knowledge graph.
+/// Get knowledge graph with traversal from optional starting node.
+///
+/// # Implements
+///
+/// - **UC0101**: Explore Entity Neighborhood
+/// - **FEAT0601**: Knowledge Graph Visualization
+///
+/// # Enforces
+///
+/// - **BR0201**: Tenant isolation (filters by workspace)
+/// - **BR0009**: Node limit enforcement via `max_nodes`
+///
+/// # Parameters
+///
+/// - `start_node`: Optional entity ID to center traversal
+/// - `depth`: Max hops from start_node (default: 2)
+/// - `max_nodes`: Maximum nodes to return (default: 100, max: 1000)
 #[utoipa::path(
     get,
     path = "/api/v1/graph",

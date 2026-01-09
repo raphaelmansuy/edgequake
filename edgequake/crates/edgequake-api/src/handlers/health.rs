@@ -1,4 +1,30 @@
-//! Health check handlers.
+//! Health check handlers for operational monitoring.
+//!
+//! # Implements
+//!
+//! - **UC0501**: Health Check
+//! - **FEAT0401**: REST API Readiness/Liveness Endpoints
+//!
+//! # Endpoints
+//!
+//! | Method | Path | Handler | Description |
+//! |--------|------|---------|-------------|
+//! | GET | `/health` | [`health_check`] | Deep health with component status |
+//! | GET | `/ready` | [`readiness_check`] | K8s readiness probe (can serve traffic) |
+//! | GET | `/live` | [`liveness_check`] | K8s liveness probe (process alive) |
+//!
+//! # WHY: Three Health Endpoints
+//!
+//! Container orchestrators (Kubernetes, ECS) need separate probes:
+//!
+//! - **Liveness** (`/live`): Is process alive? Failure → restart container
+//! - **Readiness** (`/ready`): Can serve traffic? Failure → remove from load balancer
+//! - **Health** (`/health`): Deep check with component status for dashboards
+//!
+//! This separation enables:
+//! - Graceful degradation (remove from LB but don't restart)
+//! - Fast startup (ready before all caches warm)
+//! - Detailed debugging via `/health` response
 
 use axum::{extract::State, Json};
 
@@ -8,7 +34,25 @@ use crate::state::AppState;
 // Re-export DTOs from health_types for backwards compatibility
 pub use crate::handlers::health_types::{ComponentHealth, HealthResponse};
 
-/// Health check endpoint.
+/// Deep health check with component status.
+///
+/// # Implements
+///
+/// - **UC0501**: Health Check
+/// - **FEAT0401**: REST API Service
+///
+/// # Returns
+///
+/// JSON with:
+/// - `status`: "healthy" or "degraded"
+/// - `version`: API server version
+/// - `storage_mode`: "postgres" or "memory"
+/// - `components`: Per-component health (KV, vector, graph, LLM)
+///
+/// # WHY: Component-Level Visibility
+///
+/// Returns individual component health to help operators identify which
+/// backend is failing (database vs vector store vs LLM provider).
 #[utoipa::path(
     get,
     path = "/health",
