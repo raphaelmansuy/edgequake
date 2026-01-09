@@ -1,10 +1,31 @@
 # EdgeQuake API Reference
 
-> Complete REST API documentation for EdgeQuake Server
+> **Implements**: [FEAT0003](features.md#feat0003) REST API, [FEAT0004](features.md#feat0004) Streaming Responses
+>
+> Complete REST API documentation for EdgeQuake Server (25+ endpoints)
 
-**Version**: 0.1.0 | **Base URL**: `http://localhost:8080`
+**Version**: 2.0.0 | **Base URL**: `http://localhost:8080`
 
 > **Code Reference**: See [edgequake/crates/edgequake-api/src/routes.rs](../edgequake/crates/edgequake-api/src/routes.rs) for route definitions and [edgequake/crates/edgequake-api/src/handlers/](../edgequake/crates/edgequake-api/src/handlers/) for handler implementations
+
+---
+
+## Quick Reference
+
+| Category | Endpoint | Method | Description |
+|----------|----------|--------|-------------|
+| Health | `/health` | GET | Health check |
+| Documents | `/api/v1/documents` | POST | Upload document (201 Created) |
+| Documents | `/api/v1/documents` | GET | List documents |
+| Documents | `/api/v1/documents/{id}` | GET | Get document |
+| Documents | `/api/v1/documents/{id}` | DELETE | Delete document |
+| Query | `/api/v1/query` | POST | Execute query |
+| Query | `/api/v1/query/stream` | POST | Streaming query (SSE) |
+| Graph | `/api/v1/graph` | GET | Get knowledge graph |
+| Graph | `/api/v1/graph/entities` | GET | List entities |
+| Graph | `/api/v1/graph/relationships` | GET | List relationships |
+
+> **Enforces**: [BR0010](business_rules.md#br0010) REST Semantics (201 for resource creation)
 
 ---
 
@@ -1639,7 +1660,11 @@ Authorization: Bearer <token>
 
 ## Error Handling
 
+> **Enforces**: [BR0011](business_rules.md#br0011) Consistent Error Responses, [BR0012](business_rules.md#br0012) Input Validation
+
 ### Error Response Format
+
+All errors follow a consistent JSON structure:
 
 ```json
 {
@@ -1648,37 +1673,106 @@ Authorization: Bearer <token>
     "message": "Query cannot be empty",
     "details": {
       "field": "query",
-      "constraint": "min_length"
-    }
+      "constraint": "min_length",
+      "received": ""
+    },
+    "request_id": "req-550e8400"
   },
   "status": 400
 }
 ```
 
-### Error Codes
+### HTTP Status Code Reference
 
-| HTTP Status | Code              | Description                 |
-| ----------- | ----------------- | --------------------------- |
-| 400         | BAD_REQUEST       | Invalid request format      |
-| 400         | VALIDATION_ERROR  | Request validation failed   |
-| 401         | AUTH_REQUIRED     | Authentication required     |
-| 401         | INVALID_TOKEN     | Invalid or expired token    |
-| 403         | FORBIDDEN         | Insufficient permissions    |
-| 404         | NOT_FOUND         | Resource not found          |
-| 413         | PAYLOAD_TOO_LARGE | Document exceeds size limit |
-| 429         | RATE_LIMITED      | Too many requests           |
-| 500         | INTERNAL_ERROR    | Server error                |
+| HTTP Status | Code | Description | Common Causes |
+|-------------|------|-------------|---------------|
+| 200 | OK | Success | GET, PUT, DELETE operations |
+| 201 | CREATED | Resource created | POST /documents, POST /entities |
+| 400 | BAD_REQUEST | Invalid request format | Malformed JSON, missing fields |
+| 400 | VALIDATION_ERROR | Request validation failed | Empty query, invalid mode |
+| 401 | AUTH_REQUIRED | Authentication required | Missing Authorization header |
+| 401 | INVALID_TOKEN | Invalid or expired token | Expired JWT, bad API key |
+| 403 | FORBIDDEN | Insufficient permissions | Wrong tenant, read-only user |
+| 404 | NOT_FOUND | Resource not found | Invalid document_id, entity_name |
+| 409 | CONFLICT | Resource conflict | Duplicate document, entity exists |
+| 413 | PAYLOAD_TOO_LARGE | Document exceeds size limit | Content > 10MB |
+| 429 | RATE_LIMITED | Too many requests | Exceeded quota |
+| 500 | INTERNAL_ERROR | Server error | Database failure, LLM error |
+| 503 | SERVICE_UNAVAILABLE | Service temporarily unavailable | LLM provider down |
+
+### Common Error Scenarios
+
+```bash
+# Missing required field
+curl -X POST http://localhost:8080/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{}'
+# Response: 400 {"error": {"code": "VALIDATION_ERROR", "message": "query is required"}}
+
+# Invalid query mode
+curl -X POST http://localhost:8080/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "test", "mode": "invalid"}'
+# Response: 400 {"error": {"code": "VALIDATION_ERROR", "message": "mode must be one of: naive, local, global, hybrid, mix, bypass"}}
+
+# Document not found
+curl http://localhost:8080/api/v1/documents/nonexistent-id
+# Response: 404 {"error": {"code": "NOT_FOUND", "message": "Document not found"}}
+```
 
 ---
 
 ## Rate Limits
 
-| Endpoint Type   | Limit               |
-| --------------- | ------------------- |
-| Query           | 100 requests/minute |
-| Document Upload | 50 requests/minute  |
-| Graph Read      | 500 requests/minute |
-| Graph Write     | 100 requests/minute |
+> **Enforces**: [BR0013](business_rules.md#br0013) Rate Limiting, [BR0014](business_rules.md#br0014) Fair Usage
+
+| Endpoint Type | Default Limit | Header |
+|---------------|---------------|--------|
+| Query | 100 requests/minute | `X-RateLimit-Limit-Query` |
+| Document Upload | 50 requests/minute | `X-RateLimit-Limit-Upload` |
+| Graph Read | 500 requests/minute | `X-RateLimit-Limit-Graph` |
+| Graph Write | 100 requests/minute | `X-RateLimit-Limit-Write` |
+
+### Rate Limit Headers
+
+Every response includes rate limit headers:
+
+```http
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 1703520060
+```
+
+### Rate Limit Exceeded Response
+
+```json
+{
+  "error": {
+    "code": "RATE_LIMITED",
+    "message": "Rate limit exceeded. Please wait before retrying.",
+    "details": {
+      "limit": 100,
+      "remaining": 0,
+      "reset_at": "2025-12-25T14:35:00Z",
+      "retry_after_seconds": 45
+    }
+  },
+  "status": 429
+}
+```
+
+---
+
+## Next Steps
+
+| Your Goal | Next Document |
+|-----------|---------------|
+| Configure storage backends | [Storage Backends](0004-storage-backends.md) |
+| Set up LLM providers | [LLM Integration](0005-llm-integration.md) |
+| Deploy to production | [Deployment Guide](0006-deployment-guide.md) |
+| Set up multi-tenancy | [Multi-Tenancy](0008-multi-tenancy.md) |
+
+> **See Also**: [Features Registry](features.md) | [Use Cases](use_cases.md)
 
 ---
 
