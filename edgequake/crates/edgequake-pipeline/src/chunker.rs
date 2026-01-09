@@ -1,4 +1,24 @@
-//! Text chunking with overlap.
+//! Text chunking with overlap for document processing.
+//!
+//! # Implements
+//!
+//! - **FEAT0004**: Semantic Chunking
+//! - **FEAT0011**: Document-Chunk-Entity Lineage (via line number tracking)
+//!
+//! # Enforces
+//!
+//! - **BR0002**: Chunk size 1200 tokens, overlap 100 tokens (default config)
+//!
+//! # WHY: Overlapping Chunks
+//!
+//! Overlap between chunks ensures:
+//! 1. Context continuity across chunk boundaries
+//! 2. Entity mentions spanning two chunks are captured
+//! 3. Better retrieval for queries at chunk boundaries
+//!
+//! The default 100-token overlap (~8% of chunk size) balances:
+//! - Coverage (entities not missed)
+//! - Efficiency (minimal duplicate processing)
 //!
 //! This module provides flexible text chunking with support for custom chunking functions.
 //! Users can implement the `ChunkingStrategy` trait to provide their own chunking logic.
