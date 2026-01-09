@@ -1,11 +1,93 @@
-//! EdgeQuake Orchestrator - Main RAG coordination module.
+//! EdgeQuake Orchestrator - Central RAG coordination module.
 //!
-//! This module provides the high-level EdgeQuake orchestrator, equivalent to
-//! LightRAG's main class, that coordinates all RAG operations including:
-//! - Document ingestion and processing
-//! - Knowledge graph construction
-//! - Multi-modal querying (local, global, hybrid)
-//! - Workspace management for multi-tenancy
+//! # Overview
+//!
+//! **Implements**: FEAT0001 (Document Ingestion), FEAT0007 (Multi-Mode Query),
+//!                 FEAT0015 (Multi-Tenant Isolation)
+//!
+//! **Enforces**: BR0001 (Doc ID Uniqueness), BR0002 (Chunk Constraints),
+//!               BR0101 (Token Budget), BR0201 (Tenant Isolation)
+//!
+//! The orchestrator is the primary entry point for all EdgeQuake operations,
+//! coordinating document processing, knowledge graph construction, and query execution.
+//!
+//! # Architecture
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────┐
+//! │                       EdgeQuake                              │
+//! │  ┌─────────────────────────────────────────────────────────┐ │
+//! │  │                    Orchestrator                          │ │
+//! │  │  - config: EdgeQuakeConfig                              │ │
+//! │  │  - storage: KV + Vector + Graph                         │ │
+//! │  │  - providers: LLM + Embedding                           │ │
+//! │  └────────────────────────┬────────────────────────────────┘ │
+//! │                           │                                  │
+//! │     ┌─────────────────────┼─────────────────────┐           │
+//! │     │                     │                     │           │
+//! │     ▼                     ▼                     ▼           │
+//! │  ┌──────────┐       ┌──────────┐         ┌──────────┐       │
+//! │  │ insert() │       │  query() │         │ delete() │       │
+//! │  └────┬─────┘       └────┬─────┘         └────┬─────┘       │
+//! │       │                  │                    │             │
+//! │       ▼                  ▼                    ▼             │
+//! │  ┌──────────┐       ┌──────────┐         ┌──────────┐       │
+//! │  │ Pipeline │       │  Query   │         │ Cascade  │       │
+//! │  │ (chunk+  │       │  Engine  │         │  Delete  │       │
+//! │  │ extract) │       │ (6 modes)│         │ (source  │       │
+//! │  └──────────┘       └──────────┘         │ tracking)│       │
+//! │                                          └──────────┘       │
+//! └─────────────────────────────────────────────────────────────┘
+//!
+//! Storage Layer:
+//! ┌──────────┐    ┌──────────┐    ┌──────────┐
+//! │ KVStorage│    │VectorStor│    │GraphStor │
+//! │ (docs,   │    │(pgvector)│    │(AGE/mem) │
+//! │  chunks) │    │          │    │          │
+//! └──────────┘    └──────────┘    └──────────┘
+//! ```
+//!
+//! # Key Operations
+//!
+//! ## Document Ingestion (FEAT0001)
+//!
+//! ```rust,ignore
+//! // Insert returns processing stats
+//! let result = eq.insert("Document content...", Some("doc-001")).await?;
+//! assert!(result.entities_extracted > 0);
+//! ```
+//!
+//! ## Query Execution (FEAT0007)
+//!
+//! ```rust,ignore
+//! use edgequake_core::{QueryParams, QueryMode};
+//!
+//! let params = QueryParams::new().with_mode(QueryMode::Hybrid);
+//! let response = eq.query("What is X?", Some(params)).await?;
+//! println!("Answer: {}", response.response);
+//! ```
+//!
+//! # Query Modes (FEAT0101-FEAT0106)
+//!
+//! | Mode | Strategy | Best For |
+//! |------|----------|----------|
+//! | `naive` | Vector similarity only | Simple factual queries |
+//! | `local` | Entity-centric + neighbors | Specific entity questions |
+//! | `global` | Community-based | Broad topic overviews |
+//! | `hybrid` | Local + global (default) | General purpose |
+//! | `mix` | Weighted naive + graph | Tunable balance |
+//! | `bypass` | Direct LLM (no RAG) | Creative/chat |
+//!
+//! # Multi-Tenancy (FEAT0015, BR0201)
+//!
+//! All operations respect tenant isolation via `tenant_id` and `workspace_id`
+//! in the configuration. Cross-tenant data access is prevented at the storage layer.
+//!
+//! # See Also
+//!
+//! - [`crate::types::QueryParams`] - Query configuration options
+//! - [`crate::types::InsertResult`] - Insertion result details
+//! - [docs/features.md](../../../../../../docs/features.md) - Complete feature registry
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -437,6 +519,20 @@ impl EdgeQuake {
 
     /// Insert a document for processing.
     ///
+    /// # Implements
+    ///
+    /// - **FEAT0001**: Document Ingestion
+    /// - **FEAT0002**: Text Chunking with Overlap
+    /// - **FEAT0003**: LLM-Based Entity Extraction
+    /// - **FEAT0005**: Knowledge Graph Construction
+    /// - **FEAT0006**: Vector Embedding Generation
+    ///
+    /// # Enforces
+    ///
+    /// - **BR0001**: Document ID must be unique (error on duplicate)
+    /// - **BR0002**: Chunk overlap < chunk size (validated in pipeline)
+    /// - **BR0003**: Entity names normalized to UPPERCASE_UNDERSCORED
+    ///
     /// # WHY: 3-Stage Pipeline Architecture
     ///
     /// The insert flow follows a 3-stage architecture (similar to LightRAG):
@@ -453,6 +549,20 @@ impl EdgeQuake {
     /// 3. **Vector Storage** - Store embeddings for semantic search
     ///    - WHY type metadata: Distinguish entity vectors from chunk vectors
     ///    - WHY tenant isolation: Multi-tenancy requires vector filtering
+    ///
+    /// # Arguments
+    ///
+    /// * `content` - Raw text content to process
+    /// * `document_id` - Optional document ID; auto-generated UUID if not provided
+    ///
+    /// # Returns
+    ///
+    /// [`InsertResult`] with processing statistics (chunks, entities, relationships)
+    ///
+    /// # Errors
+    ///
+    /// - `Error::not_initialized` if EdgeQuake not initialized
+    /// - `Error::internal` if pipeline or storage operations fail
     pub async fn insert(&self, content: &str, document_id: Option<&str>) -> Result<InsertResult> {
         if !self.initialized {
             return Err(Error::not_initialized("EdgeQuake not initialized"));
@@ -573,7 +683,58 @@ impl EdgeQuake {
         Ok(results)
     }
 
-    /// Query the knowledge base.
+    /// Query the knowledge base with configurable retrieval strategy.
+    ///
+    /// # Implements
+    ///
+    /// - **FEAT0007**: Multi-Mode Query Execution
+    /// - **FEAT0101-0106**: Query mode strategies (naive/local/global/hybrid/mix/bypass)
+    /// - **FEAT0107**: LLM-Based Keyword Extraction
+    /// - **FEAT0108**: Smart Context Truncation
+    ///
+    /// # Enforces
+    ///
+    /// - **BR0101**: Token budget must not exceed LLM context window
+    /// - **BR0102**: Graph context takes priority over naive chunks
+    /// - **BR0103**: Query mode must be valid enum value
+    /// - **BR0105**: Empty queries are rejected
+    /// - **BR0201**: Tenant isolation (queries scoped to tenant/workspace)
+    ///
+    /// # WHY: Multi-Stage Retrieval Pipeline
+    ///
+    /// Query execution follows a multi-stage retrieval pipeline:
+    ///
+    /// ```text
+    /// Query → Keywords → Vector Search → Graph Traversal → Context → LLM → Response
+    ///                         ↓                ↓
+    ///                    [chunks]        [entities, rels]
+    /// ```
+    ///
+    /// 1. **Keyword Extraction** - Extract search terms from natural language query
+    /// 2. **Candidate Retrieval** - Vector similarity + graph traversal
+    /// 3. **Context Aggregation** - Merge and rank retrieved context
+    /// 4. **Token Budget** - Truncate to fit LLM context window
+    /// 5. **LLM Generation** - Generate final response
+    ///
+    /// # Arguments
+    ///
+    /// * `query` - Natural language query string
+    /// * `params` - Optional query parameters (mode, filters, limits)
+    ///
+    /// # Returns
+    ///
+    /// [`QueryResult`] with response, sources, and retrieval statistics
+    ///
+    /// # Errors
+    ///
+    /// - `Error::not_initialized` if EdgeQuake not initialized
+    /// - Query engine errors propagated from retrieval/generation
+    ///
+    /// # See Also
+    ///
+    /// - [`QueryParams`] for configuration options
+    /// - [`QueryMode`] for available modes
+    /// - [docs/features.md#FEAT0101](../../../../../../docs/features.md) for mode details
     pub async fn query(&self, query: &str, params: Option<QueryParams>) -> Result<QueryResult> {
         if !self.initialized {
             return Err(Error::not_initialized("EdgeQuake not initialized"));
@@ -582,6 +743,7 @@ impl EdgeQuake {
         let mut params = params.unwrap_or_default();
 
         // Set tenant and workspace IDs from config if not provided in params
+        // WHY: Ensures tenant isolation (BR0201) even if caller forgets to set
         if params.tenant_id.is_none() {
             params.tenant_id = self.config.tenant_id.clone();
         }
@@ -594,11 +756,23 @@ impl EdgeQuake {
             .as_ref()
             .ok_or_else(|| Error::not_initialized("Query engine not initialized"))?;
 
-        // Build edgequake-query request from core QueryParams
+        // Delegate to SOTA query engine (FEAT0109)
+        // WHY delegation: Query logic is complex; separating into edgequake-query crate
+        // enables independent testing and evolution of retrieval strategies
         query_engine.query(query, params).await
     }
 
     /// Delete a document and cascade delete associated graph data.
+    ///
+    /// # Implements
+    ///
+    /// - **UC0005**: Delete Document
+    /// - **FEAT0011**: Document-Chunk-Entity Lineage
+    ///
+    /// # Enforces
+    ///
+    /// - **BR0007**: Lineage records are append-only (deletion removes, not modifies)
+    /// - **BR0201**: Tenant isolation (only deletes within tenant scope)
     ///
     /// # WHY: Source-Tracking Cascade Delete
     ///
@@ -756,7 +930,20 @@ impl EdgeQuake {
 
     /// Analyze the impact of deleting a document before actually deleting it.
     ///
-    /// This implements impact analysis (P4-06) from the specification.
+    /// # Implements
+    ///
+    /// - **UC0006**: Preview Document Deletion Impact
+    /// - **FEAT0012**: Deletion Impact Analysis
+    ///
+    /// # WHY: Pre-Flight Impact Visibility
+    ///
+    /// Before destructive operations, users need to understand what will change.
+    /// This method performs a dry-run of deletion to show:
+    /// - How many chunks will be removed
+    /// - Which entities will be fully deleted vs. partially updated
+    /// - Which relationships will be affected
+    ///
+    /// This implements impact analysis (P4-06) from the LightRAG specification.
     pub async fn analyze_deletion_impact(
         &self,
         document_id: &str,
@@ -828,7 +1015,25 @@ impl EdgeQuake {
         Ok(result)
     }
 
-    /// Delete an entity and its relationships.
+    /// Delete an entity and its relationships from the knowledge graph.
+    ///
+    /// # Implements
+    ///
+    /// - **UC0103**: Delete Entity from Graph
+    /// - **FEAT0203**: Graph Mutation Operations
+    ///
+    /// # Enforces
+    ///
+    /// - **BR0008**: Entity names are normalized (UPPERCASE with underscores)
+    /// - **BR0201**: Tenant isolation (deletion scoped to tenant)
+    ///
+    /// # WHY: Cascade Edge Deletion
+    ///
+    /// When an entity is deleted, all connected edges must also be deleted.
+    /// Orphan edges would corrupt graph traversal queries. The deletion order is:
+    /// 1. Find and delete all edges where entity is source or target
+    /// 2. Delete the node itself from graph storage
+    /// 3. Delete the entity embedding from vector storage
     pub async fn delete_entity(&self, entity_name: &str) -> Result<EntityDeletionResult> {
         if !self.initialized {
             return Err(Error::not_initialized("EdgeQuake not initialized"));
@@ -871,7 +1076,19 @@ impl EdgeQuake {
         })
     }
 
-    /// Get graph statistics.
+    /// Get knowledge graph statistics (node count, edge count, etc.).
+    ///
+    /// # Implements
+    ///
+    /// - **UC0104**: View Graph Statistics
+    /// - **FEAT0204**: Graph Analytics
+    ///
+    /// # WHY: Operational Visibility
+    ///
+    /// Graph statistics are essential for:
+    /// - Monitoring knowledge base growth over time
+    /// - Capacity planning (when to shard or scale)
+    /// - Quality metrics (entities per document ratio)
     pub async fn get_graph_stats(&self) -> Result<GraphStats> {
         if !self.initialized {
             return Err(Error::not_initialized("EdgeQuake not initialized"));
@@ -892,7 +1109,16 @@ impl EdgeQuake {
         })
     }
 
-    /// Get document information.
+    /// Get document information by ID.
+    ///
+    /// # Implements
+    ///
+    /// - **UC0003**: View Document Details
+    /// - **FEAT0010**: Document Metadata Storage
+    ///
+    /// # TODO
+    ///
+    /// Implementation pending - needs to retrieve from KV store.
     pub async fn get_document(&self, _document_id: &str) -> Result<Option<DocumentInfo>> {
         if !self.initialized {
             return Err(Error::not_initialized("EdgeQuake not initialized"));
@@ -902,7 +1128,16 @@ impl EdgeQuake {
         Ok(None)
     }
 
-    /// List all documents.
+    /// List all documents in the knowledge base.
+    ///
+    /// # Implements
+    ///
+    /// - **UC0002**: List Documents
+    /// - **FEAT0010**: Document Metadata Storage
+    ///
+    /// # TODO
+    ///
+    /// Implementation pending - needs to enumerate KV store entries.
     pub async fn list_documents(&self) -> Result<Vec<DocumentInfo>> {
         if !self.initialized {
             return Err(Error::not_initialized("EdgeQuake not initialized"));
@@ -911,7 +1146,18 @@ impl EdgeQuake {
         Ok(Vec::new())
     }
 
-    /// Search entities by name.
+    /// Search entities by name using vector similarity.
+    ///
+    /// # Implements
+    ///
+    /// - **UC0102**: Search Entities by Name
+    /// - **FEAT0201**: Vector Similarity Search
+    ///
+    /// # WHY: Fuzzy Entity Discovery
+    ///
+    /// Users often don't know exact entity names. Vector similarity enables:
+    /// - Typo tolerance (finding "Apple Inc" when searching "apple company")
+    /// - Semantic matching (finding "Microsoft" when searching "software giant")
     pub async fn search_entities(&self, query: &str, limit: usize) -> Result<Vec<ContextEntity>> {
         if !self.initialized {
             return Err(Error::not_initialized("EdgeQuake not initialized"));
@@ -972,7 +1218,32 @@ impl EdgeQuake {
         Ok(entities)
     }
 
-    /// Get knowledge graph subgraph around an entity.
+    /// Get knowledge graph subgraph centered on an entity.
+    ///
+    /// # Implements
+    ///
+    /// - **UC0101**: Explore Entity Neighborhood
+    /// - **FEAT0202**: Graph Traversal
+    /// - **FEAT0601**: Knowledge Graph Visualization
+    ///
+    /// # WHY: Visual Knowledge Exploration
+    ///
+    /// Subgraph extraction enables:
+    /// - Interactive graph visualization in the WebUI
+    /// - Understanding entity context and relationships
+    /// - Debugging knowledge graph quality
+    ///
+    /// # Arguments
+    ///
+    /// * `entity_name` - Starting entity for traversal
+    /// * `max_depth` - Maximum hops from starting entity (currently unused, always 1)
+    /// * `max_nodes` - Maximum nodes to return (currently unused)
+    ///
+    /// # TODO
+    ///
+    /// - Implement multi-hop traversal with configurable depth
+    /// - Add node limit enforcement
+    /// - Optimize for large graphs with sampling
     pub async fn get_entity_graph(
         &self,
         entity_name: &str,
@@ -1064,7 +1335,24 @@ impl EdgeQuake {
         })
     }
 
-    /// Check if the instance is healthy.
+    /// Check if the EdgeQuake instance is healthy and ready.
+    ///
+    /// # Implements
+    ///
+    /// - **UC0501**: Health Check
+    /// - **FEAT0401**: REST API Readiness Endpoint
+    ///
+    /// # WHY: Kubernetes Liveness/Readiness Probes
+    ///
+    /// Container orchestrators (Kubernetes, ECS) need health endpoints to:
+    /// - Determine if instance should receive traffic
+    /// - Restart unhealthy instances automatically
+    /// - Enable zero-downtime deployments
+    ///
+    /// # TODO
+    ///
+    /// - Add deep health checks (database connectivity, LLM provider reachability)
+    /// - Add configurable timeout for health probe
     pub async fn health_check(&self) -> Result<bool> {
         // TODO: Check all backend connections
         Ok(self.initialized)
