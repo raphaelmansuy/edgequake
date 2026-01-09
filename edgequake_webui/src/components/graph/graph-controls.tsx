@@ -1,3 +1,15 @@
+/**
+ * @module GraphControls
+ * @description Graph layout and display controls.
+ * Provides layout algorithm selection, clustering toggles, and rendering options.
+ *
+ * @implements FEAT0603 - Layout algorithm selection
+ * @implements FEAT0604 - Clustering toggle
+ * @implements FEAT0751 - Graph rendering options
+ *
+ * @enforces BR0601 - Layout changes animate smoothly
+ * @enforces BR0751 - Settings persist across sessions
+ */
 'use client';
 
 import { Button } from '@/components/ui/button';

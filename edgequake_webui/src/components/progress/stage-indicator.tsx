@@ -16,10 +16,10 @@
 
 'use client';
 
-import { cn } from '@/lib/utils';
-import { Check, Loader2, AlertCircle, Circle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import type { IngestionStage } from '@/types/ingestion';
+import { AlertCircle, Check, Circle, Loader2 } from 'lucide-react';
 
 export interface Stage {
   id: IngestionStage;
