@@ -2,6 +2,27 @@
 //!
 //! This module implements JWT-based authentication with refresh tokens,
 //! user management (CRUD), and API key management.
+//!
+//! ## Implements
+//!
+//! - **FEAT0570**: JWT login with access and refresh tokens
+//! - **FEAT0571**: Token refresh without re-authentication
+//! - **FEAT0572**: User CRUD operations with role management
+//! - **FEAT0573**: API key generation and validation
+//!
+//! ## Use Cases
+//!
+//! - **UC2170**: User logs in with username/password to get JWT
+//! - **UC2171**: Client refreshes expired access token
+//! - **UC2172**: Admin creates new user with specific role
+//! - **UC2173**: User generates API key for programmatic access
+//!
+//! ## Enforces
+//!
+//! - **BR0570**: Passwords must be hashed with bcrypt
+//! - **BR0571**: Refresh tokens must be stored securely
+//! - **BR0572**: API keys must have expiration dates
+//! - **BR0573**: Username and email must be unique
 
 use axum::{
     extract::{Path, Query, State},
