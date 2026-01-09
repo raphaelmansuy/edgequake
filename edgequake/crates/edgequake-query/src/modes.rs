@@ -1,4 +1,17 @@
-//! Query modes.
+//! Query modes for multi-strategy retrieval.
+//!
+//! # Implements
+//!
+//! - **FEAT0101**: Naive Mode - Vector similarity only
+//! - **FEAT0102**: Local Mode - Entity-centric graph
+//! - **FEAT0103**: Global Mode - Community summaries
+//! - **FEAT0104**: Hybrid Mode - Local + Global combined
+//! - **FEAT0105**: Mix Mode - Weighted naive + graph
+//! - **FEAT0106**: Bypass Mode - Direct LLM (no RAG)
+//!
+//! # Enforces
+//!
+//! - **BR0103**: Query mode must be valid enum value (parsed via `FromStr`)
 //!
 //! # WHY Multiple Query Modes
 //!
@@ -11,12 +24,14 @@
 //!
 //! ## Mode Selection Guidelines
 //!
-//! | Question Type | Best Mode | Why |
-//! |--------------|-----------|-----|
-//! | Factual/specific | Naive | Direct vector match, fast |
-//! | Entity relationships | Local | Explores entity neighborhood in graph |
-//! | Broad/thematic | Global | Uses community detection for topics |
-//! | Complex/multi-faceted | Hybrid | Combines local specificity + global coverage |
+//! | Question Type | Best Mode | FEAT | Why |
+//! |--------------|-----------|------|-----|
+//! | Factual/specific | Naive | FEAT0101 | Direct vector match, fast |
+//! | Entity relationships | Local | FEAT0102 | Explores entity neighborhood |
+//! | Broad/thematic | Global | FEAT0103 | Uses community detection |
+//! | Complex/multi-faceted | Hybrid | FEAT0104 | Both approaches combined |
+//! | Custom weights needed | Mix | FEAT0105 | Configurable blend |
+//! | Testing/debugging | Bypass | FEAT0106 | Skip RAG entirely |
 //!
 //! ## Performance vs Accuracy Trade-offs
 //!
