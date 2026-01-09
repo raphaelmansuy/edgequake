@@ -64,7 +64,7 @@ def main():
     frontend_ids = set(frontend.get("code_feature_ids", []))
     backend_ids = set(backend.get("code_feature_ids", []))
     all_code_ids = frontend_ids | backend_ids
-    
+
     # Orphaned = in docs but not in ANY code location
     doc_ids = set(frontend.get("doc_feature_ids", []))
     true_orphaned = doc_ids - all_code_ids
@@ -72,9 +72,17 @@ def main():
     # Get duplicate counts - check for both old format (list) and new format (dict)
     frontend_dupes_raw = frontend.get("duplicates", {})
     backend_dupes_raw = backend.get("duplicates", {})
-    
-    frontend_dupes = len(frontend_dupes_raw) if isinstance(frontend_dupes_raw, dict) else len(frontend_dupes_raw)
-    backend_dupes = len(backend_dupes_raw) if isinstance(backend_dupes_raw, dict) else len(backend_dupes_raw)
+
+    frontend_dupes = (
+        len(frontend_dupes_raw)
+        if isinstance(frontend_dupes_raw, dict)
+        else len(frontend_dupes_raw)
+    )
+    backend_dupes = (
+        len(backend_dupes_raw)
+        if isinstance(backend_dupes_raw, dict)
+        else len(backend_dupes_raw)
+    )
     total_dupes = frontend_dupes + backend_dupes
 
     print(f"\n📊 COVERAGE:")
@@ -93,7 +101,7 @@ def main():
     print(f"  True collisions:     0 (all fixed!)")
 
     print(f"\n📈 SCORES:")
-    completeness = (total_code - total_undocumented)/max(total_code,1)*100
+    completeness = (total_code - total_undocumented) / max(total_code, 1) * 100
     # Uniqueness now 100% since no true collisions
     uniqueness = 100.0
     overall = 0.50 * completeness + 0.35 * uniqueness + 0.15 * 100

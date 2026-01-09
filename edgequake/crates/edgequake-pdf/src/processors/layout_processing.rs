@@ -1,5 +1,7 @@
 //! Layout analysis and margin filtering processors.
 //!
+//! @implements FEAT1003
+//!
 //! **Single Responsibility:** Spatial layout processing.
 //!
 //! This module contains processors for layout-related operations:

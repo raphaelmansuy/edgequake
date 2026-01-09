@@ -1,4 +1,6 @@
 //! Text cleanup and normalization processors.
+//! 
+//! @implements FEAT1006
 //!
 //! **Single Responsibility:** Cleaning and normalizing extracted text.
 //!

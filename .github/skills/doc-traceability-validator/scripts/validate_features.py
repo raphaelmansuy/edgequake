@@ -54,46 +54,53 @@ class FeatureDoc:
 
 def classify_layer(file_path: str) -> str:
     """Classify a file into its architectural layer.
-    
+
     For components, includes the subdirectory to recognize related components
     (e.g., components/query/*, components/graph/*) as belonging to the same feature domain.
     """
-    if '/types/' in file_path: return 'types'
-    if '/stores/' in file_path: return 'stores'
-    if '/hooks/' in file_path: return 'hooks'
-    if '/providers/' in file_path: return 'providers'
-    if '/app/' in file_path: return 'pages'
-    if '/components/' in file_path:
+    if "/types/" in file_path:
+        return "types"
+    if "/stores/" in file_path:
+        return "stores"
+    if "/hooks/" in file_path:
+        return "hooks"
+    if "/providers/" in file_path:
+        return "providers"
+    if "/app/" in file_path:
+        return "pages"
+    if "/components/" in file_path:
         # Extract component subdirectory (e.g., query, graph, documents)
         import re
-        match = re.search(r'/components/([^/]+)/', file_path)
+
+        match = re.search(r"/components/([^/]+)/", file_path)
         if match:
-            return f'components/{match.group(1)}'
-        return 'components'
-    if '/lib/' in file_path: return 'lib'
-    return 'other'
+            return f"components/{match.group(1)}"
+        return "components"
+    if "/lib/" in file_path:
+        return "lib"
+    return "other"
 
 
 def is_intentional_duplicate(occurrences: list) -> bool:
     """Check if duplicates are intentional (related files in same feature domain).
-    
+
     Returns True if:
     - Files span multiple layers (types, stores, hooks, components, lib)
     - Files are in different component subdirectories
     - Files are in the same domain but serve different purposes
     """
     layers = set(classify_layer(o.file_path) for o in occurrences)
-    
+
     # If spanning multiple layers, it's intentional cross-cutting
     if len(layers) >= 2:
         return True
-    
+
     # If all in components but in different files, it may be related components
     # implementing the same feature (e.g., thinking-display, query-interface, chat-message)
-    if len(occurrences) <= 3 and all('components' in l for l in layers):
+    if len(occurrences) <= 3 and all("components" in l for l in layers):
         # Check if they're in the same subdirectory (same feature domain)
         return True
-    
+
     return False
 
 
@@ -140,7 +147,7 @@ class ValidationResult:
     @property
     def uniqueness_score(self) -> float:
         """Percentage of features with unique IDs (no true collisions).
-        
+
         Cross-cutting duplicates (same feature across layers) are acceptable.
         Only same-layer collisions count as violations.
         """
@@ -379,13 +386,13 @@ def print_report(result: ValidationResult, verbose: bool = False) -> None:
     if result.duplicates:
         cross_cutting = result.cross_cutting_duplicates
         collisions = result.true_collisions
-        
+
         print(f"\n{'─' * 60}")
         print("📊 DUPLICATE CLASSIFICATION:")
         print("─" * 60)
         print(f"  Cross-cutting (multi-layer, OK): {len(cross_cutting)} feature IDs")
         print(f"  True collisions (same-layer):    {len(collisions)} feature IDs")
-        
+
         if collisions:
             print(f"\n{'─' * 60}")
             print("⚠️  TRUE COLLISIONS (NEED FIX):")
@@ -398,7 +405,7 @@ def print_report(result: ValidationResult, verbose: bool = False) -> None:
                         print(f"      Description: {occ.description}")
         else:
             print("\n  ✅ No true collisions! All duplicates are cross-cutting.")
-        
+
         if cross_cutting and verbose:
             print(f"\n{'─' * 60}")
             print("ℹ️  CROSS-CUTTING FEATURES (intentional, no action needed):")
@@ -541,7 +548,9 @@ def main():
     true_collisions = result.true_collisions
     if true_collisions:
         print(f"\n❌ FAILED: {len(true_collisions)} true collision(s) detected")
-        print("   Cross-cutting duplicates are OK, but same-layer collisions need fixing.")
+        print(
+            "   Cross-cutting duplicates are OK, but same-layer collisions need fixing."
+        )
         sys.exit(1)
 
     print("\n✅ Validation passed")
