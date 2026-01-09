@@ -2,8 +2,9 @@
 //!
 //! # Implements
 //!
-//! - **FEAT0017**: Multi-Provider LLM Support (via [`LLMProvider`] trait)
-//! - **FEAT0018**: Embedding Provider Abstraction (via [`EmbeddingProvider`] trait)
+//! @implements FEAT0006 (Vector Embedding Generation via EmbeddingProvider trait)
+//! @implements FEAT0017 (Multi-Provider LLM Support via LLMProvider trait)
+//! @implements FEAT0018 (Embedding Provider Abstraction)
 //!
 //! # Enforces
 //!

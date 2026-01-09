@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Full codebase validation scanning both frontend and backend.
+Provides combined metrics for the entire EdgeQuake codebase.
 """
 
 import json
@@ -59,7 +60,14 @@ def main():
     undocumented_backend = backend["summary"]["undocumented"]
     total_undocumented = undocumented_frontend + undocumented_backend
 
-    orphaned = frontend["summary"]["orphaned"]  # Should be same from both
+    # Combine all unique feature IDs from code
+    frontend_ids = set(frontend.get("code_feature_ids", []))
+    backend_ids = set(backend.get("code_feature_ids", []))
+    all_code_ids = frontend_ids | backend_ids
+    
+    # Orphaned = in docs but not in ANY code location
+    doc_ids = set(frontend.get("doc_feature_ids", []))
+    true_orphaned = doc_ids - all_code_ids
 
     # Get duplicate counts - check for both old format (list) and new format (dict)
     frontend_dupes_raw = frontend.get("duplicates", {})
@@ -72,12 +80,12 @@ def main():
     print(f"\n📊 COVERAGE:")
     print(f"  Frontend features:   {frontend_code}")
     print(f"  Backend features:    {backend_code}")
-    print(f"  Total features:      {total_code}")
+    print(f"  Total unique:        {len(all_code_ids)}")
     print(f"  Documented:          {documented}")
     print(
-        f"  Undocumented:        {total_undocumented} ({total_undocumented/total_code*100:.1f}% gap)"
+        f"  Undocumented:        {total_undocumented} ({total_undocumented/max(total_code,1)*100:.1f}% gap)"
     )
-    print(f"  Orphaned (docs only): {orphaned}")
+    print(f"  True orphaned:       {len(true_orphaned)} (in docs, not in any code)")
 
     print(f"\n📊 DUPLICATE ANALYSIS:")
     print(f"  Total duplicate IDs: {total_dupes}")
@@ -85,7 +93,7 @@ def main():
     print(f"  True collisions:     0 (all fixed!)")
 
     print(f"\n📈 SCORES:")
-    completeness = (total_code - total_undocumented)/total_code*100
+    completeness = (total_code - total_undocumented)/max(total_code,1)*100
     # Uniqueness now 100% since no true collisions
     uniqueness = 100.0
     overall = 0.50 * completeness + 0.35 * uniqueness + 0.15 * 100

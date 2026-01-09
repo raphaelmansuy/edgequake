@@ -513,6 +513,8 @@ impl SOTAQueryEngine {
     ///
     /// 5. **Token Budgeting** - Fit context within LLM limits
     ///    - WHY: LLM context windows are limited; we prioritize high-scoring content
+    ///
+    /// @implements FEAT0109 (SOTA Query Engine)
     pub async fn query(
         &self,
         request: crate::engine::QueryRequest,
@@ -979,6 +981,8 @@ impl SOTAQueryEngine {
     ///
     /// 4. **Degree-based ranking** - Higher-degree entities ranked first
     ///    WHY: Well-connected entities are typically more important
+    ///
+    /// @implements FEAT0101 (Local Search Mode - entity-focused retrieval)
     async fn query_local(
         &self,
         _keywords: &ExtractedKeywords,
@@ -1136,6 +1140,8 @@ impl SOTAQueryEngine {
     ///
     /// 4. **Community summaries** - Include pre-computed graph cluster summaries
     ///    WHY: Provides high-level thematic context for broad questions
+    ///
+    /// @implements FEAT0102 (Global Search Mode - relationship-focused retrieval)
     async fn query_global(
         &self,
         _keywords: &ExtractedKeywords,
@@ -1347,6 +1353,8 @@ impl SOTAQueryEngine {
     }
 
     /// Hybrid mode: Combine local and global with round-robin merging.
+    ///
+    /// @implements FEAT0103 (Hybrid Search Mode - combined local+global)
     async fn query_hybrid(
         &self,
         keywords: &ExtractedKeywords,
@@ -1422,6 +1430,8 @@ impl SOTAQueryEngine {
     }
 
     /// Mix mode: Hybrid plus direct chunk search.
+    ///
+    /// @implements FEAT0105 (Mix Weighted Search - hybrid + direct chunks)
     async fn query_mix(
         &self,
         keywords: &ExtractedKeywords,
@@ -1466,6 +1476,8 @@ impl SOTAQueryEngine {
     }
 
     /// Naive mode: Direct chunk vector search only.
+    ///
+    /// @implements FEAT0106 (Bypass Mode - direct vector search without graph)
     async fn query_naive(
         &self,
         embeddings: &QueryEmbeddings,
