@@ -1,11 +1,36 @@
 //! EdgeQuake LLM - LLM and Embedding Provider Abstraction
 //!
+//! # Implements
+//!
+//! - **FEAT0017**: Multi-Provider LLM Support
+//! - **FEAT0018**: Embedding Provider Abstraction
+//! - **FEAT0019**: LLM Response Caching
+//! - **FEAT0020**: API Rate Limiting
+//! - **FEAT0005**: Embedding Generation (via providers)
+//!
+//! # Enforces
+//!
+//! - **BR0301**: LLM API rate limits (configurable per provider)
+//! - **BR0302**: Document size limits (context window awareness)
+//! - **BR0303**: Cost tracking per request
+//! - **BR0010**: Embedding dimension validated (1536 default)
+//!
 //! This crate provides traits and implementations for:
 //! - Text completion (LLM providers)
 //! - Text embedding (embedding providers)
 //! - Token counting and management
 //! - Rate limiting for API calls
 //! - Response caching for cost reduction
+//!
+//! # Providers
+//!
+//! | Provider | FEAT0017 | Chat | Embeddings | Notes |
+//! |----------|----------|------|------------|-------|
+//! | OpenAI | ✓ | ✓ | ✓ | Primary production provider |
+//! | Azure OpenAI | ✓ | ✓ | ✓ | Enterprise deployments |
+//! | Ollama | ✓ | ✓ | ✓ | Local/on-prem models |
+//! | Gemini | ✓ | ✓ | ✓ | Google AI |
+//! | Mock | ✓ | ✓ | ✓ | Testing (no API calls) |
 //!
 //! # Architecture
 //!
@@ -23,6 +48,12 @@
 //! let provider = OpenAIProvider::new("your-api-key");
 //! let response = provider.complete("Hello, world!").await?;
 //! ```
+//!
+//! # See Also
+//!
+//! - [`crate::traits`] for provider trait definitions
+//! - [`crate::providers`] for concrete implementations
+//! - [`crate::cache`] for response caching
 
 pub mod cache;
 pub mod error;
