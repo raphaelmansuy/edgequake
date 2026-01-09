@@ -3,6 +3,22 @@
 //! This module provides utilities for accumulating streaming responses,
 //! tracking token usage accurately, and managing API response metadata.
 //!
+//! ## Implements
+//!
+//! - [`FEAT0480`]: Streaming response accumulation
+//! - [`FEAT0481`]: Token usage tracking
+//! - [`FEAT0482`]: Periodic flush management
+//!
+//! ## Use Cases
+//!
+//! - [`UC2080`]: System streams LLM response to client
+//! - [`UC2081`]: System tracks token usage for billing
+//!
+//! ## Enforces
+//!
+//! - [`BR0480`]: Accurate token counting from API metadata
+//! - [`BR0481`]: Debounced database writes during streaming
+//!
 //! # Architecture
 //!
 //! The streaming system consists of two main components:

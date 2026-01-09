@@ -2,6 +2,22 @@
 //!
 //! This module provides trailing-edge debouncing for database writes
 //! during streaming, ensuring crash recovery while minimizing DB load.
+//!
+//! ## Implements
+//!
+//! - [`FEAT0486`]: Trailing-edge debouncing
+//! - [`FEAT0487`]: Configurable flush thresholds
+//! - [`FEAT0488`]: Background flush task
+//!
+//! ## Use Cases
+//!
+//! - [`UC2084`]: System persists streaming content periodically
+//! - [`UC2085`]: System recovers conversation on crash
+//!
+//! ## Enforces
+//!
+//! - [`BR0486`]: Maximum buffer time limit
+//! - [`BR0487`]: Maximum buffer bytes limit
 
 use std::future::Future;
 use std::pin::Pin;
