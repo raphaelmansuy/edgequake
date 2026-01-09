@@ -5,6 +5,17 @@
 //! - Scanned documents (OCR)
 //! - Complex layouts
 //! - Documents with poor text extraction
+//!
+//! ## Implements
+//!
+//! - **FEAT1010**: Vision-based PDF extraction
+//! - **FEAT1011**: Multi-page image extraction
+//! - **FEAT1012**: LLM-powered layout understanding
+//!
+//! ## Enforces
+//!
+//! - **BR1010**: Fallback to text extraction if vision fails
+//! - **BR1011**: Image resolution capped at 2048px
 
 use crate::error::PdfError;
 use crate::schema::{Block, BlockType, BoundingBox, Document, ExtractionMethod, Page};
