@@ -195,7 +195,8 @@ async fn upload_document(app: &axum::Router, content: &str, title: &str) -> Valu
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+    // WHY: POST /documents returns 201 Created per REST semantics (UC0001)
+    assert_eq!(response.status(), StatusCode::CREATED);
     extract_json(response).await
 }
 
