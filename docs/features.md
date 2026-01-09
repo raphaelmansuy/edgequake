@@ -3,22 +3,23 @@
 > Central registry of all features in EdgeQuake RAG system.
 > Use FEATXXXX references in code comments for traceability.
 
-**Version**: 1.0.0 | **Last Updated**: 2026-01-09
+**Version**: 1.1.0 | **Last Updated**: 2026-01-09
 
 ---
 
 ## Quick Reference Index
 
-| Category                                                 | ID Range          | Count |
-| -------------------------------------------------------- | ----------------- | ----- |
-| [Core RAG Features](#core-rag-features-feat00xx)         | FEAT0001-FEAT0020 | 20    |
-| [Query Engine Features](#query-engine-features-feat01xx) | FEAT0101-FEAT0120 | 20    |
-| [Storage Features](#storage-features-feat02xx)           | FEAT0201-FEAT0220 | 20    |
-| [Pipeline Features](#pipeline-features-feat03xx)         | FEAT0301-FEAT0320 | 20    |
-| [API Features](#api-features-feat04xx)                   | FEAT0401-FEAT0420 | 20    |
-| [PDF Features](#pdf-features-feat05xx)                   | FEAT0501-FEAT0520 | 20    |
-| [WebUI Features](#webui-features-feat06xx)               | FEAT0601-FEAT0620 | 20    |
-| [Auth Features](#auth-features-feat07xx)                 | FEAT0701-FEAT0720 | 20    |
+| Category                                                       | ID Range          | Count |
+| -------------------------------------------------------------- | ----------------- | ----- |
+| [Core RAG Features](#core-rag-features-feat00xx)               | FEAT0001-FEAT0020 | 20    |
+| [Query Engine Features](#query-engine-features-feat01xx)       | FEAT0101-FEAT0120 | 10    |
+| [Storage Features](#storage-features-feat02xx)                 | FEAT0201-FEAT0220 | 5     |
+| [Pipeline Features](#pipeline-features-feat03xx)               | FEAT0301-FEAT0320 | 4     |
+| [API Features](#api-features-feat04xx)                         | FEAT0401-FEAT0420 | 6     |
+| [PDF Features](#pdf-features-feat05xx)                         | FEAT0501-FEAT0520 | 5     |
+| [Advanced PDF Features](#advanced-pdf-features-feat10xx)       | FEAT1001-FEAT1025 | 14    |
+| [WebUI Features](#webui-features-feat06xx)                     | FEAT0601-FEAT0620 | 4     |
+| [Auth Features](#auth-features-feat07xx)                       | FEAT0701-FEAT0720 | 3     |
 
 ---
 
@@ -738,19 +739,182 @@
 
 ---
 
+## Advanced PDF Features (FEAT10XX)
+
+> These features extend the basic PDF capabilities (FEAT05XX) with advanced extraction algorithms.
+
+### FEAT1001 - PDF to Markdown Conversion
+
+| Attribute          | Value                                                                   |
+| ------------------ | ----------------------------------------------------------------------- |
+| **ID**             | FEAT1001                                                                |
+| **Name**           | Core PDF to Markdown Conversion                                         |
+| **Module**         | edgequake-pdf                                                           |
+| **Status**         | ✅ Stable                                                               |
+| **Code Reference** | [extractor.rs](../edgequake/crates/edgequake-pdf/src/extractor.rs)      |
+| **Description**    | Convert PDF documents to Markdown with structure preservation           |
+| **Related**        | FEAT0501, FEAT0504, FEAT1002-FEAT1006                                   |
+
+### FEAT1002 - Lattice Table Detection
+
+| Attribute          | Value                                                                          |
+| ------------------ | ------------------------------------------------------------------------------ |
+| **ID**             | FEAT1002                                                                       |
+| **Name**           | Lattice and Stream Table Detection                                             |
+| **Module**         | edgequake-pdf                                                                  |
+| **Status**         | ✅ Stable                                                                      |
+| **Code Reference** | [backend/lattice.rs](../edgequake/crates/edgequake-pdf/src/backend/lattice.rs) |
+| **Description**    | Detect tables using line-based (lattice) and whitespace-based (stream) modes   |
+| **Related**        | FEAT0503, FEAT1001                                                             |
+
+### FEAT1003 - Multi-Column Layout Detection
+
+| Attribute          | Value                                                                            |
+| ------------------ | -------------------------------------------------------------------------------- |
+| **ID**             | FEAT1003                                                                         |
+| **Name**           | Multi-Column Layout Detection                                                    |
+| **Module**         | edgequake-pdf                                                                    |
+| **Status**         | ✅ Stable                                                                        |
+| **Code Reference** | [layout/column_detector.rs](../edgequake/crates/edgequake-pdf/src/layout/)       |
+| **Description**    | Detect multi-column layouts and determine correct reading order                  |
+| **Related**        | FEAT0502, FEAT1001                                                               |
+
+### FEAT1004 - Image Extraction with OCR
+
+| Attribute          | Value                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------- |
+| **ID**             | FEAT1004                                                                              |
+| **Name**           | Image Extraction with Optional OCR                                                    |
+| **Module**         | edgequake-pdf                                                                         |
+| **Status**         | ✅ Stable                                                                             |
+| **Code Reference** | [image_extraction.rs](../edgequake/crates/edgequake-pdf/src/image_extraction.rs)      |
+| **Description**    | Extract embedded images from PDF pages with optional OCR processing                   |
+| **Related**        | FEAT1023, FEAT1024                                                                    |
+
+### FEAT1005 - Formula Detection
+
+| Attribute          | Value                                                              |
+| ------------------ | ------------------------------------------------------------------ |
+| **ID**             | FEAT1005                                                           |
+| **Name**           | Formula Detection and LaTeX Conversion                             |
+| **Module**         | edgequake-pdf                                                      |
+| **Status**         | 🔧 Beta                                                            |
+| **Code Reference** | [formula/](../edgequake/crates/edgequake-pdf/src/formula/)         |
+| **Description**    | Detect mathematical formulas and convert to LaTeX notation         |
+| **Related**        | FEAT1001, FEAT1004                                                 |
+
+### FEAT1006 - LLM-Enhanced Content Cleaning
+
+| Attribute          | Value                                                                   |
+| ------------------ | ----------------------------------------------------------------------- |
+| **ID**             | FEAT1006                                                                |
+| **Name**           | LLM-Enhanced Content Cleaning                                           |
+| **Module**         | edgequake-pdf                                                           |
+| **Status**         | ✅ Stable                                                               |
+| **Code Reference** | [extractor.rs](../edgequake/crates/edgequake-pdf/src/extractor.rs)      |
+| **Description**    | Use LLM to clean and format extracted PDF content                       |
+| **Related**        | FEAT1001, FEAT0003                                                      |
+
+### FEAT1010 - Font Analysis
+
+| Attribute          | Value                                                                              |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| **ID**             | FEAT1010                                                                           |
+| **Name**           | Font Analysis and Classification                                                   |
+| **Module**         | edgequake-pdf                                                                      |
+| **Status**         | ✅ Stable                                                                          |
+| **Code Reference** | [backend/sota_backend.rs](../edgequake/crates/edgequake-pdf/src/backend/sota_backend.rs) |
+| **Description**    | Analyze font properties for heading detection and style classification             |
+| **Related**        | FEAT0505, FEAT1001                                                                 |
+
+### FEAT1020 - Processor Pipeline
+
+| Attribute          | Value                                                                              |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| **ID**             | FEAT1020                                                                           |
+| **Name**           | Modular Processor Pipeline                                                         |
+| **Module**         | edgequake-pdf                                                                      |
+| **Status**         | ✅ Stable                                                                          |
+| **Code Reference** | [processors/](../edgequake/crates/edgequake-pdf/src/processors/)                   |
+| **Description**    | Chainable processor pipeline for PDF content transformation                        |
+| **Related**        | FEAT1001, FEAT1021, FEAT1022                                                       |
+
+### FEAT1021 - Text Cleanup Processors
+
+| Attribute          | Value                                                                              |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| **ID**             | FEAT1021                                                                           |
+| **Name**           | Text Cleanup Processors                                                            |
+| **Module**         | edgequake-pdf                                                                      |
+| **Status**         | ✅ Stable                                                                          |
+| **Code Reference** | [processors/text_cleanup.rs](../edgequake/crates/edgequake-pdf/src/processors/text_cleanup.rs) |
+| **Description**    | Clean garbled text, fix hyphenation, filter whitespace                             |
+| **Related**        | FEAT1020, FEAT1001                                                                 |
+
+### FEAT1022 - Structure Detection Processors
+
+| Attribute          | Value                                                                              |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| **ID**             | FEAT1022                                                                           |
+| **Name**           | Structure Detection Processors                                                     |
+| **Module**         | edgequake-pdf                                                                      |
+| **Status**         | ✅ Stable                                                                          |
+| **Code Reference** | [processors/structure_detection.rs](../edgequake/crates/edgequake-pdf/src/processors/structure_detection.rs) |
+| **Description**    | Detect headers, captions, lists, and code blocks                                   |
+| **Related**        | FEAT1020, FEAT0505                                                                 |
+
+### FEAT1023 - Image Format Conversion
+
+| Attribute          | Value                                                                              |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| **ID**             | FEAT1023                                                                           |
+| **Name**           | Image Format Conversion                                                            |
+| **Module**         | edgequake-pdf                                                                      |
+| **Status**         | ✅ Stable                                                                          |
+| **Code Reference** | [image_extraction.rs](../edgequake/crates/edgequake-pdf/src/image_extraction.rs)   |
+| **Description**    | Convert PDF images to PNG/JPEG for LLM processing                                  |
+| **Related**        | FEAT1004, FEAT1024                                                                 |
+
+### FEAT1024 - LLM-Based Image Understanding
+
+| Attribute          | Value                                                                              |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| **ID**             | FEAT1024                                                                           |
+| **Name**           | LLM-Based Image Understanding                                                      |
+| **Module**         | edgequake-pdf                                                                      |
+| **Status**         | ✅ Stable                                                                          |
+| **Code Reference** | [image_ocr.rs](../edgequake/crates/edgequake-pdf/src/image_ocr.rs)                 |
+| **Description**    | Use vision LLM to extract text and understand image content                        |
+| **Related**        | FEAT1004, FEAT1023, FEAT1025                                                       |
+
+### FEAT1025 - Chart and Diagram Extraction
+
+| Attribute          | Value                                                                              |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| **ID**             | FEAT1025                                                                           |
+| **Name**           | Chart and Diagram Data Extraction                                                  |
+| **Module**         | edgequake-pdf                                                                      |
+| **Status**         | 🔧 Beta                                                                            |
+| **Code Reference** | [image_ocr.rs](../edgequake/crates/edgequake-pdf/src/image_ocr.rs)                 |
+| **Description**    | Extract structured data from charts and diagrams using vision LLM                  |
+| **Related**        | FEAT1024, FEAT1004                                                                 |
+
+---
+
 ## Summary Statistics
 
-| Category     | Total  | Stable | Beta  | Planned |
-| ------------ | ------ | ------ | ----- | ------- |
-| Core RAG     | 20     | 20     | 0     | 0       |
-| Query Engine | 10     | 10     | 0     | 0       |
-| Storage      | 5      | 5      | 0     | 0       |
-| Pipeline     | 4      | 4      | 0     | 0       |
-| API          | 6      | 6      | 0     | 0       |
-| PDF          | 5      | 5      | 0     | 0       |
-| WebUI        | 4      | 4      | 0     | 0       |
-| Auth         | 3      | 3      | 0     | 0       |
-| **TOTAL**    | **57** | **57** | **0** | **0**   |
+| Category       | Total  | Stable | Beta  | Planned |
+| -------------- | ------ | ------ | ----- | ------- |
+| Core RAG       | 20     | 20     | 0     | 0       |
+| Query Engine   | 10     | 10     | 0     | 0       |
+| Storage        | 5      | 5      | 0     | 0       |
+| Pipeline       | 4      | 4      | 0     | 0       |
+| API            | 6      | 6      | 0     | 0       |
+| PDF (Basic)    | 5      | 5      | 0     | 0       |
+| PDF (Advanced) | 14     | 12     | 2     | 0       |
+| WebUI          | 4      | 4      | 0     | 0       |
+| Auth           | 3      | 3      | 0     | 0       |
+| **TOTAL**      | **71** | **69** | **2** | **0**   |
 
 ---
 
