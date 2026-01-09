@@ -4,6 +4,27 @@
 //! conversation creation, message persistence, and LLM streaming in a single
 //! atomic operation. This is the preferred API for client applications.
 //!
+//! ## Implements
+//!
+//! - **FEAT0501**: Unified chat endpoint with streaming SSE responses
+//! - **FEAT0502**: Server-initiated message persistence
+//! - **FEAT0503**: Automatic conversation creation and management
+//! - **FEAT0504**: Multi-mode query support (local/global/hybrid/naive)
+//!
+//! ## Use Cases
+//!
+//! - **UC2101**: User sends a chat message and receives streamed response
+//! - **UC2102**: System creates conversation automatically on first message
+//! - **UC2103**: User views source citations in chat response
+//! - **UC2104**: System persists assistant response after streaming completes
+//!
+//! ## Enforces
+//!
+//! - **BR0501**: All messages must be persisted with proper roles
+//! - **BR0502**: Streaming must accumulate tokens before persistence
+//! - **BR0503**: Source tracking must include document IDs for citations
+//! - **BR0504**: Query mode defaults to hybrid when not specified
+//!
 //! Key benefits:
 //! - Server-initiated persistence (no client-side message saving)
 //! - Transactional integrity for message storage

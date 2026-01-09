@@ -2,6 +2,26 @@
 //!
 //! This module provides WebSocket endpoints for streaming pipeline progress events
 //! to connected clients in real-time.
+//!
+//! ## Implements
+//!
+//! - **FEAT0520**: WebSocket connection upgrade for progress streaming
+//! - **FEAT0521**: Real-time pipeline progress events
+//! - **FEAT0522**: Initial status snapshot on connection
+//! - **FEAT0523**: Heartbeat keepalive mechanism
+//!
+//! ## Use Cases
+//!
+//! - **UC2120**: Client connects to WebSocket for live pipeline updates
+//! - **UC2121**: Client receives document progress events during processing
+//! - **UC2122**: Client gets notified when pipeline job completes
+//! - **UC2123**: Connection stays alive via periodic heartbeats
+//!
+//! ## Enforces
+//!
+//! - **BR0520**: WebSocket must send initial status snapshot on connect
+//! - **BR0521**: Heartbeat interval must be 30 seconds
+//! - **BR0522**: All progress events must be JSON-encoded
 
 use axum::{
     extract::{
