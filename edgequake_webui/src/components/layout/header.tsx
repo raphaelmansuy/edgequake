@@ -1,3 +1,18 @@
+/**
+ * @module Header
+ * @description Application header with status, theme, and user controls.
+ * Shows backend connection status, theme toggle, and auth state.
+ * 
+ * @implements FEAT0611 - Backend health indicator in header
+ * @implements FEAT0612 - Theme toggle (light/dark/system)
+ * @implements FEAT0613 - User menu with logout
+ * @implements FEAT0504 - Tenant/workspace selector integration
+ * 
+ * @enforces BR0608 - Connection status updates in real-time
+ * @enforces BR0609 - Theme persists across sessions
+ * 
+ * @see {@link docs/features.md} FEAT0611-0613
+ */
 'use client';
 
 import { ClientOnly } from '@/components/client-only';

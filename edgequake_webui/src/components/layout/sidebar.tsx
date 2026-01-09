@@ -1,3 +1,17 @@
+/**
+ * @module Sidebar
+ * @description Application sidebar navigation component.
+ * Supports collapsible mode, mobile drawer, and workspace selection.
+ * 
+ * @implements FEAT0602 - Responsive navigation sidebar
+ * @implements FEAT0609 - Collapsible sidebar with state persistence
+ * @implements FEAT0610 - Mobile-optimized drawer navigation
+ * 
+ * @enforces BR0606 - Sidebar state persists across sessions
+ * @enforces BR0607 - Active route highlighted in navigation
+ * 
+ * @see {@link docs/features.md} FEAT0602, FEAT0609
+ */
 'use client';
 
 import { ClientOnly } from '@/components/client-only';
