@@ -1,3 +1,14 @@
+/**
+ * @module folders-api
+ * @description Folders API client for conversation organization.
+ *
+ * @implements FEAT0709 - Folder CRUD operations
+ * @implements FEAT0710 - Move conversations to folders
+ *
+ * @enforces BR0707 - Folder names unique per user
+ * @enforces BR0708 - Deleting folder moves conversations to root
+ */
+
 import type {
   ConversationFolder,
   CreateFolderRequest,

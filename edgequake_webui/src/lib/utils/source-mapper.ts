@@ -1,9 +1,16 @@
 /**
- * Source Mapper Utility
+ * @module source-mapper
+ * @description Source Mapper Utility
  *
  * Converts between API response format (SourceReference[]) and UI format (QueryContext).
  * This is necessary because the backend returns a flat list of sources with source_type,
  * while the UI components expect a structured QueryContext with separate arrays.
+ *
+ * @implements FEAT0718 - Source reference to QueryContext mapping
+ * @implements FEAT0719 - Entity/relationship/chunk categorization
+ *
+ * @enforces BR0715 - Unknown source types go to chunks
+ * @enforces BR0716 - Preserve source order for display
  */
 
 import type { SourceReference } from "@/lib/api/chat";
