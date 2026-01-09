@@ -12,12 +12,12 @@
 
 ## Quick Decision Guide
 
-| Environment | Recommended Stack | Persistence | Performance |
-|-------------|-------------------|-------------|-------------|
-| **Development** | Memory | None (ephemeral) | ⚡ Fastest |
-| **Testing/CI** | Memory | None (ephemeral) | ⚡ Fastest |
-| **Staging** | PostgreSQL + pgvector | Full | 🔄 Good |
-| **Production** | PostgreSQL + pgvector + AGE | Full | 🔄 Good + Graph features |
+| Environment     | Recommended Stack           | Persistence      | Performance              |
+| --------------- | --------------------------- | ---------------- | ------------------------ |
+| **Development** | Memory                      | None (ephemeral) | ⚡ Fastest               |
+| **Testing/CI**  | Memory                      | None (ephemeral) | ⚡ Fastest               |
+| **Staging**     | PostgreSQL + pgvector       | Full             | 🔄 Good                  |
+| **Production**  | PostgreSQL + pgvector + AGE | Full             | 🔄 Good + Graph features |
 
 > **Enforces**: [BR0001](business_rules.md#br0001) Tenant Isolation - All storage is namespace-scoped
 
@@ -790,23 +790,23 @@ async fn test_with_memory_storage() {
 
 ## Troubleshooting
 
-| Problem | Cause | Solution |
-|---------|-------|----------|
-| "connection refused" | PostgreSQL not running | `docker compose up -d postgres` |
-| "extension 'vector' not found" | pgvector not installed | Use `ankane/pgvector` Docker image |
-| "relation does not exist" | Migrations not run | Run `storage.run_migrations().await?` |
-| Slow vector searches | Missing HNSW index | Create index: `CREATE INDEX USING hnsw` |
-| Memory OOM | Large dataset in memory storage | Switch to PostgreSQL for production |
+| Problem                        | Cause                           | Solution                                |
+| ------------------------------ | ------------------------------- | --------------------------------------- |
+| "connection refused"           | PostgreSQL not running          | `docker compose up -d postgres`         |
+| "extension 'vector' not found" | pgvector not installed          | Use `ankane/pgvector` Docker image      |
+| "relation does not exist"      | Migrations not run              | Run `storage.run_migrations().await?`   |
+| Slow vector searches           | Missing HNSW index              | Create index: `CREATE INDEX USING hnsw` |
+| Memory OOM                     | Large dataset in memory storage | Switch to PostgreSQL for production     |
 
 ---
 
 ## Next Steps
 
-| Your Goal | Next Document |
-|-----------|---------------|
-| Configure LLM providers | [LLM Integration](0005-llm-integration.md) |
-| Deploy to production | [Deployment Guide](0006-deployment-guide.md) |
-| Configure all options | [Configuration Reference](0007-configuration-reference.md) |
-| Set up multi-tenancy | [Multi-Tenancy](0008-multi-tenancy.md) |
+| Your Goal               | Next Document                                              |
+| ----------------------- | ---------------------------------------------------------- |
+| Configure LLM providers | [LLM Integration](0005-llm-integration.md)                 |
+| Deploy to production    | [Deployment Guide](0006-deployment-guide.md)               |
+| Configure all options   | [Configuration Reference](0007-configuration-reference.md) |
+| Set up multi-tenancy    | [Multi-Tenancy](0008-multi-tenancy.md)                     |
 
 > **See Also**: [Features Registry](features.md) | [Architecture Overview](0002-architecture-overview.md)

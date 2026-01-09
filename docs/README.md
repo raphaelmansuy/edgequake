@@ -12,12 +12,12 @@
 
 ## 🚀 Start Here
 
-| Your Goal | Start With |
-|-----------|------------|
-| **Get running in 5 minutes** | [Quick Start Guide](0001-quick-start.md) |
-| **Understand how it works** | [Architecture Overview](0002-architecture-overview.md) |
-| **Integrate via REST API** | [API Reference](0003-api-reference.md) |
-| **Deploy to production** | [Deployment Guide](0006-deployment-guide.md) |
+| Your Goal                    | Start With                                             |
+| ---------------------------- | ------------------------------------------------------ |
+| **Get running in 5 minutes** | [Quick Start Guide](0001-quick-start.md)               |
+| **Understand how it works**  | [Architecture Overview](0002-architecture-overview.md) |
+| **Integrate via REST API**   | [API Reference](0003-api-reference.md)                 |
+| **Deploy to production**     | [Deployment Guide](0006-deployment-guide.md)           |
 
 ---
 
@@ -25,33 +25,33 @@
 
 ### Core Registries (Traceability)
 
-| Document | Description | Use When |
-|----------|-------------|----------|
-| [**Features Registry**](features.md) | Central registry of all features (FEAT0001-XXXX) | Understanding system capabilities |
-| [**Business Rules**](business_rules.md) | All business rules enforced (BR0001-XXXX) | Validating system behavior |
-| [**Use Cases**](use_cases.md) | Complete use case catalog (UC0001-XXXX) | Understanding user journeys |
+| Document                                | Description                                      | Use When                          |
+| --------------------------------------- | ------------------------------------------------ | --------------------------------- |
+| [**Features Registry**](features.md)    | Central registry of all features (FEAT0001-XXXX) | Understanding system capabilities |
+| [**Business Rules**](business_rules.md) | All business rules enforced (BR0001-XXXX)        | Validating system behavior        |
+| [**Use Cases**](use_cases.md)           | Complete use case catalog (UC0001-XXXX)          | Understanding user journeys       |
 
 ### Technical Documentation (Numbered Guides)
 
-| # | Document | Description | Audience |
-|---|----------|-------------|----------|
-| 01 | [Quick Start](0001-quick-start.md) | Get up and running in 5 minutes | All developers |
-| 02 | [Architecture Overview](0002-architecture-overview.md) | System design, crate structure, data flow | Architects, senior devs |
-| 03 | [API Reference](0003-api-reference.md) | Complete REST API documentation (1700+ lines) | API consumers |
-| 04 | [Storage Backends](0004-storage-backends.md) | Configure KV, vector, and graph storage | DevOps, backend devs |
-| 05 | [LLM Integration](0005-llm-integration.md) | LLM providers, embeddings, cost optimization | ML engineers |
-| 06 | [Deployment Guide](0006-deployment-guide.md) | Docker, Kubernetes, and production setup | DevOps, SREs |
-| 07 | [Configuration Reference](0007-configuration-reference.md) | All environment variables and options | All developers |
-| 08 | [Multi-Tenancy](0008-multi-tenancy.md) | Tenant isolation and namespace management | Platform engineers |
-| 09 | [Algorithms Reference](0009-algorithms-reference.md) | Detailed pipeline and query algorithms | Researchers, core devs |
+| #   | Document                                                   | Description                                   | Audience                |
+| --- | ---------------------------------------------------------- | --------------------------------------------- | ----------------------- |
+| 01  | [Quick Start](0001-quick-start.md)                         | Get up and running in 5 minutes               | All developers          |
+| 02  | [Architecture Overview](0002-architecture-overview.md)     | System design, crate structure, data flow     | Architects, senior devs |
+| 03  | [API Reference](0003-api-reference.md)                     | Complete REST API documentation (1700+ lines) | API consumers           |
+| 04  | [Storage Backends](0004-storage-backends.md)               | Configure KV, vector, and graph storage       | DevOps, backend devs    |
+| 05  | [LLM Integration](0005-llm-integration.md)                 | LLM providers, embeddings, cost optimization  | ML engineers            |
+| 06  | [Deployment Guide](0006-deployment-guide.md)               | Docker, Kubernetes, and production setup      | DevOps, SREs            |
+| 07  | [Configuration Reference](0007-configuration-reference.md) | All environment variables and options         | All developers          |
+| 08  | [Multi-Tenancy](0008-multi-tenancy.md)                     | Tenant isolation and namespace management     | Platform engineers      |
+| 09  | [Algorithms Reference](0009-algorithms-reference.md)       | Detailed pipeline and query algorithms        | Researchers, core devs  |
 
 ### Supplementary Guides
 
-| Document | Description |
-|----------|-------------|
-| [Production LLM](production-llm-integration.md) | Real LLM provider integration with cost tracking |
-| [SOTA Implementation](sota-implementation-summary.md) | State-of-the-art query engine details |
-| [Source Citations](source-citations-status.md) | Citation tracking and provenance features |
+| Document                                              | Description                                      |
+| ----------------------------------------------------- | ------------------------------------------------ |
+| [Production LLM](production-llm-integration.md)       | Real LLM provider integration with cost tracking |
+| [SOTA Implementation](sota-implementation-summary.md) | State-of-the-art query engine details            |
+| [Source Citations](source-citations-status.md)        | Citation tracking and provenance features        |
 
 ---
 
@@ -116,7 +116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 4. Insert document (extracts entities + relationships automatically)
     let result = eq.insert("Your document text...", Some("doc-001")).await?;
-    println!("Extracted {} entities, {} relationships", 
+    println!("Extracted {} entities, {} relationships",
         result.entities_extracted, result.relationships_extracted);
 
     // 5. Query with hybrid mode (best for most use cases)
@@ -179,14 +179,14 @@ docker compose up -d
 
 EdgeQuake supports 6 query modes optimized for different use cases:
 
-| Mode | Description | Use Case | Performance |
-|------|-------------|----------|-------------|
-| `naive` | Direct vector similarity search | Simple factual lookups | ⚡ Fastest |
-| `local` | Entity-focused graph traversal | Specific entity facts | ⚡ Fast |
-| `global` | Community summary aggregation | Broad thematic questions | 🔄 Medium |
-| `hybrid` | Combined local + global **(default)** | Balanced accuracy | 🔄 Medium |
-| `mix` | Full KG + vector + summary | Complex reasoning | 🐢 Slower |
-| `bypass` | Skip RAG, direct LLM | Testing, fallback | ⚡ Fastest |
+| Mode     | Description                           | Use Case                 | Performance |
+| -------- | ------------------------------------- | ------------------------ | ----------- |
+| `naive`  | Direct vector similarity search       | Simple factual lookups   | ⚡ Fastest  |
+| `local`  | Entity-focused graph traversal        | Specific entity facts    | ⚡ Fast     |
+| `global` | Community summary aggregation         | Broad thematic questions | 🔄 Medium   |
+| `hybrid` | Combined local + global **(default)** | Balanced accuracy        | 🔄 Medium   |
+| `mix`    | Full KG + vector + summary            | Complex reasoning        | 🐢 Slower   |
+| `bypass` | Skip RAG, direct LLM                  | Testing, fallback        | ⚡ Fastest  |
 
 ### Mode Selection Guide
 
@@ -204,19 +204,19 @@ Is your question about a specific entity?
 
 ## 🏗️ Deployment Options
 
-| Environment | Recommended Stack | Guide |
-|-------------|-------------------|-------|
-| **Development** | Memory storage + Mock LLM | `cargo run` |
-| **Staging** | Docker Compose + PostgreSQL | [Docker Guide](0006-deployment-guide.md#docker-deployment) |
-| **Production** | Kubernetes + PostgreSQL + Real LLM | [K8s Guide](0006-deployment-guide.md#kubernetes-deployment) |
+| Environment     | Recommended Stack                  | Guide                                                       |
+| --------------- | ---------------------------------- | ----------------------------------------------------------- |
+| **Development** | Memory storage + Mock LLM          | `cargo run`                                                 |
+| **Staging**     | Docker Compose + PostgreSQL        | [Docker Guide](0006-deployment-guide.md#docker-deployment)  |
+| **Production**  | Kubernetes + PostgreSQL + Real LLM | [K8s Guide](0006-deployment-guide.md#kubernetes-deployment) |
 
 ### Storage Topology by Environment
 
-| Environment | KV Store | Vector Store | Graph Store | LLM Provider |
-|-------------|----------|--------------|-------------|--------------|
-| Development | Memory | Memory | Memory | Mock (free) |
-| Staging | PostgreSQL | pgvector | Memory | OpenAI |
-| Production | PostgreSQL | pgvector | Apache AGE | OpenAI/Azure |
+| Environment | KV Store   | Vector Store | Graph Store | LLM Provider |
+| ----------- | ---------- | ------------ | ----------- | ------------ |
+| Development | Memory     | Memory       | Memory      | Mock (free)  |
+| Staging     | PostgreSQL | pgvector     | Memory      | OpenAI       |
+| Production  | PostgreSQL | pgvector     | Apache AGE  | OpenAI/Azure |
 
 > **Enforces**: [BR0001](business_rules.md#br0001) Tenant Isolation, [BR0002](business_rules.md#br0002) Data Persistence
 
@@ -226,14 +226,14 @@ Is your question about a specific entity?
 
 ### Essential Environment Variables
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `OPENAI_API_KEY` | Production | - | OpenAI API key for LLM/embeddings |
-| `HOST` | No | `0.0.0.0` | Server bind address |
-| `PORT` | No | `8080` | Server port |
-| `WORKER_THREADS` | No | `4` | Tokio async worker threads |
-| `DATABASE_URL` | Production | - | PostgreSQL connection string |
-| `DEFAULT_NAMESPACE` | No | `default` | Default tenant namespace |
+| Variable            | Required   | Default   | Description                       |
+| ------------------- | ---------- | --------- | --------------------------------- |
+| `OPENAI_API_KEY`    | Production | -         | OpenAI API key for LLM/embeddings |
+| `HOST`              | No         | `0.0.0.0` | Server bind address               |
+| `PORT`              | No         | `8080`    | Server port                       |
+| `WORKER_THREADS`    | No         | `4`       | Tokio async worker threads        |
+| `DATABASE_URL`      | Production | -         | PostgreSQL connection string      |
+| `DEFAULT_NAMESPACE` | No         | `default` | Default tenant namespace          |
 
 ```bash
 # Minimal production configuration
@@ -278,24 +278,29 @@ edgequake/
 ## 📖 Document Index (Complete Navigation)
 
 ### Getting Started
+
 1. **[Quick Start Guide](0001-quick-start.md)** - Build, run, basic usage (15 min)
 2. **[Architecture Overview](0002-architecture-overview.md)** - Crate structure, data flow
 
 ### API & Integration
+
 3. **[API Reference](0003-api-reference.md)** - Complete REST API (25+ endpoints)
 4. **[LLM Integration](0005-llm-integration.md)** - OpenAI, Mock, custom providers
 
 ### Infrastructure
+
 5. **[Storage Backends](0004-storage-backends.md)** - Memory, PostgreSQL, pgvector, AGE
 6. **[Deployment Guide](0006-deployment-guide.md)** - Docker, Kubernetes, production
 7. **[Configuration Reference](0007-configuration-reference.md)** - All environment variables
 
 ### Advanced
+
 8. **[Multi-Tenancy Guide](0008-multi-tenancy.md)** - Namespace isolation, tenant management
 9. **[Algorithms Reference](0009-algorithms-reference.md)** - Entity extraction, graph algorithms
 10. **[Production LLM](production-llm-integration.md)** - Real LLM provider integration
 
 ### Reference
+
 - **[Features Registry](features.md)** - FEAT0001-XXXX catalog
 - **[Business Rules](business_rules.md)** - BR0001-XXXX catalog
 - **[Use Cases](use_cases.md)** - UC0001-XXXX catalog
@@ -305,12 +310,12 @@ edgequake/
 
 ## 🆘 Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| `OPENAI_API_KEY not set` | Export the variable: `export OPENAI_API_KEY=sk-xxx` |
-| Connection refused on :8080 | Ensure server is running: `./target/release/edgequake` |
-| PostgreSQL connection failed | Check `DATABASE_URL` format and database existence |
-| Out of memory on large docs | Increase chunk size or use streaming ingestion |
+| Problem                      | Solution                                               |
+| ---------------------------- | ------------------------------------------------------ |
+| `OPENAI_API_KEY not set`     | Export the variable: `export OPENAI_API_KEY=sk-xxx`    |
+| Connection refused on :8080  | Ensure server is running: `./target/release/edgequake` |
+| PostgreSQL connection failed | Check `DATABASE_URL` format and database existence     |
+| Out of memory on large docs  | Increase chunk size or use streaming ingestion         |
 
 > **See Also**: [Deployment Troubleshooting](0006-deployment-guide.md#troubleshooting)
 

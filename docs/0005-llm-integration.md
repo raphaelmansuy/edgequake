@@ -12,21 +12,21 @@
 
 ## Quick Provider Selection
 
-| Provider | LLM | Embeddings | Cost | Best For |
-|----------|-----|------------|------|----------|
-| **OpenAI** | ✅ gpt-4o-mini | ✅ text-embedding-3-small | $$ | Production, quality |
-| **Azure OpenAI** | ✅ | ✅ | $$ | Enterprise, compliance |
-| **Ollama** | ✅ llama3.2 | ✅ nomic-embed-text | Free | Local dev, privacy |
-| **LM Studio** | ✅ | ❌ | Free | Local experimentation |
-| **Mock** | ✅ | ✅ | Free | Testing, CI/CD |
+| Provider         | LLM            | Embeddings                | Cost | Best For               |
+| ---------------- | -------------- | ------------------------- | ---- | ---------------------- |
+| **OpenAI**       | ✅ gpt-4o-mini | ✅ text-embedding-3-small | $$   | Production, quality    |
+| **Azure OpenAI** | ✅             | ✅                        | $$   | Enterprise, compliance |
+| **Ollama**       | ✅ llama3.2    | ✅ nomic-embed-text       | Free | Local dev, privacy     |
+| **LM Studio**    | ✅             | ❌                        | Free | Local experimentation  |
+| **Mock**         | ✅             | ✅                        | Free | Testing, CI/CD         |
 
 ### Cost Estimation (OpenAI)
 
-| Operation | Model | Cost per 1K tokens | Typical Usage |
-|-----------|-------|-------------------|---------------|
-| Embedding | text-embedding-3-small | $0.00002 | ~$0.02 per 1000 chunks |
-| LLM (input) | gpt-4o-mini | $0.00015 | ~$0.15 per 100 queries |
-| LLM (output) | gpt-4o-mini | $0.0006 | ~$0.06 per 100 queries |
+| Operation    | Model                  | Cost per 1K tokens | Typical Usage          |
+| ------------ | ---------------------- | ------------------ | ---------------------- |
+| Embedding    | text-embedding-3-small | $0.00002           | ~$0.02 per 1000 chunks |
+| LLM (input)  | gpt-4o-mini            | $0.00015           | ~$0.15 per 100 queries |
+| LLM (output) | gpt-4o-mini            | $0.0006            | ~$0.06 per 100 queries |
 
 > **Enforces**: [BR0020](business_rules.md#br0020) Cost Tracking - All LLM calls are metered
 
@@ -546,15 +546,15 @@ async fn test_with_mock() {
 
 ## Troubleshooting
 
-| Problem | Cause | Solution |
-|---------|-------|----------|
-| "invalid api key" | Wrong or missing API key | Verify `OPENAI_API_KEY` is set correctly |
-| "model not found" | Invalid model name | Check [OpenAI models](https://platform.openai.com/docs/models) |
-| "rate limit exceeded" | Too many requests | Implement exponential backoff, reduce concurrency |
-| "context length exceeded" | Prompt too long | Reduce chunk size, use summarization |
-| Ollama "connection refused" | Ollama not running | Start with `ollama serve` |
-| Slow embeddings | Large batch size | Reduce batch size, use async |
-| High costs | Wrong model | Switch to gpt-4o-mini and text-embedding-3-small |
+| Problem                     | Cause                    | Solution                                                       |
+| --------------------------- | ------------------------ | -------------------------------------------------------------- |
+| "invalid api key"           | Wrong or missing API key | Verify `OPENAI_API_KEY` is set correctly                       |
+| "model not found"           | Invalid model name       | Check [OpenAI models](https://platform.openai.com/docs/models) |
+| "rate limit exceeded"       | Too many requests        | Implement exponential backoff, reduce concurrency              |
+| "context length exceeded"   | Prompt too long          | Reduce chunk size, use summarization                           |
+| Ollama "connection refused" | Ollama not running       | Start with `ollama serve`                                      |
+| Slow embeddings             | Large batch size         | Reduce batch size, use async                                   |
+| High costs                  | Wrong model              | Switch to gpt-4o-mini and text-embedding-3-small               |
 
 ### Debug Logging
 
@@ -570,11 +570,11 @@ RUST_LOG=edgequake_llm=trace ./target/release/edgequake
 
 ## Next Steps
 
-| Your Goal | Next Document |
-|-----------|---------------|
-| Deploy to production | [Deployment Guide](0006-deployment-guide.md) |
+| Your Goal             | Next Document                                              |
+| --------------------- | ---------------------------------------------------------- |
+| Deploy to production  | [Deployment Guide](0006-deployment-guide.md)               |
 | Configure all options | [Configuration Reference](0007-configuration-reference.md) |
-| Track LLM costs | [Production LLM](production-llm-integration.md) |
+| Track LLM costs       | [Production LLM](production-llm-integration.md)            |
 
 > **See Also**: [Features Registry](features.md) | [Cost Tracking](cost-tracking-sota-evaluation.md)
 
