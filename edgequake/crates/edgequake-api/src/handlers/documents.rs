@@ -1,4 +1,38 @@
 //! Document ingestion handlers.
+//!
+//! # Implements
+//!
+//! - **UC0001**: Upload Document
+//! - **UC0002**: List Documents  
+//! - **UC0003**: View Document Details
+//! - **UC0005**: Delete Document
+//! - **FEAT0001**: Document Ingestion Pipeline
+//! - **FEAT0010**: Document Metadata Storage
+//! - **FEAT0401**: REST API Service
+//!
+//! # Enforces
+//!
+//! - **BR0001**: Documents must be unique (SHA-256 content hash)
+//! - **BR0002**: Chunk size 1200 tokens, overlap 100 tokens
+//! - **BR0201**: Tenant isolation (workspace scoping)
+//! - **BR0401**: Authentication required for all endpoints
+//!
+//! # Endpoints
+//!
+//! | Method | Path | Handler | Description |
+//! |--------|------|---------|-------------|
+//! | POST | `/api/v1/documents` | [`upload_document`] | Upload text/file for ingestion |
+//! | GET | `/api/v1/documents` | [`list_documents`] | List all documents |
+//! | GET | `/api/v1/documents/:id` | [`get_document`] | Get document details |
+//! | DELETE | `/api/v1/documents/:id` | [`delete_document`] | Delete with cascade |
+//!
+//! # WHY: Two Ingestion Modes
+//!
+//! Documents can be processed synchronously or asynchronously:
+//! - **Sync**: Small documents (<10KB), immediate response with entities
+//! - **Async**: Large documents, returns task_id for polling
+//!
+//! Async mode prevents request timeouts for large PDFs (can take 30s+ to process).
 
 use axum::http::StatusCode;
 use axum::{extract::State, Json};
@@ -17,6 +51,35 @@ use crate::state::AppState;
 pub use crate::handlers::documents_types::*;
 
 /// Upload a document for processing.
+///
+/// # Implements
+///
+/// - **UC0001**: Upload Document
+/// - **FEAT0001**: Document Ingestion Pipeline
+/// - **FEAT0002**: Entity Extraction
+/// - **FEAT0003**: Relationship Discovery
+///
+/// # Enforces
+///
+/// - **BR0001**: Content uniqueness (SHA-256 hash computed)
+/// - **BR0201**: Tenant isolation (scoped to workspace)
+/// - **BR0302**: Document size limits enforced
+///
+/// # Request Flow
+///
+/// ```text
+/// POST /api/v1/documents
+///        ↓
+///   Validate content size
+///        ↓
+///   Compute SHA-256 hash
+///        ↓
+///   Store metadata + content
+///        ↓
+///   async_processing?
+///     ├─ true: Create task → Return task_id
+///     └─ false: Process inline → Return entities
+/// ```
 #[utoipa::path(
     post,
     path = "/api/v1/documents",
