@@ -1,6 +1,7 @@
 # Iteration 45 - ACT Phase
 
 ## Objective
+
 Add FEAT/BR/UC references to WebUI providers.
 
 ## Changes Made
@@ -15,9 +16,11 @@ Add FEAT/BR/UC references to WebUI providers.
 6. **providers/tenant-provider.tsx** - Added FEAT0504/0868, BR0504/0868
 
 ## Validation
+
 - TypeScript compilation: ✓
 
 ## Commit
+
 ```
 docs: Add FEAT/BR refs to WebUI providers (OODA-45)
 ```

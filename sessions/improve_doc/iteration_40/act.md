@@ -1,6 +1,7 @@
 # Iteration 40 - ACT Phase
 
 ## Objective
+
 Add FEAT/BR/UC references to WebUI components.
 
 ## Changes Made
@@ -13,6 +14,7 @@ Add FEAT/BR/UC references to WebUI components.
 4. **ingestion-progress-panel.tsx** - Added FEAT0602/0760, UC0007, BR0760-0761
 
 ### Pre-existing Documentation (already had FEAT/BR/UC)
+
 - query-interface.tsx
 - chat-message.tsx
 - source-citations.tsx
@@ -25,9 +27,11 @@ Add FEAT/BR/UC references to WebUI components.
 - lineage-explorer.tsx
 
 ## Validation
+
 - TypeScript compilation: ✓
 
 ## Commit
+
 ```
 docs: Add FEAT/BR/UC refs to WebUI components (OODA-40)
 ```
