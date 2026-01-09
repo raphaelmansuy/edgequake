@@ -455,10 +455,14 @@ def save_json_report(result: ValidationResult, output_path: str) -> None:
             "undocumented": len(result.undocumented),
             "orphaned": len(result.orphaned),
             "duplicates": len(result.duplicates),
+            "cross_cutting": len(result.cross_cutting_duplicates),
+            "true_collisions": len(result.true_collisions),
             "completeness_score": round(result.completeness_score, 2),
             "uniqueness_score": round(result.uniqueness_score, 2),
             "overall_score": round(result.overall_score, 2),
         },
+        "code_feature_ids": list(result.code_features.keys()),
+        "doc_feature_ids": list(result.doc_features.keys()),
         "duplicates": {
             feat_id: [
                 {

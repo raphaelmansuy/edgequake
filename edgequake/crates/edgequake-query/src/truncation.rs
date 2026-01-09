@@ -2,8 +2,7 @@
 //!
 //! # Implements
 //!
-//! - **FEAT0108**: Smart Context Truncation
-//! - **FEAT0110**: Token Counting and Budgeting
+//! @implements FEAT0108 (Context Truncation)
 //!
 //! # Enforces
 //!
