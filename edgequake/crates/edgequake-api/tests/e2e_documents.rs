@@ -69,7 +69,8 @@ async fn test_upload_document_success() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+    // WHY: POST /documents returns 201 Created per REST semantics (UC0001)
+    assert_eq!(response.status(), StatusCode::CREATED);
 
     let body = extract_json(response).await;
     assert!(body.get("document_id").is_some());
@@ -102,7 +103,8 @@ async fn test_upload_document_minimal() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+    // WHY: POST /documents returns 201 Created per REST semantics (UC0001)
+    assert_eq!(response.status(), StatusCode::CREATED);
 
     let body = extract_json(response).await;
     assert!(body.get("document_id").is_some());
@@ -185,7 +187,8 @@ async fn test_upload_document_with_metadata() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+    // WHY: POST /documents returns 201 Created per REST semantics (UC0001)
+    assert_eq!(response.status(), StatusCode::CREATED);
 
     let body = extract_json(response).await;
     assert!(body.get("document_id").is_some());
@@ -241,7 +244,8 @@ async fn test_list_documents_after_upload() {
         .await
         .unwrap();
 
-    assert_eq!(upload_response.status(), StatusCode::OK);
+    // WHY: POST /documents returns 201 Created per REST semantics (UC0001)
+    assert_eq!(upload_response.status(), StatusCode::CREATED);
 
     // Now list documents
     let app = server.build_router();
@@ -289,7 +293,8 @@ async fn test_get_document_success() {
         .await
         .unwrap();
 
-    assert_eq!(upload_response.status(), StatusCode::OK);
+    // WHY: POST /documents returns 201 Created per REST semantics (UC0001)
+    assert_eq!(upload_response.status(), StatusCode::CREATED);
 
     let upload_body = extract_json(upload_response).await;
     let document_id = upload_body
@@ -362,7 +367,8 @@ async fn test_delete_document_success() {
         .await
         .unwrap();
 
-    assert_eq!(upload_response.status(), StatusCode::OK);
+    // WHY: POST /documents returns 201 Created per REST semantics (UC0001)
+    assert_eq!(upload_response.status(), StatusCode::CREATED);
 
     let upload_body = extract_json(upload_response).await;
     let document_id = upload_body
@@ -454,7 +460,8 @@ async fn test_complete_document_lifecycle() {
         .await
         .unwrap();
 
-    assert_eq!(upload_response.status(), StatusCode::OK);
+    // WHY: POST /documents returns 201 Created per REST semantics (UC0001)
+    assert_eq!(upload_response.status(), StatusCode::CREATED);
 
     let upload_body = extract_json(upload_response).await;
     let document_id = upload_body

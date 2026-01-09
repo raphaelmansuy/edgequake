@@ -109,7 +109,8 @@ async fn test_upload_file_success() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+    // WHY: POST file upload returns 201 Created per REST semantics (UC0002)
+    assert_eq!(response.status(), StatusCode::CREATED);
 
     let body = extract_json(response).await;
     assert!(body.get("document_id").is_some());
@@ -149,7 +150,8 @@ async fn test_upload_file_markdown() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+    // WHY: POST file upload returns 201 Created per REST semantics (UC0002)
+    assert_eq!(response.status(), StatusCode::CREATED);
 
     let body = extract_json(response).await;
     assert_eq!(
@@ -182,7 +184,8 @@ async fn test_upload_file_json() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+    // WHY: POST file upload returns 201 Created per REST semantics (UC0002)
+    assert_eq!(response.status(), StatusCode::CREATED);
 }
 
 #[tokio::test]
@@ -302,7 +305,8 @@ async fn test_upload_file_deduplication() {
         .await
         .unwrap();
 
-    assert_eq!(response1.status(), StatusCode::OK);
+    // WHY: POST file upload returns 201 Created per REST semantics (UC0002)
+    assert_eq!(response1.status(), StatusCode::CREATED);
     let body1 = extract_json(response1).await;
     let doc_id1 = body1.get("document_id").and_then(|v| v.as_str()).unwrap();
     let hash1 = body1.get("content_hash").and_then(|v| v.as_str()).unwrap();
@@ -326,6 +330,7 @@ async fn test_upload_file_deduplication() {
         .await
         .unwrap();
 
+    // WHY: Duplicate content returns 200 OK (not 201) since no new resource created
     assert_eq!(response2.status(), StatusCode::OK);
     let body2 = extract_json(response2).await;
     let doc_id2 = body2.get("document_id").and_then(|v| v.as_str()).unwrap();
@@ -384,7 +389,8 @@ async fn test_upload_batch_success() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+    // WHY: POST file upload returns 201 Created per REST semantics (UC0002)
+    assert_eq!(response.status(), StatusCode::CREATED);
 
     let body = extract_json(response).await;
     assert!(body.get("results").is_some());
@@ -428,7 +434,8 @@ async fn test_upload_batch_with_duplicates() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+    // WHY: POST file upload returns 201 Created per REST semantics (UC0002)
+    assert_eq!(response.status(), StatusCode::CREATED);
 
     let body = extract_json(response).await;
     assert_eq!(body.get("total_files").and_then(|v| v.as_u64()), Some(3));
@@ -460,7 +467,8 @@ async fn test_upload_batch_empty() {
         .unwrap();
 
     // Empty batch should return success with 0 files
-    assert_eq!(response.status(), StatusCode::OK);
+    // WHY: POST file upload returns 201 Created per REST semantics (UC0002)
+    assert_eq!(response.status(), StatusCode::CREATED);
 
     let body = extract_json(response).await;
     assert_eq!(body.get("total_files").and_then(|v| v.as_u64()), Some(0));
@@ -492,7 +500,8 @@ async fn test_upload_batch_mixed_valid_invalid() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+    // WHY: POST file upload returns 201 Created per REST semantics (UC0002)
+    assert_eq!(response.status(), StatusCode::CREATED);
 
     let body = extract_json(response).await;
     assert_eq!(body.get("total_files").and_then(|v| v.as_u64()), Some(2));
@@ -565,7 +574,8 @@ async fn test_upload_file_size_reported() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+    // WHY: POST file upload returns 201 Created per REST semantics (UC0002)
+    assert_eq!(response.status(), StatusCode::CREATED);
 
     let body = extract_json(response).await;
     let size = body.get("size").and_then(|v| v.as_u64()).unwrap();
@@ -602,7 +612,8 @@ async fn test_upload_file_response_structure() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+    // WHY: POST file upload returns 201 Created per REST semantics (UC0002)
+    assert_eq!(response.status(), StatusCode::CREATED);
 
     let body = extract_json(response).await;
 
@@ -650,7 +661,8 @@ async fn test_batch_upload_response_structure() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+    // WHY: POST file upload returns 201 Created per REST semantics (UC0002)
+    assert_eq!(response.status(), StatusCode::CREATED);
 
     let body = extract_json(response).await;
 
