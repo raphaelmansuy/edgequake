@@ -294,6 +294,8 @@ impl ChunkingStrategy for TokenBasedChunking {
 /// Character-based chunking strategy (GAP-017).
 ///
 /// Splits text on a specific character (like newline) for pre-split content.
+///
+/// @implements FEAT0301 (Character-Based Chunking)
 pub struct CharacterBasedChunking {
     /// Character to split on.
     pub split_character: String,
