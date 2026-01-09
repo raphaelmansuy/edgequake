@@ -24,22 +24,22 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
+    HoverCard,
+    HoverCardContent,
+    HoverCardTrigger,
 } from '@/components/ui/hover-card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { QueryContext } from '@/types';
 import {
-  BookOpen,
-  Brain,
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
-  FileText,
-  Network,
-  Sparkles
+    BookOpen,
+    Brain,
+    ChevronDown,
+    ChevronUp,
+    ExternalLink,
+    FileText,
+    Network,
+    Sparkles
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
