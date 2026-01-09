@@ -586,15 +586,15 @@
 
 ### FEAT0501 - PDF Text Extraction
 
-| Attribute          | Value                                                                                    |
-| ------------------ | ---------------------------------------------------------------------------------------- |
-| **ID**             | FEAT0501                                                                                 |
-| **Name**           | PDF Text Extraction                                                                      |
-| **Module**         | edgequake-pdf                                                                            |
-| **Status**         | ✅ Stable                                                                                |
-| **Code Reference** | [backend/sota_backend.rs](../edgequake/crates/edgequake-pdf/src/backend/sota_backend.rs) |
-| **Description**    | Extract text content from PDF documents                                                  |
-| **Related**        | FEAT0402, UC0002                                                                         |
+| Attribute          | Value                                                                                              |
+| ------------------ | -------------------------------------------------------------------------------------------------- |
+| **ID**             | FEAT0501                                                                                           |
+| **Name**           | PDF Text Extraction                                                                                |
+| **Module**         | edgequake-pdf                                                                                      |
+| **Status**         | ✅ Stable                                                                                          |
+| **Code Reference** | [backend/extraction_engine.rs](../edgequake/crates/edgequake-pdf/src/backend/extraction_engine.rs) |
+| **Description**    | Extract text content from PDF documents                                                            |
+| **Related**        | FEAT0402, UC0002                                                                                   |
 
 ### FEAT0502 - PDF Layout Analysis
 
