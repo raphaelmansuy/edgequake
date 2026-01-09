@@ -1,3 +1,19 @@
+/**
+ * @module use-tenant-store
+ * @description Zustand store for multi-tenant context management.
+ * Manages tenant/workspace selection and provides API context headers.
+ * 
+ * @implements UC0506 - User selects tenant from available list
+ * @implements UC0507 - User selects workspace within tenant
+ * @implements FEAT0504 - Multi-tenancy with workspace isolation
+ * @implements FEAT0506 - Tenant context persisted across sessions
+ * 
+ * @enforces BR0504 - All API calls include tenant/workspace headers
+ * @enforces BR0506 - Switching workspace clears stale data
+ * @enforces BR0507 - New users trigger onboarding flow
+ * 
+ * @see {@link docs/features.md} FEAT0504, FEAT0506
+ */
 "use client";
 
 import { getTenantContext, setTenantContext } from "@/lib/api/client";

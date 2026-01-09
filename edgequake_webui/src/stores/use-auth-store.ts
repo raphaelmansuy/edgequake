@@ -1,3 +1,19 @@
+/**
+ * @module use-auth-store
+ * @description Zustand store for authentication state management.
+ * Handles JWT tokens, user info, and login/logout actions.
+ * 
+ * @implements UC0501 - User authenticates via login form
+ * @implements UC0505 - User logs out and clears session
+ * @implements FEAT0501 - JWT token management
+ * @implements FEAT0505 - Token expiration detection
+ * 
+ * @enforces BR0501 - Protected routes require authentication
+ * @enforces BR0502 - Expired tokens trigger logout
+ * @enforces BR0505 - Tokens stored securely in localStorage
+ * 
+ * @see {@link docs/use_cases.md} UC0501, UC0505
+ */
 "use client";
 
 import { clearTokens, getTokens, setTokens } from "@/lib/api/client";

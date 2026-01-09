@@ -1,3 +1,19 @@
+/**
+ * @module use-settings-store
+ * @description Zustand store for application settings and preferences.
+ * Manages theme, query defaults, graph settings, and sidebar state.
+ * 
+ * @implements FEAT0617 - User preference persistence
+ * @implements FEAT0101-0104 - Query mode defaults
+ * @implements FEAT0618 - Graph visualization settings
+ * @implements FEAT0619 - Ingestion quality settings (gleaning, summarization)
+ * 
+ * @enforces BR0609 - Theme persists across sessions
+ * @enforces BR0611 - Settings sync across tabs
+ * @enforces BR0612 - Defaults optimized for quality (hybrid mode, reranking)
+ * 
+ * @see {@link docs/features.md} FEAT0617-0619
+ */
 "use client";
 
 import { STORE_VERSIONS, ZUSTAND_STORAGE_KEYS } from "@/lib/storage-keys";
