@@ -1,8 +1,18 @@
 /**
- * Cost Hooks
- *
- * React Query hooks for cost data fetching.
+ * @module use-cost
+ * @description React Query hooks for cost data fetching.
  * Based on WebUI Specification Document WEBUI-007 (16-webui-cost-monitoring.md)
+ *
+ * @implements UC0801 - User monitors LLM usage costs
+ * @implements UC0802 - User sets budget alerts
+ * @implements FEAT0801 - Per-document cost tracking
+ * @implements FEAT0803 - Workspace cost summary
+ * @implements FEAT0610 - Cost history timeline
+ *
+ * @enforces BR0801 - Costs update in real-time
+ * @enforces BR0802 - Budget alerts trigger at thresholds
+ *
+ * @see {@link specs/WEBUI-007.md} for specification
  */
 
 import {

@@ -2,17 +2,17 @@
  * @module use-conversations
  * @description React Query hooks for conversation management.
  * Provides CRUD operations and real-time updates for chat conversations.
- * 
+ *
  * @implements UC0401 - User creates new conversation
  * @implements UC0402 - User views conversation history
  * @implements UC0403 - User shares conversation with link
  * @implements UC0404 - User imports/exports conversations
  * @implements FEAT0401 - Conversation persistence
  * @implements FEAT0402 - Infinite scroll pagination
- * 
+ *
  * @enforces BR0401 - Conversations persist across sessions
  * @enforces BR0403 - Shared links expire after TTL
- * 
+ *
  * @see {@link docs/use_cases.md} UC0401-0404
  */
 "use client";

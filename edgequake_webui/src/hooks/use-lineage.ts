@@ -1,8 +1,17 @@
 /**
- * Lineage Hooks
- *
- * React Query hooks for lineage data fetching.
+ * @module use-lineage
+ * @description React Query hooks for lineage data fetching.
  * Based on WebUI Specification Document WEBUI-006 (15-webui-lineage-viz.md)
+ *
+ * @implements UC2141 - User traces entity back to source document
+ * @implements FEAT0540 - Chunk detail retrieval
+ * @implements FEAT0541 - Entity provenance tracking
+ * @implements FEAT0609 - Lineage visualization data
+ *
+ * @enforces BR0540 - Chunk IDs must be valid
+ * @enforces BR0541 - Lineage respects workspace isolation
+ *
+ * @see {@link specs/WEBUI-006.md} for specification
  */
 
 import {

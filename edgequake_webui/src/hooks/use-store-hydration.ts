@@ -1,11 +1,16 @@
 /**
- * Zustand Hydration Utilities
+ * @module use-store-hydration
+ * @description Zustand Hydration Utilities
  *
  * Provides SSR-safe hooks for accessing Zustand persisted stores.
  * Prevents hydration mismatches in Next.js by properly handling
  * the async nature of localStorage hydration.
  *
- * @module use-store-hydration
+ * @implements FEAT0649 - SSR-safe store hydration
+ * @implements FEAT0650 - Hydration mismatch prevention
+ *
+ * @enforces BR0634 - Server renders default state
+ * @enforces BR0635 - Client hydrates from localStorage
  */
 
 'use client';
