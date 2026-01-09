@@ -5,9 +5,10 @@
 //!
 //! ## Implements
 //!
-//! - **FEAT0830**: Per-tenant EdgeQuake instance management
-//! - **FEAT0831**: Instance caching for performance
-//! - **FEAT0832**: Automatic cleanup of stale instances
+//! @implements FEAT0015 (Multi-Tenant Isolation)
+//! @implements FEAT0830 (Per-tenant EdgeQuake instance management)
+//! @implements FEAT0831 (Instance caching for performance)
+//! @implements FEAT0832 (Automatic cleanup of stale instances)
 //!
 //! ## Use Cases
 //!

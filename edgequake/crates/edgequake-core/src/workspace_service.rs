@@ -5,10 +5,11 @@
 //!
 //! ## Implements
 //!
-//! - **FEAT0820**: Workspace CRUD operations
-//! - **FEAT0821**: Tenant management
-//! - **FEAT0822**: Membership and role management
-//! - **FEAT0823**: Workspace statistics
+//! @implements FEAT0016 (Workspace Management)
+//! @implements FEAT0820 (Workspace CRUD operations)
+//! @implements FEAT0821 (Tenant management)
+//! @implements FEAT0822 (Membership and role management)
+//! @implements FEAT0823 (Workspace statistics)
 //!
 //! ## Use Cases
 //!

@@ -6,9 +6,9 @@
 //!
 //! ## Implements
 //!
-//! - **FEAT0011**: Document-Chunk-Entity Lineage tracking
-//! - **FEAT0019**: Source span tracking with line numbers
-//! - **FEAT0020**: Description history for entity evolution
+//! @implements FEAT0011 (Document-Chunk-Entity Lineage tracking)
+//! @implements FEAT0019 (Source span tracking with line numbers)
+//! @implements FEAT0020 (Description history for entity evolution)
 //!
 //! ## Use Cases
 //!
