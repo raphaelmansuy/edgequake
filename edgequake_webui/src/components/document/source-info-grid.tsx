@@ -1,3 +1,15 @@
+/**
+ * @fileoverview Source information grid displaying document metadata
+ *
+ * @implements FEAT1084 - Source metadata display
+ * @implements FEAT1085 - File size formatting
+ *
+ * @see UC1515 - User views document source info
+ * @see UC1516 - User sees processing timestamps
+ *
+ * @enforces BR1084 - Date formatting with date-fns
+ * @enforces BR1085 - Human-readable file sizes
+ */
 // Source information grid
 'use client';
 

@@ -1,3 +1,15 @@
+/**
+ * @fileoverview Visual lineage tree showing extraction pipeline
+ *
+ * @implements FEAT1076 - Extraction pipeline visualization
+ * @implements FEAT1077 - Processing step timing display
+ *
+ * @see UC1507 - User views extraction lineage
+ * @see UC1508 - User sees processing durations
+ *
+ * @enforces BR1076 - Sequential step layout
+ * @enforces BR1077 - Status indicators per step
+ */
 // Visual lineage tree showing extraction pipeline
 'use client';
 

@@ -1,3 +1,15 @@
+/**
+ * @fileoverview Smart metadata sidebar with collapsible sections
+ *
+ * @implements FEAT1074 - Document metadata display
+ * @implements FEAT1075 - Collapsible section organization
+ *
+ * @see UC1505 - User views document metadata
+ * @see UC1506 - User expands/collapses metadata sections
+ *
+ * @enforces BR1074 - Sticky key stats header
+ * @enforces BR1075 - Scrollable section content
+ */
 // Smart metadata sidebar with collapsible sections
 'use client';
 

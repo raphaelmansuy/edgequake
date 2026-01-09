@@ -3,6 +3,15 @@
  * 
  * Browse document chunks with entity highlighting.
  * Based on WebUI Specification Document WEBUI-004 (13-webui-components.md)
+ *
+ * @implements FEAT1070 - Document chunk browsing
+ * @implements FEAT1071 - Entity highlighting in chunks
+ *
+ * @see UC1501 - User explores document chunks
+ * @see UC1502 - User views entities per chunk
+ *
+ * @enforces BR1070 - Searchable chunk list
+ * @enforces BR1071 - Selection state synchronization
  */
 
 'use client';
