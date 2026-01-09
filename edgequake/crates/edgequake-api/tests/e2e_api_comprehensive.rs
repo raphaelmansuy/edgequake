@@ -171,7 +171,8 @@ mod document_tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::OK);
+        // WHY: POST /documents returns 201 Created per REST semantics (UC0001)
+        assert_eq!(response.status(), StatusCode::CREATED);
 
         let json = extract_json(response).await;
         assert!(json.get("document_id").is_some());
@@ -198,7 +199,8 @@ mod document_tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::OK);
+        // WHY: POST /documents returns 201 Created per REST semantics (UC0001)
+        assert_eq!(response.status(), StatusCode::CREATED);
     }
 
     #[tokio::test]
@@ -293,7 +295,8 @@ mod document_tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::OK);
+        // WHY: POST /documents returns 201 Created per REST semantics (UC0001)
+        assert_eq!(response.status(), StatusCode::CREATED);
 
         let json = extract_json(response).await;
         // Async processing should return a task_id
