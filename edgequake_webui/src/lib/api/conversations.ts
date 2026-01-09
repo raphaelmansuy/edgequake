@@ -1,3 +1,16 @@
+/**
+ * @module conversations-api
+ * @description Conversations API client.
+ * Provides CRUD operations for conversations and messages.
+ *
+ * @implements FEAT0706 - Conversation list with pagination
+ * @implements FEAT0707 - Message history retrieval
+ * @implements FEAT0708 - Conversation sharing
+ *
+ * @enforces BR0705 - Cursor pagination for large lists
+ * @enforces BR0706 - Messages ordered by created_at
+ */
+
 import type {
   ConversationFilterParams,
   ConversationWithMessages,

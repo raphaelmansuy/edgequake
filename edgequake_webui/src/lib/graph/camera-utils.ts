@@ -1,7 +1,6 @@
-import type Sigma from "sigma";
-
 /**
- * Utility functions for Sigma camera operations.
+ * @module camera-utils
+ * @description Utility functions for Sigma camera operations.
  *
  * IMPORTANT: Sigma camera x,y coordinates use NORMALIZED coordinates (0-1 range)
  * representing a fraction of the graph's bounding box. Graph node positions (x, y)
@@ -9,7 +8,16 @@ import type Sigma from "sigma";
  *
  * Using raw graph coordinates directly in camera.animate() will cause the camera
  * to zoom to an empty area outside the visible graph.
+ *
+ * @implements FEAT0713 - Camera focus on node
+ * @implements FEAT0714 - Camera fit-to-graph
+ * @implements FEAT0715 - Smooth camera animation
+ *
+ * @enforces BR0711 - Convert graph coords to normalized
+ * @enforces BR0712 - Animation duration capped at 1000ms
  */
+
+import type Sigma from "sigma";
 
 export interface FocusOptions {
   /** Zoom ratio - lower means more zoomed in (default: 0.4) */
