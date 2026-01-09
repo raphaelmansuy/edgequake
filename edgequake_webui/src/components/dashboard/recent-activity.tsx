@@ -1,3 +1,15 @@
+/**
+ * @fileoverview Recent activity feed showing document processing status
+ *
+ * @implements FEAT1020 - Activity feed with document status
+ * @implements FEAT1021 - Processing status indicators
+ *
+ * @see UC1105 - User monitors document ingestion status
+ * @see UC1106 - User reviews recent uploads
+ *
+ * @enforces BR1020 - Status icons with animation for processing
+ * @enforces BR1021 - Empty state with call-to-action
+ */
 'use client';
 
 import { Badge } from '@/components/ui/badge';

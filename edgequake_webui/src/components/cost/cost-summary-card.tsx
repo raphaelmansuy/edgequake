@@ -3,6 +3,15 @@
  * 
  * Overview card displaying cost summary statistics.
  * Based on WebUI Specification Document WEBUI-007 (16-webui-cost-monitoring.md)
+ *
+ * @implements FEAT1044 - Cost summary statistics display
+ * @implements FEAT1045 - Token usage aggregation
+ *
+ * @see UC1205 - User views total cost and token usage
+ * @see UC1206 - User reviews cost efficiency metrics
+ *
+ * @enforces BR1044 - Smart number formatting (K/M suffixes)
+ * @enforces BR1045 - Date range display for cost periods
  */
 
 'use client';

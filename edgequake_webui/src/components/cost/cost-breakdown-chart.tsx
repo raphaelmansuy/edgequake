@@ -3,6 +3,15 @@
  * 
  * Visual cost breakdown with pie or bar chart.
  * Based on WebUI Specification Document WEBUI-007 (16-webui-cost-monitoring.md)
+ *
+ * @implements FEAT1042 - Cost breakdown visualization
+ * @implements FEAT1043 - Stage-wise cost categorization
+ *
+ * @see UC1203 - User analyzes cost by processing stage
+ * @see UC1204 - User compares extraction vs embedding costs
+ *
+ * @enforces BR1042 - Color-coded stage categories
+ * @enforces BR1043 - Dynamic chart type selection (pie/bar)
  */
 
 'use client';

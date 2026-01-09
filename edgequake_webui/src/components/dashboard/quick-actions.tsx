@@ -1,3 +1,15 @@
+/**
+ * @fileoverview Quick action navigation cards for common tasks
+ *
+ * @implements FEAT1010 - Quick action shortcuts
+ * @implements FEAT1011 - Dashboard navigation widgets
+ *
+ * @see UC1103 - User navigates to documents/query/graph
+ * @see UC1104 - User accesses primary workflows quickly
+ *
+ * @enforces BR1010 - Internationalized action labels
+ * @enforces BR1011 - Accessible keyboard navigation
+ */
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
