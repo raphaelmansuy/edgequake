@@ -212,17 +212,20 @@ pub async fn upload_document(
             .await
             .map_err(|e| ApiError::Internal(format!("Failed to queue task: {}", e)))?;
 
-        Ok((StatusCode::CREATED, Json(UploadDocumentResponse {
-            document_id,
-            status: "pending".to_string(),
-            task_id: Some(task_id),
-            track_id,
-            duplicate_of: None,
-            chunk_count: None,
-            entity_count: None,
-            relationship_count: None,
-            cost: None, // Cost will be calculated when processing completes
-        })))
+        Ok((
+            StatusCode::CREATED,
+            Json(UploadDocumentResponse {
+                document_id,
+                status: "pending".to_string(),
+                task_id: Some(task_id),
+                track_id,
+                duplicate_of: None,
+                chunk_count: None,
+                entity_count: None,
+                relationship_count: None,
+                cost: None, // Cost will be calculated when processing completes
+            }),
+        ))
     } else {
         // Synchronous processing (original behavior)
         // Broadcast job started
@@ -441,17 +444,20 @@ pub async fn upload_document(
             embedding_model: result.stats.embedding_model.clone(),
         });
 
-        Ok((StatusCode::CREATED, Json(UploadDocumentResponse {
-            document_id,
-            status: "processed".to_string(),
-            task_id: None,
-            track_id,
-            duplicate_of: None,
-            chunk_count: Some(result.stats.chunk_count),
-            entity_count: Some(result.stats.entity_count),
-            relationship_count: Some(result.stats.relationship_count),
-            cost,
-        })))
+        Ok((
+            StatusCode::CREATED,
+            Json(UploadDocumentResponse {
+                document_id,
+                status: "processed".to_string(),
+                task_id: None,
+                track_id,
+                duplicate_of: None,
+                chunk_count: Some(result.stats.chunk_count),
+                entity_count: Some(result.stats.entity_count),
+                relationship_count: Some(result.stats.relationship_count),
+                cost,
+            }),
+        ))
     }
 }
 
@@ -1469,17 +1475,20 @@ pub async fn upload_file(
         debug!(existing_doc_id = ?existing_doc_id, "Found existing document for hash");
         if let Some(doc_id_str) = existing_doc_id.as_str() {
             // Note: Duplicates return 200 OK, not 201 CREATED
-            return Ok((StatusCode::OK, Json(FileUploadResponse {
-                document_id: doc_id_str.to_string(),
-                filename,
-                size: content.len(),
-                content_hash,
-                status: "duplicate".to_string(),
-                chunk_count: 0,
-                entity_count: 0,
-                relationship_count: 0,
-                is_duplicate: true,
-            })));
+            return Ok((
+                StatusCode::OK,
+                Json(FileUploadResponse {
+                    document_id: doc_id_str.to_string(),
+                    filename,
+                    size: content.len(),
+                    content_hash,
+                    status: "duplicate".to_string(),
+                    chunk_count: 0,
+                    entity_count: 0,
+                    relationship_count: 0,
+                    is_duplicate: true,
+                }),
+            ));
         }
     }
 
@@ -1780,17 +1789,20 @@ pub async fn upload_file(
         .upsert(&[(doc_metadata_key, completed_metadata)])
         .await?;
 
-    Ok((StatusCode::CREATED, Json(FileUploadResponse {
-        document_id,
-        filename,
-        size: content.len(),
-        content_hash,
-        status: "processed".to_string(),
-        chunk_count: result.stats.chunk_count,
-        entity_count: result.stats.entity_count,
-        relationship_count: result.stats.relationship_count,
-        is_duplicate: false,
-    })))
+    Ok((
+        StatusCode::CREATED,
+        Json(FileUploadResponse {
+            document_id,
+            filename,
+            size: content.len(),
+            content_hash,
+            status: "processed".to_string(),
+            chunk_count: result.stats.chunk_count,
+            entity_count: result.stats.entity_count,
+            relationship_count: result.stats.relationship_count,
+            is_duplicate: false,
+        }),
+    ))
 }
 
 /// Upload multiple files via multipart form.
@@ -1875,13 +1887,16 @@ pub async fn upload_files_batch(
         }
     }
 
-    Ok((StatusCode::CREATED, Json(BatchUploadResponse {
-        total_files: results.len(),
-        processed,
-        duplicates,
-        failed,
-        results,
-    })))
+    Ok((
+        StatusCode::CREATED,
+        Json(BatchUploadResponse {
+            total_files: results.len(),
+            processed,
+            duplicates,
+            failed,
+            results,
+        }),
+    ))
 }
 
 /// Process a single file and return (document_id, is_duplicate).
