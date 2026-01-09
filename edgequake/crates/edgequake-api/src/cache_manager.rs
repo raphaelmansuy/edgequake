@@ -73,6 +73,7 @@ impl CacheManager {
     // ========== Conversation Cache ==========
 
     /// Get a conversation from cache.
+/// @implements FEAT0017
     pub fn get_conversation(&self, id: Uuid) -> Option<Conversation> {
         self.conversations.get(&id)
     }

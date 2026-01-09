@@ -12,27 +12,27 @@
 
 ## Quick Reference
 
-| I want to...                  | Go to                                         |
-| ----------------------------- | --------------------------------------------- |
+| I want to...                  | Go to                                           |
+| ----------------------------- | ----------------------------------------------- |
 | See all environment variables | [Environment Variables](#environment-variables) |
 | Configure storage             | [Storage Configuration](#storage-configuration) |
-| Set up LLM                    | [LLM Configuration](#llm-configuration)       |
-| Tune query performance        | [Query Configuration](#query-configuration)   |
-| Use config file               | [Configuration File](#configuration-file)     |
-| See preset profiles           | [Profile Presets](#profile-presets)           |
+| Set up LLM                    | [LLM Configuration](#llm-configuration)         |
+| Tune query performance        | [Query Configuration](#query-configuration)     |
+| Use config file               | [Configuration File](#configuration-file)       |
+| See preset profiles           | [Profile Presets](#profile-presets)             |
 
 ---
 
 ## Configuration at a Glance
 
-| Category | Key Variables | Impact |
-| -------- | ------------- | ------ |
-| **API** | `HOST`, `PORT` | Where server listens |
-| **Storage** | `DATABASE_URL` | Data persistence |
-| **LLM** | `OPENAI_API_KEY`, `EDGEQUAKE_LLM_MODEL` | AI capabilities |
-| **Pipeline** | `EDGEQUAKE_CHUNK_SIZE` | Document processing quality |
-| **Query** | `EDGEQUAKE_DEFAULT_MODE` | Query strategy |
-| **Logging** | `RUST_LOG` | Debug visibility |
+| Category     | Key Variables                           | Impact                      |
+| ------------ | --------------------------------------- | --------------------------- |
+| **API**      | `HOST`, `PORT`                          | Where server listens        |
+| **Storage**  | `DATABASE_URL`                          | Data persistence            |
+| **LLM**      | `OPENAI_API_KEY`, `EDGEQUAKE_LLM_MODEL` | AI capabilities             |
+| **Pipeline** | `EDGEQUAKE_CHUNK_SIZE`                  | Document processing quality |
+| **Query**    | `EDGEQUAKE_DEFAULT_MODE`                | Query strategy              |
+| **Logging**  | `RUST_LOG`                              | Debug visibility            |
 
 ---
 
@@ -530,16 +530,16 @@ RUST_LOG=info
 
 ### Configuration Issues
 
-| Symptom | Likely Cause | Solution |
-| ------- | ------------ | -------- |
-| "environment variable not found" | Missing required var | Check `OPENAI_API_KEY` or `DATABASE_URL` is set |
-| Config file not loaded | Wrong path | Use absolute path or verify working directory |
-| Env overrides not working | Wrong priority | Env vars override config file, check spelling |
-| "invalid value" error | Wrong type | Check numbers are numbers, booleans are true/false |
-| CORS errors in browser | Wrong origins | Add your domain to `cors_origins` array |
-| Connection pool exhausted | Too low `max_connections` | Increase to 20-50 for production |
-| Slow embeddings | Wrong model | Use `text-embedding-3-small` for speed |
-| Out of context errors | Chunk size too small | Increase `EDGEQUAKE_CHUNK_SIZE` to 1500+ |
+| Symptom                          | Likely Cause              | Solution                                           |
+| -------------------------------- | ------------------------- | -------------------------------------------------- |
+| "environment variable not found" | Missing required var      | Check `OPENAI_API_KEY` or `DATABASE_URL` is set    |
+| Config file not loaded           | Wrong path                | Use absolute path or verify working directory      |
+| Env overrides not working        | Wrong priority            | Env vars override config file, check spelling      |
+| "invalid value" error            | Wrong type                | Check numbers are numbers, booleans are true/false |
+| CORS errors in browser           | Wrong origins             | Add your domain to `cors_origins` array            |
+| Connection pool exhausted        | Too low `max_connections` | Increase to 20-50 for production                   |
+| Slow embeddings                  | Wrong model               | Use `text-embedding-3-small` for speed             |
+| Out of context errors            | Chunk size too small      | Increase `EDGEQUAKE_CHUNK_SIZE` to 1500+           |
 
 ### Validation Commands
 
@@ -576,13 +576,13 @@ EDGEQUAKE_DEFAULT_MODE=hybrid
 
 ## Next Steps
 
-| Document | When to Read |
-| -------- | ------------ |
-| [Quick Start](0001-quick-start.md) | Get started in 5 minutes |
-| [LLM Integration](0005-llm-integration.md) | Configure LLM providers in detail |
-| [Deployment Guide](0006-deployment-guide.md) | Production deployment |
-| [Multi-Tenancy](0008-multi-tenancy.md) | Namespace isolation |
-| [Storage Backends](0004-storage-backends.md) | Database configuration |
+| Document                                     | When to Read                      |
+| -------------------------------------------- | --------------------------------- |
+| [Quick Start](0001-quick-start.md)           | Get started in 5 minutes          |
+| [LLM Integration](0005-llm-integration.md)   | Configure LLM providers in detail |
+| [Deployment Guide](0006-deployment-guide.md) | Production deployment             |
+| [Multi-Tenancy](0008-multi-tenancy.md)       | Namespace isolation               |
+| [Storage Backends](0004-storage-backends.md) | Database configuration            |
 
 ---
 

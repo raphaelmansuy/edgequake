@@ -34,6 +34,7 @@
 //! |-------|--------|--------|-------------|
 //! | `BadRequest` | 400 | No | Fix request parameters |
 //! | `Unauthorized` | 401 | No | Provide valid API key |
+/// @implements FEAT0803
 //! | `Forbidden` | 403 | No | Check permissions |
 //! | `NotFound` | 404 | No | Use valid resource ID |
 //! | `Conflict` | 409 | No | Resolve conflict |

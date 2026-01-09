@@ -70,6 +70,7 @@ impl Default for MergerConfig {
 }
 
 /// Merges extracted entities and relationships into the knowledge graph.
+/// @implements FEAT0005
 pub struct KnowledgeGraphMerger<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> {
     config: MergerConfig,
     graph_storage: Arc<G>,

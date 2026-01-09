@@ -156,6 +156,7 @@ This repository includes reusable SKILL definitions in `.github/skills/` for com
 | Skill                             | Location                                                                                                       | Purpose                                                                                                                                                                                                               |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **makefile-dev-workflow**         | [.github/skills/makefile-dev-workflow/SKILL.md](.github/skills/makefile-dev-workflow/SKILL.md)                 | Unified development workflow using Makefile commands. Use for starting services, running E2E tests, and managing the full development stack (database, backend, frontend). **Start here for dev setup.**              |
+| **doc-traceability-validator**    | [.github/skills/doc-traceability-validator/SKILL.md](.github/skills/doc-traceability-validator/SKILL.md)       | Validate FEAT/BR/UC traceability chain. Detect undocumented features, duplicate IDs, namespace violations, broken references. Use for CI/CD doc validation and pre-commit checks. **Use for documentation audits.**   |
 | **pdf-markdown-validator**        | [.github/skills/pdf-markdown-validator/SKILL.md](.github/skills/pdf-markdown-validator/SKILL.md)               | Validate PDF to Markdown conversion quality using multi-dimensional metrics (table accuracy, style preservation, robustness, performance). Use when measuring conversion fidelity and tracking improvements.          |
 | **playwright-ux-ui-capture**      | [.github/skills/playwright-ux-ui-capture/SKILL.md](.github/skills/playwright-ux-ui-capture/SKILL.md)           | Capture EdgeQuake WebUI routes with Playwright and write artifacts (screenshots + request JSON). Use when automating UI screenshot collection or updating E2E capture specs.                                          |
 | **reverse-documentation**         | [.github/skills/reverse-documentation/SKILL.md](.github/skills/reverse-documentation/SKILL.md)                 | Automatically generate comprehensive documentation for Rust and TypeScript codebases by analyzing code structure, patterns, and relationships. Supports trait-based patterns, async operations, and React components. |
@@ -174,6 +175,27 @@ make stop             # Stop all services
 ```
 
 See: [makefile-dev-workflow SKILL](.github/skills/makefile-dev-workflow/SKILL.md)
+
+**Validating documentation traceability:**
+
+```bash
+# Validate FEAT IDs in code match docs/features.md
+python3 .github/skills/doc-traceability-validator/scripts/validate_features.py \
+  --code-dir edgequake_webui/src \
+  --docs-file docs/features.md \
+  --verbose
+
+# Check namespace violations (wrong team IDs)
+python3 .github/skills/doc-traceability-validator/scripts/check_namespace.py \
+  --code-dir edgequake_webui/src
+
+# Generate missing feature entries from code
+python3 .github/skills/doc-traceability-validator/scripts/generate_registry.py \
+  --code-dir edgequake_webui/src \
+  --existing docs/features.md
+```
+
+See: [doc-traceability-validator SKILL](.github/skills/doc-traceability-validator/SKILL.md)
 
 **Running E2E tests:**
 

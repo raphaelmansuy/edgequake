@@ -12,14 +12,14 @@
 
 ## Quick Reference
 
-| I want to...                  | Go to                                         |
-| ----------------------------- | --------------------------------------------- |
-| Deploy with Docker            | [Docker Deployment](#docker-deployment)       |
-| Set up Kubernetes             | [Kubernetes Deployment](#kubernetes-deployment) |
-| Configure monitoring          | [Monitoring & Health](#monitoring--health)    |
-| Check production readiness    | [Pre-deployment Checklist](#pre-deployment-checklist) |
-| Troubleshoot issues           | [Troubleshooting](#troubleshooting)           |
-| Set up backups                | [Backup & Recovery](#backup--recovery)        |
+| I want to...               | Go to                                                 |
+| -------------------------- | ----------------------------------------------------- |
+| Deploy with Docker         | [Docker Deployment](#docker-deployment)               |
+| Set up Kubernetes          | [Kubernetes Deployment](#kubernetes-deployment)       |
+| Configure monitoring       | [Monitoring & Health](#monitoring--health)            |
+| Check production readiness | [Pre-deployment Checklist](#pre-deployment-checklist) |
+| Troubleshoot issues        | [Troubleshooting](#troubleshooting)                   |
+| Set up backups             | [Backup & Recovery](#backup--recovery)                |
 
 ---
 
@@ -28,6 +28,7 @@
 Before going to production, verify all items:
 
 ### Infrastructure
+
 - [ ] **PostgreSQL 15+** with extensions: `vector`, `age`, `pg_trgm`, `uuid-ossp`
 - [ ] **SSL/TLS certificates** configured for HTTPS
 - [ ] **Domain/DNS** configured for API and WebUI
@@ -35,6 +36,7 @@ Before going to production, verify all items:
 - [ ] **Load balancer** configured (if multi-instance)
 
 ### Configuration
+
 - [ ] **DATABASE_URL** uses production credentials (not default `password`)
 - [ ] **OPENAI_API_KEY** set with valid key (or alternative LLM configured)
 - [ ] **CORS origins** restricted to production domains
@@ -42,6 +44,7 @@ Before going to production, verify all items:
 - [ ] **Log level** set to `info` (not `debug` in production)
 
 ### Security
+
 - [ ] **Secrets** stored in vault/secret manager (not in code/env files)
 - [ ] **Database** not exposed to public internet
 - [ ] **API keys** rotated from development values
@@ -49,6 +52,7 @@ Before going to production, verify all items:
 - [ ] **Input validation** enabled (default)
 
 ### Monitoring
+
 - [ ] **Health endpoints** responding at `/health`, `/live`, `/ready`
 - [ ] **Prometheus metrics** scraped from `/metrics`
 - [ ] **Alerting** configured for critical metrics
@@ -576,18 +580,18 @@ scrape_configs:
 
 ### Quick Diagnosis Table
 
-| Symptom | Likely Cause | Solution |
-| ------- | ------------ | -------- |
-| API returns 502 | Container/process not running | Check `docker ps` or `systemctl status edgequake` |
-| Connection refused :8080 | Wrong host binding | Set `HOST=0.0.0.0` not `localhost` |
-| "database connection failed" | Wrong DATABASE_URL | Verify credentials with `psql $DATABASE_URL -c "SELECT 1"` |
-| "extension not found" | Missing PostgreSQL extensions | Run `CREATE EXTENSION IF NOT EXISTS vector;` etc. |
-| "unauthorized" from OpenAI | Invalid/expired API key | Test key: `curl -H "Authorization: Bearer $OPENAI_API_KEY" https://api.openai.com/v1/models` |
-| High latency (>5s) | Cold LLM or large queries | Check `top_k` setting, reduce to 30-40 for faster response |
-| Out of memory | Too many concurrent requests | Increase memory limits or add replicas |
-| "Too many connections" | Connection pool exhausted | Increase `pool_size` or use PgBouncer |
-| Metrics not appearing | Wrong scrape path | Verify `/metrics` endpoint returns Prometheus format |
-| SSL handshake failed | Certificate issues | Check cert chain, verify CN matches domain |
+| Symptom                      | Likely Cause                  | Solution                                                                                     |
+| ---------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------- |
+| API returns 502              | Container/process not running | Check `docker ps` or `systemctl status edgequake`                                            |
+| Connection refused :8080     | Wrong host binding            | Set `HOST=0.0.0.0` not `localhost`                                                           |
+| "database connection failed" | Wrong DATABASE_URL            | Verify credentials with `psql $DATABASE_URL -c "SELECT 1"`                                   |
+| "extension not found"        | Missing PostgreSQL extensions | Run `CREATE EXTENSION IF NOT EXISTS vector;` etc.                                            |
+| "unauthorized" from OpenAI   | Invalid/expired API key       | Test key: `curl -H "Authorization: Bearer $OPENAI_API_KEY" https://api.openai.com/v1/models` |
+| High latency (>5s)           | Cold LLM or large queries     | Check `top_k` setting, reduce to 30-40 for faster response                                   |
+| Out of memory                | Too many concurrent requests  | Increase memory limits or add replicas                                                       |
+| "Too many connections"       | Connection pool exhausted     | Increase `pool_size` or use PgBouncer                                                        |
+| Metrics not appearing        | Wrong scrape path             | Verify `/metrics` endpoint returns Prometheus format                                         |
+| SSL handshake failed         | Certificate issues            | Check cert chain, verify CN matches domain                                                   |
 
 ### Common Issues
 
@@ -680,22 +684,24 @@ services:
       - internal
       - external
     ports:
-      - "8080:8080"  # Only API exposed
+      - "8080:8080" # Only API exposed
 
 networks:
   internal:
-    internal: true  # No external access
+    internal: true # No external access
   external:
 ```
 
 ### Secrets Management
 
 **DO NOT** store secrets in:
+
 - Docker images
 - Git repositories
 - Environment files committed to version control
 
 **DO** use:
+
 - Kubernetes Secrets (with encryption at rest)
 - HashiCorp Vault
 - AWS Secrets Manager / Azure Key Vault
@@ -743,13 +749,13 @@ pg_restore -d $DATABASE_URL backup.dump
 
 ## Next Steps
 
-| Document | When to Read |
-| -------- | ------------ |
+| Document                                                   | When to Read                                     |
+| ---------------------------------------------------------- | ------------------------------------------------ |
 | [Configuration Reference](0007-configuration-reference.md) | For all environment variables and config options |
-| [API Reference](0003-api-reference.md) | To integrate with the API |
-| [Storage Backends](0004-storage-backends.md) | For database tuning and migration |
-| [Multi-Tenancy](0008-multi-tenancy.md) | For enterprise isolation patterns |
-| [LLM Integration](0005-llm-integration.md) | To configure alternative LLM providers |
+| [API Reference](0003-api-reference.md)                     | To integrate with the API                        |
+| [Storage Backends](0004-storage-backends.md)               | For database tuning and migration                |
+| [Multi-Tenancy](0008-multi-tenancy.md)                     | For enterprise isolation patterns                |
+| [LLM Integration](0005-llm-integration.md)                 | To configure alternative LLM providers           |
 
 ---
 

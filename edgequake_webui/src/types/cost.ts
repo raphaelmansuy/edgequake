@@ -5,8 +5,8 @@
  *
  * @implements UC0801 - Monitor LLM usage costs
  * @implements UC0802 - Set and manage budgets
- * @implements FEAT0801 - Per-document cost tracking
- * @implements FEAT0804 - Token usage breakdown
+ * @implements FEAT0850 - Per-document cost tracking
+ * @implements FEAT0853 - Token usage breakdown
  *
  * @enforces BR0801 - Costs tracked per operation
  * @enforces BR0804 - Budget limits enforceable

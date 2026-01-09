@@ -4,8 +4,8 @@
  * Provides fetch wrapper with error handling and streaming support.
  *
  * @implements FEAT0700 - Unified API client with error handling
- * @implements FEAT0701 - SSE streaming client
- * @implements FEAT0702 - Request/response interceptors
+ * @implements FEAT0770 - SSE streaming client
+ * @implements FEAT0771 - Request/response interceptors
  *
  * @enforces BR0700 - All requests include auth headers
  * @enforces BR0701 - Timeout after 30s for non-streaming

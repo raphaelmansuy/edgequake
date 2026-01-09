@@ -8,7 +8,7 @@
  * @implements UC0203 - System generates augmented response with citations
  * @implements FEAT0007 - Natural Language Query Processing
  * @implements FEAT0101-0106 - Query mode selection (naive, local, global, hybrid, mix, bypass)
- * @implements FEAT0301 - Streaming responses with chain-of-thought display
+ * @implements FEAT0734 - Streaming responses with chain-of-thought display
  * 
  * @enforces BR0104 - Query response must include source citations
  * @enforces BR0105 - Streaming must show progressive thinking indicators

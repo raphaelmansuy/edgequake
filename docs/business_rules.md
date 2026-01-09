@@ -3,7 +3,7 @@
 > Central registry of all business rules enforced by EdgeQuake.
 > Use BRXXXX references in validation code for traceability.
 
-**Version**: 1.0.0 | **Last Updated**: 2026-01-09
+**Version**: 1.2.0 | **Last Updated**: 2026-01-09
 
 ---
 
@@ -16,6 +16,8 @@
 | [Multi-Tenancy Rules](#multi-tenancy-rules-br02xx)       | BR0201-BR0220 | 6     |
 | [Cost Management Rules](#cost-management-rules-br03xx)   | BR0301-BR0320 | 4     |
 | [Security Rules](#security-rules-br04xx)                 | BR0401-BR0420 | 5     |
+| [WebUI Rules](#webui-rules-br06xx)                       | BR0601-BR0620 | 12    |
+| [PDF Processing Rules](#pdf-processing-rules-br10xx)     | BR1001-BR1030 | 12    |
 
 ---
 
@@ -335,7 +337,7 @@ data: {"type": "done", "sources": [...]}
 | **Module**      | edgequake-core                                                                |
 | **Validation**  | [tenant_manager.rs](../edgequake/crates/edgequake-core/src/tenant_manager.rs) |
 | **Consequence** | Missing tenant → 401 Unauthorized                                             |
-| **Related**     | FEAT0015, FEAT0701                                                            |
+| **Related**     | FEAT0015, FEAT0801                                                            |
 
 ```rust
 // WHY: Data leakage between tenants is a critical security violation
@@ -351,7 +353,7 @@ data: {"type": "done", "sources": [...]}
 | **Module**      | edgequake-auth                                                        |
 | **Validation**  | [extractors.rs](../edgequake/crates/edgequake-auth/src/extractors.rs) |
 | **Consequence** | Invalid key → 401 Unauthorized                                        |
-| **Related**     | FEAT0701, BR0201                                                      |
+| **Related**     | FEAT0801, BR0201                                                      |
 
 ```rust
 // WHY: API keys provide tenant identification; one-to-many would be ambiguous
@@ -556,7 +558,7 @@ data: {"type": "done", "sources": [...]}
 | **Module**      | edgequake-auth                                                    |
 | **Validation**  | [password.rs](../edgequake/crates/edgequake-auth/src/password.rs) |
 | **Consequence** | Plain password stored → Critical security violation               |
-| **Related**     | FEAT0702                                                          |
+| **Related**     | FEAT0802                                                          |
 
 ```rust
 // WHY: Industry standard for password hashing
@@ -581,20 +583,218 @@ data: {"type": "done", "sources": [...]}
 
 ---
 
+## WebUI Rules (BR06XX)
+
+> Business rules specific to the EdgeQuake WebUI (Next.js/React application).
+
+### BR0601 - Theme Persistence
+
+| Attribute       | Value                                                                                    |
+| --------------- | ---------------------------------------------------------------------------------------- |
+| **ID**          | BR0601                                                                                   |
+| **Rule**        | User theme preference must persist across browser sessions                               |
+| **Module**      | edgequake_webui                                                                          |
+| **Validation**  | [use-ui-preferences-store.ts](../edgequake_webui/src/stores/use-ui-preferences-store.ts) |
+| **Consequence** | Theme reset on reload → Poor UX, accessibility concerns                                  |
+| **Related**     | FEAT0619                                                                                 |
+
+```typescript
+// WHY: Theme preference is a fundamental accessibility feature
+// STORAGE: localStorage via Zustand persist middleware
+```
+
+### BR0602 - Conversation History Persistence
+
+| Attribute       | Value                                                                                |
+| --------------- | ------------------------------------------------------------------------------------ |
+| **ID**          | BR0602                                                                               |
+| **Rule**        | Conversation history must persist across page refreshes and browser sessions         |
+| **Module**      | edgequake_webui                                                                      |
+| **Validation**  | [use-conversation-store.ts](../edgequake_webui/src/stores/use-conversation-store.ts) |
+| **Consequence** | Lost conversations → User frustration, repeated queries                              |
+| **Related**     | FEAT0610, FEAT0613                                                                   |
+
+```typescript
+// WHY: Users expect chat history to persist like messaging apps
+// STORAGE: IndexedDB for large conversations, localStorage for metadata
+```
+
+### BR0603 - Graph Node Display Limits
+
+| Attribute       | Value                                                                  |
+| --------------- | ---------------------------------------------------------------------- |
+| **ID**          | BR0603                                                                 |
+| **Rule**        | Knowledge graph visualization must limit initial display to 500 nodes  |
+| **Module**      | edgequake_webui                                                        |
+| **Validation**  | [use-graph-store.ts](../edgequake_webui/src/stores/use-graph-store.ts) |
+| **Consequence** | Unbounded nodes → Browser freeze, memory exhaustion                    |
+| **Related**     | FEAT0601, FEAT0602                                                     |
+
+```typescript
+// WHY: Sigma.js performance degrades significantly above 500 nodes
+// STRATEGY: Progressive loading with expand-on-click
+```
+
+### BR0604 - Streaming State Transitions
+
+| Attribute       | Value                                                                  |
+| --------------- | ---------------------------------------------------------------------- |
+| **ID**          | BR0604                                                                 |
+| **Rule**        | Streaming responses must transition through well-defined states        |
+| **Module**      | edgequake_webui                                                        |
+| **Validation**  | [use-query-store.ts](../edgequake_webui/src/stores/use-query-store.ts) |
+| **Consequence** | Invalid state transitions → UI stuck in loading state                  |
+| **Related**     | FEAT0609, FEAT0611                                                     |
+
+```typescript
+// WHY: State machine prevents impossible UI states
+// STATES: idle → streaming → success | error
+```
+
+### BR0605 - Keyboard Navigation
+
+| Attribute       | Value                                                                        |
+| --------------- | ---------------------------------------------------------------------------- |
+| **ID**          | BR0605                                                                       |
+| **Rule**        | All interactive elements must be keyboard-accessible                         |
+| **Module**      | edgequake_webui                                                              |
+| **Validation**  | All components in [components/](../edgequake_webui/src/components/)          |
+| **Consequence** | Non-keyboard-accessible UI → WCAG non-compliance, accessibility lawsuit risk |
+| **Related**     | FEAT0618                                                                     |
+
+```typescript
+// WHY: WCAG 2.1 Level AA requires keyboard operability
+// IMPLEMENTATION: TabIndex, onKeyDown handlers, focus management
+```
+
+### BR0606 - Document Upload Size Limit
+
+| Attribute       | Value                                                                          |
+| --------------- | ------------------------------------------------------------------------------ |
+| **ID**          | BR0606                                                                         |
+| **Rule**        | Document uploads must be limited to 50MB per file                              |
+| **Module**      | edgequake_webui                                                                |
+| **Validation**  | [use-ingestion-store.ts](../edgequake_webui/src/stores/use-ingestion-store.ts) |
+| **Consequence** | Unbounded uploads → Server memory exhaustion, denial of service                |
+| **Related**     | FEAT0605, BR0302                                                               |
+
+```typescript
+// WHY: Large files can exhaust browser memory and server resources
+// VALIDATION: Client-side size check before upload initiation
+```
+
+### BR0607 - API Error Display
+
+| Attribute       | Value                                                                                |
+| --------------- | ------------------------------------------------------------------------------------ |
+| **ID**          | BR0607                                                                               |
+| **Rule**        | API errors must be displayed with user-friendly messages, not raw error text         |
+| **Module**      | edgequake_webui                                                                      |
+| **Validation**  | [use-query-store.ts](../edgequake_webui/src/stores/use-query-store.ts) (error state) |
+| **Consequence** | Raw errors displayed → Confused users, potential security info leak                  |
+| **Related**     | FEAT0615                                                                             |
+
+```typescript
+// WHY: Technical errors confuse users and may leak implementation details
+// STRATEGY: Error code → user-friendly message mapping
+```
+
+### BR0608 - Settings Validation
+
+| Attribute       | Value                                                                        |
+| --------------- | ---------------------------------------------------------------------------- |
+| **ID**          | BR0608                                                                       |
+| **Rule**        | User settings must be validated before persistence                           |
+| **Module**      | edgequake_webui                                                              |
+| **Validation**  | [use-settings-store.ts](../edgequake_webui/src/stores/use-settings-store.ts) |
+| **Consequence** | Invalid settings saved → Application crash on reload                         |
+| **Related**     | FEAT0608                                                                     |
+
+```typescript
+// WHY: Corrupted settings can make the app unusable
+// VALIDATION: Zod schema validation before localStorage write
+```
+
+### BR0609 - Real-time Sync Conflict Resolution
+
+| Attribute       | Value                                                                             |
+| --------------- | --------------------------------------------------------------------------------- |
+| **ID**          | BR0609                                                                            |
+| **Rule**        | Concurrent edits must use last-writer-wins with user notification                 |
+| **Module**      | edgequake_webui                                                                   |
+| **Validation**  | [use-backend-store.ts](../edgequake_webui/src/stores/use-backend-store.ts) (sync) |
+| **Consequence** | Silent overwrites → Data loss without user awareness                              |
+| **Related**     | FEAT0616                                                                          |
+
+```typescript
+// WHY: Multi-tab/multi-device scenarios create race conditions
+// STRATEGY: Optimistic updates with conflict toast notification
+```
+
+### BR0610 - Modal Focus Trap
+
+| Attribute       | Value                                                                                    |
+| --------------- | ---------------------------------------------------------------------------------------- |
+| **ID**          | BR0610                                                                                   |
+| **Rule**        | Modal dialogs must trap focus and restore on close                                       |
+| **Module**      | edgequake_webui                                                                          |
+| **Validation**  | [use-ui-preferences-store.ts](../edgequake_webui/src/stores/use-ui-preferences-store.ts) |
+| **Consequence** | Focus escape → Keyboard users can interact with hidden content                           |
+| **Related**     | FEAT0618, BR0605                                                                         |
+
+```typescript
+// WHY: Focus trap is required for accessible modals (WCAG 2.4.3)
+// IMPLEMENTATION: FocusTrap component with returnFocus option
+```
+
+### BR0611 - Query History Limit
+
+| Attribute       | Value                                                                                |
+| --------------- | ------------------------------------------------------------------------------------ |
+| **ID**          | BR0611                                                                               |
+| **Rule**        | Query history must be limited to 100 entries, pruning oldest on overflow             |
+| **Module**      | edgequake_webui                                                                      |
+| **Validation**  | [use-conversation-store.ts](../edgequake_webui/src/stores/use-conversation-store.ts) |
+| **Consequence** | Unbounded history → localStorage quota exceeded, app fails to save                   |
+| **Related**     | FEAT0610, BR0602                                                                     |
+
+```typescript
+// WHY: localStorage has 5-10MB limit depending on browser
+// PRUNING: Remove oldest entries when count > 100
+```
+
+### BR0612 - Loading State Feedback
+
+| Attribute       | Value                                                                 |
+| --------------- | --------------------------------------------------------------------- |
+| **ID**          | BR0612                                                                |
+| **Rule**        | All async operations must display loading indicator within 100ms      |
+| **Module**      | edgequake_webui                                                       |
+| **Validation**  | All hooks using TanStack Query                                        |
+| **Consequence** | No feedback → User assumes app is frozen, triggers duplicate requests |
+| **Related**     | FEAT0617                                                              |
+
+```typescript
+// WHY: Users perceive delays >100ms as unresponsive
+// IMPLEMENTATION: isLoading state from TanStack Query + Skeleton components
+```
+
+---
+
 ## PDF Processing Rules (BR10XX)
 
 > Business rules specific to PDF extraction and conversion quality.
 
 ### BR1001 - Preserve Document Structure
 
-| Attribute       | Value                                                                              |
-| --------------- | ---------------------------------------------------------------------------------- |
-| **ID**          | BR1001                                                                             |
-| **Rule**        | Document structure (headings, lists, paragraphs) must be preserved in output       |
-| **Module**      | edgequake-pdf                                                                      |
-| **Validation**  | [processors/](../edgequake/crates/edgequake-pdf/src/processors/)                   |
-| **Consequence** | Lost structure → Degraded RAG retrieval quality                                    |
-| **Related**     | FEAT1001, FEAT1022                                                                 |
+| Attribute       | Value                                                                        |
+| --------------- | ---------------------------------------------------------------------------- |
+| **ID**          | BR1001                                                                       |
+| **Rule**        | Document structure (headings, lists, paragraphs) must be preserved in output |
+| **Module**      | edgequake-pdf                                                                |
+| **Validation**  | [processors/](../edgequake/crates/edgequake-pdf/src/processors/)             |
+| **Consequence** | Lost structure → Degraded RAG retrieval quality                              |
+| **Related**     | FEAT1001, FEAT1022                                                           |
 
 ```rust
 // WHY: Structure preservation enables accurate semantic chunking
@@ -603,14 +803,14 @@ data: {"type": "done", "sources": [...]}
 
 ### BR1002 - Graceful Malformed PDF Handling
 
-| Attribute       | Value                                                                              |
-| --------------- | ---------------------------------------------------------------------------------- |
-| **ID**          | BR1002                                                                             |
-| **Rule**        | Malformed PDFs must be handled gracefully without crashing                         |
-| **Module**      | edgequake-pdf                                                                      |
-| **Validation**  | [extractor.rs](../edgequake/crates/edgequake-pdf/src/extractor.rs)                 |
-| **Consequence** | Crash on malformed PDF → User data loss, service outage                            |
-| **Related**     | FEAT1001, BR1003                                                                   |
+| Attribute       | Value                                                              |
+| --------------- | ------------------------------------------------------------------ |
+| **ID**          | BR1002                                                             |
+| **Rule**        | Malformed PDFs must be handled gracefully without crashing         |
+| **Module**      | edgequake-pdf                                                      |
+| **Validation**  | [extractor.rs](../edgequake/crates/edgequake-pdf/src/extractor.rs) |
+| **Consequence** | Crash on malformed PDF → User data loss, service outage            |
+| **Related**     | FEAT1001, BR1003                                                   |
 
 ```rust
 // WHY: Real-world PDFs are often malformed or non-compliant
@@ -619,14 +819,14 @@ data: {"type": "done", "sources": [...]}
 
 ### BR1003 - Reading Order Accuracy
 
-| Attribute       | Value                                                                              |
-| --------------- | ---------------------------------------------------------------------------------- |
-| **ID**          | BR1003                                                                             |
-| **Rule**        | Reading order accuracy must exceed 95% for single-column documents                 |
-| **Module**      | edgequake-pdf                                                                      |
-| **Validation**  | [layout/](../edgequake/crates/edgequake-pdf/src/layout/)                           |
-| **Consequence** | Incorrect order → Garbled context, unusable for RAG                                |
-| **Related**     | FEAT1003, FEAT1001                                                                 |
+| Attribute       | Value                                                              |
+| --------------- | ------------------------------------------------------------------ |
+| **ID**          | BR1003                                                             |
+| **Rule**        | Reading order accuracy must exceed 95% for single-column documents |
+| **Module**      | edgequake-pdf                                                      |
+| **Validation**  | [layout/](../edgequake/crates/edgequake-pdf/src/layout/)           |
+| **Consequence** | Incorrect order → Garbled context, unusable for RAG                |
+| **Related**     | FEAT1003, FEAT1001                                                 |
 
 ```rust
 // WHY: Incorrect reading order destroys semantic meaning
@@ -635,14 +835,14 @@ data: {"type": "done", "sources": [...]}
 
 ### BR1004 - Table Cell Alignment
 
-| Attribute       | Value                                                                              |
-| --------------- | ---------------------------------------------------------------------------------- |
-| **ID**          | BR1004                                                                             |
-| **Rule**        | Table cell alignment must be preserved in Markdown output                          |
-| **Module**      | edgequake-pdf                                                                      |
-| **Validation**  | [backend/lattice.rs](../edgequake/crates/edgequake-pdf/src/backend/lattice.rs)     |
-| **Consequence** | Misaligned cells → Incorrect data associations                                     |
-| **Related**     | FEAT1002, FEAT0503                                                                 |
+| Attribute       | Value                                                                          |
+| --------------- | ------------------------------------------------------------------------------ |
+| **ID**          | BR1004                                                                         |
+| **Rule**        | Table cell alignment must be preserved in Markdown output                      |
+| **Module**      | edgequake-pdf                                                                  |
+| **Validation**  | [backend/lattice.rs](../edgequake/crates/edgequake-pdf/src/backend/lattice.rs) |
+| **Consequence** | Misaligned cells → Incorrect data associations                                 |
+| **Related**     | FEAT1002, FEAT0503                                                             |
 
 ```rust
 // WHY: Tables encode relationships between row/column headers and values
@@ -651,14 +851,14 @@ data: {"type": "done", "sources": [...]}
 
 ### BR1010 - Font Size Threshold for Headings
 
-| Attribute       | Value                                                                              |
-| --------------- | ---------------------------------------------------------------------------------- |
-| **ID**          | BR1010                                                                             |
-| **Rule**        | Font size must be ≥20% larger than body text for heading classification           |
-| **Module**      | edgequake-pdf                                                                      |
+| Attribute       | Value                                                                                                        |
+| --------------- | ------------------------------------------------------------------------------------------------------------ |
+| **ID**          | BR1010                                                                                                       |
+| **Rule**        | Font size must be ≥20% larger than body text for heading classification                                      |
+| **Module**      | edgequake-pdf                                                                                                |
 | **Validation**  | [processors/structure_detection.rs](../edgequake/crates/edgequake-pdf/src/processors/structure_detection.rs) |
-| **Consequence** | Too low threshold → False positive headings                                        |
-| **Related**     | FEAT0505, FEAT1010                                                                 |
+| **Consequence** | Too low threshold → False positive headings                                                                  |
+| **Related**     | FEAT0505, FEAT1010                                                                                           |
 
 ```rust
 // WHY: 20% threshold reduces false positives from emphasis/captions
@@ -667,14 +867,14 @@ data: {"type": "done", "sources": [...]}
 
 ### BR1011 - Maximum Heading Length
 
-| Attribute       | Value                                                                              |
-| --------------- | ---------------------------------------------------------------------------------- |
-| **ID**          | BR1011                                                                             |
-| **Rule**        | Headings must be ≤200 characters; longer text is paragraph content                 |
-| **Module**      | edgequake-pdf                                                                      |
+| Attribute       | Value                                                                                                        |
+| --------------- | ------------------------------------------------------------------------------------------------------------ |
+| **ID**          | BR1011                                                                                                       |
+| **Rule**        | Headings must be ≤200 characters; longer text is paragraph content                                           |
+| **Module**      | edgequake-pdf                                                                                                |
 | **Validation**  | [processors/structure_detection.rs](../edgequake/crates/edgequake-pdf/src/processors/structure_detection.rs) |
-| **Consequence** | No length limit → Entire paragraphs classified as headings                         |
-| **Related**     | FEAT0505, BR1010                                                                   |
+| **Consequence** | No length limit → Entire paragraphs classified as headings                                                   |
+| **Related**     | FEAT0505, BR1010                                                                                             |
 
 ```rust
 // WHY: Headings are short; long "headings" are typically styled paragraphs
@@ -683,14 +883,14 @@ data: {"type": "done", "sources": [...]}
 
 ### BR1020 - Processor Chain Order
 
-| Attribute       | Value                                                                              |
-| --------------- | ---------------------------------------------------------------------------------- |
-| **ID**          | BR1020                                                                             |
-| **Rule**        | Processors must execute in deterministic order for reproducible output             |
-| **Module**      | edgequake-pdf                                                                      |
+| Attribute       | Value                                                                                    |
+| --------------- | ---------------------------------------------------------------------------------------- |
+| **ID**          | BR1020                                                                                   |
+| **Rule**        | Processors must execute in deterministic order for reproducible output                   |
+| **Module**      | edgequake-pdf                                                                            |
 | **Validation**  | [processors/processor.rs](../edgequake/crates/edgequake-pdf/src/processors/processor.rs) |
-| **Consequence** | Non-deterministic order → Inconsistent extraction results                          |
-| **Related**     | FEAT1020, BR1001                                                                   |
+| **Consequence** | Non-deterministic order → Inconsistent extraction results                                |
+| **Related**     | FEAT1020, BR1001                                                                         |
 
 ```rust
 // CHAIN ORDER:
@@ -702,14 +902,14 @@ data: {"type": "done", "sources": [...]}
 
 ### BR1021 - Deduplication by Bounding Box
 
-| Attribute       | Value                                                                              |
-| --------------- | ---------------------------------------------------------------------------------- |
-| **ID**          | BR1021                                                                             |
-| **Rule**        | Overlapping text elements with same content must be deduplicated                   |
-| **Module**      | edgequake-pdf                                                                      |
+| Attribute       | Value                                                                                    |
+| --------------- | ---------------------------------------------------------------------------------------- |
+| **ID**          | BR1021                                                                                   |
+| **Rule**        | Overlapping text elements with same content must be deduplicated                         |
+| **Module**      | edgequake-pdf                                                                            |
 | **Validation**  | [backend/sota_backend.rs](../edgequake/crates/edgequake-pdf/src/backend/sota_backend.rs) |
-| **Consequence** | Duplicate text → Garbled output, inflated token count                              |
-| **Related**     | FEAT1001, FEAT1021                                                                 |
+| **Consequence** | Duplicate text → Garbled output, inflated token count                                    |
+| **Related**     | FEAT1001, FEAT1021                                                                       |
 
 ```rust
 // WHY: PDF rendering sometimes overlays text for visual effects
@@ -718,14 +918,14 @@ data: {"type": "done", "sources": [...]}
 
 ### BR1023 - Skip Corrupt Images
 
-| Attribute       | Value                                                                              |
-| --------------- | ---------------------------------------------------------------------------------- |
-| **ID**          | BR1023                                                                             |
-| **Rule**        | Corrupt or unsupported image formats must be skipped, not crash extraction         |
-| **Module**      | edgequake-pdf                                                                      |
-| **Validation**  | [image_extraction.rs](../edgequake/crates/edgequake-pdf/src/image_extraction.rs)   |
-| **Consequence** | Crash on corrupt image → Full document extraction fails                            |
-| **Related**     | FEAT1004, FEAT1023                                                                 |
+| Attribute       | Value                                                                            |
+| --------------- | -------------------------------------------------------------------------------- |
+| **ID**          | BR1023                                                                           |
+| **Rule**        | Corrupt or unsupported image formats must be skipped, not crash extraction       |
+| **Module**      | edgequake-pdf                                                                    |
+| **Validation**  | [image_extraction.rs](../edgequake/crates/edgequake-pdf/src/image_extraction.rs) |
+| **Consequence** | Crash on corrupt image → Full document extraction fails                          |
+| **Related**     | FEAT1004, FEAT1023                                                               |
 
 ```rust
 // WHY: One corrupt image should not prevent text extraction
@@ -734,14 +934,14 @@ data: {"type": "done", "sources": [...]}
 
 ### BR1024 - Image Size Limit
 
-| Attribute       | Value                                                                              |
-| --------------- | ---------------------------------------------------------------------------------- |
-| **ID**          | BR1024                                                                             |
-| **Rule**        | Extracted images must be limited to 10MB to prevent memory exhaustion              |
-| **Module**      | edgequake-pdf                                                                      |
-| **Validation**  | [image_extraction.rs](../edgequake/crates/edgequake-pdf/src/image_extraction.rs)   |
-| **Consequence** | Unlimited size → OOM on high-resolution images                                     |
-| **Related**     | FEAT1004, BR1023                                                                   |
+| Attribute       | Value                                                                            |
+| --------------- | -------------------------------------------------------------------------------- |
+| **ID**          | BR1024                                                                           |
+| **Rule**        | Extracted images must be limited to 10MB to prevent memory exhaustion            |
+| **Module**      | edgequake-pdf                                                                    |
+| **Validation**  | [image_extraction.rs](../edgequake/crates/edgequake-pdf/src/image_extraction.rs) |
+| **Consequence** | Unlimited size → OOM on high-resolution images                                   |
+| **Related**     | FEAT1004, BR1023                                                                 |
 
 ```rust
 // WHY: Vision API limits + memory safety
@@ -750,14 +950,14 @@ data: {"type": "done", "sources": [...]}
 
 ### BR1025 - OCR Language Detection
 
-| Attribute       | Value                                                                              |
-| --------------- | ---------------------------------------------------------------------------------- |
-| **ID**          | BR1025                                                                             |
-| **Rule**        | OCR should auto-detect language when not specified                                 |
-| **Module**      | edgequake-pdf                                                                      |
-| **Validation**  | [image_ocr.rs](../edgequake/crates/edgequake-pdf/src/image_ocr.rs)                 |
-| **Consequence** | Wrong language → Poor OCR accuracy                                                 |
-| **Related**     | FEAT1024, FEAT1004                                                                 |
+| Attribute       | Value                                                              |
+| --------------- | ------------------------------------------------------------------ |
+| **ID**          | BR1025                                                             |
+| **Rule**        | OCR should auto-detect language when not specified                 |
+| **Module**      | edgequake-pdf                                                      |
+| **Validation**  | [image_ocr.rs](../edgequake/crates/edgequake-pdf/src/image_ocr.rs) |
+| **Consequence** | Wrong language → Poor OCR accuracy                                 |
+| **Related**     | FEAT1024, FEAT1004                                                 |
 
 ```rust
 // WHY: LLM-based OCR handles multi-language automatically
@@ -766,14 +966,14 @@ data: {"type": "done", "sources": [...]}
 
 ### BR1026 - Vision API Rate Limiting
 
-| Attribute       | Value                                                                              |
-| --------------- | ---------------------------------------------------------------------------------- |
-| **ID**          | BR1026                                                                             |
-| **Rule**        | Vision API calls must respect rate limits (max 10 requests/minute default)         |
-| **Module**      | edgequake-pdf                                                                      |
-| **Validation**  | [vision.rs](../edgequake/crates/edgequake-pdf/src/vision.rs)                       |
-| **Consequence** | Rate limit exceeded → API errors, document processing failure                      |
-| **Related**     | FEAT1024, BR0301                                                                   |
+| Attribute       | Value                                                                      |
+| --------------- | -------------------------------------------------------------------------- |
+| **ID**          | BR1026                                                                     |
+| **Rule**        | Vision API calls must respect rate limits (max 10 requests/minute default) |
+| **Module**      | edgequake-pdf                                                              |
+| **Validation**  | [vision.rs](../edgequake/crates/edgequake-pdf/src/vision.rs)               |
+| **Consequence** | Rate limit exceeded → API errors, document processing failure              |
+| **Related**     | FEAT1024, BR0301                                                           |
 
 ```rust
 // WHY: Vision APIs have stricter rate limits than text APIs

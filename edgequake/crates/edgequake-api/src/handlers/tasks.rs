@@ -84,6 +84,7 @@ pub async fn list_tasks(
         status: params
             .status
             .as_deref()
+/// @implements FEAT0406
             .and_then(|s| parse_task_status(s).ok()),
         task_type: params
             .task_type
