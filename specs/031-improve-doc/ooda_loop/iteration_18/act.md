@@ -7,10 +7,10 @@
 
 ### Components Enhanced (2 files)
 
-| Component | FEAT Refs | UC Refs | BR Refs |
-|-----------|-----------|---------|---------|
-| document-detail-dialog.tsx | 0631-0632 | 0010 | 0621, 0302 |
-| document-preview-panel.tsx | 0633-0635 | 0011 | 0622, 0305 |
+| Component                  | FEAT Refs | UC Refs | BR Refs    |
+| -------------------------- | --------- | ------- | ---------- |
+| document-detail-dialog.tsx | 0631-0632 | 0010    | 0621, 0302 |
+| document-preview-panel.tsx | 0633-0635 | 0011    | 0622, 0305 |
 
 ## Documentation Added
 

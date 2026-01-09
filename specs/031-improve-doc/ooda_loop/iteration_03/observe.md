@@ -6,6 +6,7 @@
 ## Territory Scan
 
 ### Handlers Structure
+
 ```
 edgequake-api/src/handlers/
 ├── auth.rs / auth_types.rs           - Authentication endpoints
@@ -29,6 +30,7 @@ edgequake-api/src/handlers/
 ```
 
 ### File Sizes (Priority by Complexity)
+
 - documents.rs: High priority (document ingestion)
 - query.rs: High priority (core query execution)
 - entities.rs: Medium priority (graph management)

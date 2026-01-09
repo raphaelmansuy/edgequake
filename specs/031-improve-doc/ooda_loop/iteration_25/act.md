@@ -5,6 +5,7 @@
 ## Files Enhanced
 
 ### API Utility Modules (4 files)
+
 - [error.rs](edgequake/crates/edgequake-api/src/error.rs): FEAT0401-0403, UC2001-2002, BR0401-0402
 - [middleware.rs](edgequake/crates/edgequake-api/src/middleware.rs): FEAT0410-0413, UC2010-2012, BR0410-0412
 - [validation.rs](edgequake/crates/edgequake-api/src/validation.rs): FEAT0420-0422, UC2020-2021, BR0420-0421

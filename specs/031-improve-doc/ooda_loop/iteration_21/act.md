@@ -5,15 +5,18 @@
 ## Files Enhanced
 
 ### Storage Adapters Module
+
 - [adapters/mod.rs](edgequake/crates/edgequake-storage/src/adapters/mod.rs): Top-level module with FEAT0201-0203, UC0601-0603, BR0201-0202
 
 ### Memory Adapter Files (4 files)
+
 - [memory/mod.rs](edgequake/crates/edgequake-storage/src/adapters/memory/mod.rs): FEAT0201, FEAT0210-0212, UC0601-0603, BR0201, BR0210
 - [memory/graph.rs](edgequake/crates/edgequake-storage/src/adapters/memory/graph.rs): FEAT0210-0212, UC0602, UC0701, BR0210-0211
 - [memory/vector.rs](edgequake/crates/edgequake-storage/src/adapters/memory/vector.rs): FEAT0220-0222, UC0603-0604, BR0220-0221
 - [memory/kv.rs](edgequake/crates/edgequake-storage/src/adapters/memory/kv.rs): FEAT0230-0232, UC0601, UC0605, BR0230-0231
 
 ### PostgreSQL Adapter Files (8 files)
+
 - [postgres/mod.rs](edgequake/crates/edgequake-storage/src/adapters/postgres/mod.rs): FEAT0202-0203, FEAT0240, FEAT0250, FEAT0260, UC0601-0603, UC0801, BR0202, BR0240
 - [postgres/graph.rs](edgequake/crates/edgequake-storage/src/adapters/postgres/graph.rs): FEAT0203, FEAT0310-0312, UC0602, UC0701-0702, BR0203, BR0310-0311
 - [postgres/vector.rs](edgequake/crates/edgequake-storage/src/adapters/postgres/vector.rs): FEAT0202, FEAT0320-0322, UC0603-0604, BR0320-0321

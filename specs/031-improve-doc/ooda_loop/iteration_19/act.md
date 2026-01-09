@@ -7,10 +7,10 @@
 
 ### Components Enhanced (2 files)
 
-| Component | FEAT Refs | UC Refs | BR Refs |
-|-----------|-----------|---------|---------|
-| lineage-explorer.tsx | 0701, 0703-0704 | 0301, 0304 | 0701, 0703 |
-| entity-provenance-panel.tsx | 0702, 0705 | 0302, 0305 | 0702, 0704 |
+| Component                   | FEAT Refs       | UC Refs    | BR Refs    |
+| --------------------------- | --------------- | ---------- | ---------- |
+| lineage-explorer.tsx        | 0701, 0703-0704 | 0301, 0304 | 0701, 0703 |
+| entity-provenance-panel.tsx | 0702, 0705      | 0302, 0305 | 0702, 0704 |
 
 ## Documentation Added
 

@@ -10,16 +10,19 @@
 ### Action Items
 
 1. **Create `docs/features.md`**
+
    - Start with FEAT0001-FEAT0050 covering core features
    - Group by module/area
    - Include code references
 
 2. **Create `docs/business_rules.md`**
+
    - Start with BR0001-BR0020 covering critical rules
    - Include validation logic references
    - Add consequences of violation
 
 3. **Create `docs/use_cases.md`**
+
    - Start with UC0001-UC0020 covering primary flows
    - Include API endpoints involved
    - Add success/failure scenarios
@@ -39,14 +42,16 @@
 
 ## Format: FEATXXXX - Feature Name
 
-| ID | Name | Module | Status | Code Reference |
-|----|------|--------|--------|----------------|
-| FEAT0001 | ... | ... | ... | ... |
+| ID       | Name | Module | Status | Code Reference |
+| -------- | ---- | ------ | ------ | -------------- |
+| FEAT0001 | ...  | ...    | ...    | ...            |
 
 ## Core RAG Features (FEAT00XX)
+
 ...
 
 ## Query Features (FEAT01XX)
+
 ...
 ```
 
@@ -57,9 +62,9 @@
 
 ## Format: BRXXXX - Rule Name
 
-| ID | Rule | Module | Validation | Consequence |
-|----|------|--------|------------|-------------|
-| BR0001 | ... | ... | ... | ... |
+| ID     | Rule | Module | Validation | Consequence |
+| ------ | ---- | ------ | ---------- | ----------- |
+| BR0001 | ...  | ...    | ...        | ...         |
 ```
 
 ### use_cases.md Structure
@@ -69,9 +74,9 @@
 
 ## Format: UCXXXX - Use Case Name
 
-| ID | Name | Actor | Endpoints | Steps |
-|----|------|-------|-----------|-------|
-| UC0001 | ... | ... | ... | ... |
+| ID     | Name | Actor | Endpoints | Steps |
+| ------ | ---- | ----- | --------- | ----- |
+| UC0001 | ...  | ...   | ...       | ...   |
 ```
 
 ---

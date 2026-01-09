@@ -49,4 +49,4 @@ cargo test --package edgequake-query --lib
 ## Next Iteration Target
 
 - **edgequake-storage/**: Storage adapters documentation
-- Priority: traits.rs, postgres/*, memory/*
+- Priority: traits.rs, postgres/_, memory/_
