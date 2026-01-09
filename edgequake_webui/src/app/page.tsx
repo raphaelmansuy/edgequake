@@ -1,3 +1,13 @@
+/**
+ * @module HomePage
+ * @description Dashboard home page with stats, recent activity, and quick actions.
+ *
+ * @implements FEAT0850 - Dashboard overview with stats
+ * @implements FEAT0851 - Recent activity feed
+ * @implements FEAT0852 - Quick action shortcuts
+ *
+ * @enforces BR0850 - Stats refresh on tenant/workspace change
+ */
 'use client';
 
 import { QuickActions, RecentActivity, StatsCard, SystemStatus } from '@/components/dashboard';
