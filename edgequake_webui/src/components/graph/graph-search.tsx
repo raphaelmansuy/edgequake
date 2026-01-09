@@ -1,3 +1,17 @@
+/**
+ * @module GraphSearch
+ * @description Full-text search for graph entities using MiniSearch.
+ * Provides fuzzy search with type highlighting and camera focus.
+ * 
+ * @implements UC0108 - User searches entities by name
+ * @implements FEAT0202 - Full-text entity search
+ * @implements FEAT0626 - Camera focus on selected entity
+ * 
+ * @enforces BR0616 - Search results sorted by relevance
+ * @enforces BR0617 - Entity types color-coded in results
+ * 
+ * @see {@link docs/features.md} FEAT0202
+ */
 'use client';
 
 import { Button } from '@/components/ui/button';

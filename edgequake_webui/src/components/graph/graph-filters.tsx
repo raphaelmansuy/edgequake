@@ -1,3 +1,17 @@
+/**
+ * @module GraphFilters
+ * @description Entity type filter panel for knowledge graph.
+ * Allows toggling visibility of entity types with counts.
+ * 
+ * @implements UC0104 - User filters entities by type
+ * @implements FEAT0202 - Entity type filtering
+ * @implements FEAT0627 - Type-based visibility toggles
+ * 
+ * @enforces BR0618 - Filter state syncs with graph view
+ * @enforces BR0619 - Type counts update on filter change
+ * 
+ * @see {@link docs/use_cases.md} UC0104
+ */
 'use client';
 
 import { Badge } from '@/components/ui/badge';

@@ -1,3 +1,18 @@
+/**
+ * @module EntityBrowserPanel
+ * @description Virtual-scrolling entity browser with sorting and grouping.
+ * Lists all entities with efficient rendering for large datasets.
+ * 
+ * @implements UC0109 - User browses all entities
+ * @implements FEAT0628 - Virtual scrolling for 1000+ entities
+ * @implements FEAT0629 - Sort by name, degree, or type
+ * @implements FEAT0630 - Group entities by type
+ * 
+ * @enforces BR0009 - Handle 1000+ entities performantly
+ * @enforces BR0620 - Selection syncs with graph view
+ * 
+ * @see {@link docs/features.md} FEAT0628-0630
+ */
 "use client";
 
 import { Badge } from "@/components/ui/badge";
