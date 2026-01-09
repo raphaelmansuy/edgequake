@@ -2,6 +2,25 @@
 //!
 //! This service provides CRUD operations for workspaces (knowledge bases)
 //! and integrates with the RLS system for isolation.
+//!
+//! ## Implements
+//!
+//! - **FEAT0820**: Workspace CRUD operations
+//! - **FEAT0821**: Tenant management
+//! - **FEAT0822**: Membership and role management
+//! - **FEAT0823**: Workspace statistics
+//!
+//! ## Use Cases
+//!
+//! - **UC2410**: Admin creates new workspace for team
+//! - **UC2411**: User lists workspaces they have access to
+//! - **UC2412**: Admin invites user to workspace with role
+//! - **UC2413**: System reports workspace usage statistics
+//!
+//! ## Enforces
+//!
+//! - **BR0820**: Workspace names unique within tenant
+//! - **BR0821**: Workspace deletion cascades to all resources
 
 use async_trait::async_trait;
 use std::collections::HashMap;
