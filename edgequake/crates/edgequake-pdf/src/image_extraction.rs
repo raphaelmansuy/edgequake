@@ -3,6 +3,16 @@
 //! This module provides functionality to extract embedded images from PDF pages
 //! and convert them to a format suitable for LLM-based OCR processing.
 //!
+//! ## Implements
+//!
+//! - **FEAT1004**: Image extraction from PDF pages
+//! - **FEAT1023**: Image format conversion (PNG/JPEG)
+//!
+//! ## Enforces
+//!
+//! - **BR1023**: Skip corrupt or unsupported image formats
+//! - **BR1024**: Limit extracted image size to 10MB
+//!
 //! # Architecture
 //!
 //! WHY: PDF images are stored in various formats (JPEG, PNG, raw bitmap) and need

@@ -4,6 +4,17 @@
 //! images embedded in PDF documents using multimodal LLMs instead of traditional
 //! OCR engines like Tesseract.
 //!
+//! ## Implements
+//!
+//! - **FEAT1004**: Image extraction with optional OCR
+//! - **FEAT1024**: LLM-based image understanding
+//! - **FEAT1025**: Chart and diagram data extraction
+//!
+//! ## Enforces
+//!
+//! - **BR1025**: OCR timeout after 30s per image
+//! - **BR1026**: Batch images to reduce API calls
+//!
 //! # Why LLM-based OCR?
 //!
 //! Traditional OCR engines struggle with:
