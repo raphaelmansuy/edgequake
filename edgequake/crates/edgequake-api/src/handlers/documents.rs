@@ -1,14 +1,17 @@
 //! Document ingestion handlers.
 //!
+//! @implements FEAT0401
+//! @implements FEAT0402
+//!
 //! # Implements
 //!
 //! - **UC0001**: Upload Document
 //! - **UC0002**: List Documents  
 //! - **UC0003**: View Document Details
 //! - **UC0005**: Delete Document
+//! - **FEAT0401**: Document Upload (Text)
+//! - **FEAT0402**: Document Upload (File)
 //! - **FEAT0001**: Document Ingestion Pipeline
-//! - **FEAT0010**: Document Metadata Storage
-//! - **FEAT0401**: REST API Service
 //!
 //! # Enforces
 //!

@@ -2,6 +2,7 @@
 //!
 //! # Implements
 //!
+//! @implements FEAT0206
 //! @implements FEAT0405 (Graph Exploration API)
 //! @implements FEAT0202 (Graph Traversal)
 //! @implements FEAT0204 (Graph Analytics)

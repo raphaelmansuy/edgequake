@@ -36,7 +36,7 @@ test.describe("Source Tracking and Citations", () => {
 
     // Track SSE events for context
     let contextEventReceived = false;
-    let contextSources: unknown[] = [];
+    const contextSources: unknown[] = [];
 
     page.on("response", async (response) => {
       const url = response.url();

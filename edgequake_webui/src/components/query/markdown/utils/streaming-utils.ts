@@ -145,7 +145,7 @@ export function hasIncompleteTable(content: string): boolean {
   // Look for table pattern at the end of content
   const lines = content.split("\n");
   let foundTableStart = false;
-  let tableLines: string[] = [];
+  const tableLines: string[] = [];
 
   // Scan from end backwards to find table
   for (let i = lines.length - 1; i >= 0; i--) {

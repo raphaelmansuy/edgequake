@@ -1,9 +1,14 @@
 //! Text chunking with overlap for document processing.
 //!
+//! @implements FEAT0002
+//! @implements FEAT0301
+//! @implements FEAT0302
+//!
 //! # Implements
 //!
-//! - **FEAT0004**: Semantic Chunking
-//! - **FEAT0011**: Document-Chunk-Entity Lineage (via line number tracking)
+//! - **FEAT0002**: Text Chunking with Overlap
+//! - **FEAT0301**: Character-Based Chunking
+//! - **FEAT0302**: Token-Based Chunking
 //!
 //! # Enforces
 //!
@@ -113,7 +118,6 @@ impl Default for ChunkerConfig {
 
 /// A chunk of text with metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-/// @implements FEAT0002
 pub struct TextChunk {
     /// Unique identifier for the chunk.
     pub id: String,

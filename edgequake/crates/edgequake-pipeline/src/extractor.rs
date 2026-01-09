@@ -1,10 +1,14 @@
 //! Entity and relationship extraction via LLM.
 //!
+//! @implements FEAT0003
+//! @implements FEAT0004
+//! @implements FEAT0304
+//!
 //! # Implements
 //!
-//! - **FEAT0002**: Entity Extraction
-//! - **FEAT0003**: Relationship Discovery
-//! - **FEAT0015**: Gleaning (iterative re-extraction for completeness)
+//! - **FEAT0003**: Entity Extraction
+//! - **FEAT0004**: Relationship Extraction
+//! - **FEAT0304**: Gleaning (iterative re-extraction for completeness)
 //!
 //! # Enforces
 //!
@@ -562,6 +566,8 @@ fn extract_json_from_response(response: &str) -> String {
 }
 
 /// SOTA LLM-based entity extractor using tuple-format prompts.
+///
+/// @implements FEAT0303
 ///
 /// This extractor uses the SOTA prompt system ported from LightRAG,
 /// featuring tuple-based output format for more robust parsing.

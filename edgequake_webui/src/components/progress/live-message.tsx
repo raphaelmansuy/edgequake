@@ -65,6 +65,8 @@ export function LiveMessage({
     if (message && message !== displayedMessage) {
       // Add previous message to history if it exists
       if (displayedMessage) {
+        // Intentional: Syncing external state changes to local state
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setHistoryItems(prev => {
           const newHistory = [
             ...prev,
@@ -81,6 +83,8 @@ export function LiveMessage({
   // Note: This is a valid pattern - we're syncing external state changes
   useEffect(() => {
     if (history.length > 0) {
+      // Intentional: Syncing external prop to local state
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setHistoryItems(
         history.map(msg => ({ message: msg, timestamp: new Date() }))
           .slice(-maxHistory)

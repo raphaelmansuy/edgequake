@@ -1,5 +1,7 @@
 //! Graph community detection algorithms.
 //!
+//! @implements FEAT0205
+//!
 //! This module provides community detection algorithms for graph clustering,
 //! similar to what LightRAG uses for global queries.
 

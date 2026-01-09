@@ -34,13 +34,14 @@
 //! |-------|--------|--------|-------------|
 //! | `BadRequest` | 400 | No | Fix request parameters |
 //! | `Unauthorized` | 401 | No | Provide valid API key |
-/// @implements FEAT0803
 //! | `Forbidden` | 403 | No | Check permissions |
 //! | `NotFound` | 404 | No | Use valid resource ID |
 //! | `Conflict` | 409 | No | Resolve conflict |
 //! | `RateLimited` | 429 | Yes | Wait and retry |
 //! | `Internal` | 500 | Maybe | Report if persistent |
 //! | `ServiceUnavailable` | 503 | Yes | Wait and retry |
+//!
+//! @implements FEAT0803
 
 use axum::{
     http::StatusCode,

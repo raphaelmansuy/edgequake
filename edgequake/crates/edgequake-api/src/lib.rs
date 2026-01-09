@@ -12,7 +12,7 @@
 //! - **FEAT0400**: RESTful API with JSON
 //! - **FEAT0401**: OpenAPI/Swagger documentation
 //! - **FEAT0402**: Multi-tenant workspace isolation
-/// @implements FEAT0008
+//! - **FEAT0008**: Authentication middleware
 //! - **FEAT0403**: SSE streaming for real-time updates
 //!
 //! ## Enforces

@@ -114,6 +114,8 @@ export function GraphSearch({ onSelect }: GraphSearchProps) {
   }, [nodes]);
 
   // Show searching state while debouncing
+  // Intentional: Synchronizing UI state with debounced value
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (query !== debouncedQuery) {
       setIsSearching(true);
@@ -121,6 +123,7 @@ export function GraphSearch({ onSelect }: GraphSearchProps) {
       setIsSearching(false);
     }
   }, [query, debouncedQuery]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Compute search results based on debounced query
   const results = useMemo<SearchResult[]>(() => {

@@ -435,8 +435,8 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
 
   // Toggle sort direction
   const toggleSortDirection = useCallback(() => {
-    setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-  }, [sortDirection]);
+    setSortDirection(prev => prev === "asc" ? "desc" : "asc");
+  }, [setSortDirection]);
 
   // Keyboard navigation for list view
   const handleListKeyDown = useCallback(
@@ -482,6 +482,8 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
 
   // Reset focused index when search or sort changes
   useEffect(() => {
+    // Intentional: Reset focus when filters change for better UX
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFocusedIndex(-1);
   }, [searchQuery, sortBy, sortDirection]);
 
