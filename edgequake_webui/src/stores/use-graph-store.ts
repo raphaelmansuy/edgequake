@@ -1,9 +1,35 @@
+/**
+ * Graph Store - Manages knowledge graph visualization state.
+ *
+ * @implements UC0101 - Explore Entity Neighborhood
+ * @implements UC0104 - View Graph Statistics
+ * @implements FEAT0601 - Knowledge Graph Visualization
+ * @implements FEAT0202 - Graph Traversal (via API calls)
+ * @implements FEAT0205 - Community Detection (color coding)
+ *
+ * @enforces BR0009 - Max 1000 nodes per visualization (via backend)
+ * @enforces BR0201 - Tenant isolation (graph filtered by workspace)
+ *
+ * @description
+ * This Zustand store manages:
+ * - Graph data (nodes, edges) with indexed lookups
+ * - Sigma.js instance for rendering
+ * - Node/edge selection and filtering
+ * - Entity type and relationship type visibility
+ * - Graph bookmarks for saved views
+ * - SSE streaming progress for large graphs
+ *
+ * @see Sigma.js for graph rendering
+ * @see useSettingsStore for graph layout preferences
+ */
+
 "use client";
 
 import type { GraphEdge, GraphNode, KnowledgeGraph } from "@/types";
 import Sigma from "sigma";
 import { create } from "zustand";
 
+/** Color mode for node coloring strategy */
 export type ColorMode = "entity-type" | "community";
 
 // Streaming progress phase
