@@ -2,24 +2,21 @@
  * @module use-cost-store
  * @description Zustand store for LLM cost tracking and budget management.
  * Based on WebUI Specification Document WEBUI-007 (16-webui-cost-monitoring.md)
- * 
+ *
  * @implements UC0801 - User monitors LLM usage costs
  * @implements UC0802 - User sets budget alerts
  * @implements FEAT0801 - Per-document cost tracking
  * @implements FEAT0802 - Real-time ingestion cost updates
  * @implements FEAT0803 - Workspace cost summary
- * 
+ *
  * @enforces BR0801 - Costs update in real-time during ingestion
  * @enforces BR0802 - Budget alerts trigger at thresholds
  * @enforces BR0803 - Cost breakdown available per document
- * 
+ *
  * @see {@link specs/WEBUI-007.md} for specification
  */
 
-import {
-  STORE_VERSIONS,
-  ZUSTAND_STORAGE_KEYS,
-} from "@/lib/storage-keys";
+import { STORE_VERSIONS, ZUSTAND_STORAGE_KEYS } from "@/lib/storage-keys";
 import type {
   BudgetAlert,
   BudgetStatus,

@@ -2,17 +2,17 @@
  * @module use-conversation-store
  * @description Zustand store for client-side conversation management.
  * Manages local conversation state, messages, and history panel.
- * 
+ *
  * @implements UC0401 - User creates new conversation
  * @implements UC0405 - User views conversation history
  * @implements UC0406 - User renames conversation
  * @implements FEAT0403 - Local conversation storage
  * @implements FEAT0404 - Active conversation tracking
- * 
+ *
  * @enforces BR0401 - Conversations persist in localStorage
  * @enforces BR0404 - Message order preserved
  * @enforces BR0405 - Streaming messages marked appropriately
- * 
+ *
  * @see {@link docs/use_cases.md} UC0401, UC0405-0406
  */
 "use client";

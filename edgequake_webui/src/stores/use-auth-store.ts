@@ -2,25 +2,22 @@
  * @module use-auth-store
  * @description Zustand store for authentication state management.
  * Handles JWT tokens, user info, and login/logout actions.
- * 
+ *
  * @implements UC0501 - User authenticates via login form
  * @implements UC0505 - User logs out and clears session
  * @implements FEAT0501 - JWT token management
  * @implements FEAT0505 - Token expiration detection
- * 
+ *
  * @enforces BR0501 - Protected routes require authentication
  * @enforces BR0502 - Expired tokens trigger logout
  * @enforces BR0505 - Tokens stored securely in localStorage
- * 
+ *
  * @see {@link docs/use_cases.md} UC0501, UC0505
  */
 "use client";
 
 import { clearTokens, getTokens, setTokens } from "@/lib/api/client";
-import {
-  STORE_VERSIONS,
-  ZUSTAND_STORAGE_KEYS,
-} from "@/lib/storage-keys";
+import { STORE_VERSIONS, ZUSTAND_STORAGE_KEYS } from "@/lib/storage-keys";
 import type { AuthState, LoginResponse } from "@/types";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -114,11 +111,11 @@ export const useAuthStore = create<AuthStore>()(
        */
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<AuthStoreState>;
-        
+
         if (version === 0) {
           // Future migrations go here
         }
-        
+
         return state as AuthStoreState;
       },
       /**
@@ -130,7 +127,7 @@ export const useAuthStore = create<AuthStore>()(
             console.error("[AuthStore] Hydration failed:", error);
           }
           state?.setHasHydrated(true);
-          
+
           // Sync tokens to API client after hydration
           state?.initializeFromStorage();
         };

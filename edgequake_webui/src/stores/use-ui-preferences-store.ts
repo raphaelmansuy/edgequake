@@ -2,14 +2,14 @@
  * @module use-ui-preferences-store
  * @description Zustand store for UI layout preferences.
  * Persists panel states, widths, and view modes to localStorage.
- * 
+ *
  * @implements FEAT0622 - Persistent panel collapse states
  * @implements FEAT0623 - Resizable panel widths
  * @implements FEAT0624 - View mode preferences (grouped/list)
- * 
+ *
  * @enforces BR0610 - Panel states persist across sessions
  * @enforces BR0614 - Width preferences within min/max bounds
- * 
+ *
  * @see {@link docs/features.md} FEAT0622-0624
  */
 "use client";
