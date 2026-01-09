@@ -61,6 +61,8 @@ export function ResizablePanel({
   useEffect(() => {
     if (!initializedRef.current) {
       const initial = getInitialWidth();
+      // Intentional: One-time initialization from localStorage
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setWidth(initial);
       initializedRef.current = true;
     }

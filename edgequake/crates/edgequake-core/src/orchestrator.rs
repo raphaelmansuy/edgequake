@@ -1,9 +1,11 @@
 //! EdgeQuake Orchestrator - Central RAG coordination module.
 //!
+//! @implements FEAT0001
+//! @implements FEAT0007
+//!
 //! # Overview
 //!
-//! **Implements**: FEAT0001 (Document Ingestion), FEAT0007 (Multi-Mode Query),
-//!                 FEAT0015 (Multi-Tenant Isolation)
+//! **Implements**: FEAT0001 (Document Ingestion), FEAT0007 (Multi-Mode Query)
 //!
 //! **Enforces**: BR0001 (Doc ID Uniqueness), BR0002 (Chunk Constraints),
 //!               BR0101 (Token Budget), BR0201 (Tenant Isolation)

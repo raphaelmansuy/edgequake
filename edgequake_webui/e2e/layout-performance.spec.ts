@@ -226,7 +226,12 @@ test.describe("Layout Quality Assessment", () => {
 
       // Verify no console errors
       const logs = await page.evaluate(() => {
-        return (window as any).__consoleErrors || [];
+        return (
+          (
+            window as Window &
+              typeof globalThis & { __consoleErrors?: unknown[] }
+          ).__consoleErrors || []
+        );
       });
 
       expect(logs.length).toBe(0);

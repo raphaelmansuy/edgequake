@@ -1,13 +1,17 @@
 //! Query execution handlers.
 //!
+//! @implements FEAT0403
+//! @implements FEAT0404
+//!
 //! # Implements
 //!
 //! - **UC0201**: Execute Query
 //! - **UC0202**: Query with Conversation History
 //! - **UC0203**: Stream Query Response
+//! - **FEAT0403**: Query Execution Endpoint
+//! - **FEAT0404**: Query Streaming Endpoint
 //! - **FEAT0007**: Multi-Mode Query Execution
 //! - **FEAT0101-0106**: Query modes (naive/local/global/hybrid/mix/bypass)
-//! - **FEAT0401**: REST API Service
 //!
 //! # Enforces
 //!

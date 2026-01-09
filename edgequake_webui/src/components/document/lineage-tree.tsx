@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils';
 import { Brain, Database, FileSearch, Network, Upload } from 'lucide-react';
 
 interface LineageTreeProps {
-  lineage: any; // DocumentLineage type
+  lineage: unknown; // DocumentLineage type - using unknown for safety
 }
 
 export function LineageTree({ lineage }: LineageTreeProps) {

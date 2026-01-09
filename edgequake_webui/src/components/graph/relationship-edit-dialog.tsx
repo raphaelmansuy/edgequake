@@ -110,6 +110,8 @@ export function RelationshipEditDialog({
       const edgeDescription = edge.description || '';
       const edgeWeight = edge.weight ?? 1;
 
+      // Intentional: Form initialization from props
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRelationshipType(edgeType);
       setOriginalType(edgeType);
       setDescription(edgeDescription);

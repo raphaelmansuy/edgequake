@@ -78,6 +78,8 @@ export function AnimatedProgress({
   // Note: This is a valid pattern for animation - setState is called in animation frame
   useEffect(() => {
     if (!animated || indeterminate) {
+      // Intentional: Direct sync for non-animated mode
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDisplayValue(value);
       return;
     }

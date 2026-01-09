@@ -16,7 +16,7 @@
 import { Badge } from '@/components/ui/badge';
 
 interface ProcessingDetailsProps {
-  lineage: any; // DocumentLineage type
+  lineage: unknown; // DocumentLineage type - using unknown for safety
 }
 
 export function ProcessingDetails({ lineage }: ProcessingDetailsProps) {

@@ -214,14 +214,17 @@ function PieChart({
 }) {
   // Build conic gradient
   const gradient = useMemo(() => {
-    let angle = 0;
-    const segments = data.map(item => {
-      const startAngle = angle;
-      const endAngle = angle + (item.percentage / 100) * 360;
-      angle = endAngle;
-      return `${item.color} ${startAngle}deg ${endAngle}deg`;
-    });
-    return `conic-gradient(${segments.join(', ')})`;
+    const segments = data.reduce<{ angle: number; segments: string[] }>(
+      (acc, item) => {
+        const startAngle = acc.angle;
+        const endAngle = acc.angle + (item.percentage / 100) * 360;
+        acc.segments.push(`${item.color} ${startAngle}deg ${endAngle}deg`);
+        acc.angle = endAngle;
+        return acc;
+      },
+      { angle: 0, segments: [] }
+    );
+    return `conic-gradient(${segments.segments.join(', ')})`;
   }, [data]);
 
   return (

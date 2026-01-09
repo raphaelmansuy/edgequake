@@ -118,7 +118,7 @@ impl FormulaDetector {
     /// Detect all formulas in a page.
     ///
     /// Returns detected formulas sorted by position (top to bottom, left to right).
-/// @implements FEAT1005
+    /// @implements FEAT1005
     pub fn detect_formulas(&self, page: &Page) -> Vec<Formula> {
         let mut formulas = Vec::new();
 
