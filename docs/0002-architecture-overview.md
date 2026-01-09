@@ -399,6 +399,65 @@ impl Pipeline {
 }
 ```
 
+### `edgequake-pdf` - PDF Extraction
+
+> **Code Reference**: [edgequake/crates/edgequake-pdf/src/](../edgequake/crates/edgequake-pdf/src/)
+>
+> **Implements**: [FEAT1001-FEAT1025](features.md#advanced-pdf-features-feat10xx) | **Enforces**: [BR1001-BR1026](business_rules.md#pdf-processing-rules-br10xx)
+
+Converts PDF documents to Markdown with structure preservation.
+
+```rust
+// PDF extraction pipeline architecture:
+//
+// ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+// │ SotaBackend │───▶│  Processor  │───▶│   Renderer  │───▶│  Markdown   │
+// │ (parsing)   │    │   Chain     │    │ (Markdown)  │    │   Output    │
+// └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+//       │                  │
+//       │                  ├─ LayoutProcessor
+//       │                  ├─ TableDetectionProcessor
+//       │                  ├─ HeaderDetectionProcessor
+//       │                  ├─ StyleDetectionProcessor
+//       │                  └─ PostProcessor
+//       │
+//       ├─ Font analysis
+//       ├─ Text extraction (lopdf)
+//       ├─ Image extraction
+//       └─ Table detection (lattice/stream)
+
+pub struct PdfExtractor {
+    backend: SotaBackend,
+    processor_chain: ProcessorChain,
+    renderer: MarkdownRenderer,
+}
+
+impl PdfExtractor {
+    pub async fn extract(&self, pdf_bytes: &[u8]) -> Result<ExtractionResult> {
+        // 1. Parse PDF and extract raw content
+        let document = self.backend.extract(pdf_bytes)?;
+
+        // 2. Process through chain (layout, tables, headings)
+        let processed = self.processor_chain.process(document)?;
+
+        // 3. Render to Markdown
+        let markdown = self.renderer.render(&processed)?;
+
+        Ok(ExtractionResult { markdown, pages: processed.pages.len() })
+    }
+}
+```
+
+**Key Components:**
+
+| Component             | Lines | Responsibility                  |
+| --------------------- | ----- | ------------------------------- |
+| `SotaBackend`         | ~3000 | PDF parsing, font/text analysis |
+| `LatticeEngine`       | ~600  | Table detection via line grid   |
+| `ProcessorChain`      | ~3000 | Content transformation pipeline |
+| `MarkdownRenderer`    | ~800  | Final Markdown generation       |
+| `ImageOcrProcessor`   | ~500  | Vision LLM image understanding  |
+
 ---
 
 ## Data Flow
