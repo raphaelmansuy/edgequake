@@ -480,39 +480,39 @@
 
 ### FEAT0210 - Graph Storage Adapter
 
-| Attribute          | Value                                                                          |
-| ------------------ | ------------------------------------------------------------------------------ |
-| **ID**             | FEAT0210                                                                       |
-| **Name**           | Graph Storage Adapter                                                          |
-| **Module**         | edgequake-storage                                                              |
-| **Status**         | ✅ Stable                                                                      |
+| Attribute          | Value                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------ |
+| **ID**             | FEAT0210                                                                                   |
+| **Name**           | Graph Storage Adapter                                                                      |
+| **Module**         | edgequake-storage                                                                          |
+| **Status**         | ✅ Stable                                                                                  |
 | **Code Reference** | [adapters/memory/mod.rs](../edgequake/crates/edgequake-storage/src/adapters/memory/mod.rs) |
-| **Description**    | Graph storage interface for entity relationships                               |
-| **Related**        | FEAT0201                                                                       |
+| **Description**    | Graph storage interface for entity relationships                                           |
+| **Related**        | FEAT0201                                                                                   |
 
 ### FEAT0211 - Vector Storage Adapter
 
-| Attribute          | Value                                                                          |
-| ------------------ | ------------------------------------------------------------------------------ |
-| **ID**             | FEAT0211                                                                       |
-| **Name**           | Vector Storage Adapter                                                         |
-| **Module**         | edgequake-storage                                                              |
-| **Status**         | ✅ Stable                                                                      |
+| Attribute          | Value                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------ |
+| **ID**             | FEAT0211                                                                                   |
+| **Name**           | Vector Storage Adapter                                                                     |
+| **Module**         | edgequake-storage                                                                          |
+| **Status**         | ✅ Stable                                                                                  |
 | **Code Reference** | [adapters/memory/mod.rs](../edgequake/crates/edgequake-storage/src/adapters/memory/mod.rs) |
-| **Description**    | Vector storage interface for similarity search                                 |
-| **Related**        | FEAT0201                                                                       |
+| **Description**    | Vector storage interface for similarity search                                             |
+| **Related**        | FEAT0201                                                                                   |
 
 ### FEAT0212 - KV Storage Adapter
 
-| Attribute          | Value                                                                          |
-| ------------------ | ------------------------------------------------------------------------------ |
-| **ID**             | FEAT0212                                                                       |
-| **Name**           | Key-Value Storage Adapter                                                      |
-| **Module**         | edgequake-storage                                                              |
-| **Status**         | ✅ Stable                                                                      |
+| Attribute          | Value                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------ |
+| **ID**             | FEAT0212                                                                                   |
+| **Name**           | Key-Value Storage Adapter                                                                  |
+| **Module**         | edgequake-storage                                                                          |
+| **Status**         | ✅ Stable                                                                                  |
 | **Code Reference** | [adapters/memory/mod.rs](../edgequake/crates/edgequake-storage/src/adapters/memory/mod.rs) |
-| **Description**    | Key-Value storage interface for document metadata                              |
-| **Related**        | FEAT0201                                                                       |
+| **Description**    | Key-Value storage interface for document metadata                                          |
+| **Related**        | FEAT0201                                                                                   |
 
 ---
 
@@ -1218,135 +1218,135 @@
 
 ### FEAT0804 - JWT Login
 
-| Attribute          | Value                                                              |
-| ------------------ | ------------------------------------------------------------------ |
-| **ID**             | FEAT0804                                                           |
-| **Name**           | JWT Login and Tokens                                               |
-| **Module**         | edgequake-api                                                      |
-| **Status**         | ✅ Stable                                                          |
+| Attribute          | Value                                                                      |
+| ------------------ | -------------------------------------------------------------------------- |
+| **ID**             | FEAT0804                                                                   |
+| **Name**           | JWT Login and Tokens                                                       |
+| **Module**         | edgequake-api                                                              |
+| **Status**         | ✅ Stable                                                                  |
 | **Code Reference** | [handlers/auth.rs](../edgequake/crates/edgequake-api/src/handlers/auth.rs) |
-| **Description**    | JWT login with access and refresh tokens                           |
-| **Related**        | FEAT0802                                                           |
+| **Description**    | JWT login with access and refresh tokens                                   |
+| **Related**        | FEAT0802                                                                   |
 
 ### FEAT0805 - Token Refresh
 
-| Attribute          | Value                                                              |
-| ------------------ | ------------------------------------------------------------------ |
-| **ID**             | FEAT0805                                                           |
-| **Name**           | Token Refresh                                                      |
-| **Module**         | edgequake-api                                                      |
-| **Status**         | ✅ Stable                                                          |
+| Attribute          | Value                                                                      |
+| ------------------ | -------------------------------------------------------------------------- |
+| **ID**             | FEAT0805                                                                   |
+| **Name**           | Token Refresh                                                              |
+| **Module**         | edgequake-api                                                              |
+| **Status**         | ✅ Stable                                                                  |
 | **Code Reference** | [handlers/auth.rs](../edgequake/crates/edgequake-api/src/handlers/auth.rs) |
-| **Description**    | Token refresh without re-authentication                            |
-| **Related**        | FEAT0804                                                           |
+| **Description**    | Token refresh without re-authentication                                    |
+| **Related**        | FEAT0804                                                                   |
 
 ### FEAT0806 - User Management
 
-| Attribute          | Value                                                              |
-| ------------------ | ------------------------------------------------------------------ |
-| **ID**             | FEAT0806                                                           |
-| **Name**           | User Management (CRUD)                                             |
-| **Module**         | edgequake-api                                                      |
-| **Status**         | ✅ Stable                                                          |
+| Attribute          | Value                                                                      |
+| ------------------ | -------------------------------------------------------------------------- |
+| **ID**             | FEAT0806                                                                   |
+| **Name**           | User Management (CRUD)                                                     |
+| **Module**         | edgequake-api                                                              |
+| **Status**         | ✅ Stable                                                                  |
 | **Code Reference** | [handlers/auth.rs](../edgequake/crates/edgequake-api/src/handlers/auth.rs) |
-| **Description**    | User CRUD operations with role management                          |
-| **Related**        | FEAT0803                                                           |
+| **Description**    | User CRUD operations with role management                                  |
+| **Related**        | FEAT0803                                                                   |
 
 ### FEAT0807 - API Key Management
 
-| Attribute          | Value                                                              |
-| ------------------ | ------------------------------------------------------------------ |
-| **ID**             | FEAT0807                                                           |
-| **Name**           | API Key Management                                                 |
-| **Module**         | edgequake-api                                                      |
-| **Status**         | ✅ Stable                                                          |
+| Attribute          | Value                                                                      |
+| ------------------ | -------------------------------------------------------------------------- |
+| **ID**             | FEAT0807                                                                   |
+| **Name**           | API Key Management                                                         |
+| **Module**         | edgequake-api                                                              |
+| **Status**         | ✅ Stable                                                                  |
 | **Code Reference** | [handlers/auth.rs](../edgequake/crates/edgequake-api/src/handlers/auth.rs) |
-| **Description**    | API key generation and validation                                  |
-| **Related**        | FEAT0801                                                           |
+| **Description**    | API key generation and validation                                          |
+| **Related**        | FEAT0801                                                                   |
 
 ### FEAT0820 - Workspace Management
 
-| Attribute          | Value                                                              |
-| ------------------ | ------------------------------------------------------------------ |
-| **ID**             | FEAT0820                                                           |
-| **Name**           | Workspace CRUD                                                     |
-| **Module**         | edgequake-core                                                     |
-| **Status**         | ✅ Stable                                                          |
+| Attribute          | Value                                                                               |
+| ------------------ | ----------------------------------------------------------------------------------- |
+| **ID**             | FEAT0820                                                                            |
+| **Name**           | Workspace CRUD                                                                      |
+| **Module**         | edgequake-core                                                                      |
+| **Status**         | ✅ Stable                                                                           |
 | **Code Reference** | [workspace_service.rs](../edgequake/crates/edgequake-core/src/workspace_service.rs) |
-| **Description**    | Workspace CRUD operations                                          |
-| **Related**        | FEAT0016                                                           |
+| **Description**    | Workspace CRUD operations                                                           |
+| **Related**        | FEAT0016                                                                            |
 
 ### FEAT0821 - Tenant Management
 
-| Attribute          | Value                                                              |
-| ------------------ | ------------------------------------------------------------------ |
-| **ID**             | FEAT0821                                                           |
-| **Name**           | Tenant Management                                                  |
-| **Module**         | edgequake-core                                                     |
-| **Status**         | ✅ Stable                                                          |
+| Attribute          | Value                                                                               |
+| ------------------ | ----------------------------------------------------------------------------------- |
+| **ID**             | FEAT0821                                                                            |
+| **Name**           | Tenant Management                                                                   |
+| **Module**         | edgequake-core                                                                      |
+| **Status**         | ✅ Stable                                                                           |
 | **Code Reference** | [workspace_service.rs](../edgequake/crates/edgequake-core/src/workspace_service.rs) |
-| **Description**    | Tenant configuration and management                                |
-| **Related**        | FEAT0015                                                           |
+| **Description**    | Tenant configuration and management                                                 |
+| **Related**        | FEAT0015                                                                            |
 
 ### FEAT0822 - Membership Management
 
-| Attribute          | Value                                                              |
-| ------------------ | ------------------------------------------------------------------ |
-| **ID**             | FEAT0822                                                           |
-| **Name**           | Membership Management                                              |
-| **Module**         | edgequake-core                                                     |
-| **Status**         | ✅ Stable                                                          |
+| Attribute          | Value                                                                               |
+| ------------------ | ----------------------------------------------------------------------------------- |
+| **ID**             | FEAT0822                                                                            |
+| **Name**           | Membership Management                                                               |
+| **Module**         | edgequake-core                                                                      |
+| **Status**         | ✅ Stable                                                                           |
 | **Code Reference** | [workspace_service.rs](../edgequake/crates/edgequake-core/src/workspace_service.rs) |
-| **Description**    | Membership and role management                                     |
-| **Related**        | FEAT0820                                                           |
+| **Description**    | Membership and role management                                                      |
+| **Related**        | FEAT0820                                                                            |
 
 ### FEAT0823 - Workspace Statistics
 
-| Attribute          | Value                                                              |
-| ------------------ | ------------------------------------------------------------------ |
-| **ID**             | FEAT0823                                                           |
-| **Name**           | Workspace Statistics                                               |
-| **Module**         | edgequake-core                                                     |
-| **Status**         | ✅ Stable                                                          |
+| Attribute          | Value                                                                               |
+| ------------------ | ----------------------------------------------------------------------------------- |
+| **ID**             | FEAT0823                                                                            |
+| **Name**           | Workspace Statistics                                                                |
+| **Module**         | edgequake-core                                                                      |
+| **Status**         | ✅ Stable                                                                           |
 | **Code Reference** | [workspace_service.rs](../edgequake/crates/edgequake-core/src/workspace_service.rs) |
-| **Description**    | Workspace usage statistics                                         |
-| **Related**        | FEAT0820                                                           |
+| **Description**    | Workspace usage statistics                                                          |
+| **Related**        | FEAT0820                                                                            |
 
 ### FEAT0830 - Tenant Instance Management
 
-| Attribute          | Value                                                              |
-| ------------------ | ------------------------------------------------------------------ |
-| **ID**             | FEAT0830                                                           |
-| **Name**           | Tenant Instance Management                                         |
-| **Module**         | edgequake-core                                                     |
-| **Status**         | ✅ Stable                                                          |
+| Attribute          | Value                                                                         |
+| ------------------ | ----------------------------------------------------------------------------- |
+| **ID**             | FEAT0830                                                                      |
+| **Name**           | Tenant Instance Management                                                    |
+| **Module**         | edgequake-core                                                                |
+| **Status**         | ✅ Stable                                                                     |
 | **Code Reference** | [tenant_manager.rs](../edgequake/crates/edgequake-core/src/tenant_manager.rs) |
-| **Description**    | Per-tenant EdgeQuake instance management                           |
-| **Related**        | FEAT0015                                                           |
+| **Description**    | Per-tenant EdgeQuake instance management                                      |
+| **Related**        | FEAT0015                                                                      |
 
 ### FEAT0831 - Instance Caching
 
-| Attribute          | Value                                                              |
-| ------------------ | ------------------------------------------------------------------ |
-| **ID**             | FEAT0831                                                           |
-| **Name**           | Instance Caching                                                   |
-| **Module**         | edgequake-core                                                     |
-| **Status**         | ✅ Stable                                                          |
+| Attribute          | Value                                                                         |
+| ------------------ | ----------------------------------------------------------------------------- |
+| **ID**             | FEAT0831                                                                      |
+| **Name**           | Instance Caching                                                              |
+| **Module**         | edgequake-core                                                                |
+| **Status**         | ✅ Stable                                                                     |
 | **Code Reference** | [tenant_manager.rs](../edgequake/crates/edgequake-core/src/tenant_manager.rs) |
-| **Description**    | Instance caching for performance                                   |
-| **Related**        | FEAT0830                                                           |
+| **Description**    | Instance caching for performance                                              |
+| **Related**        | FEAT0830                                                                      |
 
 ### FEAT0832 - Instance Cleanup
 
-| Attribute          | Value                                                              |
-| ------------------ | ------------------------------------------------------------------ |
-| **ID**             | FEAT0832                                                           |
-| **Name**           | Stale Instance Cleanup                                             |
-| **Module**         | edgequake-core                                                     |
-| **Status**         | ✅ Stable                                                          |
+| Attribute          | Value                                                                         |
+| ------------------ | ----------------------------------------------------------------------------- |
+| **ID**             | FEAT0832                                                                      |
+| **Name**           | Stale Instance Cleanup                                                        |
+| **Module**         | edgequake-core                                                                |
+| **Status**         | ✅ Stable                                                                     |
 | **Code Reference** | [tenant_manager.rs](../edgequake/crates/edgequake-core/src/tenant_manager.rs) |
-| **Description**    | Automatic cleanup of stale instances                               |
-| **Related**        | FEAT0830                                                           |
+| **Description**    | Automatic cleanup of stale instances                                          |
+| **Related**        | FEAT0830                                                                      |
 
 ---
 
