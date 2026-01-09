@@ -2,14 +2,14 @@
  * @module use-websocket
  * @description Hook for WebSocket connection management.
  * Based on WebUI Specification Document WEBUI-005 (14-webui-websocket-progress.md)
- * 
+ *
  * @implements FEAT0603 - WebSocket real-time communication
  * @implements FEAT0605 - Connection state management
  * @implements FEAT0606 - Auto-reconnection with backoff
- * 
+ *
  * @enforces BR0604 - Reconnect automatically on disconnect
  * @enforces BR0605 - State syncs across hooks
- * 
+ *
  * @see {@link specs/WEBUI-005.md} for specification
  */
 

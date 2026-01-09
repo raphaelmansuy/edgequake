@@ -2,15 +2,15 @@
  * @module use-graph-stream
  * @description SSE streaming hook for progressive knowledge graph loading.
  * Enables smooth UX for large graphs with batched node/edge delivery.
- * 
+ *
  * @implements UC0106 - Progressive graph loading with streaming
  * @implements FEAT0601 - SSE-based graph streaming
  * @implements FEAT0607 - Batch delivery with progress indicators
  * @implements FEAT0608 - Abort control for slow connections
- * 
+ *
  * @enforces BR0602 - Streaming shows real-time progress
  * @enforces BR0604 - Cancellation cleans up resources
- * 
+ *
  * @see {@link docs/features.md} FEAT0601, FEAT0607
  */
 "use client";

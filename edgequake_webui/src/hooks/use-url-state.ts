@@ -3,6 +3,18 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
 
+/**
+ * @module use-url-state
+ * @description A hook for syncing state with URL search parameters.
+ * This enables shareable URLs with filters, pagination, and other state.
+ *
+ * @implements FEAT0647 - URL state synchronization
+ * @implements FEAT0648 - Shareable filter URLs
+ *
+ * @enforces BR0632 - URL params validated before applying
+ * @enforces BR0633 - Invalid params use defaults
+ */
+
 type StateValue = string | number | boolean | undefined;
 
 export interface UrlStateConfig<T extends Record<string, StateValue>> {

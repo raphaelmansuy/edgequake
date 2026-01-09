@@ -2,15 +2,15 @@
  * @module use-ingestion-progress
  * @description Hook for tracking document ingestion progress via WebSocket/polling.
  * Based on WebUI Specification Document WEBUI-005 (14-webui-websocket-progress.md)
- * 
+ *
  * @implements UC0007 - User monitors document processing progress
  * @implements FEAT0602 - Real-time progress indicators
  * @implements FEAT0603 - WebSocket-based live updates
  * @implements FEAT0604 - Fallback polling when WebSocket unavailable
- * 
+ *
  * @enforces BR0302 - Progress visible for all active uploads
  * @enforces BR0305 - Cost tracking updated in real-time
- * 
+ *
  * @see {@link specs/WEBUI-005.md} for specification
  */
 
