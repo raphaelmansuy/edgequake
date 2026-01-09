@@ -1,6 +1,26 @@
 //! Cost tracking API handlers (Phase 5).
 //!
 //! Provides endpoints for querying LLM API costs and token usage.
+//!
+//! ## Implements
+//!
+//! - **FEAT0510**: Model pricing retrieval endpoint
+//! - **FEAT0511**: Cost estimation for token usage
+//! - **FEAT0512**: Workspace cost summary aggregation
+//! - **FEAT0513**: Operation-level cost breakdown
+//!
+//! ## Use Cases
+//!
+//! - **UC2110**: User views available model pricing information
+//! - **UC2111**: User estimates cost before running expensive operations
+//! - **UC2112**: Admin reviews workspace cost summary
+//! - **UC2113**: User tracks cost trends over time via history endpoint
+//!
+//! ## Enforces
+//!
+//! - **BR0510**: Costs must be calculated using official pricing data
+//! - **BR0511**: Unknown models fallback to gpt-4o-mini pricing
+//! - **BR0512**: Cost history must respect workspace isolation
 
 use axum::{
     extract::{Query, State},
