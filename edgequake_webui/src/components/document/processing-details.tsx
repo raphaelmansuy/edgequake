@@ -1,3 +1,15 @@
+/**
+ * @fileoverview Processing details component showing LLM and embedding info
+ *
+ * @implements FEAT1082 - Model information display
+ * @implements FEAT1083 - Entity type badges
+ *
+ * @see UC1513 - User views processing configuration
+ * @see UC1514 - User sees entity types extracted
+ *
+ * @enforces BR1082 - Monospace for model names
+ * @enforces BR1083 - Badge layout for entity types
+ */
 // Processing details component
 'use client';
 

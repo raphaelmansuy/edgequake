@@ -3,6 +3,15 @@
  * 
  * Full chunk view with entities and relationships.
  * Based on WebUI Specification Document WEBUI-004 (13-webui-components.md)
+ *
+ * @implements FEAT1080 - Chunk detail modal view
+ * @implements FEAT1081 - Entity/relationship tabs
+ *
+ * @see UC1511 - User views chunk details
+ * @see UC1512 - User copies chunk content
+ *
+ * @enforces BR1080 - Tab-based content organization
+ * @enforces BR1081 - Accessible dialog structure
  */
 
 'use client';
