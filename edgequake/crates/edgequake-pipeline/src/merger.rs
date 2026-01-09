@@ -1,4 +1,29 @@
-//! Entity and relationship merging.
+//! Entity and relationship merging into the knowledge graph.
+//!
+//! # Implements
+//!
+//! - **FEAT0006**: Entity Deduplication
+//! - **FEAT0016**: Description Aggregation
+//! - **FEAT0011**: Source Lineage Tracking
+//!
+//! # Enforces
+//!
+//! - **BR0008**: Entity names normalized before merge
+//! - **BR0005**: Entity description max 512 tokens (summarization if exceeded)
+//! - **BR0007**: Lineage records append-only (source_id accumulation)
+//!
+//! # WHY: Merge, Don't Replace
+//!
+//! When the same entity appears in multiple documents:
+//!
+//! 1. **Names match** (after normalization): Same graph node
+//! 2. **Descriptions merge**: Combine via LLM summarization
+//! 3. **Sources accumulate**: `source_id` = "chunk1|chunk2|chunk3"
+//!
+//! This strategy:
+//! - Builds richer entity descriptions over time
+//! - Maintains full provenance for source tracking
+//! - Enables cascade delete via source_id filtering
 //!
 //! This module provides functionality for merging extracted entities
 //! and relationships into the knowledge graph, handling deduplication

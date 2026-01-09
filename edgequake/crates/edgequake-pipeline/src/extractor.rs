@@ -1,4 +1,33 @@
-//! Entity and relationship extraction.
+//! Entity and relationship extraction via LLM.
+//!
+//! # Implements
+//!
+//! - **FEAT0002**: Entity Extraction
+//! - **FEAT0003**: Relationship Discovery
+//! - **FEAT0015**: Gleaning (iterative re-extraction for completeness)
+//!
+//! # Enforces
+//!
+//! - **BR0003**: Entity types from configurable list
+//! - **BR0004**: Relationship keywords max 5 per edge
+//! - **BR0005**: Entity description max 512 tokens
+//! - **BR0006**: Same-entity relationships forbidden
+//! - **BR0008**: Entity names normalized (UPPERCASE_UNDERSCORE)
+//!
+//! # WHY: LLM-Based Extraction
+//!
+//! Using LLMs for extraction provides:
+//! 1. Domain-agnostic entity recognition (no training required)
+//! 2. Rich semantic descriptions (not just labels)
+//! 3. Relationship inference beyond co-occurrence
+//!
+//! # Extraction Strategies
+//!
+//! | Strategy | Description | Use Case |
+//! |----------|-------------|----------|
+//! | [`SOTAExtractor`] | Tuple-based parsing | Production (robust) |
+//! | [`SimpleExtractor`] | JSON-based parsing | Development/testing |
+//! | [`GleaningExtractor`] | Iterative re-extraction | High-stakes domains |
 
 use async_trait::async_trait;
 use edgequake_llm::traits::ChatMessage;
