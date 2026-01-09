@@ -42,8 +42,8 @@ src/components/
 
 ## Metrics Needed
 
-| Target | Count |
-|--------|-------|
+| Target                 | Count                 |
+| ---------------------- | --------------------- |
 | Components to document | ~15-20 key components |
-| FEAT refs needed | ~10-15 |
-| UC refs needed | ~8-10 |
+| FEAT refs needed       | ~10-15                |
+| UC refs needed         | ~8-10                 |

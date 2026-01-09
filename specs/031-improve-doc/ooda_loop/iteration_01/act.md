@@ -8,6 +8,7 @@
 ## Actions Completed
 
 ### 1. Created `docs/features.md`
+
 - **Lines**: ~800
 - **Features documented**: 57 features across 8 categories
 - **Format**: FEATXXXX with tables and code references
@@ -25,6 +26,7 @@
 | Auth | FEAT0701-0703 | 3 |
 
 ### 2. Created `docs/business_rules.md`
+
 - **Lines**: ~600
 - **Rules documented**: 33 rules across 5 categories
 - **Format**: BRXXXX with validation code references
@@ -39,6 +41,7 @@
 | Security | BR0401-0405 | 5 |
 
 ### 3. Created `docs/use_cases.md`
+
 - **Lines**: ~750
 - **Use cases documented**: 38 use cases across 6 categories
 - **Format**: UCXXXX with endpoints and steps
@@ -54,6 +57,7 @@
 | Administration | UC0501-0504 | 4 |
 
 ### 4. Updated `docs/README.md`
+
 - Added "Core Registries" section
 - Linked to new features.md, business_rules.md, use_cases.md
 - Maintained existing documentation links
@@ -102,13 +106,13 @@ per the mission in specs/031-improve-doc/01-improve-doc.md"
 
 ## Quality Metrics
 
-| Metric | Target | Actual |
-|--------|--------|--------|
-| Features documented | 50+ | 57 ✅ |
-| Rules documented | 20+ | 33 ✅ |
-| Use cases documented | 20+ | 38 ✅ |
-| Code references | All entries | 100% ✅ |
-| Cross-references | Related entries | 100% ✅ |
+| Metric               | Target          | Actual  |
+| -------------------- | --------------- | ------- |
+| Features documented  | 50+             | 57 ✅   |
+| Rules documented     | 20+             | 33 ✅   |
+| Use cases documented | 20+             | 38 ✅   |
+| Code references      | All entries     | 100% ✅ |
+| Cross-references     | Related entries | 100% ✅ |
 
 ---
 
@@ -123,6 +127,7 @@ per the mission in specs/031-improve-doc/01-improve-doc.md"
 ## Next Iteration Focus
 
 Iteration 02 will:
+
 - Add FEAT/BR/UC references to edgequake-core/src/lib.rs
 - Add FEAT/BR/UC references to edgequake-query/src/lib.rs
 - Improve docstrings with algorithm explanations

@@ -5,6 +5,7 @@
 ## Files Enhanced
 
 ### Document Viewer Components (9 files)
+
 - [chunk-explorer.tsx](edgequake_webui/src/components/document/chunk-explorer.tsx): FEAT1070-1071, UC1501-1502, BR1070-1071
 - [content-renderer.tsx](edgequake_webui/src/components/document/content-renderer.tsx): FEAT1072-1073, UC1503-1504, BR1072-1073
 - [metadata-sidebar.tsx](edgequake_webui/src/components/document/metadata-sidebar.tsx): FEAT1074-1075, UC1505-1506, BR1074-1075

@@ -7,14 +7,14 @@
 
 ### 1. Handler Modules Enhanced
 
-| Module | FEAT/BR/UC Added | Endpoints Documented |
-|--------|------------------|---------------------|
-| `documents.rs` | UC0001-0005, FEAT0001-0010, BR0001-0302 | upload, list, get, delete |
-| `query.rs` | UC0201-0203, FEAT0007, FEAT0101-0106, BR0101-0201 | execute, stream |
-| `entities.rs` | UC0101-0103, FEAT0002-0203, BR0005-0201 | CRUD + neighbors |
-| `health.rs` | UC0501, FEAT0401 | health, ready, live |
-| `graph.rs` | UC0101-0104, FEAT0202-0601, BR0009-0201 | get_graph, stats, stream |
-| `workspaces.rs` | UC0301-0304, FEAT0701-0702, BR0201-0401 | tenant + workspace CRUD |
+| Module          | FEAT/BR/UC Added                                  | Endpoints Documented      |
+| --------------- | ------------------------------------------------- | ------------------------- |
+| `documents.rs`  | UC0001-0005, FEAT0001-0010, BR0001-0302           | upload, list, get, delete |
+| `query.rs`      | UC0201-0203, FEAT0007, FEAT0101-0106, BR0101-0201 | execute, stream           |
+| `entities.rs`   | UC0101-0103, FEAT0002-0203, BR0005-0201           | CRUD + neighbors          |
+| `health.rs`     | UC0501, FEAT0401                                  | health, ready, live       |
+| `graph.rs`      | UC0101-0104, FEAT0202-0601, BR0009-0201           | get_graph, stats, stream  |
+| `workspaces.rs` | UC0301-0304, FEAT0701-0702, BR0201-0401           | tenant + workspace CRUD   |
 
 ### 2. Documentation Additions
 

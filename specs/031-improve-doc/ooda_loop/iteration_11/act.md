@@ -8,6 +8,7 @@
 ### 1. lib.rs Enhanced
 
 Added comprehensive FEAT/BR/UC refs:
+
 - FEAT1001-1006: PDF conversion, tables, layout, images, formulas, LLM enhancement
 - BR1001-1004: Structure preservation, error handling, reading order, alignment
 - UC1001-1003: Upload, extraction, table conversion
@@ -15,6 +16,7 @@ Added comprehensive FEAT/BR/UC refs:
 ### 2. extractor.rs Enhanced
 
 Added module-level documentation:
+
 - FEAT1001, FEAT1006 references
 - UC1001, UC1002 references
 - Existing WHY comments preserved
