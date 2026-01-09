@@ -3,6 +3,17 @@
 //! This module provides a caching layer for LLM completions and embeddings,
 //! significantly reducing costs for repeated queries and improving response times.
 //!
+//! ## Implements
+//!
+//! - **FEAT0019**: LLM Response Caching
+//! - **FEAT0772**: LRU eviction policy
+//! - **FEAT0773**: TTL-based expiration
+//!
+//! ## Enforces
+//!
+//! - **BR0772**: Cache hit does not modify original response
+//! - **BR0773**: Expired entries evicted on next access
+//!
 //! Based on LightRAG's caching approach with an in-memory LRU cache.
 
 use crate::error::Result;
