@@ -6,10 +6,10 @@
 //!
 //! ## Implements
 //!
-//! - [`FEAT0201`]: In-memory storage adapter
-//! - [`FEAT0210`]: Graph storage for entity relationships
-//! - [`FEAT0211`]: Vector storage for similarity search
-//! - [`FEAT0212`]: KV storage for document metadata
+//! @implements FEAT0201 (In-memory storage adapter)
+//! @implements FEAT0210 (Graph storage for entity relationships)
+//! @implements FEAT0211 (Vector storage for similarity search)
+//! @implements FEAT0212 (KV storage for document metadata)
 //!
 //! ## Use Cases
 //!

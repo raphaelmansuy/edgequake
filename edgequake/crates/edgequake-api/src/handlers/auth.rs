@@ -5,10 +5,11 @@
 //!
 //! ## Implements
 //!
-//! - **FEAT0570**: JWT login with access and refresh tokens
-//! - **FEAT0571**: Token refresh without re-authentication
-//! - **FEAT0572**: User CRUD operations with role management
-//! - **FEAT0573**: API key generation and validation
+//! @implements FEAT0802 (JWT Token Support)
+//! @implements FEAT0570 (JWT login with access and refresh tokens)
+//! @implements FEAT0571 (Token refresh without re-authentication)
+//! @implements FEAT0572 (User CRUD operations with role management)
+//! @implements FEAT0573 (API key generation and validation)
 //!
 //! ## Use Cases
 //!
