@@ -1,3 +1,10 @@
+/**
+ * @module GraphPage
+ * @description Knowledge graph visualization page route.
+ *
+ * @implements FEAT0601 - Interactive graph visualization
+ * @see GraphViewer component for full implementation
+ */
 'use client';
 
 import { Skeleton } from '@/components/ui/skeleton';
