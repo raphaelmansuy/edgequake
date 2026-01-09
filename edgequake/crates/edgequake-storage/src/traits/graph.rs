@@ -1,4 +1,26 @@
-//! Graph storage trait.
+//! Graph storage trait for knowledge graph operations.
+//!
+//! # Implements
+//!
+//! - **FEAT0202**: Graph Traversal (get_node_edges, get_neighbors)
+//! - **FEAT0203**: Graph Mutation (upsert_node, upsert_edge, delete_*)
+//! - **FEAT0204**: Graph Analytics (node_count, edge_count)
+//!
+//! # Enforces
+//!
+//! - **BR0008**: Entity names normalized (via caller, not trait)
+//! - **BR0201**: Namespace-based tenant isolation
+//!
+//! # WHY: Property Graph Model
+//!
+//! We use a property graph (nodes + edges with arbitrary properties) because:
+//! - Entities have varying attributes (type, description, source_id)
+//! - Relationships have metadata (weight, keywords, timestamps)
+//! - Flexible schema accommodates different domains
+//!
+//! This model is compatible with:
+//! - Apache AGE (PostgreSQL graph extension)
+//! - Neo4j, Neptune, and other graph databases
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
