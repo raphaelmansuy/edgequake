@@ -3,6 +3,22 @@
 //! This module provides utilities for setting and clearing tenant/workspace
 //! context in PostgreSQL sessions to enable RLS policy enforcement.
 //!
+//! ## Implements
+//!
+//! - [`FEAT0260`]: Row-Level Security for multi-tenancy
+//! - [`FEAT0261`]: Session-scoped tenant context
+//! - [`FEAT0262`]: RAII context guard with auto-cleanup
+//!
+//! ## Use Cases
+//!
+//! - [`UC0902`]: System enforces tenant data isolation
+//! - [`UC0903`]: System scopes queries to current tenant
+//!
+//! ## Enforces
+//!
+//! - [`BR0260`]: Mandatory tenant context for data access
+//! - [`BR0261`]: Context cleanup on scope exit
+//!
 //! # How it works
 //!
 //! PostgreSQL RLS policies use session variables (set via `set_config()`) to

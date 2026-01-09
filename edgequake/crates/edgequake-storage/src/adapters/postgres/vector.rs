@@ -1,4 +1,24 @@
 //! PostgreSQL vector storage using pgvector extension.
+//!
+//! Provides high-performance vector similarity search using PostgreSQL's
+//! pgvector extension with configurable indexing strategies.
+//!
+//! ## Implements
+//!
+//! - [`FEAT0202`]: PostgreSQL with pgvector adapter
+//! - [`FEAT0320`]: IVFFlat index for approximate nearest neighbor
+//! - [`FEAT0321`]: HNSW index for faster queries on large datasets
+//! - [`FEAT0322`]: Configurable distance metrics (cosine, L2, inner product)
+//!
+//! ## Use Cases
+//!
+//! - [`UC0603`]: System performs vector similarity search
+//! - [`UC0604`]: System retrieves similar chunks by embedding
+//!
+//! ## Enforces
+//!
+//! - [`BR0320`]: Dimension consistency validation
+//! - [`BR0321`]: Index type selection based on dataset size
 
 use async_trait::async_trait;
 use sqlx::Row;

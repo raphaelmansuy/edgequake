@@ -2,6 +2,24 @@
 //!
 //! This module provides a PostgreSQL-based implementation of the ConversationService
 //! trait for persisting conversations, messages, and folders.
+//!
+//! ## Implements
+//!
+//! - [`FEAT0250`]: Conversation persistence
+//! - [`FEAT0251`]: Message storage with ordering
+//! - [`FEAT0252`]: Folder organization for conversations
+//! - [`FEAT0253`]: Share ID generation for public links
+//!
+//! ## Use Cases
+//!
+//! - [`UC0801`]: System stores conversation history
+//! - [`UC0802`]: User organizes conversations into folders
+//! - [`UC0803`]: User shares conversation via public link
+//!
+//! ## Enforces
+//!
+//! - [`BR0250`]: RLS-based user isolation
+//! - [`BR0251`]: Message ordering by timestamp
 
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
