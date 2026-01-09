@@ -2,14 +2,14 @@
  * @module ingestion-types
  * @description Types for real-time ingestion progress tracking.
  * Based on WebUI Specification Document WEBUI-003 (12-webui-api-integration.md)
- * 
+ *
  * @implements UC0007 - Monitor document processing progress
  * @implements FEAT0602 - Real-time progress indicators
  * @implements FEAT0625 - Stage-by-stage progress tracking
- * 
+ *
  * @enforces BR0302 - Progress visible for all active uploads
  * @enforces BR0615 - Stage transitions logged
- * 
+ *
  * @see {@link specs/WEBUI-003.md} for specification
  */
 
