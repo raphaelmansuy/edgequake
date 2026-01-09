@@ -162,6 +162,58 @@ pub trait ChunkingStrategy: Send + Sync {
 
 Entity extraction uses LLM-based structured prompts to identify entities and relationships from text chunks.
 
+### Entity Extraction Pipeline
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      ENTITY EXTRACTION PIPELINE                         │
+└─────────────────────────────────────────────────────────────────────────┘
+
+    ┌────────────┐     ┌────────────────┐     ┌─────────────────┐
+    │ Text Chunk │────▶│  Build Prompt  │────▶│  LLM Provider   │
+    │  (512 tok) │     │ (entity types, │     │ (OpenAI/Ollama) │
+    └────────────┘     │  output format)│     └────────┬────────┘
+                       └────────────────┘              │
+                                                       ▼
+    ┌─────────────────────────────────────────────────────────────────┐
+    │                    LLM JSON Response                             │
+    │  {"entities": [...], "relationships": [...]}                     │
+    └────────────────────────────────────────┬────────────────────────┘
+                                             │
+                 ┌───────────────────────────┼───────────────────────────┐
+                 ▼                           ▼                           ▼
+    ┌────────────────────┐     ┌─────────────────────┐     ┌─────────────────┐
+    │  Parse Entities    │     │ Parse Relationships │     │  Error Handling │
+    │  - Normalize names │     │ - Link source/target│     │  - JSON repair  │
+    │  - Validate types  │     │ - Assign weights    │     │  - Fallback     │
+    │  - Score importance│     │ - Extract keywords  │     │    extraction   │
+    └─────────┬──────────┘     └──────────┬──────────┘     └─────────────────┘
+              │                           │
+              ▼                           ▼
+    ┌─────────────────────────────────────────────────────────────────┐
+    │                   GLEANING (Multi-Pass)                         │
+    │  ┌─────────┐    ┌─────────┐    ┌─────────┐                      │
+    │  │ Pass 1  │───▶│ Pass 2  │───▶│ Pass N  │  (max_gleaning_iter) │
+    │  │ Initial │    │ "What  │    │  Final  │                      │
+    │  │ Extract │    │  missed?"│    │  Merge  │                      │
+    │  └─────────┘    └─────────┘    └─────────┘                      │
+    └────────────────────────────────────────┬────────────────────────┘
+                                             │
+                                             ▼
+    ┌─────────────────────────────────────────────────────────────────┐
+    │               DEDUPLICATION & RESOLUTION                         │
+    │  - Merge entities by normalized name (MARIE_CURIE = Marie Curie) │
+    │  - Prefer longer descriptions                                    │
+    │  - Aggregate relationship weights                                │
+    └────────────────────────────────────────┬────────────────────────┘
+                                             │
+                                             ▼
+                           ┌─────────────────────────────────┐
+                           │  ExtractedEntity[]              │
+                           │  ExtractedRelationship[]        │
+                           └─────────────────────────────────┘
+```
+
 ### Extraction Prompt Structure
 
 ```
