@@ -13,10 +13,10 @@
  * @enforces BR0635 - Client hydrates from localStorage
  */
 
-'use client';
+"use client";
 
-import { useEffect, useState, useSyncExternalStore } from 'react';
-import type { StoreApi, UseBoundStore } from 'zustand';
+import { useEffect, useState, useSyncExternalStore } from "react";
+import type { StoreApi, UseBoundStore } from "zustand";
 
 /**
  * Generic type for stores with persist middleware
@@ -132,11 +132,7 @@ export function useSyncStore<T, S>(
   const getSnapshot = () => selector(store.getState());
   const getServerSnapshot = () => serverFallback;
 
-  return useSyncExternalStore(
-    store.subscribe,
-    getSnapshot,
-    getServerSnapshot
-  );
+  return useSyncExternalStore(store.subscribe, getSnapshot, getServerSnapshot);
 }
 
 /**
@@ -219,7 +215,7 @@ export function useCrossTabSync<T>(
   storageKey: string
 ): void {
   useEffect(() => {
-    if (typeof window === 'undefined' || !store.persist) {
+    if (typeof window === "undefined" || !store.persist) {
       return;
     }
 
@@ -229,10 +225,10 @@ export function useCrossTabSync<T>(
       }
     };
 
-    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener("storage", handleStorageChange);
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener("storage", handleStorageChange);
     };
   }, [store, storageKey]);
 }

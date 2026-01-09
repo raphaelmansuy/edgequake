@@ -1,6 +1,7 @@
 # Iteration 41 - ACT Phase
 
 ## Objective
+
 Add FEAT/BR/UC references to LLM crate modules.
 
 ## Changes Made
@@ -13,13 +14,16 @@ Add FEAT/BR/UC references to LLM crate modules.
 4. **tokenizer.rs** - Added FEAT0777-0778, BR0302/0777
 
 ### Pre-existing Documentation (already had FEAT/BR/UC)
+
 - lib.rs - Comprehensive crate-level docs
 - traits.rs - Provider trait documentation
 
 ## Validation
+
 - `cargo test --package edgequake-llm --lib`: 158 tests passed
 
 ## Commit
+
 ```
 docs: Add FEAT/BR refs to LLM crate modules (OODA-41)
 ```

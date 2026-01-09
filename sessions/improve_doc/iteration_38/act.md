@@ -1,11 +1,13 @@
 # Iteration 38 - ACT Phase
 
 ## Objective
+
 Add FEAT/BR/UC references to WebUI hooks modules.
 
 ## Changes Made
 
 ### Files Enhanced (13 total)
+
 1. **use-lineage.ts** - Added FEAT0653-0656, UC2701-2702, BR0653-0654
 2. **use-cost.ts** - Added FEAT0657-0658, UC2705-2706, BR0655-0656
 3. **use-folders.ts** - Added FEAT0583/0628, UC0408-0409, BR0582/0617
@@ -23,16 +25,19 @@ Add FEAT/BR/UC references to WebUI hooks modules.
 15. **use-workspace-url.ts** - Added FEAT0651-0652, UC0508, BR0636-0637
 
 ### Pre-existing Documentation
+
 - use-websocket.ts - Already documented
 - use-graph-stream.ts - Already documented
 - use-conversations.ts - Already documented
 - use-ingestion-progress.ts - Already documented
 
 ## Validation
+
 - TypeScript compilation: ✓
 - No regressions to existing functionality
 
 ## Commit
+
 ```
 docs: Add FEAT/BR/UC refs to WebUI hooks (OODA-38)
 ```

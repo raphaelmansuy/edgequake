@@ -3,10 +3,13 @@
 ## Changes Made
 
 ### Files Modified (1)
+
 1. `edgequake_webui/src/stores/use-query-ui-store.ts` - Added FEAT0625-0627, BR0615-0616
 
 ### Already Documented (10 stores)
+
 All other stores already have comprehensive FEAT/BR/UC documentation:
+
 - `use-auth-store.ts` - FEAT0501, FEAT0505, UC0501, UC0505, BR0501-0505
 - `use-backend-store.ts` - FEAT0611, FEAT0620-0621, BR0608, BR0613
 - `use-conversation-store.ts` - FEAT0403-0404, UC0401, UC0405-0406, BR0401-0405
