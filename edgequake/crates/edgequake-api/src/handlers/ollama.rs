@@ -4,6 +4,26 @@
 //! to act as a drop-in replacement for Ollama. This enables integration with
 //! tools like OpenWebUI that expect Ollama's API format.
 //!
+//! ## Implements
+//!
+//! - **FEAT0600**: Ollama API compatibility layer
+//! - **FEAT0601**: Model listing endpoint (/api/tags)
+//! - **FEAT0602**: Chat completion with streaming (/api/chat)
+//! - **FEAT0603**: Text generation endpoint (/api/generate)
+//!
+//! ## Use Cases
+//!
+//! - **UC2200**: User connects OpenWebUI to EdgeQuake as Ollama backend
+//! - **UC2201**: User lists available models via Ollama-compatible API
+//! - **UC2202**: User sends chat completion with query mode prefix
+//! - **UC2203**: User generates text with streaming response
+//!
+//! ## Enforces
+//!
+//! - **BR0600**: API responses must match Ollama's JSON schema
+//! - **BR0601**: Query mode prefixes must be stripped from user messages
+//! - **BR0602**: Streaming format must be newline-delimited JSON
+//!
 //! ## Endpoints
 //!
 //! - `GET /api/tags` - List available models
