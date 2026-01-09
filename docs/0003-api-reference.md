@@ -12,18 +12,18 @@
 
 ## Quick Reference
 
-| Category | Endpoint | Method | Description |
-|----------|----------|--------|-------------|
-| Health | `/health` | GET | Health check |
-| Documents | `/api/v1/documents` | POST | Upload document (201 Created) |
-| Documents | `/api/v1/documents` | GET | List documents |
-| Documents | `/api/v1/documents/{id}` | GET | Get document |
-| Documents | `/api/v1/documents/{id}` | DELETE | Delete document |
-| Query | `/api/v1/query` | POST | Execute query |
-| Query | `/api/v1/query/stream` | POST | Streaming query (SSE) |
-| Graph | `/api/v1/graph` | GET | Get knowledge graph |
-| Graph | `/api/v1/graph/entities` | GET | List entities |
-| Graph | `/api/v1/graph/relationships` | GET | List relationships |
+| Category  | Endpoint                      | Method | Description                   |
+| --------- | ----------------------------- | ------ | ----------------------------- |
+| Health    | `/health`                     | GET    | Health check                  |
+| Documents | `/api/v1/documents`           | POST   | Upload document (201 Created) |
+| Documents | `/api/v1/documents`           | GET    | List documents                |
+| Documents | `/api/v1/documents/{id}`      | GET    | Get document                  |
+| Documents | `/api/v1/documents/{id}`      | DELETE | Delete document               |
+| Query     | `/api/v1/query`               | POST   | Execute query                 |
+| Query     | `/api/v1/query/stream`        | POST   | Streaming query (SSE)         |
+| Graph     | `/api/v1/graph`               | GET    | Get knowledge graph           |
+| Graph     | `/api/v1/graph/entities`      | GET    | List entities                 |
+| Graph     | `/api/v1/graph/relationships` | GET    | List relationships            |
 
 > **Enforces**: [BR0010](business_rules.md#br0010) REST Semantics (201 for resource creation)
 
@@ -1684,21 +1684,21 @@ All errors follow a consistent JSON structure:
 
 ### HTTP Status Code Reference
 
-| HTTP Status | Code | Description | Common Causes |
-|-------------|------|-------------|---------------|
-| 200 | OK | Success | GET, PUT, DELETE operations |
-| 201 | CREATED | Resource created | POST /documents, POST /entities |
-| 400 | BAD_REQUEST | Invalid request format | Malformed JSON, missing fields |
-| 400 | VALIDATION_ERROR | Request validation failed | Empty query, invalid mode |
-| 401 | AUTH_REQUIRED | Authentication required | Missing Authorization header |
-| 401 | INVALID_TOKEN | Invalid or expired token | Expired JWT, bad API key |
-| 403 | FORBIDDEN | Insufficient permissions | Wrong tenant, read-only user |
-| 404 | NOT_FOUND | Resource not found | Invalid document_id, entity_name |
-| 409 | CONFLICT | Resource conflict | Duplicate document, entity exists |
-| 413 | PAYLOAD_TOO_LARGE | Document exceeds size limit | Content > 10MB |
-| 429 | RATE_LIMITED | Too many requests | Exceeded quota |
-| 500 | INTERNAL_ERROR | Server error | Database failure, LLM error |
-| 503 | SERVICE_UNAVAILABLE | Service temporarily unavailable | LLM provider down |
+| HTTP Status | Code                | Description                     | Common Causes                     |
+| ----------- | ------------------- | ------------------------------- | --------------------------------- |
+| 200         | OK                  | Success                         | GET, PUT, DELETE operations       |
+| 201         | CREATED             | Resource created                | POST /documents, POST /entities   |
+| 400         | BAD_REQUEST         | Invalid request format          | Malformed JSON, missing fields    |
+| 400         | VALIDATION_ERROR    | Request validation failed       | Empty query, invalid mode         |
+| 401         | AUTH_REQUIRED       | Authentication required         | Missing Authorization header      |
+| 401         | INVALID_TOKEN       | Invalid or expired token        | Expired JWT, bad API key          |
+| 403         | FORBIDDEN           | Insufficient permissions        | Wrong tenant, read-only user      |
+| 404         | NOT_FOUND           | Resource not found              | Invalid document_id, entity_name  |
+| 409         | CONFLICT            | Resource conflict               | Duplicate document, entity exists |
+| 413         | PAYLOAD_TOO_LARGE   | Document exceeds size limit     | Content > 10MB                    |
+| 429         | RATE_LIMITED        | Too many requests               | Exceeded quota                    |
+| 500         | INTERNAL_ERROR      | Server error                    | Database failure, LLM error       |
+| 503         | SERVICE_UNAVAILABLE | Service temporarily unavailable | LLM provider down                 |
 
 ### Common Error Scenarios
 
@@ -1726,12 +1726,12 @@ curl http://localhost:8080/api/v1/documents/nonexistent-id
 
 > **Enforces**: [BR0013](business_rules.md#br0013) Rate Limiting, [BR0014](business_rules.md#br0014) Fair Usage
 
-| Endpoint Type | Default Limit | Header |
-|---------------|---------------|--------|
-| Query | 100 requests/minute | `X-RateLimit-Limit-Query` |
-| Document Upload | 50 requests/minute | `X-RateLimit-Limit-Upload` |
-| Graph Read | 500 requests/minute | `X-RateLimit-Limit-Graph` |
-| Graph Write | 100 requests/minute | `X-RateLimit-Limit-Write` |
+| Endpoint Type   | Default Limit       | Header                     |
+| --------------- | ------------------- | -------------------------- |
+| Query           | 100 requests/minute | `X-RateLimit-Limit-Query`  |
+| Document Upload | 50 requests/minute  | `X-RateLimit-Limit-Upload` |
+| Graph Read      | 500 requests/minute | `X-RateLimit-Limit-Graph`  |
+| Graph Write     | 100 requests/minute | `X-RateLimit-Limit-Write`  |
 
 ### Rate Limit Headers
 
@@ -1765,12 +1765,12 @@ X-RateLimit-Reset: 1703520060
 
 ## Next Steps
 
-| Your Goal | Next Document |
-|-----------|---------------|
+| Your Goal                  | Next Document                                |
+| -------------------------- | -------------------------------------------- |
 | Configure storage backends | [Storage Backends](0004-storage-backends.md) |
-| Set up LLM providers | [LLM Integration](0005-llm-integration.md) |
-| Deploy to production | [Deployment Guide](0006-deployment-guide.md) |
-| Set up multi-tenancy | [Multi-Tenancy](0008-multi-tenancy.md) |
+| Set up LLM providers       | [LLM Integration](0005-llm-integration.md)   |
+| Deploy to production       | [Deployment Guide](0006-deployment-guide.md) |
+| Set up multi-tenancy       | [Multi-Tenancy](0008-multi-tenancy.md)       |
 
 > **See Also**: [Features Registry](features.md) | [Use Cases](use_cases.md)
 

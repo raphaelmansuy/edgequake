@@ -440,14 +440,14 @@ Explore these examples in the `edgequake/examples/` directory:
 
 Once you have EdgeQuake running, explore these guides:
 
-| Your Goal | Next Document |
-|-----------|---------------|
-| Understand the architecture | [Architecture Overview](0002-architecture-overview.md) |
-| Integrate via REST API | [API Reference](0003-api-reference.md) |
-| Configure storage for production | [Storage Backends](0004-storage-backends.md) |
-| Optimize LLM costs | [LLM Integration](0005-llm-integration.md) |
-| Deploy to production | [Deployment Guide](0006-deployment-guide.md) |
-| Set up multi-tenant isolation | [Multi-Tenancy](0008-multi-tenancy.md) |
+| Your Goal                        | Next Document                                          |
+| -------------------------------- | ------------------------------------------------------ |
+| Understand the architecture      | [Architecture Overview](0002-architecture-overview.md) |
+| Integrate via REST API           | [API Reference](0003-api-reference.md)                 |
+| Configure storage for production | [Storage Backends](0004-storage-backends.md)           |
+| Optimize LLM costs               | [LLM Integration](0005-llm-integration.md)             |
+| Deploy to production             | [Deployment Guide](0006-deployment-guide.md)           |
+| Set up multi-tenant isolation    | [Multi-Tenancy](0008-multi-tenancy.md)                 |
 
 > **Implements**: [UC0001](use_cases.md#uc0001) Document Upload, [UC0002](use_cases.md#uc0002) Knowledge Graph Query
 
@@ -457,16 +457,16 @@ Once you have EdgeQuake running, explore these guides:
 
 ### Common Issues and Solutions
 
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| `OPENAI_API_KEY not set` | Environment variable missing | `export OPENAI_API_KEY=sk-xxx` |
-| Build fails with "rustc version" | Rust too old | `rustup update && rustup default stable` |
-| Connection refused on port 8080 | Server not running | `./target/release/edgequake` in another terminal |
-| WebUI shows "Network Error" | CORS or wrong URL | Set `NEXT_PUBLIC_API_URL=http://localhost:8080` |
-| Slow processing | Large documents | Use `async_processing: true` for docs > 10KB |
-| "No entities extracted" | Text too short | Minimum ~100 words recommended per document |
-| PostgreSQL connection failed | Wrong credentials | Verify `DATABASE_URL` format and DB exists |
-| Out of memory | Large batch | Reduce batch size or increase system memory |
+| Issue                            | Cause                        | Solution                                         |
+| -------------------------------- | ---------------------------- | ------------------------------------------------ |
+| `OPENAI_API_KEY not set`         | Environment variable missing | `export OPENAI_API_KEY=sk-xxx`                   |
+| Build fails with "rustc version" | Rust too old                 | `rustup update && rustup default stable`         |
+| Connection refused on port 8080  | Server not running           | `./target/release/edgequake` in another terminal |
+| WebUI shows "Network Error"      | CORS or wrong URL            | Set `NEXT_PUBLIC_API_URL=http://localhost:8080`  |
+| Slow processing                  | Large documents              | Use `async_processing: true` for docs > 10KB     |
+| "No entities extracted"          | Text too short               | Minimum ~100 words recommended per document      |
+| PostgreSQL connection failed     | Wrong credentials            | Verify `DATABASE_URL` format and DB exists       |
+| Out of memory                    | Large batch                  | Reduce batch size or increase system memory      |
 
 ### Debug Mode
 
