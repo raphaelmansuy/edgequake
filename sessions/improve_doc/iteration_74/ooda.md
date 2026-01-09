@@ -3,20 +3,24 @@
 ## Observe
 
 **Input State:**
+
 - Total duplicates: 42 frontend feature IDs with multiple annotations
 - Uniqueness score: 79.1%
 - Completeness score: 100%
 
 **Analysis Tool Created:**
+
 - `classify_duplicates.py` - Categorizes duplicates by layer distribution
 
 ## Orient
 
 **Classification Results:**
+
 - Category A (Cross-cutting, ACCEPT): 41 feature IDs (111 annotations)
 - Category B (True Collisions, FIX): 1 feature ID (3 annotations)
 
 **True Collision Found:**
+
 - **FEAT0301** in docs = "Character-Based Chunking" (backend pipeline)
 - **FEAT0301** in frontend = "Chain-of-thought display" (3 components)
 - Root cause: Frontend accidentally used backend namespace
@@ -24,6 +28,7 @@
 ## Decide
 
 **Migration Plan:**
+
 1. Find free ID in FEAT07XX (WebUI Core) namespace
 2. FEAT0734 identified as free
 3. Migrate frontend FEAT0301 → FEAT0734
@@ -32,6 +37,7 @@
 ## Act
 
 **Changes Made:**
+
 1. ✅ Migrated `thinking-display.tsx`: FEAT0301 → FEAT0734
 2. ✅ Migrated `query-interface.tsx`: FEAT0301 → FEAT0734
 3. ✅ Migrated `chat-message.tsx`: FEAT0301 → FEAT0734
@@ -42,6 +48,7 @@
 ## Results
 
 **Metrics After:**
+
 ```
 Documented Features: 223 → 224
 True Collisions: 1 → 0 (100% fixed)
@@ -50,6 +57,7 @@ Category A Duplicates: 42 (all intentional cross-cutting)
 
 **Key Insight:**
 The 42 remaining "duplicates" are **architecturally correct** - they represent the same feature implemented across multiple layers (types, stores, hooks, components, lib). This is standard React/TypeScript architecture:
+
 - `FEAT0001` (Document Ingestion) correctly appears in types, stores, components, API lib
 - `FEAT0601` (Graph API) spans 8 files across 6 layers
 

@@ -9,12 +9,15 @@
 ## 📊 OBSERVE
 
 ### Input State
+
 - **Orphaned Features**: 23 (documented but not annotated in code)
 - **Target**: Query engine features FEAT0101-0110, FEAT0006
 - **Previous Progress**: Frontend at 100%, backend lagging
 
 ### Key Findings
+
 Orphaned features identified:
+
 ```
 FEAT0006, FEAT0011, FEAT0012, FEAT0013, FEAT0015, FEAT0016, FEAT0020,
 FEAT0105, FEAT0106, FEAT0107, FEAT0108, FEAT0109, FEAT0110, FEAT0201,
@@ -23,6 +26,7 @@ FEAT1023, FEAT1025
 ```
 
 Located implementation files:
+
 - `sota_engine.rs`: Lines 516, 676, 814, 982, 1139, 1350, 1425, 1469
 - `keywords/mod.rs`: Module header
 - `truncation.rs`: Line 1-20 (module header)
@@ -35,20 +39,21 @@ Located implementation files:
 
 ### Feature Mapping
 
-| Feature | Implementation | Location |
-|---------|----------------|----------|
-| FEAT0101 | Local Search Mode | `sota_engine.rs::query_local()` |
-| FEAT0102 | Global Search Mode | `sota_engine.rs::query_global()` |
-| FEAT0103 | Hybrid Search Mode | `sota_engine.rs::query_hybrid()` |
-| FEAT0105 | Mix Weighted Search | `sota_engine.rs::query_mix()` |
-| FEAT0106 | Bypass Mode | `sota_engine.rs::query_naive()` |
-| FEAT0107 | Keyword Extraction | `keywords/mod.rs` module |
-| FEAT0108 | Context Truncation | `truncation.rs` module |
-| FEAT0109 | SOTA Query Engine | `sota_engine.rs::query()` |
-| FEAT0110 | Vector Filtering | `vector_filter.rs` module |
-| FEAT0006 | Vector Embedding | `traits.rs::EmbeddingProvider` |
+| Feature  | Implementation      | Location                         |
+| -------- | ------------------- | -------------------------------- |
+| FEAT0101 | Local Search Mode   | `sota_engine.rs::query_local()`  |
+| FEAT0102 | Global Search Mode  | `sota_engine.rs::query_global()` |
+| FEAT0103 | Hybrid Search Mode  | `sota_engine.rs::query_hybrid()` |
+| FEAT0105 | Mix Weighted Search | `sota_engine.rs::query_mix()`    |
+| FEAT0106 | Bypass Mode         | `sota_engine.rs::query_naive()`  |
+| FEAT0107 | Keyword Extraction  | `keywords/mod.rs` module         |
+| FEAT0108 | Context Truncation  | `truncation.rs` module           |
+| FEAT0109 | SOTA Query Engine   | `sota_engine.rs::query()`        |
+| FEAT0110 | Vector Filtering    | `vector_filter.rs` module        |
+| FEAT0006 | Vector Embedding    | `traits.rs::EmbeddingProvider`   |
 
 ### Strategy
+
 **Targeted Annotation Sprint**: Add @implements to query engine backend code
 
 ---
@@ -56,6 +61,7 @@ Located implementation files:
 ## ⚡ DECIDE
 
 ### Action Plan
+
 1. Add FEAT0101-0103, FEAT0105-0106, FEAT0109 to `sota_engine.rs` methods
 2. Add FEAT0107 to `keywords/mod.rs` module header
 3. Fix FEAT0108 annotation in `truncation.rs` (was doc-only, missing @implements)
@@ -63,6 +69,7 @@ Located implementation files:
 5. Add FEAT0006 to `traits.rs` module header
 
 ### Expected Impact
+
 - Reduce orphaned features: 23 → 13 (10 annotated)
 - Backend coverage increase: 28 → 36 features
 
@@ -73,6 +80,7 @@ Located implementation files:
 ### Implementation
 
 **File 1: sota_engine.rs** (6 annotations)
+
 ```rust
 /// @implements FEAT0109 (SOTA Query Engine)
 pub async fn query(...)
@@ -94,21 +102,25 @@ async fn query_naive(...)
 ```
 
 **File 2: keywords/mod.rs**
+
 ```rust
 //! @implements FEAT0107 (Keyword Extraction)
 ```
 
 **File 3: truncation.rs**
+
 ```rust
 //! @implements FEAT0108 (Context Truncation)
 ```
 
 **File 4: vector_filter.rs**
+
 ```rust
 //! @implements FEAT0110 (Vector Filtering)
 ```
 
 **File 5: traits.rs**
+
 ```rust
 //! @implements FEAT0006 (Vector Embedding Generation via EmbeddingProvider trait)
 //! @implements FEAT0017 (Multi-Provider LLM Support via LLMProvider trait)
@@ -116,13 +128,14 @@ async fn query_naive(...)
 ```
 
 ### Git Commit
+
 ```bash
 git commit -m "docs(backend): Add @implements annotations for FEAT0101-0103, FEAT0105-0110, FEAT0006
 
 Iteration 84 - Backend annotation sprint
 
 Added @implements annotations to:
-- sota_engine.rs: FEAT0101 (Local), FEAT0102 (Global), FEAT0103 (Hybrid), 
+- sota_engine.rs: FEAT0101 (Local), FEAT0102 (Global), FEAT0103 (Hybrid),
   FEAT0105 (Mix), FEAT0106 (Bypass), FEAT0109 (SOTA Query Engine)
 - keywords/mod.rs: FEAT0107 (Keyword Extraction)
 - truncation.rs: FEAT0108 (Context Truncation)
@@ -140,17 +153,18 @@ Reduced orphaned features from 23 → 18."
 
 ### Metrics After Iteration 84
 
-| Metric | Before | After | Change |
-|--------|--------|-------|--------|
-| **Frontend Features** | 181 | 181 | - |
-| **Backend Features** | 20 | 28 | +8 |
-| **Total Unique** | 201 | 206 | +5 |
-| **Orphaned Features** | 23 | 18 | **-5** ✅ |
-| **Completeness** | 100.0% | 100.0% | - |
-| **Uniqueness** | 100.0% | 100.0% | - |
-| **Overall Score** | 100.0% | 100.0% | - |
+| Metric                | Before | After  | Change    |
+| --------------------- | ------ | ------ | --------- |
+| **Frontend Features** | 181    | 181    | -         |
+| **Backend Features**  | 20     | 28     | +8        |
+| **Total Unique**      | 201    | 206    | +5        |
+| **Orphaned Features** | 23     | 18     | **-5** ✅ |
+| **Completeness**      | 100.0% | 100.0% | -         |
+| **Uniqueness**        | 100.0% | 100.0% | -         |
+| **Overall Score**     | 100.0% | 100.0% | -         |
 
 ### Actual Impact
+
 - Annotated 10 features (FEAT0101-0103, FEAT0105-0110, FEAT0006)
 - Orphaned reduction: **23 → 18** (21.7% decrease)
 - Backend features: **20 → 28** (+40% increase)
@@ -160,15 +174,18 @@ Reduced orphaned features from 23 → 18."
 ## 💡 INSIGHTS
 
 ### Successes
+
 1. **Query Mode Complete**: All 5 query modes now annotated (Local, Global, Hybrid, Mix, Bypass)
 2. **Core Query Pipeline**: Main query engine (FEAT0109) and supporting infrastructure annotated
 3. **Batch Efficiency**: 10 annotations in single commit, clean atomic change
 
 ### Challenges
+
 1. **Annotation vs Documentation Gap**: truncation.rs had FEAT0108 documented but missed @implements
 2. **Orphan Count Higher Than Expected**: Only 5 reduction instead of 10 (some features still missing)
 
 ### Learnings
+
 - **Doc Comments ≠ Annotations**: Need both documentation AND @implements for validation
 - **Module-Level Annotations**: Cross-cutting modules benefit from header annotations
 - **Query Engine Architecture**: Clear separation of mode-specific retrieval methods
@@ -178,6 +195,7 @@ Reduced orphaned features from 23 → 18."
 ## 🎯 NEXT STEPS
 
 ### Remaining Orphaned Features (18)
+
 ```
 FEAT0011, FEAT0012, FEAT0013 (Pipeline: Lineage, Progress, Cost)
 FEAT0015, FEAT0016 (Core: Multi-Tenant, Workspace)
@@ -191,16 +209,20 @@ FEAT1003, FEAT1004, FEAT1006, FEAT1023, FEAT1025 (UI features)
 ```
 
 ### Iteration 85-86 Plan
+
 **Pipeline Features**: Add annotations for FEAT0011-0013
+
 - Lineage tracking in document processing
 - Progress reporting for ingestion
 - Cost tracking for LLM usage
 
 **Target Files**:
+
 - `edgequake/crates/edgequake-pipeline/src/**`
 - `edgequake/crates/edgequake-core/src/**`
 
 ### Success Criteria
+
 - Reduce orphaned to ≤15 by iteration 85
 - Reduce orphaned to ≤10 by iteration 86
 - Reach 100% backend coverage by iteration 88
@@ -214,6 +236,7 @@ FEAT1003, FEAT1004, FEAT1006, FEAT1023, FEAT1025 (UI features)
 **Files Modified**: 7 (sota_engine.rs, keywords/mod.rs, truncation.rs, vector_filter.rs, traits.rs, validate_features.py, full_validation.py)
 
 **Workflow**:
+
 1. Extracted orphaned feature list from validation JSON
 2. Located query mode implementations via grep search
 3. Added @implements annotations to 5 backend files
