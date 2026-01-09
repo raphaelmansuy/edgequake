@@ -581,6 +581,207 @@ data: {"type": "done", "sources": [...]}
 
 ---
 
+## PDF Processing Rules (BR10XX)
+
+> Business rules specific to PDF extraction and conversion quality.
+
+### BR1001 - Preserve Document Structure
+
+| Attribute       | Value                                                                              |
+| --------------- | ---------------------------------------------------------------------------------- |
+| **ID**          | BR1001                                                                             |
+| **Rule**        | Document structure (headings, lists, paragraphs) must be preserved in output       |
+| **Module**      | edgequake-pdf                                                                      |
+| **Validation**  | [processors/](../edgequake/crates/edgequake-pdf/src/processors/)                   |
+| **Consequence** | Lost structure → Degraded RAG retrieval quality                                    |
+| **Related**     | FEAT1001, FEAT1022                                                                 |
+
+```rust
+// WHY: Structure preservation enables accurate semantic chunking
+// MEASURE: Heading count in output >= 80% of visual headings
+```
+
+### BR1002 - Graceful Malformed PDF Handling
+
+| Attribute       | Value                                                                              |
+| --------------- | ---------------------------------------------------------------------------------- |
+| **ID**          | BR1002                                                                             |
+| **Rule**        | Malformed PDFs must be handled gracefully without crashing                         |
+| **Module**      | edgequake-pdf                                                                      |
+| **Validation**  | [extractor.rs](../edgequake/crates/edgequake-pdf/src/extractor.rs)                 |
+| **Consequence** | Crash on malformed PDF → User data loss, service outage                            |
+| **Related**     | FEAT1001, BR1003                                                                   |
+
+```rust
+// WHY: Real-world PDFs are often malformed or non-compliant
+// STRATEGY: Fall back to basic text extraction, log warning
+```
+
+### BR1003 - Reading Order Accuracy
+
+| Attribute       | Value                                                                              |
+| --------------- | ---------------------------------------------------------------------------------- |
+| **ID**          | BR1003                                                                             |
+| **Rule**        | Reading order accuracy must exceed 95% for single-column documents                 |
+| **Module**      | edgequake-pdf                                                                      |
+| **Validation**  | [layout/](../edgequake/crates/edgequake-pdf/src/layout/)                           |
+| **Consequence** | Incorrect order → Garbled context, unusable for RAG                                |
+| **Related**     | FEAT1003, FEAT1001                                                                 |
+
+```rust
+// WHY: Incorrect reading order destroys semantic meaning
+// MEASURE: Levenshtein similarity with gold standard > 0.95
+```
+
+### BR1004 - Table Cell Alignment
+
+| Attribute       | Value                                                                              |
+| --------------- | ---------------------------------------------------------------------------------- |
+| **ID**          | BR1004                                                                             |
+| **Rule**        | Table cell alignment must be preserved in Markdown output                          |
+| **Module**      | edgequake-pdf                                                                      |
+| **Validation**  | [backend/lattice.rs](../edgequake/crates/edgequake-pdf/src/backend/lattice.rs)     |
+| **Consequence** | Misaligned cells → Incorrect data associations                                     |
+| **Related**     | FEAT1002, FEAT0503                                                                 |
+
+```rust
+// WHY: Tables encode relationships between row/column headers and values
+// MEASURE: Cell count in output matches visual cell count ±10%
+```
+
+### BR1010 - Font Size Threshold for Headings
+
+| Attribute       | Value                                                                              |
+| --------------- | ---------------------------------------------------------------------------------- |
+| **ID**          | BR1010                                                                             |
+| **Rule**        | Font size must be ≥20% larger than body text for heading classification           |
+| **Module**      | edgequake-pdf                                                                      |
+| **Validation**  | [processors/structure_detection.rs](../edgequake/crates/edgequake-pdf/src/processors/structure_detection.rs) |
+| **Consequence** | Too low threshold → False positive headings                                        |
+| **Related**     | FEAT0505, FEAT1010                                                                 |
+
+```rust
+// WHY: 20% threshold reduces false positives from emphasis/captions
+// CONFIG: heading_size_ratio = 1.2 (configurable)
+```
+
+### BR1011 - Maximum Heading Length
+
+| Attribute       | Value                                                                              |
+| --------------- | ---------------------------------------------------------------------------------- |
+| **ID**          | BR1011                                                                             |
+| **Rule**        | Headings must be ≤200 characters; longer text is paragraph content                 |
+| **Module**      | edgequake-pdf                                                                      |
+| **Validation**  | [processors/structure_detection.rs](../edgequake/crates/edgequake-pdf/src/processors/structure_detection.rs) |
+| **Consequence** | No length limit → Entire paragraphs classified as headings                         |
+| **Related**     | FEAT0505, BR1010                                                                   |
+
+```rust
+// WHY: Headings are short; long "headings" are typically styled paragraphs
+// CONFIG: max_heading_length = 200
+```
+
+### BR1020 - Processor Chain Order
+
+| Attribute       | Value                                                                              |
+| --------------- | ---------------------------------------------------------------------------------- |
+| **ID**          | BR1020                                                                             |
+| **Rule**        | Processors must execute in deterministic order for reproducible output             |
+| **Module**      | edgequake-pdf                                                                      |
+| **Validation**  | [processors/processor.rs](../edgequake/crates/edgequake-pdf/src/processors/processor.rs) |
+| **Consequence** | Non-deterministic order → Inconsistent extraction results                          |
+| **Related**     | FEAT1020, BR1001                                                                   |
+
+```rust
+// CHAIN ORDER:
+// 1. LayoutProcessor (reading order)
+// 2. TableDetectionProcessor
+// 3. HeaderDetectionProcessor
+// 4. PostProcessor (cleanup)
+```
+
+### BR1021 - Deduplication by Bounding Box
+
+| Attribute       | Value                                                                              |
+| --------------- | ---------------------------------------------------------------------------------- |
+| **ID**          | BR1021                                                                             |
+| **Rule**        | Overlapping text elements with same content must be deduplicated                   |
+| **Module**      | edgequake-pdf                                                                      |
+| **Validation**  | [backend/sota_backend.rs](../edgequake/crates/edgequake-pdf/src/backend/sota_backend.rs) |
+| **Consequence** | Duplicate text → Garbled output, inflated token count                              |
+| **Related**     | FEAT1001, FEAT1021                                                                 |
+
+```rust
+// WHY: PDF rendering sometimes overlays text for visual effects
+// ALGORITHM: Merge if bbox overlap > 80% and text identical
+```
+
+### BR1023 - Skip Corrupt Images
+
+| Attribute       | Value                                                                              |
+| --------------- | ---------------------------------------------------------------------------------- |
+| **ID**          | BR1023                                                                             |
+| **Rule**        | Corrupt or unsupported image formats must be skipped, not crash extraction         |
+| **Module**      | edgequake-pdf                                                                      |
+| **Validation**  | [image_extraction.rs](../edgequake/crates/edgequake-pdf/src/image_extraction.rs)   |
+| **Consequence** | Crash on corrupt image → Full document extraction fails                            |
+| **Related**     | FEAT1004, FEAT1023                                                                 |
+
+```rust
+// WHY: One corrupt image should not prevent text extraction
+// ACTION: Log warning, continue with text content
+```
+
+### BR1024 - Image Size Limit
+
+| Attribute       | Value                                                                              |
+| --------------- | ---------------------------------------------------------------------------------- |
+| **ID**          | BR1024                                                                             |
+| **Rule**        | Extracted images must be limited to 10MB to prevent memory exhaustion              |
+| **Module**      | edgequake-pdf                                                                      |
+| **Validation**  | [image_extraction.rs](../edgequake/crates/edgequake-pdf/src/image_extraction.rs)   |
+| **Consequence** | Unlimited size → OOM on high-resolution images                                     |
+| **Related**     | FEAT1004, BR1023                                                                   |
+
+```rust
+// WHY: Vision API limits + memory safety
+// CONFIG: max_image_size_bytes = 10 * 1024 * 1024
+```
+
+### BR1025 - OCR Language Detection
+
+| Attribute       | Value                                                                              |
+| --------------- | ---------------------------------------------------------------------------------- |
+| **ID**          | BR1025                                                                             |
+| **Rule**        | OCR should auto-detect language when not specified                                 |
+| **Module**      | edgequake-pdf                                                                      |
+| **Validation**  | [image_ocr.rs](../edgequake/crates/edgequake-pdf/src/image_ocr.rs)                 |
+| **Consequence** | Wrong language → Poor OCR accuracy                                                 |
+| **Related**     | FEAT1024, FEAT1004                                                                 |
+
+```rust
+// WHY: LLM-based OCR handles multi-language automatically
+// FALLBACK: Assume English if detection fails
+```
+
+### BR1026 - Vision API Rate Limiting
+
+| Attribute       | Value                                                                              |
+| --------------- | ---------------------------------------------------------------------------------- |
+| **ID**          | BR1026                                                                             |
+| **Rule**        | Vision API calls must respect rate limits (max 10 requests/minute default)         |
+| **Module**      | edgequake-pdf                                                                      |
+| **Validation**  | [vision.rs](../edgequake/crates/edgequake-pdf/src/vision.rs)                       |
+| **Consequence** | Rate limit exceeded → API errors, document processing failure                      |
+| **Related**     | FEAT1024, BR0301                                                                   |
+
+```rust
+// WHY: Vision APIs have stricter rate limits than text APIs
+// CONFIG: vision_rate_limit_rpm = 10
+```
+
+---
+
 ## Summary Statistics
 
 | Category         | Total  | Critical | High   | Medium |
@@ -590,7 +791,8 @@ data: {"type": "done", "sources": [...]}
 | Multi-Tenancy    | 6      | 4        | 2      | 0      |
 | Cost Management  | 4      | 0        | 2      | 2      |
 | Security         | 5      | 3        | 2      | 0      |
-| **TOTAL**        | **33** | **13**   | **13** | **7**  |
+| PDF Processing   | 12     | 2        | 6      | 4      |
+| **TOTAL**        | **45** | **15**   | **19** | **11** |
 
 ---
 
