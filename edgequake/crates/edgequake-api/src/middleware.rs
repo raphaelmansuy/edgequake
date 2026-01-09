@@ -162,6 +162,7 @@ impl AuthState {
 ///
 /// Checks for a valid API key in the `Authorization` header or `X-API-Key` header.
 /// Format: `Bearer <api-key>` or just the key in `X-API-Key`.
+/// @implements FEAT0801
 pub async fn api_key_auth(
     axum::extract::State(auth_state): axum::extract::State<AuthState>,
     request: Request,
@@ -266,6 +267,7 @@ pub struct RateLimitState {
 
 impl RateLimitState {
     /// Create a new rate limit state.
+/// @implements FEAT0018
     pub fn new(limiter: RateLimiter, enabled: bool) -> Self {
         Self { limiter, enabled }
     }

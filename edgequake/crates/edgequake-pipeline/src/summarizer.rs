@@ -19,6 +19,7 @@ use crate::prompts::SummarizationPrompts;
 
 /// Configuration for the summarizer.
 #[derive(Debug, Clone)]
+/// @implements FEAT0010
 pub struct SummarizerConfig {
     /// Maximum input length before summarization triggers.
     pub max_input_length: usize,

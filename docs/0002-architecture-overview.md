@@ -126,7 +126,7 @@ EdgeQuake consists of **11 specialized Rust crates**, each with a single respons
 
 ### Core Crates (Business Logic)
 
-| Crate                | Lines  | Responsibility               | Key Features                               |
+| Crate                | Lines   | Responsibility               | Key Features                               |
 | -------------------- | ------- | ---------------------------- | ------------------------------------------ |
 | `edgequake-core`     | ~15,500 | Orchestration, types, config | EdgeQuake class, QueryParams, InsertResult |
 | `edgequake-pipeline` | ~10,500 | Document processing          | Entity extraction, chunking, merging       |
@@ -450,13 +450,13 @@ impl PdfExtractor {
 
 **Key Components:**
 
-| Component             | Lines | Responsibility                  |
-| --------------------- | ----- | ------------------------------- |
-| `SotaBackend`         | ~3000 | PDF parsing, font/text analysis |
-| `LatticeEngine`       | ~600  | Table detection via line grid   |
-| `ProcessorChain`      | ~3000 | Content transformation pipeline |
-| `MarkdownRenderer`    | ~800  | Final Markdown generation       |
-| `ImageOcrProcessor`   | ~500  | Vision LLM image understanding  |
+| Component           | Lines | Responsibility                  |
+| ------------------- | ----- | ------------------------------- |
+| `SotaBackend`       | ~3000 | PDF parsing, font/text analysis |
+| `LatticeEngine`     | ~600  | Table detection via line grid   |
+| `ProcessorChain`    | ~3000 | Content transformation pipeline |
+| `MarkdownRenderer`  | ~800  | Final Markdown generation       |
+| `ImageOcrProcessor` | ~500  | Vision LLM image understanding  |
 
 ---
 
@@ -626,27 +626,27 @@ edgequake_webui/src/
 
 The WebUI uses Zustand for lightweight, performant state management. Each store manages a specific domain:
 
-| Store                    | Responsibility                                     | Persisted |
-| ------------------------ | -------------------------------------------------- | --------- |
-| `use-auth-store`         | JWT tokens, user info, login/logout                | ✅        |
-| `use-backend-store`      | Backend URL, connection status                     | ✅        |
-| `use-conversation-store` | Chat history, message threading                    | ✅        |
-| `use-cost-store`         | Token usage, estimated costs                       | ❌        |
-| `use-graph-store`        | Sigma.js instance, graph layout, filters           | ❌        |
-| `use-ingestion-store`    | Upload progress, processing status                 | ❌        |
-| `use-query-store`        | Query mode, parameters, history                    | ✅        |
-| `use-query-ui-store`     | UI toggles (sources panel, graph visibility)       | ✅        |
-| `use-settings-store`     | LLM model, temperature, max tokens                 | ✅        |
-| `use-tenant-store`       | Active tenant, workspace                           | ✅        |
-| `use-ui-preferences-store`| Dark mode, sidebar collapsed, language             | ✅        |
+| Store                      | Responsibility                               | Persisted |
+| -------------------------- | -------------------------------------------- | --------- |
+| `use-auth-store`           | JWT tokens, user info, login/logout          | ✅        |
+| `use-backend-store`        | Backend URL, connection status               | ✅        |
+| `use-conversation-store`   | Chat history, message threading              | ✅        |
+| `use-cost-store`           | Token usage, estimated costs                 | ❌        |
+| `use-graph-store`          | Sigma.js instance, graph layout, filters     | ❌        |
+| `use-ingestion-store`      | Upload progress, processing status           | ❌        |
+| `use-query-store`          | Query mode, parameters, history              | ✅        |
+| `use-query-ui-store`       | UI toggles (sources panel, graph visibility) | ✅        |
+| `use-settings-store`       | LLM model, temperature, max tokens           | ✅        |
+| `use-tenant-store`         | Active tenant, workspace                     | ✅        |
+| `use-ui-preferences-store` | Dark mode, sidebar collapsed, language       | ✅        |
 
 ```typescript
 // Example: use-query-store.ts
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 interface QueryStore {
-  mode: 'naive' | 'local' | 'global' | 'hybrid' | 'mix' | 'bypass';
+  mode: "naive" | "local" | "global" | "hybrid" | "mix" | "bypass";
   topK: number;
   maxTokens: number;
   history: string[];
@@ -657,16 +657,17 @@ interface QueryStore {
 export const useQueryStore = create<QueryStore>()(
   persist(
     (set) => ({
-      mode: 'hybrid',
+      mode: "hybrid",
       topK: 10,
       maxTokens: 4000,
       history: [],
       setMode: (mode) => set({ mode }),
-      addToHistory: (query) => set((state) => ({ 
-        history: [query, ...state.history].slice(0, 50) 
-      })),
+      addToHistory: (query) =>
+        set((state) => ({
+          history: [query, ...state.history].slice(0, 50),
+        })),
     }),
-    { name: 'query-store' }
+    { name: "query-store" }
   )
 );
 ```

@@ -156,6 +156,7 @@ impl CacheStats {
 }
 
 /// In-memory LLM cache.
+/// @implements FEAT0014
 pub struct LLMCache {
     config: CacheConfig,
     completions: RwLock<HashMap<CacheKey, CacheEntry<LLMResponse>>>,

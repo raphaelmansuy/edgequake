@@ -3,7 +3,7 @@
 > Central registry of all use cases supported by EdgeQuake.
 > Use UCXXXX references in API handlers for traceability.
 
-**Version**: 1.0.0 | **Last Updated**: 2026-01-09
+**Version**: 1.2.0 | **Last Updated**: 2026-01-09
 
 ---
 
@@ -17,6 +17,8 @@
 | [Workspace Management](#workspace-management-uc03xx)       | UC0301-UC0320 | 5     |
 | [Conversation Management](#conversation-management-uc04xx) | UC0401-UC0420 | 6     |
 | [Administration](#administration-uc05xx)                   | UC0501-UC0520 | 4     |
+| [WebUI Interactions](#webui-interactions-uc06xx)           | UC0601-UC0620 | 10    |
+| [PDF Processing](#pdf-processing-uc10xx)                   | UC1001-UC1020 | 8     |
 
 ---
 
@@ -1036,6 +1038,610 @@ Workspace
 
 ---
 
+## WebUI Interactions (UC06XX)
+
+> Use cases specific to the EdgeQuake WebUI (Next.js/React application).
+
+### UC0601 - Visualize Knowledge Graph
+
+| Attribute            | Value                                                      |
+| -------------------- | ---------------------------------------------------------- |
+| **ID**               | UC0601                                                     |
+| **Name**             | Visualize Knowledge Graph                                  |
+| **Actor**            | WebUI User                                                 |
+| **Preconditions**    | Authenticated, workspace with indexed documents            |
+| **Component**        | [KnowledgeGraph](../edgequake_webui/src/components/graph/) |
+| **Related Features** | FEAT0601, FEAT0602                                         |
+| **Related Rules**    | BR0603                                                     |
+
+**Steps:**
+
+1. User navigates to Knowledge Graph view
+2. Component fetches nodes/edges from API
+3. Sigma.js renders graph with force-directed layout
+4. Initial display limited to 500 nodes (BR0603)
+5. User can pan, zoom, and hover for tooltips
+6. Click on node expands its relationships
+
+**Success Outcome:**
+
+- Interactive graph rendered within 2 seconds
+- Smooth 60fps pan/zoom interactions
+
+**Error Scenarios:**
+| Error | Handling | Cause |
+|-------|----------|-------|
+| No data | Empty state with message | No documents indexed |
+| Render failure | Fallback to table view | WebGL not supported |
+
+---
+
+### UC0602 - Execute RAG Query
+
+| Attribute            | Value                                                    |
+| -------------------- | -------------------------------------------------------- |
+| **ID**               | UC0602                                                   |
+| **Name**             | Execute RAG Query via Chat                               |
+| **Actor**            | WebUI User                                               |
+| **Preconditions**    | Authenticated, workspace selected                        |
+| **Component**        | [ChatInterface](../edgequake_webui/src/components/chat/) |
+| **Related Features** | FEAT0609, FEAT0611, FEAT0612                             |
+| **Related Rules**    | BR0604, BR0612                                           |
+
+**Steps:**
+
+1. User types query in chat input
+2. Submit triggers streaming API call
+3. Loading indicator appears within 100ms (BR0612)
+4. Streaming chunks rendered incrementally
+5. Source citations displayed as collapsible blocks
+6. Response added to conversation history
+
+**Success Outcome:**
+
+- First chunk visible within 500ms
+- Complete response with citations and sources
+
+**Error Scenarios:**
+| Error | Handling | Cause |
+|-------|----------|-------|
+| Timeout | Retry button with error message | API overload |
+| Stream failure | Partial response preserved | Connection drop |
+
+---
+
+### UC0603 - Upload Document via UI
+
+| Attribute            | Value                                                          |
+| -------------------- | -------------------------------------------------------------- |
+| **ID**               | UC0603                                                         |
+| **Name**             | Upload Document via Drag-and-Drop                              |
+| **Actor**            | WebUI User                                                     |
+| **Preconditions**    | Authenticated, workspace selected                              |
+| **Component**        | [DocumentUpload](../edgequake_webui/src/components/documents/) |
+| **Related Features** | FEAT0605                                                       |
+| **Related Rules**    | BR0606                                                         |
+
+**Steps:**
+
+1. User drags file(s) onto drop zone
+2. Client validates file type (PDF, TXT, MD)
+3. Client validates file size < 50MB (BR0606)
+4. Upload progress displayed
+5. Processing status tracked via polling/websocket
+6. Document appears in list when complete
+
+**Success Outcome:**
+
+- File uploaded and processing started
+- Real-time progress feedback
+
+**Error Scenarios:**
+| Error | Handling | Cause |
+|-------|----------|-------|
+| Invalid type | Toast with allowed types | Wrong file format |
+| Size exceeded | Toast with size limit | File > 50MB |
+| Upload failed | Retry button | Network error |
+
+---
+
+### UC0604 - Manage Conversation History
+
+| Attribute            | Value                                                                |
+| -------------------- | -------------------------------------------------------------------- |
+| **ID**               | UC0604                                                               |
+| **Name**             | Browse and Resume Conversations                                      |
+| **Actor**            | WebUI User                                                           |
+| **Preconditions**    | Authenticated                                                        |
+| **Component**        | [ConversationList](../edgequake_webui/src/components/conversations/) |
+| **Related Features** | FEAT0610, FEAT0613                                                   |
+| **Related Rules**    | BR0602, BR0611                                                       |
+
+**Steps:**
+
+1. User opens conversation sidebar
+2. Conversations loaded from localStorage/API
+3. List sorted by last activity (most recent first)
+4. User clicks conversation to resume
+5. Chat interface populated with history
+6. User can delete or rename conversations
+
+**Success Outcome:**
+
+- Conversation history loaded within 200ms
+- Seamless context restoration
+
+**Error Scenarios:**
+| Error | Handling | Cause |
+|-------|----------|-------|
+| Storage quota | Prune oldest entries | BR0611 limit reached |
+| Corrupted data | Graceful recovery | localStorage corruption |
+
+---
+
+### UC0605 - Switch Theme
+
+| Attribute            | Value                                                   |
+| -------------------- | ------------------------------------------------------- |
+| **ID**               | UC0605                                                  |
+| **Name**             | Toggle Light/Dark Theme                                 |
+| **Actor**            | WebUI User                                              |
+| **Preconditions**    | Application loaded                                      |
+| **Component**        | [ThemeToggle](../edgequake_webui/src/components/theme/) |
+| **Related Features** | FEAT0619                                                |
+| **Related Rules**    | BR0601                                                  |
+
+**Steps:**
+
+1. User clicks theme toggle button
+2. Theme state updated in Zustand store
+3. CSS variables applied immediately
+4. Preference persisted to localStorage
+5. Theme restored on next session
+
+**Success Outcome:**
+
+- Theme change applied instantly (<16ms)
+- Preference persists across sessions
+
+**Error Scenarios:**
+| Error | Handling | Cause |
+|-------|----------|-------|
+| Storage blocked | In-memory fallback | Privacy mode |
+
+---
+
+### UC0606 - Configure Settings
+
+| Attribute            | Value                                                        |
+| -------------------- | ------------------------------------------------------------ |
+| **ID**               | UC0606                                                       |
+| **Name**             | Configure User Settings                                      |
+| **Actor**            | WebUI User                                                   |
+| **Preconditions**    | Authenticated                                                |
+| **Component**        | [SettingsPanel](../edgequake_webui/src/components/settings/) |
+| **Related Features** | FEAT0608                                                     |
+| **Related Rules**    | BR0608                                                       |
+
+**Steps:**
+
+1. User opens settings panel
+2. Current settings loaded from store
+3. User modifies preferences (language, model, etc.)
+4. Settings validated before save
+5. Changes persisted to localStorage
+6. Panel closed with confirmation toast
+
+**Success Outcome:**
+
+- Settings validated and saved
+- Changes take effect immediately
+
+**Error Scenarios:**
+| Error | Handling | Cause |
+|-------|----------|-------|
+| Invalid value | Inline validation error | Schema mismatch |
+| Save failed | Retry with error toast | Storage full |
+
+---
+
+### UC0607 - Navigate with Keyboard
+
+| Attribute            | Value                             |
+| -------------------- | --------------------------------- |
+| **ID**               | UC0607                            |
+| **Name**             | Navigate Application via Keyboard |
+| **Actor**            | WebUI User                        |
+| **Preconditions**    | Application loaded                |
+| **Component**        | All interactive components        |
+| **Related Features** | FEAT0618                          |
+| **Related Rules**    | BR0605, BR0610                    |
+
+**Steps:**
+
+1. User presses Tab to move focus
+2. Focus ring visible on active element
+3. Enter/Space activates buttons
+4. Escape closes modals (focus restored)
+5. Arrow keys navigate lists/menus
+6. Shortcuts (Ctrl+K) open command palette
+
+**Success Outcome:**
+
+- All features accessible via keyboard
+- Focus never trapped unexpectedly
+
+**Error Scenarios:**
+| Error | Handling | Cause |
+|-------|----------|-------|
+| Focus lost | Auto-recover to main area | Dynamic content update |
+
+---
+
+### UC0608 - View API Errors
+
+| Attribute            | Value                                                     |
+| -------------------- | --------------------------------------------------------- |
+| **ID**               | UC0608                                                    |
+| **Name**             | View User-Friendly Error Messages                         |
+| **Actor**            | WebUI User                                                |
+| **Preconditions**    | API error occurred                                        |
+| **Component**        | [ErrorBoundary](../edgequake_webui/src/components/error/) |
+| **Related Features** | FEAT0615                                                  |
+| **Related Rules**    | BR0607                                                    |
+
+**Steps:**
+
+1. API call fails with error response
+2. Error intercepted by global handler
+3. Error code mapped to user-friendly message
+4. Toast notification displayed
+5. Detailed info available via "Show Details"
+6. Error logged for debugging
+
+**Success Outcome:**
+
+- User understands what went wrong
+- Clear path to resolution
+
+**Error Scenarios:**
+| Error | Handling | Cause |
+|-------|----------|-------|
+| Unknown error | Generic "Something went wrong" | Unmapped error code |
+
+---
+
+### UC0609 - Expand Graph Node
+
+| Attribute            | Value                                                      |
+| -------------------- | ---------------------------------------------------------- |
+| **ID**               | UC0609                                                     |
+| **Name**             | Expand Knowledge Graph Node                                |
+| **Actor**            | WebUI User                                                 |
+| **Preconditions**    | Graph visualization active                                 |
+| **Component**        | [KnowledgeGraph](../edgequake_webui/src/components/graph/) |
+| **Related Features** | FEAT0602, FEAT0603                                         |
+| **Related Rules**    | BR0603                                                     |
+
+**Steps:**
+
+1. User clicks on collapsed node
+2. API fetches connected nodes/edges
+3. New nodes animated into view
+4. Layout rebalances smoothly
+5. Node marked as expanded
+6. Double-click to collapse
+
+**Success Outcome:**
+
+- Related nodes revealed progressively
+- Graph remains performant
+
+**Error Scenarios:**
+| Error | Handling | Cause |
+|-------|----------|-------|
+| No connections | Tooltip "No connections" | Isolated entity |
+| Max nodes reached | Warning toast | Performance limit |
+
+---
+
+### UC0610 - Search Documents
+
+| Attribute            | Value                                                          |
+| -------------------- | -------------------------------------------------------------- |
+| **ID**               | UC0610                                                         |
+| **Name**             | Search Document Library                                        |
+| **Actor**            | WebUI User                                                     |
+| **Preconditions**    | Authenticated, documents exist                                 |
+| **Component**        | [DocumentSearch](../edgequake_webui/src/components/documents/) |
+| **Related Features** | FEAT0606, FEAT0607                                             |
+| **Related Rules**    | BR0612                                                         |
+
+**Steps:**
+
+1. User types in search input
+2. Debounced search after 300ms pause
+3. Loading indicator during search
+4. Results displayed with highlights
+5. Click result opens document detail
+6. Empty state if no matches
+
+**Success Outcome:**
+
+- Relevant results within 500ms
+- Clear match highlighting
+
+**Error Scenarios:**
+| Error | Handling | Cause |
+|-------|----------|-------|
+| Search failed | Retry button | API error |
+| No results | Helpful empty state | No matches found |
+
+---
+
+## PDF Processing (UC10XX)
+
+> Use cases specific to the EdgeQuake PDF extraction and conversion pipeline.
+
+### UC1001 - Convert PDF to Markdown
+
+| Attribute            | Value                                               |
+| -------------------- | --------------------------------------------------- |
+| **ID**               | UC1001                                              |
+| **Name**             | Convert PDF Document to Markdown                    |
+| **Actor**            | API Client / Pipeline                               |
+| **Preconditions**    | Valid PDF file                                      |
+| **Module**           | [edgequake-pdf](../edgequake/crates/edgequake-pdf/) |
+| **Related Features** | FEAT1001, FEAT0501                                  |
+| **Related Rules**    | BR1001, BR1002                                      |
+
+**Steps:**
+
+1. PDF file received via API or file path
+2. SotaBackend parses PDF structure
+3. Text extracted with font metadata
+4. Processor chain applies transformations
+5. Markdown rendered with headings/lists/tables
+6. Output returned or saved to file
+
+**Success Outcome:**
+
+- Markdown preserves document structure
+- Reading order accuracy > 95%
+
+**Error Scenarios:**
+| Error | Handling | Cause |
+|-------|----------|-------|
+| Malformed PDF | Graceful fallback (BR1002) | Corrupted file |
+| Encrypted PDF | Error with message | Password protected |
+
+---
+
+### UC1002 - Extract Tables from PDF
+
+| Attribute            | Value                                                                  |
+| -------------------- | ---------------------------------------------------------------------- |
+| **ID**               | UC1002                                                                 |
+| **Name**             | Extract and Format Tables from PDF                                     |
+| **Actor**            | API Client / Pipeline                                                  |
+| **Preconditions**    | PDF contains tabular data                                              |
+| **Module**           | [lattice.rs](../edgequake/crates/edgequake-pdf/src/backend/lattice.rs) |
+| **Related Features** | FEAT1002, FEAT0503                                                     |
+| **Related Rules**    | BR1004                                                                 |
+
+**Steps:**
+
+1. LatticeEngine detects table regions
+2. Cell boundaries identified via line detection
+3. Text assigned to cells based on position
+4. Column alignment determined
+5. Markdown table generated
+
+**Success Outcome:**
+
+- Tables rendered with correct alignment
+- Cell content preserved
+
+**Error Scenarios:**
+| Error | Handling | Cause |
+|-------|----------|-------|
+| No lines detected | Text-based reconstruction | Borderless table |
+| Merged cells | Best-effort spanning | Complex layout |
+
+---
+
+### UC1003 - Detect Multi-Column Layout
+
+| Attribute            | Value                                                    |
+| -------------------- | -------------------------------------------------------- |
+| **ID**               | UC1003                                                   |
+| **Name**             | Detect and Linearize Multi-Column Text                   |
+| **Actor**            | Pipeline                                                 |
+| **Preconditions**    | PDF has multi-column layout                              |
+| **Module**           | [layout/](../edgequake/crates/edgequake-pdf/src/layout/) |
+| **Related Features** | FEAT1003                                                 |
+| **Related Rules**    | BR1003                                                   |
+
+**Steps:**
+
+1. Geometric analysis identifies column gaps
+2. Text blocks clustered by horizontal position
+3. Reading order determined (left-to-right, top-to-bottom)
+4. Columns linearized in correct sequence
+5. Paragraph boundaries preserved
+
+**Success Outcome:**
+
+- Correct reading order for multi-column docs
+- No text interleaving between columns
+
+**Error Scenarios:**
+| Error | Handling | Cause |
+|-------|----------|-------|
+| Ambiguous columns | Conservative merge | Overlapping regions |
+
+---
+
+### UC1004 - Detect Document Headings
+
+| Attribute            | Value                                                                                  |
+| -------------------- | -------------------------------------------------------------------------------------- |
+| **ID**               | UC1004                                                                                 |
+| **Name**             | Identify and Format Headings                                                           |
+| **Actor**            | Pipeline                                                                               |
+| **Preconditions**    | PDF has styled headings                                                                |
+| **Module**           | [processors/structure_detection.rs](../edgequake/crates/edgequake-pdf/src/processors/) |
+| **Related Features** | FEAT1022                                                                               |
+| **Related Rules**    | BR1001                                                                                 |
+
+**Steps:**
+
+1. Font size analysis identifies larger text
+2. Bold/weight detection as heading signal
+3. Section numbering patterns detected (1.2.3)
+4. Heading level assigned (H1-H6)
+5. Markdown heading syntax applied
+
+**Success Outcome:**
+
+- Headings correctly formatted as `#` syntax
+- Hierarchy preserved
+
+**Error Scenarios:**
+| Error | Handling | Cause |
+|-------|----------|-------|
+| No font info | Pattern-based detection | Embedded fonts |
+
+---
+
+### UC1005 - Extract Document Metadata
+
+| Attribute            | Value                                                              |
+| -------------------- | ------------------------------------------------------------------ |
+| **ID**               | UC1005                                                             |
+| **Name**             | Extract PDF Metadata                                               |
+| **Actor**            | API Client                                                         |
+| **Preconditions**    | Valid PDF file                                                     |
+| **Module**           | [extractor.rs](../edgequake/crates/edgequake-pdf/src/extractor.rs) |
+| **Related Features** | FEAT1001                                                           |
+| **Related Rules**    | BR1002                                                             |
+
+**Steps:**
+
+1. Parse PDF document info dictionary
+2. Extract title, author, creation date
+3. Count pages
+4. Detect encryption status
+5. Return structured metadata
+
+**Success Outcome:**
+
+- Metadata extracted without full conversion
+- Fast info retrieval
+
+**Error Scenarios:**
+| Error | Handling | Cause |
+|-------|----------|-------|
+| Missing info | Return partial data | No metadata embedded |
+
+---
+
+### UC1006 - Handle Malformed PDF
+
+| Attribute            | Value                                                              |
+| -------------------- | ------------------------------------------------------------------ |
+| **ID**               | UC1006                                                             |
+| **Name**             | Gracefully Handle Malformed PDF                                    |
+| **Actor**            | Pipeline                                                           |
+| **Preconditions**    | PDF fails standard parsing                                         |
+| **Module**           | [extractor.rs](../edgequake/crates/edgequake-pdf/src/extractor.rs) |
+| **Related Features** | FEAT1001                                                           |
+| **Related Rules**    | BR1002                                                             |
+
+**Steps:**
+
+1. Initial parse fails with error
+2. Fallback to lenient parsing mode
+3. Extract whatever text is recoverable
+4. Log warning with failure details
+5. Return partial content with warning flag
+
+**Success Outcome:**
+
+- No crash on malformed input
+- Maximum content recovered
+
+**Error Scenarios:**
+| Error | Handling | Cause |
+|-------|----------|-------|
+| Complete corruption | Return empty with error | Unrecoverable file |
+
+---
+
+### UC1007 - Process Large PDF
+
+| Attribute            | Value                                               |
+| -------------------- | --------------------------------------------------- |
+| **ID**               | UC1007                                              |
+| **Name**             | Process Multi-Page PDF Efficiently                  |
+| **Actor**            | Pipeline                                            |
+| **Preconditions**    | PDF > 100 pages                                     |
+| **Module**           | [edgequake-pdf](../edgequake/crates/edgequake-pdf/) |
+| **Related Features** | FEAT1001                                            |
+| **Related Rules**    | BR1001                                              |
+
+**Steps:**
+
+1. Parse PDF in streaming mode
+2. Process pages in batches
+3. Memory pressure monitored
+4. Progress reported periodically
+5. Results aggregated at end
+
+**Success Outcome:**
+
+- Consistent memory usage
+- Linear time scaling
+
+**Error Scenarios:**
+| Error | Handling | Cause |
+|-------|----------|-------|
+| Memory exhaustion | Reduce batch size | Very complex pages |
+
+---
+
+### UC1008 - Preserve Code Blocks
+
+| Attribute            | Value                                                                                  |
+| -------------------- | -------------------------------------------------------------------------------------- |
+| **ID**               | UC1008                                                                                 |
+| **Name**             | Detect and Format Code Blocks                                                          |
+| **Actor**            | Pipeline                                                                               |
+| **Preconditions**    | PDF contains code snippets                                                             |
+| **Module**           | [processors/structure_detection.rs](../edgequake/crates/edgequake-pdf/src/processors/) |
+| **Related Features** | FEAT1001                                                                               |
+| **Related Rules**    | BR1001                                                                                 |
+
+**Steps:**
+
+1. Detect monospace font regions
+2. Identify indentation patterns
+3. Check for syntax-like content
+4. Apply fenced code block formatting
+5. Attempt language detection
+
+**Success Outcome:**
+
+- Code wrapped in triple backticks
+- Language hint when detectable
+
+**Error Scenarios:**
+| Error | Handling | Cause |
+|-------|----------|-------|
+| Mixed fonts | Conservative detection | Inline code |
+
+---
+
 ## Summary Statistics
 
 | Category                | Total  | Implemented | Tested | Documented |
@@ -1046,7 +1652,9 @@ Workspace
 | Workspace Management    | 5      | 5           | 5      | 5          |
 | Conversation Management | 6      | 6           | 5      | 6          |
 | Administration          | 4      | 4           | 3      | 4          |
-| **TOTAL**               | **38** | **38**      | **34** | **38**     |
+| WebUI Interactions      | 10     | 10          | 8      | 10         |
+| PDF Processing          | 8      | 8           | 7      | 8          |
+| **TOTAL**               | **56** | **56**      | **49** | **56**     |
 
 ---
 

@@ -140,6 +140,7 @@ impl ExtractionResult {
 }
 
 /// Main PDF extractor that converts PDFs to Markdown using AI enhancement.
+/// @implements FEAT0501
 pub struct PdfExtractor {
     backend: Box<dyn PdfBackend>,
     llm_provider: Arc<dyn LLMProvider>,

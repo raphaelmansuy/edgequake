@@ -8,7 +8,7 @@
  *
  * @implements UC0506 - User selects tenant from available list
  * @implements UC0507 - User selects workspace within tenant
- * @implements FEAT0504 - Multi-tenancy with workspace isolation
+ * @implements FEAT0861 - Multi-tenancy with workspace isolation
  * @implements FEAT0629 - Tenant/workspace switching
  *
  * @enforces BR0504 - All API calls include tenant/workspace headers

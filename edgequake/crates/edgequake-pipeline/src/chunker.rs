@@ -113,6 +113,7 @@ impl Default for ChunkerConfig {
 
 /// A chunk of text with metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// @implements FEAT0002
 pub struct TextChunk {
     /// Unique identifier for the chunk.
     pub id: String,

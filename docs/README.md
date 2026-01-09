@@ -44,6 +44,14 @@
 | 07  | [Configuration Reference](0007-configuration-reference.md) | All environment variables and options         | All developers          |
 | 08  | [Multi-Tenancy](0008-multi-tenancy.md)                     | Tenant isolation and namespace management     | Platform engineers      |
 | 09  | [Algorithms Reference](0009-algorithms-reference.md)       | Detailed pipeline and query algorithms        | Researchers, core devs  |
+| 10  | [Production LLM](production-llm-integration.md)            | Real LLM provider integration                 | ML engineers            |
+| 11  | [WebUI Architecture](0011-webui-architecture.md)           | Next.js architecture and tech stack           | Frontend devs           |
+| 12  | [WebUI Components](0012-webui-components.md)               | Component catalog and atomic design           | Frontend devs           |
+| 13  | [WebUI API Integration](0013-webui-api-integration.md)     | API client, Hooks, and Streaming              | Frontend devs           |
+| 14  | [WebUI State Management](0014-webui-state-management.md)   | Zustand, React Query, and performance         | Frontend devs           |
+| 15  | [WebUI Development](0015-webui-development-guide.md)       | Setup, workflow, and testing guide            | All developers          |
+| 16  | [Graph Visualization](0016-webui-graph-visualization.md)   | Sigma.js, WebGL, and Layout engine            | Frontend devs, visuals  |
+| 17  | [WebUI Deployment](0017-webui-deployment.md)               | Standalone build, Docker, and Nginx           | DevOps                  |
 
 ### Supplementary Guides
 

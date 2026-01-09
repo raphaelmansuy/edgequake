@@ -5,8 +5,8 @@
  *
  * @implements UC0501 - User authenticates via login form
  * @implements UC0505 - User logs out and clears session
- * @implements FEAT0501 - JWT token management
- * @implements FEAT0505 - Token expiration detection
+ * @implements FEAT0870 - JWT token management
+ * @implements FEAT0871 - Token expiration detection
  *
  * @enforces BR0501 - Protected routes require authentication
  * @enforces BR0502 - Expired tokens trigger logout

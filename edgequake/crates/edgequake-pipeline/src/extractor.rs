@@ -295,6 +295,7 @@ impl ExtractedRelationship {
 
 /// Trait for entity extraction implementations.
 #[async_trait]
+/// @implements FEAT0009
 pub trait EntityExtractor: Send + Sync {
     /// Extract entities and relationships from a text chunk.
     async fn extract(&self, chunk: &TextChunk) -> Result<ExtractionResult>;
@@ -708,6 +709,7 @@ impl Default for GleaningConfig {
 /// - Cost: Each iteration = 1 additional LLM call
 ///
 /// This implements GAP-018: Max Gleaning from LightRAG.
+/// @implements FEAT0304
 pub struct GleaningExtractor {
     /// The underlying LLM provider.
     llm_provider: std::sync::Arc<dyn edgequake_llm::LLMProvider>,

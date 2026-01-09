@@ -14,7 +14,7 @@
  * @implements FEAT0001 - Document model for ingestion
  * @implements FEAT0007 - Query request/response types
  * @implements FEAT0601 - Graph node/edge types for visualization
- * @implements FEAT0501 - Auth state and token types
+ * @implements FEAT0870 - Auth state and token types
  *
  * @see {@link docs/features.md} for feature specifications
  */

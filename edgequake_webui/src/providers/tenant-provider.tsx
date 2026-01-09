@@ -3,7 +3,7 @@
  * @description Provider for tenant and workspace context initialization.
  * Auto-selects first available tenant/workspace on fresh start.
  *
- * @implements FEAT0504 - Multi-tenancy with workspace isolation
+ * @implements FEAT0861 - Multi-tenancy with workspace isolation
  * @implements FEAT0868 - Auto-tenant selection
  *
  * @enforces BR0504 - All API calls include tenant/workspace context

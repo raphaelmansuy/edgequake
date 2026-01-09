@@ -3,7 +3,7 @@
  * @description Chain-of-thought reasoning display component.
  * Shows LLM thinking process with collapsible sections.
  *
- * @implements FEAT0301 - Chain-of-thought display
+ * @implements FEAT0734 - Chain-of-thought display
  * @implements FEAT0750 - Collapsible thinking sections
  *
  * @enforces BR0105 - Thinking shows progressive indicators

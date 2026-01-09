@@ -40,6 +40,7 @@
 //! │   ├── ConversationService
 //! │   └── WorkspaceService
 //! ├── Infrastructure
+/// @implements FEAT0019
 //! │   ├── TaskQueue (async processing)
 //! │   ├── CacheManager (hot data)
 //! │   └── ProgressBroadcaster (real-time updates)

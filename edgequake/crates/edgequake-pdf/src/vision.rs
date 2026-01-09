@@ -116,6 +116,7 @@ impl PageImage {
 
 /// Configuration for vision mode extraction.
 #[derive(Debug, Clone)]
+/// @implements FEAT1024
 pub struct VisionConfig {
     /// Model to use for vision (must support images).
     pub model: String,

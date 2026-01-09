@@ -6,7 +6,7 @@
  * @implements FEAT0611 - Backend health indicator in header
  * @implements FEAT0612 - Theme toggle (light/dark/system)
  * @implements FEAT0613 - User menu with logout
- * @implements FEAT0504 - Tenant/workspace selector integration
+ * @implements FEAT0861 - Tenant/workspace selector integration
  * 
  * @enforces BR0608 - Connection status updates in real-time
  * @enforces BR0609 - Theme persists across sessions

@@ -13,6 +13,16 @@ Your mission is to improve the documentation quality, clarity, and comprehensive
 
 The document will be provided in markdown format and stored in the `docs/` directory of the edgequake repository.
 
+Now the priority is to improve the documentation in docs/ directory of edgequake repository.
+
+- Ensure the accuracy of the documentation by cross-referencing with the actual codebase.
+- Use clear and concise language to explain complex concepts.
+- Use high signal diagrams and visual aids where necessary to enhance understanding.
+- Clean up any outdated or irrelevant information in the existing documentation docs/archive directory.
+- Add other missing documentation as needed to ensure comprehensive coverage of the codebase.
+
+ You must continue the OODA loops until the documentation is of very high quality, clarity, and comprehensiveness. At least 50 OODA loops must be performed.
+
 # Problem Statement
 
 We have observed that the current documentation in edgequake has areas that could benefit from improved clarity, comprehensiveness, and organization. Better documentation practices will lead to a more robust and maintainable codebase, ultimately improving developer productivity and system reliability.

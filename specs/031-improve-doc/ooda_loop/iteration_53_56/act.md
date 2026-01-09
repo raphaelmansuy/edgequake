@@ -3,9 +3,10 @@
 ## Observe
 
 The docs/ directory contained many historical implementation docs mixed with core documentation:
+
 - Working notes (craftpad.md, deep-reflection-doc-sync.md)
 - Completion summaries (TASK_COMPLETION_SUMMARY.md)
-- SOTA comparison docs (sota-*.md, edgequake-vs-lightrag-sota.md)
+- SOTA comparison docs (sota-\*.md, edgequake-vs-lightrag-sota.md)
 - Performance benchmarks (layout-performance-benchmark.md)
 - Implementation status (source-citations-status.md, test-plan-source-citations.md)
 
@@ -15,6 +16,7 @@ The docs/ directory contained many historical implementation docs mixed with cor
 ## Orient
 
 These historical docs are valuable for reference but clutter the main documentation:
+
 - New users get confused by mixing guides with implementation notes
 - Historical docs get stale faster than core docs
 - Core documentation should be discoverable at a glance
@@ -22,6 +24,7 @@ These historical docs are valuable for reference but clutter the main documentat
 ## Decide
 
 Move all non-core documentation to docs/archive/:
+
 1. Working notes and scratchpads
 2. Task completion summaries
 3. Historical SOTA comparisons
@@ -29,6 +32,7 @@ Move all non-core documentation to docs/archive/:
 5. Implementation status reports
 
 Keep in main docs/:
+
 1. README.md - main entry point
 2. Numbered guides (0001-0009) - core documentation
 3. Registries (features.md, business_rules.md, use_cases.md) - reference

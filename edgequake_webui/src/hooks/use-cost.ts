@@ -5,8 +5,8 @@
  *
  * @implements UC0801 - User monitors LLM usage costs
  * @implements UC0802 - User sets budget alerts
- * @implements FEAT0801 - Per-document cost tracking
- * @implements FEAT0803 - Workspace cost summary
+ * @implements FEAT0850 - Per-document cost tracking
+ * @implements FEAT0852 - Workspace cost summary
  * @implements FEAT0610 - Cost history timeline
  *
  * @enforces BR0801 - Costs update in real-time

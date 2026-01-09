@@ -13,32 +13,32 @@
 
 ## Quick Reference
 
-| I want to...                  | Go to                                         |
-| ----------------------------- | --------------------------------------------- |
-| Understand isolation model    | [Namespace-Based Isolation](#namespace-based-isolation) |
-| Implement in Rust code        | [Implementation](#implementation)             |
-| Use PostgreSQL multi-tenant   | [PostgreSQL Multi-Tenancy](#postgresql-multi-tenancy) |
-| Set up via API                | [API Usage](#api-usage)                       |
-| Configure RBAC                | [RBAC and Permissions](#rbac-and-permissions) |
-| See security best practices   | [Security Considerations](#security-considerations) |
+| I want to...                | Go to                                                   |
+| --------------------------- | ------------------------------------------------------- |
+| Understand isolation model  | [Namespace-Based Isolation](#namespace-based-isolation) |
+| Implement in Rust code      | [Implementation](#implementation)                       |
+| Use PostgreSQL multi-tenant | [PostgreSQL Multi-Tenancy](#postgresql-multi-tenancy)   |
+| Set up via API              | [API Usage](#api-usage)                                 |
+| Configure RBAC              | [RBAC and Permissions](#rbac-and-permissions)           |
+| See security best practices | [Security Considerations](#security-considerations)     |
 
 ---
 
 ## Isolation Model Summary
 
-| Isolation Type | Mechanism | Data Affected |
-| -------------- | --------- | ------------- |
-| **Namespace** | String prefix in all storage | Documents, Chunks, Entities, Relationships |
-| **PostgreSQL** | `namespace` column + WHERE clause | All tables include namespace filtering |
-| **API** | `X-Workspace-ID` header | Per-request tenant routing |
-| **RBAC** | Role + Permission matrix | Action authorization |
+| Isolation Type | Mechanism                         | Data Affected                              |
+| -------------- | --------------------------------- | ------------------------------------------ |
+| **Namespace**  | String prefix in all storage      | Documents, Chunks, Entities, Relationships |
+| **PostgreSQL** | `namespace` column + WHERE clause | All tables include namespace filtering     |
+| **API**        | `X-Workspace-ID` header           | Per-request tenant routing                 |
+| **RBAC**       | Role + Permission matrix          | Action authorization                       |
 
 ### Security Guarantees
 
 ✅ **Complete data isolation** - No tenant can access another's data  
 ✅ **Query-level enforcement** - All queries include namespace filter  
 ✅ **API-level validation** - Workspace ID validated on every request  
-✅ **No cross-tenant joins** - Graph queries scoped to namespace  
+✅ **No cross-tenant joins** - Graph queries scoped to namespace
 
 ---
 
@@ -351,13 +351,13 @@ Permissions are grouped by resource type:
 
 ### Threat Model
 
-| Threat | Mitigation | Status |
-| ------ | ---------- | ------ |
-| Cross-tenant data access | All queries include `WHERE namespace = ?` | ✅ Enforced |
-| Tenant ID manipulation | Validate workspace header server-side | ✅ API validation |
-| SQL injection in namespace | Parameterized queries only | ✅ No string concat |
-| Privilege escalation | RBAC enforcement on all endpoints | ✅ Role checks |
-| Mass data export | Rate limiting per tenant | ⚙️ Configurable |
+| Threat                     | Mitigation                                | Status              |
+| -------------------------- | ----------------------------------------- | ------------------- |
+| Cross-tenant data access   | All queries include `WHERE namespace = ?` | ✅ Enforced         |
+| Tenant ID manipulation     | Validate workspace header server-side     | ✅ API validation   |
+| SQL injection in namespace | Parameterized queries only                | ✅ No string concat |
+| Privilege escalation       | RBAC enforcement on all endpoints         | ✅ Role checks      |
+| Mass data export           | Rate limiting per tenant                  | ⚙️ Configurable     |
 
 ### Namespace Injection Prevention
 
@@ -484,25 +484,25 @@ cargo run --example multi_tenant
 
 ## Troubleshooting
 
-| Symptom | Likely Cause | Solution |
-| ------- | ------------ | -------- |
+| Symptom                     | Likely Cause             | Solution                                  |
+| --------------------------- | ------------------------ | ----------------------------------------- |
 | Data visible across tenants | Missing namespace filter | Check all queries include `namespace = ?` |
-| "Invalid namespace" error | Special characters | Use alphanumeric + underscore only |
-| Empty query results | Wrong tenant context | Verify `X-Workspace-ID` header |
-| Connection pool exhausted | Too many tenants | Share pool with namespace routing |
-| Slow tenant switching | Creating new connections | Use connection pooling |
+| "Invalid namespace" error   | Special characters       | Use alphanumeric + underscore only        |
+| Empty query results         | Wrong tenant context     | Verify `X-Workspace-ID` header            |
+| Connection pool exhausted   | Too many tenants         | Share pool with namespace routing         |
+| Slow tenant switching       | Creating new connections | Use connection pooling                    |
 
 ---
 
 ## Next Steps
 
-| Document | When to Read |
-| -------- | ------------ |
-| [Storage Backends](0004-storage-backends.md) | Configure PostgreSQL for multi-tenancy |
-| [Configuration Reference](0007-configuration-reference.md) | All namespace-related config options |
-| [Deployment Guide](0006-deployment-guide.md) | Production deployment with isolation |
-| [API Reference](0003-api-reference.md) | Workspace API endpoints |
-| [Algorithms Reference](0009-algorithms-reference.md) | Query algorithms across namespaces |
+| Document                                                   | When to Read                           |
+| ---------------------------------------------------------- | -------------------------------------- |
+| [Storage Backends](0004-storage-backends.md)               | Configure PostgreSQL for multi-tenancy |
+| [Configuration Reference](0007-configuration-reference.md) | All namespace-related config options   |
+| [Deployment Guide](0006-deployment-guide.md)               | Production deployment with isolation   |
+| [API Reference](0003-api-reference.md)                     | Workspace API endpoints                |
+| [Algorithms Reference](0009-algorithms-reference.md)       | Query algorithms across namespaces     |
 
 ---
 
