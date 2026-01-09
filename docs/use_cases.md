@@ -9,14 +9,14 @@
 
 ## Quick Reference Index
 
-| Category | ID Range | Count |
-|----------|----------|-------|
-| [Document Management](#document-management-uc00xx) | UC0001-UC0020 | 8 |
-| [Knowledge Graph](#knowledge-graph-uc01xx) | UC0101-UC0120 | 7 |
-| [Query Execution](#query-execution-uc02xx) | UC0201-UC0220 | 8 |
-| [Workspace Management](#workspace-management-uc03xx) | UC0301-UC0320 | 5 |
-| [Conversation Management](#conversation-management-uc04xx) | UC0401-UC0420 | 6 |
-| [Administration](#administration-uc05xx) | UC0501-UC0520 | 4 |
+| Category                                                   | ID Range      | Count |
+| ---------------------------------------------------------- | ------------- | ----- |
+| [Document Management](#document-management-uc00xx)         | UC0001-UC0020 | 8     |
+| [Knowledge Graph](#knowledge-graph-uc01xx)                 | UC0101-UC0120 | 7     |
+| [Query Execution](#query-execution-uc02xx)                 | UC0201-UC0220 | 8     |
+| [Workspace Management](#workspace-management-uc03xx)       | UC0301-UC0320 | 5     |
+| [Conversation Management](#conversation-management-uc04xx) | UC0401-UC0420 | 6     |
+| [Administration](#administration-uc05xx)                   | UC0501-UC0520 | 4     |
 
 ---
 
@@ -24,17 +24,18 @@
 
 ### UC0001 - Upload Text Document
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0001 |
-| **Name** | Upload Text Document |
-| **Actor** | API Client / WebUI User |
-| **Preconditions** | Authenticated, valid workspace selected |
-| **Endpoint** | `POST /api/v1/documents` |
-| **Related Features** | FEAT0001, FEAT0401 |
-| **Related Rules** | BR0001, BR0008 |
+| Attribute            | Value                                   |
+| -------------------- | --------------------------------------- |
+| **ID**               | UC0001                                  |
+| **Name**             | Upload Text Document                    |
+| **Actor**            | API Client / WebUI User                 |
+| **Preconditions**    | Authenticated, valid workspace selected |
+| **Endpoint**         | `POST /api/v1/documents`                |
+| **Related Features** | FEAT0001, FEAT0401                      |
+| **Related Rules**    | BR0001, BR0008                          |
 
 **Steps:**
+
 1. Client sends JSON with `content` and optional `document_id`
 2. Server validates content is non-empty
 3. Server generates document ID if not provided
@@ -43,6 +44,7 @@
 6. Response returned with `track_id` for status polling
 
 **Success Response:**
+
 ```json
 {
   "document_id": "doc_abc123",
@@ -62,17 +64,18 @@
 
 ### UC0002 - Upload File Document
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0002 |
-| **Name** | Upload File Document |
-| **Actor** | API Client / WebUI User |
-| **Preconditions** | Authenticated, valid workspace selected |
-| **Endpoint** | `POST /api/v1/documents/upload` |
-| **Related Features** | FEAT0001, FEAT0402, FEAT0501 |
-| **Related Rules** | BR0402, BR0403 |
+| Attribute            | Value                                   |
+| -------------------- | --------------------------------------- |
+| **ID**               | UC0002                                  |
+| **Name**             | Upload File Document                    |
+| **Actor**            | API Client / WebUI User                 |
+| **Preconditions**    | Authenticated, valid workspace selected |
+| **Endpoint**         | `POST /api/v1/documents/upload`         |
+| **Related Features** | FEAT0001, FEAT0402, FEAT0501            |
+| **Related Rules**    | BR0402, BR0403                          |
 
 **Steps:**
+
 1. Client sends multipart form with file
 2. Server validates file type (PDF, TXT, MD)
 3. Server validates file size (max 100MB)
@@ -98,15 +101,15 @@
 
 ### UC0003 - List Documents
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0003 |
-| **Name** | List Documents in Workspace |
-| **Actor** | API Client / WebUI User |
-| **Preconditions** | Authenticated, valid workspace selected |
-| **Endpoint** | `GET /api/v1/documents` |
-| **Related Features** | FEAT0001 |
-| **Related Rules** | BR0201 |
+| Attribute            | Value                                   |
+| -------------------- | --------------------------------------- |
+| **ID**               | UC0003                                  |
+| **Name**             | List Documents in Workspace             |
+| **Actor**            | API Client / WebUI User                 |
+| **Preconditions**    | Authenticated, valid workspace selected |
+| **Endpoint**         | `GET /api/v1/documents`                 |
+| **Related Features** | FEAT0001                                |
+| **Related Rules**    | BR0201                                  |
 
 **Query Parameters:**
 | Parameter | Type | Default | Description |
@@ -116,6 +119,7 @@
 | status | string | all | Filter by status |
 
 **Response:**
+
 ```json
 {
   "documents": [
@@ -140,17 +144,18 @@
 
 ### UC0004 - Get Document Details
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0004 |
-| **Name** | Get Document Details |
-| **Actor** | API Client / WebUI User |
-| **Preconditions** | Authenticated, document exists |
-| **Endpoint** | `GET /api/v1/documents/{document_id}` |
-| **Related Features** | FEAT0001, FEAT0011 |
-| **Related Rules** | BR0201, BR0203 |
+| Attribute            | Value                                 |
+| -------------------- | ------------------------------------- |
+| **ID**               | UC0004                                |
+| **Name**             | Get Document Details                  |
+| **Actor**            | API Client / WebUI User               |
+| **Preconditions**    | Authenticated, document exists        |
+| **Endpoint**         | `GET /api/v1/documents/{document_id}` |
+| **Related Features** | FEAT0001, FEAT0011                    |
+| **Related Rules**    | BR0201, BR0203                        |
 
 **Response:**
+
 ```json
 {
   "id": "doc_abc123",
@@ -176,17 +181,18 @@
 
 ### UC0005 - Delete Document
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0005 |
-| **Name** | Delete Document |
-| **Actor** | API Client / WebUI User |
-| **Preconditions** | Authenticated, document exists |
-| **Endpoint** | `DELETE /api/v1/documents/{document_id}` |
-| **Related Features** | FEAT0001 |
-| **Related Rules** | BR0201, BR0007 |
+| Attribute            | Value                                    |
+| -------------------- | ---------------------------------------- |
+| **ID**               | UC0005                                   |
+| **Name**             | Delete Document                          |
+| **Actor**            | API Client / WebUI User                  |
+| **Preconditions**    | Authenticated, document exists           |
+| **Endpoint**         | `DELETE /api/v1/documents/{document_id}` |
+| **Related Features** | FEAT0001                                 |
+| **Related Rules**    | BR0201, BR0007                           |
 
 **Steps:**
+
 1. Validate document belongs to tenant/workspace
 2. Remove document from KV storage
 3. Remove associated chunks and embeddings
@@ -194,6 +200,7 @@
 5. Return success
 
 **Cascading Deletions:**
+
 ```
 Document
 ├── Chunks (all deleted)
@@ -206,17 +213,18 @@ Document
 
 ### UC0006 - Re-process Failed Document
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0006 |
-| **Name** | Re-process Failed Document |
-| **Actor** | API Client / WebUI User |
-| **Preconditions** | Document exists with status `failed` |
-| **Endpoint** | `POST /api/v1/documents/{document_id}/reprocess` |
-| **Related Features** | FEAT0001, FEAT0019 |
-| **Related Rules** | BR0008 |
+| Attribute            | Value                                            |
+| -------------------- | ------------------------------------------------ |
+| **ID**               | UC0006                                           |
+| **Name**             | Re-process Failed Document                       |
+| **Actor**            | API Client / WebUI User                          |
+| **Preconditions**    | Document exists with status `failed`             |
+| **Endpoint**         | `POST /api/v1/documents/{document_id}/reprocess` |
+| **Related Features** | FEAT0001, FEAT0019                               |
+| **Related Rules**    | BR0008                                           |
 
 **Steps:**
+
 1. Verify document status is `failed`
 2. Reset status to `pending`
 3. Clear previous partial results
@@ -227,17 +235,18 @@ Document
 
 ### UC0007 - Get Processing Status
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0007 |
-| **Name** | Get Document Processing Status |
-| **Actor** | API Client / WebUI User |
-| **Preconditions** | Valid track_id |
-| **Endpoint** | `GET /api/v1/tasks/{track_id}` |
-| **Related Features** | FEAT0012, FEAT0406 |
-| **Related Rules** | None |
+| Attribute            | Value                          |
+| -------------------- | ------------------------------ |
+| **ID**               | UC0007                         |
+| **Name**             | Get Document Processing Status |
+| **Actor**            | API Client / WebUI User        |
+| **Preconditions**    | Valid track_id                 |
+| **Endpoint**         | `GET /api/v1/tasks/{track_id}` |
+| **Related Features** | FEAT0012, FEAT0406             |
+| **Related Rules**    | None                           |
 
 **Response:**
+
 ```json
 {
   "track_id": "task_xyz789",
@@ -260,32 +269,34 @@ Document
 
 ### UC0008 - Batch Upload Documents
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0008 |
-| **Name** | Batch Upload Multiple Documents |
-| **Actor** | API Client |
-| **Preconditions** | Authenticated, valid workspace |
-| **Endpoint** | `POST /api/v1/documents/batch` |
-| **Related Features** | FEAT0001, FEAT0401 |
-| **Related Rules** | BR0303 |
+| Attribute            | Value                           |
+| -------------------- | ------------------------------- |
+| **ID**               | UC0008                          |
+| **Name**             | Batch Upload Multiple Documents |
+| **Actor**            | API Client                      |
+| **Preconditions**    | Authenticated, valid workspace  |
+| **Endpoint**         | `POST /api/v1/documents/batch`  |
+| **Related Features** | FEAT0001, FEAT0401              |
+| **Related Rules**    | BR0303                          |
 
 **Request:**
+
 ```json
 {
   "documents": [
-    {"content": "Document 1 content..."},
-    {"content": "Document 2 content..."}
+    { "content": "Document 1 content..." },
+    { "content": "Document 2 content..." }
   ]
 }
 ```
 
 **Response:**
+
 ```json
 {
   "results": [
-    {"document_id": "doc_1", "track_id": "task_1", "status": "pending"},
-    {"document_id": "doc_2", "track_id": "task_2", "status": "pending"}
+    { "document_id": "doc_1", "track_id": "task_1", "status": "pending" },
+    { "document_id": "doc_2", "track_id": "task_2", "status": "pending" }
   ],
   "batch_track_id": "batch_abc"
 }
@@ -297,15 +308,15 @@ Document
 
 ### UC0101 - View Graph Visualization
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0101 |
-| **Name** | View Knowledge Graph Visualization |
-| **Actor** | WebUI User |
-| **Preconditions** | Authenticated, workspace has data |
-| **Endpoint** | `GET /api/v1/graph` |
-| **Related Features** | FEAT0405, FEAT0603 |
-| **Related Rules** | BR0201 |
+| Attribute            | Value                              |
+| -------------------- | ---------------------------------- |
+| **ID**               | UC0101                             |
+| **Name**             | View Knowledge Graph Visualization |
+| **Actor**            | WebUI User                         |
+| **Preconditions**    | Authenticated, workspace has data  |
+| **Endpoint**         | `GET /api/v1/graph`                |
+| **Related Features** | FEAT0405, FEAT0603                 |
+| **Related Rules**    | BR0201                             |
 
 **Query Parameters:**
 | Parameter | Type | Default | Description |
@@ -315,13 +326,14 @@ Document
 | center | string | null | Center entity name |
 
 **Response:**
+
 ```json
 {
   "nodes": [
-    {"id": "ENTITY_A", "label": "Entity A", "type": "PERSON", "size": 5}
+    { "id": "ENTITY_A", "label": "Entity A", "type": "PERSON", "size": 5 }
   ],
   "edges": [
-    {"source": "ENTITY_A", "target": "ENTITY_B", "label": "WORKS_FOR"}
+    { "source": "ENTITY_A", "target": "ENTITY_B", "label": "WORKS_FOR" }
   ],
   "stats": {
     "total_nodes": 1500,
@@ -336,17 +348,18 @@ Document
 
 ### UC0102 - Search Entities
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0102 |
-| **Name** | Search Entities by Name |
-| **Actor** | API Client / WebUI User |
-| **Preconditions** | Authenticated |
-| **Endpoint** | `GET /api/v1/graph/entities?search={query}` |
-| **Related Features** | FEAT0405 |
-| **Related Rules** | BR0003 |
+| Attribute            | Value                                       |
+| -------------------- | ------------------------------------------- |
+| **ID**               | UC0102                                      |
+| **Name**             | Search Entities by Name                     |
+| **Actor**            | API Client / WebUI User                     |
+| **Preconditions**    | Authenticated                               |
+| **Endpoint**         | `GET /api/v1/graph/entities?search={query}` |
+| **Related Features** | FEAT0405                                    |
+| **Related Rules**    | BR0003                                      |
 
 **Response:**
+
 ```json
 {
   "entities": [
@@ -365,32 +378,40 @@ Document
 
 ### UC0103 - Get Entity Details
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0103 |
-| **Name** | Get Entity Details and Relationships |
-| **Actor** | API Client / WebUI User |
-| **Preconditions** | Entity exists |
-| **Endpoint** | `GET /api/v1/graph/entities/{entity_name}` |
-| **Related Features** | FEAT0405, FEAT0011 |
-| **Related Rules** | BR0201 |
+| Attribute            | Value                                      |
+| -------------------- | ------------------------------------------ |
+| **ID**               | UC0103                                     |
+| **Name**             | Get Entity Details and Relationships       |
+| **Actor**            | API Client / WebUI User                    |
+| **Preconditions**    | Entity exists                              |
+| **Endpoint**         | `GET /api/v1/graph/entities/{entity_name}` |
+| **Related Features** | FEAT0405, FEAT0011                         |
+| **Related Rules**    | BR0201                                     |
 
 **Response:**
+
 ```json
 {
   "name": "SARAH_CHEN",
   "type": "PERSON",
   "description": "Dr. Sarah Chen is...",
   "relationships": {
-    "outgoing": [
-      {"target": "MIT", "type": "WORKS_AT", "description": "..."}
-    ],
+    "outgoing": [{ "target": "MIT", "type": "WORKS_AT", "description": "..." }],
     "incoming": [
-      {"source": "JOHN_DOE", "type": "COLLABORATES_WITH", "description": "..."}
+      {
+        "source": "JOHN_DOE",
+        "type": "COLLABORATES_WITH",
+        "description": "..."
+      }
     ]
   },
   "sources": [
-    {"document_id": "doc_123", "chunk_id": "chunk_45", "line_start": 10, "line_end": 15}
+    {
+      "document_id": "doc_123",
+      "chunk_id": "chunk_45",
+      "line_start": 10,
+      "line_end": 15
+    }
   ]
 }
 ```
@@ -399,17 +420,18 @@ Document
 
 ### UC0104 - Create Manual Entity
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0104 |
-| **Name** | Create Entity Manually |
-| **Actor** | API Client / WebUI User |
-| **Preconditions** | Authenticated |
-| **Endpoint** | `POST /api/v1/graph/entities` |
-| **Related Features** | FEAT0405 |
-| **Related Rules** | BR0003 |
+| Attribute            | Value                         |
+| -------------------- | ----------------------------- |
+| **ID**               | UC0104                        |
+| **Name**             | Create Entity Manually        |
+| **Actor**            | API Client / WebUI User       |
+| **Preconditions**    | Authenticated                 |
+| **Endpoint**         | `POST /api/v1/graph/entities` |
+| **Related Features** | FEAT0405                      |
+| **Related Rules**    | BR0003                        |
 
 **Request:**
+
 ```json
 {
   "name": "New Entity",
@@ -422,17 +444,18 @@ Document
 
 ### UC0105 - Create Manual Relationship
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0105 |
-| **Name** | Create Relationship Manually |
-| **Actor** | API Client / WebUI User |
-| **Preconditions** | Both entities exist |
-| **Endpoint** | `POST /api/v1/graph/relationships` |
-| **Related Features** | FEAT0405 |
-| **Related Rules** | BR0004 |
+| Attribute            | Value                              |
+| -------------------- | ---------------------------------- |
+| **ID**               | UC0105                             |
+| **Name**             | Create Relationship Manually       |
+| **Actor**            | API Client / WebUI User            |
+| **Preconditions**    | Both entities exist                |
+| **Endpoint**         | `POST /api/v1/graph/relationships` |
+| **Related Features** | FEAT0405                           |
+| **Related Rules**    | BR0004                             |
 
 **Request:**
+
 ```json
 {
   "source": "ENTITY_A",
@@ -446,17 +469,18 @@ Document
 
 ### UC0106 - Get Graph Statistics
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0106 |
-| **Name** | Get Knowledge Graph Statistics |
-| **Actor** | API Client / WebUI User |
-| **Preconditions** | Authenticated |
-| **Endpoint** | `GET /api/v1/graph/stats` |
-| **Related Features** | FEAT0405 |
-| **Related Rules** | BR0201 |
+| Attribute            | Value                          |
+| -------------------- | ------------------------------ |
+| **ID**               | UC0106                         |
+| **Name**             | Get Knowledge Graph Statistics |
+| **Actor**            | API Client / WebUI User        |
+| **Preconditions**    | Authenticated                  |
+| **Endpoint**         | `GET /api/v1/graph/stats`      |
+| **Related Features** | FEAT0405                       |
+| **Related Rules**    | BR0201                         |
 
 **Response:**
+
 ```json
 {
   "entity_count": 1500,
@@ -480,15 +504,15 @@ Document
 
 ### UC0107 - Explore Entity Neighborhood
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0107 |
-| **Name** | Explore Entity Neighborhood |
-| **Actor** | WebUI User |
-| **Preconditions** | Entity exists |
-| **Endpoint** | `GET /api/v1/graph/entities/{entity_name}/neighbors` |
-| **Related Features** | FEAT0405, FEAT0603 |
-| **Related Rules** | BR0010 |
+| Attribute            | Value                                                |
+| -------------------- | ---------------------------------------------------- |
+| **ID**               | UC0107                                               |
+| **Name**             | Explore Entity Neighborhood                          |
+| **Actor**            | WebUI User                                           |
+| **Preconditions**    | Entity exists                                        |
+| **Endpoint**         | `GET /api/v1/graph/entities/{entity_name}/neighbors` |
+| **Related Features** | FEAT0405, FEAT0603                                   |
+| **Related Rules**    | BR0010                                               |
 
 **Query Parameters:**
 | Parameter | Type | Default | Description |
@@ -502,17 +526,18 @@ Document
 
 ### UC0201 - Execute Simple Query
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0201 |
-| **Name** | Execute RAG Query |
-| **Actor** | API Client / WebUI User |
-| **Preconditions** | Authenticated, workspace has data |
-| **Endpoint** | `POST /api/v1/query` |
-| **Related Features** | FEAT0007, FEAT0403 |
-| **Related Rules** | BR0101, BR0103, BR0105 |
+| Attribute            | Value                             |
+| -------------------- | --------------------------------- |
+| **ID**               | UC0201                            |
+| **Name**             | Execute RAG Query                 |
+| **Actor**            | API Client / WebUI User           |
+| **Preconditions**    | Authenticated, workspace has data |
+| **Endpoint**         | `POST /api/v1/query`              |
+| **Related Features** | FEAT0007, FEAT0403                |
+| **Related Rules**    | BR0101, BR0103, BR0105            |
 
 **Request:**
+
 ```json
 {
   "query": "What is the relationship between X and Y?",
@@ -522,11 +547,12 @@ Document
 ```
 
 **Response:**
+
 ```json
 {
   "answer": "Based on the knowledge graph, X and Y are...",
   "sources": [
-    {"document_id": "doc_123", "chunk_id": "chunk_45", "relevance": 0.92}
+    { "document_id": "doc_123", "chunk_id": "chunk_45", "relevance": 0.92 }
   ],
   "context": {
     "entities_used": ["X", "Y"],
@@ -545,17 +571,18 @@ Document
 
 ### UC0202 - Stream Query Response
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0202 |
-| **Name** | Stream Query Response via SSE |
-| **Actor** | WebUI User |
-| **Preconditions** | Authenticated |
-| **Endpoint** | `POST /api/v1/query/stream` |
-| **Related Features** | FEAT0008, FEAT0404 |
-| **Related Rules** | BR0104 |
+| Attribute            | Value                         |
+| -------------------- | ----------------------------- |
+| **ID**               | UC0202                        |
+| **Name**             | Stream Query Response via SSE |
+| **Actor**            | WebUI User                    |
+| **Preconditions**    | Authenticated                 |
+| **Endpoint**         | `POST /api/v1/query/stream`   |
+| **Related Features** | FEAT0008, FEAT0404            |
+| **Related Rules**    | BR0104                        |
 
 **SSE Event Sequence:**
+
 ```
 event: start
 data: {"query_id": "q_123"}
@@ -577,15 +604,15 @@ data: {"stats": {...}}
 
 ### UC0203 - Query with Mode Selection
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0203 |
-| **Name** | Query with Specific Mode |
-| **Actor** | API Client / WebUI User |
-| **Preconditions** | Authenticated |
-| **Endpoint** | `POST /api/v1/query` |
-| **Related Features** | FEAT0101-FEAT0106 |
-| **Related Rules** | BR0103 |
+| Attribute            | Value                    |
+| -------------------- | ------------------------ |
+| **ID**               | UC0203                   |
+| **Name**             | Query with Specific Mode |
+| **Actor**            | API Client / WebUI User  |
+| **Preconditions**    | Authenticated            |
+| **Endpoint**         | `POST /api/v1/query`     |
+| **Related Features** | FEAT0101-FEAT0106        |
+| **Related Rules**    | BR0103                   |
 
 **Mode Options:**
 | Mode | Description | Best For |
@@ -601,17 +628,18 @@ data: {"stats": {...}}
 
 ### UC0204 - Query with Conversation Context
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0204 |
-| **Name** | Query with Conversation History |
-| **Actor** | WebUI User |
-| **Preconditions** | Conversation exists |
-| **Endpoint** | `POST /api/v1/query` |
-| **Related Features** | FEAT0007, FEAT0017 |
-| **Related Rules** | BR0107 |
+| Attribute            | Value                           |
+| -------------------- | ------------------------------- |
+| **ID**               | UC0204                          |
+| **Name**             | Query with Conversation History |
+| **Actor**            | WebUI User                      |
+| **Preconditions**    | Conversation exists             |
+| **Endpoint**         | `POST /api/v1/query`            |
+| **Related Features** | FEAT0007, FEAT0017              |
+| **Related Rules**    | BR0107                          |
 
 **Request:**
+
 ```json
 {
   "query": "Tell me more about that",
@@ -623,17 +651,18 @@ data: {"stats": {...}}
 
 ### UC0205 - Query Specific Workspace
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0205 |
-| **Name** | Query Specific Workspace |
-| **Actor** | API Client / WebUI User |
-| **Preconditions** | Workspace exists, has data |
-| **Endpoint** | `POST /api/v1/query` |
-| **Related Features** | FEAT0007, FEAT0016 |
-| **Related Rules** | BR0201, BR0206 |
+| Attribute            | Value                      |
+| -------------------- | -------------------------- |
+| **ID**               | UC0205                     |
+| **Name**             | Query Specific Workspace   |
+| **Actor**            | API Client / WebUI User    |
+| **Preconditions**    | Workspace exists, has data |
+| **Endpoint**         | `POST /api/v1/query`       |
+| **Related Features** | FEAT0007, FEAT0016         |
+| **Related Rules**    | BR0201, BR0206             |
 
 **Request:**
+
 ```json
 {
   "query": "What are the key findings?",
@@ -645,31 +674,32 @@ data: {"stats": {...}}
 
 ### UC0206 - Get Query History
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0206 |
-| **Name** | Get Recent Query History |
-| **Actor** | WebUI User |
-| **Preconditions** | Authenticated |
-| **Endpoint** | `GET /api/v1/queries/history` |
-| **Related Features** | FEAT0017 |
-| **Related Rules** | BR0201 |
+| Attribute            | Value                         |
+| -------------------- | ----------------------------- |
+| **ID**               | UC0206                        |
+| **Name**             | Get Recent Query History      |
+| **Actor**            | WebUI User                    |
+| **Preconditions**    | Authenticated                 |
+| **Endpoint**         | `GET /api/v1/queries/history` |
+| **Related Features** | FEAT0017                      |
+| **Related Rules**    | BR0201                        |
 
 ---
 
 ### UC0207 - Explain Query Retrieval
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0207 |
-| **Name** | Explain Query Retrieval Process |
-| **Actor** | Developer / Power User |
-| **Preconditions** | Query executed |
-| **Endpoint** | `POST /api/v1/query?explain=true` |
-| **Related Features** | FEAT0109 |
-| **Related Rules** | None |
+| Attribute            | Value                             |
+| -------------------- | --------------------------------- |
+| **ID**               | UC0207                            |
+| **Name**             | Explain Query Retrieval Process   |
+| **Actor**            | Developer / Power User            |
+| **Preconditions**    | Query executed                    |
+| **Endpoint**         | `POST /api/v1/query?explain=true` |
+| **Related Features** | FEAT0109                          |
+| **Related Rules**    | None                              |
 
 **Response includes:**
+
 ```json
 {
   "answer": "...",
@@ -692,17 +722,18 @@ data: {"stats": {...}}
 
 ### UC0208 - Query with Custom Parameters
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0208 |
-| **Name** | Query with Custom Retrieval Parameters |
-| **Actor** | Advanced API Client |
-| **Preconditions** | Authenticated |
-| **Endpoint** | `POST /api/v1/query` |
-| **Related Features** | FEAT0109 |
-| **Related Rules** | BR0101, BR0108 |
+| Attribute            | Value                                  |
+| -------------------- | -------------------------------------- |
+| **ID**               | UC0208                                 |
+| **Name**             | Query with Custom Retrieval Parameters |
+| **Actor**            | Advanced API Client                    |
+| **Preconditions**    | Authenticated                          |
+| **Endpoint**         | `POST /api/v1/query`                   |
+| **Related Features** | FEAT0109                               |
+| **Related Rules**    | BR0101, BR0108                         |
 
 **Request:**
+
 ```json
 {
   "query": "...",
@@ -722,17 +753,18 @@ data: {"stats": {...}}
 
 ### UC0301 - Create Workspace
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0301 |
-| **Name** | Create New Workspace |
-| **Actor** | API Client / WebUI User |
-| **Preconditions** | Authenticated |
-| **Endpoint** | `POST /api/v1/workspaces` |
-| **Related Features** | FEAT0016 |
-| **Related Rules** | BR0206 |
+| Attribute            | Value                     |
+| -------------------- | ------------------------- |
+| **ID**               | UC0301                    |
+| **Name**             | Create New Workspace      |
+| **Actor**            | API Client / WebUI User   |
+| **Preconditions**    | Authenticated             |
+| **Endpoint**         | `POST /api/v1/workspaces` |
+| **Related Features** | FEAT0016                  |
+| **Related Rules**    | BR0206                    |
 
 **Request:**
+
 ```json
 {
   "name": "Research Project 2026",
@@ -744,31 +776,32 @@ data: {"stats": {...}}
 
 ### UC0302 - List Workspaces
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0302 |
-| **Name** | List All Workspaces |
-| **Actor** | API Client / WebUI User |
-| **Preconditions** | Authenticated |
-| **Endpoint** | `GET /api/v1/workspaces` |
-| **Related Features** | FEAT0016, FEAT0604 |
-| **Related Rules** | BR0201 |
+| Attribute            | Value                    |
+| -------------------- | ------------------------ |
+| **ID**               | UC0302                   |
+| **Name**             | List All Workspaces      |
+| **Actor**            | API Client / WebUI User  |
+| **Preconditions**    | Authenticated            |
+| **Endpoint**         | `GET /api/v1/workspaces` |
+| **Related Features** | FEAT0016, FEAT0604       |
+| **Related Rules**    | BR0201                   |
 
 ---
 
 ### UC0303 - Get Workspace Statistics
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0303 |
-| **Name** | Get Workspace Statistics |
-| **Actor** | API Client / WebUI User |
-| **Preconditions** | Workspace exists |
-| **Endpoint** | `GET /api/v1/workspaces/{workspace_id}/stats` |
-| **Related Features** | FEAT0016 |
-| **Related Rules** | BR0201 |
+| Attribute            | Value                                         |
+| -------------------- | --------------------------------------------- |
+| **ID**               | UC0303                                        |
+| **Name**             | Get Workspace Statistics                      |
+| **Actor**            | API Client / WebUI User                       |
+| **Preconditions**    | Workspace exists                              |
+| **Endpoint**         | `GET /api/v1/workspaces/{workspace_id}/stats` |
+| **Related Features** | FEAT0016                                      |
+| **Related Rules**    | BR0201                                        |
 
 **Response:**
+
 ```json
 {
   "workspace_id": "ws_abc123",
@@ -778,7 +811,7 @@ data: {"stats": {...}}
   "entity_count": 1200,
   "relationship_count": 2800,
   "total_tokens_processed": 1500000,
-  "estimated_cost_usd": 12.50,
+  "estimated_cost_usd": 12.5,
   "created_at": "2026-01-01T00:00:00Z",
   "last_activity": "2026-01-09T10:00:00Z"
 }
@@ -788,17 +821,18 @@ data: {"stats": {...}}
 
 ### UC0304 - Delete Workspace
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0304 |
-| **Name** | Delete Workspace and All Data |
-| **Actor** | API Client / WebUI User |
-| **Preconditions** | Workspace exists, confirmation required |
-| **Endpoint** | `DELETE /api/v1/workspaces/{workspace_id}` |
-| **Related Features** | FEAT0016 |
-| **Related Rules** | BR0206 |
+| Attribute            | Value                                      |
+| -------------------- | ------------------------------------------ |
+| **ID**               | UC0304                                     |
+| **Name**             | Delete Workspace and All Data              |
+| **Actor**            | API Client / WebUI User                    |
+| **Preconditions**    | Workspace exists, confirmation required    |
+| **Endpoint**         | `DELETE /api/v1/workspaces/{workspace_id}` |
+| **Related Features** | FEAT0016                                   |
+| **Related Rules**    | BR0206                                     |
 
 **Cascading Deletions:**
+
 ```
 Workspace
 ├── Documents (all)
@@ -813,15 +847,15 @@ Workspace
 
 ### UC0305 - Switch Active Workspace
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0305 |
-| **Name** | Switch Active Workspace in UI |
-| **Actor** | WebUI User |
-| **Preconditions** | Multiple workspaces exist |
-| **Endpoint** | (Client-side state change) |
-| **Related Features** | FEAT0604 |
-| **Related Rules** | BR0201 |
+| Attribute            | Value                         |
+| -------------------- | ----------------------------- |
+| **ID**               | UC0305                        |
+| **Name**             | Switch Active Workspace in UI |
+| **Actor**            | WebUI User                    |
+| **Preconditions**    | Multiple workspaces exist     |
+| **Endpoint**         | (Client-side state change)    |
+| **Related Features** | FEAT0604                      |
+| **Related Rules**    | BR0201                        |
 
 ---
 
@@ -829,17 +863,18 @@ Workspace
 
 ### UC0401 - Create Conversation
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0401 |
-| **Name** | Create New Conversation |
-| **Actor** | WebUI User |
-| **Preconditions** | Authenticated, workspace selected |
-| **Endpoint** | `POST /api/v1/conversations` |
-| **Related Features** | FEAT0017 |
-| **Related Rules** | BR0201 |
+| Attribute            | Value                             |
+| -------------------- | --------------------------------- |
+| **ID**               | UC0401                            |
+| **Name**             | Create New Conversation           |
+| **Actor**            | WebUI User                        |
+| **Preconditions**    | Authenticated, workspace selected |
+| **Endpoint**         | `POST /api/v1/conversations`      |
+| **Related Features** | FEAT0017                          |
+| **Related Rules**    | BR0201                            |
 
 **Request:**
+
 ```json
 {
   "title": "Research Discussion",
@@ -851,31 +886,32 @@ Workspace
 
 ### UC0402 - List Conversations
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0402 |
-| **Name** | List Conversations |
-| **Actor** | WebUI User |
-| **Preconditions** | Authenticated |
-| **Endpoint** | `GET /api/v1/conversations` |
-| **Related Features** | FEAT0017 |
-| **Related Rules** | BR0201 |
+| Attribute            | Value                       |
+| -------------------- | --------------------------- |
+| **ID**               | UC0402                      |
+| **Name**             | List Conversations          |
+| **Actor**            | WebUI User                  |
+| **Preconditions**    | Authenticated               |
+| **Endpoint**         | `GET /api/v1/conversations` |
+| **Related Features** | FEAT0017                    |
+| **Related Rules**    | BR0201                      |
 
 ---
 
 ### UC0403 - Add Message to Conversation
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0403 |
-| **Name** | Add Message to Conversation |
-| **Actor** | API/WebUI (automated after query) |
-| **Preconditions** | Conversation exists |
-| **Endpoint** | `POST /api/v1/conversations/{id}/messages` |
-| **Related Features** | FEAT0017 |
-| **Related Rules** | BR0107 |
+| Attribute            | Value                                      |
+| -------------------- | ------------------------------------------ |
+| **ID**               | UC0403                                     |
+| **Name**             | Add Message to Conversation                |
+| **Actor**            | API/WebUI (automated after query)          |
+| **Preconditions**    | Conversation exists                        |
+| **Endpoint**         | `POST /api/v1/conversations/{id}/messages` |
+| **Related Features** | FEAT0017                                   |
+| **Related Rules**    | BR0107                                     |
 
 **Request:**
+
 ```json
 {
   "role": "user",
@@ -887,43 +923,43 @@ Workspace
 
 ### UC0404 - Get Conversation History
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0404 |
-| **Name** | Get Full Conversation History |
-| **Actor** | WebUI User |
-| **Preconditions** | Conversation exists |
-| **Endpoint** | `GET /api/v1/conversations/{id}/messages` |
-| **Related Features** | FEAT0017 |
-| **Related Rules** | BR0201, BR0107 |
+| Attribute            | Value                                     |
+| -------------------- | ----------------------------------------- |
+| **ID**               | UC0404                                    |
+| **Name**             | Get Full Conversation History             |
+| **Actor**            | WebUI User                                |
+| **Preconditions**    | Conversation exists                       |
+| **Endpoint**         | `GET /api/v1/conversations/{id}/messages` |
+| **Related Features** | FEAT0017                                  |
+| **Related Rules**    | BR0201, BR0107                            |
 
 ---
 
 ### UC0405 - Delete Conversation
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0405 |
-| **Name** | Delete Conversation |
-| **Actor** | WebUI User |
-| **Preconditions** | Conversation exists |
-| **Endpoint** | `DELETE /api/v1/conversations/{id}` |
-| **Related Features** | FEAT0017 |
-| **Related Rules** | BR0201 |
+| Attribute            | Value                               |
+| -------------------- | ----------------------------------- |
+| **ID**               | UC0405                              |
+| **Name**             | Delete Conversation                 |
+| **Actor**            | WebUI User                          |
+| **Preconditions**    | Conversation exists                 |
+| **Endpoint**         | `DELETE /api/v1/conversations/{id}` |
+| **Related Features** | FEAT0017                            |
+| **Related Rules**    | BR0201                              |
 
 ---
 
 ### UC0406 - Rename Conversation
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0406 |
-| **Name** | Rename Conversation |
-| **Actor** | WebUI User |
-| **Preconditions** | Conversation exists |
-| **Endpoint** | `PATCH /api/v1/conversations/{id}` |
-| **Related Features** | FEAT0017 |
-| **Related Rules** | BR0201 |
+| Attribute            | Value                              |
+| -------------------- | ---------------------------------- |
+| **ID**               | UC0406                             |
+| **Name**             | Rename Conversation                |
+| **Actor**            | WebUI User                         |
+| **Preconditions**    | Conversation exists                |
+| **Endpoint**         | `PATCH /api/v1/conversations/{id}` |
+| **Related Features** | FEAT0017                           |
+| **Related Rules**    | BR0201                             |
 
 ---
 
@@ -931,17 +967,18 @@ Workspace
 
 ### UC0501 - View System Health
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0501 |
-| **Name** | View System Health Status |
-| **Actor** | Admin / Monitoring System |
-| **Preconditions** | None (public endpoint) |
-| **Endpoint** | `GET /health` |
-| **Related Features** | None |
-| **Related Rules** | None |
+| Attribute            | Value                     |
+| -------------------- | ------------------------- |
+| **ID**               | UC0501                    |
+| **Name**             | View System Health Status |
+| **Actor**            | Admin / Monitoring System |
+| **Preconditions**    | None (public endpoint)    |
+| **Endpoint**         | `GET /health`             |
+| **Related Features** | None                      |
+| **Related Rules**    | None                      |
 
 **Response:**
+
 ```json
 {
   "status": "healthy",
@@ -959,57 +996,57 @@ Workspace
 
 ### UC0502 - View Metrics
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0502 |
-| **Name** | View System Metrics |
-| **Actor** | Admin / Monitoring System |
-| **Preconditions** | Authenticated (admin) |
-| **Endpoint** | `GET /metrics` |
-| **Related Features** | None |
-| **Related Rules** | None |
+| Attribute            | Value                     |
+| -------------------- | ------------------------- |
+| **ID**               | UC0502                    |
+| **Name**             | View System Metrics       |
+| **Actor**            | Admin / Monitoring System |
+| **Preconditions**    | Authenticated (admin)     |
+| **Endpoint**         | `GET /metrics`            |
+| **Related Features** | None                      |
+| **Related Rules**    | None                      |
 
 ---
 
 ### UC0503 - View Audit Logs
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0503 |
-| **Name** | View Audit Logs |
-| **Actor** | Admin |
-| **Preconditions** | Admin role |
-| **Endpoint** | `GET /api/v1/admin/audit-logs` |
-| **Related Features** | FEAT0020 |
-| **Related Rules** | BR0405 |
+| Attribute            | Value                          |
+| -------------------- | ------------------------------ |
+| **ID**               | UC0503                         |
+| **Name**             | View Audit Logs                |
+| **Actor**            | Admin                          |
+| **Preconditions**    | Admin role                     |
+| **Endpoint**         | `GET /api/v1/admin/audit-logs` |
+| **Related Features** | FEAT0020                       |
+| **Related Rules**    | BR0405                         |
 
 ---
 
 ### UC0504 - Manage Rate Limits
 
-| Attribute | Value |
-|-----------|-------|
-| **ID** | UC0504 |
-| **Name** | Configure Tenant Rate Limits |
-| **Actor** | Admin |
-| **Preconditions** | Admin role |
-| **Endpoint** | `PUT /api/v1/admin/tenants/{id}/rate-limits` |
-| **Related Features** | FEAT0018 |
-| **Related Rules** | BR0204 |
+| Attribute            | Value                                        |
+| -------------------- | -------------------------------------------- |
+| **ID**               | UC0504                                       |
+| **Name**             | Configure Tenant Rate Limits                 |
+| **Actor**            | Admin                                        |
+| **Preconditions**    | Admin role                                   |
+| **Endpoint**         | `PUT /api/v1/admin/tenants/{id}/rate-limits` |
+| **Related Features** | FEAT0018                                     |
+| **Related Rules**    | BR0204                                       |
 
 ---
 
 ## Summary Statistics
 
-| Category | Total | Implemented | Tested | Documented |
-|----------|-------|-------------|--------|------------|
-| Document Management | 8 | 8 | 8 | 8 |
-| Knowledge Graph | 7 | 7 | 6 | 7 |
-| Query Execution | 8 | 8 | 7 | 8 |
-| Workspace Management | 5 | 5 | 5 | 5 |
-| Conversation Management | 6 | 6 | 5 | 6 |
-| Administration | 4 | 4 | 3 | 4 |
-| **TOTAL** | **38** | **38** | **34** | **38** |
+| Category                | Total  | Implemented | Tested | Documented |
+| ----------------------- | ------ | ----------- | ------ | ---------- |
+| Document Management     | 8      | 8           | 8      | 8          |
+| Knowledge Graph         | 7      | 7           | 6      | 7          |
+| Query Execution         | 8      | 8           | 7      | 8          |
+| Workspace Management    | 5      | 5           | 5      | 5          |
+| Conversation Management | 6      | 6           | 5      | 6          |
+| Administration          | 4      | 4           | 3      | 4          |
+| **TOTAL**               | **38** | **38**      | **34** | **38**     |
 
 ---
 
