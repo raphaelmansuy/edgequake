@@ -1,3 +1,18 @@
+/**
+ * @module QueryModeSelector
+ * @description Query mode toggle for selecting RAG retrieval strategy.
+ * Supports local, global, hybrid, and naive (simple) modes.
+ * 
+ * @implements FEAT0101 - Naive mode (direct LLM, no graph context)
+ * @implements FEAT0102 - Local mode (neighborhood search)
+ * @implements FEAT0103 - Global mode (full graph search)
+ * @implements FEAT0104 - Hybrid mode (combined local+global)
+ * 
+ * @enforces BR0101 - Mode selection persists across sessions
+ * @enforces BR0102 - Mode change updates query behavior immediately
+ * 
+ * @see {@link docs/features.md} FEAT0101-0104
+ */
 'use client';
 
 import {

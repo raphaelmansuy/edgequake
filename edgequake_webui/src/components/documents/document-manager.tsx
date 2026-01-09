@@ -1,3 +1,24 @@
+/**
+ * @module DocumentManager
+ * @description Document ingestion and management interface.
+ * Supports file upload, progress tracking, status monitoring, and batch operations.
+ * 
+ * @implements UC0001 - User uploads documents for ingestion
+ * @implements UC0007 - User monitors document processing progress
+ * @implements UC0008 - User reprocesses failed documents
+ * @implements UC0009 - User deletes documents from knowledge graph
+ * @implements FEAT0001 - Document ingestion with entity extraction
+ * @implements FEAT0003 - Batch document processing
+ * @implements FEAT0004 - Processing status tracking per document
+ * @implements FEAT0602 - Real-time progress indicators
+ * 
+ * @enforces BR0302 - Failed documents can be reprocessed
+ * @enforces BR0303 - Document deletion cascades to related entities
+ * @enforces BR0305 - Cost tracking per document ingestion
+ * 
+ * @see {@link docs/use_cases.md} UC0001, UC0007-UC0009
+ * @see {@link docs/features.md} FEAT0001, FEAT0003
+ */
 'use client';
 
 import { RightPanel } from '@/components/layout/right-panel';
