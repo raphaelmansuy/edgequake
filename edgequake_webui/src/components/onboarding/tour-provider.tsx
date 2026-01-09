@@ -1,3 +1,15 @@
+/**
+ * @fileoverview Guided tour provider for onboarding new users
+ *
+ * @implements FEAT1050 - Interactive onboarding tour system
+ * @implements FEAT1051 - Step-by-step feature introduction
+ *
+ * @see UC1301 - New user completes onboarding tour
+ * @see UC1302 - User navigates tour steps
+ *
+ * @enforces BR1050 - Tour state persistence in localStorage
+ * @enforces BR1051 - Element highlighting with overlay
+ */
 'use client';
 
 import { Button } from '@/components/ui/button';

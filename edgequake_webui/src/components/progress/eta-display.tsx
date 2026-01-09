@@ -3,6 +3,15 @@
  * 
  * Shows estimated time remaining for ingestion.
  * Based on WebUI Specification Document WEBUI-004 (13-webui-components.md)
+ *
+ * @implements FEAT1062 - Estimated time remaining display
+ * @implements FEAT1063 - Elapsed time tracking
+ *
+ * @see UC1403 - User sees estimated completion time
+ * @see UC1404 - User monitors elapsed processing time
+ *
+ * @enforces BR1062 - Dynamic ETA calculation from progress
+ * @enforces BR1063 - Human-readable time formatting
  */
 
 'use client';

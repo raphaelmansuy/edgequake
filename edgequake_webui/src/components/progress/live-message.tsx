@@ -3,6 +3,15 @@
  * 
  * Displays streaming/live ingestion messages.
  * Based on WebUI Specification Document WEBUI-004 (13-webui-components.md)
+ *
+ * @implements FEAT1064 - Real-time ingestion message stream
+ * @implements FEAT1065 - Message history display
+ *
+ * @see UC1405 - User sees live processing updates
+ * @see UC1406 - User reviews message history
+ *
+ * @enforces BR1064 - Animated message updates
+ * @enforces BR1065 - Auto-scroll to latest message
  */
 
 'use client';
