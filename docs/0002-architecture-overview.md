@@ -607,11 +607,68 @@ edgequake_webui/src/
 │       ├── client.ts      # HTTP client
 │       └── edgequake.ts   # API functions
 ├── stores/                # Zustand stores
-│   ├── use-auth-store.ts
-│   ├── use-graph-store.ts
-│   └── use-query-store.ts
+│   ├── use-auth-store.ts          # Authentication state
+│   ├── use-backend-store.ts       # Backend connection state
+│   ├── use-conversation-store.ts  # Chat conversation history
+│   ├── use-cost-store.ts          # Cost tracking
+│   ├── use-graph-store.ts         # Graph visualization state
+│   ├── use-ingestion-store.ts     # Document ingestion progress
+│   ├── use-query-store.ts         # Query execution state
+│   ├── use-query-ui-store.ts      # Query UI preferences
+│   ├── use-settings-store.ts      # User settings
+│   ├── use-tenant-store.ts        # Multi-tenant state
+│   └── use-ui-preferences-store.ts # UI theme/layout
 └── types/                 # TypeScript types
     └── index.ts
+```
+
+### State Management with Zustand
+
+The WebUI uses Zustand for lightweight, performant state management. Each store manages a specific domain:
+
+| Store                    | Responsibility                                     | Persisted |
+| ------------------------ | -------------------------------------------------- | --------- |
+| `use-auth-store`         | JWT tokens, user info, login/logout                | ✅        |
+| `use-backend-store`      | Backend URL, connection status                     | ✅        |
+| `use-conversation-store` | Chat history, message threading                    | ✅        |
+| `use-cost-store`         | Token usage, estimated costs                       | ❌        |
+| `use-graph-store`        | Sigma.js instance, graph layout, filters           | ❌        |
+| `use-ingestion-store`    | Upload progress, processing status                 | ❌        |
+| `use-query-store`        | Query mode, parameters, history                    | ✅        |
+| `use-query-ui-store`     | UI toggles (sources panel, graph visibility)       | ✅        |
+| `use-settings-store`     | LLM model, temperature, max tokens                 | ✅        |
+| `use-tenant-store`       | Active tenant, workspace                           | ✅        |
+| `use-ui-preferences-store`| Dark mode, sidebar collapsed, language             | ✅        |
+
+```typescript
+// Example: use-query-store.ts
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+interface QueryStore {
+  mode: 'naive' | 'local' | 'global' | 'hybrid' | 'mix' | 'bypass';
+  topK: number;
+  maxTokens: number;
+  history: string[];
+  setMode: (mode: string) => void;
+  addToHistory: (query: string) => void;
+}
+
+export const useQueryStore = create<QueryStore>()(
+  persist(
+    (set) => ({
+      mode: 'hybrid',
+      topK: 10,
+      maxTokens: 4000,
+      history: [],
+      setMode: (mode) => set({ mode }),
+      addToHistory: (query) => set((state) => ({ 
+        history: [query, ...state.history].slice(0, 50) 
+      })),
+    }),
+    { name: 'query-store' }
+  )
+);
 ```
 
 ### WebUI Data Flow
