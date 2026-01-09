@@ -1,3 +1,19 @@
+/**
+ * @module GraphRenderer
+ * @description Sigma.js-powered graph renderer with layout algorithms.
+ * Handles WebGL rendering, node/edge programs, and force-directed layouts.
+ * 
+ * @implements FEAT0601 - WebGL graph rendering with Sigma.js
+ * @implements FEAT0603 - Force-directed layout algorithms (ForceAtlas2, circular, noverlap)
+ * @implements FEAT0604 - Community detection and clustering visualization
+ * @implements FEAT0605 - Theme-aware node and edge styling
+ * 
+ * @enforces BR0009 - Performant rendering for 1000+ nodes
+ * @enforces BR0601 - Layout animations are smooth (60fps target)
+ * @enforces BR0603 - Entity types have consistent color coding
+ * 
+ * @see {@link docs/features.md} FEAT0601-0605
+ */
 'use client';
 
 import { detectCommunities, getCommunityColor } from '@/lib/graph/clustering';

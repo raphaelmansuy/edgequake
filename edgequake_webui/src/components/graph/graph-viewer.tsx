@@ -1,3 +1,23 @@
+/**
+ * @module GraphViewer
+ * @description Interactive knowledge graph visualization component using Sigma.js.
+ * Renders entities as nodes and relationships as edges with full interactivity.
+ * 
+ * @implements UC0101 - User explores knowledge graph visually
+ * @implements UC0104 - User filters entities by type, date, or relationship
+ * @implements UC0107 - User exports graph for analysis
+ * @implements FEAT0601 - Interactive graph visualization with Sigma.js
+ * @implements FEAT0202 - Entity type filtering and search
+ * @implements FEAT0205 - Node hover previews and context menus
+ * @implements FEAT0206 - Minimap for large graph navigation
+ * 
+ * @enforces BR0009 - Graph must handle 1000+ nodes performantly
+ * @enforces BR0201 - Entity selection syncs with detail panel
+ * @enforces BR0602 - Streaming indicator for progressive loading
+ * 
+ * @see {@link docs/use_cases.md} UC0101, UC0104
+ * @see {@link docs/features.md} FEAT0601, FEAT0202
+ */
 'use client';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';

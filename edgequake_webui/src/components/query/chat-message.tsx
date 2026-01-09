@@ -1,3 +1,18 @@
+/**
+ * @module ChatMessage
+ * @description Chat message component with streaming support and source citations.
+ * Renders user/assistant messages with chain-of-thought, metrics, and copy actions.
+ * 
+ * @implements UC0203 - Display response with source citations
+ * @implements FEAT0301 - Chain-of-thought thinking display
+ * @implements FEAT0302 - Message regeneration capability
+ * @implements FEAT0303 - Token usage and duration metrics
+ * 
+ * @enforces BR0104 - All responses include clickable source citations
+ * @enforces BR0105 - Streaming progress shows thinking indicators
+ * 
+ * @see {@link docs/features.md} FEAT0301-0303
+ */
 'use client';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
