@@ -1,3 +1,15 @@
+/**
+ * @module EmptyState
+ * @description Reusable empty state component for lists and views.
+ * Shows icon, message, and optional action button.
+ * 
+ * @implements FEAT0636 - Consistent empty state pattern
+ * @implements FEAT0637 - Contextual empty state messaging
+ * 
+ * @enforces BR0623 - Empty states guide user to action
+ * 
+ * @see {@link docs/features.md} FEAT0636
+ */
 'use client';
 
 import { Button } from '@/components/ui/button';
