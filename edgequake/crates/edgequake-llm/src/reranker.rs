@@ -3,6 +3,17 @@
 //! This module provides reranking capabilities to improve search result relevance
 //! by scoring documents against a query using specialized reranking models.
 //!
+//! ## Implements
+//!
+//! - **FEAT0774**: Reranking for improved retrieval
+//! - **FEAT0775**: Multi-provider reranker support
+//! - **FEAT0776**: BM25 keyword fallback scoring
+//!
+//! ## Enforces
+//!
+//! - **BR0774**: Top-k results after reranking
+//! - **BR0775**: Fallback to BM25 if reranker unavailable
+//!
 //! Supports multiple reranking providers:
 //! - Jina AI Reranker
 //! - Cohere Rerank
