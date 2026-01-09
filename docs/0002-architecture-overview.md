@@ -1,10 +1,24 @@
 # EdgeQuake Architecture Overview
 
+> **Implements**: [FEAT0001](features.md#feat0001) Document Ingestion, [FEAT0002](features.md#feat0002) Knowledge Graph Query
+>
 > Technical deep-dive into EdgeQuake's Graph-Enhanced RAG system architecture
 
-**Version**: 0.1.0 | **Last Updated**: December 2025 | **Language**: Rust
+**Version**: 2.0.0 | **Last Updated**: January 2026 | **Language**: Rust
 
 > **Code Reference**: Main crates in [edgequake/crates/](../edgequake/crates/)
+
+---
+
+## Quick Navigation
+
+| Section | What You'll Learn |
+|---------|-------------------|
+| [System Overview](#system-overview) | High-level architecture and key differentiators |
+| [Crate Structure](#crate-structure) | 11 Rust crates and their responsibilities |
+| [Data Flow](#data-flow) | How documents flow through the system |
+| [Query Pipeline](#query-pipeline) | How queries are processed across 6 modes |
+| [Storage Architecture](#storage-architecture) | KV, Vector, and Graph storage patterns |
 
 ---
 
@@ -107,6 +121,36 @@ EdgeQuake is a **Graph-Enhanced Retrieval-Augmented Generation** framework imple
 ---
 
 ## Crate Structure
+
+EdgeQuake consists of **11 specialized Rust crates**, each with a single responsibility:
+
+### Core Crates (Business Logic)
+
+| Crate | Lines | Responsibility | Key Features |
+|-------|-------|----------------|--------------|
+| `edgequake-core` | ~3,500 | Orchestration, types, config | EdgeQuake class, QueryParams, InsertResult |
+| `edgequake-pipeline` | ~2,000 | Document processing | Entity extraction, chunking, merging |
+| `edgequake-query` | ~1,800 | Query engine | 6 query modes, context assembly |
+
+### Infrastructure Crates
+
+| Crate | Lines | Responsibility | Key Features |
+|-------|-------|----------------|--------------|
+| `edgequake-api` | ~2,500 | REST API | Axum handlers, OpenAPI, SSE streaming |
+| `edgequake-storage` | ~4,000 | Storage adapters | Memory, PostgreSQL, pgvector, AGE |
+| `edgequake-llm` | ~1,500 | LLM providers | OpenAI, Mock, streaming |
+
+### Specialized Crates
+
+| Crate | Lines | Responsibility | Key Features |
+|-------|-------|----------------|--------------|
+| `edgequake-pdf` | ~5,000 | PDF extraction | Text, tables, layout analysis |
+| `edgequake-auth` | ~800 | Authentication | JWT, API keys, OAuth2 |
+| `edgequake-audit` | ~500 | Audit logging | Compliance, event tracking |
+| `edgequake-tasks` | ~600 | Background tasks | Async processing, job queue |
+| `edgequake-rate-limiter` | ~400 | Rate limiting | Tenant quotas, throttling |
+
+> **Enforces**: [BR0003](business_rules.md#br0003) Modular Architecture, [BR0004](business_rules.md#br0004) Single Responsibility
 
 ### `edgequake-core` - Orchestration Layer
 
@@ -571,9 +615,30 @@ pub struct ApiConfig {
 
 ---
 
+## Design Principles
+
+EdgeQuake follows these core architectural principles:
+
+| Principle | Implementation | Rationale |
+|-----------|----------------|-----------|
+| **Trait-based Abstraction** | All storage and LLM providers implement traits | Enables easy swapping of implementations |
+| **Async-first** | All I/O operations are async with Tokio | High concurrency without blocking |
+| **Zero-copy where possible** | Efficient buffer handling | Minimize memory allocations |
+| **Fail-fast validation** | Input validation at API boundary | Clear error messages, no silent failures |
+| **Namespace isolation** | All data scoped to tenant namespace | Multi-tenancy without data leakage |
+
+> **Enforces**: [BR0001](business_rules.md#br0001) Tenant Isolation, [BR0005](business_rules.md#br0005) Async Operations
+
+---
+
 ## Next Steps
 
-1. **[API Reference](0003-api-reference.md)** - Complete REST API documentation
-2. **[Storage Backends](0004-storage-backends.md)** - Configure storage
-3. **[LLM Integration](0005-llm-integration.md)** - LLM providers
-4. **[Deployment Guide](0006-deployment-guide.md)** - Production deployment
+| Your Goal | Next Document |
+|-----------|---------------|
+| Integrate via REST API | [API Reference](0003-api-reference.md) |
+| Configure storage backends | [Storage Backends](0004-storage-backends.md) |
+| Set up LLM providers | [LLM Integration](0005-llm-integration.md) |
+| Deploy to production | [Deployment Guide](0006-deployment-guide.md) |
+| Understand query algorithms | [Algorithms Reference](0009-algorithms-reference.md) |
+
+> **See Also**: [Features Registry](features.md) for complete FEAT0001-XXXX catalog
