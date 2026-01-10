@@ -495,13 +495,35 @@ impl AppState {
     }
 
     /// Create a new application state with PostgreSQL storage.
+    ///
+    /// # Provider Selection
+    ///
+    /// LLM provider is automatically selected based on environment:
+    /// - `EDGEQUAKE_LLM_PROVIDER=ollama|lmstudio|mock` - explicit selection
+    /// - `OLLAMA_HOST` present → Ollama provider
+    /// - `OPENAI_API_KEY` present → OpenAI provider
+    /// - Default → Mock provider
+    ///
+    /// The `llm_api_key` parameter is kept for backward compatibility and will set `OPENAI_API_KEY`
+    /// when provided. For Ollama/LM Studio, you can pass an empty string and use environment variables.
     #[cfg(feature = "postgres")]
     pub async fn new_postgres(
         database_url: impl Into<String>,
         llm_api_key: impl Into<String>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        use edgequake_llm::ProviderFactory;
+        
         let database_url = database_url.into();
         let llm_api_key = llm_api_key.into();
+        
+        // Set OPENAI_API_KEY for backward compatibility (factory will use it if OpenAI selected)
+        if !llm_api_key.is_empty() {
+            std::env::set_var("OPENAI_API_KEY", &llm_api_key);
+        }
+        
+        // Create providers via factory (auto-detects from environment)
+        let (llm_provider, embedding_provider) = ProviderFactory::from_env()
+            .expect("Failed to create LLM provider from environment");
 
         // Parse database URL to create PostgreSQL configuration
         // Format: postgresql://username:password@host:port/database
@@ -570,9 +592,16 @@ impl AppState {
         sqlx::migrate!("../../migrations").run(&pool).await?;
         tracing::info!("✓ Database migrations completed successfully");
 
+        // Auto-configure vector dimension from embedding provider
+        let embedding_dim = embedding_provider.dimension();
+        tracing::info!("Using vector dimension {} from {} provider", 
+            embedding_dim, 
+            std::env::var("EDGEQUAKE_LLM_PROVIDER").unwrap_or_else(|_| "auto-detected".to_string())
+        );
+
         // Create PostgreSQL-backed storages
         let kv_storage = Arc::new(PostgresKVStorage::new(pg_config.clone()));
-        let vector_storage = Arc::new(PgVectorStorage::with_dimension(pg_config.clone(), 1536));
+        let vector_storage = Arc::new(PgVectorStorage::with_dimension(pg_config.clone(), embedding_dim));
         let graph_storage = Arc::new(PostgresAGEGraphStorage::new(pg_config.clone()));
 
         // Initialize storage backends to establish connections
@@ -581,9 +610,6 @@ impl AppState {
         graph_storage.initialize().await?;
 
         tracing::info!("PostgreSQL storage backends initialized successfully");
-
-        // Create LLM provider
-        let llm_provider = Arc::new(OpenAIProvider::new(llm_api_key));
 
         // Create workspace service for full persistence
         let workspace_service_impl = WorkspaceServiceImpl::new(pool.clone());
@@ -606,9 +632,7 @@ impl AppState {
         let pipeline = Arc::new(
             Pipeline::default_pipeline()
                 .with_extractor(extractor)
-                .with_embedding_provider(
-                    Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>
-                ),
+                .with_embedding_provider(Arc::clone(&embedding_provider)),
         );
 
         // Create task infrastructure
@@ -620,7 +644,7 @@ impl AppState {
             QueryEngineConfig::default(),
             Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
             Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
-            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+            Arc::clone(&embedding_provider),
             Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
         ));
 
@@ -631,7 +655,7 @@ impl AppState {
                 SOTAQueryConfig::default(),
                 Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
                 Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
-                Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+                Arc::clone(&embedding_provider),
                 Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
             )
             .with_reranker(reranker),
@@ -650,8 +674,7 @@ impl AppState {
             graph_storage: Arc::clone(&graph_storage)
                 as Arc<dyn edgequake_storage::traits::GraphStorage>,
             llm_provider: Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
-            embedding_provider: Arc::clone(&llm_provider)
-                as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+            embedding_provider: Arc::clone(&embedding_provider),
             query_engine,
             sota_engine,
             pipeline,
