@@ -14,9 +14,15 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { RefreshCw, Server, Database, AlertTriangle, Copy, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { SERVER_BASE_URL } from '@/lib/api/client';
 import type { ProviderStatusResponse, ConnectionStatus } from '@/types/provider';
 
 const REFRESH_INTERVAL_MS = 30000; // 30 seconds
+
+// Get API base URL - defaults to http://localhost:8080 in development
+const getApiUrl = () => {
+  return SERVER_BASE_URL || 'http://localhost:8080';
+};
 
 export function ProviderStatusCard() {
   const [status, setStatus] = useState<ProviderStatusResponse | null>(null);
@@ -26,7 +32,8 @@ export function ProviderStatusCard() {
 
   const fetchStatus = async () => {
     try {
-      const response = await fetch('/api/v1/settings/provider/status');
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/api/v1/settings/provider/status`);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
