@@ -57,6 +57,7 @@
 
 pub mod cache;
 pub mod error;
+pub mod factory;
 pub mod providers;
 pub mod rate_limiter;
 pub mod reranker;
@@ -65,9 +66,11 @@ pub mod traits;
 
 pub use cache::{CacheConfig, CacheStats, CachedProvider, LLMCache};
 pub use error::{LlmError, Result};
+pub use factory::{ProviderFactory, ProviderType};
 pub use providers::azure_openai::AzureOpenAIProvider;
 pub use providers::gemini::GeminiProvider;
 pub use providers::jina::JinaProvider;
+pub use providers::mock::MockProvider;
 pub use providers::ollama::OllamaProvider;
 pub use providers::openai::OpenAIProvider;
 pub use rate_limiter::{RateLimitedProvider, RateLimiter, RateLimiterConfig};
@@ -77,5 +80,3 @@ pub use reranker::{
 };
 pub use tokenizer::Tokenizer;
 pub use traits::{EmbeddingProvider, LLMProvider, LLMResponse};
-
-pub use providers::mock::MockProvider;
