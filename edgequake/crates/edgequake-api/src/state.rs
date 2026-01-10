@@ -77,7 +77,6 @@ use edgequake_auth::{AuthConfig, JwtService, PasswordService, RbacService};
 use edgequake_core::{
     ConversationService, InMemoryConversationService, InMemoryWorkspaceService, WorkspaceService,
 };
-use edgequake_llm::OpenAIProvider;
 use edgequake_pipeline::Pipeline;
 use edgequake_query::{QueryEngine, QueryEngineConfig, SOTAQueryConfig, SOTAQueryEngine};
 use edgequake_rate_limiter::{RateLimitConfig as TokenBucketConfig, RateLimiter};
@@ -308,11 +307,37 @@ impl AppState {
     }
 
     /// Create a new application state with memory storage.
-    pub fn new_memory(llm_api_key: impl Into<String>) -> Self {
+    ///
+    /// # Arguments
+    ///
+    /// * `llm_api_key` - Optional API key override. If provided, sets OPENAI_API_KEY
+    ///   environment variable. Otherwise uses ProviderFactory auto-detection.
+    ///
+    /// # Provider Selection
+    ///
+    /// Uses ProviderFactory::from_env() which auto-detects based on:
+    /// 1. EDGEQUAKE_LLM_PROVIDER environment variable
+    /// 2. OLLAMA_HOST or OLLAMA_MODEL (selects Ollama)
+    /// 3. OPENAI_API_KEY (selects OpenAI)
+    /// 4. Fallback to Mock provider
+    pub fn new_memory(llm_api_key: Option<impl Into<String>>) -> Self {
+        use edgequake_llm::ProviderFactory;
+
+        // If API key provided, set it in environment for factory to use
+        if let Some(key) = llm_api_key {
+            std::env::set_var("OPENAI_API_KEY", key.into());
+        }
+
+        // Use ProviderFactory for auto-detection
+        let (llm_provider, embedding_provider) = ProviderFactory::from_env()
+            .expect("Failed to create LLM provider from environment");
+
+        // Get embedding dimension from provider for vector storage
+        let embedding_dim = embedding_provider.dimension();
+
         let kv_storage = Arc::new(MemoryKVStorage::new("default"));
-        let vector_storage = Arc::new(MemoryVectorStorage::new("default", 1536));
+        let vector_storage = Arc::new(MemoryVectorStorage::new("default", embedding_dim));
         let graph_storage = Arc::new(MemoryGraphStorage::new("default"));
-        let llm_provider = Arc::new(OpenAIProvider::new(llm_api_key));
 
         // Create workspace service with default tenant
         let workspace_service: SharedWorkspaceService = Arc::new(InMemoryWorkspaceService::new());
@@ -323,15 +348,11 @@ impl AppState {
 
         // Create pipeline with LLM and embedding providers configured
         use edgequake_pipeline::LLMExtractor;
-        let extractor = Arc::new(LLMExtractor::new(
-            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>
-        ));
+        let extractor = Arc::new(LLMExtractor::new(Arc::clone(&llm_provider)));
         let pipeline = Arc::new(
             Pipeline::default_pipeline()
                 .with_extractor(extractor)
-                .with_embedding_provider(
-                    Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>
-                ),
+                .with_embedding_provider(Arc::clone(&embedding_provider)),
         );
 
         // Create task infrastructure
@@ -343,8 +364,8 @@ impl AppState {
             QueryEngineConfig::default(),
             Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
             Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
-            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
-            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+            Arc::clone(&embedding_provider),
+            Arc::clone(&llm_provider),
         ));
 
         // Create SOTA query engine with LightRAG-style enhancements
@@ -354,8 +375,8 @@ impl AppState {
                 SOTAQueryConfig::default(),
                 Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
                 Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
-                Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
-                Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+                Arc::clone(&embedding_provider),
+                Arc::clone(&llm_provider),
             )
             .with_reranker(reranker),
         );
@@ -372,9 +393,8 @@ impl AppState {
                 as Arc<dyn edgequake_storage::traits::VectorStorage>,
             graph_storage: Arc::clone(&graph_storage)
                 as Arc<dyn edgequake_storage::traits::GraphStorage>,
-            llm_provider: Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
-            embedding_provider: Arc::clone(&llm_provider)
-                as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+            llm_provider: Arc::clone(&llm_provider),
+            embedding_provider: Arc::clone(&embedding_provider),
             query_engine,
             sota_engine,
             pipeline,
