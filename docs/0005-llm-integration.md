@@ -795,6 +795,249 @@ async fn test_with_mock() {
 
 ---
 
+## Dimension Compatibility and Migration
+
+> **NEW**: As of OODA Loop #4 (v2.2.0), EdgeQuake validates embedding dimensions to prevent silent data corruption when switching providers.
+
+### Understanding Embedding Dimensions
+
+Different embedding models produce vectors of different dimensions:
+
+| Provider  | Model                      | Dimension | Notes                         |
+| --------- | -------------------------- | --------- | ----------------------------- |
+| OpenAI    | text-embedding-3-small     | 1536      | Production standard           |
+| Ollama    | embeddinggemma:latest      | 768       | **Different from OpenAI!**    |
+| Ollama    | nomic-embed-text           | 768       | Legacy model                  |
+| Mock      | Synthetic vectors          | 1536      | Compatible with OpenAI format |
+| LM Studio | text-embedding-ada-002     | 1536      | Varies by model               |
+
+**Critical:** Vectors of different dimensions are **not compatible** with each other. Attempting to query 768-dimensional vectors using a 1536-dimensional provider will produce incorrect results.
+
+### Automatic Dimension Validation (NEW)
+
+EdgeQuake now automatically detects dimension mismatches when using PostgreSQL storage:
+
+```bash
+# Example: Switching from OpenAI to Ollama
+export OLLAMA_HOST="http://localhost:11434"
+unset OPENAI_API_KEY
+cargo run
+```
+
+**Error Output:**
+
+```
+❌ Dimension mismatch detected
+
+PostgreSQL storage contains vectors with 1536 dimensions,
+but provider 'ollama' expects 768 dimensions.
+
+This mismatch will cause incorrect similarity search results.
+
+Recovery Options:
+
+1. Switch back to previous provider:
+   - If you used OpenAI before: export OPENAI_API_KEY=sk-...
+   - If you used Ollama before: export OLLAMA_HOST=http://localhost:11434
+
+2. Clear existing vectors (⚠️ DESTRUCTIVE):
+   psql postgresql://... -c 'TRUNCATE TABLE eq_default_vectors;'
+
+3. Rebuild vectors with new provider:
+   cargo run --bin edgequake -- rebuild-vectors
+
+Current configuration:
+- Storage dimension: 1536 (from existing vectors)
+- Provider dimension: 768 (from ollama)
+- Namespace: default
+```
+
+### Recovery Options Explained
+
+#### Option 1: Switch Back to Previous Provider (Safest)
+
+If you accidentally switched providers, just switch back:
+
+```bash
+# If you were using OpenAI (1536 dimensions)
+export OPENAI_API_KEY="sk-your-original-key"
+unset OLLAMA_HOST
+cargo run
+# ✅ No data loss - vectors still compatible
+
+# If you were using Ollama (768 dimensions)
+export OLLAMA_HOST="http://localhost:11434"
+unset OPENAI_API_KEY
+cargo run
+# ✅ No data loss - vectors still compatible
+```
+
+#### Option 2: Clear Storage (⚠️ Destructive)
+
+If you intentionally want to switch providers and don't need old vectors:
+
+```bash
+# PostgreSQL storage
+psql $DATABASE_URL -c 'TRUNCATE TABLE eq_default_vectors CASCADE;'
+
+# Then restart with new provider
+export OLLAMA_HOST="http://localhost:11434"
+cargo run
+# ⚠️ All vectors deleted - need to re-ingest documents
+```
+
+**For in-memory storage:** Just restart EdgeQuake - memory clears automatically.
+
+#### Option 3: Rebuild Vectors (Recommended for Production)
+
+Re-process your documents with the new provider:
+
+```bash
+# Step 1: Export document metadata (if needed)
+psql $DATABASE_URL -c "COPY (SELECT id, metadata FROM eq_default_vectors) TO '/tmp/documents.csv' CSV HEADER;"
+
+# Step 2: Clear old vectors
+psql $DATABASE_URL -c 'TRUNCATE TABLE eq_default_vectors CASCADE;'
+
+# Step 3: Configure new provider
+export OLLAMA_HOST="http://localhost:11434"
+
+# Step 4: Re-ingest documents
+cargo run --bin edgequake -- rebuild-vectors \
+  --input-dir ./documents \
+  --provider ollama
+
+# Logs will show:
+# Using vector dimension 768 from ollama provider
+# Vector storage initialized
+# Vector storage validated successfully
+```
+
+### Dimension Logging
+
+EdgeQuake now logs dimension configuration on startup to help debug issues:
+
+```bash
+# Run with info logging
+RUST_LOG=info cargo run
+```
+
+**Log Output:**
+
+```
+INFO edgequake_api: Vector storage initialized provider="ollama" dimension=768 storage_type="postgres" namespace="default"
+INFO edgequake_api: Vector storage validated successfully provider="ollama" dimension=768 storage_type="postgres" namespace="default" vector_count=0
+```
+
+**Key Fields:**
+- `provider`: LLM provider name (`openai`, `ollama`, `lmstudio`, `mock`)
+- `dimension`: Embedding dimension (768 or 1536 typically)
+- `storage_type`: Storage backend (`memory` or `postgres`)
+- `namespace`: Vector storage namespace (default: `"default"`)
+- `vector_count`: Number of existing vectors (PostgreSQL only)
+
+### Best Practices for Provider Switching
+
+#### 1. Plan Dimension Changes
+
+**Before switching providers:**
+
+```bash
+# Check current storage dimension
+psql $DATABASE_URL -c "SELECT array_length(embedding, 1) as dimension FROM eq_default_vectors LIMIT 1;"
+
+# Check new provider dimension
+export RUST_LOG=edgequake_llm=debug
+cargo run 2>&1 | grep "dimension"
+```
+
+#### 2. Use Consistent Providers per Environment
+
+```bash
+# Development: Always use Ollama (768 dim)
+export OLLAMA_HOST="http://localhost:11434"
+
+# Staging: Always use OpenAI (1536 dim)
+export OPENAI_API_KEY="sk-staging-..."
+
+# Production: Always use OpenAI (1536 dim)
+export OPENAI_API_KEY="sk-prod-..."
+```
+
+#### 3. Test Provider Switches in Staging
+
+```bash
+# In staging environment
+# Step 1: Backup PostgreSQL
+pg_dump $DATABASE_URL > backup.sql
+
+# Step 2: Test provider switch
+export OLLAMA_HOST="http://localhost:11434"
+psql $DATABASE_URL -c 'TRUNCATE TABLE eq_default_vectors CASCADE;'
+cargo run
+
+# Step 3: Verify functionality
+curl http://localhost:3000/api/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "test query"}'
+
+# Step 4: Restore if needed
+psql $DATABASE_URL < backup.sql
+```
+
+#### 4. Document Provider Configuration
+
+Create a `DEPLOYMENT.md` in your project:
+
+```markdown
+# EdgeQuake Deployment Configuration
+
+## Current Provider Configuration
+
+- **Production**: OpenAI (1536 dimensions)
+  - Model: gpt-4o-mini
+  - Embedding: text-embedding-3-small
+  - API Key: Stored in AWS Secrets Manager
+
+- **Staging**: OpenAI (1536 dimensions)
+  - Same as production (dimension compatibility)
+
+- **Development**: Ollama (768 dimensions)
+  - Model: gemma3:12b
+  - Embedding: embeddinggemma:latest
+  - Local only (no API costs)
+
+## Switching Provider Checklist
+
+- [ ] Check storage dimension compatibility
+- [ ] Backup PostgreSQL database
+- [ ] Update environment variables
+- [ ] Clear or rebuild vectors
+- [ ] Test query functionality
+- [ ] Monitor dimension logs
+- [ ] Update this document
+```
+
+### In-Memory Storage Behavior
+
+In-memory storage (MemoryVectorStorage) **does not persist** dimension mismatches:
+
+```bash
+# Scenario 1: Start with OpenAI
+export OPENAI_API_KEY="sk-..."
+cargo run
+# Storage created with 1536 dimensions
+
+# Scenario 2: Restart with Ollama
+export OLLAMA_HOST="http://localhost:11434"
+cargo run
+# ✅ No error! Storage recreated with 768 dimensions (memory is empty)
+```
+
+**Key Difference:** Memory storage clears on restart, so dimension mismatches only occur with PostgreSQL (persistent storage).
+
+---
+
 ## Troubleshooting
 
 | Problem                           | Cause                      | Solution                                                              |

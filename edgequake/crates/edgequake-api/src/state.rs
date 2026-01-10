@@ -142,7 +142,6 @@ use edgequake_core::WorkspaceServiceImpl;
 #[cfg(feature = "postgres")]
 use edgequake_storage::{
     GraphStorage, KVStorage, PgVectorStorage, PostgresAGEGraphStorage, PostgresKVStorage,
-    VectorStorage,
 };
 #[cfg(feature = "postgres")]
 use sqlx::PgPool;
@@ -338,6 +337,15 @@ impl AppState {
         let kv_storage = Arc::new(MemoryKVStorage::new("default"));
         let vector_storage = Arc::new(MemoryVectorStorage::new("default", embedding_dim));
         let graph_storage = Arc::new(MemoryGraphStorage::new("default"));
+
+        // Log provider and dimension configuration for debugging
+        tracing::info!(
+            provider = embedding_provider.name(),
+            dimension = embedding_dim,
+            storage_type = "memory",
+            namespace = "default",
+            "Vector storage initialized"
+        );
 
         // Create workspace service with default tenant
         let workspace_service: SharedWorkspaceService = Arc::new(InMemoryWorkspaceService::new());
@@ -614,6 +622,61 @@ impl AppState {
         graph_storage.initialize().await?;
 
         tracing::info!("PostgreSQL storage backends initialized successfully");
+
+        // Validate dimension compatibility for existing storage
+        use edgequake_storage::traits::VectorStorage;
+        if !vector_storage.is_empty().await? {
+            let storage_dim = vector_storage.dimension();
+            let provider_dim = embedding_provider.dimension();
+            
+            if storage_dim != provider_dim {
+                let namespace = vector_storage.namespace();
+                return Err(format!(
+                    "❌ Dimension mismatch detected\n\
+                     \n\
+                     PostgreSQL storage contains vectors with {} dimensions,\n\
+                     but provider '{}' expects {} dimensions.\n\
+                     \n\
+                     This mismatch will cause incorrect similarity search results.\n\
+                     \n\
+                     Recovery Options:\n\
+                     \n\
+                     1. Switch back to previous provider:\n\
+                        - If you used OpenAI before: export OPENAI_API_KEY=sk-...\n\
+                        - If you used Ollama before: export OLLAMA_HOST=http://localhost:11434\n\
+                     \n\
+                     2. Clear existing vectors (⚠️ DESTRUCTIVE):\n\
+                        psql {} -c 'TRUNCATE TABLE {}_vectors;'\n\
+                     \n\
+                     3. Rebuild vectors with new provider:\n\
+                        cargo run --bin edgequake -- rebuild-vectors\n\
+                     \n\
+                     Current configuration:\n\
+                     - Storage dimension: {} (from existing vectors)\n\
+                     - Provider dimension: {} (from {})\n\
+                     - Namespace: {}\n\
+                     ",
+                    storage_dim,
+                    embedding_provider.name(),
+                    provider_dim,
+                    database_url,
+                    namespace,
+                    storage_dim,
+                    provider_dim,
+                    embedding_provider.name(),
+                    namespace
+                ).into());
+            }
+        }
+
+        // Log provider and dimension configuration for debugging
+        tracing::info!(
+            provider = embedding_provider.name(),
+            dimension = embedding_provider.dimension(),
+            storage_type = "postgres",
+            namespace = "default",
+            "Vector storage validated successfully"
+        );
 
         // Create workspace service for full persistence
         let workspace_service_impl = WorkspaceServiceImpl::new(pool.clone());
