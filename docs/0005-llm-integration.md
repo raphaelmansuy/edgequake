@@ -795,6 +795,121 @@ async fn test_with_mock() {
 
 ---
 
+## Provider Status Visibility
+
+> **NEW**: As of OODA Loop #5 (v2.3.0), EdgeQuake WebUI displays real-time provider status in the Settings page.
+
+### Viewing Current Provider Configuration
+
+Navigate to **Settings** → **LLM Provider** section to view:
+
+- **Current Provider:** Which LLM provider is active (OpenAI, Ollama, LM Studio, Mock)
+- **Connection Status:** Real-time provider availability (✅ Connected, ❌ Disconnected)
+- **Model Information:** LLM model and embedding model names
+- **Embedding Dimension:** Current provider dimension (768, 1536, etc.)
+- **Storage Dimension:** Vector storage dimension
+- **Dimension Match Status:** Whether storage and provider dimensions align
+
+![Provider Status Card](images/provider-status-card.png)
+
+### Provider Status Indicators
+
+| Status              | Meaning                           | Action Required                             |
+| ------------------- | --------------------------------- | ------------------------------------------- |
+| ✅ **Connected**    | Provider is responsive            | None - system working correctly             |
+| ⏳ **Connecting...** | Checking provider status          | Wait for status check to complete           |
+| ❌ **Disconnected** | Provider not reachable            | Check provider service is running           |
+| ⚠️ **Error**        | Configuration issue               | Review environment variables                |
+| ⚠️ **Dimension Mismatch** | Storage/provider dimensions differ | See [Dimension Compatibility](#dimension-compatibility-and-migration) |
+
+### Dimension Mismatch Warning
+
+If the provider dimension doesn't match storage dimension, a warning banner appears:
+
+```
+⚠️ Dimension Mismatch Detected
+
+Storage dimension (1536) doesn't match provider dimension (768).
+Queries may return incorrect results.
+```
+
+**Recovery:** See [Dimension Compatibility and Migration](#dimension-compatibility-and-migration) section below for recovery options.
+
+### Configuration Instructions
+
+The Settings page provides copy-pasteable `.env` configuration for each provider:
+
+**OpenAI:**
+
+```bash
+export OPENAI_API_KEY="sk-proj-..."
+export EDGEQUAKE_LLM_MODEL="gpt-4o-mini"
+export EDGEQUAKE_EMBEDDING_MODEL="text-embedding-3-small"
+```
+
+**Ollama:**
+
+```bash
+export OLLAMA_HOST="http://localhost:11434"
+export OLLAMA_MODEL="gemma3:12b"
+export OLLAMA_EMBEDDING_MODEL="embeddinggemma:latest"
+```
+
+**LM Studio:**
+
+```bash
+export EDGEQUAKE_LLM_PROVIDER="lmstudio"
+export OPENAI_BASE_URL="http://localhost:1234/v1"
+export OPENAI_API_KEY="lm-studio"
+```
+
+### Auto-Refresh
+
+Provider status automatically refreshes every 30 seconds. To manually refresh:
+
+1. Click the **🔄 Refresh Status** button in the Provider card
+2. Status updates within 1-2 seconds
+
+### API Endpoint
+
+**For developers:** Provider status is available via REST API:
+
+```bash
+curl http://localhost:3000/api/v1/settings/provider/status
+```
+
+**Response:**
+
+```json
+{
+  "provider": {
+    "name": "ollama",
+    "type": "llm",
+    "status": "connected",
+    "model": "gemma3:12b"
+  },
+  "embedding": {
+    "name": "ollama",
+    "type": "embedding",
+    "status": "connected",
+    "model": "embeddinggemma:latest",
+    "dimension": 768
+  },
+  "storage": {
+    "type": "postgres",
+    "dimension": 768,
+    "dimension_mismatch": false,
+    "namespace": "default"
+  },
+  "metadata": {
+    "checked_at": "2025-01-10T15:30:00Z",
+    "uptime_seconds": 3600
+  }
+}
+```
+
+---
+
 ## Dimension Compatibility and Migration
 
 > **NEW**: As of OODA Loop #4 (v2.2.0), EdgeQuake validates embedding dimensions to prevent silent data corruption when switching providers.
@@ -803,13 +918,13 @@ async fn test_with_mock() {
 
 Different embedding models produce vectors of different dimensions:
 
-| Provider  | Model                      | Dimension | Notes                         |
-| --------- | -------------------------- | --------- | ----------------------------- |
-| OpenAI    | text-embedding-3-small     | 1536      | Production standard           |
-| Ollama    | embeddinggemma:latest      | 768       | **Different from OpenAI!**    |
-| Ollama    | nomic-embed-text           | 768       | Legacy model                  |
-| Mock      | Synthetic vectors          | 1536      | Compatible with OpenAI format |
-| LM Studio | text-embedding-ada-002     | 1536      | Varies by model               |
+| Provider  | Model                  | Dimension | Notes                         |
+| --------- | ---------------------- | --------- | ----------------------------- |
+| OpenAI    | text-embedding-3-small | 1536      | Production standard           |
+| Ollama    | embeddinggemma:latest  | 768       | **Different from OpenAI!**    |
+| Ollama    | nomic-embed-text       | 768       | Legacy model                  |
+| Mock      | Synthetic vectors      | 1536      | Compatible with OpenAI format |
+| LM Studio | text-embedding-ada-002 | 1536      | Varies by model               |
 
 **Critical:** Vectors of different dimensions are **not compatible** with each other. Attempting to query 768-dimensional vectors using a 1536-dimensional provider will produce incorrect results.
 
@@ -930,6 +1045,7 @@ INFO edgequake_api: Vector storage validated successfully provider="ollama" dime
 ```
 
 **Key Fields:**
+
 - `provider`: LLM provider name (`openai`, `ollama`, `lmstudio`, `mock`)
 - `dimension`: Embedding dimension (768 or 1536 typically)
 - `storage_type`: Storage backend (`memory` or `postgres`)
@@ -995,11 +1111,13 @@ Create a `DEPLOYMENT.md` in your project:
 ## Current Provider Configuration
 
 - **Production**: OpenAI (1536 dimensions)
+
   - Model: gpt-4o-mini
   - Embedding: text-embedding-3-small
   - API Key: Stored in AWS Secrets Manager
 
 - **Staging**: OpenAI (1536 dimensions)
+
   - Same as production (dimension compatibility)
 
 - **Development**: Ollama (768 dimensions)
