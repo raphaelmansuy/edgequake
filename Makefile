@@ -125,9 +125,10 @@ install: check-deps ## Install all project dependencies
 # Development
 # ============================================================================
 
-dev: check-deps ## Start full development stack (DB + Backend + Frontend)
+dev: check-deps ## Start full development stack (DB + Backend + Frontend) with Ollama
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🚀 Starting EdgeQuake Development Stack$(RESET)"
+	@echo "$(BOLD)$(YELLOW)📝 Using Ollama as default LLM provider$(RESET)"
 	@echo ""
 	@echo "$(YELLOW)→ Stopping any existing services...$(RESET)"
 	@$(MAKE) stop --no-print-directory 2>/dev/null || true
@@ -140,12 +141,21 @@ dev: check-deps ## Start full development stack (DB + Backend + Frontend)
 	@echo "  $(BLUE)Backend$(RESET):  http://localhost:8080"
 	@echo "  $(BLUE)Frontend$(RESET): http://localhost:3000"
 	@echo "  $(BLUE)Swagger$(RESET):  http://localhost:8080/swagger-ui"
+	@echo "  $(BLUE)Provider$(RESET): Ollama (http://localhost:11434)"
 	@echo ""
 	@echo "$(GREEN)✓ Services starting...$(RESET)"
 	@echo "$(YELLOW)Press Ctrl+C to stop all services$(RESET)"
 	@echo ""
 	@trap 'echo ""; echo "$(YELLOW)Stopping services...$(RESET)"; $(MAKE) stop --no-print-directory; exit 0' INT; \
-	(cd $(BACKEND_DIR) && DATABASE_URL="postgresql://edgequake:edgequake_secret@localhost:5432/edgequake" cargo run 2>&1 | sed 's/^/[backend] /') & \
+	(cd $(BACKEND_DIR) && \
+		DATABASE_URL="postgresql://edgequake:edgequake_secret@localhost:5432/edgequake" \
+		LLM_PROVIDER="ollama" \
+		LLM_MODEL="qwen2.5:7b" \
+		LLM_BASE_URL="http://localhost:11434" \
+		EMBEDDING_PROVIDER="ollama" \
+		EMBEDDING_MODEL="nomic-embed-text" \
+		EMBEDDING_BASE_URL="http://localhost:11434" \
+		cargo run 2>&1 | sed 's/^/[backend] /') & \
 	BACKEND_PID=$$!; \
 	(sleep 5 && cd $(FRONTEND_DIR) && (bun run dev 2>/dev/null || npm run dev) 2>&1 | sed 's/^/[frontend] /') & \
 	FRONTEND_PID=$$!; \
@@ -172,9 +182,10 @@ dev-memory: check-deps ## Start development with in-memory storage (for testing)
 	echo "$(GREEN)✓ Backend PID: $$BACKEND_PID, Frontend PID: $$FRONTEND_PID$(RESET)"; \
 	wait
 
-dev-bg: check-deps ## Start full development stack in BACKGROUND (agentic mode)
+dev-bg: check-deps ## Start full development stack in BACKGROUND (agentic mode) with Ollama
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🤖 Starting EdgeQuake in Background Mode (Agentic)$(RESET)"
+	@echo "$(BOLD)$(YELLOW)📝 Using Ollama as default LLM provider$(RESET)"
 	@echo ""
 	@$(MAKE) stop --no-print-directory 2>/dev/null || true
 	@sleep 1
@@ -187,7 +198,15 @@ dev-bg: check-deps ## Start full development stack in BACKGROUND (agentic mode)
 	done
 	@echo ""
 	@echo "$(YELLOW)→ Starting backend in background...$(RESET)"
-	@cd $(BACKEND_DIR) && DATABASE_URL="$(DATABASE_URL)" nohup cargo run > /tmp/edgequake-backend.log 2>&1 &
+	@cd $(BACKEND_DIR) && \
+		DATABASE_URL="$(DATABASE_URL)" \
+		LLM_PROVIDER="ollama" \
+		LLM_MODEL="qwen2.5:7b" \
+		LLM_BASE_URL="http://localhost:11434" \
+		EMBEDDING_PROVIDER="ollama" \
+		EMBEDDING_MODEL="nomic-embed-text" \
+		EMBEDDING_BASE_URL="http://localhost:11434" \
+		nohup cargo run > /tmp/edgequake-backend.log 2>&1 &
 	@echo "$(GREEN)✓ Backend starting (log: /tmp/edgequake-backend.log)$(RESET)"
 	@echo ""
 	@echo "$(YELLOW)→ Waiting for backend to start...$(RESET)"
@@ -203,6 +222,7 @@ dev-bg: check-deps ## Start full development stack in BACKGROUND (agentic mode)
 	@echo "  $(BLUE)Backend$(RESET):  http://localhost:8080"
 	@echo "  $(BLUE)Frontend$(RESET): http://localhost:3000"
 	@echo "  $(BLUE)Swagger$(RESET):  http://localhost:8080/swagger-ui"
+	@echo "  $(BLUE)Provider$(RESET): Ollama (http://localhost:11434)"
 	@echo ""
 	@echo "  Use $(BOLD)make status$(RESET) to check service health"
 	@echo "  Use $(BOLD)make stop$(RESET) to stop all services"
@@ -229,21 +249,45 @@ stop: ## Stop all development services
 # Database URL for PostgreSQL mode
 DATABASE_URL := postgresql://edgequake:edgequake_secret@localhost:5432/edgequake
 
-backend-dev: db-wait ## Run backend in development mode with PostgreSQL (DEFAULT)
-	@echo "$(BLUE)Starting backend with PostgreSQL storage...$(RESET)"
-	@cd $(BACKEND_DIR) && DATABASE_URL="$(DATABASE_URL)" cargo run
+backend-dev: db-wait ## Run backend in development mode with PostgreSQL + Ollama (DEFAULT)
+	@echo "$(BLUE)Starting backend with PostgreSQL storage + Ollama...$(RESET)"
+	@cd $(BACKEND_DIR) && \
+		DATABASE_URL="$(DATABASE_URL)" \
+		LLM_PROVIDER="ollama" \
+		LLM_MODEL="qwen2.5:7b" \
+		LLM_BASE_URL="http://localhost:11434" \
+		EMBEDDING_PROVIDER="ollama" \
+		EMBEDDING_MODEL="nomic-embed-text" \
+		EMBEDDING_BASE_URL="http://localhost:11434" \
+		cargo run
 
-backend-db: db-wait ## Run backend with PostgreSQL storage (explicit)
-	@echo "$(BLUE)Starting backend with PostgreSQL storage (explicit)...$(RESET)"
-	@cd $(BACKEND_DIR) && DATABASE_URL="$(DATABASE_URL)" cargo run
+backend-db: db-wait ## Run backend with PostgreSQL storage + Ollama (explicit)
+	@echo "$(BLUE)Starting backend with PostgreSQL storage + Ollama (explicit)...$(RESET)"
+	@cd $(BACKEND_DIR) && \
+		DATABASE_URL="$(DATABASE_URL)" \
+		LLM_PROVIDER="ollama" \
+		LLM_MODEL="qwen2.5:7b" \
+		LLM_BASE_URL="http://localhost:11434" \
+		EMBEDDING_PROVIDER="ollama" \
+		EMBEDDING_MODEL="nomic-embed-text" \
+		EMBEDDING_BASE_URL="http://localhost:11434" \
+		cargo run
 
 backend-memory: ## Run backend with in-memory storage (for testing only)
 	@echo "$(YELLOW)⚠️  Starting backend with IN-MEMORY storage (data will not persist)$(RESET)"
 	@cd $(BACKEND_DIR) && cargo run
 
-backend-bg: db-wait ## Run backend in background with PostgreSQL
-	@echo "$(BLUE)Starting backend in background...$(RESET)"
-	@cd $(BACKEND_DIR) && DATABASE_URL="$(DATABASE_URL)" nohup cargo run > /tmp/edgequake-backend.log 2>&1 &
+backend-bg: db-wait ## Run backend in background with PostgreSQL + Ollama
+	@echo "$(BLUE)Starting backend in background with Ollama...$(RESET)"
+	@cd $(BACKEND_DIR) && \
+		DATABASE_URL="$(DATABASE_URL)" \
+		LLM_PROVIDER="ollama" \
+		LLM_MODEL="qwen2.5:7b" \
+		LLM_BASE_URL="http://localhost:11434" \
+		EMBEDDING_PROVIDER="ollama" \
+		EMBEDDING_MODEL="nomic-embed-text" \
+		EMBEDDING_BASE_URL="http://localhost:11434" \
+		nohup cargo run > /tmp/edgequake-backend.log 2>&1 &
 	@echo "$(GREEN)✓ Backend starting in background. Log: /tmp/edgequake-backend.log$(RESET)"
 
 backend-build: ## Build backend for release
