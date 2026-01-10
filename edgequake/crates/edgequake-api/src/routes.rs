@@ -331,6 +331,11 @@ fn api_v1_routes() -> Router<AppState> {
             "/entities/{entity_id}/provenance",
             get(handlers::get_entity_provenance),
         )
+        // Settings (Provider Status) (SPEC-032 Phase 5E)
+        .route(
+            "/settings/provider/status",
+            get(handlers::get_provider_status),
+        )
 }
 
 #[cfg(test)]
