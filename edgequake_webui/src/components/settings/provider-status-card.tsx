@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { RefreshCw, Server, Database, AlertTriangle, Copy, CheckCircle2 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import type { ProviderStatusResponse, ConnectionStatus } from '@/types/provider';
 
 const REFRESH_INTERVAL_MS = 30000; // 30 seconds
@@ -23,7 +23,6 @@ export function ProviderStatusCard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
-  const { toast } = useToast();
 
   const fetchStatus = async () => {
     try {
@@ -57,8 +56,7 @@ export function ProviderStatusCard() {
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
-    toast({
-      title: 'Copied to clipboard',
+    toast.success('Copied to clipboard', {
       description: `${label} configuration copied`,
     });
   };
