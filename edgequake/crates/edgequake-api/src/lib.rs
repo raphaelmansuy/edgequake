@@ -98,6 +98,7 @@ pub mod handlers;
 pub mod middleware;
 pub mod openapi;
 pub mod processor;
+pub mod provider_types;
 pub mod routes;
 pub mod server;
 pub mod state;

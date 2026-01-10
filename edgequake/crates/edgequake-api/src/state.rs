@@ -224,6 +224,9 @@ pub struct AppState {
     /// PostgreSQL pool (only available when using postgres feature).
     #[cfg(feature = "postgres")]
     pub pg_pool: Option<PgPool>,
+
+    /// Server start time for uptime calculation.
+    pub start_time: std::time::Instant,
 }
 
 /// Application configuration.
@@ -302,6 +305,7 @@ impl AppState {
             storage_mode: StorageMode::Memory, // Default to memory for generic constructor
             #[cfg(feature = "postgres")]
             pg_pool: None,
+            start_time: std::time::Instant::now(),
         }
     }
 
@@ -422,6 +426,7 @@ impl AppState {
             storage_mode: StorageMode::Memory,
             #[cfg(feature = "postgres")]
             pg_pool: None,
+            start_time: std::time::Instant::now(),
         }
     }
 
@@ -499,6 +504,7 @@ impl AppState {
             storage_mode: StorageMode::Memory,
             #[cfg(feature = "postgres")]
             pg_pool: None,
+            start_time: std::time::Instant::now(),
         }
     }
 
@@ -628,7 +634,7 @@ impl AppState {
         if !vector_storage.is_empty().await? {
             let storage_dim = vector_storage.dimension();
             let provider_dim = embedding_provider.dimension();
-            
+
             if storage_dim != provider_dim {
                 let namespace = vector_storage.namespace();
                 return Err(format!(
@@ -665,7 +671,8 @@ impl AppState {
                     provider_dim,
                     embedding_provider.name(),
                     namespace
-                ).into());
+                )
+                .into());
             }
         }
 
@@ -760,6 +767,7 @@ impl AppState {
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
             storage_mode: StorageMode::PostgreSQL,
             pg_pool: Some(pool),
+            start_time: std::time::Instant::now(),
         })
     }
 
