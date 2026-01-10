@@ -308,26 +308,44 @@ mod tests {
 
     #[test]
     fn test_explicit_provider_env() {
+        // Clean up first to avoid interference from other tests
+        std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+        std::env::remove_var("OLLAMA_HOST");
+        std::env::remove_var("OPENAI_API_KEY");
+        
         std::env::set_var("EDGEQUAKE_LLM_PROVIDER", "mock");
         let (llm, _) = ProviderFactory::from_env().unwrap();
         assert_eq!(llm.name(), "mock");
+        
+        // Clean up after
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
     }
 
     #[test]
     fn test_invalid_provider_env() {
+        // Clean up first to avoid interference from other tests
+        std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+        std::env::remove_var("OLLAMA_HOST");
+        std::env::remove_var("OPENAI_API_KEY");
+        
         std::env::set_var("EDGEQUAKE_LLM_PROVIDER", "invalid_provider");
         let result = ProviderFactory::from_env();
         assert!(result.is_err());
         if let Err(e) = result {
             assert!(e.to_string().contains("Unknown provider type"));
         }
+        
+        // Clean up after
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
     }
 
     #[test]
     fn test_openai_creation_requires_api_key() {
+        // Clean up first to avoid interference from other tests
         std::env::remove_var("OPENAI_API_KEY");
+        std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+        std::env::remove_var("OLLAMA_HOST");
+        
         let result = ProviderFactory::create(ProviderType::OpenAI);
         assert!(result.is_err());
         if let Err(e) = result {
@@ -337,9 +355,16 @@ mod tests {
 
     #[test]
     fn test_embedding_dimension_detection() {
+        // Clean up first to avoid interference from other tests
+        std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+        std::env::remove_var("OLLAMA_HOST");
+        std::env::remove_var("OPENAI_API_KEY");
+        
         std::env::set_var("EDGEQUAKE_LLM_PROVIDER", "mock");
         let dim = ProviderFactory::embedding_dimension().unwrap();
         assert_eq!(dim, 1536);
+        
+        // Clean up after
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
     }
 }
