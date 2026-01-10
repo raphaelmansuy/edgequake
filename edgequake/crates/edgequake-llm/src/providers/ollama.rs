@@ -7,7 +7,7 @@
 //! # Default Configuration
 //!
 //! - Base URL: `http://localhost:11434`
-//! - Default model: `llama3` (chat), `nomic-embed-text` (embeddings)
+//! - Default model: `gemma3:12b` (chat), `embeddinggemma:latest` (embeddings, 768 dimensions)
 //!
 //! # Environment Variables
 //!
@@ -46,10 +46,10 @@ use crate::traits::{
 const DEFAULT_OLLAMA_HOST: &str = "http://localhost:11434";
 
 /// Default Ollama chat model
-const DEFAULT_OLLAMA_MODEL: &str = "llama3";
+const DEFAULT_OLLAMA_MODEL: &str = "gemma3:12b";
 
 /// Default Ollama embedding model
-const DEFAULT_OLLAMA_EMBEDDING_MODEL: &str = "nomic-embed-text";
+const DEFAULT_OLLAMA_EMBEDDING_MODEL: &str = "embeddinggemma:latest";
 
 /// Ollama LLM and embedding provider.
 ///
@@ -82,7 +82,7 @@ impl Default for OllamaProviderBuilder {
             model: DEFAULT_OLLAMA_MODEL.to_string(),
             embedding_model: DEFAULT_OLLAMA_EMBEDDING_MODEL.to_string(),
             max_context_length: 8192,
-            embedding_dimension: 768, // nomic-embed-text default
+            embedding_dimension: 768, // embeddinggemma:latest default (VERIFIED via Ollama API)
         }
     }
 }
@@ -519,8 +519,8 @@ mod tests {
         let provider = OllamaProviderBuilder::new().build().unwrap();
 
         assert_eq!(LLMProvider::name(&provider), "ollama");
-        assert_eq!(LLMProvider::model(&provider), "llama3");
-        assert_eq!(EmbeddingProvider::model(&provider), "nomic-embed-text");
+        assert_eq!(LLMProvider::model(&provider), "gemma3:12b");
+        assert_eq!(EmbeddingProvider::model(&provider), "embeddinggemma:latest");
         assert_eq!(provider.max_context_length(), 8192);
     }
 
