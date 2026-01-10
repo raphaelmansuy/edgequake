@@ -201,7 +201,7 @@ dev-bg: check-deps ## Start full development stack in BACKGROUND (agentic mode) 
 		DATABASE_URL="$(DATABASE_URL)" \
 		EDGEQUAKE_LLM_PROVIDER="ollama" \
 		OLLAMA_HOST="http://localhost:11434" \
-		OLLAMA_MODEL="qwen2.5:7b" \
+		OLLAMA_MODEL="gemma3:latest" \
 		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
 		OPENAI_API_KEY="" \
 		nohup cargo run > /tmp/edgequake-backend.log 2>&1 &
