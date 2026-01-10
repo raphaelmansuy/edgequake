@@ -29,3 +29,4 @@ unicode-normalization = "0.1"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }
+serial_test = "3.2"

@@ -329,8 +329,8 @@ impl AppState {
         }
 
         // Use ProviderFactory for auto-detection
-        let (llm_provider, embedding_provider) = ProviderFactory::from_env()
-            .expect("Failed to create LLM provider from environment");
+        let (llm_provider, embedding_provider) =
+            ProviderFactory::from_env().expect("Failed to create LLM provider from environment");
 
         // Get embedding dimension from provider for vector storage
         let embedding_dim = embedding_provider.dimension();
@@ -512,18 +512,18 @@ impl AppState {
         llm_api_key: impl Into<String>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         use edgequake_llm::ProviderFactory;
-        
+
         let database_url = database_url.into();
         let llm_api_key = llm_api_key.into();
-        
+
         // Set OPENAI_API_KEY for backward compatibility (factory will use it if OpenAI selected)
         if !llm_api_key.is_empty() {
             std::env::set_var("OPENAI_API_KEY", &llm_api_key);
         }
-        
+
         // Create providers via factory (auto-detects from environment)
-        let (llm_provider, embedding_provider) = ProviderFactory::from_env()
-            .expect("Failed to create LLM provider from environment");
+        let (llm_provider, embedding_provider) =
+            ProviderFactory::from_env().expect("Failed to create LLM provider from environment");
 
         // Parse database URL to create PostgreSQL configuration
         // Format: postgresql://username:password@host:port/database
@@ -594,14 +594,18 @@ impl AppState {
 
         // Auto-configure vector dimension from embedding provider
         let embedding_dim = embedding_provider.dimension();
-        tracing::info!("Using vector dimension {} from {} provider", 
-            embedding_dim, 
+        tracing::info!(
+            "Using vector dimension {} from {} provider",
+            embedding_dim,
             std::env::var("EDGEQUAKE_LLM_PROVIDER").unwrap_or_else(|_| "auto-detected".to_string())
         );
 
         // Create PostgreSQL-backed storages
         let kv_storage = Arc::new(PostgresKVStorage::new(pg_config.clone()));
-        let vector_storage = Arc::new(PgVectorStorage::with_dimension(pg_config.clone(), embedding_dim));
+        let vector_storage = Arc::new(PgVectorStorage::with_dimension(
+            pg_config.clone(),
+            embedding_dim,
+        ));
         let graph_storage = Arc::new(PostgresAGEGraphStorage::new(pg_config.clone()));
 
         // Initialize storage backends to establish connections

@@ -198,11 +198,10 @@ impl ProviderFactory {
     /// - `LMSTUDIO_EMBEDDING_MODEL`: Embedding model (default: text-embedding-ada-002)
     /// - `LMSTUDIO_EMBEDDING_DIM`: Embedding dimension (default: 1536)
     fn create_lmstudio() -> Result<(Arc<dyn LLMProvider>, Arc<dyn EmbeddingProvider>)> {
-        let host = std::env::var("LMSTUDIO_HOST")
-            .unwrap_or_else(|_| "http://localhost:1234".to_string());
+        let host =
+            std::env::var("LMSTUDIO_HOST").unwrap_or_else(|_| "http://localhost:1234".to_string());
 
-        let model =
-            std::env::var("LMSTUDIO_MODEL").unwrap_or_else(|_| "gemma2-9b-it".to_string());
+        let model = std::env::var("LMSTUDIO_MODEL").unwrap_or_else(|_| "gemma2-9b-it".to_string());
 
         let embedding_model = std::env::var("LMSTUDIO_EMBEDDING_MODEL")
             .unwrap_or_else(|_| "text-embedding-ada-002".to_string());
@@ -254,14 +253,8 @@ mod tests {
 
     #[test]
     fn test_provider_type_parsing() {
-        assert_eq!(
-            ProviderType::from_str("openai"),
-            Some(ProviderType::OpenAI)
-        );
-        assert_eq!(
-            ProviderType::from_str("OLLAMA"),
-            Some(ProviderType::Ollama)
-        );
+        assert_eq!(ProviderType::from_str("openai"), Some(ProviderType::OpenAI));
+        assert_eq!(ProviderType::from_str("OLLAMA"), Some(ProviderType::Ollama));
         assert_eq!(
             ProviderType::from_str("lmstudio"),
             Some(ProviderType::LMStudio)
@@ -312,11 +305,11 @@ mod tests {
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
         std::env::remove_var("OLLAMA_HOST");
         std::env::remove_var("OPENAI_API_KEY");
-        
+
         std::env::set_var("EDGEQUAKE_LLM_PROVIDER", "mock");
         let (llm, _) = ProviderFactory::from_env().unwrap();
         assert_eq!(llm.name(), "mock");
-        
+
         // Clean up after
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
     }
@@ -327,14 +320,14 @@ mod tests {
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
         std::env::remove_var("OLLAMA_HOST");
         std::env::remove_var("OPENAI_API_KEY");
-        
+
         std::env::set_var("EDGEQUAKE_LLM_PROVIDER", "invalid_provider");
         let result = ProviderFactory::from_env();
         assert!(result.is_err());
         if let Err(e) = result {
             assert!(e.to_string().contains("Unknown provider type"));
         }
-        
+
         // Clean up after
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
     }
@@ -345,7 +338,7 @@ mod tests {
         std::env::remove_var("OPENAI_API_KEY");
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
         std::env::remove_var("OLLAMA_HOST");
-        
+
         let result = ProviderFactory::create(ProviderType::OpenAI);
         assert!(result.is_err());
         if let Err(e) = result {
@@ -359,11 +352,11 @@ mod tests {
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
         std::env::remove_var("OLLAMA_HOST");
         std::env::remove_var("OPENAI_API_KEY");
-        
+
         std::env::set_var("EDGEQUAKE_LLM_PROVIDER", "mock");
         let dim = ProviderFactory::embedding_dimension().unwrap();
         assert_eq!(dim, 1536);
-        
+
         // Clean up after
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
     }
