@@ -7,15 +7,15 @@
  * @iteration OODA Loop #5 - Phase 5E.6
  */
 
-import { useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { RefreshCw, Server, Database, AlertTriangle, Copy, CheckCircle2 } from 'lucide-react';
-import { toast } from 'sonner';
 import { SERVER_BASE_URL } from '@/lib/api/client';
-import type { ProviderStatusResponse, ConnectionStatus } from '@/types/provider';
+import type { ConnectionStatus, ProviderStatusResponse } from '@/types/provider';
+import { AlertTriangle, Copy, Database, RefreshCw, Server } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 
 const REFRESH_INTERVAL_MS = 30000; // 30 seconds
 

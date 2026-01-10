@@ -149,12 +149,11 @@ dev: check-deps ## Start full development stack (DB + Backend + Frontend) with O
 	@trap 'echo ""; echo "$(YELLOW)Stopping services...$(RESET)"; $(MAKE) stop --no-print-directory; exit 0' INT; \
 	(cd $(BACKEND_DIR) && \
 		DATABASE_URL="postgresql://edgequake:edgequake_secret@localhost:5432/edgequake" \
-		LLM_PROVIDER="ollama" \
-		LLM_MODEL="qwen2.5:7b" \
-		LLM_BASE_URL="http://localhost:11434" \
-		EMBEDDING_PROVIDER="ollama" \
-		EMBEDDING_MODEL="nomic-embed-text" \
-		EMBEDDING_BASE_URL="http://localhost:11434" \
+		EDGEQUAKE_LLM_PROVIDER="ollama" \
+		OLLAMA_HOST="http://localhost:11434" \
+		OLLAMA_MODEL="qwen2.5:7b" \
+		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
+		OPENAI_API_KEY="" \
 		cargo run 2>&1 | sed 's/^/[backend] /') & \
 	BACKEND_PID=$$!; \
 	(sleep 5 && cd $(FRONTEND_DIR) && (bun run dev 2>/dev/null || npm run dev) 2>&1 | sed 's/^/[frontend] /') & \
@@ -200,12 +199,11 @@ dev-bg: check-deps ## Start full development stack in BACKGROUND (agentic mode) 
 	@echo "$(YELLOW)→ Starting backend in background...$(RESET)"
 	@cd $(BACKEND_DIR) && \
 		DATABASE_URL="$(DATABASE_URL)" \
-		LLM_PROVIDER="ollama" \
-		LLM_MODEL="qwen2.5:7b" \
-		LLM_BASE_URL="http://localhost:11434" \
-		EMBEDDING_PROVIDER="ollama" \
-		EMBEDDING_MODEL="nomic-embed-text" \
-		EMBEDDING_BASE_URL="http://localhost:11434" \
+		EDGEQUAKE_LLM_PROVIDER="ollama" \
+		OLLAMA_HOST="http://localhost:11434" \
+		OLLAMA_MODEL="qwen2.5:7b" \
+		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
+		OPENAI_API_KEY="" \
 		nohup cargo run > /tmp/edgequake-backend.log 2>&1 &
 	@echo "$(GREEN)✓ Backend starting (log: /tmp/edgequake-backend.log)$(RESET)"
 	@echo ""
@@ -253,24 +251,22 @@ backend-dev: db-wait ## Run backend in development mode with PostgreSQL + Ollama
 	@echo "$(BLUE)Starting backend with PostgreSQL storage + Ollama...$(RESET)"
 	@cd $(BACKEND_DIR) && \
 		DATABASE_URL="$(DATABASE_URL)" \
-		LLM_PROVIDER="ollama" \
-		LLM_MODEL="qwen2.5:7b" \
-		LLM_BASE_URL="http://localhost:11434" \
-		EMBEDDING_PROVIDER="ollama" \
-		EMBEDDING_MODEL="nomic-embed-text" \
-		EMBEDDING_BASE_URL="http://localhost:11434" \
+		EDGEQUAKE_LLM_PROVIDER="ollama" \
+		OLLAMA_HOST="http://localhost:11434" \
+		OLLAMA_MODEL="qwen2.5:7b" \
+		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
+		OPENAI_API_KEY="" \
 		cargo run
 
 backend-db: db-wait ## Run backend with PostgreSQL storage + Ollama (explicit)
 	@echo "$(BLUE)Starting backend with PostgreSQL storage + Ollama (explicit)...$(RESET)"
 	@cd $(BACKEND_DIR) && \
 		DATABASE_URL="$(DATABASE_URL)" \
-		LLM_PROVIDER="ollama" \
-		LLM_MODEL="qwen2.5:7b" \
-		LLM_BASE_URL="http://localhost:11434" \
-		EMBEDDING_PROVIDER="ollama" \
-		EMBEDDING_MODEL="nomic-embed-text" \
-		EMBEDDING_BASE_URL="http://localhost:11434" \
+		EDGEQUAKE_LLM_PROVIDER="ollama" \
+		OLLAMA_HOST="http://localhost:11434" \
+		OLLAMA_MODEL="qwen2.5:7b" \
+		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
+		OPENAI_API_KEY="" \
 		cargo run
 
 backend-memory: ## Run backend with in-memory storage (for testing only)
@@ -281,12 +277,11 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL + Ollama
 	@echo "$(BLUE)Starting backend in background with Ollama...$(RESET)"
 	@cd $(BACKEND_DIR) && \
 		DATABASE_URL="$(DATABASE_URL)" \
-		LLM_PROVIDER="ollama" \
-		LLM_MODEL="qwen2.5:7b" \
-		LLM_BASE_URL="http://localhost:11434" \
-		EMBEDDING_PROVIDER="ollama" \
-		EMBEDDING_MODEL="nomic-embed-text" \
-		EMBEDDING_BASE_URL="http://localhost:11434" \
+		EDGEQUAKE_LLM_PROVIDER="ollama" \
+		OLLAMA_HOST="http://localhost:11434" \
+		OLLAMA_MODEL="qwen2.5:7b" \
+		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
+		OPENAI_API_KEY="" \
 		nohup cargo run > /tmp/edgequake-backend.log 2>&1 &
 	@echo "$(GREEN)✓ Backend starting in background. Log: /tmp/edgequake-backend.log$(RESET)"
 
