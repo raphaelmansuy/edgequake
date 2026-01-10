@@ -50,20 +50,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting EdgeQuake v{}", env!("CARGO_PKG_VERSION"));
 
     // Get API key from environment
-    let api_key = std::env::var("OPENAI_API_KEY").unwrap_or_else(|_| {
-        tracing::warn!("OPENAI_API_KEY not set, using placeholder");
-        "placeholder-key".to_string()
-    });
+    let api_key = std::env::var("OPENAI_API_KEY").ok();
 
     // Create application state - use PostgreSQL if DATABASE_URL is set
     let state = if let Ok(database_url) = std::env::var("DATABASE_URL") {
         info!("🐘 DATABASE_URL detected - using PostgreSQL storage");
-        AppState::new_postgres(&database_url, &api_key)
+        AppState::new_postgres(&database_url, api_key.clone())
             .await
             .expect("Failed to initialize PostgreSQL storage")
     } else {
         info!("💾 No DATABASE_URL set - using in-memory storage (data will not persist)");
-        AppState::new_memory(&api_key)
+        AppState::new_memory(api_key.clone())
     };
 
     // Initialize default tenant and workspace for non-authenticated mode
