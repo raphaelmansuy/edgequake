@@ -27,6 +27,10 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
+  EmbeddingModelSelector,
+  type EmbeddingSelection,
+} from '@/components/workspace/embedding-model-selector';
+import {
     createTenant,
     createWorkspace,
     getTenants,
@@ -83,6 +87,9 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [newWorkspaceDescription, setNewWorkspaceDescription] = useState('');
   const [newWorkspaceSlug, setNewWorkspaceSlug] = useState('');
+  // SPEC-032: Workspace embedding configuration
+  const [embeddingSelection, setEmbeddingSelection] = useState<EmbeddingSelection | undefined>(undefined);
+
 
   // Generate URL-safe slug from name
   const generateSlug = useCallback((name: string): string => {
@@ -171,8 +178,16 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
   });
 
   // Create workspace mutation
+  // SPEC-032: Updated to include embedding configuration
   const createWorkspaceMutation = useMutation({
-    mutationFn: (data: { name: string; description?: string; slug?: string }) =>
+    mutationFn: (data: {
+      name: string;
+      description?: string;
+      slug?: string;
+      embedding_model?: string;
+      embedding_provider?: string;
+      embedding_dimension?: number;
+    }) =>
       selectedTenantId
         ? createWorkspace(selectedTenantId, data)
         : Promise.reject(new Error('No tenant selected')),
@@ -184,6 +199,7 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
       setNewWorkspaceName('');
       setNewWorkspaceDescription('');
       setNewWorkspaceSlug('');
+      setEmbeddingSelection(undefined); // Reset embedding selection
     },
     onError: (error) => {
       toast.error(t('workspace.createFailed', 'Failed to create workspace'), {
@@ -448,6 +464,22 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
                 placeholder={t('workspace.descriptionPlaceholder', 'Optional description')}
               />
             </div>
+            {/* SPEC-032: Embedding model selection */}
+            <div className="grid gap-2">
+              <Label htmlFor="workspace-embedding">
+                {t('workspace.embeddingModel', 'Embedding Model')}
+                <span className="text-muted-foreground text-xs ml-2">
+                  {t('workspace.embeddingHint', '(optional)')}
+                </span>
+              </Label>
+              <EmbeddingModelSelector
+                value={embeddingSelection}
+                onChange={setEmbeddingSelection}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('workspace.embeddingDescription', 'Embedding model determines how documents are indexed. Cannot be changed after creation.')}
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreateWorkspace(false)}>
@@ -458,6 +490,10 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
                 name: newWorkspaceName, 
                 description: newWorkspaceDescription || undefined,
                 slug: newWorkspaceSlug.trim() || undefined,
+                // SPEC-032: Include embedding configuration if selected
+                embedding_model: embeddingSelection?.model,
+                embedding_provider: embeddingSelection?.provider,
+                embedding_dimension: embeddingSelection?.dimension,
               })}
               disabled={!newWorkspaceName.trim() || createWorkspaceMutation.isPending}
             >

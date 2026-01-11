@@ -393,10 +393,55 @@ export interface Workspace {
   document_count?: number;
   /** Number of entities (from stats, may not be returned inline). */
   entity_count?: number;
+  /**
+   * Embedding model name (e.g., "text-embedding-3-small").
+   * @implements SPEC-032: Workspace-level embedding configuration
+   */
+  embedding_model?: string;
+  /**
+   * Embedding provider ID (e.g., "openai", "ollama", "lmstudio").
+   * @implements SPEC-032: Workspace-level embedding configuration
+   */
+  embedding_provider?: string;
+  /**
+   * Embedding dimension (e.g., 1536 for OpenAI, 768 for Ollama).
+   * @implements SPEC-032: Workspace-level embedding configuration
+   */
+  embedding_dimension?: number;
   /** Creation timestamp. */
   created_at: string;
   /** Last update timestamp. */
   updated_at?: string;
+}
+
+/**
+ * Request to create a new workspace.
+ * @implements SPEC-032: Workspace embedding configuration on creation
+ */
+export interface CreateWorkspaceRequest {
+  /** Workspace display name. */
+  name: string;
+  /** URL-friendly slug (optional, auto-generated from name). */
+  slug?: string;
+  /** Optional description. */
+  description?: string;
+  /** Maximum documents allowed (optional). */
+  max_documents?: number;
+  /**
+   * Embedding model name (e.g., "text-embedding-3-small", "embeddinggemma:latest").
+   * If not provided, uses server default.
+   */
+  embedding_model?: string;
+  /**
+   * Embedding provider ID (e.g., "openai", "ollama", "lmstudio").
+   * If not provided, auto-detected from embedding_model.
+   */
+  embedding_provider?: string;
+  /**
+   * Embedding dimension override.
+   * If not provided, auto-detected from embedding_model.
+   */
+  embedding_dimension?: number;
 }
 
 // Task/Pipeline types

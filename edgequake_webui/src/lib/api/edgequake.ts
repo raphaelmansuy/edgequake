@@ -14,6 +14,7 @@
  * @see {@link specs/API.md} for endpoint specifications
  */
 import type {
+  CreateWorkspaceRequest,
   Document,
   DocumentStatusCounts,
   EnhancedPipelineStatus,
@@ -174,9 +175,18 @@ export async function getWorkspaceStats(
   return api.get<WorkspaceStats>(`/workspaces/${workspaceId}/stats`);
 }
 
+/**
+ * Create a new workspace with optional embedding configuration.
+ *
+ * @implements SPEC-032: Workspace-level embedding model selection
+ *
+ * @param tenantId - Parent tenant ID
+ * @param data - Workspace creation request with optional embedding config
+ * @returns Created workspace
+ */
 export async function createWorkspace(
   tenantId: string,
-  data: { name: string; description?: string }
+  data: CreateWorkspaceRequest
 ): Promise<Workspace> {
   return api.post<Workspace>(`/tenants/${tenantId}/workspaces`, data);
 }
