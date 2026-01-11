@@ -25,6 +25,8 @@ pub use entity::GraphEntity;
 pub use multitenancy::{
     CreateWorkspaceRequest, Membership, MembershipRole, Tenant, TenantContext, TenantPlan,
     UpdateWorkspaceRequest, Workspace, WorkspaceStats,
+    // SPEC-032: Export embedding constants
+    DEFAULT_EMBEDDING_DIMENSION, DEFAULT_EMBEDDING_MODEL, DEFAULT_EMBEDDING_PROVIDER,
 };
 pub use query::{
     ContextChunk, ContextEntity, ContextRelationship, DocumentDeletionResult, DocumentInfo,

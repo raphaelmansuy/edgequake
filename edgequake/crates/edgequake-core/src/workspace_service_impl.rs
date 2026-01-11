@@ -346,6 +346,26 @@ impl WorkspaceService for WorkspaceServiceImpl {
             workspace = workspace.with_max_documents(max_docs);
         }
 
+        // SPEC-032: Apply embedding configuration from request
+        // Uses auto-detection for provider/dimension if not specified
+        if let Some(model) = request.embedding_model {
+            workspace = workspace.with_embedding_model(&model);
+            // Auto-detect provider if not specified
+            if let Some(provider) = request.embedding_provider {
+                workspace = workspace.with_embedding_provider(&provider);
+            } else {
+                let detected = Workspace::detect_provider_from_model(&model);
+                workspace = workspace.with_embedding_provider(detected);
+            }
+            // Auto-detect dimension if not specified
+            if let Some(dim) = request.embedding_dimension {
+                workspace = workspace.with_embedding_dimension(dim);
+            } else {
+                let detected = Workspace::detect_dimension_from_model(&model);
+                workspace = workspace.with_embedding_dimension(detected);
+            }
+        }
+
         sqlx::query(
             r#"
             INSERT INTO workspaces (workspace_id, tenant_id, name, slug, description, is_active, metadata, settings, created_at, updated_at)
@@ -358,7 +378,14 @@ impl WorkspaceService for WorkspaceServiceImpl {
         .bind(&workspace.slug)
         .bind(&workspace.description)
         .bind(workspace.is_active)
-        .bind(serde_json::json!(workspace.metadata))
+        // SPEC-032: Store embedding config in metadata until migration adds dedicated columns
+        .bind({
+            let mut metadata = workspace.metadata.clone();
+            metadata.insert("embedding_model".to_string(), serde_json::Value::String(workspace.embedding_model.clone()));
+            metadata.insert("embedding_provider".to_string(), serde_json::Value::String(workspace.embedding_provider.clone()));
+            metadata.insert("embedding_dimension".to_string(), serde_json::Value::Number(workspace.embedding_dimension.into()));
+            serde_json::json!(metadata)
+        })
         .bind(workspace.created_at)
         .bind(workspace.updated_at)
         .execute(&self.pool)
@@ -369,6 +396,7 @@ impl WorkspaceService for WorkspaceServiceImpl {
             workspace_id = %workspace.workspace_id,
             tenant_id = %tenant_id,
             slug = %slug,
+            embedding_model = %workspace.embedding_model,
             "Created workspace in PostgreSQL"
         );
 
@@ -809,6 +837,22 @@ impl WorkspaceRow {
                 HashMap::new()
             };
 
+        // SPEC-032: Extract embedding config from metadata
+        let embedding_model = metadata
+            .get("embedding_model")
+            .and_then(|v| v.as_str())
+            .unwrap_or(crate::types::DEFAULT_EMBEDDING_MODEL)
+            .to_string();
+        let embedding_provider = metadata
+            .get("embedding_provider")
+            .and_then(|v| v.as_str())
+            .unwrap_or(crate::types::DEFAULT_EMBEDDING_PROVIDER)
+            .to_string();
+        let embedding_dimension = metadata
+            .get("embedding_dimension")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(crate::types::DEFAULT_EMBEDDING_DIMENSION as u64) as usize;
+
         Workspace {
             workspace_id: self.workspace_id,
             tenant_id: self.tenant_id,
@@ -819,6 +863,9 @@ impl WorkspaceRow {
             created_at: self.created_at,
             updated_at: self.updated_at,
             metadata,
+            embedding_model,
+            embedding_provider,
+            embedding_dimension,
         }
     }
 }

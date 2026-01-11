@@ -5,11 +5,7 @@
 
 use axum::{extract::State, Json};
 
-use crate::{
-    error::ApiError,
-    provider_types::ProviderStatusResponse,
-    state::AppState,
-};
+use crate::{error::ApiError, provider_types::ProviderStatusResponse, state::AppState};
 
 /// Get current provider status
 ///
@@ -20,7 +16,7 @@ pub async fn get_provider_status(
 ) -> Result<Json<ProviderStatusResponse>, ApiError> {
     // Create status response from current AppState
     let status = ProviderStatusResponse::from_app_state(&app_state);
-    
+
     tracing::debug!(
         provider = %status.provider.name,
         embedding_dim = %status.embedding.dimension,
@@ -28,27 +24,27 @@ pub async fn get_provider_status(
         dimension_mismatch = %status.storage.dimension_mismatch,
         "Provider status requested"
     );
-    
+
     Ok(Json(status))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_get_provider_status_structure() {
         // Setup: Create AppState with mock provider
         let app_state = AppState::new_memory(None::<String>);
-        
+
         // Act: Call handler
         let result = get_provider_status(State(app_state)).await;
-        
+
         // Assert: Success
         assert!(result.is_ok());
-        
+
         let Json(status) = result.unwrap();
-        
+
         // Assert: Response structure
         assert!(!status.provider.name.is_empty());
         assert_eq!(status.provider.provider_type, "llm");

@@ -38,6 +38,16 @@ pub struct UpdateTenantRequest {
 }
 
 /// Request to create a new workspace.
+///
+/// ## Embedding Configuration (SPEC-032)
+///
+/// When creating a workspace, you can specify the embedding model to use.
+/// If not provided, server defaults are used (configurable via env vars).
+///
+/// **Examples:**
+/// - OpenAI: `"text-embedding-3-small"` (1536 dims), `"text-embedding-3-large"` (3072 dims)
+/// - Ollama: `"embeddinggemma:latest"` (768 dims), `"nomic-embed-text"` (768 dims)
+/// - LM Studio: `"nomic-ai/nomic-embed-text-v1.5"` (768 dims)
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CreateWorkspaceApiRequest {
     /// Workspace name.
@@ -48,6 +58,23 @@ pub struct CreateWorkspaceApiRequest {
     pub description: Option<String>,
     /// Maximum number of documents.
     pub max_documents: Option<usize>,
+
+    // === Embedding Configuration (SPEC-032) ===
+
+    /// Embedding model name (e.g., "text-embedding-3-small", "embeddinggemma:latest").
+    /// If not provided, uses server default from EDGEQUAKE_DEFAULT_EMBEDDING_MODEL.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_model: Option<String>,
+
+    /// Embedding provider ("openai", "ollama", "lmstudio").
+    /// If not provided, auto-detected from embedding_model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_provider: Option<String>,
+
+    /// Embedding vector dimension override.
+    /// If not provided, auto-detected from embedding_model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_dimension: Option<usize>,
 }
 
 /// Request to update a workspace.
@@ -89,6 +116,8 @@ pub struct TenantResponse {
 }
 
 /// Workspace response DTO.
+///
+/// Includes embedding configuration (SPEC-032) for transparency.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct WorkspaceResponse {
     /// Workspace ID.
@@ -105,6 +134,16 @@ pub struct WorkspaceResponse {
     pub is_active: bool,
     /// Maximum documents allowed.
     pub max_documents: Option<usize>,
+
+    // === Embedding Configuration (SPEC-032) ===
+
+    /// Embedding model used for this workspace.
+    pub embedding_model: String,
+    /// Embedding provider (openai, ollama, lmstudio).
+    pub embedding_provider: String,
+    /// Embedding vector dimension.
+    pub embedding_dimension: usize,
+
     /// Creation timestamp.
     pub created_at: String,
     /// Last update timestamp.
@@ -222,6 +261,9 @@ mod tests {
             slug: Some("main".to_string()),
             description: Some("Primary workspace".to_string()),
             max_documents: Some(1000),
+            embedding_model: None,
+            embedding_provider: None,
+            embedding_dimension: None,
         };
 
         let json = serde_json::to_string(&req).unwrap();
@@ -271,6 +313,10 @@ mod tests {
             description: Some("A test workspace".to_string()),
             is_active: true,
             max_documents: Some(100),
+            // SPEC-032: Embedding configuration
+            embedding_model: "text-embedding-3-small".to_string(),
+            embedding_provider: "openai".to_string(),
+            embedding_dimension: 1536,
             created_at: "2024-01-01T00:00:00Z".to_string(),
             updated_at: "2024-01-01T00:00:00Z".to_string(),
         };
@@ -278,6 +324,8 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("Test Workspace"));
         assert!(json.contains("A test workspace"));
+        assert!(json.contains("\"embedding_model\":\"text-embedding-3-small\""));
+        assert!(json.contains("\"embedding_dimension\":1536"));
     }
 
     #[test]

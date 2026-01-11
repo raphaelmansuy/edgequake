@@ -1,5 +1,6 @@
 'use client';
 
+import { ProviderStatusCard } from '@/components/settings/provider-status-card';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -211,6 +212,9 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Provider Status */}
+      <ProviderStatusCard />
 
       {/* Graph Settings */}
       <Card>

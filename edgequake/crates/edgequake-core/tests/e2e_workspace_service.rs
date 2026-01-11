@@ -136,12 +136,7 @@ mod tenant_crud_tests {
         let created = service.create_tenant(tenant).await.unwrap();
 
         // Create a workspace
-        let request = CreateWorkspaceRequest {
-            name: "Workspace".to_string(),
-            slug: None,
-            description: None,
-            max_documents: None,
-        };
+        let request = CreateWorkspaceRequest::new("Workspace");
         service
             .create_workspace(created.tenant_id, request)
             .await
@@ -206,6 +201,9 @@ mod workspace_crud_tests {
             slug: Some("kb".to_string()),
             description: Some("Main knowledge base".to_string()),
             max_documents: Some(1000),
+            embedding_model: None,
+            embedding_provider: None,
+            embedding_dimension: None,
         };
 
         let workspace = service
@@ -232,6 +230,9 @@ mod workspace_crud_tests {
             slug: None, // Should auto-generate
             description: None,
             max_documents: None,
+            embedding_model: None,
+            embedding_provider: None,
+            embedding_dimension: None,
         };
 
         let workspace = service
@@ -255,6 +256,9 @@ mod workspace_crud_tests {
             slug: Some("same-slug".to_string()),
             description: None,
             max_documents: None,
+            embedding_model: None,
+            embedding_provider: None,
+            embedding_dimension: None,
         };
         service
             .create_workspace(tenant.tenant_id, request1)
@@ -266,6 +270,9 @@ mod workspace_crud_tests {
             slug: Some("same-slug".to_string()),
             description: None,
             max_documents: None,
+            embedding_model: None,
+            embedding_provider: None,
+            embedding_dimension: None,
         };
         let result = service.create_workspace(tenant.tenant_id, request2).await;
 
@@ -287,6 +294,9 @@ mod workspace_crud_tests {
             slug: Some("main".to_string()),
             description: None,
             max_documents: None,
+            embedding_model: None,
+            embedding_provider: None,
+            embedding_dimension: None,
         };
 
         // Same slug in different tenants should work
@@ -309,24 +319,14 @@ mod workspace_crud_tests {
         let tenant = service.create_tenant(tenant).await.unwrap();
 
         // First workspace succeeds
-        let request1 = CreateWorkspaceRequest {
-            name: "Workspace 1".to_string(),
-            slug: None,
-            description: None,
-            max_documents: None,
-        };
+        let request1 = CreateWorkspaceRequest::new("Workspace 1");
         service
             .create_workspace(tenant.tenant_id, request1)
             .await
             .unwrap();
 
         // Second workspace fails
-        let request2 = CreateWorkspaceRequest {
-            name: "Workspace 2".to_string(),
-            slug: None,
-            description: None,
-            max_documents: None,
-        };
+        let request2 = CreateWorkspaceRequest::new("Workspace 2");
         let result = service.create_workspace(tenant.tenant_id, request2).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("limit"));
@@ -342,6 +342,9 @@ mod workspace_crud_tests {
             slug: Some("test".to_string()),
             description: None,
             max_documents: None,
+            embedding_model: None,
+            embedding_provider: None,
+            embedding_dimension: None,
         };
         let created = service
             .create_workspace(tenant.tenant_id, request)
@@ -363,6 +366,9 @@ mod workspace_crud_tests {
             slug: Some("slug-test".to_string()),
             description: None,
             max_documents: None,
+            embedding_model: None,
+            embedding_provider: None,
+            embedding_dimension: None,
         };
         service
             .create_workspace(tenant.tenant_id, request)
@@ -381,12 +387,7 @@ mod workspace_crud_tests {
         let service = InMemoryWorkspaceService::new();
         let tenant = create_tenant(&service).await;
 
-        let request = CreateWorkspaceRequest {
-            name: "Original".to_string(),
-            slug: None,
-            description: None,
-            max_documents: None,
-        };
+        let request = CreateWorkspaceRequest::new("Original");
         let created = service
             .create_workspace(tenant.tenant_id, request)
             .await
@@ -413,12 +414,7 @@ mod workspace_crud_tests {
         let service = InMemoryWorkspaceService::new();
         let tenant = create_tenant(&service).await;
 
-        let request = CreateWorkspaceRequest {
-            name: "To Delete".to_string(),
-            slug: None,
-            description: None,
-            max_documents: None,
-        };
+        let request = CreateWorkspaceRequest::new("To Delete");
         let created = service
             .create_workspace(tenant.tenant_id, request)
             .await
@@ -445,6 +441,9 @@ mod workspace_crud_tests {
                 slug: Some(format!("ws-{}", i)),
                 description: None,
                 max_documents: None,
+                embedding_model: None,
+                embedding_provider: None,
+                embedding_dimension: None,
             };
             service
                 .create_workspace(tenant.tenant_id, request)
@@ -461,12 +460,7 @@ mod workspace_crud_tests {
         let service = InMemoryWorkspaceService::new();
         let tenant = create_tenant(&service).await;
 
-        let request = CreateWorkspaceRequest {
-            name: "Stats Test".to_string(),
-            slug: None,
-            description: None,
-            max_documents: None,
-        };
+        let request = CreateWorkspaceRequest::new("Stats Test");
         let workspace = service
             .create_workspace(tenant.tenant_id, request)
             .await
@@ -643,12 +637,7 @@ mod membership_tests {
         let (service, tenant, user_id) = setup().await;
 
         // Create workspace
-        let request = CreateWorkspaceRequest {
-            name: "Test WS".to_string(),
-            slug: None,
-            description: None,
-            max_documents: None,
-        };
+        let request = CreateWorkspaceRequest::new("Test WS");
         let workspace = service
             .create_workspace(tenant.tenant_id, request)
             .await
@@ -732,12 +721,7 @@ mod context_tests {
         let tenant = Tenant::new("Context WS Test", "context-ws-test");
         let tenant = service.create_tenant(tenant).await.unwrap();
 
-        let request = CreateWorkspaceRequest {
-            name: "Test WS".to_string(),
-            slug: None,
-            description: None,
-            max_documents: None,
-        };
+        let request = CreateWorkspaceRequest::new("Test WS");
         let workspace = service
             .create_workspace(tenant.tenant_id, request)
             .await
@@ -859,6 +843,9 @@ mod concurrent_tests {
                         slug: Some(format!("ws-{}", i)),
                         description: None,
                         max_documents: None,
+                        embedding_model: None,
+                        embedding_provider: None,
+                        embedding_dimension: None,
                     };
                     service.create_workspace(tenant_id, request).await
                 })
@@ -963,12 +950,7 @@ mod edge_case_tests {
         tenant.max_workspaces = 0;
         let tenant = service.create_tenant(tenant).await.unwrap();
 
-        let request = CreateWorkspaceRequest {
-            name: "Test".to_string(),
-            slug: None,
-            description: None,
-            max_documents: None,
-        };
+        let request = CreateWorkspaceRequest::new("Test");
         let result = service.create_workspace(tenant.tenant_id, request).await;
 
         assert!(result.is_err());

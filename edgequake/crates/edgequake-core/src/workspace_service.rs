@@ -298,6 +298,26 @@ impl WorkspaceService for InMemoryWorkspaceService {
             workspace = workspace.with_max_documents(max_docs);
         }
 
+        // SPEC-032: Apply embedding configuration from request
+        // Uses auto-detection for provider/dimension if not specified
+        if let Some(model) = request.embedding_model {
+            workspace = workspace.with_embedding_model(&model);
+            // Auto-detect provider if not specified
+            if let Some(provider) = request.embedding_provider {
+                workspace = workspace.with_embedding_provider(&provider);
+            } else {
+                let detected = Workspace::detect_provider_from_model(&model);
+                workspace = workspace.with_embedding_provider(detected);
+            }
+            // Auto-detect dimension if not specified
+            if let Some(dim) = request.embedding_dimension {
+                workspace = workspace.with_embedding_dimension(dim);
+            } else {
+                let detected = Workspace::detect_dimension_from_model(&model);
+                workspace = workspace.with_embedding_dimension(detected);
+            }
+        }
+
         let mut workspaces = self.workspaces.write().await;
         workspaces.insert(workspace.workspace_id, workspace.clone());
 
@@ -616,6 +636,9 @@ mod tests {
             slug: Some("my-kb".to_string()),
             description: Some("Test KB".to_string()),
             max_documents: Some(1000),
+            embedding_model: None,
+            embedding_provider: None,
+            embedding_dimension: None,
         };
 
         let workspace = service
@@ -643,6 +666,9 @@ mod tests {
                 slug: Some(format!("ws-{}", i)),
                 description: None,
                 max_documents: None,
+                embedding_model: None,
+                embedding_provider: None,
+                embedding_dimension: None,
             };
             service
                 .create_workspace(tenant.tenant_id, request)
@@ -656,6 +682,9 @@ mod tests {
             slug: Some("ws-3".to_string()),
             description: None,
             max_documents: None,
+            embedding_model: None,
+            embedding_provider: None,
+            embedding_dimension: None,
         };
         let result = service.create_workspace(tenant.tenant_id, request).await;
         assert!(result.is_err());

@@ -19,17 +19,21 @@
 ### Backend Implementation (Tasks 5E.1-5E.4)
 
 **Files Created/Modified:**
+
 1. `edgequake-api/src/provider_types.rs` (NEW, 173 lines)
+
    - ProviderStatusResponse struct with Serialize/Deserialize
    - LLMProviderStatus, EmbeddingProviderStatus, StorageStatus types
    - ConnectionStatus enum
    - from_app_state() constructor
 
 2. `edgequake-api/src/state.rs` (+4 lines)
+
    - Added start_time: Instant field to AppState
    - Initialized in new_memory(), new_postgres(), generic constructor
 
 3. `edgequake-api/src/handlers/settings.rs` (NEW, 60 lines)
+
    - get_provider_status() handler function
    - Returns JSON with provider, embedding, storage, metadata
    - Includes unit test (1/1 passing)
@@ -45,12 +49,15 @@
 ### Frontend Implementation (Tasks 5E.5-5E.7)
 
 **Files Created/Modified:**
+
 1. `edgequake_webui/src/types/provider.ts` (NEW, 44 lines)
+
    - TypeScript interfaces matching Rust types
    - ProviderStatusResponse, LLMProviderStatus, EmbeddingProviderStatus
    - StorageStatus, ConnectionStatus, StatusMetadata
 
 2. `edgequake_webui/src/components/settings/provider-status-card.tsx` (NEW, 300+ lines)
+
    - React component with useState/useEffect hooks
    - Fetches /api/v1/settings/provider/status every 30 seconds
    - Status badges (✅ Connected, ❌ Disconnected, ⏳ Connecting, ⚠️ Error)
@@ -64,6 +71,7 @@
    - Added component after Appearance section
 
 **Features Implemented:**
+
 - ✅ Auto-refresh every 30 seconds
 - ✅ Manual refresh button
 - ✅ Status indicators with color coding
@@ -78,9 +86,11 @@
 ### Testing (Task 5E.8)
 
 **File Created:**
+
 - `edgequake-api/tests/e2e_provider_status.rs` (NEW, 163 lines)
 
 **Tests Implemented:**
+
 1. `test_provider_status_mock` - Mock provider, 1536-dim, validates JSON structure
 2. `test_provider_status_ollama` - Ollama provider, 768-dim
 3. `test_provider_status_uptime` - Uptime calculation (≥1 second)
@@ -89,6 +99,7 @@
 **Test Results:** ✅ 4/4 passing (100% pass rate)
 
 **Test Execution:**
+
 ```bash
 running 4 tests
 test test_provider_status_dimension_mismatch ... ok
@@ -104,11 +115,13 @@ test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured
 ### Documentation (Task 5E.9)
 
 **File Modified:**
+
 - `docs/0005-llm-integration.md` (+100 lines)
 
 **Section Added:** "Provider Status Visibility"
 
 **Content:**
+
 - Viewing current provider configuration in WebUI
 - Status indicator meanings (Connected, Disconnected, Error, Dimension Mismatch)
 - Dimension mismatch warning explanation
@@ -122,6 +135,7 @@ test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured
 ## Commits Made
 
 ### Commit 1: Backend Types & AppState
+
 ```
 feat(api): Add provider status types and AppState start_time tracking
 
@@ -136,6 +150,7 @@ Commit: 9e599c3
 ```
 
 ### Commit 2: Backend Status Endpoint
+
 ```
 feat(api): Add GET /api/v1/settings/provider/status endpoint
 
@@ -150,6 +165,7 @@ Commit: 4af811c
 ```
 
 ### Commit 3: Frontend Provider Status Component
+
 ```
 feat(webui): Add provider status card to settings page
 
@@ -164,6 +180,7 @@ Commit: (pending due to terminal issues)
 ```
 
 ### Commit 4: E2E Tests & Documentation
+
 ```
 test(api): Add E2E tests for provider status endpoint
 
@@ -182,35 +199,36 @@ Commit: (pending due to terminal issues)
 
 ## Success Criteria Validation
 
-| Criterion | Status | Evidence |
-|-----------|--------|----------|
-| **SC-1:** Backend endpoint returns provider status in <500ms | ✅ PASS | Response time ~10ms (E2E tests) |
-| **SC-2:** Frontend displays provider name, model, dimension | ✅ PASS | ProviderStatusCard component implemented |
-| **SC-3:** Dimension mismatch warning appears when applicable | ✅ PASS | Conditional warning banner in component |
-| **SC-4:** Configuration snippets copy to clipboard | ✅ PASS | Copy button with toast notification |
-| **SC-5:** No regressions in existing settings | ✅ PASS | No modifications to existing cards |
+| Criterion                                                    | Status  | Evidence                                 |
+| ------------------------------------------------------------ | ------- | ---------------------------------------- |
+| **SC-1:** Backend endpoint returns provider status in <500ms | ✅ PASS | Response time ~10ms (E2E tests)          |
+| **SC-2:** Frontend displays provider name, model, dimension  | ✅ PASS | ProviderStatusCard component implemented |
+| **SC-3:** Dimension mismatch warning appears when applicable | ✅ PASS | Conditional warning banner in component  |
+| **SC-4:** Configuration snippets copy to clipboard           | ✅ PASS | Copy button with toast notification      |
+| **SC-5:** No regressions in existing settings                | ✅ PASS | No modifications to existing cards       |
 
 ---
 
 ## Technical Metrics
 
-| Metric | Value |
-|--------|-------|
-| **Total Lines Added** | ~740 lines |
-| **Backend (Rust)** | 400 lines (types, handler, tests) |
+| Metric                          | Value                                     |
+| ------------------------------- | ----------------------------------------- |
+| **Total Lines Added**           | ~740 lines                                |
+| **Backend (Rust)**              | 400 lines (types, handler, tests)         |
 | **Frontend (TypeScript/React)** | 340 lines (types, component, integration) |
-| **Documentation** | 100 lines |
-| **Files Created** | 6 new files |
-| **Files Modified** | 5 existing files |
-| **Tests Added** | 5 tests (1 unit + 4 E2E) |
-| **Test Pass Rate** | 100% (5/5 passing) |
-| **Build Time** | ~10 seconds (backend) |
+| **Documentation**               | 100 lines                                 |
+| **Files Created**               | 6 new files                               |
+| **Files Modified**              | 5 existing files                          |
+| **Tests Added**                 | 5 tests (1 unit + 4 E2E)                  |
+| **Test Pass Rate**              | 100% (5/5 passing)                        |
+| **Build Time**                  | ~10 seconds (backend)                     |
 
 ---
 
 ## Code Quality
 
 ### Backend
+
 - ✅ All Rust code compiles without warnings
 - ✅ Follows idiomatic Rust patterns (Result<T>, Arc<T>)
 - ✅ Uses tracing for debug logging
@@ -219,6 +237,7 @@ Commit: (pending due to terminal issues)
 - ✅ SPEC-032 annotations in all files
 
 ### Frontend
+
 - ✅ TypeScript strict mode compatible
 - ✅ React hooks (useState, useEffect) used correctly
 - ✅ Responsive design with Tailwind CSS
@@ -228,6 +247,7 @@ Commit: (pending due to terminal issues)
 - ✅ SPEC-032 annotations in component
 
 ### Tests
+
 - ✅ Serial execution with #[serial] for isolation
 - ✅ Comprehensive coverage (mock, ollama, uptime, validation)
 - ✅ Proper setup/teardown (env var cleanup)
@@ -241,10 +261,12 @@ Commit: (pending due to terminal issues)
 As documented in Orient phase, this MVP deliberately excludes:
 
 1. **Real Health Checks:** Status assumes "connected" without pinging provider
+
    - **Why:** Health checks add 5-10 second latency (Ollama/LM Studio ping)
    - **Future:** Iteration #10 will add optional health checks with timeout
 
 2. **Dynamic Provider Switching:** No in-UI provider selection dropdown
+
    - **Why:** Requires AppState hot-swap (6-8 hours complexity)
    - **Current:** Users edit .env and restart server
    - **Future:** Iteration #8 will add dynamic switching
@@ -260,16 +282,20 @@ These are intentional trade-offs for the MVP. All can be added in future iterati
 ## Lessons Learned
 
 ### What Worked Well
+
 1. **Architecture Decision:** Read-only status display was correct scope for MVP
+
    - Delivered immediate value (visibility)
    - Avoided complex AppState hot-swap logic
    - Clear path to future dynamic switching
 
 2. **Type Safety:** Rust → TypeScript type mirroring prevented runtime errors
+
    - Serde JSON serialization matched exactly
    - No type mismatches encountered
 
 3. **Testing Strategy:** E2E tests validated full request/response flow
+
    - Caught endpoint URL issue (/api/settings vs /api/v1/settings)
    - Serial execution prevented race conditions
 
@@ -280,14 +306,17 @@ These are intentional trade-offs for the MVP. All can be added in future iterati
 ### Challenges Encountered
 
 1. **Terminal Corruption:** Bash heredoc commands caused output corruption
+
    - **Solution:** Used Python script for file creation
    - **Impact:** Added 10 minutes to implementation
 
 2. **Route Prefix Confusion:** Initially used /api/settings instead of /api/v1
+
    - **Solution:** E2E tests caught this immediately
    - **Impact:** 5 minutes to fix tests + component
 
 3. **Missing start_time Field:** Forgot to initialize in generic constructor
+
    - **Solution:** Compiler error guided fix
    - **Impact:** 2 minutes
 
@@ -298,11 +327,13 @@ These are intentional trade-offs for the MVP. All can be added in future iterati
 ### Technical Insights
 
 1. **Dimension Validation Synergy:** Iteration #4 work made this iteration easier
+
    - storage_mode field already existed
    - dimension() methods already available
    - Dimension mismatch logic reusable
 
 2. **Auto-Refresh Strategy:** 30-second polling is reasonable balance
+
    - Not too aggressive (low server load)
    - Fast enough for manual refresh workflow
    - Can be made configurable later
@@ -316,22 +347,23 @@ These are intentional trade-offs for the MVP. All can be added in future iterati
 
 ## Time Tracking
 
-| Task | Estimated | Actual | Variance |
-|------|-----------|--------|----------|
-| 5E.1: Backend types | 20 min | 25 min | +5 min |
-| 5E.2: AppState start_time | 15 min | 20 min | +5 min (extra constructors) |
-| 5E.3: Backend handler | 45 min | 50 min | +5 min (testing) |
-| 5E.4: Route registration | 10 min | 5 min | -5 min |
-| 5E.5: Frontend types | 15 min | 10 min | -5 min |
-| 5E.6: Frontend component | 90 min | 100 min | +10 min (polish) |
-| 5E.7: Settings integration | 20 min | 15 min | -5 min |
-| 5E.8: E2E tests | 40 min | 50 min | +10 min (URL fix) |
-| 5E.9: Documentation | 25 min | 30 min | +5 min |
-| **Total** | **280 min** | **305 min** | **+25 min** |
+| Task                       | Estimated   | Actual      | Variance                    |
+| -------------------------- | ----------- | ----------- | --------------------------- |
+| 5E.1: Backend types        | 20 min      | 25 min      | +5 min                      |
+| 5E.2: AppState start_time  | 15 min      | 20 min      | +5 min (extra constructors) |
+| 5E.3: Backend handler      | 45 min      | 50 min      | +5 min (testing)            |
+| 5E.4: Route registration   | 10 min      | 5 min       | -5 min                      |
+| 5E.5: Frontend types       | 15 min      | 10 min      | -5 min                      |
+| 5E.6: Frontend component   | 90 min      | 100 min     | +10 min (polish)            |
+| 5E.7: Settings integration | 20 min      | 15 min      | -5 min                      |
+| 5E.8: E2E tests            | 40 min      | 50 min      | +10 min (URL fix)           |
+| 5E.9: Documentation        | 25 min      | 30 min      | +5 min                      |
+| **Total**                  | **280 min** | **305 min** | **+25 min**                 |
 
 **Actual Duration:** 5 hours 5 minutes (within 10% of estimate)
 
 **Variance Analysis:**
+
 - Most overruns due to terminal issues and file creation workarounds
 - Component polish (better UX) added 10 minutes
 - E2E test URL fix added 10 minutes
@@ -342,7 +374,9 @@ These are intentional trade-offs for the MVP. All can be added in future iterati
 ## Next Steps
 
 ### Iteration #6: Next Feature
+
 **Options:**
+
 1. Real health checks for provider status (with timeout)
 2. Per-tenant provider configuration
 3. Provider cost tracking dashboard
@@ -352,13 +386,16 @@ These are intentional trade-offs for the MVP. All can be added in future iterati
 **Recommendation:** Continue with provider features (health checks or per-tenant config) to maintain momentum on SPEC-032.
 
 ### Iteration #8: Dynamic Provider Switching
+
 As planned in Orient phase, Iteration #8 will add:
+
 - UI dropdown for provider selection
 - AppState hot-swap logic
 - Graceful migration workflows
 - Per-workspace provider selection
 
 ### Long-Term (Iterations #10-50)
+
 - Advanced provider features (rate limiting, fallback)
 - Multi-provider load balancing
 - Provider performance monitoring
@@ -371,6 +408,7 @@ As planned in Orient phase, Iteration #8 will add:
 **Mission Accomplished:** Iteration #5 successfully delivered a working provider status display in the WebUI.
 
 **Key Achievements:**
+
 - ✅ Backend API endpoint (GET /api/v1/settings/provider/status)
 - ✅ Frontend React component with auto-refresh
 - ✅ Dimension mismatch detection and warnings
@@ -379,6 +417,7 @@ As planned in Orient phase, Iteration #8 will add:
 - ✅ Zero regressions
 
 **Quality Metrics:**
+
 - Code quality: High (idiomatic Rust/TypeScript, comprehensive tests)
 - User experience: Excellent (responsive, informative, no friction)
 - Documentation: Complete (WebUI usage + API reference)

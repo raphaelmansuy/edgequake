@@ -1,6 +1,6 @@
 /**
  * Provider status types
- * 
+ *
  * @implements SPEC-032: Ollama/LM Studio provider support - WebUI types
  * @iteration OODA Loop #5 - Phase 5E.5
  */
@@ -14,7 +14,7 @@ export interface ProviderStatusResponse {
 
 export interface LLMProviderStatus {
   name: string;
-  type: 'llm';
+  type: "llm";
   status: ConnectionStatus;
   model: string;
   base_url?: string;
@@ -23,20 +23,24 @@ export interface LLMProviderStatus {
 
 export interface EmbeddingProviderStatus {
   name: string;
-  type: 'embedding';
+  type: "embedding";
   status: ConnectionStatus;
   model: string;
   dimension: number;
 }
 
 export interface StorageStatus {
-  type: 'memory' | 'postgres';
+  type: "memory" | "postgres";
   dimension: number;
   dimension_mismatch: boolean;
   namespace: string;
 }
 
-export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected' | 'error';
+export type ConnectionStatus =
+  | "connected"
+  | "connecting"
+  | "disconnected"
+  | "error";
 
 export interface StatusMetadata {
   checked_at: string; // ISO 8601

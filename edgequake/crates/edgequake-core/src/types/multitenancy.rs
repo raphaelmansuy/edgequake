@@ -144,6 +144,17 @@ impl std::str::FromStr for TenantPlan {
 }
 
 /// A workspace (knowledge base) within a tenant.
+///
+/// ## Embedding Configuration (SPEC-032)
+///
+/// Each workspace has its own embedding configuration that determines:
+/// - Which embedding model to use for document ingestion
+/// - Which provider hosts the embedding model
+/// - The vector dimension (must match stored vectors)
+///
+/// This enables mixing different embedding providers per workspace:
+/// - Workspace A: OpenAI text-embedding-3-small (1536 dims)
+/// - Workspace B: Ollama embeddinggemma:latest (768 dims)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Workspace {
     /// Unique workspace identifier.
@@ -164,12 +175,46 @@ pub struct Workspace {
     pub updated_at: chrono::DateTime<chrono::Utc>,
     /// Custom metadata including quotas.
     pub metadata: HashMap<String, serde_json::Value>,
+
+    // === Embedding Configuration (SPEC-032) ===
+
+    /// Embedding model name (e.g., "text-embedding-3-small", "embeddinggemma:latest").
+    /// Used for both document ingestion and query embedding generation.
+    pub embedding_model: String,
+
+    /// Embedding provider (e.g., "openai", "ollama", "lmstudio").
+    /// Determines which API to call for embedding generation.
+    pub embedding_provider: String,
+
+    /// Embedding dimension (e.g., 1536 for OpenAI, 768 for Ollama).
+    /// Must match the stored vector dimensions in this workspace.
+    pub embedding_dimension: usize,
 }
 
+// ============================================================================
+// Embedding Configuration Constants (SPEC-032)
+// ============================================================================
+
+/// Default embedding model (OpenAI text-embedding-3-small).
+pub const DEFAULT_EMBEDDING_MODEL: &str = "text-embedding-3-small";
+
+/// Default embedding provider.
+pub const DEFAULT_EMBEDDING_PROVIDER: &str = "openai";
+
+/// Default embedding dimension (OpenAI text-embedding-3-small).
+pub const DEFAULT_EMBEDDING_DIMENSION: usize = 1536;
+
 impl Workspace {
-    /// Create a new workspace.
+    /// Create a new workspace with default embedding configuration.
+    ///
+    /// Uses server defaults from environment variables if set:
+    /// - `EDGEQUAKE_DEFAULT_EMBEDDING_MODEL`
+    /// - `EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER`
+    /// - `EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION`
     pub fn new(tenant_id: Uuid, name: impl Into<String>, slug: impl Into<String>) -> Self {
         let now = chrono::Utc::now();
+        let (model, provider, dimension) = Self::default_embedding_config();
+
         Self {
             workspace_id: Uuid::new_v4(),
             tenant_id,
@@ -180,6 +225,72 @@ impl Workspace {
             created_at: now,
             updated_at: now,
             metadata: HashMap::new(),
+            embedding_model: model,
+            embedding_provider: provider,
+            embedding_dimension: dimension,
+        }
+    }
+
+    /// Get default embedding configuration from environment.
+    ///
+    /// Returns (model, provider, dimension) tuple.
+    pub fn default_embedding_config() -> (String, String, usize) {
+        let model = std::env::var("EDGEQUAKE_DEFAULT_EMBEDDING_MODEL")
+            .unwrap_or_else(|_| DEFAULT_EMBEDDING_MODEL.to_string());
+
+        let provider = std::env::var("EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER")
+            .unwrap_or_else(|_| Self::detect_provider_from_model(&model));
+
+        let dimension = std::env::var("EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION")
+            .and_then(|s| s.parse().map_err(|_| std::env::VarError::NotPresent))
+            .unwrap_or_else(|_| Self::detect_dimension_from_model(&model));
+
+        (model, provider, dimension)
+    }
+
+    /// Auto-detect provider from model name conventions.
+    ///
+    /// # Examples
+    ///
+    /// - "text-embedding-3-small" → "openai"
+    /// - "gemma3:12b" → "ollama" (colon indicates Ollama tag format)
+    /// - "gemma2-9b-it" → "lmstudio"
+    pub fn detect_provider_from_model(model: &str) -> String {
+        if model.starts_with("text-embedding") || model.starts_with("ada") {
+            "openai".to_string()
+        } else if model.contains(':') {
+            // Ollama uses "model:tag" format
+            "ollama".to_string()
+        } else if model.starts_with("gemma") || model.starts_with("llama") {
+            "lmstudio".to_string()
+        } else {
+            // Default fallback to openai
+            "openai".to_string()
+        }
+    }
+
+    /// Auto-detect embedding dimension from known model names.
+    ///
+    /// # Known Models
+    ///
+    /// | Model | Dimension |
+    /// |-------|-----------|
+    /// | text-embedding-3-small | 1536 |
+    /// | text-embedding-3-large | 3072 |
+    /// | text-embedding-ada-002 | 1536 |
+    /// | embeddinggemma:latest | 768 |
+    /// | nomic-embed-text | 768 |
+    /// | mxbai-embed-large | 1024 |
+    pub fn detect_dimension_from_model(model: &str) -> usize {
+        match model {
+            "text-embedding-3-small" | "text-embedding-ada-002" => 1536,
+            "text-embedding-3-large" => 3072,
+            "embeddinggemma:latest" | "nomic-embed-text" | "nomic-embed-text:latest" => 768,
+            "mxbai-embed-large" | "mxbai-embed-large:latest" => 1024,
+            _ if model.contains("768") => 768,
+            _ if model.contains("1024") => 1024,
+            _ if model.contains("3072") => 3072,
+            _ => DEFAULT_EMBEDDING_DIMENSION, // Safe default
         }
     }
 
@@ -202,6 +313,64 @@ impl Workspace {
             .get("max_documents")
             .and_then(|v| v.as_u64())
             .map(|v| v as usize)
+    }
+
+    // === Embedding Configuration Builder Methods (SPEC-032) ===
+
+    /// Set the embedding model and auto-detect provider/dimension.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use edgequake_core::Workspace;
+    /// use uuid::Uuid;
+    ///
+    /// let workspace = Workspace::new(Uuid::new_v4(), "My Workspace", "my-workspace")
+    ///     .with_embedding_model("embeddinggemma:latest");
+    ///
+    /// assert_eq!(workspace.embedding_model, "embeddinggemma:latest");
+    /// assert_eq!(workspace.embedding_provider, "ollama");
+    /// assert_eq!(workspace.embedding_dimension, 768);
+    /// ```
+    pub fn with_embedding_model(mut self, model: impl Into<String>) -> Self {
+        let model = model.into();
+        self.embedding_provider = Self::detect_provider_from_model(&model);
+        self.embedding_dimension = Self::detect_dimension_from_model(&model);
+        self.embedding_model = model;
+        self
+    }
+
+    /// Set the embedding provider explicitly.
+    pub fn with_embedding_provider(mut self, provider: impl Into<String>) -> Self {
+        self.embedding_provider = provider.into();
+        self
+    }
+
+    /// Set the embedding dimension explicitly.
+    ///
+    /// Use this when auto-detection doesn't work for custom models.
+    pub fn with_embedding_dimension(mut self, dimension: usize) -> Self {
+        self.embedding_dimension = dimension;
+        self
+    }
+
+    /// Set complete embedding configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `model` - Embedding model name
+    /// * `provider` - Provider name (openai, ollama, lmstudio)
+    /// * `dimension` - Vector dimension
+    pub fn with_embedding_config(
+        mut self,
+        model: impl Into<String>,
+        provider: impl Into<String>,
+        dimension: usize,
+    ) -> Self {
+        self.embedding_model = model.into();
+        self.embedding_provider = provider.into();
+        self.embedding_dimension = dimension;
+        self
     }
 }
 
@@ -383,6 +552,12 @@ impl TenantContext {
 }
 
 /// Request to create a new workspace.
+///
+/// ## Embedding Configuration (SPEC-032)
+///
+/// If `embedding_model` is not provided, the workspace will use server defaults:
+/// - `EDGEQUAKE_DEFAULT_EMBEDDING_MODEL` or "text-embedding-3-small"
+/// - Provider and dimension auto-detected from model name
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateWorkspaceRequest {
     /// Human-readable name.
@@ -393,6 +568,62 @@ pub struct CreateWorkspaceRequest {
     pub description: Option<String>,
     /// Optional max documents quota.
     pub max_documents: Option<usize>,
+
+    // === Embedding Configuration (SPEC-032) ===
+
+    /// Embedding model name (e.g., "text-embedding-3-small", "embeddinggemma:latest").
+    /// If None, uses server default from EDGEQUAKE_DEFAULT_EMBEDDING_MODEL.
+    pub embedding_model: Option<String>,
+
+    /// Embedding provider (e.g., "openai", "ollama", "lmstudio").
+    /// If None, auto-detected from embedding_model.
+    pub embedding_provider: Option<String>,
+
+    /// Embedding dimension override.
+    /// If None, auto-detected from embedding_model.
+    pub embedding_dimension: Option<usize>,
+}
+
+impl Default for CreateWorkspaceRequest {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            slug: None,
+            description: None,
+            max_documents: None,
+            embedding_model: None,
+            embedding_provider: None,
+            embedding_dimension: None,
+        }
+    }
+}
+
+impl CreateWorkspaceRequest {
+    /// Create a new request with just a name.
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            ..Default::default()
+        }
+    }
+
+    /// Set the embedding model.
+    pub fn with_embedding_model(mut self, model: impl Into<String>) -> Self {
+        self.embedding_model = Some(model.into());
+        self
+    }
+
+    /// Set the embedding provider.
+    pub fn with_embedding_provider(mut self, provider: impl Into<String>) -> Self {
+        self.embedding_provider = Some(provider.into());
+        self
+    }
+
+    /// Set the embedding dimension.
+    pub fn with_embedding_dimension(mut self, dimension: usize) -> Self {
+        self.embedding_dimension = Some(dimension);
+        self
+    }
 }
 
 /// Request to update a workspace.
@@ -406,6 +637,8 @@ pub struct UpdateWorkspaceRequest {
     pub is_active: Option<bool>,
     /// Max documents quota.
     pub max_documents: Option<usize>,
+    // NOTE: Embedding model cannot be changed after creation without vector rebuild.
+    // Use POST /api/v1/workspaces/:id/rebuild-embeddings instead.
 }
 
 /// Statistics for a workspace.

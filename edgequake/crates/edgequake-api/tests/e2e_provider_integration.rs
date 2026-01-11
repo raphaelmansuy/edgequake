@@ -96,8 +96,7 @@ async fn test_provider_dimension_matrix() {
     // Just document the expected dimension
     let expected_ollama_dimension = 768;
     assert_ne!(
-        mock_dimension,
-        expected_ollama_dimension,
+        mock_dimension, expected_ollama_dimension,
         "Mock and Ollama dimensions must be different (migration safety)"
     );
 }

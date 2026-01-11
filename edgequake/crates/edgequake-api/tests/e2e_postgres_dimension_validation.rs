@@ -151,11 +151,7 @@ mod postgres_tests {
         // Store vector
         state1
             .vector_storage
-            .upsert(&[(
-                "test".to_string(),
-                vec![0.0; 1536],
-                serde_json::json!({}),
-            )])
+            .upsert(&[("test".to_string(), vec![0.0; 1536], serde_json::json!({}))])
             .await
             .unwrap();
 

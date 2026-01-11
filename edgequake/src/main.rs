@@ -60,7 +60,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .expect("Failed to initialize PostgreSQL storage")
     } else {
         info!("💾 No DATABASE_URL set - using in-memory storage (data will not persist)");
-        AppState::new_memory(if api_key.is_empty() { None } else { Some(api_key) })
+        AppState::new_memory(if api_key.is_empty() {
+            None
+        } else {
+            Some(api_key)
+        })
     };
 
     // Initialize default tenant and workspace for non-authenticated mode

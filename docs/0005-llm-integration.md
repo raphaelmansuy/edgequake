@@ -814,12 +814,12 @@ Navigate to **Settings** → **LLM Provider** section to view:
 
 ### Provider Status Indicators
 
-| Status              | Meaning                           | Action Required                             |
-| ------------------- | --------------------------------- | ------------------------------------------- |
-| ✅ **Connected**    | Provider is responsive            | None - system working correctly             |
-| ⏳ **Connecting...** | Checking provider status          | Wait for status check to complete           |
-| ❌ **Disconnected** | Provider not reachable            | Check provider service is running           |
-| ⚠️ **Error**        | Configuration issue               | Review environment variables                |
+| Status                    | Meaning                            | Action Required                                                       |
+| ------------------------- | ---------------------------------- | --------------------------------------------------------------------- |
+| ✅ **Connected**          | Provider is responsive             | None - system working correctly                                       |
+| ⏳ **Connecting...**      | Checking provider status           | Wait for status check to complete                                     |
+| ❌ **Disconnected**       | Provider not reachable             | Check provider service is running                                     |
+| ⚠️ **Error**              | Configuration issue                | Review environment variables                                          |
 | ⚠️ **Dimension Mismatch** | Storage/provider dimensions differ | See [Dimension Compatibility](#dimension-compatibility-and-migration) |
 
 ### Dimension Mismatch Warning

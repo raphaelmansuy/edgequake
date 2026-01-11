@@ -17,11 +17,26 @@ As the embedding required a fixed dimension, you must provide a way to recreate 
 
  You must continue the OODA loops until the Ollama and Lmstudio providers are fully integrated, tested, and documented in edgequake. At least 50 OODA loops must be performed.
 
-# Problem Statement
+## Problem Statement
 
 We have observed that edgequake currently lacks support for ollama and lmstudio providers, limiting its flexibility and usability in various deployment scenarios. By integrating these providers, we can enhance edgequake's capabilities, allowing users to leverage local and remote LLM instances more effectively.
 
 The change Embedding models will require recreating the vector database to ensure compatibility and optimal performance. This integration will lead to a more versatile and powerful edgequake system, ultimately improving user experience and expanding its applicability. You must ensure that the integration is seamless, well-documented, and thoroughly tested to maintain the high standards of the edgequake codebase.
+
+We want an easy way to change provider on the query dialogue for example with selection dropdown organized by provider and model in the chat query input and minimal disruption to existing workflows.
+
+As embedding models have fixed dimensions, changing the embedding model will require recreating the vector database. Embedding is chosen at the workspace level, so changing the embedding model will require recreating the vector database for that specific workspace. When we create a new workspace, we want to be able to choose the embedding model for that workspace. By default, we will use the default embedding model configured for the server. Edge case must be handled gracefully, such as when the vector database is empty or when there are ongoing queries during the recreation process. Vector database recreation must be efficient and minimize downtime.
+
+We must ensure that the integration of ollama and lmstudio providers does not introduce any regressions or performance issues in edgequake. Thorough testing and validation are essential to maintain the integrity and reliability of the system.
+
+We must ensure that embedding storage can accommodate the new embedding models introduced by the ollama and lmstudio providers. Any necessary adjustments to the storage schema or data handling processes must be identified and implemented. We must also ensure that the storage system can handle potential increases in data size or complexity resulting from the new embedding models.
+
+
+In the query process we must use the embedding model associated with the workspace to generate embeddings for incoming queries. This ensures retrieving relevant information from the vector database.
+
+We must ensure the embedding storage backends, including Postgres and In-Memory storage, are fully compatible with the new providers and embedding models. Any differences in behavior or performance between these backends must be documented and addressed.
+
+We must ensure that the edgequake_webui is fully compatible with the new providers and embedding models. Any changes to the API used by the webui must be carefully managed to prevent regressions or disruptions in functionality.
 
 
 ## Your Tasks
@@ -34,6 +49,11 @@ The change Embedding models will require recreating the vector database to ensur
 - Update the configuration management system to allow easy switching between openai, ollama, and lmstudio providers
 - Modify the embedding model selection process to accommodate the new models for ollama and lmstudio
 - Provide a mechanism to recreate the vector database when changing embedding models
+- Implement a selection dropdown in the chat query input for choosing the provider and model
+- Update the documentation to reflect the new provider support and configuration options
+- Provide an way to choose the embedding model when creating a new workspace. 
+- Provide clear instructions on how to set up and use the ollama and lmstudio providers in edgequake
+- Provide
 - Thoroughly test the implementation to ensure compatibility and performance across all supported providers
 - Non regression is your North Star, non negotiable requirement
 - Loosing a feature is not acceptable when commenting and is a failure in this mission

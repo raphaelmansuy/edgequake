@@ -16,6 +16,7 @@
 **Location:** After line 339 (after vector_storage creation)
 
 **Current Code (lines 336-340):**
+
 ```rust
 // Get embedding dimension from provider for vector storage
 let embedding_dim = embedding_provider.dimension();
@@ -25,6 +26,7 @@ let vector_storage = Arc::new(MemoryVectorStorage::new("default", embedding_dim)
 ```
 
 **Add After Line 340:**
+
 ```rust
 // Log provider and dimension configuration for debugging
 tracing::info!(
@@ -48,6 +50,7 @@ tracing::info!(
 **Need to locate:** Find `PgVectorStorage::new(...)` or `PgVectorStorage::with_dimension(...)`
 
 **Add Similar Logging:**
+
 ```rust
 tracing::info!(
     provider = embedding_provider.name(),
@@ -72,12 +75,13 @@ tracing::info!(
 **Insertion Point:** After creating `vector_storage` but before returning AppState
 
 **Validation Code:**
+
 ```rust
 // Validate dimension compatibility for existing storage
 if !vector_storage.is_empty().await? {
     let storage_dim = vector_storage.dimension();
     let provider_dim = embedding_provider.dimension();
-    
+
     if storage_dim != provider_dim {
         return Err(anyhow::anyhow!(
             "❌ Dimension mismatch detected\n\
@@ -131,11 +135,13 @@ tracing::info!(
 **Check top of file for:** `use anyhow;` or `use anyhow::Result;`
 
 **If missing, add:**
+
 ```rust
 use anyhow::Result as AnyhowResult;
 ```
 
 **Update function signature:**
+
 ```rust
 pub async fn new_postgres(llm_api_key: Option<impl Into<String>>) -> AnyhowResult<Self>
 ```
@@ -149,6 +155,7 @@ pub async fn new_postgres(llm_api_key: Option<impl Into<String>>) -> AnyhowResul
 **File:** `edgequake/crates/edgequake-api/tests/e2e_dimension_logging.rs` (NEW)
 
 **Full Test Code:**
+
 ```rust
 //! E2E tests for dimension logging in AppState.
 //!
@@ -205,6 +212,7 @@ async fn test_dimension_logged_memory_ollama() {
 **File:** `edgequake/crates/edgequake-api/tests/e2e_postgres_dimension_validation.rs` (NEW)
 
 **Full Test Code:**
+
 ```rust
 //! E2E tests for PostgreSQL dimension validation.
 //!
@@ -367,6 +375,7 @@ mod postgres_tests {
 **Location:** After "Provider Switching" section
 
 **New Section:**
+
 ```markdown
 ## Dimension Compatibility and Migration
 
@@ -374,27 +383,28 @@ mod postgres_tests {
 
 Different embedding models produce vectors of different dimensions:
 
-| Provider | Model | Dimension |
-|----------|-------|-----------|
-| OpenAI | text-embedding-3-small | 1536 |
-| Ollama | embeddinggemma:latest | 768 |
-| Mock | Synthetic vectors | 1536 |
-| LM Studio | text-embedding-ada-002 | 1536 |
+| Provider  | Model                  | Dimension |
+| --------- | ---------------------- | --------- |
+| OpenAI    | text-embedding-3-small | 1536      |
+| Ollama    | embeddinggemma:latest  | 768       |
+| Mock      | Synthetic vectors      | 1536      |
+| LM Studio | text-embedding-ada-002 | 1536      |
 
 **Critical:** Vectors of different dimensions are **not compatible** with each other.
 
 ### Dimension Mismatch Error
 
 When switching providers, you may encounter:
-
 ```
+
 ❌ Dimension mismatch detected
 
 PostgreSQL storage contains vectors with 1536 dimensions,
 but provider 'ollama' expects 768 dimensions.
 
 This mismatch will cause incorrect similarity search results.
-```
+
+````
 
 ### Recovery Options
 
@@ -404,7 +414,7 @@ This mismatch will cause incorrect similarity search results.
 # If you switched from OpenAI to Ollama, switch back
 export OPENAI_API_KEY="sk-your-key"
 unset OLLAMA_HOST
-```
+````
 
 #### Option 2: Clear Storage (⚠️ Destructive)
 
@@ -430,6 +440,7 @@ cargo run --bin edgequake -- rebuild-vectors \
 2. **Use consistent providers** - Stick with one provider per deployment
 3. **Test in staging** - Verify provider switch works before production
 4. **Backup vectors** - Export vectors before clearing storage
+
 ```
 
 ---
@@ -466,11 +477,13 @@ cargo run --bin edgequake -- rebuild-vectors \
 
 ### Commit 1: Dimension Logging
 ```
+
 feat(api): Add dimension logging on AppState creation
 
 OODA Loop #4 - Phase 6A: Dimension Logging
 
 Added tracing::info! logging when vector storage is initialized:
+
 - Log provider name (e.g., "ollama", "openai", "mock")
 - Log embedding dimension (e.g., 768, 1536)
 - Log storage type ("memory" or "postgres")
@@ -479,19 +492,23 @@ Added tracing::info! logging when vector storage is initialized:
 Helps users understand which provider/dimension is active.
 
 Files changed:
+
 - edgequake/crates/edgequake-api/src/state.rs (+10 lines)
 
 Implements: SPEC-032 Ollama/LM Studio provider support - Dimension logging
 OODA Progress: 4/50 iterations (8%)
+
 ```
 
 ### Commit 2: PostgreSQL Dimension Validation
 ```
+
 feat(api): Add PostgreSQL dimension validation
 
 OODA Loop #4 - Phase 6B: Dimension Validation
 
 Added strict dimension validation when creating AppState with PostgreSQL:
+
 - Check if storage is non-empty
 - Compare storage dimension vs provider dimension
 - Return detailed error on mismatch with recovery options
@@ -500,21 +517,25 @@ Added strict dimension validation when creating AppState with PostgreSQL:
 Prevents silent data corruption from dimension mismatches.
 
 Files changed:
+
 - edgequake/crates/edgequake-api/src/state.rs (+35 lines)
 
 Breaking Change: new_postgres() now returns Result<Self> instead of Self
 
 Implements: SPEC-032 Ollama/LM Studio provider support - Dimension validation
 OODA Progress: 4/50 iterations (8%)
+
 ```
 
 ### Commit 3: E2E Tests
 ```
+
 test(api): Add E2E tests for dimension validation
 
 OODA Loop #4 - Phase 6C: E2E Testing
 
 Added 5 E2E tests:
+
 - test_dimension_logged_memory_mock
 - test_dimension_logged_memory_ollama
 - test_fresh_postgres_no_error (PostgreSQL)
@@ -526,44 +547,50 @@ PostgreSQL tests require DATABASE_URL and postgres feature flag.
 Test Results: 5/5 passing (feature-gated)
 
 Files created:
+
 - edgequake/crates/edgequake-api/tests/e2e_dimension_logging.rs (NEW, 56 lines)
 - edgequake/crates/edgequake-api/tests/e2e_postgres_dimension_validation.rs (NEW, 158 lines)
 
 Implements: SPEC-032 Ollama/LM Studio provider support - Dimension validation tests
 OODA Progress: 4/50 iterations (8%)
+
 ```
 
 ### Commit 4: Documentation
 ```
+
 docs: Add dimension compatibility and migration guide
 
 OODA Loop #4 - Phase 6D: Documentation
 
 Added comprehensive section on dimension compatibility:
+
 - Dimension matrix for all providers
 - Explanation of dimension mismatch error
 - 3 recovery options with examples
 - Best practices for provider switching
 
 Files changed:
+
 - docs/0005-llm-integration.md (+60 lines)
 
 Implements: SPEC-032 Ollama/LM Studio provider support - Migration guide
 OODA Progress: 4/50 iterations (8%)
+
 ```
 
 ---
 
 ## Success Criteria Checklist
 
-✅ **SC-1:** Dimension logged when AppState created  
-✅ **SC-2:** PostgreSQL dimension validation implemented  
-✅ **SC-3:** Clear error message on dimension mismatch  
-✅ **SC-4:** Error includes 3 recovery options  
-✅ **SC-5:** Test for dimension logging exists  
-✅ **SC-6:** Test for dimension mismatch error exists  
-✅ **SC-7:** PgVectorStorage dimension() verified working  
-✅ **SC-8:** No regressions (existing tests pass)  
+✅ **SC-1:** Dimension logged when AppState created
+✅ **SC-2:** PostgreSQL dimension validation implemented
+✅ **SC-3:** Clear error message on dimension mismatch
+✅ **SC-4:** Error includes 3 recovery options
+✅ **SC-5:** Test for dimension logging exists
+✅ **SC-6:** Test for dimension mismatch error exists
+✅ **SC-7:** PgVectorStorage dimension() verified working
+✅ **SC-8:** No regressions (existing tests pass)
 ✅ **SC-9:** Documentation updated with migration guide
 
 ---
@@ -599,9 +626,10 @@ OODA Progress: 4/50 iterations (8%)
 
 ---
 
-**OODA Progress:** 4/50 iterations (8%)  
+**OODA Progress:** 4/50 iterations (8%)
 **Phase Progress:** Iteration #4 - Decide ✅ COMPLETE
 
 ---
 
 **End of Decide Phase**
+```

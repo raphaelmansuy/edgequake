@@ -12,6 +12,7 @@
 We're implementing explicit Ollama and LM Studio provider support for EdgeQuake RAG framework. This is Iteration #4 of minimum 50 OODA loops.
 
 **Primary Objectives (from SPEC-032):**
+
 1. ✅ Ollama provider with gemma3:12b + embeddinggemma:latest defaults
 2. ✅ LM Studio provider via OpenAI-compatible API
 3. ✅ Easy switching between providers (OpenAI, Ollama, LM Studio)
@@ -29,18 +30,21 @@ We're implementing explicit Ollama and LM Studio provider support for EdgeQuake 
 ### What Works ✅
 
 **Provider Infrastructure:**
+
 - ✅ OllamaProvider with correct defaults (gemma3:12b, embeddinggemma:latest)
 - ✅ ProviderFactory with environment-based auto-detection
 - ✅ Priority chain: EDGEQUAKE_LLM_PROVIDER > OLLAMA_HOST > OPENAI_API_KEY > Mock
 - ✅ AppState integration with ProviderFactory
 
 **Test Coverage:**
+
 - ✅ 7 ProviderFactory E2E tests (auto-detection, priority chain, dimension detection)
 - ✅ 3 AppState integration tests (configuration validation)
 - ✅ Total: 10 new E2E tests (100% passing)
 - ✅ 54 total tests passing workspace-wide
 
 **Documentation:**
+
 - ✅ 430+ lines of user-facing documentation (configuration + integration guides)
 - ✅ 1,437 lines of OODA loop documentation (Iterations #1-#3)
 
@@ -57,6 +61,7 @@ When a user switches from OpenAI (1536-dim) to Ollama (768-dim), or vice versa, 
 4. **Poor User Experience** - No guidance on how to migrate
 
 **Current Behavior (UNSAFE):**
+
 ```rust
 // User starts with OpenAI (1536-dim)
 std::env::set_var("OPENAI_API_KEY", "sk-...");
@@ -74,6 +79,7 @@ let state = AppState::new_memory(None::<String>);
 ```
 
 **Expected Behavior (SAFE):**
+
 ```rust
 // Scenario 1: Clean storage (no existing vectors)
 let state = AppState::new_memory(None::<String>);
@@ -93,6 +99,7 @@ let state = AppState::new_memory(None::<String>);
 ### Gap #1: VectorStorage Trait Missing dimension() Method
 
 **Current Trait:**
+
 ```rust
 #[async_trait]
 pub trait VectorStorage: Send + Sync {
@@ -104,11 +111,12 @@ pub trait VectorStorage: Send + Sync {
 ```
 
 **Required Addition:**
+
 ```rust
 #[async_trait]
 pub trait VectorStorage: Send + Sync {
     // ... existing methods ...
-    
+
     /// Get the embedding dimension configured for this storage.
     /// Returns None if storage is empty (no dimension configured yet).
     fn dimension(&self) -> Option<usize>;
@@ -116,6 +124,7 @@ pub trait VectorStorage: Send + Sync {
 ```
 
 **Why This Design:**
+
 - `fn` not `async fn` - Dimension is metadata, not I/O operation
 - `Option<usize>` - Storage may be empty (no vectors stored yet)
 - Call is cheap - Just returns a field value
@@ -125,6 +134,7 @@ pub trait VectorStorage: Send + Sync {
 ### Gap #2: In-Memory Storage Doesn't Track Dimension
 
 **Current Implementation:**
+
 ```rust
 pub struct MemoryVectorStorage {
     vectors: Arc<RwLock<HashMap<String, Vec<f32>>>>,
@@ -144,6 +154,7 @@ impl MemoryVectorStorage {
 ```
 
 **Required Changes:**
+
 1. Add `dimension: usize` field to struct
 2. Store dimension in constructor
 3. Implement `dimension()` trait method
@@ -155,6 +166,7 @@ impl MemoryVectorStorage {
 **Assumption:** PgVectorStorage likely has dimension in schema but doesn't expose it via trait.
 
 **Required Investigation:**
+
 1. Check if `pgvector` table schema stores dimension
 2. Add SQL query to retrieve dimension from metadata
 3. Implement `dimension()` trait method
@@ -164,31 +176,33 @@ impl MemoryVectorStorage {
 ### Gap #4: AppState Doesn't Validate Dimension Match
 
 **Current AppState::new_memory():**
+
 ```rust
 pub fn new_memory(llm_api_key: Option<impl Into<String>>) -> Self {
     let (llm_provider, embedding_provider) = ProviderFactory::from_env()
         .expect("Failed to create LLM provider");
-    
+
     let embedding_dim = embedding_provider.dimension();
     let vector_storage = Arc::new(MemoryVectorStorage::new("default", embedding_dim));
-    
+
     // ❌ No validation that storage dimension matches provider
     // ❌ No warning if dimension changes
     // ❌ No migration guidance
-    
+
     // ... create other components ...
 }
 ```
 
 **Required Validation Logic:**
+
 ```rust
 pub fn new_memory(llm_api_key: Option<impl Into<String>>) -> Self {
     let (llm_provider, embedding_provider) = ProviderFactory::from_env()
         .expect("Failed to create LLM provider");
-    
+
     let provider_dim = embedding_provider.dimension();
     let vector_storage = Arc::new(MemoryVectorStorage::new("default", provider_dim));
-    
+
     // ✅ Validation: Check if storage already has different dimension
     if let Some(storage_dim) = vector_storage.dimension() {
         if storage_dim != provider_dim {
@@ -200,14 +214,14 @@ pub fn new_memory(llm_api_key: Option<impl Into<String>>) -> Self {
             );
         }
     }
-    
+
     // ✅ Logging: Record dimension for debugging
     tracing::info!(
         provider = embedding_provider.name(),
         dimension = provider_dim,
         "Vector storage initialized"
     );
-    
+
     // ... create other components ...
 }
 ```
@@ -219,21 +233,25 @@ pub fn new_memory(llm_api_key: Option<impl Into<String>>) -> Self {
 ### File Locations
 
 **Storage Trait:**
+
 - `edgequake/crates/edgequake-storage/src/traits.rs`
 - Line ~20-50 (estimated)
 - Need to add `dimension()` method
 
 **In-Memory Storage:**
+
 - `edgequake/crates/edgequake-storage/src/adapters/memory.rs`
 - MemoryVectorStorage struct
 - Need to add `dimension: usize` field and implement trait method
 
 **PostgreSQL Storage:**
+
 - `edgequake/crates/edgequake-storage/src/adapters/postgres.rs` (if exists)
 - OR `edgequake/crates/edgequake-storage/src/postgres/` directory
 - Need to query dimension from schema
 
 **AppState:**
+
 - `edgequake/crates/edgequake-api/src/state.rs`
 - Lines 323-360 (new_memory function)
 - Lines 520-560 (new_postgres function, estimated)
@@ -261,12 +279,14 @@ pub fn new_memory(llm_api_key: Option<impl Into<String>>) -> Self {
 **Impact:** Downstream code must implement new trait method
 
 **Mitigation Strategy:**
+
 1. Add default implementation if possible (not possible for trait methods in Rust)
 2. OR: Provide blanket implementation for common types
 3. Document breaking change in commit message
 4. Update all implementations in same commit (atomic change)
 
 **Implementations to Update:**
+
 - MemoryVectorStorage ✅ (in this iteration)
 - PgVectorStorage ✅ (in this iteration)
 - MockVectorStorage ⚠️ (if exists)
@@ -278,6 +298,7 @@ pub fn new_memory(llm_api_key: Option<impl Into<String>>) -> Self {
 **Scenario:** User creates fresh AppState, no vectors stored yet. What dimension should storage.dimension() return?
 
 **Options:**
+
 1. **Return `None`** - Storage is empty, no dimension configured
 2. **Return `Some(provider_dim)`** - Use provider's dimension
 3. **Store dimension in constructor** - Dimension is metadata, not data
@@ -285,11 +306,13 @@ pub fn new_memory(llm_api_key: Option<impl Into<String>>) -> Self {
 **Chosen Design:** Option 3 (Store dimension in constructor)
 
 **Rationale:**
+
 - Dimension is determined at storage creation time (from provider)
 - Storage should always know its dimension (even if empty)
 - Simplifies validation logic (no Option unwrapping)
 
 **Revised Trait Method:**
+
 ```rust
 fn dimension(&self) -> usize;  // NOT Option<usize>
 ```
@@ -303,7 +326,9 @@ fn dimension(&self) -> usize;  // NOT Option<usize>
 **File:** `edgequake/crates/edgequake-storage/tests/test_memory_dimension.rs`
 
 **Test Cases:**
+
 1. `test_memory_storage_dimension_from_constructor`
+
    - Create storage with dimension=768
    - Assert `storage.dimension() == 768`
 
@@ -319,13 +344,16 @@ fn dimension(&self) -> usize;  // NOT Option<usize>
 **File:** `edgequake/crates/edgequake-api/tests/e2e_dimension_validation.rs`
 
 **Test Cases:**
+
 1. `test_appstate_dimension_match_success`
+
    - Set OLLAMA_HOST (768-dim)
    - Create AppState
    - Assert no panic
    - Assert dimension logged
 
 2. `test_appstate_dimension_mismatch_panic`
+
    - Mock storage with 1536-dim vectors
    - Set OLLAMA_HOST (768-dim)
    - Create AppState
@@ -344,7 +372,9 @@ fn dimension(&self) -> usize;  // NOT Option<usize>
 **File:** `edgequake/crates/edgequake-storage/tests/test_postgres_dimension.rs`
 
 **Test Cases:**
+
 1. `test_postgres_dimension_from_schema`
+
    - Create pgvector table with dimension=768
    - Query dimension via trait method
    - Assert correct dimension returned
@@ -374,29 +404,34 @@ fn dimension(&self) -> usize;  // NOT Option<usize>
 ## Estimated Work Breakdown
 
 ### Phase 6A: Trait Definition Update (20 minutes)
+
 - Read `edgequake-storage/src/traits.rs`
 - Add `dimension()` method to VectorStorage trait
 - Document method purpose and return semantics
 
 ### Phase 6B: MemoryVectorStorage Implementation (30 minutes)
+
 - Update struct to include `dimension: usize` field
 - Modify constructor to store dimension
 - Implement `dimension()` trait method
 - Write 2 unit tests
 
 ### Phase 6C: PgVectorStorage Implementation (40 minutes)
+
 - Locate PgVectorStorage implementation
 - Add dimension query logic (SQL or schema inspection)
 - Implement `dimension()` trait method
 - Write 2 unit tests (requires test DB setup)
 
 ### Phase 6D: AppState Validation Logic (30 minutes)
+
 - Update `AppState::new_memory()` with validation
 - Update `AppState::new_postgres()` with validation
 - Add `tracing::info!` logging
 - Write 3 E2E tests
 
 ### Phase 6E: Integration Testing (20 minutes)
+
 - Run full workspace test suite
 - Verify no regressions
 - Fix any compilation errors
@@ -409,17 +444,20 @@ fn dimension(&self) -> usize;  // NOT Option<usize>
 ## Dependencies & Blockers
 
 ### Dependencies
+
 - ✅ ProviderFactory implemented (Iteration #2)
 - ✅ AppState uses ProviderFactory (Iteration #3)
 - ✅ Test infrastructure in place (serial_test, etc.)
 
 ### Potential Blockers
+
 1. **PgVectorStorage may not exist yet** - Need to check if PostgreSQL adapter is implemented
    - Fallback: Implement only for MemoryVectorStorage, add TODO for PostgreSQL
 2. **Dimension stored in pgvector schema?** - Need to verify table structure
    - Fallback: Add dimension to metadata table if not in schema
 
 ### Assumptions
+
 - MemoryVectorStorage exists and can be modified
 - Storage trait is in `edgequake-storage` crate
 - AppState has access to storage dimension after creation

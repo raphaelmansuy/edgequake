@@ -55,6 +55,32 @@ pub use crate::handlers::workspaces_types::{
     WorkspaceListResponse, WorkspaceResponse, WorkspaceStatsResponse,
 };
 
+use edgequake_core::Workspace;
+
+// ============ Helper Functions ============
+
+/// Convert a Workspace domain object to WorkspaceResponse DTO.
+///
+/// WHY: Centralized conversion ensures embedding fields are always included.
+/// This supports SPEC-032 (Ollama/LM Studio provider integration).
+fn workspace_to_response(workspace: &Workspace) -> WorkspaceResponse {
+    WorkspaceResponse {
+        id: workspace.workspace_id,
+        tenant_id: workspace.tenant_id,
+        name: workspace.name.clone(),
+        slug: workspace.slug.clone(),
+        description: workspace.description.clone(),
+        is_active: workspace.is_active,
+        max_documents: workspace.max_documents(),
+        // SPEC-032: Embedding configuration
+        embedding_model: workspace.embedding_model.clone(),
+        embedding_provider: workspace.embedding_provider.clone(),
+        embedding_dimension: workspace.embedding_dimension,
+        created_at: workspace.created_at.to_rfc3339(),
+        updated_at: workspace.updated_at.to_rfc3339(),
+    }
+}
+
 // ============ Tenant Handlers ============
 
 /// Create a new tenant (organization).
@@ -109,12 +135,9 @@ pub async fn create_tenant(
 
     // Auto-create a default workspace for the new tenant (R004)
     // This ensures users always have at least one workspace available
-    let default_workspace_request = edgequake_core::CreateWorkspaceRequest {
-        name: "Default Workspace".to_string(),
-        slug: Some("default".to_string()),
-        description: Some("Automatically created default workspace".to_string()),
-        max_documents: None,
-    };
+    // SPEC-032: Uses server defaults for embedding configuration
+    let default_workspace_request = edgequake_core::CreateWorkspaceRequest::new("Default Workspace")
+        .with_embedding_model("text-embedding-3-small");
 
     if let Err(e) = state
         .workspace_service
@@ -361,11 +384,15 @@ pub async fn create_workspace(
 ) -> Result<(StatusCode, Json<WorkspaceResponse>), ApiError> {
     use edgequake_core::CreateWorkspaceRequest;
 
+    // SPEC-032: Include embedding configuration in create request
     let create_request = CreateWorkspaceRequest {
         name: request.name.clone(),
         slug: request.slug.clone(),
         description: request.description.clone(),
         max_documents: request.max_documents,
+        embedding_model: request.embedding_model.clone(),
+        embedding_provider: request.embedding_provider.clone(),
+        embedding_dimension: request.embedding_dimension,
     };
 
     // Store workspace via workspace service
@@ -375,21 +402,12 @@ pub async fn create_workspace(
         .await
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
-    let response = WorkspaceResponse {
-        id: workspace.workspace_id,
-        tenant_id: workspace.tenant_id,
-        name: workspace.name.clone(),
-        slug: workspace.slug.clone(),
-        description: workspace.description.clone(),
-        is_active: workspace.is_active,
-        max_documents: workspace.max_documents(),
-        created_at: workspace.created_at.to_rfc3339(),
-        updated_at: workspace.updated_at.to_rfc3339(),
-    };
+    let response = workspace_to_response(&workspace);
 
     tracing::info!(
         workspace_id = %workspace.workspace_id,
         tenant_id = %tenant_id,
+        embedding_model = %workspace.embedding_model,
         "Created workspace"
     );
 
@@ -431,17 +449,7 @@ pub async fn list_workspaces(
         .into_iter()
         .skip(params.offset)
         .take(limit)
-        .map(|ws| WorkspaceResponse {
-            id: ws.workspace_id,
-            tenant_id: ws.tenant_id,
-            name: ws.name.clone(),
-            slug: ws.slug.clone(),
-            description: ws.description.clone(),
-            is_active: ws.is_active,
-            max_documents: ws.max_documents(),
-            created_at: ws.created_at.to_rfc3339(),
-            updated_at: ws.updated_at.to_rfc3339(),
-        })
+        .map(|ws| workspace_to_response(&ws))
         .collect();
 
     let total = items.len();
@@ -482,17 +490,7 @@ pub async fn get_workspace(
         .map_err(|e| ApiError::Internal(e.to_string()))?
         .ok_or_else(|| ApiError::NotFound(format!("Workspace {} not found", workspace_id)))?;
 
-    let response = WorkspaceResponse {
-        id: workspace.workspace_id,
-        tenant_id: workspace.tenant_id,
-        name: workspace.name.clone(),
-        slug: workspace.slug.clone(),
-        description: workspace.description.clone(),
-        is_active: workspace.is_active,
-        max_documents: workspace.max_documents(),
-        created_at: workspace.created_at.to_rfc3339(),
-        updated_at: workspace.updated_at.to_rfc3339(),
-    };
+    let response = workspace_to_response(&workspace);
 
     Ok(Json(response))
 }
@@ -524,17 +522,7 @@ pub async fn get_workspace_by_slug(
         .map_err(|e| ApiError::Internal(e.to_string()))?
         .ok_or_else(|| ApiError::NotFound(format!("Workspace with slug '{}' not found", slug)))?;
 
-    let response = WorkspaceResponse {
-        id: workspace.workspace_id,
-        tenant_id: workspace.tenant_id,
-        name: workspace.name.clone(),
-        slug: workspace.slug.clone(),
-        description: workspace.description.clone(),
-        is_active: workspace.is_active,
-        max_documents: workspace.max_documents(),
-        created_at: workspace.created_at.to_rfc3339(),
-        updated_at: workspace.updated_at.to_rfc3339(),
-    };
+    let response = workspace_to_response(&workspace);
 
     Ok(Json(response))
 }
@@ -575,17 +563,7 @@ pub async fn update_workspace(
         .await
         .map_err(|e| ApiError::NotFound(e.to_string()))?;
 
-    let response = WorkspaceResponse {
-        id: workspace.workspace_id,
-        tenant_id: workspace.tenant_id,
-        name: workspace.name.clone(),
-        slug: workspace.slug.clone(),
-        description: workspace.description.clone(),
-        is_active: workspace.is_active,
-        max_documents: workspace.max_documents(),
-        created_at: workspace.created_at.to_rfc3339(),
-        updated_at: workspace.updated_at.to_rfc3339(),
-    };
+    let response = workspace_to_response(&workspace);
 
     Ok(Json(response))
 }

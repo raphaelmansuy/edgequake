@@ -6,10 +6,11 @@ EdgeQuake now defaults to using **Ollama** for local development, providing a fr
 
 1. **Install Ollama**: https://ollama.ai/download
 2. **Pull Required Models**:
+
    ```bash
    # LLM model (7B parameters, good quality/speed balance)
    ollama pull qwen2.5:7b
-   
+
    # Embedding model (768 dimensions)
    ollama pull nomic-embed-text
    ```
@@ -29,6 +30,7 @@ make dev
 ```
 
 This will:
+
 - ✅ Start PostgreSQL database
 - ✅ Start backend API with Ollama provider
 - ✅ Start frontend WebUI
@@ -42,6 +44,7 @@ This will:
 3. Check the **Provider Status** card
 
 You should see:
+
 - **LLM Provider**: Ollama (qwen2.5:7b)
 - **Embedding Provider**: Ollama (nomic-embed-text) - 768 dimensions
 - **Status**: 🟢 Connected
@@ -61,6 +64,7 @@ EMBEDDING_MODEL=text-embedding-3-small
 ```
 
 Then:
+
 ```bash
 make dev
 ```
@@ -83,19 +87,19 @@ EMBEDDING_BASE_URL=http://localhost:1234/v1
 
 ### Ollama Models
 
-| Use Case | LLM Model | Embedding Model | Total RAM |
-|----------|-----------|-----------------|-----------|
-| **Development** (recommended) | `qwen2.5:7b` | `nomic-embed-text` | ~8 GB |
-| **Fast Testing** | `qwen2.5:3b` | `nomic-embed-text` | ~5 GB |
-| **High Quality** | `qwen2.5:14b` | `nomic-embed-text` | ~16 GB |
-| **Best Quality** | `qwen2.5:32b` | `nomic-embed-text` | ~32 GB |
+| Use Case                      | LLM Model     | Embedding Model    | Total RAM |
+| ----------------------------- | ------------- | ------------------ | --------- |
+| **Development** (recommended) | `qwen2.5:7b`  | `nomic-embed-text` | ~8 GB     |
+| **Fast Testing**              | `qwen2.5:3b`  | `nomic-embed-text` | ~5 GB     |
+| **High Quality**              | `qwen2.5:14b` | `nomic-embed-text` | ~16 GB    |
+| **Best Quality**              | `qwen2.5:32b` | `nomic-embed-text` | ~32 GB    |
 
 ### OpenAI Models
 
-| Use Case | LLM Model | Embedding Model | Cost/1K tokens |
-|----------|-----------|-----------------|----------------|
-| **Production** | `gpt-4o-mini` | `text-embedding-3-small` | $0.0015 |
-| **High Quality** | `gpt-4o` | `text-embedding-3-large` | $0.005 |
+| Use Case         | LLM Model     | Embedding Model          | Cost/1K tokens |
+| ---------------- | ------------- | ------------------------ | -------------- |
+| **Production**   | `gpt-4o-mini` | `text-embedding-3-small` | $0.0015        |
+| **High Quality** | `gpt-4o`      | `text-embedding-3-large` | $0.005         |
 
 ## Troubleshooting
 
@@ -104,6 +108,7 @@ EMBEDDING_BASE_URL=http://localhost:1234/v1
 **Symptom**: Backend shows "Provider: Mock (1536 dimensions)"
 
 **Solution**:
+
 ```bash
 # Check Ollama is running
 curl http://localhost:11434/api/version
@@ -122,6 +127,7 @@ ollama list
 **Cause**: Storage was initialized with different embedding dimension (e.g., 1536 from OpenAI)
 
 **Solution**:
+
 ```bash
 # Option 1: Clean database and restart
 make db-clean-force
@@ -136,6 +142,7 @@ make dev
 **Symptom**: Backend crashes with "model not found" error
 
 **Solution**:
+
 ```bash
 # Pull missing models
 ollama pull qwen2.5:7b
@@ -149,11 +156,13 @@ make dev
 ## Development Workflow
 
 ### 1. Start Stack
+
 ```bash
 make dev
 ```
 
 ### 2. Upload Document
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/documents/upload \
   -F "file=@your-document.pdf" \
@@ -161,6 +170,7 @@ curl -X POST http://localhost:8080/api/v1/documents/upload \
 ```
 
 ### 3. Query Knowledge Graph
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/query \
   -H "Content-Type: application/json" \
@@ -168,6 +178,7 @@ curl -X POST http://localhost:8080/api/v1/query \
 ```
 
 ### 4. View Results in WebUI
+
 - Open http://localhost:3000
 - Navigate to **Query** page
 - Enter your question
@@ -176,11 +187,13 @@ curl -X POST http://localhost:8080/api/v1/query \
 ## Performance Benchmarks
 
 ### Ollama (qwen2.5:7b on M1 Max 64GB)
+
 - **Document Ingestion**: ~2-3 docs/minute
 - **Query Response**: ~1-2 seconds
 - **Cost**: Free (local)
 
 ### OpenAI (gpt-4o-mini)
+
 - **Document Ingestion**: ~10-15 docs/minute
 - **Query Response**: ~500-800ms
 - **Cost**: $0.0014/document, $0.0003/query
