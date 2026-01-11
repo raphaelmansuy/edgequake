@@ -1,0 +1,238 @@
+/**
+ * @module RebuildEmbeddingsButton
+ * @description Button to trigger workspace embedding rebuild
+ *
+ * @implements SPEC-032: Vector database rebuild on embedding model change
+ * @iteration OODA #22 - WebUI for rebuild embeddings
+ *
+ * @enforces BR0401 - Users can rebuild embeddings when changing models
+ * @enforces BR0402 - Clear warning before destructive operations
+ */
+
+'use client';
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { rebuildEmbeddings, type RebuildEmbeddingsResponse } from '@/lib/api/edgequake';
+import { useTenantStore } from '@/stores/use-tenant-store';
+import { useMutation } from '@tanstack/react-query';
+import { AlertTriangle, RefreshCw, RotateCcw } from 'lucide-react';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
+
+interface RebuildEmbeddingsButtonProps {
+  /**
+   * Whether to show the full card version or just a button
+   */
+  variant?: 'button' | 'card';
+  /**
+   * Callback when rebuild is complete
+   */
+  onComplete?: (response: RebuildEmbeddingsResponse) => void;
+}
+
+/**
+ * Button/Card to rebuild workspace embeddings.
+ *
+ * This component allows users to trigger a rebuild of all vector embeddings
+ * for the currently selected workspace. This is necessary when:
+ * - Changing embedding models
+ * - Switching embedding providers
+ * - Fixing corrupted embeddings
+ *
+ * @param variant - Display variant ('button' or 'card')
+ * @param onComplete - Callback when rebuild completes
+ */
+export function RebuildEmbeddingsButton({
+  variant = 'button',
+  onComplete,
+}: RebuildEmbeddingsButtonProps) {
+  const { t } = useTranslation();
+  const { selectedWorkspaceId, workspaces } = useTenantStore();
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+
+  // Find selected workspace
+  const selectedWorkspace = workspaces.find((w) => w.id === selectedWorkspaceId);
+
+  // Rebuild mutation
+  const rebuildMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedWorkspaceId) {
+        throw new Error('No workspace selected');
+      }
+      return rebuildEmbeddings(selectedWorkspaceId, { force: true });
+    },
+    onSuccess: (response) => {
+      toast.success(
+        t(
+          'workspace.rebuild.success',
+          `Embeddings cleared! ${response.documents_to_process} documents need reprocessing.`
+        )
+      );
+      setIsConfirmOpen(false);
+      onComplete?.(response);
+    },
+    onError: (error: Error) => {
+      toast.error(
+        t('workspace.rebuild.error', `Failed to rebuild embeddings: ${error.message}`)
+      );
+    },
+  });
+
+  const handleRebuild = () => {
+    rebuildMutation.mutate();
+  };
+
+  // Button content
+  const buttonContent = (
+    <Button
+      variant="outline"
+      disabled={!selectedWorkspaceId || rebuildMutation.isPending}
+      className="gap-2"
+    >
+      {rebuildMutation.isPending ? (
+        <RefreshCw className="h-4 w-4 animate-spin" />
+      ) : (
+        <RotateCcw className="h-4 w-4" />
+      )}
+      {t('workspace.rebuild.button', 'Rebuild Embeddings')}
+    </Button>
+  );
+
+  // Confirmation dialog
+  const confirmDialog = (
+    <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+      <AlertDialogTrigger asChild>{buttonContent}</AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+            {t('workspace.rebuild.confirm.title', 'Rebuild Embeddings?')}
+          </AlertDialogTitle>
+          <AlertDialogDescription className="space-y-2">
+            <p>
+              {t(
+                'workspace.rebuild.confirm.description',
+                'This will clear all vector embeddings for workspace:'
+              )}
+            </p>
+            <p className="font-medium text-foreground">
+              {selectedWorkspace?.name || selectedWorkspaceId}
+            </p>
+            <div className="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+              <p className="font-medium">
+                {t('workspace.rebuild.confirm.warning', 'Warning:')}
+              </p>
+              <ul className="mt-1 list-inside list-disc space-y-1">
+                <li>
+                  {t(
+                    'workspace.rebuild.confirm.warning1',
+                    'All existing embeddings will be deleted'
+                  )}
+                </li>
+                <li>
+                  {t(
+                    'workspace.rebuild.confirm.warning2',
+                    'Documents must be reprocessed to restore search'
+                  )}
+                </li>
+                <li>
+                  {t(
+                    'workspace.rebuild.confirm.warning3',
+                    'Queries may return empty results until reprocessing completes'
+                  )}
+                </li>
+              </ul>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>
+            {t('common.cancel', 'Cancel')}
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleRebuild}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {rebuildMutation.isPending ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                {t('workspace.rebuild.rebuilding', 'Rebuilding...')}
+              </>
+            ) : (
+              t('workspace.rebuild.confirm.action', 'Yes, Rebuild')
+            )}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
+  // Card variant
+  if (variant === 'card') {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <RotateCcw className="h-4 w-4 text-primary" />
+            {t('workspace.rebuild.card.title', 'Workspace Embeddings')}
+          </CardTitle>
+          <CardDescription className="text-sm">
+            {t(
+              'workspace.rebuild.card.description',
+              'Rebuild vector embeddings when changing embedding models or providers.'
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="space-y-3">
+            {selectedWorkspace && (
+              <div className="rounded-md border p-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">
+                    {t('workspace.rebuild.card.current', 'Current Model:')}
+                  </span>
+                  <span className="font-mono text-xs">
+                    {selectedWorkspace.embedding_provider}/{selectedWorkspace.embedding_model}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-muted-foreground">
+                    {t('workspace.rebuild.card.dimension', 'Dimension:')}
+                  </span>
+                  <span className="font-mono text-xs">
+                    {selectedWorkspace.embedding_dimension}
+                  </span>
+                </div>
+              </div>
+            )}
+            {confirmDialog}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Button variant
+  return confirmDialog;
+}
+
+export default RebuildEmbeddingsButton;

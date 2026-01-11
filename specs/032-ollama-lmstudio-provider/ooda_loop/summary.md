@@ -2,7 +2,7 @@
 
 **Project:** EdgeQuake Ollama/LM Studio Provider Integration  
 **Spec:** [032-ollama-lmstudio-provider.md](../032-ollama-lmstudio-provider.md)  
-**Date Range:** 2025-01-10 to 2025-01-30  
+**Date Range:** 2025-01-10 to 2025-01-31  
 **Total Iterations Target:** 50
 
 ---
@@ -22,11 +22,14 @@
 | **10**    | **Act** | ✅ **COMPLETE** | 2025-01-30 | **WebUI LLMModelSelector for workspace creation**          |
 | **11**    | **Act** | ✅ **COMPLETE** | 2025-01-30 | **Workspace-specific LLM in ingestion pipeline**           |
 | 15-16     | All     | ✅ COMPLETE     | 2025-01-11 | EmbeddingProviderFactory (done in 13)                      |
-| **14**    | **All** | ✅ **COMPLETE** | 2026-01-11 | **Tenant-level LLM/embedding configuration** (~430 LOC)    |
-| 17-18     | All     | ⏳ PLANNED      | TBD        | WebUI provider selector                                    |
-| 19-20     | All     | ⏳ PLANNED      | TBD        | Workspace creation embedding UI                            |
-| 21-25     | All     | ⏳ PLANNED      | TBD        | Vector database rebuild logic                              |
-| 26-35     | All     | ⏳ PLANNED      | TBD        | E2E tests & edge cases                                     |
+| **14**    | **All** | ✅ **COMPLETE** | 2025-01-31 | **Tenant-level LLM/embedding configuration** (commit 4d6d797) |
+| **15**    | **All** | ✅ **COMPLETE** | 2025-01-31 | **QueryRequest LLM provider/model fields** (commit 171f56e) |
+| **16**    | **All** | ✅ **COMPLETE** | 2025-01-31 | **Non-streaming LLM provider override** (commit 48e5a51)   |
+| **17**    | **All** | ✅ **COMPLETE** | 2025-01-31 | **Streaming LLM provider override** (commit f523d0a)       |
+| 18-20     | All     | ⏳ PLANNED      | TBD        | Models.toml config + API parsing                           |
+| 21-25     | All     | ⏳ PLANNED      | TBD        | WebUI provider selector in chat                            |
+| 26-30     | All     | ⏳ PLANNED      | TBD        | Vector database rebuild logic                              |
+| 31-35     | All     | ⏳ PLANNED      | TBD        | E2E tests & edge cases                                     |
 | 36-50     | All     | ⏳ PLANNED      | TBD        | Documentation & non-regression validation                  |
 
 ---
@@ -35,13 +38,79 @@
 
 | Commit  | OODA  | Description                                       |
 | ------- | ----- | ------------------------------------------------- |
-| TBD     | 14    | Tenant-level LLM/embedding configuration          |
+| f523d0a | 17    | Streaming LLM provider override                   |
+| 48e5a51 | 16    | Non-streaming LLM provider override in query engine |
+| 171f56e | 15    | QueryRequest LLM provider/model fields + builders |
+| 4d6d797 | 14    | Tenant-level LLM/embedding configuration          |
 | TBD     | 10-11 | WebUI LLMModelSelector + ingestion integration    |
 | b4d63b8 | 13    | Workspace-specific embedding in query process     |
 | 794a3c7 | 12+14 | Provider registry API and list providers endpoint |
 | c33ec26 | 11    | LM Studio auto-detection in provider factory      |
 | 7001fa9 | 08-10 | Dedicated LMStudioProvider implementation         |
 | 845d7c6 | 07    | Workspace-level embedding configuration           |
+
+---
+
+## Iteration 14-17 Details (Query-Time Provider Selection)
+
+### Iteration 14: Tenant-Level LLM/Embedding Configuration ✅ COMPLETE
+
+Extended `Tenant` struct with default model configuration:
+
+**Files Modified:**
+- `edgequake-core/src/types/multitenancy.rs` (+70 lines) - Added 5 model config fields
+- `edgequake-api/src/dto/workspaces_types.rs` (+35 lines) - Updated DTOs
+- `edgequake-api/src/handlers/workspaces.rs` (+25 lines) - Tenant handlers
+- `edgequake_webui/src/lib/api/workspaces.ts` (+15 lines) - API types
+- `edgequake_webui/src/components/shared/tenant-workspace-selector.tsx` (+45 lines) - Model selectors
+
+**Key Features:**
+- `default_llm_model`, `default_llm_provider` fields
+- `default_embedding_model`, `default_embedding_provider`, `default_embedding_dimension` fields
+- `with_llm_config()`, `with_embedding_config()` builder methods
+- Workspace creation inherits tenant defaults
+
+### Iteration 15: QueryRequest LLM Override Fields ✅ COMPLETE
+
+Added LLM provider/model fields to QueryRequest:
+
+**Files Modified:**
+- `edgequake-query/src/engine.rs` (+45 lines)
+
+**Key Features:**
+- `llm_provider: Option<String>`, `llm_model: Option<String>` fields
+- `with_llm_provider()`, `with_llm_model()` builder methods
+- `with_llm_full_id("provider/model")` parser
+
+### Iteration 16: Non-Streaming LLM Override ✅ COMPLETE
+
+Wired LLM override through query engine:
+
+**Files Modified:**
+- `edgequake-query/src/sota_engine.rs` (+100 lines) - `query_with_llm_provider()` method
+- `edgequake-query/src/lib.rs` (+1 line) - Re-export LLMProvider
+- `edgequake-api/src/handlers/chat.rs` (+45 lines) - Use override in handler
+
+**Architecture:**
+```
+ChatRequest.provider → Parse "provider/model"
+                       → ProviderFactory::create_llm_provider()
+                       → query_with_llm_provider(request, llm)
+                       → Uses override for answer generation
+```
+
+### Iteration 17: Streaming LLM Override ✅ COMPLETE
+
+Added streaming support for LLM provider override:
+
+**Files Modified:**
+- `edgequake-query/src/sota_engine.rs` (+50 lines) - `query_stream_with_context_and_llm()` method
+- `edgequake-api/src/handlers/chat.rs` (+35 lines) - Streaming handler uses override
+
+**Key Features:**
+- `query_stream_with_context_and_llm(request, llm_provider)` method
+- Same pattern as non-streaming but returns stream
+- Graceful fallback to default if override creation fails
 
 ---
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { ProviderStatusCard } from '@/components/settings/provider-status-card';
+import { RebuildEmbeddingsButton } from '@/components/workspace/rebuild-embeddings-button';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -215,6 +216,9 @@ export default function SettingsPage() {
 
       {/* Provider Status */}
       <ProviderStatusCard />
+
+      {/* Workspace Maintenance (SPEC-032) */}
+      <RebuildEmbeddingsButton variant="card" />
 
       {/* Graph Settings */}
       <Card>
