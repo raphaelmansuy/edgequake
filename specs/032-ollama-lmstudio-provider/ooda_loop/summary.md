@@ -26,10 +26,10 @@
 | **15**    | **All** | ✅ **COMPLETE** | 2025-01-31 | **QueryRequest LLM provider/model fields** (commit 171f56e) |
 | **16**    | **All** | ✅ **COMPLETE** | 2025-01-31 | **Non-streaming LLM provider override** (commit 48e5a51)   |
 | **17**    | **All** | ✅ **COMPLETE** | 2025-01-31 | **Streaming LLM provider override** (commit f523d0a)       |
-| 18-20     | All     | ⏳ PLANNED      | TBD        | Models.toml config + API parsing                           |
-| 21-25     | All     | ⏳ PLANNED      | TBD        | WebUI provider selector in chat                            |
-| 26-30     | All     | ⏳ PLANNED      | TBD        | Vector database rebuild logic                              |
-| 31-35     | All     | ⏳ PLANNED      | TBD        | E2E tests & edge cases                                     |
+| **18-21** | **All** | ✅ **COMPLETE** | 2025-01-31 | **Verified models.toml + WebUI provider selector exist**   |
+| **22**    | **All** | ✅ **COMPLETE** | 2025-01-31 | **WebUI rebuild embeddings button** (commit 52d575b)       |
+| 23-25     | All     | ⏳ PLANNED      | TBD        | E2E tests & provider selection validation                  |
+| 26-35     | All     | ⏳ PLANNED      | TBD        | Edge cases & error handling improvements                   |
 | 36-50     | All     | ⏳ PLANNED      | TBD        | Documentation & non-regression validation                  |
 
 ---
@@ -38,6 +38,7 @@
 
 | Commit  | OODA  | Description                                       |
 | ------- | ----- | ------------------------------------------------- |
+| 52d575b | 22    | WebUI rebuild embeddings button                   |
 | f523d0a | 17    | Streaming LLM provider override                   |
 | 48e5a51 | 16    | Non-streaming LLM provider override in query engine |
 | 171f56e | 15    | QueryRequest LLM provider/model fields + builders |
@@ -48,6 +49,36 @@
 | c33ec26 | 11    | LM Studio auto-detection in provider factory      |
 | 7001fa9 | 08-10 | Dedicated LMStudioProvider implementation         |
 | 845d7c6 | 07    | Workspace-level embedding configuration           |
+
+---
+
+## Iteration 18-22 Details (Infrastructure Verification + WebUI)
+
+### Iterations 18-21: Verification of Existing Infrastructure ✅ COMPLETE
+
+Confirmed that models.toml and WebUI components already exist:
+
+**Existing Infrastructure:**
+- `edgequake/models.toml` (1030 lines) - Comprehensive model cards
+- Models API endpoints: `/api/v1/models`, `/api/v1/models/llm`, `/api/v1/models/embedding`
+- `ProviderModelSelector` component in query interface
+- `ChatCompletionRequest.provider` field in WebUI API client
+
+### Iteration 22: WebUI Rebuild Embeddings Button ✅ COMPLETE
+
+Created rebuild embeddings button for settings page:
+
+**Files Created:**
+- `edgequake_webui/src/components/workspace/rebuild-embeddings-button.tsx` (212 lines)
+
+**Files Modified:**
+- `edgequake_webui/src/app/(dashboard)/settings/page.tsx` (+3 lines) - Added component
+
+**Key Features:**
+- Card variant showing current embedding model and dimension
+- Confirmation dialog with clear warnings
+- Uses existing `rebuildEmbeddings` API function
+- Integrated under Provider Status in settings
 
 ---
 
