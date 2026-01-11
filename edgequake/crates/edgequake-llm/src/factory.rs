@@ -353,9 +353,17 @@ impl ProviderFactory {
             ProviderType::OpenAI => {
                 let api_key = std::env::var("OPENAI_API_KEY").map_err(|_| {
                     LlmError::ConfigError(
-                        "OPENAI_API_KEY required for OpenAI LLM provider".to_string(),
+                        "OPENAI_API_KEY required for OpenAI LLM provider. Set the environment variable or select a different provider (ollama, lmstudio, mock)".to_string(),
                     )
                 })?;
+                
+                // Validate API key is not empty
+                if api_key.is_empty() || api_key == "test-key" {
+                    return Err(LlmError::ConfigError(
+                        "OPENAI_API_KEY is empty or invalid. Provide a valid API key from https://platform.openai.com/account/api-keys or select a different provider (ollama, lmstudio, mock)".to_string(),
+                    ));
+                }
+                
                 // OpenAI provider with specific model
                 let provider = OpenAIProvider::new(api_key).with_model(model);
                 Ok(Arc::new(provider))
