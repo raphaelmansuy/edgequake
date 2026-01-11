@@ -16,11 +16,13 @@ The workspace-level embedding configuration is critical for SPEC-032 because:
 ### Architecture Decisions
 
 1. **Module-Level Constants**
+
    - `DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"`
    - `DEFAULT_EMBEDDING_PROVIDER = "openai"`
    - `DEFAULT_EMBEDDING_DIMENSION = 1536`
 
 2. **Auto-Detection Logic**
+
    - Model name patterns → provider detection
    - Model name patterns → dimension detection
    - Environment variable overrides
@@ -32,11 +34,13 @@ The workspace-level embedding configuration is critical for SPEC-032 because:
 ### Design Patterns
 
 1. **Builder Pattern** for CreateWorkspaceRequest
+
    - `.new(name)` creates minimal request
    - `.with_embedding_model(model)` configures embedding
 
 2. **Helper Function** for response conversion
-   - Centralized `workspace_to_response(&Workspace)` 
+
+   - Centralized `workspace_to_response(&Workspace)`
    - Ensures embedding fields always included
 
 3. **Environment-Based Defaults**
@@ -46,10 +50,10 @@ The workspace-level embedding configuration is critical for SPEC-032 because:
 
 ## Impact Assessment
 
-| Component | Impact | Risk |
-|-----------|--------|------|
-| Workspace struct | High | Low (additive) |
-| API DTOs | Medium | Low (optional fields) |
-| Services | Medium | Low (defaults applied) |
-| Tests | High | Medium (many updates) |
-| Database | Low | None (metadata JSONB) |
+| Component        | Impact | Risk                   |
+| ---------------- | ------ | ---------------------- |
+| Workspace struct | High   | Low (additive)         |
+| API DTOs         | Medium | Low (optional fields)  |
+| Services         | Medium | Low (defaults applied) |
+| Tests            | High   | Medium (many updates)  |
+| Database         | Low    | None (metadata JSONB)  |

@@ -39,15 +39,25 @@ pub struct UpdateTenantRequest {
 
 /// Request to create a new workspace.
 ///
-/// ## Embedding Configuration (SPEC-032)
+/// ## Model Configuration (SPEC-032)
 ///
-/// When creating a workspace, you can specify the embedding model to use.
-/// If not provided, server defaults are used (configurable via env vars).
+/// When creating a workspace, you can specify both LLM and embedding models.
+/// If not provided, server defaults are used (configurable via env vars or models.toml).
 ///
-/// **Examples:**
+/// **LLM Examples (for knowledge graph generation, summarization):**
+/// - OpenAI: `"gpt-4o-mini"`, `"gpt-4o"`
+/// - Ollama: `"gemma3:12b"`, `"llama3.2"`
+/// - LM Studio: `"gemma-3n-e4b-it-mlxmodel"`
+///
+/// **Embedding Examples:**
 /// - OpenAI: `"text-embedding-3-small"` (1536 dims), `"text-embedding-3-large"` (3072 dims)
 /// - Ollama: `"embeddinggemma:latest"` (768 dims), `"nomic-embed-text"` (768 dims)
 /// - LM Studio: `"nomic-ai/nomic-embed-text-v1.5"` (768 dims)
+///
+/// **Model ID Format:**
+/// Models can be specified as `model_name` or `provider/model_name`:
+/// - `"gemma3:12b"` - auto-detects provider as "ollama"
+/// - `"ollama/gemma3:12b"` - explicit provider
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CreateWorkspaceApiRequest {
     /// Workspace name.
@@ -58,6 +68,19 @@ pub struct CreateWorkspaceApiRequest {
     pub description: Option<String>,
     /// Maximum number of documents.
     pub max_documents: Option<usize>,
+
+    // === LLM Configuration (SPEC-032) ===
+
+    /// LLM model for knowledge graph generation, summarization, entity extraction.
+    /// Format: "model_name" or "provider/model_name" (e.g., "gemma3:12b", "ollama/gemma3:12b").
+    /// If not provided, uses server default from models.toml or EDGEQUAKE_DEFAULT_LLM_MODEL.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub llm_model: Option<String>,
+
+    /// LLM provider ("openai", "ollama", "lmstudio").
+    /// If not provided, auto-detected from llm_model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub llm_provider: Option<String>,
 
     // === Embedding Configuration (SPEC-032) ===
 
@@ -78,6 +101,11 @@ pub struct CreateWorkspaceApiRequest {
 }
 
 /// Request to update a workspace.
+///
+/// ## Model Configuration Updates (SPEC-032)
+///
+/// Changing LLM provider/model is safe and takes effect immediately for new ingestions.
+/// Changing embedding provider/model requires rebuilding vectors (use rebuild-embeddings endpoint).
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct UpdateWorkspaceApiRequest {
     /// New workspace name.
@@ -88,6 +116,16 @@ pub struct UpdateWorkspaceApiRequest {
     pub is_active: Option<bool>,
     /// Maximum number of documents.
     pub max_documents: Option<usize>,
+
+    // === LLM Configuration (SPEC-032) ===
+
+    /// Update LLM model (takes effect on next ingestion).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub llm_model: Option<String>,
+
+    /// Update LLM provider.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub llm_provider: Option<String>,
 }
 
 // ============================================================================
@@ -117,7 +155,7 @@ pub struct TenantResponse {
 
 /// Workspace response DTO.
 ///
-/// Includes embedding configuration (SPEC-032) for transparency.
+/// Includes full model configuration (SPEC-032) for transparency.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct WorkspaceResponse {
     /// Workspace ID.
@@ -135,6 +173,15 @@ pub struct WorkspaceResponse {
     /// Maximum documents allowed.
     pub max_documents: Option<usize>,
 
+    // === LLM Configuration (SPEC-032) ===
+
+    /// LLM model for knowledge graph generation and summarization.
+    pub llm_model: String,
+    /// LLM provider (openai, ollama, lmstudio).
+    pub llm_provider: String,
+    /// Fully qualified LLM model ID (provider/model format).
+    pub llm_full_id: String,
+
     // === Embedding Configuration (SPEC-032) ===
 
     /// Embedding model used for this workspace.
@@ -143,6 +190,8 @@ pub struct WorkspaceResponse {
     pub embedding_provider: String,
     /// Embedding vector dimension.
     pub embedding_dimension: usize,
+    /// Fully qualified embedding model ID (provider/model format).
+    pub embedding_full_id: String,
 
     /// Creation timestamp.
     pub created_at: String,
@@ -319,6 +368,8 @@ mod tests {
             slug: Some("main".to_string()),
             description: Some("Primary workspace".to_string()),
             max_documents: Some(1000),
+            llm_model: None,
+            llm_provider: None,
             embedding_model: None,
             embedding_provider: None,
             embedding_dimension: None,
@@ -336,6 +387,8 @@ mod tests {
             description: None,
             is_active: Some(true),
             max_documents: Some(2000),
+            llm_model: None,
+            llm_provider: None,
         };
 
         let json = serde_json::to_string(&req).unwrap();
@@ -371,10 +424,15 @@ mod tests {
             description: Some("A test workspace".to_string()),
             is_active: true,
             max_documents: Some(100),
+            // SPEC-032: LLM configuration
+            llm_model: "gemma3:12b".to_string(),
+            llm_provider: "ollama".to_string(),
+            llm_full_id: "ollama/gemma3:12b".to_string(),
             // SPEC-032: Embedding configuration
             embedding_model: "text-embedding-3-small".to_string(),
             embedding_provider: "openai".to_string(),
             embedding_dimension: 1536,
+            embedding_full_id: "openai/text-embedding-3-small".to_string(),
             created_at: "2024-01-01T00:00:00Z".to_string(),
             updated_at: "2024-01-01T00:00:00Z".to_string(),
         };
@@ -382,6 +440,8 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("Test Workspace"));
         assert!(json.contains("A test workspace"));
+        assert!(json.contains("\"llm_model\":\"gemma3:12b\""));
+        assert!(json.contains("\"llm_full_id\":\"ollama/gemma3:12b\""));
         assert!(json.contains("\"embedding_model\":\"text-embedding-3-small\""));
         assert!(json.contains("\"embedding_dimension\":1536"));
     }

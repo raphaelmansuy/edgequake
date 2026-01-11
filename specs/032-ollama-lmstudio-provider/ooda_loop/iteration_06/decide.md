@@ -11,6 +11,7 @@
 **Core Decision:** Proceed with workspace-level embedding configuration using provider registry pattern. Implementation split into 4 phases across 44 remaining OODA loops.
 
 **Critical Path:**
+
 1. Workspace schema (blocks everything) → Iterations 07-08
 2. Query engine refactor (highest complexity) → Iterations 16-20
 3. Vector rebuild logic (highest risk) → Iterations 21-25
@@ -25,16 +26,17 @@
 
 **Options Considered:**
 
-| Pattern | Pros | Cons | Decision |
-|---------|------|------|----------|
-| **Global Provider** (current) | Simple, fast | Cannot mix providers per workspace | ❌ REJECT |
-| **Provider Registry** | Cached instances, performant | More complexity | ✅ **ACCEPT** |
-| **Provider Factory Per Request** | Flexible | Expensive, slow | ❌ REJECT |
-| **Workspace Service Hybrid** | Balances concerns | Medium complexity | 🟡 Alternative |
+| Pattern                          | Pros                         | Cons                               | Decision       |
+| -------------------------------- | ---------------------------- | ---------------------------------- | -------------- |
+| **Global Provider** (current)    | Simple, fast                 | Cannot mix providers per workspace | ❌ REJECT      |
+| **Provider Registry**            | Cached instances, performant | More complexity                    | ✅ **ACCEPT**  |
+| **Provider Factory Per Request** | Flexible                     | Expensive, slow                    | ❌ REJECT      |
+| **Workspace Service Hybrid**     | Balances concerns            | Medium complexity                  | 🟡 Alternative |
 
 **CHOSEN:** Provider Registry with cached instances
 
 **Rationale:**
+
 - Performance: Creating provider per query = 50-100ms overhead
 - Memory: Caching 3-5 providers ~10MB RAM (acceptable)
 - Complexity: Manageable with RwLock + HashMap pattern
@@ -44,11 +46,11 @@
 
 **Options Considered:**
 
-| Mechanism | Pros | Cons | Decision |
-|-----------|------|------|----------|
-| **Database Lock (Postgres)** | Survives server restart | Requires Postgres | ✅ **ACCEPT** |
-| **In-Memory Lock (RwLock)** | Fast | Lost on restart | 🟡 Fallback |
-| **Distributed Lock (Redis)** | Multi-instance | External dependency | ❌ REJECT |
+| Mechanism                    | Pros                    | Cons                | Decision      |
+| ---------------------------- | ----------------------- | ------------------- | ------------- |
+| **Database Lock (Postgres)** | Survives server restart | Requires Postgres   | ✅ **ACCEPT** |
+| **In-Memory Lock (RwLock)**  | Fast                    | Lost on restart     | 🟡 Fallback   |
+| **Distributed Lock (Redis)** | Multi-instance          | External dependency | ❌ REJECT     |
 
 **CHOSEN:** Hybrid approach
 
@@ -67,7 +69,7 @@ impl WorkspaceLockService {
         if self.rebuilding_cache.read().unwrap().contains(&workspace_id) {
             return Ok(true);
         }
-        
+
         // Slow path: Query database (in case cache stale)
         let is_rebuilding = sqlx::query_scalar!(
             "SELECT is_rebuilding FROM workspaces WHERE id = $1",
@@ -75,7 +77,7 @@ impl WorkspaceLockService {
         )
         .fetch_one(&self.db_pool)
         .await?;
-        
+
         Ok(is_rebuilding)
     }
 }
@@ -99,6 +101,7 @@ EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION=1536
 ```
 
 **Rationale:**
+
 - Flexibility: Workspaces can override server default
 - Safety: New workspaces get validated default, not random provider
 - Migration: Existing workspaces backfilled with server default
@@ -124,6 +127,7 @@ edgequake-llm/src/providers/
 ```
 
 **Rationale:**
+
 - OpenAI wrapper cannot access LM Studio-specific features
 - Model discovery needed for UI dropdown
 - Health checks required for provider status indicator
@@ -135,15 +139,15 @@ edgequake-llm/src/providers/
 
 ```sql
 -- Migration 001: Add columns (NON-BREAKING)
-ALTER TABLE workspaces 
+ALTER TABLE workspaces
 ADD COLUMN embedding_model VARCHAR(255),
 ADD COLUMN embedding_provider VARCHAR(50),
 ADD COLUMN embedding_dimension INTEGER,
 ADD COLUMN is_rebuilding BOOLEAN DEFAULT false;
 
 -- Migration 002: Backfill defaults from server config
-UPDATE workspaces 
-SET 
+UPDATE workspaces
+SET
     embedding_model = COALESCE(
         (SELECT value FROM server_config WHERE key = 'default_embedding_model'),
         'text-embedding-3-small'
@@ -153,13 +157,13 @@ SET
 WHERE embedding_model IS NULL;
 
 -- Migration 003: Make columns NOT NULL (after backfill)
-ALTER TABLE workspaces 
+ALTER TABLE workspaces
 ALTER COLUMN embedding_model SET NOT NULL,
 ALTER COLUMN embedding_provider SET NOT NULL,
 ALTER COLUMN embedding_dimension SET NOT NULL;
 
 -- Rollback script (if needed)
-ALTER TABLE workspaces 
+ALTER TABLE workspaces
 DROP COLUMN embedding_model,
 DROP COLUMN embedding_provider,
 DROP COLUMN embedding_dimension,
@@ -167,6 +171,7 @@ DROP COLUMN is_rebuilding;
 ```
 
 **Safety Measures:**
+
 1. Test on staging database copy
 2. Backup before migration
 3. Separate rollback script
@@ -179,6 +184,7 @@ DROP COLUMN is_rebuilding;
 ### Phase 1: Foundation (Iterations 06-15) - WEEKS 1-2
 
 #### Iteration 06: Observation & Orientation ✅ COMPLETE
+
 - [x] Gap analysis
 - [x] Architecture review
 - [x] Design decisions
@@ -186,11 +192,13 @@ DROP COLUMN is_rebuilding;
 #### Iteration 07-08: Workspace Schema Migration
 
 **Goals:**
+
 - Database migration scripts (Postgres + in-memory)
 - Update workspace service to handle new fields
 - Update API endpoints (backwards compatible)
 
 **Files to Modify:**
+
 - `edgequake-core/src/workspace_service.rs` (+50 lines)
 - `edgequake-core/src/workspace_service_impl.rs` (+120 lines)
 - `edgequake-api/src/handlers/workspaces_types.rs` (+30 lines)
@@ -198,12 +206,14 @@ DROP COLUMN is_rebuilding;
 - `migrations/002_workspace_embeddings.sql` (NEW, 50 lines)
 
 **Tests:**
+
 - Create workspace with custom embedding model
 - Create workspace without model (uses server default)
 - Update workspace embedding model (should fail if vectors exist)
 - List workspaces shows embedding configuration
 
 **Acceptance Criteria:**
+
 - [ ] POST /api/v1/workspaces accepts `embedding_model` field
 - [ ] GET /api/v1/workspaces/:id returns `embedding_model`, `embedding_provider`, `embedding_dimension`
 - [ ] Existing workspaces backfilled with server default
@@ -212,17 +222,20 @@ DROP COLUMN is_rebuilding;
 #### Iteration 09-12: LM Studio Dedicated Provider
 
 **Goals:**
+
 - Create `lmstudio.rs` with native API support
 - Model discovery and health checks
 - Integration tests with real LM Studio instance
 
 **Files to Create/Modify:**
+
 - `edgequake-llm/src/providers/lmstudio.rs` (NEW, ~600 lines)
 - `edgequake-llm/src/providers/mod.rs` (+5 lines)
 - `edgequake-llm/src/lib.rs` (+2 lines)
 - `edgequake-llm/tests/lmstudio_provider_tests.rs` (NEW, ~300 lines)
 
 **Tests:**
+
 - Connect to LM Studio server
 - List available models
 - Health check (online/offline detection)
@@ -231,6 +244,7 @@ DROP COLUMN is_rebuilding;
 - Dimension validation
 
 **Acceptance Criteria:**
+
 - [ ] LM Studio provider passes all trait tests
 - [ ] Model discovery returns actual LM Studio models
 - [ ] Health check works with and without server running
@@ -239,23 +253,27 @@ DROP COLUMN is_rebuilding;
 #### Iteration 13-15: Provider Registry Service
 
 **Goals:**
+
 - Create provider registry for caching
 - Workspace-to-provider mapping logic
 - Integration with AppState
 
 **Files to Create/Modify:**
+
 - `edgequake-llm/src/provider_registry.rs` (NEW, ~250 lines)
 - `edgequake-api/src/state.rs` (+80 lines)
 - `edgequake-api/src/handlers/providers.rs` (NEW, ~150 lines)
 - `edgequake-api/src/routes.rs` (+10 lines)
 
 **Tests:**
+
 - Provider cached on first use
 - Cache hit on second use (no re-creation)
 - Cache invalidated when provider config changes
 - Thread-safe concurrent access
 
 **Acceptance Criteria:**
+
 - [ ] GET /api/v1/providers/available returns all configured providers
 - [ ] Provider registry caches instances (verified with metrics)
 - [ ] Workspace lookup returns correct provider
@@ -268,23 +286,27 @@ DROP COLUMN is_rebuilding;
 #### Iteration 16-20: Workspace-Aware Query Engine
 
 **Goals:**
+
 - Modify query engine to lookup workspace embedding model
 - Create embedding provider per request
 - Dimension validation before search
 
 **Files to Modify:**
+
 - `edgequake-query/src/engine.rs` (+150 lines)
 - `edgequake-query/src/context.rs` (+30 lines)
 - `edgequake-api/src/handlers/query.rs` (+50 lines)
 - `edgequake-api/src/middleware.rs` (+20 lines)
 
 **Tests:**
+
 - Query workspace with OpenAI embedding model
 - Query workspace with Ollama embedding model
 - Query fails if workspace embedding model unavailable
 - Dimension mismatch detected and reported
 
 **Acceptance Criteria:**
+
 - [ ] Query uses workspace-specific embedding provider
 - [ ] Query fails gracefully if provider unavailable
 - [ ] Dimension mismatch error includes expected vs actual
@@ -293,11 +315,13 @@ DROP COLUMN is_rebuilding;
 #### Iteration 21-25: Vector Database Rebuild Logic
 
 **Goals:**
+
 - API endpoint for triggering rebuild
 - Progress tracking and status updates
 - Handle Postgres and Memory storage backends
 
 **Files to Create/Modify:**
+
 - `edgequake-api/src/handlers/vector_rebuild.rs` (NEW, ~400 lines)
 - `edgequake-api/src/routes.rs` (+5 lines)
 - `edgequake-storage/src/adapters/postgres_age/vector.rs` (+80 lines)
@@ -305,6 +329,7 @@ DROP COLUMN is_rebuilding;
 - `edgequake-api/src/services/rebuild_service.rs` (NEW, ~300 lines)
 
 **Tests:**
+
 - Rebuild with Postgres storage
 - Rebuild with Memory storage
 - Rebuild progress tracking
@@ -312,6 +337,7 @@ DROP COLUMN is_rebuilding;
 - Rebuild failure rollback
 
 **Acceptance Criteria:**
+
 - [ ] POST /api/v1/workspaces/:id/rebuild-embeddings triggers rebuild
 - [ ] GET /api/v1/workspaces/:id/rebuild-status returns progress
 - [ ] Queries blocked with 423 Locked status during rebuild
@@ -325,23 +351,27 @@ DROP COLUMN is_rebuilding;
 #### Iteration 26-30: Provider Selector in Query Interface
 
 **Goals:**
+
 - Available providers API endpoint
 - Provider dropdown component in query page
 - Dynamic provider switching
 
 **Files to Create/Modify:**
+
 - `edgequake_webui/src/components/query/provider-selector.tsx` (NEW, ~300 lines)
 - `edgequake_webui/src/app/(dashboard)/query/page.tsx` (+80 lines)
 - `edgequake_webui/src/types/provider.ts` (+40 lines)
 - `edgequake-api/src/handlers/providers.rs` (+100 lines)
 
 **Tests:**
+
 - Provider dropdown shows all available providers
 - Provider selection persisted in localStorage
 - Query request includes provider override
 - Provider status indicator (connected/disconnected)
 
 **Acceptance Criteria:**
+
 - [ ] Provider dropdown renders in query page
 - [ ] Provider list fetched from API on page load
 - [ ] Selected provider sent with query request
@@ -350,22 +380,26 @@ DROP COLUMN is_rebuilding;
 #### Iteration 31-35: Workspace Creation Embedding Selector
 
 **Goals:**
+
 - Embedding model selector during workspace creation
 - Default model from server config
 - Dimension mismatch warnings
 
 **Files to Create/Modify:**
+
 - `edgequake_webui/src/components/workspace/embedding-selector.tsx` (NEW, ~250 lines)
 - `edgequake_webui/src/app/(dashboard)/workspaces/create/page.tsx` (+100 lines)
 - `edgequake_webui/src/types/workspace.ts` (+20 lines)
 
 **Tests:**
+
 - Workspace creation with default embedding model
 - Workspace creation with custom embedding model
 - Warning shown if selecting model with different dimension
 - Model list fetched from available providers API
 
 **Acceptance Criteria:**
+
 - [ ] Embedding selector shown in workspace creation form
 - [ ] Default model pre-selected from server config
 - [ ] Dimension warning shown if changing from default
@@ -378,6 +412,7 @@ DROP COLUMN is_rebuilding;
 #### Iteration 36-40: Edge Cases & Error Handling
 
 **Test Scenarios:**
+
 1. Empty vector database (no documents ingested)
 2. Concurrent queries during rebuild
 3. Provider unavailable mid-query
@@ -388,6 +423,7 @@ DROP COLUMN is_rebuilding;
 8. Invalid embedding model name
 
 **Files to Create:**
+
 - `edgequake-api/tests/e2e_edge_cases.rs` (NEW, ~600 lines)
 - `edgequake-query/tests/error_handling.rs` (NEW, ~400 lines)
 
@@ -395,22 +431,24 @@ DROP COLUMN is_rebuilding;
 
 **Test Matrix:**
 
-| Test Case | Postgres | Memory | Expected Result |
-|-----------|----------|--------|-----------------|
-| Create workspace with OpenAI | ✅ | ✅ | Success |
-| Create workspace with Ollama | ✅ | ✅ | Success |
-| Query OpenAI workspace | ✅ | ✅ | Correct results |
-| Query Ollama workspace | ✅ | ✅ | Correct results |
-| Rebuild OpenAI → Ollama | ✅ | ✅ | Vectors cleared + rebuilt |
-| Rebuild with 1000 docs | ✅ | ✅ | < 5 min completion |
-| Concurrent queries blocked | ✅ | ✅ | 423 Locked status |
+| Test Case                    | Postgres | Memory | Expected Result           |
+| ---------------------------- | -------- | ------ | ------------------------- |
+| Create workspace with OpenAI | ✅       | ✅     | Success                   |
+| Create workspace with Ollama | ✅       | ✅     | Success                   |
+| Query OpenAI workspace       | ✅       | ✅     | Correct results           |
+| Query Ollama workspace       | ✅       | ✅     | Correct results           |
+| Rebuild OpenAI → Ollama      | ✅       | ✅     | Vectors cleared + rebuilt |
+| Rebuild with 1000 docs       | ✅       | ✅     | < 5 min completion        |
+| Concurrent queries blocked   | ✅       | ✅     | 423 Locked status         |
 
 **Files to Create:**
+
 - `edgequake-api/tests/e2e_storage_backends.rs` (NEW, ~800 lines)
 
 #### Iteration 46-48: Documentation & Setup Guides
 
 **Documentation Files:**
+
 1. `docs/providers/ollama-setup.md` (NEW, ~200 lines)
 2. `docs/providers/lmstudio-setup.md` (NEW, ~200 lines)
 3. `docs/providers/openai-setup.md` (UPDATE, +50 lines)
@@ -419,6 +457,7 @@ DROP COLUMN is_rebuilding;
 6. `README.md` (UPDATE, +100 lines)
 
 **Setup Guide Contents:**
+
 - Prerequisites (software versions)
 - Installation steps
 - Configuration (environment variables)
@@ -430,8 +469,9 @@ DROP COLUMN is_rebuilding;
 #### Iteration 49-50: Final Non-Regression Validation
 
 **Full Test Suite:**
+
 1. Run all unit tests (cargo test)
-2. Run all E2E tests (cargo test --test e2e_*)
+2. Run all E2E tests (cargo test --test e2e\_\*)
 3. Run WebUI tests (npm test)
 4. Manual smoke tests
 5. Performance benchmarks
@@ -439,6 +479,7 @@ DROP COLUMN is_rebuilding;
 7. API compatibility check
 
 **Acceptance Criteria:**
+
 - [ ] All tests passing (0 failures)
 - [ ] No clippy warnings
 - [ ] No memory leaks (valgrind or similar)
@@ -508,17 +549,18 @@ EDGEQUAKE_ENABLE_VECTOR_REBUILD=true
 
 ### High-Risk Items
 
-| Risk | Impact | Probability | Mitigation |
-|------|--------|-------------|------------|
-| **Breaking API Changes** | 🔴 HIGH | Medium | Versioned endpoints, deprecation warnings |
-| **Data Loss During Rebuild** | 🔴 CRITICAL | Low | Transactional rebuild, backup before operation |
-| **Query Performance Degradation** | 🟡 MEDIUM | Medium | Benchmark before/after, provider caching |
-| **Memory Leaks in Provider Registry** | 🟡 MEDIUM | Low | Weak references, cache eviction policy |
-| **Database Migration Failure** | 🔴 CRITICAL | Low | Test on staging, rollback script ready |
+| Risk                                  | Impact      | Probability | Mitigation                                     |
+| ------------------------------------- | ----------- | ----------- | ---------------------------------------------- |
+| **Breaking API Changes**              | 🔴 HIGH     | Medium      | Versioned endpoints, deprecation warnings      |
+| **Data Loss During Rebuild**          | 🔴 CRITICAL | Low         | Transactional rebuild, backup before operation |
+| **Query Performance Degradation**     | 🟡 MEDIUM   | Medium      | Benchmark before/after, provider caching       |
+| **Memory Leaks in Provider Registry** | 🟡 MEDIUM   | Low         | Weak references, cache eviction policy         |
+| **Database Migration Failure**        | 🔴 CRITICAL | Low         | Test on staging, rollback script ready         |
 
 ### Mitigation Strategies
 
 **API Compatibility:**
+
 ```rust
 // Keep v1 endpoints working
 #[deprecated(since = "2.0.0", note = "Use /api/v2/workspaces instead")]
@@ -529,6 +571,7 @@ pub async fn create_workspace_v1(...) -> Result<...> {
 ```
 
 **Rebuild Safety:**
+
 ```rust
 // Transactional rebuild with rollback
 let transaction = pool.begin().await?;
@@ -576,17 +619,20 @@ match rebuild_vectors(&transaction, workspace_id).await {
 ### If Critical Issues Found After Deployment
 
 **Step 1:** Feature flags to disable new functionality
+
 ```bash
 EDGEQUAKE_ENABLE_PROVIDER_SWITCHING=false
 EDGEQUAKE_ENABLE_VECTOR_REBUILD=false
 ```
 
 **Step 2:** Database rollback script
+
 ```bash
 psql -d edgequake -f migrations/rollback_002_workspace_embeddings.sql
 ```
 
 **Step 3:** Revert to previous binary
+
 ```bash
 git checkout v1.9.0
 cargo build --release
@@ -594,6 +640,7 @@ systemctl restart edgequake-api
 ```
 
 **Step 4:** Clear corrupted data (if needed)
+
 ```sql
 DELETE FROM workspaces WHERE embedding_model IS NOT NULL;
 DELETE FROM server_config WHERE key LIKE 'default_embedding_%';
@@ -608,6 +655,7 @@ DELETE FROM server_config WHERE key LIKE 'default_embedding_%';
 **Issue:** Spec says `gemma-3n-e4b-it-mlxmodel` but this may not be actual LM Studio model name.
 
 **Resolution Plan:**
+
 - Install LM Studio locally
 - Query GET /v1/models endpoint
 - Document actual model names
@@ -618,6 +666,7 @@ DELETE FROM server_config WHERE key LIKE 'default_embedding_%';
 **Issue:** If server has 100 providers configured, cache may grow unbounded.
 
 **Resolution Plan:**
+
 - Implement LRU cache with max size (default: 20 providers)
 - Add cache metrics (hit rate, evictions)
 - Monitor memory usage in production
@@ -627,6 +676,7 @@ DELETE FROM server_config WHERE key LIKE 'default_embedding_%';
 **Issue:** Some edge cases may behave differently between storage backends.
 
 **Resolution Plan:**
+
 - Create comparison test suite
 - Document known differences
 - Add storage-specific handling if needed
@@ -638,17 +688,20 @@ DELETE FROM server_config WHERE key LIKE 'default_embedding_%';
 ### Iteration 07 Immediate Tasks
 
 1. **Workspace Schema Design:**
+
    - [ ] Write SQL migration script
    - [ ] Write rollback script
    - [ ] Test on local Postgres instance
    - [ ] Verify backfill logic
 
 2. **Workspace Service Updates:**
+
    - [ ] Add embedding_model field to CreateWorkspaceRequest
    - [ ] Update workspace_service trait
    - [ ] Implement for both Memory and Postgres
 
 3. **API Endpoint Updates:**
+
    - [ ] Modify POST /api/v1/workspaces handler
    - [ ] Update WorkspaceResponse DTO
    - [ ] Add API documentation
@@ -671,12 +724,14 @@ DELETE FROM server_config WHERE key LIKE 'default_embedding_%';
 **Confidence Level:** HIGH (85%)
 
 **Key Strengths:**
+
 - Clear technical path identified
 - All major risks have mitigation strategies
 - Incremental implementation minimizes blast radius
 - Rollback plan available at each phase
 
 **Key Risks:**
+
 - Database migration always risky (mitigated with testing + backups)
 - Query performance may degrade (mitigated with benchmarking + caching)
 - WebUI integration complexity (mitigated with feature flags)
@@ -686,6 +741,7 @@ DELETE FROM server_config WHERE key LIKE 'default_embedding_%';
 ---
 
 **Commit Message for Iteration 06 Decide:**
+
 ```
 docs(ooda-06): Implementation plan for workspace-level embeddings
 

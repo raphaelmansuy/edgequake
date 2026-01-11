@@ -1,9 +1,9 @@
 /**
  * useModels Hook
- * 
+ *
  * @implements FEAT0470: Models Configuration API
  * @implements FEAT0471: Provider Capability Exposure
- * 
+ *
  * React hook for fetching and managing model configuration.
  * Provides access to:
  * - All providers and their models
@@ -12,34 +12,35 @@
  * - Provider health status
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery } from "@tanstack/react-query";
 import {
-  fetchModelsConfig,
-  fetchLlmModels,
-  fetchEmbeddingModels,
-  fetchProvidersHealth,
-  ModelsListResponse,
-  LlmModelsResponse,
   EmbeddingModelsResponse,
+  fetchEmbeddingModels,
+  fetchLlmModels,
+  fetchModelsConfig,
+  fetchProvidersHealth,
+  LlmModelsResponse,
+  ModelsListResponse,
   ProviderResponse,
-} from '../lib/api/models';
+} from "../lib/api/models";
 
 /**
  * Query keys for models-related queries.
  */
 export const modelsQueryKeys = {
-  all: ['models'] as const,
-  config: ['models', 'config'] as const,
-  llm: ['models', 'llm'] as const,
-  embedding: ['models', 'embedding'] as const,
-  health: ['models', 'health'] as const,
-  provider: (name: string) => ['models', 'provider', name] as const,
-  model: (provider: string, model: string) => ['models', provider, model] as const,
+  all: ["models"] as const,
+  config: ["models", "config"] as const,
+  llm: ["models", "llm"] as const,
+  embedding: ["models", "embedding"] as const,
+  health: ["models", "health"] as const,
+  provider: (name: string) => ["models", "provider", name] as const,
+  model: (provider: string, model: string) =>
+    ["models", provider, model] as const,
 };
 
 /**
  * Hook to fetch all models configuration.
- * 
+ *
  * @returns Query result with all providers and models
  */
 export function useModelsConfig() {
@@ -53,7 +54,7 @@ export function useModelsConfig() {
 
 /**
  * Hook to fetch LLM models only.
- * 
+ *
  * @returns Query result with LLM models
  */
 export function useLlmModels() {
@@ -67,7 +68,7 @@ export function useLlmModels() {
 
 /**
  * Hook to fetch embedding models only.
- * 
+ *
  * @returns Query result with embedding models
  */
 export function useEmbeddingModels() {
@@ -81,11 +82,14 @@ export function useEmbeddingModels() {
 
 /**
  * Hook to fetch provider health status.
- * 
+ *
  * @param options - Optional query options
  * @returns Query result with provider health
  */
-export function useProvidersHealth(options?: { enabled?: boolean; refetchInterval?: number }) {
+export function useProvidersHealth(options?: {
+  enabled?: boolean;
+  refetchInterval?: number;
+}) {
   return useQuery<ProviderResponse[]>({
     queryKey: modelsQueryKeys.health,
     queryFn: fetchProvidersHealth,
@@ -98,22 +102,22 @@ export function useProvidersHealth(options?: { enabled?: boolean; refetchInterva
 
 /**
  * Hook to get available LLM options for a dropdown.
- * 
+ *
  * @returns Grouped LLM options by provider
  */
 export function useLlmOptions() {
   const { data, isLoading, error } = useLlmModels();
-  
+
   if (!data) {
     return {
       options: [],
-      defaultProvider: '',
-      defaultModel: '',
+      defaultProvider: "",
+      defaultModel: "",
       isLoading,
       error,
     };
   }
-  
+
   // Group models by provider
   const groupedOptions = data.models.reduce((acc, model) => {
     const group = acc.find((g) => g.provider === model.provider);
@@ -128,7 +132,7 @@ export function useLlmOptions() {
     }
     return acc;
   }, [] as Array<{ provider: string; displayName: string; models: typeof data.models }>);
-  
+
   return {
     options: groupedOptions,
     defaultProvider: data.default_provider,
@@ -140,22 +144,22 @@ export function useLlmOptions() {
 
 /**
  * Hook to get available embedding options for a dropdown.
- * 
+ *
  * @returns Grouped embedding options by provider
  */
 export function useEmbeddingOptions() {
   const { data, isLoading, error } = useEmbeddingModels();
-  
+
   if (!data) {
     return {
       options: [],
-      defaultProvider: '',
-      defaultModel: '',
+      defaultProvider: "",
+      defaultModel: "",
       isLoading,
       error,
     };
   }
-  
+
   // Group models by provider
   const groupedOptions = data.models.reduce((acc, model) => {
     const group = acc.find((g) => g.provider === model.provider);
@@ -170,7 +174,7 @@ export function useEmbeddingOptions() {
     }
     return acc;
   }, [] as Array<{ provider: string; displayName: string; models: typeof data.models }>);
-  
+
   return {
     options: groupedOptions,
     defaultProvider: data.default_provider,

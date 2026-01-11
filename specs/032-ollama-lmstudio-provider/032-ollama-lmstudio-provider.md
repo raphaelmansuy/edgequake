@@ -19,6 +19,15 @@ As the embedding required a fixed dimension, you must provide a way to recreate 
 
 Very important ==> Default providers (llm+embedding) and models will be defined as setup in a toml config file located at the root of edgequake server. Capabilities of models and providers must be detected at runtime and exposed as an API. This configuration file will act as models cards explaining the capabilities of each model and provider. (vision / image support / max tokens / context length / cost per 1K tokens etc). This config file will be used by the edgequake_webui to display the capabilities of each model and provider in the selection dropdowns. This file will provide high signal information to the users about the models and providers available in the edgequake server.
 
+
+Ensure you provide a .toml configuration file example including ollama and lmstudio providers and models, openai provider and models, with all capabilities filled in. Find information about ollama, openai and lmstudio models capabilities from their respective documentations.
+
+For openai provider use gpt-4-mini and text-embedding-3-small as default models.
+
+For ollama provider use gemma3:12b and embeddinggemma:latest as default models.
+
+For lmstudio provider use gemma-3n-e4b-it-mlxmodel and text-embedding-ada-002 as default models.
+
 ## Problem Statement
 
 We have observed that edgequake currently lacks support for ollama and lmstudio providers, limiting its flexibility and usability in various deployment scenarios. By integrating these providers, we can enhance edgequake's capabilities, allowing users to leverage local and remote LLM instances more effectively.
@@ -39,6 +48,12 @@ In the query process we must use the embedding model associated with the workspa
 We must ensure the embedding storage backends, including Postgres and In-Memory storage, are fully compatible with the new providers and embedding models. Any differences in behavior or performance between these backends must be documented and addressed.
 
 We must ensure that the edgequake_webui is fully compatible with the new providers and embedding models. Any changes to the API used by the webui must be carefully managed to prevent regressions or disruptions in functionality.
+
+
+VERY IMPORTANT: We must also ensure that we select the default llm provider for a workspace, because the llm provider is used for  knowledge graph generation, document ingestion, summarization, etc. The llm provider can be different from the one that is used at query time. The embedding provider is used at query time to generate embeddings for the query and retrieve relevant documents from the vector database must be the same as the one used to create the vector database.
+
+
+VERY IMPORTANT: a model selected is in reality a combination of provider + model name. For example "ollama/gemma3:12b" or "openai/gpt-4o" or "lmstudio/gemma-3n-e4b-it-mlxmodel". This must be reflected in the configuration file, API, database storage, and UI components.
 
 
 ## Your Tasks

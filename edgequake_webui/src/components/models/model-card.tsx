@@ -14,31 +14,31 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
 } from '@/components/ui/card';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from '@/components/ui/tooltip';
 import type { ModelCost, ModelResponse } from '@/lib/api/models';
 import { formatContextLength, formatCost } from '@/lib/api/models';
 import { cn } from '@/lib/utils';
 import {
-  Brain,
-  Check,
-  Cloud,
-  Cpu,
-  DollarSign,
-  FileText,
-  FlaskConical,
-  Ruler,
-  Sparkles,
+    Brain,
+    Check,
+    Cloud,
+    Cpu,
+    DollarSign,
+    FileText,
+    FlaskConical,
+    Ruler,
+    Sparkles,
 } from 'lucide-react';
 
 import { ModelCapabilitiesDisplay } from './model-capability-badge';

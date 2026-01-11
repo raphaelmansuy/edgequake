@@ -13,32 +13,38 @@ Successfully implemented multi-provider support for EdgeQuake, enabling seamless
 ## OODA Loop Breakdown
 
 ### OODA 01-06: Architecture & Planning
+
 - ✅ Analyzed existing provider infrastructure
 - ✅ Designed provider registry pattern
 - ✅ Planned workspace-level embedding configuration
 
 ### OODA 07-12: Backend Infrastructure
+
 - ✅ `OllamaProvider` - Full Ollama API integration
 - ✅ `LMStudioProvider` - LM Studio OpenAI-compatible API
 - ✅ Provider factory with environment-based auto-detection
 - ✅ Provider type enum with string parsing
 
 ### OODA 13-18: Workspace Embedding Configuration
+
 - ✅ Workspace embedding config storage (provider, model, dimension)
 - ✅ Query engine uses workspace-specific embedding provider
 - ✅ API endpoint `/api/workspaces/{id}/embedding-config`
 
 ### OODA 19-20: WebUI Provider Selector
+
 - ✅ `EmbeddingProviderSelector` React component
 - ✅ Zustand store integration for workspace settings
 - ✅ Provider availability display
 
 ### OODA 21-25: Vector Rebuild Endpoint
+
 - ✅ `POST /api/workspaces/{id}/rebuild-embeddings` endpoint
 - ✅ Atomic rebuild with clear + repopulate
 - ✅ Progress tracking and status reporting
 
 ### OODA 26-30: E2E Provider Switching Tests
+
 - ✅ 14 comprehensive E2E tests in `e2e_provider_switching.rs`
 - ✅ Provider auto-detection tests
 - ✅ Workspace embedding config persistence tests
@@ -46,12 +52,14 @@ Successfully implemented multi-provider support for EdgeQuake, enabling seamless
 - ✅ Dimension validation tests
 
 ### OODA 31-35: Storage Backend Compatibility Tests
+
 - ✅ 15 tests in `provider_storage_compat.rs`
 - ✅ Tests for all common dimensions (384, 768, 1024, 1536, 3072)
 - ✅ Clear and repopulate for rebuild
 - ✅ Workspace isolation validation
 
 ### OODA 36-40: Edge Case Tests
+
 - ✅ 17 tests in `edge_case_providers.rs`
 - ✅ Provider unavailability handling
 - ✅ Invalid configuration handling
@@ -60,15 +68,18 @@ Successfully implemented multi-provider support for EdgeQuake, enabling seamless
 - ✅ Empty/edge value tests
 
 ### OODA 41-45: Documentation
+
 - ✅ `docs/PROVIDER_SETUP_GUIDE.md` - Comprehensive setup guide
 - ✅ `docs/QUICK_START_OLLAMA.md` - Quick start for Ollama
 
 ### OODA 46-48: Architecture Decision Records
+
 - ✅ `ADR-001: Provider Registry Pattern`
 - ✅ `ADR-002: Workspace Embedding Strategy`
 - ✅ `ADR-003: Vector Rebuild Safety`
 
 ### OODA 49-50: Final Validation
+
 - ✅ Full test suite: 790+ tests passing
 - ✅ No regressions
 - ✅ Clippy clean
@@ -81,12 +92,14 @@ Successfully implemented multi-provider support for EdgeQuake, enabling seamless
 ### New Files (21 files)
 
 **Backend:**
+
 - `edgequake/crates/edgequake-llm/src/providers/lmstudio.rs` - LM Studio provider
 - `edgequake/crates/edgequake-api/tests/e2e_provider_switching.rs` - E2E tests
 - `edgequake/crates/edgequake-storage/tests/provider_storage_compat.rs` - Storage tests
 - `edgequake/crates/edgequake-core/tests/edge_case_providers.rs` - Edge case tests
 
 **Documentation:**
+
 - `docs/PROVIDER_SETUP_GUIDE.md` - Provider setup documentation
 - `docs/QUICK_START_OLLAMA.md` - Ollama quick start
 - `docs/adr/ADR-001-provider-registry-pattern.md`
@@ -96,6 +109,7 @@ Successfully implemented multi-provider support for EdgeQuake, enabling seamless
 ### Modified Files
 
 **Backend:**
+
 - `edgequake/crates/edgequake-llm/src/lib.rs` - Export new providers
 - `edgequake/crates/edgequake-llm/src/factory.rs` - Provider factory updates
 - `edgequake/crates/edgequake-llm/src/providers/mod.rs` - Module exports
@@ -103,6 +117,7 @@ Successfully implemented multi-provider support for EdgeQuake, enabling seamless
 - `edgequake/crates/edgequake-api/src/routes/workspaces.rs` - Embedding config endpoints
 
 **Frontend:**
+
 - `edgequake_webui/src/components/settings/EmbeddingProviderSelector.tsx`
 - `edgequake_webui/src/stores/workspaceStore.ts`
 
@@ -110,28 +125,28 @@ Successfully implemented multi-provider support for EdgeQuake, enabling seamless
 
 ## Environment Variables
 
-| Variable | Provider | Default | Description |
-|----------|----------|---------|-------------|
-| `OPENAI_API_KEY` | OpenAI | (required) | OpenAI API key |
-| `OPENAI_EMBEDDING_MODEL` | OpenAI | text-embedding-3-small | Embedding model |
-| `OLLAMA_HOST` | Ollama | http://localhost:11434 | Ollama server URL |
-| `OLLAMA_MODEL` | Ollama | llama3 | Chat model |
-| `OLLAMA_EMBEDDING_MODEL` | Ollama | nomic-embed-text | Embedding model |
-| `LMSTUDIO_HOST` | LM Studio | http://localhost:1234 | LM Studio server URL |
-| `LMSTUDIO_MODEL` | LM Studio | local-model | Chat model |
-| `LMSTUDIO_EMBEDDING_MODEL` | LM Studio | nomic-embed-text-v1.5 | Embedding model |
-| `EDGEQUAKE_LLM_PROVIDER` | Any | (auto-detect) | Force specific provider |
+| Variable                   | Provider  | Default                | Description             |
+| -------------------------- | --------- | ---------------------- | ----------------------- |
+| `OPENAI_API_KEY`           | OpenAI    | (required)             | OpenAI API key          |
+| `OPENAI_EMBEDDING_MODEL`   | OpenAI    | text-embedding-3-small | Embedding model         |
+| `OLLAMA_HOST`              | Ollama    | http://localhost:11434 | Ollama server URL       |
+| `OLLAMA_MODEL`             | Ollama    | llama3                 | Chat model              |
+| `OLLAMA_EMBEDDING_MODEL`   | Ollama    | nomic-embed-text       | Embedding model         |
+| `LMSTUDIO_HOST`            | LM Studio | http://localhost:1234  | LM Studio server URL    |
+| `LMSTUDIO_MODEL`           | LM Studio | local-model            | Chat model              |
+| `LMSTUDIO_EMBEDDING_MODEL` | LM Studio | nomic-embed-text-v1.5  | Embedding model         |
+| `EDGEQUAKE_LLM_PROVIDER`   | Any       | (auto-detect)          | Force specific provider |
 
 ---
 
 ## Test Coverage
 
-| Test File | Tests | Status |
-|-----------|-------|--------|
-| `e2e_provider_switching.rs` | 14 | ✅ Pass |
-| `provider_storage_compat.rs` | 15 | ✅ Pass |
-| `edge_case_providers.rs` | 17 | ✅ Pass |
-| Full workspace suite | 790+ | ✅ Pass |
+| Test File                    | Tests | Status  |
+| ---------------------------- | ----- | ------- |
+| `e2e_provider_switching.rs`  | 14    | ✅ Pass |
+| `provider_storage_compat.rs` | 15    | ✅ Pass |
+| `edge_case_providers.rs`     | 17    | ✅ Pass |
+| Full workspace suite         | 790+  | ✅ Pass |
 
 ---
 

@@ -62,7 +62,7 @@ use edgequake_core::Workspace;
 
 /// Convert a Workspace domain object to WorkspaceResponse DTO.
 ///
-/// WHY: Centralized conversion ensures embedding fields are always included.
+/// WHY: Centralized conversion ensures all model config fields are always included.
 /// This supports SPEC-032 (Ollama/LM Studio provider integration).
 fn workspace_to_response(workspace: &Workspace) -> WorkspaceResponse {
     WorkspaceResponse {
@@ -73,10 +73,15 @@ fn workspace_to_response(workspace: &Workspace) -> WorkspaceResponse {
         description: workspace.description.clone(),
         is_active: workspace.is_active,
         max_documents: workspace.max_documents(),
+        // SPEC-032: LLM configuration
+        llm_model: workspace.llm_model.clone(),
+        llm_provider: workspace.llm_provider.clone(),
+        llm_full_id: workspace.llm_full_id(),
         // SPEC-032: Embedding configuration
         embedding_model: workspace.embedding_model.clone(),
         embedding_provider: workspace.embedding_provider.clone(),
         embedding_dimension: workspace.embedding_dimension,
+        embedding_full_id: workspace.embedding_full_id(),
         created_at: workspace.created_at.to_rfc3339(),
         updated_at: workspace.updated_at.to_rfc3339(),
     }
@@ -385,12 +390,14 @@ pub async fn create_workspace(
 ) -> Result<(StatusCode, Json<WorkspaceResponse>), ApiError> {
     use edgequake_core::CreateWorkspaceRequest;
 
-    // SPEC-032: Include embedding configuration in create request
+    // SPEC-032: Include LLM and embedding configuration in create request
     let create_request = CreateWorkspaceRequest {
         name: request.name.clone(),
         slug: request.slug.clone(),
         description: request.description.clone(),
         max_documents: request.max_documents,
+        llm_model: request.llm_model.clone(),
+        llm_provider: request.llm_provider.clone(),
         embedding_model: request.embedding_model.clone(),
         embedding_provider: request.embedding_provider.clone(),
         embedding_dimension: request.embedding_dimension,
@@ -408,7 +415,8 @@ pub async fn create_workspace(
     tracing::info!(
         workspace_id = %workspace.workspace_id,
         tenant_id = %tenant_id,
-        embedding_model = %workspace.embedding_model,
+        llm_model = %workspace.llm_full_id(),
+        embedding_model = %workspace.embedding_full_id(),
         "Created workspace"
     );
 

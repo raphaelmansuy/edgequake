@@ -9,6 +9,7 @@
 ## Executive Summary
 
 **Deep Dive Findings:**
+
 - ✅ Query engine uses global embedding provider from AppState (line 256 [`engine.rs`](../../edgequake/crates/edgequake-query/src/engine.rs#L256))
 - ✅ Vector storage has `clear()` method for DB rebuild (line 125 [`vector.rs`](../../edgequake/crates/edgequake-storage/src/traits/vector.rs#L125))
 - ❌ No workspace-level provider configuration mechanism
@@ -37,7 +38,7 @@ pub struct QueryEngine {
 pub async fn query(&self, request: QueryRequest) -> Result<QueryResponse> {
     // Step 1: Generate query embedding using GLOBAL provider
     let query_embedding = self.embedding_provider.embed_one(&request.query).await?;
-    
+
     // Step 2: Search vectors (assumes same dimension as stored embeddings)
     let context = self.retrieve_context(
         &request.query,
@@ -60,7 +61,7 @@ pub struct AppState {
     // Global providers (same for all workspaces)
     pub llm_provider: Arc<dyn LLMProvider>,
     pub embedding_provider: Arc<dyn EmbeddingProvider>,
-    
+
     // Services
     pub query_engine: Arc<QueryEngine>, // ← Uses global embedding_provider
     pub pipeline: Arc<Pipeline>,
@@ -88,17 +89,17 @@ impl WorkspaceQueryEngine {
         // 1. Lookup workspace configuration
         let workspace_id = request.workspace_id().ok_or(QueryError::MissingWorkspace)?;
         let workspace_config = self.workspace_service.get_config(workspace_id).await?;
-        
+
         // 2. Create embedding provider for this workspace
         let embedding_provider = self.provider_factory
             .create_embedding(workspace_config.embedding_model)?;
-        
+
         // 3. Generate query embedding with workspace-specific provider
         let query_embedding = embedding_provider.embed_one(&request.query).await?;
-        
+
         // 4. Ensure dimension matches workspace vector storage
         assert_eq!(query_embedding.len(), workspace_config.embedding_dimension);
-        
+
         // ... continue query
     }
 }
@@ -129,13 +130,13 @@ let embedding_provider = self.provider_registry.get(&provider_key)?;
 #[async_trait]
 pub trait VectorStorage: Send + Sync {
     // ...
-    
+
     /// Clear all vectors.
     async fn clear(&self) -> Result<()>; // ← Exists! Can use for rebuild
-    
+
     /// Get count of stored vectors.
     async fn count(&self) -> Result<usize>;
-    
+
     /// Check if storage is empty.
     async fn is_empty(&self) -> Result<bool>;
 }
@@ -154,28 +155,28 @@ pub async fn rebuild_workspace_embeddings(
 ) -> Result<Json<RebuildResponse>, ApiError> {
     // 1. Validate new embedding model
     let new_provider = ProviderFactory::create_embedding(&request.new_embedding_model)?;
-    
+
     // 2. Lock workspace for writes (prevent concurrent queries)
     state.workspace_service.lock(workspace_id).await?;
-    
+
     // 3. Clear existing vector storage
     state.vector_storage.clear().await?;
-    
+
     // 4. Retrieve all documents from workspace
     let documents = state.kv_storage.get_workspace_documents(workspace_id).await?;
-    
+
     // 5. Re-embed all documents with new provider
     for doc in documents {
         let embeddings = new_provider.embed(&doc.chunks).await?;
         state.vector_storage.upsert(&embeddings).await?;
     }
-    
+
     // 6. Update workspace configuration
     state.workspace_service.update_embedding_model(workspace_id, request.new_embedding_model).await?;
-    
+
     // 7. Unlock workspace
     state.workspace_service.unlock(workspace_id).await?;
-    
+
     Ok(Json(RebuildResponse { success: true, vectors_rebuilt: documents.len() }))
 }
 ```
@@ -183,11 +184,13 @@ pub async fn rebuild_workspace_embeddings(
 ### 2.3 Postgres vs Memory Storage
 
 **Postgres** ([`PostgresAGEGraphStorage`](../../edgequake/crates/edgequake-storage/src/adapters/postgres_age.rs)):
+
 - `clear()` executes `DELETE FROM vectors WHERE workspace_id = $1`
 - Transactional, can rollback on failure
 - Supports concurrent readers during rebuild (with locking)
 
 **Memory** ([`MemoryVectorStorage`](../../edgequake/crates/edgequake-storage/src/adapters/memory/vector.rs)):
+
 - `clear()` executes `self.vectors.write().unwrap().clear()`
 - Non-transactional, data lost if server crashes mid-rebuild
 - Requires exclusive lock for safety
@@ -231,12 +234,12 @@ pub struct CreateWorkspaceApiRequest {
     pub slug: Option<String>,
     pub description: Option<String>,
     pub max_documents: Option<usize>,
-    
+
     // NEW FIELDS
     /// Embedding model name (e.g., "text-embedding-3-small", "embeddinggemma:latest")
     /// If None, uses server default from EDGEQUAKE_DEFAULT_EMBEDDING_MODEL
     pub embedding_model: Option<String>,
-    
+
     /// Embedding provider (e.g., "openai", "ollama")
     /// If None, auto-detected from embedding_model name
     pub embedding_provider: Option<String>,
@@ -244,7 +247,7 @@ pub struct CreateWorkspaceApiRequest {
 
 pub struct WorkspaceResponse {
     // ... existing fields ...
-    
+
     // NEW FIELDS
     pub embedding_model: String,          // e.g., "text-embedding-3-small"
     pub embedding_provider: String,       // e.g., "openai"
@@ -259,13 +262,13 @@ pub struct WorkspaceResponse {
 
 ```sql
 -- Add columns to workspaces table
-ALTER TABLE workspaces 
+ALTER TABLE workspaces
 ADD COLUMN embedding_model VARCHAR(255) DEFAULT 'text-embedding-3-small',
 ADD COLUMN embedding_provider VARCHAR(50) DEFAULT 'openai',
 ADD COLUMN embedding_dimension INTEGER DEFAULT 1536;
 
 -- Backfill existing workspaces with server defaults
-UPDATE workspaces 
+UPDATE workspaces
 SET embedding_model = COALESCE(
     (SELECT value FROM server_config WHERE key = 'default_embedding_model'),
     'text-embedding-3-small'
@@ -294,7 +297,7 @@ fn create_lmstudio() -> Result<(Arc<dyn LLMProvider>, Arc<dyn EmbeddingProvider>
             .with_embedding_model(&embedding_model)
             .with_embedding_dimension(embedding_dim)
     );
-    
+
     // PROBLEM: Cannot access LM Studio-specific APIs:
     // - GET /v1/models (list available models)
     // - Health check endpoint
@@ -323,20 +326,20 @@ impl LMStudioProvider {
     pub fn from_env() -> Result<Self> {
         let host = std::env::var("LMSTUDIO_HOST")
             .unwrap_or_else(|_| "http://localhost:1234".to_string());
-        
+
         // LM Studio-specific: Query server for available models
         let model = Self::detect_default_model(&host).await?;
-        
+
         // ...
     }
-    
+
     /// List available models from LM Studio server.
     pub async fn list_models(&self) -> Result<Vec<String>> {
         let url = format!("{}/v1/models", self.host);
         let response: ModelsResponse = self.client.get(&url).send().await?.json().await?;
         Ok(response.data.into_iter().map(|m| m.id).collect())
     }
-    
+
     /// Health check (ping LM Studio server).
     pub async fn health_check(&self) -> Result<HealthStatus> {
         let url = format!("{}/health", self.host);
@@ -348,6 +351,7 @@ impl LMStudioProvider {
 ```
 
 **Benefits:**
+
 - Native model discovery
 - Health checks
 - Better error messages (LM Studio-specific codes)
@@ -359,7 +363,7 @@ impl LMStudioProvider {
 
 ### 5.1 Current Query Page
 
-**File:** [`query/page.tsx`](../../edgequake_webui/src/app/(dashboard)/query/page.tsx)
+**File:** [`query/page.tsx`](<../../edgequake_webui/src/app/(dashboard)/query/page.tsx>)
 
 **Current UI:** Only has query mode dropdown (local/global/hybrid/naive). No provider selector.
 
@@ -399,8 +403,8 @@ impl LMStudioProvider {
 ```typescript
 // New API endpoint: GET /api/v1/providers/available
 interface AvailableProvider {
-  provider: string;       // "openai" | "ollama" | "lmstudio"
-  models: string[];       // ["gpt-4o-mini", "gpt-4-turbo"]
+  provider: string; // "openai" | "ollama" | "lmstudio"
+  models: string[]; // ["gpt-4o-mini", "gpt-4-turbo"]
   status: "connected" | "disconnected";
 }
 
@@ -422,11 +426,13 @@ fetch("/api/v1/query", {
 ### Phase 1: Foundation (Iterations 06-15)
 
 1. **Database Schema** (Iteration 07-08)
+
    - Add embedding fields to workspace table
    - Migration script for existing workspaces
    - Update workspace service to handle new fields
 
 2. **LM Studio Provider** (Iteration 09-12)
+
    - Create `lmstudio.rs` with native API support
    - Model discovery and health checks
    - Integration tests
@@ -439,6 +445,7 @@ fetch("/api/v1/query", {
 ### Phase 2: Query Engine Refactor (Iterations 16-25)
 
 4. **Workspace-Aware Query** (Iteration 16-20)
+
    - Modify QueryEngine to lookup workspace embedding model
    - Create embedding provider per request
    - Dimension validation
@@ -451,6 +458,7 @@ fetch("/api/v1/query", {
 ### Phase 3: WebUI Integration (Iterations 26-35)
 
 6. **Provider Selector UI** (Iteration 26-30)
+
    - Available providers API endpoint
    - Provider dropdown component
    - Query page integration
@@ -463,11 +471,13 @@ fetch("/api/v1/query", {
 ### Phase 4: Testing & Documentation (Iterations 36-50)
 
 8. **Comprehensive Testing** (Iteration 36-45)
+
    - Postgres vs Memory storage tests
    - Cross-provider query tests
    - Non-regression suite
 
 9. **Documentation & Guides** (Iteration 46-48)
+
    - Setup guides per provider
    - API migration guide
    - Architecture diagrams
@@ -498,15 +508,15 @@ impl ProviderRegistry {
         if let Some(provider) = self.cache.read().unwrap().get(model) {
             return Ok(provider.clone());
         }
-        
+
         // Upgrade to write lock
         let mut cache = self.cache.write().unwrap();
-        
+
         // Double-check (another thread may have created it)
         if let Some(provider) = cache.get(model) {
             return Ok(provider.clone());
         }
-        
+
         // Create new provider
         let provider = Arc::new(self.factory.create(model)?);
         cache.insert(model.to_string(), provider.clone());
@@ -564,6 +574,7 @@ EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER=openai
 ### Risk 1: Breaking API Changes
 
 **Mitigation:**
+
 - Keep old API endpoints working (v1)
 - Add new endpoints with version (v2)
 - Deprecation warnings for 2 releases
@@ -571,6 +582,7 @@ EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER=openai
 ### Risk 2: Data Migration Failures
 
 **Mitigation:**
+
 - Test migration script on copy of production data
 - Provide rollback SQL script
 - Add database backup step to deployment process
@@ -578,6 +590,7 @@ EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER=openai
 ### Risk 3: Query Performance Degradation
 
 **Mitigation:**
+
 - Benchmark before/after refactoring
 - Provider instance caching
 - Database index on workspace.embedding_model
@@ -605,12 +618,14 @@ EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER=openai
 ## 10. Next Steps (Decide Phase)
 
 **Iteration 07 Actions:**
+
 1. Create detailed implementation plan for workspace schema changes
 2. Design database migration strategy
 3. Plan rollback procedures
 4. Identify integration test scenarios
 
 **Blockers to Resolve:**
+
 - [ ] Confirm LM Studio actual model names (spec may be incorrect)
 - [ ] Decide on provider registry vs factory pattern
 - [ ] Determine workspace lock mechanism (DB-based or in-memory)
@@ -618,6 +633,7 @@ EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER=openai
 ---
 
 **Commit Message for Iteration 06 Orient:**
+
 ```
 docs(ooda-06): Architecture analysis for workspace-level embeddings
 

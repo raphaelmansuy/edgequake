@@ -9,12 +9,12 @@ This guide covers setting up different LLM and embedding providers for EdgeQuake
 
 ## Quick Reference
 
-| Provider | Chat Model | Embedding Model | Dimension | Env Prefix |
-|----------|------------|-----------------|-----------|------------|
-| **OpenAI** | gpt-4o-mini | text-embedding-3-small | 1536 | `OPENAI_` |
-| **Ollama** | gemma3:12b | embeddinggemma:latest | 768 | `OLLAMA_` |
-| **LM Studio** | gemma2-9b-it | nomic-embed-text-v1.5 | 768 | `LMSTUDIO_` |
-| **Mock** | mock | mock | 384 | (none) |
+| Provider      | Chat Model   | Embedding Model        | Dimension | Env Prefix  |
+| ------------- | ------------ | ---------------------- | --------- | ----------- |
+| **OpenAI**    | gpt-4o-mini  | text-embedding-3-small | 1536      | `OPENAI_`   |
+| **Ollama**    | gemma3:12b   | embeddinggemma:latest  | 768       | `OLLAMA_`   |
+| **LM Studio** | gemma2-9b-it | nomic-embed-text-v1.5  | 768       | `LMSTUDIO_` |
+| **Mock**      | mock         | mock                   | 384       | (none)      |
 
 ---
 
@@ -40,12 +40,12 @@ export OPENAI_EMBEDDING_MODEL="text-embedding-3-small"  # Embedding model
 
 ### Models
 
-| Type | Model | Dimensions | Cost (per 1M tokens) |
-|------|-------|------------|---------------------|
-| Chat | gpt-4o-mini | - | $0.15 input / $0.60 output |
-| Chat | gpt-4o | - | $2.50 input / $10 output |
-| Embedding | text-embedding-3-small | 1536 | $0.02 |
-| Embedding | text-embedding-3-large | 3072 | $0.13 |
+| Type      | Model                  | Dimensions | Cost (per 1M tokens)       |
+| --------- | ---------------------- | ---------- | -------------------------- |
+| Chat      | gpt-4o-mini            | -          | $0.15 input / $0.60 output |
+| Chat      | gpt-4o                 | -          | $2.50 input / $10 output   |
+| Embedding | text-embedding-3-small | 1536       | $0.02                      |
+| Embedding | text-embedding-3-large | 3072       | $0.13                      |
 
 ### Usage
 
@@ -93,13 +93,13 @@ export OLLAMA_EMBEDDING_MODEL="embeddinggemma:latest"
 
 ### Models
 
-| Type | Model | Size | Dimensions |
-|------|-------|------|------------|
-| Chat | gemma3:12b | 12GB | - |
-| Chat | llama3.1:8b | 4.7GB | - |
-| Chat | mistral:7b | 4.1GB | - |
-| Embedding | embeddinggemma | ~1GB | 768 |
-| Embedding | nomic-embed-text | ~300MB | 768 |
+| Type      | Model            | Size   | Dimensions |
+| --------- | ---------------- | ------ | ---------- |
+| Chat      | gemma3:12b       | 12GB   | -          |
+| Chat      | llama3.1:8b      | 4.7GB  | -          |
+| Chat      | mistral:7b       | 4.1GB  | -          |
+| Embedding | embeddinggemma   | ~1GB   | 768        |
+| Embedding | nomic-embed-text | ~300MB | 768        |
 
 ### Remote Ollama
 
@@ -156,12 +156,12 @@ export LMSTUDIO_EMBEDDING_DIMENSION="768"
 
 ### Models
 
-| Type | Model | Context | Dimensions |
-|------|-------|---------|------------|
-| Chat | gemma-2-9b-it | 8k | - |
-| Chat | llama-3.1-8b | 8k | - |
-| Embedding | nomic-embed-text-v1.5 | - | 768 |
-| Embedding | gte-large | - | 1024 |
+| Type      | Model                 | Context | Dimensions |
+| --------- | --------------------- | ------- | ---------- |
+| Chat      | gemma-2-9b-it         | 8k      | -          |
+| Chat      | llama-3.1-8b          | 8k      | -          |
+| Embedding | nomic-embed-text-v1.5 | -       | 768        |
+| Embedding | gte-large             | -       | 1024       |
 
 ### Usage
 
@@ -265,16 +265,17 @@ curl -X POST "http://localhost:8080/api/v1/workspaces/{workspace_id}/rebuild-emb
 ## Dimension Compatibility
 
 Embedding dimensions must match between:
+
 - Workspace embedding configuration
 - Vector storage (PostgreSQL or Memory)
 - All documents in the workspace
 
-| Provider | Default Model | Dimension |
-|----------|---------------|-----------|
-| OpenAI | text-embedding-3-small | **1536** |
-| Ollama | embeddinggemma:latest | **768** |
-| LM Studio | nomic-embed-text-v1.5 | **768** |
-| Mock | mock | **384** |
+| Provider  | Default Model          | Dimension |
+| --------- | ---------------------- | --------- |
+| OpenAI    | text-embedding-3-small | **1536**  |
+| Ollama    | embeddinggemma:latest  | **768**   |
+| LM Studio | nomic-embed-text-v1.5  | **768**   |
+| Mock      | mock                   | **384**   |
 
 ### Mismatch Warning
 
@@ -296,37 +297,37 @@ You need to rebuild embeddings:
 
 ### OpenAI
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `OPENAI_API_KEY` | - | API key (required) |
-| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | API base URL |
-| `OPENAI_MODEL` | `gpt-4o-mini` | Chat model |
-| `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
+| Variable                 | Default                     | Description        |
+| ------------------------ | --------------------------- | ------------------ |
+| `OPENAI_API_KEY`         | -                           | API key (required) |
+| `OPENAI_BASE_URL`        | `https://api.openai.com/v1` | API base URL       |
+| `OPENAI_MODEL`           | `gpt-4o-mini`               | Chat model         |
+| `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small`    | Embedding model    |
 
 ### Ollama
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL |
-| `OLLAMA_MODEL` | `gemma3:12b` | Chat model |
-| `OLLAMA_EMBEDDING_MODEL` | `embeddinggemma:latest` | Embedding model |
+| Variable                 | Default                  | Description       |
+| ------------------------ | ------------------------ | ----------------- |
+| `OLLAMA_HOST`            | `http://localhost:11434` | Ollama server URL |
+| `OLLAMA_MODEL`           | `gemma3:12b`             | Chat model        |
+| `OLLAMA_EMBEDDING_MODEL` | `embeddinggemma:latest`  | Embedding model   |
 
 ### LM Studio
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LMSTUDIO_HOST` | `http://localhost:1234` | LM Studio server URL |
-| `LMSTUDIO_MODEL` | `gemma2-9b-it` | Chat model |
-| `LMSTUDIO_EMBEDDING_MODEL` | `nomic-embed-text-v1.5` | Embedding model |
-| `LMSTUDIO_EMBEDDING_DIMENSION` | `768` | Embedding dimension |
+| Variable                       | Default                 | Description          |
+| ------------------------------ | ----------------------- | -------------------- |
+| `LMSTUDIO_HOST`                | `http://localhost:1234` | LM Studio server URL |
+| `LMSTUDIO_MODEL`               | `gemma2-9b-it`          | Chat model           |
+| `LMSTUDIO_EMBEDDING_MODEL`     | `nomic-embed-text-v1.5` | Embedding model      |
+| `LMSTUDIO_EMBEDDING_DIMENSION` | `768`                   | Embedding dimension  |
 
 ### Server Defaults
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EDGEQUAKE_DEFAULT_EMBEDDING_MODEL` | (provider default) | Default embedding model |
-| `EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER` | (auto-detected) | Default embedding provider |
-| `EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION` | (auto-detected) | Default embedding dimension |
+| Variable                                | Default            | Description                 |
+| --------------------------------------- | ------------------ | --------------------------- |
+| `EDGEQUAKE_DEFAULT_EMBEDDING_MODEL`     | (provider default) | Default embedding model     |
+| `EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER`  | (auto-detected)    | Default embedding provider  |
+| `EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION` | (auto-detected)    | Default embedding dimension |
 
 ---
 
@@ -396,12 +397,12 @@ curl -X POST ".../rebuild-embeddings" -d '{"force": true}'
 
 ## Performance Comparison
 
-| Provider | Latency (avg) | Throughput | Cost |
-|----------|---------------|------------|------|
-| OpenAI | 200-500ms | High | $$ |
-| Ollama (local) | 500-2000ms | Medium | Free |
-| LM Studio (local) | 500-2000ms | Medium | Free |
-| Mock | <1ms | Very High | Free |
+| Provider          | Latency (avg) | Throughput | Cost |
+| ----------------- | ------------- | ---------- | ---- |
+| OpenAI            | 200-500ms     | High       | $$   |
+| Ollama (local)    | 500-2000ms    | Medium     | Free |
+| LM Studio (local) | 500-2000ms    | Medium     | Free |
+| Mock              | <1ms          | Very High  | Free |
 
 ### Recommendations
 

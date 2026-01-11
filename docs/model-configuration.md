@@ -5,11 +5,13 @@ EdgeQuake uses a TOML configuration file to define available LLM and embedding p
 ## Quick Start
 
 1. Copy the example configuration:
+
    ```bash
    cp edgequake/models.toml ~/.edgequake/models.toml
    ```
 
 2. Edit to match your setup:
+
    ```bash
    vim ~/.edgequake/models.toml
    ```
@@ -56,6 +58,7 @@ base_url = ""                     # Optional: Custom API endpoint
 ```
 
 **Provider Types:**
+
 - `openai` - OpenAI API
 - `ollama` - Ollama local server
 - `lmstudio` - LM Studio server
@@ -219,14 +222,14 @@ api_key_env = "ANTHROPIC_API_KEY"
 
 Once configured, the models API exposes these endpoints:
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/v1/models` | List all providers and models |
-| `GET /api/v1/models/llm` | LLM models with capabilities |
-| `GET /api/v1/models/embedding` | Embedding models with dimensions |
-| `GET /api/v1/models/health` | Provider health status |
-| `GET /api/v1/models/{provider}` | Specific provider details |
-| `GET /api/v1/models/{provider}/{model}` | Specific model card |
+| Endpoint                                | Description                      |
+| --------------------------------------- | -------------------------------- |
+| `GET /api/v1/models`                    | List all providers and models    |
+| `GET /api/v1/models/llm`                | LLM models with capabilities     |
+| `GET /api/v1/models/embedding`          | Embedding models with dimensions |
+| `GET /api/v1/models/health`             | Provider health status           |
+| `GET /api/v1/models/{provider}`         | Specific provider details        |
+| `GET /api/v1/models/{provider}/{model}` | Specific model card              |
 
 ### Example Response
 
@@ -281,6 +284,7 @@ If a model isn't listed:
 ### Configuration Validation
 
 The server validates configuration at startup. Check logs for:
+
 - Duplicate provider names
 - Invalid model types
 - Missing required fields

@@ -29,15 +29,19 @@ mod provider_unavailability_tests {
             .expect("Builder should succeed");
 
         // Attempting to generate embeddings should fail gracefully
-        let result = provider
-            .embed(&["test text".to_string()])
-            .await;
-        assert!(result.is_err(), "Should return error when Ollama is unavailable");
+        let result = provider.embed(&["test text".to_string()]).await;
+        assert!(
+            result.is_err(),
+            "Should return error when Ollama is unavailable"
+        );
 
         // Error message should be informative
         let err = result.unwrap_err().to_string();
         assert!(
-            err.contains("connect") || err.contains("error") || err.contains("failed") || err.contains("Error"),
+            err.contains("connect")
+                || err.contains("error")
+                || err.contains("failed")
+                || err.contains("Error"),
             "Error should indicate connection failure: {}",
             err
         );
@@ -55,7 +59,10 @@ mod provider_unavailability_tests {
         // Should return valid embedding
         let embeddings = result.unwrap();
         assert!(!embeddings.is_empty(), "Embeddings should not be empty");
-        assert!(!embeddings[0].is_empty(), "First embedding should not be empty");
+        assert!(
+            !embeddings[0].is_empty(),
+            "First embedding should not be empty"
+        );
     }
 }
 
@@ -81,7 +88,10 @@ mod invalid_config_tests {
         let result = provider.embed(&["test".to_string()]).await;
 
         // Should fail because model is empty (or connection fails, either is acceptable)
-        assert!(result.is_err(), "Empty model or unavailable server should cause embedding to fail");
+        assert!(
+            result.is_err(),
+            "Empty model or unavailable server should cause embedding to fail"
+        );
     }
 
     /// Test that invalid URL is handled gracefully
@@ -250,7 +260,10 @@ mod concurrent_access_tests {
 
         // Verify all documents were inserted
         let query: Vec<f32> = (0..768).map(|_| 0.5).collect();
-        let results = storage.query(&query, 10, None).await.expect("Failed to query");
+        let results = storage
+            .query(&query, 10, None)
+            .await
+            .expect("Failed to query");
         assert_eq!(results.len(), 5, "All 5 concurrent writes should succeed");
     }
 
@@ -309,10 +322,17 @@ mod concurrent_access_tests {
         // Verify new data is accessible
         let query: Vec<f32> = (0..768).map(|_| 0.8).collect();
         let s = storage.read().await;
-        let results = s.query(&query, 10, None).await.expect("Failed to query after rebuild");
+        let results = s
+            .query(&query, 10, None)
+            .await
+            .expect("Failed to query after rebuild");
 
         // Should only have new documents
-        assert_eq!(results.len(), 3, "Should have 3 new documents after rebuild");
+        assert_eq!(
+            results.len(),
+            3,
+            "Should have 3 new documents after rebuild"
+        );
         assert!(
             results.iter().all(|r| r.id.starts_with("new-")),
             "All results should be new documents"
@@ -347,7 +367,10 @@ mod empty_value_tests {
 
         let embeddings = result.unwrap();
         assert!(!embeddings.is_empty(), "Embeddings should have values");
-        assert!(!embeddings[0].is_empty(), "First embedding should have values");
+        assert!(
+            !embeddings[0].is_empty(),
+            "First embedding should have values"
+        );
     }
 
     /// Test whitespace-only text embedding
@@ -372,7 +395,10 @@ mod empty_value_tests {
 
         let embeddings = result.unwrap();
         assert!(!embeddings.is_empty(), "Embeddings should have values");
-        assert!(!embeddings[0].is_empty(), "First embedding should have values");
+        assert!(
+            !embeddings[0].is_empty(),
+            "First embedding should have values"
+        );
     }
 
     /// Test special characters in text
@@ -381,9 +407,13 @@ mod empty_value_tests {
         let provider = MockProvider::new();
 
         // Text with special characters
-        let special_text = "Hello 世界! 🎉 <script>alert('xss')</script> SELECT * FROM users;".to_string();
+        let special_text =
+            "Hello 世界! 🎉 <script>alert('xss')</script> SELECT * FROM users;".to_string();
         let result = provider.embed(&[special_text]).await;
-        assert!(result.is_ok(), "Special characters should produce embedding");
+        assert!(
+            result.is_ok(),
+            "Special characters should produce embedding"
+        );
     }
 
     /// Test storage with minimal documents
@@ -401,7 +431,10 @@ mod empty_value_tests {
             .expect("Failed to insert");
 
         // Query should find it
-        let results = storage.query(&vector, 10, None).await.expect("Failed to query");
+        let results = storage
+            .query(&vector, 10, None)
+            .await
+            .expect("Failed to query");
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, "only-doc");
     }
@@ -424,7 +457,10 @@ mod empty_value_tests {
 
         // Query with top_k=100 (larger than document count)
         let query: Vec<f32> = (0..768).map(|_| 0.5).collect();
-        let results = storage.query(&query, 100, None).await.expect("Failed to query");
+        let results = storage
+            .query(&query, 100, None)
+            .await
+            .expect("Failed to query");
 
         // Should return all 3 documents
         assert_eq!(results.len(), 3, "Should return all available documents");
@@ -455,7 +491,10 @@ mod empty_value_tests {
             .expect("Failed to insert");
 
         // Query and verify metadata
-        let results = storage.query(&vector, 1, None).await.expect("Failed to query");
+        let results = storage
+            .query(&vector, 1, None)
+            .await
+            .expect("Failed to query");
         assert_eq!(results.len(), 1);
 
         // Metadata should be preserved

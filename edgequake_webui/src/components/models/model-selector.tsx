@@ -14,45 +14,45 @@
 
 import { Badge } from '@/components/ui/badge';
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+    CommandSeparator,
 } from '@/components/ui/command';
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
 } from '@/components/ui/popover';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useLlmModels, useEmbeddingModels } from '@/hooks/use-models';
-import type { LlmModelItem, EmbeddingModelItem, ModelCapabilities, ModelCost } from '@/lib/api/models';
+import { useEmbeddingModels, useLlmModels } from '@/hooks/use-models';
+import type { EmbeddingModelItem, LlmModelItem, ModelCapabilities, ModelCost } from '@/lib/api/models';
 import { formatContextLength, formatCost, isModelFree } from '@/lib/api/models';
 import { cn } from '@/lib/utils';
 import {
-  Brain,
-  Check,
-  ChevronDown,
-  Cloud,
-  Cpu,
-  DollarSign,
-  Eye,
-  FileText,
-  FlaskConical,
-  Loader2,
-  Ruler,
-  Sparkles,
-  Zap,
+    Brain,
+    Check,
+    ChevronDown,
+    Cloud,
+    Cpu,
+    DollarSign,
+    Eye,
+    FileText,
+    FlaskConical,
+    Loader2,
+    Ruler,
+    Sparkles,
+    Zap,
 } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 import { Button } from '../ui/button';
 

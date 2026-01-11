@@ -29,7 +29,7 @@ impl Workspace {
         else if model.contains(':') { "ollama" }
         else { "lmstudio" }
     }
-    
+
     pub fn detect_dimension_from_model(model: &str) -> usize {
         match model {
             "text-embedding-3-small" => 1536,
@@ -61,7 +61,7 @@ impl CreateWorkspaceRequest {
             ..Default::default()
         }
     }
-    
+
     pub fn with_embedding_model(mut self, model: impl Into<String>) -> Self {
         self.embedding_model = Some(model.into());
         self
@@ -78,10 +78,11 @@ impl CreateWorkspaceRequest {
 #### 4. Services
 
 **InMemoryWorkspaceService:**
+
 ```rust
 async fn create_workspace(&self, tenant_id: Uuid, request: CreateWorkspaceRequest) -> Result<Workspace> {
     // ... existing code ...
-    
+
     // SPEC-032: Apply embedding configuration
     if let Some(model) = request.embedding_model {
         workspace = workspace.with_embedding_model(&model);
@@ -94,6 +95,7 @@ async fn create_workspace(&self, tenant_id: Uuid, request: CreateWorkspaceReques
 ```
 
 **WorkspaceServiceImpl (PostgreSQL):**
+
 ```rust
 // Store embedding config in metadata JSONB
 .bind({

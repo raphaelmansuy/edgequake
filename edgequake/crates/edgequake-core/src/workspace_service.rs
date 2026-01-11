@@ -298,6 +298,19 @@ impl WorkspaceService for InMemoryWorkspaceService {
             workspace = workspace.with_max_documents(max_docs);
         }
 
+        // SPEC-032: Apply LLM configuration from request
+        // Uses auto-detection for provider if not specified
+        if let Some(model) = request.llm_model {
+            workspace = workspace.with_llm_model(&model);
+            // Explicit provider overrides auto-detection
+            if let Some(provider) = request.llm_provider {
+                workspace = workspace.with_llm_provider(&provider);
+            }
+        } else if let Some(provider) = request.llm_provider {
+            // Provider specified without model - use default model for provider
+            workspace = workspace.with_llm_provider(&provider);
+        }
+
         // SPEC-032: Apply embedding configuration from request
         // Uses auto-detection for provider/dimension if not specified
         if let Some(model) = request.embedding_model {
@@ -636,6 +649,8 @@ mod tests {
             slug: Some("my-kb".to_string()),
             description: Some("Test KB".to_string()),
             max_documents: Some(1000),
+            llm_model: None,
+            llm_provider: None,
             embedding_model: None,
             embedding_provider: None,
             embedding_dimension: None,
@@ -666,6 +681,8 @@ mod tests {
                 slug: Some(format!("ws-{}", i)),
                 description: None,
                 max_documents: None,
+                llm_model: None,
+                llm_provider: None,
                 embedding_model: None,
                 embedding_provider: None,
                 embedding_dimension: None,
@@ -682,6 +699,8 @@ mod tests {
             slug: Some("ws-3".to_string()),
             description: None,
             max_documents: None,
+            llm_model: None,
+            llm_provider: None,
             embedding_model: None,
             embedding_provider: None,
             embedding_dimension: None,

@@ -145,16 +145,22 @@ impl std::str::FromStr for TenantPlan {
 
 /// A workspace (knowledge base) within a tenant.
 ///
-/// ## Embedding Configuration (SPEC-032)
+/// ## Model Configuration (SPEC-032)
 ///
-/// Each workspace has its own embedding configuration that determines:
-/// - Which embedding model to use for document ingestion
-/// - Which provider hosts the embedding model
-/// - The vector dimension (must match stored vectors)
+/// Each workspace has its own model configuration that determines:
+/// - **Embedding**: Which model to use for vector embeddings (must match stored vectors)
+/// - **LLM**: Which model to use for knowledge graph generation, summarization, etc.
 ///
-/// This enables mixing different embedding providers per workspace:
-/// - Workspace A: OpenAI text-embedding-3-small (1536 dims)
-/// - Workspace B: Ollama embeddinggemma:latest (768 dims)
+/// This enables mixing different providers per workspace:
+/// - Workspace A: OpenAI gpt-4o + text-embedding-3-small (1536 dims)
+/// - Workspace B: Ollama gemma3:12b + embeddinggemma:latest (768 dims)
+///
+/// ## Model ID Format
+///
+/// Models are identified by `provider/model_name` format:
+/// - `"ollama/gemma3:12b"` - Ollama with Gemma 3 12B
+/// - `"openai/gpt-4o-mini"` - OpenAI GPT-4o Mini
+/// - `"lmstudio/gemma-3n-e4b-it"` - LM Studio local model
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Workspace {
     /// Unique workspace identifier.
@@ -176,10 +182,22 @@ pub struct Workspace {
     /// Custom metadata including quotas.
     pub metadata: HashMap<String, serde_json::Value>,
 
+    // === LLM Configuration (SPEC-032) ===
+
+    /// LLM model name (e.g., "gemma3:12b", "gpt-4o-mini").
+    /// Used for knowledge graph generation, summarization, entity extraction.
+    /// Note: Query-time LLM can be different (user's choice in UI).
+    pub llm_model: String,
+
+    /// LLM provider (e.g., "ollama", "openai", "lmstudio").
+    /// Determines which API to call for LLM completions during ingestion.
+    pub llm_provider: String,
+
     // === Embedding Configuration (SPEC-032) ===
 
     /// Embedding model name (e.g., "text-embedding-3-small", "embeddinggemma:latest").
     /// Used for both document ingestion and query embedding generation.
+    /// MUST be consistent: query embeddings must use same model as stored vectors.
     pub embedding_model: String,
 
     /// Embedding provider (e.g., "openai", "ollama", "lmstudio").
@@ -192,8 +210,14 @@ pub struct Workspace {
 }
 
 // ============================================================================
-// Embedding Configuration Constants (SPEC-032)
+// Model Configuration Constants (SPEC-032)
 // ============================================================================
+
+/// Default LLM model (Ollama gemma3:12b - 128K context, vision support).
+pub const DEFAULT_LLM_MODEL: &str = "gemma3:12b";
+
+/// Default LLM provider.
+pub const DEFAULT_LLM_PROVIDER: &str = "ollama";
 
 /// Default embedding model (OpenAI text-embedding-3-small).
 pub const DEFAULT_EMBEDDING_MODEL: &str = "text-embedding-3-small";
@@ -205,15 +229,19 @@ pub const DEFAULT_EMBEDDING_PROVIDER: &str = "openai";
 pub const DEFAULT_EMBEDDING_DIMENSION: usize = 1536;
 
 impl Workspace {
-    /// Create a new workspace with default embedding configuration.
+    /// Create a new workspace with default model configuration.
     ///
     /// Uses server defaults from environment variables if set:
+    /// - `EDGEQUAKE_DEFAULT_LLM_MODEL`
+    /// - `EDGEQUAKE_DEFAULT_LLM_PROVIDER`
     /// - `EDGEQUAKE_DEFAULT_EMBEDDING_MODEL`
     /// - `EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER`
     /// - `EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION`
     pub fn new(tenant_id: Uuid, name: impl Into<String>, slug: impl Into<String>) -> Self {
         let now = chrono::Utc::now();
-        let (model, provider, dimension) = Self::default_embedding_config();
+        let (llm_model, llm_provider) = Self::default_llm_config();
+        let (embedding_model, embedding_provider, embedding_dimension) =
+            Self::default_embedding_config();
 
         Self {
             workspace_id: Uuid::new_v4(),
@@ -225,10 +253,25 @@ impl Workspace {
             created_at: now,
             updated_at: now,
             metadata: HashMap::new(),
-            embedding_model: model,
-            embedding_provider: provider,
-            embedding_dimension: dimension,
+            llm_model,
+            llm_provider,
+            embedding_model,
+            embedding_provider,
+            embedding_dimension,
         }
+    }
+
+    /// Get default LLM configuration from environment.
+    ///
+    /// Returns (model, provider) tuple.
+    pub fn default_llm_config() -> (String, String) {
+        let model = std::env::var("EDGEQUAKE_DEFAULT_LLM_MODEL")
+            .unwrap_or_else(|_| DEFAULT_LLM_MODEL.to_string());
+
+        let provider = std::env::var("EDGEQUAKE_DEFAULT_LLM_PROVIDER")
+            .unwrap_or_else(|_| DEFAULT_LLM_PROVIDER.to_string());
+
+        (model, provider)
     }
 
     /// Get default embedding configuration from environment.
@@ -371,6 +414,118 @@ impl Workspace {
         self.embedding_provider = provider.into();
         self.embedding_dimension = dimension;
         self
+    }
+
+    // === LLM Configuration Builder Methods (SPEC-032) ===
+
+    /// Set the LLM model and auto-detect provider.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use edgequake_core::Workspace;
+    /// use uuid::Uuid;
+    ///
+    /// let workspace = Workspace::new(Uuid::new_v4(), "My Workspace", "my-workspace")
+    ///     .with_llm_model("gemma3:12b");
+    ///
+    /// assert_eq!(workspace.llm_model, "gemma3:12b");
+    /// assert_eq!(workspace.llm_provider, "ollama");
+    /// ```
+    pub fn with_llm_model(mut self, model: impl Into<String>) -> Self {
+        let model = model.into();
+        self.llm_provider = Self::detect_provider_from_model(&model);
+        self.llm_model = model;
+        self
+    }
+
+    /// Set the LLM provider explicitly.
+    pub fn with_llm_provider(mut self, provider: impl Into<String>) -> Self {
+        self.llm_provider = provider.into();
+        self
+    }
+
+    /// Set complete LLM configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `model` - LLM model name
+    /// * `provider` - Provider name (openai, ollama, lmstudio)
+    pub fn with_llm_config(
+        mut self,
+        model: impl Into<String>,
+        provider: impl Into<String>,
+    ) -> Self {
+        self.llm_model = model.into();
+        self.llm_provider = provider.into();
+        self
+    }
+
+    // === Full Model ID Methods (SPEC-032) ===
+
+    /// Get fully qualified LLM model ID in `provider/model` format.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use edgequake_core::Workspace;
+    /// use uuid::Uuid;
+    ///
+    /// let workspace = Workspace::new(Uuid::new_v4(), "Test", "test")
+    ///     .with_llm_config("gemma3:12b", "ollama");
+    ///
+    /// assert_eq!(workspace.llm_full_id(), "ollama/gemma3:12b");
+    /// ```
+    pub fn llm_full_id(&self) -> String {
+        format!("{}/{}", self.llm_provider, self.llm_model)
+    }
+
+    /// Get fully qualified embedding model ID in `provider/model` format.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use edgequake_core::Workspace;
+    /// use uuid::Uuid;
+    ///
+    /// let workspace = Workspace::new(Uuid::new_v4(), "Test", "test")
+    ///     .with_embedding_config("text-embedding-3-small", "openai", 1536);
+    ///
+    /// assert_eq!(workspace.embedding_full_id(), "openai/text-embedding-3-small");
+    /// ```
+    pub fn embedding_full_id(&self) -> String {
+        format!("{}/{}", self.embedding_provider, self.embedding_model)
+    }
+
+    /// Parse a full model ID into (provider, model) tuple.
+    ///
+    /// # Arguments
+    ///
+    /// * `full_id` - Model ID in `provider/model` format (e.g., "ollama/gemma3:12b")
+    ///
+    /// # Returns
+    ///
+    /// `Some((provider, model))` if valid format, `None` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use edgequake_core::Workspace;
+    ///
+    /// assert_eq!(
+    ///     Workspace::parse_model_id("ollama/gemma3:12b"),
+    ///     Some(("ollama".to_string(), "gemma3:12b".to_string()))
+    /// );
+    ///
+    /// assert_eq!(Workspace::parse_model_id("invalid"), None);
+    /// ```
+    pub fn parse_model_id(full_id: &str) -> Option<(String, String)> {
+        let parts: Vec<&str> = full_id.splitn(2, '/').collect();
+        if parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty() {
+            Some((parts[0].to_string(), parts[1].to_string()))
+        } else {
+            None
+        }
     }
 }
 
@@ -553,11 +708,21 @@ impl TenantContext {
 
 /// Request to create a new workspace.
 ///
-/// ## Embedding Configuration (SPEC-032)
+/// ## Model Configuration (SPEC-032)
 ///
 /// If `embedding_model` is not provided, the workspace will use server defaults:
 /// - `EDGEQUAKE_DEFAULT_EMBEDDING_MODEL` or "text-embedding-3-small"
 /// - Provider and dimension auto-detected from model name
+///
+/// If `llm_model` is not provided, the workspace will use server defaults:
+/// - `EDGEQUAKE_DEFAULT_LLM_MODEL` or "gemma3:12b" (Ollama)
+/// - Provider auto-detected from model name
+///
+/// ## Model ID Format
+///
+/// Models can be specified as:
+/// - Simple name: "gemma3:12b" (provider auto-detected)
+/// - Full ID: "ollama/gemma3:12b" (provider parsed from full ID)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateWorkspaceRequest {
     /// Human-readable name.
@@ -569,10 +734,22 @@ pub struct CreateWorkspaceRequest {
     /// Optional max documents quota.
     pub max_documents: Option<usize>,
 
+    // === LLM Configuration (SPEC-032) ===
+
+    /// LLM model name (e.g., "gemma3:12b", "gpt-4o-mini").
+    /// If None, uses server default from EDGEQUAKE_DEFAULT_LLM_MODEL.
+    /// Can be a full ID like "ollama/gemma3:12b" for explicit provider.
+    pub llm_model: Option<String>,
+
+    /// LLM provider (e.g., "ollama", "openai", "lmstudio").
+    /// If None, auto-detected from llm_model.
+    pub llm_provider: Option<String>,
+
     // === Embedding Configuration (SPEC-032) ===
 
     /// Embedding model name (e.g., "text-embedding-3-small", "embeddinggemma:latest").
     /// If None, uses server default from EDGEQUAKE_DEFAULT_EMBEDDING_MODEL.
+    /// Can be a full ID like "openai/text-embedding-3-small" for explicit provider.
     pub embedding_model: Option<String>,
 
     /// Embedding provider (e.g., "openai", "ollama", "lmstudio").
@@ -591,6 +768,8 @@ impl Default for CreateWorkspaceRequest {
             slug: None,
             description: None,
             max_documents: None,
+            llm_model: None,
+            llm_provider: None,
             embedding_model: None,
             embedding_provider: None,
             embedding_dimension: None,
@@ -607,6 +786,44 @@ impl CreateWorkspaceRequest {
         }
     }
 
+    // === LLM Configuration Builder Methods (SPEC-032) ===
+
+    /// Set the LLM model.
+    ///
+    /// # Arguments
+    ///
+    /// * `model` - Model name or full ID (e.g., "gemma3:12b" or "ollama/gemma3:12b")
+    pub fn with_llm_model(mut self, model: impl Into<String>) -> Self {
+        self.llm_model = Some(model.into());
+        self
+    }
+
+    /// Set the LLM provider.
+    pub fn with_llm_provider(mut self, provider: impl Into<String>) -> Self {
+        self.llm_provider = Some(provider.into());
+        self
+    }
+
+    /// Set complete LLM configuration from a full model ID.
+    ///
+    /// # Arguments
+    ///
+    /// * `full_id` - Full model ID in `provider/model` format (e.g., "ollama/gemma3:12b")
+    ///
+    /// If the format is invalid, sets the entire string as the model name.
+    pub fn with_llm_full_id(mut self, full_id: impl Into<String>) -> Self {
+        let full_id = full_id.into();
+        if let Some((provider, model)) = Workspace::parse_model_id(&full_id) {
+            self.llm_provider = Some(provider);
+            self.llm_model = Some(model);
+        } else {
+            self.llm_model = Some(full_id);
+        }
+        self
+    }
+
+    // === Embedding Configuration Builder Methods (SPEC-032) ===
+
     /// Set the embedding model.
     pub fn with_embedding_model(mut self, model: impl Into<String>) -> Self {
         self.embedding_model = Some(model.into());
@@ -622,6 +839,24 @@ impl CreateWorkspaceRequest {
     /// Set the embedding dimension.
     pub fn with_embedding_dimension(mut self, dimension: usize) -> Self {
         self.embedding_dimension = Some(dimension);
+        self
+    }
+
+    /// Set complete embedding configuration from a full model ID.
+    ///
+    /// # Arguments
+    ///
+    /// * `full_id` - Full model ID in `provider/model` format (e.g., "openai/text-embedding-3-small")
+    ///
+    /// If the format is invalid, sets the entire string as the model name.
+    pub fn with_embedding_full_id(mut self, full_id: impl Into<String>) -> Self {
+        let full_id = full_id.into();
+        if let Some((provider, model)) = Workspace::parse_model_id(&full_id) {
+            self.embedding_provider = Some(provider);
+            self.embedding_model = Some(model);
+        } else {
+            self.embedding_model = Some(full_id);
+        }
         self
     }
 }

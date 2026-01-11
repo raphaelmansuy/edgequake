@@ -27,8 +27,8 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
-  EmbeddingModelSelector,
-  type EmbeddingSelection,
+    EmbeddingModelSelector,
+    type EmbeddingSelection,
 } from '@/components/workspace/embedding-model-selector';
 import {
     createTenant,

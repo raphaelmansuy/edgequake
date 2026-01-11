@@ -48,10 +48,10 @@ When processing queries, the system:
 async fn process_query(&self, workspace_id: &str, query: &str) -> Result<Vec<SearchResult>> {
     let config = self.get_workspace_embedding_config(workspace_id).await?;
     let provider = self.provider_registry.get(&config.provider)?;
-    
+
     // Ensure provider dimension matches stored dimension
     assert_eq!(provider.dimension(), config.dimension);
-    
+
     let query_embedding = provider.embed_one(query).await?;
     self.vector_storage.query(&query_embedding, 10, None).await
 }
@@ -90,12 +90,14 @@ When a user changes the embedding provider for a workspace:
 ## API Endpoints
 
 ### Get Workspace Embedding Config
+
 ```
 GET /api/workspaces/{id}/embedding-config
 Response: { provider, model, dimension }
 ```
 
 ### Update Workspace Embedding Config
+
 ```
 PUT /api/workspaces/{id}/embedding-config
 Body: { provider, model }
@@ -103,6 +105,7 @@ Response: { success, requires_rebuild }
 ```
 
 ### Rebuild Workspace Embeddings
+
 ```
 POST /api/workspaces/{id}/rebuild-embeddings
 Response: { job_id, status, documents_processed }

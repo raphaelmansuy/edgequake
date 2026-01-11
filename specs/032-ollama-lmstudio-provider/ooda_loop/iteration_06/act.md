@@ -13,6 +13,7 @@
 **Scope:** Backend only (Rust code changes), no database migration yet (deferred to iteration 07)
 
 **Changes Made:**
+
 1. ✅ Extended `Workspace` struct with embedding configuration
 2. ✅ Updated `CreateWorkspaceRequest` and `UpdateWorkspaceRequest`
 3. ✅ Modified API DTOs (`CreateWorkspaceApiRequest`, `WorkspaceResponse`)
@@ -27,6 +28,7 @@
 **File:** [`multitenancy.rs`](../../edgequake/crates/edgequake-core/src/types/multitenancy.rs#L148-L200)
 
 **Before:**
+
 ```rust
 pub struct Workspace {
     pub workspace_id: Uuid,
@@ -42,6 +44,7 @@ pub struct Workspace {
 ```
 
 **After:**
+
 ```rust
 pub struct Workspace {
     pub workspace_id: Uuid,
@@ -53,7 +56,7 @@ pub struct Workspace {
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
     pub metadata: HashMap<String, serde_json::Value>,
-    
+
     // NEW: Embedding configuration (SPEC-032)
     /// Embedding model name (e.g., "text-embedding-3-small", "embeddinggemma:latest")
     pub embedding_model: String,
@@ -65,6 +68,7 @@ pub struct Workspace {
 ```
 
 **Rationale:**
+
 - Direct fields (not metadata) for type safety and queryability
 - Non-optional (defaults set at creation time)
 - Provider + model + dimension = complete embedding configuration
@@ -74,6 +78,7 @@ pub struct Workspace {
 **File:** [`workspaces_types.rs`](../../edgequake/crates/edgequake-api/src/handlers/workspaces_types.rs)
 
 **CreateWorkspaceApiRequest (NEW FIELDS):**
+
 ```rust
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CreateWorkspaceApiRequest {
@@ -81,7 +86,7 @@ pub struct CreateWorkspaceApiRequest {
     pub slug: Option<String>,
     pub description: Option<String>,
     pub max_documents: Option<usize>,
-    
+
     // NEW: Optional embedding configuration
     /// Embedding model name. If None, uses server default.
     pub embedding_model: Option<String>,
@@ -91,6 +96,7 @@ pub struct CreateWorkspaceApiRequest {
 ```
 
 **WorkspaceResponse (NEW FIELDS):**
+
 ```rust
 #[derive(Debug, Serialize, ToSchema)]
 pub struct WorkspaceResponse {
@@ -103,12 +109,12 @@ pub struct WorkspaceResponse {
     pub max_documents: Option<usize>,
     pub created_at: String,
     pub updated_at: String,
-    
+
     // NEW: Embedding configuration (always present)
     pub embedding_model: String,
     pub embedding_provider: String,
     pub embedding_dimension: usize,
-    
+
     // NEW: Vector storage stats
     pub vector_count: Option<usize>, // Number of embeddings stored (if available)
 }
@@ -119,19 +125,20 @@ pub struct WorkspaceResponse {
 **File:** [`workspace_service.rs`](../../edgequake/crates/edgequake-core/src/workspace_service.rs)
 
 **New Helper Function:**
+
 ```rust
 /// Get default embedding configuration from environment.
 fn get_default_embedding_config() -> (String, String, usize) {
     let model = std::env::var("EDGEQUAKE_DEFAULT_EMBEDDING_MODEL")
         .unwrap_or_else(|_| "text-embedding-3-small".to_string());
-    
+
     let provider = std::env::var("EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER")
         .unwrap_or_else(|_| detect_provider_from_model(&model));
-    
+
     let dimension = std::env::var("EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION")
         .and_then(|s| s.parse().ok())
         .unwrap_or_else(|| detect_dimension_from_model(&model));
-    
+
     (model, provider, dimension)
 }
 
@@ -167,13 +174,13 @@ fn detect_dimension_from_model(model: &str) -> usize {
 
 ### 2.1 Files Modified
 
-| File | Lines Changed | Status | Tests |
-|------|---------------|--------|-------|
-| `edgequake-core/src/types/multitenancy.rs` | +45 lines | ✅ DONE | Unit tests added |
-| `edgequake-core/src/workspace_service.rs` | +60 lines | ✅ DONE | Helper tests added |
-| `edgequake-api/src/handlers/workspaces_types.rs` | +30 lines | ✅ DONE | DTO serialization tests |
-| `edgequake-api/src/handlers/workspaces.rs` | +25 lines | ✅ DONE | Handler updated |
-| `edgequake-core/src/workspace_service_impl.rs` | +40 lines | 🚧 IN PROGRESS | Postgres impl |
+| File                                             | Lines Changed | Status         | Tests                   |
+| ------------------------------------------------ | ------------- | -------------- | ----------------------- |
+| `edgequake-core/src/types/multitenancy.rs`       | +45 lines     | ✅ DONE        | Unit tests added        |
+| `edgequake-core/src/workspace_service.rs`        | +60 lines     | ✅ DONE        | Helper tests added      |
+| `edgequake-api/src/handlers/workspaces_types.rs` | +30 lines     | ✅ DONE        | DTO serialization tests |
+| `edgequake-api/src/handlers/workspaces.rs`       | +25 lines     | ✅ DONE        | Handler updated         |
+| `edgequake-core/src/workspace_service_impl.rs`   | +40 lines     | 🚧 IN PROGRESS | Postgres impl           |
 
 **Total:** ~200 lines added/modified
 
@@ -191,6 +198,7 @@ cargo test --package edgequake-core
 ### 2.3 Breaking Changes
 
 **NONE** - This is an additive change:
+
 - Existing API clients can omit new fields (will use defaults)
 - Existing workspaces will be backfilled with defaults (iteration 07)
 - No fields removed or renamed
@@ -208,9 +216,9 @@ cargo test --package edgequake-core
 fn test_default_embedding_config() {
     std::env::set_var("EDGEQUAKE_DEFAULT_EMBEDDING_MODEL", "text-embedding-3-small");
     std::env::set_var("EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER", "openai");
-    
+
     let (model, provider, dimension) = get_default_embedding_config();
-    
+
     assert_eq!(model, "text-embedding-3-small");
     assert_eq!(provider, "openai");
     assert_eq!(dimension, 1536);
@@ -235,7 +243,7 @@ async fn test_create_workspace_with_custom_embedding() {
     let service = InMemoryWorkspaceService::new();
     let tenant = Tenant::new("Test Tenant", "test");
     let tenant = service.create_tenant(tenant).await.unwrap();
-    
+
     let request = CreateWorkspaceRequest {
         name: "Test Workspace".to_string(),
         slug: Some("test-workspace".to_string()),
@@ -244,9 +252,9 @@ async fn test_create_workspace_with_custom_embedding() {
         embedding_model: Some("embeddinggemma:latest".to_string()),
         embedding_provider: Some("ollama".to_string()),
     };
-    
+
     let workspace = service.create_workspace(tenant.tenant_id, request).await.unwrap();
-    
+
     assert_eq!(workspace.embedding_model, "embeddinggemma:latest");
     assert_eq!(workspace.embedding_provider, "ollama");
     assert_eq!(workspace.embedding_dimension, 768); // Auto-detected
@@ -255,11 +263,11 @@ async fn test_create_workspace_with_custom_embedding() {
 #[tokio::test]
 async fn test_create_workspace_with_default_embedding() {
     std::env::set_var("EDGEQUAKE_DEFAULT_EMBEDDING_MODEL", "text-embedding-3-small");
-    
+
     let service = InMemoryWorkspaceService::new();
     let tenant = Tenant::new("Test Tenant", "test");
     let tenant = service.create_tenant(tenant).await.unwrap();
-    
+
     let request = CreateWorkspaceRequest {
         name: "Test Workspace".to_string(),
         slug: Some("test-workspace".to_string()),
@@ -268,9 +276,9 @@ async fn test_create_workspace_with_default_embedding() {
         embedding_model: None, // Use server default
         embedding_provider: None,
     };
-    
+
     let workspace = service.create_workspace(tenant.tenant_id, request).await.unwrap();
-    
+
     assert_eq!(workspace.embedding_model, "text-embedding-3-small");
     assert_eq!(workspace.embedding_provider, "openai");
     assert_eq!(workspace.embedding_dimension, 1536);
@@ -285,7 +293,7 @@ async fn test_create_workspace_with_default_embedding() {
 #[tokio::test]
 async fn test_create_workspace_api_with_embedding() {
     let state = test_app_state().await;
-    
+
     let request = CreateWorkspaceApiRequest {
         name: "Test Workspace".to_string(),
         slug: None,
@@ -294,11 +302,11 @@ async fn test_create_workspace_api_with_embedding() {
         embedding_model: Some("embeddinggemma:latest".to_string()),
         embedding_provider: Some("ollama".to_string()),
     };
-    
+
     let response = create_workspace_handler(State(state), Json(request))
         .await
         .unwrap();
-    
+
     assert_eq!(response.embedding_model, "embeddinggemma:latest");
     assert_eq!(response.embedding_provider, "ollama");
     assert_eq!(response.embedding_dimension, 768);
@@ -307,7 +315,7 @@ async fn test_create_workspace_api_with_embedding() {
 #[tokio::test]
 async fn test_list_workspaces_includes_embedding_config() {
     let state = test_app_state().await;
-    
+
     // Create workspace with custom embedding
     let create_request = CreateWorkspaceApiRequest {
         name: "Test".to_string(),
@@ -317,18 +325,18 @@ async fn test_list_workspaces_includes_embedding_config() {
         embedding_model: Some("text-embedding-3-small".to_string()),
         embedding_provider: None, // Auto-detected
     };
-    
+
     let created = create_workspace_handler(State(state.clone()), Json(create_request))
         .await
         .unwrap();
-    
+
     // List workspaces
     let list_response = list_workspaces_handler(State(state.clone()), Query(PaginationParams::default()))
         .await
         .unwrap();
-    
+
     let workspace = list_response.items.iter().find(|w| w.id == created.id).unwrap();
-    
+
     assert_eq!(workspace.embedding_model, "text-embedding-3-small");
     assert_eq!(workspace.embedding_provider, "openai");
     assert_eq!(workspace.embedding_dimension, 1536);
@@ -360,6 +368,7 @@ EDGEQUAKE_EMBEDDING_MODEL_MAP='{"gemma3:12b": {"provider": "ollama", "dimension"
 **Endpoint:** `POST /api/v1/workspaces`
 
 **Request Body (NEW FIELDS):**
+
 ```yaml
 CreateWorkspaceRequest:
   type: object
@@ -387,6 +396,7 @@ CreateWorkspaceRequest:
 ```
 
 **Response Body (NEW FIELDS):**
+
 ```yaml
 WorkspaceResponse:
   type: object
@@ -428,27 +438,28 @@ WorkspaceResponse:
 -- File: migrations/002_workspace_embeddings.sql
 -- Will be created in iteration 07
 
-ALTER TABLE workspaces 
+ALTER TABLE workspaces
 ADD COLUMN embedding_model VARCHAR(255),
 ADD COLUMN embedding_provider VARCHAR(50),
 ADD COLUMN embedding_dimension INTEGER;
 
 -- Backfill existing workspaces with server defaults
-UPDATE workspaces 
-SET 
+UPDATE workspaces
+SET
     embedding_model = 'text-embedding-3-small',
     embedding_provider = 'openai',
     embedding_dimension = 1536
 WHERE embedding_model IS NULL;
 
 -- Make columns NOT NULL after backfill
-ALTER TABLE workspaces 
+ALTER TABLE workspaces
 ALTER COLUMN embedding_model SET NOT NULL,
 ALTER COLUMN embedding_provider SET NOT NULL,
 ALTER COLUMN embedding_dimension SET NOT NULL;
 ```
 
 **Why Deferred:**
+
 - Domain types updated first (this iteration)
 - Database migration requires testing + rollback script (iteration 07)
 - Allows code compilation while planning migration carefully
@@ -487,6 +498,7 @@ ALTER COLUMN embedding_dimension SET NOT NULL;
 **Probability:** Low (fields are optional on create)
 
 **Mitigation:**
+
 - New fields are optional in request DTOs
 - Defaults applied server-side if omitted
 - Existing clients continue working without changes
@@ -497,6 +509,7 @@ ALTER COLUMN embedding_dimension SET NOT NULL;
 **Probability:** Medium (users may typo model names)
 
 **Mitigation:**
+
 - Provider validation during workspace creation (iteration 07)
 - Return clear error message with available models
 - Auto-suggest similar model names
@@ -507,6 +520,7 @@ ALTER COLUMN embedding_dimension SET NOT NULL;
 **Probability:** Low (dimension validated at creation)
 
 **Mitigation:**
+
 - Dimension validated against provider during creation
 - Dimension change requires vector rebuild (iteration 21-25)
 - UI warnings before changing embedding model
@@ -554,6 +568,7 @@ ALTER COLUMN embedding_dimension SET NOT NULL;
 ## 11. Commit Strategy
 
 ### Commit 1: Domain Types (THIS ITERATION)
+
 ```
 feat(workspaces): add embedding configuration to Workspace type
 
@@ -579,6 +594,7 @@ Tests:
 ```
 
 ### Commit 2: API DTOs (THIS ITERATION)
+
 ```
 feat(api): add embedding fields to workspace API DTOs
 
@@ -600,6 +616,7 @@ Tests:
 ```
 
 ### Commit 3: Database Migration (ITERATION 07)
+
 ```
 feat(db): add embedding configuration columns to workspaces table
 
@@ -667,6 +684,7 @@ Files changed:
 ---
 
 **Commit Message for Iteration 06 Act:**
+
 ```
 feat(workspaces): add embedding configuration support (iteration 06)
 

@@ -346,6 +346,19 @@ impl WorkspaceService for WorkspaceServiceImpl {
             workspace = workspace.with_max_documents(max_docs);
         }
 
+        // SPEC-032: Apply LLM configuration from request
+        // Uses auto-detection for provider if not specified
+        if let Some(model) = request.llm_model {
+            workspace = workspace.with_llm_model(&model);
+            // Explicit provider overrides auto-detection
+            if let Some(provider) = request.llm_provider {
+                workspace = workspace.with_llm_provider(&provider);
+            }
+        } else if let Some(provider) = request.llm_provider {
+            // Provider specified without model - use default model for provider
+            workspace = workspace.with_llm_provider(&provider);
+        }
+
         // SPEC-032: Apply embedding configuration from request
         // Uses auto-detection for provider/dimension if not specified
         if let Some(model) = request.embedding_model {
@@ -378,9 +391,13 @@ impl WorkspaceService for WorkspaceServiceImpl {
         .bind(&workspace.slug)
         .bind(&workspace.description)
         .bind(workspace.is_active)
-        // SPEC-032: Store embedding config in metadata until migration adds dedicated columns
+        // SPEC-032: Store LLM and embedding config in metadata until migration adds dedicated columns
         .bind({
             let mut metadata = workspace.metadata.clone();
+            // LLM configuration
+            metadata.insert("llm_model".to_string(), serde_json::Value::String(workspace.llm_model.clone()));
+            metadata.insert("llm_provider".to_string(), serde_json::Value::String(workspace.llm_provider.clone()));
+            // Embedding configuration
             metadata.insert("embedding_model".to_string(), serde_json::Value::String(workspace.embedding_model.clone()));
             metadata.insert("embedding_provider".to_string(), serde_json::Value::String(workspace.embedding_provider.clone()));
             metadata.insert("embedding_dimension".to_string(), serde_json::Value::Number(workspace.embedding_dimension.into()));
@@ -396,7 +413,8 @@ impl WorkspaceService for WorkspaceServiceImpl {
             workspace_id = %workspace.workspace_id,
             tenant_id = %tenant_id,
             slug = %slug,
-            embedding_model = %workspace.embedding_model,
+            llm_model = %workspace.llm_full_id(),
+            embedding_model = %workspace.embedding_full_id(),
             "Created workspace in PostgreSQL"
         );
 
@@ -837,6 +855,18 @@ impl WorkspaceRow {
                 HashMap::new()
             };
 
+        // SPEC-032: Extract LLM config from metadata
+        let llm_model = metadata
+            .get("llm_model")
+            .and_then(|v| v.as_str())
+            .unwrap_or(crate::types::DEFAULT_LLM_MODEL)
+            .to_string();
+        let llm_provider = metadata
+            .get("llm_provider")
+            .and_then(|v| v.as_str())
+            .unwrap_or(crate::types::DEFAULT_LLM_PROVIDER)
+            .to_string();
+
         // SPEC-032: Extract embedding config from metadata
         let embedding_model = metadata
             .get("embedding_model")
@@ -863,6 +893,8 @@ impl WorkspaceRow {
             created_at: self.created_at,
             updated_at: self.updated_at,
             metadata,
+            llm_model,
+            llm_provider,
             embedding_model,
             embedding_provider,
             embedding_dimension,

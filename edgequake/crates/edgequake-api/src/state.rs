@@ -307,7 +307,9 @@ impl AppState {
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
             storage_mode: StorageMode::Memory, // Default to memory for generic constructor
-            models_config: Arc::new(ModelsConfig::load().unwrap_or_else(|_| ModelsConfig::builtin_defaults())),
+            models_config: Arc::new(
+                ModelsConfig::load().unwrap_or_else(|_| ModelsConfig::builtin_defaults()),
+            ),
             #[cfg(feature = "postgres")]
             pg_pool: None,
             start_time: std::time::Instant::now(),
@@ -429,7 +431,9 @@ impl AppState {
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
             storage_mode: StorageMode::Memory,
-            models_config: Arc::new(ModelsConfig::load().unwrap_or_else(|_| ModelsConfig::builtin_defaults())),
+            models_config: Arc::new(
+                ModelsConfig::load().unwrap_or_else(|_| ModelsConfig::builtin_defaults()),
+            ),
             #[cfg(feature = "postgres")]
             pg_pool: None,
             start_time: std::time::Instant::now(),
@@ -773,7 +777,9 @@ impl AppState {
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
             storage_mode: StorageMode::PostgreSQL,
-            models_config: Arc::new(ModelsConfig::load().unwrap_or_else(|_| ModelsConfig::builtin_defaults())),
+            models_config: Arc::new(
+                ModelsConfig::load().unwrap_or_else(|_| ModelsConfig::builtin_defaults()),
+            ),
             pg_pool: Some(pool),
             start_time: std::time::Instant::now(),
         })

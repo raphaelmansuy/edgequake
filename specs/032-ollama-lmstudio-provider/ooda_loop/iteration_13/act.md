@@ -60,6 +60,7 @@ let result = if let Some(ref workspace_id) = tenant_ctx.workspace_id {
 ```
 
 Added helper function `get_workspace_embedding_provider()`:
+
 - Parses workspace UUID
 - Looks up workspace from WorkspaceService
 - Creates provider using `ProviderFactory::create_embedding_provider()`
@@ -110,9 +111,9 @@ This implements the SPEC-032 requirement:
 
 ## Files Modified
 
-| File | Lines Changed | Purpose |
-|------|---------------|---------|
-| factory.rs | +87 | create_embedding_provider() |
-| sota_engine.rs | +179 | query_with_embedding_provider() |
-| handlers/query.rs | +141 | Workspace-aware query execution |
-| lib.rs | +3 | Re-export EmbeddingProvider |
+| File              | Lines Changed | Purpose                         |
+| ----------------- | ------------- | ------------------------------- |
+| factory.rs        | +87           | create_embedding_provider()     |
+| sota_engine.rs    | +179          | query_with_embedding_provider() |
+| handlers/query.rs | +141          | Workspace-aware query execution |
+| lib.rs            | +3            | Re-export EmbeddingProvider     |

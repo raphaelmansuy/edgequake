@@ -1,23 +1,28 @@
 /**
  * @module useProviders
  * @description React hooks for fetching and managing LLM/embedding providers.
- * 
+ *
  * @implements SPEC-032: Ollama/LM Studio provider support - WebUI hooks
  * @iteration OODA #17 - Provider selector implementation
  */
-'use client';
+"use client";
 
-import { SERVER_BASE_URL } from '@/lib/api/client';
-import type { AvailableProvidersResponse, ProviderStatusResponse } from '@/types/provider';
-import { useQuery } from '@tanstack/react-query';
+import { SERVER_BASE_URL } from "@/lib/api/client";
+import type {
+  AvailableProvidersResponse,
+  ProviderStatusResponse,
+} from "@/types/provider";
+import { useQuery } from "@tanstack/react-query";
 
-const getApiUrl = () => SERVER_BASE_URL || 'http://localhost:8080';
+const getApiUrl = () => SERVER_BASE_URL || "http://localhost:8080";
 
 /**
  * Fetch current provider status.
  */
 async function fetchProviderStatus(): Promise<ProviderStatusResponse> {
-  const response = await fetch(`${getApiUrl()}/api/v1/settings/provider/status`);
+  const response = await fetch(
+    `${getApiUrl()}/api/v1/settings/provider/status`
+  );
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
@@ -40,7 +45,7 @@ async function fetchAvailableProviders(): Promise<AvailableProvidersResponse> {
  */
 export function useProviderStatus(refreshInterval = 30000) {
   return useQuery({
-    queryKey: ['provider-status'],
+    queryKey: ["provider-status"],
     queryFn: fetchProviderStatus,
     refetchInterval: refreshInterval,
     staleTime: 10000,
@@ -52,7 +57,7 @@ export function useProviderStatus(refreshInterval = 30000) {
  */
 export function useAvailableProviders() {
   return useQuery({
-    queryKey: ['available-providers'],
+    queryKey: ["available-providers"],
     queryFn: fetchAvailableProviders,
     staleTime: 60000, // Cache for 1 minute
   });
@@ -63,10 +68,10 @@ export function useAvailableProviders() {
  */
 export function getProviderDisplayName(providerId: string): string {
   const names: Record<string, string> = {
-    openai: 'OpenAI',
-    ollama: 'Ollama',
-    lmstudio: 'LM Studio',
-    mock: 'Mock (Dev)',
+    openai: "OpenAI",
+    ollama: "Ollama",
+    lmstudio: "LM Studio",
+    mock: "Mock (Dev)",
   };
   return names[providerId.toLowerCase()] || providerId;
 }
@@ -76,10 +81,10 @@ export function getProviderDisplayName(providerId: string): string {
  */
 export function getProviderIconClass(providerId: string): string {
   const icons: Record<string, string> = {
-    openai: 'text-green-600',
-    ollama: 'text-blue-600',
-    lmstudio: 'text-purple-600',
-    mock: 'text-gray-500',
+    openai: "text-green-600",
+    ollama: "text-blue-600",
+    lmstudio: "text-purple-600",
+    mock: "text-gray-500",
   };
-  return icons[providerId.toLowerCase()] || 'text-gray-500';
+  return icons[providerId.toLowerCase()] || "text-gray-500";
 }

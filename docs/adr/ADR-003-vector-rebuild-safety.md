@@ -31,24 +31,24 @@ pub async fn rebuild_workspace_embeddings(
 ) -> Result<RebuildResult> {
     // Phase 1: Validate new provider is available
     new_provider.embed(&["test".to_string()]).await?;
-    
+
     // Phase 2: Fetch all documents (read-only)
     let documents = self.document_storage.list_all(workspace_id).await?;
-    
+
     // Phase 3: Generate new embeddings
     let mut new_embeddings = Vec::with_capacity(documents.len());
     for doc in &documents {
         let embedding = new_provider.embed_one(&doc.content).await?;
         new_embeddings.push((doc.id.clone(), embedding, doc.metadata.clone()));
     }
-    
+
     // Phase 4: Atomic swap - clear and insert
     self.vector_storage.clear().await?;
     self.vector_storage.upsert(&new_embeddings).await?;
-    
+
     // Phase 5: Update workspace config
     self.update_workspace_embedding_config(workspace_id, new_provider).await?;
-    
+
     Ok(RebuildResult {
         documents_processed: documents.len(),
         new_dimension: new_provider.dimension(),
@@ -70,6 +70,7 @@ pub enum RebuildStatus {
 ### 3. Query Behavior During Rebuild
 
 During rebuild, the system:
+
 - Continues serving queries with old embeddings until swap
 - Briefly blocks queries during atomic swap (~100ms)
 - Returns empty results if rebuild failed mid-swap
@@ -77,6 +78,7 @@ During rebuild, the system:
 ### 4. Rollback Capability (Future)
 
 For large workspaces, we plan to add:
+
 - Backup of old embeddings before rebuild
 - Automatic rollback on failure
 - Parallel embedding generation
@@ -105,6 +107,7 @@ For large workspaces, we plan to add:
 ## API Endpoint
 
 ### Rebuild Embeddings
+
 ```
 POST /api/workspaces/{id}/rebuild-embeddings
 Request: { provider: "ollama", model: "nomic-embed-text" }
@@ -117,6 +120,7 @@ Response: {
 ```
 
 ### Get Rebuild Status
+
 ```
 GET /api/workspaces/{id}/rebuild-status
 Response: {

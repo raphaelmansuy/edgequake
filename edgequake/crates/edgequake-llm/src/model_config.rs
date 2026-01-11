@@ -779,7 +779,9 @@ impl ModelsConfig {
             .flat_map(|p| {
                 p.models
                     .iter()
-                    .filter(|m| matches!(m.model_type, ModelType::Embedding | ModelType::Multimodal))
+                    .filter(|m| {
+                        matches!(m.model_type, ModelType::Embedding | ModelType::Multimodal)
+                    })
                     .map(move |m| (p, m))
             })
             .collect()
@@ -788,13 +790,22 @@ impl ModelsConfig {
     /// Get the default LLM provider and model.
     pub fn default_llm(&self) -> Option<(&ProviderConfig, &ModelCard)> {
         self.get_model(&self.defaults.llm_provider, &self.defaults.llm_model)
-            .and_then(|m| self.get_provider(&self.defaults.llm_provider).map(|p| (p, m)))
+            .and_then(|m| {
+                self.get_provider(&self.defaults.llm_provider)
+                    .map(|p| (p, m))
+            })
     }
 
     /// Get the default embedding provider and model.
     pub fn default_embedding(&self) -> Option<(&ProviderConfig, &ModelCard)> {
-        self.get_model(&self.defaults.embedding_provider, &self.defaults.embedding_model)
-            .and_then(|m| self.get_provider(&self.defaults.embedding_provider).map(|p| (p, m)))
+        self.get_model(
+            &self.defaults.embedding_provider,
+            &self.defaults.embedding_model,
+        )
+        .and_then(|m| {
+            self.get_provider(&self.defaults.embedding_provider)
+                .map(|p| (p, m))
+        })
     }
 
     /// Validate the configuration.
@@ -807,7 +818,10 @@ impl ModelsConfig {
             )));
         }
 
-        if self.get_provider(&self.defaults.embedding_provider).is_none() {
+        if self
+            .get_provider(&self.defaults.embedding_provider)
+            .is_none()
+        {
             return Err(ModelConfigError::ValidationError(format!(
                 "Default embedding provider '{}' not found in providers list",
                 self.defaults.embedding_provider
@@ -815,14 +829,23 @@ impl ModelsConfig {
         }
 
         // Check that default models exist
-        if self.get_model(&self.defaults.llm_provider, &self.defaults.llm_model).is_none() {
+        if self
+            .get_model(&self.defaults.llm_provider, &self.defaults.llm_model)
+            .is_none()
+        {
             return Err(ModelConfigError::ValidationError(format!(
                 "Default LLM model '{}' not found in provider '{}'",
                 self.defaults.llm_model, self.defaults.llm_provider
             )));
         }
 
-        if self.get_model(&self.defaults.embedding_provider, &self.defaults.embedding_model).is_none() {
+        if self
+            .get_model(
+                &self.defaults.embedding_provider,
+                &self.defaults.embedding_model,
+            )
+            .is_none()
+        {
             return Err(ModelConfigError::ValidationError(format!(
                 "Default embedding model '{}' not found in provider '{}'",
                 self.defaults.embedding_model, self.defaults.embedding_provider
@@ -895,7 +918,9 @@ mod tests {
         let config = ModelsConfig::builtin_defaults();
         let embedding_models = config.all_embedding_models();
         assert!(!embedding_models.is_empty());
-        assert!(embedding_models.iter().any(|(_, m)| m.name == "text-embedding-3-small"));
+        assert!(embedding_models
+            .iter()
+            .any(|(_, m)| m.name == "text-embedding-3-small"));
     }
 
     #[test]
@@ -909,7 +934,9 @@ mod tests {
     #[test]
     fn test_model_capabilities() {
         let config = ModelsConfig::builtin_defaults();
-        let gpt4o = config.get_model("openai", "gpt-4o").expect("gpt-4o should exist");
+        let gpt4o = config
+            .get_model("openai", "gpt-4o")
+            .expect("gpt-4o should exist");
         assert!(gpt4o.capabilities.supports_vision);
         assert!(gpt4o.capabilities.supports_function_calling);
         assert_eq!(gpt4o.capabilities.context_length, 128000);
@@ -919,7 +946,9 @@ mod tests {
     fn test_embedding_dimensions() {
         let config = ModelsConfig::builtin_defaults();
 
-        let openai_embed = config.get_model("openai", "text-embedding-3-small").unwrap();
+        let openai_embed = config
+            .get_model("openai", "text-embedding-3-small")
+            .unwrap();
         assert_eq!(openai_embed.capabilities.embedding_dimension, 1536);
 
         let ollama_embed = config.get_model("ollama", "nomic-embed-text").unwrap();
@@ -947,22 +976,34 @@ mod tests {
         if toml_path.exists() {
             let content = std::fs::read_to_string(&toml_path).expect("Failed to read models.toml");
             let config = ModelsConfig::from_toml(&content).expect("Failed to parse models.toml");
-            
+
             // Validate the parsed config
             assert!(config.validate().is_ok(), "models.toml failed validation");
-            
+
             // Check we have expected providers
-            assert!(config.get_provider("openai").is_some(), "OpenAI provider should exist");
-            assert!(config.get_provider("ollama").is_some(), "Ollama provider should exist");
-            assert!(config.get_provider("lmstudio").is_some(), "LM Studio provider should exist");
-            assert!(config.get_provider("mock").is_some(), "Mock provider should exist");
-            
+            assert!(
+                config.get_provider("openai").is_some(),
+                "OpenAI provider should exist"
+            );
+            assert!(
+                config.get_provider("ollama").is_some(),
+                "Ollama provider should exist"
+            );
+            assert!(
+                config.get_provider("lmstudio").is_some(),
+                "LM Studio provider should exist"
+            );
+            assert!(
+                config.get_provider("mock").is_some(),
+                "Mock provider should exist"
+            );
+
             // Check default selections are set
             assert!(!config.defaults.llm_provider.is_empty());
             assert!(!config.defaults.llm_model.is_empty());
             assert!(!config.defaults.embedding_provider.is_empty());
             assert!(!config.defaults.embedding_model.is_empty());
-            
+
             // Check we have LLM and embedding models
             let llm_models = config.all_llm_models();
             let embedding_models = config.all_embedding_models();
@@ -980,11 +1021,14 @@ mod tests {
             .map(|p| (p.name.clone(), p.priority))
             .collect();
         priorities.sort_by_key(|(_, p)| *p);
-        
+
         // Lower priority means higher preference
         // OpenAI should have lower priority number than Mock
         let openai_prio = config.get_provider("openai").unwrap().priority;
         let mock_prio = config.get_provider("mock").unwrap().priority;
-        assert!(openai_prio < mock_prio, "OpenAI should have higher priority than mock");
+        assert!(
+            openai_prio < mock_prio,
+            "OpenAI should have higher priority than mock"
+        );
     }
 }

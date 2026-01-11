@@ -156,7 +156,11 @@ async fn test_provider_priority_chain() {
     std::env::remove_var("OLLAMA_HOST");
     std::env::set_var("LMSTUDIO_HOST", "http://localhost:1234");
     let (llm, _) = ProviderFactory::from_env().unwrap();
-    assert_eq!(llm.name(), "lmstudio", "LM Studio should be selected when Ollama not present");
+    assert_eq!(
+        llm.name(),
+        "lmstudio",
+        "LM Studio should be selected when Ollama not present"
+    );
 
     // Test 3: OpenAI selected when neither Ollama nor LM Studio present
     std::env::remove_var("LMSTUDIO_HOST");

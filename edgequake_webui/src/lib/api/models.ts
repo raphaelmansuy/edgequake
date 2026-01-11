@@ -1,9 +1,9 @@
 /**
  * Models Configuration API Client
- * 
+ *
  * @implements FEAT0470: Models Configuration API
  * @implements FEAT0471: Provider Capability Exposure
- * 
+ *
  * Provides functions to fetch model configuration including:
  * - Available providers and their models
  * - Model capabilities (context length, vision, function calling)
@@ -11,7 +11,7 @@
  * - Provider health status
  */
 
-import { apiClient } from './client';
+import { apiClient } from "./client";
 
 // ============================================================================
 // Types
@@ -47,7 +47,7 @@ export interface ModelCost {
 export interface ModelResponse {
   name: string;
   display_name: string;
-  model_type: 'llm' | 'embedding' | 'multimodal';
+  model_type: "llm" | "embedding" | "multimodal";
   provider: string;
   provider_display_name: string;
   description: string;
@@ -152,59 +152,64 @@ export interface EmbeddingModelsResponse {
 
 /**
  * Fetch all providers and models configuration.
- * 
+ *
  * @returns All configured providers with their models
  */
 export async function fetchModelsConfig(): Promise<ModelsListResponse> {
-  return apiClient<ModelsListResponse>('/models');
+  return apiClient<ModelsListResponse>("/models");
 }
 
 /**
  * Fetch LLM models only.
- * 
+ *
  * @returns All LLM and multimodal models
  */
 export async function fetchLlmModels(): Promise<LlmModelsResponse> {
-  return apiClient<LlmModelsResponse>('/models/llm');
+  return apiClient<LlmModelsResponse>("/models/llm");
 }
 
 /**
  * Fetch embedding models only.
- * 
+ *
  * @returns All embedding models
  */
 export async function fetchEmbeddingModels(): Promise<EmbeddingModelsResponse> {
-  return apiClient<EmbeddingModelsResponse>('/models/embedding');
+  return apiClient<EmbeddingModelsResponse>("/models/embedding");
 }
 
 /**
  * Fetch a specific provider by name.
- * 
+ *
  * @param providerName - Provider identifier (e.g., "openai", "ollama")
  * @returns Provider details with all models
  */
-export async function fetchProvider(providerName: string): Promise<ProviderResponse> {
+export async function fetchProvider(
+  providerName: string
+): Promise<ProviderResponse> {
   return apiClient<ProviderResponse>(`/models/${providerName}`);
 }
 
 /**
  * Fetch a specific model by provider and model name.
- * 
+ *
  * @param providerName - Provider identifier
  * @param modelName - Model identifier (e.g., "gpt-4o")
  * @returns Model card with capabilities and cost
  */
-export async function fetchModel(providerName: string, modelName: string): Promise<ModelResponse> {
+export async function fetchModel(
+  providerName: string,
+  modelName: string
+): Promise<ModelResponse> {
   return apiClient<ModelResponse>(`/models/${providerName}/${modelName}`);
 }
 
 /**
  * Check health status of all enabled providers.
- * 
+ *
  * @returns All providers with their health status
  */
 export async function fetchProvidersHealth(): Promise<ProviderResponse[]> {
-  return apiClient<ProviderResponse[]>('/models/health');
+  return apiClient<ProviderResponse[]>("/models/health");
 }
 
 // ============================================================================
@@ -213,12 +218,12 @@ export async function fetchProvidersHealth(): Promise<ProviderResponse[]> {
 
 /**
  * Format model cost for display.
- * 
+ *
  * @param cost - Cost in USD per 1K tokens
  * @returns Formatted cost string
  */
 export function formatCost(cost: number): string {
-  if (cost === 0) return 'Free';
+  if (cost === 0) return "Free";
   if (cost < 0.001) return `$${cost.toFixed(6)}/1K`;
   if (cost < 0.01) return `$${cost.toFixed(4)}/1K`;
   return `$${cost.toFixed(3)}/1K`;
@@ -226,7 +231,7 @@ export function formatCost(cost: number): string {
 
 /**
  * Format context length for display.
- * 
+ *
  * @param tokens - Context length in tokens
  * @returns Formatted string (e.g., "128K")
  */
@@ -238,28 +243,30 @@ export function formatContextLength(tokens: number): string {
 
 /**
  * Get capability badges for a model.
- * 
+ *
  * @param capabilities - Model capabilities
  * @returns Array of capability badge labels
  */
 export function getCapabilityBadges(capabilities: ModelCapabilities): string[] {
   const badges: string[] = [];
-  if (capabilities.supports_vision) badges.push('Vision');
-  if (capabilities.supports_function_calling) badges.push('Functions');
-  if (capabilities.supports_json_mode) badges.push('JSON');
-  if (capabilities.supports_streaming) badges.push('Streaming');
+  if (capabilities.supports_vision) badges.push("Vision");
+  if (capabilities.supports_function_calling) badges.push("Functions");
+  if (capabilities.supports_json_mode) badges.push("JSON");
+  if (capabilities.supports_streaming) badges.push("Streaming");
   return badges;
 }
 
 /**
  * Check if a model is free to use.
- * 
+ *
  * @param cost - Model cost information (optional)
  * @returns True if no cost or all costs are zero
  */
 export function isModelFree(cost?: ModelCost): boolean {
   if (!cost) return true;
-  return (cost.input_per_1k ?? 0) === 0 && 
-         (cost.output_per_1k ?? 0) === 0 && 
-         (cost.embedding_per_1k ?? 0) === 0;
+  return (
+    (cost.input_per_1k ?? 0) === 0 &&
+    (cost.output_per_1k ?? 0) === 0 &&
+    (cost.embedding_per_1k ?? 0) === 0
+  );
 }

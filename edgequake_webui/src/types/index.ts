@@ -394,6 +394,21 @@ export interface Workspace {
   /** Number of entities (from stats, may not be returned inline). */
   entity_count?: number;
   /**
+   * LLM model name for knowledge graph generation and summarization.
+   * @implements SPEC-032: Workspace-level LLM configuration
+   */
+  llm_model?: string;
+  /**
+   * LLM provider ID (e.g., "openai", "ollama", "lmstudio").
+   * @implements SPEC-032: Workspace-level LLM configuration
+   */
+  llm_provider?: string;
+  /**
+   * Fully qualified LLM model ID (provider/model format).
+   * @implements SPEC-032: Combined model ID format
+   */
+  llm_full_id?: string;
+  /**
    * Embedding model name (e.g., "text-embedding-3-small").
    * @implements SPEC-032: Workspace-level embedding configuration
    */
@@ -408,6 +423,11 @@ export interface Workspace {
    * @implements SPEC-032: Workspace-level embedding configuration
    */
   embedding_dimension?: number;
+  /**
+   * Fully qualified embedding model ID (provider/model format).
+   * @implements SPEC-032: Combined model ID format
+   */
+  embedding_full_id?: string;
   /** Creation timestamp. */
   created_at: string;
   /** Last update timestamp. */
@@ -416,7 +436,7 @@ export interface Workspace {
 
 /**
  * Request to create a new workspace.
- * @implements SPEC-032: Workspace embedding configuration on creation
+ * @implements SPEC-032: Workspace LLM and embedding configuration on creation
  */
 export interface CreateWorkspaceRequest {
   /** Workspace display name. */
@@ -428,8 +448,22 @@ export interface CreateWorkspaceRequest {
   /** Maximum documents allowed (optional). */
   max_documents?: number;
   /**
+   * LLM model name for knowledge graph generation and summarization.
+   * If not provided, uses server default (e.g., "gemma3:12b").
+   * Can be a full ID like "ollama/gemma3:12b" for explicit provider.
+   * @implements SPEC-032: Workspace-level LLM configuration
+   */
+  llm_model?: string;
+  /**
+   * LLM provider ID (e.g., "openai", "ollama", "lmstudio").
+   * If not provided, auto-detected from llm_model.
+   * @implements SPEC-032: Workspace-level LLM configuration
+   */
+  llm_provider?: string;
+  /**
    * Embedding model name (e.g., "text-embedding-3-small", "embeddinggemma:latest").
    * If not provided, uses server default.
+   * Can be a full ID like "openai/text-embedding-3-small" for explicit provider.
    */
   embedding_model?: string;
   /**

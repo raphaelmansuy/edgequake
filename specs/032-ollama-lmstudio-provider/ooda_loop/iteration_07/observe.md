@@ -11,16 +11,19 @@ Observe the current implementation state and prepare for workspace-level embeddi
 ### What We Found
 
 1. **Workspace Struct Gaps**
+
    - `Workspace` struct in `multitenancy.rs` lacked embedding fields
    - No `embedding_model`, `embedding_provider`, or `embedding_dimension` fields
    - No auto-detection for provider/dimension from model name
 
 2. **API DTO Gaps**
+
    - `CreateWorkspaceApiRequest` missing embedding configuration options
    - `WorkspaceResponse` not returning embedding information to clients
    - Multiple manual `WorkspaceResponse` constructions (5 places)
 
 3. **Service Implementation Gaps**
+
    - `InMemoryWorkspaceService.create_workspace` not handling embedding config
    - `WorkspaceServiceImpl.create_workspace` not storing embedding in metadata
    - `WorkspaceRow.into_workspace` not extracting embedding from metadata
@@ -31,13 +34,13 @@ Observe the current implementation state and prepare for workspace-level embeddi
 
 ### Key Files Analyzed
 
-| File | Lines | Role |
-|------|-------|------|
-| `multitenancy.rs` | 550+ | Domain types for Workspace |
-| `workspaces.rs` | 780+ | API handlers |
-| `workspaces_types.rs` | 380+ | API DTOs |
-| `workspace_service.rs` | 730+ | In-memory service |
-| `workspace_service_impl.rs` | 880+ | PostgreSQL service |
+| File                        | Lines | Role                       |
+| --------------------------- | ----- | -------------------------- |
+| `multitenancy.rs`           | 550+  | Domain types for Workspace |
+| `workspaces.rs`             | 780+  | API handlers               |
+| `workspaces_types.rs`       | 380+  | API DTOs                   |
+| `workspace_service.rs`      | 730+  | In-memory service          |
+| `workspace_service_impl.rs` | 880+  | PostgreSQL service         |
 
 ## Decisions Made
 

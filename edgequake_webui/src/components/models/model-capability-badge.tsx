@@ -11,20 +11,20 @@
 
 import { Badge } from '@/components/ui/badge';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from '@/components/ui/tooltip';
 import type { ModelCapabilities } from '@/lib/api/models';
 import { cn } from '@/lib/utils';
 import {
-  Braces,
-  Eye,
-  FileJson,
-  MessageSquare,
-  Sparkles,
-  Zap,
+    Braces,
+    Eye,
+    FileJson,
+    MessageSquare,
+    Sparkles,
+    Zap,
 } from 'lucide-react';
 
 interface ModelCapabilityBadgeProps {

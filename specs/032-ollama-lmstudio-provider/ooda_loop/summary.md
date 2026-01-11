@@ -9,33 +9,33 @@
 
 ## Iteration Progress
 
-| Iteration | Phase | Status | Date | Summary |
-|-----------|-------|--------|------|---------|
-| 01-05 | All | ✅ COMPLETE | 2025-01-10 | Backend provider infrastructure + status UI |
-| 06 | All | ✅ COMPLETE | 2025-01-11 | Gap analysis & architecture design |
-| **07** | **Act** | ✅ **COMPLETE** | 2025-01-11 | **Workspace embedding schema** (commit 845d7c6) |
-| **08-10** | **Act** | ✅ **COMPLETE** | 2025-01-11 | **LM Studio dedicated provider** (commit 7001fa9) |
-| **11** | **Act** | ✅ **COMPLETE** | 2025-01-11 | **LM Studio auto-detection** (commit c33ec26) |
-| **12+14** | **Act** | ✅ **COMPLETE** | 2025-01-11 | **Provider registry API** (commit 794a3c7) |
-| **13** | **Act** | ✅ **COMPLETE** | 2025-01-11 | **Workspace-specific embedding in query** (commit b4d63b8) |
-| 15-16 | All | ✅ COMPLETE | 2025-01-11 | EmbeddingProviderFactory (done in 13) |
-| 17-18 | All | ⏳ PLANNED | TBD | WebUI provider selector |
-| 19-20 | All | ⏳ PLANNED | TBD | Workspace creation embedding UI |
-| 21-25 | All | ⏳ PLANNED | TBD | Vector database rebuild logic |
-| 26-35 | All | ⏳ PLANNED | TBD | E2E tests & edge cases |
-| 36-50 | All | ⏳ PLANNED | TBD | Documentation & non-regression validation |
+| Iteration | Phase   | Status          | Date       | Summary                                                    |
+| --------- | ------- | --------------- | ---------- | ---------------------------------------------------------- |
+| 01-05     | All     | ✅ COMPLETE     | 2025-01-10 | Backend provider infrastructure + status UI                |
+| 06        | All     | ✅ COMPLETE     | 2025-01-11 | Gap analysis & architecture design                         |
+| **07**    | **Act** | ✅ **COMPLETE** | 2025-01-11 | **Workspace embedding schema** (commit 845d7c6)            |
+| **08-10** | **Act** | ✅ **COMPLETE** | 2025-01-11 | **LM Studio dedicated provider** (commit 7001fa9)          |
+| **11**    | **Act** | ✅ **COMPLETE** | 2025-01-11 | **LM Studio auto-detection** (commit c33ec26)              |
+| **12+14** | **Act** | ✅ **COMPLETE** | 2025-01-11 | **Provider registry API** (commit 794a3c7)                 |
+| **13**    | **Act** | ✅ **COMPLETE** | 2025-01-11 | **Workspace-specific embedding in query** (commit b4d63b8) |
+| 15-16     | All     | ✅ COMPLETE     | 2025-01-11 | EmbeddingProviderFactory (done in 13)                      |
+| 17-18     | All     | ⏳ PLANNED      | TBD        | WebUI provider selector                                    |
+| 19-20     | All     | ⏳ PLANNED      | TBD        | Workspace creation embedding UI                            |
+| 21-25     | All     | ⏳ PLANNED      | TBD        | Vector database rebuild logic                              |
+| 26-35     | All     | ⏳ PLANNED      | TBD        | E2E tests & edge cases                                     |
+| 36-50     | All     | ⏳ PLANNED      | TBD        | Documentation & non-regression validation                  |
 
 ---
 
 ## Recent Commits
 
-| Commit | OODA | Description |
-|--------|------|-------------|
-| b4d63b8 | 13 | Workspace-specific embedding in query process |
+| Commit  | OODA  | Description                                       |
+| ------- | ----- | ------------------------------------------------- |
+| b4d63b8 | 13    | Workspace-specific embedding in query process     |
 | 794a3c7 | 12+14 | Provider registry API and list providers endpoint |
-| c33ec26 | 11 | LM Studio auto-detection in provider factory |
-| 7001fa9 | 08-10 | Dedicated LMStudioProvider implementation |
-| 845d7c6 | 07 | Workspace-level embedding configuration |
+| c33ec26 | 11    | LM Studio auto-detection in provider factory      |
+| 7001fa9 | 08-10 | Dedicated LMStudioProvider implementation         |
+| 845d7c6 | 07    | Workspace-level embedding configuration           |
 
 ---
 
@@ -44,11 +44,13 @@
 ### Iteration 07: Workspace Embedding Schema ✅ COMPLETE
 
 Extended `Workspace` struct with embedding configuration:
+
 - `embedding_model: String`
 - `embedding_provider: String`
 - `embedding_dimension: usize`
 
 Added helper functions:
+
 - `default_embedding_config()`
 - `detect_provider_from_model()`
 - `detect_dimension_from_model()`
@@ -56,6 +58,7 @@ Added helper functions:
 ### Iteration 08-10: LM Studio Provider ✅ COMPLETE
 
 Created dedicated `LMStudioProvider` (~590 LOC):
+
 - Builder pattern with `LMStudioProviderBuilder`
 - `from_env()` reads `LMSTUDIO_HOST`, `LMSTUDIO_MODEL`, `LMSTUDIO_EMBEDDING_MODEL`
 - Implements `LLMProvider` and `EmbeddingProvider` traits
@@ -64,6 +67,7 @@ Created dedicated `LMStudioProvider` (~590 LOC):
 ### Iteration 11: LM Studio Auto-Detection ✅ COMPLETE
 
 Updated `ProviderFactory::from_env()` with detection priority:
+
 1. Ollama (OLLAMA_HOST or OLLAMA_MODEL)
 2. LM Studio (LMSTUDIO_HOST or LMSTUDIO_MODEL)
 3. OpenAI (OPENAI_API_KEY)
@@ -72,6 +76,7 @@ Updated `ProviderFactory::from_env()` with detection priority:
 ### Iteration 12+14: Provider Registry API ✅ COMPLETE
 
 Added `/api/v1/settings/providers` endpoint:
+
 - Returns `AvailableProvidersResponse` with all supported providers
 - Includes LLM providers, embedding providers, config requirements
 - Added `ProviderInfo`, `ConfigRequirement`, `DefaultModels` types
@@ -79,12 +84,14 @@ Added `/api/v1/settings/providers` endpoint:
 ### Iteration 13: Workspace-Specific Embedding in Query ✅ COMPLETE
 
 **Key Implementation:**
+
 - Added `ProviderFactory::create_embedding_provider()` (87 LOC)
 - Added `SOTAQueryEngine::query_with_embedding_provider()` (179 LOC)
 - Updated `execute_query` handler to use workspace embedding config (141 LOC)
 - Re-exported `EmbeddingProvider` from `edgequake_query`
 
 **Architecture:**
+
 ```
 Query Request → TenantContext.workspace_id?
                         ↓
@@ -107,6 +114,7 @@ query_with_embedding_provider()  query()
 **File:** [iteration_06/observe.md](iteration_06/observe.md)
 
 **Key Findings:**
+
 - ✅ Mission 35% complete after iterations 01-05
 - ❌ 15+ critical requirements missing (query selector, workspace embedding, vector rebuild)
 - ✅ VectorStorage has `clear()` method (no trait changes needed)
@@ -114,6 +122,7 @@ query_with_embedding_provider()  query()
 - ❌ LM Studio using OpenAI wrapper (needs dedicated provider)
 
 **Gap Analysis:**
+
 - **Category A:** Provider implementation (LM Studio dedicated provider needed)
 - **Category B:** WebUI integration (query interface provider selector missing)
 - **Category C:** Workspace embedding configuration (schema not extended)
@@ -130,18 +139,21 @@ query_with_embedding_provider()  query()
 **File:** [iteration_06/orient.md](iteration_06/orient.md)
 
 **Architecture Analysis:**
+
 - QueryEngine uses global embedding provider from AppState (refactor required)
 - VectorStorage trait has `clear()` method for rebuild (✅ ready to use)
 - Workspace schema missing embedding fields (requires migration)
 - AppState stores single LLM/embedding provider (cannot mix per workspace)
 
 **Design Decisions:**
+
 1. **Provider Registry Pattern:** Cache provider instances for performance
 2. **Workspace Locking:** Hybrid DB + in-memory for rebuild safety
 3. **Default Embedding Config:** Server-level with workspace override
 4. **LM Studio Provider:** Dedicated implementation (not OpenAI wrapper)
 
 **Implementation Phases:**
+
 - **Phase 1 (06-15):** Foundation (schema, LM Studio, registry)
 - **Phase 2 (16-25):** Query engine refactor + vector rebuild
 - **Phase 3 (26-35):** WebUI provider selector + workspace UI
@@ -155,15 +167,16 @@ query_with_embedding_provider()  query()
 
 **Strategic Decisions:**
 
-| Decision | Chosen Approach | Rationale |
-|----------|-----------------|-----------|
-| Architecture | Provider Registry (cached) | Performance + scalability |
-| Workspace Lock | Hybrid (DB + memory) | Survives restart + fast checks |
-| Default Embedding | Server config + workspace override | Flexibility + safety |
-| LM Studio | Dedicated provider (600 LOC) | Access native features |
-| DB Migration | Additive with backfill | Non-breaking + safe rollback |
+| Decision          | Chosen Approach                    | Rationale                      |
+| ----------------- | ---------------------------------- | ------------------------------ |
+| Architecture      | Provider Registry (cached)         | Performance + scalability      |
+| Workspace Lock    | Hybrid (DB + memory)               | Survives restart + fast checks |
+| Default Embedding | Server config + workspace override | Flexibility + safety           |
+| LM Studio         | Dedicated provider (600 LOC)       | Access native features         |
+| DB Migration      | Additive with backfill             | Non-breaking + safe rollback   |
 
 **Implementation Plan:**
+
 - **Iterations 07-08:** Workspace schema migration
 - **Iterations 09-12:** LM Studio provider
 - **Iterations 13-15:** Provider registry
@@ -177,6 +190,7 @@ query_with_embedding_provider()  query()
 - **Iterations 49-50:** Non-regression validation
 
 **Risk Management:**
+
 - Breaking API changes → Versioned endpoints
 - Data loss during rebuild → Transactional operations
 - Query performance → Provider caching + benchmarking
@@ -188,16 +202,20 @@ query_with_embedding_provider()  query()
 **File:** [iteration_06/act.md](iteration_06/act.md)
 
 **Planned Changes:**
+
 1. Extend `Workspace` struct with:
+
    - `embedding_model: String`
    - `embedding_provider: String`
    - `embedding_dimension: usize`
 
 2. Update API DTOs:
+
    - `CreateWorkspaceApiRequest` (optional fields)
    - `WorkspaceResponse` (required fields)
 
 3. Add helper functions:
+
    - `get_default_embedding_config()`
    - `detect_provider_from_model()`
    - `detect_dimension_from_model()`
@@ -210,6 +228,7 @@ query_with_embedding_provider()  query()
 **Status:** Design documented, code implementation deferred to iteration 07-08 for comprehensive testing.
 
 **Rationale for Deferral:**
+
 - Database migration requires careful planning (rollback scripts, testing)
 - Want to implement domain types + migration + tests atomically
 - Reduces risk of partial implementation
@@ -230,17 +249,20 @@ query_with_embedding_provider()  query()
 ### Remaining Requirements (Iterations 07-50)
 
 **High Priority:**
+
 - ❌ Workspace embedding configuration (iterations 07-08)
 - ❌ Query interface provider selector (iterations 26-30)
 - ❌ Vector database rebuild (iterations 21-25)
 - ❌ Workspace-aware query engine (iterations 16-20)
 
 **Medium Priority:**
+
 - ❌ LM Studio dedicated provider (iterations 09-12)
 - ❌ Provider registry service (iterations 13-15)
 - ❌ Workspace creation embedding UI (iterations 31-35)
 
 **Testing & Documentation:**
+
 - ❌ Comprehensive E2E tests (iterations 36-45)
 - ❌ Setup guides per provider (iterations 46-48)
 - ❌ Non-regression validation (iterations 49-50)
@@ -293,12 +315,12 @@ query_with_embedding_provider()  query()
 
 ### High-Risk Items
 
-| Risk | Impact | Mitigation Strategy | Status |
-|------|--------|---------------------|--------|
-| Breaking API changes | 🔴 HIGH | Versioned endpoints, backwards compatibility | ✅ PLANNED |
-| Data loss during rebuild | 🔴 CRITICAL | Transactional operations, backup-first | ✅ PLANNED |
-| Query performance degradation | 🟡 MEDIUM | Provider caching, benchmarking | ✅ PLANNED |
-| Database migration failure | 🔴 CRITICAL | Test on staging, rollback script | ✅ PLANNED |
+| Risk                          | Impact      | Mitigation Strategy                          | Status     |
+| ----------------------------- | ----------- | -------------------------------------------- | ---------- |
+| Breaking API changes          | 🔴 HIGH     | Versioned endpoints, backwards compatibility | ✅ PLANNED |
+| Data loss during rebuild      | 🔴 CRITICAL | Transactional operations, backup-first       | ✅ PLANNED |
+| Query performance degradation | 🟡 MEDIUM   | Provider caching, benchmarking               | ✅ PLANNED |
+| Database migration failure    | 🔴 CRITICAL | Test on staging, rollback script             | ✅ PLANNED |
 
 ### Mitigation Status
 
@@ -314,6 +336,7 @@ query_with_embedding_provider()  query()
 ### Immediate Tasks
 
 1. **Workspace Schema Implementation:**
+
    - [ ] Update `Workspace` struct with embedding fields
    - [ ] Update `CreateWorkspaceRequest` and DTOs
    - [ ] Add helper functions for defaults and auto-detection
@@ -321,6 +344,7 @@ query_with_embedding_provider()  query()
    - [ ] Verify code compiles
 
 2. **Database Migration:**
+
    - [ ] Write Postgres migration script (`002_workspace_embeddings.sql`)
    - [ ] Write rollback script
    - [ ] Test on local Postgres instance

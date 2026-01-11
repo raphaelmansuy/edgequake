@@ -336,7 +336,7 @@ impl LLMProvider for LMStudioProvider {
         };
 
         let url = format!("{}/chat/completions", self.api_base());
-        
+
         debug!(
             provider = "lmstudio",
             model = %self.model,
@@ -404,7 +404,10 @@ impl LLMProvider for LMStudioProvider {
             completion_tokens,
             model: self.model.clone(),
             total_tokens: prompt_tokens + completion_tokens,
-            finish_reason: completion.choices.first().and_then(|c| c.finish_reason.clone()),
+            finish_reason: completion
+                .choices
+                .first()
+                .and_then(|c| c.finish_reason.clone()),
             metadata: HashMap::new(),
         })
     }
@@ -454,7 +457,9 @@ impl EmbeddingProvider for LMStudioProvider {
             .json(&request)
             .send()
             .await
-            .map_err(|e| LlmError::NetworkError(format!("LM Studio embedding request failed: {}", e)))?;
+            .map_err(|e| {
+                LlmError::NetworkError(format!("LM Studio embedding request failed: {}", e))
+            })?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -477,10 +482,9 @@ impl EmbeddingProvider for LMStudioProvider {
             )));
         }
 
-        let embedding_response: EmbeddingResponse = response
-            .json()
-            .await
-            .map_err(|e| LlmError::NetworkError(format!("Failed to parse embedding response: {}", e)))?;
+        let embedding_response: EmbeddingResponse = response.json().await.map_err(|e| {
+            LlmError::NetworkError(format!("Failed to parse embedding response: {}", e))
+        })?;
 
         let embeddings: Vec<Vec<f32>> = embedding_response
             .data
@@ -529,11 +533,14 @@ mod tests {
     #[test]
     fn test_provider_build() {
         use crate::traits::{EmbeddingProvider, LLMProvider};
-        
+
         let provider = LMStudioProviderBuilder::new().build().unwrap();
         assert_eq!(LLMProvider::name(&provider), "lmstudio");
         assert_eq!(LLMProvider::model(&provider), DEFAULT_LMSTUDIO_MODEL);
-        assert_eq!(EmbeddingProvider::dimension(&provider), DEFAULT_LMSTUDIO_EMBEDDING_DIM);
+        assert_eq!(
+            EmbeddingProvider::dimension(&provider),
+            DEFAULT_LMSTUDIO_EMBEDDING_DIM
+        );
     }
 
     #[test]
