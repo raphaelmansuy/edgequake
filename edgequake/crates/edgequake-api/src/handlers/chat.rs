@@ -363,6 +363,15 @@ pub async fn chat_completion(
         engine_request = engine_request.with_workspace_id(ws_id.to_string());
     }
 
+    // SPEC-032: Apply provider/model override from request
+    // Format: "provider/model" (e.g., "ollama/gemma3:12b") or just "provider"
+    if let Some(ref provider) = request.provider {
+        if !provider.is_empty() {
+            engine_request = engine_request.with_llm_full_id(provider);
+            debug!(provider = %provider, "Using LLM provider override from request");
+        }
+    }
+
     let result = state
         .sota_engine
         .query(engine_request)
@@ -586,6 +595,8 @@ pub async fn chat_completion_stream(
     let state_clone = state.clone();
     let message_content = request.message.clone();
     let user_message_id = user_message.message_id;
+    // SPEC-032: Clone provider for async task
+    let request_provider = request.provider.clone();
 
     // 5. Send initial conversation event
     let initial_event = ChatStreamEvent::Conversation {
@@ -612,6 +623,14 @@ pub async fn chat_completion_stream(
         engine_request = engine_request.with_tenant_id(tenant_id.to_string());
         if let Some(ref ws_id) = workspace_id {
             engine_request = engine_request.with_workspace_id(ws_id.to_string());
+        }
+
+        // SPEC-032: Apply provider/model override from request (streaming handler)
+        if let Some(ref provider) = request_provider {
+            if !provider.is_empty() {
+                engine_request = engine_request.with_llm_full_id(provider);
+                debug!(provider = %provider, "Using LLM provider override in streaming");
+            }
         }
 
         // Execute streaming query with context using SOTA engine (LightRAG-style)
