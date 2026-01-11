@@ -336,6 +336,11 @@ fn api_v1_routes() -> Router<AppState> {
             "/settings/provider/status",
             get(handlers::get_provider_status),
         )
+        // List available providers (SPEC-032 OODA 12)
+        .route(
+            "/settings/providers",
+            get(handlers::list_available_providers),
+        )
 }
 
 #[cfg(test)]

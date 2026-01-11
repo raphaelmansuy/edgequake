@@ -1,7 +1,7 @@
 //! Provider status types for API responses.
 //!
 //! @implements SPEC-032: Ollama/LM Studio provider support - Status API
-//! @iteration OODA Loop #5 - Phase 5E.1
+//! @iteration OODA Loop #5 - Phase 5E.1 + OODA 12
 
 use serde::{Deserialize, Serialize};
 
@@ -100,6 +100,157 @@ pub struct StatusMetadata {
 
     /// Server uptime in seconds
     pub uptime_seconds: u64,
+}
+
+/// Response for listing available providers
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AvailableProvidersResponse {
+    /// List of available LLM providers
+    pub llm_providers: Vec<ProviderInfo>,
+    /// List of available embedding providers
+    pub embedding_providers: Vec<ProviderInfo>,
+    /// Current active LLM provider name
+    pub active_llm_provider: String,
+    /// Current active embedding provider name
+    pub active_embedding_provider: String,
+}
+
+/// Information about a single provider
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderInfo {
+    /// Unique provider ID (e.g., "openai", "ollama", "lmstudio", "mock")
+    pub id: String,
+    /// Human-readable provider name
+    pub name: String,
+    /// Provider description
+    pub description: String,
+    /// Whether the provider is available (API key set, service reachable, etc.)
+    pub available: bool,
+    /// Provider-specific configuration requirements
+    pub config_requirements: Vec<ConfigRequirement>,
+    /// Default models for this provider
+    pub default_models: DefaultModels,
+}
+
+/// Configuration requirement for a provider
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigRequirement {
+    /// Environment variable name
+    pub env_var: String,
+    /// Whether this is required (vs optional)
+    pub required: bool,
+    /// Description of the requirement
+    pub description: String,
+    /// Whether this requirement is currently satisfied
+    pub satisfied: bool,
+}
+
+/// Default models for a provider
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DefaultModels {
+    /// Default chat/LLM model
+    pub chat_model: String,
+    /// Default embedding model
+    pub embedding_model: String,
+    /// Default embedding dimension
+    pub embedding_dimension: usize,
+}
+
+impl AvailableProvidersResponse {
+    /// Build the list of available providers based on environment configuration
+    pub fn build(active_llm: &str, active_embedding: &str) -> Self {
+        let llm_providers = vec![
+            ProviderInfo {
+                id: "openai".to_string(),
+                name: "OpenAI".to_string(),
+                description: "OpenAI API (GPT-4o, GPT-4o-mini)".to_string(),
+                available: std::env::var("OPENAI_API_KEY").is_ok(),
+                config_requirements: vec![ConfigRequirement {
+                    env_var: "OPENAI_API_KEY".to_string(),
+                    required: true,
+                    description: "OpenAI API key".to_string(),
+                    satisfied: std::env::var("OPENAI_API_KEY").is_ok(),
+                }],
+                default_models: DefaultModels {
+                    chat_model: "gpt-4o-mini".to_string(),
+                    embedding_model: "text-embedding-3-small".to_string(),
+                    embedding_dimension: 1536,
+                },
+            },
+            ProviderInfo {
+                id: "ollama".to_string(),
+                name: "Ollama".to_string(),
+                description: "Local/remote Ollama instance".to_string(),
+                available: true, // Ollama always available with defaults
+                config_requirements: vec![
+                    ConfigRequirement {
+                        env_var: "OLLAMA_HOST".to_string(),
+                        required: false,
+                        description: "Ollama server URL (default: http://localhost:11434)".to_string(),
+                        satisfied: std::env::var("OLLAMA_HOST").is_ok() || true,
+                    },
+                    ConfigRequirement {
+                        env_var: "OLLAMA_MODEL".to_string(),
+                        required: false,
+                        description: "Chat model name".to_string(),
+                        satisfied: true,
+                    },
+                ],
+                default_models: DefaultModels {
+                    chat_model: "gemma3:12b".to_string(),
+                    embedding_model: "embeddinggemma:latest".to_string(),
+                    embedding_dimension: 768,
+                },
+            },
+            ProviderInfo {
+                id: "lmstudio".to_string(),
+                name: "LM Studio".to_string(),
+                description: "Local LM Studio instance (OpenAI-compatible)".to_string(),
+                available: true, // LM Studio always available with defaults
+                config_requirements: vec![
+                    ConfigRequirement {
+                        env_var: "LMSTUDIO_HOST".to_string(),
+                        required: false,
+                        description: "LM Studio server URL (default: http://localhost:1234)".to_string(),
+                        satisfied: std::env::var("LMSTUDIO_HOST").is_ok() || true,
+                    },
+                    ConfigRequirement {
+                        env_var: "LMSTUDIO_MODEL".to_string(),
+                        required: false,
+                        description: "Chat model name".to_string(),
+                        satisfied: true,
+                    },
+                ],
+                default_models: DefaultModels {
+                    chat_model: "gemma2-9b-it".to_string(),
+                    embedding_model: "nomic-embed-text-v1.5".to_string(),
+                    embedding_dimension: 768,
+                },
+            },
+            ProviderInfo {
+                id: "mock".to_string(),
+                name: "Mock".to_string(),
+                description: "Mock provider for testing (no API calls)".to_string(),
+                available: true, // Mock is always available
+                config_requirements: vec![],
+                default_models: DefaultModels {
+                    chat_model: "mock-gpt-4".to_string(),
+                    embedding_model: "mock-embedding".to_string(),
+                    embedding_dimension: 1536,
+                },
+            },
+        ];
+
+        // Embedding providers share the same options
+        let embedding_providers = llm_providers.clone();
+
+        Self {
+            llm_providers,
+            embedding_providers,
+            active_llm_provider: active_llm.to_string(),
+            active_embedding_provider: active_embedding.to_string(),
+        }
+    }
 }
 
 impl ProviderStatusResponse {
