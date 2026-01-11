@@ -671,6 +671,185 @@ impl SOTAQueryEngine {
         })
     }
 
+    /// Execute a query with a workspace-specific embedding provider override.
+    ///
+    /// This method is used when the workspace has a different embedding configuration
+    /// than the default engine provider. The override provider is used ONLY for
+    /// computing query embeddings, not for document ingestion.
+    ///
+    /// @implements SPEC-032: Workspace-specific embedding in query process
+    ///
+    /// # Arguments
+    ///
+    /// * `request` - The query request
+    /// * `embedding_provider` - The workspace-specific embedding provider
+    ///
+    /// # Returns
+    ///
+    /// Query response with answer, context, and stats.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let workspace_provider = ProviderFactory::create_embedding_provider(
+    ///     "ollama", "embeddinggemma:latest", 768,
+    /// )?;
+    /// let response = engine.query_with_embedding_provider(request, workspace_provider).await?;
+    /// ```
+    pub async fn query_with_embedding_provider(
+        &self,
+        request: crate::engine::QueryRequest,
+        embedding_provider: std::sync::Arc<dyn crate::EmbeddingProvider>,
+    ) -> Result<crate::engine::QueryResponse> {
+        let start = std::time::Instant::now();
+        let mut stats = crate::engine::QueryStats::default();
+
+        // Step 1: Extract keywords (with caching)
+        let raw_keywords = if self.config.use_keyword_extraction {
+            let kw_start = std::time::Instant::now();
+            let kw = self
+                .keyword_extractor
+                .extract_extended(&request.query)
+                .await?;
+            tracing::debug!(
+                query = %request.query,
+                high_level = ?kw.high_level,
+                low_level = ?kw.low_level,
+                intent = %kw.query_intent,
+                "Extracted keywords (workspace embedding)"
+            );
+            stats.embedding_time_ms += kw_start.elapsed().as_millis() as u64;
+            kw
+        } else {
+            ExtractedKeywords::new(vec![], vec![], QueryIntent::Exploratory)
+        };
+
+        // Step 1.5: Validate keywords against knowledge graph
+        let keywords = self.validate_keywords(&raw_keywords).await;
+
+        // Step 2: Determine query mode
+        let mode = if let Some(m) = request.mode {
+            m
+        } else if self.config.use_adaptive_mode {
+            keywords.query_intent.recommended_mode()
+        } else {
+            self.config.default_mode
+        };
+
+        tracing::debug!(mode = %mode, "Selected query mode (workspace embedding)");
+
+        // Step 3: Compute embeddings using WORKSPACE-SPECIFIC provider
+        let embed_start = std::time::Instant::now();
+        let embeddings =
+            QueryEmbeddings::compute(&request.query, &keywords, embedding_provider.as_ref())
+                .await?;
+        stats.embedding_time_ms += embed_start.elapsed().as_millis() as u64;
+
+        // Step 4: Mode-specific retrieval (same as query method)
+        let retrieval_start = std::time::Instant::now();
+        let context = match mode {
+            QueryMode::Local => {
+                self.query_local(
+                    &keywords,
+                    &embeddings,
+                    request.tenant_id(),
+                    request.workspace_id(),
+                )
+                .await?
+            }
+            QueryMode::Global => {
+                self.query_global(
+                    &keywords,
+                    &embeddings,
+                    request.tenant_id(),
+                    request.workspace_id(),
+                )
+                .await?
+            }
+            QueryMode::Hybrid => {
+                self.query_hybrid(
+                    &keywords,
+                    &embeddings,
+                    request.tenant_id(),
+                    request.workspace_id(),
+                )
+                .await?
+            }
+            QueryMode::Mix => {
+                self.query_mix(
+                    &keywords,
+                    &embeddings,
+                    request.tenant_id(),
+                    request.workspace_id(),
+                )
+                .await?
+            }
+            QueryMode::Naive => {
+                self.query_naive(&embeddings, request.tenant_id(), request.workspace_id())
+                    .await?
+            }
+        };
+        stats.retrieval_time_ms = retrieval_start.elapsed().as_millis() as u64;
+        stats.context_tokens = context.token_count;
+
+        // Step 4.5: Rerank chunks
+        let mut context = context;
+        let should_rerank = request.enable_rerank.unwrap_or(self.config.enable_rerank);
+        if should_rerank && self.reranker.is_some() {
+            let rerank_start = std::time::Instant::now();
+            let reranked_chunks = self
+                .rerank_chunks(
+                    &request.query,
+                    context.chunks,
+                    request.enable_rerank,
+                    request.rerank_top_k,
+                )
+                .await;
+            context.chunks = reranked_chunks;
+            let rerank_time = rerank_start.elapsed().as_millis() as u64;
+            stats.retrieval_time_ms += rerank_time;
+        }
+
+        // Step 4.6: Sort entities by degree
+        self.sort_entities_by_degree(&mut context.entities);
+
+        // Step 5: Apply truncation
+        let (truncated_entities, truncated_relationships, truncated_chunks) = balance_context(
+            context.entities.clone(),
+            context.relationships.clone(),
+            context.chunks.clone(),
+            &self.config.truncation,
+            self.tokenizer.as_ref(),
+        );
+
+        let mut final_context = context;
+        final_context.entities = truncated_entities;
+        final_context.relationships = truncated_relationships;
+        final_context.chunks = truncated_chunks;
+
+        // Step 6: Generate answer
+        let (answer, generated_tokens) = if request.context_only {
+            (String::new(), 0)
+        } else if request.prompt_only {
+            (self.build_prompt(&request.query, &final_context), 0)
+        } else {
+            let gen_start = std::time::Instant::now();
+            let result = self.generate_answer(&request.query, &final_context).await?;
+            stats.generation_time_ms = gen_start.elapsed().as_millis() as u64;
+            result
+        };
+
+        stats.generated_tokens = generated_tokens;
+        stats.total_time_ms = start.elapsed().as_millis() as u64;
+
+        Ok(crate::engine::QueryResponse {
+            answer,
+            context: final_context,
+            mode,
+            stats,
+        })
+    }
+
     /// Execute a streaming query with full SOTA pipeline.
     ///
     /// This method applies all SOTA enhancements (keyword extraction, adaptive mode,

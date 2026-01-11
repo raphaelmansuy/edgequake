@@ -90,3 +90,6 @@ pub use truncation::{
     balance_context, truncate_chunks, truncate_entities, truncate_relationships, TruncationConfig,
 };
 pub use vector_filter::{filter_by_type, get_typed_vectors, VectorType};
+
+// Re-export EmbeddingProvider for workspace-specific query execution
+pub use edgequake_llm::traits::EmbeddingProvider;

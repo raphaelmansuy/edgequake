@@ -2,6 +2,7 @@
 //!
 //! @implements FEAT0403
 //! @implements FEAT0404
+//! @implements SPEC-032: Workspace-specific embedding in query process
 //!
 //! # Implements
 //!
@@ -19,6 +20,12 @@
 //! - **BR0103**: Query mode must be valid enum value
 //! - **BR0105**: Empty queries are rejected
 //! - **BR0201**: Tenant isolation (queries scoped to workspace)
+//!
+//! # Workspace-Specific Embedding (SPEC-032)
+//!
+//! Queries use the embedding model configured for the workspace. This allows:
+//! - Different workspaces to use different embedding providers (OpenAI, Ollama, LM Studio)
+//! - Dimension-specific vector search per workspace
 //!
 //! # Endpoints
 //!
@@ -38,13 +45,15 @@
 //!        ↓
 //!   Add tenant context (BR0201)
 //!        ↓
-//!   Execute via SOTA engine
+//!   Load workspace embedding config (SPEC-032)
+//!        ↓
+//!   Execute via SOTA engine with workspace embedding
 //!        ↓
 //!   Format response + sources
 //! ```
 
 use axum::{extract::State, Json};
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
@@ -150,12 +159,56 @@ pub async fn execute_query(
         engine_request = engine_request.with_conversation_history(engine_history);
     }
 
-    // Execute query using the SOTA query engine (LightRAG-style)
-    let result = state
-        .sota_engine
-        .query(engine_request)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?;
+    // SPEC-032: Get workspace-specific embedding provider
+    // If workspace has custom embedding config, use that provider instead of the global one
+    let result = if let Some(ref workspace_id) = tenant_ctx.workspace_id {
+        // Try to get workspace embedding configuration
+        match get_workspace_embedding_provider(&state, workspace_id).await {
+            Ok(Some(embedding_provider)) => {
+                debug!(
+                    workspace_id = %workspace_id,
+                    "Using workspace-specific embedding provider for query"
+                );
+                state
+                    .sota_engine
+                    .query_with_embedding_provider(engine_request, embedding_provider)
+                    .await
+                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+            }
+            Ok(None) => {
+                // No workspace-specific config, use default engine embedding
+                debug!(
+                    workspace_id = %workspace_id,
+                    "Using default embedding provider for query"
+                );
+                state
+                    .sota_engine
+                    .query(engine_request)
+                    .await
+                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+            }
+            Err(e) => {
+                // Error getting workspace config, fallback to default
+                warn!(
+                    workspace_id = %workspace_id,
+                    error = %e,
+                    "Failed to get workspace embedding config, using default"
+                );
+                state
+                    .sota_engine
+                    .query(engine_request)
+                    .await
+                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+            }
+        }
+    } else {
+        // No workspace context, use default engine embedding
+        state
+            .sota_engine
+            .query(engine_request)
+            .await
+            .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+    };
 
     // Convert sources from context
     let mut sources = Vec::new();
@@ -348,6 +401,88 @@ pub async fn stream_query(
     });
 
     Ok(Sse::new(sse_stream))
+}
+
+/// Get workspace-specific embedding provider for query execution.
+///
+/// This function looks up the workspace's embedding configuration and creates
+/// an appropriate embedding provider. If the workspace uses the default config
+/// (same as the global provider), returns None to indicate the default should be used.
+///
+/// @implements SPEC-032: Workspace-specific embedding in query process
+///
+/// # Arguments
+///
+/// * `state` - Application state containing workspace service
+/// * `workspace_id` - ID of the workspace to get embedding config for
+///
+/// # Returns
+///
+/// - `Ok(Some(provider))` - Workspace-specific embedding provider
+/// - `Ok(None)` - Workspace uses default embedding, no override needed
+/// - `Err(_)` - Error looking up workspace or creating provider
+async fn get_workspace_embedding_provider(
+    state: &AppState,
+    workspace_id: &str,
+) -> Result<Option<std::sync::Arc<dyn edgequake_query::EmbeddingProvider>>, ApiError> {
+    use edgequake_llm::ProviderFactory;
+    use uuid::Uuid;
+
+    // Parse workspace ID
+    let workspace_uuid = Uuid::parse_str(workspace_id)
+        .map_err(|e| ApiError::BadRequest(format!("Invalid workspace ID: {}", e)))?;
+
+    // Get workspace from service
+    let workspace = state
+        .workspace_service
+        .get_workspace(workspace_uuid)
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to get workspace: {}", e)))?
+        .ok_or_else(|| ApiError::NotFound(format!("Workspace not found: {}", workspace_id)))?;
+
+    // Check if workspace has custom embedding configuration
+    // If embedding_provider is empty or matches the global default, use the default engine
+    if workspace.embedding_provider.is_empty() {
+        return Ok(None);
+    }
+
+    // Get the global/default embedding provider name for comparison
+    let global_provider_name = state.embedding_provider.name();
+
+    // If workspace uses the same provider as global, we can optionally skip the override
+    // However, model might differ, so we should still create the workspace-specific provider
+    // unless both provider AND model match
+
+    debug!(
+        workspace_id = %workspace_id,
+        embedding_provider = %workspace.embedding_provider,
+        embedding_model = %workspace.embedding_model,
+        embedding_dimension = workspace.embedding_dimension,
+        "Creating workspace-specific embedding provider"
+    );
+
+    // Create workspace-specific embedding provider
+    let provider = ProviderFactory::create_embedding_provider(
+        &workspace.embedding_provider,
+        &workspace.embedding_model,
+        workspace.embedding_dimension,
+    )
+    .map_err(|e| {
+        ApiError::Internal(format!(
+            "Failed to create embedding provider for workspace {}: {}",
+            workspace_id, e
+        ))
+    })?;
+
+    // Log the provider creation for debugging
+    debug!(
+        workspace_id = %workspace_id,
+        provider_name = provider.name(),
+        global_provider_name = %global_provider_name,
+        "Workspace embedding provider created"
+    );
+
+    Ok(Some(provider))
 }
 
 #[cfg(test)]

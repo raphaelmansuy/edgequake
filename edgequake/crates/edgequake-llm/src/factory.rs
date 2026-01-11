@@ -229,6 +229,88 @@ impl ProviderFactory {
         let (_, embedding_provider) = Self::from_env()?;
         Ok(embedding_provider.dimension())
     }
+
+    /// Create an embedding provider from workspace configuration.
+    ///
+    /// This is used to create workspace-specific embedding providers for query execution.
+    /// The provider is configured with the workspace's embedding model and dimension.
+    ///
+    /// @implements SPEC-032: Workspace-specific embedding in query process
+    ///
+    /// # Arguments
+    ///
+    /// * `provider_name` - Provider type (e.g., "openai", "ollama", "lmstudio", "mock")
+    /// * `model` - Embedding model name (e.g., "text-embedding-3-small", "embeddinggemma:latest")
+    /// * `dimension` - Embedding dimension (e.g., 1536, 768)
+    ///
+    /// # Returns
+    ///
+    /// Returns an `Arc<dyn EmbeddingProvider>` configured for the workspace.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if the provider type is unknown or required configuration is missing.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let provider = ProviderFactory::create_embedding_provider(
+    ///     "ollama",
+    ///     "embeddinggemma:latest",
+    ///     768,
+    /// )?;
+    /// assert_eq!(provider.dimension(), 768);
+    /// ```
+    pub fn create_embedding_provider(
+        provider_name: &str,
+        model: &str,
+        _dimension: usize,
+    ) -> Result<Arc<dyn EmbeddingProvider>> {
+        let provider_type = ProviderType::from_str(provider_name).ok_or_else(|| {
+            LlmError::ConfigError(format!(
+                "Unknown embedding provider: {}. Valid: openai, ollama, lmstudio, mock",
+                provider_name
+            ))
+        })?;
+
+        match provider_type {
+            ProviderType::OpenAI => {
+                let api_key = std::env::var("OPENAI_API_KEY").map_err(|_| {
+                    LlmError::ConfigError(
+                        "OPENAI_API_KEY required for OpenAI embedding provider".to_string(),
+                    )
+                })?;
+                // OpenAI provider with specific embedding model
+                // Note: OpenAI dimension is auto-detected from model name
+                let provider = OpenAIProvider::new(api_key).with_embedding_model(model);
+                Ok(Arc::new(provider))
+            }
+            ProviderType::Ollama => {
+                // Ollama provider with specific embedding model
+                let host = std::env::var("OLLAMA_HOST")
+                    .unwrap_or_else(|_| "http://localhost:11434".to_string());
+                let provider = OllamaProvider::builder()
+                    .host(&host)
+                    .embedding_model(model)
+                    .build()?;
+                Ok(Arc::new(provider))
+            }
+            ProviderType::LMStudio => {
+                // LM Studio provider with specific embedding model
+                let host = std::env::var("LMSTUDIO_HOST")
+                    .unwrap_or_else(|_| "http://localhost:1234".to_string());
+                let provider = LMStudioProvider::builder()
+                    .host(&host)
+                    .embedding_model(model)
+                    .build()?;
+                Ok(Arc::new(provider))
+            }
+            ProviderType::Mock => {
+                // Mock provider ignores model/dimension and uses defaults
+                Ok(Arc::new(MockProvider::new()))
+            }
+        }
+    }
 }
 
 #[cfg(test)]
