@@ -170,6 +170,11 @@ fn api_v1_routes() -> Router<AppState> {
             "/workspaces/{workspace_id}/stats",
             get(handlers::get_workspace_stats),
         )
+        // SPEC-032: Rebuild embeddings for workspace
+        .route(
+            "/workspaces/{workspace_id}/rebuild-embeddings",
+            post(handlers::rebuild_embeddings),
+        )
         // Documents
         .route("/documents", post(handlers::upload_document))
         .route("/documents", get(handlers::list_documents))

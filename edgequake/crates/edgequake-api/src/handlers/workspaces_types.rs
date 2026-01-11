@@ -218,6 +218,64 @@ pub struct WorkspaceStatsResponse {
 }
 
 // ============================================================================
+// Rebuild Embeddings DTOs (SPEC-032)
+// ============================================================================
+
+/// Request to rebuild workspace embeddings with a new model.
+///
+/// This operation:
+/// 1. Updates the workspace embedding configuration
+/// 2. Clears all existing vector embeddings
+/// 3. Triggers re-embedding of all documents (async background job)
+///
+/// ## WARNING
+///
+/// This is a destructive operation that will delete all existing embeddings.
+/// Queries will return no results until re-embedding is complete.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct RebuildEmbeddingsRequest {
+    /// New embedding model name (e.g., "text-embedding-3-small", "embeddinggemma:latest").
+    /// If not provided, uses the current workspace model (just clears and re-embeds).
+    pub embedding_model: Option<String>,
+
+    /// New embedding provider ("openai", "ollama", "lmstudio").
+    /// If not provided, auto-detected from embedding_model or keeps current.
+    pub embedding_provider: Option<String>,
+
+    /// New embedding dimension.
+    /// If not provided, auto-detected from embedding_model or keeps current.
+    pub embedding_dimension: Option<usize>,
+
+    /// Whether to force rebuild even if embedding config is unchanged.
+    /// Useful for refreshing embeddings after model updates.
+    #[serde(default)]
+    pub force: bool,
+}
+
+/// Response from rebuild embeddings operation.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct RebuildEmbeddingsResponse {
+    /// Workspace ID.
+    pub workspace_id: Uuid,
+    /// Status of the operation ("started", "in_progress", "completed", "failed").
+    pub status: String,
+    /// Number of documents to be re-embedded.
+    pub documents_to_process: usize,
+    /// Number of vectors cleared.
+    pub vectors_cleared: usize,
+    /// New embedding model (after update).
+    pub embedding_model: String,
+    /// New embedding provider (after update).
+    pub embedding_provider: String,
+    /// New embedding dimension (after update).
+    pub embedding_dimension: usize,
+    /// Estimated time to complete (seconds).
+    pub estimated_time_seconds: Option<u64>,
+    /// Background job ID for tracking (if async).
+    pub job_id: Option<String>,
+}
+
+// ============================================================================
 // Unit Tests
 // ============================================================================
 

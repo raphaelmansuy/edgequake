@@ -192,6 +192,61 @@ export async function createWorkspace(
 }
 
 // ============================================================================
+// Rebuild Embeddings (SPEC-032)
+// ============================================================================
+
+/**
+ * Request to rebuild workspace embeddings.
+ */
+export interface RebuildEmbeddingsRequest {
+  /** New embedding model (optional, keeps current if not provided) */
+  embedding_model?: string;
+  /** New embedding provider (optional, auto-detected) */
+  embedding_provider?: string;
+  /** New embedding dimension (optional, auto-detected) */
+  embedding_dimension?: number;
+  /** Force rebuild even if config unchanged */
+  force?: boolean;
+}
+
+/**
+ * Response from rebuild embeddings operation.
+ */
+export interface RebuildEmbeddingsResponse {
+  workspace_id: string;
+  status: string;
+  documents_to_process: number;
+  vectors_cleared: number;
+  embedding_model: string;
+  embedding_provider: string;
+  embedding_dimension: number;
+  estimated_time_seconds?: number;
+  job_id?: string;
+}
+
+/**
+ * Rebuild workspace embeddings with a new model.
+ *
+ * This clears all vector embeddings and optionally updates the embedding model.
+ * Documents will need to be re-ingested to regenerate embeddings.
+ *
+ * @implements SPEC-032: Vector database rebuild on embedding model change
+ *
+ * @param workspaceId - Workspace ID
+ * @param request - Rebuild configuration
+ * @returns Rebuild status response
+ */
+export async function rebuildEmbeddings(
+  workspaceId: string,
+  request: RebuildEmbeddingsRequest
+): Promise<RebuildEmbeddingsResponse> {
+  return api.post<RebuildEmbeddingsResponse>(
+    `/workspaces/${workspaceId}/rebuild-embeddings`,
+    request
+  );
+}
+
+// ============================================================================
 // Documents
 // ============================================================================
 
