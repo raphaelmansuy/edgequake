@@ -36,6 +36,9 @@ BACKEND_DIR := $(ROOT_DIR)/edgequake
 FRONTEND_DIR := $(ROOT_DIR)/edgequake_webui
 DOCKER_DIR := $(BACKEND_DIR)/docker
 
+# Environment variables (inherit from shell if set)
+OPENAI_API_KEY ?= $(shell echo $$OPENAI_API_KEY)
+
 # Default target
 .DEFAULT_GOAL := help
 
@@ -181,10 +184,14 @@ dev-memory: check-deps ## Start development with in-memory storage (for testing)
 	echo "$(GREEN)✓ Backend PID: $$BACKEND_PID, Frontend PID: $$FRONTEND_PID$(RESET)"; \
 	wait
 
-dev-bg: check-deps ## Start full development stack in BACKGROUND (agentic mode) with Ollama
+dev-bg: check-deps ## Start full development stack in BACKGROUND (agentic mode)
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🤖 Starting EdgeQuake in Background Mode (Agentic)$(RESET)"
-	@echo "$(BOLD)$(YELLOW)📝 Using Ollama as default LLM provider$(RESET)"
+	@if [ -n "$(OPENAI_API_KEY)" ]; then \
+		echo "$(BOLD)$(YELLOW)📝 Using OpenAI provider$(RESET)"; \
+	else \
+		echo "$(BOLD)$(YELLOW)📝 Using Ollama as default LLM provider$(RESET)"; \
+	fi
 	@echo ""
 	@$(MAKE) stop --no-print-directory 2>/dev/null || true
 	@sleep 1
@@ -199,11 +206,10 @@ dev-bg: check-deps ## Start full development stack in BACKGROUND (agentic mode) 
 	@echo "$(YELLOW)→ Starting backend in background...$(RESET)"
 	@cd $(BACKEND_DIR) && \
 		DATABASE_URL="$(DATABASE_URL)" \
-		EDGEQUAKE_LLM_PROVIDER="ollama" \
 		OLLAMA_HOST="http://localhost:11434" \
 		OLLAMA_MODEL="gemma3:latest" \
 		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
-		OPENAI_API_KEY="" \
+		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
 		nohup cargo run > /tmp/edgequake-backend.log 2>&1 &
 	@echo "$(GREEN)✓ Backend starting (log: /tmp/edgequake-backend.log)$(RESET)"
 	@echo ""
@@ -220,7 +226,11 @@ dev-bg: check-deps ## Start full development stack in BACKGROUND (agentic mode) 
 	@echo "  $(BLUE)Backend$(RESET):  http://localhost:8080"
 	@echo "  $(BLUE)Frontend$(RESET): http://localhost:3000"
 	@echo "  $(BLUE)Swagger$(RESET):  http://localhost:8080/swagger-ui"
-	@echo "  $(BLUE)Provider$(RESET): Ollama (http://localhost:11434)"
+	@if [ -n "$(OPENAI_API_KEY)" ]; then \
+		echo "  $(BLUE)Provider$(RESET): OpenAI (configured)"; \
+	else \
+		echo "  $(BLUE)Provider$(RESET): Ollama (http://localhost:11434)"; \
+	fi
 	@echo ""
 	@echo "  Use $(BOLD)make status$(RESET) to check service health"
 	@echo "  Use $(BOLD)make stop$(RESET) to stop all services"
@@ -273,15 +283,14 @@ backend-memory: ## Run backend with in-memory storage (for testing only)
 	@echo "$(YELLOW)⚠️  Starting backend with IN-MEMORY storage (data will not persist)$(RESET)"
 	@cd $(BACKEND_DIR) && cargo run
 
-backend-bg: db-wait ## Run backend in background with PostgreSQL + Ollama
-	@echo "$(BLUE)Starting backend in background with Ollama...$(RESET)"
+backend-bg: db-wait ## Run backend in background with PostgreSQL (respects OPENAI_API_KEY if set)
+	@echo "$(BLUE)Starting backend in background...$(RESET)"
 	@cd $(BACKEND_DIR) && \
 		DATABASE_URL="$(DATABASE_URL)" \
-		EDGEQUAKE_LLM_PROVIDER="ollama" \
 		OLLAMA_HOST="http://localhost:11434" \
 		OLLAMA_MODEL="gemma3:latest" \
 		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
-		OPENAI_API_KEY="" \
+		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
 		nohup cargo run > /tmp/edgequake-backend.log 2>&1 &
 	@echo "$(GREEN)✓ Backend starting in background. Log: /tmp/edgequake-backend.log$(RESET)"
 
