@@ -2,7 +2,7 @@
 
 **Project:** EdgeQuake Ollama/LM Studio Provider Integration  
 **Spec:** [032-ollama-lmstudio-provider.md](../032-ollama-lmstudio-provider.md)  
-**Date Range:** 2025-01-10 to 2025-01-11  
+**Date Range:** 2025-01-10 to 2025-01-30  
 **Total Iterations Target:** 50
 
 ---
@@ -18,6 +18,9 @@
 | **11**    | **Act** | ✅ **COMPLETE** | 2025-01-11 | **LM Studio auto-detection** (commit c33ec26)              |
 | **12+14** | **Act** | ✅ **COMPLETE** | 2025-01-11 | **Provider registry API** (commit 794a3c7)                 |
 | **13**    | **Act** | ✅ **COMPLETE** | 2025-01-11 | **Workspace-specific embedding in query** (commit b4d63b8) |
+| 09 (new)  | All     | ✅ COMPLETE     | 2025-01-29 | Workspace LLM configuration backend                        |
+| **10**    | **Act** | ✅ **COMPLETE** | 2025-01-30 | **WebUI LLMModelSelector for workspace creation**          |
+| **11**    | **Act** | ✅ **COMPLETE** | 2025-01-30 | **Workspace-specific LLM in ingestion pipeline**           |
 | 15-16     | All     | ✅ COMPLETE     | 2025-01-11 | EmbeddingProviderFactory (done in 13)                      |
 | 17-18     | All     | ⏳ PLANNED      | TBD        | WebUI provider selector                                    |
 | 19-20     | All     | ⏳ PLANNED      | TBD        | Workspace creation embedding UI                            |
@@ -31,11 +34,47 @@
 
 | Commit  | OODA  | Description                                       |
 | ------- | ----- | ------------------------------------------------- |
+| TBD     | 10-11 | WebUI LLMModelSelector + ingestion integration    |
 | b4d63b8 | 13    | Workspace-specific embedding in query process     |
 | 794a3c7 | 12+14 | Provider registry API and list providers endpoint |
 | c33ec26 | 11    | LM Studio auto-detection in provider factory      |
 | 7001fa9 | 08-10 | Dedicated LMStudioProvider implementation         |
 | 845d7c6 | 07    | Workspace-level embedding configuration           |
+
+---
+
+## Iteration 10-11 Details (WebUI + Ingestion Integration)
+
+### Iteration 10: WebUI LLM Model Selector ✅ COMPLETE
+
+Created `LLMModelSelector` component for workspace creation:
+
+**Files Created:**
+- `edgequake_webui/src/components/workspace/llm-model-selector.tsx` (252 lines)
+
+**Files Modified:**
+- `edgequake_webui/src/components/shared/tenant-workspace-selector.tsx` (+45 lines)
+
+**Key Features:**
+- `LLMSelection` interface: `{ model, provider, fullId }`
+- Provider icons: Cloud (OpenAI), Cpu (Ollama), Brain (LM Studio)
+- Integration with workspace creation dialog
+- Usage hint for ingestion purpose
+
+### Iteration 11: Workspace-Specific LLM in Ingestion ✅ COMPLETE
+
+Integrated workspace LLM config into document ingestion pipeline:
+
+**Files Modified:**
+- `edgequake-llm/src/factory.rs` (+75 lines) - `create_llm_provider()`
+- `edgequake-api/src/state.rs` (+80 lines) - `create_workspace_pipeline()`
+- `edgequake-api/src/handlers/documents.rs` (+5 lines) - Use workspace pipeline
+
+**Key Features:**
+- Dynamic pipeline creation per workspace
+- Graceful fallback to global pipeline on errors
+- Full test coverage (584 tests passing)
+- Clippy clean
 
 ---
 

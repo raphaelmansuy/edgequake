@@ -187,7 +187,8 @@ impl AvailableProvidersResponse {
                         env_var: "OLLAMA_HOST".to_string(),
                         required: false,
                         description: "Ollama server URL (default: http://localhost:11434)".to_string(),
-                        satisfied: std::env::var("OLLAMA_HOST").is_ok() || true,
+                        // WHY: Always satisfied because Ollama has builtin defaults
+                        satisfied: true,
                     },
                     ConfigRequirement {
                         env_var: "OLLAMA_MODEL".to_string(),
@@ -212,7 +213,8 @@ impl AvailableProvidersResponse {
                         env_var: "LMSTUDIO_HOST".to_string(),
                         required: false,
                         description: "LM Studio server URL (default: http://localhost:1234)".to_string(),
-                        satisfied: std::env::var("LMSTUDIO_HOST").is_ok() || true,
+                        // WHY: Always satisfied because LM Studio has builtin defaults
+                        satisfied: true,
                     },
                     ConfigRequirement {
                         env_var: "LMSTUDIO_MODEL".to_string(),

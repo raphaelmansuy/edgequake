@@ -876,6 +876,108 @@ impl AppState {
 
         Ok(())
     }
+
+    /// Create a workspace-specific pipeline with the workspace's LLM configuration.
+    ///
+    /// @implements SPEC-032: Workspace-specific LLM for ingestion
+    ///
+    /// This method creates a temporary pipeline configured with the workspace's
+    /// LLM and embedding providers. Used during document ingestion to ensure
+    /// that each workspace can use its own model configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `workspace_id` - The workspace ID to look up configuration for
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Pipeline` configured with the workspace's LLM and embedding providers.
+    /// Falls back to the global pipeline's providers if workspace config lookup fails.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let workspace_pipeline = state.create_workspace_pipeline("workspace-123").await;
+    /// let result = workspace_pipeline.process(&doc_id, &content).await?;
+    /// ```
+    pub async fn create_workspace_pipeline(&self, workspace_id: &str) -> Arc<Pipeline> {
+        use edgequake_llm::ProviderFactory;
+        use edgequake_pipeline::LLMExtractor;
+
+        // Parse workspace_id to UUID
+        let workspace_uuid = match uuid::Uuid::parse_str(workspace_id) {
+            Ok(uuid) => uuid,
+            Err(e) => {
+                tracing::warn!(
+                    workspace_id = workspace_id,
+                    error = %e,
+                    "Invalid workspace ID format, using global pipeline"
+                );
+                return Arc::clone(&self.pipeline);
+            }
+        };
+
+        // Lookup workspace configuration
+        let workspace_result = self.workspace_service.get_workspace(workspace_uuid).await;
+
+        match workspace_result {
+            Ok(Some(ws)) => {
+                // Try to create workspace-specific LLM provider
+                let llm_provider = ProviderFactory::create_llm_provider(
+                    &ws.llm_provider,
+                    &ws.llm_model,
+                );
+
+                // Try to create workspace-specific embedding provider
+                let embedding_provider = ProviderFactory::create_embedding_provider(
+                    &ws.embedding_provider,
+                    &ws.embedding_model,
+                    ws.embedding_dimension,
+                );
+
+                // If both providers were created successfully, use them
+                if let (Ok(llm), Ok(embedding)) = (llm_provider, embedding_provider) {
+                    tracing::info!(
+                        workspace_id = workspace_id,
+                        llm_model = %ws.llm_full_id(),
+                        embedding_model = %ws.embedding_full_id(),
+                        "Using workspace-specific LLM configuration for pipeline"
+                    );
+
+                    let extractor = Arc::new(LLMExtractor::new(llm));
+                    return Arc::new(
+                        Pipeline::default_pipeline()
+                            .with_extractor(extractor)
+                            .with_embedding_provider(embedding),
+                    );
+                }
+
+                // Log warning and fall back to global pipeline
+                tracing::warn!(
+                    workspace_id = workspace_id,
+                    llm_config = %ws.llm_full_id(),
+                    embedding_config = %ws.embedding_full_id(),
+                    "Failed to create workspace-specific providers, using global pipeline"
+                );
+            }
+            Ok(None) => {
+                tracing::warn!(
+                    workspace_id = workspace_id,
+                    "Workspace not found, using global pipeline"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    workspace_id = workspace_id,
+                    error = %e,
+                    "Failed to lookup workspace, using global pipeline"
+                );
+            }
+        }
+
+        // Fall back to global pipeline
+        Arc::clone(&self.pipeline)
+    }
 }
 
 // ============================================================================

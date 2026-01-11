@@ -311,6 +311,84 @@ impl ProviderFactory {
             }
         }
     }
+
+    /// Create an LLM provider from workspace configuration.
+    ///
+    /// This is used to create workspace-specific LLM providers for ingestion/extraction.
+    /// The provider is configured with the workspace's LLM model.
+    ///
+    /// @implements SPEC-032: Workspace-specific LLM in ingestion process
+    ///
+    /// # Arguments
+    ///
+    /// * `provider_name` - Provider type (e.g., "openai", "ollama", "lmstudio", "mock")
+    /// * `model` - LLM model name (e.g., "gpt-4o-mini", "gemma3:12b")
+    ///
+    /// # Returns
+    ///
+    /// Returns an `Arc<dyn LLMProvider>` configured for the workspace.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if the provider type is unknown or required configuration is missing.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let provider = ProviderFactory::create_llm_provider(
+    ///     "ollama",
+    ///     "gemma3:12b",
+    /// )?;
+    /// assert_eq!(provider.model(), "gemma3:12b");
+    /// ```
+    pub fn create_llm_provider(
+        provider_name: &str,
+        model: &str,
+    ) -> Result<Arc<dyn LLMProvider>> {
+        let provider_type = ProviderType::from_str(provider_name).ok_or_else(|| {
+            LlmError::ConfigError(format!(
+                "Unknown LLM provider: {}. Valid: openai, ollama, lmstudio, mock",
+                provider_name
+            ))
+        })?;
+
+        match provider_type {
+            ProviderType::OpenAI => {
+                let api_key = std::env::var("OPENAI_API_KEY").map_err(|_| {
+                    LlmError::ConfigError(
+                        "OPENAI_API_KEY required for OpenAI LLM provider".to_string(),
+                    )
+                })?;
+                // OpenAI provider with specific model
+                let provider = OpenAIProvider::new(api_key).with_model(model);
+                Ok(Arc::new(provider))
+            }
+            ProviderType::Ollama => {
+                // Ollama provider with specific model
+                let host = std::env::var("OLLAMA_HOST")
+                    .unwrap_or_else(|_| "http://localhost:11434".to_string());
+                let provider = OllamaProvider::builder()
+                    .host(&host)
+                    .model(model)
+                    .build()?;
+                Ok(Arc::new(provider))
+            }
+            ProviderType::LMStudio => {
+                // LM Studio provider with specific model
+                let host = std::env::var("LMSTUDIO_HOST")
+                    .unwrap_or_else(|_| "http://localhost:1234".to_string());
+                let provider = LMStudioProvider::builder()
+                    .host(&host)
+                    .model(model)
+                    .build()?;
+                Ok(Arc::new(provider))
+            }
+            ProviderType::Mock => {
+                // Mock provider ignores model and uses defaults
+                Ok(Arc::new(MockProvider::new()))
+            }
+        }
+    }
 }
 
 #[cfg(test)]
