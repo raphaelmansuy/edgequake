@@ -86,6 +86,8 @@ async fn test_provider_auto_detection_mock_fallback() {
     std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
     std::env::remove_var("OLLAMA_HOST");
     std::env::remove_var("OLLAMA_MODEL");
+    std::env::remove_var("LMSTUDIO_HOST");
+    std::env::remove_var("LMSTUDIO_MODEL");
     std::env::remove_var("OPENAI_API_KEY");
 
     // Create providers (should fallback to Mock)
@@ -109,6 +111,7 @@ async fn test_provider_auto_detection_mock_fallback() {
 async fn test_explicit_provider_override() {
     // Set multiple provider env vars (conflicting signals)
     std::env::set_var("OLLAMA_HOST", "http://localhost:11434");
+    std::env::set_var("LMSTUDIO_HOST", "http://localhost:1234");
     std::env::set_var("OPENAI_API_KEY", "sk-test");
 
     // Explicit override should win
@@ -128,37 +131,46 @@ async fn test_explicit_provider_override() {
     // Cleanup
     std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
     std::env::remove_var("OLLAMA_HOST");
+    std::env::remove_var("LMSTUDIO_HOST");
     std::env::remove_var("OPENAI_API_KEY");
 }
 
-/// Test auto-detection priority chain: explicit > Ollama > OpenAI > Mock.
+/// Test auto-detection priority chain: explicit > Ollama > LM Studio > OpenAI > Mock.
 #[tokio::test]
 #[serial]
 async fn test_provider_priority_chain() {
-    // Test 1: Ollama has priority over OpenAI
+    // Test 1: Ollama has priority over LM Studio and OpenAI
     std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
     std::env::set_var("OLLAMA_HOST", "http://localhost:11434");
+    std::env::set_var("LMSTUDIO_HOST", "http://localhost:1234");
     std::env::set_var("OPENAI_API_KEY", "sk-test");
 
     let (llm, _) = ProviderFactory::from_env().unwrap();
     assert_eq!(
         llm.name(),
         "ollama",
-        "Ollama should have priority over OpenAI"
+        "Ollama should have priority over LM Studio and OpenAI"
     );
 
-    // Test 2: OpenAI selected when Ollama not present
+    // Test 2: LM Studio selected when Ollama not present
     std::env::remove_var("OLLAMA_HOST");
+    std::env::set_var("LMSTUDIO_HOST", "http://localhost:1234");
+    let (llm, _) = ProviderFactory::from_env().unwrap();
+    assert_eq!(llm.name(), "lmstudio", "LM Studio should be selected when Ollama not present");
+
+    // Test 3: OpenAI selected when neither Ollama nor LM Studio present
+    std::env::remove_var("LMSTUDIO_HOST");
     let (llm, _) = ProviderFactory::from_env().unwrap();
     assert_eq!(llm.name(), "openai", "OpenAI should be selected");
 
-    // Test 3: Mock fallback when neither present
+    // Test 4: Mock fallback when none present
     std::env::remove_var("OPENAI_API_KEY");
     let (llm, _) = ProviderFactory::from_env().unwrap();
     assert_eq!(llm.name(), "mock", "Mock should be fallback");
 
     // Cleanup
     std::env::remove_var("OLLAMA_HOST");
+    std::env::remove_var("LMSTUDIO_HOST");
     std::env::remove_var("OPENAI_API_KEY");
 }
 
@@ -185,6 +197,16 @@ async fn test_explicit_provider_creation() {
         result.is_ok(),
         "Ollama creation should succeed with defaults"
     );
+
+    // LM Studio can be created (will use defaults)
+    let result = ProviderFactory::create(ProviderType::LMStudio);
+    assert!(
+        result.is_ok(),
+        "LM Studio creation should succeed with defaults"
+    );
+    let (llm, embedding) = result.unwrap();
+    assert_eq!(llm.name(), "lmstudio");
+    assert_eq!(embedding.dimension(), 768); // nomic-embed-text-v1.5
 }
 
 /// Test embedding dimension detection via ProviderFactory helper.
@@ -194,6 +216,7 @@ async fn test_embedding_dimension_detection() {
     // Test Mock dimension
     std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
     std::env::remove_var("OLLAMA_HOST");
+    std::env::remove_var("LMSTUDIO_HOST");
     std::env::remove_var("OPENAI_API_KEY");
 
     let dim = ProviderFactory::embedding_dimension().expect("Failed to detect dimension");
@@ -204,6 +227,54 @@ async fn test_embedding_dimension_detection() {
     let dim = ProviderFactory::embedding_dimension().expect("Failed to detect Ollama dimension");
     assert_eq!(dim, 768, "Ollama provider dimension");
 
+    // Test LM Studio dimension
+    std::env::remove_var("OLLAMA_HOST");
+    std::env::set_var("LMSTUDIO_HOST", "http://localhost:1234");
+    let dim = ProviderFactory::embedding_dimension().expect("Failed to detect LM Studio dimension");
+    assert_eq!(dim, 768, "LM Studio provider dimension");
+
     // Cleanup
     std::env::remove_var("OLLAMA_HOST");
+    std::env::remove_var("LMSTUDIO_HOST");
+}
+
+/// Test LM Studio auto-detection when LMSTUDIO_HOST is set.
+#[tokio::test]
+#[serial]
+async fn test_provider_auto_detection_lmstudio() {
+    // Clean environment to avoid interference
+    std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+    std::env::remove_var("OPENAI_API_KEY");
+    std::env::remove_var("OLLAMA_HOST");
+    std::env::remove_var("OLLAMA_MODEL");
+
+    // Set LM Studio host (auto-detection should pick this up)
+    std::env::set_var("LMSTUDIO_HOST", "http://localhost:1234");
+
+    // Create providers via auto-detection
+    let (llm, embedding) =
+        ProviderFactory::from_env().expect("Failed to create providers from environment");
+
+    // Verify LM Studio was selected
+    assert_eq!(
+        llm.name(),
+        "lmstudio",
+        "Expected LM Studio provider, got {}",
+        llm.name()
+    );
+    assert_eq!(
+        embedding.name(),
+        "lmstudio",
+        "Expected LM Studio embedding provider"
+    );
+
+    // Verify nomic-embed-text-v1.5 dimension (768)
+    assert_eq!(
+        embedding.dimension(),
+        768,
+        "nomic-embed-text-v1.5 should have 768 dimensions"
+    );
+
+    // Cleanup
+    std::env::remove_var("LMSTUDIO_HOST");
 }

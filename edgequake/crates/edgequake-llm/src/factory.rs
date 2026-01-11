@@ -90,7 +90,7 @@ impl ProviderFactory {
     /// # Priority
     ///
     /// 1. `EDGEQUAKE_LLM_PROVIDER` environment variable (explicit selection)
-    /// 2. Auto-detect: OLLAMA_HOST → OPENAI_API_KEY → Mock
+    /// 2. Auto-detect: OLLAMA_HOST → LMSTUDIO_HOST → OPENAI_API_KEY → Mock
     ///
     /// # Returns
     ///
@@ -121,8 +121,14 @@ impl ProviderFactory {
         }
 
         // Auto-detect based on environment
+        // Priority: Ollama → LM Studio → OpenAI → Mock
         if std::env::var("OLLAMA_HOST").is_ok() || std::env::var("OLLAMA_MODEL").is_ok() {
             return Self::create(ProviderType::Ollama);
+        }
+
+        // LM Studio detection (checks LMSTUDIO_HOST or LMSTUDIO_MODEL)
+        if std::env::var("LMSTUDIO_HOST").is_ok() || std::env::var("LMSTUDIO_MODEL").is_ok() {
+            return Self::create(ProviderType::LMStudio);
         }
 
         if let Ok(api_key) = std::env::var("OPENAI_API_KEY") {
@@ -272,6 +278,8 @@ mod tests {
         std::env::remove_var("OPENAI_API_KEY");
         std::env::remove_var("OLLAMA_HOST");
         std::env::remove_var("OLLAMA_MODEL");
+        std::env::remove_var("LMSTUDIO_HOST");
+        std::env::remove_var("LMSTUDIO_MODEL");
 
         let (llm, _) = ProviderFactory::from_env().unwrap();
         assert_eq!(llm.name(), "mock");
@@ -283,6 +291,7 @@ mod tests {
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
         std::env::remove_var("OLLAMA_HOST");
         std::env::remove_var("OPENAI_API_KEY");
+        std::env::remove_var("LMSTUDIO_HOST");
 
         std::env::set_var("EDGEQUAKE_LLM_PROVIDER", "mock");
         let (llm, _) = ProviderFactory::from_env().unwrap();
@@ -293,11 +302,57 @@ mod tests {
     }
 
     #[test]
+    fn test_lmstudio_auto_detection() {
+        // Clean up first to avoid interference from other tests
+        std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+        std::env::remove_var("OLLAMA_HOST");
+        std::env::remove_var("OLLAMA_MODEL");
+        std::env::remove_var("OPENAI_API_KEY");
+
+        // Set LM Studio environment
+        std::env::set_var("LMSTUDIO_HOST", "http://localhost:1234");
+        let (llm, embedding) = ProviderFactory::from_env().unwrap();
+        assert_eq!(llm.name(), "lmstudio");
+        assert_eq!(embedding.name(), "lmstudio");
+
+        // Clean up after
+        std::env::remove_var("LMSTUDIO_HOST");
+    }
+
+    #[test]
+    fn test_lmstudio_model_detection() {
+        // Clean up first to avoid interference from other tests
+        std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+        std::env::remove_var("OLLAMA_HOST");
+        std::env::remove_var("OLLAMA_MODEL");
+        std::env::remove_var("OPENAI_API_KEY");
+        std::env::remove_var("LMSTUDIO_HOST");
+
+        // Set LM Studio model only
+        std::env::set_var("LMSTUDIO_MODEL", "mistral-7b");
+        let (llm, _) = ProviderFactory::from_env().unwrap();
+        assert_eq!(llm.name(), "lmstudio");
+
+        // Clean up after
+        std::env::remove_var("LMSTUDIO_MODEL");
+    }
+
+    #[test]
+    fn test_explicit_lmstudio_creation() {
+        let (llm, embedding) = ProviderFactory::create(ProviderType::LMStudio).unwrap();
+        assert_eq!(llm.name(), "lmstudio");
+        assert_eq!(embedding.name(), "lmstudio");
+        // Default LM Studio embedding dimension is 768 (nomic-embed-text-v1.5)
+        assert_eq!(embedding.dimension(), 768);
+    }
+
+    #[test]
     fn test_invalid_provider_env() {
         // Clean up first to avoid interference from other tests
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
         std::env::remove_var("OLLAMA_HOST");
         std::env::remove_var("OPENAI_API_KEY");
+        std::env::remove_var("LMSTUDIO_HOST");
 
         std::env::set_var("EDGEQUAKE_LLM_PROVIDER", "invalid_provider");
         let result = ProviderFactory::from_env();
@@ -316,6 +371,7 @@ mod tests {
         std::env::remove_var("OPENAI_API_KEY");
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
         std::env::remove_var("OLLAMA_HOST");
+        std::env::remove_var("LMSTUDIO_HOST");
 
         let result = ProviderFactory::create(ProviderType::OpenAI);
         assert!(result.is_err());
@@ -330,6 +386,7 @@ mod tests {
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
         std::env::remove_var("OLLAMA_HOST");
         std::env::remove_var("OPENAI_API_KEY");
+        std::env::remove_var("LMSTUDIO_HOST");
 
         std::env::set_var("EDGEQUAKE_LLM_PROVIDER", "mock");
         let dim = ProviderFactory::embedding_dimension().unwrap();
@@ -337,5 +394,23 @@ mod tests {
 
         // Clean up after
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+    }
+
+    #[test]
+    fn test_provider_priority_ollama_over_lmstudio() {
+        // Clean up first
+        std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
+        std::env::remove_var("OPENAI_API_KEY");
+
+        // Set both Ollama and LM Studio - Ollama should win
+        std::env::set_var("OLLAMA_HOST", "http://localhost:11434");
+        std::env::set_var("LMSTUDIO_HOST", "http://localhost:1234");
+
+        let (llm, _) = ProviderFactory::from_env().unwrap();
+        assert_eq!(llm.name(), "ollama");
+
+        // Clean up after
+        std::env::remove_var("OLLAMA_HOST");
+        std::env::remove_var("LMSTUDIO_HOST");
     }
 }
