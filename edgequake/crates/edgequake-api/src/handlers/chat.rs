@@ -381,14 +381,21 @@ pub async fn chat_completion(
             };
 
             // Try to create the LLM provider
+            // IMPORTANT: When user explicitly selects a provider, return validation errors
+            // instead of silently falling back. This provides clear feedback about
+            // configuration issues (e.g., missing API keys).
             match ProviderFactory::create_llm_provider(&provider_name, &model_name) {
                 Ok(llm) => {
                     debug!(provider = %provider_name, model = %model_name, "Created LLM provider override");
                     (Some(llm), Some(provider_name), Some(model_name))
                 }
                 Err(e) => {
-                    warn!(provider = %provider_name, error = %e, "Failed to create LLM provider, using default");
-                    (None, None, None)
+                    // User explicitly selected this provider - return error to user
+                    error!(provider = %provider_name, error = %e, "Failed to create requested LLM provider");
+                    return Err(ApiError::BadRequest(format!(
+                        "Cannot use provider '{}': {}",
+                        provider_name, e
+                    )));
                 }
             }
         } else {
@@ -681,14 +688,28 @@ pub async fn chat_completion_stream(
                     };
 
                 // Try to create the LLM provider
+                // IMPORTANT: When user explicitly selects a provider, return validation errors
+                // instead of silently falling back. This provides clear feedback about
+                // configuration issues (e.g., missing API keys).
                 match ProviderFactory::create_llm_provider(&provider_name, &model_name) {
                     Ok(llm) => {
                         debug!(provider = %provider_name, model = %model_name, "Created LLM provider override for streaming");
                         (Some(llm), Some(provider_name), Some(model_name))
                     }
                     Err(e) => {
-                        warn!(provider = %provider_name, error = %e, "Failed to create LLM provider for streaming, using default");
-                        (None, None, None)
+                        // User explicitly selected this provider - send error to client via SSE
+                        error!(provider = %provider_name, error = %e, "Failed to create requested LLM provider for streaming");
+
+                        // Send error event through channel and exit
+                        let error_msg = format!("Cannot use provider '{}': {}", provider_name, e);
+                        let _ = tx
+                            .send(ChatStreamEvent::Error {
+                                message: error_msg,
+                                code: "PROVIDER_CONFIG_ERROR".to_string(),
+                            })
+                            .await;
+
+                        return; // Exit task early with error sent
                     }
                 }
             } else {
