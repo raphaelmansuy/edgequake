@@ -100,8 +100,12 @@ export function TenantWorkspaceSelector({
   const [newTenantDescription, setNewTenantDescription] = useState('');
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [newWorkspaceDescription, setNewWorkspaceDescription] = useState('');
+  // Workspace model selection (for workspace creation)
   const [selectedLLM, setSelectedLLM] = useState<LLMSelection | undefined>(undefined);
   const [selectedEmbedding, setSelectedEmbedding] = useState<EmbeddingSelection | undefined>(undefined);
+  // Tenant default model selection (SPEC-032: for tenant creation)
+  const [tenantDefaultLLM, setTenantDefaultLLM] = useState<LLMSelection | undefined>(undefined);
+  const [tenantDefaultEmbedding, setTenantDefaultEmbedding] = useState<EmbeddingSelection | undefined>(undefined);
 
   // Initialize from storage on mount
   useEffect(() => {
@@ -154,9 +158,17 @@ export function TenantWorkspaceSelector({
     }
   }, [workspacesData, setWorkspaces, selectedWorkspaceId, selectWorkspace]);
 
-  // Create tenant mutation
+  // Create tenant mutation (SPEC-032: with default model configuration)
   const createTenantMutation = useMutation({
-    mutationFn: (data: { name: string; description?: string }) =>
+    mutationFn: (data: { 
+      name: string; 
+      description?: string;
+      default_llm_model?: string;
+      default_llm_provider?: string;
+      default_embedding_model?: string;
+      default_embedding_provider?: string;
+      default_embedding_dimension?: number;
+    }) =>
       createTenant(data),
     onSuccess: (newTenant) => {
       toast.success(t('tenant.createSuccess', 'Tenant created successfully'));
@@ -165,6 +177,8 @@ export function TenantWorkspaceSelector({
       setShowCreateTenant(false);
       setNewTenantName('');
       setNewTenantDescription('');
+      setTenantDefaultLLM(undefined);
+      setTenantDefaultEmbedding(undefined);
     },
     onError: (error) => {
       toast.error(
@@ -457,9 +471,9 @@ export function TenantWorkspaceSelector({
         </div>
       </div>
 
-      {/* Create Tenant Dialog */}
+      {/* Create Tenant Dialog (SPEC-032: with default model configuration) */}
       <Dialog open={showCreateTenant} onOpenChange={setShowCreateTenant}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {t('tenant.createNew', 'Create New Tenant')}
@@ -497,6 +511,35 @@ export function TenantWorkspaceSelector({
                 )}
               />
             </div>
+
+            {/* Default LLM Model Selection - SPEC-032 */}
+            <div className="space-y-2">
+              <Label>
+                {t('tenant.defaultLlmModel', 'Default LLM Model')} ({t('common.optional', 'Optional')})
+              </Label>
+              <LLMModelSelector
+                value={tenantDefaultLLM}
+                onChange={setTenantDefaultLLM}
+                showUsageHint
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('tenant.defaultLlmHint', 'New workspaces will inherit this default')}
+              </p>
+            </div>
+
+            {/* Default Embedding Model Selection - SPEC-032 */}
+            <div className="space-y-2">
+              <Label>
+                {t('tenant.defaultEmbeddingModel', 'Default Embedding Model')} ({t('common.optional', 'Optional')})
+              </Label>
+              <EmbeddingModelSelector
+                value={tenantDefaultEmbedding}
+                onChange={setTenantDefaultEmbedding}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('tenant.defaultEmbeddingHint', 'New workspaces will inherit this default')}
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -510,6 +553,11 @@ export function TenantWorkspaceSelector({
                 createTenantMutation.mutate({
                   name: newTenantName,
                   description: newTenantDescription || undefined,
+                  default_llm_model: tenantDefaultLLM?.model,
+                  default_llm_provider: tenantDefaultLLM?.provider,
+                  default_embedding_model: tenantDefaultEmbedding?.model,
+                  default_embedding_provider: tenantDefaultEmbedding?.provider,
+                  default_embedding_dimension: tenantDefaultEmbedding?.dimension,
                 })
               }
               disabled={!newTenantName.trim() || createTenantMutation.isPending}

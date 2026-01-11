@@ -132,6 +132,36 @@ pub async fn create_tenant(
         tenant = tenant.with_description(desc);
     }
 
+    // SPEC-032: Apply LLM configuration if provided
+    if let (Some(model), Some(provider)) =
+        (&request.default_llm_model, &request.default_llm_provider)
+    {
+        tenant = tenant.with_llm_config(model, provider);
+    } else if let Some(model) = &request.default_llm_model {
+        // Auto-detect provider from model name
+        let provider = edgequake_core::Workspace::detect_provider_from_model(model);
+        tenant = tenant.with_llm_config(model, provider);
+    }
+
+    // SPEC-032: Apply embedding configuration if provided
+    if let (Some(model), Some(provider), Some(dimension)) = (
+        &request.default_embedding_model,
+        &request.default_embedding_provider,
+        request.default_embedding_dimension,
+    ) {
+        tenant = tenant.with_embedding_config(model, provider, dimension);
+    } else if let Some(model) = &request.default_embedding_model {
+        // Auto-detect provider and dimension from model name
+        let provider = edgequake_core::Workspace::detect_provider_from_model(model);
+        let dimension = edgequake_core::Workspace::detect_dimension_from_model(model);
+        let final_provider = request
+            .default_embedding_provider
+            .clone()
+            .unwrap_or(provider);
+        let final_dimension = request.default_embedding_dimension.unwrap_or(dimension);
+        tenant = tenant.with_embedding_config(model, final_provider, final_dimension);
+    }
+
     // Store tenant via workspace service
     let created_tenant = state
         .workspace_service
@@ -141,9 +171,17 @@ pub async fn create_tenant(
 
     // Auto-create a default workspace for the new tenant (R004)
     // This ensures users always have at least one workspace available
-    // SPEC-032: Uses server defaults for embedding configuration
+    // SPEC-032: Workspace inherits tenant's default model configuration
     let default_workspace_request = edgequake_core::CreateWorkspaceRequest::new("Default Workspace")
-        .with_embedding_model("text-embedding-3-small");
+        .with_llm_config(
+            &created_tenant.default_llm_model,
+            &created_tenant.default_llm_provider,
+        )
+        .with_embedding_config(
+            &created_tenant.default_embedding_model,
+            &created_tenant.default_embedding_provider,
+            created_tenant.default_embedding_dimension,
+        );
 
     if let Err(e) = state
         .workspace_service
@@ -159,7 +197,9 @@ pub async fn create_tenant(
     } else {
         tracing::info!(
             tenant_id = %created_tenant.tenant_id,
-            "Auto-created default workspace for tenant"
+            default_llm = %format!("{}/{}", created_tenant.default_llm_provider, created_tenant.default_llm_model),
+            default_embedding = %format!("{}/{}", created_tenant.default_embedding_provider, created_tenant.default_embedding_model),
+            "Auto-created default workspace for tenant with model config"
         );
     }
 
@@ -170,11 +210,29 @@ pub async fn create_tenant(
         plan: format!("{}", created_tenant.plan),
         is_active: created_tenant.is_active,
         max_workspaces: created_tenant.max_workspaces,
+        default_llm_model: created_tenant.default_llm_model.clone(),
+        default_llm_provider: created_tenant.default_llm_provider.clone(),
+        default_llm_full_id: format!(
+            "{}/{}",
+            created_tenant.default_llm_provider, created_tenant.default_llm_model
+        ),
+        default_embedding_model: created_tenant.default_embedding_model.clone(),
+        default_embedding_provider: created_tenant.default_embedding_provider.clone(),
+        default_embedding_dimension: created_tenant.default_embedding_dimension,
+        default_embedding_full_id: format!(
+            "{}/{}",
+            created_tenant.default_embedding_provider, created_tenant.default_embedding_model
+        ),
         created_at: created_tenant.created_at.to_rfc3339(),
         updated_at: created_tenant.updated_at.to_rfc3339(),
     };
 
-    tracing::info!(tenant_id = %created_tenant.tenant_id, "Created tenant");
+    tracing::info!(
+        tenant_id = %created_tenant.tenant_id,
+        default_llm = %response.default_llm_full_id,
+        default_embedding = %response.default_embedding_full_id,
+        "Created tenant with model configuration"
+    );
     Ok((StatusCode::CREATED, Json(response)))
 }
 
@@ -211,6 +269,16 @@ pub async fn list_tenants(
             plan: format!("{}", t.plan),
             is_active: t.is_active,
             max_workspaces: t.max_workspaces,
+            default_llm_model: t.default_llm_model.clone(),
+            default_llm_provider: t.default_llm_provider.clone(),
+            default_llm_full_id: format!("{}/{}", t.default_llm_provider, t.default_llm_model),
+            default_embedding_model: t.default_embedding_model.clone(),
+            default_embedding_provider: t.default_embedding_provider.clone(),
+            default_embedding_dimension: t.default_embedding_dimension,
+            default_embedding_full_id: format!(
+                "{}/{}",
+                t.default_embedding_provider, t.default_embedding_model
+            ),
             created_at: t.created_at.to_rfc3339(),
             updated_at: t.updated_at.to_rfc3339(),
         })
@@ -261,6 +329,19 @@ pub async fn get_tenant(
         plan: format!("{}", tenant.plan),
         is_active: tenant.is_active,
         max_workspaces: tenant.max_workspaces,
+        default_llm_model: tenant.default_llm_model.clone(),
+        default_llm_provider: tenant.default_llm_provider.clone(),
+        default_llm_full_id: format!(
+            "{}/{}",
+            tenant.default_llm_provider, tenant.default_llm_model
+        ),
+        default_embedding_model: tenant.default_embedding_model.clone(),
+        default_embedding_provider: tenant.default_embedding_provider.clone(),
+        default_embedding_dimension: tenant.default_embedding_dimension,
+        default_embedding_full_id: format!(
+            "{}/{}",
+            tenant.default_embedding_provider, tenant.default_embedding_model
+        ),
         created_at: tenant.created_at.to_rfc3339(),
         updated_at: tenant.updated_at.to_rfc3339(),
     };
@@ -326,6 +407,19 @@ pub async fn update_tenant(
         plan: format!("{}", updated.plan),
         is_active: updated.is_active,
         max_workspaces: updated.max_workspaces,
+        default_llm_model: updated.default_llm_model.clone(),
+        default_llm_provider: updated.default_llm_provider.clone(),
+        default_llm_full_id: format!(
+            "{}/{}",
+            updated.default_llm_provider, updated.default_llm_model
+        ),
+        default_embedding_model: updated.default_embedding_model.clone(),
+        default_embedding_provider: updated.default_embedding_provider.clone(),
+        default_embedding_dimension: updated.default_embedding_dimension,
+        default_embedding_full_id: format!(
+            "{}/{}",
+            updated.default_embedding_provider, updated.default_embedding_model
+        ),
         created_at: updated.created_at.to_rfc3339(),
         updated_at: updated.updated_at.to_rfc3339(),
     };
@@ -390,17 +484,32 @@ pub async fn create_workspace(
 ) -> Result<(StatusCode, Json<WorkspaceResponse>), ApiError> {
     use edgequake_core::CreateWorkspaceRequest;
 
+    // SPEC-032: Fetch parent tenant to inherit default model configuration if not provided
+    let tenant = state
+        .workspace_service
+        .get_tenant(tenant_id)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .ok_or_else(|| ApiError::NotFound(format!("Tenant {} not found", tenant_id)))?;
+
+    // SPEC-032: Use tenant defaults if workspace-level config not provided
+    let llm_model = request.llm_model.clone().or_else(|| Some(tenant.default_llm_model.clone()));
+    let llm_provider = request.llm_provider.clone().or_else(|| Some(tenant.default_llm_provider.clone()));
+    let embedding_model = request.embedding_model.clone().or_else(|| Some(tenant.default_embedding_model.clone()));
+    let embedding_provider = request.embedding_provider.clone().or_else(|| Some(tenant.default_embedding_provider.clone()));
+    let embedding_dimension = request.embedding_dimension.or(Some(tenant.default_embedding_dimension));
+
     // SPEC-032: Include LLM and embedding configuration in create request
     let create_request = CreateWorkspaceRequest {
         name: request.name.clone(),
         slug: request.slug.clone(),
         description: request.description.clone(),
         max_documents: request.max_documents,
-        llm_model: request.llm_model.clone(),
-        llm_provider: request.llm_provider.clone(),
-        embedding_model: request.embedding_model.clone(),
-        embedding_provider: request.embedding_provider.clone(),
-        embedding_dimension: request.embedding_dimension,
+        llm_model,
+        llm_provider,
+        embedding_model,
+        embedding_provider,
+        embedding_dimension,
     };
 
     // Store workspace via workspace service
@@ -417,6 +526,7 @@ pub async fn create_workspace(
         tenant_id = %tenant_id,
         llm_model = %workspace.llm_full_id(),
         embedding_model = %workspace.embedding_full_id(),
+        inherited_from_tenant = request.llm_model.is_none(),
         "Created workspace"
     );
 
@@ -868,12 +978,22 @@ mod tests {
             plan: "free".to_string(),
             is_active: true,
             max_workspaces: 5,
+            default_llm_model: "gemma3:12b".to_string(),
+            default_llm_provider: "ollama".to_string(),
+            default_llm_full_id: "ollama/gemma3:12b".to_string(),
+            default_embedding_model: "text-embedding-3-small".to_string(),
+            default_embedding_provider: "openai".to_string(),
+            default_embedding_dimension: 1536,
+            default_embedding_full_id: "openai/text-embedding-3-small".to_string(),
             created_at: "2024-01-01T00:00:00Z".to_string(),
             updated_at: "2024-01-01T00:00:00Z".to_string(),
         };
         let json = serde_json::to_string(&response);
         assert!(json.is_ok());
-        assert!(json.unwrap().contains("test-tenant"));
+        let json_str = json.unwrap();
+        assert!(json_str.contains("test-tenant"));
+        assert!(json_str.contains("gemma3:12b"));
+        assert!(json_str.contains("text-embedding-3-small"));
     }
 
     #[test]

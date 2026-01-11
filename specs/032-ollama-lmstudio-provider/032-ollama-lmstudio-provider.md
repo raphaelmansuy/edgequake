@@ -28,6 +28,14 @@ For ollama provider use gemma3:12b and embeddinggemma:latest as default models.
 
 For lmstudio provider use gemma-3n-e4b-it-mlxmodel and text-embedding-ada-002 as default models.
 
+Ensure that when I create a new Tenant I can choose the default llm and embedding provider and model for that tenant/workspace. 
+
+Ensure that when I create a new workspace I can choose the default llm and embedding provider and model for that workspace. 
+
+Ensure that the embedding provider and model used at query time is the one associated with the workspace.
+
+Ensure that the llm provider and model used for knowledge graph generation, document ingestion, summarization, etc is the one associated with the workspace.
+
 ## Problem Statement
 
 We have observed that edgequake currently lacks support for ollama and lmstudio providers, limiting its flexibility and usability in various deployment scenarios. By integrating these providers, we can enhance edgequake's capabilities, allowing users to leverage local and remote LLM instances more effectively.

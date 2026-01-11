@@ -813,6 +813,39 @@ impl TenantRow {
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
+        // SPEC-032: Extract default LLM config from metadata
+        let default_llm_model = self
+            .metadata
+            .get("default_llm_model")
+            .and_then(|v| v.as_str())
+            .unwrap_or(crate::types::DEFAULT_LLM_MODEL)
+            .to_string();
+        let default_llm_provider = self
+            .metadata
+            .get("default_llm_provider")
+            .and_then(|v| v.as_str())
+            .unwrap_or(crate::types::DEFAULT_LLM_PROVIDER)
+            .to_string();
+
+        // SPEC-032: Extract default embedding config from metadata
+        let default_embedding_model = self
+            .metadata
+            .get("default_embedding_model")
+            .and_then(|v| v.as_str())
+            .unwrap_or(crate::types::DEFAULT_EMBEDDING_MODEL)
+            .to_string();
+        let default_embedding_provider = self
+            .metadata
+            .get("default_embedding_provider")
+            .and_then(|v| v.as_str())
+            .unwrap_or(crate::types::DEFAULT_EMBEDDING_PROVIDER)
+            .to_string();
+        let default_embedding_dimension = self
+            .metadata
+            .get("default_embedding_dimension")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(crate::types::DEFAULT_EMBEDDING_DIMENSION as u64) as usize;
+
         Tenant {
             tenant_id: self.tenant_id,
             name: self.name,
@@ -825,6 +858,11 @@ impl TenantRow {
             created_at: self.created_at,
             updated_at: self.updated_at,
             metadata: HashMap::new(),
+            default_llm_model,
+            default_llm_provider,
+            default_embedding_model,
+            default_embedding_provider,
+            default_embedding_dimension,
         }
     }
 }

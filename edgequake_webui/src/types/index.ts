@@ -368,6 +368,48 @@ export interface Tenant {
   is_active?: boolean;
   /** Maximum workspaces allowed for this tenant. */
   max_workspaces?: number;
+
+  // === Default LLM Configuration (SPEC-032) ===
+
+  /**
+   * Default LLM model for new workspaces (e.g., "gemma3:12b", "gpt-4o-mini").
+   * @implements SPEC-032: Tenant-level LLM configuration defaults
+   */
+  default_llm_model?: string;
+  /**
+   * Default LLM provider for new workspaces (e.g., "ollama", "openai", "lmstudio").
+   * @implements SPEC-032: Tenant-level LLM configuration defaults
+   */
+  default_llm_provider?: string;
+  /**
+   * Fully qualified default LLM model ID (provider/model format).
+   * @implements SPEC-032: Combined model ID format
+   */
+  default_llm_full_id?: string;
+
+  // === Default Embedding Configuration (SPEC-032) ===
+
+  /**
+   * Default embedding model for new workspaces (e.g., "text-embedding-3-small").
+   * @implements SPEC-032: Tenant-level embedding configuration defaults
+   */
+  default_embedding_model?: string;
+  /**
+   * Default embedding provider for new workspaces (e.g., "openai", "ollama", "lmstudio").
+   * @implements SPEC-032: Tenant-level embedding configuration defaults
+   */
+  default_embedding_provider?: string;
+  /**
+   * Default embedding dimension for new workspaces (e.g., 1536 for OpenAI, 768 for Ollama).
+   * @implements SPEC-032: Tenant-level embedding configuration defaults
+   */
+  default_embedding_dimension?: number;
+  /**
+   * Fully qualified default embedding model ID (provider/model format).
+   * @implements SPEC-032: Combined model ID format
+   */
+  default_embedding_full_id?: string;
+
   /** Creation timestamp. */
   created_at: string;
   /** Last update timestamp. */

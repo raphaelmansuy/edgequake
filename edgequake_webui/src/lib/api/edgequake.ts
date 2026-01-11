@@ -133,10 +133,45 @@ export async function getTenant(tenantId: string): Promise<Tenant> {
   return api.get<Tenant>(`/tenants/${tenantId}`);
 }
 
-export async function createTenant(data: {
+/**
+ * Request to create a new tenant with optional model configuration.
+ *
+ * @implements SPEC-032: Tenant-level LLM and embedding model defaults
+ */
+export interface CreateTenantRequest {
+  /** Tenant display name (required). */
   name: string;
+  /** Optional description. */
   description?: string;
-}): Promise<Tenant> {
+  /** Subscription plan (free, basic, pro, enterprise). */
+  plan?: string;
+
+  // === Default LLM Configuration (SPEC-032) ===
+
+  /** Default LLM model for new workspaces (e.g., "gemma3:12b", "gpt-4o-mini"). */
+  default_llm_model?: string;
+  /** Default LLM provider for new workspaces ("ollama", "openai", "lmstudio"). */
+  default_llm_provider?: string;
+
+  // === Default Embedding Configuration (SPEC-032) ===
+
+  /** Default embedding model for new workspaces (e.g., "text-embedding-3-small"). */
+  default_embedding_model?: string;
+  /** Default embedding provider for new workspaces ("openai", "ollama", "lmstudio"). */
+  default_embedding_provider?: string;
+  /** Default embedding dimension for new workspaces (e.g., 1536, 768). */
+  default_embedding_dimension?: number;
+}
+
+/**
+ * Create a new tenant with optional default model configuration.
+ *
+ * @implements SPEC-032: Tenant-level LLM and embedding model defaults
+ *
+ * @param data - Tenant creation request with optional model config
+ * @returns Created tenant
+ */
+export async function createTenant(data: CreateTenantRequest): Promise<Tenant> {
   return api.post<Tenant>("/tenants", data);
 }
 

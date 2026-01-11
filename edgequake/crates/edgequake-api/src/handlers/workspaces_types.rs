@@ -12,6 +12,26 @@ use uuid::Uuid;
 // ============================================================================
 
 /// Request to create a new tenant.
+///
+/// ## Model Configuration (SPEC-032)
+///
+/// When creating a tenant, you can specify default LLM and embedding models
+/// that will be inherited by all new workspaces within this tenant.
+///
+/// **LLM Examples (for knowledge graph generation, summarization):**
+/// - OpenAI: `"gpt-4o-mini"`, `"gpt-4o"`
+/// - Ollama: `"gemma3:12b"`, `"llama3.2"`
+/// - LM Studio: `"gemma-3n-e4b-it-mlxmodel"`
+///
+/// **Embedding Examples:**
+/// - OpenAI: `"text-embedding-3-small"` (1536 dims), `"text-embedding-3-large"` (3072 dims)
+/// - Ollama: `"embeddinggemma:latest"` (768 dims), `"nomic-embed-text"` (768 dims)
+/// - LM Studio: `"nomic-ai/nomic-embed-text-v1.5"` (768 dims)
+///
+/// **Model ID Format:**
+/// Models can be specified as `model_name` or `provider/model_name`:
+/// - `"gemma3:12b"` - auto-detects provider as "ollama"
+/// - `"ollama/gemma3:12b"` - explicit provider
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CreateTenantRequest {
     /// Tenant name.
@@ -22,6 +42,40 @@ pub struct CreateTenantRequest {
     pub description: Option<String>,
     /// Plan type (free, basic, pro, enterprise).
     pub plan: Option<String>,
+
+    // === Default LLM Configuration (SPEC-032) ===
+
+    /// Default LLM model for new workspaces (e.g., "gemma3:12b", "gpt-4o-mini").
+    /// Workspaces inherit this if not explicitly configured.
+    /// If not provided, uses server default from models.toml or EDGEQUAKE_DEFAULT_LLM_MODEL.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_llm_model: Option<String>,
+
+    /// Default LLM provider for new workspaces ("openai", "ollama", "lmstudio").
+    /// Workspaces inherit this if not explicitly configured.
+    /// If not provided, auto-detected from model name or uses EDGEQUAKE_DEFAULT_LLM_PROVIDER.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_llm_provider: Option<String>,
+
+    // === Default Embedding Configuration (SPEC-032) ===
+
+    /// Default embedding model for new workspaces (e.g., "text-embedding-3-small").
+    /// Workspaces inherit this if not explicitly configured.
+    /// If not provided, uses server default from models.toml or EDGEQUAKE_DEFAULT_EMBEDDING_MODEL.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_embedding_model: Option<String>,
+
+    /// Default embedding provider for new workspaces ("openai", "ollama", "lmstudio").
+    /// Workspaces inherit this if not explicitly configured.
+    /// If not provided, auto-detected from model name or uses EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_embedding_provider: Option<String>,
+
+    /// Default embedding dimension for new workspaces (e.g., 1536 for OpenAI, 768 for Ollama).
+    /// Workspaces inherit this if not explicitly configured.
+    /// If not provided, auto-detected from model name or uses EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_embedding_dimension: Option<usize>,
 }
 
 /// Request to update a tenant.
@@ -133,6 +187,8 @@ pub struct UpdateWorkspaceApiRequest {
 // ============================================================================
 
 /// Tenant response DTO.
+///
+/// Includes default model configuration (SPEC-032) for new workspaces.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct TenantResponse {
     /// Tenant ID.
@@ -147,6 +203,27 @@ pub struct TenantResponse {
     pub is_active: bool,
     /// Maximum workspaces allowed.
     pub max_workspaces: usize,
+
+    // === Default LLM Configuration (SPEC-032) ===
+
+    /// Default LLM model for new workspaces.
+    pub default_llm_model: String,
+    /// Default LLM provider for new workspaces.
+    pub default_llm_provider: String,
+    /// Fully qualified default LLM model ID (provider/model format).
+    pub default_llm_full_id: String,
+
+    // === Default Embedding Configuration (SPEC-032) ===
+
+    /// Default embedding model for new workspaces.
+    pub default_embedding_model: String,
+    /// Default embedding provider for new workspaces.
+    pub default_embedding_provider: String,
+    /// Default embedding dimension for new workspaces.
+    pub default_embedding_dimension: usize,
+    /// Fully qualified default embedding model ID (provider/model format).
+    pub default_embedding_full_id: String,
+
     /// Creation timestamp.
     pub created_at: String,
     /// Last update timestamp.
@@ -339,11 +416,18 @@ mod tests {
             slug: Some("acme".to_string()),
             description: Some("Test tenant".to_string()),
             plan: Some("pro".to_string()),
+            default_llm_model: Some("gemma3:12b".to_string()),
+            default_llm_provider: Some("ollama".to_string()),
+            default_embedding_model: Some("text-embedding-3-small".to_string()),
+            default_embedding_provider: Some("openai".to_string()),
+            default_embedding_dimension: Some(1536),
         };
 
         let json = serde_json::to_string(&req).unwrap();
         assert!(json.contains("Acme Corp"));
         assert!(json.contains("acme"));
+        assert!(json.contains("gemma3:12b"));
+        assert!(json.contains("ollama"));
     }
 
     #[test]
@@ -405,6 +489,13 @@ mod tests {
             plan: "free".to_string(),
             is_active: true,
             max_workspaces: 5,
+            default_llm_model: "gemma3:12b".to_string(),
+            default_llm_provider: "ollama".to_string(),
+            default_llm_full_id: "ollama/gemma3:12b".to_string(),
+            default_embedding_model: "text-embedding-3-small".to_string(),
+            default_embedding_provider: "openai".to_string(),
+            default_embedding_dimension: 1536,
+            default_embedding_full_id: "openai/text-embedding-3-small".to_string(),
             created_at: "2024-01-01T00:00:00Z".to_string(),
             updated_at: "2024-01-01T00:00:00Z".to_string(),
         };
@@ -412,6 +503,8 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("Test Tenant"));
         assert!(json.contains("\"max_workspaces\":5"));
+        assert!(json.contains("\"default_llm_model\":\"gemma3:12b\""));
+        assert!(json.contains("\"default_embedding_dimension\":1536"));
     }
 
     #[test]

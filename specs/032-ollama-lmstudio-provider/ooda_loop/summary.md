@@ -22,6 +22,7 @@
 | **10**    | **Act** | ✅ **COMPLETE** | 2025-01-30 | **WebUI LLMModelSelector for workspace creation**          |
 | **11**    | **Act** | ✅ **COMPLETE** | 2025-01-30 | **Workspace-specific LLM in ingestion pipeline**           |
 | 15-16     | All     | ✅ COMPLETE     | 2025-01-11 | EmbeddingProviderFactory (done in 13)                      |
+| **14**    | **All** | ✅ **COMPLETE** | 2026-01-11 | **Tenant-level LLM/embedding configuration** (~430 LOC)    |
 | 17-18     | All     | ⏳ PLANNED      | TBD        | WebUI provider selector                                    |
 | 19-20     | All     | ⏳ PLANNED      | TBD        | Workspace creation embedding UI                            |
 | 21-25     | All     | ⏳ PLANNED      | TBD        | Vector database rebuild logic                              |
@@ -34,6 +35,7 @@
 
 | Commit  | OODA  | Description                                       |
 | ------- | ----- | ------------------------------------------------- |
+| TBD     | 14    | Tenant-level LLM/embedding configuration          |
 | TBD     | 10-11 | WebUI LLMModelSelector + ingestion integration    |
 | b4d63b8 | 13    | Workspace-specific embedding in query process     |
 | 794a3c7 | 12+14 | Provider registry API and list providers endpoint |
