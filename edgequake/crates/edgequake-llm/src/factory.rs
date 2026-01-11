@@ -316,6 +316,7 @@ impl ProviderFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
     fn test_provider_type_parsing() {
@@ -354,6 +355,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_from_env_fallback_to_mock() {
         // Clear all provider environment variables
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
@@ -368,6 +370,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_explicit_provider_env() {
         // Clean up first to avoid interference from other tests
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
@@ -384,6 +387,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_lmstudio_auto_detection() {
         // Clean up first to avoid interference from other tests
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
@@ -402,6 +406,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_lmstudio_model_detection() {
         // Clean up first to avoid interference from other tests
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
@@ -429,6 +434,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_invalid_provider_env() {
         // Clean up first to avoid interference from other tests
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
@@ -448,6 +454,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_openai_creation_requires_api_key() {
         // Clean up first to avoid interference from other tests
         std::env::remove_var("OPENAI_API_KEY");
@@ -463,6 +470,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_embedding_dimension_detection() {
         // Clean up first to avoid interference from other tests
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
@@ -479,10 +487,13 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_provider_priority_ollama_over_lmstudio() {
         // Clean up first
         std::env::remove_var("EDGEQUAKE_LLM_PROVIDER");
         std::env::remove_var("OPENAI_API_KEY");
+        std::env::remove_var("LMSTUDIO_HOST");
+        std::env::remove_var("LMSTUDIO_MODEL");
 
         // Set both Ollama and LM Studio - Ollama should win
         std::env::set_var("OLLAMA_HOST", "http://localhost:11434");
