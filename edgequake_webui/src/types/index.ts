@@ -142,6 +142,14 @@ export interface DocumentLineage {
   avg_chunk_size?: number;
   /** Processing duration in milliseconds. */
   processing_duration_ms?: number;
+  /** Entity extraction duration in milliseconds. */
+  entity_extraction_ms?: number;
+  /** Relationship extraction duration in milliseconds. */
+  relationship_extraction_ms?: number;
+  /** Graph indexing duration in milliseconds. */
+  graph_indexing_ms?: number;
+  /** Vector embedding duration in milliseconds. */
+  vector_embedding_ms?: number;
 }
 
 /** Status counts for document filtering. */
@@ -581,6 +589,11 @@ export interface QuerySettings {
   enableRerank: boolean;
   /** Top K results to keep after reranking */
   rerankTopK: number;
+  /**
+   * LLM provider ID to use for queries (e.g., "openai", "ollama", "lmstudio").
+   * @implements SPEC-032: Provider selection in query interface
+   */
+  provider?: string;
 }
 
 export interface IngestionSettings {

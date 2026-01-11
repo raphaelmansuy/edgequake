@@ -2,7 +2,7 @@
 
 **Project:** EdgeQuake Ollama/LM Studio Provider Integration  
 **Spec:** [032-ollama-lmstudio-provider.md](../032-ollama-lmstudio-provider.md)  
-**Date Range:** 2026-01-11  
+**Date Range:** 2025-01-10 to 2025-01-11  
 **Total Iterations Target:** 50
 
 ---
@@ -11,22 +11,92 @@
 
 | Iteration | Phase | Status | Date | Summary |
 |-----------|-------|--------|------|---------|
-| 01-05 | Previous | ✅ COMPLETE | 2025-01-10 | Backend provider infrastructure + status UI |
-| **06** | **Observe** | ✅ **COMPLETE** | 2026-01-11 | **Gap analysis & mission alignment** |
-| **06** | **Orient** | ✅ **COMPLETE** | 2026-01-11 | **Architecture analysis & design** |
-| **06** | **Decide** | ✅ **COMPLETE** | 2026-01-11 | **Implementation plan & decisions** |
-| **06** | **Act** | 🚧 **DOCUMENTED** | 2026-01-11 | **Workspace schema design (code deferred to 07)** |
-| 07-08 | All Phases | ⏳ PLANNED | TBD | Workspace schema migration + implementation |
-| 09-12 | All Phases | ⏳ PLANNED | TBD | LM Studio dedicated provider |
-| 13-15 | All Phases | ⏳ PLANNED | TBD | Provider registry service |
-| 16-20 | All Phases | ⏳ PLANNED | TBD | Workspace-aware query engine |
-| 21-25 | All Phases | ⏳ PLANNED | TBD | Vector database rebuild logic |
-| 26-30 | All Phases | ⏳ PLANNED | TBD | WebUI provider selector |
-| 31-35 | All Phases | ⏳ PLANNED | TBD | Workspace creation embedding UI |
-| 36-40 | All Phases | ⏳ PLANNED | TBD | Edge cases & error handling |
-| 41-45 | All Phases | ⏳ PLANNED | TBD | Storage backend compatibility tests |
-| 46-48 | All Phases | ⏳ PLANNED | TBD | Documentation & setup guides |
-| 49-50 | All Phases | ⏳ PLANNED | TBD | Final non-regression validation |
+| 01-05 | All | ✅ COMPLETE | 2025-01-10 | Backend provider infrastructure + status UI |
+| 06 | All | ✅ COMPLETE | 2025-01-11 | Gap analysis & architecture design |
+| **07** | **Act** | ✅ **COMPLETE** | 2025-01-11 | **Workspace embedding schema** (commit 845d7c6) |
+| **08-10** | **Act** | ✅ **COMPLETE** | 2025-01-11 | **LM Studio dedicated provider** (commit 7001fa9) |
+| **11** | **Act** | ✅ **COMPLETE** | 2025-01-11 | **LM Studio auto-detection** (commit c33ec26) |
+| **12+14** | **Act** | ✅ **COMPLETE** | 2025-01-11 | **Provider registry API** (commit 794a3c7) |
+| **13** | **Act** | ✅ **COMPLETE** | 2025-01-11 | **Workspace-specific embedding in query** (commit b4d63b8) |
+| 15-16 | All | ✅ COMPLETE | 2025-01-11 | EmbeddingProviderFactory (done in 13) |
+| 17-18 | All | ⏳ PLANNED | TBD | WebUI provider selector |
+| 19-20 | All | ⏳ PLANNED | TBD | Workspace creation embedding UI |
+| 21-25 | All | ⏳ PLANNED | TBD | Vector database rebuild logic |
+| 26-35 | All | ⏳ PLANNED | TBD | E2E tests & edge cases |
+| 36-50 | All | ⏳ PLANNED | TBD | Documentation & non-regression validation |
+
+---
+
+## Recent Commits
+
+| Commit | OODA | Description |
+|--------|------|-------------|
+| b4d63b8 | 13 | Workspace-specific embedding in query process |
+| 794a3c7 | 12+14 | Provider registry API and list providers endpoint |
+| c33ec26 | 11 | LM Studio auto-detection in provider factory |
+| 7001fa9 | 08-10 | Dedicated LMStudioProvider implementation |
+| 845d7c6 | 07 | Workspace-level embedding configuration |
+
+---
+
+## Iteration 07-13 Details (Backend Provider Integration)
+
+### Iteration 07: Workspace Embedding Schema ✅ COMPLETE
+
+Extended `Workspace` struct with embedding configuration:
+- `embedding_model: String`
+- `embedding_provider: String`
+- `embedding_dimension: usize`
+
+Added helper functions:
+- `default_embedding_config()`
+- `detect_provider_from_model()`
+- `detect_dimension_from_model()`
+
+### Iteration 08-10: LM Studio Provider ✅ COMPLETE
+
+Created dedicated `LMStudioProvider` (~590 LOC):
+- Builder pattern with `LMStudioProviderBuilder`
+- `from_env()` reads `LMSTUDIO_HOST`, `LMSTUDIO_MODEL`, `LMSTUDIO_EMBEDDING_MODEL`
+- Implements `LLMProvider` and `EmbeddingProvider` traits
+- Default: http://localhost:1234, gemma2-9b-it, nomic-embed-text-v1.5, 768 dim
+
+### Iteration 11: LM Studio Auto-Detection ✅ COMPLETE
+
+Updated `ProviderFactory::from_env()` with detection priority:
+1. Ollama (OLLAMA_HOST or OLLAMA_MODEL)
+2. LM Studio (LMSTUDIO_HOST or LMSTUDIO_MODEL)
+3. OpenAI (OPENAI_API_KEY)
+4. Mock (fallback)
+
+### Iteration 12+14: Provider Registry API ✅ COMPLETE
+
+Added `/api/v1/settings/providers` endpoint:
+- Returns `AvailableProvidersResponse` with all supported providers
+- Includes LLM providers, embedding providers, config requirements
+- Added `ProviderInfo`, `ConfigRequirement`, `DefaultModels` types
+
+### Iteration 13: Workspace-Specific Embedding in Query ✅ COMPLETE
+
+**Key Implementation:**
+- Added `ProviderFactory::create_embedding_provider()` (87 LOC)
+- Added `SOTAQueryEngine::query_with_embedding_provider()` (179 LOC)
+- Updated `execute_query` handler to use workspace embedding config (141 LOC)
+- Re-exported `EmbeddingProvider` from `edgequake_query`
+
+**Architecture:**
+```
+Query Request → TenantContext.workspace_id?
+                        ↓
+        get_workspace_embedding_provider()
+                        ↓
+        ┌─Some(provider)─┐   ┌─None/Err─┐
+        ↓                ↓   ↓
+query_with_embedding_provider()  query()
+        ↓                       ↓
+   Workspace-specific      Global embedding
+   embedding used
+```
 
 ---
 

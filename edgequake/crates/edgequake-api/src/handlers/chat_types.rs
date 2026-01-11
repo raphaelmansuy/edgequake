@@ -54,6 +54,13 @@ pub struct ChatCompletionRequest {
     /// Parent message ID for threading.
     #[serde(default)]
     pub parent_id: Option<Uuid>,
+
+    /// LLM provider ID to use for this query (e.g., "openai", "ollama", "lmstudio").
+    /// If not provided, uses the workspace or server default.
+    ///
+    /// @implements SPEC-032: Provider selection in query interface
+    #[serde(default)]
+    pub provider: Option<String>,
 }
 
 // ============================================================================

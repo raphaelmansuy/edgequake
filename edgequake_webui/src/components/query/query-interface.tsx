@@ -80,6 +80,7 @@ import { toast } from 'sonner';
 import { ChatMessage } from './chat-message';
 import { ConversationHistoryPanelV2 } from './conversation-history-panel-v2';
 import { MobileHistoryPanel } from './mobile-history-panel';
+import { ProviderModelSelector } from './provider-model-selector';
 import { QueryModeSelector } from './query-mode-selector';
 import { parseCOTContent } from './thinking-display';
 
@@ -593,6 +594,7 @@ export function QueryInterface() {
       let assistantMessageId: string | undefined;
 
       // Use the unified chat API - server handles message persistence
+      // SPEC-032: Pass selected provider for query
       for await (const chunk of chatCompletionStream({
         conversation_id: conversationId || undefined,
         message: queryText,
@@ -601,6 +603,7 @@ export function QueryInterface() {
         temperature: querySettings.temperature,
         top_k: querySettings.topK,
         stream: true,
+        provider: querySettings.provider,
       })) {
         if (abortControllerRef.current?.signal.aborted) {
           break;
@@ -764,6 +767,7 @@ export function QueryInterface() {
     } else {
       // Non-streaming: use the unified chat API
       // Server handles conversation creation and message persistence
+      // SPEC-032: Pass selected provider for query
       setStreamingState('generating');
       try {
         const response = await chatCompletion({
@@ -774,6 +778,7 @@ export function QueryInterface() {
           temperature: querySettings.temperature,
           top_k: querySettings.topK,
           stream: false,
+          provider: querySettings.provider,
         });
 
         // Update active conversation if a new one was created
@@ -898,6 +903,13 @@ export function QueryInterface() {
               <Plus className="h-4 w-4" />
               {t('query.newConversation', 'New')}
             </Button>
+
+            {/* Provider Selector (SPEC-032) */}
+            <ProviderModelSelector
+              value={querySettings.provider}
+              onChange={(provider) => setQuerySettings({ provider })}
+              disabled={isLoading}
+            />
 
             {/* Mode Selector */}
             <QueryModeSelector

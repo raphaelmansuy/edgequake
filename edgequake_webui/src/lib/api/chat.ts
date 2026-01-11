@@ -45,6 +45,11 @@ export interface ChatCompletionRequest {
   top_k?: number;
   /** Parent message ID for threading. */
   parent_id?: string;
+  /**
+   * LLM provider ID to use for this query.
+   * @implements SPEC-032: Provider selection in query interface
+   */
+  provider?: string;
 }
 
 /**
