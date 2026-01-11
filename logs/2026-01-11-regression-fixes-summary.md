@@ -13,15 +13,19 @@ Fixed two critical regressions preventing proper LLM provider selection and erro
 ## Regression 1: Ollama "Model 'default' Not Found"
 
 ### Problem
+
 When provider was specified without a model suffix (e.g., `provider=ollama`), the system was using the literal string "default" as the model name, causing Ollama to return: "model 'default' not found".
 
 ### Root Cause
+
 In [chat.rs](edgequake/crates/edgequake-api/src/handlers/chat.rs), when splitting `provider_full_id` by `:` returned no model part, the code set `model = "default"` instead of resolving the provider's actual default model.
 
 ### Solution
+
 **Commit:** 93a2d5f
 
 1. Added `default_model_for_provider()` helper in [factory.rs](edgequake/crates/edgequake-llm/src/factory.rs):
+
    ```rust
    pub fn default_model_for_provider(provider_name: &str) -> &'static str {
        match provider_name.to_lowercase().as_str() {
@@ -43,6 +47,7 @@ In [chat.rs](edgequake/crates/edgequake-api/src/handlers/chat.rs), when splittin
    ```
 
 ### Verification
+
 - ✅ Build succeeded
 - ✅ 397 tests passed
 - ✅ Live testing confirmed `provider=ollama` → `llm_model=gemma3:12b`
@@ -52,15 +57,19 @@ In [chat.rs](edgequake/crates/edgequake-api/src/handlers/chat.rs), when splittin
 ## Regression 2: OpenAI "API Key Not Provided" Cryptic Error
 
 ### Problem
+
 When user selected OpenAI provider without valid API key (or with `OPENAI_API_KEY=""`), the system returned a confusing error: "You didn't provide an API key. You need to provide your API key in an Authorization header..."
 
 ### Root Cause
+
 OpenAI provider was being created successfully even with empty/invalid API keys, then failing at API call time with unhelpful error messages.
 
 ### Solution
+
 **Commits:** 4dcf46f, 2ae337f
 
 1. Enhanced validation in `create_llm_provider()` [factory.rs](edgequake/crates/edgequake-llm/src/factory.rs#L357-L364):
+
    ```rust
    let api_key = std::env::var("OPENAI_API_KEY").map_err(|_| {
        LlmError::ConfigError(
@@ -78,6 +87,7 @@ OpenAI provider was being created successfully even with empty/invalid API keys,
 2. Applied identical validation to `create_embedding_provider()` for consistency [factory.rs](edgequake/crates/edgequake-llm/src/factory.rs#L278-L293).
 
 ### Key Improvements
+
 - ✅ Fails fast at provider creation (not API call time)
 - ✅ Actionable error messages suggest alternatives
 - ✅ Provides link to get API key
@@ -88,7 +98,9 @@ OpenAI provider was being created successfully even with empty/invalid API keys,
 ## Technical Details
 
 ### Files Modified
+
 1. [`edgequake/crates/edgequake-llm/src/factory.rs`](edgequake/crates/edgequake-llm/src/factory.rs)
+
    - Added `default_model_for_provider()` helper
    - Enhanced OpenAI validation in `create_llm_provider()`
    - Enhanced OpenAI validation in `create_embedding_provider()`
@@ -98,6 +110,7 @@ OpenAI provider was being created successfully even with empty/invalid API keys,
    - Fixed provider/model parsing in non-streaming handler (~line 375)
 
 ### Test Results
+
 - Build: ✅ Success
 - Tests: ✅ 397 passed, 0 failed
 - Clippy: ✅ Clean
@@ -107,6 +120,7 @@ OpenAI provider was being created successfully even with empty/invalid API keys,
 ## Impact
 
 ### User Experience
+
 - **Before:** "model 'default' not found" when using Ollama without explicit model
 - **After:** Automatically uses `gemma3:12b` for Ollama
 
@@ -114,6 +128,7 @@ OpenAI provider was being created successfully even with empty/invalid API keys,
 - **After:** Clear message with alternatives and link to get API key
 
 ### System Behavior
+
 - Provider-only requests now correctly resolve to provider-specific default models
 - Invalid provider configurations fail early with helpful guidance
 - Error messages guide users toward working alternatives
