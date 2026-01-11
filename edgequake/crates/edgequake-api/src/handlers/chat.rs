@@ -656,20 +656,51 @@ pub async fn chat_completion_stream(
             engine_request = engine_request.with_workspace_id(ws_id.to_string());
         }
 
-        // SPEC-032: Apply provider/model override from request (streaming handler)
-        if let Some(ref provider) = request_provider {
-            if !provider.is_empty() {
-                engine_request = engine_request.with_llm_full_id(provider);
-                debug!(provider = %provider, "Using LLM provider override in streaming");
+        // SPEC-032: Create LLM provider override from request (streaming handler)
+        // Format: "provider/model" (e.g., "ollama/gemma3:12b") or just "provider"
+        let llm_override = if let Some(ref provider_full_id) = request_provider {
+            if !provider_full_id.is_empty() {
+                // Parse "provider/model" format
+                let (provider_name, model_name) = if let Some((p, m)) = provider_full_id.split_once('/') {
+                    (p.to_string(), m.to_string())
+                } else {
+                    // Just provider name, use default model
+                    (provider_full_id.clone(), "default".to_string())
+                };
+
+                // Try to create the LLM provider
+                match ProviderFactory::create_llm_provider(&provider_name, &model_name) {
+                    Ok(llm) => {
+                        debug!(provider = %provider_name, model = %model_name, "Created LLM provider override for streaming");
+                        Some(llm)
+                    }
+                    Err(e) => {
+                        warn!(provider = %provider_name, error = %e, "Failed to create LLM provider for streaming, using default");
+                        None
+                    }
+                }
+            } else {
+                None
             }
-        }
+        } else {
+            None
+        };
 
         // Execute streaming query with context using SOTA engine (LightRAG-style)
-        match state_clone
-            .sota_engine
-            .query_stream_with_context(engine_request)
-            .await
-        {
+        // SPEC-032: Use query_stream_with_context_and_llm if we have an LLM override
+        let stream_result = if let Some(ref llm) = llm_override {
+            state_clone
+                .sota_engine
+                .query_stream_with_context_and_llm(engine_request, llm.clone())
+                .await
+        } else {
+            state_clone
+                .sota_engine
+                .query_stream_with_context(engine_request)
+                .await
+        };
+
+        match stream_result {
             Ok((context, _mode, mut stream)) => {
                 // Send context event BEFORE streaming tokens (for source citations)
                 let sources = build_sources(&context);

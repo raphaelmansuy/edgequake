@@ -1204,6 +1204,64 @@ impl SOTAQueryEngine {
         Ok((context, mode, stream))
     }
 
+    /// Execute a streaming query with an LLM provider override.
+    ///
+    /// This method is used when the user selects a different LLM provider/model
+    /// in the query interface. The override provider is used for streaming the answer.
+    ///
+    /// @implements SPEC-032: Provider selection at query time (streaming)
+    ///
+    /// # Arguments
+    ///
+    /// * `request` - The query request
+    /// * `llm_provider` - The LLM provider to use for streaming the answer
+    ///
+    /// # Returns
+    ///
+    /// - QueryContext: The retrieved entities, relationships, and chunks
+    /// - QueryMode: The mode used for retrieval
+    /// - BoxStream: The LLM response stream using the override provider
+    pub async fn query_stream_with_context_and_llm(
+        &self,
+        request: crate::engine::QueryRequest,
+        llm_provider: std::sync::Arc<dyn crate::LLMProvider>,
+    ) -> Result<(
+        QueryContext,
+        QueryMode,
+        futures::stream::BoxStream<'static, Result<String>>,
+    )> {
+        use futures::StreamExt;
+
+        // Step 1: Get context (this handles keywords, mode selection, retrieval, truncation)
+        let (context, mode) = self.get_context(&request).await?;
+
+        // Step 2: Handle empty context
+        if context.is_empty() {
+            return Ok((
+                context,
+                mode,
+                futures::stream::once(async {
+                    Ok("I'm sorry, but I couldn't find any relevant information in my knowledge base to answer your question.".to_string())
+                })
+                .boxed(),
+            ));
+        }
+
+        // Step 3: Build prompt and get stream using OVERRIDE LLM provider
+        let prompt = self.build_prompt(&request.query, &context);
+
+        // SPEC-032: Use the override LLM provider for streaming
+        let stream = llm_provider
+            .stream(&prompt)
+            .await
+            .map(|stream| stream.map(|res| res.map_err(QueryError::from)).boxed())
+            .map_err(QueryError::from)?;
+
+        tracing::debug!("Using LLM provider override for streaming response");
+
+        Ok((context, mode, stream))
+    }
+
     /// Get the retrieved context without generating an answer.
     ///
     /// Useful for streaming scenarios where context is sent first.
