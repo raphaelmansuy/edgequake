@@ -23,13 +23,13 @@
 
 ## Commits Made
 
-| Commit  | OODA  | Message                                            |
-| ------- | ----- | -------------------------------------------------- |
-| f523d0a | 17    | feat: Add streaming LLM provider override          |
-| 52d575b | 22    | feat: Add WebUI rebuild embeddings button          |
-| d752e72 | 23    | docs: Update OODA summary with iterations 18-22    |
-| ae82d9c | 25-26 | docs: Update implementation complete + format      |
-| dd13a98 | final | docs: Final summary update - all iterations done   |
+| Commit  | OODA  | Message                                          |
+| ------- | ----- | ------------------------------------------------ |
+| f523d0a | 17    | feat: Add streaming LLM provider override        |
+| 52d575b | 22    | feat: Add WebUI rebuild embeddings button        |
+| d752e72 | 23    | docs: Update OODA summary with iterations 18-22  |
+| ae82d9c | 25-26 | docs: Update implementation complete + format    |
+| dd13a98 | final | docs: Final summary update - all iterations done |
 
 ## Decisions
 
