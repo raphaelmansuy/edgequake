@@ -19,12 +19,17 @@
 # =============================================================================
 # Define which provider and model to use by default for LLM and embedding tasks.
 # These are used when no explicit provider/model is specified in API calls.
+#
+# Supported default configurations:
+#   - OpenAI: gpt-4o-mini (LLM), text-embedding-3-small (embedding)
+#   - Ollama: gemma3:12b (LLM), embeddinggemma (embedding)
+#   - LM Studio: gemma-3n-e4b-it (LLM), text-embedding-nomic-embed-text-v1.5 (embedding)
 
 [defaults]
 llm_provider = "ollama"              # Default LLM provider
-llm_model = "llama3.2:latest"        # Default LLM model
+llm_model = "gemma3:12b"             # Default LLM model (128K context, vision support)
 embedding_provider = "ollama"        # Default embedding provider
-embedding_model = "nomic-embed-text" # Default embedding model
+embedding_model = "embeddinggemma"   # Default embedding model (768 dimensions, 2K context)
 
 # =============================================================================
 # OPENAI PROVIDER
@@ -425,18 +430,118 @@ output_per_1k = 0.0
 embedding_per_1k = 0.0
 image_per_unit = 0.0
 
+# --- Gemma 3 Models (Google) ---
+# Verified from: https://ollama.com/library/gemma3
+
+[[providers.models]]
+name = "gemma3:12b"
+display_name = "Gemma 3 12B"
+model_type = "multimodal"
+description = "Google's multimodal Gemma 3 (12B params, 128K context, vision support)"
+deprecated = false
+tags = ["recommended", "multimodal", "vision", "local", "free"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 8192
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gemma3:4b"
+display_name = "Gemma 3 4B"
+model_type = "multimodal"
+description = "Google's lightweight multimodal Gemma 3 (4B params, 128K context)"
+deprecated = false
+tags = ["multimodal", "vision", "local", "free", "lightweight"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 8192
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gemma3:27b"
+display_name = "Gemma 3 27B"
+model_type = "multimodal"
+description = "Google's largest multimodal Gemma 3 (27B params, 128K context)"
+deprecated = false
+tags = ["multimodal", "vision", "local", "free", "large"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 8192
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
 # --- Ollama Embedding Models ---
 
 [[providers.models]]
 name = "nomic-embed-text"
 display_name = "Nomic Embed Text"
 model_type = "embedding"
-description = "High-quality 768-dim embeddings, excellent for RAG"
+description = "High-quality 768-dim embeddings, surpasses OpenAI ada-002"
 deprecated = false
-tags = ["recommended", "free", "local"]
+tags = ["free", "local"]
 
 [providers.models.capabilities]
-context_length = 8192
+context_length = 2048
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 768
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# Verified from: https://huggingface.co/google/embeddinggemma-300m
+[[providers.models]]
+name = "embeddinggemma"
+display_name = "EmbeddingGemma"
+model_type = "embedding"
+description = "Google's 300M param embedding model (768 dims, 100+ languages, MRL support)"
+deprecated = false
+tags = ["recommended", "free", "local", "multilingual"]
+
+[providers.models.capabilities]
+context_length = 2048
 max_output_tokens = 0
 supports_vision = false
 supports_function_calling = false
@@ -538,11 +643,61 @@ api_base = "http://localhost:1234/v1"
 api_key_env = ""
 enabled = true
 priority = 25
-description = "Local models via LM Studio - GUI-based model management"
+description = "Local models via LM Studio - GUI-based model management with OpenAI-compatible API"
 
 # --- LM Studio Models ---
 # Note: LM Studio dynamically loads models. These are common defaults.
 # The actual available models depend on what you have loaded in LM Studio.
+# LM Studio supports GGUF (llama.cpp) and MLX models on Apple Silicon.
+
+# Verified from: https://huggingface.co/google/gemma-3n-E4B-it
+[[providers.models]]
+name = "gemma-3n-e4b-it"
+display_name = "Gemma 3n E4B"
+model_type = "multimodal"
+description = "Google's efficient Gemma 3n (8B total, 4B effective, vision+audio support)"
+deprecated = false
+tags = ["recommended", "local", "multimodal", "vision", "audio", "efficient"]
+
+[providers.models.capabilities]
+context_length = 32000
+max_output_tokens = 32000
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gemma-3n-e2b-it"
+display_name = "Gemma 3n E2B"
+model_type = "multimodal"
+description = "Google's compact Gemma 3n (2B effective, vision+audio support)"
+deprecated = false
+tags = ["local", "multimodal", "vision", "audio", "compact"]
+
+[providers.models.capabilities]
+context_length = 32000
+max_output_tokens = 32000
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
 
 [[providers.models]]
 name = "default"
@@ -577,7 +732,7 @@ deprecated = false
 tags = ["local", "embedding"]
 
 [providers.models.capabilities]
-context_length = 8192
+context_length = 2048
 max_output_tokens = 0
 supports_vision = false
 supports_function_calling = false
@@ -585,6 +740,30 @@ supports_json_mode = false
 supports_streaming = false
 supports_system_message = false
 embedding_dimension = 768
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "text-embedding-ada-002"
+display_name = "Text Embedding Ada 002 (LM Studio)"
+model_type = "embedding"
+description = "OpenAI-compatible embedding model in LM Studio (1536 dimensions)"
+deprecated = false
+tags = ["local", "embedding", "openai-compatible"]
+
+[providers.models.capabilities]
+context_length = 8191
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 1536
 
 [providers.models.cost]
 input_per_1k = 0.0
