@@ -6,6 +6,7 @@
 ## Problem
 
 User encountered ingestion error with vector dimension mismatch:
+
 ```
 Storage error: Database error: Vector query failed: error returned from database: different vector dimensions 1536 and 768
 ```
@@ -21,15 +22,18 @@ The system was configured to use Ollama with embeddinggemma (768 dimensions) but
 ## Resolution (OODA 1-50)
 
 ### OODA 1-5: Diagnosis
+
 - Identified stale process on port 8080 (PID 34824)
 - Confirmed PostgreSQL running in Docker
 - Found `eq_eq_default_vectors` table with `vector(1536)` column and 1662 rows
 
 ### OODA 6-15: Port Conflict
+
 - Killed stale edgequake process: `pkill -f "target/debug/edgequake"`
 - Verified port 8080 freed
 
 ### OODA 16-30: Vector Dimension Fix
+
 - Dropped all vector tables with mismatched dimensions:
   ```sql
   DROP TABLE IF EXISTS eq_eq_default_vectors CASCADE;
@@ -38,12 +42,14 @@ The system was configured to use Ollama with embeddinggemma (768 dimensions) but
 - Tables will be auto-recreated with correct dimension (768) on backend startup
 
 ### OODA 31-40: Validation
+
 - Started backend with `make backend-bg`
 - Verified logs show: "Using vector dimension 768 from ollama provider"
 - Confirmed table recreated with `vector(768)` column type
 - Tested query endpoint - working with hybrid mode, embeddings, and LLM generation
 
 ### Test Results
+
 ```json
 {
   "mode": "hybrid",

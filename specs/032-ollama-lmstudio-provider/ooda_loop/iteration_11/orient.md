@@ -28,11 +28,13 @@ AppState
 ### Implementation Strategy
 
 1. **Add `create_llm_provider()` to ProviderFactory**
+
    - Mirror `create_embedding_provider()` structure
    - Support all provider types: OpenAI, Ollama, LM Studio, Mock
    - Use environment variables for base URLs/API keys
 
 2. **Add `create_workspace_pipeline()` to AppState**
+
    - Take workspace_id as parameter
    - Lookup workspace configuration
    - Create providers using ProviderFactory
@@ -46,6 +48,7 @@ AppState
 ### Key Insight
 
 Creating pipelines dynamically is lightweight:
+
 - Provider creation is cheap (just config + HTTP client)
 - No pre-warming or connection pooling needed
 - LLM calls are the expensive part, not pipeline creation

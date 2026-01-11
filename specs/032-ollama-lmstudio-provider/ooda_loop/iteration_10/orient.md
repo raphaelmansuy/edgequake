@@ -10,13 +10,14 @@
 Following the existing `EmbeddingModelSelector` pattern:
 
 1. **Selection Interface** - Type-safe selection object
-2. **Hook Integration** - Uses `useAvailableProviders()` 
+2. **Hook Integration** - Uses `useAvailableProviders()`
 3. **Provider Icons** - Visual distinction (Cloud, Cpu, Brain)
 4. **Full ID Format** - Combines provider + model into `provider/model`
 
 ### Required Changes
 
 1. **Create LLMModelSelector Component**
+
    - Mirror structure of `embedding-model-selector.tsx`
    - Add `LLMSelection` interface
    - Add `formatFullId()` and `parseFullId()` utilities
@@ -44,6 +45,7 @@ TenantWorkspaceSelector
 ## Key Insight
 
 The workspace LLM is **distinct** from the query LLM:
+
 - **Workspace LLM**: Used during document ingestion (entity extraction, summarization)
 - **Query LLM**: Used during query execution (answer generation)
 

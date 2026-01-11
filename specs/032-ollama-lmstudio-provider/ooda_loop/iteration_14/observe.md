@@ -47,15 +47,15 @@ pub struct Tenant {
 
 ### Files Requiring Modification
 
-| File | Purpose | Changes Needed |
-|------|---------|----------------|
-| `edgequake-core/src/types/multitenancy.rs` | Domain types | Add fields to Tenant struct |
-| `edgequake-api/src/handlers/workspaces_types.rs` | API DTOs | Update CreateTenantRequest, TenantResponse |
-| `edgequake-api/src/handlers/workspaces.rs` | API handlers | Update all tenant handlers |
-| `edgequake-core/src/workspace_service_impl.rs` | Postgres adapter | Update TenantRow conversion |
-| `edgequake_webui/src/lib/api/edgequake.ts` | API client | Update createTenant signature |
-| `edgequake_webui/src/types/index.ts` | TypeScript types | Update Tenant interface |
-| `edgequake_webui/src/components/shared/tenant-workspace-selector.tsx` | UI component | Add model selectors |
+| File                                                                  | Purpose          | Changes Needed                             |
+| --------------------------------------------------------------------- | ---------------- | ------------------------------------------ |
+| `edgequake-core/src/types/multitenancy.rs`                            | Domain types     | Add fields to Tenant struct                |
+| `edgequake-api/src/handlers/workspaces_types.rs`                      | API DTOs         | Update CreateTenantRequest, TenantResponse |
+| `edgequake-api/src/handlers/workspaces.rs`                            | API handlers     | Update all tenant handlers                 |
+| `edgequake-core/src/workspace_service_impl.rs`                        | Postgres adapter | Update TenantRow conversion                |
+| `edgequake_webui/src/lib/api/edgequake.ts`                            | API client       | Update createTenant signature              |
+| `edgequake_webui/src/types/index.ts`                                  | TypeScript types | Update Tenant interface                    |
+| `edgequake_webui/src/components/shared/tenant-workspace-selector.tsx` | UI component     | Add model selectors                        |
 
 ## Metrics
 

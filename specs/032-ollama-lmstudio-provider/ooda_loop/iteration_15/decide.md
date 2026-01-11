@@ -15,22 +15,26 @@ The embedding provider stays fixed to the workspace configuration (required for 
 ### Implementation Steps
 
 1. **Add fields to QueryRequest:**
+
    ```rust
    pub llm_provider: Option<String>,
    pub llm_model: Option<String>,
    ```
 
 2. **Add builder methods:**
+
    ```rust
    pub fn with_llm_provider(mut self, provider: impl Into<String>) -> Self
    pub fn with_llm_model(mut self, model: impl Into<String>) -> Self
    ```
 
 3. **Update SOTAQueryEngine to accept provider override:**
+
    - Add method to create LLM provider from string
    - Use override if provided, else use default
 
 4. **Wire through chat.rs:**
+
    ```rust
    if let Some(ref provider) = request.provider {
        engine_request = engine_request.with_llm_provider(provider);
@@ -44,11 +48,11 @@ The embedding provider stays fixed to the workspace configuration (required for 
 
 ### Files to Modify
 
-| File | Lines | Change |
-|------|-------|--------|
-| `edgequake-query/src/engine.rs` | ~20 | Add fields and builders to QueryRequest |
-| `edgequake-api/src/handlers/chat.rs` | ~10 | Parse and pass provider from request |
-| `edgequake-api/src/handlers/chat.rs` | ~10 | Same for streaming handler |
+| File                                 | Lines | Change                                  |
+| ------------------------------------ | ----- | --------------------------------------- |
+| `edgequake-query/src/engine.rs`      | ~20   | Add fields and builders to QueryRequest |
+| `edgequake-api/src/handlers/chat.rs` | ~10   | Parse and pass provider from request    |
+| `edgequake-api/src/handlers/chat.rs` | ~10   | Same for streaming handler              |
 
 ### Edge Cases
 

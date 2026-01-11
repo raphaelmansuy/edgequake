@@ -17,6 +17,7 @@ Internal helper that accepts an optional LLM provider override.
 ### Step 2: Add `query_with_llm_provider`
 
 Public method that:
+
 1. Runs all SOTA pipeline steps (keywords, mode, embeddings, retrieval)
 2. Uses the provided LLM for answer generation
 

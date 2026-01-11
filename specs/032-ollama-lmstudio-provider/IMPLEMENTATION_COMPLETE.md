@@ -1,8 +1,8 @@
 # SPEC-032 Implementation Summary: Ollama/LM Studio Provider Support
 
-**Completion Date**: 2025-01-27  
+**Completion Date**: 2025-01-31  
 **Branch**: feat/newproviders  
-**Commits**: 7 commits, 50 OODA loops
+**Commits**: 12+ commits, 50+ OODA loops
 
 ## Executive Summary
 
@@ -31,9 +31,24 @@ Successfully implemented multi-provider support for EdgeQuake, enabling seamless
 - ✅ Query engine uses workspace-specific embedding provider
 - ✅ API endpoint `/api/workspaces/{id}/embedding-config`
 
+### OODA 14-17: Query-Time Provider Selection (NEW)
+
+- ✅ Tenant-level default LLM/embedding configuration (commit 4d6d797)
+- ✅ QueryRequest LLM provider/model fields (commit 171f56e)
+- ✅ Non-streaming LLM provider override (commit 48e5a51)
+- ✅ Streaming LLM provider override (commit f523d0a)
+
+### OODA 18-22: Infrastructure & WebUI (NEW)
+
+- ✅ Verified models.toml configuration (1030 lines)
+- ✅ Models API: `/api/v1/models`, `/api/v1/models/llm`, `/api/v1/models/embedding`
+- ✅ ProviderModelSelector in query interface
+- ✅ RebuildEmbeddingsButton in settings page (commit 52d575b)
+
 ### OODA 19-20: WebUI Provider Selector
 
 - ✅ `EmbeddingProviderSelector` React component
+- ✅ `ProviderModelSelector` in chat interface
 - ✅ Zustand store integration for workspace settings
 - ✅ Provider availability display
 
@@ -42,6 +57,7 @@ Successfully implemented multi-provider support for EdgeQuake, enabling seamless
 - ✅ `POST /api/workspaces/{id}/rebuild-embeddings` endpoint
 - ✅ Atomic rebuild with clear + repopulate
 - ✅ Progress tracking and status reporting
+- ✅ RebuildEmbeddingsButton UI component
 
 ### OODA 26-30: E2E Provider Switching Tests
 

@@ -186,7 +186,8 @@ impl AvailableProvidersResponse {
                     ConfigRequirement {
                         env_var: "OLLAMA_HOST".to_string(),
                         required: false,
-                        description: "Ollama server URL (default: http://localhost:11434)".to_string(),
+                        description: "Ollama server URL (default: http://localhost:11434)"
+                            .to_string(),
                         // WHY: Always satisfied because Ollama has builtin defaults
                         satisfied: true,
                     },
@@ -212,7 +213,8 @@ impl AvailableProvidersResponse {
                     ConfigRequirement {
                         env_var: "LMSTUDIO_HOST".to_string(),
                         required: false,
-                        description: "LM Studio server URL (default: http://localhost:1234)".to_string(),
+                        description: "LM Studio server URL (default: http://localhost:1234)"
+                            .to_string(),
                         // WHY: Always satisfied because LM Studio has builtin defaults
                         satisfied: true,
                     },

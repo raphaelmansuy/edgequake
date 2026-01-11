@@ -237,7 +237,9 @@ pub async fn upload_document(
 
         // SPEC-032: Use workspace-specific pipeline with workspace LLM configuration
         // This ensures the workspace's LLM model is used for entity extraction
-        let workspace_pipeline = state.create_workspace_pipeline(&workspace_id_for_storage).await;
+        let workspace_pipeline = state
+            .create_workspace_pipeline(&workspace_id_for_storage)
+            .await;
         let result = workspace_pipeline
             .process(&document_id, &request.content)
             .await?;

@@ -369,7 +369,8 @@ pub async fn chat_completion(
     let llm_override = if let Some(ref provider_full_id) = request.provider {
         if !provider_full_id.is_empty() {
             // Parse "provider/model" format
-            let (provider_name, model_name) = if let Some((p, m)) = provider_full_id.split_once('/') {
+            let (provider_name, model_name) = if let Some((p, m)) = provider_full_id.split_once('/')
+            {
                 (p.to_string(), m.to_string())
             } else {
                 // Just provider name, use default model
@@ -661,12 +662,13 @@ pub async fn chat_completion_stream(
         let llm_override = if let Some(ref provider_full_id) = request_provider {
             if !provider_full_id.is_empty() {
                 // Parse "provider/model" format
-                let (provider_name, model_name) = if let Some((p, m)) = provider_full_id.split_once('/') {
-                    (p.to_string(), m.to_string())
-                } else {
-                    // Just provider name, use default model
-                    (provider_full_id.clone(), "default".to_string())
-                };
+                let (provider_name, model_name) =
+                    if let Some((p, m)) = provider_full_id.split_once('/') {
+                        (p.to_string(), m.to_string())
+                    } else {
+                        // Just provider name, use default model
+                        (provider_full_id.clone(), "default".to_string())
+                    };
 
                 // Try to create the LLM provider
                 match ProviderFactory::create_llm_provider(&provider_name, &model_name) {

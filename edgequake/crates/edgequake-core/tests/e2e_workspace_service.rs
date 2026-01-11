@@ -456,8 +456,8 @@ mod workspace_crud_tests {
                 description: None,
                 max_documents: None,
                 llm_model: None,
-            llm_provider: None,
-            embedding_model: None,
+                llm_provider: None,
+                embedding_model: None,
                 embedding_provider: None,
                 embedding_dimension: None,
             };
@@ -860,8 +860,8 @@ mod concurrent_tests {
                         description: None,
                         max_documents: None,
                         llm_model: None,
-            llm_provider: None,
-            embedding_model: None,
+                        llm_provider: None,
+                        embedding_model: None,
                         embedding_provider: None,
                         embedding_dimension: None,
                     };

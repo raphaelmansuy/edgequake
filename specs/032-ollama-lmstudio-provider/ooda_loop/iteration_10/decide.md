@@ -34,6 +34,7 @@ export function LLMModelSelector({
 **File:** `edgequake_webui/src/components/shared/tenant-workspace-selector.tsx`
 
 Add:
+
 - Import LLMModelSelector and EmbeddingModelSelector
 - State: `selectedLLM`, `selectedEmbedding`
 - Mutation update: pass LLM/embedding config
@@ -42,6 +43,7 @@ Add:
 ### 3. Type Definitions
 
 **LLMSelection fields:**
+
 - `model`: Raw model name (e.g., "gemma3:12b")
 - `provider`: Provider name (e.g., "ollama")
 - `fullId`: Combined format (e.g., "ollama/gemma3:12b")

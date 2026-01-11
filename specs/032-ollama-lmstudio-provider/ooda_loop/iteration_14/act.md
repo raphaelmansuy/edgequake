@@ -127,16 +127,16 @@ Finished `dev` profile
 
 ## Files Changed
 
-| File | Lines Changed | Type |
-|------|--------------|------|
-| `edgequake-core/src/types/multitenancy.rs` | +120 | Domain |
-| `edgequake-core/src/workspace_service_impl.rs` | +35 | Storage |
-| `edgequake-api/src/handlers/workspaces_types.rs` | +60 | API |
-| `edgequake-api/src/handlers/workspaces.rs` | +80 | API |
-| `edgequake_webui/src/types/index.ts` | +40 | UI |
-| `edgequake_webui/src/lib/api/edgequake.ts` | +35 | UI |
-| `edgequake_webui/src/components/shared/tenant-workspace-selector.tsx` | +60 | UI |
-| **Total** | **~430** | |
+| File                                                                  | Lines Changed | Type    |
+| --------------------------------------------------------------------- | ------------- | ------- |
+| `edgequake-core/src/types/multitenancy.rs`                            | +120          | Domain  |
+| `edgequake-core/src/workspace_service_impl.rs`                        | +35           | Storage |
+| `edgequake-api/src/handlers/workspaces_types.rs`                      | +60           | API     |
+| `edgequake-api/src/handlers/workspaces.rs`                            | +80           | API     |
+| `edgequake_webui/src/types/index.ts`                                  | +40           | UI      |
+| `edgequake_webui/src/lib/api/edgequake.ts`                            | +35           | UI      |
+| `edgequake_webui/src/components/shared/tenant-workspace-selector.tsx` | +60           | UI      |
+| **Total**                                                             | **~430**      |         |
 
 ## Acceptance Criteria Status
 

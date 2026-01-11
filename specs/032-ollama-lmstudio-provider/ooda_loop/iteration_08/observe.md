@@ -10,6 +10,7 @@
 From [specs/032-ollama-lmstudio-provider.md](../../032-ollama-lmstudio-provider.md):
 
 1. **VERY IMPORTANT**: Workspace must have default LLM provider for:
+
    - Knowledge graph generation
    - Document ingestion
    - Summarization
@@ -26,12 +27,12 @@ From [specs/032-ollama-lmstudio-provider.md](../../032-ollama-lmstudio-provider.
 ```rust
 pub struct Workspace {
     // ... other fields ...
-    
+
     // Embedding Configuration ✅
     pub embedding_model: String,
     pub embedding_provider: String,
     pub embedding_dimension: usize,
-    
+
     // LLM Configuration ❌ MISSING
     // pub llm_model: String,      // NOT PRESENT
     // pub llm_provider: String,   // NOT PRESENT
@@ -48,7 +49,7 @@ pub struct CreateWorkspaceApiRequest {
     pub embedding_model: Option<String>,
     pub embedding_provider: Option<String>,
     pub embedding_dimension: Option<usize>,
-    
+
     // LLM config ❌ MISSING
 }
 
@@ -57,7 +58,7 @@ pub struct WorkspaceResponse {
     pub embedding_model: String,
     pub embedding_provider: String,
     pub embedding_dimension: usize,
-    
+
     // LLM config ❌ MISSING
 }
 ```
@@ -67,6 +68,7 @@ pub struct WorkspaceResponse {
 #### 3. Database Schema (PostgreSQL)
 
 From `docker-compose exec postgres psql`:
+
 ```sql
 \d workspaces
 -- Column: settings JSONB DEFAULT '{}'
@@ -77,12 +79,12 @@ From `docker-compose exec postgres psql`:
 
 #### 4. Model Identifier Format
 
-| Location | Current Format | Required Format |
-|----------|---------------|-----------------|
+| Location             | Current Format                                                   | Required Format                |
+| -------------------- | ---------------------------------------------------------------- | ------------------------------ |
 | models.toml defaults | `llm_provider = "ollama"`, `llm_model = "gemma3:12b"` (separate) | `ollama/gemma3:12b` (combined) |
-| Workspace struct | `embedding_provider`, `embedding_model` (separate) | Should support both |
-| UI selector | `provider:model` | `provider/model` |
-| API paths | `/models/{provider}/{model}` | Correct |
+| Workspace struct     | `embedding_provider`, `embedding_model` (separate)               | Should support both            |
+| UI selector          | `provider:model`                                                 | `provider/model`               |
+| API paths            | `/models/{provider}/{model}`                                     | Correct                        |
 
 #### 5. What's Working ✅
 
@@ -94,15 +96,19 @@ From `docker-compose exec postgres psql`:
 ### Files to Modify
 
 1. **Core Types**:
+
    - [edgequake-core/src/types/multitenancy.rs](../../../../../../edgequake/crates/edgequake-core/src/types/multitenancy.rs) - Add `llm_model`, `llm_provider`
 
 2. **API DTOs**:
+
    - [edgequake-api/src/handlers/workspaces_types.rs](../../../../../../edgequake/crates/edgequake-api/src/handlers/workspaces_types.rs) - Add LLM fields
 
 3. **API Handlers**:
+
    - [edgequake-api/src/handlers/workspaces.rs](../../../../../../edgequake/crates/edgequake-api/src/handlers/workspaces.rs) - Map LLM fields
 
 4. **Database Migrations**:
+
    - Consider adding explicit columns or using settings JSONB
 
 5. **WebUI Components**:
@@ -111,13 +117,13 @@ From `docker-compose exec postgres psql`:
 
 ### Impact Assessment
 
-| Component | Risk | Effort |
-|-----------|------|--------|
-| Workspace struct | LOW | Add 2 fields |
-| API DTOs | LOW | Add 4 fields (request + response) |
-| API handlers | MEDIUM | Update create/update/get handlers |
-| Database | MEDIUM | Either JSONB or migration |
-| WebUI | MEDIUM | Need new selector component |
+| Component        | Risk   | Effort                            |
+| ---------------- | ------ | --------------------------------- |
+| Workspace struct | LOW    | Add 2 fields                      |
+| API DTOs         | LOW    | Add 4 fields (request + response) |
+| API handlers     | MEDIUM | Update create/update/get handlers |
+| Database         | MEDIUM | Either JSONB or migration         |
+| WebUI            | MEDIUM | Need new selector component       |
 
 ## Next Steps (Orient → Decide → Act)
 

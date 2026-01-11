@@ -7,6 +7,7 @@ Implement workspace-level LLM provider configuration to support knowledge graph 
 ## Model ID Format
 
 Models are identified by `provider/model_name` format:
+
 - `"ollama/gemma3:12b"` - Ollama with Gemma 3 12B
 - `"openai/gpt-4o-mini"` - OpenAI GPT-4o Mini
 - `"lmstudio/gemma-3n-e4b-it"` - LM Studio local model
@@ -16,6 +17,7 @@ Models are identified by `provider/model_name` format:
 ### 1. Core Domain (multitenancy.rs)
 
 **Added LLM fields to `Workspace` struct:**
+
 ```rust
 pub struct Workspace {
     // ... existing fields ...
@@ -26,12 +28,14 @@ pub struct Workspace {
 ```
 
 **Added LLM constants:**
+
 ```rust
 pub const DEFAULT_LLM_MODEL: &str = "gemma3:12b";
 pub const DEFAULT_LLM_PROVIDER: &str = "ollama";
 ```
 
 **Added helper methods:**
+
 - `llm_full_id()` → Returns "provider/model" format (e.g., "ollama/gemma3:12b")
 - `embedding_full_id()` → Returns "provider/model" format
 - `parse_model_id(&str)` → Parses "provider/model" into tuple
@@ -39,6 +43,7 @@ pub const DEFAULT_LLM_PROVIDER: &str = "ollama";
 - `with_llm_model()`, `with_llm_provider()`, `with_llm_config()` → Builder methods
 
 **Added LLM fields to `CreateWorkspaceRequest`:**
+
 ```rust
 pub struct CreateWorkspaceRequest {
     // ... existing fields ...
@@ -51,20 +56,24 @@ pub struct CreateWorkspaceRequest {
 ### 2. API Layer (workspaces_types.rs, workspaces.rs)
 
 **Updated API DTOs:**
+
 - `CreateWorkspaceApiRequest`: Added `llm_model`, `llm_provider`
 - `UpdateWorkspaceApiRequest`: Added `llm_model`, `llm_provider`
 - `WorkspaceResponse`: Added `llm_model`, `llm_provider`, `llm_full_id`, `embedding_full_id`
 
 **Updated handler:**
+
 - `create_workspace`: Now passes LLM config to service layer
 - Logging includes `llm_full_id()` and `embedding_full_id()`
 
 ### 3. Service Layer (workspace_service.rs, workspace_service_impl.rs)
 
 **InMemoryWorkspaceService:**
+
 - Added LLM config handling in `create_workspace`
 
 **PostgresWorkspaceServiceImpl:**
+
 - Added LLM config handling in `create_workspace`
 - Store LLM config in metadata JSONB: `llm_model`, `llm_provider`
 - Updated `WorkspaceRow::into_workspace()` to extract LLM config from metadata
@@ -72,12 +81,13 @@ pub struct CreateWorkspaceRequest {
 ### 4. WebUI Types (types/index.ts)
 
 **Updated TypeScript interfaces:**
+
 ```typescript
 export interface Workspace {
   // ... existing fields ...
   llm_model?: string;
   llm_provider?: string;
-  llm_full_id?: string;      // Combined format
+  llm_full_id?: string; // Combined format
   embedding_full_id?: string; // Combined format
 }
 
@@ -91,6 +101,7 @@ export interface CreateWorkspaceRequest {
 ### 5. Constants Re-export (types/mod.rs)
 
 Added LLM constants to public exports:
+
 ```rust
 pub use multitenancy::{
     // ... existing exports ...
@@ -103,6 +114,7 @@ pub use multitenancy::{
 ### 6. Test Updates
 
 Fixed all test files to include new LLM fields:
+
 - `workspace_service.rs` (3 locations)
 - `e2e_workspace_service.rs` (9 locations)
 - `e2e_provider_switching.rs` (7 locations)
@@ -111,11 +123,13 @@ Fixed all test files to include new LLM fields:
 ## Verification
 
 **Build Check:**
+
 ```bash
 cargo check --workspace  # ✅ Passed
 ```
 
 **Tests:**
+
 ```bash
 cargo test --workspace   # ✅ 2400+ tests passed
 ```
@@ -123,6 +137,7 @@ cargo test --workspace   # ✅ 2400+ tests passed
 ## API Example
 
 **Create Workspace with LLM Config:**
+
 ```json
 POST /api/v1/tenants/{tenant_id}/workspaces
 {
@@ -134,6 +149,7 @@ POST /api/v1/tenants/{tenant_id}/workspaces
 ```
 
 **Response:**
+
 ```json
 {
   "id": "...",

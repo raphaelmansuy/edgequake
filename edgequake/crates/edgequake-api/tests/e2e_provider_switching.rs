@@ -355,7 +355,10 @@ async fn test_provider_dimension_differences() {
 
     assert_eq!(openai_dim, 1536);
     assert_eq!(ollama_dim, 768);
-    assert_ne!(openai_dim, ollama_dim, "Providers should have different dimensions");
+    assert_ne!(
+        openai_dim, ollama_dim,
+        "Providers should have different dimensions"
+    );
 }
 
 // ============================================================================
@@ -424,8 +427,8 @@ async fn test_concurrent_workspace_creation() {
                     description: None,
                     max_documents: None,
                     llm_model: None,
-        llm_provider: None,
-        embedding_model: None,
+                    llm_provider: None,
+                    embedding_model: None,
                     embedding_provider: Some(provider.to_string()),
                     embedding_dimension: Some(dimension),
                 };
@@ -487,11 +490,11 @@ async fn test_provider_detection_from_model() {
     let test_cases = [
         ("text-embedding-3-small", "openai"),
         ("text-embedding-3-large", "openai"),
-        ("embeddinggemma:latest", "ollama"),     // Contains ":"
-        ("nomic-embed-text:latest", "ollama"),   // Contains ":"
-        ("nomic-embed-text", "openai"),          // No ":", not gemma/llama → default openai
-        ("gemma2-9b-it", "lmstudio"),            // Starts with gemma
-        ("llama-3.1-8b", "lmstudio"),            // Starts with llama
+        ("embeddinggemma:latest", "ollama"),   // Contains ":"
+        ("nomic-embed-text:latest", "ollama"), // Contains ":"
+        ("nomic-embed-text", "openai"),        // No ":", not gemma/llama → default openai
+        ("gemma2-9b-it", "lmstudio"),          // Starts with gemma
+        ("llama-3.1-8b", "lmstudio"),          // Starts with llama
     ];
 
     for (model, expected_provider) in test_cases {

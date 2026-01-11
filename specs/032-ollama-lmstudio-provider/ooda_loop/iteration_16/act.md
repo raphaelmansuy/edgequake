@@ -42,6 +42,7 @@ async fn generate_answer_with_provider(
 **File:** [edgequake-query/src/sota_engine.rs](../../edgequake/crates/edgequake-query/src/sota_engine.rs)
 
 Public method (~100 lines) that:
+
 - Runs full SOTA pipeline (keywords, mode, embeddings, retrieval, reranking, truncation)
 - Uses the provided LLM for answer generation
 
@@ -58,6 +59,7 @@ pub async fn query_with_llm_provider(
 **File:** [edgequake-api/src/handlers/chat.rs](../../edgequake/crates/edgequake-api/src/handlers/chat.rs)
 
 Added import:
+
 ```rust
 use edgequake_llm::ProviderFactory;
 ```
@@ -158,11 +160,11 @@ test result: ok. 7 passed; 0 failed
 
 ## Files Changed
 
-| File | Lines Added | Type |
-|------|-------------|------|
-| `edgequake-query/src/lib.rs` | +1 | Export |
-| `edgequake-query/src/sota_engine.rs` | +130 | Engine |
-| `edgequake-api/src/handlers/chat.rs` | +40 | API |
+| File                                 | Lines Added | Type   |
+| ------------------------------------ | ----------- | ------ |
+| `edgequake-query/src/lib.rs`         | +1          | Export |
+| `edgequake-query/src/sota_engine.rs` | +130        | Engine |
+| `edgequake-api/src/handlers/chat.rs` | +40         | API    |
 
 ## Remaining Work
 

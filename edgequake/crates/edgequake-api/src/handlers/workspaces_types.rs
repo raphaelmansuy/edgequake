@@ -44,7 +44,6 @@ pub struct CreateTenantRequest {
     pub plan: Option<String>,
 
     // === Default LLM Configuration (SPEC-032) ===
-
     /// Default LLM model for new workspaces (e.g., "gemma3:12b", "gpt-4o-mini").
     /// Workspaces inherit this if not explicitly configured.
     /// If not provided, uses server default from models.toml or EDGEQUAKE_DEFAULT_LLM_MODEL.
@@ -58,7 +57,6 @@ pub struct CreateTenantRequest {
     pub default_llm_provider: Option<String>,
 
     // === Default Embedding Configuration (SPEC-032) ===
-
     /// Default embedding model for new workspaces (e.g., "text-embedding-3-small").
     /// Workspaces inherit this if not explicitly configured.
     /// If not provided, uses server default from models.toml or EDGEQUAKE_DEFAULT_EMBEDDING_MODEL.
@@ -124,7 +122,6 @@ pub struct CreateWorkspaceApiRequest {
     pub max_documents: Option<usize>,
 
     // === LLM Configuration (SPEC-032) ===
-
     /// LLM model for knowledge graph generation, summarization, entity extraction.
     /// Format: "model_name" or "provider/model_name" (e.g., "gemma3:12b", "ollama/gemma3:12b").
     /// If not provided, uses server default from models.toml or EDGEQUAKE_DEFAULT_LLM_MODEL.
@@ -137,7 +134,6 @@ pub struct CreateWorkspaceApiRequest {
     pub llm_provider: Option<String>,
 
     // === Embedding Configuration (SPEC-032) ===
-
     /// Embedding model name (e.g., "text-embedding-3-small", "embeddinggemma:latest").
     /// If not provided, uses server default from EDGEQUAKE_DEFAULT_EMBEDDING_MODEL.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -172,7 +168,6 @@ pub struct UpdateWorkspaceApiRequest {
     pub max_documents: Option<usize>,
 
     // === LLM Configuration (SPEC-032) ===
-
     /// Update LLM model (takes effect on next ingestion).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub llm_model: Option<String>,
@@ -205,7 +200,6 @@ pub struct TenantResponse {
     pub max_workspaces: usize,
 
     // === Default LLM Configuration (SPEC-032) ===
-
     /// Default LLM model for new workspaces.
     pub default_llm_model: String,
     /// Default LLM provider for new workspaces.
@@ -214,7 +208,6 @@ pub struct TenantResponse {
     pub default_llm_full_id: String,
 
     // === Default Embedding Configuration (SPEC-032) ===
-
     /// Default embedding model for new workspaces.
     pub default_embedding_model: String,
     /// Default embedding provider for new workspaces.
@@ -251,7 +244,6 @@ pub struct WorkspaceResponse {
     pub max_documents: Option<usize>,
 
     // === LLM Configuration (SPEC-032) ===
-
     /// LLM model for knowledge graph generation and summarization.
     pub llm_model: String,
     /// LLM provider (openai, ollama, lmstudio).
@@ -260,7 +252,6 @@ pub struct WorkspaceResponse {
     pub llm_full_id: String,
 
     // === Embedding Configuration (SPEC-032) ===
-
     /// Embedding model used for this workspace.
     pub embedding_model: String,
     /// Embedding provider (openai, ollama, lmstudio).

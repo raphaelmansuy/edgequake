@@ -46,10 +46,12 @@
 ## Implementation Approach
 
 1. **Internal method:** `generate_answer_with_provider(query, context, llm_override)`
+
    - Accepts `Option<&Arc<dyn LLMProvider>>`
    - Uses override if `Some`, else default
 
 2. **Public method:** `query_with_llm_provider(request, llm_provider)`
+
    - Similar to `query_with_embedding_provider`
    - Calls `generate_answer_with_provider` with the override
 
@@ -60,9 +62,9 @@
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
+| File             | Change                                     |
+| ---------------- | ------------------------------------------ |
 | `sota_engine.rs` | Add `generate_answer_with_provider` method |
-| `sota_engine.rs` | Add `query_with_llm_provider` method |
-| `chat.rs` | Create LLM provider and use new method |
-| `lib.rs` | Re-export `LLMProvider` trait |
+| `sota_engine.rs` | Add `query_with_llm_provider` method       |
+| `chat.rs`        | Create LLM provider and use new method     |
+| `lib.rs`         | Re-export `LLMProvider` trait              |

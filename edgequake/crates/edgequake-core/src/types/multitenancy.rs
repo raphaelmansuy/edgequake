@@ -54,7 +54,6 @@ pub struct Tenant {
     pub metadata: HashMap<String, serde_json::Value>,
 
     // === Default LLM Configuration (SPEC-032) ===
-
     /// Default LLM model name for new workspaces (e.g., "gemma3:12b", "gpt-4o-mini").
     /// Used for knowledge graph generation, summarization, entity extraction.
     /// Workspaces inherit this if not explicitly configured.
@@ -65,7 +64,6 @@ pub struct Tenant {
     pub default_llm_provider: String,
 
     // === Default Embedding Configuration (SPEC-032) ===
-
     /// Default embedding model name for new workspaces (e.g., "text-embedding-3-small").
     /// Workspaces inherit this if not explicitly configured.
     pub default_embedding_model: String,
@@ -288,7 +286,6 @@ pub struct Workspace {
     pub metadata: HashMap<String, serde_json::Value>,
 
     // === LLM Configuration (SPEC-032) ===
-
     /// LLM model name (e.g., "gemma3:12b", "gpt-4o-mini").
     /// Used for knowledge graph generation, summarization, entity extraction.
     /// Note: Query-time LLM can be different (user's choice in UI).
@@ -299,7 +296,6 @@ pub struct Workspace {
     pub llm_provider: String,
 
     // === Embedding Configuration (SPEC-032) ===
-
     /// Embedding model name (e.g., "text-embedding-3-small", "embeddinggemma:latest").
     /// Used for both document ingestion and query embedding generation.
     /// MUST be consistent: query embeddings must use same model as stored vectors.
@@ -840,7 +836,6 @@ pub struct CreateWorkspaceRequest {
     pub max_documents: Option<usize>,
 
     // === LLM Configuration (SPEC-032) ===
-
     /// LLM model name (e.g., "gemma3:12b", "gpt-4o-mini").
     /// If None, uses server default from EDGEQUAKE_DEFAULT_LLM_MODEL.
     /// Can be a full ID like "ollama/gemma3:12b" for explicit provider.
@@ -851,7 +846,6 @@ pub struct CreateWorkspaceRequest {
     pub llm_provider: Option<String>,
 
     // === Embedding Configuration (SPEC-032) ===
-
     /// Embedding model name (e.g., "text-embedding-3-small", "embeddinggemma:latest").
     /// If None, uses server default from EDGEQUAKE_DEFAULT_EMBEDDING_MODEL.
     /// Can be a full ID like "openai/text-embedding-3-small" for explicit provider.

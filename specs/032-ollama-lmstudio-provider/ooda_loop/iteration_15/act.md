@@ -126,10 +126,10 @@ test result: ok. 7 passed; 0 failed
 
 ## Files Changed
 
-| File | Lines Added | Change |
-|------|-------------|--------|
-| `edgequake-query/src/engine.rs` | +35 | QueryRequest fields and builder methods |
-| `edgequake-api/src/handlers/chat.rs` | +15 | Provider override in both handlers |
+| File                                 | Lines Added | Change                                  |
+| ------------------------------------ | ----------- | --------------------------------------- |
+| `edgequake-query/src/engine.rs`      | +35         | QueryRequest fields and builder methods |
+| `edgequake-api/src/handlers/chat.rs` | +15         | Provider override in both handlers      |
 
 ## Remaining Work
 

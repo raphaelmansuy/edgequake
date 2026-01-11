@@ -341,10 +341,7 @@ impl ProviderFactory {
     /// )?;
     /// assert_eq!(provider.model(), "gemma3:12b");
     /// ```
-    pub fn create_llm_provider(
-        provider_name: &str,
-        model: &str,
-    ) -> Result<Arc<dyn LLMProvider>> {
+    pub fn create_llm_provider(provider_name: &str, model: &str) -> Result<Arc<dyn LLMProvider>> {
         let provider_type = ProviderType::from_str(provider_name).ok_or_else(|| {
             LlmError::ConfigError(format!(
                 "Unknown LLM provider: {}. Valid: openai, ollama, lmstudio, mock",
@@ -367,10 +364,7 @@ impl ProviderFactory {
                 // Ollama provider with specific model
                 let host = std::env::var("OLLAMA_HOST")
                     .unwrap_or_else(|_| "http://localhost:11434".to_string());
-                let provider = OllamaProvider::builder()
-                    .host(&host)
-                    .model(model)
-                    .build()?;
+                let provider = OllamaProvider::builder().host(&host).model(model).build()?;
                 Ok(Arc::new(provider))
             }
             ProviderType::LMStudio => {

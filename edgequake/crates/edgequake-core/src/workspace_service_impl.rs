@@ -840,11 +840,11 @@ impl TenantRow {
             .and_then(|v| v.as_str())
             .unwrap_or(crate::types::DEFAULT_EMBEDDING_PROVIDER)
             .to_string();
-        let default_embedding_dimension = self
-            .metadata
-            .get("default_embedding_dimension")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(crate::types::DEFAULT_EMBEDDING_DIMENSION as u64) as usize;
+        let default_embedding_dimension =
+            self.metadata
+                .get("default_embedding_dimension")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(crate::types::DEFAULT_EMBEDDING_DIMENSION as u64) as usize;
 
         Tenant {
             tenant_id: self.tenant_id,
@@ -919,7 +919,8 @@ impl WorkspaceRow {
         let embedding_dimension = metadata
             .get("embedding_dimension")
             .and_then(|v| v.as_u64())
-            .unwrap_or(crate::types::DEFAULT_EMBEDDING_DIMENSION as u64) as usize;
+            .unwrap_or(crate::types::DEFAULT_EMBEDDING_DIMENSION as u64)
+            as usize;
 
         Workspace {
             workspace_id: self.workspace_id,

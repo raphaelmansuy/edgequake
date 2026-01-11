@@ -9,46 +9,46 @@
 
 ## Iteration Progress
 
-| Iteration | Phase   | Status          | Date       | Summary                                                    |
-| --------- | ------- | --------------- | ---------- | ---------------------------------------------------------- |
-| 01-05     | All     | ✅ COMPLETE     | 2025-01-10 | Backend provider infrastructure + status UI                |
-| 06        | All     | ✅ COMPLETE     | 2025-01-11 | Gap analysis & architecture design                         |
-| **07**    | **Act** | ✅ **COMPLETE** | 2025-01-11 | **Workspace embedding schema** (commit 845d7c6)            |
-| **08-10** | **Act** | ✅ **COMPLETE** | 2025-01-11 | **LM Studio dedicated provider** (commit 7001fa9)          |
-| **11**    | **Act** | ✅ **COMPLETE** | 2025-01-11 | **LM Studio auto-detection** (commit c33ec26)              |
-| **12+14** | **Act** | ✅ **COMPLETE** | 2025-01-11 | **Provider registry API** (commit 794a3c7)                 |
-| **13**    | **Act** | ✅ **COMPLETE** | 2025-01-11 | **Workspace-specific embedding in query** (commit b4d63b8) |
-| 09 (new)  | All     | ✅ COMPLETE     | 2025-01-29 | Workspace LLM configuration backend                        |
-| **10**    | **Act** | ✅ **COMPLETE** | 2025-01-30 | **WebUI LLMModelSelector for workspace creation**          |
-| **11**    | **Act** | ✅ **COMPLETE** | 2025-01-30 | **Workspace-specific LLM in ingestion pipeline**           |
-| 15-16     | All     | ✅ COMPLETE     | 2025-01-11 | EmbeddingProviderFactory (done in 13)                      |
+| Iteration | Phase   | Status          | Date       | Summary                                                       |
+| --------- | ------- | --------------- | ---------- | ------------------------------------------------------------- |
+| 01-05     | All     | ✅ COMPLETE     | 2025-01-10 | Backend provider infrastructure + status UI                   |
+| 06        | All     | ✅ COMPLETE     | 2025-01-11 | Gap analysis & architecture design                            |
+| **07**    | **Act** | ✅ **COMPLETE** | 2025-01-11 | **Workspace embedding schema** (commit 845d7c6)               |
+| **08-10** | **Act** | ✅ **COMPLETE** | 2025-01-11 | **LM Studio dedicated provider** (commit 7001fa9)             |
+| **11**    | **Act** | ✅ **COMPLETE** | 2025-01-11 | **LM Studio auto-detection** (commit c33ec26)                 |
+| **12+14** | **Act** | ✅ **COMPLETE** | 2025-01-11 | **Provider registry API** (commit 794a3c7)                    |
+| **13**    | **Act** | ✅ **COMPLETE** | 2025-01-11 | **Workspace-specific embedding in query** (commit b4d63b8)    |
+| 09 (new)  | All     | ✅ COMPLETE     | 2025-01-29 | Workspace LLM configuration backend                           |
+| **10**    | **Act** | ✅ **COMPLETE** | 2025-01-30 | **WebUI LLMModelSelector for workspace creation**             |
+| **11**    | **Act** | ✅ **COMPLETE** | 2025-01-30 | **Workspace-specific LLM in ingestion pipeline**              |
+| 15-16     | All     | ✅ COMPLETE     | 2025-01-11 | EmbeddingProviderFactory (done in 13)                         |
 | **14**    | **All** | ✅ **COMPLETE** | 2025-01-31 | **Tenant-level LLM/embedding configuration** (commit 4d6d797) |
-| **15**    | **All** | ✅ **COMPLETE** | 2025-01-31 | **QueryRequest LLM provider/model fields** (commit 171f56e) |
-| **16**    | **All** | ✅ **COMPLETE** | 2025-01-31 | **Non-streaming LLM provider override** (commit 48e5a51)   |
-| **17**    | **All** | ✅ **COMPLETE** | 2025-01-31 | **Streaming LLM provider override** (commit f523d0a)       |
-| **18-21** | **All** | ✅ **COMPLETE** | 2025-01-31 | **Verified models.toml + WebUI provider selector exist**   |
-| **22**    | **All** | ✅ **COMPLETE** | 2025-01-31 | **WebUI rebuild embeddings button** (commit 52d575b)       |
-| 23-25     | All     | ⏳ PLANNED      | TBD        | E2E tests & provider selection validation                  |
-| 26-35     | All     | ⏳ PLANNED      | TBD        | Edge cases & error handling improvements                   |
-| 36-50     | All     | ⏳ PLANNED      | TBD        | Documentation & non-regression validation                  |
+| **15**    | **All** | ✅ **COMPLETE** | 2025-01-31 | **QueryRequest LLM provider/model fields** (commit 171f56e)   |
+| **16**    | **All** | ✅ **COMPLETE** | 2025-01-31 | **Non-streaming LLM provider override** (commit 48e5a51)      |
+| **17**    | **All** | ✅ **COMPLETE** | 2025-01-31 | **Streaming LLM provider override** (commit f523d0a)          |
+| **18-21** | **All** | ✅ **COMPLETE** | 2025-01-31 | **Verified models.toml + WebUI provider selector exist**      |
+| **22**    | **All** | ✅ **COMPLETE** | 2025-01-31 | **WebUI rebuild embeddings button** (commit 52d575b)          |
+| 23-25     | All     | ⏳ PLANNED      | TBD        | E2E tests & provider selection validation                     |
+| 26-35     | All     | ⏳ PLANNED      | TBD        | Edge cases & error handling improvements                      |
+| 36-50     | All     | ⏳ PLANNED      | TBD        | Documentation & non-regression validation                     |
 
 ---
 
 ## Recent Commits
 
-| Commit  | OODA  | Description                                       |
-| ------- | ----- | ------------------------------------------------- |
-| 52d575b | 22    | WebUI rebuild embeddings button                   |
-| f523d0a | 17    | Streaming LLM provider override                   |
+| Commit  | OODA  | Description                                         |
+| ------- | ----- | --------------------------------------------------- |
+| 52d575b | 22    | WebUI rebuild embeddings button                     |
+| f523d0a | 17    | Streaming LLM provider override                     |
 | 48e5a51 | 16    | Non-streaming LLM provider override in query engine |
-| 171f56e | 15    | QueryRequest LLM provider/model fields + builders |
-| 4d6d797 | 14    | Tenant-level LLM/embedding configuration          |
-| TBD     | 10-11 | WebUI LLMModelSelector + ingestion integration    |
-| b4d63b8 | 13    | Workspace-specific embedding in query process     |
-| 794a3c7 | 12+14 | Provider registry API and list providers endpoint |
-| c33ec26 | 11    | LM Studio auto-detection in provider factory      |
-| 7001fa9 | 08-10 | Dedicated LMStudioProvider implementation         |
-| 845d7c6 | 07    | Workspace-level embedding configuration           |
+| 171f56e | 15    | QueryRequest LLM provider/model fields + builders   |
+| 4d6d797 | 14    | Tenant-level LLM/embedding configuration            |
+| TBD     | 10-11 | WebUI LLMModelSelector + ingestion integration      |
+| b4d63b8 | 13    | Workspace-specific embedding in query process       |
+| 794a3c7 | 12+14 | Provider registry API and list providers endpoint   |
+| c33ec26 | 11    | LM Studio auto-detection in provider factory        |
+| 7001fa9 | 08-10 | Dedicated LMStudioProvider implementation           |
+| 845d7c6 | 07    | Workspace-level embedding configuration             |
 
 ---
 
@@ -59,6 +59,7 @@
 Confirmed that models.toml and WebUI components already exist:
 
 **Existing Infrastructure:**
+
 - `edgequake/models.toml` (1030 lines) - Comprehensive model cards
 - Models API endpoints: `/api/v1/models`, `/api/v1/models/llm`, `/api/v1/models/embedding`
 - `ProviderModelSelector` component in query interface
@@ -69,12 +70,15 @@ Confirmed that models.toml and WebUI components already exist:
 Created rebuild embeddings button for settings page:
 
 **Files Created:**
+
 - `edgequake_webui/src/components/workspace/rebuild-embeddings-button.tsx` (212 lines)
 
 **Files Modified:**
+
 - `edgequake_webui/src/app/(dashboard)/settings/page.tsx` (+3 lines) - Added component
 
 **Key Features:**
+
 - Card variant showing current embedding model and dimension
 - Confirmation dialog with clear warnings
 - Uses existing `rebuildEmbeddings` API function
@@ -89,6 +93,7 @@ Created rebuild embeddings button for settings page:
 Extended `Tenant` struct with default model configuration:
 
 **Files Modified:**
+
 - `edgequake-core/src/types/multitenancy.rs` (+70 lines) - Added 5 model config fields
 - `edgequake-api/src/dto/workspaces_types.rs` (+35 lines) - Updated DTOs
 - `edgequake-api/src/handlers/workspaces.rs` (+25 lines) - Tenant handlers
@@ -96,6 +101,7 @@ Extended `Tenant` struct with default model configuration:
 - `edgequake_webui/src/components/shared/tenant-workspace-selector.tsx` (+45 lines) - Model selectors
 
 **Key Features:**
+
 - `default_llm_model`, `default_llm_provider` fields
 - `default_embedding_model`, `default_embedding_provider`, `default_embedding_dimension` fields
 - `with_llm_config()`, `with_embedding_config()` builder methods
@@ -106,9 +112,11 @@ Extended `Tenant` struct with default model configuration:
 Added LLM provider/model fields to QueryRequest:
 
 **Files Modified:**
+
 - `edgequake-query/src/engine.rs` (+45 lines)
 
 **Key Features:**
+
 - `llm_provider: Option<String>`, `llm_model: Option<String>` fields
 - `with_llm_provider()`, `with_llm_model()` builder methods
 - `with_llm_full_id("provider/model")` parser
@@ -118,11 +126,13 @@ Added LLM provider/model fields to QueryRequest:
 Wired LLM override through query engine:
 
 **Files Modified:**
+
 - `edgequake-query/src/sota_engine.rs` (+100 lines) - `query_with_llm_provider()` method
 - `edgequake-query/src/lib.rs` (+1 line) - Re-export LLMProvider
 - `edgequake-api/src/handlers/chat.rs` (+45 lines) - Use override in handler
 
 **Architecture:**
+
 ```
 ChatRequest.provider → Parse "provider/model"
                        → ProviderFactory::create_llm_provider()
@@ -135,10 +145,12 @@ ChatRequest.provider → Parse "provider/model"
 Added streaming support for LLM provider override:
 
 **Files Modified:**
+
 - `edgequake-query/src/sota_engine.rs` (+50 lines) - `query_stream_with_context_and_llm()` method
 - `edgequake-api/src/handlers/chat.rs` (+35 lines) - Streaming handler uses override
 
 **Key Features:**
+
 - `query_stream_with_context_and_llm(request, llm_provider)` method
 - Same pattern as non-streaming but returns stream
 - Graceful fallback to default if override creation fails
@@ -152,12 +164,15 @@ Added streaming support for LLM provider override:
 Created `LLMModelSelector` component for workspace creation:
 
 **Files Created:**
+
 - `edgequake_webui/src/components/workspace/llm-model-selector.tsx` (252 lines)
 
 **Files Modified:**
+
 - `edgequake_webui/src/components/shared/tenant-workspace-selector.tsx` (+45 lines)
 
 **Key Features:**
+
 - `LLMSelection` interface: `{ model, provider, fullId }`
 - Provider icons: Cloud (OpenAI), Cpu (Ollama), Brain (LM Studio)
 - Integration with workspace creation dialog
@@ -168,11 +183,13 @@ Created `LLMModelSelector` component for workspace creation:
 Integrated workspace LLM config into document ingestion pipeline:
 
 **Files Modified:**
+
 - `edgequake-llm/src/factory.rs` (+75 lines) - `create_llm_provider()`
 - `edgequake-api/src/state.rs` (+80 lines) - `create_workspace_pipeline()`
 - `edgequake-api/src/handlers/documents.rs` (+5 lines) - Use workspace pipeline
 
 **Key Features:**
+
 - Dynamic pipeline creation per workspace
 - Graceful fallback to global pipeline on errors
 - Full test coverage (584 tests passing)

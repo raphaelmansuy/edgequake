@@ -32,13 +32,13 @@ pub use multitenancy::{
     UpdateWorkspaceRequest,
     Workspace,
     WorkspaceStats,
-    // SPEC-032: Export LLM constants
-    DEFAULT_LLM_MODEL,
-    DEFAULT_LLM_PROVIDER,
     // SPEC-032: Export embedding constants
     DEFAULT_EMBEDDING_DIMENSION,
     DEFAULT_EMBEDDING_MODEL,
     DEFAULT_EMBEDDING_PROVIDER,
+    // SPEC-032: Export LLM constants
+    DEFAULT_LLM_MODEL,
+    DEFAULT_LLM_PROVIDER,
 };
 pub use query::{
     ContextChunk, ContextEntity, ContextRelationship, DocumentDeletionResult, DocumentInfo,

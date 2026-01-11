@@ -923,10 +923,8 @@ impl AppState {
         match workspace_result {
             Ok(Some(ws)) => {
                 // Try to create workspace-specific LLM provider
-                let llm_provider = ProviderFactory::create_llm_provider(
-                    &ws.llm_provider,
-                    &ws.llm_model,
-                );
+                let llm_provider =
+                    ProviderFactory::create_llm_provider(&ws.llm_provider, &ws.llm_model);
 
                 // Try to create workspace-specific embedding provider
                 let embedding_provider = ProviderFactory::create_embedding_provider(

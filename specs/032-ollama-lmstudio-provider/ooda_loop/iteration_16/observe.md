@@ -20,8 +20,8 @@ The engine ignores the request's LLM override. When a user selects "ollama/gemma
 
 ### Key Files
 
-| File | Role |
-|------|------|
-| `sota_engine.rs` | Query execution with LLM generation |
-| `chat.rs` | API handler that passes provider to engine |
-| `factory.rs` | Creates LLM providers by name |
+| File             | Role                                       |
+| ---------------- | ------------------------------------------ |
+| `sota_engine.rs` | Query execution with LLM generation        |
+| `chat.rs`        | API handler that passes provider to engine |
+| `factory.rs`     | Creates LLM providers by name              |

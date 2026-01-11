@@ -123,21 +123,36 @@ mod tests {
         assert!(response.embedding_providers.len() >= 4);
 
         // Assert: Provider IDs
-        let ids: Vec<_> = response.llm_providers.iter().map(|p| p.id.as_str()).collect();
+        let ids: Vec<_> = response
+            .llm_providers
+            .iter()
+            .map(|p| p.id.as_str())
+            .collect();
         assert!(ids.contains(&"openai"));
         assert!(ids.contains(&"ollama"));
         assert!(ids.contains(&"lmstudio"));
         assert!(ids.contains(&"mock"));
 
         // Assert: Mock is always available
-        let mock = response.llm_providers.iter().find(|p| p.id == "mock").unwrap();
+        let mock = response
+            .llm_providers
+            .iter()
+            .find(|p| p.id == "mock")
+            .unwrap();
         assert!(mock.available);
         assert_eq!(mock.default_models.embedding_dimension, 1536);
 
         // Assert: LM Studio defaults
-        let lmstudio = response.llm_providers.iter().find(|p| p.id == "lmstudio").unwrap();
+        let lmstudio = response
+            .llm_providers
+            .iter()
+            .find(|p| p.id == "lmstudio")
+            .unwrap();
         assert_eq!(lmstudio.default_models.chat_model, "gemma2-9b-it");
-        assert_eq!(lmstudio.default_models.embedding_model, "nomic-embed-text-v1.5");
+        assert_eq!(
+            lmstudio.default_models.embedding_model,
+            "nomic-embed-text-v1.5"
+        );
         assert_eq!(lmstudio.default_models.embedding_dimension, 768);
     }
 }

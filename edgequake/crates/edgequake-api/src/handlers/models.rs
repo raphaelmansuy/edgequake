@@ -32,7 +32,7 @@
 use axum::{extract::State, Json};
 use edgequake_llm::model_config::ProviderType;
 
-use crate::error::{ApiResult, ApiError};
+use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
 // Re-export DTOs from models_types
@@ -112,13 +112,10 @@ fn provider_to_response(provider: &edgequake_llm::ProviderConfig) -> ProviderRes
 )]
 pub async fn list_models(State(state): State<AppState>) -> ApiResult<Json<ModelsListResponse>> {
     let config = &*state.models_config;
-    
-    let providers: Vec<ProviderResponse> = config
-        .providers
-        .iter()
-        .map(provider_to_response)
-        .collect();
-    
+
+    let providers: Vec<ProviderResponse> =
+        config.providers.iter().map(provider_to_response).collect();
+
     Ok(Json(ModelsListResponse {
         providers,
         default_llm_provider: config.defaults.llm_provider.clone(),
@@ -147,7 +144,7 @@ pub async fn list_models(State(state): State<AppState>) -> ApiResult<Json<Models
 )]
 pub async fn list_llm_models(State(state): State<AppState>) -> ApiResult<Json<LlmModelsResponse>> {
     let config = &*state.models_config;
-    
+
     let models: Vec<LlmModelItem> = config
         .all_llm_models()
         .into_iter()
@@ -157,7 +154,7 @@ pub async fn list_llm_models(State(state): State<AppState>) -> ApiResult<Json<Ll
             model: model_card_to_response(model),
         })
         .collect();
-    
+
     Ok(Json(LlmModelsResponse {
         models,
         default_provider: config.defaults.llm_provider.clone(),
@@ -186,7 +183,7 @@ pub async fn list_embedding_models(
     State(state): State<AppState>,
 ) -> ApiResult<Json<EmbeddingModelsResponse>> {
     let config = &*state.models_config;
-    
+
     let models: Vec<EmbeddingModelItem> = config
         .all_embedding_models()
         .into_iter()
@@ -197,7 +194,7 @@ pub async fn list_embedding_models(
             model: model_card_to_response(model),
         })
         .collect();
-    
+
     Ok(Json(EmbeddingModelsResponse {
         models,
         default_provider: config.defaults.embedding_provider.clone(),
@@ -235,11 +232,11 @@ pub async fn get_provider(
     axum::extract::Path(provider_name): axum::extract::Path<String>,
 ) -> ApiResult<Json<ProviderResponse>> {
     let config = &*state.models_config;
-    
+
     let provider = config
         .get_provider(&provider_name)
         .ok_or_else(|| ApiError::NotFound(format!("Provider '{}' not found", provider_name)))?;
-    
+
     Ok(Json(provider_to_response(provider)))
 }
 
@@ -275,7 +272,7 @@ pub async fn get_model(
     axum::extract::Path((provider_name, model_name)): axum::extract::Path<(String, String)>,
 ) -> ApiResult<Json<ModelResponse>> {
     let config = &*state.models_config;
-    
+
     let model = config
         .get_model(&provider_name, &model_name)
         .ok_or_else(|| {
@@ -284,7 +281,7 @@ pub async fn get_model(
                 model_name, provider_name
             ))
         })?;
-    
+
     Ok(Json(model_card_to_response(model)))
 }
 
@@ -316,23 +313,23 @@ pub async fn check_providers_health(
 ) -> ApiResult<Json<Vec<ProviderResponse>>> {
     let config = &*state.models_config;
     let now = chrono::Utc::now().to_rfc3339();
-    
+
     let mut providers: Vec<ProviderResponse> = Vec::new();
-    
+
     for provider_config in &config.providers {
         if !provider_config.enabled {
             continue;
         }
-        
+
         let mut provider_response = provider_to_response(provider_config);
-        
+
         // Perform health check based on provider type
         let health = check_provider_health(provider_config, &now).await;
         provider_response.health = Some(health);
-        
+
         providers.push(provider_response);
     }
-    
+
     Ok(Json(providers))
 }
 
@@ -347,9 +344,9 @@ async fn check_provider_health(
     checked_at: &str,
 ) -> ProviderHealthResponse {
     use std::time::Instant;
-    
+
     let start = Instant::now();
-    
+
     // Get the base URL to check
     let base_url = match &provider.base_url {
         Some(url) => url.clone(),
@@ -370,7 +367,7 @@ async fn check_provider_health(
             }
         }
     };
-    
+
     // Check based on provider type
     match provider.provider_type {
         ProviderType::Mock => {
@@ -389,9 +386,11 @@ async fn check_provider_health(
                 .unwrap_or(&base_url)
                 .strip_prefix("https://")
                 .unwrap_or(&base_url);
-            
+
             match std::net::TcpStream::connect_timeout(
-                &host_port.parse().unwrap_or_else(|_| "127.0.0.1:11434".parse().unwrap()),
+                &host_port
+                    .parse()
+                    .unwrap_or_else(|_| "127.0.0.1:11434".parse().unwrap()),
                 std::time::Duration::from_secs(2),
             ) {
                 Ok(_) => ProviderHealthResponse {

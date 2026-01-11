@@ -9,6 +9,7 @@
 ### Phase 1: Backend Domain Types
 
 1. **Extend `Tenant` struct** ([multitenancy.rs#L15](../../edgequake/crates/edgequake-core/src/types/multitenancy.rs#L15))
+
    - Add `default_llm_model: String`
    - Add `default_llm_provider: String`
    - Add `default_embedding_model: String`
@@ -24,6 +25,7 @@
 ### Phase 2: Backend API Types
 
 1. **Update `CreateTenantRequest`** ([workspaces_types.rs#L16](../../edgequake/crates/edgequake-api/src/handlers/workspaces_types.rs#L16))
+
    - Add optional `default_llm_model`, `default_llm_provider`
    - Add optional `default_embedding_model`, `default_embedding_provider`, `default_embedding_dimension`
 
@@ -33,6 +35,7 @@
 ### Phase 3: Backend Handlers
 
 1. **Update `create_tenant`** handler to:
+
    - Apply optional model config from request
    - Auto-detect provider from model name if not specified
    - Pass inherited config to default workspace creation
@@ -60,11 +63,11 @@
 
 ## Risk Mitigation
 
-| Risk | Mitigation |
-|------|------------|
+| Risk                      | Mitigation                                          |
+| ------------------------- | --------------------------------------------------- |
 | Breaking existing tenants | Fallback to server defaults in TenantRow conversion |
-| Test failures | Update all test fixtures with new required fields |
-| Type errors in WebUI | Use optional types for new fields |
+| Test failures             | Update all test fixtures with new required fields   |
+| Type errors in WebUI      | Use optional types for new fields                   |
 
 ## Acceptance Criteria
 

@@ -182,14 +182,20 @@ mod storage_clear_tests {
 
         // Verify vectors exist
         let search_vec: Vec<f32> = (0..768).map(|_| 0.5).collect();
-        let results = storage.query(&search_vec, 10, None).await.expect("Failed to query");
+        let results = storage
+            .query(&search_vec, 10, None)
+            .await
+            .expect("Failed to query");
         assert_eq!(results.len(), 10);
 
         // Clear for rebuild
         storage.clear().await.expect("Failed to clear");
 
         // Verify storage is empty
-        let results_after = storage.query(&search_vec, 10, None).await.expect("Failed to query after clear");
+        let results_after = storage
+            .query(&search_vec, 10, None)
+            .await
+            .expect("Failed to query after clear");
         assert_eq!(results_after.len(), 0);
     }
 
@@ -207,7 +213,10 @@ mod storage_clear_tests {
                 (format!("initial-{}", i), v, json!({"phase": "initial"}))
             })
             .collect();
-        storage.upsert(&initial_vectors).await.expect("Failed to insert initial");
+        storage
+            .upsert(&initial_vectors)
+            .await
+            .expect("Failed to insert initial");
 
         // Clear
         storage.clear().await.expect("Failed to clear");
@@ -219,11 +228,17 @@ mod storage_clear_tests {
                 (format!("new-{}", i), v, json!({"phase": "new"}))
             })
             .collect();
-        storage.upsert(&new_vectors).await.expect("Failed to insert new");
+        storage
+            .upsert(&new_vectors)
+            .await
+            .expect("Failed to insert new");
 
         // Verify only new vectors exist
         let search_vec: Vec<f32> = (0..768).map(|_| 0.8).collect();
-        let results = storage.query(&search_vec, 10, None).await.expect("Failed to query");
+        let results = storage
+            .query(&search_vec, 10, None)
+            .await
+            .expect("Failed to query");
         assert_eq!(results.len(), 3);
 
         // Verify they are the new vectors
@@ -255,11 +270,17 @@ mod dimension_compatibility_tests {
 
         // OpenAI workspace (1536 dim)
         let storage_openai = MemoryVectorStorage::new(&ns1, 1536);
-        storage_openai.initialize().await.expect("Failed to initialize OpenAI storage");
+        storage_openai
+            .initialize()
+            .await
+            .expect("Failed to initialize OpenAI storage");
 
         // Ollama workspace (768 dim)
         let storage_ollama = MemoryVectorStorage::new(&ns2, 768);
-        storage_ollama.initialize().await.expect("Failed to initialize Ollama storage");
+        storage_ollama
+            .initialize()
+            .await
+            .expect("Failed to initialize Ollama storage");
 
         // Insert into OpenAI storage
         let openai_vec: Vec<f32> = (0..1536).map(|i| i as f32 / 1536.0).collect();
@@ -305,7 +326,7 @@ mod dimension_compatibility_tests {
     async fn test_supported_embedding_dimensions() {
         // Common embedding dimensions
         let dimensions = [
-            (384, "small-models"),   // MiniLM, all-MiniLM-L6-v2
+            (384, "small-models"),    // MiniLM, all-MiniLM-L6-v2
             (768, "ollama-lmstudio"), // Ollama embeddinggemma, nomic-embed
             (1024, "mxbai"),          // mxbai-embed-large
             (1536, "openai-small"),   // text-embedding-3-small
@@ -336,7 +357,13 @@ mod dimension_compatibility_tests {
                 .query(&vector, 1, None)
                 .await
                 .unwrap_or_else(|_| panic!("Failed to query {}", name));
-            assert_eq!(results.len(), 1, "Dimension {} should work for {}", dim, name);
+            assert_eq!(
+                results.len(),
+                1,
+                "Dimension {} should work for {}",
+                dim,
+                name
+            );
         }
     }
 
@@ -359,7 +386,10 @@ mod dimension_compatibility_tests {
             .expect("Failed to insert");
 
         // Query with same vector should have high score
-        let results = storage.query(&vector, 1, None).await.expect("Failed to query");
+        let results = storage
+            .query(&vector, 1, None)
+            .await
+            .expect("Failed to query");
         assert_eq!(results.len(), 1);
 
         // Score should be very close to 1.0 for identical vectors
@@ -393,7 +423,10 @@ mod edge_case_tests {
         storage.initialize().await.expect("Failed to initialize");
 
         let search_vec: Vec<f32> = (0..768).map(|_| 0.5).collect();
-        let results = storage.query(&search_vec, 10, None).await.expect("Failed to query");
+        let results = storage
+            .query(&search_vec, 10, None)
+            .await
+            .expect("Failed to query");
         assert!(results.is_empty(), "Empty storage should return no results");
     }
 
@@ -412,7 +445,10 @@ mod edge_case_tests {
             .expect("Failed to insert");
 
         // Query with limit 0
-        let results = storage.query(&vector, 0, None).await.expect("Failed to query");
+        let results = storage
+            .query(&vector, 0, None)
+            .await
+            .expect("Failed to query");
         assert!(results.is_empty(), "Limit 0 should return no results");
     }
 
@@ -446,7 +482,10 @@ mod edge_case_tests {
             .expect("Failed to update");
 
         // Query should find the updated vector (higher similarity to 0.9)
-        let results = storage.query(&updated_vec, 1, None).await.expect("Failed to query");
+        let results = storage
+            .query(&updated_vec, 1, None)
+            .await
+            .expect("Failed to query");
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, "doc-1");
 
@@ -479,7 +518,10 @@ mod edge_case_tests {
 
         // Clear and check again
         storage.clear().await.expect("Failed to clear");
-        assert!(storage.is_empty().await.expect("Failed to check is_empty after clear"));
+        assert!(storage
+            .is_empty()
+            .await
+            .expect("Failed to check is_empty after clear"));
     }
 
     /// Test count returns correct value
@@ -506,6 +548,9 @@ mod edge_case_tests {
 
         // Clear and check
         storage.clear().await.expect("Failed to clear");
-        assert_eq!(storage.count().await.expect("Failed to count after clear"), 0);
+        assert_eq!(
+            storage.count().await.expect("Failed to count after clear"),
+            0
+        );
     }
 }

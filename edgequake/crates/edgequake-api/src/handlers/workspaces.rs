@@ -172,16 +172,17 @@ pub async fn create_tenant(
     // Auto-create a default workspace for the new tenant (R004)
     // This ensures users always have at least one workspace available
     // SPEC-032: Workspace inherits tenant's default model configuration
-    let default_workspace_request = edgequake_core::CreateWorkspaceRequest::new("Default Workspace")
-        .with_llm_config(
-            &created_tenant.default_llm_model,
-            &created_tenant.default_llm_provider,
-        )
-        .with_embedding_config(
-            &created_tenant.default_embedding_model,
-            &created_tenant.default_embedding_provider,
-            created_tenant.default_embedding_dimension,
-        );
+    let default_workspace_request =
+        edgequake_core::CreateWorkspaceRequest::new("Default Workspace")
+            .with_llm_config(
+                &created_tenant.default_llm_model,
+                &created_tenant.default_llm_provider,
+            )
+            .with_embedding_config(
+                &created_tenant.default_embedding_model,
+                &created_tenant.default_embedding_provider,
+                created_tenant.default_embedding_dimension,
+            );
 
     if let Err(e) = state
         .workspace_service
@@ -493,11 +494,25 @@ pub async fn create_workspace(
         .ok_or_else(|| ApiError::NotFound(format!("Tenant {} not found", tenant_id)))?;
 
     // SPEC-032: Use tenant defaults if workspace-level config not provided
-    let llm_model = request.llm_model.clone().or_else(|| Some(tenant.default_llm_model.clone()));
-    let llm_provider = request.llm_provider.clone().or_else(|| Some(tenant.default_llm_provider.clone()));
-    let embedding_model = request.embedding_model.clone().or_else(|| Some(tenant.default_embedding_model.clone()));
-    let embedding_provider = request.embedding_provider.clone().or_else(|| Some(tenant.default_embedding_provider.clone()));
-    let embedding_dimension = request.embedding_dimension.or(Some(tenant.default_embedding_dimension));
+    let llm_model = request
+        .llm_model
+        .clone()
+        .or_else(|| Some(tenant.default_llm_model.clone()));
+    let llm_provider = request
+        .llm_provider
+        .clone()
+        .or_else(|| Some(tenant.default_llm_provider.clone()));
+    let embedding_model = request
+        .embedding_model
+        .clone()
+        .or_else(|| Some(tenant.default_embedding_model.clone()));
+    let embedding_provider = request
+        .embedding_provider
+        .clone()
+        .or_else(|| Some(tenant.default_embedding_provider.clone()));
+    let embedding_dimension = request
+        .embedding_dimension
+        .or(Some(tenant.default_embedding_dimension));
 
     // SPEC-032: Include LLM and embedding configuration in create request
     let create_request = CreateWorkspaceRequest {

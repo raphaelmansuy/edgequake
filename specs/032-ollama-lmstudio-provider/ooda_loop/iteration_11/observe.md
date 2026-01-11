@@ -27,21 +27,23 @@ POST /api/v1/documents
 
 ### 3. Missing Infrastructure
 
-| Component | Status | Issue |
-|-----------|--------|-------|
-| `create_llm_provider()` | ❌ MISSING | Only `create_embedding_provider()` exists |
-| Workspace pipeline | ❌ MISSING | No per-workspace pipeline creation |
-| Dynamic provider selection | ❌ MISSING | Pipeline hardcoded at startup |
+| Component                  | Status     | Issue                                     |
+| -------------------------- | ---------- | ----------------------------------------- |
+| `create_llm_provider()`    | ❌ MISSING | Only `create_embedding_provider()` exists |
+| Workspace pipeline         | ❌ MISSING | No per-workspace pipeline creation        |
+| Dynamic provider selection | ❌ MISSING | Pipeline hardcoded at startup             |
 
 ### 4. Provider Factory Analysis
 
 `edgequake-llm/src/factory.rs`:
+
 - `create_embedding_provider(provider, model, dimension)` ✅ EXISTS
 - `create_llm_provider(provider, model)` ❌ MISSING
 
 ### 5. Workspace LLM Config
 
 Already stored in database (iteration 09):
+
 - `llm_model: String`
 - `llm_provider: String`
 - `llm_full_id()` helper method

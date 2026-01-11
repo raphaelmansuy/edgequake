@@ -71,10 +71,10 @@ Add `llm_model` and `llm_provider` fields to Workspace, with helper methods for 
 
 pub struct Workspace {
     // ... existing fields ...
-    
+
 +   /// LLM model name (e.g., "gemma3:12b", "gpt-4o-mini").
 +   pub llm_model: String,
-+   
++
 +   /// LLM provider (e.g., "ollama", "openai", "lmstudio").
 +   pub llm_provider: String,
 }
@@ -84,7 +84,7 @@ impl Workspace {
 +   pub fn llm_full_id(&self) -> String {
 +       format!("{}/{}", self.llm_provider, self.llm_model)
 +   }
-+   
++
 +   /// Get fully qualified embedding model ID.
 +   pub fn embedding_full_id(&self) -> String {
 +       format!("{}/{}", self.embedding_provider, self.embedding_model)
@@ -97,11 +97,11 @@ impl Workspace {
 ```diff
 pub struct CreateWorkspaceApiRequest {
     // ... existing embedding fields ...
-    
+
 +   /// LLM model for knowledge graph generation/summarization.
 +   #[serde(skip_serializing_if = "Option::is_none")]
 +   pub llm_model: Option<String>,
-+   
++
 +   /// LLM provider (auto-detected if not provided).
 +   #[serde(skip_serializing_if = "Option::is_none")]
 +   pub llm_provider: Option<String>,
@@ -109,10 +109,10 @@ pub struct CreateWorkspaceApiRequest {
 
 pub struct WorkspaceResponse {
     // ... existing embedding fields ...
-    
+
 +   /// LLM model for this workspace.
 +   pub llm_model: String,
-+   
++
 +   /// LLM provider.
 +   pub llm_provider: String,
 }

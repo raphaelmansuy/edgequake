@@ -977,7 +977,10 @@ impl SOTAQueryEngine {
                 .await;
             context.chunks = reranked_chunks;
             let rerank_time = rerank_start.elapsed().as_millis() as u64;
-            tracing::debug!(rerank_time_ms = rerank_time, "Reranking completed (LLM override)");
+            tracing::debug!(
+                rerank_time_ms = rerank_time,
+                "Reranking completed (LLM override)"
+            );
             stats.retrieval_time_ms += rerank_time;
         }
 
@@ -2073,7 +2076,7 @@ impl SOTAQueryEngine {
         }
 
         let prompt = self.build_prompt(query, context);
-        
+
         // SPEC-032: Use override provider if provided, else default
         let response = if let Some(provider) = llm_override {
             provider.complete(&prompt).await?
@@ -2090,7 +2093,8 @@ impl SOTAQueryEngine {
         query: &str,
         context: &QueryContext,
     ) -> Result<(String, usize)> {
-        self.generate_answer_with_provider(query, context, None).await
+        self.generate_answer_with_provider(query, context, None)
+            .await
     }
 
     /// Get the engine configuration.

@@ -31,6 +31,7 @@ pub fn create_llm_provider(
 **File Modified:** `edgequake-api/src/state.rs` (+80 lines)
 
 Key features:
+
 - Parses workspace_id string to UUID
 - Looks up workspace via WorkspaceService
 - Creates LLM provider from workspace config
@@ -53,6 +54,7 @@ let result = workspace_pipeline.process(&document_id, &request.content).await?;
 **File Modified:** `edgequake-api/src/provider_types.rs`
 
 Fixed `|| true` logic bug:
+
 ```rust
 // Before (clippy error):
 satisfied: std::env::var("OLLAMA_HOST").is_ok() || true,
@@ -63,12 +65,12 @@ satisfied: true,  // WHY: Always satisfied because Ollama has builtin defaults
 
 ## Files Changed
 
-| File | Lines | Change Type |
-|------|-------|-------------|
-| `factory.rs` | +75 | MODIFIED |
-| `state.rs` | +80 | MODIFIED |
-| `documents.rs` | +5 | MODIFIED |
-| `provider_types.rs` | +2 | MODIFIED |
+| File                | Lines | Change Type |
+| ------------------- | ----- | ----------- |
+| `factory.rs`        | +75   | MODIFIED    |
+| `state.rs`          | +80   | MODIFIED    |
+| `documents.rs`      | +5    | MODIFIED    |
+| `provider_types.rs` | +2    | MODIFIED    |
 
 ## Test Results
 
@@ -92,6 +94,7 @@ test result: ok. 188 passed; 0 failed
 ## Logging
 
 When workspace-specific LLM is used:
+
 ```
 INFO Using workspace-specific LLM configuration for pipeline
      workspace_id=abc-123
@@ -100,6 +103,7 @@ INFO Using workspace-specific LLM configuration for pipeline
 ```
 
 When falling back to global:
+
 ```
 WARN Failed to create workspace-specific providers, using global pipeline
      workspace_id=abc-123

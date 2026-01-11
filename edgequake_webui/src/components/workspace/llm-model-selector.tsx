@@ -12,19 +12,19 @@
 'use client';
 
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectLabel,
+    SelectTrigger,
+    SelectValue,
 } from '@/components/ui/select';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useAvailableProviders } from '@/hooks/use-providers';
 import { cn } from '@/lib/utils';
@@ -255,4 +255,5 @@ export function LLMModelSelector({
   );
 }
 
-export { parseFullId, formatFullId };
+export { formatFullId, parseFullId };
+

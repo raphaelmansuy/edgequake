@@ -28,10 +28,12 @@
 ### Data Flow
 
 1. **Tenant Creation:**
+
    - User specifies default LLM and embedding config (optional)
    - If not provided, use server defaults from environment
 
 2. **Workspace Creation:**
+
    - User specifies workspace-specific config (optional)
    - If not provided, inherit from parent tenant
    - Auto-created default workspace inherits from tenant
@@ -73,9 +75,9 @@ pub struct Tenant {
 
 ## Design Decisions
 
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Field naming | `default_*` prefix | Distinguishes from workspace config |
-| Builder methods | `with_llm_config()`, `with_embedding_config()` | Consistent with Workspace pattern |
-| Inheritance | At create_workspace handler | Clean separation of concerns |
-| Response format | Include `*_full_id` fields | Matches WorkspaceResponse pattern |
+| Decision        | Choice                                         | Rationale                           |
+| --------------- | ---------------------------------------------- | ----------------------------------- |
+| Field naming    | `default_*` prefix                             | Distinguishes from workspace config |
+| Builder methods | `with_llm_config()`, `with_embedding_config()` | Consistent with Workspace pattern   |
+| Inheritance     | At create_workspace handler                    | Clean separation of concerns        |
+| Response format | Include `*_full_id` fields                     | Matches WorkspaceResponse pattern   |

@@ -10,6 +10,7 @@
 **File Created:** `edgequake_webui/src/components/workspace/llm-model-selector.tsx` (252 lines)
 
 **Key Features:**
+
 - `LLMSelection` interface with `model`, `provider`, `fullId`
 - Uses `useAvailableProviders()` hook for dynamic provider discovery
 - Provider icons: Cloud (OpenAI), Cpu (Ollama), Brain (LM Studio)
@@ -21,6 +22,7 @@
 **File Modified:** `edgequake_webui/src/components/shared/tenant-workspace-selector.tsx`
 
 **Changes:**
+
 1. Added imports for `LLMModelSelector` and `EmbeddingModelSelector`
 2. Added state: `selectedLLM`, `selectedEmbedding`
 3. Updated `createWorkspaceMutation` to pass:
@@ -38,10 +40,10 @@ $ pnpm exec tsc --noEmit
 
 ## Files Changed
 
-| File | Lines | Change Type |
-|------|-------|-------------|
-| `llm-model-selector.tsx` | 252 | NEW |
-| `tenant-workspace-selector.tsx` | +45 | MODIFIED |
+| File                            | Lines | Change Type |
+| ------------------------------- | ----- | ----------- |
+| `llm-model-selector.tsx`        | 252   | NEW         |
+| `tenant-workspace-selector.tsx` | +45   | MODIFIED    |
 
 ## Verification
 
