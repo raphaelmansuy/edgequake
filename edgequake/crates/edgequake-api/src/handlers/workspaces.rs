@@ -969,9 +969,11 @@ pub async fn reprocess_all_documents(
     );
 
     // 3. Get all document metadata for this workspace
-    let all_keys: Vec<String> = state.kv_storage.keys().await.map_err(|e| {
-        ApiError::Internal(format!("Failed to list document keys: {}", e))
-    })?;
+    let all_keys: Vec<String> = state
+        .kv_storage
+        .keys()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to list document keys: {}", e)))?;
 
     let mut documents_found = 0;
     let mut documents_queued = 0;
@@ -983,9 +985,11 @@ pub async fn reprocess_all_documents(
             break;
         }
 
-        if let Some(value) = state.kv_storage.get_by_id(key).await.map_err(|e| {
-            ApiError::Internal(format!("Failed to get document metadata: {}", e))
-        })? {
+        if let Some(value) =
+            state.kv_storage.get_by_id(key).await.map_err(|e| {
+                ApiError::Internal(format!("Failed to get document metadata: {}", e))
+            })?
+        {
             if let Some(obj) = value.as_object() {
                 // Check if document belongs to this workspace
                 let doc_workspace = obj
@@ -1044,7 +1048,13 @@ pub async fn reprocess_all_documents(
 
                 // Update document status to pending
                 let metadata_key = format!("{}-metadata", doc_id);
-                if let Some(mut metadata) = state.kv_storage.get_by_id(&metadata_key).await.ok().flatten() {
+                if let Some(mut metadata) = state
+                    .kv_storage
+                    .get_by_id(&metadata_key)
+                    .await
+                    .ok()
+                    .flatten()
+                {
                     if let Some(obj) = metadata.as_object_mut() {
                         obj.insert("status".to_string(), serde_json::json!("pending"));
                         obj.insert("track_id".to_string(), serde_json::json!(track_id));

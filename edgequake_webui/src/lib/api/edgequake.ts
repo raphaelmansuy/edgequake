@@ -264,7 +264,10 @@ export async function updateWorkspace(
   workspaceId: string,
   data: UpdateWorkspaceRequest
 ): Promise<Workspace> {
-  return api.patch<Workspace>(`/tenants/${tenantId}/workspaces/${workspaceId}`, data);
+  return api.patch<Workspace>(
+    `/tenants/${tenantId}/workspaces/${workspaceId}`,
+    data
+  );
 }
 
 // ============================================================================

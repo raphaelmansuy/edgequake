@@ -12,6 +12,7 @@
 
 'use client';
 
+import { PipelineStatusDialog } from '@/components/documents/pipeline-status-dialog';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -31,12 +32,11 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import { PipelineStatusDialog } from '@/components/documents/pipeline-status-dialog';
 import {
-  rebuildEmbeddings,
-  reprocessAllDocuments,
-  type RebuildEmbeddingsResponse,
-  type ReprocessAllResponse,
+    rebuildEmbeddings,
+    reprocessAllDocuments,
+    type RebuildEmbeddingsResponse,
+    type ReprocessAllResponse,
 } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useMutation, useQueryClient } from '@tanstack/react-query';

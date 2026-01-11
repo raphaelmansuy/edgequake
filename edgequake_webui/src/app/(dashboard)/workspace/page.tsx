@@ -21,23 +21,22 @@ import { LLMModelSelector, type LLMSelection } from '@/components/workspace/llm-
 import { RebuildEmbeddingsButton } from '@/components/workspace/rebuild-embeddings-button';
 import { getWorkspace, getWorkspaceStats, updateWorkspace } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
-import type { Workspace, WorkspaceStats } from '@/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  AlertTriangle,
-  Brain,
-  CheckCircle,
-  Cloud,
-  Cpu,
-  Database,
-  FileText,
-  FolderKanban,
-  GitBranch,
-  Layers,
-  RefreshCw,
-  Save,
-  Settings,
-  Sparkles,
+    AlertTriangle,
+    Brain,
+    CheckCircle,
+    Cloud,
+    Cpu,
+    Database,
+    FileText,
+    FolderKanban,
+    GitBranch,
+    Layers,
+    RefreshCw,
+    Save,
+    Settings,
+    Sparkles,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
