@@ -29,6 +29,7 @@
 //! | OpenAI | ✓ | ✓ | ✓ | Primary production provider |
 //! | Azure OpenAI | ✓ | ✓ | ✓ | Enterprise deployments |
 //! | Ollama | ✓ | ✓ | ✓ | Local/on-prem models |
+//! | LM Studio | ✓ | ✓ | ✓ | Local OpenAI-compatible API |
 //! | Gemini | ✓ | ✓ | ✓ | Google AI |
 //! | Mock | ✓ | ✓ | ✓ | Testing (no API calls) |
 //!
@@ -70,6 +71,7 @@ pub use factory::{ProviderFactory, ProviderType};
 pub use providers::azure_openai::AzureOpenAIProvider;
 pub use providers::gemini::GeminiProvider;
 pub use providers::jina::JinaProvider;
+pub use providers::lmstudio::LMStudioProvider;
 pub use providers::mock::MockProvider;
 pub use providers::ollama::OllamaProvider;
 pub use providers::openai::OpenAIProvider;

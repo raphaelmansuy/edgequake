@@ -39,6 +39,7 @@
 use std::sync::Arc;
 
 use crate::error::{LlmError, Result};
+use crate::providers::lmstudio::LMStudioProvider;
 use crate::traits::{EmbeddingProvider, LLMProvider};
 use crate::{MockProvider, OllamaProvider, OpenAIProvider};
 
@@ -187,38 +188,15 @@ impl ProviderFactory {
         Ok((provider.clone(), provider))
     }
 
-    /// Create LM Studio provider (OpenAI-compatible).
+    /// Create LM Studio provider from environment.
     ///
-    /// LM Studio provides an OpenAI-compatible API, so we use OpenAIProvider
-    /// with custom configuration.
-    ///
-    /// Environment variables:
+    /// Uses the dedicated LMStudioProvider which reads:
     /// - `LMSTUDIO_HOST`: LM Studio server URL (default: http://localhost:1234)
     /// - `LMSTUDIO_MODEL`: Chat model name (default: gemma2-9b-it)
-    /// - `LMSTUDIO_EMBEDDING_MODEL`: Embedding model (default: text-embedding-ada-002)
-    /// - `LMSTUDIO_EMBEDDING_DIM`: Embedding dimension (default: 1536)
+    /// - `LMSTUDIO_EMBEDDING_MODEL`: Embedding model (default: nomic-embed-text-v1.5)
+    /// - `LMSTUDIO_EMBEDDING_DIM`: Embedding dimension (default: 768)
     fn create_lmstudio() -> Result<(Arc<dyn LLMProvider>, Arc<dyn EmbeddingProvider>)> {
-        let host =
-            std::env::var("LMSTUDIO_HOST").unwrap_or_else(|_| "http://localhost:1234".to_string());
-
-        let model = std::env::var("LMSTUDIO_MODEL").unwrap_or_else(|_| "gemma2-9b-it".to_string());
-
-        let embedding_model = std::env::var("LMSTUDIO_EMBEDDING_MODEL")
-            .unwrap_or_else(|_| "text-embedding-ada-002".to_string());
-
-        // OpenAI-compatible endpoint requires /v1 suffix
-        let base_url = if host.ends_with("/v1") {
-            host
-        } else {
-            format!("{}/v1", host)
-        };
-
-        let provider = Arc::new(
-            OpenAIProvider::compatible("lmstudio-key", base_url)
-                .with_model(model)
-                .with_embedding_model(embedding_model),
-        );
-
+        let provider = Arc::new(LMStudioProvider::from_env()?);
         Ok((provider.clone(), provider))
     }
 
