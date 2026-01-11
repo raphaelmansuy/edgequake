@@ -366,15 +366,18 @@ pub async fn chat_completion(
 
     // SPEC-032: Apply provider/model override from request
     // Format: "provider/model" (e.g., "ollama/gemma3:12b") or just "provider"
-    let (llm_override, used_provider, used_model) = if let Some(ref provider_full_id) = request.provider {
+    let (llm_override, used_provider, used_model) = if let Some(ref provider_full_id) =
+        request.provider
+    {
         if !provider_full_id.is_empty() {
             // Parse "provider/model" format
             let (provider_name, model_name) = if let Some((p, m)) = provider_full_id.split_once('/')
             {
                 (p.to_string(), m.to_string())
             } else {
-                // Just provider name, use default model
-                (provider_full_id.clone(), "default".to_string())
+                // Just provider name, use provider's default model
+                let default_model = ProviderFactory::default_model_for_provider(provider_full_id);
+                (provider_full_id.clone(), default_model.to_string())
             };
 
             // Try to create the LLM provider
@@ -662,15 +665,19 @@ pub async fn chat_completion_stream(
 
         // SPEC-032: Create LLM provider override from request (streaming handler)
         // Format: "provider/model" (e.g., "ollama/gemma3:12b") or just "provider"
-        let (llm_override, used_provider, used_model) = if let Some(ref provider_full_id) = request_provider {
+        let (llm_override, used_provider, used_model) = if let Some(ref provider_full_id) =
+            request_provider
+        {
             if !provider_full_id.is_empty() {
                 // Parse "provider/model" format
                 let (provider_name, model_name) =
                     if let Some((p, m)) = provider_full_id.split_once('/') {
                         (p.to_string(), m.to_string())
                     } else {
-                        // Just provider name, use default model
-                        (provider_full_id.clone(), "default".to_string())
+                        // Just provider name, use provider's default model
+                        let default_model =
+                            ProviderFactory::default_model_for_provider(provider_full_id);
+                        (provider_full_id.clone(), default_model.to_string())
                     };
 
                 // Try to create the LLM provider

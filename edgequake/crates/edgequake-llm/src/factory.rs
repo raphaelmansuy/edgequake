@@ -383,6 +383,39 @@ impl ProviderFactory {
             }
         }
     }
+
+    /// Get the default LLM model for a provider.
+    ///
+    /// This is used when only provider name is specified without model.
+    /// Returns the provider's default model name.
+    ///
+    /// @implements SPEC-032: Default model resolution for provider-only requests
+    ///
+    /// # Arguments
+    ///
+    /// * `provider_name` - Provider type (e.g., "openai", "ollama", "lmstudio", "mock")
+    ///
+    /// # Returns
+    ///
+    /// Returns the default model name for the provider.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use edgequake_llm::ProviderFactory;
+    ///
+    /// assert_eq!(ProviderFactory::default_model_for_provider("ollama"), "gemma3:12b");
+    /// assert_eq!(ProviderFactory::default_model_for_provider("openai"), "gpt-4o-mini");
+    /// ```
+    pub fn default_model_for_provider(provider_name: &str) -> &'static str {
+        match provider_name.to_lowercase().as_str() {
+            "openai" => "gpt-4o-mini",
+            "ollama" => "gemma3:12b",
+            "lmstudio" | "lm-studio" | "lm_studio" => "gemma2-9b-it",
+            "mock" => "mock-model",
+            _ => "gpt-4o-mini", // Fallback to a reasonable default
+        }
+    }
 }
 
 #[cfg(test)]
