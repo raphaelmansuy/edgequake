@@ -53,6 +53,7 @@ use edgequake_core::types::{
     MessageContextEntity, MessageContextRelationship, MessageRole, MessageSource,
     UpdateMessageRequest,
 };
+use edgequake_llm::ProviderFactory;
 use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
 
 // Re-export DTOs from chat_types module
@@ -365,18 +366,48 @@ pub async fn chat_completion(
 
     // SPEC-032: Apply provider/model override from request
     // Format: "provider/model" (e.g., "ollama/gemma3:12b") or just "provider"
-    if let Some(ref provider) = request.provider {
-        if !provider.is_empty() {
-            engine_request = engine_request.with_llm_full_id(provider);
-            debug!(provider = %provider, "Using LLM provider override from request");
-        }
-    }
+    let llm_override = if let Some(ref provider_full_id) = request.provider {
+        if !provider_full_id.is_empty() {
+            // Parse "provider/model" format
+            let (provider_name, model_name) = if let Some((p, m)) = provider_full_id.split_once('/') {
+                (p.to_string(), m.to_string())
+            } else {
+                // Just provider name, use default model
+                (provider_full_id.clone(), "default".to_string())
+            };
 
-    let result = state
-        .sota_engine
-        .query(engine_request)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?;
+            // Try to create the LLM provider
+            match ProviderFactory::create_llm_provider(&provider_name, &model_name) {
+                Ok(llm) => {
+                    debug!(provider = %provider_name, model = %model_name, "Created LLM provider override");
+                    Some(llm)
+                }
+                Err(e) => {
+                    warn!(provider = %provider_name, error = %e, "Failed to create LLM provider, using default");
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    // Execute query with or without LLM override
+    let result = if let Some(ref llm) = llm_override {
+        state
+            .sota_engine
+            .query_with_llm_provider(engine_request, llm.clone())
+            .await
+            .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+    } else {
+        state
+            .sota_engine
+            .query(engine_request)
+            .await
+            .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+    };
 
     // 4. Build sources and context
     let sources = build_sources(&result.context);

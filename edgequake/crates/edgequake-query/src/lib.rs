@@ -91,5 +91,6 @@ pub use truncation::{
 };
 pub use vector_filter::{filter_by_type, get_typed_vectors, VectorType};
 
-// Re-export EmbeddingProvider for workspace-specific query execution
+// Re-export EmbeddingProvider and LLMProvider for workspace-specific query execution
 pub use edgequake_llm::traits::EmbeddingProvider;
+pub use edgequake_llm::traits::LLMProvider;
