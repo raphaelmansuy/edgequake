@@ -24,4 +24,13 @@ export {
   useDocumentLineage,
   useEntityProvenance,
 } from "./use-lineage";
+export {
+  modelsQueryKeys,
+  useModelsConfig,
+  useLlmModels,
+  useEmbeddingModels,
+  useProvidersHealth,
+  useLlmOptions,
+  useEmbeddingOptions,
+} from "./use-models";
 export { useWebSocket } from "./use-websocket";

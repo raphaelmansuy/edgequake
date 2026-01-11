@@ -56,6 +56,13 @@ use crate::handlers;
         handlers::create_api_key,
         handlers::list_api_keys,
         handlers::revoke_api_key,
+        // Models Configuration (SPEC-032)
+        handlers::list_models,
+        handlers::list_llm_models,
+        handlers::list_embedding_models,
+        handlers::get_provider,
+        handlers::get_model,
+        handlers::check_providers_health,
     ),
     components(schemas(
         handlers::HealthResponse,
@@ -128,6 +135,17 @@ use crate::handlers;
         handlers::ListApiKeysResponse,
         handlers::RevokeApiKeyResponse,
         handlers::GetMeResponse,
+        // Models Configuration schemas (SPEC-032)
+        handlers::ModelsListResponse,
+        handlers::ProviderResponse,
+        handlers::ModelResponse,
+        handlers::ModelCapabilitiesResponse,
+        handlers::ModelCostResponse,
+        handlers::ProviderHealthResponse,
+        handlers::LlmModelsResponse,
+        handlers::LlmModelItem,
+        handlers::EmbeddingModelsResponse,
+        handlers::EmbeddingModelItem,
     )),
     tags(
         (name = "Health", description = "Health check endpoints"),
@@ -140,6 +158,7 @@ use crate::handlers;
         (name = "Authentication", description = "User authentication and session management (Phase 3)"),
         (name = "User Management", description = "User administration endpoints (Phase 3)"),
         (name = "API Keys", description = "API key management endpoints (Phase 3)"),
+        (name = "Models", description = "Model configuration and capability discovery (SPEC-032)"),
     ),
     security(
         ("bearer_auth" = []),

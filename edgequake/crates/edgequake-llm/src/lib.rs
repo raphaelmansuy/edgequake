@@ -59,6 +59,7 @@
 pub mod cache;
 pub mod error;
 pub mod factory;
+pub mod model_config;
 pub mod providers;
 pub mod rate_limiter;
 pub mod reranker;
@@ -68,6 +69,10 @@ pub mod traits;
 pub use cache::{CacheConfig, CacheStats, CachedProvider, LLMCache};
 pub use error::{LlmError, Result};
 pub use factory::{ProviderFactory, ProviderType};
+pub use model_config::{
+    DefaultsConfig, ModelCapabilities, ModelCard, ModelConfigError, ModelCost, ModelType,
+    ModelsConfig, ProviderConfig, ProviderType as ConfigProviderType,
+};
 pub use providers::azure_openai::AzureOpenAIProvider;
 pub use providers::gemini::GeminiProvider;
 pub use providers::jina::JinaProvider;

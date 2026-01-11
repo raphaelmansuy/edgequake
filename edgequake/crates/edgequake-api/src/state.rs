@@ -77,6 +77,7 @@ use edgequake_auth::{AuthConfig, JwtService, PasswordService, RbacService};
 use edgequake_core::{
     ConversationService, InMemoryConversationService, InMemoryWorkspaceService, WorkspaceService,
 };
+use edgequake_llm::ModelsConfig;
 use edgequake_pipeline::Pipeline;
 use edgequake_query::{QueryEngine, QueryEngineConfig, SOTAQueryConfig, SOTAQueryEngine};
 use edgequake_rate_limiter::{RateLimitConfig as TokenBucketConfig, RateLimiter};
@@ -221,6 +222,9 @@ pub struct AppState {
     /// Storage mode indicator (memory or postgresql).
     pub storage_mode: StorageMode,
 
+    /// Models configuration (providers, model cards, capabilities).
+    pub models_config: Arc<ModelsConfig>,
+
     /// PostgreSQL pool (only available when using postgres feature).
     #[cfg(feature = "postgres")]
     pub pg_pool: Option<PgPool>,
@@ -303,6 +307,7 @@ impl AppState {
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
             storage_mode: StorageMode::Memory, // Default to memory for generic constructor
+            models_config: Arc::new(ModelsConfig::load().unwrap_or_else(|_| ModelsConfig::builtin_defaults())),
             #[cfg(feature = "postgres")]
             pg_pool: None,
             start_time: std::time::Instant::now(),
@@ -424,6 +429,7 @@ impl AppState {
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
             storage_mode: StorageMode::Memory,
+            models_config: Arc::new(ModelsConfig::load().unwrap_or_else(|_| ModelsConfig::builtin_defaults())),
             #[cfg(feature = "postgres")]
             pg_pool: None,
             start_time: std::time::Instant::now(),
@@ -502,6 +508,7 @@ impl AppState {
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::strict(100, 60)), // Strict limits for testing
             storage_mode: StorageMode::Memory,
+            models_config: Arc::new(ModelsConfig::builtin_defaults()), // Use builtins for testing
             #[cfg(feature = "postgres")]
             pg_pool: None,
             start_time: std::time::Instant::now(),
@@ -766,6 +773,7 @@ impl AppState {
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
             storage_mode: StorageMode::PostgreSQL,
+            models_config: Arc::new(ModelsConfig::load().unwrap_or_else(|_| ModelsConfig::builtin_defaults())),
             pg_pool: Some(pool),
             start_time: std::time::Instant::now(),
         })
