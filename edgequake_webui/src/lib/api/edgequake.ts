@@ -226,6 +226,47 @@ export async function createWorkspace(
   return api.post<Workspace>(`/tenants/${tenantId}/workspaces`, data);
 }
 
+/**
+ * Request to update a workspace.
+ * @implements SPEC-032: Workspace configuration update
+ */
+export interface UpdateWorkspaceRequest {
+  /** New workspace name (optional) */
+  name?: string;
+  /** New description (optional) */
+  description?: string;
+  /** New LLM model (optional) */
+  llm_model?: string;
+  /** New LLM provider (optional) */
+  llm_provider?: string;
+  /** New embedding model (optional) */
+  embedding_model?: string;
+  /** New embedding provider (optional) */
+  embedding_provider?: string;
+  /** New embedding dimension (optional) */
+  embedding_dimension?: number;
+  /** Whether workspace is active (optional) */
+  is_active?: boolean;
+}
+
+/**
+ * Update an existing workspace.
+ *
+ * @implements SPEC-032: Workspace-level configuration update
+ *
+ * @param tenantId - Parent tenant ID
+ * @param workspaceId - Workspace ID to update
+ * @param data - Update request
+ * @returns Updated workspace
+ */
+export async function updateWorkspace(
+  tenantId: string,
+  workspaceId: string,
+  data: UpdateWorkspaceRequest
+): Promise<Workspace> {
+  return api.patch<Workspace>(`/tenants/${tenantId}/workspaces/${workspaceId}`, data);
+}
+
 // ============================================================================
 // Rebuild Embeddings (SPEC-032)
 // ============================================================================
@@ -277,6 +318,63 @@ export async function rebuildEmbeddings(
 ): Promise<RebuildEmbeddingsResponse> {
   return api.post<RebuildEmbeddingsResponse>(
     `/workspaces/${workspaceId}/rebuild-embeddings`,
+    request
+  );
+}
+
+// ============================================================================
+// Reprocess All Documents (SPEC-032 Focus Area 5)
+// ============================================================================
+
+/**
+ * Request to reprocess all documents in a workspace.
+ */
+export interface ReprocessAllRequest {
+  /** Whether to include completed documents (default: true) */
+  include_completed?: boolean;
+  /** Maximum documents to process (default: 1000) */
+  max_documents?: number;
+}
+
+/**
+ * Response from reprocess all documents operation.
+ */
+export interface ReprocessAllResponse {
+  /** Track ID for monitoring progress */
+  track_id: string;
+  /** Workspace ID */
+  workspace_id: string;
+  /** Status: "processing" or "no_documents" */
+  status: string;
+  /** Total documents found */
+  documents_found: number;
+  /** Documents queued for processing */
+  documents_queued: number;
+  /** Documents skipped */
+  documents_skipped: number;
+  /** Estimated time in seconds */
+  estimated_time_seconds?: number;
+}
+
+/**
+ * Reprocess all documents in a workspace.
+ *
+ * This queues all documents for re-embedding, typically used after
+ * a rebuild-embeddings operation. Progress can be monitored via
+ * the pipeline status endpoint.
+ *
+ * @implements SPEC-032: Focus Area 5 - Rebuild with progress
+ *
+ * @param workspaceId - Workspace ID
+ * @param request - Reprocess configuration
+ * @returns Reprocess status response
+ */
+export async function reprocessAllDocuments(
+  workspaceId: string,
+  request: ReprocessAllRequest = {}
+): Promise<ReprocessAllResponse> {
+  return api.post<ReprocessAllResponse>(
+    `/workspaces/${workspaceId}/reprocess-documents`,
     request
   );
 }

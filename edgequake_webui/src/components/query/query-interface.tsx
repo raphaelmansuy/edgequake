@@ -103,6 +103,10 @@ interface Message {
   isError?: boolean;
   isStreaming?: boolean;
   timestamp?: number;
+  /** LLM provider used (lineage tracking). @implements SPEC-032 */
+  llmProvider?: string;
+  /** LLM model used (lineage tracking). @implements SPEC-032 */
+  llmModel?: string;
 }
 
 // ============================================================================
@@ -488,6 +492,9 @@ export function QueryInterface() {
       isError: msg.is_error,
       isStreaming: false,
       timestamp: new Date(msg.created_at).getTime(),
+      // SPEC-032: LLM provider/model lineage tracking
+      llmProvider: msg.llm_provider ?? undefined,
+      llmModel: msg.llm_model ?? undefined,
     };
   }, []);
 
@@ -592,6 +599,9 @@ export function QueryInterface() {
       let thinkingTimeMs: number | undefined;
       let newConversationId = conversationId;
       let assistantMessageId: string | undefined;
+      // SPEC-032: Track LLM provider/model for lineage display
+      let llmProvider: string | undefined;
+      let llmModel: string | undefined;
 
       // Use the unified chat API - server handles message persistence
       // SPEC-032: Pass selected provider for query
@@ -657,7 +667,10 @@ export function QueryInterface() {
             assistantMessageId = chunk.assistant_message_id;
             tokensUsed = chunk.tokens_used || 0;
             durationMs = chunk.duration_ms || 0;
-            console.log('✓ Message saved on server:', assistantMessageId, {tokensUsed, durationMs});
+            // SPEC-032: Capture LLM provider/model for lineage tracking
+            llmProvider = chunk.llm_provider;
+            llmModel = chunk.llm_model;
+            console.log('✓ Message saved on server:', assistantMessageId, {tokensUsed, durationMs, llmProvider, llmModel});
             break;
 
           case 'error':

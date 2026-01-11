@@ -100,6 +100,10 @@ export interface ChatCompletionResponse {
   tokens_used: number;
   /** Duration in milliseconds. */
   duration_ms: number;
+  /** LLM provider used (lineage tracking). @implements SPEC-032 */
+  llm_provider?: string;
+  /** LLM model used (lineage tracking). @implements SPEC-032 */
+  llm_model?: string;
 }
 
 /**
@@ -128,6 +132,10 @@ export type ChatStreamEvent =
       assistant_message_id: string;
       tokens_used: number;
       duration_ms: number;
+      /** LLM provider used (lineage tracking). @implements SPEC-032 */
+      llm_provider?: string;
+      /** LLM model used (lineage tracking). @implements SPEC-032 */
+      llm_model?: string;
     }
   | {
       type: "error";

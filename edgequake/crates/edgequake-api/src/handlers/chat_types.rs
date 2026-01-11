@@ -96,6 +96,16 @@ pub struct ChatCompletionResponse {
 
     /// Duration in milliseconds.
     pub duration_ms: u64,
+
+    /// LLM provider used (lineage tracking).
+    /// @implements SPEC-032: Provider lineage in query responses
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub llm_provider: Option<String>,
+
+    /// LLM model used (lineage tracking).
+    /// @implements SPEC-032: Model lineage in query responses
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub llm_model: Option<String>,
 }
 
 // ============================================================================
@@ -126,6 +136,14 @@ pub enum ChatStreamEvent {
         assistant_message_id: Uuid,
         tokens_used: u32,
         duration_ms: u64,
+        /// LLM provider used (lineage tracking).
+        /// @implements SPEC-032: Provider lineage in streaming responses
+        #[serde(skip_serializing_if = "Option::is_none")]
+        llm_provider: Option<String>,
+        /// LLM model used (lineage tracking).
+        /// @implements SPEC-032: Model lineage in streaming responses
+        #[serde(skip_serializing_if = "Option::is_none")]
+        llm_model: Option<String>,
     },
 
     /// Error occurred.
@@ -201,11 +219,31 @@ mod tests {
             assistant_message_id: Uuid::nil(),
             tokens_used: 150,
             duration_ms: 1200,
+            llm_provider: Some("ollama".to_string()),
+            llm_model: Some("gemma3:12b".to_string()),
         };
         let json = serde_json::to_value(&event).unwrap();
         assert_eq!(json["type"], "done");
         assert_eq!(json["tokens_used"], 150);
         assert_eq!(json["duration_ms"], 1200);
+        assert_eq!(json["llm_provider"], "ollama");
+        assert_eq!(json["llm_model"], "gemma3:12b");
+    }
+
+    #[test]
+    fn test_chat_stream_event_done_no_provider() {
+        let event = ChatStreamEvent::Done {
+            assistant_message_id: Uuid::nil(),
+            tokens_used: 100,
+            duration_ms: 500,
+            llm_provider: None,
+            llm_model: None,
+        };
+        let json = serde_json::to_value(&event).unwrap();
+        assert_eq!(json["type"], "done");
+        // Provider fields should be absent when None (skip_serializing_if)
+        assert!(json.get("llm_provider").is_none());
+        assert!(json.get("llm_model").is_none());
     }
 
     #[test]

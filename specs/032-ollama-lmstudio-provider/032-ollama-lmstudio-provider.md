@@ -17,6 +17,21 @@ As the embedding required a fixed dimension, you must provide a way to recreate 
 
  You must continue the OODA loops until the Ollama and Lmstudio providers are fully integrated, tested, and documented in edgequake. At least 50 OODA loops must be performed.
 
+ FOCUS on : 
+1) Ensure that when I create a new Tenant I can choose the default llm and embedding provider and model for that tenant/workspace --> On the dialog box for Tenant Creation I must have this choice
+
+2) Ensure that when I create a new workspace I can choose the default llm and embedding provider and model for that workspace --> On the Workspace Dialog box I must be able to choose the embedding provided and llm provider by default
+
+3) On Query --> Ensure I can chose the current LLM Provider -> Ensure it used , traced and stored in the generated message (as lineage information) --> Ensure is also displayed as the token is displayed in the query page
+
+4) Ensure I have a current workspace page in the appication to display the features of the current workspace -> Include action such as change the embedding/llm provider and rebuild the extraction + embedding
+
+5) Ensure the rebuild document -> extraction + embedding works, and the processing information is displayed like for the first time processing
+
+6) Ensure we have deeplink to access workspace settings page directly from the webui
+
+7) Ensure we deeplwi 
+
 Very important ==> Default providers (llm+embedding) and models will be defined as setup in a toml config file located at the root of edgequake server. Capabilities of models and providers must be detected at runtime and exposed as an API. This configuration file will act as models cards explaining the capabilities of each model and provider. (vision / image support / max tokens / context length / cost per 1K tokens etc). This config file will be used by the edgequake_webui to display the capabilities of each model and provider in the selection dropdowns. This file will provide high signal information to the users about the models and providers available in the edgequake server.
 
 

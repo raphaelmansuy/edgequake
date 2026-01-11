@@ -175,6 +175,11 @@ fn api_v1_routes() -> Router<AppState> {
             "/workspaces/{workspace_id}/rebuild-embeddings",
             post(handlers::rebuild_embeddings),
         )
+        // SPEC-032: Reprocess all documents for workspace (Focus Area 5)
+        .route(
+            "/workspaces/{workspace_id}/reprocess-documents",
+            post(handlers::reprocess_all_documents),
+        )
         // Documents
         .route("/documents", post(handlers::upload_document))
         .route("/documents", get(handlers::list_documents))

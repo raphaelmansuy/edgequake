@@ -51,9 +51,9 @@ use crate::state::AppState;
 // Re-export DTOs for backward compatibility
 pub use crate::handlers::workspaces_types::{
     workspaces_default_limit, CreateTenantRequest, CreateWorkspaceApiRequest, PaginationParams,
-    RebuildEmbeddingsRequest, RebuildEmbeddingsResponse, TenantListResponse, TenantResponse,
-    UpdateTenantRequest, UpdateWorkspaceApiRequest, WorkspaceListResponse, WorkspaceResponse,
-    WorkspaceStatsResponse,
+    RebuildEmbeddingsRequest, RebuildEmbeddingsResponse, ReprocessAllRequest, ReprocessAllResponse,
+    TenantListResponse, TenantResponse, UpdateTenantRequest, UpdateWorkspaceApiRequest,
+    WorkspaceListResponse, WorkspaceResponse, WorkspaceStatsResponse,
 };
 
 use edgequake_core::Workspace;
@@ -904,6 +904,222 @@ pub async fn rebuild_embeddings(
         status = %response.status,
         documents = stats.document_count,
         "Embedding rebuild complete (vectors cleared, documents need reprocessing)"
+    );
+
+    Ok(Json(response))
+}
+
+// SPEC-032: Reprocess All Documents Endpoint
+// Focus Area 5 - Trigger document reprocessing after rebuild
+
+/// Reprocess all documents in a workspace.
+///
+/// This endpoint queues all documents for re-embedding, typically used after
+/// a rebuild-embeddings operation to regenerate vector embeddings. Progress
+/// can be monitored via the pipeline status endpoint.
+///
+/// ## Use Cases
+///
+/// - Regenerate embeddings after model change
+/// - Re-extract entities after LLM update
+/// - Bulk re-processing for quality improvements
+#[utoipa::path(
+    post,
+    path = "/api/v1/workspaces/{workspace_id}/reprocess-documents",
+    request_body = ReprocessAllRequest,
+    params(
+        ("workspace_id" = Uuid, Path, description = "Workspace ID")
+    ),
+    responses(
+        (status = 200, description = "Documents queued for reprocessing", body = ReprocessAllResponse),
+        (status = 404, description = "Workspace not found"),
+        (status = 400, description = "Invalid request"),
+    ),
+    tags = ["workspaces"]
+)]
+pub async fn reprocess_all_documents(
+    State(state): State<AppState>,
+    Path(workspace_id): Path<Uuid>,
+    Json(request): Json<ReprocessAllRequest>,
+) -> Result<Json<ReprocessAllResponse>, ApiError> {
+    use chrono::Utc;
+    use edgequake_tasks::{Task, TaskType, TextInsertData};
+    use tracing::info;
+
+    // 1. Verify workspace exists
+    let workspace = state
+        .workspace_service
+        .get_workspace(workspace_id)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .ok_or_else(|| ApiError::NotFound(format!("Workspace {} not found", workspace_id)))?;
+
+    // 2. Generate track ID for this batch
+    let track_id = format!(
+        "reprocess_{}_{}",
+        Utc::now().format("%Y%m%d_%H%M%S"),
+        &Uuid::new_v4().to_string()[..8]
+    );
+
+    info!(
+        workspace_id = %workspace_id,
+        track_id = %track_id,
+        include_completed = request.include_completed,
+        "Starting reprocess all documents"
+    );
+
+    // 3. Get all document metadata for this workspace
+    let all_keys: Vec<String> = state.kv_storage.keys().await.map_err(|e| {
+        ApiError::Internal(format!("Failed to list document keys: {}", e))
+    })?;
+
+    let mut documents_found = 0;
+    let mut documents_queued = 0;
+    let mut documents_skipped = 0;
+
+    // 4. Process each document
+    for key in all_keys.iter().filter(|k| k.ends_with("-metadata")) {
+        if documents_queued >= request.max_documents {
+            break;
+        }
+
+        if let Some(value) = state.kv_storage.get_by_id(key).await.map_err(|e| {
+            ApiError::Internal(format!("Failed to get document metadata: {}", e))
+        })? {
+            if let Some(obj) = value.as_object() {
+                // Check if document belongs to this workspace
+                let doc_workspace = obj
+                    .get("workspace_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("default");
+
+                if doc_workspace != workspace_id.to_string() && doc_workspace != "default" {
+                    continue;
+                }
+
+                documents_found += 1;
+
+                let status = obj.get("status").and_then(|v| v.as_str());
+                let doc_id = obj.get("id").and_then(|v| v.as_str());
+                let title = obj.get("title").and_then(|v| v.as_str());
+
+                // Skip if not including completed and already completed
+                if !request.include_completed && status == Some("completed") {
+                    documents_skipped += 1;
+                    continue;
+                }
+
+                // Skip if currently processing
+                if status == Some("processing") {
+                    documents_skipped += 1;
+                    continue;
+                }
+
+                // Get document ID
+                let doc_id = match doc_id {
+                    Some(id) => id.to_string(),
+                    None => {
+                        documents_skipped += 1;
+                        continue;
+                    }
+                };
+
+                // Get document content
+                let content_key = format!("{}-content", doc_id);
+                let content = match state.kv_storage.get_by_id(&content_key).await {
+                    Ok(Some(content_value)) => content_value
+                        .get("content")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    _ => None,
+                };
+
+                let content = match content {
+                    Some(c) => c,
+                    None => {
+                        documents_skipped += 1;
+                        continue;
+                    }
+                };
+
+                // Update document status to pending
+                let metadata_key = format!("{}-metadata", doc_id);
+                if let Some(mut metadata) = state.kv_storage.get_by_id(&metadata_key).await.ok().flatten() {
+                    if let Some(obj) = metadata.as_object_mut() {
+                        obj.insert("status".to_string(), serde_json::json!("pending"));
+                        obj.insert("track_id".to_string(), serde_json::json!(track_id));
+                        obj.insert(
+                            "reprocess_at".to_string(),
+                            serde_json::json!(Utc::now().to_rfc3339()),
+                        );
+
+                        let _ = state.kv_storage.upsert(&[(metadata_key, metadata)]).await;
+                    }
+                }
+
+                // Create processing task
+                let doc_title = title.unwrap_or(&doc_id).to_string();
+                let task_data = TextInsertData {
+                    text: content,
+                    file_source: doc_title.clone(),
+                    workspace_id: workspace_id.to_string(),
+                    metadata: Some(serde_json::json!({
+                        "document_id": doc_id,
+                        "title": doc_title,
+                        "track_id": track_id,
+                        "is_reprocess": true,
+                        "workspace_id": workspace_id.to_string(),
+                        "tenant_id": workspace.tenant_id.to_string(),
+                    })),
+                };
+
+                let task = Task::new(TaskType::Insert, serde_json::to_value(&task_data).unwrap());
+
+                // Store and queue task
+                if let Err(e) = state.task_storage.create_task(&task).await {
+                    info!(error = %e, doc_id = %doc_id, "Failed to create task, skipping");
+                    documents_skipped += 1;
+                    continue;
+                }
+
+                if let Err(e) = state.task_queue.send(task).await {
+                    info!(error = %e, doc_id = %doc_id, "Failed to queue task, skipping");
+                    documents_skipped += 1;
+                    continue;
+                }
+
+                documents_queued += 1;
+            }
+        }
+    }
+
+    // 5. Estimate processing time (1 second per document conservative)
+    let estimated_time = if documents_queued > 0 {
+        Some(documents_queued as u64)
+    } else {
+        None
+    };
+
+    let response = ReprocessAllResponse {
+        track_id,
+        workspace_id,
+        status: if documents_queued > 0 {
+            "processing".to_string()
+        } else {
+            "no_documents".to_string()
+        },
+        documents_found,
+        documents_queued,
+        documents_skipped,
+        estimated_time_seconds: estimated_time,
+    };
+
+    info!(
+        workspace_id = %workspace_id,
+        found = documents_found,
+        queued = documents_queued,
+        skipped = documents_skipped,
+        "Reprocess all documents complete"
     );
 
     Ok(Json(response))

@@ -56,6 +56,10 @@ export interface ChatMessageData {
   durationMs?: number;
   thinkingTimeMs?: number;
   context?: QueryContext;
+  /** LLM provider used (lineage tracking). @implements SPEC-032 */
+  llmProvider?: string;
+  /** LLM model used (lineage tracking). @implements SPEC-032 */
+  llmModel?: string;
 }
 
 interface ChatMessageProps {
@@ -185,6 +189,8 @@ const MetadataBar = memo(function MetadataBar({
   mode,
   tokensUsed,
   durationMs,
+  llmProvider,
+  llmModel,
   copied,
   onCopy,
   onRegenerate,
@@ -194,6 +200,8 @@ const MetadataBar = memo(function MetadataBar({
   mode?: string;
   tokensUsed?: number;
   durationMs?: number;
+  llmProvider?: string;
+  llmModel?: string;
   copied: boolean;
   onCopy: () => void;
   onRegenerate?: () => void;
@@ -210,7 +218,7 @@ const MetadataBar = memo(function MetadataBar({
       )}
     >
       {/* Stats */}
-      <div className="flex items-center gap-2.5 text-xs text-muted-foreground">
+      <div className="flex items-center gap-2.5 text-xs text-muted-foreground flex-wrap">
         {mode && (
           <Badge 
             variant="outline" 
@@ -221,6 +229,33 @@ const MetadataBar = memo(function MetadataBar({
           >
             {mode}
           </Badge>
+        )}
+        {/* SPEC-032: Display LLM provider/model as lineage badge */}
+        {(llmProvider || llmModel) && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge 
+                  variant="secondary" 
+                  className={cn(
+                    'text-xs font-normal px-2 py-0.5',
+                    'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+                    'border-blue-200 dark:border-blue-800'
+                  )}
+                >
+                  <Brain className="h-3 w-3 mr-1" />
+                  {llmProvider || 'default'}
+                  {llmModel && `: ${llmModel.split(':')[0]}`}
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">
+                  {t('query.llmLineage', 'LLM Provider')}: {llmProvider || 'server default'}
+                  {llmModel && <><br />{t('query.llmModel', 'Model')}: {llmModel}</>}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
         {tokensUsed && (
           <span className="flex items-center gap-1">
@@ -431,6 +466,8 @@ const AssistantMessage = memo(function AssistantMessage({
               mode={message.mode}
               tokensUsed={message.tokensUsed}
               durationMs={message.durationMs}
+              llmProvider={message.llmProvider}
+              llmModel={message.llmModel}
               copied={copied}
               onCopy={handleCopy}
               onRegenerate={onRegenerate}

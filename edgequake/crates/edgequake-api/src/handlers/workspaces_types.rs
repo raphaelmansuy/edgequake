@@ -393,6 +393,54 @@ pub struct RebuildEmbeddingsResponse {
 }
 
 // ============================================================================
+// Reprocess All Documents DTOs (SPEC-032 Focus Area 5)
+// ============================================================================
+
+/// Request to reprocess all documents in a workspace.
+///
+/// This operation queues all documents for re-embedding, typically used after
+/// a rebuild-embeddings operation to regenerate vector embeddings.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ReprocessAllRequest {
+    /// Whether to include successfully processed documents.
+    /// If false, only pending/failed documents are reprocessed.
+    #[serde(default = "default_include_completed")]
+    pub include_completed: bool,
+
+    /// Maximum number of documents to process.
+    /// Default: 1000.
+    #[serde(default = "default_max_reprocess")]
+    pub max_documents: usize,
+}
+
+fn default_include_completed() -> bool {
+    true
+}
+
+fn default_max_reprocess() -> usize {
+    1000
+}
+
+/// Response from reprocess all operation.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ReprocessAllResponse {
+    /// Track ID for monitoring progress.
+    pub track_id: String,
+    /// Workspace ID.
+    pub workspace_id: Uuid,
+    /// Status of the operation.
+    pub status: String,
+    /// Total documents found.
+    pub documents_found: usize,
+    /// Documents queued for processing.
+    pub documents_queued: usize,
+    /// Documents skipped (already processing or other reasons).
+    pub documents_skipped: usize,
+    /// Estimated processing time in seconds.
+    pub estimated_time_seconds: Option<u64>,
+}
+
+// ============================================================================
 // Unit Tests
 // ============================================================================
 

@@ -366,7 +366,7 @@ pub async fn chat_completion(
 
     // SPEC-032: Apply provider/model override from request
     // Format: "provider/model" (e.g., "ollama/gemma3:12b") or just "provider"
-    let llm_override = if let Some(ref provider_full_id) = request.provider {
+    let (llm_override, used_provider, used_model) = if let Some(ref provider_full_id) = request.provider {
         if !provider_full_id.is_empty() {
             // Parse "provider/model" format
             let (provider_name, model_name) = if let Some((p, m)) = provider_full_id.split_once('/')
@@ -381,18 +381,18 @@ pub async fn chat_completion(
             match ProviderFactory::create_llm_provider(&provider_name, &model_name) {
                 Ok(llm) => {
                     debug!(provider = %provider_name, model = %model_name, "Created LLM provider override");
-                    Some(llm)
+                    (Some(llm), Some(provider_name), Some(model_name))
                 }
                 Err(e) => {
                     warn!(provider = %provider_name, error = %e, "Failed to create LLM provider, using default");
-                    None
+                    (None, None, None)
                 }
             }
         } else {
-            None
+            (None, None, None)
         }
     } else {
-        None
+        (None, None, None)
     };
 
     // Execute query with or without LLM override
@@ -472,6 +472,9 @@ pub async fn chat_completion(
         },
         tokens_used: result.stats.generated_tokens as u32,
         duration_ms: result.stats.total_time_ms,
+        // SPEC-032: Provider lineage tracking
+        llm_provider: used_provider,
+        llm_model: used_model,
     }))
 }
 
@@ -659,7 +662,7 @@ pub async fn chat_completion_stream(
 
         // SPEC-032: Create LLM provider override from request (streaming handler)
         // Format: "provider/model" (e.g., "ollama/gemma3:12b") or just "provider"
-        let llm_override = if let Some(ref provider_full_id) = request_provider {
+        let (llm_override, used_provider, used_model) = if let Some(ref provider_full_id) = request_provider {
             if !provider_full_id.is_empty() {
                 // Parse "provider/model" format
                 let (provider_name, model_name) =
@@ -674,18 +677,18 @@ pub async fn chat_completion_stream(
                 match ProviderFactory::create_llm_provider(&provider_name, &model_name) {
                     Ok(llm) => {
                         debug!(provider = %provider_name, model = %model_name, "Created LLM provider override for streaming");
-                        Some(llm)
+                        (Some(llm), Some(provider_name), Some(model_name))
                     }
                     Err(e) => {
                         warn!(provider = %provider_name, error = %e, "Failed to create LLM provider for streaming, using default");
-                        None
+                        (None, None, None)
                     }
                 }
             } else {
-                None
+                (None, None, None)
             }
         } else {
-            None
+            (None, None, None)
         };
 
         // Execute streaming query with context using SOTA engine (LightRAG-style)
@@ -810,6 +813,8 @@ pub async fn chat_completion_stream(
                     tokens_used = tokens_used,
                     duration_ms = duration_ms,
                     chunk_count = accumulator.chunk_count(),
+                    llm_provider = ?used_provider,
+                    llm_model = ?used_model,
                     "Streaming chat completion successful"
                 );
 
@@ -818,6 +823,9 @@ pub async fn chat_completion_stream(
                         assistant_message_id: assistant_message.message_id,
                         tokens_used,
                         duration_ms,
+                        // SPEC-032: Provider lineage tracking
+                        llm_provider: used_provider.clone(),
+                        llm_model: used_model.clone(),
                     })
                     .await;
             }
@@ -903,6 +911,8 @@ mod tests {
             assistant_message_id: Uuid::nil(),
             tokens_used: 100,
             duration_ms: 500,
+            llm_provider: None,
+            llm_model: None,
         };
         let json = serde_json::to_string(&event).unwrap();
         assert!(json.contains("\"type\":\"done\""));

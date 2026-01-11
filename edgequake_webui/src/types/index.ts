@@ -323,6 +323,10 @@ export interface QueryStreamChunk {
   error?: string;
   tokens_used?: number;
   duration_ms?: number;
+  /** LLM provider used for this query (lineage tracking). @implements SPEC-032 */
+  llm_provider?: string;
+  /** LLM model used for this query (lineage tracking). @implements SPEC-032 */
+  llm_model?: string;
 }
 
 // Auth types
@@ -518,6 +522,27 @@ export interface CreateWorkspaceRequest {
    * If not provided, auto-detected from embedding_model.
    */
   embedding_dimension?: number;
+}
+
+/**
+ * Workspace statistics response.
+ * @implements SPEC-032: Workspace stats for detail page
+ */
+export interface WorkspaceStats {
+  /** Total number of documents in workspace */
+  document_count: number;
+  /** Total number of entities extracted */
+  entity_count: number;
+  /** Total number of relationships */
+  relationship_count: number;
+  /** Total number of text chunks */
+  chunk_count: number;
+  /** Total number of vectors stored */
+  vector_count?: number;
+  /** Total characters processed */
+  total_characters?: number;
+  /** Total tokens used */
+  total_tokens?: number;
 }
 
 // Task/Pipeline types
@@ -812,6 +837,10 @@ export interface ServerMessage {
   is_error: boolean;
   created_at: string;
   updated_at: string;
+  /** LLM provider used (lineage tracking). @implements SPEC-032 */
+  llm_provider?: string | null;
+  /** LLM model used (lineage tracking). @implements SPEC-032 */
+  llm_model?: string | null;
 }
 
 export interface ServerMessageContext {
