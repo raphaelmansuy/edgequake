@@ -1581,7 +1581,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
         sqlx::query(&cypher_query)
             .execute(&pool)
             .await
-            .map_err(|e| StorageError::Query(format!("Failed to clear workspace: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Failed to clear workspace: {}", e)))?;
 
         tracing::info!(
             workspace_id = %workspace_id,
