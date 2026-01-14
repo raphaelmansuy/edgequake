@@ -92,6 +92,57 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
   });
 
+  /**
+   * @implements SPEC-032: Focus 8 - Streaming support per model
+   * @iteration OODA 63
+   * 
+   * Verifies that models API correctly reports streaming capability.
+   */
+  test.describe("Focus 8: Streaming Support", () => {
+    test("LLM models report streaming capability", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+
+      // Find LLM models from providers that support streaming
+      const streamingProviders = ["openai", "ollama", "anthropic"];
+      const llmModels = data.providers
+        .filter((p: any) => streamingProviders.includes(p.name))
+        .flatMap((p: any) =>
+          p.models.filter((m: any) => m.model_type === "llm")
+        );
+
+      expect(llmModels.length).toBeGreaterThan(0);
+
+      // All LLM models from these providers should support streaming
+      for (const model of llmModels) {
+        expect(model.capabilities).toHaveProperty("supports_streaming");
+        expect(model.capabilities.supports_streaming).toBe(true);
+      }
+    });
+
+    test("embedding models do not support streaming", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+
+      // Find embedding models
+      const embeddingModels = data.providers.flatMap((p: any) =>
+        p.models.filter((m: any) => m.model_type === "embedding")
+      );
+
+      expect(embeddingModels.length).toBeGreaterThan(0);
+
+      // Embedding models should not support streaming
+      for (const model of embeddingModels) {
+        expect(model.capabilities).toHaveProperty("supports_streaming");
+        expect(model.capabilities.supports_streaming).toBe(false);
+      }
+    });
+  });
+
   test.describe("Focus 1 & 2: Tenant/Workspace with Model Config", () => {
     test("can create tenant with default model config via API", async ({
       request,
