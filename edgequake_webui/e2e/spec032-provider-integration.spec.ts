@@ -1963,4 +1963,269 @@ test.describe("SPEC-032: Provider Integration", () => {
       }
     });
   });
+
+  /**
+   * Image Cost Tests
+   * @iteration OODA 101-102
+   */
+  test.describe("Image Cost", () => {
+    test("vision models have image cost field", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const visionModels = data.providers.flatMap((p: any) =>
+        p.models.filter((m: any) => m.capabilities.supports_vision)
+      );
+
+      for (const model of visionModels) {
+        expect(model.cost).toHaveProperty("image_per_unit");
+        expect(typeof model.cost.image_per_unit).toBe("number");
+      }
+    });
+
+    test("non-vision models have zero image cost", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const nonVisionModels = data.providers.flatMap((p: any) =>
+        p.models.filter((m: any) => !m.capabilities.supports_vision)
+      );
+
+      for (const model of nonVisionModels) {
+        expect(model.cost.image_per_unit).toBe(0);
+      }
+    });
+  });
+
+  /**
+   * Provider Type Enum Tests
+   * @iteration OODA 103-104
+   */
+  test.describe("Provider Type Enum", () => {
+    test("provider types are valid enum values", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const validTypes = ["openai", "ollama", "lmstudio", "anthropic", "azure", "mock"];
+
+      for (const provider of data.providers) {
+        expect(validTypes).toContain(provider.provider_type);
+      }
+    });
+
+    test("provider name matches provider type", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      for (const provider of data.providers) {
+        expect(provider.name).toBe(provider.provider_type);
+      }
+    });
+  });
+
+  /**
+   * Model Uniqueness Tests
+   * @iteration OODA 105-106
+   */
+  test.describe("Model Uniqueness", () => {
+    test("model names are unique within provider", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      for (const provider of data.providers) {
+        const modelNames = provider.models.map((m: any) => m.name);
+        const uniqueNames = new Set(modelNames);
+        expect(uniqueNames.size).toBe(modelNames.length);
+      }
+    });
+
+    test("model display names are unique within provider", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      for (const provider of data.providers) {
+        const displayNames = provider.models.map((m: any) => m.display_name);
+        const uniqueNames = new Set(displayNames);
+        expect(uniqueNames.size).toBe(displayNames.length);
+      }
+    });
+  });
+
+  /**
+   * Default Model Validation Tests
+   * @iteration OODA 107-108
+   */
+  test.describe("Default Model Validation", () => {
+    test("default LLM model exists", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const provider = data.providers.find(
+        (p: any) => p.name === data.default_llm_provider
+      );
+      expect(provider).toBeDefined();
+
+      const model = provider.models.find(
+        (m: any) => m.name === data.default_llm_model
+      );
+      expect(model).toBeDefined();
+    });
+
+    test("default embedding model exists", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const provider = data.providers.find(
+        (p: any) => p.name === data.default_embedding_provider
+      );
+      expect(provider).toBeDefined();
+
+      const model = provider.models.find(
+        (m: any) => m.name === data.default_embedding_model
+      );
+      expect(model).toBeDefined();
+    });
+  });
+
+  /**
+   * API Response Time Tests
+   * @iteration OODA 109-110
+   */
+  test.describe("API Response Time", () => {
+    test("models endpoint responds within 5 seconds", async ({ request }) => {
+      const start = Date.now();
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const elapsed = Date.now() - start;
+
+      expect(response.ok()).toBe(true);
+      expect(elapsed).toBeLessThan(5000);
+    });
+
+    test("tenants endpoint responds within 5 seconds", async ({ request }) => {
+      const start = Date.now();
+      const response = await request.get("http://localhost:8080/api/v1/tenants");
+      const elapsed = Date.now() - start;
+
+      expect(response.ok()).toBe(true);
+      expect(elapsed).toBeLessThan(5000);
+    });
+  });
+
+  /**
+   * Provider Count Tests
+   * @iteration OODA 111-112
+   */
+  test.describe("Provider Count", () => {
+    test("at least 3 providers are available", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      expect(data.providers.length).toBeGreaterThanOrEqual(3);
+    });
+
+    test("at least 2 providers are enabled", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const enabledCount = data.providers.filter((p: any) => p.enabled).length;
+      expect(enabledCount).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  /**
+   * Model Count Tests
+   * @iteration OODA 113-114
+   */
+  test.describe("Model Count", () => {
+    test("each enabled provider has at least 1 model", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const enabledProviders = data.providers.filter((p: any) => p.enabled);
+      for (const provider of enabledProviders) {
+        expect(provider.models.length).toBeGreaterThan(0);
+      }
+    });
+
+    test("at least 10 models are available across providers", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const totalModels = data.providers.reduce(
+        (sum: number, p: any) => sum + p.models.length,
+        0
+      );
+      expect(totalModels).toBeGreaterThanOrEqual(10);
+    });
+  });
+
+  /**
+   * Health Latency Tests
+   * @iteration OODA 115-116
+   */
+  test.describe("Health Latency", () => {
+    test("health response includes latency", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models/health");
+      const data = await response.json();
+
+      for (const provider of data) {
+        expect(provider.health).toHaveProperty("latency_ms");
+        expect(typeof provider.health.latency_ms).toBe("number");
+      }
+    });
+
+    test("health response includes checked_at timestamp", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models/health");
+      const data = await response.json();
+
+      for (const provider of data) {
+        expect(provider.health).toHaveProperty("checked_at");
+        expect(typeof provider.health.checked_at).toBe("string");
+      }
+    });
+  });
+
+  /**
+   * Complete Integration Test
+   * @iteration OODA 117
+   */
+  test.describe("Complete Integration", () => {
+    test("full workflow: list tenants, get workspace, verify model config", async ({ request }) => {
+      // Step 1: List tenants
+      const tenantsResponse = await request.get("http://localhost:8080/api/v1/tenants");
+      expect(tenantsResponse.ok()).toBe(true);
+      const tenants = await tenantsResponse.json();
+
+      if (!tenants.items[0]?.id) {
+        test.skip();
+        return;
+      }
+
+      // Step 2: Get workspaces for first tenant
+      const tenantId = tenants.items[0].id;
+      const workspacesResponse = await request.get(
+        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+      );
+      expect(workspacesResponse.ok()).toBe(true);
+      const workspaces = await workspacesResponse.json();
+
+      if (!workspaces.items[0]) {
+        test.skip();
+        return;
+      }
+
+      // Step 3: Verify workspace has valid model config
+      const workspace = workspaces.items[0];
+      expect(workspace.llm_provider).toBeDefined();
+      expect(workspace.embedding_provider).toBeDefined();
+
+      // Step 4: Verify the providers exist in models endpoint
+      const modelsResponse = await request.get("http://localhost:8080/api/v1/models");
+      const models = await modelsResponse.json();
+      const providerNames = models.providers.map((p: any) => p.name);
+
+      expect(providerNames).toContain(workspace.llm_provider);
+      expect(providerNames).toContain(workspace.embedding_provider);
+    });
+  });
 });
