@@ -15,42 +15,50 @@ You will use an OODA loop (Observe, Orient, Decide, Act) process to iteratively 
 
 As the embedding required a fixed dimension, you must provide a way to recreate the existing vector database with the new embedding models when we change the embedding model.
 
- You must continue the OODA loops until the Ollama and Lmstudio providers are fully integrated, tested, and documented in edgequake. At least 50 OODA loops must be performed.
+You must continue the OODA loops until the Ollama and Lmstudio providers are fully integrated, tested, and documented in edgequake. At least 50 OODA loops must be performed.
 
- FOCUS on : 
-1) Ensure that when I create a new Tenant I can choose the default llm and embedding provider and model for that tenant/workspace --> On the dialog box for Tenant Creation I must have this choice
+FOCUS on :
 
-2) Ensure that when I create a new workspace I can choose the default llm and embedding provider and model for that workspace --> On the Workspace Dialog box I must be able to choose the embedding provided and llm provider by default
+1. Ensure that when I create a new Tenant I can choose the default llm and embedding provider and model for that tenant/workspace --> On the dialog box for Tenant Creation I must have this choice
 
-3) On Query --> Ensure I can chose the current LLM Provider -> Ensure it used , traced and stored in the generated message (as lineage information) --> Ensure is also displayed as the token is displayed in the query page
+2. Ensure that when I create a new workspace I can choose the default llm and embedding provider and model for that workspace --> On the Workspace Dialog box I must be able to choose the embedding provided and llm provider by default
 
-4) Ensure I have a current workspace page in the appication to display the features of the current workspace -> Include action such as change the embedding/llm provider and rebuild the extraction + embedding
+3. On Query --> Ensure I can chose the current LLM Provider -> Ensure it used , traced and stored in the generated message (as lineage information) --> Ensure is also displayed as the token is displayed in the query page
 
-5) Ensure the rebuild document -> extraction + embedding works, and the processing information is displayed like for the first time processing
+4. Ensure I have a current workspace page in the appication to display the features of the current workspace -> Include action such as change the embedding/llm provider and rebuild the extraction + embedding
 
-6) Ensure we have deeplink to access workspace settings page directly from the webui
+5. Ensure the rebuild document -> extraction + embedding works, and the processing information is displayed like for the first time processing
 
-7) Ensure for each provider, I can have several models to choose from for both llm and embedding. As example for ollama I can choose gemma3:latest or gpt-oss:20b,mistral-nemo:latest for llm and embeddinggemma:latest or nomic-embed-text:latest for embedding. Each provider must have its own set of models to choose from. For openai I can choose gpt-5o-nano or or gpt-5o-mini or gpt-4o-mini for llm and text-embedding-3-small for embedding. For lmstudio I can choose gemma-3n-e4b-it-mlxmodel for llm and text-embedding-ada-002 for embedding. For Llmstudio I can choose lfm2.5-1.2b-instruct-mlx, granite-4.0-h-tiny-dwq, zai-org/glm-4.6v-flash, mlx-community/GLM-4.7-REAP-50-mxfp4 
+6. Ensure we have deeplink to access workspace settings page directly from the webui
 
-8) For lmstudio provider ensure lmstudio can support streaming responses like openai and ollama providers, if it is not the case if streaming is selected for the query use non streaming if not supported by the provider
+7. Ensure for each provider, I can have several models to choose from for both llm and embedding. As example for ollama I can choose gemma3:latest or gpt-oss:20b,mistral-nemo:latest for llm and embeddinggemma:latest or nomic-embed-text:latest for embedding. Each provider must have its own set of models to choose from. For openai I can choose gpt-5o-nano or or gpt-5o-mini or gpt-4o-mini for llm and text-embedding-3-small for embedding. For lmstudio I can choose gemma-3n-e4b-it-mlxmodel for llm and text-embedding-ada-002 for embedding. For Llmstudio I can choose lfm2.5-1.2b-instruct-mlx, granite-4.0-h-tiny-dwq, zai-org/glm-4.6v-flash, mlx-community/GLM-4.7-REAP-50-mxfp4
 
+8. For lmstudio provider ensure lmstudio can support streaming responses like openai and ollama providers, if it is not the case if streaming is selected for the query use non streaming if not supported by the provider
 
-9) Ensure X-Tenant/ X-Workspace headers if existing are fully documented in the API documentation and examples, and swagger documentation updated accordingly.
+9. Ensure X-Tenant/ X-Workspace headers if existing are fully documented in the API documentation and examples, and swagger documentation updated accordingly.
 
-10) Ensure the API explorer is fully implemented to reflect the current API state, ensure the UX/UI is user friendly and easy to use is conform to the best standards on the market.
+10. Ensure the API explorer is fully implemented to reflect the current API state, ensure the UX/UI is user friendly and easy to use is conform to the best standards on the market.
 
-11) Ensure by real e2e test with playrigh that on the query page I can really access all the models configured by provider and model name. 
+11. Ensure by real e2e test with playrigh that on the query page I can really access all the models configured by provider and model name.
 
-12) Ensure I can choose the default provider and model for both llm and embedding when I create a new tenant and new workspace. Or new workspace under a tenant.
+12. Ensure I can choose the default provider and model for both llm and embedding when I create a new tenant and new workspace. Or new workspace under a tenant.
 
-13) Find how to make lmstudio works. Find online documentation about lmstudio api usage, authentication, model listing, model capabilities, streaming support, embedding support, etc. Ensure you fully understand how lmstudio works before implementing it. 
+13. Find how to make lmstudio works. Find online documentation about lmstudio api usage, authentication, model listing, model capabilities, streaming support, embedding support, etc. Ensure you fully understand how lmstudio works before implementing it.
 
-14) Ensure to filter and choose model/provider is easy and user friendly in the webui. The real default model/provider must selected by default in the dropdown when opening the query page must be clearly indicated.
+14. Ensure to filter and choose model/provider is easy and user friendly in the webui. The real default model/provider must selected by default in the dropdown when opening the query page must be clearly indicated.
 
-15) For each assistant message, you must store the provider and model used to generate the message as lineage information in the database. This information must be retrievable via the API and displayed in the webui. The information must be displayed in slick and nice way in the webui, near the token usage information for example, choose the best.
+15. For each assistant message, you must store the provider and model used to generate the message as lineage information in the database. This information must be retrievable via the API and displayed in the webui. The information must be displayed in slick and nice way in the webui, near the token usage information for example, choose the best.
+
+16. **FIX: OpenAI Model Names** - The `gpt-5o-mini` model does not exist. Update models.toml to use correct OpenAI model names from their current documentation (gpt-4o-mini, gpt-4.1, gpt-4.1-mini, etc).
+
+17. **FIX: Model Type Filtering** - Embedding selector must ONLY show embedding models, LLM selector must ONLY show LLM models. The "multimodal" type in EdgeQuake means vision-capable LLM, NOT embedding capability, so multimodal should NOT appear in embedding dropdown.
+
+18. **Display: Tokens Per Second** - Display the tokens/second generation speed in the query response metadata (calculated as tokensUsed / durationMs \* 1000).
+
+19. **Workspace Extractor Model Configuration** - Ensure the workspace settings page clearly shows and allows editing of the "extractor model" (LLM used for entity extraction during ingestion). This already exists as "LLM Configuration" but must be clear that it's for extraction/ingestion, not query.
+20. Ensure the embedding model can be changed at the workspace level, and when changed the vector database is recreated with the new embedding model. The embedding model is used at query time to generate embeddings for incoming queries to retrieve relevant documents from the vector database.
 
 Very important ==> Default providers (llm+embedding) and models will be defined as setup in a toml config file located at the root of edgequake server. Capabilities of models and providers must be detected at runtime and exposed as an API. This configuration file will act as models cards explaining the capabilities of each model and provider. (vision / image support / max tokens / context length / cost per 1K tokens etc). This config file will be used by the edgequake_webui to display the capabilities of each model and provider in the selection dropdowns. This file will provide high signal information to the users about the models and providers available in the edgequake server.
-
 
 Ensure you provide a .toml configuration file example including ollama and lmstudio providers and models, openai provider and models, with all capabilities filled in. Find information about ollama, openai and lmstudio models capabilities from their respective documentations.
 
@@ -60,9 +68,9 @@ For ollama provider use gemma3:12b and embeddinggemma:latest as default models.
 
 For lmstudio provider use gemma-3n-e4b-it-mlxmodel and text-embedding-ada-002 as default models.
 
-Ensure that when I create a new Tenant I can choose the default llm and embedding provider and model for that tenant/workspace. 
+Ensure that when I create a new Tenant I can choose the default llm and embedding provider and model for that tenant/workspace.
 
-Ensure that when I create a new workspace I can choose the default llm and embedding provider and model for that workspace. 
+Ensure that when I create a new workspace I can choose the default llm and embedding provider and model for that workspace.
 
 Ensure that the embedding provider and model used at query time is the one associated with the workspace.
 
@@ -82,19 +90,15 @@ We must ensure that the integration of ollama and lmstudio providers does not in
 
 We must ensure that embedding storage can accommodate the new embedding models introduced by the ollama and lmstudio providers. Any necessary adjustments to the storage schema or data handling processes must be identified and implemented. We must also ensure that the storage system can handle potential increases in data size or complexity resulting from the new embedding models.
 
-
 In the query process we must use the embedding model associated with the workspace to generate embeddings for incoming queries. This ensures retrieving relevant information from the vector database.
 
 We must ensure the embedding storage backends, including Postgres and In-Memory storage, are fully compatible with the new providers and embedding models. Any differences in behavior or performance between these backends must be documented and addressed.
 
 We must ensure that the edgequake_webui is fully compatible with the new providers and embedding models. Any changes to the API used by the webui must be carefully managed to prevent regressions or disruptions in functionality.
 
-
-VERY IMPORTANT: We must also ensure that we select the default llm provider for a workspace, because the llm provider is used for  knowledge graph generation, document ingestion, summarization, etc. The llm provider can be different from the one that is used at query time. The embedding provider is used at query time to generate embeddings for the query and retrieve relevant documents from the vector database must be the same as the one used to create the vector database.
-
+VERY IMPORTANT: We must also ensure that we select the default llm provider for a workspace, because the llm provider is used for knowledge graph generation, document ingestion, summarization, etc. The llm provider can be different from the one that is used at query time. The embedding provider is used at query time to generate embeddings for the query and retrieve relevant documents from the vector database must be the same as the one used to create the vector database.
 
 VERY IMPORTANT: a model selected is in reality a combination of provider + model name. For example "ollama/gemma3:12b" or "openai/gpt-4o" or "lmstudio/gemma-3n-e4b-it-mlxmodel". This must be reflected in the configuration file, API, database storage, and UI components.
-
 
 ## Your Tasks
 
@@ -108,13 +112,12 @@ VERY IMPORTANT: a model selected is in reality a combination of provider + model
 - Provide a mechanism to recreate the vector database when changing embedding models
 - Implement a selection dropdown in the chat query input for choosing the provider and model
 - Update the documentation to reflect the new provider support and configuration options
-- Provide an way to choose the embedding model when creating a new workspace. 
+- Provide an way to choose the embedding model when creating a new workspace.
 - Provide clear instructions on how to set up and use the ollama and lmstudio providers in edgequake
 - Provide
 - Thoroughly test the implementation to ensure compatibility and performance across all supported providers
 - Non regression is your North Star, non negotiable requirement
 - Loosing a feature is not acceptable when commenting and is a failure in this mission
-
 
 ## Process ; Use an OODA Loop (Observe, Orient, Decide, Act)
 

@@ -11,6 +11,7 @@ The `HeaderTenantSelector` is the primary UI for tenant/workspace management in 
 ### Pattern to Follow
 
 Use the existing `TenantWorkspaceSelector` implementation as reference:
+
 - Import `LLMModelSelector` component
 - Add state for `LLMSelection`
 - Include in mutation payload
@@ -53,8 +54,8 @@ EmbeddingModelSelector -> hooks/use-providers -> /api/v1/models/embedding
 
 ## Risk Assessment
 
-| Risk | Mitigation |
-|------|------------|
-| Dialog too tall | Use collapsible sections |
-| API load | Models are cached via React Query |
+| Risk            | Mitigation                           |
+| --------------- | ------------------------------------ |
+| Dialog too tall | Use collapsible sections             |
+| API load        | Models are cached via React Query    |
 | Breaking change | Optional fields, backward compatible |

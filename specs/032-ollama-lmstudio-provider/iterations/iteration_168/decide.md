@@ -11,16 +11,23 @@ Enhance `HeaderTenantSelector` to include LLM model selection for both tenant an
 ### 1. Add Imports
 
 ```tsx
-import { LLMModelSelector, type LLMSelection } from '@/components/workspace/llm-model-selector';
+import {
+  LLMModelSelector,
+  type LLMSelection,
+} from "@/components/workspace/llm-model-selector";
 ```
 
 ### 2. Add State Variables
 
 ```tsx
 // Tenant default LLM configuration
-const [tenantDefaultLLM, setTenantDefaultLLM] = useState<LLMSelection | undefined>(undefined);
+const [tenantDefaultLLM, setTenantDefaultLLM] = useState<
+  LLMSelection | undefined
+>(undefined);
 // Workspace LLM configuration
-const [workspaceLLM, setWorkspaceLLM] = useState<LLMSelection | undefined>(undefined);
+const [workspaceLLM, setWorkspaceLLM] = useState<LLMSelection | undefined>(
+  undefined
+);
 ```
 
 ### 3. Update Tenant Creation Dialog

@@ -5,6 +5,7 @@
 ## Observation Summary
 
 Analyzed the current implementation for SPEC-032 Focus areas 1 & 2:
+
 1. **Tenant creation with default LLM/embedding provider/model selection**
 2. **Workspace creation with default LLM/embedding provider/model selection**
 
@@ -12,18 +13,17 @@ Analyzed the current implementation for SPEC-032 Focus areas 1 & 2:
 
 ### WebUI Components Found:
 
-| Component | Location | LLM Selection | Embedding Selection |
-|-----------|----------|---------------|---------------------|
-| `HeaderTenantSelector` | [header-tenant-selector.tsx](edgequake_webui/src/components/layout/header-tenant-selector.tsx) | ❌ Missing | ✅ Partial (embedding only) |
-| `TenantWorkspaceSelector` | [tenant-workspace-selector.tsx](edgequake_webui/src/components/shared/tenant-workspace-selector.tsx) | ✅ Complete | ✅ Complete |
-| `TenantGuard` | [tenant-guard.tsx](edgequake_webui/src/components/layout/tenant-guard.tsx) | ✅ Complete | ✅ Complete |
+| Component                 | Location                                                                                             | LLM Selection | Embedding Selection         |
+| ------------------------- | ---------------------------------------------------------------------------------------------------- | ------------- | --------------------------- |
+| `HeaderTenantSelector`    | [header-tenant-selector.tsx](edgequake_webui/src/components/layout/header-tenant-selector.tsx)       | ❌ Missing    | ✅ Partial (embedding only) |
+| `TenantWorkspaceSelector` | [tenant-workspace-selector.tsx](edgequake_webui/src/components/shared/tenant-workspace-selector.tsx) | ✅ Complete   | ✅ Complete                 |
+| `TenantGuard`             | [tenant-guard.tsx](edgequake_webui/src/components/layout/tenant-guard.tsx)                           | ✅ Complete   | ✅ Complete                 |
 
 ### Gap Analysis:
 
 1. **HeaderTenantSelector** (main header component):
    - Tenant creation: NO LLM model selection
    - Workspace creation: Has `EmbeddingModelSelector` but NO `LLMModelSelector`
-   
 2. **TenantWorkspaceSelector** (shared component):
    - Full support for both LLM and embedding selection
    - But not used in main header

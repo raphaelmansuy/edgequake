@@ -5,6 +5,7 @@
 ## Changes Made
 
 ### 1. Created Documents Deeplink
+
 **File**: [/w/[slug]/documents/page.tsx](edgequake_webui/src/app/w/[slug]/documents/page.tsx)
 
 - Sets workspace context from slug
@@ -12,6 +13,7 @@
 - Handles 404 gracefully
 
 ### 2. Created Graph Deeplink
+
 **File**: [/w/[slug]/graph/page.tsx](edgequake_webui/src/app/w/[slug]/graph/page.tsx)
 
 - Sets workspace context from slug
@@ -20,13 +22,13 @@
 
 ## Deeplink Route Summary
 
-| Route | Target | Status |
-|-------|--------|--------|
-| `/w/[slug]` | `/w/[slug]/query` | ✅ Existed |
-| `/w/[slug]/query` | Query page | ✅ Existed |
-| `/w/[slug]/settings` | `/workspace` | ✅ Existed |
-| `/w/[slug]/documents` | `/documents` | ✅ **Added** |
-| `/w/[slug]/graph` | `/graph` | ✅ **Added** |
+| Route                 | Target            | Status       |
+| --------------------- | ----------------- | ------------ |
+| `/w/[slug]`           | `/w/[slug]/query` | ✅ Existed   |
+| `/w/[slug]/query`     | Query page        | ✅ Existed   |
+| `/w/[slug]/settings`  | `/workspace`      | ✅ Existed   |
+| `/w/[slug]/documents` | `/documents`      | ✅ **Added** |
+| `/w/[slug]/graph`     | `/graph`          | ✅ **Added** |
 
 ## Usage Examples
 

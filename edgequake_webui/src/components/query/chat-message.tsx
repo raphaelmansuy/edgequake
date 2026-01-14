@@ -33,6 +33,7 @@ import {
     ChevronRight,
     Clock,
     Copy,
+    Gauge,
     RefreshCw,
     Sparkles,
     User,
@@ -258,16 +259,34 @@ const MetadataBar = memo(function MetadataBar({
           </TooltipProvider>
         )}
         {tokensUsed && (
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1" title={t('query.tokensUsed', 'Tokens used')}>
             <Zap className="h-3 w-3" />
             {tokensUsed.toLocaleString()}
           </span>
         )}
         {durationMs && (
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1" title={t('query.duration', 'Generation time')}>
             <Clock className="h-3 w-3" />
             {(durationMs / 1000).toFixed(1)}s
           </span>
+        )}
+        {/* SPEC-032: Show tokens per second for performance insight */}
+        {tokensUsed && durationMs && durationMs > 0 && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400" title={t('query.tokensPerSecond', 'Tokens per second')}>
+                  <Gauge className="h-3 w-3" />
+                  {((tokensUsed / durationMs) * 1000).toFixed(1)}/s
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">
+                  {t('query.tokensPerSecondDesc', 'Generation speed')}: {((tokensUsed / durationMs) * 1000).toFixed(1)} {t('query.tokensPerSecondUnit', 'tokens/second')}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
       </div>
 

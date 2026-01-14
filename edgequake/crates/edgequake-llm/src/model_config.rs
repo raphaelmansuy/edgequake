@@ -772,6 +772,13 @@ impl ModelsConfig {
     }
 
     /// Get all embedding models across all providers.
+    ///
+    /// # WHY: Exclude Multimodal from embedding list
+    ///
+    /// In EdgeQuake, "multimodal" refers to vision-capable LLMs (text + image input),
+    /// NOT models that can do both embedding AND text generation.
+    /// Embedding models are strictly for vector generation (model_type = "embedding").
+    /// Vision LLMs should only appear in the LLM selector, not the embedding selector.
     pub fn all_embedding_models(&self) -> Vec<(&ProviderConfig, &ModelCard)> {
         self.providers
             .iter()
@@ -779,9 +786,8 @@ impl ModelsConfig {
             .flat_map(|p| {
                 p.models
                     .iter()
-                    .filter(|m| {
-                        matches!(m.model_type, ModelType::Embedding | ModelType::Multimodal)
-                    })
+                    // WHY: Only include pure embedding models, NOT multimodal (vision LLMs)
+                    .filter(|m| matches!(m.model_type, ModelType::Embedding))
                     .map(move |m| (p, m))
             })
             .collect()

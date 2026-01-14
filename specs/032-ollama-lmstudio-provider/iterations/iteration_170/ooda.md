@@ -8,15 +8,16 @@
 
 According to [LM Studio documentation](https://lmstudio.ai/docs/api/openai-api):
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/v1/models` | GET | List available models |
-| `/v1/chat/completions` | POST | Chat completions (streaming supported) |
-| `/v1/embeddings` | POST | Embeddings |
-| `/v1/completions` | POST | Text completions |
-| `/v1/responses` | POST | Responses API |
+| Endpoint               | Method | Description                            |
+| ---------------------- | ------ | -------------------------------------- |
+| `/v1/models`           | GET    | List available models                  |
+| `/v1/chat/completions` | POST   | Chat completions (streaming supported) |
+| `/v1/embeddings`       | POST   | Embeddings                             |
+| `/v1/completions`      | POST   | Text completions                       |
+| `/v1/responses`        | POST   | Responses API                          |
 
 **Key facts:**
+
 - Default port: `1234`
 - Full OpenAI API compatibility
 - SSE streaming supported
@@ -24,13 +25,13 @@ According to [LM Studio documentation](https://lmstudio.ai/docs/api/openai-api):
 
 ### Current Implementation Status
 
-| Feature | Status | File |
-|---------|--------|------|
-| LMStudioProvider | ✅ | [lmstudio.rs](edgequake/crates/edgequake-llm/src/providers/lmstudio.rs) |
-| Streaming | ✅ | Lines 494-580 |
-| Embeddings | ✅ | Lines 600-700 |
-| Builder pattern | ✅ | Lines 75-140 |
-| Error handling | ✅ | Lines 520-535 |
+| Feature          | Status | File                                                                    |
+| ---------------- | ------ | ----------------------------------------------------------------------- |
+| LMStudioProvider | ✅     | [lmstudio.rs](edgequake/crates/edgequake-llm/src/providers/lmstudio.rs) |
+| Streaming        | ✅     | Lines 494-580                                                           |
+| Embeddings       | ✅     | Lines 600-700                                                           |
+| Builder pattern  | ✅     | Lines 75-140                                                            |
+| Error handling   | ✅     | Lines 520-535                                                           |
 
 ## Orient
 
@@ -45,6 +46,7 @@ If streaming fails, the caller can fall back to non-streaming.
 ## Act
 
 ✅ Verified LM Studio streaming implementation is complete:
+
 - Uses `/chat/completions` with `stream: true`
 - Parses SSE events correctly
 - Handles `[DONE]` marker
