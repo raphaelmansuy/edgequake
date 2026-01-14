@@ -3,9 +3,8 @@
 import { useParams } from 'next/navigation';
 import { useEffect } from 'react';
 
-import { TenantGuard } from '@/components/layout/tenant-guard';
 import { QueryInterface } from '@/components/query/query-interface';
-import { getWorkspaceBySlug, getTenants } from '@/lib/api/edgequake';
+import { getWorkspaceBySlug, getTenants, getWorkspaces } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
@@ -15,18 +14,23 @@ import { Loader2 } from 'lucide-react';
  * 
  * @implements SPEC-032: Focus 6 - Deeplinks to workspace
  * @route /w/[slug]/query
+ * @iteration OODA 61 - Removed TenantGuard wrapper to fix race condition
  * 
  * This page:
  * 1. Auto-selects tenant if none selected
  * 2. Resolves workspace by slug
  * 3. Sets it as the current workspace in context
- * 4. Renders the query interface
+ * 4. Renders the query interface directly (no TenantGuard)
+ * 
+ * Note: TenantGuard was removed because it races with workspace resolution,
+ * causing "Create Workspace" UI to appear even when workspaces exist.
+ * The deeplink page handles its own loading/error states.
  */
 export default function WorkspaceQueryPage() {
   const params = useParams();
   const slug = params?.slug as string;
   
-  const { selectedTenantId, selectTenant, selectWorkspace, selectedWorkspaceId } = useTenantStore();
+  const { selectedTenantId, selectTenant, selectWorkspace, selectedWorkspaceId, setWorkspaces } = useTenantStore();
 
   // Fetch tenants to auto-select if needed
   const { data: tenants } = useQuery({
@@ -48,6 +52,21 @@ export default function WorkspaceQueryPage() {
     queryFn: () => selectedTenantId ? getWorkspaceBySlug(selectedTenantId, slug) : Promise.reject('No tenant'),
     enabled: !!selectedTenantId && !!slug,
   });
+
+  // Fetch all workspaces to populate store (prevents TenantGuard "no workspaces" race)
+  const { data: workspacesData } = useQuery({
+    queryKey: ['workspaces', selectedTenantId],
+    queryFn: () => selectedTenantId ? getWorkspaces(selectedTenantId) : Promise.resolve([]),
+    enabled: !!selectedTenantId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Update workspace list in store when fetched
+  useEffect(() => {
+    if (workspacesData && workspacesData.length > 0) {
+      setWorkspaces(workspacesData);
+    }
+  }, [workspacesData, setWorkspaces]);
 
   // Set workspace context when resolved
   useEffect(() => {
@@ -85,10 +104,7 @@ export default function WorkspaceQueryPage() {
     );
   }
 
-  // Render query interface with workspace context
-  return (
-    <TenantGuard>
-      <QueryInterface />
-    </TenantGuard>
-  );
+  // Render query interface directly (no TenantGuard wrapper)
+  // TenantGuard was removed in OODA 61 to fix race condition
+  return <QueryInterface />;
 }

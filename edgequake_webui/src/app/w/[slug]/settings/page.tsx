@@ -3,8 +3,7 @@
 import { useParams } from 'next/navigation';
 import { useEffect } from 'react';
 
-import { TenantGuard } from '@/components/layout/tenant-guard';
-import { getWorkspaceBySlug, getTenants } from '@/lib/api/edgequake';
+import { getWorkspaceBySlug, getTenants, getWorkspaces } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
@@ -15,19 +14,22 @@ import { useRouter } from 'next/navigation';
  * 
  * @implements SPEC-032: Focus 6 - Deeplinks to workspace settings
  * @route /w/[slug]/settings
+ * @iteration OODA 61 - Removed TenantGuard wrapper to fix race condition
  * 
  * This page:
  * 1. Auto-selects tenant if none selected
  * 2. Resolves workspace by slug
  * 3. Sets it as the current workspace in context
  * 4. Redirects to /workspace (which shows settings for current workspace)
+ * 
+ * Note: TenantGuard was removed because it races with workspace resolution.
  */
 export default function WorkspaceSettingsPage() {
   const params = useParams();
   const router = useRouter();
   const slug = params?.slug as string;
   
-  const { selectedTenantId, selectTenant, selectWorkspace, selectedWorkspaceId } = useTenantStore();
+  const { selectedTenantId, selectTenant, selectWorkspace, selectedWorkspaceId, setWorkspaces } = useTenantStore();
 
   // Fetch tenants to auto-select if needed
   const { data: tenants } = useQuery({
@@ -49,6 +51,21 @@ export default function WorkspaceSettingsPage() {
     queryFn: () => selectedTenantId ? getWorkspaceBySlug(selectedTenantId, slug) : Promise.reject('No tenant'),
     enabled: !!selectedTenantId && !!slug,
   });
+
+  // Fetch all workspaces to populate store (prevents TenantGuard "no workspaces" race)
+  const { data: workspacesData } = useQuery({
+    queryKey: ['workspaces', selectedTenantId],
+    queryFn: () => selectedTenantId ? getWorkspaces(selectedTenantId) : Promise.resolve([]),
+    enabled: !!selectedTenantId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Update workspace list in store when fetched
+  useEffect(() => {
+    if (workspacesData && workspacesData.length > 0) {
+      setWorkspaces(workspacesData);
+    }
+  }, [workspacesData, setWorkspaces]);
 
   // Set workspace context when resolved and redirect to settings
   useEffect(() => {
@@ -90,12 +107,10 @@ export default function WorkspaceSettingsPage() {
     );
   }
 
-  // Will redirect via useEffect
+  // Will redirect via useEffect (no TenantGuard wrapper - OODA 61)
   return (
-    <TenantGuard>
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    </TenantGuard>
+    <div className="flex items-center justify-center h-full">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
   );
 }
