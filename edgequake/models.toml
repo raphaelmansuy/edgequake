@@ -430,8 +430,85 @@ output_per_1k = 0.0
 embedding_per_1k = 0.0
 image_per_unit = 0.0
 
+# --- Mistral Nemo (Mistral AI) ---
+# Verified from: https://ollama.com/library/mistral-nemo
+
+[[providers.models]]
+name = "mistral-nemo:latest"
+display_name = "Mistral Nemo 12B"
+model_type = "llm"
+description = "Mistral AI's Nemo 12B model - excellent multilingual and code capabilities"
+deprecated = false
+tags = ["free", "local", "multilingual", "code"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# --- GPT-OSS (Open Source GPT-style) ---
+
+[[providers.models]]
+name = "gpt-oss:20b"
+display_name = "GPT-OSS 20B"
+model_type = "llm"
+description = "Open-source GPT-style 20B parameter model"
+deprecated = false
+tags = ["free", "local", "large"]
+
+[providers.models.capabilities]
+context_length = 16384
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
 # --- Gemma 3 Models (Google) ---
 # Verified from: https://ollama.com/library/gemma3
+
+[[providers.models]]
+name = "gemma3:latest"
+display_name = "Gemma 3 (Latest)"
+model_type = "multimodal"
+description = "Google's multimodal Gemma 3 (alias for gemma3:12b)"
+deprecated = false
+tags = ["recommended", "multimodal", "vision", "local", "free"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 8192
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
 
 [[providers.models]]
 name = "gemma3:12b"
@@ -764,6 +841,105 @@ supports_json_mode = false
 supports_streaming = false
 supports_system_message = false
 embedding_dimension = 1536
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# --- Additional LM Studio LLM Models ---
+# MLX-optimized models for Apple Silicon
+
+[[providers.models]]
+name = "lfm2.5-1.2b-instruct-mlx"
+display_name = "LFM 2.5 1.2B Instruct (MLX)"
+model_type = "llm"
+description = "Liquid Foundation Model 2.5 - 1.2B param instruction-tuned, MLX optimized"
+deprecated = false
+tags = ["local", "mlx", "fast", "compact"]
+
+[providers.models.capabilities]
+context_length = 32000
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "granite-4.0-h-tiny-dwq"
+display_name = "IBM Granite 4.0 Tiny (DWQ)"
+model_type = "llm"
+description = "IBM Granite 4.0 Tiny with dynamic weight quantization"
+deprecated = false
+tags = ["local", "compact", "efficient"]
+
+[providers.models.capabilities]
+context_length = 8192
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "zai-org/glm-4.6v-flash"
+display_name = "GLM 4.6V Flash"
+model_type = "multimodal"
+description = "Zhipu GLM 4.6 Vision Flash - fast multimodal model"
+deprecated = false
+tags = ["local", "vision", "multimodal", "fast"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 8192
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "mlx-community/GLM-4.7-REAP-50-mxfp4"
+display_name = "GLM 4.7 REAP 50 (MLX)"
+model_type = "llm"
+description = "GLM 4.7 with REAP 50 quantization, MLX optimized"
+deprecated = false
+tags = ["local", "mlx", "quantized"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 8192
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
 
 [providers.models.cost]
 input_per_1k = 0.0

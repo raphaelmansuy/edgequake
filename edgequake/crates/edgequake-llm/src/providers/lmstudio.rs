@@ -15,6 +15,12 @@
 //! - `LMSTUDIO_EMBEDDING_MODEL`: Default embedding model
 //! - `LMSTUDIO_EMBEDDING_DIM`: Embedding dimension (default: 768)
 //!
+//! # Streaming Support
+//!
+//! LM Studio supports OpenAI-compatible streaming via Server-Sent Events (SSE).
+//! The `stream()` method returns a stream of content chunks.
+//! If streaming fails, the caller can fall back to non-streaming mode.
+//!
 //! # Example
 //!
 //! ```rust,ignore
@@ -32,6 +38,7 @@
 //! ```
 
 use async_trait::async_trait;
+use futures::stream::BoxStream;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -272,6 +279,33 @@ struct ApiErrorDetail {
     error_type: Option<String>,
 }
 
+// Streaming response structures (OpenAI-compatible SSE)
+
+/// Delta content in a streaming chunk
+#[derive(Debug, Deserialize, Default)]
+#[allow(dead_code)]
+struct StreamDelta {
+    #[serde(default)]
+    content: Option<String>,
+    #[serde(default)]
+    role: Option<String>,
+}
+
+/// A choice in a streaming chunk
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct StreamChoice {
+    delta: StreamDelta,
+    #[serde(default)]
+    finish_reason: Option<String>,
+}
+
+/// Streaming response chunk (OpenAI-compatible format)
+#[derive(Debug, Deserialize)]
+struct StreamChunk {
+    choices: Vec<StreamChoice>,
+}
+
 #[async_trait]
 impl LLMProvider for LMStudioProvider {
     fn name(&self) -> &str {
@@ -410,6 +444,106 @@ impl LLMProvider for LMStudioProvider {
                 .and_then(|c| c.finish_reason.clone()),
             metadata: HashMap::new(),
         })
+    }
+
+    /// Stream a completion response from LM Studio.
+    ///
+    /// LM Studio uses OpenAI-compatible SSE (Server-Sent Events) streaming.
+    /// Each chunk contains a delta with partial content.
+    ///
+    /// If streaming fails, the caller should fall back to non-streaming mode
+    /// using the `chat()` method.
+    async fn stream(&self, prompt: &str) -> Result<BoxStream<'static, Result<String>>> {
+        use futures::StreamExt;
+
+        debug!(
+            provider = "lmstudio",
+            model = %self.model,
+            "Starting streaming request"
+        );
+
+        let url = format!("{}/chat/completions", self.api_base());
+
+        let request = ChatCompletionRequest {
+            model: self.model.clone(),
+            messages: vec![ChatMessageRequest {
+                role: "user".to_string(),
+                content: prompt.to_string(),
+            }],
+            temperature: None,
+            max_tokens: None,
+            stream: true,
+        };
+
+        let response = self
+            .client
+            .post(&url)
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| LlmError::NetworkError(format!("LM Studio stream request failed: {}", e)))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(LlmError::ApiError(format!(
+                "LM Studio streaming API error ({}): {}",
+                status, error_text
+            )));
+        }
+
+        let stream = response.bytes_stream();
+
+        // Parse SSE stream - each line is "data: {json}" or "data: [DONE]"
+        let mapped_stream = stream.map(|chunk_result| {
+            match chunk_result {
+                Ok(bytes) => {
+                    let text = String::from_utf8_lossy(&bytes);
+                    let mut content = String::new();
+
+                    for line in text.lines() {
+                        let line = line.trim();
+                        if line.is_empty() {
+                            continue;
+                        }
+                        // Skip non-data lines (like "event:" or comments)
+                        if !line.starts_with("data:") {
+                            continue;
+                        }
+                        // Extract JSON after "data: "
+                        let json_str = line.strip_prefix("data:").unwrap_or(line).trim();
+                        
+                        // Check for stream end marker
+                        if json_str == "[DONE]" {
+                            continue;
+                        }
+
+                        // Parse the JSON chunk
+                        if let Ok(chunk) = serde_json::from_str::<StreamChunk>(json_str) {
+                            if let Some(choice) = chunk.choices.first() {
+                                if let Some(delta_content) = &choice.delta.content {
+                                    content.push_str(delta_content);
+                                }
+                            }
+                        }
+                    }
+                    Ok(content)
+                }
+                Err(e) => Err(LlmError::NetworkError(e.to_string())),
+            }
+        });
+
+        Ok(mapped_stream.boxed())
+    }
+
+    /// LM Studio supports streaming via OpenAI-compatible SSE.
+    fn supports_streaming(&self) -> bool {
+        true
+    }
+
+    /// LM Studio supports JSON mode via OpenAI-compatible response_format.
+    fn supports_json_mode(&self) -> bool {
+        true
     }
 }
 

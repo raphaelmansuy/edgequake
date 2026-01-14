@@ -1153,17 +1153,44 @@ impl SOTAQueryEngine {
         // Step 7: Build prompt and stream response
         let prompt = self.build_prompt(&request.query, &final_context);
 
-        self.llm_provider
-            .stream(&prompt)
-            .await
-            .map(|stream| stream.map(|res| res.map_err(QueryError::from)).boxed())
-            .map_err(QueryError::from)
+        // Check if provider supports streaming
+        if self.llm_provider.supports_streaming() {
+            self.llm_provider
+                .stream(&prompt)
+                .await
+                .map(|stream| stream.map(|res| res.map_err(QueryError::from)).boxed())
+                .map_err(QueryError::from)
+        } else {
+            // Fallback: Use non-streaming and convert to single-chunk stream
+            tracing::warn!(
+                provider = self.llm_provider.name(),
+                "Provider doesn't support streaming, falling back to non-streaming mode"
+            );
+            
+            let response = self.llm_provider.complete(&prompt).await.map_err(QueryError::from)?;
+            Ok(futures::stream::once(async move { Ok(response.content) }).boxed())
+        }
     }
 
     /// Execute a streaming query and return both context and stream.
     ///
     /// This is the preferred method for UI scenarios where sources need to be
     /// displayed alongside the streaming response.
+    ///
+    /// Returns:
+    /// - QueryContext: The retrieved entities, relationships, and chunks
+    /// - QueryMode: The mode used for retrieval
+    /// - BoxStream: The LLM response stream
+    /// Execute a streaming query and return both context and stream.
+    ///
+    /// This is the preferred method for UI scenarios where sources need to be
+    /// displayed alongside the streaming response.
+    ///
+    /// # Streaming Fallback
+    ///
+    /// If the default LLM provider doesn't support streaming, this method will
+    /// fall back to non-streaming mode and convert the full response into a
+    /// single-chunk stream. This ensures compatibility with all providers.
     ///
     /// Returns:
     /// - QueryContext: The retrieved entities, relationships, and chunks
@@ -1197,12 +1224,24 @@ impl SOTAQueryEngine {
         // Step 3: Build prompt and get stream
         let prompt = self.build_prompt(&request.query, &context);
 
-        let stream = self
-            .llm_provider
-            .stream(&prompt)
-            .await
-            .map(|stream| stream.map(|res| res.map_err(QueryError::from)).boxed())
-            .map_err(QueryError::from)?;
+        // Check if provider supports streaming
+        let stream = if self.llm_provider.supports_streaming() {
+            // Use streaming mode
+            self.llm_provider
+                .stream(&prompt)
+                .await
+                .map(|stream| stream.map(|res| res.map_err(QueryError::from)).boxed())
+                .map_err(QueryError::from)?
+        } else {
+            // Fallback: Use non-streaming and convert to single-chunk stream
+            tracing::warn!(
+                provider = self.llm_provider.name(),
+                "Provider doesn't support streaming, falling back to non-streaming mode"
+            );
+            
+            let response = self.llm_provider.complete(&prompt).await.map_err(QueryError::from)?;
+            futures::stream::once(async move { Ok(response.content) }).boxed()
+        };
 
         Ok((context, mode, stream))
     }
@@ -1224,6 +1263,12 @@ impl SOTAQueryEngine {
     /// - QueryContext: The retrieved entities, relationships, and chunks
     /// - QueryMode: The mode used for retrieval
     /// - BoxStream: The LLM response stream using the override provider
+    ///
+    /// # Streaming Fallback
+    ///
+    /// If the provider doesn't support streaming (`supports_streaming() == false`),
+    /// this method will fall back to non-streaming mode and convert the full response
+    /// into a single-chunk stream. This ensures compatibility with all providers.
     pub async fn query_stream_with_context_and_llm(
         &self,
         request: crate::engine::QueryRequest,
@@ -1253,14 +1298,35 @@ impl SOTAQueryEngine {
         // Step 3: Build prompt and get stream using OVERRIDE LLM provider
         let prompt = self.build_prompt(&request.query, &context);
 
-        // SPEC-032: Use the override LLM provider for streaming
-        let stream = llm_provider
-            .stream(&prompt)
-            .await
-            .map(|stream| stream.map(|res| res.map_err(QueryError::from)).boxed())
-            .map_err(QueryError::from)?;
+        // SPEC-032: Check if provider supports streaming
+        // If not, fall back to non-streaming mode
+        let stream = if llm_provider.supports_streaming() {
+            // Use streaming mode
+            tracing::debug!("Using streaming mode for LLM provider override");
+            llm_provider
+                .stream(&prompt)
+                .await
+                .map(|stream| stream.map(|res| res.map_err(QueryError::from)).boxed())
+                .map_err(QueryError::from)?
+        } else {
+            // Fallback: Use non-streaming and convert to single-chunk stream
+            tracing::warn!(
+                provider = llm_provider.name(),
+                "Provider doesn't support streaming, falling back to non-streaming mode"
+            );
+            
+            // Clone prompt for the async block
+            let prompt_clone = prompt.clone();
+            let llm_clone = llm_provider.clone();
+            
+            // Use non-streaming completion and wrap in a stream
+            let response = llm_clone.complete(&prompt_clone).await.map_err(QueryError::from)?;
+            
+            // Return as a single-chunk stream
+            futures::stream::once(async move { Ok(response.content) }).boxed()
+        };
 
-        tracing::debug!("Using LLM provider override for streaming response");
+        tracing::debug!("Using LLM provider override for response");
 
         Ok((context, mode, stream))
     }

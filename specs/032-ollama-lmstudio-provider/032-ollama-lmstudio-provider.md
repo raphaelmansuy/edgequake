@@ -30,6 +30,10 @@ As the embedding required a fixed dimension, you must provide a way to recreate 
 
 6) Ensure we have deeplink to access workspace settings page directly from the webui
 
+7) Ensure for each provider, I can have several models to choose from for both llm and embedding. As example for ollama I can choose gemma3:latest or gpt-oss:20b,mistral-nemo:latest for llm and embeddinggemma:latest or nomic-embed-text:latest for embedding. Each provider must have its own set of models to choose from. For openai I can choose gpt-5o-nano or or gpt-5o-mini or gpt-4o-mini for llm and text-embedding-3-small for embedding. For lmstudio I can choose gemma-3n-e4b-it-mlxmodel for llm and text-embedding-ada-002 for embedding. For Llmstudio I can choose lfm2.5-1.2b-instruct-mlx, granite-4.0-h-tiny-dwq, zai-org/glm-4.6v-flash, mlx-community/GLM-4.7-REAP-50-mxfp4 
+
+8) For lmstudio provider ensure lmstudio can support streaming responses like openai and ollama providers, if it is not the case if streaming is selected for the query use non streaming if not supported by the provider
+
 
 Very important ==> Default providers (llm+embedding) and models will be defined as setup in a toml config file located at the root of edgequake server. Capabilities of models and providers must be detected at runtime and exposed as an API. This configuration file will act as models cards explaining the capabilities of each model and provider. (vision / image support / max tokens / context length / cost per 1K tokens etc). This config file will be used by the edgequake_webui to display the capabilities of each model and provider in the selection dropdowns. This file will provide high signal information to the users about the models and providers available in the edgequake server.
 
