@@ -5,6 +5,7 @@
 ### Changes Required
 
 1. **Store workspace object when validating**:
+
    ```rust
    let (workspace_id, workspace) = if let Some(ws_id) = workspace_id {
        match state.workspace_service.get_workspace(ws_id).await {
@@ -18,6 +19,7 @@
    ```
 
 2. **Add workspace fallback in provider selection**:
+
    ```rust
    let (llm_override, used_provider, used_model) = if let Some(ref provider_id) = request.provider {
        // ... request provider logic

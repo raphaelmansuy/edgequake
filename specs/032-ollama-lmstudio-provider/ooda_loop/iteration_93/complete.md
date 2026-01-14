@@ -21,6 +21,7 @@ Run test and capture response headers and token events.
 ## Act
 
 **Result**:
+
 ```
 data: {"type":"conversation","conversation_id":"..."}
 data: {"type":"context","sources":[...]}

@@ -13,6 +13,7 @@ curl -s -X POST "http://localhost:8080/api/v1/chat/completions" \
 ## Orient
 
 Without workspace:
+
 - No workspace provider available
 - Should fall back to server default (Ollama)
 
@@ -27,6 +28,7 @@ Run test without workspace header.
 ✅ **VERIFIED**: Server default fallback works when no workspace
 
 Priority order confirmed:
+
 1. Request provider - NOT PROVIDED
 2. Workspace provider - NOT AVAILABLE
 3. Server default (ollama) - USED

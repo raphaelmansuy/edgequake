@@ -60,6 +60,16 @@ FOCUS on :
 
 21. Ensure workspace configuration page is accessible via deeplink from the webui and home page.
 
+22. Ensure the default prodvider and model for both llm and embedding are clearly indicated in the configuration file located at the root of edgequake server.
+
+23. VERY IMPORTANT Ensure when I upload a document to a workspace, the llm provider and model used for document ingestion is the one associated with the workspace.
+
+24. For the query ensure the embedding provider and model used at query time is the one associated with the workspace.
+
+25. When I rebuild the embeddings for a workspace, ensure the embedding provider and model used is the one associated with the workspace. Ensure the vector database is recreated with the new embedding model on the existing documents of the workspace --> Have a deep reasoning about the best way to implement this in edgequake codebase: is to necessary to have only an re-embedding process that keep the existing vector database structure and just update the embeddings ? Or is it better to recreate the vector database from scratch with the new embedding model ? Document your reasoning and choices in the OODA loop documentation. What are the pros and cons of each approach ? What is the impact on performance, downtime, user experience, complexity, code maintainability, etc. Choose the best approach based on your analysis and document it. Ensure the building of the embeddings only affect the workspace being modified, not the entire server.
+
+24. Ensure when I rebuild the knowledge graph for a workspace, the llm provider and model used is the one associated with the workspace. And we use the same llm provider and model for document ingestion. Both extraction and embedding must be done with the models associated with the workspace. It only affect the workspace being modified, not the entire server.
+
 Very important ==> Default providers (llm+embedding) and models will be defined as setup in a toml config file located at the root of edgequake server. Capabilities of models and providers must be detected at runtime and exposed as an API. This configuration file will act as models cards explaining the capabilities of each model and provider. (vision / image support / max tokens / context length / cost per 1K tokens etc). This config file will be used by the edgequake_webui to display the capabilities of each model and provider in the selection dropdowns. This file will provide high signal information to the users about the models and providers available in the edgequake server.
 
 Ensure you provide a .toml configuration file example including ollama and lmstudio providers and models, openai provider and models, with all capabilities filled in. Find information about ollama, openai and lmstudio models capabilities from their respective documentations.

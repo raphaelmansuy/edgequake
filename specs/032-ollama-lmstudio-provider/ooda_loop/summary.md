@@ -43,22 +43,22 @@
 
 ## Recent Commits
 
-| Commit  | OODA  | Description                                         |
-| ------- | ----- | --------------------------------------------------- |
-| ae82d9c | 25-26 | Documentation update + code format                  |
-| d752e72 | 23    | Updated OODA summary with iterations 18-22          |
-| 52d575b | 22    | WebUI rebuild embeddings button                     |
-| f523d0a | 17    | Streaming LLM provider override                     |
-| 48e5a51 | 16    | Non-streaming LLM provider override in query engine |
-| 171f56e | 15    | QueryRequest LLM provider/model fields + builders   |
-| 4d6d797 | 14    | Tenant-level LLM/embedding configuration            |
-| b4d63b8 | 13    | Workspace-specific embedding in query process       |
-| 794a3c7 | 12+14 | Provider registry API and list providers endpoint   |
-| c33ec26 | 11    | LM Studio auto-detection in provider factory        |
-| 7001fa9 | 08-10 | Dedicated LMStudioProvider implementation           |
-| 845d7c6 | 07    | Workspace-level embedding configuration             |
-| 79ec9ca | 63-90 | Stop token handling, KG rebuild verification        |
-| f7ac66d | 91-120| Workspace LLM provider fallback fix                 |
+| Commit  | OODA   | Description                                         |
+| ------- | ------ | --------------------------------------------------- |
+| ae82d9c | 25-26  | Documentation update + code format                  |
+| d752e72 | 23     | Updated OODA summary with iterations 18-22          |
+| 52d575b | 22     | WebUI rebuild embeddings button                     |
+| f523d0a | 17     | Streaming LLM provider override                     |
+| 48e5a51 | 16     | Non-streaming LLM provider override in query engine |
+| 171f56e | 15     | QueryRequest LLM provider/model fields + builders   |
+| 4d6d797 | 14     | Tenant-level LLM/embedding configuration            |
+| b4d63b8 | 13     | Workspace-specific embedding in query process       |
+| 794a3c7 | 12+14  | Provider registry API and list providers endpoint   |
+| c33ec26 | 11     | LM Studio auto-detection in provider factory        |
+| 7001fa9 | 08-10  | Dedicated LMStudioProvider implementation           |
+| 845d7c6 | 07     | Workspace-level embedding configuration             |
+| 79ec9ca | 63-90  | Stop token handling, KG rebuild verification        |
+| f7ac66d | 91-120 | Workspace LLM provider fallback fix                 |
 
 ---
 
@@ -67,9 +67,11 @@
 ### Iteration 91: Root Cause Analysis ✅ COMPLETE
 
 **Bug**: When creating a Tenant/Workspace with OpenAI selected, the system showed:
+
 > "Cannot use provider 'openai': Configuration error: OPENAI_API_KEY is empty or invalid"
 
 **Root Cause**: The chat handler only used provider from:
+
 1. Request parameters (`request.provider`, `request.model`)
 2. Server default (Ollama)
 
@@ -78,12 +80,14 @@
 ### Iterations 92-95: Fix Implementation & Verification ✅ COMPLETE
 
 **Changes Applied** (`chat.rs`):
+
 1. Store workspace object when validating workspace_id
 2. Add workspace provider fallback when request.provider is None
 3. Apply same fix to streaming handler
 4. Clone workspace for async task
 
 **Priority Order**:
+
 1. Request-specified provider/model (explicit user selection)
 2. Workspace-configured provider/model (from workspace settings)
 3. Server default (sota_engine's default provider)

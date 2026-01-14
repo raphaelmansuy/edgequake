@@ -7,6 +7,7 @@
 **File**: `edgequake/crates/edgequake-api/src/handlers/chat.rs`
 
 **Modifications**:
+
 1. Updated `chat_completion` handler to store workspace object
 2. Added workspace provider fallback logic (40+ lines)
 3. Updated `chat_completion_stream` handler with same fix
@@ -25,6 +26,7 @@ $ cargo test --package edgequake-api
 ### Verification
 
 **Before Fix**:
+
 ```json
 {
   "llm_provider": null,
@@ -33,6 +35,7 @@ $ cargo test --package edgequake-api
 ```
 
 **After Fix**:
+
 ```json
 {
   "llm_provider": "openai",
@@ -49,6 +52,7 @@ f7ac66d fix(chat): use workspace LLM provider when request doesn't specify one (
 ## Result: ✅ SUCCESS
 
 Workspace-configured OpenAI provider is now automatically used when:
+
 - Request doesn't specify provider
 - Workspace has LLM configuration
 - OPENAI_API_KEY is available

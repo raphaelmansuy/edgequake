@@ -3,6 +3,7 @@
 ## Iteration 116: Full E2E Test - Workspace OpenAI
 
 **Flow**:
+
 1. Create tenant
 2. Create workspace with OpenAI
 3. Upload document
@@ -35,6 +36,7 @@
 **Commit**: `f7ac66d fix(chat): use workspace LLM provider when request doesn't specify one (SPEC-032)`
 
 **Summary**:
+
 - Fixed workspace provider not being used
 - Added 3-level priority fallback
 - Both streaming and non-streaming endpoints fixed

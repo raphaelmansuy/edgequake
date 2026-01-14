@@ -22,6 +22,7 @@ Run test with explicit provider override.
 ## Act
 
 **Result**:
+
 ```json
 {
   "llm_provider": "ollama",
@@ -32,6 +33,7 @@ Run test with explicit provider override.
 ✅ **VERIFIED**: Request-level provider override works correctly
 
 Priority order confirmed:
+
 1. Request provider (ollama) - USED
 2. Workspace provider (openai) - SKIPPED
 3. Server default - SKIPPED

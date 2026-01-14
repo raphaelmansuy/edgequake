@@ -905,11 +905,156 @@ pub async fn rebuild_embeddings(
         "Vector storage cleared"
     );
 
-    // 6. Update workspace embedding config (if changed)
-    // TODO: Implement workspace_service.update_embedding_config() for full support
-    // For now, we just clear vectors and the new config takes effect on next document ingestion
+    // 6. Update workspace embedding config if changed (SPEC-032)
+    if config_changed {
+        use edgequake_core::UpdateWorkspaceRequest;
 
-    // 7. Build response
+        let update_request = UpdateWorkspaceRequest {
+            embedding_model: Some(new_model.clone()),
+            embedding_provider: Some(new_provider.clone()),
+            embedding_dimension: Some(new_dimension),
+            ..Default::default()
+        };
+
+        state
+            .workspace_service
+            .update_workspace(workspace_id, update_request)
+            .await
+            .map_err(|e| {
+                ApiError::Internal(format!(
+                    "Failed to update workspace embedding config: {}",
+                    e
+                ))
+            })?;
+
+        info!(
+            workspace_id = %workspace_id,
+            embedding_model = %new_model,
+            embedding_provider = %new_provider,
+            embedding_dimension = new_dimension,
+            "Workspace embedding configuration updated"
+        );
+    }
+
+    // 7. Queue documents for re-embedding (SPEC-032 REQ-25)
+    // This triggers the actual re-embedding process using the new embedding model
+    let (documents_queued, track_id) = if stats.document_count > 0 {
+        use chrono::Utc;
+        use edgequake_tasks::{Task, TaskType, TextInsertData};
+
+        let track_id = format!(
+            "rebuild_embed_{}_{}",
+            Utc::now().format("%Y%m%d_%H%M%S"),
+            &Uuid::new_v4().to_string()[..8]
+        );
+
+        // Get all document metadata for this workspace
+        let all_keys: Vec<String> = state
+            .kv_storage
+            .keys()
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to list document keys: {}", e)))?;
+
+        let mut documents_queued = 0;
+
+        for key in all_keys.iter().filter(|k| k.ends_with("-metadata")) {
+            if let Some(value) = state.kv_storage.get_by_id(key).await.ok().flatten() {
+                if let Some(obj) = value.as_object() {
+                    // Check if document belongs to this workspace
+                    let doc_workspace = obj
+                        .get("workspace_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("default");
+
+                    if doc_workspace != workspace_id.to_string() && doc_workspace != "default" {
+                        continue;
+                    }
+
+                    let doc_id = match obj.get("id").and_then(|v| v.as_str()) {
+                        Some(id) => id.to_string(),
+                        None => continue,
+                    };
+
+                    let title = obj.get("title").and_then(|v| v.as_str());
+
+                    // Get document content
+                    let content_key = format!("{}-content", doc_id);
+                    let content = match state.kv_storage.get_by_id(&content_key).await {
+                        Ok(Some(content_value)) => content_value
+                            .get("content")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string()),
+                        _ => None,
+                    };
+
+                    let content = match content {
+                        Some(c) => c,
+                        None => continue,
+                    };
+
+                    // Update document status to pending
+                    let metadata_key = format!("{}-metadata", doc_id);
+                    if let Some(mut metadata) = state
+                        .kv_storage
+                        .get_by_id(&metadata_key)
+                        .await
+                        .ok()
+                        .flatten()
+                    {
+                        if let Some(obj) = metadata.as_object_mut() {
+                            obj.insert("status".to_string(), serde_json::json!("pending"));
+                            obj.insert("track_id".to_string(), serde_json::json!(track_id));
+                            obj.insert(
+                                "reprocess_at".to_string(),
+                                serde_json::json!(Utc::now().to_rfc3339()),
+                            );
+                            let _ = state.kv_storage.upsert(&[(metadata_key, metadata)]).await;
+                        }
+                    }
+
+                    // Create processing task
+                    let doc_title = title.unwrap_or(&doc_id).to_string();
+                    let task_data = TextInsertData {
+                        text: content,
+                        file_source: doc_title.clone(),
+                        workspace_id: workspace_id.to_string(),
+                        metadata: Some(serde_json::json!({
+                            "document_id": doc_id,
+                            "title": doc_title,
+                            "track_id": track_id,
+                            "is_reprocess": true,
+                            "is_embedding_rebuild": true,
+                            "workspace_id": workspace_id.to_string(),
+                            "tenant_id": workspace.tenant_id.to_string(),
+                        })),
+                    };
+
+                    let task =
+                        Task::new(TaskType::Insert, serde_json::to_value(&task_data).unwrap());
+
+                    // Store and queue task
+                    if state.task_storage.create_task(&task).await.is_ok() {
+                        if state.task_queue.send(task).await.is_ok() {
+                            documents_queued += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        info!(
+            workspace_id = %workspace_id,
+            track_id = %track_id,
+            documents_queued = documents_queued,
+            "Documents queued for re-embedding"
+        );
+
+        (documents_queued, Some(track_id))
+    } else {
+        (0, None)
+    };
+
+    // 8. Build response
     // Estimate: ~1 second per document for embedding (conservative)
     let estimated_time = if stats.document_count > 0 {
         Some(stats.document_count as u64)
@@ -930,27 +1075,40 @@ pub async fn rebuild_embeddings(
     };
     let has_compatibility_warning = compatibility_warning.is_some();
 
+    // Determine status based on whether documents were queued
+    let status = if documents_queued > 0 {
+        "processing".to_string()
+    } else if vectors_cleared > 0 {
+        "vectors_cleared".to_string()
+    } else {
+        "no_change".to_string()
+    };
+
     let response = RebuildEmbeddingsResponse {
         workspace_id,
-        status: "vectors_cleared".to_string(),
-        documents_to_process: stats.document_count,
+        status,
+        documents_to_process: documents_queued,
         vectors_cleared,
-        embedding_model: new_model,
-        embedding_provider: new_provider,
+        embedding_model: new_model.clone(),
+        embedding_provider: new_provider.clone(),
         embedding_dimension: new_dimension,
         model_context_length,
         estimated_time_seconds: estimated_time,
-        job_id: None, // No async job yet
+        job_id: track_id.clone(),
         compatibility_warning,
     };
 
     info!(
         workspace_id = %workspace_id,
         status = %response.status,
-        documents = stats.document_count,
+        documents_queued = documents_queued,
+        vectors_cleared = vectors_cleared,
+        embedding_model = %new_model,
+        embedding_provider = %new_provider,
         model_context_length = model_context_length,
         has_warning = has_compatibility_warning,
-        "Embedding rebuild complete (vectors cleared, documents need reprocessing)"
+        track_id = ?track_id,
+        "Embedding rebuild complete - documents queued for re-embedding"
     );
 
     Ok(Json(response))
@@ -1085,11 +1243,143 @@ pub async fn rebuild_knowledge_graph(
         &uuid::Uuid::new_v4().to_string()[..8]
     );
 
-    // 8. Queue all documents for reprocessing (implementation omitted for brevity)
-    // This would use the same logic as reprocess_all_documents
-    // For now, return a response indicating manual reprocessing is needed
+    // 8. Update workspace LLM config if changed (SPEC-032)
+    if config_changed {
+        use edgequake_core::UpdateWorkspaceRequest;
 
-    // 9. Build response
+        let update_request = UpdateWorkspaceRequest {
+            llm_model: Some(new_llm_model.clone()),
+            llm_provider: Some(new_llm_provider.clone()),
+            ..Default::default()
+        };
+
+        state
+            .workspace_service
+            .update_workspace(workspace_id, update_request)
+            .await
+            .map_err(|e| {
+                ApiError::Internal(format!("Failed to update workspace LLM config: {}", e))
+            })?;
+
+        info!(
+            workspace_id = %workspace_id,
+            llm_model = %new_llm_model,
+            llm_provider = %new_llm_provider,
+            "Workspace LLM configuration updated"
+        );
+    }
+
+    // 9. Queue all documents for reprocessing (SPEC-032 REQ-24)
+    let documents_queued = if stats.document_count > 0 {
+        use edgequake_tasks::{Task, TaskType, TextInsertData};
+
+        // Get all document metadata for this workspace
+        let all_keys: Vec<String> = state
+            .kv_storage
+            .keys()
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to list document keys: {}", e)))?;
+
+        let mut documents_queued = 0;
+
+        for key in all_keys.iter().filter(|k| k.ends_with("-metadata")) {
+            if let Some(value) = state.kv_storage.get_by_id(key).await.ok().flatten() {
+                if let Some(obj) = value.as_object() {
+                    // Check if document belongs to this workspace
+                    let doc_workspace = obj
+                        .get("workspace_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("default");
+
+                    if doc_workspace != workspace_id.to_string() && doc_workspace != "default" {
+                        continue;
+                    }
+
+                    let doc_id = match obj.get("id").and_then(|v| v.as_str()) {
+                        Some(id) => id.to_string(),
+                        None => continue,
+                    };
+
+                    let title = obj.get("title").and_then(|v| v.as_str());
+
+                    // Get document content
+                    let content_key = format!("{}-content", doc_id);
+                    let content = match state.kv_storage.get_by_id(&content_key).await {
+                        Ok(Some(content_value)) => content_value
+                            .get("content")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string()),
+                        _ => None,
+                    };
+
+                    let content = match content {
+                        Some(c) => c,
+                        None => continue,
+                    };
+
+                    // Update document status to pending
+                    let metadata_key = format!("{}-metadata", doc_id);
+                    if let Some(mut metadata) = state
+                        .kv_storage
+                        .get_by_id(&metadata_key)
+                        .await
+                        .ok()
+                        .flatten()
+                    {
+                        if let Some(obj) = metadata.as_object_mut() {
+                            obj.insert("status".to_string(), serde_json::json!("pending"));
+                            obj.insert("track_id".to_string(), serde_json::json!(track_id));
+                            obj.insert(
+                                "reprocess_at".to_string(),
+                                serde_json::json!(Utc::now().to_rfc3339()),
+                            );
+                            let _ = state.kv_storage.upsert(&[(metadata_key, metadata)]).await;
+                        }
+                    }
+
+                    // Create processing task
+                    let doc_title = title.unwrap_or(&doc_id).to_string();
+                    let task_data = TextInsertData {
+                        text: content,
+                        file_source: doc_title.clone(),
+                        workspace_id: workspace_id.to_string(),
+                        metadata: Some(serde_json::json!({
+                            "document_id": doc_id,
+                            "title": doc_title,
+                            "track_id": track_id,
+                            "is_reprocess": true,
+                            "is_kg_rebuild": true,
+                            "workspace_id": workspace_id.to_string(),
+                            "tenant_id": workspace.tenant_id.to_string(),
+                        })),
+                    };
+
+                    let task =
+                        Task::new(TaskType::Insert, serde_json::to_value(&task_data).unwrap());
+
+                    // Store and queue task
+                    if state.task_storage.create_task(&task).await.is_ok() {
+                        if state.task_queue.send(task).await.is_ok() {
+                            documents_queued += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        info!(
+            workspace_id = %workspace_id,
+            track_id = %track_id,
+            documents_queued = documents_queued,
+            "Documents queued for knowledge graph rebuild"
+        );
+
+        documents_queued
+    } else {
+        0
+    };
+
+    // 10. Build response
     let estimated_time = if stats.document_count > 0 {
         // Estimate: ~2 seconds per document (extraction + embedding)
         Some(stats.document_count as u64 * 2)
@@ -1097,17 +1387,26 @@ pub async fn rebuild_knowledge_graph(
         None
     };
 
+    // Determine status based on whether documents were queued
+    let status = if documents_queued > 0 {
+        "processing".to_string()
+    } else if nodes_cleared > 0 || edges_cleared > 0 {
+        "graph_cleared".to_string()
+    } else {
+        "no_change".to_string()
+    };
+
     let response = RebuildKnowledgeGraphResponse {
         workspace_id,
-        status: "graph_cleared".to_string(),
+        status,
         nodes_cleared,
         edges_cleared,
         vectors_cleared,
-        documents_to_process: stats.document_count,
-        llm_model: new_llm_model,
-        llm_provider: new_llm_provider,
+        documents_to_process: documents_queued,
+        llm_model: new_llm_model.clone(),
+        llm_provider: new_llm_provider.clone(),
         estimated_time_seconds: estimated_time,
-        track_id: Some(track_id),
+        track_id: Some(track_id.clone()),
     };
 
     info!(
@@ -1116,8 +1415,11 @@ pub async fn rebuild_knowledge_graph(
         nodes = nodes_cleared,
         edges = edges_cleared,
         vectors = vectors_cleared,
-        documents = stats.document_count,
-        "Knowledge graph rebuild complete (data cleared, call /reprocess-documents to rebuild)"
+        documents_queued = documents_queued,
+        llm_model = %new_llm_model,
+        llm_provider = %new_llm_provider,
+        track_id = %track_id,
+        "Knowledge graph rebuild complete - documents queued for reprocessing"
     );
 
     Ok(Json(response))

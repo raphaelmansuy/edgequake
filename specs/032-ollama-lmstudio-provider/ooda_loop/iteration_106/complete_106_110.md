@@ -2,7 +2,8 @@
 
 ## Iteration 106: Different Workspaces Same Tenant
 
-**Setup**: 
+**Setup**:
+
 - Workspace A: OpenAI
 - Workspace B: Ollama
 

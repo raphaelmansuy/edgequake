@@ -153,7 +153,7 @@ async fn test_workspace_default_embedding_config() {
 #[serial]
 async fn test_embedding_dimension_autodetection() {
     // Known provider dimensions for validation
-    // Default is 1536 for unknown models
+    // Default is 768 for unknown models (matches Ollama embeddinggemma from models.toml)
     let test_cases = [
         ("text-embedding-3-small", 1536),
         ("text-embedding-3-large", 3072),
@@ -161,7 +161,7 @@ async fn test_embedding_dimension_autodetection() {
         ("nomic-embed-text", 768),
         ("nomic-embed-text:latest", 768),
         ("mxbai-embed-large", 1024),
-        ("unknown-model", 1536), // Default fallback
+        ("unknown-model", 768), // Default fallback now matches Ollama/models.toml
     ];
 
     for (model, expected) in test_cases {

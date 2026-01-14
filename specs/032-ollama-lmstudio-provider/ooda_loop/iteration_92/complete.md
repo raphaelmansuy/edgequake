@@ -22,6 +22,7 @@ Run the test and verify the response.
 ## Act
 
 **Result**:
+
 ```json
 {
   "llm_provider": "openai",

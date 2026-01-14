@@ -313,6 +313,16 @@ pub struct Workspace {
 // ============================================================================
 // Model Configuration Constants (SPEC-032)
 // ============================================================================
+// These defaults MUST match models.toml [defaults] section.
+// Ollama is used by default for both LLM and embedding to enable
+// development without requiring API keys.
+//
+// To use OpenAI or other providers, set environment variables:
+//   - EDGEQUAKE_DEFAULT_LLM_PROVIDER=openai
+//   - EDGEQUAKE_DEFAULT_LLM_MODEL=gpt-4o-mini
+//   - EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER=openai
+//   - EDGEQUAKE_DEFAULT_EMBEDDING_MODEL=text-embedding-3-small
+//   - EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION=1536
 
 /// Default LLM model (Ollama gemma3:12b - 128K context, vision support).
 pub const DEFAULT_LLM_MODEL: &str = "gemma3:12b";
@@ -320,14 +330,17 @@ pub const DEFAULT_LLM_MODEL: &str = "gemma3:12b";
 /// Default LLM provider.
 pub const DEFAULT_LLM_PROVIDER: &str = "ollama";
 
-/// Default embedding model (OpenAI text-embedding-3-small).
-pub const DEFAULT_EMBEDDING_MODEL: &str = "text-embedding-3-small";
+/// Default embedding model (Ollama embeddinggemma - 768 dimensions, 2K context).
+/// Synced with models.toml [defaults] section.
+pub const DEFAULT_EMBEDDING_MODEL: &str = "embeddinggemma";
 
 /// Default embedding provider.
-pub const DEFAULT_EMBEDDING_PROVIDER: &str = "openai";
+/// Synced with models.toml [defaults] section.
+pub const DEFAULT_EMBEDDING_PROVIDER: &str = "ollama";
 
-/// Default embedding dimension (OpenAI text-embedding-3-small).
-pub const DEFAULT_EMBEDDING_DIMENSION: usize = 1536;
+/// Default embedding dimension (Ollama embeddinggemma).
+/// Synced with models.toml [defaults] section.
+pub const DEFAULT_EMBEDDING_DIMENSION: usize = 768;
 
 impl Workspace {
     /// Create a new workspace with default model configuration.
