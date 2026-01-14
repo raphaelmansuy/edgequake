@@ -721,4 +721,94 @@ test.describe("SPEC-032: Provider Integration", () => {
       await expect(rebuildSection).toBeVisible({ timeout: 10000 });
     });
   });
+
+  /**
+   * @implements SPEC-032: Focus 5 - Rebuild document embeddings
+   * @iteration OODA 71
+   * 
+   * Tests for rebuild embeddings API functionality.
+   */
+  test.describe("Focus 5: Rebuild Embeddings", () => {
+    /**
+     * Verifies rebuild API requires force flag when config unchanged.
+     */
+    test("rebuild embeddings API validates request correctly", async ({ request }) => {
+      // Get existing workspace
+      const tenantsResponse = await request.get("http://localhost:8080/api/v1/tenants");
+      const tenants = await tenantsResponse.json();
+      const tenantId = tenants.items[0]?.id;
+
+      if (!tenantId) {
+        test.skip();
+        return;
+      }
+
+      const workspacesResponse = await request.get(
+        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+      );
+      const workspaces = await workspacesResponse.json();
+      const workspaceId = workspaces.items[0]?.id;
+
+      if (!workspaceId) {
+        test.skip();
+        return;
+      }
+
+      // POST to rebuild without force flag - should fail with 400
+      const rebuildResponse = await request.post(
+        `http://localhost:8080/api/v1/workspaces/${workspaceId}/rebuild-embeddings`,
+        {
+          data: {
+            force: false,
+          },
+        }
+      );
+
+      // Should return 400 because config is unchanged and force is false
+      expect(rebuildResponse.status()).toBe(400);
+      const errorData = await rebuildResponse.json();
+      expect(errorData.message || errorData.error).toContain("unchanged");
+    });
+
+    /**
+     * Verifies rebuild API accepts force flag for unchanged config.
+     */
+    test("rebuild embeddings API accepts force flag", async ({ request }) => {
+      // Get existing workspace
+      const tenantsResponse = await request.get("http://localhost:8080/api/v1/tenants");
+      const tenants = await tenantsResponse.json();
+      const tenantId = tenants.items[0]?.id;
+
+      if (!tenantId) {
+        test.skip();
+        return;
+      }
+
+      const workspacesResponse = await request.get(
+        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+      );
+      const workspaces = await workspacesResponse.json();
+      const workspaceId = workspaces.items[0]?.id;
+
+      if (!workspaceId) {
+        test.skip();
+        return;
+      }
+
+      // POST with force: true - should succeed
+      const rebuildResponse = await request.post(
+        `http://localhost:8080/api/v1/workspaces/${workspaceId}/rebuild-embeddings`,
+        {
+          data: {
+            force: true,
+          },
+        }
+      );
+
+      // Should return 200 with rebuild response
+      expect(rebuildResponse.ok()).toBe(true);
+      const data = await rebuildResponse.json();
+      expect(data).toHaveProperty("status");
+    });
+  });
 });
