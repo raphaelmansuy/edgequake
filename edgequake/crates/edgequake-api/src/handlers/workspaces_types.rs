@@ -607,6 +607,9 @@ mod tests {
             max_documents: Some(2000),
             llm_model: None,
             llm_provider: None,
+            embedding_model: None,
+            embedding_provider: None,
+            embedding_dimension: None,
         };
 
         let json = serde_json::to_string(&req).unwrap();
