@@ -321,6 +321,28 @@ pub async fn execute_query(
         None
     };
 
+    // SPEC-032 Item 18, 22: Get LLM provider/model info for lineage tracking
+    let (llm_provider, llm_model) =
+        get_workspace_llm_info(&state, tenant_ctx.workspace_id.as_deref()).await;
+
+    // SPEC-032 Item 18: Calculate tokens per second
+    let tokens_used = if result.stats.generated_tokens > 0 {
+        Some(result.stats.generated_tokens)
+    } else {
+        None
+    };
+
+    let tokens_per_second = if result.stats.generation_time_ms > 0 && result.stats.generated_tokens > 0
+    {
+        Some(
+            (result.stats.generated_tokens as f32)
+                / (result.stats.generation_time_ms as f32)
+                * 1000.0,
+        )
+    } else {
+        None
+    };
+
     let response = QueryResponse {
         answer: result.answer,
         mode: result.mode.to_string(),
@@ -334,6 +356,11 @@ pub async fn execute_query(
                 + result.context.entities.len()
                 + result.context.relationships.len(),
             rerank_time_ms,
+            // SPEC-032 Item 18, 22: Token metrics and model lineage
+            tokens_used,
+            tokens_per_second,
+            llm_provider,
+            llm_model,
         },
         conversation_id,
         reranked,
@@ -483,6 +510,63 @@ async fn get_workspace_embedding_provider(
     );
 
     Ok(Some(provider))
+}
+
+/// Get workspace LLM provider and model info for lineage tracking.
+///
+/// @implements SPEC-032 Item 22: Display model used after tokens/second
+///
+/// # Returns
+///
+/// Tuple of (Option<provider>, Option<model>) from workspace config or defaults.
+async fn get_workspace_llm_info(
+    state: &AppState,
+    workspace_id: Option<&str>,
+) -> (Option<String>, Option<String>) {
+    use edgequake_core::types::{DEFAULT_LLM_MODEL, DEFAULT_LLM_PROVIDER};
+    use uuid::Uuid;
+
+    // If no workspace, return defaults
+    let workspace_id = match workspace_id {
+        Some(id) => id,
+        None => {
+            return (
+                Some(DEFAULT_LLM_PROVIDER.to_string()),
+                Some(DEFAULT_LLM_MODEL.to_string()),
+            );
+        }
+    };
+
+    // Try to get workspace config
+    let workspace_uuid = match Uuid::parse_str(workspace_id) {
+        Ok(uuid) => uuid,
+        Err(_) => {
+            return (
+                Some(DEFAULT_LLM_PROVIDER.to_string()),
+                Some(DEFAULT_LLM_MODEL.to_string()),
+            );
+        }
+    };
+
+    match state.workspace_service.get_workspace(workspace_uuid).await {
+        Ok(Some(workspace)) => {
+            let provider = if workspace.llm_provider.is_empty() {
+                Some(DEFAULT_LLM_PROVIDER.to_string())
+            } else {
+                Some(workspace.llm_provider)
+            };
+            let model = if workspace.llm_model.is_empty() {
+                Some(DEFAULT_LLM_MODEL.to_string())
+            } else {
+                Some(workspace.llm_model)
+            };
+            (provider, model)
+        }
+        _ => (
+            Some(DEFAULT_LLM_PROVIDER.to_string()),
+            Some(DEFAULT_LLM_MODEL.to_string()),
+        ),
+    }
 }
 
 #[cfg(test)]
