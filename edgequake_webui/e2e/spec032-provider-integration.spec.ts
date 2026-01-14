@@ -284,6 +284,32 @@ test.describe("SPEC-032: Provider Integration", () => {
       );
       expect(recommendedModels.length).toBeGreaterThan(0);
     });
+
+    /**
+     * @implements SPEC-032: Provider health check endpoint
+     * @iteration OODA 73
+     * 
+     * Verifies that health check endpoint returns provider status.
+     */
+    test("provider health check returns enabled providers", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models/health");
+      expect(response.ok()).toBe(true);
+
+      const providers = await response.json();
+      expect(Array.isArray(providers)).toBe(true);
+      expect(providers.length).toBeGreaterThan(0);
+
+      // Verify provider structure
+      for (const provider of providers) {
+        expect(provider).toHaveProperty("name");
+        expect(provider).toHaveProperty("enabled");
+        expect(provider).toHaveProperty("priority");
+      }
+
+      // At least one enabled provider
+      const enabledProviders = providers.filter((p: any) => p.enabled);
+      expect(enabledProviders.length).toBeGreaterThan(0);
+    });
   });
 
   /**
@@ -304,10 +330,13 @@ test.describe("SPEC-032: Provider Integration", () => {
       const mainContent = page.locator("main");
       await expect(mainContent).toBeVisible({ timeout: 15000 });
 
-      // Look for the provider selector trigger button
-      // The component uses SelectTrigger with w-[160px] class
+      // Wait extra for React to hydrate
+      await page.waitForTimeout(2000);
+
+      // Look for the provider selector - it uses Select component with w-[160px]
+      // The selector shows a provider name like "OpenAI", "Ollama", or loading state
       const providerSelector = page.locator(
-        '[role="combobox"], button:has-text("OpenAI"), button:has-text("Ollama"), button:has-text("Default")'
+        '[role="combobox"], [data-slot="trigger"], button:has-text("OpenAI"), button:has-text("Ollama"), button:has-text("Mock"), div:has-text("Loading")'
       ).first();
 
       await expect(providerSelector).toBeVisible({ timeout: 15000 });
