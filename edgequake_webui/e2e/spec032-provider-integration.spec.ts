@@ -811,4 +811,43 @@ test.describe("SPEC-032: Provider Integration", () => {
       expect(data).toHaveProperty("status");
     });
   });
+
+  /**
+   * API Error Handling Tests
+   * @iteration OODA 72
+   * 
+   * Tests for robust API error responses.
+   */
+  test.describe("API Error Handling", () => {
+    /**
+     * Verifies invalid tenant ID returns proper 404 error.
+     */
+    test("invalid tenant ID returns 404", async ({ request }) => {
+      const response = await request.get(
+        "http://localhost:8080/api/v1/tenants/00000000-0000-0000-0000-000000000000"
+      );
+      expect(response.status()).toBe(404);
+    });
+
+    /**
+     * Verifies invalid workspace ID returns proper 404 error.
+     */
+    test("invalid workspace ID returns 404", async ({ request }) => {
+      // Get valid tenant first
+      const tenantsResponse = await request.get("http://localhost:8080/api/v1/tenants");
+      const tenants = await tenantsResponse.json();
+      const tenantId = tenants.items[0]?.id;
+
+      if (!tenantId) {
+        test.skip();
+        return;
+      }
+
+      // Request invalid workspace
+      const response = await request.get(
+        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces/00000000-0000-0000-0000-000000000000`
+      );
+      expect(response.status()).toBe(404);
+    });
+  });
 });
