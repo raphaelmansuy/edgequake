@@ -46,6 +46,7 @@ async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
 **Implementations**:
 
 1. **PostgreSQL** (`adapters/postgres/vector.rs`):
+
    ```rust
    async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
        let sql = format!(
@@ -59,14 +60,16 @@ async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
        Ok(result.rows_affected() as usize)
    }
    ```
+
    - Uses JSONB metadata query: `metadata->>'workspace_id'`
    - Leverages PostgreSQL JSONB indexes for performance
 
 2. **Memory** (`adapters/memory/vector.rs`):
+
    ```rust
    async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
        let workspace_id_str = workspace_id.to_string();
-       
+
        // Collect keys to remove (matching workspace_id in metadata)
        let keys_to_remove: Vec<String> = metadata_map
            .iter()
@@ -89,6 +92,7 @@ async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
        Ok(keys_to_remove.len())
    }
    ```
+
    - Filters in-memory HashMap by metadata workspace_id
    - Maintains consistency between vectors and metadata maps
 
@@ -108,6 +112,7 @@ async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<(usize, usi
 **Implementations**:
 
 1. **PostgreSQL AGE** (`adapters/postgres/graph.rs`):
+
    ```rust
    async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<(usize, usize)> {
        let workspace_id_str = workspace_id.to_string();
@@ -137,11 +142,13 @@ async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<(usize, usi
        Ok((node_count as usize, edge_count as usize))
    }
    ```
+
    - Uses Cypher WHERE clause: `n.workspace_id = '{uuid}'`
    - DETACH DELETE automatically removes connected edges
    - Returns accurate counts before deletion
 
 2. **Memory** (`adapters/memory/graph.rs`):
+
    ```rust
    async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<(usize, usize)> {
        let workspace_id_str = workspace_id.to_string();
@@ -198,6 +205,7 @@ async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<(usize, usi
        Ok((node_ids_to_remove.len(), edge_keys_to_remove.len()))
    }
    ```
+
    - Filters nodes and edges by workspace_id property
    - Maintains adjacency list consistency
    - Removes edges where EITHER endpoint belongs to workspace
@@ -209,6 +217,7 @@ async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<(usize, usi
 **File**: `edgequake/crates/edgequake-api/src/handlers/workspaces.rs` (line ~870)
 
 **BEFORE (BUG)**:
+
 ```rust
 // WRONG: Clears ALL vectors across ALL workspaces
 let vectors_cleared = state.vector_storage.count().await.unwrap_or(0);
@@ -216,6 +225,7 @@ state.vector_storage.clear().await?;
 ```
 
 **AFTER (FIXED)**:
+
 ```rust
 // CORRECT: Workspace-scoped clearing
 let vectors_cleared = state
@@ -225,7 +235,8 @@ let vectors_cleared = state
     .map_err(|e| ApiError::Internal(format!("Failed to clear workspace vectors: {}", e)))?;
 ```
 
-**Impact**: 
+**Impact**:
+
 - **Before**: Embedding model change in Workspace A deleted vectors for Workspaces B, C, D (CRITICAL BUG)
 - **After**: Only Workspace A vectors are cleared (SAFE)
 
@@ -234,6 +245,7 @@ let vectors_cleared = state
 **Route**: `POST /api/v1/workspaces/{workspace_id}/rebuild-knowledge-graph`
 
 **Request**:
+
 ```rust
 pub struct RebuildKnowledgeGraphRequest {
     pub llm_model: Option<String>,           // New LLM model
@@ -245,6 +257,7 @@ pub struct RebuildKnowledgeGraphRequest {
 ```
 
 **Response**:
+
 ```rust
 pub struct RebuildKnowledgeGraphResponse {
     pub workspace_id: Uuid,
@@ -261,6 +274,7 @@ pub struct RebuildKnowledgeGraphResponse {
 ```
 
 **Handler Logic**:
+
 1. Validate workspace exists
 2. Check if LLM config actually changed (unless force=true)
 3. Clear graph storage (workspace-scoped): `graph_storage.clear_workspace(&workspace_id)`
@@ -269,6 +283,7 @@ pub struct RebuildKnowledgeGraphResponse {
 6. Return counts and status
 
 **Example Response**:
+
 ```json
 {
   "workspace_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -289,18 +304,21 @@ pub struct RebuildKnowledgeGraphResponse {
 ## Testing & Verification
 
 ### Build Verification
+
 ```bash
 cd edgequake && cargo build --package edgequake-api
 # ✅ Compiles successfully
 ```
 
 ### Storage Layer Tests
+
 ```bash
 cargo test --package edgequake-storage clear_workspace --lib
 # ✅ 0 failures (no existing tests, but no regressions)
 ```
 
 ### API Endpoint Tests
+
 ```bash
 # Manual curl test (requires running server)
 curl -X POST http://localhost:3000/api/v1/workspaces/{workspace_id}/rebuild-knowledge-graph \
@@ -309,6 +327,7 @@ curl -X POST http://localhost:3000/api/v1/workspaces/{workspace_id}/rebuild-know
 ```
 
 **Expected Response**:
+
 - Status 200
 - JSON with nodes_cleared, edges_cleared, vectors_cleared counts
 - track_id for monitoring
@@ -318,9 +337,11 @@ curl -X POST http://localhost:3000/api/v1/workspaces/{workspace_id}/rebuild-know
 ## Use Cases & Workflows
 
 ### Use Case 1: Embedding Model Change
+
 **Scenario**: User upgrades from `text-embedding-ada-002` (1536d) to `text-embedding-3-large` (3072d)
 
 **Workflow**:
+
 1. User edits workspace, changes embedding model
 2. Frontend detects `llmModelChanged = true`
 3. Frontend shows pending rebuild alert
@@ -331,15 +352,18 @@ curl -X POST http://localhost:3000/api/v1/workspaces/{workspace_id}/rebuild-know
 8. Monitor progress via `/documents/track/{track_id}`
 
 **Data Impact**:
+
 - ✅ Vectors: CLEARED (workspace-scoped)
 - ✅ Graph: PRESERVED (entities/relationships intact)
 - ✅ Documents: PRESERVED (metadata intact)
 - ✅ Other workspaces: UNAFFECTED
 
 ### Use Case 2: LLM Model Change
+
 **Scenario**: User switches from `gpt-4o-mini` to `gemma3:12b` for better entity extraction
 
 **Workflow**:
+
 1. User edits workspace, changes LLM model
 2. Frontend detects `llmModelChanged = true`
 3. Frontend shows "Rebuild Knowledge Graph" button
@@ -350,15 +374,18 @@ curl -X POST http://localhost:3000/api/v1/workspaces/{workspace_id}/rebuild-know
 8. Monitor progress via track_id
 
 **Data Impact**:
+
 - ✅ Graph: CLEARED (entities/relationships deleted)
 - ✅ Vectors: CLEARED (embeddings deleted)
 - ✅ Documents: PRESERVED (content intact, reprocessed)
 - ✅ Other workspaces: UNAFFECTED
 
 ### Use Case 3: Multi-Tenant Safety
+
 **Scenario**: Tenant A changes embedding model, Tenant B should be unaffected
 
 **Before (BUG)**:
+
 ```
 Tenant A: Workspace 1 (100 vectors) → rebuild → clears ALL
 Tenant B: Workspace 2 (200 vectors) → DELETED ❌
@@ -366,6 +393,7 @@ Tenant C: Workspace 3 (150 vectors) → DELETED ❌
 ```
 
 **After (FIXED)**:
+
 ```
 Tenant A: Workspace 1 (100 vectors) → rebuild → clears 100 ✅
 Tenant B: Workspace 2 (200 vectors) → PRESERVED ✅
@@ -395,6 +423,7 @@ async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<(usize, usi
 ```
 
 **Benefits**:
+
 1. ✅ **Backward Compatible**: Existing implementations compile without changes
 2. ✅ **Gradual Rollout**: Can implement workspace-scoped clearing incrementally
 3. ✅ **Safe Defaults**: No-op prevents accidental data loss
@@ -403,6 +432,7 @@ async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<(usize, usi
 ### Metadata-Based Filtering
 
 **PostgreSQL Vector Storage**:
+
 ```sql
 -- JSONB metadata structure
 {
@@ -416,12 +446,14 @@ DELETE FROM eq_default_vectors WHERE metadata->>'workspace_id' = $1;
 ```
 
 **PostgreSQL Graph Storage**:
+
 ```cypher
 -- Cypher deletion (Apache AGE)
 MATCH (n:Node) WHERE n.workspace_id = '{uuid}' DETACH DELETE n;
 ```
 
 **Performance**:
+
 - Vector deletion: O(n) scan with JSONB index support
 - Graph deletion: O(n) Cypher WHERE clause with DETACH
 - Memory deletion: O(n) HashMap filtering
@@ -431,6 +463,7 @@ MATCH (n:Node) WHERE n.workspace_id = '{uuid}' DETACH DELETE n;
 ## Code Quality Metrics
 
 ### Lines Changed
+
 - **Storage Traits**: +40 lines (trait methods + docs)
 - **PostgreSQL Adapters**: +120 lines (vector + graph implementations)
 - **Memory Adapters**: +160 lines (vector + graph implementations)
@@ -440,16 +473,19 @@ MATCH (n:Node) WHERE n.workspace_id = '{uuid}' DETACH DELETE n;
 - **Total**: ~590 lines added
 
 ### Test Coverage
+
 - **Storage Layer**: Default trait implementations (0 tests, but backward compatible)
 - **API Layer**: No new tests (manual testing via curl)
 - **Integration**: Existing tests unaffected (backward compatible)
 
 **TODO for Future**:
+
 - Add unit tests for `clear_workspace` implementations
 - Add integration tests for rebuild endpoints
 - Add E2E tests for multi-tenant scenarios
 
 ### Documentation
+
 - ✅ Inline Rust docs for all new methods
 - ✅ OpenAPI specs for new endpoints (utoipa annotations)
 - ✅ This SUMMARY.md with comprehensive architecture docs
@@ -459,6 +495,7 @@ MATCH (n:Node) WHERE n.workspace_id = '{uuid}' DETACH DELETE n;
 ## Known Issues & TODOs
 
 ### Remaining Work
+
 1. **Automatic Reprocessing**: Currently, `rebuild_knowledge_graph` does NOT automatically trigger reprocessing
    - User must manually call `POST /reprocess-documents` after rebuild
    - TODO: Integrate reprocess logic directly into rebuild endpoint
@@ -474,6 +511,7 @@ MATCH (n:Node) WHERE n.workspace_id = '{uuid}' DETACH DELETE n;
    - TODO: Log rebuild events to audit table (who, when, what changed)
 
 ### Edge Cases
+
 1. **Empty Workspace**: `clear_workspace` returns 0 counts (safe)
 2. **Non-Existent Workspace**: Handler returns 404 (safe)
 3. **Concurrent Rebuilds**: No locking mechanism (could cause race conditions)
@@ -486,18 +524,21 @@ MATCH (n:Node) WHERE n.workspace_id = '{uuid}' DETACH DELETE n;
 ## Performance Characteristics
 
 ### PostgreSQL Vector Storage
+
 - **Operation**: `DELETE FROM table WHERE metadata->>'workspace_id' = $1`
 - **Complexity**: O(n) table scan (mitigated by JSONB index)
 - **Expected Time**: <500ms for 10K vectors
 - **Index**: Create index on `(metadata->>'workspace_id')` for production
 
 ### PostgreSQL Graph Storage
+
 - **Operation**: Cypher `MATCH ... WHERE ... DETACH DELETE`
 - **Complexity**: O(n) node scan + O(m) edge scan
 - **Expected Time**: <1s for 1K nodes, 5K edges
 - **Optimization**: Apache AGE native indexes on node properties
 
 ### Memory Storage
+
 - **Operation**: HashMap filtering
 - **Complexity**: O(n) iteration
 - **Expected Time**: <100ms for 10K items
@@ -508,9 +549,11 @@ MATCH (n:Node) WHERE n.workspace_id = '{uuid}' DETACH DELETE n;
 ## Backward Compatibility
 
 ### Breaking Changes
+
 - ✅ **NONE**: Default trait implementations ensure backward compatibility
 
 ### Migration Path
+
 1. **Existing Deployments**: No changes required
    - `clear()` still works (clears ALL data)
    - `clear_workspace()` available but optional
@@ -518,6 +561,7 @@ MATCH (n:Node) WHERE n.workspace_id = '{uuid}' DETACH DELETE n;
 3. **Gradual Rollout**: Can enable workspace-scoped clearing per-tenant
 
 ### API Versioning
+
 - ✅ **No Version Bump**: New endpoints added, existing endpoints unchanged
 - ✅ **Opt-In**: Clients must explicitly call new rebuild endpoints
 
@@ -526,16 +570,19 @@ MATCH (n:Node) WHERE n.workspace_id = '{uuid}' DETACH DELETE n;
 ## Security Considerations
 
 ### Multi-Tenancy Isolation
+
 - ✅ **Workspace Scoping**: All rebuild operations are workspace-scoped
 - ✅ **Tenant Isolation**: Workspace ID prevents cross-tenant data access
 - ✅ **Audit Trail**: All rebuild operations logged with workspace_id
 
 ### Authorization
+
 - ⚠️ **TODO**: Add permission checks for rebuild endpoints
   - Only workspace owners should be able to rebuild
   - Add RBAC checks before clearing data
 
 ### Data Loss Prevention
+
 - ✅ **Confirmation Required**: Frontend should show confirmation dialog
 - ✅ **Status Messages**: Clear warnings about destructive operations
 - ⚠️ **TODO**: Add "soft delete" option (mark as deleted, purge later)
@@ -545,6 +592,7 @@ MATCH (n:Node) WHERE n.workspace_id = '{uuid}' DETACH DELETE n;
 ## Metrics & Monitoring
 
 ### Logging
+
 ```rust
 info!(
     workspace_id = %workspace_id,
@@ -556,12 +604,14 @@ info!(
 ```
 
 ### Metrics to Track
+
 1. **Rebuild Frequency**: How often workspaces are rebuilt
 2. **Rebuild Duration**: Time to clear and reprocess
 3. **Data Volume**: Nodes/edges/vectors cleared per rebuild
 4. **Failure Rate**: Percentage of failed rebuild operations
 
 ### Alerting
+
 - ⚠️ Rebuild takes >5 minutes → Alert DevOps
 - ⚠️ Rebuild clears >100K nodes → Alert for review
 - ⚠️ Multiple rebuilds in <1 hour → Potential abuse
@@ -580,6 +630,7 @@ info!(
 6. ✅ **Documentation**: Inline docs, OpenAPI specs, architecture guides
 
 **Next Steps** (OODA 281-290):
+
 - Integrate automatic reprocessing into rebuild endpoints
 - Add WebUI buttons for both rebuild types
 - Add background job tracking with progress monitoring
@@ -591,6 +642,7 @@ info!(
 ## Files Modified
 
 ### Storage Layer
+
 - `edgequake/crates/edgequake-storage/src/traits/vector.rs`
 - `edgequake/crates/edgequake-storage/src/traits/graph.rs`
 - `edgequake/crates/edgequake-storage/src/adapters/postgres/vector.rs`
@@ -599,12 +651,14 @@ info!(
 - `edgequake/crates/edgequake-storage/src/adapters/memory/graph.rs`
 
 ### API Layer
+
 - `edgequake/crates/edgequake-api/src/handlers/workspaces.rs`
 - `edgequake/crates/edgequake-api/src/handlers/workspaces_types.rs`
 - `edgequake/crates/edgequake-api/src/routes.rs`
 - `edgequake/crates/edgequake-api/src/openapi.rs` (auto-generated)
 
 ### Documentation
+
 - `specs/032-ollama-lmstudio-provider/iterations/iteration_256-280/SUMMARY.md` (this file)
 - `logs/2026-01-14-08-25-beastmode-ooda-251-255-log.md` (prior session)
 

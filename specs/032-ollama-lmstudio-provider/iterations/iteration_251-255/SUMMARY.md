@@ -6,16 +6,19 @@
 ## Issues Addressed
 
 1. **Hydration Error** (Critical)
+
    - Error: `<p>` cannot be a descendant of `<p>` in rebuild-embeddings-button.tsx line 195
    - Cause: Radix UI's AlertDialogDescription renders as `<p>`, but contained nested `<p>` elements
    - Fix: Used `asChild` pattern with `<div>` wrapper and replaced `<p>` with `<span className="block">`
 
 2. **Missing Workspace Configuration Link**
+
    - Users couldn't find workspace configuration page in navigation
    - Added `/workspace` link to sidebar with FolderKanban icon
    - Added translations for English, French, and Chinese
 
 3. **Model Change Detection Missing**
+
    - Only embedding model changes were detected
    - Added `llmModelChanged` detection for LLM model changes
    - Added warning UI when LLM model changes (re-extraction required)
@@ -28,6 +31,7 @@
 ## Technical Changes
 
 ### 1. rebuild-embeddings-button.tsx
+
 ```tsx
 // Before (hydration error)
 <AlertDialogDescription className="space-y-2">
@@ -45,16 +49,18 @@
 ```
 
 ### 2. sidebar.tsx
+
 ```tsx
 // Added new navigation item
 const navItems = [
   // ... existing items
-  { href: '/workspace', icon: FolderKanban, labelKey: 'nav.workspace' },
+  { href: "/workspace", icon: FolderKanban, labelKey: "nav.workspace" },
   // ... rest
 ];
 ```
 
 ### 3. workspace/page.tsx
+
 - Added `llmModelChanged` detection alongside `embeddingModelChanged`
 - Added `pendingRebuild` state to track post-save rebuild requirements
 - Enhanced `updateMutation.onSuccess` to show model change notifications
@@ -62,7 +68,9 @@ const navItems = [
 - Added pending rebuild alert in workspace actions section
 
 ### 4. locales (en.json, fr.json, zh.json)
+
 Added translations for:
+
 - `nav.workspace` - Sidebar navigation label
 - `workspace.llmChangeWarning` - LLM model change warning
 - `workspace.rebuildRequired` - Model change notification title
@@ -78,11 +86,11 @@ flowchart TD
     B -->|Embedding Only| D[Save + Toast: Embedding Rebuild Needed]
     B -->|LLM Only| E[Save + Toast: LLM Rebuild Needed]
     B -->|Both| F[Save + Toast: Both Models Changed]
-    
+
     D --> G[Pending Rebuild Alert Shown]
     E --> G
     F --> G
-    
+
     G --> H[User Clicks Rebuild Embeddings]
     H --> I[Rebuild Complete]
     I --> J[Alert Dismissed]
@@ -90,22 +98,24 @@ flowchart TD
 
 ## Files Modified
 
-| File | Changes |
-|------|---------|
-| [rebuild-embeddings-button.tsx](edgequake_webui/src/components/workspace/rebuild-embeddings-button.tsx) | Fixed hydration error with asChild pattern |
-| [sidebar.tsx](edgequake_webui/src/components/layout/sidebar.tsx) | Added workspace nav link |
-| [workspace/page.tsx](edgequake_webui/src/app/(dashboard)/workspace/page.tsx) | Added model change detection and notifications |
-| [en.json](edgequake_webui/src/locales/en.json) | Added workspace translations |
-| [fr.json](edgequake_webui/src/locales/fr.json) | Added workspace translations |
-| [zh.json](edgequake_webui/src/locales/zh.json) | Added workspace translations |
+| File                                                                                                    | Changes                                        |
+| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| [rebuild-embeddings-button.tsx](edgequake_webui/src/components/workspace/rebuild-embeddings-button.tsx) | Fixed hydration error with asChild pattern     |
+| [sidebar.tsx](edgequake_webui/src/components/layout/sidebar.tsx)                                        | Added workspace nav link                       |
+| [workspace/page.tsx](<edgequake_webui/src/app/(dashboard)/workspace/page.tsx>)                          | Added model change detection and notifications |
+| [en.json](edgequake_webui/src/locales/en.json)                                                          | Added workspace translations                   |
+| [fr.json](edgequake_webui/src/locales/fr.json)                                                          | Added workspace translations                   |
+| [zh.json](edgequake_webui/src/locales/zh.json)                                                          | Added workspace translations                   |
 
 ## Testing
 
 1. **Hydration Error**
+
    - Verified no console errors about nested `<p>` elements
    - AlertDialog renders correctly without hydration mismatch
 
 2. **Workspace Link**
+
    - Visible in sidebar navigation
    - Correctly navigates to /workspace page
    - Highlighted when active
@@ -119,6 +129,7 @@ flowchart TD
 ## Backend Compatibility
 
 The rebuild functionality already exists in the backend:
+
 - `POST /api/v1/workspaces/{id}/rebuild-embeddings` - Clears vectors
 - `POST /api/v1/workspaces/{id}/reprocess-documents` - Reprocesses all documents
 

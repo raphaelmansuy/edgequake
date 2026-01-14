@@ -1,8 +1,8 @@
 /**
- * @module WorkspacePage
- * @description Current workspace detail page showing configuration, stats, and actions.
+ * @module WorkspacePage (Deeplink)
+ * @description Workspace configuration page accessible via /w/[slug]/workspace deeplink.
  *
- * @implements SPEC-032: Workspace configuration display
+ * @implements SPEC-032: Workspace configuration via deeplink
  * @implements FEAT0801: Workspace detail view with LLM/embedding configuration
  * @implements UC0305: User views workspace configuration
  *

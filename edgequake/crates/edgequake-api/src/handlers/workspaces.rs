@@ -1005,11 +1005,12 @@ pub async fn rebuild_knowledge_graph(
     );
 
     // 5. Clear graph storage (workspace-scoped)
-    let (nodes_cleared, edges_cleared) = state
-        .graph_storage
-        .clear_workspace(&workspace_id)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to clear graph: {}", e)))?;
+    let (nodes_cleared, edges_cleared) =
+        state
+            .graph_storage
+            .clear_workspace(&workspace_id)
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to clear graph: {}", e)))?;
 
     info!(
         workspace_id = %workspace_id,

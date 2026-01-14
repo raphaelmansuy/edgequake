@@ -326,6 +326,60 @@ export async function rebuildEmbeddings(
 }
 
 // ============================================================================
+// Rebuild Knowledge Graph (OODA 256-280)
+// ============================================================================
+
+/**
+ * Request to rebuild workspace knowledge graph.
+ */
+export interface RebuildKnowledgeGraphRequest {
+  /** New LLM model (optional, keeps current if not provided) */
+  llm_model?: string;
+  /** New LLM provider (optional, auto-detected) */
+  llm_provider?: string;
+  /** Force rebuild even if config unchanged */
+  force?: boolean;
+  /** Whether to also rebuild embeddings (default: false) */
+  rebuild_embeddings?: boolean;
+}
+
+/**
+ * Response from rebuild knowledge graph operation.
+ */
+export interface RebuildKnowledgeGraphResponse {
+  workspace_id: string;
+  status: string;
+  nodes_cleared: number;
+  edges_cleared: number;
+  vectors_cleared: number;
+  llm_model: string;
+  llm_provider: string;
+}
+
+/**
+ * Rebuild workspace knowledge graph with a new LLM model.
+ *
+ * This clears all graph data (entities and relationships) and optionally
+ * updates the LLM model. Documents will need to be re-ingested to regenerate
+ * the knowledge graph.
+ *
+ * @implements OODA 256-280: Workspace-scoped rebuild endpoints
+ *
+ * @param workspaceId - Workspace ID
+ * @param request - Rebuild configuration
+ * @returns Rebuild status response
+ */
+export async function rebuildKnowledgeGraph(
+  workspaceId: string,
+  request: RebuildKnowledgeGraphRequest
+): Promise<RebuildKnowledgeGraphResponse> {
+  return api.post<RebuildKnowledgeGraphResponse>(
+    `/workspaces/${workspaceId}/rebuild-knowledge-graph`,
+    request
+  );
+}
+
+// ============================================================================
 // Reprocess All Documents (SPEC-032 Focus Area 5)
 // ============================================================================
 
