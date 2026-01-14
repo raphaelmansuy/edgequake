@@ -27,7 +27,7 @@ use std::sync::Arc;
 use crate::state::SharedWorkspaceService;
 use edgequake_llm::ModelsConfig;
 use edgequake_pipeline::{LLMExtractor, Pipeline};
-use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage};
+use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage, WorkspaceVectorRegistry};
 use edgequake_tasks::{PipelineState, Task, TaskProcessor, TaskResult, TaskType, TextInsertData};
 use serde_json::json;
 use tracing::{error, info, warn};
@@ -39,6 +39,7 @@ use tracing::{error, info, warn};
 /// 1. Look up the workspace configuration
 /// 2. Create a workspace-specific pipeline with the configured providers
 /// 3. Process the document using those providers
+/// 4. Store embeddings in workspace-specific vector storage (via vector_registry)
 ///
 /// This ensures that rebuild/reprocess operations use the workspace's configured
 /// models, not the server's default models.
@@ -47,8 +48,11 @@ pub struct DocumentTaskProcessor {
     pipeline: Arc<Pipeline>,
     /// KV storage for document metadata and chunks.
     kv_storage: Arc<dyn KVStorage>,
-    /// Vector storage for chunk embeddings.
+    /// Vector storage for chunk embeddings (legacy fallback).
     vector_storage: Arc<dyn VectorStorage>,
+    /// Workspace vector registry for per-workspace vector storage.
+    /// WHY: Different workspaces can have different embedding dimensions.
+    vector_registry: Arc<dyn WorkspaceVectorRegistry>,
     /// Graph storage for entities and relationships.
     graph_storage: Arc<dyn GraphStorage>,
     /// Pipeline state for progress tracking.
@@ -65,6 +69,7 @@ impl DocumentTaskProcessor {
         pipeline: Arc<Pipeline>,
         kv_storage: Arc<dyn KVStorage>,
         vector_storage: Arc<dyn VectorStorage>,
+        vector_registry: Arc<dyn WorkspaceVectorRegistry>,
         graph_storage: Arc<dyn GraphStorage>,
         pipeline_state: PipelineState,
     ) -> Self {
@@ -72,6 +77,7 @@ impl DocumentTaskProcessor {
             pipeline,
             kv_storage,
             vector_storage,
+            vector_registry,
             graph_storage,
             pipeline_state,
             workspace_service: None,
@@ -88,6 +94,7 @@ impl DocumentTaskProcessor {
         pipeline: Arc<Pipeline>,
         kv_storage: Arc<dyn KVStorage>,
         vector_storage: Arc<dyn VectorStorage>,
+        vector_registry: Arc<dyn WorkspaceVectorRegistry>,
         graph_storage: Arc<dyn GraphStorage>,
         pipeline_state: PipelineState,
         workspace_service: SharedWorkspaceService,
@@ -97,6 +104,7 @@ impl DocumentTaskProcessor {
             pipeline,
             kv_storage,
             vector_storage,
+            vector_registry,
             graph_storage,
             pipeline_state,
             workspace_service: Some(workspace_service),
@@ -210,6 +218,97 @@ impl DocumentTaskProcessor {
         }
 
         Arc::clone(&self.pipeline)
+    }
+
+    /// Get workspace-specific vector storage using the registry.
+    ///
+    /// WHY: Different workspaces can have different embedding dimensions (e.g.,
+    /// OpenAI 1536 vs Ollama/nomic 768). The registry creates per-workspace
+    /// vector tables with the correct dimension.
+    ///
+    /// Falls back to default vector storage if:
+    /// - Workspace ID is empty or "default"
+    /// - Workspace not found in service
+    /// - Failed to parse workspace UUID
+    async fn get_workspace_vector_storage(&self, workspace_id: &str) -> Arc<dyn VectorStorage> {
+        use edgequake_storage::traits::WorkspaceVectorConfig;
+
+        // If no valid workspace_id, use default storage
+        if workspace_id.is_empty() || workspace_id == "default" {
+            return self.vector_registry.default_storage();
+        }
+
+        // Parse workspace UUID
+        let workspace_uuid = match uuid::Uuid::parse_str(workspace_id) {
+            Ok(uuid) => uuid,
+            Err(e) => {
+                warn!(
+                    workspace_id = workspace_id,
+                    error = %e,
+                    "Invalid workspace ID format, using default vector storage"
+                );
+                return self.vector_registry.default_storage();
+            }
+        };
+
+        // Check if we already have this workspace's vector storage cached
+        if let Some(storage) = self.vector_registry.get(&workspace_uuid).await {
+            return storage;
+        }
+
+        // Look up workspace to get embedding dimension
+        let workspace_service = match &self.workspace_service {
+            Some(ws) => ws,
+            None => {
+                warn!("No workspace service, using default vector storage");
+                return self.vector_registry.default_storage();
+            }
+        };
+
+        match workspace_service.get_workspace(workspace_uuid).await {
+            Ok(Some(ws)) => {
+                // Create workspace-specific vector storage with correct dimension
+                let config = WorkspaceVectorConfig {
+                    workspace_id: workspace_uuid,
+                    dimension: ws.embedding_dimension,
+                    namespace: "default".to_string(),
+                };
+
+                match self.vector_registry.get_or_create(config).await {
+                    Ok(storage) => {
+                        info!(
+                            workspace_id = workspace_id,
+                            dimension = ws.embedding_dimension,
+                            "Using workspace-specific vector storage"
+                        );
+                        storage
+                    }
+                    Err(e) => {
+                        warn!(
+                            workspace_id = workspace_id,
+                            error = %e,
+                            "Failed to create workspace vector storage, using default"
+                        );
+                        self.vector_registry.default_storage()
+                    }
+                }
+            }
+            Ok(None) => {
+                warn!(
+                    workspace_id = workspace_id,
+                    "Workspace not found, using default vector storage"
+                );
+                self.vector_registry.default_storage()
+            }
+            Err(e) => {
+                warn!(
+                    workspace_id = workspace_id,
+                    error = %e,
+                    "Failed to lookup workspace, using default vector storage"
+                );
+                self.vector_registry.default_storage()
+            }
+        }
     }
 
     /// Process a text insert task.
@@ -329,6 +428,10 @@ impl DocumentTaskProcessor {
             .map(|s| s.to_string())
             .unwrap_or_else(|| data.workspace_id.clone());
 
+        // Get workspace-specific vector storage using the registry
+        // WHY: Different workspaces may have different embedding dimensions
+        let workspace_vector_storage = self.get_workspace_vector_storage(&workspace_id_meta).await;
+
         // Store chunk embeddings in vector storage for semantic search
         let mut chunk_embeddings_stored = 0;
         for chunk in &result.chunks {
@@ -346,8 +449,7 @@ impl DocumentTaskProcessor {
                 }
                 metadata["workspace_id"] = json!(&workspace_id_meta);
 
-                if self
-                    .vector_storage
+                if workspace_vector_storage
                     .upsert(&[(chunk.id.clone(), embedding.clone(), metadata)])
                     .await
                     .is_ok()
@@ -678,7 +780,9 @@ impl TaskProcessor for DocumentTaskProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use edgequake_storage::{MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage};
+    use edgequake_storage::{
+        MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage, MemoryWorkspaceVectorRegistry,
+    };
 
     /// Create a test pipeline instance using default configuration
     fn create_test_pipeline() -> Arc<Pipeline> {
@@ -689,22 +793,27 @@ mod tests {
     fn create_test_storages() -> (
         Arc<dyn KVStorage>,
         Arc<dyn VectorStorage>,
+        Arc<dyn WorkspaceVectorRegistry>,
         Arc<dyn GraphStorage>,
     ) {
         let kv = Arc::new(MemoryKVStorage::new("test_processor"));
         // MemoryVectorStorage requires dimension - use 1536 (common embedding size)
-        let vector = Arc::new(MemoryVectorStorage::new("test_processor", 1536));
+        let vector: Arc<dyn VectorStorage> =
+            Arc::new(MemoryVectorStorage::new("test_processor", 1536));
+        let vector_registry: Arc<dyn WorkspaceVectorRegistry> =
+            Arc::new(MemoryWorkspaceVectorRegistry::new(Arc::clone(&vector)));
         let graph = Arc::new(MemoryGraphStorage::new("test_processor"));
-        (kv, vector, graph)
+        (kv, vector, vector_registry, graph)
     }
 
     #[test]
     fn test_document_task_processor_new() {
         let pipeline = create_test_pipeline();
-        let (kv, vector, graph) = create_test_storages();
+        let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
-        let processor = DocumentTaskProcessor::new(pipeline, kv, vector, graph, pipeline_state);
+        let processor =
+            DocumentTaskProcessor::new(pipeline, kv, vector, vector_registry, graph, pipeline_state);
 
         // Verify processor was created successfully
         assert!(std::mem::size_of_val(&processor) > 0);
@@ -713,10 +822,11 @@ mod tests {
     #[tokio::test]
     async fn test_processor_trait_implementation() {
         let pipeline = create_test_pipeline();
-        let (kv, vector, graph) = create_test_storages();
+        let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
-        let processor = DocumentTaskProcessor::new(pipeline, kv, vector, graph, pipeline_state);
+        let processor =
+            DocumentTaskProcessor::new(pipeline, kv, vector, vector_registry, graph, pipeline_state);
 
         // Verify TaskProcessor trait is implemented
         let _: &dyn TaskProcessor = &processor;
@@ -725,10 +835,11 @@ mod tests {
     #[tokio::test]
     async fn test_process_scan_task_returns_unsupported() {
         let pipeline = create_test_pipeline();
-        let (kv, vector, graph) = create_test_storages();
+        let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
-        let processor = DocumentTaskProcessor::new(pipeline, kv, vector, graph, pipeline_state);
+        let processor =
+            DocumentTaskProcessor::new(pipeline, kv, vector, vector_registry, graph, pipeline_state);
 
         let mut task = Task::new(TaskType::Scan, json!({}));
 
@@ -745,10 +856,11 @@ mod tests {
     #[tokio::test]
     async fn test_process_reindex_task_returns_unsupported() {
         let pipeline = create_test_pipeline();
-        let (kv, vector, graph) = create_test_storages();
+        let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
-        let processor = DocumentTaskProcessor::new(pipeline, kv, vector, graph, pipeline_state);
+        let processor =
+            DocumentTaskProcessor::new(pipeline, kv, vector, vector_registry, graph, pipeline_state);
 
         let mut task = Task::new(TaskType::Reindex, json!({}));
 
@@ -765,10 +877,11 @@ mod tests {
     #[tokio::test]
     async fn test_process_insert_with_invalid_payload() {
         let pipeline = create_test_pipeline();
-        let (kv, vector, graph) = create_test_storages();
+        let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
-        let processor = DocumentTaskProcessor::new(pipeline, kv, vector, graph, pipeline_state);
+        let processor =
+            DocumentTaskProcessor::new(pipeline, kv, vector, vector_registry, graph, pipeline_state);
 
         // Create task with invalid data (missing required fields)
         let invalid_data = json!({
@@ -790,7 +903,7 @@ mod tests {
     #[tokio::test]
     async fn test_update_document_status() {
         let pipeline = create_test_pipeline();
-        let (kv, vector, graph) = create_test_storages();
+        let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
         // Pre-populate metadata
@@ -806,8 +919,14 @@ mod tests {
         .await
         .unwrap();
 
-        let processor =
-            DocumentTaskProcessor::new(pipeline, kv.clone(), vector, graph, pipeline_state);
+        let processor = DocumentTaskProcessor::new(
+            pipeline,
+            kv.clone(),
+            vector,
+            vector_registry,
+            graph,
+            pipeline_state,
+        );
 
         // Update status to processing
         let result = processor
@@ -823,7 +942,7 @@ mod tests {
     #[tokio::test]
     async fn test_update_document_status_with_error_message() {
         let pipeline = create_test_pipeline();
-        let (kv, vector, graph) = create_test_storages();
+        let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
         let doc_id = "test-doc-error";
@@ -838,8 +957,14 @@ mod tests {
         .await
         .unwrap();
 
-        let processor =
-            DocumentTaskProcessor::new(pipeline, kv.clone(), vector, graph, pipeline_state);
+        let processor = DocumentTaskProcessor::new(
+            pipeline,
+            kv.clone(),
+            vector,
+            vector_registry,
+            graph,
+            pipeline_state,
+        );
 
         // Update status with error
         let result = processor
@@ -856,10 +981,17 @@ mod tests {
     #[tokio::test]
     async fn test_update_document_status_nonexistent_doc() {
         let pipeline = create_test_pipeline();
-        let (kv, vector, graph) = create_test_storages();
+        let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
-        let processor = DocumentTaskProcessor::new(pipeline, kv, vector, graph, pipeline_state);
+        let processor = DocumentTaskProcessor::new(
+            pipeline,
+            kv,
+            vector,
+            vector_registry,
+            graph,
+            pipeline_state,
+        );
 
         // Try to update status for non-existent document
         let result = processor
@@ -874,13 +1006,14 @@ mod tests {
     fn test_processor_fields_are_arc() {
         // Verify that processor uses Arc for shared ownership
         let pipeline = create_test_pipeline();
-        let (kv, vector, graph) = create_test_storages();
+        let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
         let _processor = DocumentTaskProcessor::new(
             pipeline.clone(),
             kv.clone(),
             vector.clone(),
+            vector_registry.clone(),
             graph.clone(),
             pipeline_state,
         );
@@ -897,10 +1030,17 @@ mod tests {
     async fn test_task_types_are_distinct() {
         // Verify all task types are handled distinctly
         let pipeline = create_test_pipeline();
-        let (kv, vector, graph) = create_test_storages();
+        let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
-        let processor = DocumentTaskProcessor::new(pipeline, kv, vector, graph, pipeline_state);
+        let processor = DocumentTaskProcessor::new(
+            pipeline,
+            kv,
+            vector,
+            vector_registry,
+            graph,
+            pipeline_state,
+        );
 
         // Test that each unsupported task type goes through the right path
         let types = [TaskType::Scan, TaskType::Reindex];

@@ -2,6 +2,7 @@
 //!
 //! This module provides PostgreSQL-based storage implementations:
 //! - `PgVectorStorage` - Vector storage using pgvector extension
+//! - `PgWorkspaceVectorRegistry` - Per-workspace vector storage manager
 //! - `PostgresAGEGraphStorage` - Graph storage using Apache AGE extension
 //! - `PostgresKVStorage` - Key-value storage using JSONB
 //! - `PostgresConversationStorage` - Conversation, message, and folder storage
@@ -14,6 +15,7 @@
 //! - [`FEAT0240`]: JSONB key-value storage
 //! - [`FEAT0250`]: Conversation persistence
 //! - [`FEAT0260`]: Row-Level Security for multi-tenancy
+//! - [`FEAT0350`]: Per-workspace vector storage with independent dimensions
 //!
 //! ## Use Cases
 //!
@@ -26,6 +28,7 @@
 //!
 //! - [`BR0202`]: ACID transactions for data integrity
 //! - [`BR0240`]: Tenant isolation via RLS policies
+//! - [`BR0350`]: Each workspace has isolated vector storage
 
 mod config;
 mod connection;
@@ -34,6 +37,7 @@ mod graph;
 mod kv;
 pub mod rls;
 mod vector;
+mod workspace_vector;
 
 pub use config::PostgresConfig;
 pub use connection::PostgresPool;
@@ -42,3 +46,4 @@ pub use graph::PostgresAGEGraphStorage;
 pub use kv::PostgresKVStorage;
 pub use rls::{clear_tenant_context, set_tenant_context, RlsContext, RlsQueryBuilder};
 pub use vector::PgVectorStorage;
+pub use workspace_vector::PgWorkspaceVectorRegistry;

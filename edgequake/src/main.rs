@@ -79,6 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Arc::clone(&state.pipeline),
         Arc::clone(&state.kv_storage),
         Arc::clone(&state.vector_storage),
+        Arc::clone(&state.vector_registry),
         Arc::clone(&state.graph_storage),
         state.pipeline_state.clone(),
         Arc::clone(&state.workspace_service),

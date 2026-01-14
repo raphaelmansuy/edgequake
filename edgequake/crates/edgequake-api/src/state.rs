@@ -82,7 +82,7 @@ use edgequake_pipeline::Pipeline;
 use edgequake_query::{QueryEngine, QueryEngineConfig, SOTAQueryConfig, SOTAQueryEngine};
 use edgequake_rate_limiter::{RateLimitConfig as TokenBucketConfig, RateLimiter};
 use edgequake_storage::adapters::memory::{
-    MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
+    MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage, MemoryWorkspaceVectorRegistry,
 };
 use edgequake_tasks::{PipelineState, SharedTaskQueue, SharedTaskStorage};
 use serde::{Deserialize, Serialize};
@@ -142,7 +142,8 @@ use edgequake_core::ConversationServiceImpl;
 use edgequake_core::WorkspaceServiceImpl;
 #[cfg(feature = "postgres")]
 use edgequake_storage::{
-    GraphStorage, KVStorage, PgVectorStorage, PostgresAGEGraphStorage, PostgresKVStorage,
+    GraphStorage, KVStorage, PgVectorStorage, PgWorkspaceVectorRegistry, PostgresAGEGraphStorage,
+    PostgresKVStorage,
 };
 #[cfg(feature = "postgres")]
 use sqlx::PgPool;
@@ -159,8 +160,12 @@ pub struct AppState {
     /// KV storage.
     pub kv_storage: Arc<dyn edgequake_storage::traits::KVStorage>,
 
-    /// Vector storage.
+    /// Vector storage (default, for backward compatibility).
     pub vector_storage: Arc<dyn edgequake_storage::traits::VectorStorage>,
+
+    /// Workspace vector registry for per-workspace vector storage.
+    /// Each workspace can have its own dimension based on its embedding provider.
+    pub vector_registry: Arc<dyn edgequake_storage::traits::WorkspaceVectorRegistry>,
 
     /// Graph storage.
     pub graph_storage: Arc<dyn edgequake_storage::traits::GraphStorage>,
@@ -267,6 +272,7 @@ impl AppState {
     pub fn new(
         kv_storage: Arc<dyn edgequake_storage::traits::KVStorage>,
         vector_storage: Arc<dyn edgequake_storage::traits::VectorStorage>,
+        vector_registry: Arc<dyn edgequake_storage::traits::WorkspaceVectorRegistry>,
         graph_storage: Arc<dyn edgequake_storage::traits::GraphStorage>,
         llm_provider: Arc<dyn edgequake_llm::traits::LLMProvider>,
         embedding_provider: Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
@@ -287,6 +293,7 @@ impl AppState {
         Self {
             kv_storage,
             vector_storage,
+            vector_registry,
             graph_storage,
             llm_provider,
             embedding_provider,
@@ -400,6 +407,12 @@ impl AppState {
             .with_reranker(reranker),
         );
 
+        // Create workspace vector registry for per-workspace dimensions
+        let vector_registry: Arc<dyn edgequake_storage::traits::WorkspaceVectorRegistry> =
+            Arc::new(MemoryWorkspaceVectorRegistry::new(
+                Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            ));
+
         // Create auth services
         let auth_config = AuthConfig::default();
         let jwt_service = Arc::new(JwtService::new(auth_config.clone()));
@@ -410,6 +423,7 @@ impl AppState {
             kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
             vector_storage: Arc::clone(&vector_storage)
                 as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            vector_registry,
             graph_storage: Arc::clone(&graph_storage)
                 as Arc<dyn edgequake_storage::traits::GraphStorage>,
             llm_provider: Arc::clone(&llm_provider),
@@ -486,10 +500,17 @@ impl AppState {
         let password_service = Arc::new(PasswordService::new(auth_config.clone()));
         let rbac_service = Arc::new(RbacService::new());
 
+        // Create workspace vector registry for per-workspace dimensions
+        let vector_registry: Arc<dyn edgequake_storage::traits::WorkspaceVectorRegistry> =
+            Arc::new(MemoryWorkspaceVectorRegistry::new(
+                Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            ));
+
         Self {
             kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
             vector_storage: Arc::clone(&vector_storage)
                 as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            vector_registry,
             graph_storage: Arc::clone(&graph_storage)
                 as Arc<dyn edgequake_storage::traits::GraphStorage>,
             llm_provider: Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
@@ -746,6 +767,14 @@ impl AppState {
             .with_reranker(reranker),
         );
 
+        // Create workspace vector registry for per-workspace dimensions
+        let vector_registry: Arc<dyn edgequake_storage::traits::WorkspaceVectorRegistry> =
+            Arc::new(PgWorkspaceVectorRegistry::new(
+                pg_config,
+                Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
+                embedding_dim,
+            ));
+
         // Create auth services
         let auth_config = AuthConfig::default();
         let jwt_service = Arc::new(JwtService::new(auth_config.clone()));
@@ -756,6 +785,7 @@ impl AppState {
             kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
             vector_storage: Arc::clone(&vector_storage)
                 as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            vector_registry,
             graph_storage: Arc::clone(&graph_storage)
                 as Arc<dyn edgequake_storage::traits::GraphStorage>,
             llm_provider: Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
