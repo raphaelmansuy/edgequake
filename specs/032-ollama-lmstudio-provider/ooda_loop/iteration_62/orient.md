@@ -4,15 +4,15 @@
 
 ### Priority Assessment
 
-| Requirement | Priority | Complexity | Risk |
-|-------------|----------|------------|------|
-| REQ-25 (Chunk Compat) | CRITICAL | High | Data loss if chunks fail |
-| REQ-22 (Model Display) | Medium | Low | UX enhancement |
-| REQ-23 (Close Button) | Medium | Low | UX clarity |
-| REQ-24 (Rebuild Debug) | High | Medium | Feature broken |
-| REQ-28 (OpenAI Key) | High | Low | DX blocker |
-| REQ-26 (Stop Extraction) | Low | High | Nice-to-have |
-| REQ-27 (Scroll Audit) | Low | Medium | Verified OK in OODA 283 |
+| Requirement              | Priority | Complexity | Risk                     |
+| ------------------------ | -------- | ---------- | ------------------------ |
+| REQ-25 (Chunk Compat)    | CRITICAL | High       | Data loss if chunks fail |
+| REQ-22 (Model Display)   | Medium   | Low        | UX enhancement           |
+| REQ-23 (Close Button)    | Medium   | Low        | UX clarity               |
+| REQ-24 (Rebuild Debug)   | High     | Medium     | Feature broken           |
+| REQ-28 (OpenAI Key)      | High     | Low        | DX blocker               |
+| REQ-26 (Stop Extraction) | Low      | High       | Nice-to-have             |
+| REQ-27 (Scroll Audit)    | Low      | Medium     | Verified OK in OODA 283  |
 
 ### Dependency Chain
 
@@ -32,14 +32,17 @@ REQ-27 (Scroll Audit) ───────────────────�
 **REQ-24 (Documents Not Processing)**
 
 Hypothesis 1: Workspace ID mismatch
+
 - Documents stored with `workspace_id: "default"` or old workspace ID
 - Reprocess filter skips documents not matching current workspace
 
 Hypothesis 2: Content not found
+
 - `{doc_id}-content` key missing or empty
 - Skip happens silently
 
 Hypothesis 3: Status filtering
+
 - Documents in "processing" state get skipped
 - include_completed: true may not cover all cases
 
@@ -50,6 +53,7 @@ Hypothesis 3: Status filtering
 **REQ-25 Risk**: If chunks exceed embedding model limit, they fail silently during embedding.
 
 **Mitigation**:
+
 1. Add `model_context_length` to rebuild response
 2. Add `compatibility_warning` field for UI display
 3. Log warning but don't block operation (for flexibility)

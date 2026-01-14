@@ -867,7 +867,7 @@ pub async fn rebuild_embeddings(
 
     // Default chunk size is 1200 tokens (from chunker config)
     const DEFAULT_CHUNK_SIZE_TOKENS: usize = 1200;
-    
+
     if model_context_length > 0 && DEFAULT_CHUNK_SIZE_TOKENS > model_context_length {
         info!(
             workspace_id = %workspace_id,
@@ -918,7 +918,9 @@ pub async fn rebuild_embeddings(
     };
 
     // REQ-25: Generate compatibility warning if chunks may exceed model limit
-    let compatibility_warning = if model_context_length > 0 && DEFAULT_CHUNK_SIZE_TOKENS > model_context_length {
+    let compatibility_warning = if model_context_length > 0
+        && DEFAULT_CHUNK_SIZE_TOKENS > model_context_length
+    {
         Some(format!(
             "Default chunk size ({} tokens) exceeds model's context length ({} tokens). Some chunks may fail to embed.",
             DEFAULT_CHUNK_SIZE_TOKENS, model_context_length

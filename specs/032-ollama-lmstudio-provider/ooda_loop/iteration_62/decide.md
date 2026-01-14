@@ -10,7 +10,8 @@
 
 3. **REQ-24 Logging Strategy**: Use HashMap for skip reasons to provide structured debugging info in logs.
 
-4. **REQ-25 Validation Approach**: 
+4. **REQ-25 Validation Approach**:
+
    - Warn but don't block incompatible model changes (flexibility for advanced users)
    - Use `context_length` field from models.toml (already exists for all embedding models)
    - Default to 8192 if model not found in config (safe fallback)

@@ -30,6 +30,7 @@
 **File**: [edgequake_webui/src/components/documents/pipeline-status-dialog.tsx](../../../edgequake_webui/src/components/documents/pipeline-status-dialog.tsx#L220-L245)
 
 Added dual-button footer:
+
 - **Close**: Calls `onOpenChange(false)` - closes dialog, rebuild continues
 - **Cancel Pipeline**: Triggers cancellation, stops rebuild
 
@@ -40,6 +41,7 @@ Added dual-button footer:
 **File**: [edgequake/crates/edgequake-api/src/handlers/workspaces.rs](../../../edgequake/crates/edgequake-api/src/handlers/workspaces.rs#L1156-L1330)
 
 Added skip_reasons HashMap tracking:
+
 - `wrong_workspace`: Document belongs to different workspace
 - `completed_excluded`: Completed docs skipped when include_completed=false
 - `already_processing`: Documents in processing state
@@ -55,12 +57,14 @@ Summary logged at end of reprocess operation.
 ### REQ-25: Chunk/Embedding Compatibility Validation
 
 **Files Modified**:
+
 1. [workspaces.rs#L860-885](../../../edgequake/crates/edgequake-api/src/handlers/workspaces.rs#L860-885) - Added validation logic
 2. [workspaces_types.rs#L388-410](../../../edgequake/crates/edgequake-api/src/handlers/workspaces_types.rs#L388-410) - Added response fields
 3. [edgequake.ts#L302-320](../../../edgequake_webui/src/lib/api/edgequake.ts#L302-320) - TypeScript interface
 4. [rebuild-embeddings-button.tsx#L145](../../../edgequake_webui/src/components/workspace/rebuild-embeddings-button.tsx#L145) - Warning toast
 
 **Logic**:
+
 ```rust
 const DEFAULT_CHUNK_SIZE_TOKENS: usize = 1200;
 let model_context_length = models_config.get_model(provider, model)
@@ -73,6 +77,7 @@ if DEFAULT_CHUNK_SIZE_TOKENS > model_context_length {
 ```
 
 **Response includes**:
+
 - `model_context_length: usize`
 - `compatibility_warning: Option<String>`
 
@@ -83,16 +88,19 @@ if DEFAULT_CHUNK_SIZE_TOKENS > model_context_length {
 **File**: [Makefile#L131-175, #L260-290](../../../Makefile)
 
 Changed from:
+
 ```makefile
 OPENAI_API_KEY="" \
 ```
 
 To:
+
 ```makefile
 OPENAI_API_KEY="$(OPENAI_API_KEY)" \
 ```
 
 Also added user feedback:
+
 ```makefile
 @if [ -n "$(OPENAI_API_KEY)" ]; then \
     echo "✓ OPENAI_API_KEY detected - OpenAI provider available"; \
@@ -110,12 +118,12 @@ cargo check --package edgequake-api
 
 ## Files Summary
 
-| File | Lines Changed |
-|------|---------------|
-| chat-message.tsx | +12 |
-| pipeline-status-dialog.tsx | +10 |
-| workspaces.rs | +45 |
-| workspaces_types.rs | +8 |
-| edgequake.ts | +4 |
-| rebuild-embeddings-button.tsx | +5 |
-| Makefile | +14 |
+| File                          | Lines Changed |
+| ----------------------------- | ------------- |
+| chat-message.tsx              | +12           |
+| pipeline-status-dialog.tsx    | +10           |
+| workspaces.rs                 | +45           |
+| workspaces_types.rs           | +8            |
+| edgequake.ts                  | +4            |
+| rebuild-embeddings-button.tsx | +5            |
+| Makefile                      | +14           |
