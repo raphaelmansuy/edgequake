@@ -1535,6 +1535,64 @@ impl GraphStorage for PostgresAGEGraphStorage {
         self.cypher_execute(cypher).await
     }
 
+    /// Clear nodes and edges for a specific workspace.
+    ///
+    /// Uses workspace_id property filtering to delete only data
+    /// belonging to the specified workspace. Edges connected to
+    /// deleted nodes are automatically removed via DETACH DELETE.
+    ///
+    /// Returns (nodes_deleted, edges_deleted).
+    async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<(usize, usize)> {
+        let pool = self.pool.get().await?;
+
+        // First, count edges that will be deleted (edges connected to workspace nodes)
+        let workspace_id_str = workspace_id.to_string();
+        let escaped_wid = Self::escape_sql_string(&workspace_id_str);
+
+        // Count nodes before deletion
+        let count_cypher = format!(
+            "MATCH (n:Node) WHERE n.workspace_id = '{}' RETURN count(n)",
+            escaped_wid
+        );
+        let node_count = self.cypher_query_count(&count_cypher).await.unwrap_or(0) as usize;
+
+        // Count edges before deletion (edges where either endpoint belongs to workspace)
+        let edge_count_cypher = format!(
+            "MATCH (n:Node)-[r:EDGE]->(m:Node) WHERE n.workspace_id = '{}' OR m.workspace_id = '{}' RETURN count(r)",
+            escaped_wid, escaped_wid
+        );
+        let edge_count = self
+            .cypher_query_count(&edge_count_cypher)
+            .await
+            .unwrap_or(0) as usize;
+
+        // Delete nodes with DETACH (automatically removes connected edges)
+        let delete_cypher = format!(
+            "MATCH (n:Node) WHERE n.workspace_id = '{}' DETACH DELETE n",
+            escaped_wid
+        );
+
+        // Execute deletion
+        let cypher_query = format!(
+            "SELECT * FROM ag_catalog.cypher('{}', $$ {} $$) AS (result agtype)",
+            self.graph_name, delete_cypher
+        );
+
+        sqlx::query(&cypher_query)
+            .execute(&pool)
+            .await
+            .map_err(|e| StorageError::Query(format!("Failed to clear workspace: {}", e)))?;
+
+        tracing::info!(
+            workspace_id = %workspace_id,
+            nodes_deleted = node_count,
+            edges_deleted = edge_count,
+            "Cleared workspace from graph storage"
+        );
+
+        Ok((node_count, edge_count))
+    }
+
     /// FAST OPTIMIZED: Get popular nodes with degrees using native SQL.
     ///
     /// Uses direct SQL with CTE for relationship counting instead of slow Cypher OPTIONAL MATCH.

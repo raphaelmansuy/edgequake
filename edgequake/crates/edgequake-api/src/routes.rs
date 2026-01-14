@@ -175,6 +175,11 @@ fn api_v1_routes() -> Router<AppState> {
             "/workspaces/{workspace_id}/rebuild-embeddings",
             post(handlers::rebuild_embeddings),
         )
+        // Rebuild knowledge graph (LLM model change)
+        .route(
+            "/workspaces/{workspace_id}/rebuild-knowledge-graph",
+            post(handlers::rebuild_knowledge_graph),
+        )
         // SPEC-032: Reprocess all documents for workspace (Focus Area 5)
         .route(
             "/workspaces/{workspace_id}/reprocess-documents",

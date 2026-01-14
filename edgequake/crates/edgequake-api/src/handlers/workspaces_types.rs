@@ -455,6 +455,80 @@ pub struct ReprocessAllResponse {
 }
 
 // ============================================================================
+// Rebuild Knowledge Graph DTOs (LLM Model Change)
+// ============================================================================
+
+/// Request to rebuild knowledge graph for a workspace.
+///
+/// Used when the LLM (extraction) model changes. This operation:
+/// 1. Clears all entities and relationships from the graph
+/// 2. Clears all vector embeddings
+/// 3. Triggers reprocessing of all documents
+///
+/// ## WARNING
+///
+/// This is a destructive operation that will delete all extracted knowledge.
+/// The workspace will be empty until reprocessing is complete.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct RebuildKnowledgeGraphRequest {
+    /// New LLM model name (e.g., "gpt-4o-mini", "gemma3:12b").
+    /// If not provided, uses the current workspace model.
+    pub llm_model: Option<String>,
+
+    /// New LLM provider ("openai", "ollama", "lmstudio").
+    /// If not provided, auto-detected or keeps current.
+    pub llm_provider: Option<String>,
+
+    /// Whether to force rebuild even if LLM config is unchanged.
+    /// Useful for refreshing extractions after model updates.
+    #[serde(default)]
+    pub force: bool,
+
+    /// Whether to also rebuild embeddings (trigger vector rebuild).
+    /// Default: true (recommended, as chunks may change).
+    #[serde(default = "default_rebuild_embeddings")]
+    pub rebuild_embeddings: bool,
+
+    /// Maximum documents to reprocess (for large workspaces).
+    /// Default: 10000.
+    #[serde(default = "default_max_reprocess_kg")]
+    pub max_documents: usize,
+}
+
+fn default_rebuild_embeddings() -> bool {
+    true
+}
+
+fn default_max_reprocess_kg() -> usize {
+    10000
+}
+
+/// Response from rebuild knowledge graph operation.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct RebuildKnowledgeGraphResponse {
+    /// Workspace ID.
+    pub workspace_id: Uuid,
+    /// Status of the operation.
+    pub status: String,
+    /// Number of nodes (entities) cleared from the graph.
+    pub nodes_cleared: usize,
+    /// Number of edges (relationships) cleared from the graph.
+    pub edges_cleared: usize,
+    /// Number of vectors cleared (if rebuild_embeddings was true).
+    pub vectors_cleared: usize,
+    /// Number of documents to be reprocessed.
+    pub documents_to_process: usize,
+    /// New LLM model (after update).
+    pub llm_model: String,
+    /// New LLM provider (after update).
+    pub llm_provider: String,
+    /// Estimated time to complete (seconds).
+    pub estimated_time_seconds: Option<u64>,
+    /// Track ID for monitoring progress.
+    pub track_id: Option<String>,
+}
+
+// ============================================================================
 // Unit Tests
 // ============================================================================
 

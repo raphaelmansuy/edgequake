@@ -211,7 +211,7 @@ impl utoipa::Modify for SecurityAddon {
                 ),
             );
         }
-        
+
         // SPEC-032: Add description about context headers in API description
         if let Some(info) = Some(&mut openapi.info) {
             let current_desc = info.description.clone().unwrap_or_default();

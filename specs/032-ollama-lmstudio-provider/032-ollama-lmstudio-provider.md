@@ -58,6 +58,8 @@ FOCUS on :
 19. **Workspace Extractor Model Configuration** - Ensure the workspace settings page clearly shows and allows editing of the "extractor model" (LLM used for entity extraction during ingestion). This already exists as "LLM Configuration" but must be clear that it's for extraction/ingestion, not query.
 20. Ensure the embedding model can be changed at the workspace level, and when changed the vector database is recreated with the new embedding model. The embedding model is used at query time to generate embeddings for incoming queries to retrieve relevant documents from the vector database.
 
+21. Ensure workspace configuration page is accessible via deeplink from the webui and home page.
+
 Very important ==> Default providers (llm+embedding) and models will be defined as setup in a toml config file located at the root of edgequake server. Capabilities of models and providers must be detected at runtime and exposed as an API. This configuration file will act as models cards explaining the capabilities of each model and provider. (vision / image support / max tokens / context length / cost per 1K tokens etc). This config file will be used by the edgequake_webui to display the capabilities of each model and provider in the selection dropdowns. This file will provide high signal information to the users about the models and providers available in the edgequake server.
 
 Ensure you provide a .toml configuration file example including ollama and lmstudio providers and models, openai provider and models, with all capabilities filled in. Find information about ollama, openai and lmstudio models capabilities from their respective documentations.

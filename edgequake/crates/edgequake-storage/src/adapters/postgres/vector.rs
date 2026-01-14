@@ -405,6 +405,27 @@ impl VectorStorage for PgVectorStorage {
 
         Ok(())
     }
+
+    /// Clear vectors for a specific workspace.
+    ///
+    /// Uses JSONB query on metadata to filter by workspace_id.
+    async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
+        let pool = self.pool.get().await?;
+
+        // Query vectors where metadata->>'workspace_id' matches
+        let sql = format!(
+            "DELETE FROM {} WHERE metadata->>'workspace_id' = $1",
+            self.table_name
+        );
+
+        let result = sqlx::query(&sql)
+            .bind(workspace_id.to_string())
+            .execute(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("Clear workspace failed: {}", e)))?;
+
+        Ok(result.rows_affected() as usize)
+    }
 }
 
 impl std::fmt::Debug for PgVectorStorage {
