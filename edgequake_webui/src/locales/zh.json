@@ -40,6 +40,8 @@
     "graph": "知识图谱",
     "documents": "文档",
     "query": "查询",
+    "workspace": "工作区",
+    "costs": "成本",
     "apiExplorer": "API浏览器",
     "settings": "设置"
   },

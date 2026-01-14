@@ -139,12 +139,66 @@ export default function WorkspacePage() {
       embedding_model?: string;
       embedding_provider?: string;
       embedding_dimension?: number;
+      _embeddingChanged?: boolean;
+      _llmChanged?: boolean;
     }) =>
-      updateWorkspace(selectedTenantId!, selectedWorkspaceId!, data),
-    onSuccess: () => {
+      updateWorkspace(selectedTenantId!, selectedWorkspaceId!, {
+        llm_model: data.llm_model,
+        llm_provider: data.llm_provider,
+        embedding_model: data.embedding_model,
+        embedding_provider: data.embedding_provider,
+        embedding_dimension: data.embedding_dimension,
+      }),
+    onSuccess: (_result, variables) => {
       toast.success(t('workspace.updateSuccess', 'Workspace updated successfully'));
       queryClient.invalidateQueries({ queryKey: ['workspace', selectedTenantId, selectedWorkspaceId] });
       setIsEditing(false);
+      
+      // Check if model changes require rebuild
+      const needsEmbeddingRebuild = variables._embeddingChanged;
+      const needsExtractionRebuild = variables._llmChanged;
+      
+      if (needsEmbeddingRebuild || needsExtractionRebuild) {
+        setPendingRebuild({
+          embeddings: needsEmbeddingRebuild ?? false,
+          extraction: needsExtractionRebuild ?? false,
+        });
+        
+        if (needsEmbeddingRebuild && needsExtractionRebuild) {
+          toast.info(
+            t('workspace.rebuildRequired', 'Model changes detected'),
+            {
+              description: t(
+                'workspace.rebuildBothHint',
+                'Both embedding and LLM models changed. Use "Rebuild Embeddings" to reprocess all documents.'
+              ),
+              duration: 8000,
+            }
+          );
+        } else if (needsEmbeddingRebuild) {
+          toast.info(
+            t('workspace.embeddingRebuildRequired', 'Embedding model changed'),
+            {
+              description: t(
+                'workspace.embeddingRebuildHint',
+                'Use "Rebuild Embeddings" to regenerate vector embeddings with the new model.'
+              ),
+              duration: 6000,
+            }
+          );
+        } else if (needsExtractionRebuild) {
+          toast.info(
+            t('workspace.llmRebuildRequired', 'LLM model changed'),
+            {
+              description: t(
+                'workspace.llmRebuildHint',
+                'Use "Rebuild Embeddings" to re-extract entities with the new LLM model.'
+              ),
+              duration: 6000,
+            }
+          );
+        }
+      }
     },
     onError: (error) => {
       toast.error(t('workspace.updateFailed', 'Failed to update workspace'), {
@@ -154,7 +208,7 @@ export default function WorkspacePage() {
   });
 
   const handleSave = () => {
-    const data: Record<string, string | number | undefined> = {};
+    const data: Record<string, string | number | boolean | undefined> = {};
 
     if (selectedLLM) {
       data.llm_model = selectedLLM.model;
@@ -167,7 +221,11 @@ export default function WorkspacePage() {
       data.embedding_dimension = selectedEmbedding.dimension;
     }
 
-    updateMutation.mutate(data);
+    // Track which models changed for post-save rebuild notification
+    data._embeddingChanged = embeddingModelChanged ?? false;
+    data._llmChanged = llmModelChanged ?? false;
+
+    updateMutation.mutate(data as Parameters<typeof updateMutation.mutate>[0]);
   };
 
   const handleCancel = () => {
@@ -200,6 +258,18 @@ export default function WorkspacePage() {
     workspace.embedding_model !== selectedEmbedding.model ||
     workspace.embedding_provider !== selectedEmbedding.provider
   );
+
+  // Check if LLM model changed (needs extraction rebuild)
+  const llmModelChanged = workspace && selectedLLM && (
+    workspace.llm_model !== selectedLLM.model ||
+    workspace.llm_provider !== selectedLLM.provider
+  );
+
+  // Track if rebuild is needed after save
+  const [pendingRebuild, setPendingRebuild] = useState<{
+    embeddings: boolean;
+    extraction: boolean;
+  } | null>(null);
 
   if (!selectedTenantId || !selectedWorkspaceId) {
     return (
@@ -405,11 +475,21 @@ export default function WorkspacePage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {isEditing ? (
-              <LLMModelSelector
-                value={selectedLLM}
-                onChange={setSelectedLLM}
-                showUsageHint
-              />
+              <>
+                <LLMModelSelector
+                  value={selectedLLM}
+                  onChange={setSelectedLLM}
+                  showUsageHint
+                />
+                {llmModelChanged && (
+                  <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <AlertTriangle className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm text-blue-700 dark:text-blue-300">
+                      {t('workspace.llmChangeWarning', 'Changing LLM model requires re-extracting entities from all documents.')}
+                    </span>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
                 {getProviderIcon(workspace.llm_provider)}
@@ -547,13 +627,36 @@ export default function WorkspacePage() {
             {t('workspace.actionsDesc', 'Manage workspace data and re-process documents.')}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Pending rebuild alert */}
+          {pendingRebuild && (pendingRebuild.embeddings || pendingRebuild.extraction) && (
+            <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="font-medium text-amber-800 dark:text-amber-200">
+                  {t('workspace.rebuildPending', 'Rebuild Required')}
+                </p>
+                <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                  {pendingRebuild.embeddings && pendingRebuild.extraction ? (
+                    t('workspace.rebuildBothPending', 'You changed both LLM and embedding models. Click "Rebuild Embeddings" to reprocess all documents with the new configuration.')
+                  ) : pendingRebuild.embeddings ? (
+                    t('workspace.rebuildEmbeddingsPending', 'You changed the embedding model. Click "Rebuild Embeddings" to regenerate vector embeddings.')
+                  ) : (
+                    t('workspace.rebuildExtractionPending', 'You changed the LLM model. Click "Rebuild Embeddings" to re-extract entities from all documents.')
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Rebuild Embeddings */}
             <RebuildEmbeddingsButton
               variant="card"
               onComplete={() => {
                 queryClient.invalidateQueries({ queryKey: ['workspaceStats', selectedWorkspaceId] });
+                // Clear pending rebuild state after successful rebuild
+                setPendingRebuild(null);
               }}
             />
 

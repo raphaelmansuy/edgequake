@@ -40,6 +40,8 @@
     "graph": "Graphe de connaissances",
     "documents": "Documents",
     "query": "Requête",
+    "workspace": "Espace de travail",
+    "costs": "Coûts",
     "apiExplorer": "Explorateur API",
     "settings": "Paramètres"
   },

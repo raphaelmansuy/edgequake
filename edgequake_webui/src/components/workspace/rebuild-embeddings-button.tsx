@@ -191,48 +191,50 @@ export function RebuildEmbeddingsButton({
             <AlertTriangle className="h-5 w-5 text-destructive" />
             {t('workspace.rebuild.confirm.title', 'Rebuild Embeddings?')}
           </AlertDialogTitle>
-          <AlertDialogDescription className="space-y-2">
-            <p>
-              {t(
-                'workspace.rebuild.confirm.description',
-                'This will clear all vector embeddings for workspace:'
-              )}
-            </p>
-            <p className="font-medium text-foreground">
-              {selectedWorkspace?.name || selectedWorkspaceId}
-            </p>
-            <div className="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-              <p className="font-medium">
-                {t('workspace.rebuild.confirm.warning', 'Warning:')}
-              </p>
-              <ul className="mt-1 list-inside list-disc space-y-1">
-                <li>
-                  {t(
-                    'workspace.rebuild.confirm.warning1',
-                    'All existing embeddings will be deleted'
-                  )}
-                </li>
-                <li>
-                  {t(
-                    'workspace.rebuild.confirm.warning2',
-                    'Documents will be automatically reprocessed'
-                  )}
-                </li>
-                <li>
-                  {t(
-                    'workspace.rebuild.confirm.warning3',
-                    'Queries may return empty results until reprocessing completes'
-                  )}
-                </li>
-              </ul>
-            </div>
-            <div className="mt-2 rounded-md bg-blue-50 p-3 text-sm text-blue-800 dark:bg-blue-950 dark:text-blue-200">
-              <p>
+          <AlertDialogDescription asChild>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <span className="block">
                 {t(
-                  'workspace.rebuild.confirm.info',
-                  'A progress dialog will appear to track reprocessing status.'
+                  'workspace.rebuild.confirm.description',
+                  'This will clear all vector embeddings for workspace:'
                 )}
-              </p>
+              </span>
+              <span className="block font-medium text-foreground">
+                {selectedWorkspace?.name || selectedWorkspaceId}
+              </span>
+              <div className="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                <span className="block font-medium">
+                  {t('workspace.rebuild.confirm.warning', 'Warning:')}
+                </span>
+                <ul className="mt-1 list-inside list-disc space-y-1">
+                  <li>
+                    {t(
+                      'workspace.rebuild.confirm.warning1',
+                      'All existing embeddings will be deleted'
+                    )}
+                  </li>
+                  <li>
+                    {t(
+                      'workspace.rebuild.confirm.warning2',
+                      'Documents will be automatically reprocessed'
+                    )}
+                  </li>
+                  <li>
+                    {t(
+                      'workspace.rebuild.confirm.warning3',
+                      'Queries may return empty results until reprocessing completes'
+                    )}
+                  </li>
+                </ul>
+              </div>
+              <div className="mt-2 rounded-md bg-blue-50 p-3 text-sm text-blue-800 dark:bg-blue-950 dark:text-blue-200">
+                <span className="block">
+                  {t(
+                    'workspace.rebuild.confirm.info',
+                    'A progress dialog will appear to track reprocessing status.'
+                  )}
+                </span>
+              </div>
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
