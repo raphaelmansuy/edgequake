@@ -1805,4 +1805,162 @@ test.describe("SPEC-032: Provider Integration", () => {
       }
     });
   });
+
+  /**
+   * System Message Tests
+   * @iteration OODA 91-92
+   */
+  test.describe("System Message Capability", () => {
+    test("LLM models support system message", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const llmModels = data.providers
+        .filter((p: any) => p.enabled)
+        .flatMap((p: any) => p.models.filter((m: any) => m.model_type === "llm"));
+
+      // Most LLM models should support system message
+      const supportCount = llmModels.filter(
+        (m: any) => m.capabilities.supports_system_message
+      ).length;
+      expect(supportCount).toBeGreaterThan(llmModels.length / 2);
+    });
+
+    test("embedding models do not support system message", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const embeddingModels = data.providers.flatMap((p: any) =>
+        p.models.filter((m: any) => m.model_type === "embedding")
+      );
+
+      for (const model of embeddingModels) {
+        expect(model.capabilities.supports_system_message).toBe(false);
+      }
+    });
+  });
+
+  /**
+   * Vision Capability Tests
+   * @iteration OODA 93-94
+   */
+  test.describe("Vision Capability", () => {
+    test("multimodal models support vision", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const multimodalModels = data.providers.flatMap((p: any) =>
+        p.models.filter((m: any) => m.model_type === "multimodal")
+      );
+
+      for (const model of multimodalModels) {
+        expect(model.capabilities.supports_vision).toBe(true);
+      }
+    });
+
+    test("embedding models do not support vision", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const embeddingModels = data.providers.flatMap((p: any) =>
+        p.models.filter((m: any) => m.model_type === "embedding")
+      );
+
+      for (const model of embeddingModels) {
+        expect(model.capabilities.supports_vision).toBe(false);
+      }
+    });
+  });
+
+  /**
+   * Max Output Tokens Tests
+   * @iteration OODA 95-96
+   */
+  test.describe("Max Output Tokens", () => {
+    test("LLM models have positive max output tokens", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const llmModels = data.providers.flatMap((p: any) =>
+        p.models.filter((m: any) => m.model_type === "llm")
+      );
+
+      for (const model of llmModels) {
+        expect(model.capabilities.max_output_tokens).toBeGreaterThan(0);
+      }
+    });
+
+    test("embedding models have zero max output tokens", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const embeddingModels = data.providers.flatMap((p: any) =>
+        p.models.filter((m: any) => m.model_type === "embedding")
+      );
+
+      for (const model of embeddingModels) {
+        expect(model.capabilities.max_output_tokens).toBe(0);
+      }
+    });
+  });
+
+  /**
+   * Model Description Tests
+   * @iteration OODA 97-98
+   */
+  test.describe("Model Description", () => {
+    test("all models have descriptions", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const allModels = data.providers.flatMap((p: any) => p.models);
+
+      for (const model of allModels) {
+        expect(model.description).toBeDefined();
+        expect(typeof model.description).toBe("string");
+        expect(model.description.length).toBeGreaterThan(0);
+      }
+    });
+
+    test("all models have display names", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const allModels = data.providers.flatMap((p: any) => p.models);
+
+      for (const model of allModels) {
+        expect(model.display_name).toBeDefined();
+        expect(typeof model.display_name).toBe("string");
+        expect(model.display_name.length).toBeGreaterThan(0);
+      }
+    });
+  });
+
+  /**
+   * Provider Description Tests
+   * @iteration OODA 99-100
+   */
+  test.describe("Provider Description", () => {
+    test("all providers have descriptions", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      for (const provider of data.providers) {
+        expect(provider.description).toBeDefined();
+        expect(typeof provider.description).toBe("string");
+        expect(provider.description.length).toBeGreaterThan(0);
+      }
+    });
+
+    test("all providers have display names", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      for (const provider of data.providers) {
+        expect(provider.display_name).toBeDefined();
+        expect(typeof provider.display_name).toBe("string");
+        expect(provider.display_name.length).toBeGreaterThan(0);
+      }
+    });
+  });
 });
