@@ -344,9 +344,32 @@ test.describe("SPEC-032: Provider Integration", () => {
 
     /**
      * Verifies that clicking the provider selector shows available providers.
+     * Note: Requires workspace to be selected for query interface to show.
      */
-    test("provider selector shows available providers", async ({ page }) => {
-      await page.goto("/query", { waitUntil: "domcontentloaded" });
+    test("provider selector shows available providers", async ({ page, request }) => {
+      // First get a workspace slug to use deeplink route
+      const tenantsResponse = await request.get("http://localhost:8080/api/v1/tenants");
+      const tenants = await tenantsResponse.json();
+      const tenantId = tenants.items[0]?.id;
+
+      if (!tenantId) {
+        test.skip();
+        return;
+      }
+
+      const workspacesResponse = await request.get(
+        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+      );
+      const workspaces = await workspacesResponse.json();
+      const workspaceSlug = workspaces.items[0]?.slug;
+
+      if (!workspaceSlug) {
+        test.skip();
+        return;
+      }
+
+      // Navigate to workspace query page via deeplink
+      await page.goto(`/w/${workspaceSlug}/query`, { waitUntil: "domcontentloaded" });
       await page.waitForLoadState("domcontentloaded");
 
       // Wait for React to hydrate
@@ -362,7 +385,6 @@ test.describe("SPEC-032: Provider Integration", () => {
       await expect(dropdownContent).toBeVisible({ timeout: 5000 });
 
       // Verify at least one provider option is visible
-      // Options use SelectItem with role="option"
       const providerOptions = page.locator('[role="option"]');
       const optionCount = await providerOptions.count();
       expect(optionCount).toBeGreaterThan(0);
@@ -918,6 +940,67 @@ test.describe("SPEC-032: Provider Integration", () => {
       expect(data).toHaveProperty("items");
       expect(data).toHaveProperty("total");
       expect(Array.isArray(data.items)).toBe(true);
+    });
+
+    /**
+     * Verifies workspace response includes model configuration fields.
+     * @iteration OODA 75
+     */
+    test("workspace has model configuration fields", async ({ request }) => {
+      // Get valid tenant and workspace
+      const tenantsResponse = await request.get("http://localhost:8080/api/v1/tenants");
+      const tenants = await tenantsResponse.json();
+      const tenantId = tenants.items[0]?.id;
+
+      if (!tenantId) {
+        test.skip();
+        return;
+      }
+
+      const workspacesResponse = await request.get(
+        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+      );
+      const workspaces = await workspacesResponse.json();
+      const workspace = workspaces.items[0];
+
+      if (!workspace) {
+        test.skip();
+        return;
+      }
+
+      // Workspace should have model configuration fields
+      expect(workspace).toHaveProperty("llm_provider");
+      expect(workspace).toHaveProperty("llm_model");
+      expect(workspace).toHaveProperty("embedding_provider");
+      expect(workspace).toHaveProperty("embedding_model");
+      expect(workspace).toHaveProperty("embedding_dimension");
+
+      // Fields should be non-empty strings (dimension is number)
+      expect(typeof workspace.llm_provider).toBe("string");
+      expect(workspace.llm_provider.length).toBeGreaterThan(0);
+      expect(typeof workspace.embedding_dimension).toBe("number");
+      expect(workspace.embedding_dimension).toBeGreaterThan(0);
+    });
+
+    /**
+     * Verifies tenant response includes default model configuration.
+     * @iteration OODA 75
+     */
+    test("tenant has default model configuration", async ({ request }) => {
+      const tenantsResponse = await request.get("http://localhost:8080/api/v1/tenants");
+      const tenants = await tenantsResponse.json();
+      const tenant = tenants.items[0];
+
+      if (!tenant) {
+        test.skip();
+        return;
+      }
+
+      // Tenant should have default model configuration
+      expect(tenant).toHaveProperty("default_llm_provider");
+      expect(tenant).toHaveProperty("default_llm_model");
+      expect(tenant).toHaveProperty("default_embedding_provider");
+      expect(tenant).toHaveProperty("default_embedding_model");
     });
   });
 });
