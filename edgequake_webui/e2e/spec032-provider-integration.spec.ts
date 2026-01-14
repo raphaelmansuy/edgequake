@@ -52,6 +52,53 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     /**
+     * @implements SPEC-032: Focus 7 - Default configuration is valid
+     * @iteration OODA 68
+     * 
+     * Verifies that default model configuration references valid providers and models.
+     */
+    test("default model configuration is valid", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+
+      // Default LLM provider should exist and be enabled
+      const defaultLlmProvider = data.providers.find(
+        (p: any) => p.name === data.default_llm_provider
+      );
+      expect(defaultLlmProvider).toBeDefined();
+      expect(defaultLlmProvider.enabled).toBe(true);
+
+      // Default LLM model should exist in that provider
+      const defaultLlmModel = defaultLlmProvider.models.find(
+        (m: any) => m.name === data.default_llm_model
+      );
+      expect(defaultLlmModel).toBeDefined();
+      // LLM models can be "llm" or "multimodal" type
+      expect(["llm", "multimodal"]).toContain(defaultLlmModel.model_type);
+
+      // Default embedding provider should exist and be enabled
+      const defaultEmbedProvider = data.providers.find(
+        (p: any) => p.name === data.default_embedding_provider
+      );
+      expect(defaultEmbedProvider).toBeDefined();
+      expect(defaultEmbedProvider.enabled).toBe(true);
+
+      // Default embedding model should exist in that provider
+      const defaultEmbedModel = defaultEmbedProvider.models.find(
+        (m: any) => m.name === data.default_embedding_model
+      );
+      expect(defaultEmbedModel).toBeDefined();
+      expect(defaultEmbedModel.model_type).toBe("embedding");
+
+      // Default embedding dimension should be positive (if present)
+      if (data.default_embedding_dimension !== undefined) {
+        expect(data.default_embedding_dimension).toBeGreaterThan(0);
+      }
+    });
+
+    /**
      * @implements SPEC-032: Focus 7 - Provider priority property exists
      * @iteration OODA 64
      * 
