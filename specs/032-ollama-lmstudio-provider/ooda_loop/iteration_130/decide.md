@@ -5,6 +5,7 @@
 **No code changes required - streaming fallback fully implemented.**
 
 The implementation covers all requirements:
+
 - LM Studio supports streaming (SSE format)
 - `stream_with_fallback()` in traits.rs provides automatic fallback
 - models.toml has `supports_streaming` flag per model

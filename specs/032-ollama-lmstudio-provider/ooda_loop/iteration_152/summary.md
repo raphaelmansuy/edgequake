@@ -3,6 +3,7 @@
 ## Observe
 
 ### Focus
+
 Verify that deprecated models are properly marked and handled.
 
 ### Investigation
@@ -21,8 +22,8 @@ tags = ["legacy"]
 
 ### Deprecated Models
 
-| Model | Reason |
-|-------|--------|
+| Model                  | Reason                             |
+| ---------------------- | ---------------------------------- |
 | text-embedding-ada-002 | Replaced by text-embedding-3-small |
 
 ## Orient
@@ -56,4 +57,5 @@ Deprecated models are properly marked with `deprecated = true`.
 - Still selectable for backward compatibility
 
 ---
-*Commit: docs(OODA 152): Verify deprecated model handling*
+
+_Commit: docs(OODA 152): Verify deprecated model handling_

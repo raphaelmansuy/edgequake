@@ -3,11 +3,13 @@
 ## Observe
 
 ### Focus
+
 Verify that model context length is displayed in the UI.
 
 ### Investigation
 
 **Model Card Capabilities** (from `models.toml`):
+
 ```toml
 [providers.models.capabilities]
 context_length = 128000
@@ -22,12 +24,12 @@ The `ProviderModelSelector` and model cards show context length information.
 
 ### Context Length by Provider
 
-| Provider | Model | Context Length |
-|----------|-------|----------------|
-| OpenAI | gpt-4o | 128K |
-| OpenAI | gpt-4.1 | 1M+ |
-| Ollama | llama3.2 | 131K |
-| Ollama | gemma3:12b | 128K |
+| Provider | Model      | Context Length |
+| -------- | ---------- | -------------- |
+| OpenAI   | gpt-4o     | 128K           |
+| OpenAI   | gpt-4.1    | 1M+            |
+| Ollama   | llama3.2   | 131K           |
+| Ollama   | gemma3:12b | 128K           |
 
 ### UI Integration
 
@@ -51,11 +53,12 @@ Context length is defined per model and exposed to UI.
 
 ### Key Values
 
-| Model | Context | Max Output |
-|-------|---------|------------|
-| gpt-4.1 | 1,047,576 | 32,768 |
-| gpt-4o | 128,000 | 16,384 |
-| gemma3:12b | 128,000 | 4,096 |
+| Model      | Context   | Max Output |
+| ---------- | --------- | ---------- |
+| gpt-4.1    | 1,047,576 | 32,768     |
+| gpt-4o     | 128,000   | 16,384     |
+| gemma3:12b | 128,000   | 4,096      |
 
 ---
-*Commit: docs(OODA 148): Verify context length display*
+
+_Commit: docs(OODA 148): Verify context length display_

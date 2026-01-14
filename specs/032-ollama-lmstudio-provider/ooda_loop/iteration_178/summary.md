@@ -3,22 +3,25 @@
 ## Observe
 
 ### Focus
+
 Verify that OpenAI-compatible API format is used for all providers.
 
 ### Investigation
 
 **API Compatibility**:
+
 - Ollama exposes `/v1/chat/completions` endpoint
 - LM Studio exposes `/v1/chat/completions` endpoint
 - Both follow OpenAI API spec
 
 **Request Format**:
+
 ```json
 {
   "model": "gpt-4o",
   "messages": [
-    {"role": "system", "content": "..."},
-    {"role": "user", "content": "..."}
+    { "role": "system", "content": "..." },
+    { "role": "user", "content": "..." }
   ],
   "stream": true
 }
@@ -28,11 +31,11 @@ Verify that OpenAI-compatible API format is used for all providers.
 
 ### Provider Endpoints
 
-| Provider | Endpoint | Format |
-|----------|----------|--------|
-| OpenAI | api.openai.com/v1/... | OpenAI |
-| Ollama | localhost:11434/v1/... | OpenAI-compat |
-| LM Studio | localhost:1234/v1/... | OpenAI-compat |
+| Provider  | Endpoint               | Format        |
+| --------- | ---------------------- | ------------- |
+| OpenAI    | api.openai.com/v1/...  | OpenAI        |
+| Ollama    | localhost:11434/v1/... | OpenAI-compat |
+| LM Studio | localhost:1234/v1/...  | OpenAI-compat |
 
 ### Benefits of OpenAI Compatibility
 
@@ -56,4 +59,5 @@ OpenAI-compatible format used consistently.
 - Consistent interface
 
 ---
-*Commit: docs(OODA 178): Verify OpenAI-compatible API format*
+
+_Commit: docs(OODA 178): Verify OpenAI-compatible API format_

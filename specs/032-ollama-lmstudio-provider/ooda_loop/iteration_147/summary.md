@@ -3,11 +3,13 @@
 ## Observe
 
 ### Focus
+
 Verify that model cost information is available and can be displayed.
 
 ### Investigation
 
 **Model Card Cost Structure** (from `models.toml`):
+
 ```toml
 [providers.models.cost]
 input_per_1k = 0.00015
@@ -19,6 +21,7 @@ image_per_unit = 0.0
 ### API Response
 
 `ModelResponse` includes cost information:
+
 - `input_per_1k` - Cost per 1K input tokens
 - `output_per_1k` - Cost per 1K output tokens
 - `embedding_per_1k` - Cost per 1K embeddings
@@ -27,12 +30,12 @@ image_per_unit = 0.0
 
 ### Cost Availability
 
-| Provider | Has Cost Info |
-|----------|---------------|
-| OpenAI | ✅ Full pricing |
-| Ollama | ✅ $0 (free) |
-| LM Studio | ✅ $0 (free) |
-| Groq | ✅ Pricing data |
+| Provider  | Has Cost Info   |
+| --------- | --------------- |
+| OpenAI    | ✅ Full pricing |
+| Ollama    | ✅ $0 (free)    |
+| LM Studio | ✅ $0 (free)    |
+| Groq      | ✅ Pricing data |
 
 ### Use Cases
 
@@ -56,11 +59,12 @@ Model cost information is defined in `models.toml` and exposed via API.
 
 ### Example Costs (OpenAI)
 
-| Model | Input/1K | Output/1K |
-|-------|----------|-----------|
-| gpt-4o | $0.0025 | $0.01 |
-| gpt-4o-mini | $0.00015 | $0.0006 |
-| gpt-4.1-nano | $0.0001 | $0.0004 |
+| Model        | Input/1K | Output/1K |
+| ------------ | -------- | --------- |
+| gpt-4o       | $0.0025  | $0.01     |
+| gpt-4o-mini  | $0.00015 | $0.0006   |
+| gpt-4.1-nano | $0.0001  | $0.0004   |
 
 ---
-*Commit: docs(OODA 147): Verify model cost display*
+
+_Commit: docs(OODA 147): Verify model cost display_

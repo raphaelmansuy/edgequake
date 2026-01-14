@@ -3,11 +3,13 @@
 ## Observe
 
 ### Focus
+
 Verify that JSON mode is available for structured output.
 
 ### Investigation
 
 **JSON Mode Capability** (from `models.toml`):
+
 ```toml
 [providers.models.capabilities]
 supports_json_mode = true
@@ -16,6 +18,7 @@ supports_json_mode = true
 ### Backend Implementation
 
 JSON mode forces the LLM to output valid JSON:
+
 - Used for entity extraction
 - Used for structured responses
 - Improves parsing reliability
@@ -24,11 +27,11 @@ JSON mode forces the LLM to output valid JSON:
 
 ### JSON Mode Support
 
-| Provider | Models with JSON Mode |
-|----------|----------------------|
-| OpenAI | All GPT-4 variants |
-| Ollama | Most models |
-| LM Studio | Depends on model |
+| Provider  | Models with JSON Mode |
+| --------- | --------------------- |
+| OpenAI    | All GPT-4 variants    |
+| Ollama    | Most models           |
+| LM Studio | Depends on model      |
 
 ### Use Cases
 
@@ -52,4 +55,5 @@ JSON mode is properly configured and available.
 - Improves extraction reliability
 
 ---
-*Commit: docs(OODA 157): Verify JSON mode support*
+
+_Commit: docs(OODA 157): Verify JSON mode support_

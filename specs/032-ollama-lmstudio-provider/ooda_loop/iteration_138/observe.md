@@ -16,6 +16,7 @@ Location: `edgequake_webui/src/components/shared/tenant-workspace-selector.tsx`
 Lines: 674
 
 Key elements:
+
 - State variables: `tenantDefaultLLM`, `tenantDefaultEmbedding`, `selectedLLM`, `selectedEmbedding`
 - Components: `LLMModelSelector`, `EmbeddingModelSelector` imported from workspace components
 - Mutations pass model config to API

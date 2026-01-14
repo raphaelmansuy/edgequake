@@ -9,17 +9,20 @@ The OPENAI_API_KEY is already properly propagated in the Makefile:
 ### Evidence
 
 **Makefile Line 40**: Environment variable inherited
+
 ```makefile
 OPENAI_API_KEY ?= $(shell echo $$OPENAI_API_KEY)
 ```
 
 **Makefile Line 163**: Passed to backend in `make dev`
+
 ```makefile
 OPENAI_API_KEY="$(OPENAI_API_KEY)" \
 cargo run
 ```
 
 **Makefile Lines 135-138**: User notification
+
 ```makefile
 @# REQ-28: Show if OPENAI_API_KEY is available for runtime switching
 @if [ -n "$(OPENAI_API_KEY)" ]; then \
@@ -36,6 +39,7 @@ Add documentation to AGENTS.md explaining how to use `make dev` with OpenAI.
 **File**: [AGENTS.md](../../../../AGENTS.md#L31-L45)
 
 Added "Quick Start with make" section explaining:
+
 1. Default behavior uses Ollama
 2. Setting OPENAI_API_KEY enables runtime switching
 3. Commands for checking status
@@ -54,6 +58,7 @@ grep -n "OPENAI_API_KEY" Makefile
 ## SPEC-032 Item 28: Status
 
 ✅ **COMPLETE**
+
 - Environment variable propagation: ✅
 - User notification in console: ✅
 - Documentation in AGENTS.md: ✅ (just added)

@@ -3,6 +3,7 @@
 ## Observe
 
 ### Focus
+
 Verify that model cards provide comprehensive documentation.
 
 ### Investigation
@@ -39,12 +40,12 @@ image_per_unit = 0.0
 
 ### Model Card Structure
 
-| Section | Fields |
-|---------|--------|
-| Identity | name, display_name, model_type |
-| Description | description, tags, deprecated |
+| Section      | Fields                                |
+| ------------ | ------------------------------------- |
+| Identity     | name, display_name, model_type        |
+| Description  | description, tags, deprecated         |
 | Capabilities | context, vision, streaming, functions |
-| Cost | input, output, embedding, image |
+| Cost         | input, output, embedding, image       |
 
 ### Documentation Quality
 
@@ -69,4 +70,5 @@ Model cards provide comprehensive documentation for all 45 models.
 - Costs match official documentation
 
 ---
-*Commit: docs(OODA 154): Verify model card documentation*
+
+_Commit: docs(OODA 154): Verify model card documentation_

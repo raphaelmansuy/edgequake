@@ -3,16 +3,19 @@
 ## Observe
 
 ### Focus
+
 Verify that users can switch models during an active session.
 
 ### Investigation
 
 **Model Switching UI**:
+
 - Query interface has provider/model selector
 - Can change at any time
 - Next query uses new model
 
 **Session State**:
+
 - Previous responses retain original model info
 - New queries use updated selection
 - No session restart required
@@ -39,13 +42,13 @@ Lineage shows Model B
 
 ### Historical Consistency
 
-| Query | Model Used | Lineage Display |
-|-------|-----------|-----------------|
-| Q1 | gpt-4o | gpt-4o |
-| Q2 | gpt-4o | gpt-4o |
-| *switch* | | |
-| Q3 | llama3.2 | llama3.2 |
-| Q4 | llama3.2 | llama3.2 |
+| Query    | Model Used | Lineage Display |
+| -------- | ---------- | --------------- |
+| Q1       | gpt-4o     | gpt-4o          |
+| Q2       | gpt-4o     | gpt-4o          |
+| _switch_ |            |                 |
+| Q3       | llama3.2   | llama3.2        |
+| Q4       | llama3.2   | llama3.2        |
 
 ## Decide
 
@@ -63,4 +66,5 @@ Model switching works seamlessly during sessions.
 - Lineage correctly reflects each model
 
 ---
-*Commit: docs(OODA 180): Verify model switching during session*
+
+_Commit: docs(OODA 180): Verify model switching during session_

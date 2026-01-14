@@ -3,6 +3,7 @@
 ## Observe
 
 ### Focus
+
 Verify that environment variables override default configuration.
 
 ### Investigation
@@ -38,12 +39,12 @@ api_base = "http://localhost:11434"  # Overridden by OLLAMA_BASE_URL
 
 ### Supported Variables
 
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| OPENAI_API_KEY | OpenAI authentication | Required |
-| OLLAMA_BASE_URL | Ollama endpoint | http://localhost:11434 |
-| LM_STUDIO_BASE_URL | LM Studio endpoint | http://localhost:1234 |
-| EDGEQUAKE_MODELS_CONFIG | Custom config path | ./models.toml |
+| Variable                | Purpose               | Default                |
+| ----------------------- | --------------------- | ---------------------- |
+| OPENAI_API_KEY          | OpenAI authentication | Required               |
+| OLLAMA_BASE_URL         | Ollama endpoint       | http://localhost:11434 |
+| LM_STUDIO_BASE_URL      | LM Studio endpoint    | http://localhost:1234  |
+| EDGEQUAKE_MODELS_CONFIG | Custom config path    | ./models.toml          |
 
 ## Decide
 
@@ -61,4 +62,5 @@ Environment variables are documented and respected.
 - Documentation in models.toml header
 
 ---
-*Commit: docs(OODA 153): Verify environment variable configuration*
+
+_Commit: docs(OODA 153): Verify environment variable configuration_

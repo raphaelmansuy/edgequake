@@ -3,11 +3,13 @@
 ## Observe
 
 ### Focus
+
 Verify that embedding batch processing is optimized.
 
 ### Investigation
 
 **Batch Configuration** (from `models.toml`):
+
 ```toml
 [defaults]
 batch_size = 10
@@ -16,6 +18,7 @@ batch_size = 10
 ### Batch Processing Logic
 
 Embeddings are processed in batches to:
+
 1. Reduce API calls
 2. Improve throughput
 3. Stay within rate limits
@@ -43,11 +46,11 @@ All embeddings complete
 
 ### Batch Size Tradeoffs
 
-| Batch Size | Pro | Con |
-|------------|-----|-----|
-| Small (5) | Lower memory | More API calls |
-| Medium (10) | Balanced | Good default |
-| Large (50) | Fewer calls | Higher latency |
+| Batch Size  | Pro          | Con            |
+| ----------- | ------------ | -------------- |
+| Small (5)   | Lower memory | More API calls |
+| Medium (10) | Balanced     | Good default   |
+| Large (50)  | Fewer calls  | Higher latency |
 
 ## Decide
 
@@ -65,4 +68,5 @@ Batch processing is implemented with configurable size.
 - Improves pipeline throughput
 
 ---
-*Commit: docs(OODA 171): Verify embedding batch processing*
+
+_Commit: docs(OODA 171): Verify embedding batch processing_

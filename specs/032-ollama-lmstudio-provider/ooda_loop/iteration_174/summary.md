@@ -3,11 +3,13 @@
 ## Observe
 
 ### Focus
+
 Verify that provider status is displayed to users.
 
 ### Investigation
 
 **UI Elements for Status**:
+
 - Provider selector shows availability
 - Health check results displayed
 - Visual indicators for status
@@ -15,6 +17,7 @@ Verify that provider status is displayed to users.
 ### Health Status Display
 
 From component implementation:
+
 - ✅ Green indicator: Available
 - ⚠️ Yellow indicator: Degraded
 - ❌ Red indicator: Unavailable
@@ -41,11 +44,11 @@ Enable/disable selection
 
 ### Status Information
 
-| Status | Indicator | Action |
-|--------|-----------|--------|
-| Available | Green | Enabled |
-| Unavailable | Red | Disabled |
-| Checking | Spinner | Pending |
+| Status      | Indicator | Action   |
+| ----------- | --------- | -------- |
+| Available   | Green     | Enabled  |
+| Unavailable | Red       | Disabled |
+| Checking    | Spinner   | Pending  |
 
 ## Decide
 
@@ -63,4 +66,5 @@ Provider status is displayed in the UI.
 - Clear visual feedback
 
 ---
-*Commit: docs(OODA 174): Verify provider status display*
+
+_Commit: docs(OODA 174): Verify provider status display_

@@ -3,16 +3,19 @@
 ## Observe
 
 ### Focus
+
 Verify that the system gracefully degrades when providers are unavailable.
 
 ### Investigation
 
 **Degradation Scenarios**:
+
 1. Provider becomes unavailable mid-session
 2. All local providers unavailable
 3. Cloud provider API key expired
 
 **Fallback Behavior**:
+
 - Automatic provider switching
 - Clear error messages
 - Retry suggestions
@@ -39,12 +42,12 @@ Provider unavailable
 
 ### Recovery Options
 
-| Scenario | User Action |
-|----------|-------------|
-| Ollama down | Start Ollama service |
-| LM Studio down | Start LM Studio |
-| OpenAI error | Check API key |
-| All down | Mock provider available |
+| Scenario       | User Action             |
+| -------------- | ----------------------- |
+| Ollama down    | Start Ollama service    |
+| LM Studio down | Start LM Studio         |
+| OpenAI error   | Check API key           |
+| All down       | Mock provider available |
 
 ## Decide
 
@@ -62,4 +65,5 @@ Graceful degradation is implemented with clear recovery paths.
 - Mock provider as last resort
 
 ---
-*Commit: docs(OODA 176): Verify graceful degradation*
+
+_Commit: docs(OODA 176): Verify graceful degradation_

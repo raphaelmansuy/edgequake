@@ -16,6 +16,7 @@
 ### Key Implementation Details
 
 **File**: `edgequake_webui/src/app/w/[slug]/workspace/page.tsx`
+
 - **Lines**: 717
 - **Components Used**:
   - `LLMModelSelector` - Provider/model selection for extraction
@@ -26,13 +27,13 @@
 
 ### Traceability
 
-| ID | Type | Description |
-|----|------|-------------|
-| SPEC-032 | Spec | Workspace configuration via deeplink |
-| FEAT0801 | Feature | Workspace detail view with LLM/embedding configuration |
-| UC0305 | Use Case | User views workspace configuration |
-| BR0305 | Business Rule | Workspace config is visible and editable |
-| BR0306 | Business Rule | Rebuild action available when model changes |
+| ID       | Type          | Description                                            |
+| -------- | ------------- | ------------------------------------------------------ |
+| SPEC-032 | Spec          | Workspace configuration via deeplink                   |
+| FEAT0801 | Feature       | Workspace detail view with LLM/embedding configuration |
+| UC0305   | Use Case      | User views workspace configuration                     |
+| BR0305   | Business Rule | Workspace config is visible and editable               |
+| BR0306   | Business Rule | Rebuild action available when model changes            |
 
 ## Outcome
 

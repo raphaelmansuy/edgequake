@@ -3,16 +3,19 @@
 ## Observe
 
 ### Focus
+
 Verify that request logging is available for debugging.
 
 ### Investigation
 
 **Logging Framework**:
+
 - EdgeQuake uses `tracing` crate
 - Structured logging throughout
 - Environment variable controls log level
 
 **Log Levels**:
+
 - `RUST_LOG=debug` - Verbose debugging
 - `RUST_LOG=info` - Normal operation
 - `RUST_LOG=error` - Errors only
@@ -21,13 +24,13 @@ Verify that request logging is available for debugging.
 
 ### Logging Points
 
-| Event | Log Level | Information |
-|-------|-----------|-------------|
-| Provider creation | info | Provider type, model |
-| Request start | debug | Endpoint, model |
-| Token streaming | trace | Token count |
-| Request complete | info | Duration, tokens |
-| Error | error | Full error details |
+| Event             | Log Level | Information          |
+| ----------------- | --------- | -------------------- |
+| Provider creation | info      | Provider type, model |
+| Request start     | debug     | Endpoint, model      |
+| Token streaming   | trace     | Token count          |
+| Request complete  | info      | Duration, tokens     |
+| Error             | error     | Full error details   |
 
 ### Debug Configuration
 
@@ -55,4 +58,5 @@ Logging infrastructure is in place using `tracing`.
 - Debug info available when needed
 
 ---
-*Commit: docs(OODA 167): Verify request logging infrastructure*
+
+_Commit: docs(OODA 167): Verify request logging infrastructure_

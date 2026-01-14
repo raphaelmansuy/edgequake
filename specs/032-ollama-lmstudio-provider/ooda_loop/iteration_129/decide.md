@@ -5,6 +5,7 @@
 **No code changes required - LM Studio fully implemented.**
 
 The implementation covers all requirements:
+
 - OpenAI-compatible API usage
 - Streaming support via SSE
 - Embedding support with configurable dimensions

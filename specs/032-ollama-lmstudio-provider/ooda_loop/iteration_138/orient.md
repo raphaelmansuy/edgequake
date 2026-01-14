@@ -37,9 +37,9 @@ The `tenant-workspace-selector.tsx` component provides comprehensive model selec
 
 ### Key Components Used
 
-| Component | Purpose | Source |
-|-----------|---------|--------|
-| `LLMModelSelector` | Provider/model dropdown for LLM | `@/components/workspace/llm-model-selector` |
+| Component                | Purpose                               | Source                                            |
+| ------------------------ | ------------------------------------- | ------------------------------------------------- |
+| `LLMModelSelector`       | Provider/model dropdown for LLM       | `@/components/workspace/llm-model-selector`       |
 | `EmbeddingModelSelector` | Provider/model dropdown for embedding | `@/components/workspace/embedding-model-selector` |
 
 ### Traceability
@@ -55,6 +55,7 @@ Comment in code (line 105): `// Tenant default model selection (SPEC-032: for te
 **Items 1, 2, 12: VERIFIED COMPLETE**
 
 All requirements are fully implemented:
+
 - ✅ Tenant dialog has LLM/Embedding selectors
 - ✅ Workspace dialog has LLM/Embedding selectors
 - ✅ Both use the same model selector components

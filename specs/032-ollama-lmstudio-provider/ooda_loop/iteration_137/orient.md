@@ -25,6 +25,7 @@ The deeplink route structure at `/w/[slug]/` provides complete workspace access:
 From `edgequake_webui/src/app/w/[slug]/workspace/page.tsx`:
 
 1. **Annotations present**:
+
    - `@implements SPEC-032: Workspace configuration via deeplink`
    - `@implements FEAT0801: Workspace detail view with LLM/embedding configuration`
    - `@implements UC0305: User views workspace configuration`
@@ -32,6 +33,7 @@ From `edgequake_webui/src/app/w/[slug]/workspace/page.tsx`:
    - `@enforces BR0306: Rebuild action available when model changes`
 
 2. **Features implemented**:
+
    - LLMModelSelector component
    - EmbeddingModelSelector component
    - RebuildEmbeddingsButton

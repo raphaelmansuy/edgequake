@@ -3,11 +3,13 @@
 ## Observe
 
 ### Focus
+
 Verify that function calling is available for structured tool use.
 
 ### Investigation
 
 **Function Calling Capability** (from `models.toml`):
+
 ```toml
 [providers.models.capabilities]
 supports_function_calling = true
@@ -15,13 +17,13 @@ supports_function_calling = true
 
 ### Support by Model
 
-| Model | Function Calling |
-|-------|-----------------|
-| gpt-4o | ✅ |
-| gpt-4o-mini | ✅ |
-| gpt-4.1 | ✅ |
-| llama3.2 | ✅ |
-| gemma3:12b | ✅ |
+| Model       | Function Calling |
+| ----------- | ---------------- |
+| gpt-4o      | ✅               |
+| gpt-4o-mini | ✅               |
+| gpt-4.1     | ✅               |
+| llama3.2    | ✅               |
+| gemma3:12b  | ✅               |
 
 ## Orient
 
@@ -53,4 +55,5 @@ Function calling is properly configured in model cards.
 - Consistent with OpenAI API spec
 
 ---
-*Commit: docs(OODA 159): Verify function calling support*
+
+_Commit: docs(OODA 159): Verify function calling support_

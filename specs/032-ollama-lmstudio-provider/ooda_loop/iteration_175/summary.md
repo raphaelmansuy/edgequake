@@ -3,11 +3,13 @@
 ## Observe
 
 ### Focus
+
 Verify that model card information is displayed in the UI.
 
 ### Investigation
 
 **Model Card Data** (from `models.toml`):
+
 ```toml
 [[providers.models]]
 id = "gpt-4o"
@@ -28,6 +30,7 @@ completion_per_1m = 10.00
 ### UI Display
 
 Model selector shows:
+
 - Model name
 - Description
 - Context length
@@ -49,12 +52,12 @@ Model selector shows:
 
 ### Capability Badges
 
-| Badge | Meaning |
-|-------|---------|
-| 👁️ | Vision support |
-| 🔧 | Function calling |
-| 📊 | JSON mode |
-| 💬 | System message |
+| Badge | Meaning          |
+| ----- | ---------------- |
+| 👁️    | Vision support   |
+| 🔧    | Function calling |
+| 📊    | JSON mode        |
+| 💬    | System message   |
 
 ## Decide
 
@@ -73,4 +76,5 @@ Model card information is displayed comprehensively.
 - Rich UI presentation
 
 ---
-*Commit: docs(OODA 175): Verify model card display*
+
+_Commit: docs(OODA 175): Verify model card display_

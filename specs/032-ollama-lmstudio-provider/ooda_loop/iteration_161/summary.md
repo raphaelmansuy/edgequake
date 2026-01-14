@@ -3,15 +3,18 @@
 ## Observe
 
 ### Focus
+
 Verify that error recovery and retry logic is implemented.
 
 ### Investigation
 
 **Error Handling in Provider Factory**:
+
 - Provider creation may fail
 - Fallback mechanisms exist
 
 **Retry Logic in LLM Crate**:
+
 - Transient errors should be retried
 - Rate limits require backoff
 
@@ -19,13 +22,13 @@ Verify that error recovery and retry logic is implemented.
 
 ### Error Categories
 
-| Error Type | Recovery Action |
-|------------|----------------|
-| Connection failed | Retry with backoff |
-| Rate limited | Exponential backoff |
-| Invalid API key | Fail immediately |
-| Model not found | Fail immediately |
-| Timeout | Retry once |
+| Error Type        | Recovery Action     |
+| ----------------- | ------------------- |
+| Connection failed | Retry with backoff  |
+| Rate limited      | Exponential backoff |
+| Invalid API key   | Fail immediately    |
+| Model not found   | Fail immediately    |
+| Timeout           | Retry once          |
 
 ### Retry Strategy
 
@@ -59,4 +62,5 @@ Error recovery is implemented in the LLM provider layer.
 - Meaningful error messages returned to UI
 
 ---
-*Commit: docs(OODA 161): Verify error recovery and retry logic*
+
+_Commit: docs(OODA 161): Verify error recovery and retry logic_

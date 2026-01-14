@@ -3,19 +3,20 @@
 ## Observe
 
 ### Focus
+
 Verify that embedding dimension is validated and stored correctly.
 
 ### Investigation
 
 **Embedding Model Dimensions** (from `models.toml`):
 
-| Model | Dimension |
-|-------|-----------|
-| text-embedding-3-small | 1536 |
-| text-embedding-3-large | 3072 |
-| embeddinggemma | 768 |
-| nomic-embed-text | 768 |
-| mxbai-embed-large | 1024 |
+| Model                  | Dimension |
+| ---------------------- | --------- |
+| text-embedding-3-small | 1536      |
+| text-embedding-3-large | 3072      |
+| embeddinggemma         | 768       |
+| nomic-embed-text       | 768       |
+| mxbai-embed-large      | 1024      |
 
 ### Backend Validation
 
@@ -26,6 +27,7 @@ Verify that embedding dimension is validated and stored correctly.
 ### Dimension Compatibility
 
 When changing embedding models, dimension compatibility is checked:
+
 1. New model dimension retrieved from config
 2. Compared with existing workspace dimension
 3. Warning shown if incompatible
@@ -52,12 +54,13 @@ Embedding dimensions are properly validated and stored.
 
 ### Dimension Distribution
 
-| Dimension | Models |
-|-----------|--------|
-| 768 | embeddinggemma, nomic-embed-text |
-| 1024 | mxbai-embed-large |
-| 1536 | text-embedding-3-small, ada-002 |
-| 3072 | text-embedding-3-large |
+| Dimension | Models                           |
+| --------- | -------------------------------- |
+| 768       | embeddinggemma, nomic-embed-text |
+| 1024      | mxbai-embed-large                |
+| 1536      | text-embedding-3-small, ada-002  |
+| 3072      | text-embedding-3-large           |
 
 ---
-*Commit: docs(OODA 149): Verify embedding dimension validation*
+
+_Commit: docs(OODA 149): Verify embedding dimension validation_

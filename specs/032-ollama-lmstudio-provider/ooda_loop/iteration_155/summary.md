@@ -3,6 +3,7 @@
 ## Observe
 
 ### Focus
+
 Verify that "Server Default" option works in model selection.
 
 ### Investigation
@@ -62,11 +63,12 @@ Server default selection is properly implemented.
 
 ### Default Resolution
 
-| Priority | Source |
-|----------|--------|
-| 1 | Workspace configuration |
-| 2 | Tenant default |
-| 3 | models.toml [defaults] |
+| Priority | Source                  |
+| -------- | ----------------------- |
+| 1        | Workspace configuration |
+| 2        | Tenant default          |
+| 3        | models.toml [defaults]  |
 
 ---
-*Commit: docs(OODA 155): Verify server default selection*
+
+_Commit: docs(OODA 155): Verify server default selection_

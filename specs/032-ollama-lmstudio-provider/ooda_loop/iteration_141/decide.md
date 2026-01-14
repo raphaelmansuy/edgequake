@@ -13,15 +13,15 @@
 
 ## Acceptance Criteria - Item 5
 
-| Criterion | Status |
-|-----------|--------|
+| Criterion                              | Status                   |
+| -------------------------------------- | ------------------------ |
 | Rebuild triggers document reprocessing | ✅ Automatic after clear |
-| Progress displayed during rebuild | ✅ PipelineStatusDialog |
-| Same display as first-time processing | ✅ Same component used |
-| Real-time updates | ✅ 2-second polling |
-| Document progress shown | ✅ Count and percentage |
-| Messages with timestamps | ✅ MessageItem component |
-| Cancel option available | ✅ With confirmation |
+| Progress displayed during rebuild      | ✅ PipelineStatusDialog  |
+| Same display as first-time processing  | ✅ Same component used   |
+| Real-time updates                      | ✅ 2-second polling      |
+| Document progress shown                | ✅ Count and percentage  |
+| Messages with timestamps               | ✅ MessageItem component |
+| Cancel option available                | ✅ With confirmation     |
 
 ## Action Plan
 

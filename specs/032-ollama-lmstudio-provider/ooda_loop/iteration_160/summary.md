@@ -3,11 +3,13 @@
 ## Observe
 
 ### Focus
+
 Verify that vision/multimodal models are properly flagged.
 
 ### Investigation
 
 **Vision Capability** (from `models.toml`):
+
 ```toml
 [providers.models.capabilities]
 supports_vision = true
@@ -15,13 +17,13 @@ supports_vision = true
 
 ### Vision-Capable Models
 
-| Provider | Model | Vision |
-|----------|-------|--------|
-| OpenAI | gpt-4o | ✅ |
-| OpenAI | gpt-4o-mini | ✅ |
-| OpenAI | gpt-4.1 | ✅ |
-| OpenAI | gpt-4-turbo | ✅ |
-| Ollama | llava | ✅ |
+| Provider | Model       | Vision |
+| -------- | ----------- | ------ |
+| OpenAI   | gpt-4o      | ✅     |
+| OpenAI   | gpt-4o-mini | ✅     |
+| OpenAI   | gpt-4.1     | ✅     |
+| OpenAI   | gpt-4-turbo | ✅     |
+| Ollama   | llava       | ✅     |
 
 ## Orient
 
@@ -34,6 +36,7 @@ supports_vision = true
 ### Important Distinction
 
 From OODA 134:
+
 > "multimodal" type = vision-capable LLM
 > NOT to be confused with embedding capability
 
@@ -53,4 +56,5 @@ Vision/multimodal support is properly configured.
 - Image processing available for these models
 
 ---
-*Commit: docs(OODA 160): Verify vision/multimodal support*
+
+_Commit: docs(OODA 160): Verify vision/multimodal support_

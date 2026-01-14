@@ -7,6 +7,7 @@
 Found in [openapi.rs](edgequake/crates/edgequake-api/src/openapi.rs):
 
 1. **Security Schemes** (lines 195-211):
+
    - `X-Tenant-ID` defined as ApiKey header security scheme
    - `X-Workspace-ID` defined as ApiKey header security scheme
 
@@ -30,7 +31,6 @@ Found in [api-explorer.tsx](edgequake_webui/src/components/shared/api-explorer.t
   - Response time tracking
   - Copy to clipboard
   - Categorized endpoints (Models, Documents, Query, Graph, Tenants, Workspaces)
-  
 - Navigation: `/api-explorer` route in sidebar
 - i18n: Translated in en/fr/zh locales
 

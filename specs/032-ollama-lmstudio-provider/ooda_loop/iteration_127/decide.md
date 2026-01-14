@@ -5,6 +5,7 @@
 **No code changes required - tests already exist.**
 
 The E2E tests for model selector are comprehensive:
+
 - 4200+ lines of Playwright tests
 - Coverage for API, UI visibility, dropdown behavior
 - Model type filtering verified

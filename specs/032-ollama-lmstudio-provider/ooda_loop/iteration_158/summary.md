@@ -3,11 +3,13 @@
 ## Observe
 
 ### Focus
+
 Verify that system messages are supported for context setting.
 
 ### Investigation
 
 **System Message Capability** (from `models.toml`):
+
 ```toml
 [providers.models.capabilities]
 supports_system_message = true
@@ -16,6 +18,7 @@ supports_system_message = true
 ### Usage in EdgeQuake
 
 System messages used for:
+
 - Entity extraction prompts
 - Query context setting
 - RAG instructions
@@ -33,12 +36,12 @@ Request
 
 ### Support by Provider
 
-| Provider | System Message |
-|----------|----------------|
-| OpenAI | ✅ Native |
-| Ollama | ✅ Native |
-| LM Studio | ✅ Native |
-| Anthropic | ✅ Native |
+| Provider  | System Message |
+| --------- | -------------- |
+| OpenAI    | ✅ Native      |
+| Ollama    | ✅ Native      |
+| LM Studio | ✅ Native      |
+| Anthropic | ✅ Native      |
 
 ## Decide
 
@@ -56,4 +59,5 @@ System messages are supported by all LLM providers.
 - Consistent behavior across providers
 
 ---
-*Commit: docs(OODA 158): Verify system message support*
+
+_Commit: docs(OODA 158): Verify system message support_

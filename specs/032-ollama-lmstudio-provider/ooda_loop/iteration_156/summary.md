@@ -3,14 +3,17 @@
 ## Observe
 
 ### Focus
+
 Verify that streaming responses work correctly for all providers.
 
 ### Investigation
 
 **Streaming Support** (from `models.toml`):
+
 - All LLM models have `supports_streaming = true`
 
 **Backend Implementation**:
+
 - `traits.rs` defines `stream()` method
 - `stream_with_fallback()` provides automatic fallback
 
@@ -33,12 +36,12 @@ Check supports_streaming
 
 ### Provider Streaming Support
 
-| Provider | Streaming | Fallback |
-|----------|-----------|----------|
-| OpenAI | ✅ Native | N/A |
-| Ollama | ✅ Native | N/A |
-| LM Studio | ✅ Native | ✅ Available |
-| Mock | ✅ Simulated | N/A |
+| Provider  | Streaming    | Fallback     |
+| --------- | ------------ | ------------ |
+| OpenAI    | ✅ Native    | N/A          |
+| Ollama    | ✅ Native    | N/A          |
+| LM Studio | ✅ Native    | ✅ Available |
+| Mock      | ✅ Simulated | N/A          |
 
 ## Decide
 
@@ -56,4 +59,5 @@ Streaming is supported by all providers with automatic fallback.
 - Token-by-token delivery works
 
 ---
-*Commit: docs(OODA 156): Verify streaming response support*
+
+_Commit: docs(OODA 156): Verify streaming response support_

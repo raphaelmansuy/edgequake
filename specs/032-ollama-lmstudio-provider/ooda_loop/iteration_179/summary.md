@@ -3,11 +3,13 @@
 ## Observe
 
 ### Focus
+
 Verify that Server-Sent Events (SSE) format is correct for streaming.
 
 ### Investigation
 
 **SSE Format**:
+
 ```
 data: {"choices":[{"delta":{"content":"Hello"}}]}
 
@@ -17,6 +19,7 @@ data: [DONE]
 ```
 
 **Frontend Handling**:
+
 - EventSource or fetch with ReadableStream
 - Parse each `data:` line
 - Accumulate content deltas
@@ -44,11 +47,11 @@ On [DONE]: Complete
 
 ### Event Types
 
-| Event | Content |
-|-------|---------|
-| Content | `{"choices":[{"delta":{"content":"text"}}]}` |
+| Event         | Content                                         |
+| ------------- | ----------------------------------------------- |
+| Content       | `{"choices":[{"delta":{"content":"text"}}]}`    |
 | Function call | `{"choices":[{"delta":{"function_call":...}}]}` |
-| Done | `[DONE]` |
+| Done          | `[DONE]`                                        |
 
 ## Decide
 
@@ -66,4 +69,5 @@ SSE event format follows OpenAI specification.
 - Frontend parsing correct
 
 ---
-*Commit: docs(OODA 179): Verify SSE event format*
+
+_Commit: docs(OODA 179): Verify SSE event format_

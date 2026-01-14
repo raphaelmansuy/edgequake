@@ -3,16 +3,19 @@
 ## Observe
 
 ### Focus
+
 Verify that provider caching and response caching are handled.
 
 ### Investigation
 
 **Provider Caching**:
+
 - Provider instances are reusable
 - No need to recreate for each request
 - Connection pooling for HTTP
 
 **Response Caching**:
+
 - Knowledge graph stores extracted entities
 - Embeddings are cached in database
 - Query responses not cached (real-time)
@@ -21,12 +24,12 @@ Verify that provider caching and response caching are handled.
 
 ### Caching Layers
 
-| Layer | Cache Type | Purpose |
-|-------|------------|---------|
-| Provider | Instance | Reuse HTTP client |
-| Embeddings | Database | Avoid re-computation |
-| Entities | Graph | Persistent storage |
-| Query | None | Fresh responses |
+| Layer      | Cache Type | Purpose              |
+| ---------- | ---------- | -------------------- |
+| Provider   | Instance   | Reuse HTTP client    |
+| Embeddings | Database   | Avoid re-computation |
+| Entities   | Graph      | Persistent storage   |
+| Query      | None       | Fresh responses      |
 
 ### Cache Benefits
 
@@ -50,4 +53,5 @@ Caching is implemented at appropriate layers.
 - Query responses are real-time
 
 ---
-*Commit: docs(OODA 169): Verify provider caching behavior*
+
+_Commit: docs(OODA 169): Verify provider caching behavior_

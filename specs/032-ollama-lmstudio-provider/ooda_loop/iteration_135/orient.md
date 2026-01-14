@@ -4,7 +4,7 @@
 
 ### Workspace Settings Page
 
-Found in [workspace/page.tsx](edgequake_webui/src/app/(dashboard)/workspace/page.tsx) (733 lines):
+Found in [workspace/page.tsx](<edgequake_webui/src/app/(dashboard)/workspace/page.tsx>) (733 lines):
 
 #### LLM Configuration Card (lines 480-510)
 
@@ -19,6 +19,7 @@ Found in [workspace/page.tsx](edgequake_webui/src/app/(dashboard)/workspace/page
 ```
 
 **Key Features:**
+
 - ✅ Clear title "LLM Configuration"
 - ✅ Description explicitly mentions "entity extraction and summarization during document ingestion"
 - ✅ Uses `LLMModelSelector` component for editing
@@ -37,6 +38,7 @@ Found in [workspace/page.tsx](edgequake_webui/src/app/(dashboard)/workspace/page
 ```
 
 **Key Features:**
+
 - ✅ Clear title "Embedding Configuration"
 - ✅ Description mentions "vector embeddings of document chunks"
 - ✅ Uses `EmbeddingModelSelector` component
@@ -44,16 +46,17 @@ Found in [workspace/page.tsx](edgequake_webui/src/app/(dashboard)/workspace/page
 
 ### Separation of Concerns
 
-| Purpose | Configuration | Description |
-|---------|--------------|-------------|
-| Entity extraction | LLM Configuration | "entity extraction and summarization during document ingestion" |
-| Vector embeddings | Embedding Configuration | "vector embeddings of document chunks" |
+| Purpose           | Configuration           | Description                                                     |
+| ----------------- | ----------------------- | --------------------------------------------------------------- |
+| Entity extraction | LLM Configuration       | "entity extraction and summarization during document ingestion" |
+| Vector embeddings | Embedding Configuration | "vector embeddings of document chunks"                          |
 
 ## Conclusion
 
 **Item 19 (Workspace Extractor Model Configuration): VERIFIED COMPLETE**
 
 The workspace page clearly:
+
 - Shows LLM config for extraction/ingestion (not query)
 - Shows Embedding config for vector storage
 - Provides warnings when models change

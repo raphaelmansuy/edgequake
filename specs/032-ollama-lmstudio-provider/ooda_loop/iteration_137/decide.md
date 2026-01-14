@@ -8,6 +8,7 @@
 
 1. The deeplink route structure at `/w/[slug]/` exists with complete implementation
 2. Workspace configuration page is 717 lines with full functionality:
+
    - LLM model selection
    - Embedding model selection
    - Rebuild embeddings button
@@ -23,13 +24,13 @@
 
 ## Acceptance Criteria - Item 21
 
-| Criterion | Status |
-|-----------|--------|
-| Workspace config accessible via deeplink | ✅ `/w/[slug]/workspace` |
-| LLM model selection available | ✅ LLMModelSelector |
-| Embedding model selection available | ✅ EmbeddingModelSelector |
-| Rebuild actions available | ✅ RebuildEmbeddingsButton, RebuildKnowledgeGraphButton |
-| Provider health visible | ✅ fetchProvidersHealth integration |
+| Criterion                                | Status                                                  |
+| ---------------------------------------- | ------------------------------------------------------- |
+| Workspace config accessible via deeplink | ✅ `/w/[slug]/workspace`                                |
+| LLM model selection available            | ✅ LLMModelSelector                                     |
+| Embedding model selection available      | ✅ EmbeddingModelSelector                               |
+| Rebuild actions available                | ✅ RebuildEmbeddingsButton, RebuildKnowledgeGraphButton |
+| Provider health visible                  | ✅ fetchProvidersHealth integration                     |
 
 ## Action Plan
 

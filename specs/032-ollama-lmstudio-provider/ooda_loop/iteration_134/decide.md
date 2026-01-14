@@ -5,6 +5,7 @@
 **No code changes required - filtering correctly implemented.**
 
 The implementation correctly:
+
 - Includes multimodal (vision LLMs) in LLM selector
 - Excludes multimodal from embedding selector
 - Has WHY comments explaining the design

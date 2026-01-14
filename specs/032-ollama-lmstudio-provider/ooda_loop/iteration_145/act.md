@@ -5,6 +5,7 @@
 ### Verified Components
 
 **File**: `edgequake/crates/edgequake-api/src/handlers/models.rs`
+
 - Lines: 458
 - Health endpoint: lines 311-333
 - Health check logic: lines 342-413
@@ -50,14 +51,14 @@ async fn check_provider_health(
 
 ## Key Features
 
-| Feature | Implementation |
-|---------|----------------|
-| Endpoint | `GET /api/models/health` |
-| Mock check | Always true |
+| Feature     | Implementation           |
+| ----------- | ------------------------ |
+| Endpoint    | `GET /api/models/health` |
+| Mock check  | Always true              |
 | Local check | TCP connect with timeout |
-| Cloud check | Assume available |
-| Latency | Measured in ms |
-| Errors | Included in response |
+| Cloud check | Assume available         |
+| Latency     | Measured in ms           |
+| Errors      | Included in response     |
 
 ## Next Iteration
 

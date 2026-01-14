@@ -5,6 +5,7 @@
 **No code changes required - configuration UI is complete.**
 
 The workspace settings page:
+
 - Clearly labels LLM config as "entity extraction and summarization"
 - Separates LLM (extraction) from Embedding (vectors)
 - Provides change warnings

@@ -3,11 +3,13 @@
 ## Observe
 
 ### Focus
+
 Verify that provider and model configuration persists across sessions.
 
 ### Investigation
 
 **Persistence Layers**:
+
 1. **Tenant config**: Stored in database
 2. **Workspace config**: Stored in database
 3. **User preferences**: Stored in database
@@ -16,6 +18,7 @@ Verify that provider and model configuration persists across sessions.
 ### Configuration Storage
 
 From database schema:
+
 - `tenants` table: `llm_model`, `embedding_model`
 - `workspaces` table: `llm_model`, `embedding_model`
 - `chat_messages` table: `llm_provider`, `llm_model`
@@ -63,4 +66,5 @@ Configuration persists correctly across sessions.
 - Priority chain implemented
 
 ---
-*Commit: docs(OODA 177): Verify configuration persistence*
+
+_Commit: docs(OODA 177): Verify configuration persistence_

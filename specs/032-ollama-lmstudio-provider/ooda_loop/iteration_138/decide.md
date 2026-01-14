@@ -15,29 +15,29 @@
 
 ### Item 1: Tenant Creation with Model Selection
 
-| Criterion | Status |
-|-----------|--------|
-| Dialog has LLM provider/model selector | ✅ `LLMModelSelector` |
-| Dialog has embedding provider/model selector | ✅ `EmbeddingModelSelector` |
-| Values passed to API | ✅ `default_llm_*`, `default_embedding_*` |
-| Hint about inheritance | ✅ "New workspaces will inherit this default" |
+| Criterion                                    | Status                                        |
+| -------------------------------------------- | --------------------------------------------- |
+| Dialog has LLM provider/model selector       | ✅ `LLMModelSelector`                         |
+| Dialog has embedding provider/model selector | ✅ `EmbeddingModelSelector`                   |
+| Values passed to API                         | ✅ `default_llm_*`, `default_embedding_*`     |
+| Hint about inheritance                       | ✅ "New workspaces will inherit this default" |
 
 ### Item 2: Workspace Creation with Model Selection
 
-| Criterion | Status |
-|-----------|--------|
-| Dialog has LLM provider/model selector | ✅ `LLMModelSelector` |
-| Dialog has embedding provider/model selector | ✅ `EmbeddingModelSelector` |
-| Values passed to API | ✅ `llm_*`, `embedding_*` |
-| Optional selection | ✅ Falls back to tenant defaults |
+| Criterion                                    | Status                           |
+| -------------------------------------------- | -------------------------------- |
+| Dialog has LLM provider/model selector       | ✅ `LLMModelSelector`            |
+| Dialog has embedding provider/model selector | ✅ `EmbeddingModelSelector`      |
+| Values passed to API                         | ✅ `llm_*`, `embedding_*`        |
+| Optional selection                           | ✅ Falls back to tenant defaults |
 
 ### Item 12: Default Provider/Model on Creation
 
-| Criterion | Status |
-|-----------|--------|
-| Tenant creation supports defaults | ✅ |
-| Workspace creation supports configuration | ✅ |
-| Inheritance from tenant to workspace | ✅ Documented in hints |
+| Criterion                                 | Status                 |
+| ----------------------------------------- | ---------------------- |
+| Tenant creation supports defaults         | ✅                     |
+| Workspace creation supports configuration | ✅                     |
+| Inheritance from tenant to workspace      | ✅ Documented in hints |
 
 ## Action Plan
 

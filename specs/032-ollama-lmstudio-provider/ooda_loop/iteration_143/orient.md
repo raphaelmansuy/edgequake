@@ -34,20 +34,21 @@ models.toml
 
 ### Model Type Distribution
 
-| Provider | LLM Models | Embedding Models |
-|----------|------------|------------------|
-| OpenAI | 7 | 3 |
-| Ollama | 12 | 3 |
-| LM Studio | 8 | 2 |
-| Groq | 3 | 0 |
-| Together AI | 3 | 0 |
-| Anthropic | 3 | 0 |
+| Provider    | LLM Models | Embedding Models |
+| ----------- | ---------- | ---------------- |
+| OpenAI      | 7          | 3                |
+| Ollama      | 12         | 3                |
+| LM Studio   | 8          | 2                |
+| Groq        | 3          | 0                |
+| Together AI | 3          | 0                |
+| Anthropic   | 3          | 0                |
 
 ### SPEC Requirements from Item 7
 
 > For example for ollama I can choose gemma3:latest or gpt-oss:20b, mistral-nemo:latest for llm and embeddinggemma:latest or nomic-embed-text:latest for embedding.
 
 **Verification**:
+
 - ✅ Ollama has gemma3:12b, mistral-nemo:latest, llama3.x models
 - ✅ Ollama has embeddinggemma, nomic-embed-text embeddings
 - ✅ OpenAI has gpt-4o, gpt-4o-mini, gpt-4.1 series

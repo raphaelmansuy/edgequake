@@ -13,15 +13,15 @@
 
 ## Acceptance Criteria
 
-| Criterion | Status |
-|-----------|--------|
-| Health check endpoint | ✅ `/api/models/health` |
-| Mock provider health | ✅ Always available |
-| Ollama provider health | ✅ TCP connect |
-| LM Studio provider health | ✅ TCP connect |
-| Cloud provider health | ✅ Assumed available |
-| Latency measurement | ✅ In response |
-| Error reporting | ✅ In response |
+| Criterion                 | Status                  |
+| ------------------------- | ----------------------- |
+| Health check endpoint     | ✅ `/api/models/health` |
+| Mock provider health      | ✅ Always available     |
+| Ollama provider health    | ✅ TCP connect          |
+| LM Studio provider health | ✅ TCP connect          |
+| Cloud provider health     | ✅ Assumed available    |
+| Latency measurement       | ✅ In response          |
+| Error reporting           | ✅ In response          |
 
 ## Action Plan
 

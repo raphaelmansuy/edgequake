@@ -7,6 +7,7 @@
 Found in [model_config.rs](edgequake/crates/edgequake-llm/src/model_config.rs):
 
 #### LLM Models (lines 761-774)
+
 ```rust
 pub fn all_llm_models(&self) -> Vec<(&ProviderConfig, &ModelCard)> {
     self.providers
@@ -21,9 +22,11 @@ pub fn all_llm_models(&self) -> Vec<(&ProviderConfig, &ModelCard)> {
         .collect()
 }
 ```
+
 - ✅ Returns `Llm` + `Multimodal` (vision LLMs)
 
 #### Embedding Models (lines 782-800)
+
 ```rust
 /// # WHY: Exclude Multimodal from embedding list
 ///
@@ -43,9 +46,11 @@ pub fn all_embedding_models(&self) -> Vec<(&ProviderConfig, &ModelCard)> {
         .collect()
 }
 ```
+
 - ✅ Returns only `Embedding` (no multimodal leak)
 
 ### E2E Test Coverage (OODA 127)
+
 - Test "embedding-only models API returns filtered results" verifies no multimodal
 
 ## Conclusion

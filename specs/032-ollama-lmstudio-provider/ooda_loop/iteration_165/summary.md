@@ -3,16 +3,19 @@
 ## Observe
 
 ### Focus
+
 Verify that model loading state is handled for local providers.
 
 ### Investigation
 
 **Model Loading in Local Providers**:
+
 - Ollama: First request may trigger model load
 - LM Studio: Requires manual model load in UI
 - Cold start can add 10-60 seconds
 
 **Health Check** (from OODA 145):
+
 - TCP connection test only
 - Doesn't verify model is loaded
 
@@ -38,11 +41,11 @@ Request arrives
 
 ### User Experience
 
-| State | Response Time |
-|-------|---------------|
-| Model loaded | < 5s |
-| Model loading | 10-60s |
-| Model not found | Error |
+| State           | Response Time |
+| --------------- | ------------- |
+| Model loaded    | < 5s          |
+| Model loading   | 10-60s        |
+| Model not found | Error         |
 
 ## Decide
 
@@ -60,4 +63,5 @@ Model loading is handled by provider with appropriate timeout.
 - Error message if model unavailable
 
 ---
-*Commit: docs(OODA 165): Verify model loading state handling*
+
+_Commit: docs(OODA 165): Verify model loading state handling_

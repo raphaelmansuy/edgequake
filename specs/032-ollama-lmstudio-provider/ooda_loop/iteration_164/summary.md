@@ -3,16 +3,19 @@
 ## Observe
 
 ### Focus
+
 Verify that memory considerations are documented for local providers.
 
 ### Investigation
 
 **Local Provider Memory**:
+
 - Ollama and LM Studio load models into memory
 - Large models require significant VRAM/RAM
 - Model switching may require unloading
 
 **Model Size Examples** (from model cards):
+
 - qwen3:8b - 8B parameters (~4-8GB VRAM)
 - gemma3:12b - 12B parameters (~6-12GB VRAM)
 - llama3.2:70b - 70B parameters (~35-40GB VRAM)
@@ -22,11 +25,11 @@ Verify that memory considerations are documented for local providers.
 ### Memory Requirements
 
 | Model Size | VRAM (quantized) | VRAM (full) |
-|------------|------------------|-------------|
-| 3B | ~2GB | ~6GB |
-| 7-8B | ~4GB | ~16GB |
-| 12B | ~6GB | ~24GB |
-| 70B | ~35GB | ~140GB |
+| ---------- | ---------------- | ----------- |
+| 3B         | ~2GB             | ~6GB        |
+| 7-8B       | ~4GB             | ~16GB       |
+| 12B        | ~6GB             | ~24GB       |
+| 70B        | ~35GB            | ~140GB      |
 
 ### Memory Management Strategy
 
@@ -50,4 +53,5 @@ Memory requirements are implicit in model card documentation.
 - Adequate for typical deployments
 
 ---
-*Commit: docs(OODA 164): Verify memory management documentation*
+
+_Commit: docs(OODA 164): Verify memory management documentation_

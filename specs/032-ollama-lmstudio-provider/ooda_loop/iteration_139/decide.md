@@ -13,13 +13,13 @@
 
 ## Acceptance Criteria - Item 3
 
-| Criterion | Status |
-|-----------|--------|
-| Query page has provider/model selector | ✅ `ProviderModelSelector` |
-| Selection is used for query | ✅ Backend creates provider from selection |
-| Lineage stored in message | ✅ `llm_provider`, `llm_model` fields |
-| Lineage displayed in UI | ✅ Badge with `provider/model` format |
-| Displayed near token usage | ✅ Same metadata section |
+| Criterion                              | Status                                     |
+| -------------------------------------- | ------------------------------------------ |
+| Query page has provider/model selector | ✅ `ProviderModelSelector`                 |
+| Selection is used for query            | ✅ Backend creates provider from selection |
+| Lineage stored in message              | ✅ `llm_provider`, `llm_model` fields      |
+| Lineage displayed in UI                | ✅ Badge with `provider/model` format      |
+| Displayed near token usage             | ✅ Same metadata section                   |
 
 ## Action Plan
 

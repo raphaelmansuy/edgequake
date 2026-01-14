@@ -5,6 +5,7 @@
 **No code changes required.**
 
 The scroll areas audit confirms all screens follow best practices:
+
 - Dashboard layout properly constrains viewport
 - All pages use ScrollArea or overflow utilities
 - Flex containers use min-h-0 to prevent overflow

@@ -3,15 +3,18 @@
 ## Observe
 
 ### Focus
+
 Verify that API keys are validated before use.
 
 ### Investigation
 
 **API Key Sources** (from OODA 153):
+
 - Environment variables: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`
 - Config in `models.toml` (not recommended for secrets)
 
 **Validation Flow**:
+
 - Provider creation checks for API key
 - Missing key prevents provider instantiation
 
@@ -19,12 +22,12 @@ Verify that API keys are validated before use.
 
 ### API Key Validation
 
-| Provider | Key Required | Env Variable |
-|----------|--------------|--------------|
-| OpenAI | ✅ | `OPENAI_API_KEY` |
-| Anthropic | ✅ | `ANTHROPIC_API_KEY` |
-| Ollama | ❌ | N/A |
-| LM Studio | ❌ | N/A |
+| Provider  | Key Required | Env Variable        |
+| --------- | ------------ | ------------------- |
+| OpenAI    | ✅           | `OPENAI_API_KEY`    |
+| Anthropic | ✅           | `ANTHROPIC_API_KEY` |
+| Ollama    | ❌           | N/A                 |
+| LM Studio | ❌           | N/A                 |
 
 ### Error Handling
 
@@ -62,4 +65,5 @@ API key validation is implemented with clear error messages.
 - Keys read from environment
 
 ---
-*Commit: docs(OODA 166): Verify API key validation*
+
+_Commit: docs(OODA 166): Verify API key validation_

@@ -6,11 +6,11 @@
 
 Found in [lmstudio.rs](edgequake/crates/edgequake-llm/src/providers/lmstudio.rs):
 
-| Feature | Lines | Status |
-|---------|-------|--------|
-| `stream()` method | 480-597 | ✅ Full SSE implementation |
-| `supports_streaming()` | 600-602 | ✅ Returns `true` |
-| SSE parsing | 558-588 | ✅ Handles `data:` prefix, `[DONE]` marker |
+| Feature                | Lines   | Status                                     |
+| ---------------------- | ------- | ------------------------------------------ |
+| `stream()` method      | 480-597 | ✅ Full SSE implementation                 |
+| `supports_streaming()` | 600-602 | ✅ Returns `true`                          |
+| SSE parsing            | 558-588 | ✅ Handles `data:` prefix, `[DONE]` marker |
 
 ### Streaming Fallback Mechanism
 

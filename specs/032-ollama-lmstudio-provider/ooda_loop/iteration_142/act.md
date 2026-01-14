@@ -4,14 +4,14 @@
 
 ### Verified Deeplink Routes
 
-| Route | File | Annotation |
-|-------|------|------------|
-| `/w/[slug]/` | page.tsx | SPEC-032: Focus 6 |
-| `/w/[slug]/layout.tsx` | layout.tsx | SPEC-032: Focus 6 |
-| `/w/[slug]/workspace` | workspace/page.tsx | SPEC-032: Workspace via deeplink |
-| `/w/[slug]/query` | query/page.tsx | SPEC-032: Focus 6 |
-| `/w/[slug]/documents` | documents/page.tsx | SPEC-032: Focus 6 |
-| `/w/[slug]/graph` | graph/page.tsx | SPEC-032: Focus 6 |
+| Route                  | File               | Annotation                       |
+| ---------------------- | ------------------ | -------------------------------- |
+| `/w/[slug]/`           | page.tsx           | SPEC-032: Focus 6                |
+| `/w/[slug]/layout.tsx` | layout.tsx         | SPEC-032: Focus 6                |
+| `/w/[slug]/workspace`  | workspace/page.tsx | SPEC-032: Workspace via deeplink |
+| `/w/[slug]/query`      | query/page.tsx     | SPEC-032: Focus 6                |
+| `/w/[slug]/documents`  | documents/page.tsx | SPEC-032: Focus 6                |
+| `/w/[slug]/graph`      | graph/page.tsx     | SPEC-032: Focus 6                |
 
 ### Sample Deeplinks
 
@@ -35,13 +35,13 @@ https://app.edgequake.io/w/legal-docs/documents
 
 ## Deeplink Feature Summary
 
-| Feature | Implementation |
-|---------|----------------|
-| URL Pattern | `/w/{workspace-slug}/{page}` |
-| Context Setup | Layout extracts slug |
+| Feature         | Implementation                     |
+| --------------- | ---------------------------------- |
+| URL Pattern     | `/w/{workspace-slug}/{page}`       |
+| Context Setup   | Layout extracts slug               |
 | Available Pages | workspace, query, documents, graph |
-| Sharing | Standard URL sharing |
-| Bookmarking | Works with browser bookmarks |
+| Sharing         | Standard URL sharing               |
+| Bookmarking     | Works with browser bookmarks       |
 
 ## Next Iteration
 

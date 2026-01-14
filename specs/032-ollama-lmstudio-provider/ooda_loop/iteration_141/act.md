@@ -30,7 +30,7 @@ setIsPipelineOpen(true);
 ```tsx
 // Use enhanced pipeline status with history messages
 const { data, isLoading } = useQuery({
-  queryKey: ['enhanced-pipeline-status'],
+  queryKey: ["enhanced-pipeline-status"],
   queryFn: getEnhancedPipelineStatus,
   refetchInterval: open ? 2000 : false, // Poll every 2s when dialog is open
   enabled: open,

@@ -5,6 +5,7 @@
 ## Mission Checkpoint
 
 Focus on SPEC-032 Item 27:
+
 - Scroll Areas Audit (All Screens)
 - Ensure all screens have properly defined:
   - Fixed zones (headers, toolbars, navigation)
@@ -16,13 +17,13 @@ Focus on SPEC-032 Item 27:
 
 ### Key Files to Check
 
-| Page/Component | File | Purpose |
-|---------------|------|---------|
-| Root Layout | `app/layout.tsx` | Main app structure |
-| Dashboard | `app/page.tsx` | Home page |
-| Query Page | `app/query/page.tsx` | Chat/query interface |
-| Workspace Page | `app/workspace/page.tsx` | Workspace settings |
-| Documents Page | `app/documents/page.tsx` | Document management |
+| Page/Component | File                     | Purpose              |
+| -------------- | ------------------------ | -------------------- |
+| Root Layout    | `app/layout.tsx`         | Main app structure   |
+| Dashboard      | `app/page.tsx`           | Home page            |
+| Query Page     | `app/query/page.tsx`     | Chat/query interface |
+| Workspace Page | `app/workspace/page.tsx` | Workspace settings   |
+| Documents Page | `app/documents/page.tsx` | Document management  |
 
 ### Common Scroll Issues
 
@@ -37,12 +38,10 @@ Focus on SPEC-032 Item 27:
 <div className="flex flex-col h-screen">
   {/* Fixed header */}
   <header className="shrink-0">...</header>
-  
+
   {/* Scrollable content - note min-h-0 */}
-  <main className="flex-1 min-h-0 overflow-auto">
-    ...
-  </main>
-  
+  <main className="flex-1 min-h-0 overflow-auto">...</main>
+
   {/* Fixed footer */}
   <footer className="shrink-0">...</footer>
 </div>

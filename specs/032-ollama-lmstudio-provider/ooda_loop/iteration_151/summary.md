@@ -3,6 +3,7 @@
 ## Observe
 
 ### Focus
+
 Verify that model tags are used for categorization and filtering.
 
 ### Investigation
@@ -19,17 +20,17 @@ tags = ["legacy"]
 
 ### Tag Categories
 
-| Tag | Meaning |
-|-----|---------|
-| recommended | Best choice for general use |
+| Tag            | Meaning                          |
+| -------------- | -------------------------------- |
+| recommended    | Best choice for general use      |
 | cost-effective | Good balance of cost/performance |
-| fast | Low latency |
-| free | No API cost |
-| local | Runs on local machine |
-| multimodal | Supports images |
-| vision | Can process images |
-| reasoning | Good for complex reasoning |
-| legacy | Deprecated or old version |
+| fast           | Low latency                      |
+| free           | No API cost                      |
+| local          | Runs on local machine            |
+| multimodal     | Supports images                  |
+| vision         | Can process images               |
+| reasoning      | Good for complex reasoning       |
+| legacy         | Deprecated or old version        |
 
 ## Orient
 
@@ -56,4 +57,5 @@ Model tags are properly defined and can be used for filtering.
 - Free/local models easily identifiable
 
 ---
-*Commit: docs(OODA 151): Verify model tags and categories*
+
+_Commit: docs(OODA 151): Verify model tags and categories_

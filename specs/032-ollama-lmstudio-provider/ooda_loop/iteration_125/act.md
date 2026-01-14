@@ -32,6 +32,7 @@ The backend worker continues processing independently of UI state.
 **Evidence** ([pipeline-status-dialog.tsx#L231-L246](../../../../edgequake_webui/src/components/documents/pipeline-status-dialog.tsx#L231)):
 
 1. Cancel button with confirmation:
+
 ```tsx
 <Button
   variant="destructive"
@@ -40,19 +41,23 @@ The backend worker continues processing independently of UI state.
   className="flex-1"
 >
   ...
-  {t('pipeline.cancel', 'Cancel Pipeline')}
+  {t("pipeline.cancel", "Cancel Pipeline")}
 </Button>
 ```
 
 2. Confirmation dialog ([lines 273-288](../../../../edgequake_webui/src/components/documents/pipeline-status-dialog.tsx#L273)):
+
 ```tsx
 <AlertDialog open={showCancelConfirm}>
-  <AlertDialogTitle>{t('pipeline.cancelConfirmTitle', 'Cancel Pipeline?')}</AlertDialogTitle>
+  <AlertDialogTitle>
+    {t("pipeline.cancelConfirmTitle", "Cancel Pipeline?")}
+  </AlertDialogTitle>
   ...
 </AlertDialog>
 ```
 
 3. Backend API call:
+
 ```tsx
 const cancelMutation = useMutation({
   mutationFn: requestPipelineCancellation,
@@ -70,14 +75,15 @@ There's also a `PipelineStatusIndicator` component for showing processing status
 
 ## SPEC-032 Items Status
 
-| Item | Requirement | Status |
-|------|-------------|--------|
-| 23 | Rebuild dialog close without stopping | ✅ Already implemented |
-| 26 | Stop document extraction (cancel) | ✅ Already implemented |
+| Item | Requirement                           | Status                 |
+| ---- | ------------------------------------- | ---------------------- |
+| 23   | Rebuild dialog close without stopping | ✅ Already implemented |
+| 26   | Stop document extraction (cancel)     | ✅ Already implemented |
 
 ## Summary
 
 The PipelineStatusDialog provides:
+
 1. ✅ Close button that only closes dialog (UI-only action)
 2. ✅ Cancel button with confirmation dialog
 3. ✅ Backend cancellation via `requestPipelineCancellation` API

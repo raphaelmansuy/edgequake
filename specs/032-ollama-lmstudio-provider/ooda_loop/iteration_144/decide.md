@@ -14,16 +14,16 @@
 
 ### Implementation Files Summary
 
-| Category | Key Files |
-|----------|-----------|
+| Category         | Key Files                                                 |
+| ---------------- | --------------------------------------------------------- |
 | Backend Provider | `edgequake-llm/src/providers/{ollama,lmstudio,openai}.rs` |
-| Model Config | `edgequake/models.toml` (1281 lines, 45 models) |
-| Query UI | `query-interface.tsx`, `provider-model-selector.tsx` |
-| Workspace UI | `workspace/page.tsx`, `rebuild-*.tsx` |
-| Tenant/WS Dialog | `tenant-workspace-selector.tsx` (674 lines) |
-| Chat Handler | `handlers/chat.rs` (lineage storage) |
-| E2E Tests | `spec032-provider-integration.spec.ts` (4203 lines) |
-| Deeplinks | `/w/[slug]/*` route structure |
+| Model Config     | `edgequake/models.toml` (1281 lines, 45 models)           |
+| Query UI         | `query-interface.tsx`, `provider-model-selector.tsx`      |
+| Workspace UI     | `workspace/page.tsx`, `rebuild-*.tsx`                     |
+| Tenant/WS Dialog | `tenant-workspace-selector.tsx` (674 lines)               |
+| Chat Handler     | `handlers/chat.rs` (lineage storage)                      |
+| E2E Tests        | `spec032-provider-integration.spec.ts` (4203 lines)       |
+| Deeplinks        | `/w/[slug]/*` route structure                             |
 
 ### Commits in This Session
 

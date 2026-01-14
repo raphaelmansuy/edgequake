@@ -13,13 +13,13 @@
 
 ## Acceptance Criteria - Item 7
 
-| Criterion | Status |
-|-----------|--------|
-| Multiple LLM models per provider | ✅ 7+ OpenAI, 12+ Ollama |
-| Multiple embedding models per provider | ✅ 3 OpenAI, 3 Ollama |
-| Model capabilities documented | ✅ Context, vision, streaming |
-| Cost information available | ✅ Per-token costs |
-| Default selections defined | ✅ In [defaults] section |
+| Criterion                              | Status                        |
+| -------------------------------------- | ----------------------------- |
+| Multiple LLM models per provider       | ✅ 7+ OpenAI, 12+ Ollama      |
+| Multiple embedding models per provider | ✅ 3 OpenAI, 3 Ollama         |
+| Model capabilities documented          | ✅ Context, vision, streaming |
+| Cost information available             | ✅ Per-token costs            |
+| Default selections defined             | ✅ In [defaults] section      |
 
 ## Action Plan
 

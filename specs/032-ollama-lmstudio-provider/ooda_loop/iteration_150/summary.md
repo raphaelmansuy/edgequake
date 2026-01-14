@@ -3,6 +3,7 @@
 ## Observe
 
 ### Focus
+
 Verify that providers are ordered by priority in the UI.
 
 ### Investigation
@@ -74,4 +75,5 @@ enabled = true
 ```
 
 ---
-*Commit: docs(OODA 150): Verify provider priority ordering*
+
+_Commit: docs(OODA 150): Verify provider priority ordering_

@@ -5,6 +5,7 @@
 **No code changes required - UI fully implemented.**
 
 The selector provides:
+
 - Searchable dropdown with 296 lines of implementation
 - Provider grouping with icons
 - Capability badges (vision, streaming)

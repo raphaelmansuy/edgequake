@@ -26,6 +26,7 @@ Frontend                       Backend
 **API**: `fetchProvidersHealth` in `lib/api/models.ts`
 
 The workspace page uses this to show provider status icons:
+
 - ✅ Green: Provider available
 - ❌ Red: Provider unavailable with error message
 - ⏱️ Latency displayed in ms
@@ -33,6 +34,7 @@ The workspace page uses this to show provider status icons:
 ### WHY Comments in Code
 
 From `models.rs`:
+
 ```rust
 /// # WHY: Runtime Health Checks
 ///

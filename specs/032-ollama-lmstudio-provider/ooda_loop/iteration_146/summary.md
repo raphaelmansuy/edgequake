@@ -3,6 +3,7 @@
 ## Observe
 
 ### Focus
+
 Verify that provider capability badges (vision, streaming, function calling) are displayed in the UI.
 
 ### Investigation
@@ -10,11 +11,13 @@ Verify that provider capability badges (vision, streaming, function calling) are
 **File**: `provider-model-selector.tsx`
 
 The selector displays capability badges for each model:
+
 - 👁️ Vision capability (`supports_vision`)
 - 📺 Streaming capability (`supports_streaming`)
 - 🔧 Function calling (`supports_function_calling`)
 
 **Model Card Structure** (from `models.toml`):
+
 ```toml
 [providers.models.capabilities]
 supports_vision = true
@@ -53,14 +56,18 @@ Capability badges are properly implemented and displayed.
 ### Evidence
 
 From `provider-model-selector.tsx`:
+
 ```tsx
-{model.capabilities?.supports_vision && (
-  <Badge variant="outline" className="text-xs">
-    <Eye className="h-3 w-3 mr-1" />
-    Vision
-  </Badge>
-)}
+{
+  model.capabilities?.supports_vision && (
+    <Badge variant="outline" className="text-xs">
+      <Eye className="h-3 w-3 mr-1" />
+      Vision
+    </Badge>
+  );
+}
 ```
 
 ---
-*Commit: docs(OODA 146): Verify provider capability badges*
+
+_Commit: docs(OODA 146): Verify provider capability badges_

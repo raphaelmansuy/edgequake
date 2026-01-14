@@ -15,7 +15,7 @@ export function ProviderModelSelector({
   value,
   onChange,
   className,
-  size = 'default',
+  size = "default",
 }: ProviderModelSelectorProps) {
   // Searchable dropdown with provider grouping
 }
@@ -39,11 +39,13 @@ llm_model: used_model,
 #### Frontend Lineage Display (chat-message.tsx)
 
 ```tsx
-{/* SPEC-032: Display LLM provider/model as lineage badge */}
+{
+  /* SPEC-032: Display LLM provider/model as lineage badge */
+}
 <TooltipContent side="top" className="max-w-xs">
-  {t('query.llmLineage', 'LLM Provider')}: {llmProvider || 'server default'}
-  {t('query.modelUsed', 'Model')}: {`${llmProvider}/${llmModel}`}
-</TooltipContent>
+  {t("query.llmLineage", "LLM Provider")}: {llmProvider || "server default"}
+  {t("query.modelUsed", "Model")}: {`${llmProvider}/${llmModel}`}
+</TooltipContent>;
 ```
 
 ## Outcome

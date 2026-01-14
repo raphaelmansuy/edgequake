@@ -13,14 +13,14 @@
 
 ## Acceptance Criteria - Item 6
 
-| Criterion | Status |
-|-----------|--------|
+| Criterion                      | Status                   |
+| ------------------------------ | ------------------------ |
 | Deeplink to workspace settings | ✅ `/w/[slug]/workspace` |
-| Deeplink to query page | ✅ `/w/[slug]/query` |
-| Deeplink to documents | ✅ `/w/[slug]/documents` |
-| Deeplink to graph | ✅ `/w/[slug]/graph` |
-| Context set from URL | ✅ Layout handles it |
-| Shareable URLs | ✅ Slug-based pattern |
+| Deeplink to query page         | ✅ `/w/[slug]/query`     |
+| Deeplink to documents          | ✅ `/w/[slug]/documents` |
+| Deeplink to graph              | ✅ `/w/[slug]/graph`     |
+| Context set from URL           | ✅ Layout handles it     |
+| Shareable URLs                 | ✅ Slug-based pattern    |
 
 ## Action Plan
 

@@ -5,6 +5,7 @@
 **No code changes required - lineage fully implemented.**
 
 The implementation covers:
+
 - QueryStats includes llm_provider and llm_model
 - API returns lineage in response
 - WebUI displays provider/model with tokens/second
