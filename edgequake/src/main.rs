@@ -72,13 +72,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing::warn!("Failed to initialize defaults: {}", e);
     }
 
-    // Create document task processor
-    let processor = Arc::new(DocumentTaskProcessor::new(
+    // Create document task processor with workspace-specific pipeline support (SPEC-032)
+    // This ensures that rebuild/reprocess operations use the workspace's configured
+    // LLM and embedding providers, not the server's default providers.
+    let processor = Arc::new(DocumentTaskProcessor::with_workspace_support(
         Arc::clone(&state.pipeline),
         Arc::clone(&state.kv_storage),
         Arc::clone(&state.vector_storage),
         Arc::clone(&state.graph_storage),
         state.pipeline_state.clone(),
+        Arc::clone(&state.workspace_service),
+        Arc::clone(&state.models_config),
     ));
 
     // Configure worker pool

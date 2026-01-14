@@ -392,6 +392,9 @@ pub struct RebuildEmbeddingsResponse {
     pub status: String,
     /// Number of documents to be re-embedded.
     pub documents_to_process: usize,
+    /// Total number of chunks across all documents to be re-embedded.
+    /// This provides a more accurate estimate of processing time than document count.
+    pub chunks_to_process: usize,
     /// Number of vectors cleared.
     pub vectors_cleared: usize,
     /// New embedding model (after update).
@@ -525,6 +528,8 @@ pub struct RebuildKnowledgeGraphResponse {
     pub vectors_cleared: usize,
     /// Number of documents to be reprocessed.
     pub documents_to_process: usize,
+    /// Total number of chunks across all documents to be reprocessed.
+    pub chunks_to_process: usize,
     /// New LLM model (after update).
     pub llm_model: String,
     /// New LLM provider (after update).

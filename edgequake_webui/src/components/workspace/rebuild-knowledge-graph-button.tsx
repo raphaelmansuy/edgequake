@@ -149,11 +149,16 @@ export function RebuildKnowledgeGraphButton({
       const clearedInfo = rebuildEmbeddings
         ? `${response.nodes_cleared} nodes, ${response.edges_cleared} edges, ${response.vectors_cleared} vectors cleared`
         : `${response.nodes_cleared} nodes, ${response.edges_cleared} edges cleared`;
+      
+      // Show chunk count for better insight into processing time
+      const chunkInfo = response.chunks_to_process > 0
+        ? ` (${response.chunks_to_process} chunks)`
+        : '';
 
       toast.success(
         t(
           'workspace.rebuild.graphSuccess',
-          `Knowledge graph cleared! ${clearedInfo}. Documents need reprocessing.`
+          `Knowledge graph cleared! ${clearedInfo}. ${response.documents_to_process} documents${chunkInfo} need reprocessing.`
         )
       );
       setIsConfirmOpen(false);

@@ -136,10 +136,14 @@ export function RebuildEmbeddingsButton({
       return rebuildEmbeddings(selectedWorkspaceId, { force: true });
     },
     onSuccess: (response) => {
+      // Show both document and chunk count for better insight
+      const chunkInfo = response.chunks_to_process > 0 
+        ? ` (${response.chunks_to_process} chunks)` 
+        : '';
       toast.success(
         t(
           'workspace.rebuild.success',
-          `Embeddings cleared! ${response.documents_to_process} documents need reprocessing.`
+          `Embeddings cleared! ${response.documents_to_process} documents${chunkInfo} need reprocessing.`
         )
       );
       

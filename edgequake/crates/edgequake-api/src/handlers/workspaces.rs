@@ -961,7 +961,7 @@ pub async fn rebuild_embeddings(
 
     // 7. Queue documents for re-embedding (SPEC-032 REQ-25)
     // This triggers the actual re-embedding process using the new embedding model
-    let (documents_queued, track_id) = if stats.document_count > 0 {
+    let (documents_queued, chunks_to_process, track_id) = if stats.document_count > 0 {
         use chrono::Utc;
         use edgequake_tasks::{Task, TaskType, TextInsertData};
 
@@ -979,6 +979,7 @@ pub async fn rebuild_embeddings(
             .map_err(|e| ApiError::Internal(format!("Failed to list document keys: {}", e)))?;
 
         let mut documents_queued = 0;
+        let mut total_chunks = 0usize;
 
         for key in all_keys.iter().filter(|k| k.ends_with("-metadata")) {
             if let Some(value) = state.kv_storage.get_by_id(key).await.ok().flatten() {
@@ -997,6 +998,12 @@ pub async fn rebuild_embeddings(
                         Some(id) => id.to_string(),
                         None => continue,
                     };
+                    
+                    // Extract chunk count for this document
+                    let doc_chunk_count = obj
+                        .get("chunk_count")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(1) as usize;
 
                     let title = obj.get("title").and_then(|v| v.as_str());
 
@@ -1059,6 +1066,7 @@ pub async fn rebuild_embeddings(
                     if state.task_storage.create_task(&task).await.is_ok() {
                         if state.task_queue.send(task).await.is_ok() {
                             documents_queued += 1;
+                            total_chunks += doc_chunk_count;
                         }
                     }
                 }
@@ -1069,12 +1077,13 @@ pub async fn rebuild_embeddings(
             workspace_id = %workspace_id,
             track_id = %track_id,
             documents_queued = documents_queued,
+            total_chunks = total_chunks,
             "Documents queued for re-embedding"
         );
 
-        (documents_queued, Some(track_id))
+        (documents_queued, total_chunks, Some(track_id))
     } else {
-        (0, None)
+        (0, 0, None)
     };
 
     // 8. Build response
@@ -1111,6 +1120,7 @@ pub async fn rebuild_embeddings(
         workspace_id,
         status,
         documents_to_process: documents_queued,
+        chunks_to_process,
         vectors_cleared,
         embedding_model: new_model.clone(),
         embedding_provider: new_provider.clone(),
@@ -1125,6 +1135,7 @@ pub async fn rebuild_embeddings(
         workspace_id = %workspace_id,
         status = %response.status,
         documents_queued = documents_queued,
+        chunks_to_process = chunks_to_process,
         vectors_cleared = vectors_cleared,
         embedding_model = %new_model,
         embedding_provider = %new_provider,
@@ -1293,7 +1304,7 @@ pub async fn rebuild_knowledge_graph(
     }
 
     // 9. Queue all documents for reprocessing (SPEC-032 REQ-24)
-    let documents_queued = if stats.document_count > 0 {
+    let (documents_queued, chunks_to_process) = if stats.document_count > 0 {
         use edgequake_tasks::{Task, TaskType, TextInsertData};
 
         // Get all document metadata for this workspace
@@ -1304,6 +1315,7 @@ pub async fn rebuild_knowledge_graph(
             .map_err(|e| ApiError::Internal(format!("Failed to list document keys: {}", e)))?;
 
         let mut documents_queued = 0;
+        let mut total_chunks = 0usize;
 
         for key in all_keys.iter().filter(|k| k.ends_with("-metadata")) {
             if let Some(value) = state.kv_storage.get_by_id(key).await.ok().flatten() {
@@ -1322,6 +1334,12 @@ pub async fn rebuild_knowledge_graph(
                         Some(id) => id.to_string(),
                         None => continue,
                     };
+
+                    // Extract chunk count for this document
+                    let doc_chunk_count = obj
+                        .get("chunk_count")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(1) as usize;
 
                     let title = obj.get("title").and_then(|v| v.as_str());
 
@@ -1384,6 +1402,7 @@ pub async fn rebuild_knowledge_graph(
                     if state.task_storage.create_task(&task).await.is_ok() {
                         if state.task_queue.send(task).await.is_ok() {
                             documents_queued += 1;
+                            total_chunks += doc_chunk_count;
                         }
                     }
                 }
@@ -1394,12 +1413,13 @@ pub async fn rebuild_knowledge_graph(
             workspace_id = %workspace_id,
             track_id = %track_id,
             documents_queued = documents_queued,
+            total_chunks = total_chunks,
             "Documents queued for knowledge graph rebuild"
         );
 
-        documents_queued
+        (documents_queued, total_chunks)
     } else {
-        0
+        (0, 0)
     };
 
     // 10. Build response
@@ -1426,6 +1446,7 @@ pub async fn rebuild_knowledge_graph(
         edges_cleared,
         vectors_cleared,
         documents_to_process: documents_queued,
+        chunks_to_process,
         llm_model: new_llm_model.clone(),
         llm_provider: new_llm_provider.clone(),
         estimated_time_seconds: estimated_time,
@@ -1439,6 +1460,7 @@ pub async fn rebuild_knowledge_graph(
         edges = edges_cleared,
         vectors = vectors_cleared,
         documents_queued = documents_queued,
+        chunks_to_process = chunks_to_process,
         llm_model = %new_llm_model,
         llm_provider = %new_llm_provider,
         track_id = %track_id,

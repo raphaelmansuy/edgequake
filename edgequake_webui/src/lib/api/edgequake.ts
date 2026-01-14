@@ -303,6 +303,8 @@ export interface RebuildEmbeddingsResponse {
   workspace_id: string;
   status: string;
   documents_to_process: number;
+  /** Total number of chunks across all documents to be re-embedded */
+  chunks_to_process: number;
   vectors_cleared: number;
   embedding_model: string;
   embedding_provider: string;
@@ -364,8 +366,13 @@ export interface RebuildKnowledgeGraphResponse {
   nodes_cleared: number;
   edges_cleared: number;
   vectors_cleared: number;
+  documents_to_process: number;
+  /** Total number of chunks across all documents to be reprocessed */
+  chunks_to_process: number;
   llm_model: string;
   llm_provider: string;
+  estimated_time_seconds?: number;
+  track_id?: string;
 }
 
 /**

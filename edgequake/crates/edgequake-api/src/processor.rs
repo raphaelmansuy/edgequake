@@ -8,28 +8,42 @@
 //! - [`FEAT0470`]: Async document processing
 //! - [`FEAT0471`]: Pipeline integration
 //! - [`FEAT0472`]: Progress tracking via PipelineState
+//! - [`SPEC-032`]: Workspace-specific LLM/embedding provider selection
 //!
 //! ## Use Cases
 //!
 //! - [`UC2070`]: System processes document asynchronously
 //! - [`UC2071`]: System updates storage after processing
+//! - [`UC2072`]: System uses workspace-configured LLM/embedding for processing
 //!
 //! ## Enforces
 //!
 //! - [`BR0470`]: Task queue integration
 //! - [`BR0471`]: Error propagation to task result
+//! - [`BR0472`]: Documents processed with workspace-specific providers
 
 use std::sync::Arc;
 
-use edgequake_pipeline::Pipeline;
+use crate::state::SharedWorkspaceService;
+use edgequake_llm::ModelsConfig;
+use edgequake_pipeline::{LLMExtractor, Pipeline};
 use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage};
 use edgequake_tasks::{PipelineState, Task, TaskProcessor, TaskResult, TaskType, TextInsertData};
 use serde_json::json;
 use tracing::{error, info, warn};
 
 /// Document task processor that processes documents through the pipeline.
+///
+/// SPEC-032: This processor supports workspace-specific LLM and embedding providers.
+/// When a task includes workspace_id in its metadata, the processor will:
+/// 1. Look up the workspace configuration
+/// 2. Create a workspace-specific pipeline with the configured providers
+/// 3. Process the document using those providers
+///
+/// This ensures that rebuild/reprocess operations use the workspace's configured
+/// models, not the server's default models.
 pub struct DocumentTaskProcessor {
-    /// Processing pipeline.
+    /// Default processing pipeline (fallback when workspace not specified).
     pipeline: Arc<Pipeline>,
     /// KV storage for document metadata and chunks.
     kv_storage: Arc<dyn KVStorage>,
@@ -39,10 +53,14 @@ pub struct DocumentTaskProcessor {
     graph_storage: Arc<dyn GraphStorage>,
     /// Pipeline state for progress tracking.
     pipeline_state: PipelineState,
+    /// Workspace service for looking up workspace configuration (SPEC-032).
+    workspace_service: Option<SharedWorkspaceService>,
+    /// Models configuration for creating providers (SPEC-032).
+    models_config: Option<Arc<ModelsConfig>>,
 }
 
 impl DocumentTaskProcessor {
-    /// Create a new document task processor.
+    /// Create a new document task processor (legacy, without workspace support).
     pub fn new(
         pipeline: Arc<Pipeline>,
         kv_storage: Arc<dyn KVStorage>,
@@ -56,7 +74,126 @@ impl DocumentTaskProcessor {
             vector_storage,
             graph_storage,
             pipeline_state,
+            workspace_service: None,
+            models_config: None,
         }
+    }
+
+    /// Create a new document task processor with workspace-specific pipeline support.
+    ///
+    /// SPEC-032: This constructor enables workspace-specific LLM and embedding providers.
+    /// When processing tasks with workspace_id in metadata, the processor will use
+    /// the workspace's configured providers instead of the server defaults.
+    pub fn with_workspace_support(
+        pipeline: Arc<Pipeline>,
+        kv_storage: Arc<dyn KVStorage>,
+        vector_storage: Arc<dyn VectorStorage>,
+        graph_storage: Arc<dyn GraphStorage>,
+        pipeline_state: PipelineState,
+        workspace_service: SharedWorkspaceService,
+        models_config: Arc<ModelsConfig>,
+    ) -> Self {
+        Self {
+            pipeline,
+            kv_storage,
+            vector_storage,
+            graph_storage,
+            pipeline_state,
+            workspace_service: Some(workspace_service),
+            models_config: Some(models_config),
+        }
+    }
+
+    /// Get a workspace-specific pipeline if workspace_id is provided and valid.
+    ///
+    /// SPEC-032: Creates a new Pipeline instance configured with the workspace's
+    /// LLM and embedding providers. Falls back to the default pipeline if:
+    /// - No workspace_id provided
+    /// - Workspace not found
+    /// - Failed to create workspace-specific providers
+    async fn get_workspace_pipeline(&self, workspace_id: Option<&str>) -> Arc<Pipeline> {
+        use edgequake_llm::ProviderFactory;
+
+        // If no workspace support configured, use default pipeline
+        let (workspace_service, _models_config): (&SharedWorkspaceService, &Arc<ModelsConfig>) =
+            match (&self.workspace_service, &self.models_config) {
+                (Some(ws), Some(mc)) => (ws, mc),
+                _ => return Arc::clone(&self.pipeline),
+            };
+
+        // If no workspace_id provided, use default pipeline
+        let workspace_id = match workspace_id {
+            Some(id) if !id.is_empty() && id != "default" => id,
+            _ => return Arc::clone(&self.pipeline),
+        };
+
+        // Parse workspace_id to UUID
+        let workspace_uuid = match uuid::Uuid::parse_str(workspace_id) {
+            Ok(uuid) => uuid,
+            Err(e) => {
+                warn!(
+                    workspace_id = workspace_id,
+                    error = %e,
+                    "Invalid workspace ID format, using default pipeline"
+                );
+                return Arc::clone(&self.pipeline);
+            }
+        };
+
+        // Look up workspace configuration
+        match workspace_service.get_workspace(workspace_uuid).await {
+            Ok(Some(ws)) => {
+                // Try to create workspace-specific LLM provider
+                let llm_provider =
+                    ProviderFactory::create_llm_provider(&ws.llm_provider, &ws.llm_model);
+
+                // Try to create workspace-specific embedding provider
+                let embedding_provider = ProviderFactory::create_embedding_provider(
+                    &ws.embedding_provider,
+                    &ws.embedding_model,
+                    ws.embedding_dimension,
+                );
+
+                // If both providers were created successfully, build workspace pipeline
+                if let (Ok(llm), Ok(embedding)) = (llm_provider, embedding_provider) {
+                    info!(
+                        workspace_id = workspace_id,
+                        llm_model = %ws.llm_full_id(),
+                        embedding_model = %ws.embedding_full_id(),
+                        "Using workspace-specific LLM configuration for document processing"
+                    );
+
+                    let extractor = Arc::new(LLMExtractor::new(llm));
+                    return Arc::new(
+                        Pipeline::default_pipeline()
+                            .with_extractor(extractor)
+                            .with_embedding_provider(embedding),
+                    );
+                }
+
+                warn!(
+                    workspace_id = workspace_id,
+                    llm_config = %ws.llm_full_id(),
+                    embedding_config = %ws.embedding_full_id(),
+                    "Failed to create workspace-specific providers, using default pipeline"
+                );
+            }
+            Ok(None) => {
+                warn!(
+                    workspace_id = workspace_id,
+                    "Workspace not found, using default pipeline"
+                );
+            }
+            Err(e) => {
+                warn!(
+                    workspace_id = workspace_id,
+                    error = %e,
+                    "Failed to lookup workspace, using default pipeline"
+                );
+            }
+        }
+
+        Arc::clone(&self.pipeline)
     }
 
     /// Process a text insert task.
@@ -73,9 +210,21 @@ impl DocumentTaskProcessor {
             .unwrap_or(&data.file_source)
             .to_string();
 
+        // SPEC-032: Extract workspace_id to use workspace-specific pipeline
+        let workspace_id = data
+            .metadata
+            .as_ref()
+            .and_then(|m| m.get("workspace_id"))
+            .and_then(|v| v.as_str());
+
+        // Get workspace-specific pipeline (or default if not available)
+        let pipeline = self.get_workspace_pipeline(workspace_id).await;
+
         info!(
-            "Processing document: {} ({})",
-            document_id, data.file_source
+            document_id = %document_id,
+            workspace_id = ?workspace_id,
+            file_source = %data.file_source,
+            "Processing document with workspace-specific pipeline"
         );
 
         // Update task progress - chunking
@@ -90,8 +239,8 @@ impl DocumentTaskProcessor {
         self.update_document_status(&document_id, "processing", None)
             .await?;
 
-        // Process through pipeline
-        let result = match self.pipeline.process(&document_id, &data.text).await {
+        // Process through pipeline (using workspace-specific or default)
+        let result = match pipeline.process(&document_id, &data.text).await {
             Ok(result) => result,
             Err(e) => {
                 let error_msg = format!("Pipeline processing failed: {}", e);
