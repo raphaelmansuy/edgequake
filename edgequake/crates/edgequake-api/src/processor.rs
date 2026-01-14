@@ -812,8 +812,14 @@ mod tests {
         let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
-        let processor =
-            DocumentTaskProcessor::new(pipeline, kv, vector, vector_registry, graph, pipeline_state);
+        let processor = DocumentTaskProcessor::new(
+            pipeline,
+            kv,
+            vector,
+            vector_registry,
+            graph,
+            pipeline_state,
+        );
 
         // Verify processor was created successfully
         assert!(std::mem::size_of_val(&processor) > 0);
@@ -825,8 +831,14 @@ mod tests {
         let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
-        let processor =
-            DocumentTaskProcessor::new(pipeline, kv, vector, vector_registry, graph, pipeline_state);
+        let processor = DocumentTaskProcessor::new(
+            pipeline,
+            kv,
+            vector,
+            vector_registry,
+            graph,
+            pipeline_state,
+        );
 
         // Verify TaskProcessor trait is implemented
         let _: &dyn TaskProcessor = &processor;
@@ -838,8 +850,14 @@ mod tests {
         let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
-        let processor =
-            DocumentTaskProcessor::new(pipeline, kv, vector, vector_registry, graph, pipeline_state);
+        let processor = DocumentTaskProcessor::new(
+            pipeline,
+            kv,
+            vector,
+            vector_registry,
+            graph,
+            pipeline_state,
+        );
 
         let mut task = Task::new(TaskType::Scan, json!({}));
 
@@ -859,8 +877,14 @@ mod tests {
         let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
-        let processor =
-            DocumentTaskProcessor::new(pipeline, kv, vector, vector_registry, graph, pipeline_state);
+        let processor = DocumentTaskProcessor::new(
+            pipeline,
+            kv,
+            vector,
+            vector_registry,
+            graph,
+            pipeline_state,
+        );
 
         let mut task = Task::new(TaskType::Reindex, json!({}));
 
@@ -880,8 +904,14 @@ mod tests {
         let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
-        let processor =
-            DocumentTaskProcessor::new(pipeline, kv, vector, vector_registry, graph, pipeline_state);
+        let processor = DocumentTaskProcessor::new(
+            pipeline,
+            kv,
+            vector,
+            vector_registry,
+            graph,
+            pipeline_state,
+        );
 
         // Create task with invalid data (missing required fields)
         let invalid_data = json!({

@@ -42,16 +42,99 @@ use axum::{extract::State, Json};
 use axum_extra::extract::Multipart;
 use chrono::Utc;
 use sha2::{Digest, Sha256};
-use tracing::debug;
+use std::sync::Arc;
+use tracing::{debug, warn};
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
 use crate::file_validation::validate_file;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
+use edgequake_storage::traits::VectorStorage;
 
 // Re-export DTOs from documents_types module
 pub use crate::handlers::documents_types::*;
+
+/// Get workspace-specific vector storage for document ingestion.
+///
+/// @implements SPEC-033: Per-workspace vector storage isolation
+///
+/// This function retrieves or creates a workspace-specific vector storage
+/// with the correct embedding dimension for the workspace's embedding model.
+///
+/// # Arguments
+///
+/// * `state` - Application state containing vector registry
+/// * `workspace_id` - Workspace identifier
+///
+/// # Returns
+///
+/// Arc to workspace-specific vector storage, or default storage if workspace not found
+async fn get_workspace_vector_storage(
+    state: &AppState,
+    workspace_id: &str,
+) -> Arc<dyn VectorStorage> {
+    use edgequake_storage::traits::WorkspaceVectorConfig;
+
+    // Parse workspace ID
+    let workspace_uuid = match Uuid::parse_str(workspace_id) {
+        Ok(uuid) => uuid,
+        Err(e) => {
+            warn!(
+                workspace_id = %workspace_id,
+                error = %e,
+                "Invalid workspace ID, using default vector storage"
+            );
+            return state.vector_registry.default_storage();
+        }
+    };
+
+    // Get workspace from service
+    let workspace = match state.workspace_service.get_workspace(workspace_uuid).await {
+        Ok(Some(ws)) => ws,
+        Ok(None) => {
+            warn!(
+                workspace_id = %workspace_id,
+                "Workspace not found, using default vector storage"
+            );
+            return state.vector_registry.default_storage();
+        }
+        Err(e) => {
+            warn!(
+                workspace_id = %workspace_id,
+                error = %e,
+                "Failed to get workspace, using default vector storage"
+            );
+            return state.vector_registry.default_storage();
+        }
+    };
+
+    // Create workspace-specific vector storage config
+    let config = WorkspaceVectorConfig {
+        workspace_id: workspace_uuid,
+        dimension: workspace.embedding_dimension,
+        namespace: "default".to_string(),
+    };
+
+    debug!(
+        workspace_id = %workspace_id,
+        dimension = workspace.embedding_dimension,
+        "Using workspace-specific vector storage for document ingestion"
+    );
+
+    // Get or create workspace vector storage
+    match state.vector_registry.get_or_create(config).await {
+        Ok(storage) => storage,
+        Err(e) => {
+            warn!(
+                workspace_id = %workspace_id,
+                error = %e,
+                "Failed to create workspace vector storage, using default"
+            );
+            state.vector_registry.default_storage()
+        }
+    }
+}
 
 /// Upload a document for processing.
 ///
@@ -262,6 +345,11 @@ pub async fn upload_document(
 
         state.kv_storage.upsert(&chunks).await?;
 
+        // SPEC-033: Get workspace-specific vector storage for document embeddings
+        // This ensures embeddings are stored with correct dimension per workspace
+        let workspace_vector_storage =
+            get_workspace_vector_storage(&state, &workspace_id_for_storage).await;
+
         // Store chunk embeddings in vector storage for semantic search
         let mut chunk_embeddings_stored = 0;
         for chunk in &result.chunks {
@@ -282,8 +370,7 @@ pub async fn upload_document(
                 }
                 metadata["workspace_id"] = serde_json::json!(&workspace_id_for_storage);
 
-                match state
-                    .vector_storage
+                match workspace_vector_storage
                     .upsert(&[(chunk.id.clone(), embedding.clone(), metadata)])
                     .await
                 {
@@ -340,6 +427,7 @@ pub async fn upload_document(
                     .await?;
 
                 // CRITICAL: Also store entity embedding in vector storage for query_local retrieval
+                // SPEC-033: Use workspace-specific vector storage
                 if let Some(embedding) = &entity.embedding {
                     let mut metadata = serde_json::json!({
                         "type": "entity",
@@ -355,8 +443,7 @@ pub async fn upload_document(
                     metadata["workspace_id"] = serde_json::json!(&workspace_id_for_storage);
 
                     let entity_id = format!("entity:{}", entity.name);
-                    if let Err(e) = state
-                        .vector_storage
+                    if let Err(e) = workspace_vector_storage
                         .upsert(&[(entity_id.clone(), embedding.clone(), metadata)])
                         .await
                     {
@@ -1178,6 +1265,25 @@ pub async fn delete_document(
         )));
     }
 
+    // SPEC-033: Get workspace_id from document metadata for vector storage isolation
+    let workspace_id_for_storage = if has_metadata {
+        if let Ok(Some(metadata)) = state.kv_storage.get_by_id(&metadata_key).await {
+            metadata
+                .get("workspace_id")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "default".to_string())
+        } else {
+            "default".to_string()
+        }
+    } else {
+        "default".to_string()
+    };
+
+    // SPEC-033: Get workspace-specific vector storage for deletion
+    let workspace_vector_storage =
+        get_workspace_vector_storage(&state, &workspace_id_for_storage).await;
+
     let chunks_deleted = chunk_ids.len();
     let mut entities_removed = 0usize;
     let mut entities_updated = 0usize;
@@ -1207,8 +1313,8 @@ pub async fn delete_document(
                 }
                 // Then delete the node
                 state.graph_storage.delete_node(&node.id).await?;
-                // Also delete from vector storage
-                let _ = state.vector_storage.delete_entity(&node.id).await;
+                // SPEC-033: Use workspace-specific vector storage for entity deletion
+                let _ = workspace_vector_storage.delete_entity(&node.id).await;
                 entities_removed += 1;
             } else if remaining_sources.len() < source_id.split('|').count() {
                 // Some sources were removed - update the entity
@@ -1585,6 +1691,10 @@ pub async fn upload_file(
 
     state.kv_storage.upsert(&chunks).await?;
 
+    // SPEC-033: Get workspace-specific vector storage for file embeddings
+    let workspace_vector_storage =
+        get_workspace_vector_storage(&state, &workspace_id_for_storage).await;
+
     // Store chunk embeddings in vector storage for semantic search
     let mut chunk_embeddings_stored = 0;
     for chunk in &result.chunks {
@@ -1603,8 +1713,7 @@ pub async fn upload_file(
             }
             metadata["workspace_id"] = serde_json::json!(&workspace_id_for_storage);
 
-            match state
-                .vector_storage
+            match workspace_vector_storage
                 .upsert(&[(chunk.id.clone(), embedding.clone(), metadata)])
                 .await
             {
@@ -1693,6 +1802,7 @@ pub async fn upload_file(
                 embedding_dim = entity.embedding.as_ref().map(|e| e.len()).unwrap_or(0),
                 "Checking entity embedding for storage"
             );
+            // SPEC-033: Use workspace-specific vector storage for entity embeddings
             if let Some(embedding) = &entity.embedding {
                 let mut metadata = serde_json::json!({
                     "type": "entity",
@@ -1709,8 +1819,7 @@ pub async fn upload_file(
 
                 // Use entity name as vector ID for dedup
                 let entity_id = format!("entity:{}", entity.name);
-                if let Err(e) = state
-                    .vector_storage
+                if let Err(e) = workspace_vector_storage
                     .upsert(&[(entity_id.clone(), embedding.clone(), metadata)])
                     .await
                 {
@@ -1911,6 +2020,9 @@ pub async fn upload_files_batch(
 }
 
 /// Process a single file and return (document_id, is_duplicate).
+///
+/// Note: Uses default vector storage for batch uploads without tenant context.
+/// For workspace-specific storage, use the main upload_file endpoint with tenant context.
 async fn process_single_file(
     state: &AppState,
     filename: &str,
@@ -1965,6 +2077,8 @@ async fn process_single_file(
     state.kv_storage.upsert(&chunks).await?;
 
     // Store chunk embeddings in vector storage for semantic search
+    // Note: Batch upload uses default vector storage since there's no workspace context.
+    // For workspace-specific storage, use the main upload_file endpoint with tenant context.
     for chunk in &result.chunks {
         if let Some(embedding) = &chunk.embedding {
             let metadata = serde_json::json!({

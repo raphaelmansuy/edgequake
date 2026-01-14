@@ -204,8 +204,7 @@ mod tests {
     #[test]
     fn test_workspace_vector_config_with_namespace() {
         let workspace_id = Uuid::parse_str("4e32a055-9722-40f9-b03e-ade870b07604").unwrap();
-        let config = WorkspaceVectorConfig::new(workspace_id, 768)
-            .with_namespace("prod");
+        let config = WorkspaceVectorConfig::new(workspace_id, 768).with_namespace("prod");
 
         assert_eq!(config.table_name(), "eq_prod_ws_4e32a055_vectors");
     }

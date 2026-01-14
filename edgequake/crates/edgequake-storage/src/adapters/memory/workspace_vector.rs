@@ -73,9 +73,8 @@ impl WorkspaceVectorRegistry for MemoryWorkspaceVectorRegistry {
 
         // Create workspace-specific namespace
         let namespace = format!("ws_{}", &config.workspace_id.to_string()[..8]);
-        let storage: Arc<dyn VectorStorage> = Arc::new(
-            MemoryVectorStorage::new(&namespace, config.dimension)
-        );
+        let storage: Arc<dyn VectorStorage> =
+            Arc::new(MemoryVectorStorage::new(&namespace, config.dimension));
 
         instances.insert(config.workspace_id, Arc::clone(&storage));
 
