@@ -45,6 +45,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import {
+    cancelTask,
     deleteAllDocuments,
     deleteDocument,
     getDocuments,
@@ -69,6 +70,7 @@ import {
     RefreshCw,
     Search,
     Sparkles,
+    StopCircle,
     Trash2,
     Upload,
     X,
@@ -104,6 +106,7 @@ const statusConfig = {
   completed: { icon: CheckCircle, color: 'bg-green-500', label: 'Completed', animate: false },
   indexed: { icon: CheckCircle, color: 'bg-green-500', label: 'Indexed', animate: false },
   failed: { icon: XCircle, color: 'bg-red-500', label: 'Failed', animate: false },
+  cancelled: { icon: StopCircle, color: 'bg-orange-500', label: 'Cancelled', animate: false },
 } as const;
 
 type DocumentStatus = keyof typeof statusConfig;
@@ -460,6 +463,25 @@ export function DocumentManager() {
             // User can retry from the UI
           },
         },
+      });
+    },
+  });
+
+  // Cancel mutation for stopping document processing
+  const cancelMutation = useMutation({
+    mutationFn: async (trackId: string) => {
+      await cancelTask(trackId);
+    },
+    onSuccess: () => {
+      toast.success(t('documents.cancel.success', 'Document processing cancelled'), {
+        duration: 4000,
+        description: t('documents.cancel.successDesc', 'The extraction has been stopped.'),
+      });
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+    },
+    onError: (error) => {
+      toast.error(t('documents.cancel.failed', 'Cancel failed'), {
+        description: error instanceof Error ? error.message : t('documents.cancel.failedDesc', 'Could not cancel processing. It may have already completed.'),
       });
     },
   });
@@ -1018,6 +1040,16 @@ export function DocumentManager() {
                                   <div className="p-0">
                                     <ResetDocumentStatusButton document={doc} iconOnly={false} size="sm" />
                                   </div>
+                                </DropdownMenuItem>
+                              )}
+                              {/* Cancel option for pending/processing documents */}
+                              {(doc.status === 'pending' || doc.status === 'processing') && doc.track_id && (
+                                <DropdownMenuItem 
+                                  onClick={() => cancelMutation.mutate(doc.track_id!)}
+                                  className="text-orange-600"
+                                >
+                                  <StopCircle className="h-4 w-4 mr-2" />
+                                  {t('documents.actions.cancel', 'Cancel Extraction')}
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuItem onClick={() => reprocessMutation.mutate(doc.id)}>
