@@ -1034,5 +1034,74 @@ test.describe("SPEC-032: Provider Integration", () => {
       const main = page.locator("main");
       await expect(main).toBeVisible({ timeout: 15000 });
     });
+
+    test("query page loads", async ({ page }) => {
+      await page.goto("/query", { waitUntil: "domcontentloaded" });
+      const main = page.locator("main");
+      await expect(main).toBeVisible({ timeout: 15000 });
+    });
+
+    test("api explorer page loads", async ({ page }) => {
+      await page.goto("/api-explorer", { waitUntil: "domcontentloaded" });
+      const main = page.locator("main");
+      await expect(main).toBeVisible({ timeout: 15000 });
+    });
+  });
+
+  /**
+   * Navigation Flow Tests
+   * @iteration OODA 77
+   * 
+   * Tests that navigation between pages works correctly.
+   */
+  test.describe("Navigation Flow", () => {
+    test("sidebar documents link navigates correctly", async ({ page }) => {
+      await page.goto("/", { waitUntil: "domcontentloaded" });
+      await page.waitForTimeout(1000);
+
+      // Find Documents link in sidebar (use first() to avoid strict mode issues)
+      const docsLink = page.getByRole("link", { name: /documents/i }).first();
+      if (await docsLink.isVisible()) {
+        await docsLink.click();
+        await page.waitForURL(/\/documents/, { timeout: 10000 });
+        expect(page.url()).toContain("/documents");
+      } else {
+        // Skip if sidebar not visible
+        test.skip();
+      }
+    });
+
+    test("sidebar graph link navigates correctly", async ({ page }) => {
+      await page.goto("/", { waitUntil: "domcontentloaded" });
+      await page.waitForTimeout(1000);
+
+      // Find Graph link in sidebar (use first() to avoid strict mode issues)
+      const graphLink = page.getByRole("link", { name: /graph/i }).first();
+      if (await graphLink.isVisible()) {
+        await graphLink.click();
+        await page.waitForURL(/\/graph/, { timeout: 10000 });
+        expect(page.url()).toContain("/graph");
+      } else {
+        test.skip();
+      }
+    });
+
+    test("browser back navigation works", async ({ page }) => {
+      // Navigate to dashboard
+      await page.goto("/", { waitUntil: "domcontentloaded" });
+      await page.waitForTimeout(500);
+
+      // Navigate to documents
+      await page.goto("/documents", { waitUntil: "domcontentloaded" });
+      await page.waitForTimeout(500);
+
+      // Go back
+      await page.goBack();
+      await page.waitForLoadState("domcontentloaded");
+
+      // Should be back at dashboard (or previous page)
+      // The URL should not be /documents
+      expect(page.url()).not.toContain("/documents");
+    });
   });
 });
