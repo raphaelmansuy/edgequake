@@ -169,6 +169,39 @@ test.describe("SPEC-032: Provider Integration", () => {
         expect(model.capabilities).toHaveProperty("supports_function_calling");
       }
     });
+
+    /**
+     * @implements SPEC-032: Focus 7 - Model cost information
+     * @iteration OODA 66
+     * 
+     * Verifies that models have cost information for pricing display.
+     */
+    test("models have cost information", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+
+      // Get all models from enabled providers
+      const allModels = data.providers
+        .filter((p: any) => p.enabled)
+        .flatMap((p: any) => p.models);
+
+      expect(allModels.length).toBeGreaterThan(0);
+
+      // All models should have cost object
+      for (const model of allModels.slice(0, 5)) {
+        expect(model).toHaveProperty("cost");
+        expect(model.cost).toHaveProperty("input_per_1k");
+        expect(model.cost).toHaveProperty("output_per_1k");
+        expect(model.cost).toHaveProperty("embedding_per_1k");
+        
+        // All cost values should be non-negative
+        expect(model.cost.input_per_1k).toBeGreaterThanOrEqual(0);
+        expect(model.cost.output_per_1k).toBeGreaterThanOrEqual(0);
+        expect(model.cost.embedding_per_1k).toBeGreaterThanOrEqual(0);
+      }
+    });
   });
 
   /**
