@@ -250,6 +250,10 @@ struct ChatCompletionRequest {
     temperature: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     max_tokens: Option<i32>,
+    /// Stop sequences - generation stops when any of these are encountered.
+    /// @implements SPEC-032: LMStudio stop token handling (OODA 63)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stop: Option<Vec<String>>,
     stream: bool,
 }
 
@@ -404,6 +408,7 @@ impl LLMProvider for LMStudioProvider {
             messages: api_messages,
             temperature: opts.temperature,
             max_tokens: opts.max_tokens.map(|t| t as i32),
+            stop: opts.stop.clone(),
             stream: false,
         };
 
@@ -492,12 +497,26 @@ impl LLMProvider for LMStudioProvider {
     /// If streaming fails, the caller should fall back to non-streaming mode
     /// using the `chat()` method.
     async fn stream(&self, prompt: &str) -> Result<BoxStream<'static, Result<String>>> {
+        // Delegate to stream_with_options with default options
+        self.stream_with_options(prompt, &CompletionOptions::default())
+            .await
+    }
+
+    /// Stream with options including stop sequences.
+    ///
+    /// @implements SPEC-032: LMStudio stop token handling (OODA 63)
+    async fn stream_with_options(
+        &self,
+        prompt: &str,
+        options: &CompletionOptions,
+    ) -> Result<BoxStream<'static, Result<String>>> {
         use futures::StreamExt;
 
         debug!(
             provider = "lmstudio",
             model = %self.model,
-            "Starting streaming request"
+            stop_sequences = ?options.stop,
+            "Starting streaming request with options"
         );
 
         let url = format!("{}/chat/completions", self.api_base());
@@ -508,8 +527,9 @@ impl LLMProvider for LMStudioProvider {
                 role: "user".to_string(),
                 content: prompt.to_string(),
             }],
-            temperature: None,
-            max_tokens: None,
+            temperature: options.temperature,
+            max_tokens: options.max_tokens.map(|t| t as i32),
+            stop: options.stop.clone(),
             stream: true,
         };
 

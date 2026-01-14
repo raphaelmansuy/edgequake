@@ -412,6 +412,7 @@ mod workspace_crud_tests {
             description: Some("Updated description".to_string()),
             is_active: Some(false),
             max_documents: Some(500),
+            ..Default::default()
         };
         let updated = service
             .update_workspace(created.workspace_id, update)
@@ -983,6 +984,7 @@ mod edge_case_tests {
             description: None,
             is_active: None,
             max_documents: None,
+            ..Default::default()
         };
 
         let result = service.update_workspace(Uuid::new_v4(), update).await;

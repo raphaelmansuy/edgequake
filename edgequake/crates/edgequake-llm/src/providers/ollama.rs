@@ -356,16 +356,35 @@ impl LLMProvider for OllamaProvider {
     }
 
     async fn stream(&self, prompt: &str) -> Result<BoxStream<'static, Result<String>>> {
+        // Delegate to stream_with_options with default options
+        self.stream_with_options(prompt, &CompletionOptions::default())
+            .await
+    }
+
+    /// Stream with options including stop sequences.
+    ///
+    /// @implements SPEC-032: Ollama stop token handling (OODA 63)
+    ///
+    /// This method properly passes stop sequences to Ollama's streaming API,
+    /// ensuring that generation stops when configured stop tokens are encountered.
+    async fn stream_with_options(
+        &self,
+        prompt: &str,
+        options: &CompletionOptions,
+    ) -> Result<BoxStream<'static, Result<String>>> {
         use futures::StreamExt;
 
-        debug!("Ollama stream request: prompt to model {}", self.model);
+        debug!(
+            "Ollama stream request: prompt to model {}, stop_sequences={:?}",
+            self.model, options.stop
+        );
 
         let url = format!("{}/api/chat", self.host);
 
         let chat_options = ChatOptions {
-            temperature: None,
-            num_predict: None,
-            stop: None,
+            temperature: options.temperature,
+            num_predict: options.max_tokens.map(|t| t as i32),
+            stop: options.stop.clone(),
         };
 
         let request = ChatRequest {

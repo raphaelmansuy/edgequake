@@ -168,6 +168,31 @@ pub trait LLMProvider: Send + Sync {
         ))
     }
 
+    /// Generate a streaming completion with options.
+    ///
+    /// This method supports stop sequences and other completion options
+    /// during streaming. Providers that don't override this will delegate
+    /// to the basic `stream()` method (options are ignored).
+    ///
+    /// @implements SPEC-032: Ollama stop token handling (OODA 63)
+    ///
+    /// # Arguments
+    ///
+    /// * `prompt` - The prompt to complete
+    /// * `options` - Completion options including stop sequences
+    ///
+    /// # Default Implementation
+    ///
+    /// Delegates to `stream()` - stop tokens are ignored unless provider overrides.
+    async fn stream_with_options(
+        &self,
+        prompt: &str,
+        _options: &CompletionOptions,
+    ) -> Result<BoxStream<'static, Result<String>>> {
+        // Default: delegate to stream() - providers should override to use options
+        self.stream(prompt).await
+    }
+
     /// Attempt streaming with automatic fallback to non-streaming.
     ///
     /// This method first attempts to use streaming. If streaming fails

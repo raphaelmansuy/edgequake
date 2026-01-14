@@ -550,14 +550,44 @@ impl LLMProvider for GeminiProvider {
     }
 
     async fn stream(&self, prompt: &str) -> Result<BoxStream<'static, Result<String>>> {
+        // Delegate to stream_with_options with default options
+        self.stream_with_options(prompt, &CompletionOptions::default())
+            .await
+    }
+
+    /// Stream with options including stop sequences.
+    ///
+    /// @implements SPEC-032: Gemini stop token handling (OODA 63)
+    async fn stream_with_options(
+        &self,
+        prompt: &str,
+        options: &CompletionOptions,
+    ) -> Result<BoxStream<'static, Result<String>>> {
         use futures::StreamExt;
 
         let messages = vec![ChatMessage::user(prompt)];
         let (system_instruction, contents) = Self::convert_messages(&messages);
 
+        // Build generation config with options
+        let generation_config = if options.temperature.is_some()
+            || options.max_tokens.is_some()
+            || options.stop.is_some()
+        {
+            Some(GenerationConfig {
+                temperature: options.temperature,
+                top_p: options.top_p,
+                top_k: None,
+                max_output_tokens: options.max_tokens,
+                stop_sequences: options.stop.clone(),
+                response_mime_type: None,
+            })
+        } else {
+            None
+        };
+
         let request = GenerateContentRequest {
             contents,
-            generation_config: None,
+            generation_config,
             system_instruction,
             safety_settings: None,
         };
