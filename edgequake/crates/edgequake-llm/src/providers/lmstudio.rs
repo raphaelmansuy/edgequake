@@ -200,6 +200,44 @@ impl LMStudioProvider {
             format!("{}/v1", self.host)
         }
     }
+
+    /// Check if LM Studio server is available.
+    ///
+    /// Makes a lightweight request to check if the server is responding.
+    /// Used for health checks and capability detection.
+    pub async fn is_available(&self) -> bool {
+        let url = format!("{}/models", self.api_base());
+        match self.client.get(&url).send().await {
+            Ok(response) => response.status().is_success(),
+            Err(_) => false,
+        }
+    }
+
+    /// Get available models from LM Studio.
+    ///
+    /// Queries the /v1/models endpoint to get the list of loaded models.
+    /// Returns empty vec if the server is not available or no models are loaded.
+    pub async fn available_models(&self) -> Vec<String> {
+        let url = format!("{}/models", self.api_base());
+        match self.client.get(&url).send().await {
+            Ok(response) if response.status().is_success() => {
+                #[derive(Deserialize)]
+                struct ModelsResponse {
+                    data: Vec<ModelInfo>,
+                }
+                #[derive(Deserialize)]
+                struct ModelInfo {
+                    id: String,
+                }
+
+                match response.json::<ModelsResponse>().await {
+                    Ok(models) => models.data.into_iter().map(|m| m.id).collect(),
+                    Err(_) => vec![],
+                }
+            }
+            _ => vec![],
+        }
+    }
 }
 
 // OpenAI-compatible API request/response structures
@@ -481,7 +519,9 @@ impl LLMProvider for LMStudioProvider {
             .json(&request)
             .send()
             .await
-            .map_err(|e| LlmError::NetworkError(format!("LM Studio stream request failed: {}", e)))?;
+            .map_err(|e| {
+                LlmError::NetworkError(format!("LM Studio stream request failed: {}", e))
+            })?;
 
         let status = response.status();
         if !status.is_success() {
@@ -512,7 +552,7 @@ impl LLMProvider for LMStudioProvider {
                         }
                         // Extract JSON after "data: "
                         let json_str = line.strip_prefix("data:").unwrap_or(line).trim();
-                        
+
                         // Check for stream end marker
                         if json_str == "[DONE]" {
                             continue;

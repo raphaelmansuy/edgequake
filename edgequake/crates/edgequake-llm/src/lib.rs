@@ -86,4 +86,7 @@ pub use reranker::{
     RerankResult, Reranker, ScoreAggregation, TermOverlapReranker,
 };
 pub use tokenizer::Tokenizer;
-pub use traits::{EmbeddingProvider, LLMProvider, LLMResponse};
+pub use traits::{
+    ChatMessage, ChatRole, CompletionOptions, EmbeddingProvider, LLMProvider, LLMResponse,
+    StreamOrComplete,
+};

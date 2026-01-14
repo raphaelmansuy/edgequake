@@ -168,6 +168,70 @@ pub trait LLMProvider: Send + Sync {
         ))
     }
 
+    /// Attempt streaming with automatic fallback to non-streaming.
+    ///
+    /// This method first attempts to use streaming. If streaming fails
+    /// (either because the provider doesn't support it or due to an error),
+    /// it falls back to the non-streaming `complete()` method.
+    ///
+    /// @implements SPEC-032: LM Studio streaming fallback (Focus 8)
+    ///
+    /// # Returns
+    ///
+    /// - `StreamOrComplete::Stream(stream)` if streaming succeeds
+    /// - `StreamOrComplete::Complete(response)` if fallback was used
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// match provider.stream_with_fallback(prompt).await? {
+    ///     StreamOrComplete::Stream(stream) => {
+    ///         // Handle streaming response
+    ///     }
+    ///     StreamOrComplete::Complete(response) => {
+    ///         // Handle complete response (streaming wasn't available)
+    ///     }
+    /// }
+    /// ```
+    async fn stream_with_fallback(&self, prompt: &str) -> Result<StreamOrComplete> {
+        // First check if streaming is supported at all
+        if !self.supports_streaming() {
+            // Fall back to non-streaming
+            let response = self.complete(prompt).await?;
+            return Ok(StreamOrComplete::Complete(response));
+        }
+
+        // Try streaming
+        match self.stream(prompt).await {
+            Ok(stream) => Ok(StreamOrComplete::Stream(stream)),
+            Err(crate::error::LlmError::NotSupported(_)) => {
+                // Streaming not supported, fall back
+                let response = self.complete(prompt).await?;
+                Ok(StreamOrComplete::Complete(response))
+            }
+            Err(e) => {
+                // Check if it's a streaming-specific error we should fall back from
+                let error_msg = e.to_string().to_lowercase();
+                if error_msg.contains("stream")
+                    || error_msg.contains("sse")
+                    || error_msg.contains("not supported")
+                {
+                    // Fall back to non-streaming
+                    tracing::warn!(
+                        provider = self.name(),
+                        error = %e,
+                        "Streaming failed, falling back to non-streaming"
+                    );
+                    let response = self.complete(prompt).await?;
+                    Ok(StreamOrComplete::Complete(response))
+                } else {
+                    // Propagate other errors
+                    Err(e)
+                }
+            }
+        }
+    }
+
     /// Check if the model supports streaming.
     fn supports_streaming(&self) -> bool {
         false
@@ -260,6 +324,42 @@ pub trait EmbeddingProvider: Send + Sync {
             .into_iter()
             .next()
             .ok_or_else(|| crate::error::LlmError::Unknown("Empty embedding result".to_string()))
+    }
+}
+
+/// Result type for streaming with fallback.
+///
+/// When a provider attempts streaming but it fails or is not supported,
+/// this enum allows returning either a stream or a complete response.
+///
+/// @implements SPEC-032: LM Studio streaming fallback (Focus 8)
+pub enum StreamOrComplete {
+    /// Streaming is available, use the stream
+    Stream(BoxStream<'static, Result<String>>),
+    /// Streaming not available, use complete response
+    Complete(LLMResponse),
+}
+
+impl std::fmt::Debug for StreamOrComplete {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            StreamOrComplete::Stream(_) => write!(f, "StreamOrComplete::Stream(...)"),
+            StreamOrComplete::Complete(response) => {
+                write!(f, "StreamOrComplete::Complete({:?})", response)
+            }
+        }
+    }
+}
+
+impl StreamOrComplete {
+    /// Returns true if this is a stream
+    pub fn is_stream(&self) -> bool {
+        matches!(self, StreamOrComplete::Stream(_))
+    }
+
+    /// Returns true if this is a complete response
+    pub fn is_complete(&self) -> bool {
+        matches!(self, StreamOrComplete::Complete(_))
     }
 }
 
