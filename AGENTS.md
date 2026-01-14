@@ -29,6 +29,24 @@ Important Ensure to keep the files small and modular for maintainability.
 - `cargo fmt`: Format Rust code
 - `bun install`, `bun run dev`, `bun run build`, `bun test`: Manage web UI workflow
 
+### Quick Start with make
+
+The `make dev` command starts the full stack with Ollama as the default provider:
+
+```bash
+# Start with Ollama (default)
+make dev
+
+# Start with OpenAI provider available for runtime switching
+export OPENAI_API_KEY="sk-your-key"
+make dev
+
+# Check service status
+make status
+```
+
+When OPENAI_API_KEY is set, you can switch between Ollama and OpenAI providers at runtime via the query UI or API.
+
 ### Background Testing (Agentic Mode)
 
 For automated testing or continuous integration, use background mode to run services non-interactively:

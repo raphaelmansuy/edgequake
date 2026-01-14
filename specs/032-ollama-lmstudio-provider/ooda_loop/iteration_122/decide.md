@@ -7,6 +7,7 @@
 **Decision**: Extend `QueryStats` in `query_types.rs` with new optional fields.
 
 **Fields to Add**:
+
 ```rust
 /// Number of tokens generated in the response.
 #[serde(skip_serializing_if = "Option::is_none")]
@@ -26,18 +27,21 @@ pub llm_model: Option<String>,
 ```
 
 **Rationale**:
+
 - Optional fields maintain backward compatibility
 - `skip_serializing_if` prevents bloating responses for clients that don't need it
 - Combined provider/model gives complete lineage
 
 ## Decision 2: Calculate Tokens Per Second
 
-**Formula**: 
+**Formula**:
+
 ```rust
 tokens_per_second = (tokens_used as f32) / (generation_time_ms as f32) * 1000.0
 ```
 
 **Edge Cases**:
+
 - If `generation_time_ms == 0`: return `None`
 - If `tokens_used == 0`: return `Some(0.0)`
 
@@ -45,7 +49,8 @@ tokens_per_second = (tokens_used as f32) / (generation_time_ms as f32) * 1000.0
 
 **Problem**: Query handler doesn't have direct access to which LLM model was used.
 
-**Solution**: 
+**Solution**:
+
 1. Check `request.provider` if specified by client
 2. Otherwise, use workspace configuration
 3. Fallback to server defaults
@@ -74,7 +79,7 @@ Step 4: Document in OpenAPI schema
 
 ## Files to Modify
 
-| File | Changes |
-|------|---------|
+| File                                        | Changes                        |
+| ------------------------------------------- | ------------------------------ |
 | `edgequake-api/src/handlers/query_types.rs` | Add 4 new fields to QueryStats |
-| `edgequake-api/src/handlers/query.rs` | Populate new fields |
+| `edgequake-api/src/handlers/query.rs`       | Populate new fields            |

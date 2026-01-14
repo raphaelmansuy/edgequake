@@ -183,7 +183,6 @@ pub struct QueryStats {
     // ========================================================================
     // SPEC-032: Token metrics and model lineage (Items 18, 22)
     // ========================================================================
-
     /// Number of tokens generated in the response.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tokens_used: Option<usize>,

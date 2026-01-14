@@ -19,19 +19,20 @@ cargo test --package edgequake-api
 
 ### 2. Spec Requirements Status (SPEC-032 Items 22-28)
 
-| Item | Requirement | Status |
-|------|-------------|--------|
-| 22 | Display model used after tokens/second | ❌ Not implemented |
-| 23 | Rebuild dialog close without stopping | ❌ Not verified |
-| 24 | Fix rebuild embeddings - document processing | ⚠️ Partially done (OODA 121) |
-| 25 | Chunk size vs embedding model compatibility | ❌ Not implemented |
-| 26 | Stop document extraction (cancel button) | ❌ Not implemented |
-| 27 | Scroll areas audit | ❌ Not verified |
-| 28 | OPENAI_API_KEY in make dev | ❌ Not verified |
+| Item | Requirement                                  | Status                       |
+| ---- | -------------------------------------------- | ---------------------------- |
+| 22   | Display model used after tokens/second       | ❌ Not implemented           |
+| 23   | Rebuild dialog close without stopping        | ❌ Not verified              |
+| 24   | Fix rebuild embeddings - document processing | ⚠️ Partially done (OODA 121) |
+| 25   | Chunk size vs embedding model compatibility  | ❌ Not implemented           |
+| 26   | Stop document extraction (cancel button)     | ❌ Not implemented           |
+| 27   | Scroll areas audit                           | ❌ Not verified              |
+| 28   | OPENAI_API_KEY in make dev                   | ❌ Not verified              |
 
 ### 3. Backend Current State
 
 Checked via previous session:
+
 - Backend running in PostgreSQL mode
 - Dimension auto-detection working (OODA 122 log confirms)
 - Rebuild embeddings persists config changes
@@ -39,12 +40,14 @@ Checked via previous session:
 ### 4. Files Modified in Recent Iterations
 
 From git log and OODA 121:
+
 - `edgequake-api/src/handlers/workspaces.rs` - Rebuild handlers enhanced
 - `edgequake-core/src/types/multitenancy.rs` - Default constants synced
 
 ### 5. WebUI Query Response Structure
 
 Current response metadata structure needs review for:
+
 - tokens/second display
 - model lineage information
 

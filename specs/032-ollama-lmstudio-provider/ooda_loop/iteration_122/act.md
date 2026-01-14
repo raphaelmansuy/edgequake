@@ -46,6 +46,7 @@ async fn get_workspace_llm_info(
 **File**: [query.rs](../../../../edgequake/crates/edgequake-api/src/handlers/query.rs#L323-L365)
 
 Query response now includes:
+
 - tokens_per_second calculated as `generated_tokens / generation_time_ms * 1000`
 - llm_provider from workspace config or defaults
 - llm_model from workspace config or defaults
@@ -103,10 +104,10 @@ After this change, query responses will include:
 
 ## SPEC-032 Requirements Addressed
 
-| Item | Requirement | Status |
-|------|-------------|--------|
-| 18 | Display tokens per second | ✅ Implemented |
-| 22 | Display model used after tokens/second | ✅ Implemented |
+| Item | Requirement                            | Status         |
+| ---- | -------------------------------------- | -------------- |
+| 18   | Display tokens per second              | ✅ Implemented |
+| 22   | Display model used after tokens/second | ✅ Implemented |
 
 ## Next Steps
 

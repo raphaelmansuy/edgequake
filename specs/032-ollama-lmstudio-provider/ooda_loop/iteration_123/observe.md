@@ -5,6 +5,7 @@
 ## Mission Checkpoint
 
 Focus on SPEC-032 Items 24-25:
+
 - Item 24: Fix rebuild embeddings - document processing verification
 - Item 25: Chunk size vs embedding model compatibility (CRITICAL INVARIANT)
 
@@ -13,6 +14,7 @@ Focus on SPEC-032 Items 24-25:
 ### 1. Current Rebuild Embeddings Flow
 
 From OODA 121, the rebuild_embeddings handler:
+
 1. Gets workspace configuration
 2. Updates embedding config if changed (model, provider, dimension)
 3. Clears vector storage
@@ -24,11 +26,11 @@ Let me verify the implementation is complete.
 
 **Problem**: Different embedding models have different max input token limits:
 
-| Model | Max Input Tokens | ~Max Characters |
-|-------|------------------|-----------------|
-| OpenAI text-embedding-3-small | 8191 | ~32,000 |
-| Ollama embeddinggemma | ~2048 | ~8,000 |
-| Ollama nomic-embed-text | 8192 | ~32,000 |
+| Model                         | Max Input Tokens | ~Max Characters |
+| ----------------------------- | ---------------- | --------------- |
+| OpenAI text-embedding-3-small | 8191             | ~32,000         |
+| Ollama embeddinggemma         | ~2048            | ~8,000          |
+| Ollama nomic-embed-text       | 8192             | ~32,000         |
 
 **Risk**: If we switch from OpenAI (32K chars) to Ollama embeddinggemma (8K chars), existing chunks may exceed the new model's limit.
 
@@ -38,11 +40,11 @@ Need to verify max_input_tokens is defined for all embedding models.
 
 ### 4. Files to Review
 
-| File | Purpose |
-|------|---------|
-| `edgequake/models.toml` | Check max_input_tokens for embedding models |
-| `edgequake-api/src/handlers/workspaces.rs` | Verify rebuild_embeddings flow |
-| `edgequake-pipeline/src/chunker.rs` | Understand chunking logic |
+| File                                       | Purpose                                     |
+| ------------------------------------------ | ------------------------------------------- |
+| `edgequake/models.toml`                    | Check max_input_tokens for embedding models |
+| `edgequake-api/src/handlers/workspaces.rs` | Verify rebuild_embeddings flow              |
+| `edgequake-pipeline/src/chunker.rs`        | Understand chunking logic                   |
 
 ## Next Steps
 

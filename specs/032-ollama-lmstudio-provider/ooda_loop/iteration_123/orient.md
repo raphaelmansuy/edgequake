@@ -8,14 +8,14 @@
 
 **rebuild_embeddings handler** ([workspaces.rs#L814-L1140](../../../../edgequake/crates/edgequake-api/src/handlers/workspaces.rs#L814)):
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Clear vectors | ✅ Implemented | `vector_storage.clear_workspace()` |
-| Update workspace config | ✅ Implemented | Updates embedding_model, provider, dimension |
+| Feature                          | Status         | Notes                                          |
+| -------------------------------- | -------------- | ---------------------------------------------- |
+| Clear vectors                    | ✅ Implemented | `vector_storage.clear_workspace()`             |
+| Update workspace config          | ✅ Implemented | Updates embedding_model, provider, dimension   |
 | Queue documents for re-embedding | ✅ Implemented | Creates Task with `is_embedding_rebuild: true` |
-| Dimension auto-detection | ✅ Implemented | Looks up from models_config |
-| Chunk compatibility check | ✅ Implemented | Warning if chunk_size > context_length |
-| Response with job_id | ✅ Implemented | Returns track_id for monitoring |
+| Dimension auto-detection         | ✅ Implemented | Looks up from models_config                    |
+| Chunk compatibility check        | ✅ Implemented | Warning if chunk_size > context_length         |
+| Response with job_id             | ✅ Implemented | Returns track_id for monitoring                |
 
 ### Model Context Lengths (from models.toml)
 
@@ -43,6 +43,7 @@ CRITICAL: mxbai-embed-large (512) < Default Chunk (1200)
 **Current behavior**: Warning is logged but operation proceeds.
 
 **Consequences**:
+
 1. Chunks exceeding model limit will fail embedding
 2. User may not see the warning (only in logs)
 3. Partial re-embedding could leave workspace in inconsistent state
@@ -62,8 +63,8 @@ CRITICAL: mxbai-embed-large (512) < Default Chunk (1200)
 
 ## Decision Points
 
-| Decision | Priority | Action |
-|----------|----------|--------|
-| Display warning in WebUI | High | Check if frontend shows warning |
-| Progress tracking works | High | Verify pipeline status endpoint |
-| Re-chunking automation | Low | Document as future enhancement |
+| Decision                 | Priority | Action                          |
+| ------------------------ | -------- | ------------------------------- |
+| Display warning in WebUI | High     | Check if frontend shows warning |
+| Progress tracking works  | High     | Verify pipeline status endpoint |
+| Re-chunking automation   | Low      | Document as future enhancement  |
