@@ -349,11 +349,11 @@ test.describe("SPEC-032: Provider Integration", () => {
       await page.goto("/query", { waitUntil: "domcontentloaded" });
       await page.waitForLoadState("domcontentloaded");
 
-      // Wait for page to stabilize
-      await page.waitForTimeout(1000);
+      // Wait for React to hydrate
+      await page.waitForTimeout(2000);
 
       // Find and click the provider selector (combobox)
-      const providerTrigger = page.locator('[role="combobox"]').first();
+      const providerTrigger = page.locator('[role="combobox"], [data-slot="trigger"]').first();
       await expect(providerTrigger).toBeVisible({ timeout: 15000 });
       await providerTrigger.click();
 
@@ -877,6 +877,47 @@ test.describe("SPEC-032: Provider Integration", () => {
         `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces/00000000-0000-0000-0000-000000000000`
       );
       expect(response.status()).toBe(404);
+    });
+
+    /**
+     * Verifies list tenants returns paginated results.
+     * @iteration OODA 74
+     */
+    test("list tenants returns paginated results", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/tenants");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+      expect(data).toHaveProperty("items");
+      expect(data).toHaveProperty("total");
+      expect(Array.isArray(data.items)).toBe(true);
+      expect(data.total).toBeGreaterThanOrEqual(data.items.length);
+    });
+
+    /**
+     * Verifies list workspaces returns paginated results.
+     * @iteration OODA 74
+     */
+    test("list workspaces returns paginated results", async ({ request }) => {
+      // Get valid tenant first
+      const tenantsResponse = await request.get("http://localhost:8080/api/v1/tenants");
+      const tenants = await tenantsResponse.json();
+      const tenantId = tenants.items[0]?.id;
+
+      if (!tenantId) {
+        test.skip();
+        return;
+      }
+
+      const response = await request.get(
+        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+      );
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+      expect(data).toHaveProperty("items");
+      expect(data).toHaveProperty("total");
+      expect(Array.isArray(data.items)).toBe(true);
     });
   });
 });
