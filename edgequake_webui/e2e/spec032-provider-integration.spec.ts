@@ -202,6 +202,41 @@ test.describe("SPEC-032: Provider Integration", () => {
         expect(model.cost.embedding_per_1k).toBeGreaterThanOrEqual(0);
       }
     });
+
+    /**
+     * @implements SPEC-032: Focus 7 - Model tags for filtering
+     * @iteration OODA 67
+     * 
+     * Verifies that models have tags for UI display and filtering.
+     */
+    test("models have tags property", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+
+      // Get models from enabled providers
+      const allModels = data.providers
+        .filter((p: any) => p.enabled)
+        .flatMap((p: any) => p.models);
+
+      // All models should have tags array
+      for (const model of allModels.slice(0, 5)) {
+        expect(model).toHaveProperty("tags");
+        expect(Array.isArray(model.tags)).toBe(true);
+        
+        // Tags should be strings
+        for (const tag of model.tags) {
+          expect(typeof tag).toBe("string");
+        }
+      }
+
+      // At least one model should have "recommended" tag
+      const recommendedModels = allModels.filter((m: any) =>
+        m.tags.includes("recommended")
+      );
+      expect(recommendedModels.length).toBeGreaterThan(0);
+    });
   });
 
   /**
