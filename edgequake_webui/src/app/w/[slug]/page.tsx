@@ -1,6 +1,7 @@
 'use client';
 
-import { redirect } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { use, useEffect } from 'react';
 
 /**
  * Workspace deeplink - redirects to query page.
@@ -13,7 +14,17 @@ export default function WorkspaceSlugPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  // Next.js 15 requires async params
-  // Redirect to query page
-  return redirect(`/w/${(params as unknown as { slug: string }).slug}/query`);
+  const router = useRouter();
+  const { slug } = use(params);
+
+  useEffect(() => {
+    // Redirect to query page
+    router.replace(`/w/${slug}/query`);
+  }, [router, slug]);
+
+  return (
+    <div className="flex items-center justify-center h-screen">
+      <div className="text-muted-foreground">Loading workspace...</div>
+    </div>
+  );
 }

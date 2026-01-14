@@ -1,12 +1,15 @@
 # OODA Loop Iteration 57 - Orient
 
 ## Analysis Date
+
 2025-01-27
 
 ## Strategic Assessment
 
 ### Problem Context
+
 The spec (Focus 1 & 2) requires:
+
 1. Tenant creation dialog must have LLM and embedding provider/model selection
 2. Workspace creation dialog must have LLM and embedding provider/model selection
 
@@ -45,6 +48,7 @@ Currently, the dialogs only have name/description fields. Users cannot configure
 The ModelSelector component returns values in format `provider:model` (e.g., `openai:gpt-4o-mini`).
 
 The API expects separate fields:
+
 - `llm_provider`: string (e.g., "openai")
 - `llm_model`: string (e.g., "gpt-4o-mini")
 
@@ -52,8 +56,8 @@ The API expects separate fields:
 
 ```typescript
 function parseModelValue(value: string): { provider: string; model: string } {
-  const [provider, ...modelParts] = value.split(':');
-  return { provider, model: modelParts.join(':') };
+  const [provider, ...modelParts] = value.split(":");
+  return { provider, model: modelParts.join(":") };
 }
 ```
 
@@ -66,11 +70,11 @@ function parseModelValue(value: string): { provider: string; model: string } {
 
 ### Risk Assessment
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
+| Risk                          | Impact | Mitigation                                        |
+| ----------------------------- | ------ | ------------------------------------------------- |
 | ModelSelector API not loading | Medium | Add loading states, graceful fallback to defaults |
-| User confusion with options | Low | Add helpful descriptions, show defaults clearly |
-| Breaking existing flow | High | Preserve current behavior when no selection made |
+| User confusion with options   | Low    | Add helpful descriptions, show defaults clearly   |
+| Breaking existing flow        | High   | Preserve current behavior when no selection made  |
 
 ### Dependencies
 

@@ -1,6 +1,7 @@
 # OODA Loop Iteration 59 - Act
 
 ## Action Date
+
 2025-01-27
 
 ## Changes Implemented
@@ -11,23 +12,25 @@
 
 ### Test Summary
 
-| Test | Focus | Type |
-|------|-------|------|
-| `models API returns available providers` | 7 | API |
-| `LLM models API returns model details` | 7 | API |
-| `embedding models API returns model details` | 7 | API |
-| `can create tenant with default model config via API` | 1 | API |
-| `can create workspace with model config via API` | 2 | API |
-| `workspace inherits tenant model config` | 1,2 | API |
-| `workspace deeplink by slug resolves correctly` | 6 | UI |
-| `invalid workspace slug shows 404` | 6 | UI |
-| `/w/[slug] redirects to /w/[slug]/query` | 6 | UI |
+| Test                                                  | Focus | Type |
+| ----------------------------------------------------- | ----- | ---- |
+| `models API returns available providers`              | 7     | API  |
+| `LLM models API returns model details`                | 7     | API  |
+| `embedding models API returns model details`          | 7     | API  |
+| `can create tenant with default model config via API` | 1     | API  |
+| `can create workspace with model config via API`      | 2     | API  |
+| `workspace inherits tenant model config`              | 1,2   | API  |
+| `workspace deeplink by slug resolves correctly`       | 6     | UI   |
+| `invalid workspace slug shows 404`                    | 6     | UI   |
+| `/w/[slug] redirects to /w/[slug]/query`              | 6     | UI   |
 
 ### Test Code Highlights
 
 ```typescript
 // Test multi-model API
-test("models API returns available providers and models", async ({ request }) => {
+test("models API returns available providers and models", async ({
+  request,
+}) => {
   const response = await request.get("http://localhost:8080/api/models");
   expect(response.ok()).toBe(true);
   const data = await response.json();
@@ -36,7 +39,9 @@ test("models API returns available providers and models", async ({ request }) =>
 });
 
 // Test tenant creation with model config
-test("can create tenant with default model config via API", async ({ request }) => {
+test("can create tenant with default model config via API", async ({
+  request,
+}) => {
   const createResponse = await request.post("/api/v1/tenants", {
     data: {
       name: uniqueName,

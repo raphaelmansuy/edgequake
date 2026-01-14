@@ -1,10 +1,11 @@
 /**
  * @module EmbeddingModelSelector
  * @description Dropdown selector for choosing embedding model when creating a workspace.
- * Displays available embedding providers with their models and dimensions.
+ * Displays ALL available embedding models per provider with their dimensions.
  *
  * @implements SPEC-032: Ollama/LM Studio provider support - Workspace embedding selection
  * @iteration OODA #19-20 - Workspace embedding UI
+ * @iteration OODA #54 - Multi-model support per provider
  *
  * @enforces BR0303 - Embedding model must be chosen at workspace creation
  * @enforces BR0304 - Dimension is auto-detected from model selection
@@ -26,7 +27,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useAvailableProviders } from '@/hooks/use-providers';
+import { useEmbeddingModels } from '@/hooks/use-providers';
 import { cn } from '@/lib/utils';
 import { Brain, Cloud, Cpu, FlaskConical, HelpCircle, Loader2 } from 'lucide-react';
 
@@ -68,6 +69,7 @@ function getProviderIcon(providerId: string) {
 /**
  * Embedding model selector component for workspace creation.
  * Allows users to select which embedding model to use for a new workspace.
+ * Shows ALL models per provider, not just defaults.
  */
 export function EmbeddingModelSelector({
   value,
@@ -75,18 +77,18 @@ export function EmbeddingModelSelector({
   disabled,
   className,
 }: EmbeddingModelSelectorProps) {
-  const { data: providers, isLoading, error } = useAvailableProviders();
+  const { data: embeddingData, isLoading, error } = useEmbeddingModels();
 
   if (isLoading) {
     return (
       <div className={cn('flex items-center gap-2 px-3 py-2 bg-muted rounded-lg', className)}>
         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-        <span className="text-sm text-muted-foreground">Loading models...</span>
+        <span className="text-sm text-muted-foreground">Loading embedding models...</span>
       </div>
     );
   }
 
-  if (error || !providers) {
+  if (error || !embeddingData) {
     return (
       <TooltipProvider>
         <Tooltip>
@@ -104,17 +106,17 @@ export function EmbeddingModelSelector({
     );
   }
 
-  // Get available embedding providers
-  const availableProviders = providers.embedding_providers.filter((p) => p.available);
-
-  // Build selection options: one per embedding provider
-  const options = availableProviders.map((provider) => ({
-    id: `${provider.id}:${provider.default_models.embedding_model}`,
-    providerId: provider.id,
-    providerName: provider.name,
-    model: provider.default_models.embedding_model,
-    dimension: provider.default_models.embedding_dimension,
-  }));
+  // Group models by provider
+  const modelsByProvider = embeddingData.models.reduce((acc, model) => {
+    if (!acc[model.provider]) {
+      acc[model.provider] = {
+        displayName: model.provider_display_name,
+        models: [],
+      };
+    }
+    acc[model.provider].models.push(model);
+    return acc;
+  }, {} as Record<string, { displayName: string; models: typeof embeddingData.models }>);
 
   // Current selection value string (provider:model format)
   const currentValue = value
@@ -126,13 +128,22 @@ export function EmbeddingModelSelector({
       onChange?.(undefined);
       return;
     }
-    
-    const option = options.find((o) => o.id === selectedId);
-    if (option) {
+
+    // Parse provider:model format
+    const colonIdx = selectedId.indexOf(':');
+    if (colonIdx === -1) return;
+    const provider = selectedId.slice(0, colonIdx);
+    const modelName = selectedId.slice(colonIdx + 1);
+
+    // Find the model to get dimension
+    const modelInfo = embeddingData.models.find(
+      (m) => m.provider === provider && m.name === modelName
+    );
+    if (modelInfo) {
       onChange?.({
-        model: option.model,
-        provider: option.providerId,
-        dimension: option.dimension,
+        model: modelName,
+        provider,
+        dimension: modelInfo.dimension,
       });
     }
   };
@@ -141,7 +152,7 @@ export function EmbeddingModelSelector({
     <Select
       value={currentValue || 'default'}
       onValueChange={handleChange}
-      disabled={disabled || options.length === 0}
+      disabled={disabled || embeddingData.models.length === 0}
     >
       <SelectTrigger className={cn('w-full', className)}>
         <SelectValue placeholder="Server default">
@@ -156,7 +167,7 @@ export function EmbeddingModelSelector({
           )}
         </SelectValue>
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="max-h-[400px]">
         {/* Default option - uses server configuration */}
         <SelectItem value="default">
           <div className="flex items-center gap-2">
@@ -164,52 +175,42 @@ export function EmbeddingModelSelector({
             <div className="flex flex-col">
               <span className="text-sm">Server Default</span>
               <span className="text-xs text-muted-foreground">
-                Uses server embedding configuration
+                {embeddingData.default_provider}/{embeddingData.default_model}
               </span>
             </div>
           </div>
         </SelectItem>
 
-        {/* Available embedding models grouped by provider */}
-        {availableProviders.length > 0 && (
-          <SelectGroup>
-            <SelectLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2">
-              Embedding Models
+        {/* All embedding models grouped by provider */}
+        {Object.entries(modelsByProvider).map(([providerId, { displayName, models }]) => (
+          <SelectGroup key={providerId}>
+            <SelectLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 flex items-center gap-1">
+              {getProviderIcon(providerId)}
+              {displayName}
             </SelectLabel>
-            {options.map((option) => (
-              <SelectItem key={option.id} value={option.id}>
-                <div className="flex items-center gap-2">
-                  {getProviderIcon(option.providerId)}
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium">{option.providerName}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {option.model} ({option.dimension}d)
-                    </span>
-                  </div>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        )}
-
-        {/* Show unavailable providers as disabled */}
-        {providers.embedding_providers.filter((p) => !p.available).length > 0 && (
-          <SelectGroup>
-            <SelectLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2">
-              Not Configured
-            </SelectLabel>
-            {providers.embedding_providers
-              .filter((p) => !p.available)
-              .map((provider) => (
-                <SelectItem key={provider.id} value={`disabled-${provider.id}`} disabled>
-                  <div className="flex items-center gap-2 opacity-50">
-                    {getProviderIcon(provider.id)}
-                    <span className="text-sm">{provider.name}</span>
+            {models.map((model) => {
+              const selectId = `${providerId}:${model.name}`;
+              return (
+                <SelectItem 
+                  key={selectId} 
+                  value={selectId}
+                  disabled={model.deprecated}
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    <div className="flex flex-col flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-medium truncate">{model.display_name}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground truncate">
+                        {model.name} · {model.dimension}d
+                      </span>
+                    </div>
                   </div>
                 </SelectItem>
-              ))}
+              );
+            })}
           </SelectGroup>
-        )}
+        ))}
       </SelectContent>
     </Select>
   );

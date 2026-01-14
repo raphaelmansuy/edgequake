@@ -3,6 +3,9 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * Playwright E2E Test Configuration for EdgeQuake WebUI
  * @see https://playwright.dev/docs/test-configuration
+ *
+ * Note: Uses port 3001 as port 3000 is often occupied by other services (e.g., OrbStack).
+ * The Next.js dev server automatically falls back to 3001 when 3000 is unavailable.
  */
 export default defineConfig({
   testDir: './e2e',
@@ -15,7 +18,7 @@ export default defineConfig({
     ['list'],
   ],
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -29,8 +32,8 @@ export default defineConfig({
 
   /* Run your local dev server before starting the tests */
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
+    command: 'npm run dev -- --port 3001',
+    url: 'http://localhost:3001',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
   },

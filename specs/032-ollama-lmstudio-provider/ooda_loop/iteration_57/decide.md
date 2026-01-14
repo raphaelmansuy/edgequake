@@ -1,6 +1,7 @@
 # OODA Loop Iteration 57 - Decide
 
 ## Decision Date
+
 2025-01-27
 
 ## Decisions Made
@@ -10,6 +11,7 @@
 **Decision**: Modify `tenant-guard.tsx` to include model selection dropdowns.
 
 **Implementation Plan**:
+
 1. Import ModelSelector component
 2. Add state: `selectedLlmModel`, `selectedEmbeddingModel`
 3. Add two ModelSelector instances (type="llm", type="embedding")
@@ -20,6 +22,7 @@
 **Decision**: Modify `tenant-workspace-selector.tsx` to include model selection.
 
 **Implementation Plan**:
+
 1. Import ModelSelector component
 2. Add state for LLM and embedding model selection
 3. Add ModelSelector to workspace creation dialog
@@ -30,6 +33,7 @@
 **Decision**: Verify and update `edgequake.ts` API types to include model fields.
 
 **Files to Check**:
+
 - `edgequake_webui/src/lib/api/edgequake.ts`
 - `edgequake_webui/src/types/api.ts` (if exists)
 
@@ -37,7 +41,8 @@
 
 **Decision**: Model selection is optional. If not selected, use server defaults.
 
-**Rationale**: 
+**Rationale**:
+
 - Maintains backward compatibility
 - Reduces friction for quick workspace creation
 - Server already has sensible defaults configured
@@ -47,6 +52,7 @@
 **Decision**: Display the selected model's provider and name clearly in the dialog.
 
 **UI Pattern**:
+
 ```
 LLM Model
 ┌────────────────────────────────────┐
@@ -54,7 +60,7 @@ LLM Model
 │ OpenAI · Vision · 128K context     │ ←── Shows capabilities
 └────────────────────────────────────┘
 
-Embedding Model  
+Embedding Model
 ┌────────────────────────────────────┐
 │ openai:text-embedding-3-small      │
 │ OpenAI · 1536 dimensions           │

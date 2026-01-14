@@ -1,6 +1,7 @@
 # OODA Loop Iteration 57 - Act
 
 ## Action Date
+
 2025-01-27
 
 ## Changes Implemented
@@ -10,6 +11,7 @@
 **File**: [edgequake_webui/src/components/layout/tenant-guard.tsx](../../../../edgequake_webui/src/components/layout/tenant-guard.tsx)
 
 **Changes**:
+
 1. Added import for `ModelSelector` component
 2. Added state variables for model selection:
    - `tenantLlmModel`, `tenantEmbeddingModel` for tenant creation
@@ -23,17 +25,19 @@
 9. Added ModelSelector components to workspace creation dialog
 
 **Code Changes Summary**:
+
 ```typescript
 // New state variables
 const [tenantLlmModel, setTenantLlmModel] = useState<string>();
 const [tenantEmbeddingModel, setTenantEmbeddingModel] = useState<string>();
 const [workspaceLlmModel, setWorkspaceLlmModel] = useState<string>();
-const [workspaceEmbeddingModel, setWorkspaceEmbeddingModel] = useState<string>();
+const [workspaceEmbeddingModel, setWorkspaceEmbeddingModel] =
+  useState<string>();
 
 // Parse "provider:model" format
 const parseModelValue = (value: string | undefined) => {
   if (!value) return {};
-  const colonIndex = value.indexOf(':');
+  const colonIndex = value.indexOf(":");
   if (colonIndex === -1) return { model: value };
   return {
     provider: value.substring(0, colonIndex),
@@ -46,8 +50,12 @@ const tenantData = {
   name: newTenantName,
   ...(llmConfig.model && { default_llm_model: llmConfig.model }),
   ...(llmConfig.provider && { default_llm_provider: llmConfig.provider }),
-  ...(embeddingConfig.model && { default_embedding_model: embeddingConfig.model }),
-  ...(embeddingConfig.provider && { default_embedding_provider: embeddingConfig.provider }),
+  ...(embeddingConfig.model && {
+    default_embedding_model: embeddingConfig.model,
+  }),
+  ...(embeddingConfig.provider && {
+    default_embedding_provider: embeddingConfig.provider,
+  }),
 };
 ```
 
@@ -60,6 +68,7 @@ const tenantData = {
 ## Test Results
 
 ### TypeScript Compilation
+
 ```
 ✓ pnpm exec tsc --noEmit - No errors
 ```

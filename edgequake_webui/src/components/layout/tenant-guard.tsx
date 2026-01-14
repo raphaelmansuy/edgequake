@@ -1,14 +1,15 @@
 'use client';
 
+import { ModelSelector } from '@/components/models/model-selector';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,7 +20,6 @@ import { AlertTriangle, Building2, FolderKanban, Loader2, Plus } from 'lucide-re
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { ModelSelector, type DisplayModelItem } from '@/components/models/model-selector';
 
 interface TenantGuardProps {
   children: React.ReactNode;

@@ -25,12 +25,14 @@ let stream = if self.llm_provider.supports_streaming() {
 ### Additional Fallback in Trait
 
 We added `stream_with_fallback()` at the trait level for more robust handling:
+
 - Catches streaming errors even when `supports_streaming() = true`
 - Provides clean abstraction for callers
 
 ### Test Coverage Added
 
 Created tests in `providers/mock.rs`:
+
 1. `test_stream_with_fallback_uses_stream_when_supported` - Verifies streaming path
 2. `test_stream_with_fallback_falls_back_when_not_supported` - Verifies fallback path
 3. `test_non_streaming_mock_provider` - Tests the NonStreamingMockProvider

@@ -4,6 +4,7 @@
  *
  * @implements SPEC-032: Ollama/LM Studio provider support - WebUI hooks
  * @iteration OODA #17 - Provider selector implementation
+ * @iteration OODA #54 - Multi-model support per provider
  */
 "use client";
 
@@ -12,6 +13,10 @@ import type {
   AvailableProvidersResponse,
   ProviderStatusResponse,
 } from "@/types/provider";
+import type {
+  LlmModelsResponse,
+  EmbeddingModelsResponse,
+} from "@/lib/api/models";
 import { useQuery } from "@tanstack/react-query";
 
 const getApiUrl = () => SERVER_BASE_URL || "http://localhost:8080";
@@ -41,6 +46,30 @@ async function fetchAvailableProviders(): Promise<AvailableProvidersResponse> {
 }
 
 /**
+ * Fetch LLM models from all providers.
+ * @implements SPEC-032: Multi-model support per provider (Focus 7)
+ */
+async function fetchLlmModels(): Promise<LlmModelsResponse> {
+  const response = await fetch(`${getApiUrl()}/api/v1/models/llm`);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Fetch embedding models from all providers.
+ * @implements SPEC-032: Multi-model support per provider (Focus 7)
+ */
+async function fetchEmbeddingModels(): Promise<EmbeddingModelsResponse> {
+  const response = await fetch(`${getApiUrl()}/api/v1/models/embedding`);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
  * Hook to get current provider status with auto-refresh.
  */
 export function useProviderStatus(refreshInterval = 30000) {
@@ -59,6 +88,30 @@ export function useAvailableProviders() {
   return useQuery({
     queryKey: ["available-providers"],
     queryFn: fetchAvailableProviders,
+    staleTime: 60000, // Cache for 1 minute
+  });
+}
+
+/**
+ * Hook to get all LLM models across all providers.
+ * @implements SPEC-032: Multi-model support per provider (Focus 7)
+ */
+export function useLlmModels() {
+  return useQuery({
+    queryKey: ["llm-models"],
+    queryFn: fetchLlmModels,
+    staleTime: 60000, // Cache for 1 minute
+  });
+}
+
+/**
+ * Hook to get all embedding models across all providers.
+ * @implements SPEC-032: Multi-model support per provider (Focus 7)
+ */
+export function useEmbeddingModels() {
+  return useQuery({
+    queryKey: ["embedding-models"],
+    queryFn: fetchEmbeddingModels,
     staleTime: 60000, // Cache for 1 minute
   });
 }

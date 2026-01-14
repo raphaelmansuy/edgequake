@@ -1,10 +1,11 @@
 /**
  * @module LLMModelSelector
  * @description Dropdown selector for choosing LLM model when creating a workspace.
- * Displays available LLM providers with their default models and capabilities.
+ * Displays available LLM providers with ALL their models and capabilities.
  *
  * @implements SPEC-032: Ollama/LM Studio provider support - Workspace LLM selection
  * @iteration OODA #10 - Workspace LLM configuration UI
+ * @iteration OODA #54 - Multi-model support per provider (Focus 7)
  *
  * @enforces BR0305 - LLM model must be chosen at workspace creation for ingestion tasks
  * @enforces BR0306 - LLM provider is separate from query-time LLM
@@ -26,9 +27,9 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useAvailableProviders } from '@/hooks/use-providers';
+import { useLlmModels } from '@/hooks/use-providers';
 import { cn } from '@/lib/utils';
-import { Brain, Cloud, Cpu, FlaskConical, HelpCircle, Loader2, Sparkles } from 'lucide-react';
+import { Brain, Cloud, Cpu, FlaskConical, HelpCircle, Loader2, Sparkles, Eye, Zap } from 'lucide-react';
 
 export interface LLMSelection {
   /** The model name (e.g., "gemma3:12b") */
@@ -94,6 +95,7 @@ function parseFullId(fullId: string): { provider: string; model: string } {
 /**
  * LLM model selector component for workspace creation.
  * Allows users to select which LLM to use for ingestion tasks (entity extraction, summarization).
+ * Shows ALL models per provider, not just defaults.
  *
  * Note: This LLM is used for document ingestion, not for query-time chat.
  * Query-time LLM can be selected separately in the chat interface.
@@ -105,18 +107,18 @@ export function LLMModelSelector({
   className,
   showUsageHint = true,
 }: LLMModelSelectorProps) {
-  const { data: providers, isLoading, error } = useAvailableProviders();
+  const { data: llmData, isLoading, error } = useLlmModels();
 
   if (isLoading) {
     return (
       <div className={cn('flex items-center gap-2 px-3 py-2 bg-muted rounded-lg', className)}>
         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-        <span className="text-sm text-muted-foreground">Loading LLM providers...</span>
+        <span className="text-sm text-muted-foreground">Loading LLM models...</span>
       </div>
     );
   }
 
-  if (error || !providers) {
+  if (error || !llmData) {
     return (
       <TooltipProvider>
         <Tooltip>
@@ -127,24 +129,24 @@ export function LLMModelSelector({
             </div>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Could not load LLM providers. Will use server default.</p>
+            <p>Could not load LLM models. Will use server default.</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
     );
   }
 
-  // Get available LLM providers
-  const availableProviders = providers.llm_providers.filter((p) => p.available);
-
-  // Build selection options: one per LLM provider
-  const options = availableProviders.map((provider) => ({
-    id: formatFullId(provider.id, provider.default_models.chat_model),
-    providerId: provider.id,
-    providerName: provider.name,
-    model: provider.default_models.chat_model,
-    description: provider.description,
-  }));
+  // Group models by provider
+  const modelsByProvider = llmData.models.reduce((acc, model) => {
+    if (!acc[model.provider]) {
+      acc[model.provider] = {
+        displayName: model.provider_display_name,
+        models: [],
+      };
+    }
+    acc[model.provider].models.push(model);
+    return acc;
+  }, {} as Record<string, { displayName: string; models: typeof llmData.models }>);
 
   // Current selection value string (provider/model format)
   const currentValue = value?.fullId;
@@ -155,14 +157,12 @@ export function LLMModelSelector({
       return;
     }
 
-    const option = options.find((o) => o.id === selectedId);
-    if (option) {
-      onChange?.({
-        model: option.model,
-        provider: option.providerId,
-        fullId: option.id,
-      });
-    }
+    const { provider, model } = parseFullId(selectedId);
+    onChange?.({
+      model,
+      provider,
+      fullId: selectedId,
+    });
   };
 
   return (
@@ -170,7 +170,7 @@ export function LLMModelSelector({
       <Select
         value={currentValue || 'default'}
         onValueChange={handleChange}
-        disabled={disabled || options.length === 0}
+        disabled={disabled || llmData.models.length === 0}
       >
         <SelectTrigger className="w-full">
           <SelectValue placeholder="Server default">
@@ -187,7 +187,7 @@ export function LLMModelSelector({
             )}
           </SelectValue>
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="max-h-[400px]">
           {/* Default option - uses server configuration */}
           <SelectItem value="default">
             <div className="flex items-center gap-2">
@@ -195,52 +195,52 @@ export function LLMModelSelector({
               <div className="flex flex-col">
                 <span className="text-sm">Server Default</span>
                 <span className="text-xs text-muted-foreground">
-                  Uses server LLM configuration
+                  {llmData.default_provider}/{llmData.default_model}
                 </span>
               </div>
             </div>
           </SelectItem>
 
-          {/* Available LLM models grouped by provider */}
-          {availableProviders.length > 0 && (
-            <SelectGroup>
-              <SelectLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2">
-                LLM Models
+          {/* All LLM models grouped by provider */}
+          {Object.entries(modelsByProvider).map(([providerId, { displayName, models }]) => (
+            <SelectGroup key={providerId}>
+              <SelectLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 flex items-center gap-1">
+                {getProviderIcon(providerId)}
+                {displayName}
               </SelectLabel>
-              {options.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
-                  <div className="flex items-center gap-2">
-                    {getProviderIcon(option.providerId)}
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium">{option.providerName}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {option.model}
-                      </span>
-                    </div>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          )}
-
-          {/* Show unavailable providers as disabled */}
-          {providers.llm_providers.filter((p) => !p.available).length > 0 && (
-            <SelectGroup>
-              <SelectLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2">
-                Not Configured
-              </SelectLabel>
-              {providers.llm_providers
-                .filter((p) => !p.available)
-                .map((provider) => (
-                  <SelectItem key={provider.id} value={`disabled-${provider.id}`} disabled>
-                    <div className="flex items-center gap-2 opacity-50">
-                      {getProviderIcon(provider.id)}
-                      <span className="text-sm">{provider.name}</span>
+              {models.map((model) => {
+                const fullId = formatFullId(providerId, model.name);
+                return (
+                  <SelectItem 
+                    key={fullId} 
+                    value={fullId}
+                    disabled={model.deprecated}
+                  >
+                    <div className="flex items-center gap-2 w-full">
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-medium truncate">{model.display_name}</span>
+                          {model.capabilities.supports_vision && (
+                            <span title="Vision support">
+                              <Eye className="h-3 w-3 text-blue-500 flex-shrink-0" />
+                            </span>
+                          )}
+                          {model.capabilities.supports_streaming && (
+                            <span title="Streaming">
+                              <Zap className="h-3 w-3 text-yellow-500 flex-shrink-0" />
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground truncate">
+                          {model.name} · {(model.capabilities.context_length / 1000).toFixed(0)}K ctx
+                        </span>
+                      </div>
                     </div>
                   </SelectItem>
-                ))}
+                );
+              })}
             </SelectGroup>
-          )}
+          ))}
         </SelectContent>
       </Select>
 

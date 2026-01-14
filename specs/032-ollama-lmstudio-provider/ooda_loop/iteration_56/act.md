@@ -82,7 +82,7 @@ test result: ok. 12 passed; 0 failed
 ```markdown
 - [x] 1. Add missing OpenAI models (gpt-5o-nano, gpt-5o-mini) to models.toml
 - [x] 2. Add streaming fallback method to LMStudioProvider trait
-- [x] 3. Update LMStudioProvider::stream() to handle errors gracefully  
+- [x] 3. Update LMStudioProvider::stream() to handle errors gracefully
 - [x] 4. Add stream_or_complete() method for fallback pattern
 - [x] 5. SOTA engine already has streaming fallback (verified)
 - [x] 6. Add tests for streaming fallback

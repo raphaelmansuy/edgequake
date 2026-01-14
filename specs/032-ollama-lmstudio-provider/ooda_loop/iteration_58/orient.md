@@ -1,6 +1,7 @@
 # OODA Loop Iteration 58 - Orient
 
 ## Analysis Date
+
 2025-01-27
 
 ## Strategic Assessment
@@ -45,16 +46,19 @@ edgequake_webui/src/app/
 ### Design Decisions
 
 #### D1: Use `/w/[slug]` Pattern
+
 - Short, memorable URL: `/w/my-project/query`
 - Follows industry patterns (GitHub: `/u/username`, Slack: `/archives/channel`)
 - Supports bookmarking specific workspaces
 
 #### D2: Keep Dashboard Routes for Tenant-Level Views
+
 - `/workspace` shows current tenant's default workspace settings
 - `/w/my-slug/settings` shows specific workspace settings by slug
 - Coexist for backward compatibility
 
 #### D3: Use API to Resolve Slug to Workspace
+
 - Frontend calls `getWorkspaceBySlug(tenantId, slug)` API
 - API already exists in backend ([workspaces.rs](../../../../edgequake/crates/edgequake-api/src/handlers/workspaces.rs))
 - Client API function exists ([edgequake.ts#getWorkspaceBySlug](../../../../edgequake_webui/src/lib/api/edgequake.ts))
@@ -74,8 +78,8 @@ edgequake_webui/src/app/
 
 ### Risk Assessment
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Slug not found | Medium | 404 page with helpful message |
-| Cross-tenant access | High | Verify tenant ownership in API |
-| Breaking existing routes | Low | Keep existing routes unchanged |
+| Risk                     | Impact | Mitigation                     |
+| ------------------------ | ------ | ------------------------------ |
+| Slug not found           | Medium | 404 page with helpful message  |
+| Cross-tenant access      | High   | Verify tenant ownership in API |
+| Breaking existing routes | Low    | Keep existing routes unchanged |

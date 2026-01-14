@@ -1,6 +1,7 @@
 # OODA Loop Iteration 58 - Decide
 
 ## Decision Date
+
 2025-01-27
 
 ## Decisions Made
@@ -9,7 +10,8 @@
 
 **Decision**: Create `/w/[slug]` routes that leverage existing components.
 
-**Rationale**: 
+**Rationale**:
+
 - Reuse existing `WorkspacePage` logic
 - Minimize code duplication
 - Quick implementation
@@ -25,12 +27,13 @@
 ### D3: Implementation Details
 
 1. **Slug Resolution Hook**:
+
    ```typescript
    // useWorkspaceBySlug.ts
    const useWorkspaceBySlug = (slug: string) => {
      const { selectedTenantId } = useTenantStore();
      return useQuery({
-       queryKey: ['workspace', 'by-slug', selectedTenantId, slug],
+       queryKey: ["workspace", "by-slug", selectedTenantId, slug],
        queryFn: () => getWorkspaceBySlug(selectedTenantId, slug),
        enabled: !!selectedTenantId && !!slug,
      });

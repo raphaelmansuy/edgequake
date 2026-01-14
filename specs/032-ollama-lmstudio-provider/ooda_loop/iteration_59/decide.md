@@ -1,6 +1,7 @@
 # OODA Loop Iteration 59 - Decide
 
 ## Decision Date
+
 2025-01-27
 
 ## Decisions Made
@@ -10,6 +11,7 @@
 **Decision**: Create `spec032-provider-integration.spec.ts` covering all focus areas.
 
 **Test Categories**:
+
 1. Multi-model API tests (Focus 7)
 2. Tenant/Workspace model config tests (Focus 1, 2)
 3. Deeplink route tests (Focus 6)
@@ -17,6 +19,7 @@
 ### D2: Use Playwright Request API for Backend Tests
 
 **Rationale**:
+
 - Faster than UI tests
 - More reliable (no browser flakiness)
 - Tests actual API contracts
