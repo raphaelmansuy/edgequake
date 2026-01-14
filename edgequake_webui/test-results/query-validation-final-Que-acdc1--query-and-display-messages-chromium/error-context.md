@@ -1,0 +1,161 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+  - alert [ref=e11]: Query
+  - generic [ref=e12]:
+    - link "Skip to main content" [ref=e13] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary "Sidebar navigation" [ref=e14]:
+      - generic [ref=e15]:
+        - link "EdgeQuake" [ref=e17] [cursor=pointer]:
+          - /url: /
+          - img [ref=e19]
+          - generic [ref=e24]: EdgeQuake
+        - navigation "Navigation" [ref=e25]:
+          - link "Dashboard" [ref=e26] [cursor=pointer]:
+            - /url: /
+            - img [ref=e27]
+            - generic [ref=e30]: Dashboard
+          - link "Knowledge Graph" [ref=e31] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e32]
+            - generic [ref=e37]: Knowledge Graph
+          - link "Documents" [ref=e38] [cursor=pointer]:
+            - /url: /documents
+            - img [ref=e39]
+            - generic [ref=e42]: Documents
+          - link "Query" [ref=e43] [cursor=pointer]:
+            - /url: /query
+            - img [ref=e44]
+            - generic [ref=e46]: Query
+          - link "Workspace" [ref=e47] [cursor=pointer]:
+            - /url: /workspace
+            - img [ref=e48]
+            - generic [ref=e50]: Workspace
+          - link "Costs" [ref=e51] [cursor=pointer]:
+            - /url: /costs
+            - img [ref=e52]
+            - generic [ref=e54]: Costs
+          - link "API Explorer" [ref=e55] [cursor=pointer]:
+            - /url: /api-explorer
+            - img [ref=e56]
+            - generic [ref=e58]: API Explorer
+          - link "Settings" [ref=e59] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e60]
+            - generic [ref=e63]: Settings
+        - generic [ref=e64]:
+          - button "Collapse sidebar" [ref=e65]:
+            - img
+            - generic [ref=e66]: Collapse
+          - generic [ref=e67]:
+            - img [ref=e69]
+            - generic [ref=e74]:
+              - generic [ref=e75]: EdgeQuake
+              - generic [ref=e76]: v0.1.0
+    - generic [ref=e77]:
+      - banner [ref=e78]:
+        - button "Default Workspac..." [ref=e81]:
+          - img
+          - generic [ref=e82]: Default Workspac...
+          - img
+        - generic [ref=e83]:
+          - generic [ref=e84]:
+            - img [ref=e85]
+            - generic [ref=e87]: v0.1.0
+          - button "Change language" [ref=e88]:
+            - img
+            - generic [ref=e89]: Change language
+          - button "Toggle theme" [ref=e90]:
+            - img
+            - generic [ref=e91]: Toggle theme
+          - button "User menu" [ref=e92]:
+            - img
+            - generic [ref=e93]: User menu
+      - navigation "breadcrumb" [ref=e95]:
+        - list [ref=e96]:
+          - listitem [ref=e97]:
+            - link "EdgeQuake" [ref=e98] [cursor=pointer]:
+              - /url: /
+              - img [ref=e99]
+              - generic [ref=e102]: EdgeQuake
+          - listitem [ref=e103]:
+            - img [ref=e104]
+          - listitem [ref=e106]:
+            - link "Query" [disabled] [ref=e107]:
+              - img [ref=e108]
+              - generic [ref=e110]: Query
+      - main [ref=e111]:
+        - generic [ref=e112]:
+          - generic [ref=e113]:
+            - generic [ref=e114]:
+              - generic [ref=e115]:
+                - heading "Query" [level=1] [ref=e116]
+                - generic [ref=e117]: Ask questions about your knowledge graph
+              - generic [ref=e118]:
+                - button "New" [disabled]:
+                  - img
+                  - text: New
+                - combobox [disabled] [ref=e119]:
+                  - generic [ref=e120]:
+                    - img [ref=e121]
+                    - generic [ref=e129]: Server Default
+                  - img [ref=e130]
+                - generic [ref=e132]:
+                  - button "Select Local query mode" [disabled] [ref=e133]:
+                    - img [ref=e134]
+                    - generic [ref=e138]: Local
+                  - button "Select Global query mode" [disabled] [ref=e139]:
+                    - img [ref=e140]
+                    - generic [ref=e143]: Global
+                  - button "Select Hybrid query mode" [disabled] [pressed] [ref=e144]:
+                    - img [ref=e145]
+                    - generic [ref=e149]: Hybrid
+                  - button "Select Simple query mode" [disabled] [ref=e150]:
+                    - img [ref=e151]
+                    - generic [ref=e153]: Simple
+                - button [ref=e154]:
+                  - img
+            - generic [ref=e159]:
+              - generic [ref=e161]:
+                - paragraph [ref=e163]: What is artificial intelligence?
+                - img [ref=e166]
+              - generic [ref=e170]:
+                - img [ref=e173]
+                - generic [ref=e181]: Processing your query...
+            - form "Query form" [ref=e183]:
+              - generic [ref=e184]:
+                - generic [ref=e185]:
+                  - textbox "Ask a question..." [disabled] [ref=e186]
+                  - generic [ref=e187]: Press Enter to send, Shift+Enter for new line
+                  - button "Stop generating" [active] [ref=e189]:
+                    - img
+                    - text: Stop
+                - paragraph [ref=e190]: Press Enter to send, Shift+Enter for new line
+          - complementary "History" [ref=e191]:
+            - generic [ref=e192]:
+              - heading "History" [level=2] [ref=e193]
+              - generic [ref=e194]:
+                - button "New conversation" [ref=e195]:
+                  - img
+                - button "Collapse history" [ref=e196]:
+                  - img
+            - generic [ref=e198]:
+              - img [ref=e199]
+              - textbox "Search conversations..." [ref=e202]
+            - generic [ref=e204]:
+              - button "All Conversations" [ref=e205] [cursor=pointer]:
+                - img [ref=e206]
+                - generic [ref=e209]: All Conversations
+              - button "New Folder" [ref=e210]:
+                - img
+                - text: New Folder
+            - generic [ref=e212]:
+              - img [ref=e214]
+              - paragraph [ref=e216]: No conversations yet
+              - button "Start your first conversation" [ref=e217]
+  - region "Notifications alt+T"
+```

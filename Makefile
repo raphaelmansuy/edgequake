@@ -132,6 +132,10 @@ dev: check-deps ## Start full development stack (DB + Backend + Frontend) with O
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🚀 Starting EdgeQuake Development Stack$(RESET)"
 	@echo "$(BOLD)$(YELLOW)📝 Using Ollama as default LLM provider$(RESET)"
+	@# REQ-28: Show if OPENAI_API_KEY is available for runtime switching
+	@if [ -n "$(OPENAI_API_KEY)" ]; then \
+		echo "$(GREEN)✓ OPENAI_API_KEY detected - OpenAI provider also available$(RESET)"; \
+	fi
 	@echo ""
 	@echo "$(YELLOW)→ Stopping any existing services...$(RESET)"
 	@$(MAKE) stop --no-print-directory 2>/dev/null || true
@@ -156,7 +160,7 @@ dev: check-deps ## Start full development stack (DB + Backend + Frontend) with O
 		OLLAMA_HOST="http://localhost:11434" \
 		OLLAMA_MODEL="gemma3:latest" \
 		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
-		OPENAI_API_KEY="" \
+		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
 		cargo run 2>&1 | sed 's/^/[backend] /') & \
 	BACKEND_PID=$$!; \
 	(sleep 5 && cd $(FRONTEND_DIR) && (bun run dev 2>/dev/null || npm run dev) 2>&1 | sed 's/^/[frontend] /') & \
@@ -259,24 +263,32 @@ DATABASE_URL := postgresql://edgequake:edgequake_secret@localhost:5432/edgequake
 
 backend-dev: db-wait ## Run backend in development mode with PostgreSQL + Ollama (DEFAULT)
 	@echo "$(BLUE)Starting backend with PostgreSQL storage + Ollama...$(RESET)"
+	@# REQ-28: Forward OPENAI_API_KEY if set, allowing runtime provider switching
+	@if [ -n "$(OPENAI_API_KEY)" ]; then \
+		echo "$(GREEN)✓ OPENAI_API_KEY detected - OpenAI provider available$(RESET)"; \
+	fi
 	@cd $(BACKEND_DIR) && \
 		DATABASE_URL="$(DATABASE_URL)" \
 		EDGEQUAKE_LLM_PROVIDER="ollama" \
 		OLLAMA_HOST="http://localhost:11434" \
 		OLLAMA_MODEL="gemma3:latest" \
 		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
-		OPENAI_API_KEY="" \
+		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
 		cargo run
 
 backend-db: db-wait ## Run backend with PostgreSQL storage + Ollama (explicit)
 	@echo "$(BLUE)Starting backend with PostgreSQL storage + Ollama (explicit)...$(RESET)"
+	@# REQ-28: Forward OPENAI_API_KEY if set, allowing runtime provider switching
+	@if [ -n "$(OPENAI_API_KEY)" ]; then \
+		echo "$(GREEN)✓ OPENAI_API_KEY detected - OpenAI provider available$(RESET)"; \
+	fi
 	@cd $(BACKEND_DIR) && \
 		DATABASE_URL="$(DATABASE_URL)" \
 		EDGEQUAKE_LLM_PROVIDER="ollama" \
 		OLLAMA_HOST="http://localhost:11434" \
 		OLLAMA_MODEL="gemma3:latest" \
 		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
-		OPENAI_API_KEY="" \
+		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
 		cargo run
 
 backend-memory: ## Run backend with in-memory storage (for testing only)

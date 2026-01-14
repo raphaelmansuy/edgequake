@@ -270,7 +270,7 @@ const MetadataBar = memo(function MetadataBar({
             {(durationMs / 1000).toFixed(1)}s
           </span>
         )}
-        {/* SPEC-032: Show tokens per second for performance insight */}
+        {/* SPEC-032: Show tokens per second with model name for performance insight */}
         {tokensUsed && durationMs && durationMs > 0 && (
           <TooltipProvider>
             <Tooltip>
@@ -278,11 +278,23 @@ const MetadataBar = memo(function MetadataBar({
                 <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400" title={t('query.tokensPerSecond', 'Tokens per second')}>
                   <Gauge className="h-3 w-3" />
                   {((tokensUsed / durationMs) * 1000).toFixed(1)}/s
+                  {/* REQ-22: Display model after tokens/second */}
+                  {(llmProvider || llmModel) && (
+                    <span className="text-muted-foreground">
+                      • {llmProvider && llmModel ? `${llmProvider}/${llmModel}` : llmProvider || llmModel}
+                    </span>
+                  )}
                 </span>
               </TooltipTrigger>
               <TooltipContent>
                 <p className="text-xs">
                   {t('query.tokensPerSecondDesc', 'Generation speed')}: {((tokensUsed / durationMs) * 1000).toFixed(1)} {t('query.tokensPerSecondUnit', 'tokens/second')}
+                  {(llmProvider || llmModel) && (
+                    <>
+                      <br />
+                      {t('query.modelUsed', 'Model')}: {llmProvider && llmModel ? `${llmProvider}/${llmModel}` : llmProvider || llmModel}
+                    </>
+                  )}
                 </p>
               </TooltipContent>
             </Tooltip>

@@ -857,6 +857,29 @@ pub async fn rebuild_embeddings(
         ));
     }
 
+    // REQ-25: Validate chunk size vs embedding model compatibility (CRITICAL INVARIANT)
+    // Get the new embedding model's context length to ensure chunks will fit
+    let model_context_length = state
+        .models_config
+        .get_model(&new_provider, &new_model)
+        .map(|m| m.capabilities.context_length)
+        .unwrap_or(8192); // Default to safe value if model not found
+
+    // Default chunk size is 1200 tokens (from chunker config)
+    const DEFAULT_CHUNK_SIZE_TOKENS: usize = 1200;
+    
+    if model_context_length > 0 && DEFAULT_CHUNK_SIZE_TOKENS > model_context_length {
+        info!(
+            workspace_id = %workspace_id,
+            chunk_size = DEFAULT_CHUNK_SIZE_TOKENS,
+            model_context_length = model_context_length,
+            warning = "Default chunk size exceeds model's context length",
+            "Chunk-embedding compatibility warning - some chunks may fail to embed"
+        );
+        // Log warning but allow the operation to proceed
+        // Future: Could add a strict mode that blocks incompatible changes
+    }
+
     info!(
         workspace_id = %workspace_id,
         old_model = %workspace.embedding_model,
@@ -864,6 +887,7 @@ pub async fn rebuild_embeddings(
         old_dimension = workspace.embedding_dimension,
         new_dimension = new_dimension,
         document_count = stats.document_count,
+        model_context_length = model_context_length,
         "Starting embedding rebuild"
     );
 
@@ -893,6 +917,17 @@ pub async fn rebuild_embeddings(
         None
     };
 
+    // REQ-25: Generate compatibility warning if chunks may exceed model limit
+    let compatibility_warning = if model_context_length > 0 && DEFAULT_CHUNK_SIZE_TOKENS > model_context_length {
+        Some(format!(
+            "Default chunk size ({} tokens) exceeds model's context length ({} tokens). Some chunks may fail to embed.",
+            DEFAULT_CHUNK_SIZE_TOKENS, model_context_length
+        ))
+    } else {
+        None
+    };
+    let has_compatibility_warning = compatibility_warning.is_some();
+
     let response = RebuildEmbeddingsResponse {
         workspace_id,
         status: "vectors_cleared".to_string(),
@@ -901,14 +936,18 @@ pub async fn rebuild_embeddings(
         embedding_model: new_model,
         embedding_provider: new_provider,
         embedding_dimension: new_dimension,
+        model_context_length,
         estimated_time_seconds: estimated_time,
         job_id: None, // No async job yet
+        compatibility_warning,
     };
 
     info!(
         workspace_id = %workspace_id,
         status = %response.status,
         documents = stats.document_count,
+        model_context_length = model_context_length,
+        has_warning = has_compatibility_warning,
         "Embedding rebuild complete (vectors cleared, documents need reprocessing)"
     );
 
@@ -1148,13 +1187,24 @@ pub async fn reprocess_all_documents(
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to list document keys: {}", e)))?;
 
+    // REQ-24: Debug logging for document discovery
+    let metadata_keys_count = all_keys.iter().filter(|k| k.ends_with("-metadata")).count();
+    info!(
+        workspace_id = %workspace_id,
+        total_keys = all_keys.len(),
+        metadata_keys = metadata_keys_count,
+        "Scanning KV storage for documents to reprocess"
+    );
+
     let mut documents_found = 0;
     let mut documents_queued = 0;
     let mut documents_skipped = 0;
+    let mut skip_reasons: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
 
     // 4. Process each document
     for key in all_keys.iter().filter(|k| k.ends_with("-metadata")) {
         if documents_queued >= request.max_documents {
+            *skip_reasons.entry("max_documents_reached").or_insert(0) += 1;
             break;
         }
 
@@ -1171,6 +1221,7 @@ pub async fn reprocess_all_documents(
                     .unwrap_or("default");
 
                 if doc_workspace != workspace_id.to_string() && doc_workspace != "default" {
+                    *skip_reasons.entry("wrong_workspace").or_insert(0) += 1;
                     continue;
                 }
 
@@ -1183,12 +1234,14 @@ pub async fn reprocess_all_documents(
                 // Skip if not including completed and already completed
                 if !request.include_completed && status == Some("completed") {
                     documents_skipped += 1;
+                    *skip_reasons.entry("completed_excluded").or_insert(0) += 1;
                     continue;
                 }
 
                 // Skip if currently processing
                 if status == Some("processing") {
                     documents_skipped += 1;
+                    *skip_reasons.entry("already_processing").or_insert(0) += 1;
                     continue;
                 }
 
@@ -1197,6 +1250,7 @@ pub async fn reprocess_all_documents(
                     Some(id) => id.to_string(),
                     None => {
                         documents_skipped += 1;
+                        *skip_reasons.entry("no_doc_id").or_insert(0) += 1;
                         continue;
                     }
                 };
@@ -1215,6 +1269,7 @@ pub async fn reprocess_all_documents(
                     Some(c) => c,
                     None => {
                         documents_skipped += 1;
+                        *skip_reasons.entry("no_content").or_insert(0) += 1;
                         continue;
                     }
                 };
@@ -1262,18 +1317,29 @@ pub async fn reprocess_all_documents(
                 if let Err(e) = state.task_storage.create_task(&task).await {
                     info!(error = %e, doc_id = %doc_id, "Failed to create task, skipping");
                     documents_skipped += 1;
+                    *skip_reasons.entry("task_create_failed").or_insert(0) += 1;
                     continue;
                 }
 
                 if let Err(e) = state.task_queue.send(task).await {
                     info!(error = %e, doc_id = %doc_id, "Failed to queue task, skipping");
                     documents_skipped += 1;
+                    *skip_reasons.entry("task_queue_failed").or_insert(0) += 1;
                     continue;
                 }
 
                 documents_queued += 1;
             }
         }
+    }
+
+    // REQ-24: Log detailed skip reasons for debugging
+    if !skip_reasons.is_empty() {
+        info!(
+            workspace_id = %workspace_id,
+            skip_reasons = ?skip_reasons,
+            "Document skip reasons breakdown"
+        );
     }
 
     // 5. Estimate processing time (1 second per document conservative)

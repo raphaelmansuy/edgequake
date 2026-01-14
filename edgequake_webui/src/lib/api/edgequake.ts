@@ -307,8 +307,12 @@ export interface RebuildEmbeddingsResponse {
   embedding_model: string;
   embedding_provider: string;
   embedding_dimension: number;
+  /** Model's context length (max input tokens). REQ-25 */
+  model_context_length: number;
   estimated_time_seconds?: number;
   job_id?: string;
+  /** Warning if chunk size exceeds model context length. REQ-25 */
+  compatibility_warning?: string;
 }
 
 /**

@@ -4,12 +4,12 @@ import { ModelSelector } from '@/components/models/model-selector';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -88,24 +88,40 @@ export function TenantGuard({ children }: TenantGuardProps) {
     staleTime: 60000,
   });
 
-  // Auto-select tenant
+  // Auto-select tenant and validate existing selection
+  // WHY: Prevents stale tenant IDs from causing cascading workspace lookup failures
   useEffect(() => {
     if (tenantsData && tenantsData.length > 0) {
       setTenants(tenantsData);
-      if (!selectedTenantId) {
+      
+      // Validate that selected tenant exists in available tenants
+      const tenantExists = selectedTenantId && 
+        tenantsData.some(t => t.id === selectedTenantId);
+      
+      if (!selectedTenantId || !tenantExists) {
+        // WHY: Auto-heal stale tenant selection from localStorage
         selectTenant(tenantsData[0].id);
       }
     }
   }, [tenantsData, setTenants, selectedTenantId, selectTenant]);
 
-  // Auto-select workspace
+  // Auto-select workspace and validate existing selection
+  // WHY: Prevents "Workspace Not Found" error when localStorage has stale workspace IDs
   useEffect(() => {
     if (workspacesData && workspacesData.length > 0) {
       setWorkspaces(workspacesData);
-      if (!selectedWorkspaceId) {
+      
+      // Validate that selected workspace exists in available workspaces
+      // If not, auto-select the first available workspace
+      const workspaceExists = selectedWorkspaceId && 
+        workspacesData.some(w => w.id === selectedWorkspaceId);
+      
+      if (!selectedWorkspaceId || !workspaceExists) {
+        // WHY: Auto-heal stale workspace selection from localStorage
         selectWorkspace(workspacesData[0].id);
       }
-      // Context setup is complete once we have a workspace selected
+      
+      // Context setup is complete once we have a valid workspace selected
       // Intentional: Initialization of context state
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsSettingUpContext(false);

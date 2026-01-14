@@ -142,6 +142,12 @@ export function RebuildEmbeddingsButton({
           `Embeddings cleared! ${response.documents_to_process} documents need reprocessing.`
         )
       );
+      
+      // REQ-25: Show compatibility warning if chunk size exceeds model context
+      if (response.compatibility_warning) {
+        toast.warning(response.compatibility_warning, { duration: 10000 });
+      }
+      
       setIsConfirmOpen(false);
       onComplete?.(response);
       

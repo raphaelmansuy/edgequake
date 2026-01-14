@@ -400,10 +400,17 @@ pub struct RebuildEmbeddingsResponse {
     pub embedding_provider: String,
     /// New embedding dimension (after update).
     pub embedding_dimension: usize,
+    /// New embedding model's context length (max input tokens).
+    /// REQ-25: Chunk compatibility validation.
+    pub model_context_length: usize,
     /// Estimated time to complete (seconds).
     pub estimated_time_seconds: Option<u64>,
     /// Background job ID for tracking (if async).
     pub job_id: Option<String>,
+    /// Warning message if chunk size exceeds model context length.
+    /// REQ-25: Critical invariant - chunks must fit model's input limit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compatibility_warning: Option<String>,
 }
 
 // ============================================================================

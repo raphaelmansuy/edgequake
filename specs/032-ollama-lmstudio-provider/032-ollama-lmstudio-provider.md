@@ -198,6 +198,83 @@ If you encounter any roadblocks or challenges during the mission, document them 
 
 roadblockers.md and describe how you overcame them or propose potential solutions.
 
+## OODA 284+ Requirements (January 14, 2026)
+
+### 22. Display Model Used After Tokens/Second
+
+Display the model name (provider/model) after the tokens/second metric in query responses. Format: `58.5/s • ollama/gemma3:12b`
+
+### 23. Rebuild Dialog Close Without Stopping
+
+The pipeline status dialog must have a "Close" button that closes the dialog WITHOUT stopping the rebuild. Currently, closing the dialog should not affect the background process. Add visual indicator when KG rebuild is in progress across the UI.
+
+### 24. Fix Rebuild Embeddings - Document Processing
+
+Rebuild embeddings appears to not process documents or chunks. Debug and fix:
+
+- Verify documents are queued for reprocessing
+- Verify chunks are being re-embedded
+- Verify progress is tracked and displayed
+- Add logging to trace the rebuild process
+
+### 25. Chunk Size vs Embedding Model Compatibility (CRITICAL INVARIANT)
+
+**Invariant**: The chunk size (max characters per chunk) MUST be compatible with the embedding model's maximum input tokens.
+
+**Deep Analysis Required**:
+
+- Different embedding models have different max input token limits:
+  - OpenAI text-embedding-3-small: 8191 tokens (~32,000 chars)
+  - Ollama embeddinggemma: ~2048 tokens (~8,000 chars)
+  - Ollama nomic-embed-text: 8192 tokens (~32,000 chars)
+- The chunking process must respect these limits
+- When changing embedding models, warn if existing chunks exceed new model's limits
+- Provide automatic re-chunking option when model limits are incompatible
+- Store max_tokens_per_chunk in workspace settings
+- Validate chunk sizes against model capabilities at ingestion time
+
+**Implementation Plan**:
+
+1. Add `max_input_tokens` to model capabilities in models.toml
+2. Add `chunk_max_tokens` to workspace settings
+3. Validate during ingestion that chunks fit model limits
+4. Warn during model change if incompatibility detected
+5. Provide re-chunking action when needed
+
+### 26. Stop Document Extraction (KG Building)
+
+Add ability to stop/cancel an in-progress document extraction:
+
+- Add cancel button per document in processing state
+- Add "Cancel All" button for batch operations
+- Gracefully stop LLM calls and mark document as cancelled
+- Allow retry of cancelled documents
+
+### 27. Scroll Areas Audit (All Screens)
+
+Ensure all screens have properly defined:
+
+- Fixed zones (headers, toolbars, navigation)
+- Scrollable content areas
+- No double scrollbars
+- Proper min-h-0 on flex containers
+
+### 28. OpenAI Key in make dev
+
+Ensure `make dev` propagates the OPENAI_API_KEY environment variable so users can switch to OpenAI models even when Ollama is default:
+
+- Update Makefile to forward OPENAI_API_KEY
+- Document in README/AGENTS.md
+- Test switching between providers at runtime
+
+## Invariants (Non-Negotiable)
+
+1. **Chunk-Embedding Compatibility**: Chunks must NEVER exceed the embedding model's max input tokens
+2. **Workspace Isolation**: Each workspace has its own embedding configuration
+3. **No Silent Failures**: All operations must provide clear success/error feedback
+4. **Background Process Safety**: UI actions (close dialog) must not stop background processes
+5. **Progress Transparency**: Long-running operations must show real-time progress
+
 For example must document any issues regarding starting postgres locally, edgequake setup, data ingestion issues, code understanding issues, etc.
 
 You must refer to this file in each OODA loop iteration if any roadblockers were encountered.

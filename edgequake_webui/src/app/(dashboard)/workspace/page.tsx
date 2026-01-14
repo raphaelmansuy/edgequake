@@ -14,6 +14,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmbeddingModelSelector, type EmbeddingSelection } from '@/components/workspace/embedding-model-selector';
@@ -274,58 +275,72 @@ export default function WorkspacePage() {
 
   if (!selectedTenantId || !selectedWorkspaceId) {
     return (
-      <div className="container mx-auto p-6">
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <FolderKanban className="h-12 w-12 text-muted-foreground mb-4" />
-            <h2 className="text-lg font-medium text-muted-foreground">
-              {t('workspace.noWorkspaceSelected', 'No Workspace Selected')}
-            </h2>
-            <p className="text-sm text-muted-foreground mt-2">
-              {t('workspace.selectWorkspaceHint', 'Please select a workspace from the sidebar.')}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <ScrollArea className="h-full">
+        <div className="container mx-auto p-6">
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <FolderKanban className="h-12 w-12 text-muted-foreground mb-4" />
+              <h2 className="text-lg font-medium text-muted-foreground">
+                {t('workspace.noWorkspaceSelected', 'No Workspace Selected')}
+              </h2>
+              <p className="text-sm text-muted-foreground mt-2">
+                {t('workspace.selectWorkspaceHint', 'Please select a workspace from the sidebar.')}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </ScrollArea>
     );
   }
 
   if (isLoadingWorkspace) {
     return (
-      <div className="container mx-auto p-6 space-y-6">
-        <Skeleton className="h-8 w-64" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-32" />
-          ))}
+      <ScrollArea className="h-full">
+        <div className="container mx-auto p-6 space-y-6">
+          <Skeleton className="h-8 w-64" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <Skeleton key={i} className="h-32" />
+            ))}
+          </div>
+          <Skeleton className="h-64" />
         </div>
-        <Skeleton className="h-64" />
-      </div>
+      </ScrollArea>
     );
   }
 
   if (!workspace) {
     return (
-      <div className="container mx-auto p-6">
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-            <h2 className="text-lg font-medium">
-              {t('workspace.notFound', 'Workspace Not Found')}
-            </h2>
-            <p className="text-sm text-muted-foreground mt-2">
-              {t('workspace.notFoundHint', 'The selected workspace could not be loaded.')}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <ScrollArea className="h-full">
+        <div className="container mx-auto p-6">
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
+              <h2 className="text-lg font-medium">
+                {t('workspace.notFound', 'Workspace Not Found')}
+              </h2>
+              <p className="text-sm text-muted-foreground mt-2 mb-4">
+                {t('workspace.notFoundHint', 'The selected workspace could not be loaded.')}
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => refetchWorkspace()}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                {t('common.retry', 'Retry')}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </ScrollArea>
     );
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <ScrollArea className="h-full">
+      <div className="container mx-auto p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
             <FolderKanban className="h-8 w-8 text-primary" />
@@ -706,11 +721,12 @@ export default function WorkspacePage() {
         </CardContent>
       </Card>
 
-      {/* Status Indicator */}
-      <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-        <CheckCircle className="h-4 w-4 text-green-500" />
-        {t('workspace.statusReady', 'Workspace ready for queries and document ingestion')}
+        {/* Status Indicator */}
+        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+          <CheckCircle className="h-4 w-4 text-green-500" />
+          {t('workspace.statusReady', 'Workspace ready for queries and document ingestion')}
+        </div>
       </div>
-    </div>
+    </ScrollArea>
   );
 }

@@ -1,0 +1,175 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+  - alert [ref=e11]
+  - generic [ref=e12]:
+    - link "Skip to main content" [ref=e13] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary "Sidebar navigation" [ref=e14]:
+      - generic [ref=e15]:
+        - link "EdgeQuake" [ref=e17] [cursor=pointer]:
+          - /url: /
+          - img [ref=e19]
+          - generic [ref=e24]: EdgeQuake
+        - navigation "Navigation" [ref=e25]:
+          - link "Dashboard" [ref=e26] [cursor=pointer]:
+            - /url: /
+            - img [ref=e27]
+            - generic [ref=e30]: Dashboard
+          - link "Knowledge Graph" [ref=e31] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e32]
+            - generic [ref=e37]: Knowledge Graph
+          - link "Documents" [ref=e38] [cursor=pointer]:
+            - /url: /documents
+            - img [ref=e39]
+            - generic [ref=e42]: Documents
+          - link "Query" [ref=e43] [cursor=pointer]:
+            - /url: /query
+            - img [ref=e44]
+            - generic [ref=e46]: Query
+          - link "Workspace" [ref=e47] [cursor=pointer]:
+            - /url: /workspace
+            - img [ref=e48]
+            - generic [ref=e50]: Workspace
+          - link "Costs" [ref=e51] [cursor=pointer]:
+            - /url: /costs
+            - img [ref=e52]
+            - generic [ref=e54]: Costs
+          - link "API Explorer" [ref=e55] [cursor=pointer]:
+            - /url: /api-explorer
+            - img [ref=e56]
+            - generic [ref=e58]: API Explorer
+          - link "Settings" [ref=e59] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e60]
+            - generic [ref=e63]: Settings
+        - generic [ref=e64]:
+          - button "Collapse sidebar" [ref=e65]:
+            - img
+            - generic [ref=e66]: Collapse
+          - generic [ref=e67]:
+            - img [ref=e69]
+            - generic [ref=e74]:
+              - generic [ref=e75]: EdgeQuake
+              - generic [ref=e76]: v0.1.0
+    - generic [ref=e77]:
+      - banner [ref=e78]:
+        - button "Default Workspac..." [ref=e81]:
+          - img
+          - generic [ref=e82]: Default Workspac...
+          - img
+        - generic [ref=e83]:
+          - generic [ref=e84]:
+            - img [ref=e85]
+            - generic [ref=e87]: v0.1.0
+          - button "Change language" [ref=e88]:
+            - img
+            - generic [ref=e89]: Change language
+          - button "Toggle theme" [ref=e90]:
+            - img
+            - generic [ref=e91]: Toggle theme
+          - button "User menu" [ref=e92]:
+            - img
+            - generic [ref=e93]: User menu
+      - main [ref=e95]:
+        - generic [ref=e96]:
+          - generic [ref=e97]:
+            - heading "Dashboard" [level=1] [ref=e98]
+            - paragraph [ref=e99]: Welcome to EdgeQuake - Your Knowledge Graph RAG Platform
+          - generic [ref=e100]:
+            - generic [ref=e103]:
+              - generic [ref=e104]:
+                - paragraph [ref=e105]: Documents
+                - paragraph [ref=e107]: "0"
+                - paragraph [ref=e108]: Uploaded documents
+              - img [ref=e110]
+            - generic [ref=e115]:
+              - generic [ref=e116]:
+                - paragraph [ref=e117]: Entities
+                - paragraph [ref=e119]: "0"
+                - paragraph [ref=e120]: Extracted entities
+              - img [ref=e122]
+            - generic [ref=e129]:
+              - generic [ref=e130]:
+                - paragraph [ref=e131]: Relationships
+                - paragraph [ref=e133]: "0"
+                - paragraph [ref=e134]: Entity connections
+              - img [ref=e136]
+            - generic [ref=e142]:
+              - generic [ref=e143]:
+                - paragraph [ref=e144]: Entity Types
+                - paragraph [ref=e146]: "0"
+                - paragraph [ref=e147]: Unique categories
+              - img [ref=e149]
+          - generic [ref=e154]:
+            - generic [ref=e155]:
+              - generic [ref=e156]: Quick Actions
+              - generic [ref=e157]: Get started with common tasks
+            - generic [ref=e159]:
+              - link "Upload Documents Add new documents to your knowledge base" [ref=e160] [cursor=pointer]:
+                - /url: /documents
+                - img [ref=e162]
+                - generic [ref=e165]:
+                  - paragraph [ref=e166]: Upload Documents
+                  - paragraph [ref=e167]: Add new documents to your knowledge base
+              - link "Query Knowledge Ask questions about your data" [ref=e168] [cursor=pointer]:
+                - /url: /query
+                - img [ref=e170]
+                - generic [ref=e172]:
+                  - paragraph [ref=e173]: Query Knowledge
+                  - paragraph [ref=e174]: Ask questions about your data
+              - link "View Graph Explore entity relationships" [ref=e175] [cursor=pointer]:
+                - /url: /graph
+                - img [ref=e177]
+                - generic [ref=e182]:
+                  - paragraph [ref=e183]: View Graph
+                  - paragraph [ref=e184]: Explore entity relationships
+          - generic [ref=e185]:
+            - generic [ref=e187]:
+              - generic [ref=e188]:
+                - generic [ref=e189]: Recent Activity
+                - generic [ref=e190]: Latest document uploads and processing
+              - generic [ref=e192]:
+                - img [ref=e194]
+                - paragraph [ref=e197]: No recent activity
+                - link "Upload your first document" [ref=e198] [cursor=pointer]:
+                  - /url: /documents
+            - generic [ref=e200]:
+              - generic [ref=e201]:
+                - generic [ref=e202]:
+                  - img [ref=e203]
+                  - text: System Status
+                - generic [ref=e206]: API connection and health
+              - generic [ref=e208]:
+                - generic [ref=e209]:
+                  - generic [ref=e210]: API Status
+                  - generic [ref=e211]:
+                    - img
+                    - text: Connected
+                - generic [ref=e212]:
+                  - generic [ref=e213]: Version
+                  - generic [ref=e214]: v0.1.0
+                - generic [ref=e215]:
+                  - generic [ref=e216]: Storage
+                  - generic [ref=e217]:
+                    - img
+                    - text: Connected
+                - generic [ref=e218]:
+                  - generic [ref=e219]: LLM Provider
+                  - generic [ref=e220]:
+                    - img
+                    - text: Ollama
+  - region "Notifications alt+T":
+    - list:
+      - listitem [ref=e221]:
+        - button "Close toast" [ref=e222] [cursor=pointer]:
+          - img [ref=e223]
+        - img [ref=e227]
+        - generic [ref=e230]:
+          - generic [ref=e231]: Workspace "Default Workspace" selected
+          - generic [ref=e232]: You can change this anytime from the selector above
+```
