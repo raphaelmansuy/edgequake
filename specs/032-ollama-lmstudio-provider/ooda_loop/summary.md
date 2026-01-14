@@ -57,6 +57,46 @@
 | c33ec26 | 11    | LM Studio auto-detection in provider factory        |
 | 7001fa9 | 08-10 | Dedicated LMStudioProvider implementation           |
 | 845d7c6 | 07    | Workspace-level embedding configuration             |
+| 79ec9ca | 63-90 | Stop token handling, KG rebuild verification        |
+| f7ac66d | 91-120| Workspace LLM provider fallback fix                 |
+
+---
+
+## Iteration 91-120 Details (Workspace Provider Fix)
+
+### Iteration 91: Root Cause Analysis ✅ COMPLETE
+
+**Bug**: When creating a Tenant/Workspace with OpenAI selected, the system showed:
+> "Cannot use provider 'openai': Configuration error: OPENAI_API_KEY is empty or invalid"
+
+**Root Cause**: The chat handler only used provider from:
+1. Request parameters (`request.provider`, `request.model`)
+2. Server default (Ollama)
+
+**Missing**: Workspace-configured provider as fallback
+
+### Iterations 92-95: Fix Implementation & Verification ✅ COMPLETE
+
+**Changes Applied** (`chat.rs`):
+1. Store workspace object when validating workspace_id
+2. Add workspace provider fallback when request.provider is None
+3. Apply same fix to streaming handler
+4. Clone workspace for async task
+
+**Priority Order**:
+1. Request-specified provider/model (explicit user selection)
+2. Workspace-configured provider/model (from workspace settings)
+3. Server default (sota_engine's default provider)
+
+### Iterations 96-120: Comprehensive Testing ✅ COMPLETE
+
+- Edge case testing (empty provider, invalid workspace, Unicode)
+- Streaming edge cases (abort, concurrent, token accumulation)
+- Multi-tenant testing (cross-tenant access, workspace switching)
+- Performance testing (latency, token rate, context quality)
+- Full E2E validation with workspace OpenAI
+
+**Commit**: `f7ac66d fix(chat): use workspace LLM provider when request doesn't specify one (SPEC-032)`
 
 ---
 
