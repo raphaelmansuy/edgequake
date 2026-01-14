@@ -159,12 +159,28 @@ pub async fn execute_query(
         engine_request = engine_request.with_conversation_history(engine_history);
     }
 
-    // SPEC-032: Get workspace-specific embedding provider
-    // If workspace has custom embedding config, use that provider instead of the global one
+    // SPEC-032 & SPEC-033: Get workspace-specific embedding provider AND vector storage
+    // If workspace has custom embedding config, use workspace-specific resources
     let result = if let Some(ref workspace_id) = tenant_ctx.workspace_id {
-        // Try to get workspace embedding configuration
-        match get_workspace_embedding_provider(&state, workspace_id).await {
-            Ok(Some(embedding_provider)) => {
+        // Try to get workspace embedding and vector storage configuration
+        let embedding_result = get_workspace_embedding_provider(&state, workspace_id).await;
+        let vector_result = get_workspace_vector_storage(&state, workspace_id).await;
+
+        match (embedding_result, vector_result) {
+            (Ok(Some(embedding_provider)), Ok(Some(vector_storage))) => {
+                // Full workspace isolation: use both workspace-specific embedding and vector storage
+                debug!(
+                    workspace_id = %workspace_id,
+                    "Using workspace-specific embedding provider AND vector storage for query"
+                );
+                state
+                    .sota_engine
+                    .query_with_workspace_config(engine_request, embedding_provider, vector_storage)
+                    .await
+                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+            }
+            (Ok(Some(embedding_provider)), _) => {
+                // Workspace-specific embedding only
                 debug!(
                     workspace_id = %workspace_id,
                     "Using workspace-specific embedding provider for query"
@@ -175,7 +191,7 @@ pub async fn execute_query(
                     .await
                     .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
             }
-            Ok(None) => {
+            (Ok(None), _) => {
                 // No workspace-specific config, use default engine embedding
                 debug!(
                     workspace_id = %workspace_id,
@@ -187,7 +203,7 @@ pub async fn execute_query(
                     .await
                     .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
             }
-            Err(e) => {
+            (Err(e), _) => {
                 // Error getting workspace config, fallback to default
                 warn!(
                     workspace_id = %workspace_id,
@@ -509,6 +525,71 @@ async fn get_workspace_embedding_provider(
     );
 
     Ok(Some(provider))
+}
+
+/// Get workspace-specific vector storage for query execution.
+///
+/// SPEC-033: Workspace vector isolation.
+///
+/// This function looks up the workspace's embedding dimension and gets or creates
+/// a workspace-specific vector storage instance. If the workspace uses the default
+/// dimension, returns None to indicate the default should be used.
+///
+/// # Arguments
+///
+/// * `state` - Application state containing workspace service and vector registry
+/// * `workspace_id` - ID of the workspace to get vector storage for
+///
+/// # Returns
+///
+/// - `Ok(Some(storage))` - Workspace-specific vector storage
+/// - `Ok(None)` - Workspace uses default storage, no override needed
+/// - `Err(_)` - Error looking up workspace or creating storage
+async fn get_workspace_vector_storage(
+    state: &AppState,
+    workspace_id: &str,
+) -> Result<Option<std::sync::Arc<dyn edgequake_storage::traits::VectorStorage>>, ApiError> {
+    use edgequake_storage::traits::WorkspaceVectorConfig;
+    use uuid::Uuid;
+
+    // Parse workspace ID
+    let workspace_uuid = Uuid::parse_str(workspace_id)
+        .map_err(|e| ApiError::BadRequest(format!("Invalid workspace ID: {}", e)))?;
+
+    // Get workspace from service
+    let workspace = state
+        .workspace_service
+        .get_workspace(workspace_uuid)
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to get workspace: {}", e)))?
+        .ok_or_else(|| ApiError::NotFound(format!("Workspace not found: {}", workspace_id)))?;
+
+    // Create workspace-specific vector storage config
+    let config = WorkspaceVectorConfig {
+        workspace_id: workspace_uuid,
+        dimension: workspace.embedding_dimension,
+        namespace: "default".to_string(),
+    };
+
+    debug!(
+        workspace_id = %workspace_id,
+        dimension = workspace.embedding_dimension,
+        "Getting workspace-specific vector storage"
+    );
+
+    // Get or create workspace vector storage
+    let storage = state
+        .vector_registry
+        .get_or_create(config)
+        .await
+        .map_err(|e| {
+            ApiError::Internal(format!(
+                "Failed to create vector storage for workspace {}: {}",
+                workspace_id, e
+            ))
+        })?;
+
+    Ok(Some(storage))
 }
 
 /// Get workspace LLM provider and model info for lineage tracking.

@@ -850,6 +850,195 @@ impl SOTAQueryEngine {
         })
     }
 
+    /// Execute a query with workspace-specific vector storage and embedding provider.
+    ///
+    /// SPEC-033: Full workspace isolation for vector storage.
+    ///
+    /// This method enables complete workspace isolation by using:
+    /// - Workspace-specific embedding provider (for computing query embeddings)
+    /// - Workspace-specific vector storage (for similarity search)
+    ///
+    /// WHY: Different workspaces may use different embedding models with different
+    /// dimensions (e.g., OpenAI 1536 vs Ollama 768). The vector storage must match
+    /// the embedding dimension for correct similarity search.
+    ///
+    /// # Arguments
+    ///
+    /// * `request` - The query request
+    /// * `embedding_provider` - The workspace-specific embedding provider
+    /// * `vector_storage` - The workspace-specific vector storage
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let ws_embedding = ProviderFactory::create_embedding_provider("ollama", "nomic-embed-text", 768)?;
+    /// let ws_vector = registry.get_or_create(workspace_config).await?;
+    /// let response = engine.query_with_workspace_config(request, ws_embedding, ws_vector).await?;
+    /// ```
+    pub async fn query_with_workspace_config(
+        &self,
+        request: crate::engine::QueryRequest,
+        embedding_provider: std::sync::Arc<dyn crate::EmbeddingProvider>,
+        vector_storage: std::sync::Arc<dyn VectorStorage>,
+    ) -> Result<crate::engine::QueryResponse> {
+        let start = std::time::Instant::now();
+        let mut stats = crate::engine::QueryStats::default();
+
+        // Step 1: Extract keywords (with caching)
+        let raw_keywords = if self.config.use_keyword_extraction {
+            let kw_start = std::time::Instant::now();
+            let kw = self
+                .keyword_extractor
+                .extract_extended(&request.query)
+                .await?;
+            tracing::debug!(
+                query = %request.query,
+                high_level = ?kw.high_level,
+                low_level = ?kw.low_level,
+                intent = %kw.query_intent,
+                "Extracted keywords (workspace config)"
+            );
+            stats.embedding_time_ms += kw_start.elapsed().as_millis() as u64;
+            kw
+        } else {
+            ExtractedKeywords::new(vec![], vec![], QueryIntent::Exploratory)
+        };
+
+        // Step 1.5: Validate keywords against knowledge graph
+        let keywords = self.validate_keywords(&raw_keywords).await;
+
+        // Step 2: Determine query mode
+        let mode = if let Some(m) = request.mode {
+            m
+        } else if self.config.use_adaptive_mode {
+            keywords.query_intent.recommended_mode()
+        } else {
+            self.config.default_mode
+        };
+
+        tracing::debug!(mode = %mode, "Selected query mode (workspace config)");
+
+        // Step 3: Compute embeddings using WORKSPACE-SPECIFIC embedding provider
+        let embed_start = std::time::Instant::now();
+        let embeddings =
+            QueryEmbeddings::compute(&request.query, &keywords, embedding_provider.as_ref())
+                .await?;
+        stats.embedding_time_ms += embed_start.elapsed().as_millis() as u64;
+
+        // Step 4: Mode-specific retrieval using WORKSPACE-SPECIFIC vector storage
+        let retrieval_start = std::time::Instant::now();
+        let context = match mode {
+            QueryMode::Local => {
+                self.query_local_with_vector_storage(
+                    &keywords,
+                    &embeddings,
+                    request.tenant_id(),
+                    request.workspace_id(),
+                    &vector_storage,
+                )
+                .await?
+            }
+            QueryMode::Global => {
+                self.query_global_with_vector_storage(
+                    &keywords,
+                    &embeddings,
+                    request.tenant_id(),
+                    request.workspace_id(),
+                    &vector_storage,
+                )
+                .await?
+            }
+            QueryMode::Hybrid => {
+                self.query_hybrid_with_vector_storage(
+                    &keywords,
+                    &embeddings,
+                    request.tenant_id(),
+                    request.workspace_id(),
+                    &vector_storage,
+                )
+                .await?
+            }
+            QueryMode::Mix => {
+                self.query_mix_with_vector_storage(
+                    &keywords,
+                    &embeddings,
+                    request.tenant_id(),
+                    request.workspace_id(),
+                    &vector_storage,
+                )
+                .await?
+            }
+            QueryMode::Naive => {
+                self.query_naive_with_vector_storage(
+                    &embeddings,
+                    request.tenant_id(),
+                    request.workspace_id(),
+                    &vector_storage,
+                )
+                .await?
+            }
+        };
+        stats.retrieval_time_ms = retrieval_start.elapsed().as_millis() as u64;
+        stats.context_tokens = context.token_count;
+
+        // Step 4.5: Rerank chunks
+        let mut context = context;
+        let should_rerank = request.enable_rerank.unwrap_or(self.config.enable_rerank);
+        if should_rerank && self.reranker.is_some() {
+            let rerank_start = std::time::Instant::now();
+            let reranked_chunks = self
+                .rerank_chunks(
+                    &request.query,
+                    context.chunks,
+                    request.enable_rerank,
+                    request.rerank_top_k,
+                )
+                .await;
+            context.chunks = reranked_chunks;
+            let rerank_time = rerank_start.elapsed().as_millis() as u64;
+            stats.retrieval_time_ms += rerank_time;
+        }
+
+        // Step 4.6: Sort entities by degree
+        self.sort_entities_by_degree(&mut context.entities);
+
+        // Step 5: Apply truncation
+        let (truncated_entities, truncated_relationships, truncated_chunks) = balance_context(
+            context.entities.clone(),
+            context.relationships.clone(),
+            context.chunks.clone(),
+            &self.config.truncation,
+            self.tokenizer.as_ref(),
+        );
+
+        let mut final_context = context;
+        final_context.entities = truncated_entities;
+        final_context.relationships = truncated_relationships;
+        final_context.chunks = truncated_chunks;
+
+        // Step 6: Generate answer
+        let (answer, generated_tokens) = if request.context_only {
+            (String::new(), 0)
+        } else if request.prompt_only {
+            (self.build_prompt(&request.query, &final_context), 0)
+        } else {
+            let gen_start = std::time::Instant::now();
+            let result = self.generate_answer(&request.query, &final_context).await?;
+            stats.generation_time_ms = gen_start.elapsed().as_millis() as u64;
+            result
+        };
+
+        stats.generated_tokens = generated_tokens;
+        stats.total_time_ms = start.elapsed().as_millis() as u64;
+
+        Ok(crate::engine::QueryResponse {
+            answer,
+            context: final_context,
+            mode,
+            stats,
+        })
+    }
+
     /// Execute a query with an LLM provider override.
     ///
     /// This method is used when the user selects a different LLM provider/model
@@ -2166,6 +2355,337 @@ impl SOTAQueryEngine {
     /// Get the engine configuration.
     pub fn config(&self) -> &SOTAQueryConfig {
         &self.config
+    }
+
+    // =========================================================================
+    // Workspace-specific vector storage methods (SPEC-033)
+    // =========================================================================
+    //
+    // These methods are variants of the query mode methods that accept an
+    // external vector storage instance instead of using self.vector_storage.
+    // This enables per-workspace vector isolation with different dimensions.
+
+    /// Naive mode with workspace-specific vector storage.
+    async fn query_naive_with_vector_storage(
+        &self,
+        embeddings: &QueryEmbeddings,
+        tenant_id: Option<String>,
+        workspace_id: Option<String>,
+        vector_storage: &Arc<dyn VectorStorage>,
+    ) -> Result<QueryContext> {
+        let mut context = QueryContext::new();
+
+        let results = vector_storage
+            .query(&embeddings.query, self.config.max_chunks * 2, None)
+            .await?;
+
+        let chunk_results = filter_by_type(results, VectorType::Chunk);
+
+        for result in chunk_results
+            .iter()
+            .filter(|r| r.score >= self.config.min_score)
+            .filter(|r| self.matches_tenant_filter(&r.metadata, &tenant_id, &workspace_id))
+            .take(self.config.max_chunks)
+        {
+            context.add_chunk(build_chunk_from_result(result));
+        }
+
+        Ok(context)
+    }
+
+    /// Local mode with workspace-specific vector storage.
+    async fn query_local_with_vector_storage(
+        &self,
+        _keywords: &ExtractedKeywords,
+        embeddings: &QueryEmbeddings,
+        tenant_id: Option<String>,
+        workspace_id: Option<String>,
+        vector_storage: &Arc<dyn VectorStorage>,
+    ) -> Result<QueryContext> {
+        let mut context = QueryContext::new();
+
+        // Step 1: Vector search with LOW-level keyword embedding
+        let vector_results = vector_storage
+            .query(&embeddings.low_level, self.config.max_entities * 3, None)
+            .await?;
+
+        // Step 2: Filter to entity vectors only
+        let entity_vectors = filter_by_type(vector_results, VectorType::Entity);
+
+        // Step 2.5: Build entity scores map
+        let entity_scores: HashMap<String, f32> = entity_vectors
+            .iter()
+            .filter(|r| r.score >= self.config.min_score)
+            .filter(|r| self.matches_tenant_filter(&r.metadata, &tenant_id, &workspace_id))
+            .map(|r| {
+                let entity_name = r
+                    .metadata
+                    .get("entity_name")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| r.id.clone());
+                (entity_name, r.score)
+            })
+            .collect();
+
+        // Step 3: Extract entity IDs
+        let entity_ids: Vec<String> = entity_vectors
+            .iter()
+            .filter(|r| r.score >= self.config.min_score)
+            .filter(|r| self.matches_tenant_filter(&r.metadata, &tenant_id, &workspace_id))
+            .filter_map(|r| {
+                r.metadata
+                    .get("entity_name")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .or_else(|| Some(r.id.clone()))
+            })
+            .take(self.config.max_entities)
+            .collect();
+
+        if entity_ids.is_empty() {
+            return self.fallback_to_popular(tenant_id, workspace_id).await;
+        }
+
+        // Step 4: Batch fetch nodes and degrees
+        let (nodes_map, degrees) = tokio::join!(
+            self.graph_storage.get_nodes_batch(&entity_ids),
+            self.graph_storage.node_degrees_batch(&entity_ids),
+        );
+
+        let nodes_map = nodes_map?;
+        let degrees: HashMap<String, usize> = degrees?.into_iter().collect();
+
+        // Step 5: Build entity context
+        for (id, node) in &nodes_map {
+            let degree = degrees.get(id).copied().unwrap_or(0);
+            let entity_score = entity_scores.get(id).copied().unwrap_or(0.0);
+            let entity = build_entity_from_node(id, &node.properties, degree, entity_score);
+            context.add_entity(entity);
+        }
+
+        // Step 6: Batch fetch edges
+        let edges = self
+            .graph_storage
+            .get_edges_for_nodes_batch(&entity_ids)
+            .await?;
+
+        for edge in edges.iter().take(self.config.max_relationships) {
+            let rel = build_relationship_from_edge(&edge.source, &edge.target, &edge.properties);
+            context.add_relationship(rel);
+        }
+
+        // Step 7: Get source chunks using workspace vector storage
+        let chunk_results = vector_storage
+            .query(&embeddings.query, self.config.max_chunks * 2, None)
+            .await?;
+
+        let chunks = filter_by_type(chunk_results, VectorType::Chunk);
+
+        for result in chunks
+            .iter()
+            .filter(|r| r.score >= self.config.min_score)
+            .filter(|r| self.matches_tenant_filter(&r.metadata, &tenant_id, &workspace_id))
+            .take(self.config.max_chunks)
+        {
+            context.add_chunk(build_chunk_from_result(result));
+        }
+
+        Ok(context)
+    }
+
+    /// Global mode with workspace-specific vector storage.
+    async fn query_global_with_vector_storage(
+        &self,
+        _keywords: &ExtractedKeywords,
+        embeddings: &QueryEmbeddings,
+        tenant_id: Option<String>,
+        workspace_id: Option<String>,
+        vector_storage: &Arc<dyn VectorStorage>,
+    ) -> Result<QueryContext> {
+        let mut context = QueryContext::new();
+        let mut entity_ids: Vec<String> = Vec::new();
+        let mut seen_relationships = std::collections::HashSet::new();
+
+        // Step 1: Vector search with HIGH-level keyword embedding
+        let vector_results = vector_storage
+            .query(
+                &embeddings.high_level,
+                self.config.max_relationships * 3,
+                None,
+            )
+            .await?;
+
+        // Step 2: Filter to relationship vectors only
+        let relationship_vectors = filter_by_type(vector_results.clone(), VectorType::Relationship);
+
+        // Step 3: Extract relationships from vector results
+        for result in relationship_vectors
+            .iter()
+            .filter(|r| r.score >= self.config.min_score)
+            .filter(|r| self.matches_tenant_filter(&r.metadata, &tenant_id, &workspace_id))
+            .take(self.config.max_relationships)
+        {
+            let src_id = result
+                .metadata
+                .get("src_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let tgt_id = result
+                .metadata
+                .get("tgt_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let rel_type = result
+                .metadata
+                .get("relation_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("RELATED_TO");
+            let description = result
+                .metadata
+                .get("description")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+
+            if !src_id.is_empty() && !tgt_id.is_empty() {
+                let rel_key = format!("{}->{}:{}", src_id, tgt_id, rel_type);
+                if seen_relationships.insert(rel_key) {
+                    let source_chunk_id = result
+                        .metadata
+                        .get("source_chunk_id")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                    let source_document_id = result
+                        .metadata
+                        .get("source_document_id")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                    let source_file_path = result
+                        .metadata
+                        .get("source_file_path")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+
+                    let mut rel = RetrievedRelationship::new(src_id, tgt_id, rel_type.to_string())
+                        .with_description(description.to_string())
+                        .with_score(result.score);
+                    if let Some(chunk_id) = source_chunk_id {
+                        rel = rel.with_source_chunk_id(chunk_id);
+                    }
+                    if let Some(doc_id) = source_document_id {
+                        rel = rel.with_source_document_id(doc_id);
+                    }
+                    if let Some(file_path) = source_file_path {
+                        rel = rel.with_source_file_path(file_path);
+                    }
+                    context.add_relationship(rel);
+                    if !entity_ids.contains(&src_id.to_string()) {
+                        entity_ids.push(src_id.to_string());
+                    }
+                    if !entity_ids.contains(&tgt_id.to_string()) {
+                        entity_ids.push(tgt_id.to_string());
+                    }
+                }
+            }
+        }
+
+        // Step 4: Fallback to popular entities if no relationship vectors found
+        if entity_ids.is_empty() {
+            return self.fallback_to_popular(tenant_id, workspace_id).await;
+        }
+
+        // Step 5: Batch fetch entity nodes
+        let nodes_map = self.graph_storage.get_nodes_batch(&entity_ids).await?;
+
+        for (id, node) in &nodes_map {
+            let degree = self.graph_storage.node_degree(id).await?;
+            let entity = build_entity_from_node(id, &node.properties, degree, 0.5);
+            context.add_entity(entity);
+        }
+
+        // Step 6: Add chunk context using workspace vector storage
+        let chunk_results = vector_storage
+            .query(&embeddings.query, self.config.max_chunks * 2, None)
+            .await?;
+
+        let chunks = filter_by_type(chunk_results, VectorType::Chunk);
+
+        for result in chunks
+            .iter()
+            .filter(|r| r.score >= self.config.min_score)
+            .filter(|r| self.matches_tenant_filter(&r.metadata, &tenant_id, &workspace_id))
+            .take(self.config.max_chunks)
+        {
+            context.add_chunk(build_chunk_from_result(result));
+        }
+
+        Ok(context)
+    }
+
+    /// Hybrid mode with workspace-specific vector storage.
+    async fn query_hybrid_with_vector_storage(
+        &self,
+        keywords: &ExtractedKeywords,
+        embeddings: &QueryEmbeddings,
+        tenant_id: Option<String>,
+        workspace_id: Option<String>,
+        vector_storage: &Arc<dyn VectorStorage>,
+    ) -> Result<QueryContext> {
+        // Combine local and global results
+        let local_context = self
+            .query_local_with_vector_storage(
+                keywords,
+                embeddings,
+                tenant_id.clone(),
+                workspace_id.clone(),
+                vector_storage,
+            )
+            .await?;
+
+        let global_context = self
+            .query_global_with_vector_storage(
+                keywords,
+                embeddings,
+                tenant_id,
+                workspace_id,
+                vector_storage,
+            )
+            .await?;
+
+        // Merge contexts
+        let mut merged = local_context;
+        for chunk in global_context.chunks {
+            if !merged.chunks.iter().any(|c| c.id == chunk.id) {
+                merged.add_chunk(chunk);
+            }
+        }
+        for entity in global_context.entities {
+            if !merged.entities.iter().any(|e| e.name == entity.name) {
+                merged.add_entity(entity);
+            }
+        }
+
+        Ok(merged)
+    }
+
+    /// Mix mode with workspace-specific vector storage.
+    async fn query_mix_with_vector_storage(
+        &self,
+        keywords: &ExtractedKeywords,
+        embeddings: &QueryEmbeddings,
+        tenant_id: Option<String>,
+        workspace_id: Option<String>,
+        vector_storage: &Arc<dyn VectorStorage>,
+    ) -> Result<QueryContext> {
+        // Adaptive blend - delegates to hybrid for now
+        self.query_hybrid_with_vector_storage(
+            keywords,
+            embeddings,
+            tenant_id,
+            workspace_id,
+            vector_storage,
+        )
+        .await
     }
 }
 
