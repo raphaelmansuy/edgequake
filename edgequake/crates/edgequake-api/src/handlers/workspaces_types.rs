@@ -175,6 +175,20 @@ pub struct UpdateWorkspaceApiRequest {
     /// Update LLM provider.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub llm_provider: Option<String>,
+
+    // === Embedding Configuration (SPEC-032) ===
+    /// Update embedding model.
+    /// WARNING: Requires vector rebuild - use rebuild-embeddings endpoint after updating.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_model: Option<String>,
+
+    /// Update embedding provider.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_provider: Option<String>,
+
+    /// Update embedding dimension.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_dimension: Option<usize>,
 }
 
 // ============================================================================

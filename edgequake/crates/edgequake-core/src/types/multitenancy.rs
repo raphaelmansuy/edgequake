@@ -1019,7 +1019,12 @@ impl CreateWorkspaceRequest {
 }
 
 /// Request to update a workspace.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// ## Model Configuration (SPEC-032)
+///
+/// - LLM model/provider changes take effect immediately for new ingestions
+/// - Embedding model changes require vector rebuild (use rebuild-embeddings endpoint)
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UpdateWorkspaceRequest {
     /// New name (optional).
     pub name: Option<String>,
@@ -1029,8 +1034,18 @@ pub struct UpdateWorkspaceRequest {
     pub is_active: Option<bool>,
     /// Max documents quota.
     pub max_documents: Option<usize>,
-    // NOTE: Embedding model cannot be changed after creation without vector rebuild.
-    // Use POST /api/v1/workspaces/:id/rebuild-embeddings instead.
+    /// New LLM model for entity extraction (optional).
+    /// Takes effect immediately for new document ingestions.
+    pub llm_model: Option<String>,
+    /// New LLM provider (optional).
+    pub llm_provider: Option<String>,
+    /// New embedding model (optional).
+    /// WARNING: Requires vector rebuild - use rebuild-embeddings endpoint.
+    pub embedding_model: Option<String>,
+    /// New embedding provider (optional).
+    pub embedding_provider: Option<String>,
+    /// New embedding dimension (optional).
+    pub embedding_dimension: Option<usize>,
 }
 
 /// Statistics for a workspace.

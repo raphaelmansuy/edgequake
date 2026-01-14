@@ -684,11 +684,17 @@ pub async fn update_workspace(
 ) -> Result<Json<WorkspaceResponse>, ApiError> {
     use edgequake_core::UpdateWorkspaceRequest;
 
+    // SPEC-032: Include LLM/embedding model configuration in update
     let update_request = UpdateWorkspaceRequest {
         name: request.name,
         description: request.description,
         is_active: request.is_active,
         max_documents: request.max_documents,
+        llm_model: request.llm_model,
+        llm_provider: request.llm_provider,
+        embedding_model: request.embedding_model,
+        embedding_provider: request.embedding_provider,
+        embedding_dimension: request.embedding_dimension,
     };
 
     let workspace = state

@@ -143,6 +143,50 @@ test.describe("SPEC-032: Provider Integration", () => {
       }
     });
 
+    /**
+     * @implements SPEC-032: Focus 16 - OpenAI model names are valid
+     * @iteration OODA 228
+     *
+     * Verifies that OpenAI models have valid names (no placeholder models).
+     * WHY: gpt-5o-mini/nano don't exist, replaced with gpt-4.1/mini/nano.
+     */
+    test("OpenAI models have valid names", async ({ request }) => {
+      const response = await request.get(
+        "http://localhost:8080/api/v1/models/llm"
+      );
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+      const openaiModels = data.models.filter(
+        (m: { provider: string }) => m.provider === "openai"
+      );
+
+      // Should have valid OpenAI models
+      expect(openaiModels.length).toBeGreaterThan(0);
+
+      // Known valid OpenAI model names (as of Jan 2025)
+      const validModelPrefixes = [
+        "gpt-4o",
+        "gpt-4.1",
+        "gpt-4-turbo",
+        "gpt-3.5-turbo",
+      ];
+
+      // Verify all OpenAI models have valid prefixes
+      for (const model of openaiModels) {
+        const hasValidPrefix = validModelPrefixes.some((prefix) =>
+          model.name.startsWith(prefix)
+        );
+        expect(hasValidPrefix).toBe(true);
+      }
+
+      // Should NOT have invalid placeholder models
+      const invalidNames = ["gpt-5o-mini", "gpt-5o-nano"];
+      for (const model of openaiModels) {
+        expect(invalidNames).not.toContain(model.name);
+      }
+    });
+
     test("LLM models exist in providers", async ({ request }) => {
       const response = await request.get("http://localhost:8080/api/v1/models");
       expect(response.ok()).toBe(true);
@@ -2355,7 +2399,7 @@ test.describe("SPEC-032: Provider Integration", () => {
   /**
    * OODA 118: Query Lineage Display Tests
    * @implements SPEC-032: Focus 3 - LLM provider lineage on messages
-   * 
+   *
    * Verifies that query responses include lineage information about
    * which LLM provider and model was used for the response.
    */
@@ -2404,16 +2448,17 @@ test.describe("SPEC-032: Provider Integration", () => {
       // Query may fail (500) if no documents - that's OK for this test
       // We just verify the endpoint exists and returns structured data
       const responseData = await queryResponse.json();
-      
+
       // Response should be JSON with some structure
       expect(responseData).toBeDefined();
-      
+
       // If OK, should have standard query response fields; if error, should have error field
       if (queryResponse.ok()) {
         // Success response should include answer and mode fields
         // Note: lineage info (llm_provider) may be added to stats or separate field in future
         expect(
-          responseData.answer !== undefined || responseData.response !== undefined
+          responseData.answer !== undefined ||
+            responseData.response !== undefined
         ).toBe(true);
         expect(responseData.mode).toBeDefined();
       } else {
@@ -2566,13 +2611,20 @@ test.describe("SPEC-032: Provider Integration", () => {
       // API returns flat models array
       expect(data).toHaveProperty("models");
       expect(Array.isArray(data.models)).toBe(true);
-      
+
       // All returned models should be LLM or multimodal type
       for (const model of data.models) {
         expect(["llm", "multimodal"]).toContain(model.model_type);
       }
     });
 
+    /**
+     * @implements SPEC-032: Focus 17 - Model type filtering
+     * @iteration OODA 226
+     *
+     * Verifies that embedding API only returns embedding models, NOT multimodal.
+     * WHY: Multimodal in EdgeQuake means vision-capable LLM, not embedding capability.
+     */
     test("embedding-only models API returns filtered results", async ({
       request,
     }) => {
@@ -2585,23 +2637,62 @@ test.describe("SPEC-032: Provider Integration", () => {
       // API returns flat models array
       expect(data).toHaveProperty("models");
       expect(Array.isArray(data.models)).toBe(true);
-      
+
       // Should have at least some embedding models
       const embeddingModels = data.models.filter(
         (m: { model_type: string }) => m.model_type === "embedding"
       );
       expect(embeddingModels.length).toBeGreaterThan(0);
-      
-      // API may also include multimodal models that have embedding capabilities
-      // so we allow both embedding and multimodal types
+
+      // OODA 226: Only embedding models should be returned, NOT multimodal
+      // WHY: Multimodal = vision LLM, NOT embedding capability
       for (const model of data.models) {
-        expect(["embedding", "multimodal"]).toContain(model.model_type);
+        expect(model.model_type).toBe("embedding");
       }
+
+      // Verify no multimodal models leak into embedding list
+      const multimodalModels = data.models.filter(
+        (m: { model_type: string }) => m.model_type === "multimodal"
+      );
+      expect(multimodalModels.length).toBe(0);
+    });
+
+    /**
+     * @implements SPEC-032: Focus 17 - LLM models include multimodal
+     * @iteration OODA 227
+     *
+     * Verifies that LLM API includes multimodal models (vision LLMs).
+     */
+    test("llm models API includes multimodal vision models", async ({
+      request,
+    }) => {
+      const response = await request.get(
+        "http://localhost:8080/api/v1/models/llm"
+      );
+      expect(response.ok()).toBe(true);
+      const data = await response.json();
+
+      // Should have LLM and multimodal models
+      const llmModels = data.models.filter(
+        (m: { model_type: string }) => m.model_type === "llm"
+      );
+      const multimodalModels = data.models.filter(
+        (m: { model_type: string }) => m.model_type === "multimodal"
+      );
+
+      expect(llmModels.length).toBeGreaterThan(0);
+      expect(multimodalModels.length).toBeGreaterThan(0);
+
+      // Should NOT have embedding models in LLM list
+      const embeddingModels = data.models.filter(
+        (m: { model_type: string }) => m.model_type === "embedding"
+      );
+      expect(embeddingModels.length).toBe(0);
     });
   });
 
   /**
-   * OODA 121: Tenant Dialog Model Selection Tests  
+   * OODA 121: Tenant Dialog Model Selection Tests
    * @implements SPEC-032: Focus 1 - Tenant creation model selection
    */
   test.describe("OODA 121: Tenant Dialog Model Selection", () => {
@@ -2630,9 +2721,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       expect(tenant.default_embedding_model).toBe("embeddinggemma");
 
       // Cleanup: delete the test tenant
-      await request.delete(
-        `http://localhost:8080/api/v1/tenants/${tenant.id}`
-      );
+      await request.delete(`http://localhost:8080/api/v1/tenants/${tenant.id}`);
     });
 
     test("tenant accepts openai provider config", async ({ request }) => {
@@ -2658,9 +2747,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       expect(tenant.default_embedding_provider).toBe("openai");
 
       // Cleanup
-      await request.delete(
-        `http://localhost:8080/api/v1/tenants/${tenant.id}`
-      );
+      await request.delete(`http://localhost:8080/api/v1/tenants/${tenant.id}`);
     });
   });
 
@@ -2765,9 +2852,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       expect(workspace.embedding_provider).toBeDefined();
 
       // Cleanup
-      await request.delete(
-        `http://localhost:8080/api/v1/tenants/${tenant.id}`
-      );
+      await request.delete(`http://localhost:8080/api/v1/tenants/${tenant.id}`);
     });
   });
 
@@ -2840,9 +2925,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("swagger endpoint is accessible", async ({ request }) => {
-      const response = await request.get(
-        "http://localhost:8080/swagger-ui/"
-      );
+      const response = await request.get("http://localhost:8080/swagger-ui/");
       expect(response.ok()).toBe(true);
     });
 
@@ -2947,6 +3030,87 @@ test.describe("SPEC-032: Provider Integration", () => {
         expect(fetchedWorkspace.llm_model).toBe("gpt-4o-mini");
       } finally {
         // Cleanup: delete the tenant (cascades to workspaces)
+        await request.delete(
+          `http://localhost:8080/api/v1/tenants/${tenantId}`
+        );
+      }
+    });
+
+    /**
+     * @implements SPEC-032: Issue 19 - Workspace model update via API
+     * @iteration OODA 246
+     *
+     * Verifies that workspace LLM and embedding configuration can be updated.
+     * WHY: Users need to change extractor/embedding models for existing workspaces.
+     */
+    test("workspace model config can be updated via PUT", async ({
+      request,
+    }) => {
+      // Create a fresh tenant for this test
+      const tenantName = `OODA246-T-${Date.now()}`;
+      const tenantResponse = await request.post(
+        "http://localhost:8080/api/v1/tenants",
+        {
+          data: {
+            name: tenantName,
+            default_llm_provider: "ollama",
+            default_llm_model: "gemma3:12b",
+          },
+        }
+      );
+
+      if (!tenantResponse.ok()) {
+        test.skip();
+        return;
+      }
+
+      const tenant = await tenantResponse.json();
+      const tenantId = tenant.id;
+      const uniqueName = `OODA246-Update-${Date.now()}`;
+
+      try {
+        // Create workspace with initial config
+        const createResponse = await request.post(
+          `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`,
+          {
+            data: {
+              name: uniqueName,
+              slug: uniqueName.toLowerCase(),
+              llm_provider: "ollama",
+              llm_model: "gemma3:12b",
+              embedding_provider: "ollama",
+              embedding_model: "embeddinggemma",
+            },
+          }
+        );
+
+        expect(createResponse.ok()).toBe(true);
+        const workspace = await createResponse.json();
+
+        // Update workspace to use different models (API uses PUT)
+        const updateResponse = await request.put(
+          `http://localhost:8080/api/v1/workspaces/${workspace.id}`,
+          {
+            headers: { "X-Tenant-Id": tenantId },
+            data: {
+              llm_provider: "openai",
+              llm_model: "gpt-4o-mini",
+              embedding_provider: "openai",
+              embedding_model: "text-embedding-3-small",
+            },
+          }
+        );
+
+        expect(updateResponse.ok()).toBe(true);
+        const updatedWorkspace = await updateResponse.json();
+
+        // Verify model config was updated
+        expect(updatedWorkspace.llm_provider).toBe("openai");
+        expect(updatedWorkspace.llm_model).toBe("gpt-4o-mini");
+        expect(updatedWorkspace.embedding_provider).toBe("openai");
+        expect(updatedWorkspace.embedding_model).toBe("text-embedding-3-small");
+      } finally {
+        // Cleanup
         await request.delete(
           `http://localhost:8080/api/v1/tenants/${tenantId}`
         );
@@ -3112,7 +3276,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       const data = await response.json();
 
       const allModels = data.providers.flatMap((p: any) => p.models);
-      
+
       for (const model of allModels.slice(0, 10)) {
         expect(model.capabilities).toHaveProperty("context_length");
         expect(model.capabilities.context_length).toBeGreaterThan(0);
@@ -3164,15 +3328,15 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       const slug = workspaces.items[0].slug;
       await page.goto(`/w/${slug}/query`, { waitUntil: "domcontentloaded" });
-      
+
       // Should load successfully
       await page.waitForTimeout(2000);
-      
+
       // Should not show a 404 error page
       const notFoundHeading = page.locator("h1").filter({ hasText: "404" });
       const isNotFound = await notFoundHeading.isVisible().catch(() => false);
       expect(isNotFound).toBe(false);
-      
+
       // Page should have loaded properly
       const main = page.locator("main, [role='main'], body");
       await expect(main.first()).toBeVisible({ timeout: 5000 });
@@ -3207,9 +3371,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Should have some form of model/provider selector
       const selector = page
-        .locator(
-          '[role="combobox"], [data-testid="provider-selector"], select'
-        )
+        .locator('[role="combobox"], [data-testid="provider-selector"], select')
         .first();
 
       // Selector may or may not be visible depending on state
@@ -3308,9 +3470,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       expect(workspace.llm_provider).toBeDefined();
 
       // Cleanup
-      await request.delete(
-        `http://localhost:8080/api/v1/tenants/${tenant.id}`
-      );
+      await request.delete(`http://localhost:8080/api/v1/tenants/${tenant.id}`);
     });
 
     test("models endpoint performance is acceptable", async ({ request }) => {
@@ -3438,7 +3598,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("workspace selector button exists in header", async ({ page }) => {
       await page.goto("/", { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(2000);
-      
+
       // The workspace selector should be visible in the header
       const workspaceSelector = page.getByTestId("workspace-selector");
       await expect(workspaceSelector).toBeVisible({ timeout: 10000 });
@@ -3447,12 +3607,12 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("create tenant dialog opens from dropdown", async ({ page }) => {
       await page.goto("/", { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(2000);
-      
+
       // Click the workspace selector
       const workspaceSelector = page.getByTestId("workspace-selector");
       await workspaceSelector.click();
       await page.waitForTimeout(500);
-      
+
       // Look for "Create New Tenant" menu item
       const createTenantItem = page.getByText("Create New Tenant");
       await expect(createTenantItem).toBeVisible({ timeout: 5000 });
@@ -3461,36 +3621,41 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("create workspace dialog opens from dropdown", async ({ page }) => {
       await page.goto("/", { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(2000);
-      
+
       // Click the workspace selector
       const workspaceSelector = page.getByTestId("workspace-selector");
       await workspaceSelector.click();
       await page.waitForTimeout(500);
-      
+
       // Look for "Create New Workspace" menu item
       const createWorkspaceItem = page.getByText("Create New Workspace");
       await expect(createWorkspaceItem).toBeVisible({ timeout: 5000 });
     });
 
-    test("tenant creation API accepts model configuration", async ({ request }) => {
+    test("tenant creation API accepts model configuration", async ({
+      request,
+    }) => {
       // Test that the tenant creation API accepts model configuration fields
-      const response = await request.post("http://localhost:8080/api/v1/tenants", {
-        data: {
-          name: "E2E Test Tenant with Models",
-          description: "Created by E2E test",
-          default_llm_provider: "ollama",
-          default_llm_model: "gemma3:12b",
-          default_embedding_provider: "ollama",
-          default_embedding_model: "embeddinggemma",
+      const response = await request.post(
+        "http://localhost:8080/api/v1/tenants",
+        {
+          data: {
+            name: "E2E Test Tenant with Models",
+            description: "Created by E2E test",
+            default_llm_provider: "ollama",
+            default_llm_model: "gemma3:12b",
+            default_embedding_provider: "ollama",
+            default_embedding_model: "embeddinggemma",
+          },
         }
-      });
-      
+      );
+
       // Should succeed (either 201 Created or 200 OK)
       expect([200, 201]).toContain(response.status());
-      
+
       const tenant = await response.json();
       expect(tenant).toHaveProperty("id");
-      
+
       // Clean up - delete the tenant
       const deleteResponse = await request.delete(
         `http://localhost:8080/api/v1/tenants/${tenant.id}`
@@ -3498,36 +3663,44 @@ test.describe("SPEC-032: Provider Integration", () => {
       expect([200, 204]).toContain(deleteResponse.status());
     });
 
-    test("workspace creation API accepts model configuration", async ({ request }) => {
+    test("workspace creation API accepts model configuration", async ({
+      request,
+    }) => {
       // First create a tenant to ensure we have one
-      const createTenantResponse = await request.post("http://localhost:8080/api/v1/tenants", {
-        data: { name: `E2E Test Tenant ${Date.now()}` }
-      });
+      const createTenantResponse = await request.post(
+        "http://localhost:8080/api/v1/tenants",
+        {
+          data: { name: `E2E Test Tenant ${Date.now()}` },
+        }
+      );
       expect([200, 201]).toContain(createTenantResponse.status());
-      
+
       const tenant = await createTenantResponse.json();
       const tenantId = tenant.id;
       expect(tenantId).toBeDefined();
-      
+
       // Create workspace with model configuration
-      const response = await request.post(`http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`, {
-        data: {
-          name: `E2E Test Workspace ${Date.now()}`,
-          description: "Created by E2E test",
-          llm_provider: "ollama",
-          llm_model: "gemma3:12b",
-          embedding_provider: "ollama",
-          embedding_model: "embeddinggemma",
-          embedding_dimension: 768,
+      const response = await request.post(
+        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`,
+        {
+          data: {
+            name: `E2E Test Workspace ${Date.now()}`,
+            description: "Created by E2E test",
+            llm_provider: "ollama",
+            llm_model: "gemma3:12b",
+            embedding_provider: "ollama",
+            embedding_model: "embeddinggemma",
+            embedding_dimension: 768,
+          },
         }
-      });
-      
+      );
+
       // Should succeed
       expect([200, 201]).toContain(response.status());
-      
+
       const workspace = await response.json();
       expect(workspace).toHaveProperty("id");
-      
+
       // Clean up - delete the tenant (which cascades to delete workspace)
       await request.delete(`http://localhost:8080/api/v1/tenants/${tenantId}`);
     });
@@ -3538,48 +3711,69 @@ test.describe("SPEC-032: Provider Integration", () => {
    * @iteration OODA 176-180 - Deeplink route tests
    */
   test.describe("Focus 6: Deeplink Routes (OODA 176-180)", () => {
-    test("deeplink /w/[slug]/documents redirects correctly", async ({ page }) => {
+    test("deeplink /w/[slug]/documents redirects correctly", async ({
+      page,
+    }) => {
       // Navigate to a workspace documents deeplink
       // Using a non-existent workspace should show 404 or redirect gracefully
-      await page.goto("/w/test-workspace/documents", { waitUntil: "domcontentloaded" });
-      
+      await page.goto("/w/test-workspace/documents", {
+        waitUntil: "domcontentloaded",
+      });
+
       // Should either show workspace not found message or redirect to documents
       await page.waitForTimeout(3000);
-      
+
       const currentUrl = page.url();
       // Should either be at /documents or still at /w/test-workspace/documents (with 404)
-      expect(currentUrl).toMatch(/(\/documents|\/w\/test-workspace\/documents)/);
+      expect(currentUrl).toMatch(
+        /(\/documents|\/w\/test-workspace\/documents)/
+      );
     });
 
     test("deeplink /w/[slug]/graph redirects correctly", async ({ page }) => {
       // Navigate to a workspace graph deeplink
-      await page.goto("/w/test-workspace/graph", { waitUntil: "domcontentloaded" });
-      
+      await page.goto("/w/test-workspace/graph", {
+        waitUntil: "domcontentloaded",
+      });
+
       await page.waitForTimeout(3000);
-      
+
       const currentUrl = page.url();
       // Should either be at /graph or still at /w/test-workspace/graph (with 404)
       expect(currentUrl).toMatch(/(\/graph|\/w\/test-workspace\/graph)/);
     });
 
     test("deeplink /w/[slug]/query loads query page", async ({ page }) => {
-      await page.goto("/w/test-workspace/query", { waitUntil: "domcontentloaded" });
-      
+      await page.goto("/w/test-workspace/query", {
+        waitUntil: "domcontentloaded",
+      });
+
       await page.waitForTimeout(3000);
-      
+
       // Should show either query interface or workspace not found
-      const hasQueryInterface = await page.locator('[data-testid="query-interface"]').count() > 0;
-      const hasNotFound = await page.getByText("Workspace Not Found").count() > 0;
-      const hasQueryInput = await page.locator('textarea, input[placeholder*="message"], input[placeholder*="query"]').count() > 0;
-      
+      const hasQueryInterface =
+        (await page.locator('[data-testid="query-interface"]').count()) > 0;
+      const hasNotFound =
+        (await page.getByText("Workspace Not Found").count()) > 0;
+      const hasQueryInput =
+        (await page
+          .locator(
+            'textarea, input[placeholder*="message"], input[placeholder*="query"]'
+          )
+          .count()) > 0;
+
       expect(hasQueryInterface || hasNotFound || hasQueryInput).toBe(true);
     });
 
-    test("deeplink /w/[slug]/settings redirects to workspace settings", async ({ page }) => {
-      await page.goto("/w/test-workspace/settings", { waitUntil: "domcontentloaded" });
-      
+    test("deeplink /w/[slug]/settings redirects to workspace settings", async ({
+      page,
+    }) => {
+      await page.goto("/w/test-workspace/settings", {
+        waitUntil: "domcontentloaded",
+      });
+
       await page.waitForTimeout(3000);
-      
+
       const currentUrl = page.url();
       // Should redirect to /workspace (settings page) or show 404
       expect(currentUrl).toMatch(/(\/workspace|\/w\/test-workspace\/settings)/);
@@ -3594,7 +3788,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("API explorer page loads", async ({ page }) => {
       await page.goto("/api-explorer", { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(2000);
-      
+
       // Should show "API Endpoints" heading
       const heading = page.getByText("API Endpoints");
       await expect(heading).toBeVisible({ timeout: 10000 });
@@ -3603,7 +3797,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("API explorer shows Models category", async ({ page }) => {
       await page.goto("/api-explorer", { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(2000);
-      
+
       // Should show Models category in the endpoint list
       const modelsCategory = page.getByText("Models", { exact: false });
       await expect(modelsCategory.first()).toBeVisible({ timeout: 10000 });
@@ -3612,7 +3806,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("API explorer shows Tenants category", async ({ page }) => {
       await page.goto("/api-explorer", { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(2000);
-      
+
       // Should show Tenants category in the endpoint list
       const tenantsCategory = page.getByText("Tenants", { exact: false });
       await expect(tenantsCategory.first()).toBeVisible({ timeout: 10000 });
@@ -3621,26 +3815,32 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("API explorer shows Workspaces category", async ({ page }) => {
       await page.goto("/api-explorer", { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(2000);
-      
+
       // Should show Workspaces category in the endpoint list
       const workspacesCategory = page.getByText("Workspaces", { exact: false });
       await expect(workspacesCategory.first()).toBeVisible({ timeout: 10000 });
     });
 
-    test("models API returns valid structure via explorer", async ({ request }) => {
+    test("models API returns valid structure via explorer", async ({
+      request,
+    }) => {
       // Direct API test - verify the /models endpoint works
       const response = await request.get("http://localhost:8080/api/v1/models");
       expect(response.ok()).toBe(true);
-      
+
       const data = await response.json();
       expect(data).toHaveProperty("providers");
       expect(Array.isArray(data.providers)).toBe(true);
     });
 
-    test("models status API returns provider availability", async ({ request }) => {
+    test("models status API returns provider availability", async ({
+      request,
+    }) => {
       // Test the /models/status endpoint
-      const response = await request.get("http://localhost:8080/api/v1/models/status");
-      
+      const response = await request.get(
+        "http://localhost:8080/api/v1/models/status"
+      );
+
       // Should either succeed or return 404 if not implemented
       expect([200, 404]).toContain(response.status());
     });
@@ -3655,7 +3855,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       const startTime = Date.now();
       const response = await request.get("http://localhost:8080/health");
       const endTime = Date.now();
-      
+
       expect(response.ok()).toBe(true);
       expect(endTime - startTime).toBeLessThan(2000);
     });
@@ -3664,16 +3864,18 @@ test.describe("SPEC-032: Provider Integration", () => {
       const startTime = Date.now();
       const response = await request.get("http://localhost:8080/api/v1/models");
       const endTime = Date.now();
-      
+
       expect(response.ok()).toBe(true);
       expect(endTime - startTime).toBeLessThan(2000);
     });
 
     test("tenants list responds within 1000ms", async ({ request }) => {
       const startTime = Date.now();
-      const response = await request.get("http://localhost:8080/api/v1/tenants");
+      const response = await request.get(
+        "http://localhost:8080/api/v1/tenants"
+      );
       const endTime = Date.now();
-      
+
       expect(response.ok()).toBe(true);
       expect(endTime - startTime).toBeLessThan(1000);
     });
@@ -3686,9 +3888,12 @@ test.describe("SPEC-032: Provider Integration", () => {
   test.describe("Focus 10: Query Response Lineage (OODA 191-200)", () => {
     test("query API response includes provider field", async ({ request }) => {
       // First, ensure we have a tenant
-      const createTenantResponse = await request.post("http://localhost:8080/api/v1/tenants", {
-        data: { name: `Lineage Test Tenant ${Date.now()}` }
-      });
+      const createTenantResponse = await request.post(
+        "http://localhost:8080/api/v1/tenants",
+        {
+          data: { name: `Lineage Test Tenant ${Date.now()}` },
+        }
+      );
       expect([200, 201]).toContain(createTenantResponse.status());
       const tenant = await createTenantResponse.json();
 
@@ -3699,8 +3904,8 @@ test.describe("SPEC-032: Provider Integration", () => {
           data: {
             name: `Lineage Test Workspace ${Date.now()}`,
             llm_provider: "ollama",
-            llm_model: "gemma3:12b"
-          }
+            llm_model: "gemma3:12b",
+          },
         }
       );
       expect([200, 201]).toContain(createWorkspaceResponse.status());
@@ -3712,12 +3917,12 @@ test.describe("SPEC-032: Provider Integration", () => {
         {
           data: {
             query: "Test query for lineage",
-            mode: "hybrid"
+            mode: "hybrid",
           },
           headers: {
             "X-Tenant-ID": tenant.id,
-            "X-Workspace-ID": workspace.id
-          }
+            "X-Workspace-ID": workspace.id,
+          },
         }
       );
 
@@ -3729,16 +3934,18 @@ test.describe("SPEC-032: Provider Integration", () => {
       await request.delete(`http://localhost:8080/api/v1/tenants/${tenant.id}`);
     });
 
-    test("conversations API requires workspace context headers", async ({ request }) => {
+    test("conversations API requires workspace context headers", async ({
+      request,
+    }) => {
       // Test that conversations API enforces context header requirements
       // This validates the lineage tracking prerequisite (workspace context)
-      
+
       // Request without headers should return 400
       const responseNoHeaders = await request.get(
         `http://localhost:8080/api/v1/conversations`
       );
       expect(responseNoHeaders.status()).toBe(400);
-      
+
       // The error message should mention missing header
       const errorBody = await responseNoHeaders.json();
       expect(errorBody).toHaveProperty("message");
@@ -3751,11 +3958,16 @@ test.describe("SPEC-032: Provider Integration", () => {
    * @iteration OODA 196-200 - Workspace config tests
    */
   test.describe("Focus 13: Workspace Configuration (OODA 196-200)", () => {
-    test("workspace can be created with custom embedding dimensions", async ({ request }) => {
+    test("workspace can be created with custom embedding dimensions", async ({
+      request,
+    }) => {
       // Create tenant
-      const tenantResponse = await request.post("http://localhost:8080/api/v1/tenants", {
-        data: { name: `Embedding Test ${Date.now()}` }
-      });
+      const tenantResponse = await request.post(
+        "http://localhost:8080/api/v1/tenants",
+        {
+          data: { name: `Embedding Test ${Date.now()}` },
+        }
+      );
       expect([200, 201]).toContain(tenantResponse.status());
       const tenant = await tenantResponse.json();
 
@@ -3767,12 +3979,12 @@ test.describe("SPEC-032: Provider Integration", () => {
             name: `Embedding Workspace ${Date.now()}`,
             embedding_provider: "ollama",
             embedding_model: "embeddinggemma",
-            embedding_dimension: 768
-          }
+            embedding_dimension: 768,
+          },
         }
       );
       expect([200, 201]).toContain(workspaceResponse.status());
-      
+
       const workspace = await workspaceResponse.json();
       expect(workspace).toHaveProperty("id");
 
@@ -3780,11 +3992,16 @@ test.describe("SPEC-032: Provider Integration", () => {
       await request.delete(`http://localhost:8080/api/v1/tenants/${tenant.id}`);
     });
 
-    test("workspace returns LLM configuration in response", async ({ request }) => {
+    test("workspace returns LLM configuration in response", async ({
+      request,
+    }) => {
       // Create tenant
-      const tenantResponse = await request.post("http://localhost:8080/api/v1/tenants", {
-        data: { name: `LLM Config Test ${Date.now()}` }
-      });
+      const tenantResponse = await request.post(
+        "http://localhost:8080/api/v1/tenants",
+        {
+          data: { name: `LLM Config Test ${Date.now()}` },
+        }
+      );
       expect([200, 201]).toContain(tenantResponse.status());
       const tenant = await tenantResponse.json();
 
@@ -3795,12 +4012,12 @@ test.describe("SPEC-032: Provider Integration", () => {
           data: {
             name: `LLM Workspace ${Date.now()}`,
             llm_provider: "ollama",
-            llm_model: "gemma3:12b"
-          }
+            llm_model: "gemma3:12b",
+          },
         }
       );
       expect([200, 201]).toContain(workspaceResponse.status());
-      
+
       // Get the workspace to verify config is stored
       const workspace = await workspaceResponse.json();
       expect(workspace).toHaveProperty("id");
@@ -3818,32 +4035,48 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("workspace page loads", async ({ page }) => {
       await page.goto("/workspace", { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(2000);
-      
+
       // Should show some workspace content or "no workspace selected" message
-      const hasContent = await page.locator('body').count() > 0;
+      const hasContent = (await page.locator("body").count()) > 0;
       expect(hasContent).toBe(true);
     });
 
-    test("workspace page shows configuration sections when workspace selected", async ({ page }) => {
+    test("workspace page shows configuration sections when workspace selected", async ({
+      page,
+    }) => {
       await page.goto("/workspace", { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(3000);
-      
+
       // Either shows configuration sections or "no workspace selected" message
-      const hasConfig = await page.getByText(/Config|Configuration/i).first().isVisible().catch(() => false);
-      const hasNoWorkspace = await page.getByText(/No Workspace|Select.*workspace/i).first().isVisible().catch(() => false);
-      const hasNotFound = await page.getByText(/Not Found|Error/i).first().isVisible().catch(() => false);
-      
+      const hasConfig = await page
+        .getByText(/Config|Configuration/i)
+        .first()
+        .isVisible()
+        .catch(() => false);
+      const hasNoWorkspace = await page
+        .getByText(/No Workspace|Select.*workspace/i)
+        .first()
+        .isVisible()
+        .catch(() => false);
+      const hasNotFound = await page
+        .getByText(/Not Found|Error/i)
+        .first()
+        .isVisible()
+        .catch(() => false);
+
       // One of these states should be true
       expect(hasConfig || hasNoWorkspace || hasNotFound).toBe(true);
     });
 
     test("models health API returns provider status", async ({ request }) => {
       // Test the /models/health endpoint
-      const response = await request.get("http://localhost:8080/api/v1/models/health");
-      
+      const response = await request.get(
+        "http://localhost:8080/api/v1/models/health"
+      );
+
       // Should return 200 or 404 (if endpoint not implemented yet)
       expect([200, 404]).toContain(response.status());
-      
+
       if (response.status() === 200) {
         const data = await response.json();
         // Should be an array of providers
@@ -3851,13 +4084,15 @@ test.describe("SPEC-032: Provider Integration", () => {
       }
     });
 
-    test("models list API returns providers with enabled status", async ({ request }) => {
+    test("models list API returns providers with enabled status", async ({
+      request,
+    }) => {
       const response = await request.get("http://localhost:8080/api/v1/models");
       expect(response.ok()).toBe(true);
-      
+
       const data = await response.json();
       expect(data).toHaveProperty("providers");
-      
+
       // Each provider should have an enabled field
       if (data.providers.length > 0) {
         expect(data.providers[0]).toHaveProperty("enabled");
@@ -3871,24 +4106,30 @@ test.describe("SPEC-032: Provider Integration", () => {
    * @iteration OODA 211-217 - Final validation tests
    */
   test.describe("Focus 15: Final Hardening (OODA 211-217)", () => {
-    test("all SPEC-032 critical API endpoints are accessible", async ({ request }) => {
+    test("all SPEC-032 critical API endpoints are accessible", async ({
+      request,
+    }) => {
       // Test all critical endpoints return expected status codes
       const endpoints = [
         { path: "/health", expected: [200] },
         { path: "/api/v1/models", expected: [200] },
         { path: "/api/v1/tenants", expected: [200] },
       ];
-      
+
       for (const endpoint of endpoints) {
-        const response = await request.get(`http://localhost:8080${endpoint.path}`);
+        const response = await request.get(
+          `http://localhost:8080${endpoint.path}`
+        );
         expect(endpoint.expected).toContain(response.status());
       }
     });
 
-    test("provider model listing returns valid structure", async ({ request }) => {
+    test("provider model listing returns valid structure", async ({
+      request,
+    }) => {
       const response = await request.get("http://localhost:8080/api/v1/models");
       expect(response.ok()).toBe(true);
-      
+
       const data = await response.json();
       expect(data).toHaveProperty("providers");
       expect(data).toHaveProperty("default_llm_provider");
@@ -3897,51 +4138,63 @@ test.describe("SPEC-032: Provider Integration", () => {
 
     test("tenant CRUD operations work correctly", async ({ request }) => {
       // Create
-      const createResponse = await request.post("http://localhost:8080/api/v1/tenants", {
-        data: { name: `CRUD Test ${Date.now()}` }
-      });
+      const createResponse = await request.post(
+        "http://localhost:8080/api/v1/tenants",
+        {
+          data: { name: `CRUD Test ${Date.now()}` },
+        }
+      );
       expect([200, 201]).toContain(createResponse.status());
       const tenant = await createResponse.json();
       expect(tenant).toHaveProperty("id");
-      
+
       // Read
-      const readResponse = await request.get(`http://localhost:8080/api/v1/tenants/${tenant.id}`);
+      const readResponse = await request.get(
+        `http://localhost:8080/api/v1/tenants/${tenant.id}`
+      );
       expect(readResponse.ok()).toBe(true);
-      
+
       // Delete
-      const deleteResponse = await request.delete(`http://localhost:8080/api/v1/tenants/${tenant.id}`);
+      const deleteResponse = await request.delete(
+        `http://localhost:8080/api/v1/tenants/${tenant.id}`
+      );
       expect([200, 204]).toContain(deleteResponse.status());
     });
 
     test("workspace CRUD operations work correctly", async ({ request }) => {
       // Create tenant first
-      const tenantResponse = await request.post("http://localhost:8080/api/v1/tenants", {
-        data: { name: `Workspace CRUD Test ${Date.now()}` }
-      });
+      const tenantResponse = await request.post(
+        "http://localhost:8080/api/v1/tenants",
+        {
+          data: { name: `Workspace CRUD Test ${Date.now()}` },
+        }
+      );
       expect([200, 201]).toContain(tenantResponse.status());
       const tenant = await tenantResponse.json();
-      
+
       // Create workspace
       const createResponse = await request.post(
         `http://localhost:8080/api/v1/tenants/${tenant.id}/workspaces`,
         {
-          data: { 
-            name: `Test Workspace ${Date.now()}`
-          }
+          data: {
+            name: `Test Workspace ${Date.now()}`,
+          },
         }
       );
       expect([200, 201]).toContain(createResponse.status());
       const workspace = await createResponse.json();
       expect(workspace).toHaveProperty("id");
-      
+
       // List workspaces (verify workspace appears in list)
       const listResponse = await request.get(
         `http://localhost:8080/api/v1/tenants/${tenant.id}/workspaces`
       );
       expect(listResponse.ok()).toBe(true);
       const listData = await listResponse.json();
-      expect(listData.items.some((w: { id: string }) => w.id === workspace.id)).toBe(true);
-      
+      expect(
+        listData.items.some((w: { id: string }) => w.id === workspace.id)
+      ).toBe(true);
+
       // Clean up
       await request.delete(`http://localhost:8080/api/v1/tenants/${tenant.id}`);
     });

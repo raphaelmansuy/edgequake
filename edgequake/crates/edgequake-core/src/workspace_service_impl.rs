@@ -527,12 +527,33 @@ impl WorkspaceService for WorkspaceServiceImpl {
                 .metadata
                 .insert("max_documents".to_string(), serde_json::json!(max_docs));
         }
+        // SPEC-032: LLM model configuration updates
+        if let Some(llm_model) = request.llm_model {
+            workspace.llm_model = llm_model;
+        }
+        if let Some(llm_provider) = request.llm_provider {
+            workspace.llm_provider = llm_provider;
+        }
+        // SPEC-032: Embedding model configuration updates
+        // WARNING: Changing embedding model requires vector rebuild
+        if let Some(embedding_model) = request.embedding_model {
+            workspace.embedding_model = embedding_model;
+        }
+        if let Some(embedding_provider) = request.embedding_provider {
+            workspace.embedding_provider = embedding_provider;
+        }
+        if let Some(embedding_dimension) = request.embedding_dimension {
+            workspace.embedding_dimension = embedding_dimension;
+        }
         workspace.updated_at = chrono::Utc::now();
 
         sqlx::query(
             r#"
             UPDATE workspaces 
-            SET name = $2, description = $3, is_active = $4, metadata = $5, updated_at = NOW()
+            SET name = $2, description = $3, is_active = $4, metadata = $5,
+                llm_model = $6, llm_provider = $7,
+                embedding_model = $8, embedding_provider = $9, embedding_dimension = $10,
+                updated_at = NOW()
             WHERE workspace_id = $1
             "#,
         )
@@ -541,6 +562,11 @@ impl WorkspaceService for WorkspaceServiceImpl {
         .bind(&workspace.description)
         .bind(workspace.is_active)
         .bind(serde_json::json!(workspace.metadata))
+        .bind(&workspace.llm_model)
+        .bind(&workspace.llm_provider)
+        .bind(&workspace.embedding_model)
+        .bind(&workspace.embedding_provider)
+        .bind(workspace.embedding_dimension as i32)
         .execute(&self.pool)
         .await
         .map_err(|e| Error::internal(format!("Failed to update workspace: {}", e)))?;
