@@ -643,5 +643,82 @@ test.describe("SPEC-032: Provider Integration", () => {
       await page.waitForURL(`**/w/${workspaceSlug}/query`, { timeout: 10000 });
       expect(page.url()).toContain(`/w/${workspaceSlug}/query`);
     });
+
+    /**
+     * @implements SPEC-032: Focus 4 - Workspace settings deeplink
+     * @iteration OODA 70
+     * 
+     * Verifies that /w/[slug]/settings loads correctly.
+     */
+    test("/w/[slug]/settings deeplink loads workspace settings", async ({
+      page,
+      request,
+    }) => {
+      // Get existing workspace slug from API
+      const tenantsResponse = await request.get(
+        "http://localhost:8080/api/v1/tenants"
+      );
+      const tenants = await tenantsResponse.json();
+      const tenantId = tenants.items[0].id;
+
+      const workspacesResponse = await request.get(
+        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+      );
+      const workspaces = await workspacesResponse.json();
+      const workspaceSlug = workspaces.items[0]?.slug;
+
+      if (!workspaceSlug) {
+        test.skip();
+        return;
+      }
+
+      // Navigate to workspace settings deeplink
+      await page.goto(`/w/${workspaceSlug}/settings`, { waitUntil: "domcontentloaded" });
+      await page.waitForLoadState("domcontentloaded");
+
+      // Settings page should render
+      const mainContent = page.locator("main");
+      await expect(mainContent).toBeVisible({ timeout: 15000 });
+
+      // Verify we're on the settings route
+      expect(page.url()).toContain(`/w/${workspaceSlug}/settings`);
+    });
+  });
+
+  /**
+   * @implements SPEC-032: Focus 4 - Workspace settings page
+   * @iteration OODA 70
+   * 
+   * Tests for workspace settings displaying model configuration.
+   */
+  test.describe("Focus 4: Workspace Settings", () => {
+    /**
+     * Verifies settings page displays provider status card.
+     */
+    test("settings page shows provider status", async ({ page }) => {
+      await page.goto("/settings", { waitUntil: "domcontentloaded" });
+      await page.waitForLoadState("domcontentloaded");
+
+      // Wait for settings page to load
+      const mainContent = page.locator("main");
+      await expect(mainContent).toBeVisible({ timeout: 15000 });
+
+      // Look for provider status section - ProviderStatusCard shows "Provider Status" heading
+      const providerSection = page.getByText(/Provider.*Status/i).first();
+      await expect(providerSection).toBeVisible({ timeout: 10000 });
+    });
+
+    /**
+     * Verifies settings page has rebuild embeddings button.
+     */
+    test("settings page shows rebuild embeddings option", async ({ page }) => {
+      await page.goto("/settings", { waitUntil: "domcontentloaded" });
+      await page.waitForLoadState("domcontentloaded");
+
+      // Look for rebuild embeddings button/section
+      // RebuildEmbeddingsButton is included in settings page
+      const rebuildSection = page.getByText(/Rebuild.*Embeddings/i).first();
+      await expect(rebuildSection).toBeVisible({ timeout: 10000 });
+    });
   });
 });
