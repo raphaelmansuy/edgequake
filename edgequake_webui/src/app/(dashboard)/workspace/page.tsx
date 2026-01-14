@@ -20,6 +20,7 @@ import { EmbeddingModelSelector, type EmbeddingSelection } from '@/components/wo
 import { LLMModelSelector, type LLMSelection } from '@/components/workspace/llm-model-selector';
 import { RebuildEmbeddingsButton } from '@/components/workspace/rebuild-embeddings-button';
 import { getWorkspace, getWorkspaceStats, updateWorkspace } from '@/lib/api/edgequake';
+import { fetchProvidersHealth } from '@/lib/api/models';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -35,8 +36,10 @@ import {
     Layers,
     RefreshCw,
     Save,
+    Server,
     Settings,
     Sparkles,
+    XCircle,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -95,6 +98,17 @@ export default function WorkspacePage() {
         : Promise.reject(new Error('No workspace selected')),
     enabled: !!selectedWorkspaceId,
     staleTime: 30000,
+  });
+
+  // Fetch provider health status (SPEC-032: OODA 201-210)
+  const {
+    data: providerHealth,
+    isLoading: isLoadingHealth,
+  } = useQuery({
+    queryKey: ['providersHealth'],
+    queryFn: fetchProvidersHealth,
+    staleTime: 60000, // Cache for 1 minute
+    retry: 1, // Only retry once since providers may be down
   });
 
   // Initialize edit state from workspace data
@@ -468,6 +482,59 @@ export default function WorkspacePage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Provider Health Status - SPEC-032: OODA 201-210 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Server className="h-5 w-5 text-slate-600" />
+            {t('workspace.providerHealth', 'Provider Status')}
+          </CardTitle>
+          <CardDescription>
+            {t('workspace.providerHealthDesc', 'Real-time availability of configured LLM and embedding providers.')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoadingHealth ? (
+            <div className="flex gap-2">
+              {[...Array(3)].map((_, i) => (
+                <Skeleton key={i} className="h-8 w-24" />
+              ))}
+            </div>
+          ) : providerHealth && providerHealth.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {providerHealth.filter(p => p.enabled).map((provider) => {
+                const isAvailable = provider.health?.available ?? provider.enabled;
+                return (
+                  <Badge
+                    key={provider.name}
+                    variant={isAvailable ? 'default' : 'secondary'}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 ${
+                      isAvailable 
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-800' 
+                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-800'
+                    }`}
+                  >
+                    {isAvailable ? (
+                      <CheckCircle className="h-3 w-3" />
+                    ) : (
+                      <XCircle className="h-3 w-3" />
+                    )}
+                    <span className="capitalize">{provider.display_name || provider.name}</span>
+                    {provider.models && provider.models.length > 0 && (
+                      <span className="text-xs opacity-70">({provider.models.length})</span>
+                    )}
+                  </Badge>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {t('workspace.noProvidersConfigured', 'No providers configured')}
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Actions Section */}
       <Card>
