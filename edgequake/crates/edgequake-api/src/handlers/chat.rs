@@ -285,20 +285,21 @@ pub async fn chat_completion(
     }
 
     // Validate workspace_id exists in database (may be stale from localStorage)
-    let workspace_id = if let Some(ws_id) = workspace_id {
+    // Also store workspace for LLM provider fallback (SPEC-032)
+    let (workspace_id, workspace) = if let Some(ws_id) = workspace_id {
         match state.workspace_service.get_workspace(ws_id).await {
-            Ok(Some(_)) => Some(ws_id),
+            Ok(Some(ws)) => (Some(ws_id), Some(ws)),
             Ok(None) => {
                 warn!(workspace_id = %ws_id, "Workspace not found, ignoring stale workspace_id");
-                None
+                (None, None)
             }
             Err(e) => {
                 warn!(workspace_id = %ws_id, error = %e, "Failed to validate workspace, ignoring");
-                None
+                (None, None)
             }
         }
     } else {
-        None
+        (None, None)
     };
 
     let mode = parse_mode(&request.mode);
@@ -365,6 +366,10 @@ pub async fn chat_completion(
     }
 
     // SPEC-032: Apply provider/model override from request
+    // Priority order:
+    //   1. Request-specified provider/model (explicit user selection)
+    //   2. Workspace-configured provider/model (workspace settings)
+    //   3. Server default (sota_engine's default provider)
     // Supports both:
     //   - Legacy format: provider="provider/model" (e.g., "ollama/gemma3:12b")
     //   - New format: provider="provider", model="model_name"
@@ -390,7 +395,7 @@ pub async fn chat_completion(
             // configuration issues (e.g., missing API keys).
             match ProviderFactory::create_llm_provider(&provider_name, &model_name) {
                 Ok(llm) => {
-                    debug!(provider = %provider_name, model = %model_name, "Created LLM provider override");
+                    debug!(provider = %provider_name, model = %model_name, "Created LLM provider override from request");
                     (Some(llm), Some(provider_name), Some(model_name))
                 }
                 Err(e) => {
@@ -403,10 +408,45 @@ pub async fn chat_completion(
                 }
             }
         } else {
-            (None, None, None)
+            // Empty provider string - fall through to workspace/server default
+            if let Some(ref ws) = workspace {
+                // Use workspace's configured LLM provider
+                let provider_name = ws.llm_provider.clone();
+                let model_name = ws.llm_model.clone();
+                match ProviderFactory::create_llm_provider(&provider_name, &model_name) {
+                    Ok(llm) => {
+                        debug!(provider = %provider_name, model = %model_name, workspace_id = ?workspace_id, "Using workspace LLM provider");
+                        (Some(llm), Some(provider_name), Some(model_name))
+                    }
+                    Err(e) => {
+                        // Workspace provider failed - log warning and fall back to server default
+                        warn!(provider = %provider_name, error = %e, workspace_id = ?workspace_id, "Workspace LLM provider failed, using server default");
+                        (None, None, None)
+                    }
+                }
+            } else {
+                (None, None, None)
+            }
         }
     } else {
-        (None, None, None)
+        // No request.provider - use workspace provider if available
+        if let Some(ref ws) = workspace {
+            let provider_name = ws.llm_provider.clone();
+            let model_name = ws.llm_model.clone();
+            match ProviderFactory::create_llm_provider(&provider_name, &model_name) {
+                Ok(llm) => {
+                    debug!(provider = %provider_name, model = %model_name, workspace_id = ?workspace_id, "Using workspace LLM provider (no request override)");
+                    (Some(llm), Some(provider_name), Some(model_name))
+                }
+                Err(e) => {
+                    // Workspace provider failed - log warning and fall back to server default
+                    warn!(provider = %provider_name, error = %e, workspace_id = ?workspace_id, "Workspace LLM provider failed, using server default");
+                    (None, None, None)
+                }
+            }
+        } else {
+            (None, None, None)
+        }
     };
 
     // Execute query with or without LLM override
@@ -568,20 +608,21 @@ pub async fn chat_completion_stream(
     }
 
     // Validate workspace_id exists in database (may be stale from localStorage)
-    let workspace_id = if let Some(ws_id) = workspace_id {
+    // Also store workspace for LLM provider fallback (SPEC-032)
+    let (workspace_id, workspace) = if let Some(ws_id) = workspace_id {
         match state.workspace_service.get_workspace(ws_id).await {
-            Ok(Some(_)) => Some(ws_id),
+            Ok(Some(ws)) => (Some(ws_id), Some(ws)),
             Ok(None) => {
                 warn!(workspace_id = %ws_id, "Workspace not found in streaming handler, ignoring stale workspace_id");
-                None
+                (None, None)
             }
             Err(e) => {
                 warn!(workspace_id = %ws_id, error = %e, "Failed to validate workspace in streaming handler, ignoring");
-                None
+                (None, None)
             }
         }
     } else {
-        None
+        (None, None)
     };
 
     let mode = parse_mode(&request.mode);
@@ -644,9 +685,10 @@ pub async fn chat_completion_stream(
     let state_clone = state.clone();
     let message_content = request.message.clone();
     let user_message_id = user_message.message_id;
-    // SPEC-032: Clone provider and model for async task
+    // SPEC-032: Clone provider, model, and workspace for async task
     let request_provider = request.provider.clone();
     let request_model = request.model.clone();
+    let workspace_clone = workspace.clone();
 
     // 5. Send initial conversation event
     let initial_event = ChatStreamEvent::Conversation {
@@ -676,6 +718,10 @@ pub async fn chat_completion_stream(
         }
 
         // SPEC-032: Create LLM provider override from request (streaming handler)
+        // Priority order:
+        //   1. Request-specified provider/model (explicit user selection)
+        //   2. Workspace-configured provider/model (workspace settings)
+        //   3. Server default (sota_engine's default provider)
         // Supports both:
         //   - Legacy format: provider="provider/model" (e.g., "ollama/gemma3:12b")
         //   - New format: provider="provider", model="model_name"
@@ -692,8 +738,7 @@ pub async fn chat_completion_stream(
                     (p.to_string(), m.to_string())
                 } else {
                     // Just provider name, use provider's default model
-                    let default_model =
-                        ProviderFactory::default_model_for_provider(provider_id);
+                    let default_model = ProviderFactory::default_model_for_provider(provider_id);
                     (provider_id.clone(), default_model.to_string())
                 };
 
@@ -703,7 +748,7 @@ pub async fn chat_completion_stream(
                 // configuration issues (e.g., missing API keys).
                 match ProviderFactory::create_llm_provider(&provider_name, &model_name) {
                     Ok(llm) => {
-                        debug!(provider = %provider_name, model = %model_name, "Created LLM provider override for streaming");
+                        debug!(provider = %provider_name, model = %model_name, "Created LLM provider override for streaming from request");
                         (Some(llm), Some(provider_name), Some(model_name))
                     }
                     Err(e) => {
@@ -723,10 +768,45 @@ pub async fn chat_completion_stream(
                     }
                 }
             } else {
-                (None, None, None)
+                // Empty provider string - fall through to workspace/server default
+                if let Some(ref ws) = workspace_clone {
+                    // Use workspace's configured LLM provider
+                    let provider_name = ws.llm_provider.clone();
+                    let model_name = ws.llm_model.clone();
+                    match ProviderFactory::create_llm_provider(&provider_name, &model_name) {
+                        Ok(llm) => {
+                            debug!(provider = %provider_name, model = %model_name, workspace_id = ?workspace_id, "Using workspace LLM provider for streaming");
+                            (Some(llm), Some(provider_name), Some(model_name))
+                        }
+                        Err(e) => {
+                            // Workspace provider failed - log warning and fall back to server default
+                            warn!(provider = %provider_name, error = %e, workspace_id = ?workspace_id, "Workspace LLM provider failed for streaming, using server default");
+                            (None, None, None)
+                        }
+                    }
+                } else {
+                    (None, None, None)
+                }
             }
         } else {
-            (None, None, None)
+            // No request.provider - use workspace provider if available
+            if let Some(ref ws) = workspace_clone {
+                let provider_name = ws.llm_provider.clone();
+                let model_name = ws.llm_model.clone();
+                match ProviderFactory::create_llm_provider(&provider_name, &model_name) {
+                    Ok(llm) => {
+                        debug!(provider = %provider_name, model = %model_name, workspace_id = ?workspace_id, "Using workspace LLM provider for streaming (no request override)");
+                        (Some(llm), Some(provider_name), Some(model_name))
+                    }
+                    Err(e) => {
+                        // Workspace provider failed - log warning and fall back to server default
+                        warn!(provider = %provider_name, error = %e, workspace_id = ?workspace_id, "Workspace LLM provider failed for streaming, using server default");
+                        (None, None, None)
+                    }
+                }
+            } else {
+                (None, None, None)
+            }
         };
 
         // Execute streaming query with context using SOTA engine (LightRAG-style)
