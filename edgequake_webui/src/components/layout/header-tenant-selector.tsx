@@ -31,6 +31,10 @@ import {
     type EmbeddingSelection,
 } from '@/components/workspace/embedding-model-selector';
 import {
+    LLMModelSelector,
+    type LLMSelection,
+} from '@/components/workspace/llm-model-selector';
+import {
     createTenant,
     createWorkspace,
     getTenants,
@@ -87,8 +91,14 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [newWorkspaceDescription, setNewWorkspaceDescription] = useState('');
   const [newWorkspaceSlug, setNewWorkspaceSlug] = useState('');
+  // SPEC-032: Workspace LLM configuration
+  const [workspaceLLMSelection, setWorkspaceLLMSelection] = useState<LLMSelection | undefined>(undefined);
   // SPEC-032: Workspace embedding configuration
   const [embeddingSelection, setEmbeddingSelection] = useState<EmbeddingSelection | undefined>(undefined);
+  // SPEC-032: Tenant default LLM configuration
+  const [tenantDefaultLLM, setTenantDefaultLLM] = useState<LLMSelection | undefined>(undefined);
+  // SPEC-032: Tenant default embedding configuration
+  const [tenantDefaultEmbedding, setTenantDefaultEmbedding] = useState<EmbeddingSelection | undefined>(undefined);
 
 
   // Generate URL-safe slug from name
@@ -160,8 +170,16 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
   }, [workspacesData, setWorkspaces, selectedWorkspaceId, selectWorkspace, isInitialized, t]);
 
   // Create tenant mutation
+  // SPEC-032: Updated to include LLM and embedding configuration
   const createTenantMutation = useMutation({
-    mutationFn: (data: { name: string; description?: string }) => createTenant(data),
+    mutationFn: (data: { 
+      name: string; 
+      description?: string;
+      default_llm_model?: string;
+      default_llm_provider?: string;
+      default_embedding_model?: string;
+      default_embedding_provider?: string;
+    }) => createTenant(data),
     onSuccess: (newTenant) => {
       toast.success(t('tenant.createSuccess', 'Tenant created successfully'));
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
@@ -169,6 +187,8 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
       setShowCreateTenant(false);
       setNewTenantName('');
       setNewTenantDescription('');
+      setTenantDefaultLLM(undefined);
+      setTenantDefaultEmbedding(undefined);
     },
     onError: (error) => {
       toast.error(t('tenant.createFailed', 'Failed to create tenant'), {
@@ -178,12 +198,14 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
   });
 
   // Create workspace mutation
-  // SPEC-032: Updated to include embedding configuration
+  // SPEC-032: Updated to include LLM and embedding configuration
   const createWorkspaceMutation = useMutation({
     mutationFn: (data: {
       name: string;
       description?: string;
       slug?: string;
+      llm_model?: string;
+      llm_provider?: string;
       embedding_model?: string;
       embedding_provider?: string;
       embedding_dimension?: number;
@@ -199,6 +221,7 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
       setNewWorkspaceName('');
       setNewWorkspaceDescription('');
       setNewWorkspaceSlug('');
+      setWorkspaceLLMSelection(undefined); // Reset LLM selection
       setEmbeddingSelection(undefined); // Reset embedding selection
     },
     onError: (error) => {
@@ -358,7 +381,7 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
 
       {/* Create Tenant Dialog */}
       <Dialog open={showCreateTenant} onOpenChange={setShowCreateTenant}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Building2 className="h-5 w-5 text-primary" />
@@ -387,13 +410,44 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
                 placeholder={t('tenant.descriptionPlaceholder', 'Optional description')}
               />
             </div>
+            {/* SPEC-032: Default LLM model selection for tenant */}
+            <div className="grid gap-2">
+              <Label>{t('tenant.defaultLLM', 'Default LLM Model')}</Label>
+              <LLMModelSelector
+                value={tenantDefaultLLM}
+                onChange={setTenantDefaultLLM}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('tenant.defaultLLMHint', 'Default LLM for new workspaces. Can be overridden per workspace.')}
+              </p>
+            </div>
+            {/* SPEC-032: Default embedding model selection for tenant */}
+            <div className="grid gap-2">
+              <Label>{t('tenant.defaultEmbedding', 'Default Embedding Model')}</Label>
+              <EmbeddingModelSelector
+                value={tenantDefaultEmbedding}
+                onChange={setTenantDefaultEmbedding}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('tenant.defaultEmbeddingHint', 'Default embedding for new workspaces. Can be overridden per workspace.')}
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreateTenant(false)}>
               {t('common.cancel', 'Cancel')}
             </Button>
             <Button
-              onClick={() => createTenantMutation.mutate({ name: newTenantName, description: newTenantDescription || undefined })}
+              onClick={() => createTenantMutation.mutate({ 
+                name: newTenantName, 
+                description: newTenantDescription || undefined,
+                // SPEC-032: Include default LLM configuration
+                default_llm_model: tenantDefaultLLM?.model,
+                default_llm_provider: tenantDefaultLLM?.provider,
+                // SPEC-032: Include default embedding configuration
+                default_embedding_model: tenantDefaultEmbedding?.model,
+                default_embedding_provider: tenantDefaultEmbedding?.provider,
+              })}
               disabled={!newTenantName.trim() || createTenantMutation.isPending}
             >
               {createTenantMutation.isPending ? (
@@ -411,7 +465,7 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
 
       {/* Create Workspace Dialog */}
       <Dialog open={showCreateWorkspace} onOpenChange={setShowCreateWorkspace}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FolderKanban className="h-5 w-5 text-primary" />
@@ -421,7 +475,7 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
               {t('workspace.createDescription', 'Create a new workspace within the current tenant.')}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
             <div className="grid gap-2">
               <Label htmlFor="workspace-name">{t('common.name', 'Name')}</Label>
               <Input
@@ -464,6 +518,22 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
                 placeholder={t('workspace.descriptionPlaceholder', 'Optional description')}
               />
             </div>
+            {/* SPEC-032: LLM model selection for workspace */}
+            <div className="grid gap-2">
+              <Label>
+                {t('workspace.llmModel', 'LLM Model')}
+                <span className="text-muted-foreground text-xs ml-2">
+                  {t('workspace.llmHint', '(optional)')}
+                </span>
+              </Label>
+              <LLMModelSelector
+                value={workspaceLLMSelection}
+                onChange={setWorkspaceLLMSelection}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('workspace.llmDescription', 'LLM for document ingestion and knowledge graph generation.')}
+              </p>
+            </div>
             {/* SPEC-032: Embedding model selection */}
             <div className="grid gap-2">
               <Label htmlFor="workspace-embedding">
@@ -490,6 +560,9 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
                 name: newWorkspaceName, 
                 description: newWorkspaceDescription || undefined,
                 slug: newWorkspaceSlug.trim() || undefined,
+                // SPEC-032: Include LLM configuration if selected
+                llm_model: workspaceLLMSelection?.model,
+                llm_provider: workspaceLLMSelection?.provider,
                 // SPEC-032: Include embedding configuration if selected
                 embedding_model: embeddingSelection?.model,
                 embedding_provider: embeddingSelection?.provider,

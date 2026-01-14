@@ -740,6 +740,12 @@ export interface QuerySettings {
    * @implements SPEC-032: Provider selection in query interface
    */
   provider?: string;
+  /**
+   * Specific model name within the provider (e.g., "gpt-4o-mini", "gemma3:12b").
+   * Combined with provider to form full model ID: "ollama/gemma3:12b"
+   * @implements SPEC-032: Full model selection in query interface
+   */
+  model?: string;
 }
 
 export interface IngestionSettings {

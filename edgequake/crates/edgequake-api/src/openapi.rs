@@ -169,6 +169,7 @@ use crate::handlers;
 pub struct ApiDoc;
 
 /// Security addon for OpenAPI documentation.
+/// Also adds tenant/workspace header documentation.
 struct SecurityAddon;
 
 impl utoipa::Modify for SecurityAddon {
@@ -191,6 +192,42 @@ impl utoipa::Modify for SecurityAddon {
                     ),
                 ),
             );
+            // SPEC-032: Add X-Tenant-ID header as security scheme for documentation
+            components.add_security_scheme(
+                "tenant_id",
+                utoipa::openapi::security::SecurityScheme::ApiKey(
+                    utoipa::openapi::security::ApiKey::Header(
+                        utoipa::openapi::security::ApiKeyValue::new("X-Tenant-ID"),
+                    ),
+                ),
+            );
+            // SPEC-032: Add X-Workspace-ID header as security scheme for documentation
+            components.add_security_scheme(
+                "workspace_id",
+                utoipa::openapi::security::SecurityScheme::ApiKey(
+                    utoipa::openapi::security::ApiKey::Header(
+                        utoipa::openapi::security::ApiKeyValue::new("X-Workspace-ID"),
+                    ),
+                ),
+            );
+        }
+        
+        // SPEC-032: Add description about context headers in API description
+        if let Some(info) = Some(&mut openapi.info) {
+            let current_desc = info.description.clone().unwrap_or_default();
+            info.description = Some(format!(
+                "{}\n\n## Context Headers (SPEC-032)\n\n\
+                 Most endpoints require tenant and workspace context via headers:\n\n\
+                 - **X-Tenant-ID**: UUID of the tenant (organization). Required for multi-tenant operations.\n\
+                 - **X-Workspace-ID**: UUID of the workspace. Required for document/query operations.\n\n\
+                 These headers are automatically set by the WebUI when a user selects a tenant/workspace.\n\n\
+                 Example:\n\
+                 ```\n\
+                 X-Tenant-ID: 00000000-0000-0000-0000-000000000001\n\
+                 X-Workspace-ID: 00000000-0000-0000-0000-000000000002\n\
+                 ```",
+                current_desc
+            ));
         }
     }
 }

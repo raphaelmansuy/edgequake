@@ -1,33 +1,22 @@
 'use client';
 
-import { useParams } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useEffect } from 'react';
-
-import { QueryInterface } from '@/components/query/query-interface';
-import { getTenants, getWorkspaceBySlug, getWorkspaces } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useQuery } from '@tanstack/react-query';
+import { getTenants, getWorkspaceBySlug, getWorkspaces } from '@/lib/api/edgequake';
 import { Loader2 } from 'lucide-react';
 
 /**
- * Workspace-scoped query page accessible via deeplink.
+ * Workspace graph deeplink - sets workspace context and redirects to graph page.
  * 
- * @implements SPEC-032: Focus 6 - Deeplinks to workspace
- * @route /w/[slug]/query
- * @iteration OODA 61 - Removed TenantGuard wrapper to fix race condition
- * 
- * This page:
- * 1. Auto-selects tenant if none selected
- * 2. Resolves workspace by slug
- * 3. Sets it as the current workspace in context
- * 4. Renders the query interface directly (no TenantGuard)
- * 
- * Note: TenantGuard was removed because it races with workspace resolution,
- * causing "Create Workspace" UI to appear even when workspaces exist.
- * The deeplink page handles its own loading/error states.
+ * @implements SPEC-032: Focus 6 - Deeplinks to workspace graph
+ * @route /w/[slug]/graph
+ * @iteration OODA 169 - Added graph deeplink
  */
-export default function WorkspaceQueryPage() {
+export default function WorkspaceGraphPage() {
   const params = useParams();
+  const router = useRouter();
   const slug = params?.slug as string;
   
   const { selectedTenantId, selectTenant, selectWorkspace, selectedWorkspaceId, setWorkspaces } = useTenantStore();
@@ -53,7 +42,7 @@ export default function WorkspaceQueryPage() {
     enabled: !!selectedTenantId && !!slug,
   });
 
-  // Fetch all workspaces to populate store (prevents TenantGuard "no workspaces" race)
+  // Fetch all workspaces to populate store
   const { data: workspacesData } = useQuery({
     queryKey: ['workspaces', selectedTenantId],
     queryFn: () => selectedTenantId ? getWorkspaces(selectedTenantId) : Promise.resolve([]),
@@ -68,20 +57,24 @@ export default function WorkspaceQueryPage() {
     }
   }, [workspacesData, setWorkspaces]);
 
-  // Set workspace context when resolved
+  // Set workspace context when resolved and redirect to graph
   useEffect(() => {
-    if (workspace && workspace.id !== selectedWorkspaceId) {
-      selectWorkspace(workspace.id);
+    if (workspace) {
+      if (workspace.id !== selectedWorkspaceId) {
+        selectWorkspace(workspace.id);
+      }
+      // Redirect to main graph page
+      router.push('/graph');
     }
-  }, [workspace, selectedWorkspaceId, selectWorkspace]);
+  }, [workspace, selectedWorkspaceId, selectWorkspace, router]);
 
-  // Loading state - also wait for tenant selection
+  // Loading state
   if (isLoading || (!selectedTenantId && tenants === undefined)) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground mb-3" />
-          <p className="text-sm text-muted-foreground">Loading workspace...</p>
+          <p className="text-sm text-muted-foreground">Loading workspace graph...</p>
         </div>
       </div>
     );
@@ -96,15 +89,18 @@ export default function WorkspaceQueryPage() {
           <p className="text-muted-foreground mb-4">
             The workspace &quot;{slug}&quot; does not exist or you don&apos;t have access.
           </p>
-          <a href="/workspace" className="text-primary hover:underline">
-            Go to Workspace Settings
+          <a href="/graph" className="text-primary hover:underline">
+            Go to Graph
           </a>
         </div>
       </div>
     );
   }
 
-  // Render query interface directly (no TenantGuard wrapper)
-  // TenantGuard was removed in OODA 61 to fix race condition
-  return <QueryInterface />;
+  // Will redirect via useEffect
+  return (
+    <div className="flex items-center justify-center h-full">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
+  );
 }

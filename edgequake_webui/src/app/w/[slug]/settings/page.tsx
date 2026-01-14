@@ -3,7 +3,7 @@
 import { useParams } from 'next/navigation';
 import { useEffect } from 'react';
 
-import { getWorkspaceBySlug, getTenants, getWorkspaces } from '@/lib/api/edgequake';
+import { getTenants, getWorkspaceBySlug, getWorkspaces } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';

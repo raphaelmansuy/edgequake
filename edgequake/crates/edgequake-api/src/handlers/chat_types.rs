@@ -61,6 +61,14 @@ pub struct ChatCompletionRequest {
     /// @implements SPEC-032: Provider selection in query interface
     #[serde(default)]
     pub provider: Option<String>,
+
+    /// Specific model name within the provider (e.g., "gpt-4o-mini", "gemma3:12b").
+    /// When combined with provider, allows full model selection from models.toml.
+    /// If not provided, uses the provider's default chat model.
+    ///
+    /// @implements SPEC-032: Full model selection in query interface
+    #[serde(default)]
+    pub model: Option<String>,
 }
 
 // ============================================================================

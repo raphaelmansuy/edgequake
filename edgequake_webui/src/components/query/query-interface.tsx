@@ -604,7 +604,7 @@ export function QueryInterface() {
       let llmModel: string | undefined;
 
       // Use the unified chat API - server handles message persistence
-      // SPEC-032: Pass selected provider for query
+      // SPEC-032: Pass selected provider and model for query
       for await (const chunk of chatCompletionStream({
         conversation_id: conversationId || undefined,
         message: queryText,
@@ -614,6 +614,7 @@ export function QueryInterface() {
         top_k: querySettings.topK,
         stream: true,
         provider: querySettings.provider,
+        model: querySettings.model,
       })) {
         if (abortControllerRef.current?.signal.aborted) {
           break;
@@ -792,6 +793,7 @@ export function QueryInterface() {
           top_k: querySettings.topK,
           stream: false,
           provider: querySettings.provider,
+          model: querySettings.model,
         });
 
         // Update active conversation if a new one was created
@@ -917,10 +919,23 @@ export function QueryInterface() {
               {t('query.newConversation', 'New')}
             </Button>
 
-            {/* Provider Selector (SPEC-032) */}
+            {/* Provider & Model Selector (SPEC-032) */}
             <ProviderModelSelector
-              value={querySettings.provider}
-              onChange={(provider) => setQuerySettings({ provider })}
+              value={querySettings.provider && querySettings.model 
+                ? `${querySettings.provider}/${querySettings.model}` 
+                : ''}
+              onChange={(fullModelId) => {
+                // Parse "provider/model" format from selector
+                if (!fullModelId) {
+                  // Server default - clear both
+                  setQuerySettings({ provider: undefined, model: undefined });
+                } else {
+                  const parts = fullModelId.split('/');
+                  const provider = parts[0];
+                  const model = parts.slice(1).join('/'); // Handle model names with slashes
+                  setQuerySettings({ provider, model });
+                }
+              }}
               disabled={isLoading}
             />
 

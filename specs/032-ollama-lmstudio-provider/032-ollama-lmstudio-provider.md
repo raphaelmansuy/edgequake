@@ -35,6 +35,20 @@ As the embedding required a fixed dimension, you must provide a way to recreate 
 8) For lmstudio provider ensure lmstudio can support streaming responses like openai and ollama providers, if it is not the case if streaming is selected for the query use non streaming if not supported by the provider
 
 
+9) Ensure X-Tenant/ X-Workspace headers if existing are fully documented in the API documentation and examples, and swagger documentation updated accordingly.
+
+10) Ensure the API explorer is fully implemented to reflect the current API state, ensure the UX/UI is user friendly and easy to use is conform to the best standards on the market.
+
+11) Ensure by real e2e test with playrigh that on the query page I can really access all the models configured by provider and model name. 
+
+12) Ensure I can choose the default provider and model for both llm and embedding when I create a new tenant and new workspace. Or new workspace under a tenant.
+
+13) Find how to make lmstudio works. Find online documentation about lmstudio api usage, authentication, model listing, model capabilities, streaming support, embedding support, etc. Ensure you fully understand how lmstudio works before implementing it. 
+
+14) Ensure to filter and choose model/provider is easy and user friendly in the webui. The real default model/provider must selected by default in the dropdown when opening the query page must be clearly indicated.
+
+15) For each assistant message, you must store the provider and model used to generate the message as lineage information in the database. This information must be retrievable via the API and displayed in the webui. The information must be displayed in slick and nice way in the webui, near the token usage information for example, choose the best.
+
 Very important ==> Default providers (llm+embedding) and models will be defined as setup in a toml config file located at the root of edgequake server. Capabilities of models and providers must be detected at runtime and exposed as an API. This configuration file will act as models cards explaining the capabilities of each model and provider. (vision / image support / max tokens / context length / cost per 1K tokens etc). This config file will be used by the edgequake_webui to display the capabilities of each model and provider in the selection dropdowns. This file will provide high signal information to the users about the models and providers available in the edgequake server.
 
 

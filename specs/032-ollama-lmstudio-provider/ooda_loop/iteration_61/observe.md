@@ -3,6 +3,7 @@
 ## Deeplink Page + TenantGuard Integration Issue
 
 ### Problem
+
 When navigating to a deeplink like `/w/default-workspace/query`, the TenantGuard component sometimes shows "Create a Workspace" even when workspaces exist in the database.
 
 ### Root Cause Analysis
@@ -20,6 +21,7 @@ When navigating to a deeplink like `/w/default-workspace/query`, the TenantGuard
 5. **Race condition**: TenantGuard's check happens before selectWorkspace completes
 
 ### Current TenantGuard Logic (Line 396)
+
 ```tsx
 // Tenant selected but no workspaces exist - prompt to create one
 if (selectedTenantId && workspacesData && workspacesData.length === 0) {
@@ -30,7 +32,9 @@ if (selectedTenantId && workspacesData && workspacesData.length === 0) {
 This check is correct for normal pages but incorrect for deeplink pages that load a specific workspace.
 
 ### Observation: Breadcrumb Shows Correct Route
+
 Even when "Create Workspace" UI appears, the breadcrumb correctly shows:
+
 ```
 EdgeQuake > w > default-workspace > Query
 ```
@@ -38,7 +42,9 @@ EdgeQuake > w > default-workspace > Query
 This proves the route resolved correctly but TenantGuard blocked the render.
 
 ### Current Workaround
+
 E2E tests accept "Create Workspace" UI as valid when breadcrumb shows correct workspace slug.
 
 ### Desired Behavior
+
 Deeplink pages should render their content without TenantGuard blocking, OR TenantGuard should recognize when a workspace is being loaded via deeplink.

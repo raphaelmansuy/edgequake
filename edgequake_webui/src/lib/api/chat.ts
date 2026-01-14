@@ -46,10 +46,16 @@ export interface ChatCompletionRequest {
   /** Parent message ID for threading. */
   parent_id?: string;
   /**
-   * LLM provider ID to use for this query.
+   * LLM provider ID to use for this query (e.g., "openai", "ollama", "lmstudio").
    * @implements SPEC-032: Provider selection in query interface
    */
   provider?: string;
+  /**
+   * Specific model name within the provider (e.g., "gpt-4o-mini", "gemma3:12b").
+   * When combined with provider, allows full model selection from models.toml.
+   * @implements SPEC-032: Full model selection in query interface
+   */
+  model?: string;
 }
 
 /**

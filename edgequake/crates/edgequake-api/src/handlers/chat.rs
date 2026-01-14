@@ -365,19 +365,23 @@ pub async fn chat_completion(
     }
 
     // SPEC-032: Apply provider/model override from request
-    // Format: "provider/model" (e.g., "ollama/gemma3:12b") or just "provider"
-    let (llm_override, used_provider, used_model) = if let Some(ref provider_full_id) =
-        request.provider
+    // Supports both:
+    //   - Legacy format: provider="provider/model" (e.g., "ollama/gemma3:12b")
+    //   - New format: provider="provider", model="model_name"
+    let (llm_override, used_provider, used_model) = if let Some(ref provider_id) = request.provider
     {
-        if !provider_full_id.is_empty() {
-            // Parse "provider/model" format
-            let (provider_name, model_name) = if let Some((p, m)) = provider_full_id.split_once('/')
-            {
+        if !provider_id.is_empty() {
+            // Determine provider and model names
+            let (provider_name, model_name) = if let Some(ref explicit_model) = request.model {
+                // New format: explicit model field provided
+                (provider_id.clone(), explicit_model.clone())
+            } else if let Some((p, m)) = provider_id.split_once('/') {
+                // Legacy format: "provider/model" in provider field
                 (p.to_string(), m.to_string())
             } else {
                 // Just provider name, use provider's default model
-                let default_model = ProviderFactory::default_model_for_provider(provider_full_id);
-                (provider_full_id.clone(), default_model.to_string())
+                let default_model = ProviderFactory::default_model_for_provider(provider_id);
+                (provider_id.clone(), default_model.to_string())
             };
 
             // Try to create the LLM provider
@@ -640,8 +644,9 @@ pub async fn chat_completion_stream(
     let state_clone = state.clone();
     let message_content = request.message.clone();
     let user_message_id = user_message.message_id;
-    // SPEC-032: Clone provider for async task
+    // SPEC-032: Clone provider and model for async task
     let request_provider = request.provider.clone();
+    let request_model = request.model.clone();
 
     // 5. Send initial conversation event
     let initial_event = ChatStreamEvent::Conversation {
@@ -671,21 +676,26 @@ pub async fn chat_completion_stream(
         }
 
         // SPEC-032: Create LLM provider override from request (streaming handler)
-        // Format: "provider/model" (e.g., "ollama/gemma3:12b") or just "provider"
-        let (llm_override, used_provider, used_model) = if let Some(ref provider_full_id) =
+        // Supports both:
+        //   - Legacy format: provider="provider/model" (e.g., "ollama/gemma3:12b")
+        //   - New format: provider="provider", model="model_name"
+        let (llm_override, used_provider, used_model) = if let Some(ref provider_id) =
             request_provider
         {
-            if !provider_full_id.is_empty() {
-                // Parse "provider/model" format
-                let (provider_name, model_name) =
-                    if let Some((p, m)) = provider_full_id.split_once('/') {
-                        (p.to_string(), m.to_string())
-                    } else {
-                        // Just provider name, use provider's default model
-                        let default_model =
-                            ProviderFactory::default_model_for_provider(provider_full_id);
-                        (provider_full_id.clone(), default_model.to_string())
-                    };
+            if !provider_id.is_empty() {
+                // Determine provider and model names
+                let (provider_name, model_name) = if let Some(ref explicit_model) = request_model {
+                    // New format: explicit model field provided
+                    (provider_id.clone(), explicit_model.clone())
+                } else if let Some((p, m)) = provider_id.split_once('/') {
+                    // Legacy format: "provider/model" in provider field
+                    (p.to_string(), m.to_string())
+                } else {
+                    // Just provider name, use provider's default model
+                    let default_model =
+                        ProviderFactory::default_model_for_provider(provider_id);
+                    (provider_id.clone(), default_model.to_string())
+                };
 
                 // Try to create the LLM provider
                 // IMPORTANT: When user explicitly selects a provider, return validation errors
