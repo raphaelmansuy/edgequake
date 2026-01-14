@@ -244,11 +244,20 @@ test.describe("SPEC-032: Provider Integration", () => {
   });
 
   test.describe("Focus 6: Deeplink Routes", () => {
+    /**
+     * @implements SPEC-032: Focus 6 - Deeplink resolution
+     * @iteration OODA 62 - Simplified after OODA 61 TenantGuard fix
+     * 
+     * Verifies that /w/[slug]/query correctly:
+     * 1. Resolves workspace by slug
+     * 2. Sets workspace context
+     * 3. Renders query interface
+     */
     test("workspace deeplink by slug resolves correctly", async ({
       page,
       request,
     }) => {
-      // Get existing workspace slug
+      // Get existing workspace slug from API
       const tenantsResponse = await request.get(
         "http://localhost:8080/api/v1/tenants"
       );
@@ -269,89 +278,39 @@ test.describe("SPEC-032: Provider Integration", () => {
       // Navigate to deeplink
       await page.goto(`/w/${workspaceSlug}/query`, { waitUntil: "domcontentloaded" });
       
-      // Wait for initial load
-      await page.waitForTimeout(2000);
-      
-      // Wait for the page to fully render - either query interface or error state
-      // The query interface has a specific container with the chat input
-      const queryTextarea = page.locator('textarea[placeholder*="Ask"], input[placeholder*="Ask"], [aria-label*="Ask a question"]');
-      const errorState = page.locator('text=/Workspace Not Found/i');
-      const createWorkspaceButton = page.locator('text=/Create Workspace/i');
-      
-      // Wait for either query input OR error/create states
-      const foundElement = await Promise.race([
-        queryTextarea.first().waitFor({ state: 'visible', timeout: 30000 }).then(() => 'query'),
-        errorState.waitFor({ state: 'visible', timeout: 30000 }).then(() => 'error'),
-        createWorkspaceButton.waitFor({ state: 'visible', timeout: 30000 }).then(() => 'create'),
-      ]).catch(() => 'none');
-      
-      // If we got create workspace UI, it means workspace data didn't load properly
-      // This is a known timing issue with TenantGuard - we should still mark test as passed
-      // if the route resolved correctly (breadcrumb shows workspace slug)
-      if (foundElement === 'create') {
-        // Check if breadcrumb shows the workspace slug - means route resolved
-        const breadcrumb = page.locator(`[href*="${workspaceSlug}"]`);
-        const hasBreadcrumb = await breadcrumb.count() > 0;
-        expect(hasBreadcrumb).toBe(true);
-        return; // Route works, TenantGuard timing issue is separate
-      }
-      
-      // Normal case - query interface should be visible
-      if (foundElement === 'query') {
-        await expect(queryTextarea.first()).toBeVisible();
-        return;
-      }
-      
-      // If neither, fail the test
-      expect(foundElement).not.toBe('none');
+      // Query interface should render with text input
+      // Note: OODA 61 removed TenantGuard from deeplink routes, so no more race condition
+      const queryTextarea = page.locator('textarea[placeholder*="Ask"], input[placeholder*="Ask"], [aria-label*="query"]');
+      await expect(queryTextarea.first()).toBeVisible({ timeout: 30000 });
     });
 
+    /**
+     * @implements SPEC-032: Focus 6 - Invalid deeplink handling
+     * @iteration OODA 62 - Simplified after OODA 61 TenantGuard fix
+     * 
+     * Verifies that invalid workspace slugs show proper error state.
+     */
     test("invalid workspace slug shows error state", async ({ page }) => {
       // Navigate to invalid slug
       await page.goto("/w/definitely-invalid-slug-12345/query", { waitUntil: "domcontentloaded" });
 
-      // Wait for the page to load and API call to fail
-      await page.waitForTimeout(3000);
-
-      // Should show error message - check for various error patterns
-      // The deeplink page shows "Workspace Not Found" on 404
-      const errorIndicators = [
-        page.locator('text=/Workspace Not Found/i'),
-        page.locator('text=/does not exist/i'),
-        page.locator('text=/not found/i'),
-        page.locator('text=/don\'t have access/i'),
-        page.locator('text=/access denied/i'),
-      ];
-      
-      // Wait for any error indicator
-      let foundError = false;
-      for (const indicator of errorIndicators) {
-        const count = await indicator.count();
-        if (count > 0) {
-          foundError = true;
-          break;
-        }
-      }
-      
-      // The page should either show an error OR redirect to an error state
-      // If TenantGuard shows "Create Workspace", that's also acceptable
-      // since it means the invalid workspace wasn't loaded
-      const createWorkspace = page.locator('text=/Create Workspace/i');
-      if (!foundError) {
-        const hasCreate = await createWorkspace.count() > 0;
-        if (hasCreate) {
-          foundError = true; // Acceptable fallback - workspace not found, shows create
-        }
-      }
-      
-      expect(foundError).toBe(true);
+      // Should show "Workspace Not Found" error
+      // Note: OODA 61 ensures deeplink page handles its own error states
+      const errorMessage = page.locator('text=/Workspace Not Found/i');
+      await expect(errorMessage).toBeVisible({ timeout: 30000 });
     });
 
+    /**
+     * @implements SPEC-032: Focus 6 - Bare slug redirects to /query
+     * @iteration OODA 62 - Added documentation
+     * 
+     * Verifies that /w/[slug] redirects to /w/[slug]/query
+     */
     test("/w/[slug] redirects to /w/[slug]/query", async ({
       page,
       request,
     }) => {
-      // Get existing workspace slug
+      // Get existing workspace slug from API
       const tenantsResponse = await request.get(
         "http://localhost:8080/api/v1/tenants"
       );
@@ -369,13 +328,11 @@ test.describe("SPEC-032: Provider Integration", () => {
         return;
       }
 
-      // Navigate to bare slug URL
+      // Navigate to bare slug URL (no /query suffix)
       await page.goto(`/w/${workspaceSlug}`);
 
-      // Wait for client-side redirect to complete
+      // Should redirect to /query route
       await page.waitForURL(`**/w/${workspaceSlug}/query`, { timeout: 10000 });
-
-      // Verify URL contains /query
       expect(page.url()).toContain(`/w/${workspaceSlug}/query`);
     });
   });
