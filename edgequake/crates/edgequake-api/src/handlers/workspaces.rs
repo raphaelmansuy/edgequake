@@ -842,9 +842,32 @@ pub async fn rebuild_embeddings(
         .embedding_provider
         .clone()
         .unwrap_or_else(|| workspace.embedding_provider.clone());
-    let new_dimension = request
-        .embedding_dimension
-        .unwrap_or(workspace.embedding_dimension);
+
+    // WHY: Auto-detect dimension from model config when model changes
+    // If embedding_dimension is explicitly provided in the request, use it.
+    // Otherwise, look up the correct dimension from the model's config.
+    // This ensures dimension is always consistent with the selected model.
+    let new_dimension = if let Some(dim) = request.embedding_dimension {
+        dim
+    } else if new_model != workspace.embedding_model || new_provider != workspace.embedding_provider
+    {
+        // Model is changing - look up the correct dimension for the new model
+        state
+            .models_config
+            .get_model(&new_provider, &new_model)
+            .map(|m| m.capabilities.embedding_dimension)
+            .unwrap_or_else(|| {
+                tracing::warn!(
+                    provider = %new_provider,
+                    model = %new_model,
+                    "No embedding dimension found for model, using workspace default"
+                );
+                workspace.embedding_dimension
+            })
+    } else {
+        // No model change, keep existing dimension
+        workspace.embedding_dimension
+    };
 
     // 4. Check if config is actually changing
     let config_changed = new_model != workspace.embedding_model
