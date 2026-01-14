@@ -784,6 +784,10 @@ pub async fn list_documents(
             .iter()
             .filter(|d| d.status.as_deref() == Some("failed"))
             .count(),
+        cancelled: documents
+            .iter()
+            .filter(|d| d.status.as_deref() == Some("cancelled"))
+            .count(),
     };
 
     let total = documents.len();
@@ -2133,6 +2137,10 @@ pub async fn get_track_status(
             .iter()
             .filter(|d| d.status.as_deref() == Some("failed"))
             .count(),
+        cancelled: track_docs
+            .iter()
+            .filter(|d| d.status.as_deref() == Some("cancelled"))
+            .count(),
     };
 
     // Find earliest created_at
@@ -2888,6 +2896,7 @@ mod tests {
                 processing: 0,
                 completed: 1,
                 failed: 0,
+                cancelled: 0,
             },
         };
 
@@ -2988,6 +2997,7 @@ mod tests {
                 processing: 0,
                 completed: 1,
                 failed: 0,
+                cancelled: 0,
             },
             is_complete: true,
             latest_message: Some("All documents processed successfully".to_string()),

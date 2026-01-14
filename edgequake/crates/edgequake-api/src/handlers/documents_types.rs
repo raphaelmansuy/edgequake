@@ -209,6 +209,8 @@ pub struct StatusCounts {
     pub completed: usize,
     /// Number of failed documents.
     pub failed: usize,
+    /// Number of cancelled documents.
+    pub cancelled: usize,
 }
 
 /// List documents response.
@@ -910,6 +912,7 @@ mod tests {
                 processing: 0,
                 completed: 1,
                 failed: 0,
+                cancelled: 0,
             },
         };
 
@@ -1010,6 +1013,7 @@ mod tests {
                 processing: 0,
                 completed: 1,
                 failed: 0,
+                cancelled: 0,
             },
             is_complete: true,
             latest_message: Some("All documents processed successfully".to_string()),
