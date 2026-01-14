@@ -3,6 +3,7 @@
 ## Actions Taken
 
 ### Added "default model configuration is valid" Test
+
 ```typescript
 test("default model configuration is valid", async ({ request }) => {
   const response = await request.get("http://localhost:8080/api/v1/models");

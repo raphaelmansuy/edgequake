@@ -33,13 +33,13 @@ Running 47 tests using 8 workers
 
 ## Coverage Update
 
-| Category | Tests |
-|----------|-------|
-| Focus 1-8 | 28 |
-| Error Handling | 2 |
-| Pagination/Structure | 4 |
-| UI Page Load | 6 |
-| Navigation Flow | 3 |
-| API Response Format | 3 |
-| Provider Type Validation | 4 |
-| **Total** | **47** |
+| Category                 | Tests  |
+| ------------------------ | ------ |
+| Focus 1-8                | 28     |
+| Error Handling           | 2      |
+| Pagination/Structure     | 4      |
+| UI Page Load             | 6      |
+| Navigation Flow          | 3      |
+| API Response Format      | 3      |
+| Provider Type Validation | 4      |
+| **Total**                | **47** |

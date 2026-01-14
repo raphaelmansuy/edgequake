@@ -8,7 +8,9 @@ Two new E2E tests added to `spec032-provider-integration.spec.ts`:
 
 ```typescript
 test.describe("Focus 5: Rebuild Embeddings", () => {
-  test("rebuild embeddings API validates request correctly", async ({ request }) => {
+  test("rebuild embeddings API validates request correctly", async ({
+    request,
+  }) => {
     // Get existing workspace
     // POST to rebuild-embeddings with force:false
     // Expect 400 error about config unchanged
@@ -55,13 +57,13 @@ Running 24 tests using 8 workers
 
 ## Coverage Summary
 
-| Focus Area | Tests | Status |
-|------------|-------|--------|
-| Focus 3: Query Provider UI | 2 | ✅ |
-| Focus 4: Workspace Settings | 3 | ✅ |
-| Focus 5: Rebuild Embeddings | 2 | ✅ NEW |
-| Focus 6: Deeplinks | 4 | ✅ |
-| Focus 7: Multi-model | 9 | ✅ |
-| Focus 8: Streaming | 2 | ✅ |
-| Focus 1&2: Config | 3 | ✅ |
-| **Total** | **24** | **All passing** |
+| Focus Area                  | Tests  | Status          |
+| --------------------------- | ------ | --------------- |
+| Focus 3: Query Provider UI  | 2      | ✅              |
+| Focus 4: Workspace Settings | 3      | ✅              |
+| Focus 5: Rebuild Embeddings | 2      | ✅ NEW          |
+| Focus 6: Deeplinks          | 4      | ✅              |
+| Focus 7: Multi-model        | 9      | ✅              |
+| Focus 8: Streaming          | 2      | ✅              |
+| Focus 1&2: Config           | 3      | ✅              |
+| **Total**                   | **24** | **All passing** |

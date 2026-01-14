@@ -3,19 +3,23 @@
 ## Actions Taken
 
 ### 1. Updated `/w/[slug]/layout.tsx`
+
 - Removed `TenantGuard` import
 - Removed TenantGuard wrapper from main content area
 - Added documentation explaining the architectural decision
 - Children now render directly without guard
 
 ### 2. Updated `/w/[slug]/query/page.tsx`
+
 - Removed `TenantGuard` import
 - Added `getWorkspaces` import for store population
 - Added workspace list fetching:
+
   ```tsx
   const { data: workspacesData } = useQuery({
-    queryKey: ['workspaces', selectedTenantId],
-    queryFn: () => selectedTenantId ? getWorkspaces(selectedTenantId) : Promise.resolve([]),
+    queryKey: ["workspaces", selectedTenantId],
+    queryFn: () =>
+      selectedTenantId ? getWorkspaces(selectedTenantId) : Promise.resolve([]),
     enabled: !!selectedTenantId,
     staleTime: 5 * 60 * 1000,
   });
@@ -26,10 +30,12 @@
     }
   }, [workspacesData, setWorkspaces]);
   ```
+
 - Changed return from `<TenantGuard><QueryInterface /></TenantGuard>` to `<QueryInterface />`
 - Added `@iteration OODA 61` to JSDoc
 
 ### 3. Updated `/w/[slug]/settings/page.tsx`
+
 - Same pattern as query page
 - Removed `TenantGuard` import
 - Added `getWorkspaces` import
@@ -40,6 +46,7 @@
 ## Verification
 
 ### E2E Test Results
+
 ```
 Running 9 tests using 8 workers
   ✓ models API returns available providers and models (935ms)
@@ -55,9 +62,11 @@ Running 9 tests using 8 workers
 ```
 
 ## Files Changed
+
 - `edgequake_webui/src/app/w/[slug]/layout.tsx`
 - `edgequake_webui/src/app/w/[slug]/query/page.tsx`
 - `edgequake_webui/src/app/w/[slug]/settings/page.tsx`
 
 ## Commit Ready
+
 Changes verified and ready for commit as OODA 61.

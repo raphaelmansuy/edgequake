@@ -29,8 +29,8 @@ Running 54 tests using 8 workers
 
 ## Coverage Update
 
-| Category | Tests |
-|----------|-------|
-| Focus 1-8 | 28 |
-| Hardening | 26 |
+| Category  | Tests  |
+| --------- | ------ |
+| Focus 1-8 | 28     |
+| Hardening | 26     |
 | **Total** | **54** |

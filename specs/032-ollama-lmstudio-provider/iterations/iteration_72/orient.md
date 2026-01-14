@@ -5,6 +5,7 @@
 ### API Error Response Patterns
 
 From the codebase, API errors return structured JSON:
+
 ```json
 {
   "error": "error_code",
@@ -13,6 +14,7 @@ From the codebase, API errors return structured JSON:
 ```
 
 ### Error Codes
+
 - 400: Bad Request (validation errors)
 - 404: Not Found (invalid IDs)
 - 500: Internal Server Error
@@ -20,10 +22,12 @@ From the codebase, API errors return structured JSON:
 ### Test Cases for Hardening
 
 1. **Invalid tenant ID**
+
    - GET `/api/v1/tenants/{invalid-uuid}`
    - Expected: 404 with "not found" message
 
 2. **Invalid workspace ID**
+
    - GET `/api/v1/tenants/{tenant}/workspaces/{invalid-uuid}`
    - Expected: 404 with "not found" message
 
@@ -34,6 +38,7 @@ From the codebase, API errors return structured JSON:
 ## Recommendation
 
 Add 2 error handling tests:
+
 1. "invalid tenant ID returns 404"
 2. "invalid workspace ID returns 404"
 

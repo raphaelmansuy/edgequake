@@ -5,6 +5,7 @@
 Add new test section for API error handling:
 
 ### Test 1: Invalid tenant ID returns 404
+
 ```typescript
 test("invalid tenant ID returns 404", async ({ request }) => {
   const response = await request.get(
@@ -15,6 +16,7 @@ test("invalid tenant ID returns 404", async ({ request }) => {
 ```
 
 ### Test 2: Invalid workspace ID returns 404
+
 ```typescript
 test("invalid workspace ID returns 404", async ({ request }) => {
   // Get valid tenant first

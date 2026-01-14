@@ -3,7 +3,9 @@
 ## Current State
 
 ### Model Cost API Response
+
 Each model includes a `cost` object:
+
 ```json
 {
   "cost": {
@@ -18,6 +20,7 @@ Each model includes a `cost` object:
 ### Test Coverage Gap
 
 No tests currently verify cost information:
+
 - LLM models should have input/output costs
 - Embedding models should have embedding costs
 - Cost values should be non-negative
@@ -25,6 +28,7 @@ No tests currently verify cost information:
 ### UI Usage
 
 The Costs page displays model pricing. Without cost data validation:
+
 - UI might show $0.00 for all models
 - Cost calculations could be wrong
 

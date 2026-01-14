@@ -3,7 +3,9 @@
 ## Current State
 
 ### Provider Configuration
+
 The models API returns providers with priority ordering:
+
 - OpenAI: priority 10 (highest)
 - Ollama: priority 20
 - LM Studio: priority 30
@@ -14,6 +16,7 @@ The models API returns providers with priority ordering:
 ### Test Coverage Analysis
 
 Current E2E tests cover:
+
 1. ✅ Models API structure
 2. ✅ LLM model existence
 3. ✅ Embedding model existence

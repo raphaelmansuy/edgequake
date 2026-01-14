@@ -7,6 +7,7 @@ With OODA 61 complete, the TenantGuard race condition has been resolved. Now foc
 ## Test Suite Analysis
 
 ### Current E2E Test Status
+
 - 9/9 tests passing
 - Total run time: ~11.2s
 - Slowest tests: deeplink tests (~6-10s each)
@@ -14,16 +15,19 @@ With OODA 61 complete, the TenantGuard race condition has been resolved. Now foc
 ### Observations
 
 1. **Deeplink Test Timing**
+
    - `workspace deeplink by slug resolves correctly`: 9.3s
    - `invalid workspace slug shows error state`: 10.3s
    - `/w/[slug] redirects to /w/[slug]/query`: 6.8s
    - These tests are slower than API tests (< 1s each)
 
 2. **Test Assertions**
+
    - Some tests use breadcrumb fallback assertions (from OODA 60)
    - With TenantGuard fix (OODA 61), these fallbacks may no longer be needed
 
 3. **Test Coverage Gaps**
+
    - No test for streaming fallback behavior (Focus 8)
    - No test for model switching at runtime
    - No test for concurrent queries

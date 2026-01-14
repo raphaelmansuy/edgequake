@@ -16,11 +16,13 @@
 ### Files Modified
 
 1. **`/w/[slug]/layout.tsx`**
+
    - Remove TenantGuard import
    - Render children directly without wrapper
    - Add documentation explaining architectural decision
 
 2. **`/w/[slug]/query/page.tsx`**
+
    - Remove TenantGuard import
    - Add `getWorkspaces` import
    - Fetch and populate workspace list in store (prevents any downstream TenantGuard issues)

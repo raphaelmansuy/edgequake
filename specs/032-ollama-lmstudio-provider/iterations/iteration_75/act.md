@@ -19,6 +19,7 @@ test("tenant has default model configuration", async ({ request }) => {
 ```
 
 ### Fixed provider selector test stability
+
 - Changed from `/query` to `/w/{slug}/query` deeplink
 - Ensures workspace is selected before looking for provider selector
 - Root cause: Without workspace selected, query page shows "Create Workspace" instead of query interface
@@ -35,15 +36,15 @@ Running 31 tests using 8 workers
 
 ## Coverage Update
 
-| Category | Tests |
-|----------|-------|
-| Focus 1&2: Config | 3 |
-| Focus 3: Query UI | 2 |
-| Focus 4: Settings | 3 |
-| Focus 5: Rebuild | 2 |
-| Focus 6: Deeplinks | 4 |
-| Focus 7: Multi-model | 10 |
-| Focus 8: Streaming | 2 |
-| Error Handling | 2 |
-| Pagination/Structure | 4 |
-| **Total** | **31** |
+| Category             | Tests  |
+| -------------------- | ------ |
+| Focus 1&2: Config    | 3      |
+| Focus 3: Query UI    | 2      |
+| Focus 4: Settings    | 3      |
+| Focus 5: Rebuild     | 2      |
+| Focus 6: Deeplinks   | 4      |
+| Focus 7: Multi-model | 10     |
+| Focus 8: Streaming   | 2      |
+| Error Handling       | 2      |
+| Pagination/Structure | 4      |
+| **Total**            | **31** |

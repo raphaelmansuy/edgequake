@@ -3,6 +3,7 @@
 ## Analysis
 
 ### Rebuild API Endpoint
+
 ```
 POST /api/v1/workspaces/{workspace_id}/rebuild-embeddings
 Request: RebuildEmbeddingsRequest {
@@ -15,6 +16,7 @@ Response: RebuildEmbeddingsResponse
 ```
 
 ### Implementation Notes from Code
+
 1. Clears all vector embeddings for workspace
 2. Optionally updates embedding model configuration
 3. Documents need to be re-processed to regenerate embeddings
@@ -23,6 +25,7 @@ Response: RebuildEmbeddingsResponse
 ### Test Strategy
 
 1. **API Level Test**: Verify endpoint exists and responds correctly
+
    - Success case: force rebuild with `force: true`
    - Error case: no changes without force
 
@@ -32,6 +35,7 @@ Response: RebuildEmbeddingsResponse
 ### Recommendation
 
 Add 1 API test for rebuild endpoint:
+
 - "rebuild embeddings API endpoint exists and responds"
 
 This validates Focus 5 at API level. UI button visibility already covered.

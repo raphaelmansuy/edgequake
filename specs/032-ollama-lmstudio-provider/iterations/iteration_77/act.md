@@ -47,6 +47,7 @@ test.describe("Navigation Flow", () => {
 ```
 
 ## Bug Fix
+
 - Used `.first()` on locators to avoid strict mode violations when multiple matching elements exist (sidebar + dashboard cards)
 
 ## Test Results
@@ -58,17 +59,17 @@ Running 40 tests using 8 workers
 
 ## Coverage Update
 
-| Category | Tests |
-|----------|-------|
-| Focus 1&2: Config | 3 |
-| Focus 3: Query UI | 2 |
-| Focus 4: Settings | 3 |
-| Focus 5: Rebuild | 2 |
-| Focus 6: Deeplinks | 4 |
-| Focus 7: Multi-model | 10 |
-| Focus 8: Streaming | 2 |
-| Error Handling | 2 |
-| Pagination/Structure | 4 |
-| UI Page Load | 6 |
-| Navigation Flow | 3 |
-| **Total** | **40** |
+| Category             | Tests  |
+| -------------------- | ------ |
+| Focus 1&2: Config    | 3      |
+| Focus 3: Query UI    | 2      |
+| Focus 4: Settings    | 3      |
+| Focus 5: Rebuild     | 2      |
+| Focus 6: Deeplinks   | 4      |
+| Focus 7: Multi-model | 10     |
+| Focus 8: Streaming   | 2      |
+| Error Handling       | 2      |
+| Pagination/Structure | 4      |
+| UI Page Load         | 6      |
+| Navigation Flow      | 3      |
+| **Total**            | **40** |

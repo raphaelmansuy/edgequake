@@ -3,6 +3,7 @@
 ## Actions Taken
 
 ### 1. Simplified "workspace deeplink by slug resolves correctly" Test
+
 - Removed `waitForTimeout(2000)` delay
 - Removed complex `Promise.race` for multiple states
 - Removed TenantGuard fallback logic (breadcrumb check)
@@ -10,6 +11,7 @@
 - Single direct assertion: `await expect(queryTextarea.first()).toBeVisible({ timeout: 30000 })`
 
 ### 2. Simplified "invalid workspace slug shows error state" Test
+
 - Removed `waitForTimeout(3000)` delay
 - Removed multi-indicator loop checking
 - Removed "Create Workspace" fallback
@@ -17,6 +19,7 @@
 - Single direct assertion: `await expect(errorMessage).toBeVisible({ timeout: 30000 })`
 
 ### 3. Added JSDoc to "/w/[slug] redirects to /w/[slug]/query" Test
+
 - Added `@implements` and `@iteration` tags
 - Minor comment cleanup
 
@@ -38,13 +41,14 @@ Running 9 tests using 8 workers
 
 ## Performance Improvement
 
-| Metric | Before (OODA 60) | After (OODA 62) |
-|--------|------------------|-----------------|
-| Total run time | ~11.2s | ~3.3s |
-| Deeplink test time | ~9.3s | ~1.3s |
-| Invalid slug test | ~10.3s | ~2.6s |
+| Metric             | Before (OODA 60) | After (OODA 62) |
+| ------------------ | ---------------- | --------------- |
+| Total run time     | ~11.2s           | ~3.3s           |
+| Deeplink test time | ~9.3s            | ~1.3s           |
+| Invalid slug test  | ~10.3s           | ~2.6s           |
 
 3x faster test execution!
 
 ## Files Changed
+
 - `edgequake_webui/e2e/spec032-provider-integration.spec.ts`

@@ -3,6 +3,7 @@
 ## Actions Taken
 
 ### Added "models have cost information" Test
+
 ```typescript
 test("models have cost information", async ({ request }) => {
   const response = await request.get("http://localhost:8080/api/v1/models");
@@ -17,7 +18,7 @@ test("models have cost information", async ({ request }) => {
     expect(model.cost).toHaveProperty("input_per_1k");
     expect(model.cost).toHaveProperty("output_per_1k");
     expect(model.cost).toHaveProperty("embedding_per_1k");
-    
+
     expect(model.cost.input_per_1k).toBeGreaterThanOrEqual(0);
     expect(model.cost.output_per_1k).toBeGreaterThanOrEqual(0);
     expect(model.cost.embedding_per_1k).toBeGreaterThanOrEqual(0);

@@ -24,16 +24,17 @@ ProviderModelSelector
 
 ### Test Scenarios
 
-| Scenario | Priority | Complexity |
-|----------|----------|------------|
-| Selector is visible on query page | P0 | Low |
-| Dropdown opens on click | P0 | Low |
-| Shows provider names in dropdown | P1 | Medium |
-| Shows model options | P1 | Medium |
-| Selection updates display | P1 | Medium |
+| Scenario                          | Priority | Complexity |
+| --------------------------------- | -------- | ---------- |
+| Selector is visible on query page | P0       | Low        |
+| Dropdown opens on click           | P0       | Low        |
+| Shows provider names in dropdown  | P1       | Medium     |
+| Shows model options               | P1       | Medium     |
+| Selection updates display         | P1       | Medium     |
 
 ## Recommendation
 
 Add 2 focused E2E tests:
+
 1. "query page has provider model selector" - visibility check
 2. "provider selector shows available providers" - dropdown functionality

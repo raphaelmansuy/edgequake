@@ -51,11 +51,11 @@ Running 19 tests using 8 workers
 
 ## Coverage Summary
 
-| Focus Area | Tests | Status |
-|------------|-------|--------|
-| Focus 3: Query Provider UI | 2 | ✅ NEW |
-| Focus 7: Multi-model | 9 | ✅ |
-| Focus 8: Streaming | 2 | ✅ |
-| Focus 1&2: Config | 3 | ✅ |
-| Focus 6: Deeplinks | 3 | ✅ |
-| **Total** | **19** | **All passing** |
+| Focus Area                 | Tests  | Status          |
+| -------------------------- | ------ | --------------- |
+| Focus 3: Query Provider UI | 2      | ✅ NEW          |
+| Focus 7: Multi-model       | 9      | ✅              |
+| Focus 8: Streaming         | 2      | ✅              |
+| Focus 1&2: Config          | 3      | ✅              |
+| Focus 6: Deeplinks         | 3      | ✅              |
+| **Total**                  | **19** | **All passing** |

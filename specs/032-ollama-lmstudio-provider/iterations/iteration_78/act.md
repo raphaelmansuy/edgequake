@@ -12,7 +12,9 @@ test.describe("API Response Format", () => {
     expect(typeof data.total).toBe("number");
   });
 
-  test("workspaces list has correct pagination structure", async ({ request }) => {
+  test("workspaces list has correct pagination structure", async ({
+    request,
+  }) => {
     // Validates: items array, total count, model config fields
     expect(item).toHaveProperty("llm_provider");
     expect(item).toHaveProperty("embedding_provider");
@@ -41,12 +43,12 @@ Running 43 tests using 8 workers
 
 ## Coverage Update
 
-| Category | Tests |
-|----------|-------|
-| Focus 1-8 | 28 |
-| Error Handling | 2 |
-| Pagination/Structure | 4 |
-| UI Page Load | 6 |
-| Navigation Flow | 3 |
-| API Response Format | 3 |
-| **Total** | **43** |
+| Category             | Tests  |
+| -------------------- | ------ |
+| Focus 1-8            | 28     |
+| Error Handling       | 2      |
+| Pagination/Structure | 4      |
+| UI Page Load         | 6      |
+| Navigation Flow      | 3      |
+| API Response Format  | 3      |
+| **Total**            | **43** |

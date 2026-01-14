@@ -22,6 +22,7 @@ test("list workspaces returns paginated results", async ({ request }) => {
 ```
 
 ### Fixed provider selector test timing
+
 - Added 2s wait for React hydration in second provider test too
 - Improved locator consistency
 
@@ -37,15 +38,15 @@ Running 29 tests using 8 workers
 
 ## Coverage Update
 
-| Category | Tests |
-|----------|-------|
-| Focus 1&2: Config | 3 |
-| Focus 3: Query UI | 2 |
-| Focus 4: Settings | 3 |
-| Focus 5: Rebuild | 2 |
-| Focus 6: Deeplinks | 4 |
-| Focus 7: Multi-model | 10 |
-| Focus 8: Streaming | 2 |
-| Error Handling | 2 |
-| Pagination | 2 |
-| **Total** | **29** |
+| Category             | Tests  |
+| -------------------- | ------ |
+| Focus 1&2: Config    | 3      |
+| Focus 3: Query UI    | 2      |
+| Focus 4: Settings    | 3      |
+| Focus 5: Rebuild     | 2      |
+| Focus 6: Deeplinks   | 4      |
+| Focus 7: Multi-model | 10     |
+| Focus 8: Streaming   | 2      |
+| Error Handling       | 2      |
+| Pagination           | 2      |
+| **Total**            | **29** |

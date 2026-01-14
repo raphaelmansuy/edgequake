@@ -5,6 +5,7 @@
 Add two E2E tests for Focus 3 (Query interface provider selection):
 
 ### Test 1: Query page has provider model selector
+
 ```typescript
 test("query page has provider model selector", async ({ page }) => {
   // Navigate to query page
@@ -13,7 +14,8 @@ test("query page has provider model selector", async ({ page }) => {
 });
 ```
 
-### Test 2: Provider selector shows available providers  
+### Test 2: Provider selector shows available providers
+
 ```typescript
 test("provider selector shows available providers", async ({ page }) => {
   // Navigate to query page

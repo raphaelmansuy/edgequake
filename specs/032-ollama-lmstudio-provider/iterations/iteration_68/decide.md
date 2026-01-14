@@ -3,6 +3,7 @@
 ## Decision
 
 Add test for default model configuration validity:
+
 - Default LLM provider exists and is enabled
 - Default LLM model exists in that provider (can be "llm" or "multimodal" type)
 - Default embedding provider exists and is enabled

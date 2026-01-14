@@ -3,6 +3,7 @@
 ## Actions Taken
 
 ### Added "LLM models have complete capabilities" Test
+
 ```typescript
 test("LLM models have complete capabilities", async ({ request }) => {
   const response = await request.get("http://localhost:8080/api/v1/models");
@@ -10,19 +11,17 @@ test("LLM models have complete capabilities", async ({ request }) => {
 
   const llmModels = data.providers
     .filter((p: any) => p.enabled)
-    .flatMap((p: any) =>
-      p.models.filter((m: any) => m.model_type === "llm")
-    );
+    .flatMap((p: any) => p.models.filter((m: any) => m.model_type === "llm"));
 
   expect(llmModels.length).toBeGreaterThan(0);
 
   for (const model of llmModels.slice(0, 5)) {
     expect(model.capabilities).toHaveProperty("context_length");
     expect(model.capabilities.context_length).toBeGreaterThan(0);
-    
+
     expect(model.capabilities).toHaveProperty("max_output_tokens");
     expect(model.capabilities.max_output_tokens).toBeGreaterThanOrEqual(0);
-    
+
     expect(model.capabilities).toHaveProperty("supports_streaming");
     expect(model.capabilities).toHaveProperty("supports_function_calling");
   }
@@ -52,10 +51,10 @@ Running 14 tests using 8 workers
 
 ## Coverage
 
-| Focus Area | Tests |
-|------------|-------|
-| Focus 7: Multi-model Support | 6 |
-| Focus 8: Streaming Support | 2 |
-| Focus 1 & 2: Tenant/Workspace Config | 3 |
-| Focus 6: Deeplink Routes | 3 |
-| **Total** | **14** |
+| Focus Area                           | Tests  |
+| ------------------------------------ | ------ |
+| Focus 7: Multi-model Support         | 6      |
+| Focus 8: Streaming Support           | 2      |
+| Focus 1 & 2: Tenant/Workspace Config | 3      |
+| Focus 6: Deeplink Routes             | 3      |
+| **Total**                            | **14** |

@@ -3,7 +3,9 @@
 ## Analysis
 
 ### Health Endpoint Response
+
 The `/api/v1/models/health` endpoint returns an array of provider status objects with:
+
 - `name`: Provider identifier
 - `display_name`: Human-readable name
 - `provider_type`: Provider type (openai, ollama, etc.)
@@ -15,6 +17,7 @@ The `/api/v1/models/health` endpoint returns an array of provider status objects
 ### Test Scenarios
 
 1. **Health endpoint responds**
+
    - GET `/api/v1/models/health`
    - Verify 200 status
    - Verify array response
@@ -26,4 +29,5 @@ The `/api/v1/models/health` endpoint returns an array of provider status objects
 ## Recommendation
 
 Add 1 test for provider health check:
+
 - "provider health check returns enabled providers"

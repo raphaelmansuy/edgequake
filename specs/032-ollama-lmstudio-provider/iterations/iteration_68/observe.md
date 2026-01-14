@@ -3,6 +3,7 @@
 ## Current State
 
 ### API Default Model Response
+
 ```json
 {
   "default_llm_provider": "ollama",
@@ -16,9 +17,11 @@
 ### Test Coverage
 
 The existing test verifies:
+
 - ✅ Properties exist (`default_llm_provider`, etc.)
 
 Not tested:
+
 - ❌ Default provider matches an enabled provider
 - ❌ Default model exists within that provider
 - ❌ Default embedding dimension is positive
@@ -26,6 +29,7 @@ Not tested:
 ### Why This Matters
 
 Incorrect default configuration could:
+
 - Fail on first query attempt
 - Confuse new users
 - Break CI/CD pipelines

@@ -6,7 +6,9 @@ Add 1 E2E test for provider health check:
 
 ```typescript
 test("provider health check returns enabled providers", async ({ request }) => {
-  const response = await request.get("http://localhost:8080/api/v1/models/health");
+  const response = await request.get(
+    "http://localhost:8080/api/v1/models/health"
+  );
   expect(response.ok()).toBe(true);
 
   const providers = await response.json();

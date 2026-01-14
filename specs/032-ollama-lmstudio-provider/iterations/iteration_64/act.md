@@ -3,6 +3,7 @@
 ## Actions Taken
 
 ### 1. Added "providers have priority property" Test
+
 ```typescript
 test("providers have priority property", async ({ request }) => {
   const response = await request.get("http://localhost:8080/api/v1/models");
@@ -17,13 +18,14 @@ test("providers have priority property", async ({ request }) => {
 ```
 
 ### 2. Added "core providers are enabled" Test
+
 ```typescript
 test("core providers are enabled", async ({ request }) => {
   const response = await request.get("http://localhost:8080/api/v1/models");
   const data = await response.json();
-  
+
   const coreProviders = ["openai", "ollama", "mock"];
-  
+
   for (const coreName of coreProviders) {
     const provider = data.providers.find((p: any) => p.name === coreName);
     expect(provider).toBeDefined();
@@ -33,6 +35,7 @@ test("core providers are enabled", async ({ request }) => {
 ```
 
 ### 3. Fixed Deeplink Test Locator
+
 - Added `main` element to locator options
 - Added URL verification assertion
 - Made test more robust to UI changes
@@ -43,7 +46,7 @@ test("core providers are enabled", async ({ request }) => {
 Running 13 tests using 8 workers
   ✓ models API returns available providers and models (760ms)
   ✓ providers have priority property (779ms)              <-- NEW
-  ✓ core providers are enabled (806ms)                    <-- NEW  
+  ✓ core providers are enabled (806ms)                    <-- NEW
   ✓ LLM models exist in providers (786ms)
   ✓ embedding models exist in providers (751ms)
   ✓ LLM models report streaming capability (809ms)
@@ -59,10 +62,10 @@ Running 13 tests using 8 workers
 
 ## Test Coverage Summary
 
-| Focus Area | Tests | Status |
-|------------|-------|--------|
-| Focus 1 & 2: Tenant/Workspace Config | 3 | ✅ |
-| Focus 6: Deeplink Routes | 3 | ✅ |
-| Focus 7: Multi-model Support | 5 | ✅ (+2) |
-| Focus 8: Streaming Support | 2 | ✅ |
-| **Total** | **13** | **100%** |
+| Focus Area                           | Tests  | Status   |
+| ------------------------------------ | ------ | -------- |
+| Focus 1 & 2: Tenant/Workspace Config | 3      | ✅       |
+| Focus 6: Deeplink Routes             | 3      | ✅       |
+| Focus 7: Multi-model Support         | 5      | ✅ (+2)  |
+| Focus 8: Streaming Support           | 2      | ✅       |
+| **Total**                            | **13** | **100%** |

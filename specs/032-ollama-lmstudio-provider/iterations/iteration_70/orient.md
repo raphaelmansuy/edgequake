@@ -5,6 +5,7 @@
 ### What needs testing for Focus 4
 
 1. **Workspace settings page displays model info**
+
    - Shows current LLM provider/model
    - Shows current embedding provider/model
    - Shows embedding dimension
@@ -25,6 +26,7 @@ test("settings page displays model configuration")
 ### Integration Points
 
 The workspace API returns model configuration:
+
 ```json
 {
   "llm_provider": "openai",
@@ -40,5 +42,6 @@ The settings page should display these values.
 ## Recommendation
 
 Add 2 tests to Focus 4 section:
+
 1. "workspace settings deeplink loads" - tests `/w/[slug]/settings`
 2. "settings displays workspace model configuration" - validates model info visible

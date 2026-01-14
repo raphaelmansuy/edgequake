@@ -3,6 +3,7 @@
 ## Decision
 
 Add one focused test for LLM model capabilities:
+
 - Verify `context_length > 0` for LLM models
 - Verify `max_output_tokens >= 0` for LLM models
 - Verify presence of key capability flags

@@ -3,6 +3,7 @@
 ## Actions Taken
 
 ### 1. Added Focus 8: Streaming Support Test Describe Block
+
 ```typescript
 test.describe("Focus 8: Streaming Support", () => {
   // Tests for streaming capability
@@ -10,11 +11,13 @@ test.describe("Focus 8: Streaming Support", () => {
 ```
 
 ### 2. Added "LLM models report streaming capability" Test
+
 - Filters providers that support streaming (openai, ollama, anthropic)
 - Finds all LLM models from those providers
 - Verifies each has `capabilities.supports_streaming: true`
 
 ### 3. Added "embedding models do not support streaming" Test
+
 - Finds all embedding models across all providers
 - Verifies each has `capabilities.supports_streaming: false`
 
@@ -38,13 +41,14 @@ Running 11 tests using 8 workers
 
 ## Test Coverage Summary
 
-| Focus Area | Tests | Status |
-|------------|-------|--------|
-| Focus 1 & 2: Tenant/Workspace Config | 3 | ✅ |
-| Focus 6: Deeplink Routes | 3 | ✅ |
-| Focus 7: Multi-model Support | 3 | ✅ |
-| Focus 8: Streaming Support | 2 | ✅ NEW |
-| **Total** | **11** | **100%** |
+| Focus Area                           | Tests  | Status   |
+| ------------------------------------ | ------ | -------- |
+| Focus 1 & 2: Tenant/Workspace Config | 3      | ✅       |
+| Focus 6: Deeplink Routes             | 3      | ✅       |
+| Focus 7: Multi-model Support         | 3      | ✅       |
+| Focus 8: Streaming Support           | 2      | ✅ NEW   |
+| **Total**                            | **11** | **100%** |
 
 ## Files Changed
+
 - `edgequake_webui/e2e/spec032-provider-integration.spec.ts` (+46 lines)

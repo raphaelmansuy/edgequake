@@ -3,6 +3,7 @@
 ## Strategy
 
 Add 2 tests for tenant CRUD operations:
+
 1. "list tenants returns paginated results"
 2. "tenant CRUD lifecycle works correctly"
 

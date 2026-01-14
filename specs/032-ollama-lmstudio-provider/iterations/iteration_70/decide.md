@@ -5,6 +5,7 @@
 Add 2 E2E tests for Focus 4 (Workspace Settings):
 
 ### Test 1: Workspace settings deeplink loads
+
 ```typescript
 test("workspace settings deeplink loads", async ({ page, request }) => {
   // Get workspace slug from API
@@ -14,6 +15,7 @@ test("workspace settings deeplink loads", async ({ page, request }) => {
 ```
 
 ### Test 2: Settings displays workspace model configuration
+
 ```typescript
 test("settings displays workspace model configuration", async ({ page }) => {
   // Navigate to /settings

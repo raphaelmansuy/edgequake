@@ -11,6 +11,7 @@
 ### Test Strategy
 
 Add focused test that:
+
 1. Verifies cost object exists on all models
 2. Checks LLM models have input/output costs
 3. Checks embedding models have embedding costs

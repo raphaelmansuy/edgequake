@@ -3,6 +3,7 @@
 ## Analysis
 
 ### What We Have
+
 - Models API returns `capabilities.supports_streaming` for each model
 - LLM models have `supports_streaming: true`
 - Embedding models have `supports_streaming: false`
@@ -24,18 +25,21 @@
 ### Options
 
 #### Option 1: API-Only Tests for Streaming Capability
+
 - Test that models API returns `supports_streaming`
 - Test that streaming endpoint exists and accepts requests
 - **Pro**: Easy to implement, reliable
 - **Con**: Doesn't test actual streaming behavior
 
 #### Option 2: UI Streaming Tests with Mocks
+
 - Test query interface with mock responses
 - Verify streaming indicators appear
 - **Pro**: Tests user-facing behavior
 - **Con**: Complex, may be flaky
 
 #### Option 3: Hybrid Approach
+
 - Add API test for streaming capability flag
 - Test UI shows streaming in progress indicator
 - **Pro**: Covers both levels
@@ -46,6 +50,7 @@
 **Option 1: API-Only Tests for Streaming Capability**
 
 Add tests to verify:
+
 1. `supports_streaming: true` for LLM models
 2. `supports_streaming: false` for embedding models
 3. This validates Focus 8 (streaming support indicator) at API level
