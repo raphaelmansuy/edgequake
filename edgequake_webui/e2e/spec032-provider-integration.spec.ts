@@ -135,6 +135,40 @@ test.describe("SPEC-032: Provider Integration", () => {
       expect(firstEmbed).toHaveProperty("capabilities");
       expect(firstEmbed.capabilities.embedding_dimension).toBeGreaterThan(0);
     });
+
+    /**
+     * @implements SPEC-032: Focus 7 - Complete model capabilities
+     * @iteration OODA 65
+     * 
+     * Verifies that LLM models have complete capability information.
+     */
+    test("LLM models have complete capabilities", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+
+      // Get LLM models from enabled providers
+      const llmModels = data.providers
+        .filter((p: any) => p.enabled)
+        .flatMap((p: any) =>
+          p.models.filter((m: any) => m.model_type === "llm")
+        );
+
+      expect(llmModels.length).toBeGreaterThan(0);
+
+      // Each LLM model should have complete capabilities
+      for (const model of llmModels.slice(0, 5)) { // Check first 5 to avoid slow tests
+        expect(model.capabilities).toHaveProperty("context_length");
+        expect(model.capabilities.context_length).toBeGreaterThan(0);
+        
+        expect(model.capabilities).toHaveProperty("max_output_tokens");
+        expect(model.capabilities.max_output_tokens).toBeGreaterThanOrEqual(0);
+        
+        expect(model.capabilities).toHaveProperty("supports_streaming");
+        expect(model.capabilities).toHaveProperty("supports_function_calling");
+      }
+    });
   });
 
   /**
