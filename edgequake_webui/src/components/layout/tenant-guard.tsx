@@ -19,6 +19,7 @@ import { AlertTriangle, Building2, FolderKanban, Loader2, Plus } from 'lucide-re
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { ModelSelector, type DisplayModelItem } from '@/components/models/model-selector';
 
 interface TenantGuardProps {
   children: React.ReactNode;
@@ -55,6 +56,14 @@ export function TenantGuard({ children }: TenantGuardProps) {
   const [newTenantName, setNewTenantName] = useState('EdgeQuake');
   const [newWorkspaceName, setNewWorkspaceName] = useState('Default Workspace');
   const [newWorkspaceSlug, setNewWorkspaceSlug] = useState('');
+  
+  // SPEC-032: Model selection states for tenant creation
+  const [tenantLlmModel, setTenantLlmModel] = useState<string>();
+  const [tenantEmbeddingModel, setTenantEmbeddingModel] = useState<string>();
+  
+  // SPEC-032: Model selection states for workspace creation
+  const [workspaceLlmModel, setWorkspaceLlmModel] = useState<string>();
+  const [workspaceEmbeddingModel, setWorkspaceEmbeddingModel] = useState<string>();
   
   // Track if we're in the middle of context setup (prevents premature children render)
   const [isSettingUpContext, setIsSettingUpContext] = useState(false);
@@ -103,6 +112,20 @@ export function TenantGuard({ children }: TenantGuardProps) {
     }
   }, [workspacesData, setWorkspaces, selectedWorkspaceId, selectWorkspace]);
 
+  /**
+   * Parse a model selector value (format: "provider:model") into separate fields.
+   * SPEC-032: ModelSelector returns combined values, API expects separated fields.
+   */
+  const parseModelValue = useCallback((value: string | undefined): { provider?: string; model?: string } => {
+    if (!value) return {};
+    const colonIndex = value.indexOf(':');
+    if (colonIndex === -1) return { model: value };
+    return {
+      provider: value.substring(0, colonIndex),
+      model: value.substring(colonIndex + 1),
+    };
+  }, []);
+
   // Generate slug from name
   const generateSlug = useCallback((name: string): string => {
     return name
@@ -114,14 +137,27 @@ export function TenantGuard({ children }: TenantGuardProps) {
       .replace(/^-|-$/g, '');
   }, []);
 
-  // Create tenant mutation
+  // Create tenant mutation - SPEC-032: Now accepts model configuration
   const createTenantMutation = useMutation({
-    mutationFn: (data: { name: string }) => createTenant(data),
+    mutationFn: (data: {
+      name: string;
+      default_llm_model?: string;
+      default_llm_provider?: string;
+      default_embedding_model?: string;
+      default_embedding_provider?: string;
+    }) => createTenant(data),
   });
 
-  // Create workspace mutation
+  // Create workspace mutation - SPEC-032: Now accepts model configuration
   const createWorkspaceMutation = useMutation({
-    mutationFn: (data: { name: string; slug?: string }) =>
+    mutationFn: (data: {
+      name: string;
+      slug?: string;
+      llm_model?: string;
+      llm_provider?: string;
+      embedding_model?: string;
+      embedding_provider?: string;
+    }) =>
       selectedTenantId
         ? createWorkspace(selectedTenantId, data)
         : Promise.reject(new Error('No tenant selected')),
@@ -133,7 +169,19 @@ export function TenantGuard({ children }: TenantGuardProps) {
     
     setIsSettingUpContext(true);
     try {
-      const newTenant = await createTenantMutation.mutateAsync({ name: newTenantName });
+      // SPEC-032: Parse model selections and include in tenant creation
+      const llmConfig = parseModelValue(tenantLlmModel);
+      const embeddingConfig = parseModelValue(tenantEmbeddingModel);
+      
+      const tenantData = {
+        name: newTenantName,
+        ...(llmConfig.model && { default_llm_model: llmConfig.model }),
+        ...(llmConfig.provider && { default_llm_provider: llmConfig.provider }),
+        ...(embeddingConfig.model && { default_embedding_model: embeddingConfig.model }),
+        ...(embeddingConfig.provider && { default_embedding_provider: embeddingConfig.provider }),
+      };
+      
+      const newTenant = await createTenantMutation.mutateAsync(tenantData);
       toast.success(t('tenant.createSuccess', 'Tenant created'));
       
       // Select the new tenant
@@ -147,24 +195,35 @@ export function TenantGuard({ children }: TenantGuardProps) {
       
       setShowCreateTenant(false);
       setNewTenantName('EdgeQuake');
+      // Reset model selections
+      setTenantLlmModel(undefined);
+      setTenantEmbeddingModel(undefined);
     } catch (error) {
       setIsSettingUpContext(false);
       toast.error(t('tenant.createFailed', 'Failed to create tenant'), {
         description: error instanceof Error ? error.message : 'Unknown error',
       });
     }
-  }, [newTenantName, createTenantMutation, selectTenant, queryClient, t]);
+  }, [newTenantName, tenantLlmModel, tenantEmbeddingModel, parseModelValue, createTenantMutation, selectTenant, queryClient, t]);
 
-  // Handle workspace creation with proper async flow
+  // Handle workspace creation with proper async flow - SPEC-032: Now includes model config
   const handleCreateWorkspace = useCallback(async () => {
     if (!newWorkspaceName.trim() || !selectedTenantId) return;
     
     setIsSettingUpContext(true);
     try {
-      const workspaceData: { name: string; slug?: string } = { name: newWorkspaceName };
-      if (newWorkspaceSlug.trim()) {
-        workspaceData.slug = newWorkspaceSlug.trim();
-      }
+      // SPEC-032: Parse model selections and include in workspace creation
+      const llmConfig = parseModelValue(workspaceLlmModel);
+      const embeddingConfig = parseModelValue(workspaceEmbeddingModel);
+      
+      const workspaceData = {
+        name: newWorkspaceName,
+        ...(newWorkspaceSlug.trim() && { slug: newWorkspaceSlug.trim() }),
+        ...(llmConfig.model && { llm_model: llmConfig.model }),
+        ...(llmConfig.provider && { llm_provider: llmConfig.provider }),
+        ...(embeddingConfig.model && { embedding_model: embeddingConfig.model }),
+        ...(embeddingConfig.provider && { embedding_provider: embeddingConfig.provider }),
+      };
       
       const newWorkspace = await createWorkspaceMutation.mutateAsync(workspaceData);
       toast.success(t('workspace.createSuccess', 'Workspace created'));
@@ -179,6 +238,9 @@ export function TenantGuard({ children }: TenantGuardProps) {
       setShowCreateWorkspace(false);
       setNewWorkspaceName('Default Workspace');
       setNewWorkspaceSlug('');
+      // Reset model selections
+      setWorkspaceLlmModel(undefined);
+      setWorkspaceEmbeddingModel(undefined);
       setIsSettingUpContext(false);
     } catch (error) {
       setIsSettingUpContext(false);
@@ -186,7 +248,8 @@ export function TenantGuard({ children }: TenantGuardProps) {
         description: error instanceof Error ? error.message : 'Unknown error',
       });
     }
-  }, [newWorkspaceName, newWorkspaceSlug, selectedTenantId, createWorkspaceMutation, 
+  }, [newWorkspaceName, newWorkspaceSlug, workspaceLlmModel, workspaceEmbeddingModel, 
+      selectedTenantId, parseModelValue, createWorkspaceMutation, 
       selectWorkspace, setWorkspaces, workspacesData, queryClient, t]);
 
   const isLoading = isLoadingTenants || (selectedTenantId && isLoadingWorkspaces) || isSettingUpContext;
@@ -256,11 +319,11 @@ export function TenantGuard({ children }: TenantGuardProps) {
         </div>
 
         <Dialog open={showCreateTenant} onOpenChange={setShowCreateTenant}>
-          <DialogContent>
+          <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>{t('tenant.createNew', 'Create Tenant')}</DialogTitle>
               <DialogDescription>
-                {t('tenant.createNewDesc', 'Enter a name for your new tenant.')}
+                {t('tenant.createNewDesc', 'Configure your organization and default models.')}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -272,6 +335,44 @@ export function TenantGuard({ children }: TenantGuardProps) {
                   onChange={(e) => setNewTenantName(e.target.value)}
                   placeholder="My Organization"
                 />
+              </div>
+              
+              {/* SPEC-032: Default LLM Model Selection */}
+              <div className="grid gap-2">
+                <Label>
+                  {t('tenant.defaultLlmModel', 'Default LLM Model')}
+                  <span className="text-xs text-muted-foreground ml-2">
+                    {t('common.optional', '(optional)')}
+                  </span>
+                </Label>
+                <ModelSelector
+                  type="llm"
+                  value={tenantLlmModel}
+                  onChange={(value) => setTenantLlmModel(value)}
+                  placeholder={t('tenant.selectLlmModel', 'Select LLM model...')}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('tenant.llmModelHint', 'Used for knowledge graph generation and summarization')}
+                </p>
+              </div>
+
+              {/* SPEC-032: Default Embedding Model Selection */}
+              <div className="grid gap-2">
+                <Label>
+                  {t('tenant.defaultEmbeddingModel', 'Default Embedding Model')}
+                  <span className="text-xs text-muted-foreground ml-2">
+                    {t('common.optional', '(optional)')}
+                  </span>
+                </Label>
+                <ModelSelector
+                  type="embedding"
+                  value={tenantEmbeddingModel}
+                  onChange={(value) => setTenantEmbeddingModel(value)}
+                  placeholder={t('tenant.selectEmbeddingModel', 'Select embedding model...')}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('tenant.embeddingModelHint', 'Used for document search and retrieval')}
+                </p>
               </div>
             </div>
             <DialogFooter>
@@ -317,11 +418,11 @@ export function TenantGuard({ children }: TenantGuardProps) {
         </div>
 
         <Dialog open={showCreateWorkspace} onOpenChange={setShowCreateWorkspace}>
-          <DialogContent>
+          <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>{t('workspace.createNew', 'Create Workspace')}</DialogTitle>
               <DialogDescription>
-                {t('workspace.createNewDesc', 'Enter a name for your new workspace.')}
+                {t('workspace.createNewDesc', 'Configure your workspace and AI models.')}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -356,6 +457,44 @@ export function TenantGuard({ children }: TenantGuardProps) {
                 />
                 <p className="text-xs text-muted-foreground">
                   {t('workspace.slugDescription', 'Used in URLs: /w/{slug}/query')}
+                </p>
+              </div>
+
+              {/* SPEC-032: LLM Model Selection */}
+              <div className="grid gap-2">
+                <Label>
+                  {t('workspace.llmModel', 'LLM Model')}
+                  <span className="text-xs text-muted-foreground ml-2">
+                    {t('common.optional', '(optional, uses tenant default)')}
+                  </span>
+                </Label>
+                <ModelSelector
+                  type="llm"
+                  value={workspaceLlmModel}
+                  onChange={(value) => setWorkspaceLlmModel(value)}
+                  placeholder={t('workspace.selectLlmModel', 'Use tenant default...')}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('workspace.llmModelHint', 'For knowledge graph generation and queries')}
+                </p>
+              </div>
+
+              {/* SPEC-032: Embedding Model Selection */}
+              <div className="grid gap-2">
+                <Label>
+                  {t('workspace.embeddingModel', 'Embedding Model')}
+                  <span className="text-xs text-muted-foreground ml-2">
+                    {t('common.optional', '(optional, uses tenant default)')}
+                  </span>
+                </Label>
+                <ModelSelector
+                  type="embedding"
+                  value={workspaceEmbeddingModel}
+                  onChange={(value) => setWorkspaceEmbeddingModel(value)}
+                  placeholder={t('workspace.selectEmbeddingModel', 'Use tenant default...')}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('workspace.embeddingModelHint', 'For document search and similarity')}
                 </p>
               </div>
             </div>
