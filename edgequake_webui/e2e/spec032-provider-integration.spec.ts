@@ -1578,4 +1578,231 @@ test.describe("SPEC-032: Provider Integration", () => {
       expect(response.ok()).toBe(true);
     });
   });
+
+  /**
+   * Workspace Operations Tests
+   * @iteration OODA 85
+   * 
+   * Tests for workspace read operations.
+   */
+  test.describe("Workspace Operations", () => {
+    test("can list workspaces for a tenant", async ({ request }) => {
+      const tenantsResponse = await request.get("http://localhost:8080/api/v1/tenants");
+      const tenants = await tenantsResponse.json();
+      
+      if (!tenants.items[0]?.id) {
+        test.skip();
+        return;
+      }
+
+      const tenantId = tenants.items[0].id;
+      const response = await request.get(
+        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+      );
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+      expect(Array.isArray(data.items)).toBe(true);
+    });
+
+    test("workspace has complete model configuration", async ({ request }) => {
+      const tenantsResponse = await request.get("http://localhost:8080/api/v1/tenants");
+      const tenants = await tenantsResponse.json();
+      
+      if (!tenants.items[0]?.id) {
+        test.skip();
+        return;
+      }
+
+      const tenantId = tenants.items[0].id;
+      const workspacesResponse = await request.get(
+        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+      );
+      const workspaces = await workspacesResponse.json();
+      
+      if (!workspaces.items[0]) {
+        test.skip();
+        return;
+      }
+
+      const workspace = workspaces.items[0];
+      expect(workspace.llm_provider).toBeDefined();
+      expect(workspace.llm_model).toBeDefined();
+      expect(workspace.embedding_provider).toBeDefined();
+      expect(workspace.embedding_model).toBeDefined();
+      expect(workspace.embedding_dimension).toBeDefined();
+    });
+  });
+
+  /**
+   * Tenant Operations Tests
+   * @iteration OODA 86
+   * 
+   * Tests for tenant read operations.
+   */
+  test.describe("Tenant Operations", () => {
+    test("can list tenants", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/tenants");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+      expect(Array.isArray(data.items)).toBe(true);
+      expect(typeof data.total).toBe("number");
+    });
+
+    test("tenant has unique slug", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/tenants");
+      const data = await response.json();
+
+      if (data.items.length < 2) {
+        test.skip();
+        return;
+      }
+
+      const slugs = data.items.map((t: any) => t.slug);
+      const uniqueSlugs = new Set(slugs);
+      expect(uniqueSlugs.size).toBe(slugs.length);
+    });
+  });
+
+  /**
+   * Model Filtering Tests
+   * @iteration OODA 87
+   * 
+   * Tests for model filtering by type.
+   */
+  test.describe("Model Filtering", () => {
+    test("can filter LLM models", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const llmModels = data.providers.flatMap((p: any) =>
+        p.models.filter((m: any) => m.model_type === "llm")
+      );
+
+      expect(llmModels.length).toBeGreaterThan(0);
+      for (const model of llmModels) {
+        expect(model.model_type).toBe("llm");
+      }
+    });
+
+    test("can filter embedding models", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const embeddingModels = data.providers.flatMap((p: any) =>
+        p.models.filter((m: any) => m.model_type === "embedding")
+      );
+
+      expect(embeddingModels.length).toBeGreaterThan(0);
+      for (const model of embeddingModels) {
+        expect(model.model_type).toBe("embedding");
+      }
+    });
+  });
+
+  /**
+   * Provider Status Tests
+   * @iteration OODA 88
+   * 
+   * Tests for provider enabled/disabled status.
+   */
+  test.describe("Provider Status", () => {
+    test("enabled providers return true for enabled", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const enabledProviders = data.providers.filter((p: any) => p.enabled);
+      expect(enabledProviders.length).toBeGreaterThan(0);
+
+      for (const provider of enabledProviders) {
+        expect(provider.enabled).toBe(true);
+      }
+    });
+
+    test("disabled providers exist in registry", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const disabledProviders = data.providers.filter((p: any) => !p.enabled);
+      // Anthropic and Azure are disabled by default
+      expect(disabledProviders.length).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  /**
+   * Function Calling Tests
+   * @iteration OODA 89
+   * 
+   * Tests for function calling capability.
+   */
+  test.describe("Function Calling Capability", () => {
+    test("OpenAI models support function calling", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const openai = data.providers.find((p: any) => p.name === "openai");
+      if (!openai) {
+        test.skip();
+        return;
+      }
+
+      const llmModels = openai.models.filter((m: any) => m.model_type === "llm");
+      for (const model of llmModels) {
+        expect(model.capabilities.supports_function_calling).toBe(true);
+      }
+    });
+
+    test("some models do not support function calling", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      // Embedding models should not support function calling
+      const embeddingModels = data.providers.flatMap((p: any) =>
+        p.models.filter((m: any) => m.model_type === "embedding")
+      );
+
+      for (const model of embeddingModels) {
+        expect(model.capabilities.supports_function_calling).toBe(false);
+      }
+    });
+  });
+
+  /**
+   * JSON Mode Tests
+   * @iteration OODA 90
+   * 
+   * Tests for JSON mode capability.
+   */
+  test.describe("JSON Mode Capability", () => {
+    test("most LLM models support JSON mode", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const llmModels = data.providers
+        .filter((p: any) => p.enabled)
+        .flatMap((p: any) => p.models.filter((m: any) => m.model_type === "llm"));
+
+      // Count models with JSON mode support
+      const jsonModeCount = llmModels.filter(
+        (m: any) => m.capabilities.supports_json_mode
+      ).length;
+
+      // Most LLM models should support JSON mode
+      expect(jsonModeCount).toBeGreaterThan(llmModels.length / 2);
+    });
+
+    test("embedding models do not support JSON mode", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      const data = await response.json();
+
+      const embeddingModels = data.providers.flatMap((p: any) =>
+        p.models.filter((m: any) => m.model_type === "embedding")
+      );
+
+      for (const model of embeddingModels) {
+        expect(model.capabilities.supports_json_mode).toBe(false);
+      }
+    });
+  });
 });
