@@ -1385,4 +1385,73 @@ test.describe("SPEC-032: Provider Integration", () => {
       }
     });
   });
+
+  /**
+   * Model Cost Tests
+   * @iteration OODA 81
+   * 
+   * Validates model cost structures.
+   */
+  test.describe("Model Cost", () => {
+    test("LLM models have input/output costs", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+      
+      // Get all LLM models
+      const llmModels = data.providers
+        .flatMap((p: any) => p.models.filter((m: any) => m.model_type === "llm"));
+
+      expect(llmModels.length).toBeGreaterThan(0);
+
+      // All LLM models should have cost structure
+      for (const model of llmModels) {
+        expect(model).toHaveProperty("cost");
+        expect(model.cost).toHaveProperty("input_per_1k");
+        expect(model.cost).toHaveProperty("output_per_1k");
+        expect(typeof model.cost.input_per_1k).toBe("number");
+        expect(typeof model.cost.output_per_1k).toBe("number");
+      }
+    });
+
+    test("embedding models have embedding costs", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+      
+      // Get all embedding models
+      const embeddingModels = data.providers
+        .flatMap((p: any) => p.models.filter((m: any) => m.model_type === "embedding"));
+
+      expect(embeddingModels.length).toBeGreaterThan(0);
+
+      // All embedding models should have embedding cost
+      for (const model of embeddingModels) {
+        expect(model).toHaveProperty("cost");
+        expect(model.cost).toHaveProperty("embedding_per_1k");
+        expect(typeof model.cost.embedding_per_1k).toBe("number");
+      }
+    });
+
+    test("all costs are non-negative", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+      
+      // Get all models
+      const allModels = data.providers.flatMap((p: any) => p.models);
+
+      // All cost values should be non-negative
+      for (const model of allModels) {
+        if (model.cost) {
+          for (const [key, value] of Object.entries(model.cost)) {
+            expect(value).toBeGreaterThanOrEqual(0);
+          }
+        }
+      }
+    });
+  });
 });
