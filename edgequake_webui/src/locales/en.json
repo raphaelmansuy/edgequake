@@ -197,14 +197,22 @@
       "view": "View Details",
       "reprocess": "Reprocess",
       "delete": "Delete",
-      "viewInGraph": "View in Graph"
+      "viewInGraph": "View in Graph",
+      "cancel": "Cancel Extraction"
+    },
+    "cancel": {
+      "success": "Document processing cancelled",
+      "successDesc": "The extraction has been stopped.",
+      "failed": "Cancel failed",
+      "failedDesc": "Could not cancel processing. It may have already completed."
     },
     "status": {
       "all": "All Status",
       "pending": "Pending",
       "processing": "Processing",
       "completed": "Completed",
-      "failed": "Failed"
+      "failed": "Failed",
+      "cancelled": "Cancelled"
     },
     "pagination": {
       "rowsPerPage": "Rows per page:",

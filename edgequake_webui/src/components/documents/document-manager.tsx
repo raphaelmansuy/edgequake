@@ -566,12 +566,14 @@ export function DocumentManager() {
     processing: serverStatusCounts.processing,
     completed: serverStatusCounts.completed,
     failed: serverStatusCounts.failed,
+    cancelled: serverStatusCounts.cancelled || 0,
   } : {
     all: allDocuments.length,
     pending: allDocuments.filter((d) => d.status === 'pending').length,
     processing: allDocuments.filter((d) => d.status === 'processing').length,
     completed: allDocuments.filter((d) => !d.status || d.status === 'completed' || d.status === 'indexed').length,
     failed: allDocuments.filter((d) => d.status === 'failed').length,
+    cancelled: allDocuments.filter((d) => d.status === 'cancelled').length,
   };
 
   // Bulk selection handlers

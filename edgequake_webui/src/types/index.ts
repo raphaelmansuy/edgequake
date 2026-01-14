@@ -82,7 +82,7 @@ export interface Document {
   title?: string | null;
   content?: string;
   source_type?: "file" | "text" | "url";
-  status?: "pending" | "processing" | "completed" | "failed" | "indexed";
+  status?: "pending" | "processing" | "completed" | "failed" | "indexed" | "cancelled";
   error_message?: string;
   file_name?: string;
   file_size?: number;
@@ -158,6 +158,7 @@ export interface DocumentStatusCounts {
   processing: number;
   completed: number;
   failed: number;
+  cancelled: number;
 }
 
 /** Response from list documents API. */
