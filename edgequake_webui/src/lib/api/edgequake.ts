@@ -186,11 +186,19 @@ export async function getWorkspaces(tenantId: string): Promise<Workspace[]> {
   return response.items || [];
 }
 
+/**
+ * Get a workspace by its ID.
+ *
+ * Note: The backend uses `/workspaces/{workspace_id}` without tenant prefix
+ * for individual workspace operations. The tenant prefix is only used for
+ * listing and creating workspaces.
+ */
 export async function getWorkspace(
-  tenantId: string,
+  _tenantId: string,
   workspaceId: string
 ): Promise<Workspace> {
-  return api.get<Workspace>(`/tenants/${tenantId}/workspaces/${workspaceId}`);
+  // Backend route: GET /api/v1/workspaces/{workspace_id}
+  return api.get<Workspace>(`/workspaces/${workspaceId}`);
 }
 
 /**
@@ -254,20 +262,20 @@ export interface UpdateWorkspaceRequest {
  *
  * @implements SPEC-032: Workspace-level configuration update
  *
- * @param tenantId - Parent tenant ID
+ * Note: Backend uses PUT /workspaces/{workspace_id} (no tenant prefix)
+ *
+ * @param _tenantId - Parent tenant ID (unused, kept for API compatibility)
  * @param workspaceId - Workspace ID to update
  * @param data - Update request
  * @returns Updated workspace
  */
 export async function updateWorkspace(
-  tenantId: string,
+  _tenantId: string,
   workspaceId: string,
   data: UpdateWorkspaceRequest
 ): Promise<Workspace> {
-  return api.patch<Workspace>(
-    `/tenants/${tenantId}/workspaces/${workspaceId}`,
-    data
-  );
+  // Backend route: PUT /api/v1/workspaces/{workspace_id}
+  return api.put<Workspace>(`/workspaces/${workspaceId}`, data);
 }
 
 // ============================================================================
