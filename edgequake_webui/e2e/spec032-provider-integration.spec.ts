@@ -1220,4 +1220,81 @@ test.describe("SPEC-032: Provider Integration", () => {
       }
     });
   });
+
+  /**
+   * Provider Type Validation Tests
+   * @iteration OODA 79
+   * 
+   * Validates provider and model type relationships.
+   */
+  test.describe("Provider Type Validation", () => {
+    test("OpenAI provider has LLM and embedding models", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+      const openai = data.providers.find((p: any) => p.name === "openai");
+
+      if (!openai) {
+        test.skip();
+        return;
+      }
+
+      // Should have LLM models
+      const llmModels = openai.models.filter((m: any) => m.model_type === "llm");
+      expect(llmModels.length).toBeGreaterThan(0);
+
+      // Should have embedding models
+      const embeddingModels = openai.models.filter((m: any) => m.model_type === "embedding");
+      expect(embeddingModels.length).toBeGreaterThan(0);
+    });
+
+    test("Ollama provider has multimodal models", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+      const ollama = data.providers.find((p: any) => p.name === "ollama");
+
+      if (!ollama) {
+        test.skip();
+        return;
+      }
+
+      // Should have multimodal models (vision)
+      const multimodalModels = ollama.models.filter((m: any) => m.model_type === "multimodal");
+      expect(multimodalModels.length).toBeGreaterThan(0);
+    });
+
+    test("providers have valid priority values", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+
+      // All providers should have valid priority values
+      for (const provider of data.providers) {
+        expect(provider).toHaveProperty("priority");
+        expect(typeof provider.priority).toBe("number");
+        expect(provider.priority).toBeGreaterThan(0);
+        expect(provider.priority).toBeLessThanOrEqual(100);
+      }
+    });
+
+    test("deprecated models are marked", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+      
+      // Collect all models
+      const allModels = data.providers.flatMap((p: any) => p.models);
+
+      // All models should have deprecated field
+      for (const model of allModels) {
+        expect(model).toHaveProperty("deprecated");
+        expect(typeof model.deprecated).toBe("boolean");
+      }
+    });
+  });
 });
