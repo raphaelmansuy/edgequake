@@ -998,12 +998,10 @@ pub async fn rebuild_embeddings(
                         Some(id) => id.to_string(),
                         None => continue,
                     };
-                    
+
                     // Extract chunk count for this document
-                    let doc_chunk_count = obj
-                        .get("chunk_count")
-                        .and_then(|v| v.as_u64())
-                        .unwrap_or(1) as usize;
+                    let doc_chunk_count =
+                        obj.get("chunk_count").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
 
                     let title = obj.get("title").and_then(|v| v.as_str());
 
@@ -1336,10 +1334,8 @@ pub async fn rebuild_knowledge_graph(
                     };
 
                     // Extract chunk count for this document
-                    let doc_chunk_count = obj
-                        .get("chunk_count")
-                        .and_then(|v| v.as_u64())
-                        .unwrap_or(1) as usize;
+                    let doc_chunk_count =
+                        obj.get("chunk_count").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
 
                     let title = obj.get("title").and_then(|v| v.as_str());
 

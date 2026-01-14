@@ -114,17 +114,33 @@ impl DocumentTaskProcessor {
     async fn get_workspace_pipeline(&self, workspace_id: Option<&str>) -> Arc<Pipeline> {
         use edgequake_llm::ProviderFactory;
 
+        info!(
+            workspace_id = ?workspace_id,
+            has_workspace_service = self.workspace_service.is_some(),
+            has_models_config = self.models_config.is_some(),
+            "SPEC-032: Getting pipeline for workspace"
+        );
+
         // If no workspace support configured, use default pipeline
         let (workspace_service, _models_config): (&SharedWorkspaceService, &Arc<ModelsConfig>) =
             match (&self.workspace_service, &self.models_config) {
                 (Some(ws), Some(mc)) => (ws, mc),
-                _ => return Arc::clone(&self.pipeline),
+                _ => {
+                    warn!("SPEC-032: No workspace support configured, using default pipeline");
+                    return Arc::clone(&self.pipeline);
+                }
             };
 
         // If no workspace_id provided, use default pipeline
         let workspace_id = match workspace_id {
             Some(id) if !id.is_empty() && id != "default" => id,
-            _ => return Arc::clone(&self.pipeline),
+            _ => {
+                info!(
+                    workspace_id = ?workspace_id,
+                    "SPEC-032: No valid workspace_id, using default pipeline"
+                );
+                return Arc::clone(&self.pipeline);
+            }
         };
 
         // Parse workspace_id to UUID
@@ -211,11 +227,15 @@ impl DocumentTaskProcessor {
             .to_string();
 
         // SPEC-032: Extract workspace_id to use workspace-specific pipeline
-        let workspace_id = data
-            .metadata
-            .as_ref()
-            .and_then(|m| m.get("workspace_id"))
-            .and_then(|v| v.as_str());
+        // Prefer the direct field (data.workspace_id), fallback to metadata if needed
+        let workspace_id = if !data.workspace_id.is_empty() && data.workspace_id != "default" {
+            Some(data.workspace_id.as_str())
+        } else {
+            data.metadata
+                .as_ref()
+                .and_then(|m| m.get("workspace_id"))
+                .and_then(|v| v.as_str())
+        };
 
         // Get workspace-specific pipeline (or default if not available)
         let pipeline = self.get_workspace_pipeline(workspace_id).await;
