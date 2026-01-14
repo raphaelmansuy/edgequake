@@ -287,6 +287,63 @@ test.describe("SPEC-032: Provider Integration", () => {
   });
 
   /**
+   * @implements SPEC-032: Focus 3 - Query page provider selection UI
+   * @iteration OODA 69
+   *
+   * Tests for the ProviderModelSelector component visibility and functionality.
+   */
+  test.describe("Focus 3: Query Provider Selection UI", () => {
+    /**
+     * Verifies that the provider selector is visible on the query page.
+     */
+    test("query page has provider model selector", async ({ page }) => {
+      await page.goto("/query", { waitUntil: "domcontentloaded" });
+      await page.waitForLoadState("domcontentloaded");
+
+      // Wait for query interface to load
+      const mainContent = page.locator("main");
+      await expect(mainContent).toBeVisible({ timeout: 15000 });
+
+      // Look for the provider selector trigger button
+      // The component uses SelectTrigger with w-[160px] class
+      const providerSelector = page.locator(
+        '[role="combobox"], button:has-text("OpenAI"), button:has-text("Ollama"), button:has-text("Default")'
+      ).first();
+
+      await expect(providerSelector).toBeVisible({ timeout: 15000 });
+    });
+
+    /**
+     * Verifies that clicking the provider selector shows available providers.
+     */
+    test("provider selector shows available providers", async ({ page }) => {
+      await page.goto("/query", { waitUntil: "domcontentloaded" });
+      await page.waitForLoadState("domcontentloaded");
+
+      // Wait for page to stabilize
+      await page.waitForTimeout(1000);
+
+      // Find and click the provider selector (combobox)
+      const providerTrigger = page.locator('[role="combobox"]').first();
+      await expect(providerTrigger).toBeVisible({ timeout: 15000 });
+      await providerTrigger.click();
+
+      // Wait for dropdown to open
+      const dropdownContent = page.locator('[role="listbox"], [data-radix-select-content]');
+      await expect(dropdownContent).toBeVisible({ timeout: 5000 });
+
+      // Verify at least one provider option is visible
+      // Options use SelectItem with role="option"
+      const providerOptions = page.locator('[role="option"]');
+      const optionCount = await providerOptions.count();
+      expect(optionCount).toBeGreaterThan(0);
+
+      // Close dropdown by pressing Escape
+      await page.keyboard.press("Escape");
+    });
+  });
+
+  /**
    * @implements SPEC-032: Focus 8 - Streaming support per model
    * @iteration OODA 63
    * 
