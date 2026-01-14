@@ -1454,4 +1454,128 @@ test.describe("SPEC-032: Provider Integration", () => {
       }
     });
   });
+
+  /**
+   * Model Tags Tests
+   * @iteration OODA 82
+   * 
+   * Validates model tags structure.
+   */
+  test.describe("Model Tags", () => {
+    test("models have tags array", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+      const allModels = data.providers.flatMap((p: any) => p.models);
+
+      for (const model of allModels) {
+        expect(model).toHaveProperty("tags");
+        expect(Array.isArray(model.tags)).toBe(true);
+      }
+    });
+
+    test("tags are strings", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+      const allModels = data.providers.flatMap((p: any) => p.models);
+
+      for (const model of allModels) {
+        for (const tag of model.tags) {
+          expect(typeof tag).toBe("string");
+          expect(tag.length).toBeGreaterThan(0);
+        }
+      }
+    });
+
+    test("recommended models have recommended tag", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+      const allModels = data.providers.flatMap((p: any) => p.models);
+
+      // At least one model should have recommended tag
+      const recommendedModels = allModels.filter((m: any) => 
+        m.tags.includes("recommended")
+      );
+      expect(recommendedModels.length).toBeGreaterThan(0);
+    });
+  });
+
+  /**
+   * Provider Health Extended Tests
+   * @iteration OODA 83
+   * 
+   * Extended provider health validation.
+   */
+  test.describe("Provider Health Extended", () => {
+    test("health endpoint returns enabled providers", async ({ request }) => {
+      const modelsResponse = await request.get("http://localhost:8080/api/v1/models");
+      const modelsData = await modelsResponse.json();
+      // Filter to only enabled providers
+      const enabledProviderNames = modelsData.providers
+        .filter((p: any) => p.enabled)
+        .map((p: any) => p.name);
+
+      const healthResponse = await request.get("http://localhost:8080/api/v1/models/health");
+      expect(healthResponse.ok()).toBe(true);
+
+      const healthData = await healthResponse.json();
+
+      // Health returns array of enabled providers with health info
+      expect(Array.isArray(healthData)).toBe(true);
+      const healthProviderNames = healthData.map((p: any) => p.name);
+
+      // Health should include all enabled providers from models endpoint
+      for (const name of enabledProviderNames) {
+        expect(healthProviderNames).toContain(name);
+      }
+    });
+
+    test("health status has proper structure", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models/health");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+
+      // Each provider in health array should have health object
+      for (const provider of data) {
+        expect(provider).toHaveProperty("health");
+        expect(provider.health).toHaveProperty("available");
+        expect(typeof provider.health.available).toBe("boolean");
+        expect(provider.health).toHaveProperty("checked_at");
+      }
+    });
+  });
+
+  /**
+   * API Endpoint Availability Tests
+   * @iteration OODA 84
+   * 
+   * Validates all documented API endpoints are available.
+   */
+  test.describe("API Endpoint Availability", () => {
+    test("GET /api/v1/tenants is available", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/tenants");
+      expect(response.ok()).toBe(true);
+    });
+
+    test("GET /api/v1/models is available", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      expect(response.ok()).toBe(true);
+    });
+
+    test("GET /api/v1/models/health is available", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models/health");
+      expect(response.ok()).toBe(true);
+    });
+
+    test("health check endpoint responds", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/health");
+      expect(response.ok()).toBe(true);
+    });
+  });
 });
