@@ -1003,4 +1003,36 @@ test.describe("SPEC-032: Provider Integration", () => {
       expect(tenant).toHaveProperty("default_embedding_model");
     });
   });
+
+  /**
+   * Core UI Page Load Tests
+   * @iteration OODA 76
+   * 
+   * Smoke tests to ensure core pages load without errors.
+   */
+  test.describe("Core UI Page Load", () => {
+    test("dashboard page loads", async ({ page }) => {
+      await page.goto("/", { waitUntil: "domcontentloaded" });
+      const main = page.locator("main");
+      await expect(main).toBeVisible({ timeout: 15000 });
+    });
+
+    test("documents page loads", async ({ page }) => {
+      await page.goto("/documents", { waitUntil: "domcontentloaded" });
+      const main = page.locator("main");
+      await expect(main).toBeVisible({ timeout: 15000 });
+    });
+
+    test("graph page loads", async ({ page }) => {
+      await page.goto("/graph", { waitUntil: "domcontentloaded" });
+      const main = page.locator("main");
+      await expect(main).toBeVisible({ timeout: 15000 });
+    });
+
+    test("costs page loads", async ({ page }) => {
+      await page.goto("/costs", { waitUntil: "domcontentloaded" });
+      const main = page.locator("main");
+      await expect(main).toBeVisible({ timeout: 15000 });
+    });
+  });
 });
