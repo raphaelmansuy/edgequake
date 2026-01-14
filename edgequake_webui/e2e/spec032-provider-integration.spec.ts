@@ -1297,4 +1297,92 @@ test.describe("SPEC-032: Provider Integration", () => {
       }
     });
   });
+
+  /**
+   * Model Capability Tests
+   * @iteration OODA 80
+   * 
+   * Validates model capability structures.
+   */
+  test.describe("Model Capability", () => {
+    test("LLM models have streaming capability", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+      
+      // Get all LLM models from enabled providers
+      const llmModels = data.providers
+        .filter((p: any) => p.enabled)
+        .flatMap((p: any) => p.models.filter((m: any) => m.model_type === "llm"));
+
+      expect(llmModels.length).toBeGreaterThan(0);
+
+      // All LLM models should have streaming capability field
+      for (const model of llmModels) {
+        expect(model.capabilities).toHaveProperty("supports_streaming");
+        expect(typeof model.capabilities.supports_streaming).toBe("boolean");
+      }
+    });
+
+    test("multimodal models have vision capability", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+      
+      // Get all multimodal models
+      const multimodalModels = data.providers
+        .flatMap((p: any) => p.models.filter((m: any) => m.model_type === "multimodal"));
+
+      expect(multimodalModels.length).toBeGreaterThan(0);
+
+      // All multimodal models should have vision capability
+      for (const model of multimodalModels) {
+        expect(model.capabilities).toHaveProperty("supports_vision");
+        expect(model.capabilities.supports_vision).toBe(true);
+      }
+    });
+
+    test("embedding models have dimension", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+      
+      // Get all embedding models
+      const embeddingModels = data.providers
+        .flatMap((p: any) => p.models.filter((m: any) => m.model_type === "embedding"));
+
+      expect(embeddingModels.length).toBeGreaterThan(0);
+
+      // All embedding models should have dimension in capabilities
+      for (const model of embeddingModels) {
+        expect(model.capabilities).toHaveProperty("embedding_dimension");
+        expect(typeof model.capabilities.embedding_dimension).toBe("number");
+      }
+    });
+
+    test("models have context length", async ({ request }) => {
+      const response = await request.get("http://localhost:8080/api/v1/models");
+      expect(response.ok()).toBe(true);
+
+      const data = await response.json();
+      
+      // Get all LLM and multimodal models
+      const textModels = data.providers
+        .flatMap((p: any) => p.models.filter((m: any) => 
+          m.model_type === "llm" || m.model_type === "multimodal"
+        ));
+
+      expect(textModels.length).toBeGreaterThan(0);
+
+      // All text models should have context length
+      for (const model of textModels) {
+        expect(model.capabilities).toHaveProperty("context_length");
+        expect(typeof model.capabilities.context_length).toBe("number");
+        expect(model.capabilities.context_length).toBeGreaterThan(0);
+      }
+    });
+  });
 });
