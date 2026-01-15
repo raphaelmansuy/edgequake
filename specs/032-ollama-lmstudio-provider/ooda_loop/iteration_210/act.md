@@ -10,14 +10,14 @@ Created E2E tests to verify provider lineage tracking during rebuild operations.
 
 ## Tests Implemented (6 tests)
 
-| # | Test Name | Purpose | Status |
-|---|-----------|---------|--------|
-| 1 | test_processing_stats_stores_provider_lineage | Verify ProcessingStats stores provider fields | ✅ |
-| 2 | test_processing_stats_serializes_lineage | Verify lineage serializes to JSON | ✅ |
-| 3 | test_workspace_pipeline_uses_workspace_config_for_lineage | Verify pipeline uses workspace config | ✅ |
-| 4 | test_workspace_update_changes_lineage_source | Verify update changes lineage source | ✅ |
-| 5 | test_workspaces_have_isolated_lineage_config | Verify workspace isolation | ✅ |
-| 6 | test_processing_stats_workspace_differentiation | Verify stats differentiate workspaces | ✅ |
+| #   | Test Name                                                 | Purpose                                       | Status |
+| --- | --------------------------------------------------------- | --------------------------------------------- | ------ |
+| 1   | test_processing_stats_stores_provider_lineage             | Verify ProcessingStats stores provider fields | ✅     |
+| 2   | test_processing_stats_serializes_lineage                  | Verify lineage serializes to JSON             | ✅     |
+| 3   | test_workspace_pipeline_uses_workspace_config_for_lineage | Verify pipeline uses workspace config         | ✅     |
+| 4   | test_workspace_update_changes_lineage_source              | Verify update changes lineage source          | ✅     |
+| 5   | test_workspaces_have_isolated_lineage_config              | Verify workspace isolation                    | ✅     |
+| 6   | test_processing_stats_workspace_differentiation           | Verify stats differentiate workspaces         | ✅     |
 
 ## Test Results
 
@@ -46,12 +46,12 @@ The tests confirm:
 
 ## Complete Test Summary
 
-| Test Suite | Tests | Status |
-|------------|-------|--------|
-| Memory-based rebuild tests | 9 | ✅ |
-| PostgreSQL rebuild tests | 4 | ✅ |
-| Rebuild lineage tests | 6 | ✅ |
-| **Total new tests (this session)** | **19** | ✅ |
+| Test Suite                         | Tests  | Status |
+| ---------------------------------- | ------ | ------ |
+| Memory-based rebuild tests         | 9      | ✅     |
+| PostgreSQL rebuild tests           | 4      | ✅     |
+| Rebuild lineage tests              | 6      | ✅     |
+| **Total new tests (this session)** | **19** | ✅     |
 
 ## OODA Iterations Completed (201-210)
 
