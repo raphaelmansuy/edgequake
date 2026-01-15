@@ -432,6 +432,89 @@ impl ProviderFactory {
             _ => "gpt-4o-mini", // Fallback to a reasonable default
         }
     }
+
+    /// Create a safety-limited LLM provider from workspace configuration.
+    ///
+    /// This wraps the provider with safety limits (max_tokens, timeout) to prevent
+    /// runaway generation and hung requests. Use this for production deployments.
+    ///
+    /// @implements FEAT0777: Safety limits for LLM calls
+    /// @implements BR0777: Hard max_tokens limit enforcement
+    /// @implements BR0778: Request timeout enforcement
+    ///
+    /// # Arguments
+    ///
+    /// * `provider_name` - Provider type (e.g., "openai", "ollama", "lmstudio", "mock")
+    /// * `model` - LLM model name (e.g., "gpt-4o-mini", "gemma3:12b")
+    ///
+    /// # Returns
+    ///
+    /// Returns an `Arc<dyn LLMProvider>` wrapped with safety limits.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let provider = ProviderFactory::create_safe_llm_provider(
+    ///     "ollama",
+    ///     "gemma3:12b",
+    /// )?;
+    /// // All calls now have max_tokens and timeout enforced
+    /// let response = provider.complete("Hello").await?;
+    /// ```
+    pub fn create_safe_llm_provider(provider_name: &str, model: &str) -> Result<Arc<dyn LLMProvider>> {
+        use crate::safety_limits::{SafetyLimitedProviderWrapper, SafetyLimitsConfig};
+        
+        let inner = Self::create_llm_provider(provider_name, model)?;
+        let config = SafetyLimitsConfig::from_env();
+        
+        tracing::info!(
+            provider = provider_name,
+            model = model,
+            max_tokens = config.max_tokens,
+            timeout_secs = config.timeout.as_secs(),
+            "Creating safety-limited LLM provider"
+        );
+        
+        // Note: We need to unwrap the Arc to wrap with SafetyLimitedProvider
+        // Since we can't easily wrap Arc<dyn Trait>, we create a new wrapper struct
+        Ok(Arc::new(SafetyLimitedProviderWrapper::new(inner, config)))
+    }
+
+    /// Create a safety-limited embedding provider from workspace configuration.
+    ///
+    /// This wraps the provider with timeout to prevent hung requests.
+    ///
+    /// @implements BR0778: Request timeout enforcement for embeddings
+    ///
+    /// # Arguments
+    ///
+    /// * `provider_name` - Provider type (e.g., "openai", "ollama", "lmstudio", "mock")
+    /// * `model` - Embedding model name
+    /// * `dimension` - Embedding dimension
+    ///
+    /// # Returns
+    ///
+    /// Returns an `Arc<dyn EmbeddingProvider>` wrapped with safety limits.
+    pub fn create_safe_embedding_provider(
+        provider_name: &str,
+        model: &str,
+        dimension: usize,
+    ) -> Result<Arc<dyn EmbeddingProvider>> {
+        use crate::safety_limits::{SafetyLimitedEmbeddingProviderWrapper, SafetyLimitsConfig};
+        
+        let inner = Self::create_embedding_provider(provider_name, model, dimension)?;
+        let config = SafetyLimitsConfig::from_env();
+        
+        tracing::info!(
+            provider = provider_name,
+            model = model,
+            dimension = dimension,
+            timeout_secs = config.timeout.as_secs(),
+            "Creating safety-limited embedding provider"
+        );
+        
+        Ok(Arc::new(SafetyLimitedEmbeddingProviderWrapper::new(inner, config)))
+    }
 }
 
 #[cfg(test)]

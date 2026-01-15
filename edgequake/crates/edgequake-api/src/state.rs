@@ -952,12 +952,15 @@ impl AppState {
 
         match workspace_result {
             Ok(Some(ws)) => {
-                // Try to create workspace-specific LLM provider
+                // Try to create workspace-specific LLM provider with safety limits
+                // @implements FEAT0777: Safety limits for LLM calls
+                // @implements BR0777: Hard max_tokens limit enforcement
+                // @implements BR0778: Request timeout enforcement
                 let llm_provider =
-                    ProviderFactory::create_llm_provider(&ws.llm_provider, &ws.llm_model);
+                    ProviderFactory::create_safe_llm_provider(&ws.llm_provider, &ws.llm_model);
 
-                // Try to create workspace-specific embedding provider
-                let embedding_provider = ProviderFactory::create_embedding_provider(
+                // Try to create workspace-specific embedding provider with safety limits
+                let embedding_provider = ProviderFactory::create_safe_embedding_provider(
                     &ws.embedding_provider,
                     &ws.embedding_model,
                     ws.embedding_dimension,
@@ -969,7 +972,7 @@ impl AppState {
                         workspace_id = workspace_id,
                         llm_model = %ws.llm_full_id(),
                         embedding_model = %ws.embedding_full_id(),
-                        "Using workspace-specific LLM configuration for pipeline"
+                        "Using workspace-specific LLM configuration for pipeline (with safety limits)"
                     );
 
                     let extractor = Arc::new(LLMExtractor::new(llm));

@@ -63,6 +63,7 @@ pub mod model_config;
 pub mod providers;
 pub mod rate_limiter;
 pub mod reranker;
+pub mod safety_limits;
 pub mod tokenizer;
 pub mod traits;
 
@@ -84,6 +85,11 @@ pub use rate_limiter::{RateLimitedProvider, RateLimiter, RateLimiterConfig};
 pub use reranker::{
     BM25Reranker, HttpReranker, HybridReranker, MockReranker, RRFReranker, RerankConfig,
     RerankResult, Reranker, ScoreAggregation, TermOverlapReranker,
+};
+pub use safety_limits::{
+    SafetyLimitedEmbeddingProvider, SafetyLimitedEmbeddingProviderWrapper, SafetyLimitedProvider,
+    SafetyLimitedProviderWrapper, SafetyLimitsConfig, ABSOLUTE_MAX_TOKENS, DEFAULT_MAX_TOKENS,
+    DEFAULT_TIMEOUT_SECS,
 };
 pub use tokenizer::Tokenizer;
 pub use traits::{
