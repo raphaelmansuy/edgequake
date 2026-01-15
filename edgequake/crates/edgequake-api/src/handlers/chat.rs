@@ -466,12 +466,25 @@ pub async fn chat_completion(
                 );
                 (Some(embed), Some(vector))
             }
-            (Ok(Some(embed)), _) => {
+            (Ok(Some(embed)), Ok(None)) => {
+                // Embedding provider exists but no vector storage (shouldn't happen in normal use)
                 debug!(
                     workspace_id = %ws_id_str,
                     "Using workspace-specific embedding provider only for chat query"
                 );
                 (Some(embed), None)
+            }
+            (Ok(Some(_embed)), Err(e)) => {
+                // OODA-228: Vector storage failed - return error, don't silently ignore
+                error!(
+                    workspace_id = %ws_id_str,
+                    error = %e,
+                    "Cannot get workspace vector storage - storage error"
+                );
+                return Err(ApiError::Internal(format!(
+                    "Cannot query workspace: {}. Vector storage error: {}",
+                    ws_id_str, e
+                )));
             }
             (Ok(None), _) => {
                 debug!(
@@ -481,12 +494,26 @@ pub async fn chat_completion(
                 (None, None)
             }
             (Err(e), _) => {
-                warn!(
+                // OODA-228: Do NOT silently fall back to defaults when embedding provider fails!
+                // This causes dimension mismatch errors because:
+                // 1. Workspace was configured with provider X (e.g., OpenAI 3072 dims)
+                // 2. Documents were embedded with dimension X
+                // 3. Now provider X fails (e.g., missing OPENAI_API_KEY)
+                // 4. If we fall back to provider Y (e.g., Ollama 768 dims), query will fail
+                //    with "different vector dimensions" error from PostgreSQL
+                //
+                // Instead, return a clear error telling the user to fix their configuration.
+                error!(
                     workspace_id = %ws_id_str,
                     error = %e,
-                    "Failed to get workspace embedding config for chat, using defaults"
+                    "Cannot create workspace embedding provider - configuration error"
                 );
-                (None, None)
+                return Err(ApiError::BadRequest(format!(
+                    "Cannot query workspace: {}. This workspace requires a specific embedding \
+                     provider that is not currently available. Check your API keys and provider \
+                     configuration. Original error: {}",
+                    ws_id_str, e
+                )));
             }
         }
     } else {
@@ -914,8 +941,19 @@ pub async fn chat_completion_stream(
                     None
                 }
                 Err(e) => {
-                    warn!(workspace_id = %ws_id_str, error = ?e, "Failed to get workspace embedding provider for streaming");
-                    None
+                    // OODA-228: Send error event instead of silently falling back
+                    error!(workspace_id = %ws_id_str, error = ?e, "Cannot create workspace embedding provider for streaming");
+                    let err_msg = format!(
+                        "Cannot stream query for workspace: {}. Embedding provider configuration error: {:?}",
+                        ws_id_str, e
+                    );
+                    let _ = tx
+                        .send(ChatStreamEvent::Error {
+                            message: err_msg,
+                            code: "EMBEDDING_PROVIDER_CONFIG_ERROR".to_string(),
+                        })
+                        .await;
+                    return; // Exit task early with error sent
                 }
             };
 
@@ -927,8 +965,19 @@ pub async fn chat_completion_stream(
                     None
                 }
                 Err(e) => {
-                    warn!(workspace_id = %ws_id_str, error = ?e, "Failed to get workspace vector storage for streaming");
-                    None
+                    // OODA-228: Send error event for vector storage failures too
+                    error!(workspace_id = %ws_id_str, error = ?e, "Cannot get workspace vector storage for streaming");
+                    let err_msg = format!(
+                        "Cannot stream query for workspace: {}. Vector storage error: {:?}",
+                        ws_id_str, e
+                    );
+                    let _ = tx
+                        .send(ChatStreamEvent::Error {
+                            message: err_msg,
+                            code: "VECTOR_STORAGE_ERROR".to_string(),
+                        })
+                        .await;
+                    return; // Exit task early with error sent
                 }
             };
 
