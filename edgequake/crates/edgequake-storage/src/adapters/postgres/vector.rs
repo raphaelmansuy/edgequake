@@ -247,9 +247,10 @@ impl PgVectorStorage {
 
         let sql = format!("DROP TABLE IF EXISTS {} CASCADE", self.table_name);
 
-        sqlx::query(&sql).execute(&pool).await.map_err(|e| {
-            StorageError::Database(format!("Failed to drop vectors table: {}", e))
-        })?;
+        sqlx::query(&sql)
+            .execute(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("Failed to drop vectors table: {}", e)))?;
 
         tracing::info!(
             table = %self.table_name,
@@ -370,7 +371,9 @@ impl PgVectorStorage {
             .bind(table)
             .fetch_one(&pool)
             .await
-            .map_err(|e| StorageError::Database(format!("Failed to check table existence: {}", e)))?;
+            .map_err(|e| {
+                StorageError::Database(format!("Failed to check table existence: {}", e))
+            })?;
 
         Ok(exists.0)
     }

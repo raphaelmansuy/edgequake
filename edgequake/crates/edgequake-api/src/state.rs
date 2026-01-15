@@ -143,7 +143,7 @@ use edgequake_core::WorkspaceServiceImpl;
 #[cfg(feature = "postgres")]
 use edgequake_storage::{
     GraphStorage, KVStorage, PgVectorStorage, PgWorkspaceVectorRegistry, PostgresAGEGraphStorage,
-    PostgresKVStorage,
+    PostgresKVStorage, VectorStorage,
 };
 #[cfg(feature = "postgres")]
 use sqlx::PgPool;
@@ -654,6 +654,20 @@ impl AppState {
         ));
         let graph_storage = Arc::new(PostgresAGEGraphStorage::new(pg_config.clone()));
 
+        // OODA-228: Ensure default vector storage has correct dimension BEFORE initialize
+        // WHY: If embedding provider changed (e.g., OpenAI 1536 → Ollama 768),
+        // the existing table has the wrong dimension. We must recreate it.
+        // This is the same logic used for workspace storage.
+        let recreated = vector_storage.ensure_dimension(embedding_dim).await?;
+        if recreated {
+            tracing::warn!(
+                dimension = embedding_dim,
+                provider = embedding_provider.name(),
+                "⚠️ Default vector table recreated due to dimension change (OODA-228). \
+                 All existing vectors were cleared. Documents need to be re-embedded."
+            );
+        }
+
         // Initialize storage backends to establish connections
         kv_storage.initialize().await?;
         vector_storage.initialize().await?;
@@ -661,70 +675,13 @@ impl AppState {
 
         tracing::info!("PostgreSQL storage backends initialized successfully");
 
-        // Validate dimension compatibility for existing storage
-        //
-        // WHY: The configured dimension (embedding_dim) is set from the current
-        // embedding provider. But stored vectors may have been created with a
-        // DIFFERENT provider that had a different dimension. We need to query
-        // the actual stored dimension from the database to detect mismatches.
-        //
-        // @implements OODA-225: Fix vector dimension mismatch after provider switch
-        use edgequake_storage::traits::VectorStorage;
-        if !vector_storage.is_empty().await? {
-            // Query actual stored dimension from database, not the configured dimension
-            let storage_dim = vector_storage
-                .get_stored_dimension()
-                .await?
-                .unwrap_or(embedding_dim); // Default to configured if detection fails
-            let provider_dim = embedding_provider.dimension();
-
-            if storage_dim != provider_dim {
-                let namespace = vector_storage.namespace();
-                return Err(format!(
-                    "❌ Dimension mismatch detected\n\
-                     \n\
-                     PostgreSQL storage contains vectors with {} dimensions,\n\
-                     but provider '{}' expects {} dimensions.\n\
-                     \n\
-                     This mismatch will cause incorrect similarity search results.\n\
-                     \n\
-                     Recovery Options:\n\
-                     \n\
-                     1. Switch back to previous provider:\n\
-                        - If you used OpenAI before: export OPENAI_API_KEY=sk-...\n\
-                        - If you used Ollama before: export OLLAMA_HOST=http://localhost:11434\n\
-                     \n\
-                     2. Clear existing vectors (⚠️ DESTRUCTIVE):\n\
-                        psql {} -c 'TRUNCATE TABLE {}_vectors;'\n\
-                     \n\
-                     3. Rebuild vectors with new provider:\n\
-                        cargo run --bin edgequake -- rebuild-vectors\n\
-                     \n\
-                     Current configuration:\n\
-                     - Storage dimension: {} (from existing vectors)\n\
-                     - Provider dimension: {} (from {})\n\
-                     - Namespace: {}\n\
-                     ",
-                    storage_dim,
-                    embedding_provider.name(),
-                    provider_dim,
-                    database_url,
-                    namespace,
-                    storage_dim,
-                    provider_dim,
-                    embedding_provider.name(),
-                    namespace
-                )
-                .into());
-            }
-        }
-
         // Log provider and dimension configuration for debugging
         tracing::info!(
             provider = embedding_provider.name(),
             dimension = embedding_provider.dimension(),
             storage_type = "postgres",
             namespace = "default",
+            recreated = recreated,
             "Vector storage validated successfully"
         );
 

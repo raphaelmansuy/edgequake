@@ -181,7 +181,10 @@ async fn test_provider_switch_workflow() {
     assert_eq!(storage_openai.count().await.unwrap(), 2);
 
     // Query works with 1536 dimensions
-    let results = storage_openai.query(&embedding_openai, 10, None).await.unwrap();
+    let results = storage_openai
+        .query(&embedding_openai, 10, None)
+        .await
+        .unwrap();
     assert_eq!(results.len(), 2);
 
     // Step 3: User switches to Ollama (768 dimensions)
@@ -213,7 +216,10 @@ async fn test_provider_switch_workflow() {
         .unwrap();
 
     // Step 5: Query with 768-dim embedding works
-    let results = storage_ollama.query(&embedding_ollama, 10, None).await.unwrap();
+    let results = storage_ollama
+        .query(&embedding_ollama, 10, None)
+        .await
+        .unwrap();
     assert_eq!(results.len(), 2);
 
     // Verify dimension is correct

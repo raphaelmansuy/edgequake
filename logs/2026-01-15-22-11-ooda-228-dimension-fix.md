@@ -8,7 +8,7 @@
 When switching embedding providers (e.g., OpenAI 1536 → Ollama 768), the PostgreSQL vector table's column dimension was not being updated. This caused the error:
 
 ```
-Storage error: Database error: Vector query failed: 
+Storage error: Database error: Vector query failed:
 error returned from database: different vector dimensions 1536 and 768
 ```
 
@@ -29,10 +29,12 @@ error returned from database: different vector dimensions 1536 and 768
 
 Added three new methods to `PgVectorStorage`:
 
-### 1. `drop_table()` 
+### 1. `drop_table()`
+
 Drops the vector table with CASCADE.
 
 ### 2. `ensure_dimension(required_dimension: usize) -> Result<bool>`
+
 - Initializes pool connection (required before database operations)
 - Calls `get_stored_dimension()` to check current table dimension
 - If mismatch detected:
@@ -41,11 +43,13 @@ Drops the vector table with CASCADE.
 - Returns `Ok(true)` if table was recreated
 
 ### 3. `table_exists() -> Result<bool>`
+
 Helper to check if table exists in information_schema.
 
 ### Integration Point
 
 Modified `PgWorkspaceVectorRegistry.create_workspace_storage()`:
+
 ```rust
 // BEFORE initialize()
 let recreated = storage.ensure_dimension(config.dimension).await?;
@@ -58,10 +62,12 @@ storage.initialize().await?;
 ## Files Changed
 
 1. `edgequake/crates/edgequake-storage/src/adapters/postgres/vector.rs`
+
    - Added `drop_table()`, `ensure_dimension()`, `table_exists()`
    - ~130 new lines
 
 2. `edgequake/crates/edgequake-storage/src/adapters/postgres/workspace_vector.rs`
+
    - Call `ensure_dimension()` before `initialize()`
    - ~20 new lines with documentation
 
@@ -85,21 +91,25 @@ storage.initialize().await?;
 ## Task Logs
 
 **Actions:**
+
 - Added drop_table(), ensure_dimension(), table_exists() to PgVectorStorage
 - Modified create_workspace_storage() to call ensure_dimension before initialize
 - Created dimension_migration.rs with 5 integration tests
 - Fixed pool initialization issue in ensure_dimension
 
 **Decisions:**
+
 - Use DROP TABLE CASCADE instead of ALTER (pgvector limitation)
 - Initialize pool in ensure_dimension since it runs before storage.initialize()
 - Test with memory storage for fast unit tests (PostgreSQL behavior covered by design)
 
 **Next steps:**
+
 - Monitor for any edge cases in production
 - Consider adding startup validation fix for default storage
 
 **Lessons:**
+
 - pgvector columns have fixed dimensions set at CREATE time
 - CREATE TABLE IF NOT EXISTS doesn't modify existing tables
 - Pool must be initialized before any database operations
