@@ -309,8 +309,10 @@ impl Pipeline {
 
         if self.config.enable_entity_extraction || self.config.enable_relationship_extraction {
             if let Some(extractor) = &self.extractor {
-                // Capture LLM model name
+                // Capture LLM model and provider names
+                // @implements SPEC-032/OODA-226: Provider tracking in ProcessingStats
                 stats.llm_model = Some(extractor.model_name().to_string());
+                stats.llm_provider = Some(extractor.provider_name().to_string());
 
                 // Use parallel extraction for better performance
                 extractions = self.extract_parallel(&chunks, extractor).await?;
@@ -400,8 +402,10 @@ impl Pipeline {
 
         // Step 3: Generate embeddings
         if let Some(provider) = &self.embedding_provider {
-            // Capture embedding model info
+            // Capture embedding model and provider info
+            // @implements SPEC-032/OODA-226: Provider tracking in ProcessingStats
             stats.embedding_model = Some(provider.model().to_string());
+            stats.embedding_provider = Some(provider.name().to_string());
             stats.embedding_dimensions = Some(provider.dimension());
 
             // Chunk embeddings
