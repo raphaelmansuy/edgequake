@@ -72,6 +72,9 @@ FOCUS on :
 
 CRITICAL:  Can you fully verified e2e that with a workspace create with a default embedding model for example and llm extractor ollama that when I change to an opean ai provider for embedding and llm extraction the extraction is really done with the openai provider. I strongly suspect that is not the case. You must as detective build an e2e test for both postgres and memory based backend to prove this, fix it if it is not implemented, then add more e2e, unit test to ensure this cannot brake in the future.
 
+
+25. Ensure we have 100% coverage on e2e tests with playwright for the webui to cover all the new features added regarding provider and model selection for both llm and embedding at tenant creation, workspace creation, query time, document ingestion, knowledge graph rebuild, embedding rebuild, etc.
+
 You must also test this when we switch from one provider to another one for a workspace and we add recreate the embedding or the knowledge graph.
 
 Very important ==> Default providers (llm+embedding) and models will be defined as setup in a toml config file located at the root of edgequake server. Capabilities of models and providers must be detected at runtime and exposed as an API. This configuration file will act as models cards explaining the capabilities of each model and provider. (vision / image support / max tokens / context length / cost per 1K tokens etc). This config file will be used by the edgequake_webui to display the capabilities of each model and provider in the selection dropdowns. This file will provide high signal information to the users about the models and providers available in the edgequake server.

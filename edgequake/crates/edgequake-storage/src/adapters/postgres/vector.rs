@@ -166,12 +166,13 @@ impl PgVectorStorage {
             self.table_name
         );
 
-        let result: Option<(i32,)> = sqlx::query_as(&sql)
-            .fetch_optional(&pool)
-            .await
-            .map_err(|e| {
-                StorageError::Database(format!("Failed to get stored dimension: {}", e))
-            })?;
+        let result: Option<(i32,)> =
+            sqlx::query_as(&sql)
+                .fetch_optional(&pool)
+                .await
+                .map_err(|e| {
+                    StorageError::Database(format!("Failed to get stored dimension: {}", e))
+                })?;
 
         Ok(result.map(|(dim,)| dim as usize))
     }

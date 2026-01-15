@@ -9,7 +9,7 @@
 After switching embedding providers (e.g., Ollama 768 dims → OpenAI 1536 dims) and rebuilding the knowledge graph, queries fail with:
 
 ```
-Storage error: Database error: Vector query failed: error returned from database: 
+Storage error: Database error: Vector query failed: error returned from database:
 different vector dimensions 1536 and 768
 ```
 
@@ -18,11 +18,13 @@ different vector dimensions 1536 and 768
 ### Two Independent Issues Identified:
 
 #### Issue 1: Workspace Vector Registry Cache Not Evicted (Fixed in earlier session)
+
 - `PgWorkspaceVectorRegistry` caches `Arc<dyn VectorStorage>` instances by workspace_id
 - When embedding dimension changes, cache holds stale storage with old dimension
 - **Fix**: Added cache eviction in `rebuild_embeddings` and `rebuild_knowledge_graph` handlers
 
 #### Issue 2: Global Dimension Validation Broken (Fixed now - OODA-225)
+
 - `AppState::new_postgres()` validated dimension mismatch by comparing:
   - `vector_storage.dimension()` - returns **configured** dimension (what we just set!)
   - `embedding_provider.dimension()` - returns provider dimension
@@ -100,13 +102,17 @@ if !vector_storage.is_empty().await? {
 ## Technical Details
 
 ### pgvector `vector_dims()` Function
+
 The fix uses pgvector's built-in `vector_dims(vector)` function which returns the number of dimensions of a vector column. This is more reliable than:
+
 - Parsing the vector text representation
 - Counting array elements
 - Relying on column metadata
 
 ### Why This Was Hard to Detect
+
 The original validation logic appeared correct at first glance:
+
 ```rust
 let storage_dim = vector_storage.dimension();  // Looks like stored dimension
 let provider_dim = embedding_provider.dimension();
@@ -124,6 +130,7 @@ But `dimension()` returns `self.dimension` which is set during construction from
 ## User-Facing Behavior
 
 When dimension mismatch is detected at startup, users see a clear error message with recovery options:
+
 1. Switch back to previous provider
 2. Clear existing vectors (destructive)
 3. Rebuild vectors with new provider
@@ -133,18 +140,22 @@ When dimension mismatch is detected at startup, users see a clear error message 
 ## Task Logs
 
 **Actions**:
+
 - Added `get_stored_dimension()` method using `vector_dims()` SQL function
 - Fixed dimension validation in `AppState::new_postgres()` to query actual stored dimension
 - Verified 2,631 tests pass
 
 **Decisions**:
+
 - Used pgvector's native `vector_dims()` function for reliable dimension detection
 - Default to configured dimension if detection fails (empty table case)
 
 **Next Steps**:
+
 - Commit changes
 - Manual browser verification with provider switch scenario
 
 **Lessons**:
+
 - Validation that compares a value against itself will always pass
 - Need to distinguish between "configured dimension" and "stored dimension"
