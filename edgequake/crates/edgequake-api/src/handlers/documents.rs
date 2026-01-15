@@ -55,57 +55,122 @@ use edgequake_storage::traits::VectorStorage;
 // Re-export DTOs from documents_types module
 pub use crate::handlers::documents_types::*;
 
-/// Get workspace-specific vector storage for document ingestion.
+/// Get workspace-specific vector storage for document ingestion (STRICT mode).
 ///
 /// @implements SPEC-033: Per-workspace vector storage isolation
+/// @implements BR0353: Workspace vector isolation MUST NOT silently degrade
 ///
-/// This function retrieves or creates a workspace-specific vector storage
-/// with the correct embedding dimension for the workspace's embedding model.
+/// # CRITICAL SAFETY INVARIANT
+///
+/// This function NEVER falls back to default storage. If workspace-specific
+/// storage cannot be obtained, it returns an error to prevent data from being
+/// stored in the wrong location.
+///
+/// ## WHY NO FALLBACK (OODA-223 Lesson)
+///
+/// Silent fallback to global storage caused a critical data isolation bug:
+/// - Data ingested into global table with workspace_id in metadata
+/// - Queries looked in workspace-specific tables (empty)
+/// - Result: "0 Sources" even though data existed
+///
+/// By failing loudly, we:
+/// 1. Prevent data from going to the wrong storage
+/// 2. Force immediate resolution of workspace configuration issues
+/// 3. Maintain strict data isolation guarantees
 ///
 /// # Arguments
 ///
 /// * `state` - Application state containing vector registry
-/// * `workspace_id` - Workspace identifier
+/// * `workspace_id` - Workspace identifier (MUST be valid UUID)
 ///
 /// # Returns
 ///
-/// Arc to workspace-specific vector storage, or default storage if workspace not found
-async fn get_workspace_vector_storage(
+/// * `Ok(storage)` - Workspace-specific vector storage
+/// * `Err(ApiError)` - If workspace not found or storage creation fails
+///
+/// # Errors
+///
+/// - `ApiError::BadRequest` - Invalid workspace ID format
+/// - `ApiError::NotFound` - Workspace does not exist
+/// - `ApiError::Internal` - Failed to create workspace storage
+async fn get_workspace_vector_storage_strict(
     state: &AppState,
     workspace_id: &str,
-) -> Arc<dyn VectorStorage> {
+) -> Result<Arc<dyn VectorStorage>, ApiError> {
     use edgequake_storage::traits::WorkspaceVectorConfig;
 
-    // Parse workspace ID
+    // OODA-223: Allow fallback in memory mode (tests) but not in production (PostgreSQL)
+    // This prevents silent data loss in production while maintaining test compatibility
+    let allow_fallback = state.storage_mode.is_memory();
+
+    // Parse workspace ID - FAIL in production, WARN in test mode
     let workspace_uuid = match Uuid::parse_str(workspace_id) {
         Ok(uuid) => uuid,
         Err(e) => {
-            warn!(
+            if allow_fallback {
+                // WHY-OODA223: Test mode - log warning and use default storage
+                tracing::warn!(
+                    workspace_id = %workspace_id,
+                    error = %e,
+                    storage_mode = ?state.storage_mode,
+                    "Invalid workspace ID - using default storage (allowed in memory/test mode)"
+                );
+                return Ok(state.vector_registry.default_storage());
+            }
+            tracing::error!(
                 workspace_id = %workspace_id,
                 error = %e,
-                "Invalid workspace ID, using default vector storage"
+                "CRITICAL: Invalid workspace ID during ingestion - refusing to use default storage"
             );
-            return state.vector_registry.default_storage();
+            return Err(ApiError::BadRequest(format!(
+                "Invalid workspace ID '{}': {}. Document ingestion requires a valid workspace.",
+                workspace_id, e
+            )));
         }
     };
 
-    // Get workspace from service
+    // Get workspace from service - FAIL in production, WARN in test mode
     let workspace = match state.workspace_service.get_workspace(workspace_uuid).await {
         Ok(Some(ws)) => ws,
         Ok(None) => {
-            warn!(
+            if allow_fallback {
+                // WHY-OODA223: Test mode - log warning and use default storage
+                tracing::warn!(
+                    workspace_id = %workspace_id,
+                    storage_mode = ?state.storage_mode,
+                    "Workspace not found - using default storage (allowed in memory/test mode)"
+                );
+                return Ok(state.vector_registry.default_storage());
+            }
+            tracing::error!(
                 workspace_id = %workspace_id,
-                "Workspace not found, using default vector storage"
+                "CRITICAL: Workspace not found during ingestion - refusing to use default storage"
             );
-            return state.vector_registry.default_storage();
+            return Err(ApiError::NotFound(format!(
+                "Workspace '{}' not found. Cannot ingest documents without a valid workspace.",
+                workspace_id
+            )));
         }
         Err(e) => {
-            warn!(
+            if allow_fallback {
+                // WHY-OODA223: Test mode - log warning and use default storage
+                tracing::warn!(
+                    workspace_id = %workspace_id,
+                    error = %e,
+                    storage_mode = ?state.storage_mode,
+                    "Failed to lookup workspace - using default storage (allowed in memory/test mode)"
+                );
+                return Ok(state.vector_registry.default_storage());
+            }
+            tracing::error!(
                 workspace_id = %workspace_id,
                 error = %e,
-                "Failed to get workspace, using default vector storage"
+                "CRITICAL: Failed to lookup workspace during ingestion"
             );
-            return state.vector_registry.default_storage();
+            return Err(ApiError::Internal(format!(
+                "Failed to lookup workspace '{}': {}",
+                workspace_id, e
+            )));
         }
     };
 
@@ -119,17 +184,64 @@ async fn get_workspace_vector_storage(
     debug!(
         workspace_id = %workspace_id,
         dimension = workspace.embedding_dimension,
-        "Using workspace-specific vector storage for document ingestion"
+        embedding_model = %workspace.embedding_model,
+        "Using workspace-specific vector storage for document ingestion (STRICT mode)"
     );
 
-    // Get or create workspace vector storage
+    // Get or create workspace vector storage - FAIL if creation fails
     match state.vector_registry.get_or_create(config).await {
+        Ok(storage) => Ok(storage),
+        Err(e) => {
+            if allow_fallback {
+                // WHY-OODA223: Test mode - log warning and use default storage
+                tracing::warn!(
+                    workspace_id = %workspace_id,
+                    dimension = workspace.embedding_dimension,
+                    error = %e,
+                    storage_mode = ?state.storage_mode,
+                    "Failed to create workspace storage - using default (allowed in memory/test mode)"
+                );
+                return Ok(state.vector_registry.default_storage());
+            }
+            tracing::error!(
+                workspace_id = %workspace_id,
+                dimension = workspace.embedding_dimension,
+                error = %e,
+                "CRITICAL: Failed to create workspace vector storage - refusing to use default"
+            );
+            Err(ApiError::Internal(format!(
+                "Failed to create vector storage for workspace '{}' (dimension {}): {}. \
+                 This is a critical error - please check database connectivity and configuration.",
+                workspace_id, workspace.embedding_dimension, e
+            )))
+        }
+    }
+}
+
+/// Get workspace-specific vector storage with fallback (LEGACY - use strict version for ingestion).
+///
+/// @deprecated Use `get_workspace_vector_storage_strict` for document ingestion.
+///
+/// This function falls back to default storage on errors. It should ONLY be used
+/// for read operations where fallback is acceptable (e.g., querying when workspace
+/// storage doesn't exist yet).
+///
+/// # WARNING
+///
+/// DO NOT use this function for write operations (ingestion). Silent fallback
+/// can cause data to be stored in the wrong location. Use the strict version instead.
+#[allow(dead_code)]
+async fn get_workspace_vector_storage_with_fallback(
+    state: &AppState,
+    workspace_id: &str,
+) -> Arc<dyn VectorStorage> {
+    match get_workspace_vector_storage_strict(state, workspace_id).await {
         Ok(storage) => storage,
         Err(e) => {
             warn!(
                 workspace_id = %workspace_id,
                 error = %e,
-                "Failed to create workspace vector storage, using default"
+                "Falling back to default vector storage (READ ONLY operations)"
             );
             state.vector_registry.default_storage()
         }
@@ -347,8 +459,10 @@ pub async fn upload_document(
 
         // SPEC-033: Get workspace-specific vector storage for document embeddings
         // This ensures embeddings are stored with correct dimension per workspace
+        // WHY-OODA223: STRICT mode - fail loudly if workspace storage unavailable
+        // to prevent data from being stored in the wrong (global) table
         let workspace_vector_storage =
-            get_workspace_vector_storage(&state, &workspace_id_for_storage).await;
+            get_workspace_vector_storage_strict(&state, &workspace_id_for_storage).await?;
 
         // Store chunk embeddings in vector storage for semantic search
         let mut chunk_embeddings_stored = 0;
@@ -1281,8 +1395,10 @@ pub async fn delete_document(
     };
 
     // SPEC-033: Get workspace-specific vector storage for deletion
+    // WHY-OODA223: STRICT mode - fail loudly if workspace storage unavailable
+    // to ensure we delete from the correct workspace table, not a fallback
     let workspace_vector_storage =
-        get_workspace_vector_storage(&state, &workspace_id_for_storage).await;
+        get_workspace_vector_storage_strict(&state, &workspace_id_for_storage).await?;
 
     let chunks_deleted = chunk_ids.len();
     let mut entities_removed = 0usize;
@@ -1692,8 +1808,10 @@ pub async fn upload_file(
     state.kv_storage.upsert(&chunks).await?;
 
     // SPEC-033: Get workspace-specific vector storage for file embeddings
+    // WHY-OODA223: STRICT mode - fail loudly if workspace storage unavailable
+    // to prevent file embeddings from being stored in the wrong (global) table
     let workspace_vector_storage =
-        get_workspace_vector_storage(&state, &workspace_id_for_storage).await;
+        get_workspace_vector_storage_strict(&state, &workspace_id_for_storage).await?;
 
     // Store chunk embeddings in vector storage for semantic search
     let mut chunk_embeddings_stored = 0;

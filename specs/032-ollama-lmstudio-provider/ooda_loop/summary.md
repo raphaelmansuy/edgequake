@@ -13,19 +13,19 @@
 
 ### Key Findings
 
-| Requirement | Status | Evidence |
-|-------------|--------|----------|
-| Req 3: Query LLM selection | ✅ | Query response shows `llm_provider: "openai"` |
-| Req 15: Lineage tracking | ✅ | `llm_model` stored in document/query metadata |
-| Req 18: Tokens/second | ✅ | Shows 15.5 tokens/s in query response |
-| Req 23: Document uses workspace provider | ✅ | Document shows `llm_model: "gpt-4o-mini"` after switch |
-| Req 24: Query uses workspace embedding | ✅ | Uses workspace-configured embedding provider |
+| Requirement                              | Status | Evidence                                               |
+| ---------------------------------------- | ------ | ------------------------------------------------------ |
+| Req 3: Query LLM selection               | ✅     | Query response shows `llm_provider: "openai"`          |
+| Req 15: Lineage tracking                 | ✅     | `llm_model` stored in document/query metadata          |
+| Req 18: Tokens/second                    | ✅     | Shows 15.5 tokens/s in query response                  |
+| Req 23: Document uses workspace provider | ✅     | Document shows `llm_model: "gpt-4o-mini"` after switch |
+| Req 24: Query uses workspace embedding   | ✅     | Uses workspace-configured embedding provider           |
 
 ### Provider Switching Test
 
-| Document | LLM Model | Uploaded |
-|----------|-----------|----------|
-| test-edgequake-doc.txt | gemma3:12b (Ollama) | Before switch |
+| Document                 | LLM Model            | Uploaded         |
+| ------------------------ | -------------------- | ---------------- |
+| test-edgequake-doc.txt   | gemma3:12b (Ollama)  | Before switch    |
 | openai-provider-test.txt | gpt-4o-mini (OpenAI) | **After switch** |
 
 ---

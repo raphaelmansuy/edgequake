@@ -78,10 +78,14 @@ pub struct DocumentTaskProcessor {
     workspace_service: Option<SharedWorkspaceService>,
     /// Models configuration for creating providers (SPEC-032).
     models_config: Option<Arc<ModelsConfig>>,
+    /// OODA-223: Strict workspace mode - when true, fail if workspace not found.
+    /// When false (memory/test mode), allow fallback to default storage.
+    strict_workspace_mode: bool,
 }
 
 impl DocumentTaskProcessor {
     /// Create a new document task processor (legacy, without workspace support).
+    /// OODA-223: Uses non-strict mode (allows fallback) for backward compatibility.
     pub fn new(
         pipeline: Arc<Pipeline>,
         kv_storage: Arc<dyn KVStorage>,
@@ -99,6 +103,7 @@ impl DocumentTaskProcessor {
             pipeline_state,
             workspace_service: None,
             models_config: None,
+            strict_workspace_mode: false, // OODA-223: Legacy mode allows fallback
         }
     }
 
@@ -107,6 +112,9 @@ impl DocumentTaskProcessor {
     /// SPEC-032: This constructor enables workspace-specific LLM and embedding providers.
     /// When processing tasks with workspace_id in metadata, the processor will use
     /// the workspace's configured providers instead of the server defaults.
+    ///
+    /// OODA-223: Use `with_workspace_support_strict` for production to ensure workspace
+    /// isolation is enforced.
     pub fn with_workspace_support(
         pipeline: Arc<Pipeline>,
         kv_storage: Arc<dyn KVStorage>,
@@ -126,6 +134,35 @@ impl DocumentTaskProcessor {
             pipeline_state,
             workspace_service: Some(workspace_service),
             models_config: Some(models_config),
+            strict_workspace_mode: false, // OODA-223: Legacy mode allows fallback
+        }
+    }
+
+    /// Create a new document task processor with strict workspace isolation.
+    ///
+    /// OODA-223: This constructor enables strict mode where ingestion FAILS if
+    /// workspace storage cannot be obtained. Use this in production to prevent
+    /// data from being stored in the wrong (global) table.
+    pub fn with_workspace_support_strict(
+        pipeline: Arc<Pipeline>,
+        kv_storage: Arc<dyn KVStorage>,
+        vector_storage: Arc<dyn VectorStorage>,
+        vector_registry: Arc<dyn WorkspaceVectorRegistry>,
+        graph_storage: Arc<dyn GraphStorage>,
+        pipeline_state: PipelineState,
+        workspace_service: SharedWorkspaceService,
+        models_config: Arc<ModelsConfig>,
+    ) -> Self {
+        Self {
+            pipeline,
+            kv_storage,
+            vector_storage,
+            vector_registry,
+            graph_storage,
+            pipeline_state,
+            workspace_service: Some(workspace_service),
+            models_config: Some(models_config),
+            strict_workspace_mode: true, // OODA-223: Production mode - fail on workspace errors
         }
     }
 
@@ -290,42 +327,97 @@ impl DocumentTaskProcessor {
     /// OpenAI 1536 vs Ollama/nomic 768). The registry creates per-workspace
     /// vector tables with the correct dimension.
     ///
-    /// Falls back to default vector storage if:
-    /// - Workspace ID is empty or "default"
-    /// - Workspace not found in service
-    /// - Failed to parse workspace UUID
-    async fn get_workspace_vector_storage(&self, workspace_id: &str) -> Arc<dyn VectorStorage> {
+    /// # OODA-223: Behavior depends on `strict_workspace_mode`
+    ///
+    /// - **Strict mode (production)**: Returns error if workspace storage cannot be obtained.
+    /// - **Non-strict mode (tests/legacy)**: Falls back to default storage with warning.
+    ///
+    /// # Lesson Learned (OODA-223)
+    ///
+    /// Silent fallback to default storage caused data to be stored in the
+    /// global table instead of workspace-specific tables, leading to "0 Sources"
+    /// on queries because reads look in workspace tables.
+    async fn get_workspace_vector_storage_strict(
+        &self,
+        workspace_id: &str,
+    ) -> Result<Arc<dyn VectorStorage>, String> {
         use edgequake_storage::traits::WorkspaceVectorConfig;
 
-        // If no valid workspace_id, use default storage
+        // OODA-223: Check if we should allow fallback
+        let allow_fallback = !self.strict_workspace_mode;
+
+        // Handle empty/default workspace IDs
         if workspace_id.is_empty() || workspace_id == "default" {
-            return self.vector_registry.default_storage();
+            if allow_fallback {
+                warn!(
+                    workspace_id = %workspace_id,
+                    strict_mode = self.strict_workspace_mode,
+                    "Empty/default workspace ID - using default storage (non-strict mode)"
+                );
+                return Ok(Arc::clone(&self.vector_storage));
+            }
+            error!(
+                workspace_id = %workspace_id,
+                "CRITICAL INGESTION ERROR: Cannot use 'default' workspace for document ingestion. \
+                 Data must be stored in workspace-specific tables."
+            );
+            return Err(
+                "Cannot ingest documents without a valid workspace ID. \
+                 Please ensure workspace context is properly set."
+                    .to_string(),
+            );
         }
 
         // Parse workspace UUID
         let workspace_uuid = match uuid::Uuid::parse_str(workspace_id) {
             Ok(uuid) => uuid,
             Err(e) => {
-                warn!(
-                    workspace_id = workspace_id,
+                if allow_fallback {
+                    warn!(
+                        workspace_id = %workspace_id,
+                        error = %e,
+                        strict_mode = self.strict_workspace_mode,
+                        "Invalid workspace ID format - using default storage (non-strict mode)"
+                    );
+                    return Ok(Arc::clone(&self.vector_storage));
+                }
+                error!(
+                    workspace_id = %workspace_id,
                     error = %e,
-                    "Invalid workspace ID format, using default vector storage"
+                    "CRITICAL INGESTION ERROR: Invalid workspace ID format"
                 );
-                return self.vector_registry.default_storage();
+                return Err(format!(
+                    "Invalid workspace ID format '{}': {}",
+                    workspace_id, e
+                ));
             }
         };
 
         // Check if we already have this workspace's vector storage cached
         if let Some(storage) = self.vector_registry.get(&workspace_uuid).await {
-            return storage;
+            return Ok(storage);
         }
 
         // Look up workspace to get embedding dimension
         let workspace_service = match &self.workspace_service {
             Some(ws) => ws,
             None => {
-                warn!("No workspace service, using default vector storage");
-                return self.vector_registry.default_storage();
+                if allow_fallback {
+                    warn!(
+                        workspace_id = %workspace_id,
+                        strict_mode = self.strict_workspace_mode,
+                        "No workspace service - using default storage (non-strict mode)"
+                    );
+                    return Ok(Arc::clone(&self.vector_storage));
+                }
+                error!(
+                    workspace_id = %workspace_id,
+                    "CRITICAL INGESTION ERROR: No workspace service available"
+                );
+                return Err(
+                    "Workspace service not configured. Cannot verify workspace exists."
+                        .to_string(),
+                );
             }
         };
 
@@ -341,36 +433,72 @@ impl DocumentTaskProcessor {
                 match self.vector_registry.get_or_create(config).await {
                     Ok(storage) => {
                         info!(
-                            workspace_id = workspace_id,
+                            workspace_id = %workspace_id,
                             dimension = ws.embedding_dimension,
+                            strict_mode = self.strict_workspace_mode,
                             "Using workspace-specific vector storage"
                         );
-                        storage
+                        Ok(storage)
                     }
                     Err(e) => {
-                        warn!(
-                            workspace_id = workspace_id,
+                        if allow_fallback {
+                            warn!(
+                                workspace_id = %workspace_id,
+                                error = %e,
+                                strict_mode = self.strict_workspace_mode,
+                                "Failed to create workspace storage - using default (non-strict mode)"
+                            );
+                            return Ok(Arc::clone(&self.vector_storage));
+                        }
+                        error!(
+                            workspace_id = %workspace_id,
                             error = %e,
-                            "Failed to create workspace vector storage, using default"
+                            "CRITICAL INGESTION ERROR: Failed to create workspace vector storage"
                         );
-                        self.vector_registry.default_storage()
+                        Err(format!(
+                            "Failed to create vector storage for workspace '{}': {}",
+                            workspace_id, e
+                        ))
                     }
                 }
             }
             Ok(None) => {
-                warn!(
-                    workspace_id = workspace_id,
-                    "Workspace not found, using default vector storage"
+                if allow_fallback {
+                    warn!(
+                        workspace_id = %workspace_id,
+                        strict_mode = self.strict_workspace_mode,
+                        "Workspace not found - using default storage (non-strict mode)"
+                    );
+                    return Ok(Arc::clone(&self.vector_storage));
+                }
+                error!(
+                    workspace_id = %workspace_id,
+                    "CRITICAL INGESTION ERROR: Workspace not found"
                 );
-                self.vector_registry.default_storage()
+                Err(format!(
+                    "Workspace '{}' not found. Cannot ingest documents into non-existent workspace.",
+                    workspace_id
+                ))
             }
             Err(e) => {
-                warn!(
-                    workspace_id = workspace_id,
+                if allow_fallback {
+                    warn!(
+                        workspace_id = %workspace_id,
+                        error = %e,
+                        strict_mode = self.strict_workspace_mode,
+                        "Failed to lookup workspace - using default storage (non-strict mode)"
+                    );
+                    return Ok(Arc::clone(&self.vector_storage));
+                }
+                error!(
+                    workspace_id = %workspace_id,
                     error = %e,
-                    "Failed to lookup workspace, using default vector storage"
+                    "CRITICAL INGESTION ERROR: Failed to lookup workspace"
                 );
-                self.vector_registry.default_storage()
+                Err(format!(
+                    "Failed to lookup workspace '{}': {}",
+                    workspace_id, e
+                ))
             }
         }
     }
@@ -549,7 +677,20 @@ impl DocumentTaskProcessor {
 
         // Get workspace-specific vector storage using the registry
         // WHY: Different workspaces may have different embedding dimensions
-        let workspace_vector_storage = self.get_workspace_vector_storage(&workspace_id_meta).await;
+        // WHY-OODA223: STRICT mode - fail loudly if workspace storage unavailable
+        // to prevent embeddings from being stored in the wrong (global) table
+        let workspace_vector_storage =
+            self.get_workspace_vector_storage_strict(&workspace_id_meta)
+                .await
+                .map_err(|e| {
+                    let error_msg = format!(
+                        "CRITICAL: Cannot obtain workspace vector storage for '{}': {}. \
+                         Document ingestion aborted to prevent data isolation violation.",
+                        workspace_id_meta, e
+                    );
+                    error!("{}", error_msg);
+                    edgequake_tasks::TaskError::Process(error_msg)
+                })?;
 
         // Store chunk embeddings in vector storage for semantic search
         let mut chunk_embeddings_stored = 0;

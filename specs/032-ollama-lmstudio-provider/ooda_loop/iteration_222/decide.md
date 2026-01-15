@@ -6,6 +6,7 @@
 ## Decision Summary
 
 The dimension mismatch error is **RESOLVED** due to:
+
 1. Backend now running on PostgreSQL storage mode
 2. PostgreSQL uses workspace-specific vector tables with proper dimension handling
 3. Each workspace maintains its embedding dimension configuration
@@ -23,12 +24,14 @@ The dimension mismatch error is **RESOLVED** due to:
 ### Test Results
 
 **TestTenanX / Default Workspace (768-dim)**
+
 - Query: "What are the main topics?"
 - Result: ✅ SUCCESS
 - Context received: 10 entities, 4 relationships
 - Response about Fast-ThinkAct, NVIDIA, diffusion policy, etc.
 
 **Default Tenant / OpenAI-Test-E2E (1536-dim)**
+
 - Query: "What are the main topics?"
 - Result: ✅ SUCCESS
 - Context received: 2 entities, 1 relationship

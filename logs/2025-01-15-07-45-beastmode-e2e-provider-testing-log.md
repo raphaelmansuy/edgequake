@@ -42,9 +42,9 @@
 
 ## Key Evidence
 
-| Document | LLM Model | Provider | Evidence |
-|----------|-----------|----------|----------|
-| test-edgequake-doc.txt | gemma3:12b | Ollama | Before switch |
-| openai-provider-test.txt | gpt-4o-mini | OpenAI | **After switch** |
+| Document                 | LLM Model   | Provider | Evidence         |
+| ------------------------ | ----------- | -------- | ---------------- |
+| test-edgequake-doc.txt   | gemma3:12b  | Ollama   | Before switch    |
+| openai-provider-test.txt | gpt-4o-mini | OpenAI   | **After switch** |
 
 **Conclusion**: Provider switching is working correctly for document ingestion.

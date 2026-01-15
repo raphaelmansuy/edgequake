@@ -158,11 +158,11 @@ let (ws_embedding_provider, ws_vector_storage) = if let Some(ref ws_id_str) = wo
 
 ### Results
 
-| Document | Upload Time | LLM Model | Provider | Entities |
-|----------|-------------|-----------|----------|----------|
-| test-edgequake-doc.txt | Before switch | gemma3:12b | Ollama | 10 |
-| fastthink_2601.09708v1.md | Before switch | gemma3:12b | Ollama | 13 |
-| **openai-provider-test.txt** | **After switch** | **gpt-4o-mini** | **OpenAI** | **6** |
+| Document                     | Upload Time      | LLM Model       | Provider   | Entities |
+| ---------------------------- | ---------------- | --------------- | ---------- | -------- |
+| test-edgequake-doc.txt       | Before switch    | gemma3:12b      | Ollama     | 10       |
+| fastthink_2601.09708v1.md    | Before switch    | gemma3:12b      | Ollama     | 13       |
+| **openai-provider-test.txt** | **After switch** | **gpt-4o-mini** | **OpenAI** | **6**    |
 
 ### API Evidence
 
@@ -194,6 +194,7 @@ No code changes in this iteration - verification and E2E testing only.
 ## Next Iteration
 
 Continue to [Iteration 222](../iteration_222/) for:
+
 1. Test Query endpoint uses workspace embedding provider
 2. Run automated Playwright tests
 3. Verify rebuild knowledge graph uses correct provider

@@ -6,11 +6,13 @@
 ## User Report
 
 User reported error when querying:
+
 ```
 Storage error: Invalid query: Query dimension 768 doesn't match expected 1536
 ```
 
 Screenshots showed:
+
 - Query page with "Mistral Nemo 12B" or "GPT-4o Mini" model selector
 - Error message about dimension mismatch
 - Workspace page showing:
@@ -20,6 +22,7 @@ Screenshots showed:
 ## Environment Analysis
 
 ### Backend Status
+
 - Health check: All components healthy
 - Storage mode: **PostgreSQL** (not memory)
 - LLM provider: Ollama
@@ -27,6 +30,7 @@ Screenshots showed:
 ### Database Investigation
 
 Vector tables found in PostgreSQL:
+
 ```
 eq_eq_default_vectors                    - 44 vectors @ 1536 dims (tenant default)
 eq_eq_default_ws_0dfaab9f_vectors        - 1 vector @ 768 dims ✅
@@ -41,6 +45,7 @@ eq_eq_default_ws_b86bb135_vectors        - 4 vectors @ 1536 dims ⚠️
 ### Workspace Mapping
 
 Workspaces with 1536-dim vectors:
+
 1. `80447ebb-...` - "Test Workspace 1768355838099" (AirLiquide tenant)
 2. `b86bb135-...` - "OpenAI-Test-E2E" (Default tenant)
 
@@ -51,6 +56,7 @@ All 17 tenants configured for 768-dim default embedding dimension.
 ## Error Source Location
 
 Error originates from **Memory vector storage adapter**:
+
 ```rust
 // edgequake-storage/src/adapters/memory/vector.rs:88-92
 if query_embedding.len() != self.dimension {
