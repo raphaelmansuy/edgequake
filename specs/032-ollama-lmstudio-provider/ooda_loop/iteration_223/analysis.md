@@ -8,14 +8,14 @@ User reports that querying "What is CRAG?" returns a response with "0 Sources ·
 
 ## Investigation Timeline
 
-| Phase | Action | Finding |
-|-------|--------|---------|
-| OBSERVE | Check PostgreSQL tables | `documents`, `chunks`, `entities` tables have 0 rows |
-| OBSERVE | Check vector tables | `eq_eq_default_vectors` has 44 rows with data |
-| OBSERVE | Check workspace tables | `eq_eq_default_ws_4e32a055_vectors` has 0 rows |
-| ORIENT | Trace data architecture | Data in global table, queries look in workspace-specific table |
-| ORIENT | Check creation timestamps | Global data: 2026-01-14, Workspace table: empty |
-| DECIDE | Root cause identified | Data migration issue - legacy data not migrated |
+| Phase   | Action                    | Finding                                                        |
+| ------- | ------------------------- | -------------------------------------------------------------- |
+| OBSERVE | Check PostgreSQL tables   | `documents`, `chunks`, `entities` tables have 0 rows           |
+| OBSERVE | Check vector tables       | `eq_eq_default_vectors` has 44 rows with data                  |
+| OBSERVE | Check workspace tables    | `eq_eq_default_ws_4e32a055_vectors` has 0 rows                 |
+| ORIENT  | Trace data architecture   | Data in global table, queries look in workspace-specific table |
+| ORIENT  | Check creation timestamps | Global data: 2026-01-14, Workspace table: empty                |
+| DECIDE  | Root cause identified     | Data migration issue - legacy data not migrated                |
 
 ## Root Cause
 
@@ -30,7 +30,7 @@ eq_eq_default_vectors (GLOBAL - 44 rows)
 ├── Dimension: vector(1536)
 └── Has workspace_id in metadata
 
-eq_eq_default_ws_4e32a055_vectors (WORKSPACE-SPECIFIC - 0 rows)  
+eq_eq_default_ws_4e32a055_vectors (WORKSPACE-SPECIFIC - 0 rows)
 ├── Created: 2026-01-15 (on first query)
 ├── Dimension: vector(1536)
 └── EMPTY - no data migrated
@@ -39,10 +39,12 @@ eq_eq_default_ws_4e32a055_vectors (WORKSPACE-SPECIFIC - 0 rows)
 ### Timeline Analysis
 
 1. **2026-01-14 16:18:49**: Documents ingested into OODA64-TestKG workspace
+
    - Data stored in `eq_eq_default_vectors` (global table)
    - 27 vectors with `workspace_id` = `4e32a055-9722-40f9-b03e-ade870b07604` in metadata
 
 2. **Later Implementation**: Per-workspace vector table feature implemented
+
    - Each workspace now gets dedicated `eq_{ns}_ws_{id}_vectors` table
    - Query handler updated to use workspace-specific tables
 
@@ -69,8 +71,8 @@ SELECT COUNT(*) FROM eq_eq_default_ws_4e32a055_vectors;
 -- Result: 0
 
 -- Data belongs to workspace
-SELECT metadata->>'workspace_id' as ws, COUNT(*) 
-FROM eq_eq_default_vectors 
+SELECT metadata->>'workspace_id' as ws, COUNT(*)
+FROM eq_eq_default_vectors
 WHERE metadata->>'tenant_id' = '2898d9de-a380-40bc-91b3-9ce0db8a5798'
 GROUP BY metadata->>'workspace_id';
 -- Result: 4e32a055-9722-40f9-b03e-ade870b07604 | 27
@@ -79,8 +81,8 @@ GROUP BY metadata->>'workspace_id';
 ### Query Handler Behavior
 
 ```
-2026-01-15T08:56:50.382392Z DEBUG query: Getting workspace-specific vector storage 
-  workspace_id=4e32a055-9722-40f9-b03e-ade870b07604 
+2026-01-15T08:56:50.382392Z DEBUG query: Getting workspace-specific vector storage
+  workspace_id=4e32a055-9722-40f9-b03e-ade870b07604
   dimension=1536
 
 2026-01-15T08:56:50.424038Z INFO: Created workspace-specific vector storage
@@ -102,11 +104,13 @@ WHERE metadata->>'workspace_id' = '4e32a055-9722-40f9-b03e-ade870b07604';
 ```
 
 **Pros**:
+
 - Clean separation of workspace data
 - Preserves multi-tenancy isolation
 - Query performance improvement (smaller table scans)
 
 **Cons**:
+
 - One-time migration effort
 - Need to handle dimension mismatches
 
@@ -120,7 +124,7 @@ let results = workspace_storage.search(query_embedding, limit).await?;
 if results.is_empty() {
     // Fallback: filter global table by workspace_id
     results = global_storage.search_with_filter(
-        query_embedding, 
+        query_embedding,
         limit,
         json!({"workspace_id": workspace_id})
     ).await?;
@@ -128,10 +132,12 @@ if results.is_empty() {
 ```
 
 **Pros**:
+
 - Works immediately without migration
 - Backward compatible
 
 **Cons**:
+
 - Performance penalty on global table
 - Violates data isolation principle
 - Temporary workaround
@@ -141,10 +147,12 @@ if results.is_empty() {
 User re-uploads documents to workspace after the per-workspace table feature is active.
 
 **Pros**:
+
 - Cleanest solution
 - Uses correct embedding provider/dimension
 
 **Cons**:
+
 - User action required
 - Loss of document processing history
 
@@ -167,7 +175,7 @@ WITH workspace_ids AS (
     FROM eq_eq_default_vectors
     WHERE metadata->>'workspace_id' IS NOT NULL
 )
-SELECT ws_id, 
+SELECT ws_id,
        'eq_eq_default_ws_' || substring(ws_id, 1, 8) || '_vectors' as target_table
 FROM workspace_ids;
 EOF
@@ -189,21 +197,24 @@ WHERE metadata->>'workspace_id' = '4e32a055-9722-40f9-b03e-ade870b07604';
 ### Verification Results
 
 Before migration:
+
 ```json
-{"chunks": 0, "entities": 0, "relationships": 0}
+{ "chunks": 0, "entities": 0, "relationships": 0 }
 ```
 
 After migration - Naive mode (EdgeQuake query):
+
 ```json
-[{"type": "chunk", "count": 3}]
+[{ "type": "chunk", "count": 3 }]
 ```
 
 After migration - Hybrid mode (Sarah Chen query):
+
 ```json
 [
-  {"type": "chunk", "count": 2},
-  {"type": "entity", "count": 24},
-  {"type": "relationship", "count": 19}
+  { "type": "chunk", "count": 2 },
+  { "type": "entity", "count": 24 },
+  { "type": "relationship", "count": 19 }
 ]
 ```
 
@@ -212,7 +223,7 @@ After migration - Hybrid mode (Sarah Chen query):
 **Issue**: RESOLVED via data migration  
 **Root Cause**: Legacy data stored in global table before per-workspace tables implemented  
 **Fix Applied**: Migrated 27 vectors to workspace-specific table  
-**Verification**: ✅ Queries now return chunks, entities, and relationships  
+**Verification**: ✅ Queries now return chunks, entities, and relationships
 
 ## Key Learnings
 

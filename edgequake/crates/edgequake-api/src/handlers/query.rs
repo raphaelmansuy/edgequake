@@ -581,16 +581,42 @@ pub async fn get_workspace_vector_storage(
     );
 
     // Get or create workspace vector storage
-    let storage = state
-        .vector_registry
-        .get_or_create(config)
-        .await
-        .map_err(|e| {
-            ApiError::Internal(format!(
-                "Failed to create vector storage for workspace {}: {}",
-                workspace_id, e
-            ))
-        })?;
+    // OODA-225: Auto-evict and retry on dimension mismatch
+    // WHY: When embedding provider changes (e.g., Ollama 768 → OpenAI 1536), the cached
+    // vector storage instance may hold the old dimension. If get_or_create fails due to
+    // dimension mismatch, we evict the cache and retry with the new dimension.
+    let storage = match state.vector_registry.get_or_create(config.clone()).await {
+        Ok(s) => s,
+        Err(e) => {
+            let error_msg = e.to_string();
+            if error_msg.contains("Dimension mismatch") || error_msg.contains("cached=") {
+                // Dimension mismatch detected - evict cache and retry
+                tracing::warn!(
+                    workspace_id = %workspace_id,
+                    error = %error_msg,
+                    "Dimension mismatch detected, evicting cache and retrying"
+                );
+                state.vector_registry.evict(&workspace_uuid).await;
+
+                // Retry after eviction
+                state
+                    .vector_registry
+                    .get_or_create(config)
+                    .await
+                    .map_err(|e2| {
+                        ApiError::Internal(format!(
+                            "Failed to create vector storage for workspace {} after cache eviction: {}",
+                            workspace_id, e2
+                        ))
+                    })?
+            } else {
+                return Err(ApiError::Internal(format!(
+                    "Failed to create vector storage for workspace {}: {}",
+                    workspace_id, e
+                )));
+            }
+        }
+    };
 
     Ok(Some(storage))
 }

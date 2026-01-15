@@ -143,6 +143,38 @@ impl PgVectorStorage {
             .filter_map(|s| s.trim().parse::<f32>().ok())
             .collect()
     }
+
+    /// Get the dimension of vectors actually stored in the database.
+    ///
+    /// This queries the first stored vector to detect its actual dimension,
+    /// which may differ from the configured dimension if the embedding provider
+    /// has been changed since vectors were stored.
+    ///
+    /// @implements BR0320: Dimension consistency validation
+    ///
+    /// Returns `None` if the table is empty or doesn't exist.
+    pub async fn get_stored_dimension(&self) -> Result<Option<usize>> {
+        let pool = match self.pool.get().await {
+            Ok(p) => p,
+            Err(_) => return Ok(None), // Pool not initialized yet
+        };
+
+        // Query the length of the first vector's embedding array
+        // pgvector stores vectors with a fixed dimension, so checking one is sufficient
+        let sql = format!(
+            "SELECT vector_dims(embedding) as dim FROM {} LIMIT 1",
+            self.table_name
+        );
+
+        let result: Option<(i32,)> = sqlx::query_as(&sql)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| {
+                StorageError::Database(format!("Failed to get stored dimension: {}", e))
+            })?;
+
+        Ok(result.map(|(dim,)| dim as usize))
+    }
 }
 
 #[async_trait]

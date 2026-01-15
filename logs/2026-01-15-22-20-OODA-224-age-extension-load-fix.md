@@ -9,14 +9,15 @@
 When attempting to change the embedding or LLM model for a workspace and clicking "Rebuild Knowledge Graph" in the WebUI, the operation failed with the error:
 
 ```
-Failed to rebuild knowledge graph: Internal error: Failed to clear graph: 
-Database error: Failed to clear workspace: error returned from database: 
+Failed to rebuild knowledge graph: Internal error: Failed to clear graph:
+Database error: Failed to clear workspace: error returned from database:
 type "agtype" does not exist
 ```
 
 ## Root Cause Analysis
 
 Apache AGE (A Graph Extension) for PostgreSQL requires the `LOAD 'age'` command to be executed in each PostgreSQL session before using AGE-specific types and functions like:
+
 - `agtype` - AGE's custom type for graph data
 - `ag_catalog.cypher()` - Function to execute Cypher queries
 
@@ -47,11 +48,11 @@ async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<(usize, usi
 async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<(usize, usize)> {
     let pool = self.pool.get().await?;
     let mut conn = pool.acquire().await?;  // Dedicated connection
-    
+
     // OODA-224: CRITICAL - Must load AGE extension first
     sqlx::query("LOAD 'age'").execute(&mut *conn).await?;
     sqlx::query("SET search_path = ag_catalog, \"$user\", public").execute(&mut *conn).await?;
-    
+
     // ... rest of function now uses &mut *conn instead of &pool
 }
 ```
@@ -99,6 +100,7 @@ async fn test_postgres_rebuild_kg_loads_age_extension() {
 ## Files Changed
 
 1. **`edgequake/crates/edgequake-storage/src/adapters/postgres/graph.rs`**
+
    - Added `LOAD 'age'` and `SET search_path` to `clear_workspace` function
    - Changed from pool.execute to conn.execute for session persistence
 
@@ -109,16 +111,16 @@ async fn test_postgres_rebuild_kg_loads_age_extension() {
 
 Checked all other functions using AGE in the codebase - they already have proper session initialization:
 
-| Function | Line | Status |
-|----------|------|--------|
-| `cypher_query` | 133 | ✅ Has LOAD 'age' |
-| `cypher_execute` | 197 | ✅ Has LOAD 'age' |
-| `cypher_query_count` | 234 | ✅ Has LOAD 'age' |
-| `create_graph` | 394 | ✅ Has LOAD 'age' |
-| `ensure_indexes` | 452 | ✅ Has LOAD 'age' |
-| `batch_sql_query` | 609 | ✅ Has LOAD 'age' |
-| `get_popular_labels` | 1337 | ✅ Has LOAD 'age' |
-| `clear_workspace` | 1545 | 🔧 FIXED in this PR |
+| Function             | Line | Status              |
+| -------------------- | ---- | ------------------- |
+| `cypher_query`       | 133  | ✅ Has LOAD 'age'   |
+| `cypher_execute`     | 197  | ✅ Has LOAD 'age'   |
+| `cypher_query_count` | 234  | ✅ Has LOAD 'age'   |
+| `create_graph`       | 394  | ✅ Has LOAD 'age'   |
+| `ensure_indexes`     | 452  | ✅ Has LOAD 'age'   |
+| `batch_sql_query`    | 609  | ✅ Has LOAD 'age'   |
+| `get_popular_labels` | 1337 | ✅ Has LOAD 'age'   |
+| `clear_workspace`    | 1545 | 🔧 FIXED in this PR |
 
 ## Lessons Learned
 

@@ -662,9 +662,20 @@ impl AppState {
         tracing::info!("PostgreSQL storage backends initialized successfully");
 
         // Validate dimension compatibility for existing storage
+        //
+        // WHY: The configured dimension (embedding_dim) is set from the current
+        // embedding provider. But stored vectors may have been created with a
+        // DIFFERENT provider that had a different dimension. We need to query
+        // the actual stored dimension from the database to detect mismatches.
+        //
+        // @implements OODA-225: Fix vector dimension mismatch after provider switch
         use edgequake_storage::traits::VectorStorage;
         if !vector_storage.is_empty().await? {
-            let storage_dim = vector_storage.dimension();
+            // Query actual stored dimension from database, not the configured dimension
+            let storage_dim = vector_storage
+                .get_stored_dimension()
+                .await?
+                .unwrap_or(embedding_dim); // Default to configured if detection fails
             let provider_dim = embedding_provider.dimension();
 
             if storage_dim != provider_dim {

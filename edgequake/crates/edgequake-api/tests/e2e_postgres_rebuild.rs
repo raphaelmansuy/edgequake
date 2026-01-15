@@ -694,4 +694,178 @@ mod postgres_rebuild_tests {
 
         clean_provider_env();
     }
+
+    // ========================================================================
+    // OODA-225: Dimension Change Cache Eviction Test
+    // ========================================================================
+
+    /// Test that rebuild-embeddings evicts vector cache when dimension changes.
+    ///
+    /// @implements OODA-225: Vector dimension mismatch after provider switch
+    ///
+    /// ## Scenario
+    ///
+    /// 1. Create workspace with Ollama (768 dimensions)
+    /// 2. Switch to OpenAI (1536 dimensions) via rebuild-embeddings
+    /// 3. Vector storage cache should be evicted so next query uses correct dimension
+    ///
+    /// ## Before fix
+    ///
+    /// After dimension change, queries fail with:
+    /// "different vector dimensions 1536 and 768"
+    /// because the cached vector storage still had 768-dim configuration.
+    ///
+    /// ## After fix
+    ///
+    /// The cache is evicted during rebuild, so the next access creates
+    /// a new vector storage instance with the correct dimension.
+    #[tokio::test]
+    #[serial]
+    async fn test_postgres_rebuild_embeddings_evicts_cache_on_dimension_change() {
+        if !is_postgres_available() {
+            eprintln!("Skipping PostgreSQL test - DATABASE_URL not set");
+            return;
+        }
+
+        clean_provider_env();
+
+        let database_url = get_database_url().unwrap();
+
+        // Create state with PostgreSQL
+        let state = match AppState::new_postgres(database_url, "").await {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("Skipping PostgreSQL test - connection failed: {}", e);
+                return;
+            }
+        };
+
+        // Create unique tenant for this test
+        let tenant_slug = format!("test-ooda225-{}", &Uuid::new_v4().to_string()[..8]);
+        let tenant = Tenant::new("OODA-225 Dimension Change Test", &tenant_slug);
+        let created_tenant = state
+            .workspace_service
+            .create_tenant(tenant)
+            .await
+            .expect("Should create tenant in PostgreSQL");
+
+        // Create workspace with initial 768 dimensions (Ollama-style)
+        let workspace_slug = format!("ws-ooda225-{}", &Uuid::new_v4().to_string()[..8]);
+        let create_request = CreateWorkspaceRequest {
+            name: "OODA-225 Dimension Test".to_string(),
+            slug: Some(workspace_slug),
+            description: Some("Test for dimension change cache eviction".to_string()),
+            max_documents: None,
+            llm_model: Some("mock-llm".to_string()),
+            llm_provider: Some("mock".to_string()),
+            embedding_model: Some("mock-embed-768".to_string()),
+            embedding_provider: Some("mock".to_string()),
+            embedding_dimension: Some(768),
+        };
+
+        let workspace = state
+            .workspace_service
+            .create_workspace(created_tenant.tenant_id, create_request)
+            .await
+            .expect("Should create workspace in PostgreSQL");
+
+        // Verify initial dimension is 768
+        let initial = state
+            .workspace_service
+            .get_workspace(workspace.workspace_id)
+            .await
+            .expect("Should fetch workspace")
+            .expect("Workspace should exist");
+        assert_eq!(initial.embedding_dimension, 768);
+
+        // Pre-warm the vector registry cache by accessing it
+        // (This simulates the cache being populated before provider switch)
+        use edgequake_storage::traits::WorkspaceVectorConfig;
+        let config_768 = WorkspaceVectorConfig {
+            workspace_id: workspace.workspace_id,
+            dimension: 768,
+            namespace: "default".to_string(),
+        };
+        let _ = state.vector_registry.get_or_create(config_768).await;
+
+        // Build app and call rebuild-embeddings with NEW dimension (1536)
+        let app = Server::new(create_test_config(), state.clone()).build_router();
+
+        let rebuild_request = json!({
+            "embedding_model": "mock-embed-1536",
+            "embedding_provider": "mock",
+            "embedding_dimension": 1536,
+            "force": true
+        });
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!(
+                        "/api/v1/workspaces/{}/rebuild-embeddings",
+                        workspace.workspace_id
+                    ))
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_string(&rebuild_request).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "Rebuild embeddings should succeed with dimension change"
+        );
+
+        let json = extract_json(response).await;
+        assert_eq!(json["embedding_dimension"], 1536);
+
+        // Verify config updated in database
+        let updated = state
+            .workspace_service
+            .get_workspace(workspace.workspace_id)
+            .await
+            .expect("Should fetch updated workspace")
+            .expect("Workspace should exist");
+        assert_eq!(updated.embedding_dimension, 1536);
+
+        // OODA-225 CRITICAL TEST: Try to get vector storage with new dimension
+        // Before fix: This would fail with "Dimension mismatch: cached=768, requested=1536"
+        // After fix: Cache is evicted, so this should succeed with 1536
+        let config_1536 = WorkspaceVectorConfig {
+            workspace_id: workspace.workspace_id,
+            dimension: 1536,
+            namespace: "default".to_string(),
+        };
+
+        let result = state.vector_registry.get_or_create(config_1536).await;
+
+        assert!(
+            result.is_ok(),
+            "Should be able to get vector storage with new dimension after rebuild. \
+             Cache should have been evicted. Error: {:?}",
+            result.err()
+        );
+
+        let storage = result.unwrap();
+        assert_eq!(
+            storage.dimension(),
+            1536,
+            "Vector storage should have new dimension 1536, not old 768"
+        );
+
+        // Clean up
+        let _ = state
+            .workspace_service
+            .delete_workspace(workspace.workspace_id)
+            .await;
+        let _ = state
+            .workspace_service
+            .delete_tenant(created_tenant.tenant_id)
+            .await;
+
+        clean_provider_env();
+    }
 }

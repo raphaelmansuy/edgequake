@@ -361,11 +361,9 @@ impl DocumentTaskProcessor {
                 "CRITICAL INGESTION ERROR: Cannot use 'default' workspace for document ingestion. \
                  Data must be stored in workspace-specific tables."
             );
-            return Err(
-                "Cannot ingest documents without a valid workspace ID. \
+            return Err("Cannot ingest documents without a valid workspace ID. \
                  Please ensure workspace context is properly set."
-                    .to_string(),
-            );
+                .to_string());
         }
 
         // Parse workspace UUID
@@ -415,8 +413,7 @@ impl DocumentTaskProcessor {
                     "CRITICAL INGESTION ERROR: No workspace service available"
                 );
                 return Err(
-                    "Workspace service not configured. Cannot verify workspace exists."
-                        .to_string(),
+                    "Workspace service not configured. Cannot verify workspace exists.".to_string(),
                 );
             }
         };
@@ -679,18 +676,18 @@ impl DocumentTaskProcessor {
         // WHY: Different workspaces may have different embedding dimensions
         // WHY-OODA223: STRICT mode - fail loudly if workspace storage unavailable
         // to prevent embeddings from being stored in the wrong (global) table
-        let workspace_vector_storage =
-            self.get_workspace_vector_storage_strict(&workspace_id_meta)
-                .await
-                .map_err(|e| {
-                    let error_msg = format!(
-                        "CRITICAL: Cannot obtain workspace vector storage for '{}': {}. \
+        let workspace_vector_storage = self
+            .get_workspace_vector_storage_strict(&workspace_id_meta)
+            .await
+            .map_err(|e| {
+                let error_msg = format!(
+                    "CRITICAL: Cannot obtain workspace vector storage for '{}': {}. \
                          Document ingestion aborted to prevent data isolation violation.",
-                        workspace_id_meta, e
-                    );
-                    error!("{}", error_msg);
-                    edgequake_tasks::TaskError::Process(error_msg)
-                })?;
+                    workspace_id_meta, e
+                );
+                error!("{}", error_msg);
+                edgequake_tasks::TaskError::Process(error_msg)
+            })?;
 
         // Store chunk embeddings in vector storage for semantic search
         let mut chunk_embeddings_stored = 0;

@@ -37,12 +37,12 @@
 
 ## Files Modified
 
-| File | Changes |
-|------|---------|
-| `handlers/documents.rs` | +130 lines: strict function with storage mode detection |
-| `processor.rs` | +100 lines: strict_workspace_mode field, new constructor |
-| `main.rs` | +15 lines: storage-mode-based processor selection |
-| `docs/OODA-223-workspace-isolation-safety.md` | New: comprehensive documentation |
+| File                                          | Changes                                                  |
+| --------------------------------------------- | -------------------------------------------------------- |
+| `handlers/documents.rs`                       | +130 lines: strict function with storage mode detection  |
+| `processor.rs`                                | +100 lines: strict_workspace_mode field, new constructor |
+| `main.rs`                                     | +15 lines: storage-mode-based processor selection        |
+| `docs/OODA-223-workspace-isolation-safety.md` | New: comprehensive documentation                         |
 
 ## Test Results
 

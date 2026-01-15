@@ -928,6 +928,22 @@ pub async fn rebuild_embeddings(
         "Vector storage cleared"
     );
 
+    // OODA-225: Evict cached workspace vector storage when dimension changes
+    // WHY: The WorkspaceVectorRegistry caches vector storage instances keyed by workspace_id.
+    // When embedding dimension changes (e.g., 768 → 1536), the cached instance still references
+    // the old dimension. Without eviction, queries will fail with "different vector dimensions"
+    // because the query embedding (new dimension) doesn't match stored vectors (old dimension).
+    // Evicting forces recreation with the new dimension on next access.
+    if config_changed {
+        state.vector_registry.evict(&workspace_id).await;
+        info!(
+            workspace_id = %workspace_id,
+            old_dimension = workspace.embedding_dimension,
+            new_dimension = new_dimension,
+            "Evicted workspace vector storage cache for dimension change"
+        );
+    }
+
     // 6. Update workspace embedding config if changed (SPEC-032)
     if config_changed {
         use edgequake_core::UpdateWorkspaceRequest;
@@ -1258,10 +1274,16 @@ pub async fn rebuild_knowledge_graph(
             .await
             .map_err(|e| ApiError::Internal(format!("Failed to clear vectors: {}", e)))?;
 
+        // OODA-225: Evict cached workspace vector storage when clearing vectors
+        // WHY: If rebuild_embeddings is requested, the embedding model/dimension may change.
+        // The cached vector storage instance holds the old dimension configuration.
+        // Evicting forces recreation with correct dimension on next access.
+        state.vector_registry.evict(&workspace_id).await;
+
         info!(
             workspace_id = %workspace_id,
             vectors_cleared = count,
-            "Vector storage cleared"
+            "Vector storage cleared and cache evicted"
         );
         count
     } else {
