@@ -154,7 +154,9 @@ impl Default for SOTAQueryConfig {
             truncation: TruncationConfig::default(),
             keyword_cache_ttl_secs: 24 * 60 * 60, // 24 hours
             enable_rerank: true,                  // Enable by default for SOTA quality
-            min_rerank_score: 0.3,
+            // WHY 0.1: BM25 scores can be low for short documents or simple queries.
+            // 0.3 was too aggressive and filtered out valid chunks. 0.1 matches min_score.
+            min_rerank_score: 0.1,
             rerank_top_k: 10,
         }
     }
@@ -1355,8 +1357,12 @@ impl SOTAQueryEngine {
                 provider = self.llm_provider.name(),
                 "Provider doesn't support streaming, falling back to non-streaming mode"
             );
-            
-            let response = self.llm_provider.complete(&prompt).await.map_err(QueryError::from)?;
+
+            let response = self
+                .llm_provider
+                .complete(&prompt)
+                .await
+                .map_err(QueryError::from)?;
             Ok(futures::stream::once(async move { Ok(response.content) }).boxed())
         }
     }
@@ -1427,8 +1433,12 @@ impl SOTAQueryEngine {
                 provider = self.llm_provider.name(),
                 "Provider doesn't support streaming, falling back to non-streaming mode"
             );
-            
-            let response = self.llm_provider.complete(&prompt).await.map_err(QueryError::from)?;
+
+            let response = self
+                .llm_provider
+                .complete(&prompt)
+                .await
+                .map_err(QueryError::from)?;
             futures::stream::once(async move { Ok(response.content) }).boxed()
         };
 
@@ -1503,14 +1513,17 @@ impl SOTAQueryEngine {
                 provider = llm_provider.name(),
                 "Provider doesn't support streaming, falling back to non-streaming mode"
             );
-            
+
             // Clone prompt for the async block
             let prompt_clone = prompt.clone();
             let llm_clone = llm_provider.clone();
-            
+
             // Use non-streaming completion and wrap in a stream
-            let response = llm_clone.complete(&prompt_clone).await.map_err(QueryError::from)?;
-            
+            let response = llm_clone
+                .complete(&prompt_clone)
+                .await
+                .map_err(QueryError::from)?;
+
             // Return as a single-chunk stream
             futures::stream::once(async move { Ok(response.content) }).boxed()
         };
