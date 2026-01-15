@@ -53,7 +53,7 @@
 //! ```
 
 use axum::{extract::State, Json};
-use tracing::{debug, warn};
+use tracing::{debug, error, warn};
 
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
@@ -204,7 +204,20 @@ pub async fn execute_query(
                     .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
             }
             (Err(e), _) => {
-                // Error getting workspace config, fallback to default
+                // OODA-229: Return configuration errors to the user instead of silent fallback
+                // WHY: If workspace is configured for OpenAI but API key is missing, using
+                // the default provider would return wrong results (different embeddings).
+                // Better to fail fast with a clear error message.
+                if matches!(&e, ApiError::ConfigError(_)) {
+                    error!(
+                        workspace_id = %workspace_id,
+                        error = %e,
+                        "Workspace embedding configuration error - returning to user"
+                    );
+                    return Err(e);
+                }
+
+                // For other errors, fallback to default with warning
                 warn!(
                     workspace_id = %workspace_id,
                     error = %e,
@@ -505,16 +518,30 @@ pub async fn get_workspace_embedding_provider(
     );
 
     // Create workspace-specific embedding provider
+    // @implements OODA-229: Better error messages for missing API keys
     let provider = ProviderFactory::create_embedding_provider(
         &workspace.embedding_provider,
         &workspace.embedding_model,
         workspace.embedding_dimension,
     )
     .map_err(|e| {
-        ApiError::Internal(format!(
-            "Failed to create embedding provider for workspace {}: {}",
-            workspace_id, e
-        ))
+        let error_str = e.to_string();
+
+        // Detect API key configuration errors and provide actionable message
+        if error_str.contains("OPENAI_API_KEY") {
+            ApiError::ConfigError(format!(
+                "Workspace '{}' is configured to use OpenAI embeddings (model: {}), \
+                 but OPENAI_API_KEY is not set. Either:\n\
+                 1. Set OPENAI_API_KEY environment variable and restart the server, or\n\
+                 2. Update workspace settings to use a different provider (ollama, lmstudio)",
+                workspace.name, workspace.embedding_model
+            ))
+        } else {
+            ApiError::Internal(format!(
+                "Failed to create embedding provider for workspace {}: {}",
+                workspace_id, e
+            ))
+        }
     })?;
 
     // Log the provider creation for debugging

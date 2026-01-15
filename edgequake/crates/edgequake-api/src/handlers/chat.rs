@@ -494,26 +494,21 @@ pub async fn chat_completion(
                 (None, None)
             }
             (Err(e), _) => {
-                // OODA-228: Do NOT silently fall back to defaults when embedding provider fails!
-                // This causes dimension mismatch errors because:
+                // OODA-228/OODA-229: Return clear error for configuration issues
+                // WHY: Silent fallback to default causes dimension mismatch because:
                 // 1. Workspace was configured with provider X (e.g., OpenAI 3072 dims)
                 // 2. Documents were embedded with dimension X
                 // 3. Now provider X fails (e.g., missing OPENAI_API_KEY)
                 // 4. If we fall back to provider Y (e.g., Ollama 768 dims), query will fail
                 //    with "different vector dimensions" error from PostgreSQL
-                //
-                // Instead, return a clear error telling the user to fix their configuration.
                 error!(
                     workspace_id = %ws_id_str,
                     error = %e,
                     "Cannot create workspace embedding provider - configuration error"
                 );
-                return Err(ApiError::BadRequest(format!(
-                    "Cannot query workspace: {}. This workspace requires a specific embedding \
-                     provider that is not currently available. Check your API keys and provider \
-                     configuration. Original error: {}",
-                    ws_id_str, e
-                )));
+
+                // Return the error directly (it already has a good message from query.rs)
+                return Err(e);
             }
         }
     } else {
@@ -941,12 +936,9 @@ pub async fn chat_completion_stream(
                     None
                 }
                 Err(e) => {
-                    // OODA-228: Send error event instead of silently falling back
+                    // OODA-228/OODA-229: Send error event with clear message
                     error!(workspace_id = %ws_id_str, error = ?e, "Cannot create workspace embedding provider for streaming");
-                    let err_msg = format!(
-                        "Cannot stream query for workspace: {}. Embedding provider configuration error: {:?}",
-                        ws_id_str, e
-                    );
+                    let err_msg = e.to_string();
                     let _ = tx
                         .send(ChatStreamEvent::Error {
                             message: err_msg,
@@ -1001,8 +993,9 @@ pub async fn chat_completion_stream(
                     )
                     .await
             }
-            (Some(embed), None) => {
+            (Some(_embed), None) => {
                 // Have embedding provider but not vector storage - use embedding override only
+                // WHY: _embed is unused because query_stream_with_embedding_provider isn't implemented yet
                 debug!("Using embedding provider override for streaming (no vector storage)");
                 // For streaming, we need to use get_context with embedding and then stream
                 // Since we don't have query_stream_with_embedding_provider, use the LLM override approach

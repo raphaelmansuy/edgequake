@@ -127,6 +127,11 @@ pub enum ApiError {
     #[error("Internal error: {0}")]
     Internal(String),
 
+    /// Configuration error (e.g., missing API keys for workspace provider).
+    /// @implements OODA-229: Better error messages for missing API keys
+    #[error("Configuration error: {0}")]
+    ConfigError(String),
+
     /// Storage error.
     #[error("Storage error: {0}")]
     Storage(#[from] edgequake_storage::error::StorageError),
@@ -157,6 +162,7 @@ impl ApiError {
             Self::RateLimited => StatusCode::TOO_MANY_REQUESTS,
             Self::NotImplemented { .. } => StatusCode::NOT_IMPLEMENTED,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::ConfigError(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::Storage(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Llm(_) => StatusCode::BAD_GATEWAY,
             Self::Pipeline(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -176,6 +182,7 @@ impl ApiError {
             Self::RateLimited => "RATE_LIMITED",
             Self::NotImplemented { .. } => "NOT_IMPLEMENTED",
             Self::Internal(_) => "INTERNAL_ERROR",
+            Self::ConfigError(_) => "CONFIG_ERROR",
             Self::Storage(_) => "STORAGE_ERROR",
             Self::Llm(_) => "LLM_ERROR",
             Self::Pipeline(_) => "PIPELINE_ERROR",
