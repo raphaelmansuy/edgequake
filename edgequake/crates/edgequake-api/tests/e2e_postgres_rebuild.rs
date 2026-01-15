@@ -563,4 +563,135 @@ mod postgres_rebuild_tests {
 
         clean_provider_env();
     }
+
+    // ========================================================================
+    // OODA 224: AGE Extension Load Fix Test
+    // ========================================================================
+
+    /// Test that rebuild-knowledge-graph correctly loads AGE extension before clearing.
+    ///
+    /// This test verifies the fix for the "type 'agtype' does not exist" error
+    /// that occurred when rebuilding knowledge graph. The issue was that
+    /// `clear_workspace` in PostgresAGEGraphStorage did not call `LOAD 'age'`
+    /// before using AGE functions.
+    ///
+    /// @implements OODA-224: AGE Extension Load Fix
+    #[tokio::test]
+    #[serial]
+    async fn test_postgres_rebuild_kg_loads_age_extension() {
+        if !is_postgres_available() {
+            eprintln!("Skipping PostgreSQL test - DATABASE_URL not set");
+            return;
+        }
+
+        clean_provider_env();
+
+        let database_url = get_database_url().unwrap();
+
+        // Create state with PostgreSQL - this uses real AGE graph storage
+        let state = match AppState::new_postgres(database_url, "").await {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("Skipping PostgreSQL test - connection failed: {}", e);
+                return;
+            }
+        };
+
+        // Create unique tenant for this test
+        let tenant_slug = format!("test-ooda224-{}", &Uuid::new_v4().to_string()[..8]);
+        let tenant = Tenant::new("OODA-224 AGE Test", &tenant_slug);
+        let created_tenant = state
+            .workspace_service
+            .create_tenant(tenant)
+            .await
+            .expect("Should create tenant in PostgreSQL");
+
+        // Create workspace
+        let workspace_slug = format!("ws-ooda224-{}", &Uuid::new_v4().to_string()[..8]);
+        let create_request = CreateWorkspaceRequest {
+            name: "OODA-224 AGE Test".to_string(),
+            slug: Some(workspace_slug),
+            description: Some("Test for AGE extension loading fix".to_string()),
+            max_documents: None,
+            llm_model: Some("mock-llm".to_string()),
+            llm_provider: Some("mock".to_string()),
+            embedding_model: Some("mock-embed".to_string()),
+            embedding_provider: Some("mock".to_string()),
+            embedding_dimension: Some(768),
+        };
+
+        let workspace = state
+            .workspace_service
+            .create_workspace(created_tenant.tenant_id, create_request)
+            .await
+            .expect("Should create workspace in PostgreSQL");
+
+        // Build app and call rebuild-knowledge-graph
+        // This should NOT fail with "type 'agtype' does not exist" error
+        let app = Server::new(create_test_config(), state.clone()).build_router();
+
+        let rebuild_request = json!({
+            "llm_model": "mock-llm-v2",
+            "llm_provider": "mock",
+            "rebuild_embeddings": false,
+            "force": true
+        });
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!(
+                        "/api/v1/workspaces/{}/rebuild-knowledge-graph",
+                        workspace.workspace_id
+                    ))
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_string(&rebuild_request).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // OODA-224 FIX: This should succeed (status 200), not fail with 500
+        // Before the fix: "Failed to clear graph: Database error: Failed to clear workspace:
+        //                  error returned from database: type 'agtype' does not exist"
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "Rebuild should succeed - AGE extension must be loaded before using agtype"
+        );
+
+        let json = extract_json(response).await;
+
+        // Verify response structure
+        assert!(
+            json.get("nodes_cleared").is_some(),
+            "Response should include nodes_cleared"
+        );
+        assert!(
+            json.get("edges_cleared").is_some(),
+            "Response should include edges_cleared"
+        );
+
+        // Status can be "graph_cleared" (if workspace had data) or "no_change" (empty workspace)
+        // The critical test is that it returns 200, not 500 with "agtype does not exist"
+        let status = json["status"].as_str().unwrap_or("");
+        assert!(
+            status == "graph_cleared" || status == "no_change",
+            "Status should be graph_cleared or no_change, got: {}",
+            status
+        );
+
+        // Clean up
+        let _ = state
+            .workspace_service
+            .delete_workspace(workspace.workspace_id)
+            .await;
+        let _ = state
+            .workspace_service
+            .delete_tenant(created_tenant.tenant_id)
+            .await;
+
+        clean_provider_env();
+    }
 }
