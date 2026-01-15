@@ -19,6 +19,7 @@ The fix ensures that **both** the chat endpoint and streaming endpoints respect 
 #### 1. Made Helper Functions Public (query.rs)
 
 **Functions made public**:
+
 - `get_workspace_embedding_provider()` - Retrieves workspace-specific embedding provider
 - `get_workspace_vector_storage()` - Retrieves workspace-specific vector storage with proper dimensions
 
@@ -27,6 +28,7 @@ The fix ensures that **both** the chat endpoint and streaming endpoints respect 
 #### 2. Added `query_with_full_config()` Method (sota_engine.rs)
 
 **New method signature**:
+
 ```rust
 pub async fn query_with_full_config(
     &self,
@@ -38,6 +40,7 @@ pub async fn query_with_full_config(
 ```
 
 **What it does**:
+
 - Computes query embeddings using **workspace-specific embedding provider** (not default)
 - Retrieves context from **workspace-specific vector storage** (not default)
 - Generates answer using **optional LLM override** (for user-selected model)
@@ -48,6 +51,7 @@ pub async fn query_with_full_config(
 #### 3. Added `query_stream_with_full_config()` Method (sota_engine.rs)
 
 **New method signature**:
+
 ```rust
 pub async fn query_stream_with_full_config(
     &self,
@@ -59,19 +63,22 @@ pub async fn query_stream_with_full_config(
 ```
 
 **What it does**:
+
 - Streaming variant of `query_with_full_config`
 - Returns context first, then streams tokens from answer generation
 - Same workspace isolation as non-streaming variant
 
 #### 4. Updated `chat_completion` Handler (chat.rs)
 
-**Before**: 
+**Before**:
+
 ```rust
 // Only supports LLM override
 state.sota_engine.query_with_llm_provider(request, llm_override).await
 ```
 
 **After**:
+
 ```rust
 // Get workspace embedding + vector storage
 let ws_embedding = get_workspace_embedding_provider(&state, ws_id)?;
@@ -95,6 +102,7 @@ match (ws_embedding, ws_vector) {
 #### 5. Updated `chat_completion_stream` Handler (chat.rs)
 
 **Applied same logic as non-streaming handler** for streaming queries, ensuring:
+
 - Streaming uses workspace embedding dimensions
 - Streaming uses workspace vector storage
 - Streaming still respects LLM override for answer generation
@@ -104,6 +112,7 @@ match (ws_embedding, ws_vector) {
 ### Scenario: Ollama Workspace with 768-dim embedding
 
 **Setup**:
+
 ```bash
 # Workspace configuration
 embedding_provider: ollama
@@ -113,6 +122,7 @@ llm_model: gemma3:latest
 ```
 
 **Before Fix**:
+
 ```
 POST /api/v1/chat/completions
 Query: "Tell me about document"
@@ -121,8 +131,9 @@ ERROR: Vector query failed: different vector dimensions 1536 and 768
 ```
 
 **After Fix**:
+
 ```
-POST /api/v1/chat/completions  
+POST /api/v1/chat/completions
 Query: "Tell me about document"
 
 ✅ SUCCESS: Query embedding uses 768 dims (from workspace)
@@ -142,10 +153,12 @@ Query: "Tell me about document"
 ## Impact on Architecture
 
 ### Before (SPEC-032 v1)
+
 - Query endpoint: ✅ Respected workspace embedding/storage
 - Chat endpoint: ❌ Ignored workspace embedding/storage (dimension mismatch)
 
 ### After (SPEC-032 v2)
+
 - Query endpoint: ✅ Respected workspace embedding/storage (unchanged)
 - Chat endpoint: ✅ **Now respects workspace embedding/storage** (FIXED)
 - Streaming: ✅ **Now respects workspace embedding/storage** (NEW)
@@ -153,11 +166,13 @@ Query: "Tell me about document"
 ## Documentation Updates
 
 ### Implementation Details
+
 - `@implements SPEC-032`: Workspace-specific embedding in query process
 - `@implements SPEC-033`: Workspace vector isolation
 - `@implements OODA-228`: Fix dimension mismatch in chat handler
 
 ### Code References
+
 - [query_with_full_config](./edgequake/crates/edgequake-query/src/sota_engine.rs#L1046)
 - [query_stream_with_full_config](./edgequake/crates/edgequake-query/src/sota_engine.rs#L1237)
 - [Updated chat_completion](./edgequake/crates/edgequake-api/src/handlers/chat.rs#L450)
@@ -165,7 +180,8 @@ Query: "Tell me about document"
 
 ## Compatibility
 
-✅ **Backward Compatible**: 
+✅ **Backward Compatible**:
+
 - Query endpoint behavior unchanged
 - Chat endpoint now works correctly (previously broken)
 - No breaking changes to API contracts
@@ -174,6 +190,7 @@ Query: "Tell me about document"
 ## Performance Impact
 
 **Minimal** - Same number of operations, just applied in correct order:
+
 1. Get workspace config (cached in workspace service)
 2. Compute embedding with workspace provider (same as before, just different provider)
 3. Retrieve vectors with workspace storage (same as before, just different storage)
@@ -200,4 +217,3 @@ Query: "Tell me about document"
 - ✅ Full dimension isolation from input to storage to generation
 - ✅ Graceful fallback behavior for edge cases
 - ✅ Comprehensive debug/warn logging for troubleshooting
-

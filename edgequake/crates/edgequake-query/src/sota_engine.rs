@@ -1213,12 +1213,8 @@ impl SOTAQueryEngine {
             let gen_start = std::time::Instant::now();
             let result = if let Some(ref llm) = llm_provider {
                 // Use override LLM provider
-                self.generate_answer_with_provider(
-                    &request.query,
-                    &final_context,
-                    Some(llm),
-                )
-                .await?
+                self.generate_answer_with_provider(&request.query, &final_context, Some(llm))
+                    .await?
             } else {
                 // Use default LLM provider
                 self.generate_answer(&request.query, &final_context).await?
@@ -1392,7 +1388,9 @@ impl SOTAQueryEngine {
         let prompt = self.build_prompt(&request.query, &final_context);
 
         // Determine which LLM provider to use for streaming
-        let llm_to_use = llm_provider.clone().or_else(|| Some(self.llm_provider.clone()));
+        let llm_to_use = llm_provider
+            .clone()
+            .or_else(|| Some(self.llm_provider.clone()));
 
         let stream = if let Some(ref llm) = llm_to_use {
             // Check if provider supports streaming

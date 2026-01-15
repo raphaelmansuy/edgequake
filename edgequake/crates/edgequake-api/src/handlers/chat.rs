@@ -457,7 +457,7 @@ pub async fn chat_completion(
     let (ws_embedding_provider, ws_vector_storage) = if let Some(ref ws_id_str) = workspace_id_str {
         let embedding_result = get_workspace_embedding_provider(&state, ws_id_str).await;
         let vector_result = get_workspace_vector_storage(&state, ws_id_str).await;
-        
+
         match (embedding_result, vector_result) {
             (Ok(Some(embed)), Ok(Some(vector))) => {
                 debug!(
@@ -499,7 +499,12 @@ pub async fn chat_completion(
             // Full workspace isolation with optional LLM override
             state
                 .sota_engine
-                .query_with_full_config(engine_request, embed.clone(), vector.clone(), llm_override.clone())
+                .query_with_full_config(
+                    engine_request,
+                    embed.clone(),
+                    vector.clone(),
+                    llm_override.clone(),
+                )
                 .await
                 .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
         }
@@ -896,13 +901,12 @@ pub async fn chat_completion_stream(
         // Execute streaming query with context using SOTA engine (LightRAG-style)
         // OODA-228: Get workspace embedding provider and vector storage for proper isolation
         let workspace_id_str = workspace_id.as_ref().map(|id| id.to_string());
-        let (ws_embedding_provider, ws_vector_storage) = if let Some(ref ws_id_str) = workspace_id_str {
+        let (ws_embedding_provider, ws_vector_storage) = if let Some(ref ws_id_str) =
+            workspace_id_str
+        {
             // Get workspace embedding provider
-            let embed_provider = match get_workspace_embedding_provider(
-                &state_clone,
-                ws_id_str,
-            )
-            .await
+            let embed_provider = match get_workspace_embedding_provider(&state_clone, ws_id_str)
+                .await
             {
                 Ok(Some(p)) => Some(p),
                 Ok(None) => {
@@ -916,12 +920,7 @@ pub async fn chat_completion_stream(
             };
 
             // Get workspace vector storage
-            let vector_storage = match get_workspace_vector_storage(
-                &state_clone,
-                ws_id_str,
-            )
-            .await
-            {
+            let vector_storage = match get_workspace_vector_storage(&state_clone, ws_id_str).await {
                 Ok(Some(s)) => Some(s),
                 Ok(None) => {
                     debug!(workspace_id = %ws_id_str, "Workspace using default vector storage for streaming");
@@ -979,7 +978,9 @@ pub async fn chat_completion_stream(
                         .query_stream_with_context_and_llm(engine_request, llm.clone())
                         .await
                 } else {
-                    debug!("Using default configuration for streaming (no workspace or LLM override)");
+                    debug!(
+                        "Using default configuration for streaming (no workspace or LLM override)"
+                    );
                     state_clone
                         .sota_engine
                         .query_stream_with_context(engine_request)
