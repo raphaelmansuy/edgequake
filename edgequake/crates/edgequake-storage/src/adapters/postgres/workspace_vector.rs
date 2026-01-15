@@ -64,6 +64,12 @@ impl PgWorkspaceVectorRegistry {
     }
 
     /// Create workspace-specific vector storage.
+    ///
+    /// @implements OODA-228: Handle dimension changes during provider switch
+    ///
+    /// When a workspace's embedding provider is changed, the stored vectors may have
+    /// a different dimension than the new provider expects. This method ensures the
+    /// vector table is recreated with the correct dimension if necessary.
     async fn create_workspace_storage(
         &self,
         config: &WorkspaceVectorConfig,
@@ -86,6 +92,24 @@ impl PgWorkspaceVectorRegistry {
 
         // Create storage with workspace-specific dimension
         let storage = PgVectorStorage::with_dimension(pg_config, config.dimension);
+
+        // OODA-228: Ensure table has correct dimension BEFORE initialize
+        // WHY: If embedding provider changed (e.g., OpenAI 1536 → Ollama 768),
+        // the existing table has the wrong dimension. We must recreate it.
+        // This must happen before initialize() which calls CREATE TABLE IF NOT EXISTS.
+        //
+        // The ensure_dimension() method:
+        // 1. Checks stored dimension vs requested dimension
+        // 2. If mismatch: DROP TABLE and recreate with new dimension
+        // 3. If match or empty: no-op
+        let recreated = storage.ensure_dimension(config.dimension).await?;
+        if recreated {
+            tracing::info!(
+                workspace_id = %config.workspace_id,
+                dimension = config.dimension,
+                "Vector table recreated due to dimension change (OODA-228)"
+            );
+        }
 
         // Initialize the storage (creates table if not exists)
         storage.initialize().await?;
