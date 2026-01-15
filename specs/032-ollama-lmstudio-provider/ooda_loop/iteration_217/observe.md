@@ -52,7 +52,7 @@ match (embedding_result, vector_result) {
     (Ok(Some(embedding_provider)), Ok(Some(vector_storage))) => {
         // Full workspace isolation
         state.sota_engine.query_with_workspace_config(
-            engine_request, 
+            engine_request,
             embedding_provider,    // ← Workspace-specific provider
             vector_storage         // ← Workspace-specific storage
         ).await
@@ -60,7 +60,7 @@ match (embedding_result, vector_result) {
     (Ok(Some(embedding_provider)), _) => {
         // Workspace-specific embedding only
         state.sota_engine.query_with_embedding_provider(
-            engine_request, 
+            engine_request,
             embedding_provider     // ← Workspace-specific provider
         ).await
     }
@@ -70,11 +70,11 @@ match (embedding_result, vector_result) {
 
 The query flow has THREE provider selection paths:
 
-| Path | Condition | Provider Used |
-|------|-----------|---------------|
+| Path                            | Condition                             | Provider Used                                                    |
+| ------------------------------- | ------------------------------------- | ---------------------------------------------------------------- |
 | **1. Full workspace isolation** | Both embedding + vector storage exist | Workspace-specific embedding + workspace-specific vector storage |
-| **2. Embedding-only isolation** | Embedding exists, no vector storage | Workspace-specific embedding + default vector storage |
-| **3. Default provider** | No workspace config | Global embedding provider from `state.embedding_provider` |
+| **2. Embedding-only isolation** | Embedding exists, no vector storage   | Workspace-specific embedding + default vector storage            |
+| **3. Default provider**         | No workspace config                   | Global embedding provider from `state.embedding_provider`        |
 
 ### Verification Needed
 
@@ -87,6 +87,7 @@ We need to verify:
 ### Next Steps
 
 1. Create E2E test that:
+
    - Creates workspace with specific embedding config
    - Executes query via HTTP with X-Workspace-Id header
    - Verifies workspace provider was used (via logs or response metadata)

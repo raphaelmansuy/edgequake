@@ -22,20 +22,24 @@ Created 8 tests for `create_workspace_pipeline()` function in AppState, verifyin
 ## Key Verification Points
 
 ### Workspace-Specific Pipeline Creation
+
 - Workspace config is read from storage
 - ProviderFactory creates providers from workspace config
 - New Pipeline instance is created (not global)
 
 ### Fallback Behavior
+
 - Invalid UUID → Global pipeline
-- Non-existent workspace → Global pipeline  
+- Non-existent workspace → Global pipeline
 - Provider creation failure → Global pipeline
 
 ### Provider Switch Impact
+
 - After update_workspace(), new pipeline is created
 - New pipeline uses updated config (not cached)
 
 ### Isolation
+
 - Different workspaces get different pipeline instances
 - Providers are not shared between workspaces
 

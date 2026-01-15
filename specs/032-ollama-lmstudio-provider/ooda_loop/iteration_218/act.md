@@ -13,33 +13,40 @@ Created E2E tests that verify document ingestion uses workspace-configured provi
 ### Tests Added (8 tests)
 
 1. **`test_document_upload_workspace_provider_config`**
+
    - Creates workspace with mock provider config
    - Verifies config is stored and retrievable
    - Confirms workspace is ready for document ingestion
 
 2. **`test_document_upload_ollama_workspace_config`**
+
    - Creates workspace with Ollama config (gemma3:12b, nomic-embed-text, 768 dim)
    - Verifies all Ollama-specific fields are stored
 
 3. **`test_document_upload_openai_workspace_config`**
+
    - Creates workspace with OpenAI config (gpt-4o-mini, text-embedding-3-small, 1536 dim)
    - Verifies all OpenAI-specific fields are stored
 
 4. **`test_document_workspace_provider_isolation`**
+
    - Creates two workspaces: Ollama and OpenAI
    - Verifies provider isolation between workspaces
 
 5. **`test_document_provider_switch_config`**
+
    - Creates workspace with Ollama config
    - Switches to OpenAI config
    - Verifies all fields updated correctly
 
 6. **`test_document_http_upload_with_workspace`**
+
    - Creates workspace with mock config
    - Uploads document via HTTP with X-Workspace-ID header
    - Verifies request is processed (201 or 500)
 
 7. **`test_document_http_upload_without_workspace`**
+
    - Uploads document without workspace header
    - Verifies 201 Created with default provider
 

@@ -22,11 +22,13 @@ Created 8 tests for embedding provider workspace integration. These tests verify
 ## Key Verification Points
 
 ### Configuration Storage
+
 - embedding_provider, embedding_model, embedding_dimension stored
 - Each workspace maintains independent embedding config
 - Updates to embedding config are persisted
 
 ### Provider Creation
+
 - ProviderFactory.create_embedding_provider() works with workspace config
 - Ollama, LMStudio, Mock providers created successfully
 - OpenAI fails without OPENAI_API_KEY

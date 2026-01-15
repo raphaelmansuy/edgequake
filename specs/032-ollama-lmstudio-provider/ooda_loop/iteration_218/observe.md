@@ -17,6 +17,7 @@ From [document.rs](../../../../edgequake/crates/edgequake-api/src/handlers/docum
 ### Key Question
 
 When a document is uploaded to a workspace:
+
 1. Which LLM provider is used for entity extraction?
 2. Which embedding provider is used for chunk embedding?
 3. How is this stored for lineage tracking?
@@ -64,6 +65,7 @@ pub async fn get_workspace_provider_lineage(
 ### Next Steps
 
 Create E2E tests for:
+
 1. Document upload stores workspace provider lineage
 2. Rebuild operation uses updated workspace provider
 3. Provider switch + rebuild uses new provider

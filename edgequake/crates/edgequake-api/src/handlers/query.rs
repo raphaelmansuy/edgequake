@@ -452,6 +452,7 @@ pub async fn stream_query(
 /// (same as the global provider), returns None to indicate the default should be used.
 ///
 /// @implements SPEC-032: Workspace-specific embedding in query process
+/// @implements OODA-228: Fix dimension mismatch in chat handler
 ///
 /// # Arguments
 ///
@@ -463,7 +464,7 @@ pub async fn stream_query(
 /// - `Ok(Some(provider))` - Workspace-specific embedding provider
 /// - `Ok(None)` - Workspace uses default embedding, no override needed
 /// - `Err(_)` - Error looking up workspace or creating provider
-async fn get_workspace_embedding_provider(
+pub async fn get_workspace_embedding_provider(
     state: &AppState,
     workspace_id: &str,
 ) -> Result<Option<std::sync::Arc<dyn edgequake_query::EmbeddingProvider>>, ApiError> {
@@ -535,6 +536,8 @@ async fn get_workspace_embedding_provider(
 /// a workspace-specific vector storage instance. If the workspace uses the default
 /// dimension, returns None to indicate the default should be used.
 ///
+/// @implements OODA-228: Fix dimension mismatch in chat handler
+///
 /// # Arguments
 ///
 /// * `state` - Application state containing workspace service and vector registry
@@ -545,7 +548,7 @@ async fn get_workspace_embedding_provider(
 /// - `Ok(Some(storage))` - Workspace-specific vector storage
 /// - `Ok(None)` - Workspace uses default storage, no override needed
 /// - `Err(_)` - Error looking up workspace or creating storage
-async fn get_workspace_vector_storage(
+pub async fn get_workspace_vector_storage(
     state: &AppState,
     workspace_id: &str,
 ) -> Result<Option<std::sync::Arc<dyn edgequake_storage::traits::VectorStorage>>, ApiError> {

@@ -11,8 +11,8 @@ use edgequake_core::types::{CreateWorkspaceRequest, UpdateWorkspaceRequest};
 use edgequake_core::Tenant;
 use edgequake_llm::ProviderFactory;
 use edgequake_pipeline::{EntityExtractor, LLMExtractor};
-use uuid::Uuid;
 use serial_test::serial;
+use uuid::Uuid;
 
 // ============================================================================
 // Helper Functions
@@ -73,8 +73,8 @@ async fn create_workspace_with_providers(
 async fn test_llm_extractor_provider_name_mock() {
     clean_provider_env();
 
-    let llm = ProviderFactory::create_llm_provider("mock", "mock-model")
-        .expect("Should create mock LLM");
+    let llm =
+        ProviderFactory::create_llm_provider("mock", "mock-model").expect("Should create mock LLM");
     let extractor = LLMExtractor::new(llm);
 
     // Verify the extractor reports correct provider and model
@@ -260,8 +260,9 @@ async fn test_embedding_provider_name_tracking() {
     assert_eq!(ollama_emb.name(), "ollama");
 
     // LMStudio provider
-    let lmstudio_emb = ProviderFactory::create_embedding_provider("lmstudio", "text-embedding-nomic", 384)
-        .expect("Should create lmstudio embedding");
+    let lmstudio_emb =
+        ProviderFactory::create_embedding_provider("lmstudio", "text-embedding-nomic", 384)
+            .expect("Should create lmstudio embedding");
     assert_eq!(lmstudio_emb.name(), "lmstudio");
 }
 
@@ -272,8 +273,8 @@ async fn test_llm_provider_name_tracking() {
     clean_provider_env();
 
     // Mock provider
-    let mock_llm = ProviderFactory::create_llm_provider("mock", "mock-model")
-        .expect("Should create mock LLM");
+    let mock_llm =
+        ProviderFactory::create_llm_provider("mock", "mock-model").expect("Should create mock LLM");
     assert_eq!(mock_llm.name(), "mock");
 
     // Ollama provider
@@ -305,7 +306,9 @@ async fn test_create_workspace_pipeline_uses_provider_config() {
     .await;
 
     // Create workspace pipeline
-    let _pipeline = state.create_workspace_pipeline(&workspace.workspace_id.to_string()).await;
+    let _pipeline = state
+        .create_workspace_pipeline(&workspace.workspace_id.to_string())
+        .await;
 
     // Verify the workspace config is correct (pipeline uses this to create providers)
     let ws_retrieved = state

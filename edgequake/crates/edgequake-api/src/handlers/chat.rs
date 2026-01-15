@@ -44,7 +44,9 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
-use crate::handlers::query::{QueryStats, SourceReference};
+use crate::handlers::query::{
+    get_workspace_embedding_provider, get_workspace_vector_storage, QueryStats, SourceReference,
+};
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 use crate::streaming::StreamAccumulator;
@@ -449,19 +451,84 @@ pub async fn chat_completion(
         }
     };
 
-    // Execute query with or without LLM override
-    let result = if let Some(ref llm) = llm_override {
-        state
-            .sota_engine
-            .query_with_llm_provider(engine_request, llm.clone())
-            .await
-            .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+    // OODA-228: Get workspace-specific embedding provider and vector storage
+    // This ensures query embeddings match the dimension of stored vectors
+    let workspace_id_str = workspace_id.as_ref().map(|id| id.to_string());
+    let (ws_embedding_provider, ws_vector_storage) = if let Some(ref ws_id_str) = workspace_id_str {
+        let embedding_result = get_workspace_embedding_provider(&state, ws_id_str).await;
+        let vector_result = get_workspace_vector_storage(&state, ws_id_str).await;
+        
+        match (embedding_result, vector_result) {
+            (Ok(Some(embed)), Ok(Some(vector))) => {
+                debug!(
+                    workspace_id = %ws_id_str,
+                    "Using workspace-specific embedding provider AND vector storage for chat query"
+                );
+                (Some(embed), Some(vector))
+            }
+            (Ok(Some(embed)), _) => {
+                debug!(
+                    workspace_id = %ws_id_str,
+                    "Using workspace-specific embedding provider only for chat query"
+                );
+                (Some(embed), None)
+            }
+            (Ok(None), _) => {
+                debug!(
+                    workspace_id = %ws_id_str,
+                    "No workspace-specific embedding config, using defaults"
+                );
+                (None, None)
+            }
+            (Err(e), _) => {
+                warn!(
+                    workspace_id = %ws_id_str,
+                    error = %e,
+                    "Failed to get workspace embedding config for chat, using defaults"
+                );
+                (None, None)
+            }
+        }
     } else {
-        state
-            .sota_engine
-            .query(engine_request)
-            .await
-            .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+        (None, None)
+    };
+
+    // Execute query with workspace-specific providers if available
+    let result = match (&ws_embedding_provider, &ws_vector_storage) {
+        (Some(embed), Some(vector)) => {
+            // Full workspace isolation with optional LLM override
+            state
+                .sota_engine
+                .query_with_full_config(engine_request, embed.clone(), vector.clone(), llm_override.clone())
+                .await
+                .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+        }
+        (Some(embed), None) => {
+            // Workspace embedding only (uses default vector storage)
+            // This should not happen in normal operation but handle gracefully
+            warn!("Workspace embedding available but no vector storage - using embedding provider only");
+            state
+                .sota_engine
+                .query_with_embedding_provider(engine_request, embed.clone())
+                .await
+                .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+        }
+        _ => {
+            // No workspace-specific config, use default or LLM override only
+            if let Some(ref llm) = llm_override {
+                state
+                    .sota_engine
+                    .query_with_llm_provider(engine_request, llm.clone())
+                    .await
+                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+            } else {
+                state
+                    .sota_engine
+                    .query(engine_request)
+                    .await
+                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+            }
+        }
     };
 
     // 4. Build sources and context
@@ -827,17 +894,98 @@ pub async fn chat_completion_stream(
         };
 
         // Execute streaming query with context using SOTA engine (LightRAG-style)
-        // SPEC-032: Use query_stream_with_context_and_llm if we have an LLM override
-        let stream_result = if let Some(ref llm) = llm_override {
-            state_clone
-                .sota_engine
-                .query_stream_with_context_and_llm(engine_request, llm.clone())
-                .await
+        // OODA-228: Get workspace embedding provider and vector storage for proper isolation
+        let workspace_id_str = workspace_id.as_ref().map(|id| id.to_string());
+        let (ws_embedding_provider, ws_vector_storage) = if let Some(ref ws_id_str) = workspace_id_str {
+            // Get workspace embedding provider
+            let embed_provider = match get_workspace_embedding_provider(
+                &state_clone,
+                ws_id_str,
+            )
+            .await
+            {
+                Ok(Some(p)) => Some(p),
+                Ok(None) => {
+                    debug!(workspace_id = %ws_id_str, "Workspace using default embedding provider for streaming");
+                    None
+                }
+                Err(e) => {
+                    warn!(workspace_id = %ws_id_str, error = ?e, "Failed to get workspace embedding provider for streaming");
+                    None
+                }
+            };
+
+            // Get workspace vector storage
+            let vector_storage = match get_workspace_vector_storage(
+                &state_clone,
+                ws_id_str,
+            )
+            .await
+            {
+                Ok(Some(s)) => Some(s),
+                Ok(None) => {
+                    debug!(workspace_id = %ws_id_str, "Workspace using default vector storage for streaming");
+                    None
+                }
+                Err(e) => {
+                    warn!(workspace_id = %ws_id_str, error = ?e, "Failed to get workspace vector storage for streaming");
+                    None
+                }
+            };
+
+            (embed_provider, vector_storage)
         } else {
-            state_clone
-                .sota_engine
-                .query_stream_with_context(engine_request)
-                .await
+            (None, None)
+        };
+
+        // SPEC-032: Use query_stream_with_full_config if we have workspace config, otherwise fall back
+        let stream_result = match (&ws_embedding_provider, &ws_vector_storage) {
+            (Some(embed), Some(vector)) => {
+                // OODA-228: Use workspace embedding + storage + optional LLM override
+                debug!("Using full config for streaming (workspace embedding + vector storage + LLM override)");
+                state_clone
+                    .sota_engine
+                    .query_stream_with_full_config(
+                        engine_request,
+                        embed.clone(),
+                        vector.clone(),
+                        llm_override.clone(),
+                    )
+                    .await
+            }
+            (Some(embed), None) => {
+                // Have embedding provider but not vector storage - use embedding override only
+                debug!("Using embedding provider override for streaming (no vector storage)");
+                // For streaming, we need to use get_context with embedding and then stream
+                // Since we don't have query_stream_with_embedding_provider, use the LLM override approach
+                if let Some(ref llm) = llm_override {
+                    state_clone
+                        .sota_engine
+                        .query_stream_with_context_and_llm(engine_request, llm.clone())
+                        .await
+                } else {
+                    state_clone
+                        .sota_engine
+                        .query_stream_with_context(engine_request)
+                        .await
+                }
+            }
+            _ => {
+                // No workspace config - use LLM override only
+                if let Some(ref llm) = llm_override {
+                    debug!("Using LLM provider override for streaming (no workspace config)");
+                    state_clone
+                        .sota_engine
+                        .query_stream_with_context_and_llm(engine_request, llm.clone())
+                        .await
+                } else {
+                    debug!("Using default configuration for streaming (no workspace or LLM override)");
+                    state_clone
+                        .sota_engine
+                        .query_stream_with_context(engine_request)
+                        .await
+                }
+            }
         };
 
         match stream_result {

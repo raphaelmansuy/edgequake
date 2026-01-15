@@ -21,16 +21,19 @@ Created 7 tests for chat handler with workspace-specific LLM provider configurat
 ## Key Verification Points
 
 ### Configuration Storage
+
 - Workspace LLM provider and model stored correctly
 - Updates to provider config are persisted
 - Independent configs per workspace
 
 ### Provider Creation
+
 - ProviderFactory.create_llm_provider() works with workspace config
 - Mock provider always succeeds
 - OpenAI fails without OPENAI_API_KEY
 
 ### Config Persistence
+
 - Multiple retrievals return consistent config
 - Provider switch is immediately reflected
 

@@ -10,8 +10,8 @@ use edgequake_api::AppState;
 use edgequake_core::types::{CreateWorkspaceRequest, UpdateWorkspaceRequest};
 use edgequake_core::Tenant;
 use edgequake_llm::ProviderFactory;
-use uuid::Uuid;
 use serial_test::serial;
+use uuid::Uuid;
 
 // ============================================================================
 // Helper Functions
@@ -46,7 +46,10 @@ async fn create_workspace_with_providers(
     let request = CreateWorkspaceRequest {
         name: name.to_string(),
         slug: Some(format!("ws-{}", Uuid::new_v4())),
-        description: Some(format!("Test workspace with {} embedding", embedding_provider)),
+        description: Some(format!(
+            "Test workspace with {} embedding",
+            embedding_provider
+        )),
         max_documents: None,
         llm_model: Some(llm_model.to_string()),
         llm_provider: Some(llm_provider.to_string()),
@@ -70,7 +73,7 @@ async fn create_workspace_with_providers(
 #[tokio::test]
 async fn test_workspace_embedding_config_stored() {
     let state = AppState::test_state();
-    
+
     let workspace = create_workspace_with_providers(
         &state,
         "Embedding Config Test",
@@ -79,9 +82,11 @@ async fn test_workspace_embedding_config_stored() {
         "ollama",
         "nomic-embed-text",
         768,
-    ).await;
+    )
+    .await;
 
-    let retrieved = state.workspace_service
+    let retrieved = state
+        .workspace_service
         .get_workspace(workspace.workspace_id)
         .await
         .expect("Should get workspace")
@@ -97,9 +102,9 @@ async fn test_workspace_embedding_config_stored() {
 #[serial]
 async fn test_provider_factory_creates_workspace_embedding() {
     clean_provider_env();
-    
+
     let state = AppState::test_state();
-    
+
     let workspace = create_workspace_with_providers(
         &state,
         "Factory Embed Test",
@@ -108,7 +113,8 @@ async fn test_provider_factory_creates_workspace_embedding() {
         "mock",
         "mock-embedding",
         768,
-    ).await;
+    )
+    .await;
 
     // Create embedding provider from workspace config
     let provider_result = ProviderFactory::create_embedding_provider(
@@ -117,7 +123,10 @@ async fn test_provider_factory_creates_workspace_embedding() {
         workspace.embedding_dimension,
     );
 
-    assert!(provider_result.is_ok(), "Should create mock embedding provider");
+    assert!(
+        provider_result.is_ok(),
+        "Should create mock embedding provider"
+    );
     let provider = provider_result.unwrap();
     assert_eq!(provider.name(), "mock");
 }
@@ -126,7 +135,7 @@ async fn test_provider_factory_creates_workspace_embedding() {
 #[tokio::test]
 async fn test_embedding_provider_switch_updates_config() {
     let state = AppState::test_state();
-    
+
     // Create with Ollama
     let workspace = create_workspace_with_providers(
         &state,
@@ -136,10 +145,12 @@ async fn test_embedding_provider_switch_updates_config() {
         "ollama",
         "nomic-embed-text",
         768,
-    ).await;
+    )
+    .await;
 
     // Verify initial config
-    let initial = state.workspace_service
+    let initial = state
+        .workspace_service
         .get_workspace(workspace.workspace_id)
         .await
         .expect("Get")
@@ -159,13 +170,15 @@ async fn test_embedding_provider_switch_updates_config() {
         embedding_dimension: Some(768),
     };
 
-    state.workspace_service
+    state
+        .workspace_service
         .update_workspace(workspace.workspace_id, update)
         .await
         .expect("Update should succeed");
 
     // Verify switch
-    let updated = state.workspace_service
+    let updated = state
+        .workspace_service
         .get_workspace(workspace.workspace_id)
         .await
         .expect("Get")
@@ -178,7 +191,7 @@ async fn test_embedding_provider_switch_updates_config() {
 #[tokio::test]
 async fn test_independent_embedding_configs_per_workspace() {
     let state = AppState::test_state();
-    
+
     // Workspace 1 with Ollama embedding
     let ws1 = create_workspace_with_providers(
         &state,
@@ -188,7 +201,8 @@ async fn test_independent_embedding_configs_per_workspace() {
         "ollama",
         "nomic-embed-text",
         768,
-    ).await;
+    )
+    .await;
 
     // Workspace 2 with LMStudio embedding
     let ws2 = create_workspace_with_providers(
@@ -199,7 +213,8 @@ async fn test_independent_embedding_configs_per_workspace() {
         "lmstudio",
         "text-embedding-nomic",
         768,
-    ).await;
+    )
+    .await;
 
     // Workspace 3 with mock embedding
     let ws3 = create_workspace_with_providers(
@@ -210,15 +225,28 @@ async fn test_independent_embedding_configs_per_workspace() {
         "mock",
         "mock-embed",
         512,
-    ).await;
+    )
+    .await;
 
     // Verify each has independent config
-    let config1 = state.workspace_service.get_workspace(ws1.workspace_id).await
-        .expect("Get").expect("Exists");
-    let config2 = state.workspace_service.get_workspace(ws2.workspace_id).await
-        .expect("Get").expect("Exists");
-    let config3 = state.workspace_service.get_workspace(ws3.workspace_id).await
-        .expect("Get").expect("Exists");
+    let config1 = state
+        .workspace_service
+        .get_workspace(ws1.workspace_id)
+        .await
+        .expect("Get")
+        .expect("Exists");
+    let config2 = state
+        .workspace_service
+        .get_workspace(ws2.workspace_id)
+        .await
+        .expect("Get")
+        .expect("Exists");
+    let config3 = state
+        .workspace_service
+        .get_workspace(ws3.workspace_id)
+        .await
+        .expect("Get")
+        .expect("Exists");
 
     assert_eq!(config1.embedding_provider, "ollama");
     assert_eq!(config2.embedding_provider, "lmstudio");
@@ -230,9 +258,9 @@ async fn test_independent_embedding_configs_per_workspace() {
 #[serial]
 async fn test_openai_embedding_config_creation_fails() {
     clean_provider_env();
-    
+
     let state = AppState::test_state();
-    
+
     // Create workspace with OpenAI config
     let workspace = create_workspace_with_providers(
         &state,
@@ -242,10 +270,12 @@ async fn test_openai_embedding_config_creation_fails() {
         "openai",
         "text-embedding-3-small",
         1536,
-    ).await;
+    )
+    .await;
 
     // Config should be stored
-    let retrieved = state.workspace_service
+    let retrieved = state
+        .workspace_service
         .get_workspace(workspace.workspace_id)
         .await
         .expect("Get")
@@ -258,7 +288,10 @@ async fn test_openai_embedding_config_creation_fails() {
         &retrieved.embedding_model,
         retrieved.embedding_dimension,
     );
-    assert!(provider_result.is_err(), "OpenAI embedding should fail without key");
+    assert!(
+        provider_result.is_err(),
+        "OpenAI embedding should fail without key"
+    );
 }
 
 /// Test: Ollama embedding provider created successfully.
@@ -266,9 +299,9 @@ async fn test_openai_embedding_config_creation_fails() {
 #[serial]
 async fn test_ollama_embedding_provider_creation() {
     clean_provider_env();
-    
+
     let state = AppState::test_state();
-    
+
     let workspace = create_workspace_with_providers(
         &state,
         "Ollama Embed Create Test",
@@ -277,7 +310,8 @@ async fn test_ollama_embedding_provider_creation() {
         "ollama",
         "nomic-embed-text",
         768,
-    ).await;
+    )
+    .await;
 
     // Should create Ollama embedding provider
     let provider_result = ProviderFactory::create_embedding_provider(
@@ -286,7 +320,10 @@ async fn test_ollama_embedding_provider_creation() {
         workspace.embedding_dimension,
     );
 
-    assert!(provider_result.is_ok(), "Should create Ollama embedding provider");
+    assert!(
+        provider_result.is_ok(),
+        "Should create Ollama embedding provider"
+    );
     let provider = provider_result.unwrap();
     assert_eq!(provider.name(), "ollama");
 }
@@ -296,9 +333,9 @@ async fn test_ollama_embedding_provider_creation() {
 #[serial]
 async fn test_lmstudio_embedding_provider_creation() {
     clean_provider_env();
-    
+
     let state = AppState::test_state();
-    
+
     let workspace = create_workspace_with_providers(
         &state,
         "LMStudio Embed Create Test",
@@ -307,7 +344,8 @@ async fn test_lmstudio_embedding_provider_creation() {
         "lmstudio",
         "text-embedding-nomic",
         768,
-    ).await;
+    )
+    .await;
 
     // Should create LMStudio embedding provider
     let provider_result = ProviderFactory::create_embedding_provider(
@@ -316,7 +354,10 @@ async fn test_lmstudio_embedding_provider_creation() {
         workspace.embedding_dimension,
     );
 
-    assert!(provider_result.is_ok(), "Should create LMStudio embedding provider");
+    assert!(
+        provider_result.is_ok(),
+        "Should create LMStudio embedding provider"
+    );
     let provider = provider_result.unwrap();
     assert_eq!(provider.name(), "lmstudio");
 }
@@ -325,7 +366,7 @@ async fn test_lmstudio_embedding_provider_creation() {
 #[tokio::test]
 async fn test_embedding_config_persistence() {
     let state = AppState::test_state();
-    
+
     let workspace = create_workspace_with_providers(
         &state,
         "Embed Persistence Test",
@@ -334,17 +375,27 @@ async fn test_embedding_config_persistence() {
         "mock",
         "persistent-embed",
         768,
-    ).await;
+    )
+    .await;
 
     // Retrieve multiple times
     for i in 0..5 {
-        let retrieved = state.workspace_service
+        let retrieved = state
+            .workspace_service
             .get_workspace(workspace.workspace_id)
             .await
             .expect(&format!("Get #{}", i))
             .expect("Exists");
-        
-        assert_eq!(retrieved.embedding_provider, "mock", "Provider persists #{}", i);
-        assert_eq!(retrieved.embedding_model, "persistent-embed", "Model persists #{}", i);
+
+        assert_eq!(
+            retrieved.embedding_provider, "mock",
+            "Provider persists #{}",
+            i
+        );
+        assert_eq!(
+            retrieved.embedding_model, "persistent-embed",
+            "Model persists #{}",
+            i
+        );
     }
 }

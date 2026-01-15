@@ -10,10 +10,10 @@ use edgequake_api::AppState;
 use edgequake_core::types::CreateWorkspaceRequest;
 use edgequake_core::Tenant;
 use edgequake_llm::ProviderFactory;
-use edgequake_pipeline::{Pipeline, LLMExtractor, PipelineConfig};
-use uuid::Uuid;
+use edgequake_pipeline::{LLMExtractor, Pipeline, PipelineConfig};
 use serial_test::serial;
 use std::sync::Arc;
+use uuid::Uuid;
 
 // ============================================================================
 // Helper Functions
@@ -77,8 +77,8 @@ async fn test_pipeline_process_returns_mock_provider_stats() {
     clean_provider_env();
 
     // Create mock providers
-    let llm = ProviderFactory::create_llm_provider("mock", "mock-model")
-        .expect("Should create mock LLM");
+    let llm =
+        ProviderFactory::create_llm_provider("mock", "mock-model").expect("Should create mock LLM");
     let embedding = ProviderFactory::create_embedding_provider("mock", "mock-embedding", 1536)
         .expect("Should create mock embedding");
 
@@ -90,7 +90,10 @@ async fn test_pipeline_process_returns_mock_provider_stats() {
 
     // Process a document - mock will fail JSON parsing but that's expected
     let result = pipeline
-        .process("test-doc-1", "Sarah Chen is a software engineer at TechCorp.")
+        .process(
+            "test-doc-1",
+            "Sarah Chen is a software engineer at TechCorp.",
+        )
         .await;
 
     // Mock provider returns "Mock response" which fails JSON parsing
@@ -106,7 +109,8 @@ async fn test_pipeline_process_returns_mock_provider_stats() {
             let err_str = e.to_string();
             assert!(
                 err_str.contains("Invalid JSON") || err_str.contains("expected value"),
-                "Expected JSON parsing error, got: {}", err_str
+                "Expected JSON parsing error, got: {}",
+                err_str
             );
         }
     }
@@ -137,7 +141,9 @@ async fn test_pipeline_process_returns_ollama_provider_stats() {
 
     // Verify the pipeline is configured correctly
     // (We can't actually process without a running Ollama server)
-    let embedding_provider = pipeline.embedding_provider().expect("Should have embedding");
+    let embedding_provider = pipeline
+        .embedding_provider()
+        .expect("Should have embedding");
     assert_eq!(embedding_provider.name(), "ollama");
     assert_eq!(embedding_provider.model(), "nomic-embed-text");
     assert_eq!(embedding_provider.dimension(), 768);
@@ -152,8 +158,9 @@ async fn test_pipeline_process_returns_lmstudio_provider_stats() {
     // Create lmstudio providers
     let llm = ProviderFactory::create_llm_provider("lmstudio", "qwen2.5-coder")
         .expect("Should create lmstudio LLM");
-    let embedding = ProviderFactory::create_embedding_provider("lmstudio", "text-embedding-nomic", 384)
-        .expect("Should create lmstudio embedding");
+    let embedding =
+        ProviderFactory::create_embedding_provider("lmstudio", "text-embedding-nomic", 384)
+            .expect("Should create lmstudio embedding");
 
     // Create pipeline with lmstudio providers
     let extractor = Arc::new(LLMExtractor::new(llm));
@@ -162,7 +169,9 @@ async fn test_pipeline_process_returns_lmstudio_provider_stats() {
         .with_embedding_provider(embedding);
 
     // Verify the pipeline is configured correctly
-    let embedding_provider = pipeline.embedding_provider().expect("Should have embedding");
+    let embedding_provider = pipeline
+        .embedding_provider()
+        .expect("Should have embedding");
     assert_eq!(embedding_provider.name(), "lmstudio");
     assert_eq!(embedding_provider.model(), "text-embedding-nomic");
     assert_eq!(embedding_provider.dimension(), 384);
@@ -186,7 +195,9 @@ async fn test_workspace_pipeline_provider_combination() {
     .await;
 
     // Create workspace-specific pipeline
-    let pipeline = state.create_workspace_pipeline(&workspace.workspace_id.to_string()).await;
+    let pipeline = state
+        .create_workspace_pipeline(&workspace.workspace_id.to_string())
+        .await;
 
     // Verify the pipeline has embedding provider
     if let Some(embedding) = pipeline.embedding_provider() {
@@ -224,21 +235,25 @@ async fn test_different_workspaces_different_pipeline_providers() {
         "different-model",
         "mock",
         "different-embedding",
-        768,  // Mock will ignore this and use 1536
+        768, // Mock will ignore this and use 1536
     )
     .await;
 
     // Create pipelines for each workspace
-    let pipeline1 = state.create_workspace_pipeline(&ws1.workspace_id.to_string()).await;
-    let pipeline2 = state.create_workspace_pipeline(&ws2.workspace_id.to_string()).await;
+    let pipeline1 = state
+        .create_workspace_pipeline(&ws1.workspace_id.to_string())
+        .await;
+    let pipeline2 = state
+        .create_workspace_pipeline(&ws2.workspace_id.to_string())
+        .await;
 
     // Verify each pipeline has embedding provider
     // Both will have 1536 dimension due to mock's fixed behavior
     if let Some(emb1) = pipeline1.embedding_provider() {
-        assert_eq!(emb1.dimension(), 1536);  // Mock's fixed dimension
+        assert_eq!(emb1.dimension(), 1536); // Mock's fixed dimension
     }
     if let Some(emb2) = pipeline2.embedding_provider() {
-        assert_eq!(emb2.dimension(), 1536);  // Mock's fixed dimension
+        assert_eq!(emb2.dimension(), 1536); // Mock's fixed dimension
     }
 }
 
@@ -249,8 +264,8 @@ async fn test_mock_pipeline_entity_extraction() {
     clean_provider_env();
 
     // Create mock providers
-    let llm = ProviderFactory::create_llm_provider("mock", "mock-model")
-        .expect("Should create mock LLM");
+    let llm =
+        ProviderFactory::create_llm_provider("mock", "mock-model").expect("Should create mock LLM");
     let embedding = ProviderFactory::create_embedding_provider("mock", "mock-embedding", 1536)
         .expect("Should create mock embedding");
 
@@ -262,7 +277,10 @@ async fn test_mock_pipeline_entity_extraction() {
 
     // Process document
     let result = pipeline
-        .process("entity-test-doc", "Alice works at Acme Corporation in New York.")
+        .process(
+            "entity-test-doc",
+            "Alice works at Acme Corporation in New York.",
+        )
         .await;
 
     // The mock provider returns fixed responses, so we verify the structure
@@ -271,13 +289,17 @@ async fn test_mock_pipeline_entity_extraction() {
             assert_eq!(processing_result.document_id, "entity-test-doc");
             assert!(!processing_result.chunks.is_empty(), "Should have chunks");
             // Stats should reflect mock provider usage
-            assert_eq!(processing_result.stats.llm_provider.as_deref(), Some("mock"));
+            assert_eq!(
+                processing_result.stats.llm_provider.as_deref(),
+                Some("mock")
+            );
         }
         Err(e) => {
             // Extraction might fail with mock (expected - no valid JSON)
             assert!(
                 e.to_string().contains("Invalid JSON") || e.to_string().contains("LLM error"),
-                "Expected JSON parsing error from mock, got: {}", e
+                "Expected JSON parsing error from mock, got: {}",
+                e
             );
         }
     }
@@ -315,7 +337,10 @@ async fn test_processing_stats_provider_fields() {
             assert_eq!(pr.stats.llm_provider.as_deref(), Some("mock"));
             assert_eq!(pr.stats.llm_model.as_deref(), Some("test-llm-model"));
             assert_eq!(pr.stats.embedding_provider.as_deref(), Some("mock"));
-            assert_eq!(pr.stats.embedding_model.as_deref(), Some("test-embed-model"));
+            assert_eq!(
+                pr.stats.embedding_model.as_deref(),
+                Some("test-embed-model")
+            );
             assert_eq!(pr.stats.embedding_dimensions, Some(512));
         }
         Err(_) => {
@@ -339,7 +364,7 @@ async fn test_workspace_config_determines_pipeline() {
         "custom-llm",
         "mock",
         "custom-embed",
-        2048,  // Mock will ignore this and use 1536
+        2048, // Mock will ignore this and use 1536
     )
     .await;
 
@@ -351,7 +376,9 @@ async fn test_workspace_config_determines_pipeline() {
     assert_eq!(workspace.embedding_dimension, 2048);
 
     // Create pipeline from workspace
-    let pipeline = state.create_workspace_pipeline(&workspace.workspace_id.to_string()).await;
+    let pipeline = state
+        .create_workspace_pipeline(&workspace.workspace_id.to_string())
+        .await;
 
     // Verify pipeline uses workspace config for embedding
     if let Some(emb) = pipeline.embedding_provider() {

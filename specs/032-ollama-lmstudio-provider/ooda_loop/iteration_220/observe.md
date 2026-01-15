@@ -65,6 +65,7 @@ impl EmbeddingProvider for OllamaEmbeddingProvider {
 ### Next Steps
 
 Create unit tests for ProviderFactory that verify:
+
 1. create_embedding_provider("openai", ...) returns provider with name() == "openai"
 2. create_embedding_provider("ollama", ...) returns provider with name() == "ollama"
 3. create_llm_provider follows same pattern

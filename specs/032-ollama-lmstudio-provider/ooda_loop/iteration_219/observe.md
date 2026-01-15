@@ -31,14 +31,14 @@ pub async fn rebuild_workspace_embeddings(
 ) -> Result<RebuildStats> {
     // Get workspace config (includes provider settings)
     let workspace = state.workspace_service.get_workspace(uuid).await?;
-    
+
     // Create workspace-specific embedding provider
     let embedding_provider = ProviderFactory::create_embedding_provider(
         &workspace.embedding_provider,   // "openai" or "ollama"
         &workspace.embedding_model,      // model name
         workspace.embedding_dimension,   // 1536 or 768
     )?;
-    
+
     // Re-embed all chunks with new provider
     for chunk in workspace_chunks {
         let new_embedding = embedding_provider.embed(&chunk.content).await?;
@@ -57,6 +57,7 @@ pub async fn rebuild_workspace_embeddings(
 ### Test Strategy
 
 Create tests that:
+
 1. Create workspace with provider A
 2. Upload document (uses provider A)
 3. Switch to provider B

@@ -19,7 +19,7 @@ async fn get_workspace_vector_storage(
 ) -> Arc<dyn VectorStorage> {
     // Get workspace config
     let workspace = state.workspace_service.get_workspace(uuid).await;
-    
+
     // Create vector storage with workspace dimension
     match workspace {
         Ok(Some(ws)) => {
@@ -44,19 +44,23 @@ async fn get_workspace_vector_storage(
 ## Test Scenarios Needed
 
 ### Scenario 1: Workspace with standard dimension (768)
+
 - Create workspace with 768 dimension
 - Verify vector operations use 768
 
 ### Scenario 2: Workspace with large dimension (1536)
+
 - Create workspace with OpenAI's 1536 dimension
 - Verify vector operations use 1536
 
 ### Scenario 3: Dimension change between workspaces
+
 - Workspace A: 768 dimension
 - Workspace B: 1536 dimension
 - Verify isolation
 
 ### Scenario 4: Dimension update on existing workspace
+
 - Create workspace with 768
 - Update to 1536
 - Verify dimension change detected

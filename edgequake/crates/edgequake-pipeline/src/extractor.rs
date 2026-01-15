@@ -322,7 +322,7 @@ pub trait EntityExtractor: Send + Sync {
     }
 
     /// Get the provider name used by this extractor (if applicable).
-    /// 
+    ///
     /// @implements SPEC-032/OODA-226: Provider tracking in ProcessingStats
     fn provider_name(&self) -> &str {
         "unknown"

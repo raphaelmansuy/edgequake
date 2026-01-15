@@ -38,7 +38,10 @@ async fn create_workspace_with_providers(
     let request = CreateWorkspaceRequest {
         name: name.to_string(),
         slug: Some(format!("ws-{}", Uuid::new_v4())),
-        description: Some(format!("Test workspace with {} dimension", embedding_dimension)),
+        description: Some(format!(
+            "Test workspace with {} dimension",
+            embedding_dimension
+        )),
         max_documents: None,
         llm_model: Some(llm_model.to_string()),
         llm_provider: Some(llm_provider.to_string()),
@@ -62,7 +65,7 @@ async fn create_workspace_with_providers(
 #[tokio::test]
 async fn test_workspace_embedding_dimension_stored() {
     let state = AppState::test_state();
-    
+
     let workspace = create_workspace_with_providers(
         &state,
         "Dimension 768 Test",
@@ -71,9 +74,11 @@ async fn test_workspace_embedding_dimension_stored() {
         "mock",
         "mock-embed",
         768,
-    ).await;
+    )
+    .await;
 
-    let retrieved = state.workspace_service
+    let retrieved = state
+        .workspace_service
         .get_workspace(workspace.workspace_id)
         .await
         .expect("Should get workspace")
@@ -86,7 +91,7 @@ async fn test_workspace_embedding_dimension_stored() {
 #[tokio::test]
 async fn test_workspace_openai_dimension_stored() {
     let state = AppState::test_state();
-    
+
     let workspace = create_workspace_with_providers(
         &state,
         "Dimension 1536 Test",
@@ -95,9 +100,11 @@ async fn test_workspace_openai_dimension_stored() {
         "openai",
         "text-embedding-3-small",
         1536,
-    ).await;
+    )
+    .await;
 
-    let retrieved = state.workspace_service
+    let retrieved = state
+        .workspace_service
         .get_workspace(workspace.workspace_id)
         .await
         .expect("Should get workspace")
@@ -110,7 +117,7 @@ async fn test_workspace_openai_dimension_stored() {
 #[tokio::test]
 async fn test_workspaces_different_dimensions() {
     let state = AppState::test_state();
-    
+
     // Workspace 1: Ollama default (768)
     let ws1 = create_workspace_with_providers(
         &state,
@@ -120,7 +127,8 @@ async fn test_workspaces_different_dimensions() {
         "ollama",
         "nomic-embed-text",
         768,
-    ).await;
+    )
+    .await;
 
     // Workspace 2: OpenAI (1536)
     let ws2 = create_workspace_with_providers(
@@ -131,7 +139,8 @@ async fn test_workspaces_different_dimensions() {
         "openai",
         "text-embedding-3-small",
         1536,
-    ).await;
+    )
+    .await;
 
     // Workspace 3: Small dimension (384)
     let ws3 = create_workspace_with_providers(
@@ -142,15 +151,28 @@ async fn test_workspaces_different_dimensions() {
         "mock",
         "mock-small-embed",
         384,
-    ).await;
+    )
+    .await;
 
     // Verify each has correct dimension
-    let config1 = state.workspace_service.get_workspace(ws1.workspace_id).await
-        .expect("Get").expect("Exists");
-    let config2 = state.workspace_service.get_workspace(ws2.workspace_id).await
-        .expect("Get").expect("Exists");
-    let config3 = state.workspace_service.get_workspace(ws3.workspace_id).await
-        .expect("Get").expect("Exists");
+    let config1 = state
+        .workspace_service
+        .get_workspace(ws1.workspace_id)
+        .await
+        .expect("Get")
+        .expect("Exists");
+    let config2 = state
+        .workspace_service
+        .get_workspace(ws2.workspace_id)
+        .await
+        .expect("Get")
+        .expect("Exists");
+    let config3 = state
+        .workspace_service
+        .get_workspace(ws3.workspace_id)
+        .await
+        .expect("Get")
+        .expect("Exists");
 
     assert_eq!(config1.embedding_dimension, 768);
     assert_eq!(config2.embedding_dimension, 1536);
@@ -161,7 +183,7 @@ async fn test_workspaces_different_dimensions() {
 #[tokio::test]
 async fn test_dimension_update_on_existing_workspace() {
     let state = AppState::test_state();
-    
+
     // Create with 768 dimension
     let workspace = create_workspace_with_providers(
         &state,
@@ -171,10 +193,12 @@ async fn test_dimension_update_on_existing_workspace() {
         "ollama",
         "nomic-embed-text",
         768,
-    ).await;
+    )
+    .await;
 
     // Verify initial dimension
-    let initial = state.workspace_service
+    let initial = state
+        .workspace_service
         .get_workspace(workspace.workspace_id)
         .await
         .expect("Get")
@@ -194,13 +218,15 @@ async fn test_dimension_update_on_existing_workspace() {
         embedding_dimension: Some(1536),
     };
 
-    state.workspace_service
+    state
+        .workspace_service
         .update_workspace(workspace.workspace_id, update)
         .await
         .expect("Update should succeed");
 
     // Verify updated dimension
-    let updated = state.workspace_service
+    let updated = state
+        .workspace_service
         .get_workspace(workspace.workspace_id)
         .await
         .expect("Get")
@@ -212,7 +238,7 @@ async fn test_dimension_update_on_existing_workspace() {
 #[tokio::test]
 async fn test_embedding_full_id_format() {
     let state = AppState::test_state();
-    
+
     let workspace = create_workspace_with_providers(
         &state,
         "Full ID Test",
@@ -221,24 +247,29 @@ async fn test_embedding_full_id_format() {
         "ollama",
         "nomic-embed-text",
         768,
-    ).await;
+    )
+    .await;
 
-    let retrieved = state.workspace_service
+    let retrieved = state
+        .workspace_service
         .get_workspace(workspace.workspace_id)
         .await
         .expect("Get")
         .expect("Exists");
 
     let full_id = retrieved.embedding_full_id();
-    assert!(full_id.contains("ollama") || full_id.contains("nomic-embed-text"),
-            "Full ID should contain provider or model: {}", full_id);
+    assert!(
+        full_id.contains("ollama") || full_id.contains("nomic-embed-text"),
+        "Full ID should contain provider or model: {}",
+        full_id
+    );
 }
 
 /// Test: Dimension configuration persists across retrievals.
 #[tokio::test]
 async fn test_dimension_persistence() {
     let state = AppState::test_state();
-    
+
     let workspace = create_workspace_with_providers(
         &state,
         "Dimension Persistence Test",
@@ -247,17 +278,23 @@ async fn test_dimension_persistence() {
         "mock",
         "mock-embed",
         512,
-    ).await;
+    )
+    .await;
 
     // Retrieve multiple times
     for i in 0..5 {
-        let retrieved = state.workspace_service
+        let retrieved = state
+            .workspace_service
             .get_workspace(workspace.workspace_id)
             .await
             .expect(&format!("Get #{}", i))
             .expect("Exists");
-        
-        assert_eq!(retrieved.embedding_dimension, 512, "Dimension persists #{}", i);
+
+        assert_eq!(
+            retrieved.embedding_dimension, 512,
+            "Dimension persists #{}",
+            i
+        );
     }
 }
 
@@ -265,7 +302,7 @@ async fn test_dimension_persistence() {
 #[tokio::test]
 async fn test_workspace_creation_without_dimension() {
     let state = AppState::test_state();
-    
+
     let tenant = Tenant::new("No Dim Tenant", &format!("tenant-{}", Uuid::new_v4()));
     let created_tenant = state
         .workspace_service
@@ -283,7 +320,7 @@ async fn test_workspace_creation_without_dimension() {
         llm_provider: Some("mock".to_string()),
         embedding_model: Some("mock-embed".to_string()),
         embedding_provider: Some("mock".to_string()),
-        embedding_dimension: None,  // Not specified
+        embedding_dimension: None, // Not specified
     };
 
     let workspace = state
@@ -293,5 +330,8 @@ async fn test_workspace_creation_without_dimension() {
         .expect("Should create workspace");
 
     // Should default to 768
-    assert_eq!(workspace.embedding_dimension, 768, "Default dimension should be 768");
+    assert_eq!(
+        workspace.embedding_dimension, 768,
+        "Default dimension should be 768"
+    );
 }

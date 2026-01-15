@@ -466,12 +466,15 @@ impl ProviderFactory {
     /// // All calls now have max_tokens and timeout enforced
     /// let response = provider.complete("Hello").await?;
     /// ```
-    pub fn create_safe_llm_provider(provider_name: &str, model: &str) -> Result<Arc<dyn LLMProvider>> {
+    pub fn create_safe_llm_provider(
+        provider_name: &str,
+        model: &str,
+    ) -> Result<Arc<dyn LLMProvider>> {
         use crate::safety_limits::{SafetyLimitedProviderWrapper, SafetyLimitsConfig};
-        
+
         let inner = Self::create_llm_provider(provider_name, model)?;
         let config = SafetyLimitsConfig::from_env();
-        
+
         tracing::info!(
             provider = provider_name,
             model = model,
@@ -479,7 +482,7 @@ impl ProviderFactory {
             timeout_secs = config.timeout.as_secs(),
             "Creating safety-limited LLM provider"
         );
-        
+
         // Note: We need to unwrap the Arc to wrap with SafetyLimitedProvider
         // Since we can't easily wrap Arc<dyn Trait>, we create a new wrapper struct
         Ok(Arc::new(SafetyLimitedProviderWrapper::new(inner, config)))
@@ -506,10 +509,10 @@ impl ProviderFactory {
         dimension: usize,
     ) -> Result<Arc<dyn EmbeddingProvider>> {
         use crate::safety_limits::{SafetyLimitedEmbeddingProviderWrapper, SafetyLimitsConfig};
-        
+
         let inner = Self::create_embedding_provider(provider_name, model, dimension)?;
         let config = SafetyLimitsConfig::from_env();
-        
+
         tracing::info!(
             provider = provider_name,
             model = model,
@@ -517,8 +520,10 @@ impl ProviderFactory {
             timeout_secs = config.timeout.as_secs(),
             "Creating safety-limited embedding provider"
         );
-        
-        Ok(Arc::new(SafetyLimitedEmbeddingProviderWrapper::new(inner, config)))
+
+        Ok(Arc::new(SafetyLimitedEmbeddingProviderWrapper::new(
+            inner, config,
+        )))
     }
 }
 

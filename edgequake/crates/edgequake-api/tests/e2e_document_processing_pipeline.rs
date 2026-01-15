@@ -63,7 +63,10 @@ async fn process_document_with_workspace(
     content: &str,
 ) -> Result<edgequake_pipeline::ProcessingResult, String> {
     let pipeline = state.create_workspace_pipeline(workspace_id).await;
-    pipeline.process(doc_id, content).await.map_err(|e| e.to_string())
+    pipeline
+        .process(doc_id, content)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 // ============================================================================
@@ -76,7 +79,7 @@ async fn process_document_with_workspace(
 #[tokio::test]
 async fn test_document_processing_with_mock_pipeline() {
     let state = AppState::test_state();
-    
+
     // Create workspace with mock providers
     let workspace = create_workspace_with_providers(
         &state,
@@ -86,18 +89,20 @@ async fn test_document_processing_with_mock_pipeline() {
         "mock",
         "mock-embedding",
         768,
-    ).await;
+    )
+    .await;
 
     let content = "Alice works at TechCorp. Bob is the CEO of TechCorp.";
     let doc_id = format!("doc-{}", Uuid::new_v4());
-    
+
     // Process document with workspace pipeline
     let result = process_document_with_workspace(
         &state,
         &workspace.workspace_id.to_string(),
         &doc_id,
         content,
-    ).await;
+    )
+    .await;
 
     // Mock pipeline should produce results or extraction error (acceptable)
     match result {
@@ -106,8 +111,11 @@ async fn test_document_processing_with_mock_pipeline() {
         }
         Err(e) => {
             // Mock provider may return invalid JSON for extraction
-            assert!(e.contains("JSON") || e.contains("extraction") || e.contains("Extraction"),
-                    "Error should be extraction-related: {}", e);
+            assert!(
+                e.contains("JSON") || e.contains("extraction") || e.contains("Extraction"),
+                "Error should be extraction-related: {}",
+                e
+            );
         }
     }
 }
@@ -118,7 +126,7 @@ async fn test_document_processing_with_mock_pipeline() {
 #[tokio::test]
 async fn test_document_processing_with_ollama_config() {
     let state = AppState::test_state();
-    
+
     // Create workspace with Ollama providers
     let workspace = create_workspace_with_providers(
         &state,
@@ -128,20 +136,26 @@ async fn test_document_processing_with_ollama_config() {
         "ollama",
         "nomic-embed-text",
         768,
-    ).await;
+    )
+    .await;
 
     let content = "Sarah Chen is a researcher at MIT. She works on AI safety.";
     let doc_id = format!("doc-{}", Uuid::new_v4());
-    
+
     // Get pipeline - should be workspace-specific
-    let pipeline = state.create_workspace_pipeline(&workspace.workspace_id.to_string()).await;
-    
+    let pipeline = state
+        .create_workspace_pipeline(&workspace.workspace_id.to_string())
+        .await;
+
     // Verify we got a workspace-specific pipeline (not global)
-    assert!(!std::ptr::eq(
-        pipeline.as_ref() as *const _,
-        state.pipeline.as_ref() as *const _
-    ), "Should use workspace-specific pipeline");
-    
+    assert!(
+        !std::ptr::eq(
+            pipeline.as_ref() as *const _,
+            state.pipeline.as_ref() as *const _
+        ),
+        "Should use workspace-specific pipeline"
+    );
+
     // Processing might fail if Ollama not running, but pipeline config is correct
     let result = pipeline.process(&doc_id, content).await;
     // Either succeeds (Ollama running) or fails with connection error
@@ -153,8 +167,11 @@ async fn test_document_processing_with_ollama_config() {
             // Expected if Ollama not running
             let err_str = e.to_string();
             assert!(
-                err_str.contains("connection") || err_str.contains("refused") || err_str.contains("Error"),
-                "Error should indicate Ollama connection issue, got: {}", err_str
+                err_str.contains("connection")
+                    || err_str.contains("refused")
+                    || err_str.contains("Error"),
+                "Error should indicate Ollama connection issue, got: {}",
+                err_str
             );
         }
     }
@@ -166,7 +183,7 @@ async fn test_document_processing_with_ollama_config() {
 #[tokio::test]
 async fn test_provider_switch_affects_document_processing() {
     let state = AppState::test_state();
-    
+
     // Create workspace with mock provider (always works)
     let workspace = create_workspace_with_providers(
         &state,
@@ -176,7 +193,8 @@ async fn test_provider_switch_affects_document_processing() {
         "mock",
         "mock-embed-v1",
         768,
-    ).await;
+    )
+    .await;
 
     // Process first document
     let doc1_id = format!("doc-{}", Uuid::new_v4());
@@ -186,11 +204,16 @@ async fn test_provider_switch_affects_document_processing() {
         &workspace.workspace_id.to_string(),
         &doc1_id,
         content1,
-    ).await;
+    )
+    .await;
     // Check result or error
     match &result1 {
         Ok(r) => assert!(!r.chunks.is_empty(), "First document should have chunks"),
-        Err(e) => assert!(e.contains("JSON") || e.contains("extraction"), "First doc error: {}", e),
+        Err(e) => assert!(
+            e.contains("JSON") || e.contains("extraction"),
+            "First doc error: {}",
+            e
+        ),
     }
 
     // Switch provider config
@@ -203,10 +226,11 @@ async fn test_provider_switch_affects_document_processing() {
         llm_provider: Some("mock".to_string()),
         embedding_model: Some("mock-embed-v2".to_string()),
         embedding_provider: Some("mock".to_string()),
-        embedding_dimension: Some(512),  // Different dimension
+        embedding_dimension: Some(512), // Different dimension
     };
 
-    state.workspace_service
+    state
+        .workspace_service
         .update_workspace(workspace.workspace_id, update)
         .await
         .expect("Update should succeed");
@@ -219,13 +243,18 @@ async fn test_provider_switch_affects_document_processing() {
         &workspace.workspace_id.to_string(),
         &doc2_id,
         content2,
-    ).await;
+    )
+    .await;
     // Check result or error
     match &result2 {
         Ok(r) => assert!(!r.chunks.is_empty(), "Second document should have chunks"),
-        Err(e) => assert!(e.contains("JSON") || e.contains("extraction"), "Second doc error: {}", e),
+        Err(e) => assert!(
+            e.contains("JSON") || e.contains("extraction"),
+            "Second doc error: {}",
+            e
+        ),
     }
-    
+
     // Both documents were processed (provider switch worked)
 }
 
@@ -235,7 +264,7 @@ async fn test_provider_switch_affects_document_processing() {
 #[tokio::test]
 async fn test_multiple_documents_same_workspace() {
     let state = AppState::test_state();
-    
+
     let workspace = create_workspace_with_providers(
         &state,
         "Multi-Doc Test",
@@ -244,15 +273,25 @@ async fn test_multiple_documents_same_workspace() {
         "mock",
         "mock-embed-consistent",
         768,
-    ).await;
+    )
+    .await;
 
     let ws_id = workspace.workspace_id.to_string();
-    
+
     // Process multiple documents
     let docs = vec![
-        ("First document about Alice", format!("doc-{}", Uuid::new_v4())),
-        ("Second document about Bob", format!("doc-{}", Uuid::new_v4())),
-        ("Third document about Carol", format!("doc-{}", Uuid::new_v4())),
+        (
+            "First document about Alice",
+            format!("doc-{}", Uuid::new_v4()),
+        ),
+        (
+            "Second document about Bob",
+            format!("doc-{}", Uuid::new_v4()),
+        ),
+        (
+            "Third document about Carol",
+            format!("doc-{}", Uuid::new_v4()),
+        ),
     ];
 
     let mut success_count = 0;
@@ -269,7 +308,7 @@ async fn test_multiple_documents_same_workspace() {
             }
         }
     }
-    
+
     // At least pipeline was invoked for all docs
     assert!(success_count >= 0, "Pipeline processed documents");
 }
@@ -280,7 +319,7 @@ async fn test_multiple_documents_same_workspace() {
 #[tokio::test]
 async fn test_different_workspaces_independent_processing() {
     let state = AppState::test_state();
-    
+
     // Workspace 1 with mock
     let ws1 = create_workspace_with_providers(
         &state,
@@ -290,7 +329,8 @@ async fn test_different_workspaces_independent_processing() {
         "mock",
         "mock-embed-a",
         768,
-    ).await;
+    )
+    .await;
 
     // Workspace 2 with different mock config
     let ws2 = create_workspace_with_providers(
@@ -300,8 +340,9 @@ async fn test_different_workspaces_independent_processing() {
         "mock-b",
         "mock",
         "mock-embed-b",
-        512,  // Different dimension
-    ).await;
+        512, // Different dimension
+    )
+    .await;
 
     // Process document in workspace 1
     let doc1 = format!("doc-{}", Uuid::new_v4());
@@ -310,7 +351,8 @@ async fn test_different_workspaces_independent_processing() {
         &ws1.workspace_id.to_string(),
         &doc1,
         "Content for workspace A",
-    ).await;
+    )
+    .await;
 
     // Process document in workspace 2
     let doc2 = format!("doc-{}", Uuid::new_v4());
@@ -319,16 +361,25 @@ async fn test_different_workspaces_independent_processing() {
         &ws2.workspace_id.to_string(),
         &doc2,
         "Content for workspace B",
-    ).await;
+    )
+    .await;
 
     // Both should process (success or extraction error)
     match result1 {
         Ok(r) => assert!(!r.chunks.is_empty(), "WS1 document should have chunks"),
-        Err(e) => assert!(e.contains("JSON") || e.contains("extraction"), "WS1 error: {}", e),
+        Err(e) => assert!(
+            e.contains("JSON") || e.contains("extraction"),
+            "WS1 error: {}",
+            e
+        ),
     }
     match result2 {
         Ok(r) => assert!(!r.chunks.is_empty(), "WS2 document should have chunks"),
-        Err(e) => assert!(e.contains("JSON") || e.contains("extraction"), "WS2 error: {}", e),
+        Err(e) => assert!(
+            e.contains("JSON") || e.contains("extraction"),
+            "WS2 error: {}",
+            e
+        ),
     }
 }
 
@@ -338,7 +389,7 @@ async fn test_different_workspaces_independent_processing() {
 #[tokio::test]
 async fn test_document_processing_with_lmstudio_config() {
     let state = AppState::test_state();
-    
+
     let workspace = create_workspace_with_providers(
         &state,
         "LMStudio Document Test",
@@ -347,19 +398,22 @@ async fn test_document_processing_with_lmstudio_config() {
         "lmstudio",
         "text-embedding-nomic",
         768,
-    ).await;
+    )
+    .await;
 
     let doc_id = format!("doc-{}", Uuid::new_v4());
     let content = "Testing LMStudio document processing.";
-    
-    let pipeline = state.create_workspace_pipeline(&workspace.workspace_id.to_string()).await;
-    
+
+    let pipeline = state
+        .create_workspace_pipeline(&workspace.workspace_id.to_string())
+        .await;
+
     // Should be workspace-specific pipeline
     assert!(!std::ptr::eq(
         pipeline.as_ref() as *const _,
         state.pipeline.as_ref() as *const _
     ));
-    
+
     // Processing may fail if LMStudio not running or return extraction error
     let result = pipeline.process(&doc_id, content).await;
     match result {
@@ -375,7 +429,7 @@ async fn test_document_processing_with_lmstudio_config() {
 #[tokio::test]
 async fn test_document_processing_empty_content() {
     let state = AppState::test_state();
-    
+
     let workspace = create_workspace_with_providers(
         &state,
         "Empty Content Test",
@@ -384,13 +438,16 @@ async fn test_document_processing_empty_content() {
         "mock",
         "mock-embedding",
         768,
-    ).await;
+    )
+    .await;
 
     let doc_id = format!("doc-{}", Uuid::new_v4());
-    
-    let pipeline = state.create_workspace_pipeline(&workspace.workspace_id.to_string()).await;
+
+    let pipeline = state
+        .create_workspace_pipeline(&workspace.workspace_id.to_string())
+        .await;
     let result = pipeline.process(&doc_id, "").await;
-    
+
     // Should handle empty content gracefully (might be empty result or error)
     match result {
         Ok(r) => {

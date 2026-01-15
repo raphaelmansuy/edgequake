@@ -21,15 +21,18 @@ Created 7 tests for workspace-specific embedding dimension configuration. These 
 ## Key Verification Points
 
 ### Dimension Storage
+
 - Workspace stores embedding_dimension correctly
 - Different workspaces can have different dimensions
 - Updates to dimension are persisted
 
 ### Default Behavior
+
 - No dimension specified → defaults to 768
 - Provider-specific dimensions supported (1536 for OpenAI)
 
 ### Isolation
+
 - Each workspace maintains independent dimension
 - Dimension changes don't affect other workspaces
 

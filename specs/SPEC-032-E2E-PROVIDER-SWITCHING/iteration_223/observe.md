@@ -48,26 +48,31 @@ let (workspace_id, workspace) = if let Some(ws_id) = workspace_id {
 ## Test Scenarios Needed
 
 ### Scenario 1: Chat with Ollama workspace
+
 - Create workspace with Ollama LLM config
 - Send chat request with X-Workspace-ID
 - Verify response (or connection error to Ollama)
 
 ### Scenario 2: Chat with OpenAI workspace (no API key)
+
 - Create workspace with OpenAI config
 - Without API key: should fail or fallback
 
 ### Scenario 3: Chat with mock provider
+
 - Create workspace with mock provider
 - Send chat request
 - Verify mock response
 
 ### Scenario 4: Chat provider switch
+
 - Create workspace with provider A
 - Send chat
 - Switch to provider B
 - Send another chat
 
 ### Scenario 5: Request override workspace config
+
 - Create workspace with Ollama
 - Send chat with explicit "openai" in request
 - Request should override workspace config

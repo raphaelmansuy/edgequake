@@ -32,12 +32,9 @@ fn clean_provider_env() {
 #[serial]
 fn test_create_embedding_provider_ollama() {
     clean_provider_env();
-    
-    let provider = ProviderFactory::create_embedding_provider(
-        "ollama",
-        "nomic-embed-text",
-        768,
-    ).expect("Should create Ollama embedding provider");
+
+    let provider = ProviderFactory::create_embedding_provider("ollama", "nomic-embed-text", 768)
+        .expect("Should create Ollama embedding provider");
 
     assert_eq!(provider.name(), "ollama");
     assert_eq!(provider.dimension(), 768);
@@ -48,12 +45,9 @@ fn test_create_embedding_provider_ollama() {
 #[serial]
 fn test_create_embedding_provider_ollama_uppercase() {
     clean_provider_env();
-    
-    let provider = ProviderFactory::create_embedding_provider(
-        "OLLAMA",
-        "nomic-embed-text",
-        768,
-    ).expect("Should create Ollama embedding provider");
+
+    let provider = ProviderFactory::create_embedding_provider("OLLAMA", "nomic-embed-text", 768)
+        .expect("Should create Ollama embedding provider");
 
     assert_eq!(provider.name(), "ollama");
 }
@@ -63,12 +57,13 @@ fn test_create_embedding_provider_ollama_uppercase() {
 #[serial]
 fn test_create_embedding_provider_lmstudio() {
     clean_provider_env();
-    
+
     let provider = ProviderFactory::create_embedding_provider(
         "lmstudio",
         "text-embedding-nomic-embed-text-v1.5",
         768,
-    ).expect("Should create LM Studio embedding provider");
+    )
+    .expect("Should create LM Studio embedding provider");
 
     assert_eq!(provider.name(), "lmstudio");
     assert_eq!(provider.dimension(), 768);
@@ -79,12 +74,9 @@ fn test_create_embedding_provider_lmstudio() {
 #[serial]
 fn test_create_embedding_provider_mock() {
     clean_provider_env();
-    
-    let provider = ProviderFactory::create_embedding_provider(
-        "mock",
-        "mock-embedding",
-        1536,
-    ).expect("Should create Mock embedding provider");
+
+    let provider = ProviderFactory::create_embedding_provider("mock", "mock-embedding", 1536)
+        .expect("Should create Mock embedding provider");
 
     assert_eq!(provider.name(), "mock");
 }
@@ -94,16 +86,16 @@ fn test_create_embedding_provider_mock() {
 #[serial]
 fn test_create_embedding_provider_openai_requires_key() {
     clean_provider_env();
-    
-    let result = ProviderFactory::create_embedding_provider(
-        "openai",
-        "text-embedding-3-small",
-        1536,
-    );
+
+    let result =
+        ProviderFactory::create_embedding_provider("openai", "text-embedding-3-small", 1536);
 
     assert!(result.is_err(), "OpenAI should fail without API key");
     if let Err(err) = result {
-        assert!(err.to_string().contains("OPENAI_API_KEY"), "Error should mention API key");
+        assert!(
+            err.to_string().contains("OPENAI_API_KEY"),
+            "Error should mention API key"
+        );
     }
 }
 
@@ -112,12 +104,8 @@ fn test_create_embedding_provider_openai_requires_key() {
 #[serial]
 fn test_create_embedding_provider_invalid() {
     clean_provider_env();
-    
-    let result = ProviderFactory::create_embedding_provider(
-        "invalid_provider",
-        "some-model",
-        768,
-    );
+
+    let result = ProviderFactory::create_embedding_provider("invalid_provider", "some-model", 768);
 
     assert!(result.is_err(), "Invalid provider should fail");
     if let Err(err) = result {
@@ -134,11 +122,9 @@ fn test_create_embedding_provider_invalid() {
 #[serial]
 fn test_create_llm_provider_ollama() {
     clean_provider_env();
-    
-    let provider = ProviderFactory::create_llm_provider(
-        "ollama",
-        "gemma3:12b",
-    ).expect("Should create Ollama LLM provider");
+
+    let provider = ProviderFactory::create_llm_provider("ollama", "gemma3:12b")
+        .expect("Should create Ollama LLM provider");
 
     assert_eq!(provider.name(), "ollama");
 }
@@ -148,11 +134,9 @@ fn test_create_llm_provider_ollama() {
 #[serial]
 fn test_create_llm_provider_lmstudio() {
     clean_provider_env();
-    
-    let provider = ProviderFactory::create_llm_provider(
-        "lmstudio",
-        "gemma-3n-e4b-it",
-    ).expect("Should create LM Studio LLM provider");
+
+    let provider = ProviderFactory::create_llm_provider("lmstudio", "gemma-3n-e4b-it")
+        .expect("Should create LM Studio LLM provider");
 
     assert_eq!(provider.name(), "lmstudio");
 }
@@ -162,11 +146,9 @@ fn test_create_llm_provider_lmstudio() {
 #[serial]
 fn test_create_llm_provider_mock() {
     clean_provider_env();
-    
-    let provider = ProviderFactory::create_llm_provider(
-        "mock",
-        "mock-model",
-    ).expect("Should create Mock LLM provider");
+
+    let provider = ProviderFactory::create_llm_provider("mock", "mock-model")
+        .expect("Should create Mock LLM provider");
 
     assert_eq!(provider.name(), "mock");
 }
@@ -176,15 +158,15 @@ fn test_create_llm_provider_mock() {
 #[serial]
 fn test_create_llm_provider_openai_requires_key() {
     clean_provider_env();
-    
-    let result = ProviderFactory::create_llm_provider(
-        "openai",
-        "gpt-4o-mini",
-    );
+
+    let result = ProviderFactory::create_llm_provider("openai", "gpt-4o-mini");
 
     assert!(result.is_err(), "OpenAI should fail without API key");
     if let Err(err) = result {
-        assert!(err.to_string().contains("OPENAI_API_KEY"), "Error should mention API key");
+        assert!(
+            err.to_string().contains("OPENAI_API_KEY"),
+            "Error should mention API key"
+        );
     }
 }
 
@@ -193,11 +175,8 @@ fn test_create_llm_provider_openai_requires_key() {
 #[serial]
 fn test_create_llm_provider_invalid() {
     clean_provider_env();
-    
-    let result = ProviderFactory::create_llm_provider(
-        "unknown_llm",
-        "some-model",
-    );
+
+    let result = ProviderFactory::create_llm_provider("unknown_llm", "some-model");
 
     assert!(result.is_err(), "Invalid provider should fail");
     if let Err(err) = result {
@@ -214,7 +193,7 @@ fn test_create_llm_provider_invalid() {
 #[serial]
 fn test_provider_name_consistency() {
     clean_provider_env();
-    
+
     // Ollama
     let ollama_embed = ProviderFactory::create_embedding_provider("ollama", "model", 768).unwrap();
     let ollama_llm = ProviderFactory::create_llm_provider("ollama", "model").unwrap();
@@ -236,12 +215,16 @@ fn test_provider_name_consistency() {
 #[serial]
 fn test_provider_case_insensitivity() {
     clean_provider_env();
-    
+
     let providers = ["ollama", "OLLAMA", "Ollama", "OlLaMa"];
-    
+
     for provider_name in providers {
         let result = ProviderFactory::create_embedding_provider(provider_name, "model", 768);
-        assert!(result.is_ok(), "Provider '{}' should be valid", provider_name);
+        assert!(
+            result.is_ok(),
+            "Provider '{}' should be valid",
+            provider_name
+        );
         assert_eq!(result.unwrap().name(), "ollama");
     }
 }
@@ -251,20 +234,14 @@ fn test_provider_case_insensitivity() {
 #[serial]
 fn test_different_models_same_provider() {
     clean_provider_env();
-    
+
     // Create two Ollama providers with different models
-    let provider1 = ProviderFactory::create_embedding_provider(
-        "ollama",
-        "nomic-embed-text",
-        768,
-    ).expect("Should create provider 1");
-    
-    let provider2 = ProviderFactory::create_embedding_provider(
-        "ollama",
-        "all-minilm",
-        384,
-    ).expect("Should create provider 2");
-    
+    let provider1 = ProviderFactory::create_embedding_provider("ollama", "nomic-embed-text", 768)
+        .expect("Should create provider 1");
+
+    let provider2 = ProviderFactory::create_embedding_provider("ollama", "all-minilm", 384)
+        .expect("Should create provider 2");
+
     // Both should be Ollama providers
     assert_eq!(provider1.name(), "ollama");
     assert_eq!(provider2.name(), "ollama");

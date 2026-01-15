@@ -7,7 +7,9 @@ Fixed provider tracking in ProcessingStats and added 9 tests to verify provider 
 ## Code Changes
 
 ### 1. EntityExtractor trait (extractor.rs)
+
 Added `provider_name()` method to EntityExtractor trait:
+
 ```rust
 fn provider_name(&self) -> &str {
     "unknown"
@@ -15,7 +17,9 @@ fn provider_name(&self) -> &str {
 ```
 
 ### 2. LLMExtractor implementation (extractor.rs)
+
 Implemented `provider_name()` in LLMExtractor:
+
 ```rust
 fn provider_name(&self) -> &str {
     self.llm_provider.name()
@@ -23,7 +27,9 @@ fn provider_name(&self) -> &str {
 ```
 
 ### 3. Pipeline process() (pipeline.rs)
+
 Now sets `stats.llm_provider` and `stats.embedding_provider`:
+
 ```rust
 // Step 2: Extract entities
 stats.llm_model = Some(extractor.model_name().to_string());
@@ -53,11 +59,13 @@ stats.embedding_provider = Some(provider.name().to_string());
 ## Key Verification Points
 
 ### Provider Name Tracking
+
 - EntityExtractor.provider_name() returns correct provider (mock/ollama/lmstudio)
 - ProcessingStats.llm_provider now populated during extraction
 - ProcessingStats.embedding_provider now populated during embedding
 
 ### Bug Fix
+
 - **BEFORE**: ProcessingStats.llm_provider and embedding_provider were always None
 - **AFTER**: Both fields are populated with actual provider names
 

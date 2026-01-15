@@ -10,8 +10,8 @@ use edgequake_api::AppState;
 use edgequake_core::types::{CreateWorkspaceRequest, UpdateWorkspaceRequest};
 use edgequake_core::Tenant;
 use edgequake_llm::ProviderFactory;
-use uuid::Uuid;
 use serial_test::serial;
+use uuid::Uuid;
 
 // ============================================================================
 // Helper Functions
@@ -66,7 +66,7 @@ async fn create_workspace_with_providers(
 #[tokio::test]
 async fn test_workspace_llm_config_stored() {
     let state = AppState::test_state();
-    
+
     let workspace = create_workspace_with_providers(
         &state,
         "LLM Config Test",
@@ -75,10 +75,12 @@ async fn test_workspace_llm_config_stored() {
         "ollama",
         "nomic-embed-text",
         768,
-    ).await;
+    )
+    .await;
 
     // Verify config was stored correctly
-    let retrieved = state.workspace_service
+    let retrieved = state
+        .workspace_service
         .get_workspace(workspace.workspace_id)
         .await
         .expect("Should get workspace")
@@ -95,22 +97,21 @@ async fn test_workspace_llm_config_stored() {
 #[serial]
 async fn test_provider_factory_creates_workspace_llm() {
     let state = AppState::test_state();
-    
+
     let workspace = create_workspace_with_providers(
         &state,
         "Factory LLM Test",
-        "mock",  // Mock always works
+        "mock", // Mock always works
         "mock-chat-model",
         "mock",
         "mock-embedding",
         768,
-    ).await;
+    )
+    .await;
 
     // Verify ProviderFactory can create the provider
-    let provider_result = ProviderFactory::create_llm_provider(
-        &workspace.llm_provider,
-        &workspace.llm_model,
-    );
+    let provider_result =
+        ProviderFactory::create_llm_provider(&workspace.llm_provider, &workspace.llm_model);
 
     assert!(provider_result.is_ok(), "Should create mock LLM provider");
     let provider = provider_result.unwrap();
@@ -121,7 +122,7 @@ async fn test_provider_factory_creates_workspace_llm() {
 #[tokio::test]
 async fn test_llm_provider_switch_updates_config() {
     let state = AppState::test_state();
-    
+
     // Create with Ollama
     let workspace = create_workspace_with_providers(
         &state,
@@ -131,10 +132,12 @@ async fn test_llm_provider_switch_updates_config() {
         "ollama",
         "nomic-embed-text",
         768,
-    ).await;
+    )
+    .await;
 
     // Verify initial config
-    let initial = state.workspace_service
+    let initial = state
+        .workspace_service
         .get_workspace(workspace.workspace_id)
         .await
         .expect("Get workspace")
@@ -154,13 +157,15 @@ async fn test_llm_provider_switch_updates_config() {
         embedding_dimension: None,
     };
 
-    state.workspace_service
+    state
+        .workspace_service
         .update_workspace(workspace.workspace_id, update)
         .await
         .expect("Update should succeed");
 
     // Verify switch
-    let updated = state.workspace_service
+    let updated = state
+        .workspace_service
         .get_workspace(workspace.workspace_id)
         .await
         .expect("Get workspace")
@@ -173,7 +178,7 @@ async fn test_llm_provider_switch_updates_config() {
 #[tokio::test]
 async fn test_independent_llm_configs_per_workspace() {
     let state = AppState::test_state();
-    
+
     // Workspace 1 with Ollama
     let ws1 = create_workspace_with_providers(
         &state,
@@ -183,7 +188,8 @@ async fn test_independent_llm_configs_per_workspace() {
         "ollama",
         "nomic-embed-text",
         768,
-    ).await;
+    )
+    .await;
 
     // Workspace 2 with LMStudio
     let ws2 = create_workspace_with_providers(
@@ -194,7 +200,8 @@ async fn test_independent_llm_configs_per_workspace() {
         "lmstudio",
         "text-embedding-nomic",
         768,
-    ).await;
+    )
+    .await;
 
     // Workspace 3 with mock
     let ws3 = create_workspace_with_providers(
@@ -205,15 +212,28 @@ async fn test_independent_llm_configs_per_workspace() {
         "mock",
         "mock-embed",
         768,
-    ).await;
+    )
+    .await;
 
     // Verify each workspace has its own config
-    let config1 = state.workspace_service.get_workspace(ws1.workspace_id).await
-        .expect("Get").expect("Exists");
-    let config2 = state.workspace_service.get_workspace(ws2.workspace_id).await
-        .expect("Get").expect("Exists");
-    let config3 = state.workspace_service.get_workspace(ws3.workspace_id).await
-        .expect("Get").expect("Exists");
+    let config1 = state
+        .workspace_service
+        .get_workspace(ws1.workspace_id)
+        .await
+        .expect("Get")
+        .expect("Exists");
+    let config2 = state
+        .workspace_service
+        .get_workspace(ws2.workspace_id)
+        .await
+        .expect("Get")
+        .expect("Exists");
+    let config3 = state
+        .workspace_service
+        .get_workspace(ws3.workspace_id)
+        .await
+        .expect("Get")
+        .expect("Exists");
 
     assert_eq!(config1.llm_provider, "ollama");
     assert_eq!(config2.llm_provider, "lmstudio");
@@ -225,9 +245,9 @@ async fn test_independent_llm_configs_per_workspace() {
 #[serial]
 async fn test_openai_llm_config_stored_creation_fails() {
     std::env::remove_var("OPENAI_API_KEY");
-    
+
     let state = AppState::test_state();
-    
+
     // Create workspace with OpenAI config
     let workspace = create_workspace_with_providers(
         &state,
@@ -237,10 +257,12 @@ async fn test_openai_llm_config_stored_creation_fails() {
         "openai",
         "text-embedding-3-small",
         1536,
-    ).await;
+    )
+    .await;
 
     // Config should be stored
-    let retrieved = state.workspace_service
+    let retrieved = state
+        .workspace_service
         .get_workspace(workspace.workspace_id)
         .await
         .expect("Get")
@@ -248,10 +270,8 @@ async fn test_openai_llm_config_stored_creation_fails() {
     assert_eq!(retrieved.llm_provider, "openai");
 
     // But provider creation should fail without API key
-    let provider_result = ProviderFactory::create_llm_provider(
-        &retrieved.llm_provider,
-        &retrieved.llm_model,
-    );
+    let provider_result =
+        ProviderFactory::create_llm_provider(&retrieved.llm_provider, &retrieved.llm_model);
     assert!(provider_result.is_err(), "OpenAI should fail without key");
 }
 
@@ -259,7 +279,7 @@ async fn test_openai_llm_config_stored_creation_fails() {
 #[tokio::test]
 async fn test_llm_config_persistence() {
     let state = AppState::test_state();
-    
+
     let workspace = create_workspace_with_providers(
         &state,
         "LLM Persistence Test",
@@ -268,18 +288,24 @@ async fn test_llm_config_persistence() {
         "mock",
         "mock-embedding",
         768,
-    ).await;
+    )
+    .await;
 
     // Retrieve multiple times
     for i in 0..5 {
-        let retrieved = state.workspace_service
+        let retrieved = state
+            .workspace_service
             .get_workspace(workspace.workspace_id)
             .await
             .expect(&format!("Get #{}", i))
             .expect("Exists");
-        
+
         assert_eq!(retrieved.llm_provider, "mock", "Provider persists #{}", i);
-        assert_eq!(retrieved.llm_model, "persistent-model", "Model persists #{}", i);
+        assert_eq!(
+            retrieved.llm_model, "persistent-model",
+            "Model persists #{}",
+            i
+        );
     }
 }
 
@@ -287,7 +313,7 @@ async fn test_llm_config_persistence() {
 #[tokio::test]
 async fn test_llm_full_id_format() {
     let state = AppState::test_state();
-    
+
     let workspace = create_workspace_with_providers(
         &state,
         "Full ID Test",
@@ -296,9 +322,11 @@ async fn test_llm_full_id_format() {
         "ollama",
         "nomic-embed-text",
         768,
-    ).await;
+    )
+    .await;
 
-    let retrieved = state.workspace_service
+    let retrieved = state
+        .workspace_service
         .get_workspace(workspace.workspace_id)
         .await
         .expect("Get")
@@ -306,6 +334,9 @@ async fn test_llm_full_id_format() {
 
     // Verify full_id format (provider/model)
     let full_id = retrieved.llm_full_id();
-    assert!(full_id.contains("ollama") || full_id.contains("gemma3:12b"),
-            "Full ID should contain provider or model: {}", full_id);
+    assert!(
+        full_id.contains("ollama") || full_id.contains("gemma3:12b"),
+        "Full ID should contain provider or model: {}",
+        full_id
+    );
 }

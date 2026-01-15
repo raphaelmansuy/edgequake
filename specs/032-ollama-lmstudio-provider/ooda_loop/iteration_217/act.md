@@ -13,25 +13,30 @@ Created comprehensive HTTP-level E2E tests that verify query execution with work
 ### Tests Added (8 tests)
 
 1. **`test_query_http_without_workspace_header`**
+
    - Verifies query works without X-Workspace-ID header
    - Uses default provider
 
 2. **`test_query_http_with_workspace_header`**
+
    - Creates workspace with mock config
    - Executes query with X-Workspace-ID header
    - Verifies 200 OK response
 
 3. **`test_query_http_workspace_ollama_config`**
+
    - Creates workspace with Ollama embedding config (768 dim)
    - Executes query with workspace header
    - Verifies response includes answer
 
 4. **`test_query_http_workspace_provider_isolation`**
+
    - Creates two workspaces: OpenAI (1536) and Ollama (768)
    - Executes queries on both workspaces
    - Verifies isolation - different configs work independently
 
 5. **`test_query_http_after_provider_switch`**
+
    - Creates workspace with mock config
    - Executes query (succeeds)
    - Updates embedding config
@@ -39,10 +44,12 @@ Created comprehensive HTTP-level E2E tests that verify query execution with work
    - Verifies updated config is used
 
 6. **`test_query_http_nonexistent_workspace`**
+
    - Attempts query with non-existent workspace UUID
    - Verifies graceful fallback to default provider (200 OK)
 
 7. **`test_query_http_invalid_workspace_uuid`**
+
    - Attempts query with invalid UUID format
    - Verifies graceful fallback to default provider (200 OK)
 
@@ -82,6 +89,7 @@ test result: ok. 8 passed; 0 failed
 ### Discovery: Real Provider Verification
 
 During testing, we discovered that:
+
 - When switching to "openai" provider in tests (no API key), query returns 500
 - This **PROVES** the provider switch took effect - it's trying to use the real OpenAI provider
 - In production with valid API keys, this would work correctly

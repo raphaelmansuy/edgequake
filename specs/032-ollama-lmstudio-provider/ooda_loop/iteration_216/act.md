@@ -13,21 +13,25 @@ Created E2E tests to verify that workspace embedding configuration is correctly 
 ### Tests Added (5 tests)
 
 1. **`test_workspace_embedding_config_for_query`**
+
    - Creates workspace with specific embedding config
    - Verifies config is stored correctly
    - Confirms config is retrievable for query-time provider selection
 
 2. **`test_workspace_embedding_isolation_for_query`**
+
    - Creates two workspaces: OpenAI-style (1536-dim) and Ollama-style (768-dim)
    - Verifies different model names and dimensions
    - Confirms isolation between workspaces
 
 3. **`test_workspace_llm_config_for_query_lineage`**
+
    - Creates workspace with specific LLM config (ollama/gemma3:12b)
    - Verifies LLM config is stored correctly
    - Confirms config can be used for query response lineage
 
 4. **`test_workspace_provider_update_affects_query_config`**
+
    - Creates workspace with initial config
    - Updates embedding config (model and dimension)
    - Verifies updated config would be used for future queries

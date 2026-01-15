@@ -84,7 +84,7 @@ async fn test_workspace_embedding_config_for_query() {
         "mock-model",
         "mock",           // embedding provider
         "mock-embedding", // embedding model
-        1536,            // embedding dimension
+        1536,             // embedding dimension
     )
     .await;
 
@@ -122,9 +122,9 @@ async fn test_workspace_embedding_isolation_for_query() {
         "OpenAI Embedding",
         "mock",
         "gpt-4o-mini",
-        "mock",                  // mock for testing
+        "mock",                   // mock for testing
         "text-embedding-3-small", // OpenAI model name
-        1536,                    // OpenAI dimension
+        1536,                     // OpenAI dimension
     )
     .await;
 
@@ -134,9 +134,9 @@ async fn test_workspace_embedding_isolation_for_query() {
         "Ollama Embedding",
         "mock",
         "gemma3:12b",
-        "mock",              // mock for testing
-        "nomic-embed-text",  // Ollama model name
-        768,                 // Ollama dimension
+        "mock",             // mock for testing
+        "nomic-embed-text", // Ollama model name
+        768,                // Ollama dimension
     )
     .await;
 
@@ -186,8 +186,8 @@ async fn test_workspace_llm_config_for_query_lineage() {
     let workspace = create_test_workspace(
         &state,
         "Query LLM Test",
-        "ollama",       // LLM provider
-        "gemma3:12b",   // LLM model
+        "ollama",     // LLM provider
+        "gemma3:12b", // LLM model
         "mock",
         "mock-embedding",
         1536,
@@ -293,7 +293,10 @@ async fn test_workspace_full_id_format() {
 
     // Verify we can construct full_id from components
     let llm_full_id = format!("{}/{}", retrieved.llm_provider, retrieved.llm_model);
-    let embedding_full_id = format!("{}/{}", retrieved.embedding_provider, retrieved.embedding_model);
+    let embedding_full_id = format!(
+        "{}/{}",
+        retrieved.embedding_provider, retrieved.embedding_model
+    );
 
     assert_eq!(llm_full_id, "ollama/gemma3:12b");
     assert_eq!(embedding_full_id, "ollama/nomic-embed-text");

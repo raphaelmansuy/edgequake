@@ -32,16 +32,19 @@ let result = workspace_pipeline
 ## What We Need to Test
 
 ### Scenario 1: Document with Ollama Pipeline
+
 - Create workspace with Ollama config
 - Upload document synchronously
 - Verify processing completes (chunks, entities)
 
 ### Scenario 2: Document with Mock Pipeline
+
 - Create workspace with mock provider (always works)
 - Upload document
 - Verify expected entities/relationships from mock
 
 ### Scenario 3: Provider Switch Between Documents
+
 - Create workspace with provider A
 - Upload doc 1
 - Switch to provider B
@@ -49,6 +52,7 @@ let result = workspace_pipeline
 - Verify doc 2 was processed with provider B
 
 ### Scenario 4: Async Processing Uses Workspace Pipeline
+
 - Enable async processing
 - Upload document to workspace
 - Verify background task uses workspace pipeline

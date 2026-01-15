@@ -21,15 +21,18 @@ Created 7 tests for document processing with workspace-specific pipeline configu
 ## Key Verification Points
 
 ### Pipeline Usage
+
 - `create_workspace_pipeline()` called before processing
 - Workspace-specific pipeline (not global) is used
 - Processing result includes chunks (if successful)
 
 ### Provider Switch Impact
+
 - After `update_workspace()`, new documents use new config
 - Both documents before and after switch are processed
 
 ### Error Handling
+
 - Mock provider may return extraction errors (JSON parse)
 - Ollama/LMStudio may have connection errors
 - Both cases handled gracefully

@@ -9,11 +9,12 @@ Reviewed [`query.rs`](../../../../edgequake/crates/edgequake-api/src/handlers/qu
 ### Key Observations
 
 1. **Workspace Embedding Provider Selection** (lines 166-200):
+
    ```rust
    let result = if let Some(ref workspace_id) = tenant_ctx.workspace_id {
        let embedding_result = get_workspace_embedding_provider(&state, workspace_id).await;
        let vector_result = get_workspace_vector_storage(&state, workspace_id).await;
-       
+
        match (embedding_result, vector_result) {
            (Ok(Some(embedding_provider)), Ok(Some(vector_storage))) => {
                // Full workspace isolation
@@ -27,6 +28,7 @@ Reviewed [`query.rs`](../../../../edgequake/crates/edgequake-api/src/handlers/qu
    ```
 
 2. **`get_workspace_embedding_provider()`** (lines 466-518):
+
    - Parses workspace_id to UUID
    - Retrieves workspace from service
    - Checks if workspace has custom embedding config
@@ -40,6 +42,7 @@ Reviewed [`query.rs`](../../../../edgequake/crates/edgequake-api/src/handlers/qu
 ### Current Test Gap
 
 The existing `e2e_query.rs` tests do NOT verify:
+
 - ❌ Query uses workspace-specific embedding provider
 - ❌ Query response contains correct provider metadata
 - ❌ Workspace isolation of query results
@@ -47,6 +50,7 @@ The existing `e2e_query.rs` tests do NOT verify:
 ### Recommendation
 
 Create tests that:
+
 1. Create workspace with specific embedding config
 2. Execute query with workspace context (X-Workspace-Id header)
 3. Verify query response contains workspace provider metadata

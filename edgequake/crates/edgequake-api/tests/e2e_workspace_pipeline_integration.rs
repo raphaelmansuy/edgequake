@@ -68,7 +68,7 @@ async fn create_workspace_with_providers(
 #[tokio::test]
 async fn test_workspace_pipeline_with_ollama() {
     let state = AppState::test_state();
-    
+
     // Create workspace with Ollama config
     let workspace = create_workspace_with_providers(
         &state,
@@ -78,17 +78,23 @@ async fn test_workspace_pipeline_with_ollama() {
         "ollama",
         "nomic-embed-text",
         768,
-    ).await;
+    )
+    .await;
 
     // Create workspace pipeline
-    let pipeline = state.create_workspace_pipeline(&workspace.workspace_id.to_string()).await;
-    
+    let pipeline = state
+        .create_workspace_pipeline(&workspace.workspace_id.to_string())
+        .await;
+
     // Pipeline should be created (it's Arc<Pipeline>)
     // The fact that we get a pipeline back means the workspace config was found
-    assert!(!std::ptr::eq(
-        pipeline.as_ref() as *const _,
-        state.pipeline.as_ref() as *const _
-    ), "Should create workspace-specific pipeline, not global");
+    assert!(
+        !std::ptr::eq(
+            pipeline.as_ref() as *const _,
+            state.pipeline.as_ref() as *const _
+        ),
+        "Should create workspace-specific pipeline, not global"
+    );
 }
 
 /// Test: create_workspace_pipeline with invalid UUID.
@@ -97,15 +103,18 @@ async fn test_workspace_pipeline_with_ollama() {
 #[tokio::test]
 async fn test_workspace_pipeline_invalid_uuid() {
     let state = AppState::test_state();
-    
+
     // Use invalid UUID format
     let pipeline = state.create_workspace_pipeline("not-a-valid-uuid").await;
-    
+
     // Should return global pipeline
-    assert!(std::ptr::eq(
-        pipeline.as_ref() as *const _,
-        state.pipeline.as_ref() as *const _
-    ), "Invalid UUID should return global pipeline");
+    assert!(
+        std::ptr::eq(
+            pipeline.as_ref() as *const _,
+            state.pipeline.as_ref() as *const _
+        ),
+        "Invalid UUID should return global pipeline"
+    );
 }
 
 /// Test: create_workspace_pipeline with non-existent workspace.
@@ -114,16 +123,21 @@ async fn test_workspace_pipeline_invalid_uuid() {
 #[tokio::test]
 async fn test_workspace_pipeline_nonexistent_workspace() {
     let state = AppState::test_state();
-    
+
     // Use valid UUID that doesn't exist
     let fake_uuid = Uuid::new_v4();
-    let pipeline = state.create_workspace_pipeline(&fake_uuid.to_string()).await;
-    
+    let pipeline = state
+        .create_workspace_pipeline(&fake_uuid.to_string())
+        .await;
+
     // Should return global pipeline
-    assert!(std::ptr::eq(
-        pipeline.as_ref() as *const _,
-        state.pipeline.as_ref() as *const _
-    ), "Non-existent workspace should return global pipeline");
+    assert!(
+        std::ptr::eq(
+            pipeline.as_ref() as *const _,
+            state.pipeline.as_ref() as *const _
+        ),
+        "Non-existent workspace should return global pipeline"
+    );
 }
 
 /// Test: create_workspace_pipeline with LMStudio config.
@@ -132,7 +146,7 @@ async fn test_workspace_pipeline_nonexistent_workspace() {
 #[tokio::test]
 async fn test_workspace_pipeline_with_lmstudio() {
     let state = AppState::test_state();
-    
+
     // Create workspace with LMStudio config
     let workspace = create_workspace_with_providers(
         &state,
@@ -142,16 +156,22 @@ async fn test_workspace_pipeline_with_lmstudio() {
         "lmstudio",
         "text-embedding-nomic-embed",
         768,
-    ).await;
+    )
+    .await;
 
     // Create workspace pipeline
-    let pipeline = state.create_workspace_pipeline(&workspace.workspace_id.to_string()).await;
-    
+    let pipeline = state
+        .create_workspace_pipeline(&workspace.workspace_id.to_string())
+        .await;
+
     // Pipeline should be workspace-specific
-    assert!(!std::ptr::eq(
-        pipeline.as_ref() as *const _,
-        state.pipeline.as_ref() as *const _
-    ), "Should create workspace-specific pipeline for LMStudio");
+    assert!(
+        !std::ptr::eq(
+            pipeline.as_ref() as *const _,
+            state.pipeline.as_ref() as *const _
+        ),
+        "Should create workspace-specific pipeline for LMStudio"
+    );
 }
 
 /// Test: create_workspace_pipeline with mock provider.
@@ -160,7 +180,7 @@ async fn test_workspace_pipeline_with_lmstudio() {
 #[tokio::test]
 async fn test_workspace_pipeline_with_mock() {
     let state = AppState::test_state();
-    
+
     // Create workspace with mock config
     let workspace = create_workspace_with_providers(
         &state,
@@ -170,16 +190,22 @@ async fn test_workspace_pipeline_with_mock() {
         "mock",
         "mock-embedding",
         768,
-    ).await;
+    )
+    .await;
 
     // Create workspace pipeline
-    let pipeline = state.create_workspace_pipeline(&workspace.workspace_id.to_string()).await;
-    
+    let pipeline = state
+        .create_workspace_pipeline(&workspace.workspace_id.to_string())
+        .await;
+
     // Mock provider should always work
-    assert!(!std::ptr::eq(
-        pipeline.as_ref() as *const _,
-        state.pipeline.as_ref() as *const _
-    ), "Should create workspace-specific pipeline for mock provider");
+    assert!(
+        !std::ptr::eq(
+            pipeline.as_ref() as *const _,
+            state.pipeline.as_ref() as *const _
+        ),
+        "Should create workspace-specific pipeline for mock provider"
+    );
 }
 
 /// Test: Pipeline changes after provider switch.
@@ -189,7 +215,7 @@ async fn test_workspace_pipeline_with_mock() {
 #[tokio::test]
 async fn test_pipeline_changes_after_provider_switch() {
     let state = AppState::test_state();
-    
+
     // Create workspace with Ollama
     let workspace = create_workspace_with_providers(
         &state,
@@ -199,11 +225,14 @@ async fn test_pipeline_changes_after_provider_switch() {
         "ollama",
         "nomic-embed-text",
         768,
-    ).await;
+    )
+    .await;
 
     // Get initial pipeline
-    let pipeline1 = state.create_workspace_pipeline(&workspace.workspace_id.to_string()).await;
-    
+    let pipeline1 = state
+        .create_workspace_pipeline(&workspace.workspace_id.to_string())
+        .await;
+
     // Verify initial pipeline is workspace-specific
     assert!(!std::ptr::eq(
         pipeline1.as_ref() as *const _,
@@ -223,26 +252,32 @@ async fn test_pipeline_changes_after_provider_switch() {
         embedding_dimension: Some(768),
     };
 
-    state.workspace_service
+    state
+        .workspace_service
         .update_workspace(workspace.workspace_id, update)
         .await
         .expect("Update should succeed");
 
     // Get new pipeline after switch
-    let pipeline2 = state.create_workspace_pipeline(&workspace.workspace_id.to_string()).await;
-    
+    let pipeline2 = state
+        .create_workspace_pipeline(&workspace.workspace_id.to_string())
+        .await;
+
     // New pipeline should also be workspace-specific
     assert!(!std::ptr::eq(
         pipeline2.as_ref() as *const _,
         state.pipeline.as_ref() as *const _
     ));
-    
+
     // The two pipelines should be different instances
     // (new pipeline created with new config)
-    assert!(!std::ptr::eq(
-        pipeline1.as_ref() as *const _,
-        pipeline2.as_ref() as *const _
-    ), "Pipeline should be recreated after provider switch");
+    assert!(
+        !std::ptr::eq(
+            pipeline1.as_ref() as *const _,
+            pipeline2.as_ref() as *const _
+        ),
+        "Pipeline should be recreated after provider switch"
+    );
 }
 
 /// Test: Multiple workspaces get isolated pipelines.
@@ -252,7 +287,7 @@ async fn test_pipeline_changes_after_provider_switch() {
 #[tokio::test]
 async fn test_isolated_pipelines_per_workspace() {
     let state = AppState::test_state();
-    
+
     // Create workspace 1 with Ollama
     let ws1 = create_workspace_with_providers(
         &state,
@@ -262,7 +297,8 @@ async fn test_isolated_pipelines_per_workspace() {
         "ollama",
         "nomic-embed-text",
         768,
-    ).await;
+    )
+    .await;
 
     // Create workspace 2 with LMStudio
     let ws2 = create_workspace_with_providers(
@@ -273,7 +309,8 @@ async fn test_isolated_pipelines_per_workspace() {
         "lmstudio",
         "text-embedding-nomic",
         768,
-    ).await;
+    )
+    .await;
 
     // Create workspace 3 with mock
     let ws3 = create_workspace_with_providers(
@@ -284,22 +321,47 @@ async fn test_isolated_pipelines_per_workspace() {
         "mock",
         "mock-embedding",
         512,
-    ).await;
+    )
+    .await;
 
     // Get pipelines
-    let pipeline1 = state.create_workspace_pipeline(&ws1.workspace_id.to_string()).await;
-    let pipeline2 = state.create_workspace_pipeline(&ws2.workspace_id.to_string()).await;
-    let pipeline3 = state.create_workspace_pipeline(&ws3.workspace_id.to_string()).await;
+    let pipeline1 = state
+        .create_workspace_pipeline(&ws1.workspace_id.to_string())
+        .await;
+    let pipeline2 = state
+        .create_workspace_pipeline(&ws2.workspace_id.to_string())
+        .await;
+    let pipeline3 = state
+        .create_workspace_pipeline(&ws3.workspace_id.to_string())
+        .await;
 
     // All should be workspace-specific (not global)
-    assert!(!std::ptr::eq(pipeline1.as_ref() as *const _, state.pipeline.as_ref() as *const _));
-    assert!(!std::ptr::eq(pipeline2.as_ref() as *const _, state.pipeline.as_ref() as *const _));
-    assert!(!std::ptr::eq(pipeline3.as_ref() as *const _, state.pipeline.as_ref() as *const _));
-    
+    assert!(!std::ptr::eq(
+        pipeline1.as_ref() as *const _,
+        state.pipeline.as_ref() as *const _
+    ));
+    assert!(!std::ptr::eq(
+        pipeline2.as_ref() as *const _,
+        state.pipeline.as_ref() as *const _
+    ));
+    assert!(!std::ptr::eq(
+        pipeline3.as_ref() as *const _,
+        state.pipeline.as_ref() as *const _
+    ));
+
     // Each should be a distinct instance
-    assert!(!std::ptr::eq(pipeline1.as_ref() as *const _, pipeline2.as_ref() as *const _));
-    assert!(!std::ptr::eq(pipeline2.as_ref() as *const _, pipeline3.as_ref() as *const _));
-    assert!(!std::ptr::eq(pipeline1.as_ref() as *const _, pipeline3.as_ref() as *const _));
+    assert!(!std::ptr::eq(
+        pipeline1.as_ref() as *const _,
+        pipeline2.as_ref() as *const _
+    ));
+    assert!(!std::ptr::eq(
+        pipeline2.as_ref() as *const _,
+        pipeline3.as_ref() as *const _
+    ));
+    assert!(!std::ptr::eq(
+        pipeline1.as_ref() as *const _,
+        pipeline3.as_ref() as *const _
+    ));
 }
 
 /// Test: OpenAI workspace without API key falls back.
@@ -309,10 +371,10 @@ async fn test_isolated_pipelines_per_workspace() {
 #[tokio::test]
 async fn test_openai_workspace_without_key_fallback() {
     let state = AppState::test_state();
-    
+
     // Ensure no OpenAI key
     std::env::remove_var("OPENAI_API_KEY");
-    
+
     // Create workspace with OpenAI config (will fail on provider creation)
     let workspace = create_workspace_with_providers(
         &state,
@@ -322,14 +384,20 @@ async fn test_openai_workspace_without_key_fallback() {
         "openai",
         "text-embedding-3-small",
         1536,
-    ).await;
+    )
+    .await;
 
     // Get pipeline - should fall back to global
-    let pipeline = state.create_workspace_pipeline(&workspace.workspace_id.to_string()).await;
-    
+    let pipeline = state
+        .create_workspace_pipeline(&workspace.workspace_id.to_string())
+        .await;
+
     // Should return global pipeline since OpenAI creation fails
-    assert!(std::ptr::eq(
-        pipeline.as_ref() as *const _,
-        state.pipeline.as_ref() as *const _
-    ), "OpenAI without key should fall back to global pipeline");
+    assert!(
+        std::ptr::eq(
+            pipeline.as_ref() as *const _,
+            state.pipeline.as_ref() as *const _
+        ),
+        "OpenAI without key should fall back to global pipeline"
+    );
 }

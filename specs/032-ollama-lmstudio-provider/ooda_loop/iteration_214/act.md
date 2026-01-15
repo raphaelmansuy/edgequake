@@ -13,20 +13,24 @@ Created comprehensive E2E tests to verify that workspace provider configuration 
 ### Tests Added (5 tests)
 
 1. **`test_document_processing_stores_workspace_provider_lineage`**
+
    - Creates workspace with mock provider config
    - Verifies workspace config is stored correctly
    - Confirms lineage source (workspace config) can be retrieved
 
 2. **`test_workspace_isolation_of_provider_lineage`**
+
    - Creates two workspaces with different provider configs
    - Verifies each workspace has isolated lineage configuration
    - Confirms different model names are preserved
 
 3. **`test_provider_lineage_struct_serialization`**
+
    - Verifies `ProcessingStats` struct serializes lineage fields correctly
    - Tests JSON output contains llm_provider, llm_model, embedding_provider, embedding_model, embedding_dimensions
 
 4. **`test_workspace_config_retrieved_for_lineage`**
+
    - Creates workspace with Ollama-style config (gemma3:12b, nomic-embed-text, 768 dim)
    - Retrieves workspace and verifies all lineage config fields
 
@@ -69,7 +73,7 @@ These tests verify that when a document is processed:
 ### Code Path Verified
 
 ```
-Document Upload → TextInsertData { workspace_id } 
+Document Upload → TextInsertData { workspace_id }
                       ↓
 Processor.process() → get_workspace_pipeline(workspace_id)
                       ↓

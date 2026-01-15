@@ -93,7 +93,7 @@ async fn create_test_workspace_with_config(
 #[tokio::test]
 async fn test_document_upload_workspace_provider_config() {
     let state = create_test_state();
-    
+
     // Create workspace with specific provider config
     let workspace = create_test_workspace_with_config(
         &state,
@@ -103,7 +103,8 @@ async fn test_document_upload_workspace_provider_config() {
         "mock",           // embedding provider
         "mock-embedding", // embedding model
         1536,             // embedding dimension
-    ).await;
+    )
+    .await;
 
     // Verify workspace config
     assert_eq!(workspace.llm_provider, "mock");
@@ -112,7 +113,8 @@ async fn test_document_upload_workspace_provider_config() {
 
     // The workspace is now configured - any document upload to this workspace
     // would use these providers
-    let retrieved = state.workspace_service
+    let retrieved = state
+        .workspace_service
         .get_workspace(workspace.workspace_id)
         .await
         .expect("Should get workspace")
@@ -128,7 +130,7 @@ async fn test_document_upload_workspace_provider_config() {
 #[tokio::test]
 async fn test_document_upload_ollama_workspace_config() {
     let state = create_test_state();
-    
+
     // Create workspace with Ollama config
     let workspace = create_test_workspace_with_config(
         &state,
@@ -138,7 +140,8 @@ async fn test_document_upload_ollama_workspace_config() {
         "ollama",           // embedding provider
         "nomic-embed-text", // embedding model
         768,                // embedding dimension
-    ).await;
+    )
+    .await;
 
     // Verify Ollama config
     assert_eq!(workspace.llm_provider, "ollama");
@@ -152,17 +155,18 @@ async fn test_document_upload_ollama_workspace_config() {
 #[tokio::test]
 async fn test_document_upload_openai_workspace_config() {
     let state = create_test_state();
-    
+
     // Create workspace with OpenAI config
     let workspace = create_test_workspace_with_config(
         &state,
         "openai-doc-ws",
-        "openai",                   // LLM provider
-        "gpt-4o-mini",              // LLM model
-        "openai",                   // embedding provider
-        "text-embedding-3-small",   // embedding model
-        1536,                       // embedding dimension
-    ).await;
+        "openai",                 // LLM provider
+        "gpt-4o-mini",            // LLM model
+        "openai",                 // embedding provider
+        "text-embedding-3-small", // embedding model
+        1536,                     // embedding dimension
+    )
+    .await;
 
     // Verify OpenAI config
     assert_eq!(workspace.llm_provider, "openai");
@@ -176,7 +180,7 @@ async fn test_document_upload_openai_workspace_config() {
 #[tokio::test]
 async fn test_document_workspace_provider_isolation() {
     let state = create_test_state();
-    
+
     // Create workspace A with Ollama config
     let ws_a = create_test_workspace_with_config(
         &state,
@@ -186,7 +190,8 @@ async fn test_document_workspace_provider_isolation() {
         "ollama",
         "nomic-embed-text",
         768,
-    ).await;
+    )
+    .await;
 
     // Create workspace B with OpenAI config
     let ws_b = create_test_workspace_with_config(
@@ -197,7 +202,8 @@ async fn test_document_workspace_provider_isolation() {
         "openai",
         "text-embedding-3-small",
         1536,
-    ).await;
+    )
+    .await;
 
     // Verify isolation
     assert_eq!(ws_a.llm_provider, "ollama");
@@ -212,7 +218,7 @@ async fn test_document_workspace_provider_isolation() {
 #[tokio::test]
 async fn test_document_provider_switch_config() {
     let state = create_test_state();
-    
+
     // Create workspace with initial Ollama config
     let workspace = create_test_workspace_with_config(
         &state,
@@ -222,7 +228,8 @@ async fn test_document_provider_switch_config() {
         "ollama",
         "nomic-embed-text",
         768,
-    ).await;
+    )
+    .await;
 
     // Verify initial config
     assert_eq!(workspace.llm_provider, "ollama");
@@ -240,19 +247,21 @@ async fn test_document_provider_switch_config() {
         embedding_provider: Some("openai".to_string()),
         embedding_dimension: Some(1536),
     };
-    
-    state.workspace_service
+
+    state
+        .workspace_service
         .update_workspace(workspace.workspace_id, update_request)
         .await
         .expect("Failed to update workspace");
 
     // Verify switch
-    let switched = state.workspace_service
+    let switched = state
+        .workspace_service
         .get_workspace(workspace.workspace_id)
         .await
         .expect("Get ws")
         .expect("Ws exists");
-    
+
     assert_eq!(switched.llm_provider, "openai");
     assert_eq!(switched.llm_model, "gpt-4o-mini");
     assert_eq!(switched.embedding_provider, "openai");
@@ -261,15 +270,15 @@ async fn test_document_provider_switch_config() {
 }
 
 /// Test HTTP document upload endpoint with workspace header
-/// 
+///
 /// Note: This test verifies that the upload endpoint accepts documents with
-/// workspace context. When using real providers (not mock), the actual 
+/// workspace context. When using real providers (not mock), the actual
 /// document processing may succeed or fail depending on provider availability.
 #[tokio::test]
 async fn test_document_http_upload_with_workspace() {
     let state = create_test_state();
     let app = Server::new(create_test_config(), state.clone()).build_router();
-    
+
     // Create workspace with mock config
     let workspace = create_test_workspace_with_config(
         &state,
@@ -279,7 +288,8 @@ async fn test_document_http_upload_with_workspace() {
         "mock",
         "mock-embedding",
         1536,
-    ).await;
+    )
+    .await;
 
     // Verify workspace was created with mock provider
     assert_eq!(workspace.embedding_provider, "mock");
@@ -308,11 +318,12 @@ async fn test_document_http_upload_with_workspace() {
     // not registered in production ProviderFactory)
     // Both outcomes are valid - the key is that the workspace ID was processed
     assert!(
-        response.status() == StatusCode::CREATED || response.status() == StatusCode::INTERNAL_SERVER_ERROR,
+        response.status() == StatusCode::CREATED
+            || response.status() == StatusCode::INTERNAL_SERVER_ERROR,
         "Expected CREATED or INTERNAL_SERVER_ERROR, got {}",
         response.status()
     );
-    
+
     // If successful, verify document_id is returned
     if response.status() == StatusCode::CREATED {
         let body = extract_json(response).await;
@@ -349,22 +360,26 @@ async fn test_document_http_upload_without_workspace() {
 #[tokio::test]
 async fn test_document_upload_lmstudio_workspace_config() {
     let state = create_test_state();
-    
+
     // Create workspace with LM Studio config
     let workspace = create_test_workspace_with_config(
         &state,
         "lmstudio-doc-ws",
-        "lmstudio",                 // LLM provider
-        "gemma-3n-e4b-it",          // LLM model
-        "lmstudio",                 // embedding provider
-        "text-embedding-nomic-embed-text-v1.5",  // embedding model
-        768,                        // embedding dimension
-    ).await;
+        "lmstudio",                             // LLM provider
+        "gemma-3n-e4b-it",                      // LLM model
+        "lmstudio",                             // embedding provider
+        "text-embedding-nomic-embed-text-v1.5", // embedding model
+        768,                                    // embedding dimension
+    )
+    .await;
 
     // Verify LM Studio config
     assert_eq!(workspace.llm_provider, "lmstudio");
     assert_eq!(workspace.llm_model, "gemma-3n-e4b-it");
     assert_eq!(workspace.embedding_provider, "lmstudio");
-    assert_eq!(workspace.embedding_model, "text-embedding-nomic-embed-text-v1.5");
+    assert_eq!(
+        workspace.embedding_model,
+        "text-embedding-nomic-embed-text-v1.5"
+    );
     assert_eq!(workspace.embedding_dimension, 768);
 }
