@@ -264,7 +264,7 @@ impl ProviderFactory {
     pub fn create_embedding_provider(
         provider_name: &str,
         model: &str,
-        _dimension: usize,
+        dimension: usize,
     ) -> Result<Arc<dyn EmbeddingProvider>> {
         let provider_type = ProviderType::from_str(provider_name).ok_or_else(|| {
             LlmError::ConfigError(format!(
@@ -294,27 +294,32 @@ impl ProviderFactory {
                 Ok(Arc::new(provider))
             }
             ProviderType::Ollama => {
-                // Ollama provider with specific embedding model
+                // Ollama provider with specific embedding model and dimension
+                // @implements SPEC-032/OODA-227: Pass dimension to provider
                 let host = std::env::var("OLLAMA_HOST")
                     .unwrap_or_else(|_| "http://localhost:11434".to_string());
                 let provider = OllamaProvider::builder()
                     .host(&host)
                     .embedding_model(model)
+                    .embedding_dimension(dimension)
                     .build()?;
                 Ok(Arc::new(provider))
             }
             ProviderType::LMStudio => {
-                // LM Studio provider with specific embedding model
+                // LM Studio provider with specific embedding model and dimension
+                // @implements SPEC-032/OODA-227: Pass dimension to provider
                 let host = std::env::var("LMSTUDIO_HOST")
                     .unwrap_or_else(|_| "http://localhost:1234".to_string());
                 let provider = LMStudioProvider::builder()
                     .host(&host)
                     .embedding_model(model)
+                    .embedding_dimension(dimension)
                     .build()?;
                 Ok(Arc::new(provider))
             }
             ProviderType::Mock => {
-                // Mock provider ignores model/dimension and uses defaults
+                // Mock provider uses default dimension (1536)
+                // WHY: Mock is for testing, dimension doesn't affect test behavior
                 Ok(Arc::new(MockProvider::new()))
             }
         }
