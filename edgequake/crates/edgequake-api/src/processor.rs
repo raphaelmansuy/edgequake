@@ -9,6 +9,7 @@
 //! - [`FEAT0471`]: Pipeline integration
 //! - [`FEAT0472`]: Progress tracking via PipelineState
 //! - [`SPEC-032`]: Workspace-specific LLM/embedding provider selection
+//! - [`OODA-198`]: Provider lineage tracking
 //!
 //! ## Use Cases
 //!
@@ -31,6 +32,22 @@ use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage, Workspac
 use edgequake_tasks::{PipelineState, Task, TaskProcessor, TaskResult, TaskType, TextInsertData};
 use serde_json::json;
 use tracing::{error, info, warn};
+
+/// SPEC-032/OODA-198: Provider lineage information for tracking which
+/// providers were used to process a document.
+#[derive(Debug, Clone, Default)]
+pub struct ProviderLineage {
+    /// LLM provider used for entity extraction.
+    pub extraction_provider: String,
+    /// LLM model used for entity extraction.
+    pub extraction_model: String,
+    /// Embedding provider used.
+    pub embedding_provider: String,
+    /// Embedding model used.
+    pub embedding_model: String,
+    /// Embedding dimension.
+    pub embedding_dimension: usize,
+}
 
 /// Document task processor that processes documents through the pipeline.
 ///
@@ -167,39 +184,86 @@ impl DocumentTaskProcessor {
         // Look up workspace configuration
         match workspace_service.get_workspace(workspace_uuid).await {
             Ok(Some(ws)) => {
-                // Try to create workspace-specific LLM provider
-                let llm_provider =
-                    ProviderFactory::create_llm_provider(&ws.llm_provider, &ws.llm_model);
+                // Try to create workspace-specific LLM provider with safety limits
+                // @implements OODA-189: Explicit error logging for provider failures
+                // @implements FEAT0777: Safety limits for LLM calls
+                let llm_provider_result =
+                    ProviderFactory::create_safe_llm_provider(&ws.llm_provider, &ws.llm_model);
 
-                // Try to create workspace-specific embedding provider
-                let embedding_provider = ProviderFactory::create_embedding_provider(
+                // Try to create workspace-specific embedding provider with safety limits
+                let embedding_provider_result = ProviderFactory::create_safe_embedding_provider(
                     &ws.embedding_provider,
                     &ws.embedding_model,
                     ws.embedding_dimension,
                 );
 
-                // If both providers were created successfully, build workspace pipeline
-                if let (Ok(llm), Ok(embedding)) = (llm_provider, embedding_provider) {
-                    info!(
-                        workspace_id = workspace_id,
-                        llm_model = %ws.llm_full_id(),
-                        embedding_model = %ws.embedding_full_id(),
-                        "Using workspace-specific LLM configuration for document processing"
-                    );
+                // Check for provider creation failures and log explicit errors
+                match (&llm_provider_result, &embedding_provider_result) {
+                    (Ok(llm), Ok(embedding)) => {
+                        // SUCCESS: Both providers created
+                        info!(
+                            workspace_id = workspace_id,
+                            llm_provider = %ws.llm_provider,
+                            llm_model = %ws.llm_model,
+                            embedding_provider = %ws.embedding_provider,
+                            embedding_model = %ws.embedding_model,
+                            "SPEC-032: Using workspace-specific providers for document processing"
+                        );
 
-                    let extractor = Arc::new(LLMExtractor::new(llm));
-                    return Arc::new(
-                        Pipeline::default_pipeline()
-                            .with_extractor(extractor)
-                            .with_embedding_provider(embedding),
-                    );
+                        let extractor = Arc::new(LLMExtractor::new(Arc::clone(llm)));
+                        return Arc::new(
+                            Pipeline::default_pipeline()
+                                .with_extractor(extractor)
+                                .with_embedding_provider(Arc::clone(embedding)),
+                        );
+                    }
+                    (Err(llm_err), Ok(_)) => {
+                        // LLM provider failed - this is a CRITICAL issue
+                        error!(
+                            workspace_id = workspace_id,
+                            llm_provider = %ws.llm_provider,
+                            llm_model = %ws.llm_model,
+                            error = %llm_err,
+                            "CRITICAL: Failed to create workspace LLM provider. \
+                             Document extraction will use DEFAULT provider instead of workspace config. \
+                             This may result in unexpected extraction results."
+                        );
+                    }
+                    (Ok(_), Err(embed_err)) => {
+                        // Embedding provider failed - this is a CRITICAL issue
+                        error!(
+                            workspace_id = workspace_id,
+                            embedding_provider = %ws.embedding_provider,
+                            embedding_model = %ws.embedding_model,
+                            error = %embed_err,
+                            "CRITICAL: Failed to create workspace embedding provider. \
+                             Document embeddings will use DEFAULT provider instead of workspace config. \
+                             This may result in dimension mismatches or unexpected query results."
+                        );
+                    }
+                    (Err(llm_err), Err(embed_err)) => {
+                        // Both providers failed - this is a CRITICAL issue
+                        error!(
+                            workspace_id = workspace_id,
+                            llm_provider = %ws.llm_provider,
+                            llm_model = %ws.llm_model,
+                            llm_error = %llm_err,
+                            embedding_provider = %ws.embedding_provider,
+                            embedding_model = %ws.embedding_model,
+                            embedding_error = %embed_err,
+                            "CRITICAL: Failed to create BOTH workspace providers. \
+                             Document processing will use DEFAULT pipeline instead of workspace config. \
+                             Check API keys and provider configuration."
+                        );
+                    }
                 }
 
+                // Fallback to default pipeline (but with explicit ERROR logging above)
                 warn!(
                     workspace_id = workspace_id,
                     llm_config = %ws.llm_full_id(),
                     embedding_config = %ws.embedding_full_id(),
-                    "Failed to create workspace-specific providers, using default pipeline"
+                    "Falling back to default pipeline due to provider creation failure"
                 );
             }
             Ok(None) => {
@@ -311,6 +375,55 @@ impl DocumentTaskProcessor {
         }
     }
 
+    /// SPEC-032/OODA-198: Get provider lineage for a workspace.
+    ///
+    /// Returns the provider configuration that will be used for processing
+    /// documents in this workspace. This enables lineage tracking by storing
+    /// which providers were used for extraction.
+    ///
+    /// Returns default provider config if workspace not found.
+    async fn get_workspace_provider_lineage(&self, workspace_id: Option<&str>) -> ProviderLineage {
+        use edgequake_core::types::{
+            DEFAULT_EMBEDDING_DIMENSION, DEFAULT_EMBEDDING_MODEL, DEFAULT_EMBEDDING_PROVIDER,
+            DEFAULT_LLM_MODEL, DEFAULT_LLM_PROVIDER,
+        };
+
+        // Default lineage (used when workspace not available)
+        let default_lineage = ProviderLineage {
+            extraction_provider: DEFAULT_LLM_PROVIDER.to_string(),
+            extraction_model: DEFAULT_LLM_MODEL.to_string(),
+            embedding_provider: DEFAULT_EMBEDDING_PROVIDER.to_string(),
+            embedding_model: DEFAULT_EMBEDDING_MODEL.to_string(),
+            embedding_dimension: DEFAULT_EMBEDDING_DIMENSION,
+        };
+
+        let workspace_id = match workspace_id {
+            Some(id) if !id.is_empty() && id != "default" => id,
+            _ => return default_lineage,
+        };
+
+        let workspace_uuid = match uuid::Uuid::parse_str(workspace_id) {
+            Ok(uuid) => uuid,
+            Err(_) => return default_lineage,
+        };
+
+        let workspace_service = match &self.workspace_service {
+            Some(ws) => ws,
+            None => return default_lineage,
+        };
+
+        match workspace_service.get_workspace(workspace_uuid).await {
+            Ok(Some(ws)) => ProviderLineage {
+                extraction_provider: ws.llm_provider.clone(),
+                extraction_model: ws.llm_model.clone(),
+                embedding_provider: ws.embedding_provider.clone(),
+                embedding_model: ws.embedding_model.clone(),
+                embedding_dimension: ws.embedding_dimension,
+            },
+            _ => default_lineage,
+        }
+    }
+
     /// Process a text insert task.
     async fn process_text_insert(
         &self,
@@ -339,10 +452,16 @@ impl DocumentTaskProcessor {
         // Get workspace-specific pipeline (or default if not available)
         let pipeline = self.get_workspace_pipeline(workspace_id).await;
 
+        // SPEC-032/OODA-198: Capture provider lineage for tracking
+        let provider_lineage = self.get_workspace_provider_lineage(workspace_id).await;
+
         info!(
             document_id = %document_id,
             workspace_id = ?workspace_id,
             file_source = %data.file_source,
+            extraction_provider = %provider_lineage.extraction_provider,
+            extraction_model = %provider_lineage.extraction_model,
+            embedding_provider = %provider_lineage.embedding_provider,
             "Processing document with workspace-specific pipeline"
         );
 
@@ -591,8 +710,16 @@ impl DocumentTaskProcessor {
         // Update task progress - indexing complete
         task.update_progress("indexing".to_string(), 4, 100);
 
+        // SPEC-032/OODA-198: Augment stats with provider lineage before storing
+        let mut stats_with_lineage = result.stats.clone();
+        stats_with_lineage.llm_provider = Some(provider_lineage.extraction_provider.clone());
+        stats_with_lineage.llm_model = Some(provider_lineage.extraction_model.clone());
+        stats_with_lineage.embedding_provider = Some(provider_lineage.embedding_provider.clone());
+        stats_with_lineage.embedding_model = Some(provider_lineage.embedding_model.clone());
+        stats_with_lineage.embedding_dimensions = Some(provider_lineage.embedding_dimension);
+
         // Update document status to completed with stats and lineage
-        self.update_document_status_with_stats(&document_id, "completed", &result.stats)
+        self.update_document_status_with_stats(&document_id, "completed", &stats_with_lineage)
             .await?;
 
         // Log success
@@ -694,8 +821,16 @@ impl DocumentTaskProcessor {
                 if let Some(ref llm_model) = stats.llm_model {
                     updated.insert("llm_model".to_string(), json!(llm_model));
                 }
+                // SPEC-032/OODA-198: Store LLM provider for lineage tracking
+                if let Some(ref llm_provider) = stats.llm_provider {
+                    updated.insert("llm_provider".to_string(), json!(llm_provider));
+                }
                 if let Some(ref embedding_model) = stats.embedding_model {
                     updated.insert("embedding_model".to_string(), json!(embedding_model));
+                }
+                // SPEC-032/OODA-198: Store embedding provider for lineage tracking
+                if let Some(ref embedding_provider) = stats.embedding_provider {
+                    updated.insert("embedding_provider".to_string(), json!(embedding_provider));
                 }
                 if let Some(ref embedding_dimensions) = stats.embedding_dimensions {
                     updated.insert(

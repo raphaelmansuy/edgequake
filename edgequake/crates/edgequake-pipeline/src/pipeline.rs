@@ -123,9 +123,17 @@ pub struct ProcessingStats {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub llm_model: Option<String>,
 
+    /// SPEC-032/OODA-198: LLM provider used for entity extraction.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub llm_provider: Option<String>,
+
     /// Embedding model used for vector embeddings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub embedding_model: Option<String>,
+
+    /// SPEC-032/OODA-198: Embedding provider used for vector embeddings.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_provider: Option<String>,
 
     /// Embedding dimensions.
     #[serde(skip_serializing_if = "Option::is_none")]

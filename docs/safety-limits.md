@@ -20,21 +20,21 @@ EdgeQuake implements safety limits on all LLM provider calls to prevent:
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EDGEQUAKE_LLM_MAX_TOKENS` | 8192 | Maximum tokens per generation request |
-| `EDGEQUAKE_LLM_TIMEOUT_SECS` | 120 | Request timeout in seconds |
+| Variable                     | Default | Description                           |
+| ---------------------------- | ------- | ------------------------------------- |
+| `EDGEQUAKE_LLM_MAX_TOKENS`   | 8192    | Maximum tokens per generation request |
+| `EDGEQUAKE_LLM_TIMEOUT_SECS` | 120     | Request timeout in seconds            |
 
 ### Safety Boundaries
 
 The system enforces the following hard limits regardless of configuration:
 
-| Limit | Value | Rationale |
-|-------|-------|-----------|
-| Minimum max_tokens | 1 | Prevent accidental 0 token responses |
-| Maximum max_tokens | 32768 | Prevent excessive token generation |
-| Minimum timeout | 10 seconds | Allow for network latency |
-| Maximum timeout | 600 seconds | Prevent indefinite hangs |
+| Limit              | Value       | Rationale                            |
+| ------------------ | ----------- | ------------------------------------ |
+| Minimum max_tokens | 1           | Prevent accidental 0 token responses |
+| Maximum max_tokens | 32768       | Prevent excessive token generation   |
+| Minimum timeout    | 10 seconds  | Allow for network latency            |
+| Maximum timeout    | 600 seconds | Prevent indefinite hangs             |
 
 ## Usage
 
