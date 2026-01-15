@@ -36,7 +36,7 @@
 
 ```
 ✅ OpenAI gpt-4.1-nano used for entity extraction
-✅ OpenAI text-embedding-3-small used for embeddings  
+✅ OpenAI text-embedding-3-small used for embeddings
 ✅ 4 documents processed successfully
 ✅ 31 entities, 19 relationships, 27 vectors stored
 ✅ Logs show: "Using workspace-specific LLM configuration"
