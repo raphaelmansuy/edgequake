@@ -4,16 +4,17 @@
 
 ### Test Suite Summary
 
-| Category | Count | Duration | Status |
-|----------|-------|----------|--------|
-| Unit Tests | 2,677 | ~8s | ✅ Fast |
-| Integration Tests | ~50 | ~0s (mocked) | ✅ Instant |
-| API E2E Tests | 415 | ~0s (3min compile) | ✅ Fast execution |
-| Frontend E2E | TBD | TBD | 🔍 To audit |
+| Category          | Count | Duration           | Status            |
+| ----------------- | ----- | ------------------ | ----------------- |
+| Unit Tests        | 2,677 | ~8s                | ✅ Fast           |
+| Integration Tests | ~50   | ~0s (mocked)       | ✅ Instant        |
+| API E2E Tests     | 415   | ~0s (3min compile) | ✅ Fast execution |
+| Frontend E2E      | TBD   | TBD                | 🔍 To audit       |
 
 ### Integration Test Files
 
 Located in:
+
 - `edgequake-api/tests/*integration*.rs`
 - `edgequake-query/tests/api_integration_tests.rs`
 - `edgequake-storage/tests/postgres_*integration*.rs`

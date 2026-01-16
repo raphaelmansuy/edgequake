@@ -103,40 +103,40 @@ If we have 10 components at 99% reliability each:
 
 **Test Suite Metrics:**
 
-| Layer | Tests | Execution | Status |
-|-------|-------|-----------|--------|
-| Unit (Rust) | 2,677 | ~8s | ✅ PASSING |
-| Integration | ~50 | Instant | ✅ PASSING |
-| API E2E | 415 | Instant | ✅ PASSING |
-| Playwright E2E | 643 | TBD | ✅ AVAILABLE |
-| Invariant Tests | 12 | Instant | ✅ PASSING |
-| **TOTAL** | **3,797** | **<2 min** | **✅ ALL GREEN** |
+| Layer           | Tests     | Execution  | Status           |
+| --------------- | --------- | ---------- | ---------------- |
+| Unit (Rust)     | 2,677     | ~8s        | ✅ PASSING       |
+| Integration     | ~50       | Instant    | ✅ PASSING       |
+| API E2E         | 415       | Instant    | ✅ PASSING       |
+| Playwright E2E  | 643       | TBD        | ✅ AVAILABLE     |
+| Invariant Tests | 12        | Instant    | ✅ PASSING       |
+| **TOTAL**       | **3,797** | **<2 min** | **✅ ALL GREEN** |
 
 ### Invariant Test Implementation
 
 All 10 invariants now have explicit tests in:
 `edgequake/crates/edgequake-core/tests/inviolable_invariants.rs`
 
-| ID | Invariant | Test |
-|----|-----------|------|
-| INV-001 | Chunk size ≤ embedding max | `inv_001_chunk_size_within_embedding_limits` |
-| INV-002 | Workspace isolation | `inv_002_workspace_isolation` |
-| INV-003 | Provider resolution | `inv_003_provider_resolution_respects_config` |
-| INV-004 | Graph edges valid | `inv_004_graph_edges_have_valid_nodes` |
-| INV-005 | API auth required | `inv_005_api_requires_auth` |
-| INV-006 | LLM no panic | `inv_006_llm_errors_never_panic` |
-| INV-007 | Streaming timeout | `inv_007_streaming_has_timeout` |
-| INV-008 | Deterministic embeddings | `inv_008_embeddings_are_deterministic` |
-| INV-009 | Resumable pipeline | `inv_009_pipeline_is_resumable` |
-| INV-010 | Query timeout | `inv_010_query_timeout_is_configurable` |
+| ID      | Invariant                  | Test                                          |
+| ------- | -------------------------- | --------------------------------------------- |
+| INV-001 | Chunk size ≤ embedding max | `inv_001_chunk_size_within_embedding_limits`  |
+| INV-002 | Workspace isolation        | `inv_002_workspace_isolation`                 |
+| INV-003 | Provider resolution        | `inv_003_provider_resolution_respects_config` |
+| INV-004 | Graph edges valid          | `inv_004_graph_edges_have_valid_nodes`        |
+| INV-005 | API auth required          | `inv_005_api_requires_auth`                   |
+| INV-006 | LLM no panic               | `inv_006_llm_errors_never_panic`              |
+| INV-007 | Streaming timeout          | `inv_007_streaming_has_timeout`               |
+| INV-008 | Deterministic embeddings   | `inv_008_embeddings_are_deterministic`        |
+| INV-009 | Resumable pipeline         | `inv_009_pipeline_is_resumable`               |
+| INV-010 | Query timeout              | `inv_010_query_timeout_is_configurable`       |
 
 ### Speed Optimizations
 
-| Test | Before | After | Improvement |
-|------|--------|-------|-------------|
-| `test_token_bucket` | 2s | 50ms | 40x faster |
-| `test_token_refill` | 600ms | 50ms | 12x faster |
-| edgequake-llm total | 4.69s | 2.13s | 55% faster |
+| Test                | Before | After | Improvement |
+| ------------------- | ------ | ----- | ----------- |
+| `test_token_bucket` | 2s     | 50ms  | 40x faster  |
+| `test_token_refill` | 600ms  | 50ms  | 12x faster  |
+| edgequake-llm total | 4.69s  | 2.13s | 55% faster  |
 
 ### Artifacts Created
 

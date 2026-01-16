@@ -29,15 +29,23 @@ async fn inv_002_int_workspace_isolation_at_api_level() {
 
     impl ApiState {
         fn new() -> Self {
-            Self { documents: HashMap::new() }
+            Self {
+                documents: HashMap::new(),
+            }
         }
 
         fn add_document(&mut self, workspace_id: &str, doc_id: &str) {
-            self.documents.entry(workspace_id.to_string()).or_default().push(doc_id.to_string());
+            self.documents
+                .entry(workspace_id.to_string())
+                .or_default()
+                .push(doc_id.to_string());
         }
 
         fn get_documents(&self, workspace_id: &str) -> Vec<String> {
-            self.documents.get(workspace_id).cloned().unwrap_or_default()
+            self.documents
+                .get(workspace_id)
+                .cloned()
+                .unwrap_or_default()
         }
     }
 
@@ -92,11 +100,15 @@ async fn inv_003_int_provider_resolution_at_api_level() {
         }
 
         fn set_provider(&mut self, workspace_id: &str, provider: &str) {
-            self.configs.insert(workspace_id.to_string(), provider.to_string());
+            self.configs
+                .insert(workspace_id.to_string(), provider.to_string());
         }
 
         fn resolve_provider(&self, workspace_id: &str) -> String {
-            self.configs.get(workspace_id).cloned().unwrap_or(self.default_provider.clone())
+            self.configs
+                .get(workspace_id)
+                .cloned()
+                .unwrap_or(self.default_provider.clone())
         }
     }
 
@@ -167,7 +179,10 @@ async fn inv_005_int_api_auth_at_request_level() {
         check_auth("/api/v1/query", Some("invalid")),
         AuthResult::Rejected("Invalid API key format".to_string())
     );
-    assert_eq!(check_auth("/api/v1/query", Some("sk-valid-key")), AuthResult::Allowed);
+    assert_eq!(
+        check_auth("/api/v1/query", Some("sk-valid-key")),
+        AuthResult::Allowed
+    );
 }
 
 /// INV-006-INT: API error handling never exposes stack traces
@@ -178,12 +193,13 @@ async fn inv_006_int_api_error_handling() {
     // Simulate error response formatting
     fn format_error_response(internal_error: &str) -> String {
         // Never include internal details
-        let sanitized = if internal_error.contains("panic") || internal_error.contains("RUST_BACKTRACE") {
-            "Internal server error"
-        } else {
-            // Allow safe error messages
-            internal_error
-        };
+        let sanitized =
+            if internal_error.contains("panic") || internal_error.contains("RUST_BACKTRACE") {
+                "Internal server error"
+            } else {
+                // Allow safe error messages
+                internal_error
+            };
 
         format!(r#"{{"error": "{}"}}"#, sanitized)
     }
@@ -194,12 +210,18 @@ async fn inv_006_int_api_error_handling() {
 
     // Panic messages are sanitized
     let response = format_error_response("thread 'main' panicked at...");
-    assert!(!response.contains("panic"), "INV-006-INT VIOLATED: Panic exposed in response");
+    assert!(
+        !response.contains("panic"),
+        "INV-006-INT VIOLATED: Panic exposed in response"
+    );
     assert!(response.contains("Internal server error"));
 
     // Backtraces are sanitized
     let response = format_error_response("RUST_BACKTRACE=1 for more info");
-    assert!(!response.contains("BACKTRACE"), "INV-006-INT VIOLATED: Backtrace exposed");
+    assert!(
+        !response.contains("BACKTRACE"),
+        "INV-006-INT VIOLATED: Backtrace exposed"
+    );
 }
 
 /// INV-009-INT: API supports idempotent operations
@@ -214,7 +236,9 @@ async fn inv_009_int_api_idempotency() {
 
     impl IdempotencyStore {
         fn new() -> Self {
-            Self { processed: HashMap::new() }
+            Self {
+                processed: HashMap::new(),
+            }
         }
 
         fn execute<F>(&mut self, key: &str, operation: F) -> String
@@ -245,7 +269,10 @@ async fn inv_009_int_api_idempotency() {
         format!("created-doc-{}", call_count)
     });
 
-    assert_eq!(result1, result2, "INV-009-INT: Idempotent calls return same result");
+    assert_eq!(
+        result1, result2,
+        "INV-009-INT: Idempotent calls return same result"
+    );
     assert_eq!(call_count, 1, "INV-009-INT: Operation only executed once");
 }
 
@@ -261,7 +288,9 @@ async fn inv_010_int_api_timeout_enforcement() {
     where
         F: std::future::Future<Output = T>,
     {
-        tokio::time::timeout(timeout, operation).await.map_err(|_| "Request timed out")
+        tokio::time::timeout(timeout, operation)
+            .await
+            .map_err(|_| "Request timed out")
     }
 
     // Fast operation succeeds
@@ -274,7 +303,10 @@ async fn inv_010_int_api_timeout_enforcement() {
         "never reached"
     })
     .await;
-    assert!(result.is_err(), "INV-010-INT: Slow operation should timeout");
+    assert!(
+        result.is_err(),
+        "INV-010-INT: Slow operation should timeout"
+    );
     assert_eq!(result.unwrap_err(), "Request timed out");
 }
 

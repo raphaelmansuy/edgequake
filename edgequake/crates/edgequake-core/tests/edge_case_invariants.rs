@@ -43,7 +43,10 @@ fn inv_001_edge_max_size_chunk() {
     let max_tokens = 8192;
     let chunk: String = (0..max_tokens).map(|i| format!("word{} ", i)).collect();
     let token_count = chunk.split_whitespace().count();
-    assert!(token_count <= max_tokens, "Max size chunk should be at limit");
+    assert!(
+        token_count <= max_tokens,
+        "Max size chunk should be at limit"
+    );
 }
 
 /// Test chunk with special characters
@@ -254,7 +257,10 @@ fn inv_007_edge_minimum_timeout() {
 #[test]
 fn inv_007_edge_maximum_timeout() {
     let max_timeout_ms: u64 = 60_000;
-    assert!(max_timeout_ms <= 60_000, "Timeout should not exceed 1 minute");
+    assert!(
+        max_timeout_ms <= 60_000,
+        "Timeout should not exceed 1 minute"
+    );
 }
 
 /// Test timeout of zero (invalid)
@@ -275,7 +281,10 @@ fn inv_008_edge_empty_embedding() {
     let text = "";
     let embedding1 = text.len() as f32; // Dummy deterministic embedding
     let embedding2 = text.len() as f32;
-    assert_eq!(embedding1, embedding2, "Empty string embedding should be deterministic");
+    assert_eq!(
+        embedding1, embedding2,
+        "Empty string embedding should be deterministic"
+    );
 }
 
 /// Test embedding of whitespace only
