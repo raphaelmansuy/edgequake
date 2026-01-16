@@ -6,30 +6,30 @@ Audited the document processor (processor.rs - 1360 lines).
 
 ### Architecture
 
-| Component | Purpose |
-|-----------|---------|
-| `DocumentTaskProcessor` | Main processor struct |
-| `ProviderLineage` | Tracks which providers processed document |
-| `TaskProcessor` trait | Interface for task execution |
+| Component               | Purpose                                   |
+| ----------------------- | ----------------------------------------- |
+| `DocumentTaskProcessor` | Main processor struct                     |
+| `ProviderLineage`       | Tracks which providers processed document |
+| `TaskProcessor` trait   | Interface for task execution              |
 
 ### Key Features
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Workspace-specific providers | ✅ SPEC-032 | Uses workspace config |
-| Provider lineage tracking | ✅ OODA-198 | Records what processed doc |
-| Vector registry integration | ✅ | Per-workspace embeddings |
-| Strict workspace mode | ✅ OODA-223 | Fails if workspace not found |
-| Legacy fallback mode | ✅ | For backward compatibility |
-| Progress tracking | ✅ | Via PipelineState |
+| Feature                      | Status      | Notes                        |
+| ---------------------------- | ----------- | ---------------------------- |
+| Workspace-specific providers | ✅ SPEC-032 | Uses workspace config        |
+| Provider lineage tracking    | ✅ OODA-198 | Records what processed doc   |
+| Vector registry integration  | ✅          | Per-workspace embeddings     |
+| Strict workspace mode        | ✅ OODA-223 | Fails if workspace not found |
+| Legacy fallback mode         | ✅          | For backward compatibility   |
+| Progress tracking            | ✅          | Via PipelineState            |
 
 ### Constructor Variants
 
-| Constructor | Use Case | Strict Mode |
-|-------------|----------|-------------|
-| `new()` | Legacy/tests | No (fallback allowed) |
-| `with_workspace_support()` | Development | No |
-| `with_workspace_support_strict()` | Production | Yes |
+| Constructor                       | Use Case     | Strict Mode           |
+| --------------------------------- | ------------ | --------------------- |
+| `new()`                           | Legacy/tests | No (fallback allowed) |
+| `with_workspace_support()`        | Development  | No                    |
+| `with_workspace_support_strict()` | Production   | Yes                   |
 
 ### Dependencies
 
@@ -51,13 +51,13 @@ struct DocumentTaskProcessor {
 
 ### Quality Assessment
 
-| Aspect | Status | Notes |
-|--------|--------|-------|
-| Workspace isolation | ✅ | Per-workspace providers |
-| Lineage tracking | ✅ | Full audit trail |
-| Error handling | ✅ | Proper Result propagation |
-| Mode selection | ✅ | Strict vs legacy |
-| Test coverage | ✅ | Multiple test cases |
+| Aspect              | Status | Notes                     |
+| ------------------- | ------ | ------------------------- |
+| Workspace isolation | ✅     | Per-workspace providers   |
+| Lineage tracking    | ✅     | Full audit trail          |
+| Error handling      | ✅     | Proper Result propagation |
+| Mode selection      | ✅     | Strict vs legacy          |
+| Test coverage       | ✅     | Multiple test cases       |
 
 ### Safety Features
 
@@ -68,6 +68,7 @@ struct DocumentTaskProcessor {
 ### Potential Improvement
 
 The file is large (1360 lines). Could be split into:
+
 - `processor/mod.rs` - Main logic
 - `processor/lineage.rs` - Lineage tracking
 - `processor/workspace.rs` - Workspace resolution
@@ -88,12 +89,12 @@ Documented processor architecture as verified.
 
 ## Metrics
 
-| Metric | Value |
-|--------|-------|
-| File size | 1360 lines |
-| Test cases | 8+ |
-| Constructors | 3 |
-| Features | SPEC-032, OODA-198, OODA-223 |
+| Metric       | Value                        |
+| ------------ | ---------------------------- |
+| File size    | 1360 lines                   |
+| Test cases   | 8+                           |
+| Constructors | 3                            |
+| Features     | SPEC-032, OODA-198, OODA-223 |
 
 ## Conclusion
 

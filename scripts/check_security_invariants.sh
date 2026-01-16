@@ -133,6 +133,31 @@ else
 fi
 
 # ------------------------------------------------------------------------------
+# Invariant 5: PATH_VALIDATION (OODA-248)
+# Path validation module must exist and be used in scan_directory
+# ------------------------------------------------------------------------------
+echo -n "Checking PATH_VALIDATION... "
+
+PATH_VALIDATION_FILE="$EDGEQUAKE_DIR/edgequake-api/src/path_validation.rs"
+if [ ! -f "$PATH_VALIDATION_FILE" ]; then
+  echo -e "${RED}FAILED${NC}"
+  echo "Missing path_validation.rs module"
+  FAILED=1
+else
+  # Check that scan_directory uses path validation
+  SCAN_USES_VALIDATION=$(grep -c 'validate_path' \
+    "$EDGEQUAKE_DIR/edgequake-api/src/handlers/documents.rs" 2>/dev/null || echo "0")
+  
+  if [ "$SCAN_USES_VALIDATION" -eq 0 ]; then
+    echo -e "${RED}FAILED${NC}"
+    echo "scan_directory handler does not use validate_path"
+    FAILED=1
+  else
+    echo -e "${GREEN}PASSED${NC}"
+  fi
+fi
+
+# ------------------------------------------------------------------------------
 # Summary
 # ------------------------------------------------------------------------------
 echo ""

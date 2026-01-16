@@ -98,6 +98,7 @@ pub mod file_validation;
 pub mod handlers;
 pub mod middleware;
 pub mod openapi;
+pub mod path_validation;
 pub mod processor;
 pub mod provider_types;
 pub mod providers;

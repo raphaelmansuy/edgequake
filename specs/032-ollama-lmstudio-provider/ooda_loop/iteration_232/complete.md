@@ -43,12 +43,12 @@ test result: ok. 5 passed; 0 failed; 0 ignored
 
 ## Coverage
 
-| Scenario | Tested |
-|----------|--------|
-| Explicit provider in request | ✅ |
-| Workspace provider fallback | ✅ |
-| Request overrides workspace | ✅ |
-| No provider returns None | ✅ |
-| Invalid workspace ID error | ✅ |
-| API key error detection | ⚠️ Needs real provider |
-| Embedding provider resolution | ⏳ Next iteration |
+| Scenario                      | Tested                 |
+| ----------------------------- | ---------------------- |
+| Explicit provider in request  | ✅                     |
+| Workspace provider fallback   | ✅                     |
+| Request overrides workspace   | ✅                     |
+| No provider returns None      | ✅                     |
+| Invalid workspace ID error    | ✅                     |
+| API key error detection       | ⚠️ Needs real provider |
+| Embedding provider resolution | ⏳ Next iteration      |

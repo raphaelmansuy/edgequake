@@ -14,7 +14,7 @@ edgequake-storage/src/
 │   └── mod.rs
 ├── traits/
 │   ├── graph.rs      # GraphStorage trait
-│   ├── kv.rs         # KVStorage trait  
+│   ├── kv.rs         # KVStorage trait
 │   ├── vector.rs     # VectorStorage trait
 │   ├── workspace_vector.rs # WorkspaceVectorRegistry
 │   └── mod.rs
@@ -25,41 +25,41 @@ edgequake-storage/src/
 
 ### Trait Definitions
 
-| Trait | File | Purpose |
-|-------|------|---------|
-| `GraphStorage` | graph.rs | Entity/relationship storage |
-| `KVStorage` | kv.rs | Document/chunk metadata |
-| `VectorStorage` | vector.rs | Embedding vectors |
+| Trait                     | File                | Purpose                        |
+| ------------------------- | ------------------- | ------------------------------ |
+| `GraphStorage`            | graph.rs            | Entity/relationship storage    |
+| `KVStorage`               | kv.rs               | Document/chunk metadata        |
+| `VectorStorage`           | vector.rs           | Embedding vectors              |
 | `WorkspaceVectorRegistry` | workspace_vector.rs | Per-workspace vector isolation |
 
 ### Adapter Implementations
 
-| Adapter | Path | Features |
-|---------|------|----------|
-| Memory | adapters/memory/ | Testing, ephemeral |
+| Adapter    | Path               | Features             |
+| ---------- | ------------------ | -------------------- |
+| Memory     | adapters/memory/   | Testing, ephemeral   |
 | PostgreSQL | adapters/postgres/ | Production, pgvector |
 
 ### Key Features
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Trait-based abstraction | ✅ | Clean interface |
-| PostgreSQL support | ✅ | pgvector for embeddings |
-| Memory adapter | ✅ | Fast testing |
-| Workspace isolation | ✅ | WorkspaceVectorRegistry |
-| Community detection | ✅ | community.rs |
+| Feature                 | Status | Notes                   |
+| ----------------------- | ------ | ----------------------- |
+| Trait-based abstraction | ✅     | Clean interface         |
+| PostgreSQL support      | ✅     | pgvector for embeddings |
+| Memory adapter          | ✅     | Fast testing            |
+| Workspace isolation     | ✅     | WorkspaceVectorRegistry |
+| Community detection     | ✅     | community.rs            |
 
 ## Orient
 
 ### Quality Assessment
 
-| Aspect | Status | Notes |
-|--------|--------|-------|
-| Trait design | ✅ | Clean async traits |
-| Error handling | ✅ | StorageError type |
-| Multi-tenancy | ✅ | tenant_id in queries |
-| Dimension handling | ✅ | Per-workspace dimensions |
-| Testing | ✅ | Memory adapter |
+| Aspect             | Status | Notes                    |
+| ------------------ | ------ | ------------------------ |
+| Trait design       | ✅     | Clean async traits       |
+| Error handling     | ✅     | StorageError type        |
+| Multi-tenancy      | ✅     | tenant_id in queries     |
+| Dimension handling | ✅     | Per-workspace dimensions |
+| Testing            | ✅     | Memory adapter           |
 
 ### Storage Isolation
 
@@ -75,6 +75,7 @@ trait WorkspaceVectorRegistry {
 ```
 
 This ensures:
+
 1. Each workspace can have different embedding dimensions
 2. Embeddings are isolated per workspace
 3. No cross-workspace data leakage
@@ -91,12 +92,12 @@ Documented storage architecture as verified.
 
 ## Metrics
 
-| Metric | Value |
-|--------|-------|
-| Traits | 4 |
-| Adapters | 2 |
-| Community detection | EXISTS |
-| Multi-tenant support | ✅ |
+| Metric               | Value  |
+| -------------------- | ------ |
+| Traits               | 4      |
+| Adapters             | 2      |
+| Community detection  | EXISTS |
+| Multi-tenant support | ✅     |
 
 ## Conclusion
 

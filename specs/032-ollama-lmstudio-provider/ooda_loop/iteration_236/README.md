@@ -6,17 +6,18 @@ Audited timeout configuration across the LLM crate to ensure consistency.
 
 ### Timeout Constants (safety_limits.rs)
 
-| Constant | Value | Purpose |
-|----------|-------|---------|
-| `DEFAULT_MAX_TOKENS` | 8192 | Safe default for generation |
-| `DEFAULT_TIMEOUT_SECS` | 120 | 2 minutes default timeout |
-| `ABSOLUTE_MAX_TOKENS` | 32768 | Hard cap on tokens |
-| `MINIMUM_TIMEOUT_SECS` | 10 | Minimum timeout (prevents 0-second configs) |
-| `MAXIMUM_TIMEOUT_SECS` | 600 | 10 minutes max (prevents runaway requests) |
+| Constant               | Value | Purpose                                     |
+| ---------------------- | ----- | ------------------------------------------- |
+| `DEFAULT_MAX_TOKENS`   | 8192  | Safe default for generation                 |
+| `DEFAULT_TIMEOUT_SECS` | 120   | 2 minutes default timeout                   |
+| `ABSOLUTE_MAX_TOKENS`  | 32768 | Hard cap on tokens                          |
+| `MINIMUM_TIMEOUT_SECS` | 10    | Minimum timeout (prevents 0-second configs) |
+| `MAXIMUM_TIMEOUT_SECS` | 600   | 10 minutes max (prevents runaway requests)  |
 
 ### Environment Configuration
 
 The system supports runtime configuration via environment variables:
+
 - `EDGEQUAKE_LLM_MAX_TOKENS` - Override default max tokens
 - `EDGEQUAKE_LLM_TIMEOUT_SECS` - Override default timeout
 
@@ -42,14 +43,14 @@ pub fn create_safe_embedding_provider(...) -> Result<Arc<dyn EmbeddingProvider>>
 
 ### Reliability Analysis
 
-| Aspect | Status | Notes |
-|--------|--------|-------|
-| Timeout enforcement | ✅ | All safe providers have timeout |
-| Minimum timeout | ✅ | 10 seconds prevents instant timeout |
-| Maximum timeout | ✅ | 10 minutes prevents runaway |
-| Token limits | ✅ | 8192 default, 32768 hard cap |
-| Environment override | ✅ | Configurable without rebuild |
-| Clamping | ✅ | Values clamped to valid range |
+| Aspect               | Status | Notes                               |
+| -------------------- | ------ | ----------------------------------- |
+| Timeout enforcement  | ✅     | All safe providers have timeout     |
+| Minimum timeout      | ✅     | 10 seconds prevents instant timeout |
+| Maximum timeout      | ✅     | 10 minutes prevents runaway         |
+| Token limits         | ✅     | 8192 default, 32768 hard cap        |
+| Environment override | ✅     | Configurable without rebuild        |
+| Clamping             | ✅     | Values clamped to valid range       |
 
 ### Preset Configurations
 
@@ -71,6 +72,7 @@ SafetyLimitsConfig::default()
 **Finding**: ✅ Timeout configuration is well-implemented and robust
 
 No changes needed. The safety limits module follows best practices:
+
 1. Sensible defaults
 2. Environment-based override
 3. Hard clamping to prevent misconfiguration
@@ -83,12 +85,12 @@ Documented the timeout architecture as a verified security control.
 
 ## Metrics
 
-| Metric | Value |
-|--------|-------|
-| Timeout locations | Centralized in safety_limits.rs |
-| Override mechanism | Environment variables |
-| Protection level | HIGH (clamped values) |
-| Test coverage | Existing tests verify clamping |
+| Metric             | Value                           |
+| ------------------ | ------------------------------- |
+| Timeout locations  | Centralized in safety_limits.rs |
+| Override mechanism | Environment variables           |
+| Protection level   | HIGH (clamped values)           |
+| Test coverage      | Existing tests verify clamping  |
 
 ## Conclusion
 

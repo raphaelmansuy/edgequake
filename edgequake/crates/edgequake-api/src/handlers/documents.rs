@@ -2411,6 +2411,9 @@ pub async fn get_track_status(
 // ============================================
 
 /// Scan a directory and queue documents for processing.
+///
+/// SECURITY (OODA-248): Path traversal protection.
+/// User-provided paths are validated against allowed directories.
 #[utoipa::path(
     post,
     path = "/api/v1/documents/scan",
@@ -2419,6 +2422,7 @@ pub async fn get_track_status(
     responses(
         (status = 200, description = "Directory scanned successfully", body = ScanDirectoryResponse),
         (status = 400, description = "Invalid request"),
+        (status = 403, description = "Path not allowed"),
         (status = 404, description = "Directory not found")
     )
 )]
@@ -2432,18 +2436,16 @@ pub async fn scan_directory(
         tenant_ctx.tenant_id, tenant_ctx.workspace_id
     );
 
-    use std::path::Path;
+    // SECURITY (OODA-248): Validate path against allowed directories.
+    // WHY: Prevents directory traversal attacks (e.g., ../../../etc/passwd).
+    let validated_path = crate::path_validation::validate_path(
+        &request.path,
+        &state.path_validation_config,
+    )?;
 
-    let base_path = Path::new(&request.path);
+    let base_path = &validated_path.canonical;
 
-    // Validate path exists and is a directory
-    if !base_path.exists() {
-        return Err(ApiError::NotFound(format!(
-            "Directory not found: {}",
-            request.path
-        )));
-    }
-
+    // Path is already validated to exist by validate_path
     if !base_path.is_dir() {
         return Err(ApiError::BadRequest(format!(
             "Path is not a directory: {}",

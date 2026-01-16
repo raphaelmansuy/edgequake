@@ -6,11 +6,11 @@ Audited rate limiting implementation across the API crate.
 
 ### Rate Limiting Architecture
 
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| `edgequake-rate-limiter` | Crate | Token bucket implementation |
-| `middleware.rs` | edgequake-api | Axum middleware integration |
-| `RateLimitConfig` | config.rs | Configuration structures |
+| Component                | Location      | Purpose                     |
+| ------------------------ | ------------- | --------------------------- |
+| `edgequake-rate-limiter` | Crate         | Token bucket implementation |
+| `middleware.rs`          | edgequake-api | Axum middleware integration |
+| `RateLimitConfig`        | config.rs     | Configuration structures    |
 
 ### Default Configuration
 
@@ -48,13 +48,13 @@ RateLimitConfig {
 
 ### Security Assessment
 
-| Aspect | Status | Notes |
-|--------|--------|-------|
-| Algorithm | ✅ Token bucket | Industry standard |
-| Per-tenant | ✅ | Isolation prevents one tenant affecting others |
-| 429 response | ✅ | Includes retry-after header |
-| Enabled | ⚠️ DISABLED | Must be enabled in production |
-| Burst protection | ✅ | Configurable burst limit |
+| Aspect           | Status          | Notes                                          |
+| ---------------- | --------------- | ---------------------------------------------- |
+| Algorithm        | ✅ Token bucket | Industry standard                              |
+| Per-tenant       | ✅              | Isolation prevents one tenant affecting others |
+| 429 response     | ✅              | Includes retry-after header                    |
+| Enabled          | ⚠️ DISABLED     | Must be enabled in production                  |
+| Burst protection | ✅              | Configurable burst limit                       |
 
 ### Risk Analysis
 
@@ -101,12 +101,12 @@ Or via environment variables (if supported).
 
 ## Metrics
 
-| Metric | Value |
-|--------|-------|
-| Implementation quality | HIGH |
-| Default security | MEDIUM (disabled) |
-| Production readiness | READY (needs config) |
-| Test coverage | EXISTS |
+| Metric                 | Value                |
+| ---------------------- | -------------------- |
+| Implementation quality | HIGH                 |
+| Default security       | MEDIUM (disabled)    |
+| Production readiness   | READY (needs config) |
+| Test coverage          | EXISTS               |
 
 ## Conclusion
 

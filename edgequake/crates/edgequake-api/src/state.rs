@@ -236,6 +236,10 @@ pub struct AppState {
 
     /// Server start time for uptime calculation.
     pub start_time: std::time::Instant,
+
+    /// Path validation configuration for filesystem access security (OODA-248).
+    /// WHY: Prevents directory traversal attacks in scan_directory endpoint.
+    pub path_validation_config: crate::path_validation::PathValidationConfig,
 }
 
 /// Application configuration.
@@ -262,6 +266,55 @@ impl Default for AppConfig {
 }
 
 impl AppState {
+    /// Load path validation configuration from environment.
+    ///
+    /// SECURITY (OODA-248): Configures allowed directories for filesystem access.
+    ///
+    /// # Environment Variables
+    ///
+    /// - `ALLOWED_SCAN_PATHS`: Colon-separated list of allowed directories
+    ///   Example: `/data/uploads:/home/user/documents`
+    /// - `ALLOW_ANY_SCAN_PATH`: Set to "true" to allow any path (NOT RECOMMENDED)
+    #[cfg(feature = "postgres")]
+    fn load_path_validation_config() -> crate::path_validation::PathValidationConfig {
+        use std::path::PathBuf;
+
+        let allowed_paths: Vec<PathBuf> = std::env::var("ALLOWED_SCAN_PATHS")
+            .unwrap_or_default()
+            .split(':')
+            .filter(|s| !s.is_empty())
+            .map(PathBuf::from)
+            .collect();
+
+        let allow_any_path = std::env::var("ALLOW_ANY_SCAN_PATH")
+            .map(|v| v.to_lowercase() == "true")
+            .unwrap_or(false);
+
+        if allow_any_path {
+            tracing::warn!(
+                "⚠️ ALLOW_ANY_SCAN_PATH=true - Directory scanning is unrestricted! \
+                 This is a security risk in production."
+            );
+        } else if allowed_paths.is_empty() {
+            tracing::info!(
+                "Path validation: No ALLOWED_SCAN_PATHS configured. \
+                 scan_directory endpoint will reject all paths."
+            );
+        } else {
+            tracing::info!(
+                paths = ?allowed_paths,
+                "Path validation: scan_directory restricted to allowed paths"
+            );
+        }
+
+        crate::path_validation::PathValidationConfig {
+            allowed_paths,
+            allow_any_path,
+            follow_symlinks: false, // Security: don't follow symlinks
+            max_depth: 50,
+        }
+    }
+
     /// Create a new application state.
     ///
     /// WHY: This constructor takes many arguments because AppState is the central
@@ -320,6 +373,9 @@ impl AppState {
             #[cfg(feature = "postgres")]
             pg_pool: None,
             start_time: std::time::Instant::now(),
+            // SECURITY (OODA-248): Default to secure config (no paths allowed).
+            // Production deployments should configure allowed_paths.
+            path_validation_config: crate::path_validation::PathValidationConfig::default(),
         }
     }
 
@@ -451,6 +507,12 @@ impl AppState {
             #[cfg(feature = "postgres")]
             pg_pool: None,
             start_time: std::time::Instant::now(),
+            // SECURITY (OODA-248): Memory mode uses permissive config for dev/testing.
+            // Production should use PostgreSQL mode with explicit allowed_paths.
+            path_validation_config: crate::path_validation::PathValidationConfig {
+                allow_any_path: true, // Permissive for memory/dev mode
+                ..Default::default()
+            },
         }
     }
 
@@ -537,6 +599,11 @@ impl AppState {
             #[cfg(feature = "postgres")]
             pg_pool: None,
             start_time: std::time::Instant::now(),
+            // SECURITY (OODA-248): Test state is permissive for testing
+            path_validation_config: crate::path_validation::PathValidationConfig {
+                allow_any_path: true,
+                ..Default::default()
+            },
         }
     }
 
@@ -780,6 +847,9 @@ impl AppState {
             ),
             pg_pool: Some(pool),
             start_time: std::time::Instant::now(),
+            // SECURITY (OODA-248): PostgreSQL mode defaults to secure config.
+            // Administrators should configure ALLOWED_SCAN_PATHS environment variable.
+            path_validation_config: Self::load_path_validation_config(),
         })
     }
 

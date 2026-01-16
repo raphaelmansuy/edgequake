@@ -554,7 +554,8 @@ mod tests {
 
     #[test]
     fn test_provider_error_service_error() {
-        let err = ProviderResolutionError::WorkspaceServiceError("DB connection failed".to_string());
+        let err =
+            ProviderResolutionError::WorkspaceServiceError("DB connection failed".to_string());
         let api_err: ApiError = err.into();
         assert_eq!(api_err.code(), "INTERNAL_ERROR");
         assert_eq!(api_err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);

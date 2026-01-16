@@ -6,39 +6,39 @@ Audited the edgequake-query crate for reliability and correctness.
 
 ### Module Structure
 
-| Module | Lines | Purpose |
-|--------|-------|---------|
-| `sota_engine.rs` | 3,326 | Main SOTA query engine |
-| `strategies.rs` | 27,113 | Query mode strategies |
-| `truncation.rs` | ~500 | Token budget management |
-| `context.rs` | ~400 | Query context aggregation |
-| `keywords/` | directory | Keyword extraction |
-| `engine.rs` | ~700 | Query engine interface |
-| `chunk_retrieval.rs` | ~350 | Chunk retrieval utilities |
-| `helpers.rs` | ~400 | Helper functions |
-| `modes.rs` | ~200 | Query mode enum |
+| Module               | Lines     | Purpose                   |
+| -------------------- | --------- | ------------------------- |
+| `sota_engine.rs`     | 3,326     | Main SOTA query engine    |
+| `strategies.rs`      | 27,113    | Query mode strategies     |
+| `truncation.rs`      | ~500      | Token budget management   |
+| `context.rs`         | ~400      | Query context aggregation |
+| `keywords/`          | directory | Keyword extraction        |
+| `engine.rs`          | ~700      | Query engine interface    |
+| `chunk_retrieval.rs` | ~350      | Chunk retrieval utilities |
+| `helpers.rs`         | ~400      | Helper functions          |
+| `modes.rs`           | ~200      | Query mode enum           |
 
 ### Feature Implementation
 
-| Feature | Status | Module |
-|---------|--------|--------|
-| FEAT0007 Multi-Mode Query | ✅ | modes.rs, strategies.rs |
-| FEAT0101 Naive Mode | ✅ | strategies.rs |
-| FEAT0102 Local Mode | ✅ | strategies.rs |
-| FEAT0103 Global Mode | ✅ | strategies.rs |
-| FEAT0104 Hybrid Mode | ✅ | strategies.rs |
-| FEAT0105 Mix Mode | ✅ | strategies.rs |
-| FEAT0106 Bypass Mode | ✅ | strategies.rs |
-| FEAT0107 Keyword Extraction | ✅ | keywords/ |
-| FEAT0108 Context Truncation | ✅ | truncation.rs |
+| Feature                     | Status | Module                  |
+| --------------------------- | ------ | ----------------------- |
+| FEAT0007 Multi-Mode Query   | ✅     | modes.rs, strategies.rs |
+| FEAT0101 Naive Mode         | ✅     | strategies.rs           |
+| FEAT0102 Local Mode         | ✅     | strategies.rs           |
+| FEAT0103 Global Mode        | ✅     | strategies.rs           |
+| FEAT0104 Hybrid Mode        | ✅     | strategies.rs           |
+| FEAT0105 Mix Mode           | ✅     | strategies.rs           |
+| FEAT0106 Bypass Mode        | ✅     | strategies.rs           |
+| FEAT0107 Keyword Extraction | ✅     | keywords/               |
+| FEAT0108 Context Truncation | ✅     | truncation.rs           |
 
 ### Business Rules Enforced
 
-| Rule | Description | Status |
-|------|-------------|--------|
-| BR0101 | Token budget enforcement (4000) | ✅ |
-| BR0102 | Graph context priority | ✅ |
-| BR0104 | Conversation history in context | ✅ |
+| Rule   | Description                     | Status |
+| ------ | ------------------------------- | ------ |
+| BR0101 | Token budget enforcement (4000) | ✅     |
+| BR0102 | Graph context priority          | ✅     |
+| BR0104 | Conversation history in context | ✅     |
 
 ## Orient
 
@@ -54,13 +54,13 @@ Audited the edgequake-query crate for reliability and correctness.
 
 ### Quality Assessment
 
-| Aspect | Status | Notes |
-|--------|--------|-------|
-| Mode coverage | ✅ | 6 query modes |
-| Token budgeting | ✅ | Configurable |
-| Keyword caching | ✅ | PostgreSQL + Memory |
-| Error handling | ✅ | QueryError type |
-| Streaming support | ✅ | In sota_engine.rs |
+| Aspect            | Status | Notes               |
+| ----------------- | ------ | ------------------- |
+| Mode coverage     | ✅     | 6 query modes       |
+| Token budgeting   | ✅     | Configurable        |
+| Keyword caching   | ✅     | PostgreSQL + Memory |
+| Error handling    | ✅     | QueryError type     |
+| Streaming support | ✅     | In sota_engine.rs   |
 
 ### SOTA Features
 
@@ -81,12 +81,12 @@ Documented query architecture as verified.
 
 ## Metrics
 
-| Metric | Value |
-|--------|-------|
-| Total modules | 12 |
-| Query modes | 6 |
-| Features | 9 |
-| Business rules | 3 |
+| Metric         | Value |
+| -------------- | ----- |
+| Total modules  | 12    |
+| Query modes    | 6     |
+| Features       | 9     |
+| Business rules | 3     |
 
 ## Conclusion
 

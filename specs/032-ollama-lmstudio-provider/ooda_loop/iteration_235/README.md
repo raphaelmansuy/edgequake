@@ -24,19 +24,19 @@ pub async fn get_workspace_embedding_provider(
 
 ### Differences
 
-| Aspect | `resolver.rs` | `query.rs` |
-|--------|---------------|------------|
-| Return type | `Result<ResolvedEmbeddingProvider, ProviderResolutionError>` | `Result<Option<Arc<dyn EmbeddingProvider>>, ApiError>` |
-| Empty provider handling | Returns error | Returns `Ok(None)` |
-| Error messages | Generic | Detailed API key guidance |
-| Additional info | Returns dimension, model name | Just returns provider |
-| Called from | Nowhere yet | chat.rs, query.rs handlers |
+| Aspect                  | `resolver.rs`                                                | `query.rs`                                             |
+| ----------------------- | ------------------------------------------------------------ | ------------------------------------------------------ |
+| Return type             | `Result<ResolvedEmbeddingProvider, ProviderResolutionError>` | `Result<Option<Arc<dyn EmbeddingProvider>>, ApiError>` |
+| Empty provider handling | Returns error                                                | Returns `Ok(None)`                                     |
+| Error messages          | Generic                                                      | Detailed API key guidance                              |
+| Additional info         | Returns dimension, model name                                | Just returns provider                                  |
+| Called from             | Nowhere yet                                                  | chat.rs, query.rs handlers                             |
 
 ### Usage Pattern
 
 ```
 chat.rs:422 → get_workspace_embedding_provider
-chat.rs:859 → get_workspace_embedding_provider  
+chat.rs:859 → get_workspace_embedding_provider
 query.rs:181 → get_workspace_embedding_provider
 ```
 
@@ -50,23 +50,26 @@ query.rs:181 → get_workspace_embedding_provider
 
 ### Risk Assessment
 
-| Risk | Severity | Mitigation |
-|------|----------|------------|
-| Logic divergence | MEDIUM | Will cause bugs if one is updated but not the other |
-| Error message inconsistency | LOW | User confusion but not functional |
-| Missed safety features | HIGH | If resolver adds timeout, query.rs won't get it |
+| Risk                        | Severity | Mitigation                                          |
+| --------------------------- | -------- | --------------------------------------------------- |
+| Logic divergence            | MEDIUM   | Will cause bugs if one is updated but not the other |
+| Error message inconsistency | LOW      | User confusion but not functional                   |
+| Missed safety features      | HIGH     | If resolver adds timeout, query.rs won't get it     |
 
 ### Refactoring Strategy
 
 **Option A: Wrapper Function**
+
 - Keep query.rs function but have it delegate to resolver
 - Handle `None` case and error conversion in wrapper
 
 **Option B: Unified Interface**
+
 - Change resolver to return `Option<ResolvedEmbeddingProvider>`
 - Update all callers
 
 **Option C: Accept Duplication**
+
 - Document as technical debt
 - Add tests to catch divergence
 
@@ -75,12 +78,14 @@ query.rs:181 → get_workspace_embedding_provider
 **Action**: Option C (Accept Duplication) for now
 
 **Rationale**:
+
 1. Both implementations are functionally correct
 2. Both use `create_safe_embedding_provider` (safety limit already in place)
 3. Refactoring would touch 4+ files and require extensive testing
 4. Lower priority than other OODA loops
 
 **Future Work**:
+
 - Track as OODA-250 for future consolidation
 - Add cross-reference comments to both implementations
 
@@ -104,13 +109,13 @@ Added cross-reference comments to both implementations:
 
 ## Metrics
 
-| Metric | Value |
-|--------|-------|
-| Duplicated lines | ~50 |
+| Metric            | Value                 |
+| ----------------- | --------------------- |
+| Duplicated lines  | ~50                   |
 | Affected handlers | 2 (chat.rs, query.rs) |
-| Call sites | 3 |
-| Risk level | MEDIUM |
-| Priority | DEFER |
+| Call sites        | 3                     |
+| Risk level        | MEDIUM                |
+| Priority          | DEFER                 |
 
 ## Next Steps
 
