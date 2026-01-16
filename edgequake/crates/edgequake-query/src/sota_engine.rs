@@ -2875,20 +2875,55 @@ impl SOTAQueryEngine {
             context.add_relationship(rel);
         }
 
-        // Step 7: Get source chunks using workspace vector storage
-        let chunk_results = vector_storage
-            .query(&embeddings.query, self.config.max_chunks * 2, None)
-            .await?;
+        // Step 7: Collect source_chunk_ids from entities and relationships
+        // WHY-OODA230: Must retrieve chunks via their IDs, not by semantic similarity.
+        // The old approach (semantic search + filter_by_type) returned 0 chunks because
+        // entity/relationship vectors often score higher than chunks for concept queries.
+        let mut chunk_ids = std::collections::HashSet::new();
 
-        let chunks = filter_by_type(chunk_results, VectorType::Chunk);
+        // Collect chunk IDs from entities
+        for entity in &context.entities {
+            for chunk_id in &entity.source_chunk_ids {
+                chunk_ids.insert(chunk_id.clone());
+            }
+        }
 
-        for result in chunks
-            .iter()
-            .filter(|r| r.score >= self.config.min_score)
-            .filter(|r| self.matches_tenant_filter(&r.metadata, &tenant_id, &workspace_id))
-            .take(self.config.max_chunks)
-        {
-            context.add_chunk(build_chunk_from_result(result));
+        // Collect chunk IDs from relationships
+        for rel in &context.relationships {
+            if let Some(chunk_id) = &rel.source_chunk_id {
+                chunk_ids.insert(chunk_id.clone());
+            }
+        }
+
+        tracing::info!(
+            total_chunk_ids = chunk_ids.len(),
+            entity_count = context.entities.len(),
+            relationship_count = context.relationships.len(),
+            "OODA-230: Local mode chunk collection (workspace)"
+        );
+
+        // Retrieve chunks from workspace vector storage using chunk IDs
+        if !chunk_ids.is_empty() {
+            let chunk_ids_vec: Vec<String> = chunk_ids
+                .into_iter()
+                .take(self.config.max_chunks)
+                .collect();
+
+            // Query with filter to retrieve only the specific chunks
+            let results = vector_storage
+                .query(
+                    &embeddings.low_level,
+                    chunk_ids_vec.len(),
+                    Some(&chunk_ids_vec),
+                )
+                .await?;
+
+            for result in results {
+                if !self.matches_tenant_filter(&result.metadata, &tenant_id, &workspace_id) {
+                    continue;
+                }
+                context.add_chunk(build_chunk_from_result(&result));
+            }
         }
 
         Ok(context)
@@ -3003,20 +3038,55 @@ impl SOTAQueryEngine {
             context.add_entity(entity);
         }
 
-        // Step 6: Add chunk context using workspace vector storage
-        let chunk_results = vector_storage
-            .query(&embeddings.query, self.config.max_chunks * 2, None)
-            .await?;
+        // Step 6: Collect source_chunk_ids from entities and relationships
+        // WHY-OODA230: Must retrieve chunks via their IDs, not by semantic similarity.
+        // The old approach (semantic search + filter_by_type) returned 0 chunks because
+        // entity/relationship vectors often score higher than chunks for concept queries.
+        let mut chunk_ids = std::collections::HashSet::new();
 
-        let chunks = filter_by_type(chunk_results, VectorType::Chunk);
+        // Collect chunk IDs from entities
+        for entity in &context.entities {
+            for chunk_id in &entity.source_chunk_ids {
+                chunk_ids.insert(chunk_id.clone());
+            }
+        }
 
-        for result in chunks
-            .iter()
-            .filter(|r| r.score >= self.config.min_score)
-            .filter(|r| self.matches_tenant_filter(&r.metadata, &tenant_id, &workspace_id))
-            .take(self.config.max_chunks)
-        {
-            context.add_chunk(build_chunk_from_result(result));
+        // Collect chunk IDs from relationships
+        for rel in &context.relationships {
+            if let Some(chunk_id) = &rel.source_chunk_id {
+                chunk_ids.insert(chunk_id.clone());
+            }
+        }
+
+        tracing::info!(
+            total_chunk_ids = chunk_ids.len(),
+            entity_count = context.entities.len(),
+            relationship_count = context.relationships.len(),
+            "OODA-230: Global mode chunk collection (workspace)"
+        );
+
+        // Retrieve chunks from workspace vector storage using chunk IDs
+        if !chunk_ids.is_empty() {
+            let chunk_ids_vec: Vec<String> = chunk_ids
+                .into_iter()
+                .take(self.config.max_chunks)
+                .collect();
+
+            // Query with filter to retrieve only the specific chunks
+            let results = vector_storage
+                .query(
+                    &embeddings.high_level,
+                    chunk_ids_vec.len(),
+                    Some(&chunk_ids_vec),
+                )
+                .await?;
+
+            for result in results {
+                if !self.matches_tenant_filter(&result.metadata, &tenant_id, &workspace_id) {
+                    continue;
+                }
+                context.add_chunk(build_chunk_from_result(&result));
+            }
         }
 
         Ok(context)
