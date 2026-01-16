@@ -512,6 +512,11 @@ async fn get_workspace(
 /// an appropriate embedding provider. If the workspace uses the default config
 /// (same as the global provider), returns None to indicate the default should be used.
 ///
+/// **NOTE**: Similar logic exists in `providers/resolver.rs::resolve_embedding_provider`.
+/// This version returns `Ok(None)` for fallback semantics while the resolver returns
+/// an error if the workspace has no embedding provider configured.
+/// See OODA-235 for duplication analysis.
+///
 /// @implements SPEC-032: Workspace-specific embedding in query process
 /// @implements OODA-228: Fix dimension mismatch in chat handler
 ///

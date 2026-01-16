@@ -270,6 +270,11 @@ impl WorkspaceProviderResolver {
     /// Unlike LLM providers, embedding providers are always workspace-specific
     /// because the embedding dimension must match the vector storage.
     ///
+    /// **NOTE**: Similar logic exists in `handlers/query.rs::get_workspace_embedding_provider`.
+    /// The query.rs version returns `Option` for fallback semantics while this returns
+    /// an error if the workspace has no embedding provider configured.
+    /// See OODA-235 for duplication analysis.
+    ///
     /// @implements OODA-226: Unified embedding resolution with safety limits
     pub async fn resolve_embedding_provider(
         &self,
