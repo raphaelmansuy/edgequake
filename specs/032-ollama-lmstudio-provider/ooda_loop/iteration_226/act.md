@@ -7,6 +7,7 @@
 **Location:** `edgequake/crates/edgequake-api/src/providers/`
 
 **Files Created:**
+
 1. `error.rs` - `ProviderResolutionError` enum with API key detection
 2. `resolver.rs` - `WorkspaceProviderResolver` with unified resolution logic
 3. `mod.rs` - Module exports
@@ -16,6 +17,7 @@
 1. **Safety-First Creation**: All providers created through resolver use `create_safe_llm_provider` with configurable timeouts (default 300s)
 
 2. **Unified Resolution Cascade**:
+
    ```
    Request Override → Workspace Config → Server Default
    ```

@@ -11,6 +11,7 @@ Replace inline provider resolution in both handlers with resolver calls.
 1. **Add import** for `LlmResolutionRequest` and `WorkspaceProviderResolver`
 
 2. **Replace non-streaming handler** (lines 378-462):
+
    - Old: 85 lines of nested if/else with `ProviderFactory::create_llm_provider`
    - New: 15 lines using `resolver.resolve_llm_provider_with_workspace`
 
@@ -20,11 +21,11 @@ Replace inline provider resolution in both handlers with resolver calls.
 
 ### Error Handling Preservation
 
-| Scenario | Non-Streaming | Streaming |
-|----------|---------------|-----------|
-| Explicit provider fails | `ApiError::BadRequest` | `ChatStreamEvent::Error` via channel |
-| Workspace provider fails | Falls back to default | Falls back to default |
-| No provider specified | Uses server default | Uses server default |
+| Scenario                 | Non-Streaming          | Streaming                            |
+| ------------------------ | ---------------------- | ------------------------------------ |
+| Explicit provider fails  | `ApiError::BadRequest` | `ChatStreamEvent::Error` via channel |
+| Workspace provider fails | Falls back to default  | Falls back to default                |
+| No provider specified    | Uses server default    | Uses server default                  |
 
 ### Code Reduction
 

@@ -13,6 +13,7 @@ User requested deep audit for duplicate code in ingestion and integration, using
 I performed a comprehensive grep search across the codebase for provider creation patterns. Here are the findings:
 
 #### Location 1: chat.rs (Non-Streaming Handler)
+
 **File**: [chat.rs](../../../edgequake/crates/edgequake-api/src/handlers/chat.rs#L370-L460)
 
 ```rust
@@ -26,7 +27,8 @@ let (llm_override, used_provider, used_model) = if let Some(ref provider_id) = r
 }
 ```
 
-#### Location 2: chat.rs (Streaming Handler)  
+#### Location 2: chat.rs (Streaming Handler)
+
 **File**: [chat.rs](../../../edgequake/crates/edgequake-api/src/handlers/chat.rs#L850-L940)
 
 ```rust
@@ -44,6 +46,7 @@ let (llm_override, used_provider, used_model) = if let Some(ref provider_id) = r
 ```
 
 #### Location 3: processor.rs (Document Ingestion)
+
 **File**: [processor.rs](../../../edgequake/crates/edgequake-api/src/processor.rs#L220-L280)
 
 ```rust
@@ -53,6 +56,7 @@ let embedding_provider_result = ProviderFactory::create_safe_embedding_provider(
 ```
 
 #### Location 4: query.rs (Embedding Provider)
+
 **File**: [query.rs](../../../edgequake/crates/edgequake-api/src/handlers/query.rs#L480-L550)
 
 ```rust
@@ -68,6 +72,7 @@ let provider = ProviderFactory::create_embedding_provider(...)
 ```
 
 #### Location 5: state.rs (State Initialization)
+
 **File**: [state.rs](../../../edgequake/crates/edgequake-api/src/state.rs#L920-L940)
 
 ```rust
@@ -77,12 +82,12 @@ ProviderFactory::create_safe_llm_provider(&ws.llm_provider, &ws.llm_model);
 
 ### Critical Inconsistencies Found
 
-| Aspect | chat.rs | processor.rs | query.rs |
-|--------|---------|--------------|----------|
-| Method Used | `create_llm_provider` | `create_safe_llm_provider` | `create_embedding_provider` |
-| Safety Limits | ❌ No | ✅ Yes | ❌ No |
-| Error Handling | Return/Send | Log + Fallback | Map to ApiError |
-| API Key Detection | ❌ No | ❌ No | ✅ Yes |
+| Aspect            | chat.rs               | processor.rs               | query.rs                    |
+| ----------------- | --------------------- | -------------------------- | --------------------------- |
+| Method Used       | `create_llm_provider` | `create_safe_llm_provider` | `create_embedding_provider` |
+| Safety Limits     | ❌ No                 | ✅ Yes                     | ❌ No                       |
+| Error Handling    | Return/Send           | Log + Fallback             | Map to ApiError             |
+| API Key Detection | ❌ No                 | ❌ No                      | ✅ Yes                      |
 
 ### Reliability Risk Assessment
 

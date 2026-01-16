@@ -35,6 +35,7 @@ Location: `query.rs` lines 451-469
 ## Before vs After
 
 ### Before (Bug)
+
 ```
 Frontend → X-Tenant-ID: random-uuid → Query Handler → Graph Query
                                          ↓
@@ -44,6 +45,7 @@ Frontend → X-Tenant-ID: random-uuid → Query Handler → Graph Query
 ```
 
 ### After (Fixed)
+
 ```
 Frontend → X-Tenant-ID: random-uuid → Query Handler → Fetch Workspace
                                                            ↓
@@ -68,6 +70,7 @@ $ ./scripts/check_security_invariants.sh
 ## Security Invariant Enforcement
 
 Updated `check_security_invariants.sh` to detect unsafe tenant_id usage:
+
 - Checks for `with_tenant_id(tenant_ctx.tenant_id)` pattern
 - Passes when `data_tenant_id` (derived from workspace) is used
 

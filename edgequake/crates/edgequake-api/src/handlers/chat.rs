@@ -384,42 +384,36 @@ pub async fn chat_completion(
     //   - Legacy format: provider="provider/model" (e.g., "ollama/gemma3:12b")
     //   - New format: provider="provider", model="model_name"
     let resolver = WorkspaceProviderResolver::new(state.workspace_service.clone());
-    let llm_request = LlmResolutionRequest::from_provider_string(
-        request.provider.clone(),
-        request.model.clone(),
-    );
+    let llm_request =
+        LlmResolutionRequest::from_provider_string(request.provider.clone(), request.model.clone());
 
-    let (llm_override, used_provider, used_model) = match resolver
-        .resolve_llm_provider_with_workspace(workspace.as_ref(), &llm_request)
-    {
-        Ok(Some(resolved)) => {
-            debug!(
-                provider = %resolved.provider_name,
-                model = %resolved.model_name,
-                source = ?resolved.source,
-                "Resolved LLM provider (non-streaming)"
-            );
-            (
-                Some(resolved.provider),
-                Some(resolved.provider_name),
-                Some(resolved.model_name),
-            )
-        }
-        Ok(None) => {
-            // No provider resolved - will use server default
-            debug!("Using server default LLM provider (non-streaming)");
-            (None, None, None)
-        }
-        Err(e) => {
-            // Explicit provider request failed - return error to user
-            error!(error = %e, "Failed to resolve LLM provider (non-streaming)");
-            return Err(if e.is_api_key_error() {
-                ApiError::BadRequest(e.to_string())
-            } else {
-                ApiError::BadRequest(format!("Cannot use provider: {}", e))
-            });
-        }
-    };
+    let (llm_override, used_provider, used_model) =
+        match resolver.resolve_llm_provider_with_workspace(workspace.as_ref(), &llm_request) {
+            Ok(Some(resolved)) => {
+                debug!(
+                    provider = %resolved.provider_name,
+                    model = %resolved.model_name,
+                    source = ?resolved.source,
+                    "Resolved LLM provider (non-streaming)"
+                );
+                (
+                    Some(resolved.provider),
+                    Some(resolved.provider_name),
+                    Some(resolved.model_name),
+                )
+            }
+            Ok(None) => {
+                // No provider resolved - will use server default
+                debug!("Using server default LLM provider (non-streaming)");
+                (None, None, None)
+            }
+            Err(e) => {
+                // Explicit provider request failed - return error to user
+                // OODA-234: Unified error conversion via From<ProviderResolutionError>
+                error!(error = %e, "Failed to resolve LLM provider (non-streaming)");
+                return Err(ApiError::from(e));
+            }
+        };
 
     // OODA-228: Get workspace-specific embedding provider and vector storage
     // This ensures query embeddings match the dimension of stored vectors

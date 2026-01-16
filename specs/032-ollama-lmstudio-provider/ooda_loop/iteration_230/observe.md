@@ -18,6 +18,7 @@ Create an "inviolable security test layer" that enforces critical invariants at 
 ### First-Principles Approach
 
 A security test layer should:
+
 1. **Be automatic**: Run on every CI build
 2. **Be fast**: Not add significant build time
 3. **Be comprehensive**: Cover all critical invariants

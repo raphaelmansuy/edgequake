@@ -9,6 +9,7 @@ use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
 ```
 
 Removed unused:
+
 - `ProviderResolutionError` (error handling uses `.to_string()`)
 - `edgequake_llm::ProviderFactory` (no longer directly called)
 
@@ -17,6 +18,7 @@ Removed unused:
 **Location**: Lines 378-420 (after refactor)
 
 **Key changes**:
+
 - Create resolver with workspace service
 - Build `LlmResolutionRequest` from request fields
 - Call `resolve_llm_provider_with_workspace`
@@ -27,6 +29,7 @@ Removed unused:
 **Location**: Lines 810-855 (after refactor)
 
 **Key changes**:
+
 - Same pattern as non-streaming
 - Error case sends `ChatStreamEvent::Error` via channel instead of returning `ApiError`
 
@@ -42,13 +45,13 @@ $ cargo test --package edgequake-api
 
 ## Metrics
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Lines in non-streaming handler | 85 | 42 |
-| Lines in streaming handler | 90 | 45 |
-| Duplicated logic | 175 lines | 0 lines |
-| Safety limits | ❌ No | ✅ Yes (300s timeout) |
-| Testable in isolation | ❌ No | ✅ Yes |
+| Metric                         | Before    | After                 |
+| ------------------------------ | --------- | --------------------- |
+| Lines in non-streaming handler | 85        | 42                    |
+| Lines in streaming handler     | 90        | 45                    |
+| Duplicated logic               | 175 lines | 0 lines               |
+| Safety limits                  | ❌ No     | ✅ Yes (300s timeout) |
+| Testable in isolation          | ❌ No     | ✅ Yes                |
 
 ## Next Steps (OODA-228)
 

@@ -15,18 +15,19 @@ Two nearly identical code blocks exist:
 
 ### Key Differences Between Handlers
 
-| Aspect | Non-Streaming | Streaming |
-|--------|---------------|-----------|
-| Error handling | Returns `ApiError::BadRequest` | Sends `ChatStreamEvent::Error` via channel |
-| Provider creation | `ProviderFactory::create_llm_provider` | `ProviderFactory::create_llm_provider` |
-| Safety limits | **NONE** (no timeout) | **NONE** (no timeout) |
-| Variable names | `request.provider`, `request.model` | `request_provider`, `request_model` |
+| Aspect            | Non-Streaming                          | Streaming                                  |
+| ----------------- | -------------------------------------- | ------------------------------------------ |
+| Error handling    | Returns `ApiError::BadRequest`         | Sends `ChatStreamEvent::Error` via channel |
+| Provider creation | `ProviderFactory::create_llm_provider` | `ProviderFactory::create_llm_provider`     |
+| Safety limits     | **NONE** (no timeout)                  | **NONE** (no timeout)                      |
+| Variable names    | `request.provider`, `request.model`    | `request_provider`, `request_model`        |
 
 ### Critical Bug Discovered
 
 Both handlers use `ProviderFactory::create_llm_provider` (NO SAFETY LIMITS) while `processor.rs` uses `ProviderFactory::create_safe_llm_provider` (WITH TIMEOUTS).
 
 This means:
+
 - Document ingestion has 300s timeout protection
 - Chat queries have NO timeout protection - can hang indefinitely
 
@@ -39,7 +40,7 @@ let (llm_override, used_provider, used_model) = if let Some(ref provider_id) = r
     // ... 60+ lines of nested if/else logic
 }
 
-// Lines 855-935 (streaming) - 80 lines  
+// Lines 855-935 (streaming) - 80 lines
 let (llm_override, used_provider, used_model) = if let Some(ref provider_id) = request_provider
 {
     // ... 70+ lines of nearly identical nested if/else logic

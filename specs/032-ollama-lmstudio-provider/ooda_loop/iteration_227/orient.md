@@ -42,12 +42,12 @@ Before:                          After:
 
 ## FMEA Update
 
-| Failure Mode | Before | After | RPN Δ |
-|--------------|--------|-------|-------|
-| Timeout on LLM call | HIGH (10) | LOW (2) | -8 |
-| Logic drift between handlers | MEDIUM (5) | NONE (0) | -5 |
-| Bug fix missed in one handler | MEDIUM (5) | NONE (0) | -5 |
-| Provider fallback inconsistency | MEDIUM (5) | NONE (0) | -5 |
+| Failure Mode                    | Before     | After    | RPN Δ |
+| ------------------------------- | ---------- | -------- | ----- |
+| Timeout on LLM call             | HIGH (10)  | LOW (2)  | -8    |
+| Logic drift between handlers    | MEDIUM (5) | NONE (0) | -5    |
+| Bug fix missed in one handler   | MEDIUM (5) | NONE (0) | -5    |
+| Provider fallback inconsistency | MEDIUM (5) | NONE (0) | -5    |
 
 Total Risk Priority Number reduction: **-23**
 

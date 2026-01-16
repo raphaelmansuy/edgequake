@@ -15,24 +15,28 @@ Your mission is to fully implement ollama and lmstudio provider in edgequake, en
 ### Audit Scope
 
 **Phase 1 (OODA 226-235): Ingestion Code Path Audit**
+
 - Map all document upload/processing paths
 - Identify semantic duplicates in provider creation
 - Flag inconsistent error handling patterns
 - Document dimension validation gaps
 
-**Phase 2 (OODA 236-245): Query Code Path Audit**  
+**Phase 2 (OODA 236-245): Query Code Path Audit**
+
 - Map all query/chat handler paths
 - Identify duplicated provider resolution logic
 - Flag safety limit inconsistencies
 - Document tenant_id/workspace_id handling gaps
 
 **Phase 3 (OODA 246-255): Integration Point Audit**
+
 - Map all cross-crate boundaries
 - Identify coupling risks
 - Flag API contract inconsistencies
 - Document error propagation patterns
 
 **Phase 4 (OODA 256-260): Security Test Scaffold**
+
 - Create property-based tests for invariants
 - Add fuzz tests for edge cases
 - Build regression tests for each bug found
@@ -117,10 +121,9 @@ FOCUS on :
 
 25. When I rebuild the embeddings for a workspace, ensure the embedding provider and model used is the one associated with the workspace. Ensure the vector database is recreated with the new embedding model on the existing documents of the workspace --> Have a deep reasoning about the best way to implement this in edgequake codebase: is to necessary to have only an re-embedding process that keep the existing vector database structure and just update the embeddings ? Or is it better to recreate the vector database from scratch with the new embedding model ? Document your reasoning and choices in the OODA loop documentation. What are the pros and cons of each approach ? What is the impact on performance, downtime, user experience, complexity, code maintainability, etc. Choose the best approach based on your analysis and document it. Ensure the building of the embeddings only affect the workspace being modified, not the entire server.
 
-24. Ensure when I rebuild the knowledge graph for a workspace, the llm provider and model used is the one associated with the workspace. And we use the same llm provider and model for document ingestion. Both extraction and embedding must be done with the models associated with the workspace. It only affect the workspace being modified, not the entire server.
+26. Ensure when I rebuild the knowledge graph for a workspace, the llm provider and model used is the one associated with the workspace. And we use the same llm provider and model for document ingestion. Both extraction and embedding must be done with the models associated with the workspace. It only affect the workspace being modified, not the entire server.
 
-CRITICAL:  Can you fully verified e2e that with a workspace create with a default embedding model for example and llm extractor ollama that when I change to an opean ai provider for embedding and llm extraction the extraction is really done with the openai provider. I strongly suspect that is not the case. You must as detective build an e2e test for both postgres and memory based backend to prove this, fix it if it is not implemented, then add more e2e, unit test to ensure this cannot brake in the future.
-
+CRITICAL: Can you fully verified e2e that with a workspace create with a default embedding model for example and llm extractor ollama that when I change to an opean ai provider for embedding and llm extraction the extraction is really done with the openai provider. I strongly suspect that is not the case. You must as detective build an e2e test for both postgres and memory based backend to prove this, fix it if it is not implemented, then add more e2e, unit test to ensure this cannot brake in the future.
 
 25. Ensure we have 100% coverage on e2e tests with playwright for the webui to cover all the new features added regarding provider and model selection for both llm and embedding at tenant creation, workspace creation, query time, document ingestion, knowledge graph rebuild, embedding rebuild, etc.
 

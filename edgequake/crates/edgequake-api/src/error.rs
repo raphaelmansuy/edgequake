@@ -51,6 +51,8 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::providers::ProviderResolutionError;
+
 /// Result type for API operations.
 pub type ApiResult<T> = std::result::Result<T, ApiError>;
 
@@ -197,6 +199,62 @@ impl IntoResponse for ApiError {
         let error = ErrorResponse::new(self.code(), self.to_string());
 
         (status, Json(error)).into_response()
+    }
+}
+
+/// Convert ProviderResolutionError to ApiError.
+///
+/// This implementation provides a unified way to convert provider resolution
+/// failures into appropriate HTTP errors with clear error codes.
+///
+/// ## Mapping
+///
+/// | ProviderResolutionError | ApiError | Status |
+/// |------------------------|----------|--------|
+/// | WorkspaceNotFound | NotFound | 404 |
+/// | InvalidWorkspaceId | BadRequest | 400 |
+/// | InvalidProviderName | BadRequest | 400 |
+/// | ProviderCreationFailed (api_key) | ConfigError | 422 |
+/// | ProviderCreationFailed (other) | BadRequest | 400 |
+/// | WorkspaceServiceError | Internal | 500 |
+///
+/// @implements OODA-234: Unified error conversion for provider resolution
+impl From<ProviderResolutionError> for ApiError {
+    fn from(err: ProviderResolutionError) -> Self {
+        match err {
+            ProviderResolutionError::WorkspaceNotFound { workspace_id } => {
+                ApiError::NotFound(format!("Workspace not found: {}", workspace_id))
+            }
+            ProviderResolutionError::InvalidWorkspaceId(msg) => {
+                ApiError::BadRequest(format!("Invalid workspace ID: {}", msg))
+            }
+            ProviderResolutionError::InvalidProviderName(msg) => {
+                ApiError::BadRequest(format!("Invalid provider name: {}", msg))
+            }
+            ProviderResolutionError::ProviderCreationFailed {
+                provider,
+                model,
+                reason,
+                is_api_key_error,
+            } => {
+                if is_api_key_error {
+                    // API key errors are configuration issues
+                    ApiError::ConfigError(format!(
+                        "Provider '{}' requires API key configuration for model '{}': {}",
+                        provider, model, reason
+                    ))
+                } else {
+                    // Other creation failures are bad requests
+                    ApiError::BadRequest(format!(
+                        "Cannot use provider '{}' with model '{}': {}",
+                        provider, model, reason
+                    ))
+                }
+            }
+            ProviderResolutionError::WorkspaceServiceError(msg) => {
+                ApiError::Internal(format!("Workspace service error: {}", msg))
+            }
+        }
     }
 }
 
@@ -443,5 +501,62 @@ mod tests {
 
         let result = test_function();
         assert!(result.is_err());
+    }
+
+    // OODA-234: Tests for ProviderResolutionError -> ApiError conversion
+    #[test]
+    fn test_provider_error_workspace_not_found() {
+        let err = ProviderResolutionError::WorkspaceNotFound {
+            workspace_id: "ws-123".to_string(),
+        };
+        let api_err: ApiError = err.into();
+        assert_eq!(api_err.code(), "NOT_FOUND");
+        assert_eq!(api_err.status_code(), StatusCode::NOT_FOUND);
+        assert!(api_err.to_string().contains("ws-123"));
+    }
+
+    #[test]
+    fn test_provider_error_invalid_workspace_id() {
+        let err = ProviderResolutionError::InvalidWorkspaceId("bad-uuid".to_string());
+        let api_err: ApiError = err.into();
+        assert_eq!(api_err.code(), "BAD_REQUEST");
+        assert_eq!(api_err.status_code(), StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn test_provider_error_api_key_missing() {
+        let err = ProviderResolutionError::ProviderCreationFailed {
+            provider: "openai".to_string(),
+            model: "gpt-4o-mini".to_string(),
+            reason: "OPENAI_API_KEY not set".to_string(),
+            is_api_key_error: true,
+        };
+        let api_err: ApiError = err.into();
+        assert_eq!(api_err.code(), "CONFIG_ERROR");
+        assert_eq!(api_err.status_code(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert!(api_err.to_string().contains("openai"));
+        assert!(api_err.to_string().contains("gpt-4o-mini"));
+    }
+
+    #[test]
+    fn test_provider_error_creation_failed_not_api_key() {
+        let err = ProviderResolutionError::ProviderCreationFailed {
+            provider: "ollama".to_string(),
+            model: "llama3".to_string(),
+            reason: "Connection refused".to_string(),
+            is_api_key_error: false,
+        };
+        let api_err: ApiError = err.into();
+        assert_eq!(api_err.code(), "BAD_REQUEST");
+        assert_eq!(api_err.status_code(), StatusCode::BAD_REQUEST);
+        assert!(api_err.to_string().contains("ollama"));
+    }
+
+    #[test]
+    fn test_provider_error_service_error() {
+        let err = ProviderResolutionError::WorkspaceServiceError("DB connection failed".to_string());
+        let api_err: ApiError = err.into();
+        assert_eq!(api_err.code(), "INTERNAL_ERROR");
+        assert_eq!(api_err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 }

@@ -13,10 +13,12 @@ Create a new module `edgequake-api/src/providers/` with a unified provider resol
 #### Phase 1: Create Resolver Module (This Iteration)
 
 1. **File**: `edgequake-api/src/providers/mod.rs`
+
    - Export `WorkspaceProviderResolver`
    - Export `ProviderResolutionError`
 
 2. **File**: `edgequake-api/src/providers/resolver.rs`
+
    - Implement `WorkspaceProviderResolver` struct
    - Method: `resolve_llm_provider()`
    - Method: `resolve_embedding_provider()`
@@ -65,12 +67,12 @@ edgequake/crates/edgequake-api/src/
 
 ### Risk Mitigation
 
-| Risk | Mitigation |
-|------|------------|
+| Risk                       | Mitigation                         |
+| -------------------------- | ---------------------------------- |
 | Breaking existing behavior | Keep old code until all tests pass |
-| Missing edge cases | Comprehensive test suite |
-| Performance regression | Profile before/after |
-| Incomplete refactor | Feature flag to toggle old/new |
+| Missing edge cases         | Comprehensive test suite           |
+| Performance regression     | Profile before/after               |
+| Incomplete refactor        | Feature flag to toggle old/new     |
 
 ### Success Criteria
 

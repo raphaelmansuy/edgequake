@@ -7,6 +7,7 @@
 Location: `scripts/check_security_invariants.sh`
 
 Features:
+
 - **SAFE_PROVIDER_CREATION**: Detects unsafe `ProviderFactory::create_*` calls
 - **TENANT_ISOLATION**: Detects direct use of `tenant_ctx.tenant_id` in data queries
 - **NO_UNWRAP_IN_HANDLERS**: Counts `.unwrap()` usage (warning threshold: 10)
@@ -15,12 +16,13 @@ Features:
 ### 2. Ran Initial Check
 
 Found two issues:
+
 1. `query.rs:130` - Using header tenant_id for data query (FIXED in OODA-231)
 2. `query.rs:440` - Same issue in streaming handler (FIXED in OODA-231)
 
 ### 3. Updated Script for Better Detection
 
-- Changed pattern to detect `with_tenant_id(tenant_ctx.tenant_id)` 
+- Changed pattern to detect `with_tenant_id(tenant_ctx.tenant_id)`
 - Safe pattern `data_tenant_id` is allowed
 - More precise than original heuristic
 
