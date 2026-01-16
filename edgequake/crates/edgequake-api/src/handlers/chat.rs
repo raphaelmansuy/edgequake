@@ -48,6 +48,7 @@ use crate::handlers::query::{
     get_workspace_embedding_provider, get_workspace_vector_storage, QueryStats, SourceReference,
 };
 use crate::middleware::TenantContext;
+use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
 use crate::state::AppState;
 use crate::streaming::StreamAccumulator;
 use edgequake_core::types::{
@@ -55,7 +56,6 @@ use edgequake_core::types::{
     MessageContextEntity, MessageContextRelationship, MessageRole, MessageSource,
     UpdateMessageRequest,
 };
-use edgequake_llm::ProviderFactory;
 use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
 
 // Re-export DTOs from chat_types module
@@ -375,87 +375,49 @@ pub async fn chat_completion(
         engine_request = engine_request.with_workspace_id(ws_id.to_string());
     }
 
-    // SPEC-032: Apply provider/model override from request
+    // SPEC-032 + OODA-227: Unified provider resolution with safety limits
     // Priority order:
     //   1. Request-specified provider/model (explicit user selection)
     //   2. Workspace-configured provider/model (workspace settings)
     //   3. Server default (sota_engine's default provider)
-    // Supports both:
+    // Supports both formats:
     //   - Legacy format: provider="provider/model" (e.g., "ollama/gemma3:12b")
     //   - New format: provider="provider", model="model_name"
-    let (llm_override, used_provider, used_model) = if let Some(ref provider_id) = request.provider
-    {
-        if !provider_id.is_empty() {
-            // Determine provider and model names
-            let (provider_name, model_name) = if let Some(ref explicit_model) = request.model {
-                // New format: explicit model field provided
-                (provider_id.clone(), explicit_model.clone())
-            } else if let Some((p, m)) = provider_id.split_once('/') {
-                // Legacy format: "provider/model" in provider field
-                (p.to_string(), m.to_string())
-            } else {
-                // Just provider name, use provider's default model
-                let default_model = ProviderFactory::default_model_for_provider(provider_id);
-                (provider_id.clone(), default_model.to_string())
-            };
+    let resolver = WorkspaceProviderResolver::new(state.workspace_service.clone());
+    let llm_request = LlmResolutionRequest::from_provider_string(
+        request.provider.clone(),
+        request.model.clone(),
+    );
 
-            // Try to create the LLM provider
-            // IMPORTANT: When user explicitly selects a provider, return validation errors
-            // instead of silently falling back. This provides clear feedback about
-            // configuration issues (e.g., missing API keys).
-            match ProviderFactory::create_llm_provider(&provider_name, &model_name) {
-                Ok(llm) => {
-                    debug!(provider = %provider_name, model = %model_name, "Created LLM provider override from request");
-                    (Some(llm), Some(provider_name), Some(model_name))
-                }
-                Err(e) => {
-                    // User explicitly selected this provider - return error to user
-                    error!(provider = %provider_name, error = %e, "Failed to create requested LLM provider");
-                    return Err(ApiError::BadRequest(format!(
-                        "Cannot use provider '{}': {}",
-                        provider_name, e
-                    )));
-                }
-            }
-        } else {
-            // Empty provider string - fall through to workspace/server default
-            if let Some(ref ws) = workspace {
-                // Use workspace's configured LLM provider
-                let provider_name = ws.llm_provider.clone();
-                let model_name = ws.llm_model.clone();
-                match ProviderFactory::create_llm_provider(&provider_name, &model_name) {
-                    Ok(llm) => {
-                        debug!(provider = %provider_name, model = %model_name, workspace_id = ?workspace_id, "Using workspace LLM provider");
-                        (Some(llm), Some(provider_name), Some(model_name))
-                    }
-                    Err(e) => {
-                        // Workspace provider failed - log warning and fall back to server default
-                        warn!(provider = %provider_name, error = %e, workspace_id = ?workspace_id, "Workspace LLM provider failed, using server default");
-                        (None, None, None)
-                    }
-                }
-            } else {
-                (None, None, None)
-            }
+    let (llm_override, used_provider, used_model) = match resolver
+        .resolve_llm_provider_with_workspace(workspace.as_ref(), &llm_request)
+    {
+        Ok(Some(resolved)) => {
+            debug!(
+                provider = %resolved.provider_name,
+                model = %resolved.model_name,
+                source = ?resolved.source,
+                "Resolved LLM provider (non-streaming)"
+            );
+            (
+                Some(resolved.provider),
+                Some(resolved.provider_name),
+                Some(resolved.model_name),
+            )
         }
-    } else {
-        // No request.provider - use workspace provider if available
-        if let Some(ref ws) = workspace {
-            let provider_name = ws.llm_provider.clone();
-            let model_name = ws.llm_model.clone();
-            match ProviderFactory::create_llm_provider(&provider_name, &model_name) {
-                Ok(llm) => {
-                    debug!(provider = %provider_name, model = %model_name, workspace_id = ?workspace_id, "Using workspace LLM provider (no request override)");
-                    (Some(llm), Some(provider_name), Some(model_name))
-                }
-                Err(e) => {
-                    // Workspace provider failed - log warning and fall back to server default
-                    warn!(provider = %provider_name, error = %e, workspace_id = ?workspace_id, "Workspace LLM provider failed, using server default");
-                    (None, None, None)
-                }
-            }
-        } else {
+        Ok(None) => {
+            // No provider resolved - will use server default
+            debug!("Using server default LLM provider (non-streaming)");
             (None, None, None)
+        }
+        Err(e) => {
+            // Explicit provider request failed - return error to user
+            error!(error = %e, "Failed to resolve LLM provider (non-streaming)");
+            return Err(if e.is_api_key_error() {
+                ApiError::BadRequest(e.to_string())
+            } else {
+                ApiError::BadRequest(format!("Cannot use provider: {}", e))
+            });
         }
     };
 
@@ -844,95 +806,52 @@ pub async fn chat_completion_stream(
             engine_request = engine_request.with_workspace_id(ws_id.to_string());
         }
 
-        // SPEC-032: Create LLM provider override from request (streaming handler)
+        // SPEC-032 + OODA-227: Unified provider resolution with safety limits (streaming)
         // Priority order:
         //   1. Request-specified provider/model (explicit user selection)
         //   2. Workspace-configured provider/model (workspace settings)
         //   3. Server default (sota_engine's default provider)
-        // Supports both:
+        // Supports both formats:
         //   - Legacy format: provider="provider/model" (e.g., "ollama/gemma3:12b")
         //   - New format: provider="provider", model="model_name"
-        let (llm_override, used_provider, used_model) = if let Some(ref provider_id) =
-            request_provider
+        let resolver = WorkspaceProviderResolver::new(state_clone.workspace_service.clone());
+        let llm_request = LlmResolutionRequest::from_provider_string(
+            request_provider.clone(),
+            request_model.clone(),
+        );
+
+        let (llm_override, used_provider, used_model) = match resolver
+            .resolve_llm_provider_with_workspace(workspace_clone.as_ref(), &llm_request)
         {
-            if !provider_id.is_empty() {
-                // Determine provider and model names
-                let (provider_name, model_name) = if let Some(ref explicit_model) = request_model {
-                    // New format: explicit model field provided
-                    (provider_id.clone(), explicit_model.clone())
-                } else if let Some((p, m)) = provider_id.split_once('/') {
-                    // Legacy format: "provider/model" in provider field
-                    (p.to_string(), m.to_string())
-                } else {
-                    // Just provider name, use provider's default model
-                    let default_model = ProviderFactory::default_model_for_provider(provider_id);
-                    (provider_id.clone(), default_model.to_string())
-                };
-
-                // Try to create the LLM provider
-                // IMPORTANT: When user explicitly selects a provider, return validation errors
-                // instead of silently falling back. This provides clear feedback about
-                // configuration issues (e.g., missing API keys).
-                match ProviderFactory::create_llm_provider(&provider_name, &model_name) {
-                    Ok(llm) => {
-                        debug!(provider = %provider_name, model = %model_name, "Created LLM provider override for streaming from request");
-                        (Some(llm), Some(provider_name), Some(model_name))
-                    }
-                    Err(e) => {
-                        // User explicitly selected this provider - send error to client via SSE
-                        error!(provider = %provider_name, error = %e, "Failed to create requested LLM provider for streaming");
-
-                        // Send error event through channel and exit
-                        let error_msg = format!("Cannot use provider '{}': {}", provider_name, e);
-                        let _ = tx
-                            .send(ChatStreamEvent::Error {
-                                message: error_msg,
-                                code: "PROVIDER_CONFIG_ERROR".to_string(),
-                            })
-                            .await;
-
-                        return; // Exit task early with error sent
-                    }
-                }
-            } else {
-                // Empty provider string - fall through to workspace/server default
-                if let Some(ref ws) = workspace_clone {
-                    // Use workspace's configured LLM provider
-                    let provider_name = ws.llm_provider.clone();
-                    let model_name = ws.llm_model.clone();
-                    match ProviderFactory::create_llm_provider(&provider_name, &model_name) {
-                        Ok(llm) => {
-                            debug!(provider = %provider_name, model = %model_name, workspace_id = ?workspace_id, "Using workspace LLM provider for streaming");
-                            (Some(llm), Some(provider_name), Some(model_name))
-                        }
-                        Err(e) => {
-                            // Workspace provider failed - log warning and fall back to server default
-                            warn!(provider = %provider_name, error = %e, workspace_id = ?workspace_id, "Workspace LLM provider failed for streaming, using server default");
-                            (None, None, None)
-                        }
-                    }
-                } else {
-                    (None, None, None)
-                }
+            Ok(Some(resolved)) => {
+                debug!(
+                    provider = %resolved.provider_name,
+                    model = %resolved.model_name,
+                    source = ?resolved.source,
+                    "Resolved LLM provider (streaming)"
+                );
+                (
+                    Some(resolved.provider),
+                    Some(resolved.provider_name),
+                    Some(resolved.model_name),
+                )
             }
-        } else {
-            // No request.provider - use workspace provider if available
-            if let Some(ref ws) = workspace_clone {
-                let provider_name = ws.llm_provider.clone();
-                let model_name = ws.llm_model.clone();
-                match ProviderFactory::create_llm_provider(&provider_name, &model_name) {
-                    Ok(llm) => {
-                        debug!(provider = %provider_name, model = %model_name, workspace_id = ?workspace_id, "Using workspace LLM provider for streaming (no request override)");
-                        (Some(llm), Some(provider_name), Some(model_name))
-                    }
-                    Err(e) => {
-                        // Workspace provider failed - log warning and fall back to server default
-                        warn!(provider = %provider_name, error = %e, workspace_id = ?workspace_id, "Workspace LLM provider failed for streaming, using server default");
-                        (None, None, None)
-                    }
-                }
-            } else {
+            Ok(None) => {
+                // No provider resolved - will use server default
+                debug!("Using server default LLM provider (streaming)");
                 (None, None, None)
+            }
+            Err(e) => {
+                // Explicit provider request failed - send error to client via SSE
+                error!(error = %e, "Failed to resolve LLM provider (streaming)");
+                let error_msg = e.to_string();
+                let _ = tx
+                    .send(ChatStreamEvent::Error {
+                        message: error_msg,
+                        code: "PROVIDER_CONFIG_ERROR".to_string(),
+                    })
+                    .await;
+                return; // Exit task early with error sent
             }
         };
 

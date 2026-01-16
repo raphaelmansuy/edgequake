@@ -5,10 +5,10 @@
 
 ## Decision Matrix
 
-| Option | Complexity | Risk | Time | Chosen |
-|--------|------------|------|------|--------|
-| A: Copy chunk logic | Low | Low | 30min | ✓ |
-| B: Extract shared method | Medium | Medium | 1hr | |
+| Option                   | Complexity | Risk   | Time  | Chosen |
+| ------------------------ | ---------- | ------ | ----- | ------ |
+| A: Copy chunk logic      | Low        | Low    | 30min | ✓      |
+| B: Extract shared method | Medium     | Medium | 1hr   |        |
 
 ## Implementation Plan
 
@@ -46,7 +46,7 @@ if !chunk_ids.is_empty() {
     let chunk_ids_vec: Vec<String> = chunk_ids.into_iter()
         .take(self.config.max_chunks)
         .collect();
-    
+
     // Query with filter to retrieve only the specific chunks
     let results = vector_storage
         .query(
@@ -55,7 +55,7 @@ if !chunk_ids.is_empty() {
             Some(&chunk_ids_vec),
         )
         .await?;
-    
+
     for result in results {
         if !self.matches_tenant_filter(&result.metadata, &tenant_id, &workspace_id) {
             continue;
@@ -89,13 +89,13 @@ Run full test suite to ensure no regressions.
 
 ## Verification Criteria
 
-| Criterion | Test Method |
-|-----------|-------------|
+| Criterion                      | Test Method                              |
+| ------------------------------ | ---------------------------------------- |
 | Chunks returned in Hybrid mode | Query returns `context.chunks.len() > 0` |
-| Chunks returned in Local mode | Query returns `context.chunks.len() > 0` |
+| Chunks returned in Local mode  | Query returns `context.chunks.len() > 0` |
 | Chunks returned in Global mode | Query returns `context.chunks.len() > 0` |
-| Existing tests pass | `cargo test --package edgequake-query` |
-| User scenario works | Manual test with OpenAI workspace |
+| Existing tests pass            | `cargo test --package edgequake-query`   |
+| User scenario works            | Manual test with OpenAI workspace        |
 
 ## Risk Mitigation
 

@@ -517,9 +517,10 @@ pub async fn get_workspace_embedding_provider(
         "Creating workspace-specific embedding provider"
     );
 
-    // Create workspace-specific embedding provider
+    // Create workspace-specific embedding provider with safety limits
+    // @implements OODA-228: Use safe provider creation for timeout protection
     // @implements OODA-229: Better error messages for missing API keys
-    let provider = ProviderFactory::create_embedding_provider(
+    let provider = ProviderFactory::create_safe_embedding_provider(
         &workspace.embedding_provider,
         &workspace.embedding_model,
         workspace.embedding_dimension,

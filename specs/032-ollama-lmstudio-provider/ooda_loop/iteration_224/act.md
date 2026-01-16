@@ -6,7 +6,7 @@
 ## Summary
 
 Fixed critical bug where Hybrid/Local/Global query modes returned 0 document chunks
-when using workspace-specific vector storage. The root cause was missing 
+when using workspace-specific vector storage. The root cause was missing
 `source_chunk_ids` logic in the `_with_vector_storage` method variants.
 
 ## Changes Made
@@ -14,6 +14,7 @@ when using workspace-specific vector storage. The root cause was missing
 ### 1. Fixed `query_local_with_vector_storage` (sota_engine.rs)
 
 **Before** (buggy):
+
 ```rust
 // Step 7: Get source chunks using workspace vector storage
 let chunk_results = vector_storage
@@ -23,6 +24,7 @@ let chunks = filter_by_type(chunk_results, VectorType::Chunk);
 ```
 
 **After** (fixed):
+
 ```rust
 // Step 7: Collect source_chunk_ids from entities and relationships
 let mut chunk_ids = std::collections::HashSet::new();
@@ -56,6 +58,7 @@ Same pattern applied to global mode.
 ### 3. Added E2E Test (e2e_chunk_retrieval.rs)
 
 New test file with 3 tests:
+
 - `test_local_mode_retrieves_chunks_via_source_chunk_ids`
 - `test_chunk_retrieval_by_id_filter`
 - `test_entity_has_source_chunk_ids`
@@ -73,11 +76,11 @@ test result: ok. 3 passed; 0 failed; 0 ignored
 
 ## Files Modified
 
-| File | Changes |
-|------|---------|
-| `edgequake/crates/edgequake-query/src/sota_engine.rs` | Fixed chunk retrieval in `query_local_with_vector_storage` and `query_global_with_vector_storage` |
-| `edgequake/crates/edgequake-query/tests/e2e_chunk_retrieval.rs` | NEW - E2E tests for chunk retrieval |
-| `specs/032-ollama-lmstudio-provider/ooda_loop/iteration_224/*.md` | OODA loop documentation |
+| File                                                              | Changes                                                                                           |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `edgequake/crates/edgequake-query/src/sota_engine.rs`             | Fixed chunk retrieval in `query_local_with_vector_storage` and `query_global_with_vector_storage` |
+| `edgequake/crates/edgequake-query/tests/e2e_chunk_retrieval.rs`   | NEW - E2E tests for chunk retrieval                                                               |
+| `specs/032-ollama-lmstudio-provider/ooda_loop/iteration_224/*.md` | OODA loop documentation                                                                           |
 
 ## Verification Checklist
 
@@ -98,6 +101,7 @@ test result: ok. 3 passed; 0 failed; 0 ignored
 
 When creating method variants (e.g., `_with_vector_storage`), ensure all critical
 logic is copied, especially:
+
 - Collection of linked IDs (source_chunk_ids, source_document_ids)
 - Filtering and scoring logic
 - Tenant/workspace isolation checks
@@ -105,5 +109,6 @@ logic is copied, especially:
 ## WHY-OODA230 Documentation
 
 Added `WHY-OODA230` comments to the fixed code explaining:
+
 - Why we must use source_chunk_ids instead of semantic search
 - Why the old approach returned 0 chunks (entities/relationships score higher)

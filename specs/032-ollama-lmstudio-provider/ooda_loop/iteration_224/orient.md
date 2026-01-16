@@ -7,7 +7,7 @@
 
 ### The Bug: Missing `source_chunk_ids` Logic in Workspace Vector Methods
 
-When the `_with_vector_storage` variants were created for workspace isolation (SPEC-033), 
+When the `_with_vector_storage` variants were created for workspace isolation (SPEC-033),
 the **source_chunk_id retrieval logic was accidentally omitted**.
 
 ### Evidence Comparison
@@ -65,16 +65,17 @@ let chunks = filter_by_type(chunk_results, VectorType::Chunk);  // <-- MAY RETUR
 
 All `_with_vector_storage` variants have this bug:
 
-| Method | Status |
-|--------|--------|
-| `query_local_with_vector_storage` | ❌ Missing source_chunk_ids logic |
-| `query_global_with_vector_storage` | ❌ Missing source_chunk_ids logic |
+| Method                             | Status                              |
+| ---------------------------------- | ----------------------------------- |
+| `query_local_with_vector_storage`  | ❌ Missing source_chunk_ids logic   |
+| `query_global_with_vector_storage` | ❌ Missing source_chunk_ids logic   |
 | `query_hybrid_with_vector_storage` | ❌ Calls buggy local/global methods |
-| `query_naive_with_vector_storage` | ⚠️ May work (direct chunk search) |
+| `query_naive_with_vector_storage`  | ⚠️ May work (direct chunk search)   |
 
 ### Confirmation Test
 
 We can confirm this by:
+
 1. Using Naive mode (direct chunk search) - should return chunks
 2. Using Hybrid mode - returns 0 chunks
 
@@ -82,12 +83,12 @@ The user sees "20 Topics" (entities work) but "0 Sources" (chunks don't).
 
 ## Impact Assessment
 
-| Severity | Impact |
-|----------|--------|
-| **CRITICAL** | All workspace-specific queries in Local/Global/Hybrid/Mix modes return 0 document chunks |
-| **Scope** | Affects ALL workspaces using non-default providers (OpenAI, Ollama, LM Studio) |
-| **User Impact** | Answers lack document context; RAG is broken |
-| **Data Impact** | No data loss - chunks ARE stored correctly, just not retrieved |
+| Severity        | Impact                                                                                   |
+| --------------- | ---------------------------------------------------------------------------------------- |
+| **CRITICAL**    | All workspace-specific queries in Local/Global/Hybrid/Mix modes return 0 document chunks |
+| **Scope**       | Affects ALL workspaces using non-default providers (OpenAI, Ollama, LM Studio)           |
+| **User Impact** | Answers lack document context; RAG is broken                                             |
+| **Data Impact** | No data loss - chunks ARE stored correctly, just not retrieved                           |
 
 ## Fix Strategy
 
@@ -127,8 +128,8 @@ Follow up with refactoring in a separate OODA loop.
 
 ## Files to Modify
 
-| File | Changes |
-|------|---------|
+| File                                                  | Changes                                                                   |
+| ----------------------------------------------------- | ------------------------------------------------------------------------- |
 | `edgequake/crates/edgequake-query/src/sota_engine.rs` | Fix `query_local_with_vector_storage`, `query_global_with_vector_storage` |
 
 ## Test Strategy

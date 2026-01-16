@@ -2,6 +2,55 @@
 
 Your mission is to fully implement ollama and lmstudio provider in edgequake, ensuring seamless integration with the existing architecture and codebase.
 
+## OODA 226+ Amendment: Code Reliability Audit (January 16, 2026)
+
+**Core Principle**: Non-reliable code is a civilization-level threat. This amendment adds a rigorous code duplication audit and inviolable security test layer.
+
+### First-Principles Foundation
+
+1. **Axiom of Single Truth**: Every piece of business logic MUST exist in exactly one place
+2. **Reliability Theory**: System reliability = Π(component reliability). Duplicated code doubles failure surface.
+3. **Defensive Depth**: Security tests are inviolable - they must catch regressions before deployment
+
+### Audit Scope
+
+**Phase 1 (OODA 226-235): Ingestion Code Path Audit**
+- Map all document upload/processing paths
+- Identify semantic duplicates in provider creation
+- Flag inconsistent error handling patterns
+- Document dimension validation gaps
+
+**Phase 2 (OODA 236-245): Query Code Path Audit**  
+- Map all query/chat handler paths
+- Identify duplicated provider resolution logic
+- Flag safety limit inconsistencies
+- Document tenant_id/workspace_id handling gaps
+
+**Phase 3 (OODA 246-255): Integration Point Audit**
+- Map all cross-crate boundaries
+- Identify coupling risks
+- Flag API contract inconsistencies
+- Document error propagation patterns
+
+**Phase 4 (OODA 256-260): Security Test Scaffold**
+- Create property-based tests for invariants
+- Add fuzz tests for edge cases
+- Build regression tests for each bug found
+- Document test coverage gaps
+
+### Known Duplication Hotspots (Discovered OODA-226)
+
+1. **chat.rs Provider Creation**: Lines 370-460 and 850-940 contain nearly identical provider resolution logic with only error handling differences
+2. **Safety Limits Inconsistency**: chat.rs uses `create_llm_provider`, processor.rs uses `create_safe_llm_provider`
+3. **Fallback Logic Divergence**: Different handlers have inconsistent fallback behavior
+
+### Deliverables
+
+1. `WorkspaceProviderResolver` - Single source of truth for provider resolution
+2. Inviolable test suite with >95% path coverage
+3. Documentation of all refactored code paths
+4. Regression tests for OODA-230/231 bugs
+
 We want explicit and easy to configure provider support for ollama and lmstudio in edgequake. In Development environment, we want to be able to switch between openai, ollama and lmstudio providers easily for testing and comparison purposes.
 
 For ollama provider, you must implement support for both local and remote ollama instances. The configuration must allow specifying the host and port for remote instances, as well as the model to be used.
