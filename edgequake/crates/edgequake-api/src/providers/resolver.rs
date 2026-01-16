@@ -329,6 +329,90 @@ impl WorkspaceProviderResolver {
         })
     }
 
+    /// Resolve embedding provider for query execution, with optional fallback.
+    ///
+    /// Returns `Ok(None)` if workspace has no embedding provider configured,
+    /// allowing the caller to fall back to the server default.
+    ///
+    /// This consolidates the logic from `handlers/query.rs::get_workspace_embedding_provider`.
+    ///
+    /// @implements OODA-259: Single source of truth for embedding resolution
+    pub async fn resolve_embedding_provider_optional(
+        &self,
+        workspace_id: &str,
+    ) -> Result<Option<ResolvedEmbeddingProvider>, ProviderResolutionError> {
+        let workspace = match self.get_workspace(workspace_id).await? {
+            Some(ws) => ws,
+            None => {
+                return Err(ProviderResolutionError::WorkspaceNotFound {
+                    workspace_id: workspace_id.to_string(),
+                })
+            }
+        };
+
+        // If embedding provider is not configured, return None for fallback
+        if workspace.embedding_provider.is_empty() {
+            debug!(
+                workspace_id = workspace_id,
+                "Workspace has no embedding provider configured, using server default"
+            );
+            return Ok(None);
+        }
+
+        debug!(
+            workspace_id = workspace_id,
+            provider = %workspace.embedding_provider,
+            model = %workspace.embedding_model,
+            dimension = workspace.embedding_dimension,
+            "Creating workspace embedding provider"
+        );
+
+        match ProviderFactory::create_safe_embedding_provider(
+            &workspace.embedding_provider,
+            &workspace.embedding_model,
+            workspace.embedding_dimension,
+        ) {
+            Ok(provider) => {
+                info!(
+                    workspace_id = workspace_id,
+                    provider = %workspace.embedding_provider,
+                    model = %workspace.embedding_model,
+                    dimension = workspace.embedding_dimension,
+                    "Workspace embedding provider created"
+                );
+
+                Ok(Some(ResolvedEmbeddingProvider {
+                    provider,
+                    provider_name: workspace.embedding_provider,
+                    model_name: workspace.embedding_model,
+                    dimension: workspace.embedding_dimension,
+                }))
+            }
+            Err(e) => {
+                // Log warning with actionable message
+                let error_str = e.to_string();
+                if error_str.contains("OPENAI_API_KEY") {
+                    warn!(
+                        workspace_id = workspace_id,
+                        provider = %workspace.embedding_provider,
+                        model = %workspace.embedding_model,
+                        "Workspace embedding provider requires OPENAI_API_KEY - using server default"
+                    );
+                } else {
+                    warn!(
+                        workspace_id = workspace_id,
+                        provider = %workspace.embedding_provider,
+                        model = %workspace.embedding_model,
+                        error = %e,
+                        "Failed to create workspace embedding provider - using server default"
+                    );
+                }
+                // Return None to allow fallback instead of hard error
+                Ok(None)
+            }
+        }
+    }
+
     /// Parse provider and model from request, supporting legacy format.
     fn parse_provider_model(
         &self,

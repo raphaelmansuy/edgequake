@@ -105,6 +105,22 @@ check-deps: ## Check that required dependencies are installed
 	@command -v docker >/dev/null 2>&1 || { echo "$(YELLOW)⚠️  docker not found. Some features require Docker$(RESET)"; }
 	@echo "$(GREEN)✓ All required dependencies found$(RESET)"
 
+check-ports: ## Check and clear ports 8080 and 3000 if in use
+	@echo "$(BLUE)Checking ports 8080 and 3000...$(RESET)"
+	@PORT_8080=$$(lsof -ti:8080 2>/dev/null || true); \
+	PORT_3000=$$(lsof -ti:3000 2>/dev/null || true); \
+	if [ -n "$$PORT_8080" ]; then \
+		echo "$(YELLOW)⚠️  Port 8080 in use by PID $$PORT_8080 - killing...$(RESET)"; \
+		kill -9 $$PORT_8080 2>/dev/null || true; \
+		sleep 1; \
+	fi; \
+	if [ -n "$$PORT_3000" ]; then \
+		echo "$(YELLOW)⚠️  Port 3000 in use by PID $$PORT_3000 - killing...$(RESET)"; \
+		kill -9 $$PORT_3000 2>/dev/null || true; \
+		sleep 1; \
+	fi
+	@echo "$(GREEN)✓ Ports 8080 and 3000 are available$(RESET)"
+
 # ============================================================================
 # Installation
 # ============================================================================
@@ -128,7 +144,7 @@ install: check-deps ## Install all project dependencies
 # Development
 # ============================================================================
 
-dev: check-deps ## Start full development stack (DB + Backend + Frontend) with Ollama
+dev: check-deps check-ports ## Start full development stack (DB + Backend + Frontend) with Ollama
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🚀 Starting EdgeQuake Development Stack$(RESET)"
 	@echo "$(BOLD)$(YELLOW)📝 Using Ollama as default LLM provider$(RESET)"
@@ -175,7 +191,7 @@ dev-backend: ## Start only backend dev server (with database)
 	@$(MAKE) db-start --no-print-directory
 	@$(MAKE) backend-dev --no-print-directory
 
-dev-memory: check-deps ## Start development with in-memory storage (for testing)
+dev-memory: check-deps check-ports ## Start development with in-memory storage (for testing)
 	@echo ""
 	@echo "$(BOLD)$(YELLOW)⚠️  Starting EdgeQuake with IN-MEMORY Storage$(RESET)"
 	@echo "$(YELLOW)Data will NOT persist across restarts!$(RESET)"
@@ -188,7 +204,7 @@ dev-memory: check-deps ## Start development with in-memory storage (for testing)
 	echo "$(GREEN)✓ Backend PID: $$BACKEND_PID, Frontend PID: $$FRONTEND_PID$(RESET)"; \
 	wait
 
-dev-bg: check-deps ## Start full development stack in BACKGROUND (agentic mode)
+dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND (agentic mode)
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🤖 Starting EdgeQuake in Background Mode (Agentic)$(RESET)"
 	@if [ -n "$(OPENAI_API_KEY)" ]; then \
@@ -245,10 +261,17 @@ stop: ## Stop all development services
 	@echo "$(BLUE)→ Stopping backend processes...$(RESET)"
 	@-pkill -f "cargo run" 2>/dev/null || true
 	@-pkill -9 -f "edgequake-api" 2>/dev/null || true
+	@-pkill -9 -f "target/debug/edgequake" 2>/dev/null || true
+	@-pkill -9 -f "target/release/edgequake" 2>/dev/null || true
+	@# OODA-256: Force-kill any process on port 8080
+	@-lsof -ti:8080 | xargs -r kill -9 2>/dev/null || true
 	@echo "$(BLUE)→ Stopping frontend processes...$(RESET)"
 	@-pkill -f "next dev" 2>/dev/null || true
 	@-pkill -f "node.*edgequake_webui" 2>/dev/null || true
 	@-pkill -9 -f "bun.*dev" 2>/dev/null || true
+	@-pkill -9 -f "next-server" 2>/dev/null || true
+	@# OODA-256: Force-kill any process on port 3000
+	@-lsof -ti:3000 | xargs -r kill -9 2>/dev/null || true
 	@echo "$(BLUE)→ Stopping database...$(RESET)"
 	@$(MAKE) db-stop --no-print-directory 2>/dev/null || true
 	@sleep 1

@@ -57,6 +57,7 @@ use tracing::{debug, error, warn};
 
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
+use crate::providers::WorkspaceProviderResolver;
 use crate::state::AppState;
 use crate::validation::validate_query;
 use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
@@ -508,17 +509,11 @@ async fn get_workspace(
 
 /// Get workspace-specific embedding provider for query execution.
 ///
-/// This function looks up the workspace's embedding configuration and creates
-/// an appropriate embedding provider. If the workspace uses the default config
-/// (same as the global provider), returns None to indicate the default should be used.
-///
-/// **NOTE**: Similar logic exists in `providers/resolver.rs::resolve_embedding_provider`.
-/// This version returns `Ok(None)` for fallback semantics while the resolver returns
-/// an error if the workspace has no embedding provider configured.
-/// See OODA-235 for duplication analysis.
-///
 /// @implements SPEC-032: Workspace-specific embedding in query process
-/// @implements OODA-228: Fix dimension mismatch in chat handler
+/// @implements OODA-259: Delegates to WorkspaceProviderResolver to eliminate duplication
+///
+/// This function delegates to [`WorkspaceProviderResolver::resolve_embedding_provider_optional`]
+/// which provides the canonical implementation for workspace-aware embedding provider creation.
 ///
 /// # Arguments
 ///
@@ -534,79 +529,17 @@ pub async fn get_workspace_embedding_provider(
     state: &AppState,
     workspace_id: &str,
 ) -> Result<Option<std::sync::Arc<dyn edgequake_query::EmbeddingProvider>>, ApiError> {
-    use edgequake_llm::ProviderFactory;
-    use uuid::Uuid;
-
-    // Parse workspace ID
-    let workspace_uuid = Uuid::parse_str(workspace_id)
-        .map_err(|e| ApiError::BadRequest(format!("Invalid workspace ID: {}", e)))?;
-
-    // Get workspace from service
-    let workspace = state
-        .workspace_service
-        .get_workspace(workspace_uuid)
+    // OODA-259: Delegate to resolver to eliminate code duplication
+    // The resolver now provides `resolve_embedding_provider_optional` which returns
+    // Ok(None) for fallback semantics (workspace has no embedding config)
+    let resolver = WorkspaceProviderResolver::new(state.workspace_service.clone());
+    let result = resolver
+        .resolve_embedding_provider_optional(workspace_id)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get workspace: {}", e)))?
-        .ok_or_else(|| ApiError::NotFound(format!("Workspace not found: {}", workspace_id)))?;
+        .map_err(ApiError::from)?;
 
-    // Check if workspace has custom embedding configuration
-    // If embedding_provider is empty or matches the global default, use the default engine
-    if workspace.embedding_provider.is_empty() {
-        return Ok(None);
-    }
-
-    // Get the global/default embedding provider name for comparison
-    let global_provider_name = state.embedding_provider.name();
-
-    // If workspace uses the same provider as global, we can optionally skip the override
-    // However, model might differ, so we should still create the workspace-specific provider
-    // unless both provider AND model match
-
-    debug!(
-        workspace_id = %workspace_id,
-        embedding_provider = %workspace.embedding_provider,
-        embedding_model = %workspace.embedding_model,
-        embedding_dimension = workspace.embedding_dimension,
-        "Creating workspace-specific embedding provider"
-    );
-
-    // Create workspace-specific embedding provider with safety limits
-    // @implements OODA-228: Use safe provider creation for timeout protection
-    // @implements OODA-229: Better error messages for missing API keys
-    let provider = ProviderFactory::create_safe_embedding_provider(
-        &workspace.embedding_provider,
-        &workspace.embedding_model,
-        workspace.embedding_dimension,
-    )
-    .map_err(|e| {
-        let error_str = e.to_string();
-
-        // Detect API key configuration errors and provide actionable message
-        if error_str.contains("OPENAI_API_KEY") {
-            ApiError::ConfigError(format!(
-                "Workspace '{}' is configured to use OpenAI embeddings (model: {}), \
-                 but OPENAI_API_KEY is not set. Either:\n\
-                 1. Set OPENAI_API_KEY environment variable and restart the server, or\n\
-                 2. Update workspace settings to use a different provider (ollama, lmstudio)",
-                workspace.name, workspace.embedding_model
-            ))
-        } else {
-            ApiError::Internal(format!(
-                "Failed to create embedding provider for workspace {}: {}",
-                workspace_id, e
-            ))
-        }
-    })?;
-
-    // Log the provider creation for debugging
-    debug!(
-        workspace_id = %workspace_id,
-        provider_name = provider.name(),
-        global_provider_name = %global_provider_name,
-        "Workspace embedding provider created"
-    );
-
-    Ok(Some(provider))
+    // Extract just the Arc<dyn EmbeddingProvider> from ResolvedEmbeddingProvider
+    Ok(result.map(|resolved| resolved.provider))
 }
 
 /// Get workspace-specific vector storage for query execution.
