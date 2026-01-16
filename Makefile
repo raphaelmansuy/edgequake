@@ -20,7 +20,9 @@
         frontend-dev frontend-build frontend-test frontend-lint \
         db-start db-stop db-wait db-logs db-shell \
         docker-build docker-up docker-down docker-logs \
-        check-deps status
+        check-deps status \
+        test-quality test-invariants test-timing test-count test-flaky \
+        test-e2e-critical test-e2e-full test-stability-report
 
 # Colors for terminal output
 BLUE := \033[34m
@@ -93,10 +95,20 @@ help: ## Show this help message
 	@echo "  $(GREEN)make format$(RESET)       Format all code"
 	@echo "  $(GREEN)make test$(RESET)         Run all tests"
 	@echo ""
+	@echo "$(BOLD)$(BLUE)🛡️  Test Quality Gates (OODA-286+)$(RESET)"
+	@echo "  $(GREEN)make test-quality$(RESET)     Run all quality gates"
+	@echo "  $(GREEN)make test-invariants$(RESET)  Run invariant tests (INV-001 to INV-010)"
+	@echo "  $(GREEN)make test-timing$(RESET)      Check test timing (<30s)"
+	@echo "  $(GREEN)make test-count$(RESET)       Verify test count (>=2600)"
+	@echo "  $(GREEN)make test-flaky$(RESET)       Detect flaky tests"
+	@echo "  $(GREEN)make test-e2e-critical$(RESET) Run E2E critical path"
+	@echo "  $(GREEN)make test-e2e-full$(RESET)    Run full E2E suite"
+	@echo ""
 
 # ============================================================================
 # Dependency Checks
 # ============================================================================
+
 
 check-deps: ## Check that required dependencies are installed
 	@echo "$(BLUE)Checking dependencies...$(RESET)"
@@ -493,6 +505,67 @@ test: backend-test frontend-test ## Run all tests
 
 build: backend-build frontend-build ## Build all projects
 	@echo "$(GREEN)✓ All projects built$(RESET)"
+
+# ============================================================================
+# Test Quality Gates (OODA-286+)
+# ============================================================================
+
+test-quality: test-invariants test-timing test-count ## Run all quality gate checks
+	@echo "$(GREEN)✓ All quality gates passed$(RESET)"
+
+test-invariants: ## Run critical invariant tests (INV-001 to INV-010)
+	@echo "$(BLUE)Running critical invariant tests...$(RESET)"
+	@cd $(BACKEND_DIR) && cargo test --package edgequake-core --test inviolable_invariants 2>&1 | tee /tmp/invariant_results.txt
+	@cd $(BACKEND_DIR) && cargo test --package edgequake-core --test edge_case_invariants 2>&1 | tee -a /tmp/invariant_results.txt
+	@cd $(BACKEND_DIR) && cargo test --package edgequake-api --test integration_invariants 2>&1 | tee -a /tmp/invariant_results.txt
+	@if grep -q "FAILED" /tmp/invariant_results.txt; then \
+		echo "$(RED)CRITICAL: Invariant tests failed!$(RESET)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)✓ All invariant tests passed$(RESET)"
+
+test-timing: ## Check test suite timing (Target: <30s for unit tests)
+	@echo "$(BLUE)Running timing check...$(RESET)"
+	@START=$$(date +%s); \
+	cd $(BACKEND_DIR) && cargo test --lib --all --quiet 2>&1 > /dev/null; \
+	END=$$(date +%s); \
+	DURATION=$$((END - START)); \
+	echo "Unit tests completed in $${DURATION}s"; \
+	if [ $$DURATION -gt 30 ]; then \
+		echo "$(YELLOW)Warning: Unit tests exceeded 30s threshold$(RESET)"; \
+	else \
+		echo "$(GREEN)✓ Timing target met ($${DURATION}s < 30s)$(RESET)"; \
+	fi
+
+test-count: ## Verify minimum test count (Target: >=2600)
+	@echo "$(BLUE)Counting tests...$(RESET)"
+	@cd $(BACKEND_DIR) && cargo test --all 2>&1 | grep "test result:" | awk '{sum += $$4} END {print "Total passed:", sum}' | tee /tmp/test_count.txt
+	@TOTAL=$$(cat /tmp/test_count.txt | grep -oE '[0-9]+' | head -1); \
+	if [ "$$TOTAL" -lt 2600 ]; then \
+		echo "$(RED)CRITICAL: Test count below 2600 threshold (got: $$TOTAL)$(RESET)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)✓ Test count gate passed$(RESET)"
+
+test-flaky: ## Run flaky test detection (3 iterations)
+	@echo "$(BLUE)Running flaky test detection...$(RESET)"
+	@./scripts/detect_flaky_tests.sh 3 all
+
+test-e2e-critical: ## Run E2E critical path tests
+	@echo "$(BLUE)Running E2E critical path tests...$(RESET)"
+	@cd $(FRONTEND_DIR) && PLAYWRIGHT_BASE_URL=http://localhost:3000 \
+		pnpm exec playwright test ooda-228-critical-path.spec.ts --reporter=line
+
+test-e2e-full: ## Run full E2E test suite
+	@echo "$(BLUE)Running full E2E suite...$(RESET)"
+	@cd $(FRONTEND_DIR) && PLAYWRIGHT_BASE_URL=http://localhost:3000 \
+		pnpm exec playwright test --reporter=line
+
+test-stability-report: ## Generate test stability report
+	@echo "$(BLUE)Generating stability report...$(RESET)"
+	@cd $(BACKEND_DIR) && cargo test --all 2>&1 | tee /tmp/full_test_output.txt
+	@echo "Test results saved to /tmp/full_test_output.txt"
+	@echo "$(GREEN)✓ See docs/TEST_STABILITY_REPORT.md for detailed analysis$(RESET)"
 
 # ============================================================================
 # PostgreSQL Integration Tests
