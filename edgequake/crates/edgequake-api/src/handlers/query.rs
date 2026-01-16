@@ -125,8 +125,23 @@ pub async fn execute_query(
     // Build engine query request with conversation history and tenant context
     let mut engine_request = EngineQueryRequest::new(&request.query).with_mode(mode);
 
-    // Add tenant context for filtering
-    if let Some(ref tenant_id) = tenant_ctx.tenant_id {
+    // OODA-231.1: Fetch workspace to get correct tenant_id for data queries
+    // WHY: Header tenant_id is for authentication (random UUID from frontend).
+    // But the graph data was ingested with the workspace's actual tenant_id.
+    // Using header tenant_id causes 0 results because of tenant_id mismatch.
+    let workspace = if let Some(ref workspace_id) = tenant_ctx.workspace_id {
+        get_workspace(&state, workspace_id).await.ok().flatten()
+    } else {
+        None
+    };
+
+    // Use workspace's tenant_id for data queries, fall back to header tenant_id
+    let data_tenant_id = workspace
+        .as_ref()
+        .map(|ws| ws.tenant_id.to_string())
+        .or_else(|| tenant_ctx.tenant_id.clone());
+
+    if let Some(ref tenant_id) = data_tenant_id {
         engine_request = engine_request.with_tenant_id(tenant_id.clone());
     }
     if let Some(ref workspace_id) = tenant_ctx.workspace_id {
@@ -435,8 +450,22 @@ pub async fn stream_query(
     // Build engine query request with tenant context
     let mut engine_request = EngineQueryRequest::new(&request.query).with_mode(mode);
 
-    // Add tenant context for filtering
-    if let Some(ref tenant_id) = tenant_ctx.tenant_id {
+    // OODA-231.1: Fetch workspace to get correct tenant_id for data queries
+    // WHY: Header tenant_id is for authentication (random UUID from frontend).
+    // But the graph data was ingested with the workspace's actual tenant_id.
+    let workspace = if let Some(ref workspace_id) = tenant_ctx.workspace_id {
+        get_workspace(&state, workspace_id).await.ok().flatten()
+    } else {
+        None
+    };
+
+    // Use workspace's tenant_id for data queries, fall back to header tenant_id
+    let data_tenant_id = workspace
+        .as_ref()
+        .map(|ws| ws.tenant_id.to_string())
+        .or_else(|| tenant_ctx.tenant_id.clone());
+
+    if let Some(ref tenant_id) = data_tenant_id {
         engine_request = engine_request.with_tenant_id(tenant_id.clone());
     }
     if let Some(ref workspace_id) = tenant_ctx.workspace_id {
@@ -456,6 +485,25 @@ pub async fn stream_query(
     });
 
     Ok(Sse::new(sse_stream))
+}
+
+/// Get workspace by ID for tenant isolation.
+///
+/// @implements OODA-231.1: Correct tenant_id for data queries
+async fn get_workspace(
+    state: &AppState,
+    workspace_id: &str,
+) -> Result<Option<edgequake_core::Workspace>, ApiError> {
+    use uuid::Uuid;
+
+    let workspace_uuid = Uuid::parse_str(workspace_id)
+        .map_err(|e| ApiError::BadRequest(format!("Invalid workspace ID: {}", e)))?;
+
+    state
+        .workspace_service
+        .get_workspace(workspace_uuid)
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to get workspace: {}", e)))
 }
 
 /// Get workspace-specific embedding provider for query execution.
