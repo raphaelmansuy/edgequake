@@ -1,9 +1,11 @@
 # OODA-296: Flaky Test Detection Mechanism
 
 ## Date: 2026-01-16
+
 ## Status: ✅ COMPLETE
 
 ## Objective
+
 Create a flaky test detection system to identify non-deterministic test failures.
 
 ## Created Script
@@ -48,15 +50,16 @@ Results saved to test-results/flaky-detection/
 
 ## Classification
 
-| Type | Definition | Action |
-|------|------------|--------|
-| Flaky | Fails in some iterations but not all | Investigate timing/race conditions |
-| Consistent | Fails in all iterations | Bug to fix |
-| Clean | Never fails | Healthy test |
+| Type       | Definition                           | Action                             |
+| ---------- | ------------------------------------ | ---------------------------------- |
+| Flaky      | Fails in some iterations but not all | Investigate timing/race conditions |
+| Consistent | Fails in all iterations              | Bug to fix                         |
+| Clean      | Never fails                          | Healthy test                       |
 
 ## Current Baseline
 
 From OODA-294 Playwright analysis:
+
 - 0 flaky tests detected in Rust suite
 - 534/591 Playwright tests pass consistently
 - 44 consistent failures (known issues)

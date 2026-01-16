@@ -1,9 +1,11 @@
 # OODA-294: Complete Playwright E2E Timing Baseline
 
 ## Date: 2026-01-16
+
 ## Status: ✅ COMPLETE
 
 ## Objective
+
 Complete Playwright E2E test timing baseline measurement.
 
 ## Full E2E Test Results
@@ -19,35 +21,40 @@ Full Suite Statistics:
 ```
 
 ## Per-Test Average Timing
+
 - Average per test: 256s / 534 = **0.48s/test**
 - Target: <5 minutes for full suite ✅ ACHIEVED
 
 ## Test Spec Timing Breakdown
 
-| Spec File | Tests | Duration | Per-Test |
-|-----------|-------|----------|----------|
-| ooda-228-critical-path.spec.ts | 3 | 995ms | 332ms |
-| workspace-selection.spec.ts | 3 | 5.3s | 1.77s |
-| markdown-test.spec.ts | 1 | 8.0s | 8.0s |
-| spec032-tenant-workspace-dialogs.spec.ts | 17 | 5.5s | 324ms |
-| phase1-ux.spec.ts + phase2-ux.spec.ts | 30 | 19.0s | 633ms |
+| Spec File                                | Tests | Duration | Per-Test |
+| ---------------------------------------- | ----- | -------- | -------- |
+| ooda-228-critical-path.spec.ts           | 3     | 995ms    | 332ms    |
+| workspace-selection.spec.ts              | 3     | 5.3s     | 1.77s    |
+| markdown-test.spec.ts                    | 1     | 8.0s     | 8.0s     |
+| spec032-tenant-workspace-dialogs.spec.ts | 17    | 5.5s     | 324ms    |
+| phase1-ux.spec.ts + phase2-ux.spec.ts    | 30    | 19.0s    | 633ms    |
 
 ## Timing Classification
 
 ### Fast Tests (<500ms per test)
+
 - ooda-228-critical-path.spec.ts: 332ms
 - spec032-tenant-workspace-dialogs.spec.ts: 324ms
 
 ### Medium Tests (500ms - 2s per test)
+
 - workspace-selection.spec.ts: 1.77s
 - phase1-ux.spec.ts: 633ms
 
 ### Slow Tests (>2s per test)
+
 - markdown-test.spec.ts: 8.0s (I/O heavy)
 
 ## Known Failures (44 tests)
 
 Based on pattern analysis:
+
 1. Graph export button visibility (~5 tests)
 2. Provider switching during streaming (~10 tests)
 3. Document upload timeouts (~8 tests)
@@ -56,12 +63,12 @@ Based on pattern analysis:
 
 ## Performance Targets Met
 
-| Metric | Target | Actual | Status |
-|--------|--------|--------|--------|
-| Full Suite | <5min | 4.3min | ✅ |
-| Pass Rate | >85% | 90.4% | ✅ |
-| Flaky Tests | 0 | 0 | ✅ |
-| Per-test avg | <1s | 0.48s | ✅ |
+| Metric       | Target | Actual | Status |
+| ------------ | ------ | ------ | ------ |
+| Full Suite   | <5min  | 4.3min | ✅     |
+| Pass Rate    | >85%   | 90.4%  | ✅     |
+| Flaky Tests  | 0      | 0      | ✅     |
+| Per-test avg | <1s    | 0.48s  | ✅     |
 
 ## Test Pyramid Summary
 
@@ -89,4 +96,5 @@ Playwright E2E | 534    | 256s     | <5min    | ✅
 - INV-004: E2E suite under 5 minute target
 
 ## Commit Reference
+
 This iteration documents the E2E timing baseline for CI workflow creation.
