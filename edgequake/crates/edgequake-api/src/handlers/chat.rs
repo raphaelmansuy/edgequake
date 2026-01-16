@@ -360,9 +360,17 @@ pub async fn chat_completion(
     debug!(message_id = %user_message.message_id, "Saved user message");
 
     // 3. Build and execute query using SOTA engine (LightRAG-style)
+    // OODA-231: Use workspace's tenant_id for graph queries, not header tenant_id.
+    // WHY: Header tenant_id is for authentication (random UUID from frontend).
+    // But the graph data was ingested with the workspace's actual tenant_id.
+    // Using header tenant_id causes 0 results because of tenant_id mismatch.
     let mut engine_request = EngineQueryRequest::new(&request.message).with_mode(query_mode);
 
-    engine_request = engine_request.with_tenant_id(tenant_id.to_string());
+    let data_tenant_id = workspace
+        .as_ref()
+        .map(|ws| ws.tenant_id.to_string())
+        .unwrap_or_else(|| tenant_id.to_string());
+    engine_request = engine_request.with_tenant_id(data_tenant_id);
     if let Some(ref ws_id) = workspace_id {
         engine_request = engine_request.with_workspace_id(ws_id.to_string());
     }
@@ -822,8 +830,16 @@ pub async fn chat_completion_stream(
         let mut saved_message_context: Option<MessageContext> = None;
 
         // Build query request
+        // OODA-231: Use workspace's tenant_id for graph queries, not header tenant_id.
+        // WHY: Header tenant_id is for authentication (random UUID from frontend).
+        // But the graph data was ingested with the workspace's actual tenant_id.
+        // Using header tenant_id causes 0 results because of tenant_id mismatch.
         let mut engine_request = EngineQueryRequest::new(&message_content).with_mode(query_mode);
-        engine_request = engine_request.with_tenant_id(tenant_id.to_string());
+        let data_tenant_id = workspace_clone
+            .as_ref()
+            .map(|ws| ws.tenant_id.to_string())
+            .unwrap_or_else(|| tenant_id.to_string());
+        engine_request = engine_request.with_tenant_id(data_tenant_id);
         if let Some(ref ws_id) = workspace_id {
             engine_request = engine_request.with_workspace_id(ws_id.to_string());
         }

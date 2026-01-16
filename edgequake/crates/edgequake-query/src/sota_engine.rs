@@ -357,6 +357,17 @@ impl SOTAQueryEngine {
                     "Reranked chunks"
                 );
 
+                // Log all rerank scores for debugging
+                for r in &results {
+                    tracing::debug!(
+                        index = r.index,
+                        score = r.relevance_score,
+                        min_required = self.config.min_rerank_score,
+                        passes = r.relevance_score >= self.config.min_rerank_score as f64,
+                        "OODA-231: Rerank result score check"
+                    );
+                }
+
                 // Build index -> score map
                 let score_map: std::collections::HashMap<usize, f64> = results
                     .iter()
@@ -379,6 +390,21 @@ impl SOTAQueryEngine {
                         })
                     })
                     .collect();
+
+                // OODA-231: Fallback - if ALL chunks were filtered by min_rerank_score,
+                // return top_k original chunks to preserve source context.
+                // WHY: BM25 reranker scores 0.0 for terms that don't appear in chunks,
+                // but those chunks may still be relevant (e.g., found via entity graph).
+                if reranked.is_empty() && !chunks.is_empty() {
+                    tracing::warn!(
+                        query = %query,
+                        original_chunks = chunks.len(),
+                        min_rerank_score = self.config.min_rerank_score,
+                        "OODA-231: All chunks filtered by reranking, falling back to original chunks"
+                    );
+                    chunks.truncate(rerank_top_k);
+                    return chunks;
+                }
 
                 // Sort by score descending
                 reranked.sort_by(|a, b| {
@@ -983,9 +1009,21 @@ impl SOTAQueryEngine {
         stats.retrieval_time_ms = retrieval_start.elapsed().as_millis() as u64;
         stats.context_tokens = context.token_count;
 
+        tracing::debug!(
+            chunks_from_retrieval = context.chunks.len(),
+            entities_from_retrieval = context.entities.len(),
+            "OODA-231: Context returned from mode-specific retrieval (query_with_workspace_config)"
+        );
+
         // Step 4.5: Rerank chunks
         let mut context = context;
         let should_rerank = request.enable_rerank.unwrap_or(self.config.enable_rerank);
+        tracing::debug!(
+            chunks_before_rerank = context.chunks.len(),
+            should_rerank = should_rerank,
+            has_reranker = self.reranker.is_some(),
+            "OODA-231: Before reranking step (query_with_workspace_config)"
+        );
         if should_rerank && self.reranker.is_some() {
             let rerank_start = std::time::Instant::now();
             let reranked_chunks = self
@@ -1000,6 +1038,10 @@ impl SOTAQueryEngine {
             let rerank_time = rerank_start.elapsed().as_millis() as u64;
             stats.retrieval_time_ms += rerank_time;
         }
+        tracing::debug!(
+            chunks_after_rerank = context.chunks.len(),
+            "OODA-231: After reranking step (query_with_workspace_config)"
+        );
 
         // Step 4.6: Sort entities by degree
         self.sort_entities_by_degree(&mut context.entities);
@@ -2843,36 +2885,76 @@ impl SOTAQueryEngine {
             .take(self.config.max_entities)
             .collect();
 
+        // OODA-231: When no entity vectors exist (workspace-isolated storage often only has chunks),
+        // fall back to popular entities from the graph, then continue to collect chunks.
+        // WHY: Early return skipped chunk collection, causing 0 sources in response.
         if entity_ids.is_empty() {
-            return self.fallback_to_popular(tenant_id, workspace_id).await;
-        }
+            tracing::debug!(
+                workspace_id = ?workspace_id,
+                "OODA-231: No entity vectors found, falling back to popular entities from graph"
+            );
+            // Populate context with popular entities from graph
+            let popular = self
+                .graph_storage
+                .get_popular_nodes_with_degree(
+                    self.config.max_entities,
+                    None,
+                    None,
+                    tenant_id.as_deref(),
+                    workspace_id.as_deref(),
+                )
+                .await?;
 
-        // Step 4: Batch fetch nodes and degrees
-        let (nodes_map, degrees) = tokio::join!(
-            self.graph_storage.get_nodes_batch(&entity_ids),
-            self.graph_storage.node_degrees_batch(&entity_ids),
-        );
+            let fallback_entity_ids: Vec<String> =
+                popular.iter().map(|(n, _)| n.id.clone()).collect();
 
-        let nodes_map = nodes_map?;
-        let degrees: HashMap<String, usize> = degrees?.into_iter().collect();
+            for (node, degree) in popular {
+                let entity = build_entity_from_node(&node.id, &node.properties, degree, 0.0);
+                context.add_entity(entity);
+            }
 
-        // Step 5: Build entity context
-        for (id, node) in &nodes_map {
-            let degree = degrees.get(id).copied().unwrap_or(0);
-            let entity_score = entity_scores.get(id).copied().unwrap_or(0.0);
-            let entity = build_entity_from_node(id, &node.properties, degree, entity_score);
-            context.add_entity(entity);
-        }
+            // Get edges for fallback entities
+            if !fallback_entity_ids.is_empty() {
+                let edges = self
+                    .graph_storage
+                    .get_edges_for_nodes_batch(&fallback_entity_ids)
+                    .await?;
+                for edge in edges.iter().take(self.config.max_relationships) {
+                    let rel =
+                        build_relationship_from_edge(&edge.source, &edge.target, &edge.properties);
+                    context.add_relationship(rel);
+                }
+            }
+            // NOTE: Don't return early - continue to chunk collection below
+        } else {
+            // Step 4: Batch fetch nodes and degrees
+            let (nodes_map, degrees) = tokio::join!(
+                self.graph_storage.get_nodes_batch(&entity_ids),
+                self.graph_storage.node_degrees_batch(&entity_ids),
+            );
 
-        // Step 6: Batch fetch edges
-        let edges = self
-            .graph_storage
-            .get_edges_for_nodes_batch(&entity_ids)
-            .await?;
+            let nodes_map = nodes_map?;
+            let degrees: HashMap<String, usize> = degrees?.into_iter().collect();
 
-        for edge in edges.iter().take(self.config.max_relationships) {
-            let rel = build_relationship_from_edge(&edge.source, &edge.target, &edge.properties);
-            context.add_relationship(rel);
+            // Step 5: Build entity context
+            for (id, node) in &nodes_map {
+                let degree = degrees.get(id).copied().unwrap_or(0);
+                let entity_score = entity_scores.get(id).copied().unwrap_or(0.0);
+                let entity = build_entity_from_node(id, &node.properties, degree, entity_score);
+                context.add_entity(entity);
+            }
+
+            // Step 6: Batch fetch edges
+            let edges = self
+                .graph_storage
+                .get_edges_for_nodes_batch(&entity_ids)
+                .await?;
+
+            for edge in edges.iter().take(self.config.max_relationships) {
+                let rel =
+                    build_relationship_from_edge(&edge.source, &edge.target, &edge.properties);
+                context.add_relationship(rel);
+            }
         }
 
         // Step 7: Collect source_chunk_ids from entities and relationships
@@ -2904,10 +2986,13 @@ impl SOTAQueryEngine {
 
         // Retrieve chunks from workspace vector storage using chunk IDs
         if !chunk_ids.is_empty() {
-            let chunk_ids_vec: Vec<String> = chunk_ids
-                .into_iter()
-                .take(self.config.max_chunks)
-                .collect();
+            let chunk_ids_vec: Vec<String> =
+                chunk_ids.into_iter().take(self.config.max_chunks).collect();
+
+            tracing::debug!(
+                chunk_ids = ?chunk_ids_vec,
+                "OODA-231: Requesting chunks by ID from vector storage"
+            );
 
             // Query with filter to retrieve only the specific chunks
             let results = vector_storage
@@ -2917,6 +3002,12 @@ impl SOTAQueryEngine {
                     Some(&chunk_ids_vec),
                 )
                 .await?;
+
+            tracing::debug!(
+                requested = chunk_ids_vec.len(),
+                returned = results.len(),
+                "OODA-231: Chunk retrieval result"
+            );
 
             for result in results {
                 if !self.matches_tenant_filter(&result.metadata, &tenant_id, &workspace_id) {
@@ -3024,18 +3115,59 @@ impl SOTAQueryEngine {
             }
         }
 
-        // Step 4: Fallback to popular entities if no relationship vectors found
+        // Step 4: OODA-231: When no relationship vectors exist, fall back to popular entities
+        // WHY: Early return skipped chunk collection, causing 0 sources in response.
         if entity_ids.is_empty() {
-            return self.fallback_to_popular(tenant_id, workspace_id).await;
-        }
+            tracing::debug!(
+                workspace_id = ?workspace_id,
+                "OODA-231: No relationship vectors found, falling back to popular entities from graph"
+            );
+            // Populate context with popular entities from graph
+            let popular = self
+                .graph_storage
+                .get_popular_nodes_with_degree(
+                    self.config.max_entities,
+                    None,
+                    None,
+                    tenant_id.as_deref(),
+                    workspace_id.as_deref(),
+                )
+                .await?;
 
-        // Step 5: Batch fetch entity nodes
-        let nodes_map = self.graph_storage.get_nodes_batch(&entity_ids).await?;
+            for (node, degree) in &popular {
+                let entity = build_entity_from_node(&node.id, &node.properties, *degree, 0.0);
+                context.add_entity(entity);
+                entity_ids.push(node.id.clone());
+            }
 
-        for (id, node) in &nodes_map {
-            let degree = self.graph_storage.node_degree(id).await?;
-            let entity = build_entity_from_node(id, &node.properties, degree, 0.5);
-            context.add_entity(entity);
+            // Get edges for fallback entities
+            if !entity_ids.is_empty() {
+                let edges = self
+                    .graph_storage
+                    .get_edges_for_nodes_batch(&entity_ids)
+                    .await?;
+                for edge in edges.iter().take(self.config.max_relationships) {
+                    let rel_key = format!("{}->{}:{}", edge.source, edge.target, "RELATED_TO");
+                    if seen_relationships.insert(rel_key) {
+                        let rel = build_relationship_from_edge(
+                            &edge.source,
+                            &edge.target,
+                            &edge.properties,
+                        );
+                        context.add_relationship(rel);
+                    }
+                }
+            }
+            // NOTE: Don't return early - continue to chunk collection below
+        } else {
+            // Step 5: Batch fetch entity nodes
+            let nodes_map = self.graph_storage.get_nodes_batch(&entity_ids).await?;
+
+            for (id, node) in &nodes_map {
+                let degree = self.graph_storage.node_degree(id).await?;
+                let entity = build_entity_from_node(id, &node.properties, degree, 0.5);
+                context.add_entity(entity);
+            }
         }
 
         // Step 6: Collect source_chunk_ids from entities and relationships
@@ -3067,10 +3199,8 @@ impl SOTAQueryEngine {
 
         // Retrieve chunks from workspace vector storage using chunk IDs
         if !chunk_ids.is_empty() {
-            let chunk_ids_vec: Vec<String> = chunk_ids
-                .into_iter()
-                .take(self.config.max_chunks)
-                .collect();
+            let chunk_ids_vec: Vec<String> =
+                chunk_ids.into_iter().take(self.config.max_chunks).collect();
 
             // Query with filter to retrieve only the specific chunks
             let results = vector_storage
@@ -3124,6 +3254,13 @@ impl SOTAQueryEngine {
 
         // Merge contexts
         let mut merged = local_context;
+
+        tracing::debug!(
+            local_chunks = merged.chunks.len(),
+            global_chunks = global_context.chunks.len(),
+            "OODA-231: Merging hybrid mode contexts"
+        );
+
         for chunk in global_context.chunks {
             if !merged.chunks.iter().any(|c| c.id == chunk.id) {
                 merged.add_chunk(chunk);
@@ -3134,6 +3271,12 @@ impl SOTAQueryEngine {
                 merged.add_entity(entity);
             }
         }
+
+        tracing::debug!(
+            merged_chunks = merged.chunks.len(),
+            merged_entities = merged.entities.len(),
+            "OODA-231: After merge"
+        );
 
         Ok(merged)
     }
