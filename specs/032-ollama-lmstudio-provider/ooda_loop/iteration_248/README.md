@@ -6,9 +6,9 @@ Audited file path handling in the API for directory traversal vulnerabilities.
 
 ### CRITICAL FINDING: Path Traversal Vulnerability
 
-| Endpoint | Location | Risk Level |
-|----------|----------|------------|
-| `/api/v1/documents/scan` | `documents.rs:2437` | **HIGH** |
+| Endpoint                 | Location            | Risk Level |
+| ------------------------ | ------------------- | ---------- |
+| `/api/v1/documents/scan` | `documents.rs:2437` | **HIGH**   |
 
 ### Vulnerable Code (BEFORE FIX)
 
@@ -18,7 +18,7 @@ let base_path = Path::new(&request.path);
 
 // No validation! User can pass:
 // - "/etc/passwd"
-// - "../../../etc/passwd"  
+// - "../../../etc/passwd"
 // - "/root/.ssh/id_rsa"
 ```
 
@@ -35,31 +35,35 @@ let base_path = Path::new(&request.path);
 ### Attack Scenarios
 
 1. **Direct Path Access**
+
    ```json
-   {"path": "/etc/passwd"}
+   { "path": "/etc/passwd" }
    ```
+
    Returns file listing of system directories.
 
 2. **Traversal Attack**
+
    ```json
-   {"path": "../../../etc"}
+   { "path": "../../../etc" }
    ```
+
    Could escape any intended directory.
 
 3. **Sensitive File Enumeration**
    ```json
-   {"path": "/root/.ssh"}
+   { "path": "/root/.ssh" }
    ```
    Could expose SSH keys, configs.
 
 ### Risk Assessment
 
-| Factor | Rating |
-|--------|--------|
-| Exploitability | HIGH - Simple HTTP request |
-| Impact | HIGH - Full filesystem read |
-| Authentication Required | Yes (tenant auth) |
-| CVSS Estimate | 7.5-8.5 (High) |
+| Factor                  | Rating                      |
+| ----------------------- | --------------------------- |
+| Exploitability          | HIGH - Simple HTTP request  |
+| Impact                  | HIGH - Full filesystem read |
+| Authentication Required | Yes (tenant auth)           |
+| CVSS Estimate           | 7.5-8.5 (High)              |
 
 ## Decide
 
@@ -74,14 +78,14 @@ Add path traversal protection:
 
 ### Files Created/Modified
 
-| File | Change |
-|------|--------|
-| `path_validation.rs` | NEW - Path traversal protection module |
-| `lib.rs` | Added `pub mod path_validation` |
-| `state.rs` | Added `path_validation_config` to `AppState` |
-| `state.rs` | Added `load_path_validation_config()` for env-based config |
-| `documents.rs` | Updated `scan_directory` to use validated paths |
-| `Cargo.toml` | Added `tempfile` dev dependency for tests |
+| File                 | Change                                                     |
+| -------------------- | ---------------------------------------------------------- |
+| `path_validation.rs` | NEW - Path traversal protection module                     |
+| `lib.rs`             | Added `pub mod path_validation`                            |
+| `state.rs`           | Added `path_validation_config` to `AppState`               |
+| `state.rs`           | Added `load_path_validation_config()` for env-based config |
+| `documents.rs`       | Updated `scan_directory` to use validated paths            |
+| `Cargo.toml`         | Added `tempfile` dev dependency for tests                  |
 
 ### Security Controls Implemented
 
@@ -105,19 +109,19 @@ ALLOW_ANY_SCAN_PATH=true
 
 ### Default Security Posture
 
-| Mode | Default |
-|------|---------|
+| Mode       | Default                          |
+| ---------- | -------------------------------- |
 | Memory/Dev | Permissive (allow_any_path=true) |
-| PostgreSQL | Secure (require explicit paths) |
+| PostgreSQL | Secure (require explicit paths)  |
 
 ## Metrics
 
-| Metric | Value |
-|--------|-------|
-| Tests added | 6 |
-| Tests passing | 421 |
-| LOC added | ~200 |
-| Security controls | 5 |
+| Metric            | Value |
+| ----------------- | ----- |
+| Tests added       | 6     |
+| Tests passing     | 421   |
+| LOC added         | ~200  |
+| Security controls | 5     |
 
 ## Conclusion
 

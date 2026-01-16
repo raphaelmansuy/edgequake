@@ -6,13 +6,13 @@ Audited SQL construction patterns in the storage crate.
 
 ### SQL Construction Patterns Found
 
-| File | Line | Pattern | Risk |
-|------|------|---------|------|
-| `kv.rs:120` | `format!("SELECT...{}", self.table_name)` | LOW - Config-only |
-| `kv.rs:138` | `format!("SELECT...{}", self.table_name)` | LOW - Config-only |
-| `kv.rs:157` | `format!("SELECT...{}", self.table_name)` | LOW - Config-only |
-| `kv.rs:227` | `format!("SELECT...{}", self.table_name)` | LOW - Config-only |
-| `kv.rs:240` | `format!("SELECT...{}", self.table_name)` | LOW - Config-only |
+| File            | Line                                      | Pattern           | Risk |
+| --------------- | ----------------------------------------- | ----------------- | ---- |
+| `kv.rs:120`     | `format!("SELECT...{}", self.table_name)` | LOW - Config-only |
+| `kv.rs:138`     | `format!("SELECT...{}", self.table_name)` | LOW - Config-only |
+| `kv.rs:157`     | `format!("SELECT...{}", self.table_name)` | LOW - Config-only |
+| `kv.rs:227`     | `format!("SELECT...{}", self.table_name)` | LOW - Config-only |
+| `kv.rs:240`     | `format!("SELECT...{}", self.table_name)` | LOW - Config-only |
 | `vector.rs:620` | `format!("SELECT...{}", self.table_name)` | LOW - Config-only |
 
 ### Source of Table Names
@@ -41,20 +41,22 @@ let row: Option<(serde_json::Value,)> = sqlx::query_as(&sql)
 
 ### Security Analysis
 
-| Aspect | Status | Notes |
-|--------|--------|-------|
-| User input in SQL | NONE | All user data bound with `$1`, `$2`, etc. |
-| Table names from config | ✅ | `PostgresConfig` is server-side |
-| Parameterized queries | ✅ | All queries use sqlx bindings |
-| Dynamic SQL | SAFE | Only table names, from config |
+| Aspect                  | Status | Notes                                     |
+| ----------------------- | ------ | ----------------------------------------- |
+| User input in SQL       | NONE   | All user data bound with `$1`, `$2`, etc. |
+| Table names from config | ✅     | `PostgresConfig` is server-side           |
+| Parameterized queries   | ✅     | All queries use sqlx bindings             |
+| Dynamic SQL             | SAFE   | Only table names, from config             |
 
 ### Attack Vectors Considered
 
 1. **User-provided table names**: NOT POSSIBLE
+
    - Table names come from `PostgresConfig`
    - Config is set at server startup
 
 2. **User-provided query values**: MITIGATED
+
    - All values use `bind()` with `$1` placeholders
    - sqlx handles escaping automatically
 
@@ -73,12 +75,12 @@ Documented SQL injection audit as verified.
 
 ## Metrics
 
-| Metric | Value |
-|--------|-------|
-| Dynamic SQL locations | 6 |
-| User input in SQL | 0 |
-| Parameterized bindings | ALL |
-| Injection risk | NONE |
+| Metric                 | Value |
+| ---------------------- | ----- |
+| Dynamic SQL locations  | 6     |
+| User input in SQL      | 0     |
+| Parameterized bindings | ALL   |
+| Injection risk         | NONE  |
 
 ## Conclusion
 

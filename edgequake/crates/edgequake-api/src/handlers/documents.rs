@@ -2438,10 +2438,8 @@ pub async fn scan_directory(
 
     // SECURITY (OODA-248): Validate path against allowed directories.
     // WHY: Prevents directory traversal attacks (e.g., ../../../etc/passwd).
-    let validated_path = crate::path_validation::validate_path(
-        &request.path,
-        &state.path_validation_config,
-    )?;
+    let validated_path =
+        crate::path_validation::validate_path(&request.path, &state.path_validation_config)?;
 
     let base_path = &validated_path.canonical;
 

@@ -179,16 +179,16 @@ pub fn validate_path<P: AsRef<Path>>(
 fn contains_traversal_pattern(path: &str) -> bool {
     // Check for common traversal patterns
     let patterns = [
-        "..",          // Direct parent traversal
-        "%2e%2e",      // URL encoded ..
-        "%252e%252e",  // Double URL encoded ..
-        "..%2f",       // Mixed encoding
-        "%2f..",       // Mixed encoding
-        "..\\",        // Windows traversal
-        "\\..\\",      // Windows traversal
-        "....//",      // Obfuscated traversal
-        "..;/",        // Tomcat-style traversal
-        "..\\/",       // Mixed separator
+        "..",         // Direct parent traversal
+        "%2e%2e",     // URL encoded ..
+        "%252e%252e", // Double URL encoded ..
+        "..%2f",      // Mixed encoding
+        "%2f..",      // Mixed encoding
+        "..\\",       // Windows traversal
+        "\\..\\",     // Windows traversal
+        "....//",     // Obfuscated traversal
+        "..;/",       // Tomcat-style traversal
+        "..\\/",      // Mixed separator
     ];
 
     let lower = path.to_lowercase();
@@ -216,8 +216,9 @@ fn safe_canonicalize(path: &Path) -> Result<PathBuf, ApiError> {
     }
 
     // Get the canonical path
-    std::fs::canonicalize(path)
-        .map_err(|e| ApiError::BadRequest(format!("Cannot canonicalize '{}': {}", path.display(), e)))
+    std::fs::canonicalize(path).map_err(|e| {
+        ApiError::BadRequest(format!("Cannot canonicalize '{}': {}", path.display(), e))
+    })
 }
 
 /// Check if a path is within (or equal to) a base directory.
@@ -297,7 +298,10 @@ mod tests {
 
         // /tmp exists but is outside allowed path
         let result = validate_path("/tmp", &config);
-        assert!(result.is_err(), "Path outside allowed directories should be rejected");
+        assert!(
+            result.is_err(),
+            "Path outside allowed directories should be rejected"
+        );
     }
 
     #[test]
