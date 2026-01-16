@@ -275,12 +275,11 @@ impl WorkspaceProviderResolver {
         &self,
         workspace_id: &str,
     ) -> Result<ResolvedEmbeddingProvider, ProviderResolutionError> {
-        let workspace = self
-            .get_workspace(workspace_id)
-            .await?
-            .ok_or_else(|| ProviderResolutionError::WorkspaceNotFound {
+        let workspace = self.get_workspace(workspace_id).await?.ok_or_else(|| {
+            ProviderResolutionError::WorkspaceNotFound {
                 workspace_id: workspace_id.to_string(),
-            })?;
+            }
+        })?;
 
         if workspace.embedding_provider.is_empty() {
             return Err(ProviderResolutionError::InvalidProviderName(
@@ -326,7 +325,10 @@ impl WorkspaceProviderResolver {
     }
 
     /// Parse provider and model from request, supporting legacy format.
-    fn parse_provider_model(&self, request: &LlmResolutionRequest) -> (Option<String>, Option<String>) {
+    fn parse_provider_model(
+        &self,
+        request: &LlmResolutionRequest,
+    ) -> (Option<String>, Option<String>) {
         if let Some(ref provider_id) = request.provider {
             if provider_id.is_empty() {
                 return (None, None);
@@ -357,13 +359,17 @@ impl WorkspaceProviderResolver {
         model: &str,
         source: ProviderSource,
     ) -> Result<ResolvedLlmProvider, ProviderResolutionError> {
-        debug!(provider = provider, model = model, ?source, "Creating LLM provider");
+        debug!(
+            provider = provider,
+            model = model,
+            ?source,
+            "Creating LLM provider"
+        );
 
-        let provider_arc = ProviderFactory::create_safe_llm_provider(provider, model).map_err(
-            |e| {
+        let provider_arc =
+            ProviderFactory::create_safe_llm_provider(provider, model).map_err(|e| {
                 ProviderResolutionError::from_creation_error(provider, model, &e.to_string())
-            },
-        )?;
+            })?;
 
         info!(
             provider = provider,
@@ -402,10 +408,8 @@ mod tests {
     #[test]
     fn test_parse_legacy_format() {
         // This test doesn't need async or workspace service
-        let request = LlmResolutionRequest::from_provider_string(
-            Some("ollama/gemma3:12b".to_string()),
-            None,
-        );
+        let request =
+            LlmResolutionRequest::from_provider_string(Some("ollama/gemma3:12b".to_string()), None);
         assert!(request.has_explicit_provider());
     }
 
@@ -428,5 +432,143 @@ mod tests {
     fn test_no_provider() {
         let request = LlmResolutionRequest::default();
         assert!(!request.has_explicit_provider());
+    }
+
+    // Integration tests with InMemoryWorkspaceService
+    mod integration {
+        use super::*;
+        use edgequake_core::{
+            CreateWorkspaceRequest, InMemoryWorkspaceService, Tenant, WorkspaceService,
+        };
+        use std::sync::Arc;
+
+        async fn create_test_workspace(
+            service: &Arc<dyn WorkspaceService>,
+        ) -> (uuid::Uuid, uuid::Uuid) {
+            // Create a tenant first
+            let tenant = Tenant::new("Test Tenant", "test-tenant");
+            let tenant = service
+                .create_tenant(tenant)
+                .await
+                .expect("Failed to create tenant");
+
+            // Create a workspace with LLM config
+            let request = CreateWorkspaceRequest {
+                name: "Test Workspace".to_string(),
+                slug: Some("test-workspace".to_string()),
+                description: None,
+                max_documents: None,
+                llm_provider: Some("mock".to_string()),
+                llm_model: Some("mock-model".to_string()),
+                embedding_provider: Some("mock".to_string()),
+                embedding_model: Some("mock-embedding".to_string()),
+                embedding_dimension: Some(1536),
+            };
+
+            let workspace = service
+                .create_workspace(tenant.tenant_id, request)
+                .await
+                .expect("Failed to create workspace");
+
+            (workspace.workspace_id, tenant.tenant_id)
+        }
+
+        #[tokio::test]
+        async fn test_resolve_explicit_provider() {
+            let service: Arc<dyn WorkspaceService> = Arc::new(InMemoryWorkspaceService::new());
+            let resolver = WorkspaceProviderResolver::new(service);
+
+            let request = LlmResolutionRequest::from_provider_string(
+                Some("mock".to_string()),
+                Some("test-model".to_string()),
+            );
+
+            let result = resolver
+                .resolve_llm_provider_with_workspace(None, &request)
+                .expect("Should resolve provider");
+
+            assert!(result.is_some());
+            let resolved = result.unwrap();
+            assert_eq!(resolved.provider_name, "mock");
+            assert_eq!(resolved.model_name, "test-model");
+            assert_eq!(resolved.source, ProviderSource::Request);
+        }
+
+        #[tokio::test]
+        async fn test_resolve_from_workspace() {
+            let service: Arc<dyn WorkspaceService> = Arc::new(InMemoryWorkspaceService::new());
+            let (workspace_id, _) = create_test_workspace(&service).await;
+            let resolver = WorkspaceProviderResolver::new(service.clone());
+
+            // No explicit provider in request
+            let request = LlmResolutionRequest::default();
+
+            let result = resolver
+                .resolve_llm_provider(Some(&workspace_id.to_string()), &request)
+                .await
+                .expect("Should resolve provider");
+
+            assert!(result.is_some());
+            let resolved = result.unwrap();
+            assert_eq!(resolved.provider_name, "mock");
+            assert_eq!(resolved.model_name, "mock-model");
+            assert_eq!(resolved.source, ProviderSource::Workspace);
+        }
+
+        #[tokio::test]
+        async fn test_explicit_overrides_workspace() {
+            let service: Arc<dyn WorkspaceService> = Arc::new(InMemoryWorkspaceService::new());
+            let (workspace_id, _) = create_test_workspace(&service).await;
+            let resolver = WorkspaceProviderResolver::new(service.clone());
+
+            // Explicit provider should override workspace config
+            let request = LlmResolutionRequest::from_provider_string(
+                Some("mock".to_string()),
+                Some("explicit-model".to_string()),
+            );
+
+            let result = resolver
+                .resolve_llm_provider(Some(&workspace_id.to_string()), &request)
+                .await
+                .expect("Should resolve provider");
+
+            assert!(result.is_some());
+            let resolved = result.unwrap();
+            assert_eq!(resolved.model_name, "explicit-model");
+            assert_eq!(resolved.source, ProviderSource::Request);
+        }
+
+        #[tokio::test]
+        async fn test_no_workspace_no_provider() {
+            let service: Arc<dyn WorkspaceService> = Arc::new(InMemoryWorkspaceService::new());
+            let resolver = WorkspaceProviderResolver::new(service);
+
+            let request = LlmResolutionRequest::default();
+
+            let result = resolver
+                .resolve_llm_provider(None, &request)
+                .await
+                .expect("Should return None for server default");
+
+            assert!(result.is_none());
+        }
+
+        #[tokio::test]
+        async fn test_invalid_workspace_id() {
+            let service: Arc<dyn WorkspaceService> = Arc::new(InMemoryWorkspaceService::new());
+            let resolver = WorkspaceProviderResolver::new(service);
+
+            let request = LlmResolutionRequest::default();
+
+            let result = resolver
+                .resolve_llm_provider(Some("not-a-uuid"), &request)
+                .await;
+
+            assert!(result.is_err());
+            match result.unwrap_err() {
+                ProviderResolutionError::InvalidWorkspaceId(_) => {}
+                other => panic!("Expected InvalidWorkspaceId, got {:?}", other),
+            }
+        }
     }
 }
