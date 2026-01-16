@@ -4,12 +4,25 @@ import { expect, test } from "@playwright/test";
 test.describe("Document Detail Page", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to documents page
-    await page.goto("/documents");
+    await page.goto("/documents?workspace=default-workspace");
     await page.waitForLoadState("networkidle");
+
+    // Check if any documents exist (look for "View" link)
+    const viewLink = page.getByRole("link", { name: /view/i }).first();
+    const hasDocuments = await viewLink
+      .isVisible({ timeout: 3000 })
+      .catch(() => false);
+
+    if (!hasDocuments) {
+      test.skip(
+        true,
+        "No documents available - document detail tests require at least one document."
+      );
+    }
   });
 
   test("displays document with proper layout", async ({ page }) => {
-    // Click on first document
+    // Click on first document (existence already verified in beforeEach)
     await page.getByRole("link", { name: /view/i }).first().click();
 
     // Wait for document page to load
@@ -31,9 +44,8 @@ test.describe("Document Detail Page", () => {
     // Set desktop viewport
     await page.setViewportSize({ width: 1280, height: 720 });
 
-    // Navigate to a document
-    await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    // beforeEach already navigated and verified documents exist
+    // Navigate to first document
     await page.getByRole("link", { name: /view/i }).first().click();
 
     // Wait for page load
@@ -49,9 +61,8 @@ test.describe("Document Detail Page", () => {
     // Grant clipboard permissions
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
 
-    // Navigate to document
-    await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    // beforeEach already navigated and verified documents exist
+    // Navigate to first document
     await page.getByRole("link", { name: /view/i }).first().click();
 
     // Click copy ID button
@@ -66,8 +77,8 @@ test.describe("Document Detail Page", () => {
     await page.setViewportSize({ width: 375, height: 667 });
 
     // Navigate to document
-    await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    // beforeEach already navigated and verified documents exist
+    // Navigate to first document
     await page.getByRole("link", { name: /view/i }).first().click();
 
     // Should see tabs
@@ -85,9 +96,8 @@ test.describe("Document Detail Page", () => {
     // Set desktop viewport
     await page.setViewportSize({ width: 1280, height: 720 });
 
-    // Navigate to document
-    await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    // beforeEach already navigated and verified documents exist
+    // Navigate to first document
     await page.getByRole("link", { name: /view/i }).first().click();
     await page.waitForLoadState("networkidle");
 
@@ -104,9 +114,8 @@ test.describe("Document Detail Page", () => {
   });
 
   test("can navigate to graph view", async ({ page }) => {
-    // Navigate to document
-    await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    // beforeEach already navigated and verified documents exist
+    // Navigate to first document
     await page.getByRole("link", { name: /view/i }).first().click();
 
     // Click "View in Graph" button
@@ -117,11 +126,7 @@ test.describe("Document Detail Page", () => {
   });
 
   test("handles failed document status", async ({ page }) => {
-    // This test requires a failed document to exist
-    // For now, we'll just check the page doesn't crash
-    await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
-
+    // beforeEach already navigated and verified documents exist
     // Try to view first document
     const firstDoc = page.getByRole("link", { name: /view/i }).first();
     if (await firstDoc.isVisible()) {

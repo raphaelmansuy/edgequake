@@ -1,0 +1,118 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+  - alert [ref=e11]
+  - generic [ref=e12]:
+    - link "Skip to main content" [ref=e13] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary "Sidebar navigation" [ref=e14]:
+      - generic [ref=e15]:
+        - link "EdgeQuake" [ref=e17] [cursor=pointer]:
+          - /url: /
+          - img [ref=e19]
+          - generic [ref=e24]: EdgeQuake
+        - navigation "Navigation" [ref=e25]:
+          - link "Dashboard" [ref=e26] [cursor=pointer]:
+            - /url: /
+            - img [ref=e27]
+            - generic [ref=e30]: Dashboard
+          - link "Knowledge Graph" [ref=e31] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e32]
+            - generic [ref=e37]: Knowledge Graph
+          - link "Documents" [ref=e38] [cursor=pointer]:
+            - /url: /documents
+            - img [ref=e39]
+            - generic [ref=e42]: Documents
+          - link "Query" [ref=e43] [cursor=pointer]:
+            - /url: /query
+            - img [ref=e44]
+            - generic [ref=e46]: Query
+          - link "Workspace" [ref=e47] [cursor=pointer]:
+            - /url: /workspace
+            - img [ref=e48]
+            - generic [ref=e50]: Workspace
+          - link "Costs" [ref=e51] [cursor=pointer]:
+            - /url: /costs
+            - img [ref=e52]
+            - generic [ref=e54]: Costs
+          - link "API Explorer" [ref=e55] [cursor=pointer]:
+            - /url: /api-explorer
+            - img [ref=e56]
+            - generic [ref=e58]: API Explorer
+          - link "Settings" [ref=e59] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e60]
+            - generic [ref=e63]: Settings
+        - generic [ref=e64]:
+          - button "Collapse sidebar" [ref=e65]:
+            - img
+            - generic [ref=e66]: Collapse
+          - generic [ref=e67]:
+            - img [ref=e69]
+            - generic [ref=e74]:
+              - generic [ref=e75]: EdgeQuake
+              - generic [ref=e76]: v0.1.0
+    - generic [ref=e77]:
+      - banner [ref=e78]:
+        - button "Workspace 1 1768..." [ref=e81]:
+          - img
+          - generic [ref=e82]: Workspace 1 1768...
+          - img
+        - generic [ref=e83]:
+          - generic [ref=e84]:
+            - img [ref=e85]
+            - generic [ref=e87]: v0.1.0
+          - button "Change language" [ref=e88]:
+            - img
+            - generic [ref=e89]: Change language
+          - button "Toggle theme" [ref=e90]:
+            - img
+            - generic [ref=e91]: Toggle theme
+          - button "User menu" [ref=e92]:
+            - img
+            - generic [ref=e93]: User menu
+      - navigation "breadcrumb" [ref=e95]:
+        - list [ref=e96]:
+          - listitem [ref=e97]:
+            - link "EdgeQuake" [ref=e98] [cursor=pointer]:
+              - /url: /
+              - img [ref=e99]
+              - generic [ref=e102]: EdgeQuake
+          - listitem [ref=e103]:
+            - img [ref=e104]
+          - listitem [ref=e106]:
+            - link "w" [ref=e107] [cursor=pointer]:
+              - /url: /w
+              - generic [ref=e108]: w
+          - listitem [ref=e109]:
+            - img [ref=e110]
+          - listitem [ref=e112]:
+            - link "test-workspa..." [ref=e113] [cursor=pointer]:
+              - /url: /w/test-workspace-1768556046233
+              - generic [ref=e114]: test-workspa...
+          - listitem [ref=e115]:
+            - img [ref=e116]
+          - listitem [ref=e118]:
+            - link "Query" [disabled] [ref=e119]:
+              - img [ref=e120]
+              - generic [ref=e122]: Query
+      - main [ref=e123]:
+        - generic [ref=e125]:
+          - heading "Workspace Not Found" [level=1] [ref=e126]
+          - paragraph [ref=e127]: The workspace "test-workspace-1768556046233" does not exist or you don't have access.
+          - link "Go to Workspace Settings" [ref=e128] [cursor=pointer]:
+            - /url: /workspace
+  - region "Notifications alt+T":
+    - list:
+      - listitem [ref=e129]:
+        - button "Close toast" [ref=e130] [cursor=pointer]:
+          - img [ref=e131]
+        - img [ref=e135]
+        - generic [ref=e138]:
+          - generic [ref=e139]: Workspace "Workspace 1 1768556019883" selected
+          - generic [ref=e140]: You can change this anytime from the selector above
+```
