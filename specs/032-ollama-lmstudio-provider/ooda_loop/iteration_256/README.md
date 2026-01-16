@@ -39,15 +39,15 @@ Error: Os { code: 48, kind: AddrInUse, message: "Address already in use" }
 
 Searched for direct `ProviderFactory::create` usages in API crate:
 
-| Location | Usage | Assessment |
-|----------|-------|------------|
-| [processor.rs#L228](../../edgequake/crates/edgequake-api/src/processor.rs#L228) | `create_safe_llm_provider` | ⚠️ Could use WorkspaceProviderResolver |
-| [processor.rs#L231](../../edgequake/crates/edgequake-api/src/processor.rs#L231) | `create_safe_embedding_provider` | ⚠️ Could use WorkspaceProviderResolver |
-| [state.rs#L998](../../edgequake/crates/edgequake-api/src/state.rs#L998) | `create_safe_llm_provider` | ⚠️ Could use WorkspaceProviderResolver |
-| [state.rs#L1001](../../edgequake/crates/edgequake-api/src/state.rs#L1001) | `create_safe_embedding_provider` | ⚠️ Could use WorkspaceProviderResolver |
-| [query.rs#L576](../../edgequake/crates/edgequake-api/src/handlers/query.rs#L576) | `create_safe_embedding_provider` | ⚠️ Could use WorkspaceProviderResolver |
-| [resolver.rs#L303](../../edgequake/crates/edgequake-api/src/providers/resolver.rs#L303) | Internal to resolver | ✅ Single Source of Truth |
-| [resolver.rs#L375](../../edgequake/crates/edgequake-api/src/providers/resolver.rs#L375) | Internal to resolver | ✅ Single Source of Truth |
+| Location                                                                                | Usage                            | Assessment                             |
+| --------------------------------------------------------------------------------------- | -------------------------------- | -------------------------------------- |
+| [processor.rs#L228](../../edgequake/crates/edgequake-api/src/processor.rs#L228)         | `create_safe_llm_provider`       | ⚠️ Could use WorkspaceProviderResolver |
+| [processor.rs#L231](../../edgequake/crates/edgequake-api/src/processor.rs#L231)         | `create_safe_embedding_provider` | ⚠️ Could use WorkspaceProviderResolver |
+| [state.rs#L998](../../edgequake/crates/edgequake-api/src/state.rs#L998)                 | `create_safe_llm_provider`       | ⚠️ Could use WorkspaceProviderResolver |
+| [state.rs#L1001](../../edgequake/crates/edgequake-api/src/state.rs#L1001)               | `create_safe_embedding_provider` | ⚠️ Could use WorkspaceProviderResolver |
+| [query.rs#L576](../../edgequake/crates/edgequake-api/src/handlers/query.rs#L576)        | `create_safe_embedding_provider` | ⚠️ Could use WorkspaceProviderResolver |
+| [resolver.rs#L303](../../edgequake/crates/edgequake-api/src/providers/resolver.rs#L303) | Internal to resolver             | ✅ Single Source of Truth              |
+| [resolver.rs#L375](../../edgequake/crates/edgequake-api/src/providers/resolver.rs#L375) | Internal to resolver             | ✅ Single Source of Truth              |
 
 ### Duplication Risk Assessment
 
@@ -79,6 +79,7 @@ Searched for direct `ProviderFactory::create` usages in API crate:
 
 1. **Diagnosed and resolved** port 8080 conflict
 2. **Verified** application startup flow:
+
    - Database: ✅ PostgreSQL running
    - Backend: ✅ Health check passing
    - Frontend: ✅ Dashboard loading correctly
@@ -94,10 +95,10 @@ Searched for direct `ProviderFactory::create` usages in API crate:
 
 ## Metrics
 
-| Metric | Value |
-|--------|-------|
-| Root cause identified | Yes |
-| Application running | Yes |
-| Duplication points found | 5 |
-| Consolidation needed | Yes |
-| Tests added | Pending |
+| Metric                   | Value   |
+| ------------------------ | ------- |
+| Root cause identified    | Yes     |
+| Application running      | Yes     |
+| Duplication points found | 5       |
+| Consolidation needed     | Yes     |
+| Tests added              | Pending |

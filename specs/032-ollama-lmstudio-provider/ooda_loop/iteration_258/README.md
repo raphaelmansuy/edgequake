@@ -11,6 +11,7 @@
 ### Current State
 
 From OODA-257, we identified 4 places creating workspace pipelines:
+
 - `processor.rs:252` - document processing
 - `state.rs:1018` - SOTA query engine creation
 - `state.rs:435, 774` - initial state setup (global, not workspace-specific)
@@ -18,7 +19,7 @@ From OODA-257, we identified 4 places creating workspace pipelines:
 ### Requirements
 
 1. Single implementation of workspace pipeline creation
-2. Consistent error handling across all callers  
+2. Consistent error handling across all callers
 3. Safety limits applied uniformly
 4. Proper logging for debugging
 
@@ -46,10 +47,11 @@ This avoids creating yet another abstraction layer.
 
 ### Changes Made
 
-The `WorkspaceProviderResolver` already has `resolve_llm_provider` and `resolve_embedding_provider`. 
+The `WorkspaceProviderResolver` already has `resolve_llm_provider` and `resolve_embedding_provider`.
 We can combine these to create a pipeline.
 
 For now, we'll document that:
+
 - **Ingestion (processor.rs)**: Uses direct ProviderFactory - this is acceptable because it needs special async handling for task processor context
 - **Query (chat.rs)**: Uses WorkspaceProviderResolver - ✅ Already consolidated
 - **Query embedding (query.rs)**: Uses direct ProviderFactory - should consolidate
@@ -72,9 +74,9 @@ None in this iteration - analysis complete. Consolidation deferred to OODA-259.
 
 ## Metrics
 
-| Metric | Value |
-|--------|-------|
-| New abstraction layers | 0 |
-| Critical duplications | 1 (query.rs) |
-| Acceptable duplications | 1 (processor.rs) |
-| Next action | Consolidate query.rs |
+| Metric                  | Value                |
+| ----------------------- | -------------------- |
+| New abstraction layers  | 0                    |
+| Critical duplications   | 1 (query.rs)         |
+| Acceptable duplications | 1 (processor.rs)     |
+| Next action             | Consolidate query.rs |

@@ -2,6 +2,101 @@
 
 Your mission is to fully implement ollama and lmstudio provider in edgequake, ensuring seamless integration with the existing architecture and codebase.
 
+## OODA 286+ Amendment: Inviolable Security Test Layer (January 16, 2026)
+
+**Core Principle**: Non-reliable code is a civilization-level threat. Tests are our trust layer - they must be unfalsifiable, fast, and comprehensive.
+
+### First-Principles Foundation (Reliability Theory)
+
+1. **Falsifiability Axiom**: Every business rule, invariant, and feature MUST have a test that can PROVE it works
+2. **Speed Axiom**: Tests must complete in <30 seconds (unit), <2 minutes (integration), <5 minutes (E2E)
+3. **Isolation Axiom**: Each test must be independent - no shared state, no test order dependencies
+4. **Determinism Axiom**: Tests must produce identical results on every run (no flaky tests)
+5. **Coverage Axiom**: Every code path with business logic must have corresponding tests
+
+### Reliability Theory Application
+
+**System Reliability** = Π(component reliability)
+
+If we have 10 components at 99% reliability each:
+
+- Without tests: 0.99^10 = 90.4% system reliability (UNACCEPTABLE)
+- With inviolable tests: Each component tested to 99.99% = 0.9999^10 = 99.9% system reliability
+
+**Key Insight**: Duplicated code DOUBLES failure surface. Untested code has ZERO reliability guarantee.
+
+### Test Pyramid for EdgeQuake
+
+```
+                    ┌─────────────┐
+                    │    E2E      │  <5 min total
+                    │  (Browser)  │  Critical paths only
+                    └──────┬──────┘
+                   ┌───────┴───────┐
+                   │  Integration  │  <2 min total
+                   │  (API/DB)     │  All API contracts
+                   └───────┬───────┘
+              ┌────────────┴────────────┐
+              │        Unit Tests       │  <30 sec total
+              │  (Pure functions, logic)│  ALL business logic
+              └─────────────────────────┘
+```
+
+### Inviolable Invariants (Must Have Tests)
+
+| Invariant ID | Description                                       | Test Type   |
+| ------------ | ------------------------------------------------- | ----------- |
+| INV-001      | Chunks ≤ embedding model max tokens               | Unit        |
+| INV-002      | Workspace isolation (no cross-tenant data)        | Integration |
+| INV-003      | Provider resolution respects workspace config     | Integration |
+| INV-004      | Vector dimensions match workspace embedding model | Unit        |
+| INV-005      | No plaintext secrets in logs or responses         | Unit        |
+| INV-006      | All API endpoints return valid JSON               | Integration |
+| INV-007      | RLS enforces tenant boundaries                    | Integration |
+| INV-008      | Background processes don't fail silently          | Integration |
+| INV-009      | Health endpoint reflects true system state        | Integration |
+| INV-010      | Token usage is tracked and accurate               | Unit        |
+
+### Test Speed Targets
+
+| Category           | Current | Target | Strategy                          |
+| ------------------ | ------- | ------ | --------------------------------- |
+| Unit (Rust)        | ~15s    | <10s   | Parallelize, mock I/O             |
+| Integration (Rust) | ~30s    | <20s   | In-memory DB fixtures             |
+| E2E (Playwright)   | ~3min   | <2min  | Parallel browsers, skip redundant |
+
+### OODA 286-335 Scope
+
+**Phase 1 (OODA 286-295): Test Audit & Speed Optimization**
+
+- Profile all tests to find slow ones
+- Eliminate test interdependencies
+- Add missing invariant tests
+
+**Phase 2 (OODA 296-305): Unit Test Completeness**
+
+- Test all business logic functions
+- Add property-based tests for critical paths
+- Achieve 100% branch coverage on core modules
+
+**Phase 3 (OODA 306-315): Integration Test Reliability**
+
+- Test all API contracts
+- Test database migrations
+- Test provider switching scenarios
+
+**Phase 4 (OODA 316-325): E2E Test Critical Path**
+
+- Test tenant/workspace creation flow
+- Test document ingestion with provider switching
+- Test query with model selection
+
+**Phase 5 (OODA 326-335): Continuous Reliability**
+
+- Add CI/CD pipeline with test gates
+- Add flaky test detection
+- Add test coverage reporting
+
 ## OODA 226+ Amendment: Code Reliability Audit (January 16, 2026)
 
 **Core Principle**: Non-reliable code is a civilization-level threat. This amendment adds a rigorous code duplication audit and inviolable security test layer.

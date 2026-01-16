@@ -11,6 +11,7 @@
 ## Root Cause Analysis
 
 The application was stuck on "Loading workspace..." because:
+
 1. **Port 8080 was in use** by a stale backend process
 2. The new backend started, found "Address already in use", and **silently exited**
 3. The frontend kept polling an unreachable backend
@@ -19,6 +20,7 @@ The application was stuck on "Loading workspace..." because:
 ## Solution Implemented
 
 ### 1. Makefile Enhancements
+
 ```makefile
 check-ports:
     @if lsof -ti:8080 >/dev/null 2>&1; then
@@ -28,11 +30,13 @@ check-ports:
 ```
 
 ### 2. Code Consolidation (OODA-259)
+
 - Added `resolve_embedding_provider_optional()` to WorkspaceProviderResolver
 - Refactored `query.rs` to delegate to resolver
 - Reduced ~70 lines of duplicated code
 
 ### 3. Security Audit (OODA-271-280)
+
 - ✅ Argon2id password hashing
 - ✅ Environment-based API keys
 - ✅ Parameterized SQL queries
@@ -40,12 +44,12 @@ check-ports:
 
 ## Test Results
 
-| Metric | Value |
-|--------|-------|
-| Rust tests | 2665 passed |
-| E2E test files | 50+ |
-| Provider tests | 18 |
-| Failures | 0 |
+| Metric         | Value       |
+| -------------- | ----------- |
+| Rust tests     | 2665 passed |
+| E2E test files | 50+         |
+| Provider tests | 18          |
+| Failures       | 0           |
 
 ## Commits (3)
 

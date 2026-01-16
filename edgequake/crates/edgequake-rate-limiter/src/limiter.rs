@@ -220,7 +220,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_token_refill() {
-        let config = RateLimitConfig::new(2, 1); // 2 requests per second
+        // WHY: Use high refill rate to minimize wait time (600ms → 50ms)
+        let config = RateLimitConfig {
+            requests_per_window: 2,
+            window_seconds: 1,
+            burst_size: 0,
+            refill_rate: 100.0, // Fast refill for testing
+        };
         let limiter = RateLimiter::new(config);
 
         // Consume all tokens
@@ -228,8 +234,8 @@ mod tests {
         assert!(limiter.check_rate_limit("test-key").0);
         assert!(!limiter.check_rate_limit("test-key").0);
 
-        // Wait for refill
-        tokio::time::sleep(Duration::from_millis(600)).await;
+        // Wait for fast refill (100 tokens/sec = 10ms for 1 token)
+        tokio::time::sleep(Duration::from_millis(50)).await;
 
         // Should have ~1 token now
         assert!(limiter.check_rate_limit("test-key").0);

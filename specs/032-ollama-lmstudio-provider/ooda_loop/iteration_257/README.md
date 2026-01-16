@@ -12,12 +12,12 @@
 
 Searched for `Pipeline::default_pipeline()` usage in the API crate:
 
-| Location | Purpose | Type |
-|----------|---------|------|
-| [state.rs#L435](../../edgequake/crates/edgequake-api/src/state.rs#L435) | Memory state initialization | Global |
-| [state.rs#L774](../../edgequake/crates/edgequake-api/src/state.rs#L774) | PostgreSQL state initialization | Global |
-| [state.rs#L1018](../../edgequake/crates/edgequake-api/src/state.rs#L1018) | `create_workspace_sota_engine` | Workspace-specific |
-| [processor.rs#L252](../../edgequake/crates/edgequake-api/src/processor.rs#L252) | `get_workspace_pipeline` | Workspace-specific |
+| Location                                                                        | Purpose                         | Type               |
+| ------------------------------------------------------------------------------- | ------------------------------- | ------------------ |
+| [state.rs#L435](../../edgequake/crates/edgequake-api/src/state.rs#L435)         | Memory state initialization     | Global             |
+| [state.rs#L774](../../edgequake/crates/edgequake-api/src/state.rs#L774)         | PostgreSQL state initialization | Global             |
+| [state.rs#L1018](../../edgequake/crates/edgequake-api/src/state.rs#L1018)       | `create_workspace_sota_engine`  | Workspace-specific |
+| [processor.rs#L252](../../edgequake/crates/edgequake-api/src/processor.rs#L252) | `get_workspace_pipeline`        | Workspace-specific |
 
 ### Duplication Risk
 
@@ -36,6 +36,7 @@ Pipeline::default_pipeline()
 ```
 
 Both:
+
 1. Look up workspace by ID
 2. Parse UUID
 3. Create LLM provider via `ProviderFactory::create_safe_llm_provider`
@@ -45,6 +46,7 @@ Both:
 ### Failure Surface
 
 If someone updates the provider creation logic in one place but not the other:
+
 - **Scenario A**: Add retry logic to processor.rs but not state.rs → inconsistent reliability
 - **Scenario B**: Add new provider type to state.rs but not processor.rs → feature gap
 - **Scenario C**: Change safety limits in one place → security inconsistency
@@ -105,7 +107,7 @@ pub struct WorkspacePipelineFactory {
 
 impl WorkspacePipelineFactory {
     /// Create a workspace-specific pipeline with proper providers.
-    /// 
+    ///
     /// Uses WorkspaceProviderResolver internally for consistent resolution.
     pub async fn create_workspace_pipeline(
         &self,
@@ -118,15 +120,16 @@ impl WorkspacePipelineFactory {
 
 ### Consolidation Plan
 
-| File | Current | After |
-|------|---------|-------|
-| processor.rs | Direct ProviderFactory | WorkspacePipelineFactory |
-| state.rs | Direct ProviderFactory | WorkspacePipelineFactory |
-| query.rs | Direct ProviderFactory | WorkspaceProviderResolver |
+| File         | Current                | After                     |
+| ------------ | ---------------------- | ------------------------- |
+| processor.rs | Direct ProviderFactory | WorkspacePipelineFactory  |
+| state.rs     | Direct ProviderFactory | WorkspacePipelineFactory  |
+| query.rs     | Direct ProviderFactory | WorkspaceProviderResolver |
 
 ### Priority
 
 **HIGH** - This duplication has direct reliability impact on:
+
 - Document ingestion (processor.rs)
 - Query execution (state.rs, query.rs)
 - Chat completions (chat.rs - already fixed)
@@ -148,10 +151,10 @@ impl WorkspacePipelineFactory {
 
 ## Metrics
 
-| Metric | Value |
-|--------|-------|
-| Duplication points found | 4 |
+| Metric                          | Value     |
+| ------------------------------- | --------- |
+| Duplication points found        | 4         |
 | Using WorkspaceProviderResolver | 1/4 (25%) |
-| Direct ProviderFactory usage | 3/4 (75%) |
-| Test coverage risk | High |
-| Reliability impact | High |
+| Direct ProviderFactory usage    | 3/4 (75%) |
+| Test coverage risk              | High      |
+| Reliability impact              | High      |

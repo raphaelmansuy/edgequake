@@ -12,6 +12,7 @@ principle and made maintenance harder.
 ## Solution
 
 1. Added `resolve_embedding_provider_optional` method to `WorkspaceProviderResolver`:
+
    - Returns `Ok(None)` for fallback semantics (vs. `resolve_embedding_provider` which errors)
    - Handles workspace lookup, empty provider check, provider creation
    - Logs warnings with actionable messages for API key errors
@@ -25,6 +26,7 @@ principle and made maintenance harder.
 ## Files Modified
 
 - `edgequake/crates/edgequake-api/src/providers/resolver.rs`:
+
   - Added `resolve_embedding_provider_optional` method (~80 lines)
 
 - `edgequake/crates/edgequake-api/src/handlers/query.rs`:
