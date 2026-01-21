@@ -11,7 +11,7 @@ import {
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-export type DocStatus = 'all' | 'pending' | 'processing' | 'completed' | 'failed';
+export type DocStatus = 'all' | 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
 export type SortField = 'created_at' | 'updated_at' | 'title' | 'status' | 'entity_count';
 export type SortDirection = 'asc' | 'desc';
 
@@ -69,6 +69,7 @@ export function DocumentFilters({
           <SelectItem value="processing">{getStatusLabel('processing')}</SelectItem>
           <SelectItem value="completed">{getStatusLabel('completed')}</SelectItem>
           <SelectItem value="failed">{getStatusLabel('failed')}</SelectItem>
+          <SelectItem value="cancelled">{getStatusLabel('cancelled')}</SelectItem>
         </SelectContent>
       </Select>
 

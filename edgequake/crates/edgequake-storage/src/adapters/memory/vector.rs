@@ -262,6 +262,46 @@ impl VectorStorage for MemoryVectorStorage {
         metadata.clear();
         Ok(())
     }
+
+    /// Clear only vectors belonging to a specific workspace.
+    ///
+    /// Filters by `workspace_id` field in metadata JSON.
+    /// Returns the count of deleted vectors.
+    async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
+        let mut vectors = self
+            .vectors
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut metadata_map = self
+            .metadata
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+
+        let workspace_id_str = workspace_id.to_string();
+
+        // Collect keys to remove (matching workspace_id in metadata)
+        let keys_to_remove: Vec<String> = metadata_map
+            .iter()
+            .filter_map(|(key, meta)| {
+                if let Some(ws_id) = meta.get("workspace_id").and_then(|v| v.as_str()) {
+                    if ws_id == workspace_id_str {
+                        return Some(key.clone());
+                    }
+                }
+                None
+            })
+            .collect();
+
+        let count = keys_to_remove.len();
+
+        // Remove from both vectors and metadata
+        for key in keys_to_remove {
+            vectors.remove(&key);
+            metadata_map.remove(&key);
+        }
+
+        Ok(count)
+    }
 }
 
 #[cfg(test)]

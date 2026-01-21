@@ -14,9 +14,10 @@
 'use client';
 
 import { Badge } from '@/components/ui/badge';
+import type { DocumentLineage } from '@/types';
 
 interface ProcessingDetailsProps {
-  lineage: unknown; // DocumentLineage type - using unknown for safety
+  lineage: DocumentLineage | null | undefined;
 }
 
 export function ProcessingDetails({ lineage }: ProcessingDetailsProps) {

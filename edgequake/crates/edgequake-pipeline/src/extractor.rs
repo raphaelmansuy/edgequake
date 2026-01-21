@@ -320,6 +320,13 @@ pub trait EntityExtractor: Send + Sync {
     fn model_name(&self) -> &str {
         "unknown"
     }
+
+    /// Get the provider name used by this extractor (if applicable).
+    ///
+    /// @implements SPEC-032/OODA-226: Provider tracking in ProcessingStats
+    fn provider_name(&self) -> &str {
+        "unknown"
+    }
 }
 
 /// Simple regex-based entity extractor for testing.
@@ -539,6 +546,11 @@ where
 
     fn model_name(&self) -> &str {
         self.llm_provider.model()
+    }
+
+    /// @implements SPEC-032/OODA-226: Provider tracking in ProcessingStats
+    fn provider_name(&self) -> &str {
+        self.llm_provider.name()
     }
 }
 

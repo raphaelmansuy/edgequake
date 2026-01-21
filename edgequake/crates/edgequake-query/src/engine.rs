@@ -113,6 +113,19 @@ pub struct QueryRequest {
     /// Override: rerank top K results.
     #[serde(default)]
     pub rerank_top_k: Option<usize>,
+
+    /// Override: LLM provider to use for answer generation.
+    /// Format: provider name (e.g., "ollama", "openai", "lmstudio").
+    /// If not provided, uses the server default.
+    /// @implements SPEC-032: Provider selection at query time
+    #[serde(default)]
+    pub llm_provider: Option<String>,
+
+    /// Override: LLM model to use for answer generation.
+    /// If not provided, uses the provider's default model.
+    /// @implements SPEC-032: Model selection at query time
+    #[serde(default)]
+    pub llm_model: Option<String>,
 }
 
 /// A single message in conversation history.
@@ -138,6 +151,8 @@ impl QueryRequest {
             conversation_history: Vec::new(),
             enable_rerank: None,
             rerank_top_k: None,
+            llm_provider: None,
+            llm_model: None,
         }
     }
 
@@ -162,6 +177,36 @@ impl QueryRequest {
     /// Add conversation history.
     pub fn with_conversation_history(mut self, history: Vec<ConversationMessage>) -> Self {
         self.conversation_history = history;
+        self
+    }
+
+    /// Set the LLM provider override for answer generation.
+    /// Format: provider name (e.g., "ollama", "openai", "lmstudio").
+    /// @implements SPEC-032: Provider selection at query time
+    pub fn with_llm_provider(mut self, provider: impl Into<String>) -> Self {
+        self.llm_provider = Some(provider.into());
+        self
+    }
+
+    /// Set the LLM model override for answer generation.
+    /// @implements SPEC-032: Model selection at query time
+    pub fn with_llm_model(mut self, model: impl Into<String>) -> Self {
+        self.llm_model = Some(model.into());
+        self
+    }
+
+    /// Set both LLM provider and model from a full model ID.
+    /// Format: "provider/model" (e.g., "ollama/gemma3:12b").
+    /// @implements SPEC-032: Full model ID parsing
+    pub fn with_llm_full_id(mut self, full_id: impl AsRef<str>) -> Self {
+        let full_id = full_id.as_ref();
+        if let Some((provider, model)) = full_id.split_once('/') {
+            self.llm_provider = Some(provider.to_string());
+            self.llm_model = Some(model.to_string());
+        } else {
+            // No slash - treat as provider only
+            self.llm_provider = Some(full_id.to_string());
+        }
         self
     }
 

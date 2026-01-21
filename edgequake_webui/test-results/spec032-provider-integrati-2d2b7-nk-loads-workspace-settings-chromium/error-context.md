@@ -1,0 +1,226 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+  - alert [ref=e11]
+  - generic [ref=e12]:
+    - link "Skip to main content" [ref=e13] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary "Sidebar navigation" [ref=e14]:
+      - generic [ref=e15]:
+        - link "EdgeQuake" [ref=e17] [cursor=pointer]:
+          - /url: /
+          - img [ref=e19]
+          - generic [ref=e24]: EdgeQuake
+        - navigation "Navigation" [ref=e25]:
+          - link "Dashboard" [ref=e26] [cursor=pointer]:
+            - /url: /
+            - img [ref=e27]
+            - generic [ref=e30]: Dashboard
+          - link "Knowledge Graph" [ref=e31] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e32]
+            - generic [ref=e37]: Knowledge Graph
+          - link "Documents" [ref=e38] [cursor=pointer]:
+            - /url: /documents
+            - img [ref=e39]
+            - generic [ref=e42]: Documents
+          - link "Query" [ref=e43] [cursor=pointer]:
+            - /url: /query
+            - img [ref=e44]
+            - generic [ref=e46]: Query
+          - link "Workspace" [ref=e47] [cursor=pointer]:
+            - /url: /workspace
+            - img [ref=e48]
+            - generic [ref=e50]: Workspace
+          - link "Costs" [ref=e51] [cursor=pointer]:
+            - /url: /costs
+            - img [ref=e52]
+            - generic [ref=e54]: Costs
+          - link "API Explorer" [ref=e55] [cursor=pointer]:
+            - /url: /api-explorer
+            - img [ref=e56]
+            - generic [ref=e58]: API Explorer
+          - link "Settings" [ref=e59] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e60]
+            - generic [ref=e63]: Settings
+        - generic [ref=e64]:
+          - button "Collapse sidebar" [ref=e65]:
+            - img
+            - generic [ref=e66]: Collapse
+          - generic [ref=e67]:
+            - img [ref=e69]
+            - generic [ref=e74]:
+              - generic [ref=e75]: EdgeQuake
+              - generic [ref=e76]: v0.1.0
+    - generic [ref=e77]:
+      - banner [ref=e78]:
+        - button "Workspace 1 1768..." [ref=e81]:
+          - img
+          - generic [ref=e82]: Workspace 1 1768...
+          - img
+        - generic [ref=e83]:
+          - generic [ref=e84]:
+            - img [ref=e85]
+            - generic [ref=e87]: v0.1.0
+          - button "Change language" [ref=e88]:
+            - img
+            - generic [ref=e89]: Change language
+          - button "Toggle theme" [ref=e90]:
+            - img
+            - generic [ref=e91]: Toggle theme
+          - button "User menu" [ref=e92]:
+            - img
+            - generic [ref=e93]: User menu
+      - navigation "breadcrumb" [ref=e95]:
+        - list [ref=e96]:
+          - listitem [ref=e97]:
+            - link "EdgeQuake" [ref=e98] [cursor=pointer]:
+              - /url: /
+              - img [ref=e99]
+              - generic [ref=e102]: EdgeQuake
+          - listitem [ref=e103]:
+            - img [ref=e104]
+          - listitem [ref=e106]:
+            - link "workspace" [disabled] [ref=e107]:
+              - generic [ref=e108]: workspace
+      - main [ref=e109]:
+        - generic [ref=e113]:
+          - generic [ref=e114]:
+            - generic [ref=e116]:
+              - img [ref=e117]
+              - heading "Workspace 1 1768556019883" [level=1] [ref=e119]
+              - generic [ref=e120]: Active
+            - generic [ref=e121]:
+              - button "Refresh" [ref=e122]:
+                - img
+                - text: Refresh
+              - button "Edit Configuration" [ref=e123]:
+                - img
+                - text: Edit Configuration
+          - generic [ref=e124]:
+            - generic [ref=e125]:
+              - generic [ref=e127]:
+                - img [ref=e128]
+                - text: Documents
+              - generic [ref=e132]: "0"
+            - generic [ref=e133]:
+              - generic [ref=e135]:
+                - img [ref=e136]
+                - text: Entities
+              - generic [ref=e141]: "0"
+            - generic [ref=e142]:
+              - generic [ref=e144]:
+                - img [ref=e145]
+                - text: Relationships
+              - generic [ref=e150]: "0"
+            - generic [ref=e151]:
+              - generic [ref=e153]:
+                - img [ref=e154]
+                - text: Chunks
+              - generic [ref=e159]: "0"
+          - generic [ref=e160]:
+            - generic [ref=e161]:
+              - generic [ref=e162]:
+                - generic [ref=e163]:
+                  - img [ref=e164]
+                  - text: LLM Configuration
+                - generic [ref=e172]: Model used for entity extraction and summarization during document ingestion.
+              - generic [ref=e174]:
+                - img [ref=e175]
+                - generic [ref=e178]:
+                  - generic [ref=e179]: gemma3:12b
+                  - generic [ref=e180]: ollama
+                - generic [ref=e181]: ollama/gemma3:12b
+            - generic [ref=e182]:
+              - generic [ref=e183]:
+                - generic [ref=e184]:
+                  - img [ref=e185]
+                  - text: Embedding Configuration
+                - generic [ref=e189]: Model used for vector embeddings of document chunks.
+              - generic [ref=e191]:
+                - img [ref=e192]
+                - generic [ref=e195]:
+                  - generic [ref=e196]: embeddinggemma
+                  - generic [ref=e197]:
+                    - text: ollama
+                    - generic [ref=e198]: • 768 dims
+                - generic [ref=e199]: ollama/embeddinggemma
+          - generic [ref=e200]:
+            - generic [ref=e201]:
+              - generic [ref=e202]:
+                - img [ref=e203]
+                - text: Provider Status
+              - generic [ref=e206]: Real-time availability of configured LLM and embedding providers.
+            - generic [ref=e208]:
+              - generic [ref=e209]:
+                - img
+                - generic [ref=e210]: OpenAI
+                - generic [ref=e211]: (10)
+              - generic [ref=e212]:
+                - img
+                - generic [ref=e213]: Ollama
+                - generic [ref=e214]: (19)
+              - generic [ref=e215]:
+                - img
+                - generic [ref=e216]: LM Studio
+                - generic [ref=e217]: (9)
+              - generic [ref=e218]:
+                - img
+                - generic [ref=e219]: Mock Provider
+                - generic [ref=e220]: (2)
+          - generic [ref=e221]:
+            - generic [ref=e222]:
+              - generic [ref=e223]:
+                - img [ref=e224]
+                - text: Workspace Actions
+              - generic [ref=e227]: Manage workspace data and re-process documents.
+            - generic [ref=e228]:
+              - generic [ref=e229]:
+                - generic [ref=e230]:
+                  - generic [ref=e231]:
+                    - generic [ref=e232]:
+                      - img [ref=e233]
+                      - text: Workspace Embeddings
+                    - generic [ref=e236]: Rebuild vector embeddings when changing embedding models or providers.
+                  - generic [ref=e238]:
+                    - generic [ref=e239]:
+                      - generic [ref=e240]:
+                        - generic [ref=e241]: "Current Model:"
+                        - generic [ref=e242]: ollama/embeddinggemma
+                      - generic [ref=e243]:
+                        - generic [ref=e244]: "Dimension:"
+                        - generic [ref=e245]: "768"
+                    - button "Rebuild Embeddings" [ref=e246]:
+                      - img
+                      - text: Rebuild Embeddings
+                - generic [ref=e247]:
+                  - generic [ref=e248]:
+                    - generic [ref=e249]:
+                      - img [ref=e250]
+                      - text: Rebuild Knowledge Graph
+                    - generic [ref=e255]: Clear and rebuild the knowledge graph when changing LLM models or fixing corrupted data. This will delete all entities and relationships.
+                  - button "Rebuild Knowledge Graph" [ref=e257]:
+                    - img
+                    - text: Rebuild Knowledge Graph
+              - generic [ref=e261]:
+                - generic [ref=e262]:
+                  - generic [ref=e263]: Workspace ID
+                  - code [ref=e264]: 8dfb7271-224a-415e-bfcf-217956073745
+                - generic [ref=e265]:
+                  - generic [ref=e266]: Slug
+                  - code [ref=e267]: workspace-1-1768556019883
+                - generic [ref=e268]:
+                  - generic [ref=e269]: Created
+                  - generic [ref=e270]: 1/16/2026
+                - generic [ref=e271]:
+                  - generic [ref=e272]: Updated
+                  - generic [ref=e273]: 1/16/2026
+          - generic [ref=e274]:
+            - img [ref=e275]
+            - text: Workspace ready for queries and document ingestion
+  - region "Notifications alt+T"
+```

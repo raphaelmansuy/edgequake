@@ -228,35 +228,110 @@ pub struct LlmConfig {
 
 ### Environment Variables
 
-| Variable                    | Default                  | Description                  |
-| --------------------------- | ------------------------ | ---------------------------- |
-| `OPENAI_API_KEY`            | -                        | OpenAI API key               |
-| `EDGEQUAKE_LLM_PROVIDER`    | `openai`                 | Provider: `openai`, `ollama` |
-| `EDGEQUAKE_LLM_MODEL`       | `gpt-4o-mini`            | LLM model name               |
-| `EDGEQUAKE_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model              |
-| `EDGEQUAKE_EMBEDDING_DIM`   | `1536`                   | Vector dimension             |
-| `EDGEQUAKE_LLM_TEMPERATURE` | `0.0`                    | Generation temperature       |
-| `EDGEQUAKE_LLM_MAX_TOKENS`  | `4096`                   | Max generation tokens        |
-| `OPENAI_BASE_URL`           | -                        | Custom API endpoint          |
-| `OLLAMA_HOST`               | `http://localhost:11434` | Ollama server                |
+| Variable                    | Default                  | Description                                            |
+| --------------------------- | ------------------------ | ------------------------------------------------------ |
+| `EDGEQUAKE_LLM_PROVIDER`    | Auto-detect              | Provider: `openai`, `ollama`, `lmstudio`, `mock`       |
+| `OPENAI_API_KEY`            | -                        | OpenAI API key (required for OpenAI provider)          |
+| `OLLAMA_HOST`               | `http://localhost:11434` | Ollama server URL                                      |
+| `OLLAMA_MODEL`              | `gemma3:12b`             | Ollama LLM model (updated from llama3)                 |
+| `OLLAMA_EMBEDDING_MODEL`    | `embeddinggemma:latest`  | Ollama embedding model (updated from nomic-embed-text) |
+| `EDGEQUAKE_LLM_MODEL`       | `gpt-4o-mini`            | LLM model name (provider-specific)                     |
+| `EDGEQUAKE_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model name                                   |
+| `EDGEQUAKE_EMBEDDING_DIM`   | Auto-detect              | Vector dimension (1536 for OpenAI, 768 for Ollama)     |
+| `EDGEQUAKE_LLM_TEMPERATURE` | `0.0`                    | Generation temperature (0-2)                           |
+| `EDGEQUAKE_LLM_MAX_TOKENS`  | `4096`                   | Max generation tokens                                  |
+| `OPENAI_BASE_URL`           | -                        | Custom API endpoint (for LM Studio or Azure OpenAI)    |
+
+### Provider Auto-Detection
+
+EdgeQuake automatically selects the LLM provider based on environment variables using the following priority chain:
+
+1. **Explicit Selection**: If `EDGEQUAKE_LLM_PROVIDER` is set, use that provider
+2. **Ollama Detection**: If `OLLAMA_HOST` or `OLLAMA_MODEL` is set, use Ollama provider
+3. **OpenAI Detection**: If `OPENAI_API_KEY` is set, use OpenAI provider
+4. **Fallback**: Use Mock provider (testing only, no external dependencies)
+
+**Example Priority:**
+
+```bash
+# Case 1: Explicit selection (highest priority)
+export EDGEQUAKE_LLM_PROVIDER=ollama
+export OPENAI_API_KEY=sk-...  # Ignored, Ollama selected
+
+# Case 2: Auto-detect Ollama
+export OLLAMA_HOST=http://localhost:11434  # Ollama selected
+
+# Case 3: Auto-detect OpenAI
+export OPENAI_API_KEY=sk-...  # OpenAI selected
+
+# Case 4: Fallback to Mock
+# (no environment variables set)  # Mock provider used
+```
+
+### Embedding Dimension Compatibility
+
+Different embedding models have different vector dimensions. EdgeQuake auto-detects the dimension from the selected provider:
+
+| Provider  | Model                  | Dimension | Auto-Detected |
+| --------- | ---------------------- | --------- | ------------- |
+| OpenAI    | text-embedding-3-small | 1536      | ✅ Yes        |
+| OpenAI    | text-embedding-3-large | 3072      | ✅ Yes        |
+| Ollama    | embeddinggemma:latest  | 768       | ✅ Yes        |
+| Ollama    | nomic-embed-text       | 768       | ✅ Yes        |
+| Mock      | (testing)              | 1536      | ✅ Yes        |
+| LM Studio | (varies by model)      | 1536 typ. | ✅ Yes        |
+
+⚠️ **Important**: Switching providers with different dimensions requires database recreation or migration. Existing vectors in PostgreSQL must match the new embedding dimension.
 
 ### Provider Examples
 
-**OpenAI:**
+**OpenAI (Cloud):**
 
 ```bash
+# Recommended: Explicit provider selection
+export EDGEQUAKE_LLM_PROVIDER=openai
 export OPENAI_API_KEY="sk-..."
 export EDGEQUAKE_LLM_MODEL="gpt-4o-mini"
 export EDGEQUAKE_EMBEDDING_MODEL="text-embedding-3-small"
+
+# Alternative: Auto-detection via API key
+export OPENAI_API_KEY="sk-..."  # Auto-selects OpenAI
 ```
 
-**Ollama:**
+**Ollama (Local - Updated Defaults):**
 
 ```bash
-export EDGEQUAKE_LLM_PROVIDER="ollama"
+# Recommended: Use new Gemma3 defaults (auto-configured)
+export EDGEQUAKE_LLM_PROVIDER=ollama
 export OLLAMA_HOST="http://localhost:11434"
-export EDGEQUAKE_LLM_MODEL="llama3.2:3b"
-export EDGEQUAKE_EMBEDDING_MODEL="nomic-embed-text"
+# Automatically uses:
+#   - Model: gemma3:12b (upgraded from llama3)
+#   - Embedding: embeddinggemma:latest (upgraded from nomic-embed-text)
+
+# Alternative: Custom models
+export OLLAMA_HOST="http://localhost:11434"
+export OLLAMA_MODEL="llama3.1:70b"
+export OLLAMA_EMBEDDING_MODEL="nomic-embed-text"
+# Note: Vector dimension is 768 (auto-detected)
+```
+
+**LM Studio (Local - OpenAI Compatible):**
+
+```bash
+# Start LM Studio and enable "Server" mode on port 1234
+export EDGEQUAKE_LLM_PROVIDER=lmstudio
+export OPENAI_BASE_URL="http://localhost:1234/v1"
+export OPENAI_API_KEY="lm-studio"  # Can be any value
+export OPENAI_MODEL="gemma-3n-e4b-it-mlxmodel"  # Example model
+# Note: LM Studio uses OpenAI-compatible API
+```
+
+**Mock Provider (Testing):**
+
+```bash
+# Explicitly use mock provider (no API calls)
+export EDGEQUAKE_LLM_PROVIDER=mock
+# Or: Don't set any provider environment variables (auto-fallback to mock)
 ```
 
 ---

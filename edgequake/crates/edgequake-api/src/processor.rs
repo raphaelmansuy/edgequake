@@ -8,45 +8,89 @@
 //! - [`FEAT0470`]: Async document processing
 //! - [`FEAT0471`]: Pipeline integration
 //! - [`FEAT0472`]: Progress tracking via PipelineState
+//! - [`SPEC-032`]: Workspace-specific LLM/embedding provider selection
+//! - [`OODA-198`]: Provider lineage tracking
 //!
 //! ## Use Cases
 //!
 //! - [`UC2070`]: System processes document asynchronously
 //! - [`UC2071`]: System updates storage after processing
+//! - [`UC2072`]: System uses workspace-configured LLM/embedding for processing
 //!
 //! ## Enforces
 //!
 //! - [`BR0470`]: Task queue integration
 //! - [`BR0471`]: Error propagation to task result
+//! - [`BR0472`]: Documents processed with workspace-specific providers
 
 use std::sync::Arc;
 
-use edgequake_pipeline::Pipeline;
-use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage};
+use crate::state::SharedWorkspaceService;
+use edgequake_llm::ModelsConfig;
+use edgequake_pipeline::{LLMExtractor, Pipeline};
+use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage, WorkspaceVectorRegistry};
 use edgequake_tasks::{PipelineState, Task, TaskProcessor, TaskResult, TaskType, TextInsertData};
 use serde_json::json;
 use tracing::{error, info, warn};
 
+/// SPEC-032/OODA-198: Provider lineage information for tracking which
+/// providers were used to process a document.
+#[derive(Debug, Clone, Default)]
+pub struct ProviderLineage {
+    /// LLM provider used for entity extraction.
+    pub extraction_provider: String,
+    /// LLM model used for entity extraction.
+    pub extraction_model: String,
+    /// Embedding provider used.
+    pub embedding_provider: String,
+    /// Embedding model used.
+    pub embedding_model: String,
+    /// Embedding dimension.
+    pub embedding_dimension: usize,
+}
+
 /// Document task processor that processes documents through the pipeline.
+///
+/// SPEC-032: This processor supports workspace-specific LLM and embedding providers.
+/// When a task includes workspace_id in its metadata, the processor will:
+/// 1. Look up the workspace configuration
+/// 2. Create a workspace-specific pipeline with the configured providers
+/// 3. Process the document using those providers
+/// 4. Store embeddings in workspace-specific vector storage (via vector_registry)
+///
+/// This ensures that rebuild/reprocess operations use the workspace's configured
+/// models, not the server's default models.
 pub struct DocumentTaskProcessor {
-    /// Processing pipeline.
+    /// Default processing pipeline (fallback when workspace not specified).
     pipeline: Arc<Pipeline>,
     /// KV storage for document metadata and chunks.
     kv_storage: Arc<dyn KVStorage>,
-    /// Vector storage for chunk embeddings.
+    /// Vector storage for chunk embeddings (legacy fallback).
     vector_storage: Arc<dyn VectorStorage>,
+    /// Workspace vector registry for per-workspace vector storage.
+    /// WHY: Different workspaces can have different embedding dimensions.
+    vector_registry: Arc<dyn WorkspaceVectorRegistry>,
     /// Graph storage for entities and relationships.
     graph_storage: Arc<dyn GraphStorage>,
     /// Pipeline state for progress tracking.
     pipeline_state: PipelineState,
+    /// Workspace service for looking up workspace configuration (SPEC-032).
+    workspace_service: Option<SharedWorkspaceService>,
+    /// Models configuration for creating providers (SPEC-032).
+    models_config: Option<Arc<ModelsConfig>>,
+    /// OODA-223: Strict workspace mode - when true, fail if workspace not found.
+    /// When false (memory/test mode), allow fallback to default storage.
+    strict_workspace_mode: bool,
 }
 
 impl DocumentTaskProcessor {
-    /// Create a new document task processor.
+    /// Create a new document task processor (legacy, without workspace support).
+    /// OODA-223: Uses non-strict mode (allows fallback) for backward compatibility.
     pub fn new(
         pipeline: Arc<Pipeline>,
         kv_storage: Arc<dyn KVStorage>,
         vector_storage: Arc<dyn VectorStorage>,
+        vector_registry: Arc<dyn WorkspaceVectorRegistry>,
         graph_storage: Arc<dyn GraphStorage>,
         pipeline_state: PipelineState,
     ) -> Self {
@@ -54,8 +98,454 @@ impl DocumentTaskProcessor {
             pipeline,
             kv_storage,
             vector_storage,
+            vector_registry,
             graph_storage,
             pipeline_state,
+            workspace_service: None,
+            models_config: None,
+            strict_workspace_mode: false, // OODA-223: Legacy mode allows fallback
+        }
+    }
+
+    /// Create a new document task processor with workspace-specific pipeline support.
+    ///
+    /// SPEC-032: This constructor enables workspace-specific LLM and embedding providers.
+    /// When processing tasks with workspace_id in metadata, the processor will use
+    /// the workspace's configured providers instead of the server defaults.
+    ///
+    /// OODA-223: Use `with_workspace_support_strict` for production to ensure workspace
+    /// isolation is enforced.
+    pub fn with_workspace_support(
+        pipeline: Arc<Pipeline>,
+        kv_storage: Arc<dyn KVStorage>,
+        vector_storage: Arc<dyn VectorStorage>,
+        vector_registry: Arc<dyn WorkspaceVectorRegistry>,
+        graph_storage: Arc<dyn GraphStorage>,
+        pipeline_state: PipelineState,
+        workspace_service: SharedWorkspaceService,
+        models_config: Arc<ModelsConfig>,
+    ) -> Self {
+        Self {
+            pipeline,
+            kv_storage,
+            vector_storage,
+            vector_registry,
+            graph_storage,
+            pipeline_state,
+            workspace_service: Some(workspace_service),
+            models_config: Some(models_config),
+            strict_workspace_mode: false, // OODA-223: Legacy mode allows fallback
+        }
+    }
+
+    /// Create a new document task processor with strict workspace isolation.
+    ///
+    /// OODA-223: This constructor enables strict mode where ingestion FAILS if
+    /// workspace storage cannot be obtained. Use this in production to prevent
+    /// data from being stored in the wrong (global) table.
+    pub fn with_workspace_support_strict(
+        pipeline: Arc<Pipeline>,
+        kv_storage: Arc<dyn KVStorage>,
+        vector_storage: Arc<dyn VectorStorage>,
+        vector_registry: Arc<dyn WorkspaceVectorRegistry>,
+        graph_storage: Arc<dyn GraphStorage>,
+        pipeline_state: PipelineState,
+        workspace_service: SharedWorkspaceService,
+        models_config: Arc<ModelsConfig>,
+    ) -> Self {
+        Self {
+            pipeline,
+            kv_storage,
+            vector_storage,
+            vector_registry,
+            graph_storage,
+            pipeline_state,
+            workspace_service: Some(workspace_service),
+            models_config: Some(models_config),
+            strict_workspace_mode: true, // OODA-223: Production mode - fail on workspace errors
+        }
+    }
+
+    /// Get a workspace-specific pipeline if workspace_id is provided and valid.
+    ///
+    /// SPEC-032: Creates a new Pipeline instance configured with the workspace's
+    /// LLM and embedding providers. Falls back to the default pipeline if:
+    /// - No workspace_id provided
+    /// - Workspace not found
+    /// - Failed to create workspace-specific providers
+    async fn get_workspace_pipeline(&self, workspace_id: Option<&str>) -> Arc<Pipeline> {
+        use edgequake_llm::ProviderFactory;
+
+        info!(
+            workspace_id = ?workspace_id,
+            has_workspace_service = self.workspace_service.is_some(),
+            has_models_config = self.models_config.is_some(),
+            "SPEC-032: Getting pipeline for workspace"
+        );
+
+        // If no workspace support configured, use default pipeline
+        let (workspace_service, _models_config): (&SharedWorkspaceService, &Arc<ModelsConfig>) =
+            match (&self.workspace_service, &self.models_config) {
+                (Some(ws), Some(mc)) => (ws, mc),
+                _ => {
+                    warn!("SPEC-032: No workspace support configured, using default pipeline");
+                    return Arc::clone(&self.pipeline);
+                }
+            };
+
+        // If no workspace_id provided, use default pipeline
+        let workspace_id = match workspace_id {
+            Some(id) if !id.is_empty() && id != "default" => id,
+            _ => {
+                info!(
+                    workspace_id = ?workspace_id,
+                    "SPEC-032: No valid workspace_id, using default pipeline"
+                );
+                return Arc::clone(&self.pipeline);
+            }
+        };
+
+        // Parse workspace_id to UUID
+        let workspace_uuid = match uuid::Uuid::parse_str(workspace_id) {
+            Ok(uuid) => uuid,
+            Err(e) => {
+                warn!(
+                    workspace_id = workspace_id,
+                    error = %e,
+                    "Invalid workspace ID format, using default pipeline"
+                );
+                return Arc::clone(&self.pipeline);
+            }
+        };
+
+        // Look up workspace configuration
+        match workspace_service.get_workspace(workspace_uuid).await {
+            Ok(Some(ws)) => {
+                // Try to create workspace-specific LLM provider with safety limits
+                // @implements OODA-189: Explicit error logging for provider failures
+                // @implements FEAT0777: Safety limits for LLM calls
+                let llm_provider_result =
+                    ProviderFactory::create_safe_llm_provider(&ws.llm_provider, &ws.llm_model);
+
+                // Try to create workspace-specific embedding provider with safety limits
+                let embedding_provider_result = ProviderFactory::create_safe_embedding_provider(
+                    &ws.embedding_provider,
+                    &ws.embedding_model,
+                    ws.embedding_dimension,
+                );
+
+                // Check for provider creation failures and log explicit errors
+                match (&llm_provider_result, &embedding_provider_result) {
+                    (Ok(llm), Ok(embedding)) => {
+                        // SUCCESS: Both providers created
+                        info!(
+                            workspace_id = workspace_id,
+                            llm_provider = %ws.llm_provider,
+                            llm_model = %ws.llm_model,
+                            embedding_provider = %ws.embedding_provider,
+                            embedding_model = %ws.embedding_model,
+                            "SPEC-032: Using workspace-specific providers for document processing"
+                        );
+
+                        let extractor = Arc::new(LLMExtractor::new(Arc::clone(llm)));
+                        return Arc::new(
+                            Pipeline::default_pipeline()
+                                .with_extractor(extractor)
+                                .with_embedding_provider(Arc::clone(embedding)),
+                        );
+                    }
+                    (Err(llm_err), Ok(_)) => {
+                        // LLM provider failed - this is a CRITICAL issue
+                        error!(
+                            workspace_id = workspace_id,
+                            llm_provider = %ws.llm_provider,
+                            llm_model = %ws.llm_model,
+                            error = %llm_err,
+                            "CRITICAL: Failed to create workspace LLM provider. \
+                             Document extraction will use DEFAULT provider instead of workspace config. \
+                             This may result in unexpected extraction results."
+                        );
+                    }
+                    (Ok(_), Err(embed_err)) => {
+                        // Embedding provider failed - this is a CRITICAL issue
+                        error!(
+                            workspace_id = workspace_id,
+                            embedding_provider = %ws.embedding_provider,
+                            embedding_model = %ws.embedding_model,
+                            error = %embed_err,
+                            "CRITICAL: Failed to create workspace embedding provider. \
+                             Document embeddings will use DEFAULT provider instead of workspace config. \
+                             This may result in dimension mismatches or unexpected query results."
+                        );
+                    }
+                    (Err(llm_err), Err(embed_err)) => {
+                        // Both providers failed - this is a CRITICAL issue
+                        error!(
+                            workspace_id = workspace_id,
+                            llm_provider = %ws.llm_provider,
+                            llm_model = %ws.llm_model,
+                            llm_error = %llm_err,
+                            embedding_provider = %ws.embedding_provider,
+                            embedding_model = %ws.embedding_model,
+                            embedding_error = %embed_err,
+                            "CRITICAL: Failed to create BOTH workspace providers. \
+                             Document processing will use DEFAULT pipeline instead of workspace config. \
+                             Check API keys and provider configuration."
+                        );
+                    }
+                }
+
+                // Fallback to default pipeline (but with explicit ERROR logging above)
+                warn!(
+                    workspace_id = workspace_id,
+                    llm_config = %ws.llm_full_id(),
+                    embedding_config = %ws.embedding_full_id(),
+                    "Falling back to default pipeline due to provider creation failure"
+                );
+            }
+            Ok(None) => {
+                warn!(
+                    workspace_id = workspace_id,
+                    "Workspace not found, using default pipeline"
+                );
+            }
+            Err(e) => {
+                warn!(
+                    workspace_id = workspace_id,
+                    error = %e,
+                    "Failed to lookup workspace, using default pipeline"
+                );
+            }
+        }
+
+        Arc::clone(&self.pipeline)
+    }
+
+    /// Get workspace-specific vector storage using the registry.
+    ///
+    /// WHY: Different workspaces can have different embedding dimensions (e.g.,
+    /// OpenAI 1536 vs Ollama/nomic 768). The registry creates per-workspace
+    /// vector tables with the correct dimension.
+    ///
+    /// # OODA-223: Behavior depends on `strict_workspace_mode`
+    ///
+    /// - **Strict mode (production)**: Returns error if workspace storage cannot be obtained.
+    /// - **Non-strict mode (tests/legacy)**: Falls back to default storage with warning.
+    ///
+    /// # Lesson Learned (OODA-223)
+    ///
+    /// Silent fallback to default storage caused data to be stored in the
+    /// global table instead of workspace-specific tables, leading to "0 Sources"
+    /// on queries because reads look in workspace tables.
+    async fn get_workspace_vector_storage_strict(
+        &self,
+        workspace_id: &str,
+    ) -> Result<Arc<dyn VectorStorage>, String> {
+        use edgequake_storage::traits::WorkspaceVectorConfig;
+
+        // OODA-223: Check if we should allow fallback
+        let allow_fallback = !self.strict_workspace_mode;
+
+        // Handle empty/default workspace IDs
+        if workspace_id.is_empty() || workspace_id == "default" {
+            if allow_fallback {
+                warn!(
+                    workspace_id = %workspace_id,
+                    strict_mode = self.strict_workspace_mode,
+                    "Empty/default workspace ID - using default storage (non-strict mode)"
+                );
+                return Ok(Arc::clone(&self.vector_storage));
+            }
+            error!(
+                workspace_id = %workspace_id,
+                "CRITICAL INGESTION ERROR: Cannot use 'default' workspace for document ingestion. \
+                 Data must be stored in workspace-specific tables."
+            );
+            return Err("Cannot ingest documents without a valid workspace ID. \
+                 Please ensure workspace context is properly set."
+                .to_string());
+        }
+
+        // Parse workspace UUID
+        let workspace_uuid = match uuid::Uuid::parse_str(workspace_id) {
+            Ok(uuid) => uuid,
+            Err(e) => {
+                if allow_fallback {
+                    warn!(
+                        workspace_id = %workspace_id,
+                        error = %e,
+                        strict_mode = self.strict_workspace_mode,
+                        "Invalid workspace ID format - using default storage (non-strict mode)"
+                    );
+                    return Ok(Arc::clone(&self.vector_storage));
+                }
+                error!(
+                    workspace_id = %workspace_id,
+                    error = %e,
+                    "CRITICAL INGESTION ERROR: Invalid workspace ID format"
+                );
+                return Err(format!(
+                    "Invalid workspace ID format '{}': {}",
+                    workspace_id, e
+                ));
+            }
+        };
+
+        // Check if we already have this workspace's vector storage cached
+        if let Some(storage) = self.vector_registry.get(&workspace_uuid).await {
+            return Ok(storage);
+        }
+
+        // Look up workspace to get embedding dimension
+        let workspace_service = match &self.workspace_service {
+            Some(ws) => ws,
+            None => {
+                if allow_fallback {
+                    warn!(
+                        workspace_id = %workspace_id,
+                        strict_mode = self.strict_workspace_mode,
+                        "No workspace service - using default storage (non-strict mode)"
+                    );
+                    return Ok(Arc::clone(&self.vector_storage));
+                }
+                error!(
+                    workspace_id = %workspace_id,
+                    "CRITICAL INGESTION ERROR: No workspace service available"
+                );
+                return Err(
+                    "Workspace service not configured. Cannot verify workspace exists.".to_string(),
+                );
+            }
+        };
+
+        match workspace_service.get_workspace(workspace_uuid).await {
+            Ok(Some(ws)) => {
+                // Create workspace-specific vector storage with correct dimension
+                let config = WorkspaceVectorConfig {
+                    workspace_id: workspace_uuid,
+                    dimension: ws.embedding_dimension,
+                    namespace: "default".to_string(),
+                };
+
+                match self.vector_registry.get_or_create(config).await {
+                    Ok(storage) => {
+                        info!(
+                            workspace_id = %workspace_id,
+                            dimension = ws.embedding_dimension,
+                            strict_mode = self.strict_workspace_mode,
+                            "Using workspace-specific vector storage"
+                        );
+                        Ok(storage)
+                    }
+                    Err(e) => {
+                        if allow_fallback {
+                            warn!(
+                                workspace_id = %workspace_id,
+                                error = %e,
+                                strict_mode = self.strict_workspace_mode,
+                                "Failed to create workspace storage - using default (non-strict mode)"
+                            );
+                            return Ok(Arc::clone(&self.vector_storage));
+                        }
+                        error!(
+                            workspace_id = %workspace_id,
+                            error = %e,
+                            "CRITICAL INGESTION ERROR: Failed to create workspace vector storage"
+                        );
+                        Err(format!(
+                            "Failed to create vector storage for workspace '{}': {}",
+                            workspace_id, e
+                        ))
+                    }
+                }
+            }
+            Ok(None) => {
+                if allow_fallback {
+                    warn!(
+                        workspace_id = %workspace_id,
+                        strict_mode = self.strict_workspace_mode,
+                        "Workspace not found - using default storage (non-strict mode)"
+                    );
+                    return Ok(Arc::clone(&self.vector_storage));
+                }
+                error!(
+                    workspace_id = %workspace_id,
+                    "CRITICAL INGESTION ERROR: Workspace not found"
+                );
+                Err(format!(
+                    "Workspace '{}' not found. Cannot ingest documents into non-existent workspace.",
+                    workspace_id
+                ))
+            }
+            Err(e) => {
+                if allow_fallback {
+                    warn!(
+                        workspace_id = %workspace_id,
+                        error = %e,
+                        strict_mode = self.strict_workspace_mode,
+                        "Failed to lookup workspace - using default storage (non-strict mode)"
+                    );
+                    return Ok(Arc::clone(&self.vector_storage));
+                }
+                error!(
+                    workspace_id = %workspace_id,
+                    error = %e,
+                    "CRITICAL INGESTION ERROR: Failed to lookup workspace"
+                );
+                Err(format!(
+                    "Failed to lookup workspace '{}': {}",
+                    workspace_id, e
+                ))
+            }
+        }
+    }
+
+    /// SPEC-032/OODA-198: Get provider lineage for a workspace.
+    ///
+    /// Returns the provider configuration that will be used for processing
+    /// documents in this workspace. This enables lineage tracking by storing
+    /// which providers were used for extraction.
+    ///
+    /// Returns default provider config if workspace not found.
+    async fn get_workspace_provider_lineage(&self, workspace_id: Option<&str>) -> ProviderLineage {
+        use edgequake_core::types::{
+            DEFAULT_EMBEDDING_DIMENSION, DEFAULT_EMBEDDING_MODEL, DEFAULT_EMBEDDING_PROVIDER,
+            DEFAULT_LLM_MODEL, DEFAULT_LLM_PROVIDER,
+        };
+
+        // Default lineage (used when workspace not available)
+        let default_lineage = ProviderLineage {
+            extraction_provider: DEFAULT_LLM_PROVIDER.to_string(),
+            extraction_model: DEFAULT_LLM_MODEL.to_string(),
+            embedding_provider: DEFAULT_EMBEDDING_PROVIDER.to_string(),
+            embedding_model: DEFAULT_EMBEDDING_MODEL.to_string(),
+            embedding_dimension: DEFAULT_EMBEDDING_DIMENSION,
+        };
+
+        let workspace_id = match workspace_id {
+            Some(id) if !id.is_empty() && id != "default" => id,
+            _ => return default_lineage,
+        };
+
+        let workspace_uuid = match uuid::Uuid::parse_str(workspace_id) {
+            Ok(uuid) => uuid,
+            Err(_) => return default_lineage,
+        };
+
+        let workspace_service = match &self.workspace_service {
+            Some(ws) => ws,
+            None => return default_lineage,
+        };
+
+        match workspace_service.get_workspace(workspace_uuid).await {
+            Ok(Some(ws)) => ProviderLineage {
+                extraction_provider: ws.llm_provider.clone(),
+                extraction_model: ws.llm_model.clone(),
+                embedding_provider: ws.embedding_provider.clone(),
+                embedding_model: ws.embedding_model.clone(),
+                embedding_dimension: ws.embedding_dimension,
+            },
+            _ => default_lineage,
         }
     }
 
@@ -73,9 +563,31 @@ impl DocumentTaskProcessor {
             .unwrap_or(&data.file_source)
             .to_string();
 
+        // SPEC-032: Extract workspace_id to use workspace-specific pipeline
+        // Prefer the direct field (data.workspace_id), fallback to metadata if needed
+        let workspace_id = if !data.workspace_id.is_empty() && data.workspace_id != "default" {
+            Some(data.workspace_id.as_str())
+        } else {
+            data.metadata
+                .as_ref()
+                .and_then(|m| m.get("workspace_id"))
+                .and_then(|v| v.as_str())
+        };
+
+        // Get workspace-specific pipeline (or default if not available)
+        let pipeline = self.get_workspace_pipeline(workspace_id).await;
+
+        // SPEC-032/OODA-198: Capture provider lineage for tracking
+        let provider_lineage = self.get_workspace_provider_lineage(workspace_id).await;
+
         info!(
-            "Processing document: {} ({})",
-            document_id, data.file_source
+            document_id = %document_id,
+            workspace_id = ?workspace_id,
+            file_source = %data.file_source,
+            extraction_provider = %provider_lineage.extraction_provider,
+            extraction_model = %provider_lineage.extraction_model,
+            embedding_provider = %provider_lineage.embedding_provider,
+            "Processing document with workspace-specific pipeline"
         );
 
         // Update task progress - chunking
@@ -90,8 +602,8 @@ impl DocumentTaskProcessor {
         self.update_document_status(&document_id, "processing", None)
             .await?;
 
-        // Process through pipeline
-        let result = match self.pipeline.process(&document_id, &data.text).await {
+        // Process through pipeline (using workspace-specific or default)
+        let result = match pipeline.process(&document_id, &data.text).await {
             Ok(result) => result,
             Err(e) => {
                 let error_msg = format!("Pipeline processing failed: {}", e);
@@ -160,6 +672,23 @@ impl DocumentTaskProcessor {
             .map(|s| s.to_string())
             .unwrap_or_else(|| data.workspace_id.clone());
 
+        // Get workspace-specific vector storage using the registry
+        // WHY: Different workspaces may have different embedding dimensions
+        // WHY-OODA223: STRICT mode - fail loudly if workspace storage unavailable
+        // to prevent embeddings from being stored in the wrong (global) table
+        let workspace_vector_storage = self
+            .get_workspace_vector_storage_strict(&workspace_id_meta)
+            .await
+            .map_err(|e| {
+                let error_msg = format!(
+                    "CRITICAL: Cannot obtain workspace vector storage for '{}': {}. \
+                         Document ingestion aborted to prevent data isolation violation.",
+                    workspace_id_meta, e
+                );
+                error!("{}", error_msg);
+                edgequake_tasks::TaskError::Process(error_msg)
+            })?;
+
         // Store chunk embeddings in vector storage for semantic search
         let mut chunk_embeddings_stored = 0;
         for chunk in &result.chunks {
@@ -177,8 +706,7 @@ impl DocumentTaskProcessor {
                 }
                 metadata["workspace_id"] = json!(&workspace_id_meta);
 
-                if self
-                    .vector_storage
+                if workspace_vector_storage
                     .upsert(&[(chunk.id.clone(), embedding.clone(), metadata)])
                     .await
                     .is_ok()
@@ -320,8 +848,16 @@ impl DocumentTaskProcessor {
         // Update task progress - indexing complete
         task.update_progress("indexing".to_string(), 4, 100);
 
+        // SPEC-032/OODA-198: Augment stats with provider lineage before storing
+        let mut stats_with_lineage = result.stats.clone();
+        stats_with_lineage.llm_provider = Some(provider_lineage.extraction_provider.clone());
+        stats_with_lineage.llm_model = Some(provider_lineage.extraction_model.clone());
+        stats_with_lineage.embedding_provider = Some(provider_lineage.embedding_provider.clone());
+        stats_with_lineage.embedding_model = Some(provider_lineage.embedding_model.clone());
+        stats_with_lineage.embedding_dimensions = Some(provider_lineage.embedding_dimension);
+
         // Update document status to completed with stats and lineage
-        self.update_document_status_with_stats(&document_id, "completed", &result.stats)
+        self.update_document_status_with_stats(&document_id, "completed", &stats_with_lineage)
             .await?;
 
         // Log success
@@ -423,8 +959,16 @@ impl DocumentTaskProcessor {
                 if let Some(ref llm_model) = stats.llm_model {
                     updated.insert("llm_model".to_string(), json!(llm_model));
                 }
+                // SPEC-032/OODA-198: Store LLM provider for lineage tracking
+                if let Some(ref llm_provider) = stats.llm_provider {
+                    updated.insert("llm_provider".to_string(), json!(llm_provider));
+                }
                 if let Some(ref embedding_model) = stats.embedding_model {
                     updated.insert("embedding_model".to_string(), json!(embedding_model));
+                }
+                // SPEC-032/OODA-198: Store embedding provider for lineage tracking
+                if let Some(ref embedding_provider) = stats.embedding_provider {
+                    updated.insert("embedding_provider".to_string(), json!(embedding_provider));
                 }
                 if let Some(ref embedding_dimensions) = stats.embedding_dimensions {
                     updated.insert(
@@ -509,7 +1053,9 @@ impl TaskProcessor for DocumentTaskProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use edgequake_storage::{MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage};
+    use edgequake_storage::{
+        MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage, MemoryWorkspaceVectorRegistry,
+    };
 
     /// Create a test pipeline instance using default configuration
     fn create_test_pipeline() -> Arc<Pipeline> {
@@ -520,22 +1066,33 @@ mod tests {
     fn create_test_storages() -> (
         Arc<dyn KVStorage>,
         Arc<dyn VectorStorage>,
+        Arc<dyn WorkspaceVectorRegistry>,
         Arc<dyn GraphStorage>,
     ) {
         let kv = Arc::new(MemoryKVStorage::new("test_processor"));
         // MemoryVectorStorage requires dimension - use 1536 (common embedding size)
-        let vector = Arc::new(MemoryVectorStorage::new("test_processor", 1536));
+        let vector: Arc<dyn VectorStorage> =
+            Arc::new(MemoryVectorStorage::new("test_processor", 1536));
+        let vector_registry: Arc<dyn WorkspaceVectorRegistry> =
+            Arc::new(MemoryWorkspaceVectorRegistry::new(Arc::clone(&vector)));
         let graph = Arc::new(MemoryGraphStorage::new("test_processor"));
-        (kv, vector, graph)
+        (kv, vector, vector_registry, graph)
     }
 
     #[test]
     fn test_document_task_processor_new() {
         let pipeline = create_test_pipeline();
-        let (kv, vector, graph) = create_test_storages();
+        let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
-        let processor = DocumentTaskProcessor::new(pipeline, kv, vector, graph, pipeline_state);
+        let processor = DocumentTaskProcessor::new(
+            pipeline,
+            kv,
+            vector,
+            vector_registry,
+            graph,
+            pipeline_state,
+        );
 
         // Verify processor was created successfully
         assert!(std::mem::size_of_val(&processor) > 0);
@@ -544,10 +1101,17 @@ mod tests {
     #[tokio::test]
     async fn test_processor_trait_implementation() {
         let pipeline = create_test_pipeline();
-        let (kv, vector, graph) = create_test_storages();
+        let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
-        let processor = DocumentTaskProcessor::new(pipeline, kv, vector, graph, pipeline_state);
+        let processor = DocumentTaskProcessor::new(
+            pipeline,
+            kv,
+            vector,
+            vector_registry,
+            graph,
+            pipeline_state,
+        );
 
         // Verify TaskProcessor trait is implemented
         let _: &dyn TaskProcessor = &processor;
@@ -556,10 +1120,17 @@ mod tests {
     #[tokio::test]
     async fn test_process_scan_task_returns_unsupported() {
         let pipeline = create_test_pipeline();
-        let (kv, vector, graph) = create_test_storages();
+        let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
-        let processor = DocumentTaskProcessor::new(pipeline, kv, vector, graph, pipeline_state);
+        let processor = DocumentTaskProcessor::new(
+            pipeline,
+            kv,
+            vector,
+            vector_registry,
+            graph,
+            pipeline_state,
+        );
 
         let mut task = Task::new(TaskType::Scan, json!({}));
 
@@ -576,10 +1147,17 @@ mod tests {
     #[tokio::test]
     async fn test_process_reindex_task_returns_unsupported() {
         let pipeline = create_test_pipeline();
-        let (kv, vector, graph) = create_test_storages();
+        let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
-        let processor = DocumentTaskProcessor::new(pipeline, kv, vector, graph, pipeline_state);
+        let processor = DocumentTaskProcessor::new(
+            pipeline,
+            kv,
+            vector,
+            vector_registry,
+            graph,
+            pipeline_state,
+        );
 
         let mut task = Task::new(TaskType::Reindex, json!({}));
 
@@ -596,10 +1174,17 @@ mod tests {
     #[tokio::test]
     async fn test_process_insert_with_invalid_payload() {
         let pipeline = create_test_pipeline();
-        let (kv, vector, graph) = create_test_storages();
+        let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
-        let processor = DocumentTaskProcessor::new(pipeline, kv, vector, graph, pipeline_state);
+        let processor = DocumentTaskProcessor::new(
+            pipeline,
+            kv,
+            vector,
+            vector_registry,
+            graph,
+            pipeline_state,
+        );
 
         // Create task with invalid data (missing required fields)
         let invalid_data = json!({
@@ -621,7 +1206,7 @@ mod tests {
     #[tokio::test]
     async fn test_update_document_status() {
         let pipeline = create_test_pipeline();
-        let (kv, vector, graph) = create_test_storages();
+        let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
         // Pre-populate metadata
@@ -637,8 +1222,14 @@ mod tests {
         .await
         .unwrap();
 
-        let processor =
-            DocumentTaskProcessor::new(pipeline, kv.clone(), vector, graph, pipeline_state);
+        let processor = DocumentTaskProcessor::new(
+            pipeline,
+            kv.clone(),
+            vector,
+            vector_registry,
+            graph,
+            pipeline_state,
+        );
 
         // Update status to processing
         let result = processor
@@ -654,7 +1245,7 @@ mod tests {
     #[tokio::test]
     async fn test_update_document_status_with_error_message() {
         let pipeline = create_test_pipeline();
-        let (kv, vector, graph) = create_test_storages();
+        let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
         let doc_id = "test-doc-error";
@@ -669,8 +1260,14 @@ mod tests {
         .await
         .unwrap();
 
-        let processor =
-            DocumentTaskProcessor::new(pipeline, kv.clone(), vector, graph, pipeline_state);
+        let processor = DocumentTaskProcessor::new(
+            pipeline,
+            kv.clone(),
+            vector,
+            vector_registry,
+            graph,
+            pipeline_state,
+        );
 
         // Update status with error
         let result = processor
@@ -687,10 +1284,17 @@ mod tests {
     #[tokio::test]
     async fn test_update_document_status_nonexistent_doc() {
         let pipeline = create_test_pipeline();
-        let (kv, vector, graph) = create_test_storages();
+        let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
-        let processor = DocumentTaskProcessor::new(pipeline, kv, vector, graph, pipeline_state);
+        let processor = DocumentTaskProcessor::new(
+            pipeline,
+            kv,
+            vector,
+            vector_registry,
+            graph,
+            pipeline_state,
+        );
 
         // Try to update status for non-existent document
         let result = processor
@@ -705,13 +1309,14 @@ mod tests {
     fn test_processor_fields_are_arc() {
         // Verify that processor uses Arc for shared ownership
         let pipeline = create_test_pipeline();
-        let (kv, vector, graph) = create_test_storages();
+        let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
         let _processor = DocumentTaskProcessor::new(
             pipeline.clone(),
             kv.clone(),
             vector.clone(),
+            vector_registry.clone(),
             graph.clone(),
             pipeline_state,
         );
@@ -728,10 +1333,17 @@ mod tests {
     async fn test_task_types_are_distinct() {
         // Verify all task types are handled distinctly
         let pipeline = create_test_pipeline();
-        let (kv, vector, graph) = create_test_storages();
+        let (kv, vector, vector_registry, graph) = create_test_storages();
         let pipeline_state = PipelineState::new();
 
-        let processor = DocumentTaskProcessor::new(pipeline, kv, vector, graph, pipeline_state);
+        let processor = DocumentTaskProcessor::new(
+            pipeline,
+            kv,
+            vector,
+            vector_registry,
+            graph,
+            pipeline_state,
+        );
 
         // Test that each unsupported task type goes through the right path
         let types = [TaskType::Scan, TaskType::Reindex];

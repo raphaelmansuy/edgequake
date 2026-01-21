@@ -31,142 +31,142 @@
             - /url: /query
             - img [ref=e44]
             - generic [ref=e46]: Query
-          - link "Costs" [ref=e47] [cursor=pointer]:
-            - /url: /costs
+          - link "Workspace" [ref=e47] [cursor=pointer]:
+            - /url: /workspace
             - img [ref=e48]
-            - generic [ref=e50]: Costs
-          - link "API Explorer" [ref=e51] [cursor=pointer]:
-            - /url: /api-explorer
+            - generic [ref=e50]: Workspace
+          - link "Costs" [ref=e51] [cursor=pointer]:
+            - /url: /costs
             - img [ref=e52]
-            - generic [ref=e54]: API Explorer
-          - link "Settings" [ref=e55] [cursor=pointer]:
-            - /url: /settings
+            - generic [ref=e54]: Costs
+          - link "API Explorer" [ref=e55] [cursor=pointer]:
+            - /url: /api-explorer
             - img [ref=e56]
-            - generic [ref=e59]: Settings
-        - generic [ref=e60]:
-          - button "Collapse sidebar" [ref=e61]:
+            - generic [ref=e58]: API Explorer
+          - link "Settings" [ref=e59] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e60]
+            - generic [ref=e63]: Settings
+        - generic [ref=e64]:
+          - button "Collapse sidebar" [ref=e65]:
             - img
-            - generic [ref=e62]: Collapse
-          - generic [ref=e63]:
-            - img [ref=e65]
-            - generic [ref=e70]:
-              - generic [ref=e71]: EdgeQuake
-              - generic [ref=e72]: v0.1.0
-    - generic [ref=e73]:
-      - banner [ref=e74]:
-        - button "Default Workspac..." [ref=e77]:
+            - generic [ref=e66]: Collapse
+          - generic [ref=e67]:
+            - img [ref=e69]
+            - generic [ref=e74]:
+              - generic [ref=e75]: EdgeQuake
+              - generic [ref=e76]: v0.1.0
+    - generic [ref=e77]:
+      - banner [ref=e78]:
+        - button "Default Workspac..." [ref=e81]:
           - img
-          - generic [ref=e78]: Default Workspac...
+          - generic [ref=e82]: Default Workspac...
           - img
-        - generic [ref=e79]:
-          - generic [ref=e80]:
-            - img [ref=e81]
-            - generic [ref=e83]: v0.1.0
-          - button "Change language" [ref=e84]:
+        - generic [ref=e83]:
+          - generic [ref=e84]:
+            - img [ref=e85]
+            - generic [ref=e87]: v0.1.0
+          - button "Change language" [ref=e88]:
             - img
-            - generic [ref=e85]: Change language
-          - button "Toggle theme" [ref=e86]:
+            - generic [ref=e89]: Change language
+          - button "Toggle theme" [ref=e90]:
             - img
-            - generic [ref=e87]: Toggle theme
-          - button "User menu" [ref=e88]:
+            - generic [ref=e91]: Toggle theme
+          - button "User menu" [ref=e92]:
             - img
-            - generic [ref=e89]: User menu
-      - navigation "breadcrumb" [ref=e91]:
-        - list [ref=e92]:
-          - listitem [ref=e93]:
-            - link "EdgeQuake" [ref=e94] [cursor=pointer]:
+            - generic [ref=e93]: User menu
+      - navigation "breadcrumb" [ref=e95]:
+        - list [ref=e96]:
+          - listitem [ref=e97]:
+            - link "EdgeQuake" [ref=e98] [cursor=pointer]:
               - /url: /
-              - img [ref=e95]
-              - generic [ref=e98]: EdgeQuake
-          - listitem [ref=e99]:
-            - img [ref=e100]
-          - listitem [ref=e102]:
-            - link "Query" [disabled] [ref=e103]:
-              - img [ref=e104]
-              - generic [ref=e106]: Query
-      - main [ref=e107]:
-        - generic [ref=e108]:
-          - generic [ref=e109]:
-            - generic [ref=e110]:
-              - generic [ref=e111]:
-                - heading "Query" [level=1] [ref=e112]
-                - generic [ref=e113]: Ask questions about your knowledge graph
-              - generic [ref=e114]:
-                - button "New" [ref=e115]:
+              - img [ref=e99]
+              - generic [ref=e102]: EdgeQuake
+          - listitem [ref=e103]:
+            - img [ref=e104]
+          - listitem [ref=e106]:
+            - link "Query" [disabled] [ref=e107]:
+              - img [ref=e108]
+              - generic [ref=e110]: Query
+      - main [ref=e111]:
+        - generic [ref=e112]:
+          - generic [ref=e113]:
+            - generic [ref=e114]:
+              - generic [ref=e115]:
+                - heading "Query" [level=1] [ref=e116]
+                - generic [ref=e117]: Ask questions about your knowledge graph
+              - generic [ref=e118]:
+                - button "New" [ref=e119]:
                   - img
                   - text: New
-                - generic [ref=e116]:
-                  - button "Select Local query mode" [ref=e117]:
-                    - img [ref=e118]
-                    - generic [ref=e122]: Local
-                  - button "Select Global query mode" [ref=e123]:
-                    - img [ref=e124]
-                    - generic [ref=e127]: Global
-                  - button "Select Hybrid query mode" [pressed] [ref=e128]:
-                    - img [ref=e129]
-                    - generic [ref=e133]: Hybrid
-                  - button "Select Simple query mode" [ref=e134]:
+                - combobox [ref=e120]:
+                  - generic [ref=e121]:
+                    - img [ref=e122]
+                    - generic [ref=e130]: Server Default
+                  - img [ref=e131]
+                - generic [ref=e133]:
+                  - button "Select Local query mode" [ref=e134]:
                     - img [ref=e135]
-                    - generic [ref=e137]: Simple
-                - button [ref=e138]:
+                    - generic [ref=e139]: Local
+                  - button "Select Global query mode" [ref=e140]:
+                    - img [ref=e141]
+                    - generic [ref=e144]: Global
+                  - button "Select Hybrid query mode" [pressed] [ref=e145]:
+                    - img [ref=e146]
+                    - generic [ref=e150]: Hybrid
+                  - button "Select Simple query mode" [ref=e151]:
+                    - img [ref=e152]
+                    - generic [ref=e154]: Simple
+                - button [ref=e155]:
                   - img
-            - generic [ref=e143]:
-              - generic [ref=e145]:
-                - paragraph [ref=e147]: Explain what EdgeQuake is in one paragraph
-                - img [ref=e150]
-              - generic [ref=e154]:
-                - img [ref=e157]
-                - generic [ref=e160]:
-                  - generic [ref=e161]:
-                    - generic [ref=e162]: EdgeQuake
-                    - generic [ref=e163]: 06:42 PM
-                  - paragraph [ref=e168]: I'm sorry, but I couldn't find any relevant information in my knowledge base to answer your question.
-                  - generic [ref=e169]:
-                    - generic [ref=e170]:
-                      - generic [ref=e171]:
-                        - img [ref=e172]
-                        - text: "25"
-                      - generic [ref=e174]:
-                        - img [ref=e175]
-                        - text: 3.0s
-                    - generic [ref=e178]:
-                      - button [ref=e179]:
+            - generic [ref=e160]:
+              - generic [ref=e162]:
+                - paragraph [ref=e164]: Explain what EdgeQuake is in one paragraph
+                - img [ref=e167]
+              - generic [ref=e171]:
+                - img [ref=e174]
+                - generic [ref=e177]:
+                  - generic [ref=e178]:
+                    - generic [ref=e179]: EdgeQuake
+                    - generic [ref=e180]: 05:31 PM
+                  - paragraph [ref=e182]: "LLM error: API error: The model `embeddinggemma` does not exist or you do not have access to it."
+                  - generic [ref=e183]:
+                    - generic [ref=e185]: hybrid
+                    - generic [ref=e186]:
+                      - button [ref=e187]:
                         - img
-                      - button [ref=e180]:
+                      - button [ref=e188]:
                         - img
-            - form "Query form" [ref=e182]:
-              - generic [ref=e183]:
-                - generic [ref=e184]:
-                  - textbox "Ask a question..." [ref=e185]
-                  - generic [ref=e186]: Press Enter to send, Shift+Enter for new line
-                  - generic [ref=e187]:
+            - form "Query form" [ref=e190]:
+              - generic [ref=e191]:
+                - generic [ref=e192]:
+                  - textbox "Ask a question..." [ref=e193]
+                  - generic [ref=e194]: Press Enter to send, Shift+Enter for new line
+                  - generic [ref=e195]:
                     - button "Send" [disabled]:
                       - img
-                - paragraph [ref=e188]: Press Enter to send, Shift+Enter for new line
-          - complementary "History" [ref=e189]:
-            - generic [ref=e190]:
-              - heading "History" [level=2] [ref=e191]
-              - generic [ref=e192]:
-                - button "New conversation" [ref=e193]:
+                - paragraph [ref=e196]: Press Enter to send, Shift+Enter for new line
+          - complementary "History" [ref=e197]:
+            - generic [ref=e198]:
+              - heading "History" [level=2] [ref=e199]
+              - generic [ref=e200]:
+                - button "New conversation" [ref=e201]:
                   - img
-                - button "Collapse history" [ref=e194]:
+                - button "Collapse history" [ref=e202]:
                   - img
-            - generic [ref=e196]:
-              - img [ref=e197]
-              - textbox "Search conversations..." [ref=e200]
-            - generic [ref=e202]:
-              - button "All Conversations" [ref=e203] [cursor=pointer]:
-                - img [ref=e204]
-                - generic [ref=e207]: All Conversations
-              - button "New Folder" [ref=e208]:
+            - generic [ref=e204]:
+              - img [ref=e205]
+              - textbox "Search conversations..." [ref=e208]
+            - generic [ref=e210]:
+              - button "All Conversations" [ref=e211] [cursor=pointer]:
+                - img [ref=e212]
+                - generic [ref=e215]: All Conversations
+              - button "New Folder" [ref=e216]:
                 - img
                 - text: New Folder
-            - button "New Conversation 0 messages · 06:42 PM More options" [pressed] [ref=e212] [cursor=pointer]:
-              - img [ref=e214]
-              - generic [ref=e216]:
-                - paragraph [ref=e218]: New Conversation
-                - paragraph [ref=e219]: 0 messages · 06:42 PM
-              - button "More options" [ref=e220]:
-                - img
+            - generic [ref=e218]:
+              - img [ref=e220]
+              - paragraph [ref=e222]: No conversations yet
+              - button "Start your first conversation" [ref=e223]
   - region "Notifications alt+T"
 ```

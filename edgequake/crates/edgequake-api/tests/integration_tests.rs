@@ -607,3 +607,164 @@ async fn test_request_id_header_added() {
     // Note: Depending on implementation, this may or may not be present
     assert!(response.status().is_success());
 }
+
+// ============ Models Configuration Endpoint Tests ============
+
+#[tokio::test]
+async fn test_models_list_endpoint() {
+    let server = create_test_server();
+    let app = server.build_router();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/models")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let json = parse_json(response).await;
+    assert!(json.get("providers").is_some());
+    assert!(json.get("default_llm_provider").is_some());
+    assert!(json.get("default_embedding_provider").is_some());
+}
+
+#[tokio::test]
+async fn test_models_llm_endpoint() {
+    let server = create_test_server();
+    let app = server.build_router();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/models/llm")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let json = parse_json(response).await;
+    assert!(json.get("models").is_some());
+    assert!(json.get("default_provider").is_some());
+    assert!(json.get("default_model").is_some());
+}
+
+#[tokio::test]
+async fn test_models_embedding_endpoint() {
+    let server = create_test_server();
+    let app = server.build_router();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/models/embedding")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let json = parse_json(response).await;
+    assert!(json.get("models").is_some());
+    assert!(json.get("default_provider").is_some());
+    assert!(json.get("default_model").is_some());
+}
+
+#[tokio::test]
+async fn test_models_provider_endpoint() {
+    let server = create_test_server();
+    let app = server.build_router();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/models/openai")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let json = parse_json(response).await;
+    assert!(json.get("name").is_some());
+    assert!(json.get("models").is_some());
+}
+
+#[tokio::test]
+async fn test_models_provider_not_found() {
+    let server = create_test_server();
+    let app = server.build_router();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/models/nonexistent")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_models_model_endpoint() {
+    let server = create_test_server();
+    let app = server.build_router();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/models/openai/gpt-4o")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let json = parse_json(response).await;
+    assert_eq!(json["name"], "gpt-4o");
+    assert!(json.get("capabilities").is_some());
+}
+
+#[tokio::test]
+async fn test_models_health_endpoint() {
+    let server = create_test_server();
+    let app = server.build_router();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/models/health")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let json = parse_json(response).await;
+    assert!(json.as_array().is_some());
+}

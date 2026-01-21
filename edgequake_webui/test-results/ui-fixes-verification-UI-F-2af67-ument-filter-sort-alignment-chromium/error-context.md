@@ -4,7 +4,7 @@
 - generic [active] [ref=e1]:
   - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
     - img [ref=e8]
-  - alert [ref=e11]
+  - alert [ref=e11]: Documents
   - generic [ref=e12]:
     - link "Skip to main content" [ref=e13] [cursor=pointer]:
       - /url: "#main-content"
@@ -31,147 +31,102 @@
             - /url: /query
             - img [ref=e44]
             - generic [ref=e46]: Query
-          - link "Costs" [ref=e47] [cursor=pointer]:
-            - /url: /costs
+          - link "Workspace" [ref=e47] [cursor=pointer]:
+            - /url: /workspace
             - img [ref=e48]
-            - generic [ref=e50]: Costs
-          - link "API Explorer" [ref=e51] [cursor=pointer]:
-            - /url: /api-explorer
+            - generic [ref=e50]: Workspace
+          - link "Costs" [ref=e51] [cursor=pointer]:
+            - /url: /costs
             - img [ref=e52]
-            - generic [ref=e54]: API Explorer
-          - link "Settings" [ref=e55] [cursor=pointer]:
-            - /url: /settings
+            - generic [ref=e54]: Costs
+          - link "API Explorer" [ref=e55] [cursor=pointer]:
+            - /url: /api-explorer
             - img [ref=e56]
-            - generic [ref=e59]: Settings
-        - generic [ref=e60]:
-          - button "Collapse sidebar" [ref=e61]:
+            - generic [ref=e58]: API Explorer
+          - link "Settings" [ref=e59] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e60]
+            - generic [ref=e63]: Settings
+        - generic [ref=e64]:
+          - button "Collapse sidebar" [ref=e65]:
             - img
-            - generic [ref=e62]: Collapse
-          - generic [ref=e63]:
-            - img [ref=e65]
-            - generic [ref=e70]:
-              - generic [ref=e71]: EdgeQuake
-              - generic [ref=e72]: v0.1.0
-    - generic [ref=e73]:
-      - banner [ref=e74]:
-        - button "Default Workspac..." [ref=e77]:
+            - generic [ref=e66]: Collapse
+          - generic [ref=e67]:
+            - img [ref=e69]
+            - generic [ref=e74]:
+              - generic [ref=e75]: EdgeQuake
+              - generic [ref=e76]: v0.1.0
+    - generic [ref=e77]:
+      - banner [ref=e78]:
+        - button "test-invalid-176..." [ref=e81]:
           - img
-          - generic [ref=e78]: Default Workspac...
+          - generic [ref=e82]: test-invalid-176...
           - img
-        - generic [ref=e79]:
-          - generic [ref=e80]:
-            - img [ref=e81]
-            - generic [ref=e83]: v0.1.0
-          - button "Change language" [ref=e84]:
+        - generic [ref=e83]:
+          - generic [ref=e84]:
+            - img [ref=e85]
+            - generic [ref=e87]: v0.1.0
+          - button "Change language" [ref=e88]:
             - img
-            - generic [ref=e85]: Change language
-          - button "Toggle theme" [ref=e86]:
+            - generic [ref=e89]: Change language
+          - button "Toggle theme" [ref=e90]:
             - img
-            - generic [ref=e87]: Toggle theme
-          - button "User menu" [ref=e88]:
+            - generic [ref=e91]: Toggle theme
+          - button "User menu" [ref=e92]:
             - img
-            - generic [ref=e89]: User menu
-      - navigation "breadcrumb" [ref=e91]:
-        - list [ref=e92]:
-          - listitem [ref=e93]:
-            - link "EdgeQuake" [ref=e94] [cursor=pointer]:
+            - generic [ref=e93]: User menu
+      - navigation "breadcrumb" [ref=e95]:
+        - list [ref=e96]:
+          - listitem [ref=e97]:
+            - link "EdgeQuake" [ref=e98] [cursor=pointer]:
               - /url: /
-              - img [ref=e95]
-              - generic [ref=e98]: EdgeQuake
-          - listitem [ref=e99]:
-            - img [ref=e100]
-          - listitem [ref=e102]:
-            - link "Documents" [disabled] [ref=e103]:
-              - img [ref=e104]
-              - generic [ref=e107]: Documents
-      - main [ref=e108]:
-        - generic [ref=e109]:
-          - generic [ref=e110]:
-            - generic [ref=e111]:
-              - generic [ref=e112]:
-                - generic [ref=e113]:
-                  - heading "Documents" [level=1] [ref=e114]
-                  - paragraph [ref=e115]: Upload and manage documents for knowledge graph extraction
-                - generic [ref=e116]:
-                  - button "Refresh" [ref=e117]:
+              - img [ref=e99]
+              - generic [ref=e102]: EdgeQuake
+          - listitem [ref=e103]:
+            - img [ref=e104]
+          - listitem [ref=e106]:
+            - link "Documents" [disabled] [ref=e107]:
+              - img [ref=e108]
+              - generic [ref=e111]: Documents
+      - main [ref=e112]:
+        - generic [ref=e113]:
+          - generic [ref=e114]:
+            - generic [ref=e115]:
+              - generic [ref=e116]:
+                - generic [ref=e117]:
+                  - heading "Documents" [level=1] [ref=e118]
+                  - paragraph [ref=e119]: Upload and manage documents for knowledge graph extraction
+                - button "Refresh" [ref=e121]:
+                  - img
+                  - text: Refresh
+              - generic [ref=e122]:
+                - generic [ref=e123]:
+                  - img [ref=e124]
+                  - textbox "Search documents..." [ref=e127]
+                - generic [ref=e128]:
+                  - combobox [ref=e129]:
+                    - generic: All Status (0)
                     - img
-                    - text: Refresh
-                  - button "Clear All" [ref=e118]:
-                    - img
-                    - text: Clear All
-              - generic [ref=e119]:
-                - generic [ref=e120]:
-                  - img [ref=e121]
-                  - textbox "Search documents..." [ref=e124]
-                - generic [ref=e125]:
-                  - combobox [ref=e126]:
-                    - generic: All Status (1)
-                    - img
-                  - generic [ref=e128]:
-                    - generic [ref=e129]: "Sort by:"
-                    - button "Created" [ref=e130]:
+                  - generic [ref=e131]:
+                    - generic [ref=e132]: "Sort by:"
+                    - button "Created" [ref=e133]:
                       - text: Created
                       - img
-                    - button "Updated" [ref=e131]
-              - generic [ref=e132] [cursor=pointer]:
-                - button "Choose File" [ref=e133]
-                - img [ref=e135]
-                - paragraph [ref=e139]: Drag & drop or click to upload • TXT, MD, JSON (max 10MB)
-            - generic [ref=e141]:
-              - generic [ref=e142]:
-                - img [ref=e143]
-                - generic [ref=e146]: Documents (1)
-              - table [ref=e149]:
-                - rowgroup [ref=e150]:
-                  - row "Select all Title Status Entities Cost Created" [ref=e151]:
-                    - columnheader "Select all" [ref=e152]:
-                      - checkbox "Select all" [ref=e153]
-                    - columnheader "Title" [ref=e154]
-                    - columnheader "Status" [ref=e155]
-                    - columnheader "Entities" [ref=e156]
-                    - columnheader "Cost" [ref=e157]
-                    - columnheader "Created" [ref=e158]
-                    - columnheader [ref=e159]
-                - rowgroup [ref=e160]:
-                  - row "Select test-upload-temp.md Completed 8 0.00030 2 minutes ago" [ref=e161] [cursor=pointer]:
-                    - cell "Select" [ref=e162]:
-                      - checkbox "Select" [ref=e163]
-                    - cell "test-upload-temp.md" [ref=e164]
-                    - cell "Completed" [ref=e165]:
-                      - generic [ref=e166]:
-                        - img
-                        - text: Completed
-                    - cell "8" [ref=e167]
-                    - cell "0.00030" [ref=e168]:
-                      - generic [ref=e169]:
-                        - img
-                        - generic [ref=e170]: "0.00030"
-                    - cell "2 minutes ago" [ref=e171]
-                    - cell [ref=e172]:
-                      - generic [ref=e173]:
-                        - button [ref=e174]:
-                          - img
-                        - button [ref=e175]:
-                          - img
-            - generic [ref=e177]:
-              - generic [ref=e178]:
-                - generic [ref=e179]: "Rows per page:"
-                - combobox [ref=e180]:
-                  - generic: "20"
-                  - img
-              - generic [ref=e181]:
-                - generic [ref=e182]: Page 1 of 1
-                - generic [ref=e183]:
-                  - button [disabled]:
-                    - img
-                  - button [disabled]:
-                    - img
-                  - button [disabled]:
-                    - img
-                  - button [disabled]:
-                    - img
-          - button "Expand Preview" [ref=e184] [cursor=pointer]:
-            - img [ref=e185]
-            - generic [ref=e187]: Preview
+                    - button "Updated" [ref=e134]
+              - generic [ref=e135] [cursor=pointer]:
+                - button "Choose File" [ref=e136]
+                - img [ref=e138]
+                - paragraph [ref=e142]: Drag & drop or click to upload • TXT, MD, JSON (max 10MB)
+            - generic [ref=e144]:
+              - generic [ref=e145]:
+                - img [ref=e146]
+                - generic [ref=e149]: Documents (0)
+              - generic [ref=e150]:
+                - img [ref=e151]
+                - paragraph [ref=e154]: No documents yet
+                - paragraph [ref=e155]: Upload documents to build your knowledge graph
+          - button "Expand Preview" [ref=e156] [cursor=pointer]:
+            - img [ref=e157]
+            - generic [ref=e159]: Preview
   - region "Notifications alt+T"
 ```

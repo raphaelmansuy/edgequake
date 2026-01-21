@@ -533,6 +533,86 @@ impl GraphStorage for MemoryGraphStorage {
 
         Ok(())
     }
+
+    /// Clear nodes and edges for a specific workspace.
+    ///
+    /// Filters by `workspace_id` property in node/edge data.
+    /// Returns (nodes_deleted, edges_deleted).
+    async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<(usize, usize)> {
+        let mut nodes = self
+            .nodes
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut edges = self
+            .edges
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut adjacency = self
+            .adjacency
+            .write()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+
+        let workspace_id_str = workspace_id.to_string();
+
+        // Collect node IDs to remove (nodes are HashMap<String, Value>)
+        let node_ids_to_remove: Vec<String> = nodes
+            .iter()
+            .filter_map(|(id, props)| {
+                if let Some(ws_id) = props.get("workspace_id").and_then(|v| v.as_str()) {
+                    if ws_id == workspace_id_str {
+                        return Some(id.clone());
+                    }
+                }
+                None
+            })
+            .collect();
+
+        let nodes_deleted = node_ids_to_remove.len();
+
+        // Remove nodes
+        for id in &node_ids_to_remove {
+            nodes.remove(id);
+            adjacency.remove(id);
+        }
+
+        // Collect edge keys to remove (edges where either endpoint was in workspace)
+        let node_set: std::collections::HashSet<&str> =
+            node_ids_to_remove.iter().map(|s| s.as_str()).collect();
+
+        let edge_keys_to_remove: Vec<(String, String)> = edges
+            .iter()
+            .filter_map(|((src, tgt), edge_props)| {
+                // Remove if either endpoint was deleted OR if edge has workspace_id property
+                let endpoint_deleted =
+                    node_set.contains(src.as_str()) || node_set.contains(tgt.as_str());
+                let edge_workspace_match = edge_props
+                    .get("workspace_id")
+                    .and_then(|v| v.as_str())
+                    .map(|ws| ws == workspace_id_str)
+                    .unwrap_or(false);
+
+                if endpoint_deleted || edge_workspace_match {
+                    Some((src.clone(), tgt.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let edges_deleted = edge_keys_to_remove.len();
+
+        // Remove edges
+        for key in &edge_keys_to_remove {
+            edges.remove(key);
+        }
+
+        // Update adjacency for remaining nodes (remove edges to deleted nodes)
+        for neighbors in adjacency.values_mut() {
+            neighbors.retain(|neighbor| !node_set.contains(neighbor.as_str()));
+        }
+
+        Ok((nodes_deleted, edges_deleted))
+    }
 }
 
 #[cfg(test)]

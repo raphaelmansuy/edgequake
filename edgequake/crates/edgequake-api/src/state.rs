@@ -77,12 +77,12 @@ use edgequake_auth::{AuthConfig, JwtService, PasswordService, RbacService};
 use edgequake_core::{
     ConversationService, InMemoryConversationService, InMemoryWorkspaceService, WorkspaceService,
 };
-use edgequake_llm::OpenAIProvider;
+use edgequake_llm::ModelsConfig;
 use edgequake_pipeline::Pipeline;
 use edgequake_query::{QueryEngine, QueryEngineConfig, SOTAQueryConfig, SOTAQueryEngine};
 use edgequake_rate_limiter::{RateLimitConfig as TokenBucketConfig, RateLimiter};
 use edgequake_storage::adapters::memory::{
-    MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
+    MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage, MemoryWorkspaceVectorRegistry,
 };
 use edgequake_tasks::{PipelineState, SharedTaskQueue, SharedTaskStorage};
 use serde::{Deserialize, Serialize};
@@ -142,8 +142,8 @@ use edgequake_core::ConversationServiceImpl;
 use edgequake_core::WorkspaceServiceImpl;
 #[cfg(feature = "postgres")]
 use edgequake_storage::{
-    GraphStorage, KVStorage, PgVectorStorage, PostgresAGEGraphStorage, PostgresKVStorage,
-    VectorStorage,
+    GraphStorage, KVStorage, PgVectorStorage, PgWorkspaceVectorRegistry, PostgresAGEGraphStorage,
+    PostgresKVStorage, VectorStorage,
 };
 #[cfg(feature = "postgres")]
 use sqlx::PgPool;
@@ -160,8 +160,12 @@ pub struct AppState {
     /// KV storage.
     pub kv_storage: Arc<dyn edgequake_storage::traits::KVStorage>,
 
-    /// Vector storage.
+    /// Vector storage (default, for backward compatibility).
     pub vector_storage: Arc<dyn edgequake_storage::traits::VectorStorage>,
+
+    /// Workspace vector registry for per-workspace vector storage.
+    /// Each workspace can have its own dimension based on its embedding provider.
+    pub vector_registry: Arc<dyn edgequake_storage::traits::WorkspaceVectorRegistry>,
 
     /// Graph storage.
     pub graph_storage: Arc<dyn edgequake_storage::traits::GraphStorage>,
@@ -223,9 +227,19 @@ pub struct AppState {
     /// Storage mode indicator (memory or postgresql).
     pub storage_mode: StorageMode,
 
+    /// Models configuration (providers, model cards, capabilities).
+    pub models_config: Arc<ModelsConfig>,
+
     /// PostgreSQL pool (only available when using postgres feature).
     #[cfg(feature = "postgres")]
     pub pg_pool: Option<PgPool>,
+
+    /// Server start time for uptime calculation.
+    pub start_time: std::time::Instant,
+
+    /// Path validation configuration for filesystem access security (OODA-248).
+    /// WHY: Prevents directory traversal attacks in scan_directory endpoint.
+    pub path_validation_config: crate::path_validation::PathValidationConfig,
 }
 
 /// Application configuration.
@@ -252,6 +266,55 @@ impl Default for AppConfig {
 }
 
 impl AppState {
+    /// Load path validation configuration from environment.
+    ///
+    /// SECURITY (OODA-248): Configures allowed directories for filesystem access.
+    ///
+    /// # Environment Variables
+    ///
+    /// - `ALLOWED_SCAN_PATHS`: Colon-separated list of allowed directories
+    ///   Example: `/data/uploads:/home/user/documents`
+    /// - `ALLOW_ANY_SCAN_PATH`: Set to "true" to allow any path (NOT RECOMMENDED)
+    #[cfg(feature = "postgres")]
+    fn load_path_validation_config() -> crate::path_validation::PathValidationConfig {
+        use std::path::PathBuf;
+
+        let allowed_paths: Vec<PathBuf> = std::env::var("ALLOWED_SCAN_PATHS")
+            .unwrap_or_default()
+            .split(':')
+            .filter(|s| !s.is_empty())
+            .map(PathBuf::from)
+            .collect();
+
+        let allow_any_path = std::env::var("ALLOW_ANY_SCAN_PATH")
+            .map(|v| v.to_lowercase() == "true")
+            .unwrap_or(false);
+
+        if allow_any_path {
+            tracing::warn!(
+                "⚠️ ALLOW_ANY_SCAN_PATH=true - Directory scanning is unrestricted! \
+                 This is a security risk in production."
+            );
+        } else if allowed_paths.is_empty() {
+            tracing::info!(
+                "Path validation: No ALLOWED_SCAN_PATHS configured. \
+                 scan_directory endpoint will reject all paths."
+            );
+        } else {
+            tracing::info!(
+                paths = ?allowed_paths,
+                "Path validation: scan_directory restricted to allowed paths"
+            );
+        }
+
+        crate::path_validation::PathValidationConfig {
+            allowed_paths,
+            allow_any_path,
+            follow_symlinks: false, // Security: don't follow symlinks
+            max_depth: 50,
+        }
+    }
+
     /// Create a new application state.
     ///
     /// WHY: This constructor takes many arguments because AppState is the central
@@ -262,6 +325,7 @@ impl AppState {
     pub fn new(
         kv_storage: Arc<dyn edgequake_storage::traits::KVStorage>,
         vector_storage: Arc<dyn edgequake_storage::traits::VectorStorage>,
+        vector_registry: Arc<dyn edgequake_storage::traits::WorkspaceVectorRegistry>,
         graph_storage: Arc<dyn edgequake_storage::traits::GraphStorage>,
         llm_provider: Arc<dyn edgequake_llm::traits::LLMProvider>,
         embedding_provider: Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
@@ -282,6 +346,7 @@ impl AppState {
         Self {
             kv_storage,
             vector_storage,
+            vector_registry,
             graph_storage,
             llm_provider,
             embedding_provider,
@@ -302,17 +367,59 @@ impl AppState {
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
             storage_mode: StorageMode::Memory, // Default to memory for generic constructor
+            models_config: Arc::new(
+                ModelsConfig::load().unwrap_or_else(|_| ModelsConfig::builtin_defaults()),
+            ),
             #[cfg(feature = "postgres")]
             pg_pool: None,
+            start_time: std::time::Instant::now(),
+            // SECURITY (OODA-248): Default to secure config (no paths allowed).
+            // Production deployments should configure allowed_paths.
+            path_validation_config: crate::path_validation::PathValidationConfig::default(),
         }
     }
 
     /// Create a new application state with memory storage.
-    pub fn new_memory(llm_api_key: impl Into<String>) -> Self {
+    ///
+    /// # Arguments
+    ///
+    /// * `llm_api_key` - Optional API key override. If provided, sets OPENAI_API_KEY
+    ///   environment variable. Otherwise uses ProviderFactory auto-detection.
+    ///
+    /// # Provider Selection
+    ///
+    /// Uses ProviderFactory::from_env() which auto-detects based on:
+    /// 1. EDGEQUAKE_LLM_PROVIDER environment variable
+    /// 2. OLLAMA_HOST or OLLAMA_MODEL (selects Ollama)
+    /// 3. OPENAI_API_KEY (selects OpenAI)
+    /// 4. Fallback to Mock provider
+    pub fn new_memory(llm_api_key: Option<impl Into<String>>) -> Self {
+        use edgequake_llm::ProviderFactory;
+
+        // If API key provided, set it in environment for factory to use
+        if let Some(key) = llm_api_key {
+            std::env::set_var("OPENAI_API_KEY", key.into());
+        }
+
+        // Use ProviderFactory for auto-detection
+        let (llm_provider, embedding_provider) =
+            ProviderFactory::from_env().expect("Failed to create LLM provider from environment");
+
+        // Get embedding dimension from provider for vector storage
+        let embedding_dim = embedding_provider.dimension();
+
         let kv_storage = Arc::new(MemoryKVStorage::new("default"));
-        let vector_storage = Arc::new(MemoryVectorStorage::new("default", 1536));
+        let vector_storage = Arc::new(MemoryVectorStorage::new("default", embedding_dim));
         let graph_storage = Arc::new(MemoryGraphStorage::new("default"));
-        let llm_provider = Arc::new(OpenAIProvider::new(llm_api_key));
+
+        // Log provider and dimension configuration for debugging
+        tracing::info!(
+            provider = embedding_provider.name(),
+            dimension = embedding_dim,
+            storage_type = "memory",
+            namespace = "default",
+            "Vector storage initialized"
+        );
 
         // Create workspace service with default tenant
         let workspace_service: SharedWorkspaceService = Arc::new(InMemoryWorkspaceService::new());
@@ -323,15 +430,11 @@ impl AppState {
 
         // Create pipeline with LLM and embedding providers configured
         use edgequake_pipeline::LLMExtractor;
-        let extractor = Arc::new(LLMExtractor::new(
-            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>
-        ));
+        let extractor = Arc::new(LLMExtractor::new(Arc::clone(&llm_provider)));
         let pipeline = Arc::new(
             Pipeline::default_pipeline()
                 .with_extractor(extractor)
-                .with_embedding_provider(
-                    Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>
-                ),
+                .with_embedding_provider(Arc::clone(&embedding_provider)),
         );
 
         // Create task infrastructure
@@ -343,8 +446,8 @@ impl AppState {
             QueryEngineConfig::default(),
             Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
             Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
-            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
-            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+            Arc::clone(&embedding_provider),
+            Arc::clone(&llm_provider),
         ));
 
         // Create SOTA query engine with LightRAG-style enhancements
@@ -354,11 +457,17 @@ impl AppState {
                 SOTAQueryConfig::default(),
                 Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
                 Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
-                Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
-                Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+                Arc::clone(&embedding_provider),
+                Arc::clone(&llm_provider),
             )
             .with_reranker(reranker),
         );
+
+        // Create workspace vector registry for per-workspace dimensions
+        let vector_registry: Arc<dyn edgequake_storage::traits::WorkspaceVectorRegistry> =
+            Arc::new(MemoryWorkspaceVectorRegistry::new(
+                Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            ));
 
         // Create auth services
         let auth_config = AuthConfig::default();
@@ -370,11 +479,11 @@ impl AppState {
             kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
             vector_storage: Arc::clone(&vector_storage)
                 as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            vector_registry,
             graph_storage: Arc::clone(&graph_storage)
                 as Arc<dyn edgequake_storage::traits::GraphStorage>,
-            llm_provider: Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
-            embedding_provider: Arc::clone(&llm_provider)
-                as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+            llm_provider: Arc::clone(&llm_provider),
+            embedding_provider: Arc::clone(&embedding_provider),
             query_engine,
             sota_engine,
             pipeline,
@@ -392,8 +501,18 @@ impl AppState {
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
             storage_mode: StorageMode::Memory,
+            models_config: Arc::new(
+                ModelsConfig::load().unwrap_or_else(|_| ModelsConfig::builtin_defaults()),
+            ),
             #[cfg(feature = "postgres")]
             pg_pool: None,
+            start_time: std::time::Instant::now(),
+            // SECURITY (OODA-248): Memory mode uses permissive config for dev/testing.
+            // Production should use PostgreSQL mode with explicit allowed_paths.
+            path_validation_config: crate::path_validation::PathValidationConfig {
+                allow_any_path: true, // Permissive for memory/dev mode
+                ..Default::default()
+            },
         }
     }
 
@@ -443,10 +562,17 @@ impl AppState {
         let password_service = Arc::new(PasswordService::new(auth_config.clone()));
         let rbac_service = Arc::new(RbacService::new());
 
+        // Create workspace vector registry for per-workspace dimensions
+        let vector_registry: Arc<dyn edgequake_storage::traits::WorkspaceVectorRegistry> =
+            Arc::new(MemoryWorkspaceVectorRegistry::new(
+                Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            ));
+
         Self {
             kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
             vector_storage: Arc::clone(&vector_storage)
                 as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            vector_registry,
             graph_storage: Arc::clone(&graph_storage)
                 as Arc<dyn edgequake_storage::traits::GraphStorage>,
             llm_provider: Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
@@ -469,19 +595,48 @@ impl AppState {
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::strict(100, 60)), // Strict limits for testing
             storage_mode: StorageMode::Memory,
+            models_config: Arc::new(ModelsConfig::builtin_defaults()), // Use builtins for testing
             #[cfg(feature = "postgres")]
             pg_pool: None,
+            start_time: std::time::Instant::now(),
+            // SECURITY (OODA-248): Test state is permissive for testing
+            path_validation_config: crate::path_validation::PathValidationConfig {
+                allow_any_path: true,
+                ..Default::default()
+            },
         }
     }
 
     /// Create a new application state with PostgreSQL storage.
+    ///
+    /// # Provider Selection
+    ///
+    /// LLM provider is automatically selected based on environment:
+    /// - `EDGEQUAKE_LLM_PROVIDER=ollama|lmstudio|mock` - explicit selection
+    /// - `OLLAMA_HOST` present → Ollama provider
+    /// - `OPENAI_API_KEY` present → OpenAI provider
+    /// - Default → Mock provider
+    ///
+    /// The `llm_api_key` parameter is kept for backward compatibility and will set `OPENAI_API_KEY`
+    /// when provided. For Ollama/LM Studio, you can pass an empty string and use environment variables.
     #[cfg(feature = "postgres")]
     pub async fn new_postgres(
         database_url: impl Into<String>,
         llm_api_key: impl Into<String>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        use edgequake_llm::ProviderFactory;
+
         let database_url = database_url.into();
         let llm_api_key = llm_api_key.into();
+
+        // Set OPENAI_API_KEY for backward compatibility (factory will use it if OpenAI selected)
+        if !llm_api_key.is_empty() {
+            std::env::set_var("OPENAI_API_KEY", &llm_api_key);
+        }
+
+        // Create providers via factory (auto-detects from environment)
+        let (llm_provider, embedding_provider) =
+            ProviderFactory::from_env().expect("Failed to create LLM provider from environment");
 
         // Parse database URL to create PostgreSQL configuration
         // Format: postgresql://username:password@host:port/database
@@ -550,10 +705,35 @@ impl AppState {
         sqlx::migrate!("../../migrations").run(&pool).await?;
         tracing::info!("✓ Database migrations completed successfully");
 
+        // Auto-configure vector dimension from embedding provider
+        let embedding_dim = embedding_provider.dimension();
+        tracing::info!(
+            "Using vector dimension {} from {} provider",
+            embedding_dim,
+            std::env::var("EDGEQUAKE_LLM_PROVIDER").unwrap_or_else(|_| "auto-detected".to_string())
+        );
+
         // Create PostgreSQL-backed storages
         let kv_storage = Arc::new(PostgresKVStorage::new(pg_config.clone()));
-        let vector_storage = Arc::new(PgVectorStorage::with_dimension(pg_config.clone(), 1536));
+        let vector_storage = Arc::new(PgVectorStorage::with_dimension(
+            pg_config.clone(),
+            embedding_dim,
+        ));
         let graph_storage = Arc::new(PostgresAGEGraphStorage::new(pg_config.clone()));
+
+        // OODA-228: Ensure default vector storage has correct dimension BEFORE initialize
+        // WHY: If embedding provider changed (e.g., OpenAI 1536 → Ollama 768),
+        // the existing table has the wrong dimension. We must recreate it.
+        // This is the same logic used for workspace storage.
+        let recreated = vector_storage.ensure_dimension(embedding_dim).await?;
+        if recreated {
+            tracing::warn!(
+                dimension = embedding_dim,
+                provider = embedding_provider.name(),
+                "⚠️ Default vector table recreated due to dimension change (OODA-228). \
+                 All existing vectors were cleared. Documents need to be re-embedded."
+            );
+        }
 
         // Initialize storage backends to establish connections
         kv_storage.initialize().await?;
@@ -562,8 +742,15 @@ impl AppState {
 
         tracing::info!("PostgreSQL storage backends initialized successfully");
 
-        // Create LLM provider
-        let llm_provider = Arc::new(OpenAIProvider::new(llm_api_key));
+        // Log provider and dimension configuration for debugging
+        tracing::info!(
+            provider = embedding_provider.name(),
+            dimension = embedding_provider.dimension(),
+            storage_type = "postgres",
+            namespace = "default",
+            recreated = recreated,
+            "Vector storage validated successfully"
+        );
 
         // Create workspace service for full persistence
         let workspace_service_impl = WorkspaceServiceImpl::new(pool.clone());
@@ -586,9 +773,7 @@ impl AppState {
         let pipeline = Arc::new(
             Pipeline::default_pipeline()
                 .with_extractor(extractor)
-                .with_embedding_provider(
-                    Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>
-                ),
+                .with_embedding_provider(Arc::clone(&embedding_provider)),
         );
 
         // Create task infrastructure
@@ -600,7 +785,7 @@ impl AppState {
             QueryEngineConfig::default(),
             Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
             Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
-            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+            Arc::clone(&embedding_provider),
             Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
         ));
 
@@ -611,11 +796,19 @@ impl AppState {
                 SOTAQueryConfig::default(),
                 Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
                 Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
-                Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+                Arc::clone(&embedding_provider),
                 Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
             )
             .with_reranker(reranker),
         );
+
+        // Create workspace vector registry for per-workspace dimensions
+        let vector_registry: Arc<dyn edgequake_storage::traits::WorkspaceVectorRegistry> =
+            Arc::new(PgWorkspaceVectorRegistry::new(
+                pg_config,
+                Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
+                embedding_dim,
+            ));
 
         // Create auth services
         let auth_config = AuthConfig::default();
@@ -627,11 +820,11 @@ impl AppState {
             kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
             vector_storage: Arc::clone(&vector_storage)
                 as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            vector_registry,
             graph_storage: Arc::clone(&graph_storage)
                 as Arc<dyn edgequake_storage::traits::GraphStorage>,
             llm_provider: Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
-            embedding_provider: Arc::clone(&llm_provider)
-                as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+            embedding_provider: Arc::clone(&embedding_provider),
             query_engine,
             sota_engine,
             pipeline,
@@ -649,7 +842,14 @@ impl AppState {
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
             storage_mode: StorageMode::PostgreSQL,
+            models_config: Arc::new(
+                ModelsConfig::load().unwrap_or_else(|_| ModelsConfig::builtin_defaults()),
+            ),
             pg_pool: Some(pool),
+            start_time: std::time::Instant::now(),
+            // SECURITY (OODA-248): PostgreSQL mode defaults to secure config.
+            // Administrators should configure ALLOWED_SCAN_PATHS environment variable.
+            path_validation_config: Self::load_path_validation_config(),
         })
     }
 
@@ -727,12 +927,9 @@ impl AppState {
         );
 
         // Create default workspace within the tenant
-        let workspace_request = CreateWorkspaceRequest {
-            name: "Default Workspace".to_string(),
-            slug: Some("default".to_string()),
-            description: Some("Default knowledge base".to_string()),
-            max_documents: Some(10000),
-        };
+        // SPEC-032: Uses server defaults for embedding configuration
+        let workspace_request = CreateWorkspaceRequest::new("Default Workspace")
+            .with_embedding_model("text-embedding-3-small");
 
         let workspace = self
             .workspace_service
@@ -746,6 +943,109 @@ impl AppState {
         );
 
         Ok(())
+    }
+
+    /// Create a workspace-specific pipeline with the workspace's LLM configuration.
+    ///
+    /// @implements SPEC-032: Workspace-specific LLM for ingestion
+    ///
+    /// This method creates a temporary pipeline configured with the workspace's
+    /// LLM and embedding providers. Used during document ingestion to ensure
+    /// that each workspace can use its own model configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `workspace_id` - The workspace ID to look up configuration for
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Pipeline` configured with the workspace's LLM and embedding providers.
+    /// Falls back to the global pipeline's providers if workspace config lookup fails.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let workspace_pipeline = state.create_workspace_pipeline("workspace-123").await;
+    /// let result = workspace_pipeline.process(&doc_id, &content).await?;
+    /// ```
+    pub async fn create_workspace_pipeline(&self, workspace_id: &str) -> Arc<Pipeline> {
+        use edgequake_llm::ProviderFactory;
+        use edgequake_pipeline::LLMExtractor;
+
+        // Parse workspace_id to UUID
+        let workspace_uuid = match uuid::Uuid::parse_str(workspace_id) {
+            Ok(uuid) => uuid,
+            Err(e) => {
+                tracing::warn!(
+                    workspace_id = workspace_id,
+                    error = %e,
+                    "Invalid workspace ID format, using global pipeline"
+                );
+                return Arc::clone(&self.pipeline);
+            }
+        };
+
+        // Lookup workspace configuration
+        let workspace_result = self.workspace_service.get_workspace(workspace_uuid).await;
+
+        match workspace_result {
+            Ok(Some(ws)) => {
+                // Try to create workspace-specific LLM provider with safety limits
+                // @implements FEAT0777: Safety limits for LLM calls
+                // @implements BR0777: Hard max_tokens limit enforcement
+                // @implements BR0778: Request timeout enforcement
+                let llm_provider =
+                    ProviderFactory::create_safe_llm_provider(&ws.llm_provider, &ws.llm_model);
+
+                // Try to create workspace-specific embedding provider with safety limits
+                let embedding_provider = ProviderFactory::create_safe_embedding_provider(
+                    &ws.embedding_provider,
+                    &ws.embedding_model,
+                    ws.embedding_dimension,
+                );
+
+                // If both providers were created successfully, use them
+                if let (Ok(llm), Ok(embedding)) = (llm_provider, embedding_provider) {
+                    tracing::info!(
+                        workspace_id = workspace_id,
+                        llm_model = %ws.llm_full_id(),
+                        embedding_model = %ws.embedding_full_id(),
+                        "Using workspace-specific LLM configuration for pipeline (with safety limits)"
+                    );
+
+                    let extractor = Arc::new(LLMExtractor::new(llm));
+                    return Arc::new(
+                        Pipeline::default_pipeline()
+                            .with_extractor(extractor)
+                            .with_embedding_provider(embedding),
+                    );
+                }
+
+                // Log warning and fall back to global pipeline
+                tracing::warn!(
+                    workspace_id = workspace_id,
+                    llm_config = %ws.llm_full_id(),
+                    embedding_config = %ws.embedding_full_id(),
+                    "Failed to create workspace-specific providers, using global pipeline"
+                );
+            }
+            Ok(None) => {
+                tracing::warn!(
+                    workspace_id = workspace_id,
+                    "Workspace not found, using global pipeline"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    workspace_id = workspace_id,
+                    error = %e,
+                    "Failed to lookup workspace, using global pipeline"
+                );
+            }
+        }
+
+        // Fall back to global pipeline
+        Arc::clone(&self.pipeline)
     }
 }
 

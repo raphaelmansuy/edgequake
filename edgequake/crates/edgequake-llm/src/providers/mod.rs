@@ -11,3 +11,5 @@ pub mod azure_openai;
 pub mod jina;
 
 pub mod ollama;
+
+pub mod lmstudio;

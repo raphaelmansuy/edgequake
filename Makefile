@@ -20,7 +20,9 @@
         frontend-dev frontend-build frontend-test frontend-lint \
         db-start db-stop db-wait db-logs db-shell \
         docker-build docker-up docker-down docker-logs \
-        check-deps status
+        check-deps status \
+        test-quality test-invariants test-timing test-count test-flaky \
+        test-e2e-critical test-e2e-full test-stability-report
 
 # Colors for terminal output
 BLUE := \033[34m
@@ -35,6 +37,9 @@ ROOT_DIR := $(shell pwd)
 BACKEND_DIR := $(ROOT_DIR)/edgequake
 FRONTEND_DIR := $(ROOT_DIR)/edgequake_webui
 DOCKER_DIR := $(BACKEND_DIR)/docker
+
+# Environment variables (inherit from shell if set)
+OPENAI_API_KEY ?= $(shell echo $$OPENAI_API_KEY)
 
 # Default target
 .DEFAULT_GOAL := help
@@ -90,10 +95,20 @@ help: ## Show this help message
 	@echo "  $(GREEN)make format$(RESET)       Format all code"
 	@echo "  $(GREEN)make test$(RESET)         Run all tests"
 	@echo ""
+	@echo "$(BOLD)$(BLUE)🛡️  Test Quality Gates (OODA-286+)$(RESET)"
+	@echo "  $(GREEN)make test-quality$(RESET)     Run all quality gates"
+	@echo "  $(GREEN)make test-invariants$(RESET)  Run invariant tests (INV-001 to INV-010)"
+	@echo "  $(GREEN)make test-timing$(RESET)      Check test timing (<30s)"
+	@echo "  $(GREEN)make test-count$(RESET)       Verify test count (>=2600)"
+	@echo "  $(GREEN)make test-flaky$(RESET)       Detect flaky tests"
+	@echo "  $(GREEN)make test-e2e-critical$(RESET) Run E2E critical path"
+	@echo "  $(GREEN)make test-e2e-full$(RESET)    Run full E2E suite"
+	@echo ""
 
 # ============================================================================
 # Dependency Checks
 # ============================================================================
+
 
 check-deps: ## Check that required dependencies are installed
 	@echo "$(BLUE)Checking dependencies...$(RESET)"
@@ -101,6 +116,22 @@ check-deps: ## Check that required dependencies are installed
 	@command -v bun >/dev/null 2>&1 || command -v npm >/dev/null 2>&1 || { echo "$(RED)❌ bun/npm not found. Install Node.js/Bun$(RESET)"; exit 1; }
 	@command -v docker >/dev/null 2>&1 || { echo "$(YELLOW)⚠️  docker not found. Some features require Docker$(RESET)"; }
 	@echo "$(GREEN)✓ All required dependencies found$(RESET)"
+
+check-ports: ## Check and clear ports 8080 and 3000 if in use
+	@echo "$(BLUE)Checking ports 8080 and 3000...$(RESET)"
+	@PORT_8080=$$(lsof -ti:8080 2>/dev/null || true); \
+	PORT_3000=$$(lsof -ti:3000 2>/dev/null || true); \
+	if [ -n "$$PORT_8080" ]; then \
+		echo "$(YELLOW)⚠️  Port 8080 in use by PID $$PORT_8080 - killing...$(RESET)"; \
+		kill -9 $$PORT_8080 2>/dev/null || true; \
+		sleep 1; \
+	fi; \
+	if [ -n "$$PORT_3000" ]; then \
+		echo "$(YELLOW)⚠️  Port 3000 in use by PID $$PORT_3000 - killing...$(RESET)"; \
+		kill -9 $$PORT_3000 2>/dev/null || true; \
+		sleep 1; \
+	fi
+	@echo "$(GREEN)✓ Ports 8080 and 3000 are available$(RESET)"
 
 # ============================================================================
 # Installation
@@ -125,9 +156,14 @@ install: check-deps ## Install all project dependencies
 # Development
 # ============================================================================
 
-dev: check-deps ## Start full development stack (DB + Backend + Frontend)
+dev: check-deps check-ports ## Start full development stack (DB + Backend + Frontend) with Ollama
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🚀 Starting EdgeQuake Development Stack$(RESET)"
+	@echo "$(BOLD)$(YELLOW)📝 Using Ollama as default LLM provider$(RESET)"
+	@# REQ-28: Show if OPENAI_API_KEY is available for runtime switching
+	@if [ -n "$(OPENAI_API_KEY)" ]; then \
+		echo "$(GREEN)✓ OPENAI_API_KEY detected - OpenAI provider also available$(RESET)"; \
+	fi
 	@echo ""
 	@echo "$(YELLOW)→ Stopping any existing services...$(RESET)"
 	@$(MAKE) stop --no-print-directory 2>/dev/null || true
@@ -140,12 +176,20 @@ dev: check-deps ## Start full development stack (DB + Backend + Frontend)
 	@echo "  $(BLUE)Backend$(RESET):  http://localhost:8080"
 	@echo "  $(BLUE)Frontend$(RESET): http://localhost:3000"
 	@echo "  $(BLUE)Swagger$(RESET):  http://localhost:8080/swagger-ui"
+	@echo "  $(BLUE)Provider$(RESET): Ollama (http://localhost:11434)"
 	@echo ""
 	@echo "$(GREEN)✓ Services starting...$(RESET)"
 	@echo "$(YELLOW)Press Ctrl+C to stop all services$(RESET)"
 	@echo ""
 	@trap 'echo ""; echo "$(YELLOW)Stopping services...$(RESET)"; $(MAKE) stop --no-print-directory; exit 0' INT; \
-	(cd $(BACKEND_DIR) && DATABASE_URL="postgresql://edgequake:edgequake_secret@localhost:5432/edgequake" cargo run 2>&1 | sed 's/^/[backend] /') & \
+	(cd $(BACKEND_DIR) && \
+		DATABASE_URL="postgresql://edgequake:edgequake_secret@localhost:5432/edgequake" \
+		EDGEQUAKE_LLM_PROVIDER="ollama" \
+		OLLAMA_HOST="http://localhost:11434" \
+		OLLAMA_MODEL="gemma3:latest" \
+		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
+		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
+		cargo run 2>&1 | sed 's/^/[backend] /') & \
 	BACKEND_PID=$$!; \
 	(sleep 5 && cd $(FRONTEND_DIR) && (bun run dev 2>/dev/null || npm run dev) 2>&1 | sed 's/^/[frontend] /') & \
 	FRONTEND_PID=$$!; \
@@ -159,7 +203,7 @@ dev-backend: ## Start only backend dev server (with database)
 	@$(MAKE) db-start --no-print-directory
 	@$(MAKE) backend-dev --no-print-directory
 
-dev-memory: check-deps ## Start development with in-memory storage (for testing)
+dev-memory: check-deps check-ports ## Start development with in-memory storage (for testing)
 	@echo ""
 	@echo "$(BOLD)$(YELLOW)⚠️  Starting EdgeQuake with IN-MEMORY Storage$(RESET)"
 	@echo "$(YELLOW)Data will NOT persist across restarts!$(RESET)"
@@ -172,9 +216,14 @@ dev-memory: check-deps ## Start development with in-memory storage (for testing)
 	echo "$(GREEN)✓ Backend PID: $$BACKEND_PID, Frontend PID: $$FRONTEND_PID$(RESET)"; \
 	wait
 
-dev-bg: check-deps ## Start full development stack in BACKGROUND (agentic mode)
+dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND (agentic mode)
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🤖 Starting EdgeQuake in Background Mode (Agentic)$(RESET)"
+	@if [ -n "$(OPENAI_API_KEY)" ]; then \
+		echo "$(BOLD)$(YELLOW)📝 Using OpenAI provider$(RESET)"; \
+	else \
+		echo "$(BOLD)$(YELLOW)📝 Using Ollama as default LLM provider$(RESET)"; \
+	fi
 	@echo ""
 	@$(MAKE) stop --no-print-directory 2>/dev/null || true
 	@sleep 1
@@ -187,7 +236,13 @@ dev-bg: check-deps ## Start full development stack in BACKGROUND (agentic mode)
 	done
 	@echo ""
 	@echo "$(YELLOW)→ Starting backend in background...$(RESET)"
-	@cd $(BACKEND_DIR) && DATABASE_URL="$(DATABASE_URL)" nohup cargo run > /tmp/edgequake-backend.log 2>&1 &
+	@cd $(BACKEND_DIR) && \
+		DATABASE_URL="$(DATABASE_URL)" \
+		OLLAMA_HOST="http://localhost:11434" \
+		OLLAMA_MODEL="gemma3:latest" \
+		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
+		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
+		nohup cargo run > /tmp/edgequake-backend.log 2>&1 &
 	@echo "$(GREEN)✓ Backend starting (log: /tmp/edgequake-backend.log)$(RESET)"
 	@echo ""
 	@echo "$(YELLOW)→ Waiting for backend to start...$(RESET)"
@@ -203,6 +258,11 @@ dev-bg: check-deps ## Start full development stack in BACKGROUND (agentic mode)
 	@echo "  $(BLUE)Backend$(RESET):  http://localhost:8080"
 	@echo "  $(BLUE)Frontend$(RESET): http://localhost:3000"
 	@echo "  $(BLUE)Swagger$(RESET):  http://localhost:8080/swagger-ui"
+	@if [ -n "$(OPENAI_API_KEY)" ]; then \
+		echo "  $(BLUE)Provider$(RESET): OpenAI (configured)"; \
+	else \
+		echo "  $(BLUE)Provider$(RESET): Ollama (http://localhost:11434)"; \
+	fi
 	@echo ""
 	@echo "  Use $(BOLD)make status$(RESET) to check service health"
 	@echo "  Use $(BOLD)make stop$(RESET) to stop all services"
@@ -213,10 +273,17 @@ stop: ## Stop all development services
 	@echo "$(BLUE)→ Stopping backend processes...$(RESET)"
 	@-pkill -f "cargo run" 2>/dev/null || true
 	@-pkill -9 -f "edgequake-api" 2>/dev/null || true
+	@-pkill -9 -f "target/debug/edgequake" 2>/dev/null || true
+	@-pkill -9 -f "target/release/edgequake" 2>/dev/null || true
+	@# OODA-256: Force-kill any process on port 8080
+	@-lsof -ti:8080 | xargs -r kill -9 2>/dev/null || true
 	@echo "$(BLUE)→ Stopping frontend processes...$(RESET)"
 	@-pkill -f "next dev" 2>/dev/null || true
 	@-pkill -f "node.*edgequake_webui" 2>/dev/null || true
 	@-pkill -9 -f "bun.*dev" 2>/dev/null || true
+	@-pkill -9 -f "next-server" 2>/dev/null || true
+	@# OODA-256: Force-kill any process on port 3000
+	@-lsof -ti:3000 | xargs -r kill -9 2>/dev/null || true
 	@echo "$(BLUE)→ Stopping database...$(RESET)"
 	@$(MAKE) db-stop --no-print-directory 2>/dev/null || true
 	@sleep 1
@@ -229,21 +296,49 @@ stop: ## Stop all development services
 # Database URL for PostgreSQL mode
 DATABASE_URL := postgresql://edgequake:edgequake_secret@localhost:5432/edgequake
 
-backend-dev: db-wait ## Run backend in development mode with PostgreSQL (DEFAULT)
-	@echo "$(BLUE)Starting backend with PostgreSQL storage...$(RESET)"
-	@cd $(BACKEND_DIR) && DATABASE_URL="$(DATABASE_URL)" cargo run
+backend-dev: db-wait ## Run backend in development mode with PostgreSQL + Ollama (DEFAULT)
+	@echo "$(BLUE)Starting backend with PostgreSQL storage + Ollama...$(RESET)"
+	@# REQ-28: Forward OPENAI_API_KEY if set, allowing runtime provider switching
+	@if [ -n "$(OPENAI_API_KEY)" ]; then \
+		echo "$(GREEN)✓ OPENAI_API_KEY detected - OpenAI provider available$(RESET)"; \
+	fi
+	@cd $(BACKEND_DIR) && \
+		DATABASE_URL="$(DATABASE_URL)" \
+		EDGEQUAKE_LLM_PROVIDER="ollama" \
+		OLLAMA_HOST="http://localhost:11434" \
+		OLLAMA_MODEL="gemma3:latest" \
+		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
+		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
+		cargo run
 
-backend-db: db-wait ## Run backend with PostgreSQL storage (explicit)
-	@echo "$(BLUE)Starting backend with PostgreSQL storage (explicit)...$(RESET)"
-	@cd $(BACKEND_DIR) && DATABASE_URL="$(DATABASE_URL)" cargo run
+backend-db: db-wait ## Run backend with PostgreSQL storage + Ollama (explicit)
+	@echo "$(BLUE)Starting backend with PostgreSQL storage + Ollama (explicit)...$(RESET)"
+	@# REQ-28: Forward OPENAI_API_KEY if set, allowing runtime provider switching
+	@if [ -n "$(OPENAI_API_KEY)" ]; then \
+		echo "$(GREEN)✓ OPENAI_API_KEY detected - OpenAI provider available$(RESET)"; \
+	fi
+	@cd $(BACKEND_DIR) && \
+		DATABASE_URL="$(DATABASE_URL)" \
+		EDGEQUAKE_LLM_PROVIDER="ollama" \
+		OLLAMA_HOST="http://localhost:11434" \
+		OLLAMA_MODEL="gemma3:latest" \
+		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
+		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
+		cargo run
 
 backend-memory: ## Run backend with in-memory storage (for testing only)
 	@echo "$(YELLOW)⚠️  Starting backend with IN-MEMORY storage (data will not persist)$(RESET)"
 	@cd $(BACKEND_DIR) && cargo run
 
-backend-bg: db-wait ## Run backend in background with PostgreSQL
+backend-bg: db-wait ## Run backend in background with PostgreSQL (respects OPENAI_API_KEY if set)
 	@echo "$(BLUE)Starting backend in background...$(RESET)"
-	@cd $(BACKEND_DIR) && DATABASE_URL="$(DATABASE_URL)" nohup cargo run > /tmp/edgequake-backend.log 2>&1 &
+	@cd $(BACKEND_DIR) && \
+		DATABASE_URL="$(DATABASE_URL)" \
+		OLLAMA_HOST="http://localhost:11434" \
+		OLLAMA_MODEL="gemma3:latest" \
+		OLLAMA_EMBEDDING_MODEL="nomic-embed-text" \
+		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
+		nohup cargo run > /tmp/edgequake-backend.log 2>&1 &
 	@echo "$(GREEN)✓ Backend starting in background. Log: /tmp/edgequake-backend.log$(RESET)"
 
 backend-build: ## Build backend for release
@@ -410,6 +505,67 @@ test: backend-test frontend-test ## Run all tests
 
 build: backend-build frontend-build ## Build all projects
 	@echo "$(GREEN)✓ All projects built$(RESET)"
+
+# ============================================================================
+# Test Quality Gates (OODA-286+)
+# ============================================================================
+
+test-quality: test-invariants test-timing test-count ## Run all quality gate checks
+	@echo "$(GREEN)✓ All quality gates passed$(RESET)"
+
+test-invariants: ## Run critical invariant tests (INV-001 to INV-010)
+	@echo "$(BLUE)Running critical invariant tests...$(RESET)"
+	@cd $(BACKEND_DIR) && cargo test --package edgequake-core --test inviolable_invariants 2>&1 | tee /tmp/invariant_results.txt
+	@cd $(BACKEND_DIR) && cargo test --package edgequake-core --test edge_case_invariants 2>&1 | tee -a /tmp/invariant_results.txt
+	@cd $(BACKEND_DIR) && cargo test --package edgequake-api --test integration_invariants 2>&1 | tee -a /tmp/invariant_results.txt
+	@if grep -q "FAILED" /tmp/invariant_results.txt; then \
+		echo "$(RED)CRITICAL: Invariant tests failed!$(RESET)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)✓ All invariant tests passed$(RESET)"
+
+test-timing: ## Check test suite timing (Target: <30s for unit tests)
+	@echo "$(BLUE)Running timing check...$(RESET)"
+	@START=$$(date +%s); \
+	cd $(BACKEND_DIR) && cargo test --lib --all --quiet 2>&1 > /dev/null; \
+	END=$$(date +%s); \
+	DURATION=$$((END - START)); \
+	echo "Unit tests completed in $${DURATION}s"; \
+	if [ $$DURATION -gt 30 ]; then \
+		echo "$(YELLOW)Warning: Unit tests exceeded 30s threshold$(RESET)"; \
+	else \
+		echo "$(GREEN)✓ Timing target met ($${DURATION}s < 30s)$(RESET)"; \
+	fi
+
+test-count: ## Verify minimum test count (Target: >=2600)
+	@echo "$(BLUE)Counting tests...$(RESET)"
+	@cd $(BACKEND_DIR) && cargo test --all 2>&1 | grep "test result:" | awk '{sum += $$4} END {print "Total passed:", sum}' | tee /tmp/test_count.txt
+	@TOTAL=$$(cat /tmp/test_count.txt | grep -oE '[0-9]+' | head -1); \
+	if [ "$$TOTAL" -lt 2600 ]; then \
+		echo "$(RED)CRITICAL: Test count below 2600 threshold (got: $$TOTAL)$(RESET)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)✓ Test count gate passed$(RESET)"
+
+test-flaky: ## Run flaky test detection (3 iterations)
+	@echo "$(BLUE)Running flaky test detection...$(RESET)"
+	@./scripts/detect_flaky_tests.sh 3 all
+
+test-e2e-critical: ## Run E2E critical path tests
+	@echo "$(BLUE)Running E2E critical path tests...$(RESET)"
+	@cd $(FRONTEND_DIR) && PLAYWRIGHT_BASE_URL=http://localhost:3000 \
+		pnpm exec playwright test ooda-228-critical-path.spec.ts --reporter=line
+
+test-e2e-full: ## Run full E2E test suite
+	@echo "$(BLUE)Running full E2E suite...$(RESET)"
+	@cd $(FRONTEND_DIR) && PLAYWRIGHT_BASE_URL=http://localhost:3000 \
+		pnpm exec playwright test --reporter=line
+
+test-stability-report: ## Generate test stability report
+	@echo "$(BLUE)Generating stability report...$(RESET)"
+	@cd $(BACKEND_DIR) && cargo test --all 2>&1 | tee /tmp/full_test_output.txt
+	@echo "Test results saved to /tmp/full_test_output.txt"
+	@echo "$(GREEN)✓ See docs/TEST_STABILITY_REPORT.md for detailed analysis$(RESET)"
 
 # ============================================================================
 # PostgreSQL Integration Tests

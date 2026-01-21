@@ -354,6 +354,23 @@ pub struct DocumentLineage {
     pub created_at: DateTime<Utc>,
     /// When last updated.
     pub updated_at: DateTime<Utc>,
+
+    // === SPEC-032: Provider Lineage Tracking ===
+    /// LLM provider used for entity extraction (e.g., "openai", "ollama").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extraction_provider: Option<String>,
+    /// LLM model used for entity extraction (e.g., "gpt-4o-mini").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extraction_model: Option<String>,
+    /// Embedding provider used (e.g., "openai", "ollama").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_provider: Option<String>,
+    /// Embedding model used (e.g., "text-embedding-3-small").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_model: Option<String>,
+    /// Embedding dimension used.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_dimension: Option<usize>,
 }
 
 impl DocumentLineage {
@@ -376,7 +393,41 @@ impl DocumentLineage {
             total_relationships: 0,
             created_at: now,
             updated_at: now,
+            // SPEC-032: Initialize provider lineage as None
+            extraction_provider: None,
+            extraction_model: None,
+            embedding_provider: None,
+            embedding_model: None,
+            embedding_dimension: None,
         }
+    }
+
+    /// SPEC-032: Set provider lineage information.
+    ///
+    /// This tracks which LLM and embedding providers were used to process
+    /// this document, enabling lineage tracking and reproducibility.
+    ///
+    /// # Arguments
+    ///
+    /// * `extraction_provider` - The LLM provider (e.g., "openai", "ollama")
+    /// * `extraction_model` - The LLM model (e.g., "gpt-4o-mini")
+    /// * `embedding_provider` - The embedding provider
+    /// * `embedding_model` - The embedding model
+    /// * `embedding_dimension` - The embedding vector dimension
+    pub fn set_provider_lineage(
+        &mut self,
+        extraction_provider: impl Into<String>,
+        extraction_model: impl Into<String>,
+        embedding_provider: impl Into<String>,
+        embedding_model: impl Into<String>,
+        embedding_dimension: usize,
+    ) {
+        self.extraction_provider = Some(extraction_provider.into());
+        self.extraction_model = Some(extraction_model.into());
+        self.embedding_provider = Some(embedding_provider.into());
+        self.embedding_model = Some(embedding_model.into());
+        self.embedding_dimension = Some(embedding_dimension);
+        self.updated_at = Utc::now();
     }
 
     /// Add a chunk.

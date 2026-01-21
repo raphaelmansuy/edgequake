@@ -29,6 +29,7 @@
 //! | OpenAI | ✓ | ✓ | ✓ | Primary production provider |
 //! | Azure OpenAI | ✓ | ✓ | ✓ | Enterprise deployments |
 //! | Ollama | ✓ | ✓ | ✓ | Local/on-prem models |
+//! | LM Studio | ✓ | ✓ | ✓ | Local OpenAI-compatible API |
 //! | Gemini | ✓ | ✓ | ✓ | Google AI |
 //! | Mock | ✓ | ✓ | ✓ | Testing (no API calls) |
 //!
@@ -57,17 +58,27 @@
 
 pub mod cache;
 pub mod error;
+pub mod factory;
+pub mod model_config;
 pub mod providers;
 pub mod rate_limiter;
 pub mod reranker;
+pub mod safety_limits;
 pub mod tokenizer;
 pub mod traits;
 
 pub use cache::{CacheConfig, CacheStats, CachedProvider, LLMCache};
 pub use error::{LlmError, Result};
+pub use factory::{ProviderFactory, ProviderType};
+pub use model_config::{
+    DefaultsConfig, ModelCapabilities, ModelCard, ModelConfigError, ModelCost, ModelType,
+    ModelsConfig, ProviderConfig, ProviderType as ConfigProviderType,
+};
 pub use providers::azure_openai::AzureOpenAIProvider;
 pub use providers::gemini::GeminiProvider;
 pub use providers::jina::JinaProvider;
+pub use providers::lmstudio::LMStudioProvider;
+pub use providers::mock::MockProvider;
 pub use providers::ollama::OllamaProvider;
 pub use providers::openai::OpenAIProvider;
 pub use rate_limiter::{RateLimitedProvider, RateLimiter, RateLimiterConfig};
@@ -75,7 +86,13 @@ pub use reranker::{
     BM25Reranker, HttpReranker, HybridReranker, MockReranker, RRFReranker, RerankConfig,
     RerankResult, Reranker, ScoreAggregation, TermOverlapReranker,
 };
+pub use safety_limits::{
+    SafetyLimitedEmbeddingProvider, SafetyLimitedEmbeddingProviderWrapper, SafetyLimitedProvider,
+    SafetyLimitedProviderWrapper, SafetyLimitsConfig, ABSOLUTE_MAX_TOKENS, DEFAULT_MAX_TOKENS,
+    DEFAULT_TIMEOUT_SECS,
+};
 pub use tokenizer::Tokenizer;
-pub use traits::{EmbeddingProvider, LLMProvider, LLMResponse};
-
-pub use providers::mock::MockProvider;
+pub use traits::{
+    ChatMessage, ChatRole, CompletionOptions, EmbeddingProvider, LLMProvider, LLMResponse,
+    StreamOrComplete,
+};

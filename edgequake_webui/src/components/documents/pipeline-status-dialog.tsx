@@ -32,6 +32,10 @@ import { toast } from 'sonner';
 interface PipelineStatusDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Optional title override for the dialog */
+  title?: string;
+  /** Optional subtitle for context */
+  subtitle?: string;
 }
 
 const levelConfig = {
@@ -60,6 +64,8 @@ function MessageItem({ message }: { message: PipelineMessage }) {
 export function PipelineStatusDialog({
   open,
   onOpenChange,
+  title,
+  subtitle,
 }: PipelineStatusDialogProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -101,6 +107,9 @@ export function PipelineStatusDialog({
   const progress = data?.total_documents && data.total_documents > 0
     ? (data.processed_documents / data.total_documents) * 100
     : 0;
+  
+  // Use custom title or default
+  const dialogTitle = title || t('pipeline.title', 'Pipeline Status');
 
   return (
     <>
@@ -109,7 +118,7 @@ export function PipelineStatusDialog({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Activity className="h-5 w-5" />
-              {t('pipeline.title', 'Pipeline Status')}
+              {dialogTitle}
               {data?.is_busy && (
                 <Badge variant="outline" className="ml-2 text-orange-500 border-orange-500">
                   <Loader2 className="h-3 w-3 mr-1 animate-spin" />
@@ -122,6 +131,9 @@ export function PipelineStatusDialog({
                 </Badge>
               )}
             </DialogTitle>
+            {subtitle && (
+              <p className="text-sm text-muted-foreground">{subtitle}</p>
+            )}
           </DialogHeader>
 
           {isLoading ? (
@@ -207,23 +219,33 @@ export function PipelineStatusDialog({
                 </div>
               )}
 
-              {/* Cancel Button */}
-              <Button
-                variant="destructive"
-                onClick={handleCancelClick}
-                disabled={cancelMutation.isPending || data.cancellation_requested}
-                className="w-full"
-              >
-                {cancelMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <XCircle className="mr-2 h-4 w-4" />
-                )}
-                {data.cancellation_requested 
-                  ? t('pipeline.cancelPending', 'Cancellation Pending...')
-                  : t('pipeline.cancel', 'Cancel Pipeline')
-                }
-              </Button>
+              {/* REQ-23: Close button that closes dialog WITHOUT stopping rebuild */}
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  className="flex-1"
+                >
+                  {t('common.close', 'Close')}
+                </Button>
+                {/* Cancel Button - stops the rebuild */}
+                <Button
+                  variant="destructive"
+                  onClick={handleCancelClick}
+                  disabled={cancelMutation.isPending || data.cancellation_requested}
+                  className="flex-1"
+                >
+                  {cancelMutation.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <XCircle className="mr-2 h-4 w-4" />
+                  )}
+                  {data.cancellation_requested 
+                    ? t('pipeline.cancelPending', 'Cancellation Pending...')
+                    : t('pipeline.cancel', 'Cancel Pipeline')
+                  }
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="py-8 text-center space-y-4">

@@ -69,15 +69,18 @@ pub use community::{
 pub use error::StorageError;
 pub use traits::{
     GraphEdge, GraphNode, GraphStorage, KVStorage, KnowledgeGraph, VectorSearchResult,
-    VectorStorage,
+    VectorStorage, WorkspaceVectorConfig, WorkspaceVectorRegistry,
 };
 
 // Re-export adapters
-pub use adapters::memory::{MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage};
+pub use adapters::memory::{
+    MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage, MemoryWorkspaceVectorRegistry,
+};
 
 // Conditionally export PostgreSQL adapters
 #[cfg(feature = "postgres")]
 pub use adapters::postgres::{
-    ConversationRow, FolderRow, MessageRow, PgVectorStorage, PostgresAGEGraphStorage,
-    PostgresConfig, PostgresConversationStorage, PostgresKVStorage, PostgresPool,
+    ConversationRow, FolderRow, MessageRow, PgVectorStorage, PgWorkspaceVectorRegistry,
+    PostgresAGEGraphStorage, PostgresConfig, PostgresConversationStorage, PostgresKVStorage,
+    PostgresPool,
 };

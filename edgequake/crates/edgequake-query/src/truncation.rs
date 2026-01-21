@@ -165,11 +165,27 @@ pub fn balance_context(
     Vec<RetrievedRelationship>,
     Vec<RetrievedChunk>,
 ) {
+    let input_entity_count = entities.len();
+    let input_rel_count = relationships.len();
+    let input_chunk_count = chunks.len();
+
     // First pass: apply individual limits
     let mut entities = truncate_entities(entities, config.max_entity_tokens, tokenizer);
     let mut relationships =
         truncate_relationships(relationships, config.max_relation_tokens, tokenizer);
     let mut chunks = truncate_chunks(chunks, config.max_entity_tokens, tokenizer); // Use entity limit for chunks
+
+    tracing::debug!(
+        input_entities = input_entity_count,
+        input_relationships = input_rel_count,
+        input_chunks = input_chunk_count,
+        after_truncate_entities = entities.len(),
+        after_truncate_rels = relationships.len(),
+        after_truncate_chunks = chunks.len(),
+        max_entity_tokens = config.max_entity_tokens,
+        max_relation_tokens = config.max_relation_tokens,
+        "OODA-231: balance_context first pass (individual limits)"
+    );
 
     // Calculate current total
     let entity_tokens: usize = entities
@@ -187,8 +203,23 @@ pub fn balance_context(
 
     let total = entity_tokens + rel_tokens + chunk_tokens;
 
+    tracing::debug!(
+        entity_tokens = entity_tokens,
+        rel_tokens = rel_tokens,
+        chunk_tokens = chunk_tokens,
+        total_tokens = total,
+        max_total_tokens = config.max_total_tokens,
+        "OODA-231: balance_context token counts"
+    );
+
     // If within limit, return as-is
     if total <= config.max_total_tokens {
+        tracing::debug!(
+            final_entities = entities.len(),
+            final_rels = relationships.len(),
+            final_chunks = chunks.len(),
+            "OODA-231: balance_context within limit, no reduction needed"
+        );
         return (entities, relationships, chunks);
     }
 
@@ -200,9 +231,24 @@ pub fn balance_context(
     let new_rel_count = (relationships.len() as f32 * reduction_ratio).ceil() as usize;
     let new_chunk_count = (chunks.len() as f32 * reduction_ratio).ceil() as usize;
 
+    tracing::debug!(
+        reduction_ratio = reduction_ratio,
+        new_entity_count = new_entity_count,
+        new_rel_count = new_rel_count,
+        new_chunk_count = new_chunk_count,
+        "OODA-231: balance_context proportional reduction"
+    );
+
     entities.truncate(new_entity_count.max(1));
     relationships.truncate(new_rel_count);
     chunks.truncate(new_chunk_count);
+
+    tracing::debug!(
+        final_entities = entities.len(),
+        final_rels = relationships.len(),
+        final_chunks = chunks.len(),
+        "OODA-231: balance_context after truncation"
+    );
 
     (entities, relationships, chunks)
 }

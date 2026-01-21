@@ -1,5 +1,6 @@
 'use client';
 
+import { ProviderStatusCard } from '@/components/settings/provider-status-card';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -23,6 +24,7 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
+import { RebuildEmbeddingsButton } from '@/components/workspace/rebuild-embeddings-button';
 import { useQueryStore } from '@/stores/use-query-store';
 import { useSettingsStore } from '@/stores/use-settings-store';
 import { Database, Download, Globe, Monitor, Moon, Palette, Sun, Upload } from 'lucide-react';
@@ -211,6 +213,12 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Provider Status */}
+      <ProviderStatusCard />
+
+      {/* Workspace Maintenance (SPEC-032) */}
+      <RebuildEmbeddingsButton variant="card" />
 
       {/* Graph Settings */}
       <Card>

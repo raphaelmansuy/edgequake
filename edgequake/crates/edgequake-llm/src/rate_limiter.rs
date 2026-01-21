@@ -479,14 +479,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_token_bucket() {
-        let mut bucket = TokenBucket::new(10.0, 1.0);
+        // WHY: Use fast refill rate (100 tokens/sec) instead of slow sleep
+        // Original: 1.0 tokens/sec + 2s sleep = 2s wasted
+        // Optimized: 100 tokens/sec + 50ms = instant
+        let mut bucket = TokenBucket::new(10.0, 100.0); // 100 tokens/sec refill
 
         assert!(bucket.try_acquire(5.0));
         assert!(bucket.try_acquire(5.0));
         assert!(!bucket.try_acquire(1.0)); // Bucket empty
 
-        // Wait for refill
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        // Wait for fast refill (100 tokens/sec = 10ms for 1 token)
+        tokio::time::sleep(Duration::from_millis(50)).await;
         assert!(bucket.try_acquire(1.0));
     }
 

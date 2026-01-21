@@ -12,13 +12,13 @@
 
 ## Quick Provider Selection
 
-| Provider         | LLM            | Embeddings                | Cost | Best For               |
-| ---------------- | -------------- | ------------------------- | ---- | ---------------------- |
-| **OpenAI**       | ✅ gpt-4o-mini | ✅ text-embedding-3-small | $$   | Production, quality    |
-| **Azure OpenAI** | ✅             | ✅                        | $$   | Enterprise, compliance |
-| **Ollama**       | ✅ llama3.2    | ✅ nomic-embed-text       | Free | Local dev, privacy     |
-| **LM Studio**    | ✅             | ❌                        | Free | Local experimentation  |
-| **Mock**         | ✅             | ✅                        | Free | Testing, CI/CD         |
+| Provider         | LLM            | Embeddings                | Dimension | Cost | Best For               |
+| ---------------- | -------------- | ------------------------- | --------- | ---- | ---------------------- |
+| **OpenAI**       | ✅ gpt-4o-mini | ✅ text-embedding-3-small | 1536      | $$   | Production, quality    |
+| **Azure OpenAI** | ✅             | ✅                        | 1536      | $$   | Enterprise, compliance |
+| **Ollama**       | ✅ gemma3:12b  | ✅ embeddinggemma:latest  | **768**   | Free | Local dev, privacy     |
+| **LM Studio**    | ✅ (custom)    | ✅ (compatible)           | 1536 typ. | Free | Local experimentation  |
+| **Mock**         | ✅             | ✅                        | 1536      | Free | Testing, CI/CD         |
 
 ### Cost Estimation (OpenAI)
 
@@ -29,6 +29,7 @@
 | LLM (output) | gpt-4o-mini            | $0.0006            | ~$0.06 per 100 queries |
 
 > **Enforces**: [BR0020](business_rules.md#br0020) Cost Tracking - All LLM calls are metered
+> **NEW**: [Provider Switching Guide](#provider-switching) - Easy switching between providers
 
 ---
 
@@ -41,6 +42,10 @@
 5. [OpenAI-Compatible APIs](#openai-compatible-apis)
 6. [Mock Provider](#mock-provider)
 7. [Configuration Reference](#configuration-reference)
+8. **[Provider Switching](#provider-switching)** ← NEW
+9. [Best Practices](#best-practices)
+10. [Troubleshooting](#troubleshooting)
+11. [Next Steps](#next-steps)
 
 ---
 
@@ -513,6 +518,252 @@ impl Default for LlmConfig {
 
 ---
 
+## Provider Switching
+
+> **NEW**: As of v2.1.0, EdgeQuake supports automatic provider detection and easy switching between OpenAI, Ollama, LM Studio, and Mock providers.
+
+### Environment-Based Provider Selection
+
+EdgeQuake automatically detects which LLM provider to use based on environment variables. This makes it easy to switch between providers without code changes:
+
+```bash
+# OpenAI (Cloud) - Recommended for production
+export OPENAI_API_KEY="sk-..."
+cargo run  # Auto-selects OpenAI provider
+
+# Ollama (Local) - Recommended for development
+export OLLAMA_HOST="http://localhost:11434"
+cargo run  # Auto-selects Ollama provider
+
+# LM Studio (Local) - For experimentation
+export EDGEQUAKE_LLM_PROVIDER=lmstudio
+export OPENAI_BASE_URL="http://localhost:1234/v1"
+export OPENAI_API_KEY="lm-studio"  # Can be any value
+cargo run  # Uses LM Studio via OpenAI-compatible API
+
+# Mock Provider (Testing) - No external dependencies
+cargo test  # Auto-selects Mock provider
+```
+
+### Provider Auto-Detection Priority
+
+When `EDGEQUAKE_LLM_PROVIDER` is **not explicitly set**, EdgeQuake uses this detection order:
+
+1. **Ollama**: If `OLLAMA_HOST` or `OLLAMA_MODEL` is set
+2. **OpenAI**: If `OPENAI_API_KEY` is set
+3. **Mock**: Fallback for testing (no API calls)
+
+**Example:**
+
+```bash
+# Both variables set - which one wins?
+export OPENAI_API_KEY="sk-..."
+export OLLAMA_HOST="http://localhost:11434"
+cargo run
+# Result: Ollama selected (higher priority)
+
+# Force OpenAI explicitly
+export EDGEQUAKE_LLM_PROVIDER=openai
+export OPENAI_API_KEY="sk-..."
+export OLLAMA_HOST="http://localhost:11434"  # Ignored
+cargo run
+# Result: OpenAI selected (explicit override)
+```
+
+### Quick Start by Provider
+
+#### OpenAI (Cloud)
+
+**Best for:** Production deployments, highest quality
+
+```bash
+# Set API key
+export OPENAI_API_KEY="sk-proj-..."
+
+# Optional: Customize models
+export EDGEQUAKE_LLM_MODEL="gpt-4o-mini"
+export EDGEQUAKE_EMBEDDING_MODEL="text-embedding-3-small"
+
+# Run EdgeQuake
+cargo run --release
+```
+
+**Vector Dimension:** 1536 (auto-detected)
+
+#### Ollama (Local)
+
+**Best for:** Local development, privacy-focused deployments
+
+```bash
+# Step 1: Install and start Ollama
+ollama serve &
+
+# Step 2: Pull models (NEW DEFAULTS)
+ollama pull gemma3:12b          # LLM model (upgraded from llama3)
+ollama pull embeddinggemma:latest  # Embedding model (upgraded from nomic-embed-text)
+
+# Step 3: Configure EdgeQuake
+export OLLAMA_HOST="http://localhost:11434"
+
+# Optional: Use different models
+export OLLAMA_MODEL="llama3.1:70b"
+export OLLAMA_EMBEDDING_MODEL="nomic-embed-text"
+
+# Run EdgeQuake
+cargo run
+```
+
+**Vector Dimension:** 768 (auto-detected, different from OpenAI!)
+
+⚠️ **Important**: Ollama uses 768-dimensional embeddings. If you switch from OpenAI (1536 dimensions) to Ollama, you must recreate your PostgreSQL database or migrate vectors.
+
+#### LM Studio (Local)
+
+**Best for:** Experimenting with custom models
+
+```bash
+# Step 1: Download and start LM Studio
+# - Enable "Server" mode in LM Studio settings
+# - Default port: 1234
+
+# Step 2: Configure EdgeQuake
+export EDGEQUAKE_LLM_PROVIDER=lmstudio
+export OPENAI_BASE_URL="http://localhost:1234/v1"
+export OPENAI_API_KEY="lm-studio"  # Can be any value
+
+# Optional: Specify model name
+export OPENAI_MODEL="gemma-3n-e4b-it-mlxmodel"
+
+# Run EdgeQuake
+cargo run
+```
+
+**Vector Dimension:** Varies by model (typically 1536, auto-detected)
+
+**Note:** LM Studio uses OpenAI-compatible API, so it reuses the OpenAI provider implementation internally.
+
+#### Mock Provider (Testing)
+
+**Best for:** CI/CD, unit tests, development without API costs
+
+```bash
+# Automatically used when no other provider configured
+cargo test
+
+# Or explicitly enable
+export EDGEQUAKE_LLM_PROVIDER=mock
+cargo run
+```
+
+**Vector Dimension:** 1536 (compatible with OpenAI format)
+
+### Provider Comparison
+
+| Feature        | OpenAI     | Ollama         | LM Studio         | Mock       |
+| -------------- | ---------- | -------------- | ----------------- | ---------- |
+| **Cost**       | $$         | Free           | Free              | Free       |
+| **Latency**    | 200-500ms  | 100-2000ms†    | 100-2000ms†       | <1ms       |
+| **Quality**    | Excellent  | Good           | Varies            | Synthetic  |
+| **Privacy**    | Cloud      | **Local only** | **Local only**    | Local only |
+| **Internet**   | Required   | No             | No                | No         |
+| **Vector Dim** | 1536       | **768**        | 1536 typical      | 1536       |
+| **Setup**      | API key    | Install Ollama | Install LM Studio | None       |
+| **Best For**   | Production | Development    | Experimentation   | Testing    |
+
+† Latency depends on local hardware and model size
+
+### Switching Providers (Step-by-Step)
+
+#### Scenario: OpenAI → Ollama (Local Development)
+
+**Problem:** You want to develop locally without API costs.
+
+**Solution:**
+
+```bash
+# Step 1: Install Ollama (if not already)
+brew install ollama  # macOS
+# or: curl -fsSL https://ollama.com/install.sh | sh  # Linux
+
+# Step 2: Start Ollama service
+ollama serve &
+
+# Step 3: Pull required models
+ollama pull gemma3:12b
+ollama pull embeddinggemma:latest
+
+# Step 4: Verify models available
+ollama list
+# Expected output:
+# NAME                        SIZE
+# gemma3:12b                  7.4 GB
+# embeddinggemma:latest       274 MB
+
+# Step 5: Configure environment
+export OLLAMA_HOST="http://localhost:11434"
+# Remove OpenAI key (or it will be ignored due to priority)
+unset OPENAI_API_KEY
+
+# Step 6: ⚠️ CRITICAL - Recreate database (dimension change)
+psql -c "DROP DATABASE IF EXISTS edgequake; CREATE DATABASE edgequake;"
+# Why? OpenAI uses 1536 dimensions, Ollama uses 768 dimensions
+
+# Step 7: Run EdgeQuake
+cargo run
+# Check logs for: "Using vector dimension 768 from ollama provider"
+```
+
+#### Scenario: Ollama → OpenAI (Production Deployment)
+
+**Problem:** You developed locally with Ollama, now deploying to production with OpenAI.
+
+**Solution:**
+
+```bash
+# Step 1: Set OpenAI API key
+export OPENAI_API_KEY="sk-proj-..."
+
+# Step 2: Remove Ollama configuration
+unset OLLAMA_HOST
+unset OLLAMA_MODEL
+
+# Step 3: ⚠️ CRITICAL - Recreate database (dimension change)
+# On production database:
+psql $DATABASE_URL -c "DROP DATABASE IF EXISTS edgequake; CREATE DATABASE edgequake;"
+# Why? Ollama uses 768 dimensions, OpenAI uses 1536 dimensions
+
+# Step 4: Run migrations
+cargo run -- migrate
+
+# Step 5: Deploy and verify
+cargo run --release
+# Check logs for: "Using vector dimension 1536 from openai provider"
+```
+
+### Vector Dimension Migration (Advanced)
+
+**Problem:** Existing database vectors don't match new provider's embedding dimension.
+
+**Current Limitations:**
+
+- EdgeQuake does not yet support automatic vector dimension migration
+- Switching providers with different dimensions requires database recreation
+
+**Workaround:**
+
+1. Export documents: `curl http://localhost:8080/api/v1/documents > backup.json`
+2. Drop and recreate database: `psql -c "DROP DATABASE edgequake; CREATE DATABASE edgequake;"`
+3. Restart EdgeQuake with new provider
+4. Re-upload documents: Use backup.json to restore content
+
+**Future Enhancement (Planned):**
+
+- Vector dimension migration utility
+- Automatic re-embedding on provider change
+- Dimension compatibility validation on startup
+
+---
+
 ## Best Practices
 
 ### Production
@@ -544,17 +795,381 @@ async fn test_with_mock() {
 
 ---
 
+## Provider Status Visibility
+
+> **NEW**: As of OODA Loop #5 (v2.3.0), EdgeQuake WebUI displays real-time provider status in the Settings page.
+
+### Viewing Current Provider Configuration
+
+Navigate to **Settings** → **LLM Provider** section to view:
+
+- **Current Provider:** Which LLM provider is active (OpenAI, Ollama, LM Studio, Mock)
+- **Connection Status:** Real-time provider availability (✅ Connected, ❌ Disconnected)
+- **Model Information:** LLM model and embedding model names
+- **Embedding Dimension:** Current provider dimension (768, 1536, etc.)
+- **Storage Dimension:** Vector storage dimension
+- **Dimension Match Status:** Whether storage and provider dimensions align
+
+![Provider Status Card](images/provider-status-card.png)
+
+### Provider Status Indicators
+
+| Status                    | Meaning                            | Action Required                                                       |
+| ------------------------- | ---------------------------------- | --------------------------------------------------------------------- |
+| ✅ **Connected**          | Provider is responsive             | None - system working correctly                                       |
+| ⏳ **Connecting...**      | Checking provider status           | Wait for status check to complete                                     |
+| ❌ **Disconnected**       | Provider not reachable             | Check provider service is running                                     |
+| ⚠️ **Error**              | Configuration issue                | Review environment variables                                          |
+| ⚠️ **Dimension Mismatch** | Storage/provider dimensions differ | See [Dimension Compatibility](#dimension-compatibility-and-migration) |
+
+### Dimension Mismatch Warning
+
+If the provider dimension doesn't match storage dimension, a warning banner appears:
+
+```
+⚠️ Dimension Mismatch Detected
+
+Storage dimension (1536) doesn't match provider dimension (768).
+Queries may return incorrect results.
+```
+
+**Recovery:** See [Dimension Compatibility and Migration](#dimension-compatibility-and-migration) section below for recovery options.
+
+### Configuration Instructions
+
+The Settings page provides copy-pasteable `.env` configuration for each provider:
+
+**OpenAI:**
+
+```bash
+export OPENAI_API_KEY="sk-proj-..."
+export EDGEQUAKE_LLM_MODEL="gpt-4o-mini"
+export EDGEQUAKE_EMBEDDING_MODEL="text-embedding-3-small"
+```
+
+**Ollama:**
+
+```bash
+export OLLAMA_HOST="http://localhost:11434"
+export OLLAMA_MODEL="gemma3:12b"
+export OLLAMA_EMBEDDING_MODEL="embeddinggemma:latest"
+```
+
+**LM Studio:**
+
+```bash
+export EDGEQUAKE_LLM_PROVIDER="lmstudio"
+export OPENAI_BASE_URL="http://localhost:1234/v1"
+export OPENAI_API_KEY="lm-studio"
+```
+
+### Auto-Refresh
+
+Provider status automatically refreshes every 30 seconds. To manually refresh:
+
+1. Click the **🔄 Refresh Status** button in the Provider card
+2. Status updates within 1-2 seconds
+
+### API Endpoint
+
+**For developers:** Provider status is available via REST API:
+
+```bash
+curl http://localhost:3000/api/v1/settings/provider/status
+```
+
+**Response:**
+
+```json
+{
+  "provider": {
+    "name": "ollama",
+    "type": "llm",
+    "status": "connected",
+    "model": "gemma3:12b"
+  },
+  "embedding": {
+    "name": "ollama",
+    "type": "embedding",
+    "status": "connected",
+    "model": "embeddinggemma:latest",
+    "dimension": 768
+  },
+  "storage": {
+    "type": "postgres",
+    "dimension": 768,
+    "dimension_mismatch": false,
+    "namespace": "default"
+  },
+  "metadata": {
+    "checked_at": "2025-01-10T15:30:00Z",
+    "uptime_seconds": 3600
+  }
+}
+```
+
+---
+
+## Dimension Compatibility and Migration
+
+> **NEW**: As of OODA Loop #4 (v2.2.0), EdgeQuake validates embedding dimensions to prevent silent data corruption when switching providers.
+
+### Understanding Embedding Dimensions
+
+Different embedding models produce vectors of different dimensions:
+
+| Provider  | Model                  | Dimension | Notes                         |
+| --------- | ---------------------- | --------- | ----------------------------- |
+| OpenAI    | text-embedding-3-small | 1536      | Production standard           |
+| Ollama    | embeddinggemma:latest  | 768       | **Different from OpenAI!**    |
+| Ollama    | nomic-embed-text       | 768       | Legacy model                  |
+| Mock      | Synthetic vectors      | 1536      | Compatible with OpenAI format |
+| LM Studio | text-embedding-ada-002 | 1536      | Varies by model               |
+
+**Critical:** Vectors of different dimensions are **not compatible** with each other. Attempting to query 768-dimensional vectors using a 1536-dimensional provider will produce incorrect results.
+
+### Automatic Dimension Validation (NEW)
+
+EdgeQuake now automatically detects dimension mismatches when using PostgreSQL storage:
+
+```bash
+# Example: Switching from OpenAI to Ollama
+export OLLAMA_HOST="http://localhost:11434"
+unset OPENAI_API_KEY
+cargo run
+```
+
+**Error Output:**
+
+```
+❌ Dimension mismatch detected
+
+PostgreSQL storage contains vectors with 1536 dimensions,
+but provider 'ollama' expects 768 dimensions.
+
+This mismatch will cause incorrect similarity search results.
+
+Recovery Options:
+
+1. Switch back to previous provider:
+   - If you used OpenAI before: export OPENAI_API_KEY=sk-...
+   - If you used Ollama before: export OLLAMA_HOST=http://localhost:11434
+
+2. Clear existing vectors (⚠️ DESTRUCTIVE):
+   psql postgresql://... -c 'TRUNCATE TABLE eq_default_vectors;'
+
+3. Rebuild vectors with new provider:
+   cargo run --bin edgequake -- rebuild-vectors
+
+Current configuration:
+- Storage dimension: 1536 (from existing vectors)
+- Provider dimension: 768 (from ollama)
+- Namespace: default
+```
+
+### Recovery Options Explained
+
+#### Option 1: Switch Back to Previous Provider (Safest)
+
+If you accidentally switched providers, just switch back:
+
+```bash
+# If you were using OpenAI (1536 dimensions)
+export OPENAI_API_KEY="sk-your-original-key"
+unset OLLAMA_HOST
+cargo run
+# ✅ No data loss - vectors still compatible
+
+# If you were using Ollama (768 dimensions)
+export OLLAMA_HOST="http://localhost:11434"
+unset OPENAI_API_KEY
+cargo run
+# ✅ No data loss - vectors still compatible
+```
+
+#### Option 2: Clear Storage (⚠️ Destructive)
+
+If you intentionally want to switch providers and don't need old vectors:
+
+```bash
+# PostgreSQL storage
+psql $DATABASE_URL -c 'TRUNCATE TABLE eq_default_vectors CASCADE;'
+
+# Then restart with new provider
+export OLLAMA_HOST="http://localhost:11434"
+cargo run
+# ⚠️ All vectors deleted - need to re-ingest documents
+```
+
+**For in-memory storage:** Just restart EdgeQuake - memory clears automatically.
+
+#### Option 3: Rebuild Vectors (Recommended for Production)
+
+Re-process your documents with the new provider:
+
+```bash
+# Step 1: Export document metadata (if needed)
+psql $DATABASE_URL -c "COPY (SELECT id, metadata FROM eq_default_vectors) TO '/tmp/documents.csv' CSV HEADER;"
+
+# Step 2: Clear old vectors
+psql $DATABASE_URL -c 'TRUNCATE TABLE eq_default_vectors CASCADE;'
+
+# Step 3: Configure new provider
+export OLLAMA_HOST="http://localhost:11434"
+
+# Step 4: Re-ingest documents
+cargo run --bin edgequake -- rebuild-vectors \
+  --input-dir ./documents \
+  --provider ollama
+
+# Logs will show:
+# Using vector dimension 768 from ollama provider
+# Vector storage initialized
+# Vector storage validated successfully
+```
+
+### Dimension Logging
+
+EdgeQuake now logs dimension configuration on startup to help debug issues:
+
+```bash
+# Run with info logging
+RUST_LOG=info cargo run
+```
+
+**Log Output:**
+
+```
+INFO edgequake_api: Vector storage initialized provider="ollama" dimension=768 storage_type="postgres" namespace="default"
+INFO edgequake_api: Vector storage validated successfully provider="ollama" dimension=768 storage_type="postgres" namespace="default" vector_count=0
+```
+
+**Key Fields:**
+
+- `provider`: LLM provider name (`openai`, `ollama`, `lmstudio`, `mock`)
+- `dimension`: Embedding dimension (768 or 1536 typically)
+- `storage_type`: Storage backend (`memory` or `postgres`)
+- `namespace`: Vector storage namespace (default: `"default"`)
+- `vector_count`: Number of existing vectors (PostgreSQL only)
+
+### Best Practices for Provider Switching
+
+#### 1. Plan Dimension Changes
+
+**Before switching providers:**
+
+```bash
+# Check current storage dimension
+psql $DATABASE_URL -c "SELECT array_length(embedding, 1) as dimension FROM eq_default_vectors LIMIT 1;"
+
+# Check new provider dimension
+export RUST_LOG=edgequake_llm=debug
+cargo run 2>&1 | grep "dimension"
+```
+
+#### 2. Use Consistent Providers per Environment
+
+```bash
+# Development: Always use Ollama (768 dim)
+export OLLAMA_HOST="http://localhost:11434"
+
+# Staging: Always use OpenAI (1536 dim)
+export OPENAI_API_KEY="sk-staging-..."
+
+# Production: Always use OpenAI (1536 dim)
+export OPENAI_API_KEY="sk-prod-..."
+```
+
+#### 3. Test Provider Switches in Staging
+
+```bash
+# In staging environment
+# Step 1: Backup PostgreSQL
+pg_dump $DATABASE_URL > backup.sql
+
+# Step 2: Test provider switch
+export OLLAMA_HOST="http://localhost:11434"
+psql $DATABASE_URL -c 'TRUNCATE TABLE eq_default_vectors CASCADE;'
+cargo run
+
+# Step 3: Verify functionality
+curl http://localhost:3000/api/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "test query"}'
+
+# Step 4: Restore if needed
+psql $DATABASE_URL < backup.sql
+```
+
+#### 4. Document Provider Configuration
+
+Create a `DEPLOYMENT.md` in your project:
+
+```markdown
+# EdgeQuake Deployment Configuration
+
+## Current Provider Configuration
+
+- **Production**: OpenAI (1536 dimensions)
+
+  - Model: gpt-4o-mini
+  - Embedding: text-embedding-3-small
+  - API Key: Stored in AWS Secrets Manager
+
+- **Staging**: OpenAI (1536 dimensions)
+
+  - Same as production (dimension compatibility)
+
+- **Development**: Ollama (768 dimensions)
+  - Model: gemma3:12b
+  - Embedding: embeddinggemma:latest
+  - Local only (no API costs)
+
+## Switching Provider Checklist
+
+- [ ] Check storage dimension compatibility
+- [ ] Backup PostgreSQL database
+- [ ] Update environment variables
+- [ ] Clear or rebuild vectors
+- [ ] Test query functionality
+- [ ] Monitor dimension logs
+- [ ] Update this document
+```
+
+### In-Memory Storage Behavior
+
+In-memory storage (MemoryVectorStorage) **does not persist** dimension mismatches:
+
+```bash
+# Scenario 1: Start with OpenAI
+export OPENAI_API_KEY="sk-..."
+cargo run
+# Storage created with 1536 dimensions
+
+# Scenario 2: Restart with Ollama
+export OLLAMA_HOST="http://localhost:11434"
+cargo run
+# ✅ No error! Storage recreated with 768 dimensions (memory is empty)
+```
+
+**Key Difference:** Memory storage clears on restart, so dimension mismatches only occur with PostgreSQL (persistent storage).
+
+---
+
 ## Troubleshooting
 
-| Problem                     | Cause                    | Solution                                                       |
-| --------------------------- | ------------------------ | -------------------------------------------------------------- |
-| "invalid api key"           | Wrong or missing API key | Verify `OPENAI_API_KEY` is set correctly                       |
-| "model not found"           | Invalid model name       | Check [OpenAI models](https://platform.openai.com/docs/models) |
-| "rate limit exceeded"       | Too many requests        | Implement exponential backoff, reduce concurrency              |
-| "context length exceeded"   | Prompt too long          | Reduce chunk size, use summarization                           |
-| Ollama "connection refused" | Ollama not running       | Start with `ollama serve`                                      |
-| Slow embeddings             | Large batch size         | Reduce batch size, use async                                   |
-| High costs                  | Wrong model              | Switch to gpt-4o-mini and text-embedding-3-small               |
+| Problem                           | Cause                      | Solution                                                              |
+| --------------------------------- | -------------------------- | --------------------------------------------------------------------- |
+| "invalid api key"                 | Wrong or missing API key   | Verify `OPENAI_API_KEY` is set correctly                              |
+| "model not found"                 | Invalid model name         | Check [OpenAI models](https://platform.openai.com/docs/models)        |
+| "rate limit exceeded"             | Too many requests          | Implement exponential backoff, reduce concurrency                     |
+| "context length exceeded"         | Prompt too long            | Reduce chunk size, use summarization                                  |
+| Ollama "connection refused"       | Ollama not running         | Start with `ollama serve`                                             |
+| Slow embeddings                   | Large batch size           | Reduce batch size, use async                                          |
+| High costs                        | Wrong model                | Switch to gpt-4o-mini and text-embedding-3-small                      |
+| **"Mock provider being used"**    | **No provider configured** | **Set `OPENAI_API_KEY` or `OLLAMA_HOST` explicitly**                  |
+| **"Dimension mismatch error"**    | **Switched providers**     | **Recreate database - see [Provider Switching](#provider-switching)** |
+| **"LM Studio connection failed"** | **Server not running**     | **Enable "Server" mode in LM Studio settings**                        |
 
 ### Debug Logging
 
@@ -564,6 +1179,48 @@ RUST_LOG=edgequake_llm=debug ./target/release/edgequake
 
 # Trace all API calls
 RUST_LOG=edgequake_llm=trace ./target/release/edgequake
+
+# Check provider selection at startup
+RUST_LOG=edgequake_llm::factory=debug cargo run
+# Look for: "Selected provider: openai/ollama/lmstudio/mock"
+```
+
+### Provider Selection Debugging
+
+**Problem:** "EdgeQuake is using the wrong provider"
+
+```bash
+# Check which provider is being used
+export RUST_LOG=edgequake_llm=debug
+cargo run 2>&1 | grep -i "provider"
+# Expected log: "Using vector dimension 1536 from openai provider"
+# or:            "Using vector dimension 768 from ollama provider"
+
+# Force specific provider
+export EDGEQUAKE_LLM_PROVIDER=openai  # or: ollama, lmstudio, mock
+
+# Verify environment variables
+env | grep -E "OPENAI|OLLAMA|EDGEQUAKE_LLM"
+```
+
+**Problem:** "Vector dimension mismatch in PostgreSQL"
+
+```bash
+# Check current database vectors
+psql $DATABASE_URL -c "SELECT dimension FROM embeddings LIMIT 1;"
+
+# Compare with provider dimension
+export RUST_LOG=edgequake_llm=debug
+cargo run 2>&1 | grep "dimension"
+
+# If mismatch detected:
+# Option 1: Recreate database (data loss)
+psql -c "DROP DATABASE edgequake; CREATE DATABASE edgequake;"
+
+# Option 2: Switch back to original provider
+export OPENAI_API_KEY="..."  # If was using OpenAI (1536 dim)
+# or:
+export OLLAMA_HOST="..."      # If was using Ollama (768 dim)
 ```
 
 ---

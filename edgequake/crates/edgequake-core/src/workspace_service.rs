@@ -298,6 +298,39 @@ impl WorkspaceService for InMemoryWorkspaceService {
             workspace = workspace.with_max_documents(max_docs);
         }
 
+        // SPEC-032: Apply LLM configuration from request
+        // Uses auto-detection for provider if not specified
+        if let Some(model) = request.llm_model {
+            workspace = workspace.with_llm_model(&model);
+            // Explicit provider overrides auto-detection
+            if let Some(provider) = request.llm_provider {
+                workspace = workspace.with_llm_provider(&provider);
+            }
+        } else if let Some(provider) = request.llm_provider {
+            // Provider specified without model - use default model for provider
+            workspace = workspace.with_llm_provider(&provider);
+        }
+
+        // SPEC-032: Apply embedding configuration from request
+        // Uses auto-detection for provider/dimension if not specified
+        if let Some(model) = request.embedding_model {
+            workspace = workspace.with_embedding_model(&model);
+            // Auto-detect provider if not specified
+            if let Some(provider) = request.embedding_provider {
+                workspace = workspace.with_embedding_provider(&provider);
+            } else {
+                let detected = Workspace::detect_provider_from_model(&model);
+                workspace = workspace.with_embedding_provider(detected);
+            }
+            // Auto-detect dimension if not specified
+            if let Some(dim) = request.embedding_dimension {
+                workspace = workspace.with_embedding_dimension(dim);
+            } else {
+                let detected = Workspace::detect_dimension_from_model(&model);
+                workspace = workspace.with_embedding_dimension(detected);
+            }
+        }
+
         let mut workspaces = self.workspaces.write().await;
         workspaces.insert(workspace.workspace_id, workspace.clone());
 
@@ -393,6 +426,24 @@ impl WorkspaceService for InMemoryWorkspaceService {
             workspace
                 .metadata
                 .insert("max_documents".to_string(), serde_json::json!(max_docs));
+        }
+
+        // SPEC-032: LLM model configuration updates
+        if let Some(llm_model) = request.llm_model {
+            workspace.llm_model = llm_model;
+        }
+        if let Some(llm_provider) = request.llm_provider {
+            workspace.llm_provider = llm_provider;
+        }
+        // SPEC-032: Embedding model configuration updates
+        if let Some(embedding_model) = request.embedding_model {
+            workspace.embedding_model = embedding_model;
+        }
+        if let Some(embedding_provider) = request.embedding_provider {
+            workspace.embedding_provider = embedding_provider;
+        }
+        if let Some(embedding_dimension) = request.embedding_dimension {
+            workspace.embedding_dimension = embedding_dimension;
         }
 
         workspace.updated_at = chrono::Utc::now();
@@ -616,6 +667,11 @@ mod tests {
             slug: Some("my-kb".to_string()),
             description: Some("Test KB".to_string()),
             max_documents: Some(1000),
+            llm_model: None,
+            llm_provider: None,
+            embedding_model: None,
+            embedding_provider: None,
+            embedding_dimension: None,
         };
 
         let workspace = service
@@ -643,6 +699,11 @@ mod tests {
                 slug: Some(format!("ws-{}", i)),
                 description: None,
                 max_documents: None,
+                llm_model: None,
+                llm_provider: None,
+                embedding_model: None,
+                embedding_provider: None,
+                embedding_dimension: None,
             };
             service
                 .create_workspace(tenant.tenant_id, request)
@@ -656,6 +717,11 @@ mod tests {
             slug: Some("ws-3".to_string()),
             description: None,
             max_documents: None,
+            llm_model: None,
+            llm_provider: None,
+            embedding_model: None,
+            embedding_provider: None,
+            embedding_dimension: None,
         };
         let result = service.create_workspace(tenant.tenant_id, request).await;
         assert!(result.is_err());

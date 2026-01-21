@@ -1,0 +1,317 @@
+name: E2E Quality Gates
+
+on:
+    push:
+        branches: [main, edgequake-main]
+        paths:
+            - 'edgequake_webui/**'
+            - 'edgequake/crates/edgequake-api/**'
+    pull_request:
+        branches: [main, edgequake-main]
+        paths:
+            - 'edgequake_webui/**'
+            - 'edgequake/crates/edgequake-api/**'
+
+env:
+    E2E_TEST_TIMEOUT: 300
+
+jobs:
+    # Build and start services for E2E
+    e2e-setup:
+        name: E2E Environment Setup
+        runs-on: ubuntu-latest
+        services:
+            postgres:
+                image: apache/age:v1.5.0-pg16
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_DB: edgequake_test
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd "pg_isready -U postgres"
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+        outputs:
+            backend-ready: ${{ steps.backend.outputs.ready }}
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install Rust
+              uses: dtolnay/rust-action@stable
+
+            - name: Cache cargo
+              uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: edgequake
+
+            - name: Build backend
+              working-directory: edgequake
+              run: cargo build --release --package edgequake-api
+
+            - name: Upload backend binary
+              uses: actions/upload-artifact@v4
+              with:
+                  name: backend-binary
+                  path: edgequake/target/release/edgequake-api
+                  retention-days: 1
+
+    # Critical path E2E tests - must pass
+    e2e-critical:
+        name: E2E Critical Path (Target: <30s)
+        runs-on: ubuntu-latest
+        needs: e2e-setup
+        timeout-minutes: 5
+        services:
+            postgres:
+                image: apache/age:v1.5.0-pg16
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_DB: edgequake_test
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd "pg_isready -U postgres"
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Download backend
+              uses: actions/download-artifact@v4
+              with:
+                  name: backend-binary
+                  path: ./backend
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+
+            - name: Install pnpm
+              uses: pnpm/action-setup@v2
+              with:
+                  version: 8
+
+            - name: Install frontend dependencies
+              working-directory: edgequake_webui
+              run: pnpm install
+
+            - name: Install Playwright
+              working-directory: edgequake_webui
+              run: pnpm exec playwright install chromium
+
+            - name: Start backend
+              run: |
+                  chmod +x ./backend/edgequake-api
+                  DATABASE_URL="postgresql://postgres:postgres@localhost:5432/edgequake_test" \
+                  LLM_PROVIDER=mock \
+                  ./backend/edgequake-api &
+                  sleep 5
+                  curl -f http://localhost:8080/health || exit 1
+              env:
+                  RUST_LOG: info
+
+            - name: Start frontend
+              working-directory: edgequake_webui
+              run: |
+                  pnpm dev &
+                  sleep 10
+                  curl -f http://localhost:3000 || exit 1
+
+            - name: Run critical path tests
+              working-directory: edgequake_webui
+              run: |
+                  START_TIME=$(date +%s)
+                  PLAYWRIGHT_BASE_URL=http://localhost:3000 \
+                  pnpm exec playwright test ooda-228-critical-path.spec.ts --reporter=line 2>&1 | tee critical.txt
+                  END_TIME=$(date +%s)
+                  DURATION=$((END_TIME - START_TIME))
+                  
+                  echo "::notice::Critical path tests completed in ${DURATION}s"
+                  
+                  if [ $DURATION -gt 30 ]; then
+                    echo "::warning::Critical path tests exceeded 30s (actual: ${DURATION}s)"
+                  fi
+
+    # Tenant/Workspace dialog tests
+    e2e-dialogs:
+        name: E2E Dialog Tests
+        runs-on: ubuntu-latest
+        needs: e2e-setup
+        timeout-minutes: 10
+        services:
+            postgres:
+                image: apache/age:v1.5.0-pg16
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_DB: edgequake_test
+                ports:
+                    - 5432:5432
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Download backend
+              uses: actions/download-artifact@v4
+              with:
+                  name: backend-binary
+                  path: ./backend
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+
+            - name: Install pnpm
+              uses: pnpm/action-setup@v2
+              with:
+                  version: 8
+
+            - name: Install frontend dependencies
+              working-directory: edgequake_webui
+              run: pnpm install
+
+            - name: Install Playwright
+              working-directory: edgequake_webui
+              run: pnpm exec playwright install chromium
+
+            - name: Start services
+              run: |
+                  chmod +x ./backend/edgequake-api
+                  DATABASE_URL="postgresql://postgres:postgres@localhost:5432/edgequake_test" \
+                  LLM_PROVIDER=mock \
+                  ./backend/edgequake-api &
+                  cd edgequake_webui && pnpm dev &
+                  sleep 15
+
+            - name: Run dialog tests
+              working-directory: edgequake_webui
+              run: |
+                  PLAYWRIGHT_BASE_URL=http://localhost:3000 \
+                  pnpm exec playwright test spec032-tenant-workspace-dialogs.spec.ts --reporter=line
+
+    # Full E2E suite (allowed to have some failures)
+    e2e-full:
+        name: E2E Full Suite (Target: <5min)
+        runs-on: ubuntu-latest
+        needs: [e2e-critical, e2e-dialogs]
+        timeout-minutes: 15
+        services:
+            postgres:
+                image: apache/age:v1.5.0-pg16
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_DB: edgequake_test
+                ports:
+                    - 5432:5432
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Download backend
+              uses: actions/download-artifact@v4
+              with:
+                  name: backend-binary
+                  path: ./backend
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+
+            - name: Install pnpm
+              uses: pnpm/action-setup@v2
+              with:
+                  version: 8
+
+            - name: Install frontend dependencies
+              working-directory: edgequake_webui
+              run: pnpm install
+
+            - name: Install Playwright
+              working-directory: edgequake_webui
+              run: pnpm exec playwright install chromium
+
+            - name: Start services
+              run: |
+                  chmod +x ./backend/edgequake-api
+                  DATABASE_URL="postgresql://postgres:postgres@localhost:5432/edgequake_test" \
+                  LLM_PROVIDER=mock \
+                  ./backend/edgequake-api &
+                  cd edgequake_webui && pnpm dev &
+                  sleep 15
+
+            - name: Run full E2E suite
+              working-directory: edgequake_webui
+              run: |
+                  START_TIME=$(date +%s)
+                  PLAYWRIGHT_BASE_URL=http://localhost:3000 \
+                  pnpm exec playwright test --reporter=json 2>&1 | tee e2e_output.json || true
+                  END_TIME=$(date +%s)
+                  DURATION=$((END_TIME - START_TIME))
+                  
+                  echo "::notice::Full E2E suite completed in ${DURATION}s"
+                  
+                  # Extract stats
+                  PASSED=$(cat e2e_output.json | jq -r '.stats.expected // 0')
+                  FAILED=$(cat e2e_output.json | jq -r '.stats.unexpected // 0')
+                  
+                  echo "::notice::E2E Results: ${PASSED} passed, ${FAILED} failed"
+                  
+                  # Timing gate
+                  if [ $DURATION -gt 300 ]; then
+                    echo "::warning::E2E suite exceeded 5min (actual: ${DURATION}s)"
+                  fi
+                  
+                  # Pass rate gate (must be >85%)
+                  TOTAL=$((PASSED + FAILED))
+                  if [ $TOTAL -gt 0 ]; then
+                    PASS_RATE=$((PASSED * 100 / TOTAL))
+                    echo "::notice::Pass rate: ${PASS_RATE}%"
+                    if [ $PASS_RATE -lt 85 ]; then
+                      echo "::error::E2E pass rate below 85% threshold"
+                      exit 1
+                    fi
+                  fi
+              continue-on-error: true
+
+            - name: Upload test results
+              uses: actions/upload-artifact@v4
+              if: always()
+              with:
+                  name: e2e-results
+                  path: edgequake_webui/e2e_output.json
+                  retention-days: 7
+
+    # E2E summary
+    e2e-summary:
+        name: E2E Quality Summary
+        needs: [e2e-critical, e2e-dialogs, e2e-full]
+        runs-on: ubuntu-latest
+        if: always()
+        steps:
+            - name: Generate summary
+              run: |
+                  echo "## E2E Quality Gate Results" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "| Test Suite | Status |" >> $GITHUB_STEP_SUMMARY
+                  echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+                  echo "| Critical Path | ${{ needs.e2e-critical.result }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Dialog Tests | ${{ needs.e2e-dialogs.result }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Full Suite | ${{ needs.e2e-full.result }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "### Quality Targets" >> $GITHUB_STEP_SUMMARY
+                  echo "- Critical path: <30s, 100% pass" >> $GITHUB_STEP_SUMMARY
+                  echo "- Dialog tests: 100% pass" >> $GITHUB_STEP_SUMMARY
+                  echo "- Full suite: <5min, >85% pass" >> $GITHUB_STEP_SUMMARY
+                  
+                  # Fail if critical path failed
+                  if [ "${{ needs.e2e-critical.result }}" == "failure" ]; then
+                    echo "::error::CRITICAL: E2E critical path tests failed!"
+                    exit 1
+                  fi

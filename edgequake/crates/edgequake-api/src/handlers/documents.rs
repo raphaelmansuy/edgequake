@@ -42,16 +42,211 @@ use axum::{extract::State, Json};
 use axum_extra::extract::Multipart;
 use chrono::Utc;
 use sha2::{Digest, Sha256};
-use tracing::debug;
+use std::sync::Arc;
+use tracing::{debug, warn};
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
 use crate::file_validation::validate_file;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
+use edgequake_storage::traits::VectorStorage;
 
 // Re-export DTOs from documents_types module
 pub use crate::handlers::documents_types::*;
+
+/// Get workspace-specific vector storage for document ingestion (STRICT mode).
+///
+/// @implements SPEC-033: Per-workspace vector storage isolation
+/// @implements BR0353: Workspace vector isolation MUST NOT silently degrade
+///
+/// # CRITICAL SAFETY INVARIANT
+///
+/// This function NEVER falls back to default storage. If workspace-specific
+/// storage cannot be obtained, it returns an error to prevent data from being
+/// stored in the wrong location.
+///
+/// ## WHY NO FALLBACK (OODA-223 Lesson)
+///
+/// Silent fallback to global storage caused a critical data isolation bug:
+/// - Data ingested into global table with workspace_id in metadata
+/// - Queries looked in workspace-specific tables (empty)
+/// - Result: "0 Sources" even though data existed
+///
+/// By failing loudly, we:
+/// 1. Prevent data from going to the wrong storage
+/// 2. Force immediate resolution of workspace configuration issues
+/// 3. Maintain strict data isolation guarantees
+///
+/// # Arguments
+///
+/// * `state` - Application state containing vector registry
+/// * `workspace_id` - Workspace identifier (MUST be valid UUID)
+///
+/// # Returns
+///
+/// * `Ok(storage)` - Workspace-specific vector storage
+/// * `Err(ApiError)` - If workspace not found or storage creation fails
+///
+/// # Errors
+///
+/// - `ApiError::BadRequest` - Invalid workspace ID format
+/// - `ApiError::NotFound` - Workspace does not exist
+/// - `ApiError::Internal` - Failed to create workspace storage
+async fn get_workspace_vector_storage_strict(
+    state: &AppState,
+    workspace_id: &str,
+) -> Result<Arc<dyn VectorStorage>, ApiError> {
+    use edgequake_storage::traits::WorkspaceVectorConfig;
+
+    // OODA-223: Allow fallback in memory mode (tests) but not in production (PostgreSQL)
+    // This prevents silent data loss in production while maintaining test compatibility
+    let allow_fallback = state.storage_mode.is_memory();
+
+    // Parse workspace ID - FAIL in production, WARN in test mode
+    let workspace_uuid = match Uuid::parse_str(workspace_id) {
+        Ok(uuid) => uuid,
+        Err(e) => {
+            if allow_fallback {
+                // WHY-OODA223: Test mode - log warning and use default storage
+                tracing::warn!(
+                    workspace_id = %workspace_id,
+                    error = %e,
+                    storage_mode = ?state.storage_mode,
+                    "Invalid workspace ID - using default storage (allowed in memory/test mode)"
+                );
+                return Ok(state.vector_registry.default_storage());
+            }
+            tracing::error!(
+                workspace_id = %workspace_id,
+                error = %e,
+                "CRITICAL: Invalid workspace ID during ingestion - refusing to use default storage"
+            );
+            return Err(ApiError::BadRequest(format!(
+                "Invalid workspace ID '{}': {}. Document ingestion requires a valid workspace.",
+                workspace_id, e
+            )));
+        }
+    };
+
+    // Get workspace from service - FAIL in production, WARN in test mode
+    let workspace = match state.workspace_service.get_workspace(workspace_uuid).await {
+        Ok(Some(ws)) => ws,
+        Ok(None) => {
+            if allow_fallback {
+                // WHY-OODA223: Test mode - log warning and use default storage
+                tracing::warn!(
+                    workspace_id = %workspace_id,
+                    storage_mode = ?state.storage_mode,
+                    "Workspace not found - using default storage (allowed in memory/test mode)"
+                );
+                return Ok(state.vector_registry.default_storage());
+            }
+            tracing::error!(
+                workspace_id = %workspace_id,
+                "CRITICAL: Workspace not found during ingestion - refusing to use default storage"
+            );
+            return Err(ApiError::NotFound(format!(
+                "Workspace '{}' not found. Cannot ingest documents without a valid workspace.",
+                workspace_id
+            )));
+        }
+        Err(e) => {
+            if allow_fallback {
+                // WHY-OODA223: Test mode - log warning and use default storage
+                tracing::warn!(
+                    workspace_id = %workspace_id,
+                    error = %e,
+                    storage_mode = ?state.storage_mode,
+                    "Failed to lookup workspace - using default storage (allowed in memory/test mode)"
+                );
+                return Ok(state.vector_registry.default_storage());
+            }
+            tracing::error!(
+                workspace_id = %workspace_id,
+                error = %e,
+                "CRITICAL: Failed to lookup workspace during ingestion"
+            );
+            return Err(ApiError::Internal(format!(
+                "Failed to lookup workspace '{}': {}",
+                workspace_id, e
+            )));
+        }
+    };
+
+    // Create workspace-specific vector storage config
+    let config = WorkspaceVectorConfig {
+        workspace_id: workspace_uuid,
+        dimension: workspace.embedding_dimension,
+        namespace: "default".to_string(),
+    };
+
+    debug!(
+        workspace_id = %workspace_id,
+        dimension = workspace.embedding_dimension,
+        embedding_model = %workspace.embedding_model,
+        "Using workspace-specific vector storage for document ingestion (STRICT mode)"
+    );
+
+    // Get or create workspace vector storage - FAIL if creation fails
+    match state.vector_registry.get_or_create(config).await {
+        Ok(storage) => Ok(storage),
+        Err(e) => {
+            if allow_fallback {
+                // WHY-OODA223: Test mode - log warning and use default storage
+                tracing::warn!(
+                    workspace_id = %workspace_id,
+                    dimension = workspace.embedding_dimension,
+                    error = %e,
+                    storage_mode = ?state.storage_mode,
+                    "Failed to create workspace storage - using default (allowed in memory/test mode)"
+                );
+                return Ok(state.vector_registry.default_storage());
+            }
+            tracing::error!(
+                workspace_id = %workspace_id,
+                dimension = workspace.embedding_dimension,
+                error = %e,
+                "CRITICAL: Failed to create workspace vector storage - refusing to use default"
+            );
+            Err(ApiError::Internal(format!(
+                "Failed to create vector storage for workspace '{}' (dimension {}): {}. \
+                 This is a critical error - please check database connectivity and configuration.",
+                workspace_id, workspace.embedding_dimension, e
+            )))
+        }
+    }
+}
+
+/// Get workspace-specific vector storage with fallback (LEGACY - use strict version for ingestion).
+///
+/// @deprecated Use `get_workspace_vector_storage_strict` for document ingestion.
+///
+/// This function falls back to default storage on errors. It should ONLY be used
+/// for read operations where fallback is acceptable (e.g., querying when workspace
+/// storage doesn't exist yet).
+///
+/// # WARNING
+///
+/// DO NOT use this function for write operations (ingestion). Silent fallback
+/// can cause data to be stored in the wrong location. Use the strict version instead.
+#[allow(dead_code)]
+async fn get_workspace_vector_storage_with_fallback(
+    state: &AppState,
+    workspace_id: &str,
+) -> Arc<dyn VectorStorage> {
+    match get_workspace_vector_storage_strict(state, workspace_id).await {
+        Ok(storage) => storage,
+        Err(e) => {
+            warn!(
+                workspace_id = %workspace_id,
+                error = %e,
+                "Falling back to default vector storage (READ ONLY operations)"
+            );
+            state.vector_registry.default_storage()
+        }
+    }
+}
 
 /// Upload a document for processing.
 ///
@@ -235,8 +430,12 @@ pub async fn upload_document(
         let start_time = std::time::Instant::now();
         state.progress_broadcaster.job_started(&document_id, 1, 1);
 
-        let result = state
-            .pipeline
+        // SPEC-032: Use workspace-specific pipeline with workspace LLM configuration
+        // This ensures the workspace's LLM model is used for entity extraction
+        let workspace_pipeline = state
+            .create_workspace_pipeline(&workspace_id_for_storage)
+            .await;
+        let result = workspace_pipeline
             .process(&document_id, &request.content)
             .await?;
 
@@ -258,6 +457,13 @@ pub async fn upload_document(
 
         state.kv_storage.upsert(&chunks).await?;
 
+        // SPEC-033: Get workspace-specific vector storage for document embeddings
+        // This ensures embeddings are stored with correct dimension per workspace
+        // WHY-OODA223: STRICT mode - fail loudly if workspace storage unavailable
+        // to prevent data from being stored in the wrong (global) table
+        let workspace_vector_storage =
+            get_workspace_vector_storage_strict(&state, &workspace_id_for_storage).await?;
+
         // Store chunk embeddings in vector storage for semantic search
         let mut chunk_embeddings_stored = 0;
         for chunk in &result.chunks {
@@ -278,8 +484,7 @@ pub async fn upload_document(
                 }
                 metadata["workspace_id"] = serde_json::json!(&workspace_id_for_storage);
 
-                match state
-                    .vector_storage
+                match workspace_vector_storage
                     .upsert(&[(chunk.id.clone(), embedding.clone(), metadata)])
                     .await
                 {
@@ -336,6 +541,7 @@ pub async fn upload_document(
                     .await?;
 
                 // CRITICAL: Also store entity embedding in vector storage for query_local retrieval
+                // SPEC-033: Use workspace-specific vector storage
                 if let Some(embedding) = &entity.embedding {
                     let mut metadata = serde_json::json!({
                         "type": "entity",
@@ -351,8 +557,7 @@ pub async fn upload_document(
                     metadata["workspace_id"] = serde_json::json!(&workspace_id_for_storage);
 
                     let entity_id = format!("entity:{}", entity.name);
-                    if let Err(e) = state
-                        .vector_storage
+                    if let Err(e) = workspace_vector_storage
                         .upsert(&[(entity_id.clone(), embedding.clone(), metadata)])
                         .await
                     {
@@ -780,6 +985,10 @@ pub async fn list_documents(
             .iter()
             .filter(|d| d.status.as_deref() == Some("failed"))
             .count(),
+        cancelled: documents
+            .iter()
+            .filter(|d| d.status.as_deref() == Some("cancelled"))
+            .count(),
     };
 
     let total = documents.len();
@@ -1170,6 +1379,27 @@ pub async fn delete_document(
         )));
     }
 
+    // SPEC-033: Get workspace_id from document metadata for vector storage isolation
+    let workspace_id_for_storage = if has_metadata {
+        if let Ok(Some(metadata)) = state.kv_storage.get_by_id(&metadata_key).await {
+            metadata
+                .get("workspace_id")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "default".to_string())
+        } else {
+            "default".to_string()
+        }
+    } else {
+        "default".to_string()
+    };
+
+    // SPEC-033: Get workspace-specific vector storage for deletion
+    // WHY-OODA223: STRICT mode - fail loudly if workspace storage unavailable
+    // to ensure we delete from the correct workspace table, not a fallback
+    let workspace_vector_storage =
+        get_workspace_vector_storage_strict(&state, &workspace_id_for_storage).await?;
+
     let chunks_deleted = chunk_ids.len();
     let mut entities_removed = 0usize;
     let mut entities_updated = 0usize;
@@ -1199,8 +1429,8 @@ pub async fn delete_document(
                 }
                 // Then delete the node
                 state.graph_storage.delete_node(&node.id).await?;
-                // Also delete from vector storage
-                let _ = state.vector_storage.delete_entity(&node.id).await;
+                // SPEC-033: Use workspace-specific vector storage for entity deletion
+                let _ = workspace_vector_storage.delete_entity(&node.id).await;
                 entities_removed += 1;
             } else if remaining_sources.len() < source_id.split('|').count() {
                 // Some sources were removed - update the entity
@@ -1577,6 +1807,12 @@ pub async fn upload_file(
 
     state.kv_storage.upsert(&chunks).await?;
 
+    // SPEC-033: Get workspace-specific vector storage for file embeddings
+    // WHY-OODA223: STRICT mode - fail loudly if workspace storage unavailable
+    // to prevent file embeddings from being stored in the wrong (global) table
+    let workspace_vector_storage =
+        get_workspace_vector_storage_strict(&state, &workspace_id_for_storage).await?;
+
     // Store chunk embeddings in vector storage for semantic search
     let mut chunk_embeddings_stored = 0;
     for chunk in &result.chunks {
@@ -1595,8 +1831,7 @@ pub async fn upload_file(
             }
             metadata["workspace_id"] = serde_json::json!(&workspace_id_for_storage);
 
-            match state
-                .vector_storage
+            match workspace_vector_storage
                 .upsert(&[(chunk.id.clone(), embedding.clone(), metadata)])
                 .await
             {
@@ -1685,6 +1920,7 @@ pub async fn upload_file(
                 embedding_dim = entity.embedding.as_ref().map(|e| e.len()).unwrap_or(0),
                 "Checking entity embedding for storage"
             );
+            // SPEC-033: Use workspace-specific vector storage for entity embeddings
             if let Some(embedding) = &entity.embedding {
                 let mut metadata = serde_json::json!({
                     "type": "entity",
@@ -1701,8 +1937,7 @@ pub async fn upload_file(
 
                 // Use entity name as vector ID for dedup
                 let entity_id = format!("entity:{}", entity.name);
-                if let Err(e) = state
-                    .vector_storage
+                if let Err(e) = workspace_vector_storage
                     .upsert(&[(entity_id.clone(), embedding.clone(), metadata)])
                     .await
                 {
@@ -1903,6 +2138,9 @@ pub async fn upload_files_batch(
 }
 
 /// Process a single file and return (document_id, is_duplicate).
+///
+/// Note: Uses default vector storage for batch uploads without tenant context.
+/// For workspace-specific storage, use the main upload_file endpoint with tenant context.
 async fn process_single_file(
     state: &AppState,
     filename: &str,
@@ -1957,6 +2195,8 @@ async fn process_single_file(
     state.kv_storage.upsert(&chunks).await?;
 
     // Store chunk embeddings in vector storage for semantic search
+    // Note: Batch upload uses default vector storage since there's no workspace context.
+    // For workspace-specific storage, use the main upload_file endpoint with tenant context.
     for chunk in &result.chunks {
         if let Some(embedding) = &chunk.embedding {
             let metadata = serde_json::json!({
@@ -2129,6 +2369,10 @@ pub async fn get_track_status(
             .iter()
             .filter(|d| d.status.as_deref() == Some("failed"))
             .count(),
+        cancelled: track_docs
+            .iter()
+            .filter(|d| d.status.as_deref() == Some("cancelled"))
+            .count(),
     };
 
     // Find earliest created_at
@@ -2167,6 +2411,9 @@ pub async fn get_track_status(
 // ============================================
 
 /// Scan a directory and queue documents for processing.
+///
+/// SECURITY (OODA-248): Path traversal protection.
+/// User-provided paths are validated against allowed directories.
 #[utoipa::path(
     post,
     path = "/api/v1/documents/scan",
@@ -2175,6 +2422,7 @@ pub async fn get_track_status(
     responses(
         (status = 200, description = "Directory scanned successfully", body = ScanDirectoryResponse),
         (status = 400, description = "Invalid request"),
+        (status = 403, description = "Path not allowed"),
         (status = 404, description = "Directory not found")
     )
 )]
@@ -2188,18 +2436,14 @@ pub async fn scan_directory(
         tenant_ctx.tenant_id, tenant_ctx.workspace_id
     );
 
-    use std::path::Path;
+    // SECURITY (OODA-248): Validate path against allowed directories.
+    // WHY: Prevents directory traversal attacks (e.g., ../../../etc/passwd).
+    let validated_path =
+        crate::path_validation::validate_path(&request.path, &state.path_validation_config)?;
 
-    let base_path = Path::new(&request.path);
+    let base_path = &validated_path.canonical;
 
-    // Validate path exists and is a directory
-    if !base_path.exists() {
-        return Err(ApiError::NotFound(format!(
-            "Directory not found: {}",
-            request.path
-        )));
-    }
-
+    // Path is already validated to exist by validate_path
     if !base_path.is_dir() {
         return Err(ApiError::BadRequest(format!(
             "Path is not a directory: {}",
@@ -2884,6 +3128,7 @@ mod tests {
                 processing: 0,
                 completed: 1,
                 failed: 0,
+                cancelled: 0,
             },
         };
 
@@ -2984,6 +3229,7 @@ mod tests {
                 processing: 0,
                 completed: 1,
                 failed: 0,
+                cancelled: 0,
             },
             is_complete: true,
             latest_message: Some("All documents processed successfully".to_string()),

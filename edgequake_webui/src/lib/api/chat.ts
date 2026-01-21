@@ -45,6 +45,17 @@ export interface ChatCompletionRequest {
   top_k?: number;
   /** Parent message ID for threading. */
   parent_id?: string;
+  /**
+   * LLM provider ID to use for this query (e.g., "openai", "ollama", "lmstudio").
+   * @implements SPEC-032: Provider selection in query interface
+   */
+  provider?: string;
+  /**
+   * Specific model name within the provider (e.g., "gpt-4o-mini", "gemma3:12b").
+   * When combined with provider, allows full model selection from models.toml.
+   * @implements SPEC-032: Full model selection in query interface
+   */
+  model?: string;
 }
 
 /**
@@ -95,6 +106,10 @@ export interface ChatCompletionResponse {
   tokens_used: number;
   /** Duration in milliseconds. */
   duration_ms: number;
+  /** LLM provider used (lineage tracking). @implements SPEC-032 */
+  llm_provider?: string;
+  /** LLM model used (lineage tracking). @implements SPEC-032 */
+  llm_model?: string;
 }
 
 /**
@@ -123,6 +138,10 @@ export type ChatStreamEvent =
       assistant_message_id: string;
       tokens_used: number;
       duration_ms: number;
+      /** LLM provider used (lineage tracking). @implements SPEC-032 */
+      llm_provider?: string;
+      /** LLM model used (lineage tracking). @implements SPEC-032 */
+      llm_model?: string;
     }
   | {
       type: "error";
