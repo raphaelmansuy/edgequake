@@ -44,8 +44,11 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
-use crate::handlers::query::{QueryStats, SourceReference};
+use crate::handlers::query::{
+    get_workspace_embedding_provider, get_workspace_vector_storage, QueryStats, SourceReference,
+};
 use crate::middleware::TenantContext;
+use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
 use crate::state::AppState;
 use crate::streaming::StreamAccumulator;
 use edgequake_core::types::{
@@ -284,20 +287,21 @@ pub async fn chat_completion(
     }
 
     // Validate workspace_id exists in database (may be stale from localStorage)
-    let workspace_id = if let Some(ws_id) = workspace_id {
+    // Also store workspace for LLM provider fallback (SPEC-032)
+    let (workspace_id, workspace) = if let Some(ws_id) = workspace_id {
         match state.workspace_service.get_workspace(ws_id).await {
-            Ok(Some(_)) => Some(ws_id),
+            Ok(Some(ws)) => (Some(ws_id), Some(ws)),
             Ok(None) => {
                 warn!(workspace_id = %ws_id, "Workspace not found, ignoring stale workspace_id");
-                None
+                (None, None)
             }
             Err(e) => {
                 warn!(workspace_id = %ws_id, error = %e, "Failed to validate workspace, ignoring");
-                None
+                (None, None)
             }
         }
     } else {
-        None
+        (None, None)
     };
 
     let mode = parse_mode(&request.mode);
@@ -356,18 +360,167 @@ pub async fn chat_completion(
     debug!(message_id = %user_message.message_id, "Saved user message");
 
     // 3. Build and execute query using SOTA engine (LightRAG-style)
+    // OODA-231: Use workspace's tenant_id for graph queries, not header tenant_id.
+    // WHY: Header tenant_id is for authentication (random UUID from frontend).
+    // But the graph data was ingested with the workspace's actual tenant_id.
+    // Using header tenant_id causes 0 results because of tenant_id mismatch.
     let mut engine_request = EngineQueryRequest::new(&request.message).with_mode(query_mode);
 
-    engine_request = engine_request.with_tenant_id(tenant_id.to_string());
+    let data_tenant_id = workspace
+        .as_ref()
+        .map(|ws| ws.tenant_id.to_string())
+        .unwrap_or_else(|| tenant_id.to_string());
+    engine_request = engine_request.with_tenant_id(data_tenant_id);
     if let Some(ref ws_id) = workspace_id {
         engine_request = engine_request.with_workspace_id(ws_id.to_string());
     }
 
-    let result = state
-        .sota_engine
-        .query(engine_request)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?;
+    // SPEC-032 + OODA-227: Unified provider resolution with safety limits
+    // Priority order:
+    //   1. Request-specified provider/model (explicit user selection)
+    //   2. Workspace-configured provider/model (workspace settings)
+    //   3. Server default (sota_engine's default provider)
+    // Supports both formats:
+    //   - Legacy format: provider="provider/model" (e.g., "ollama/gemma3:12b")
+    //   - New format: provider="provider", model="model_name"
+    let resolver = WorkspaceProviderResolver::new(state.workspace_service.clone());
+    let llm_request =
+        LlmResolutionRequest::from_provider_string(request.provider.clone(), request.model.clone());
+
+    let (llm_override, used_provider, used_model) =
+        match resolver.resolve_llm_provider_with_workspace(workspace.as_ref(), &llm_request) {
+            Ok(Some(resolved)) => {
+                debug!(
+                    provider = %resolved.provider_name,
+                    model = %resolved.model_name,
+                    source = ?resolved.source,
+                    "Resolved LLM provider (non-streaming)"
+                );
+                (
+                    Some(resolved.provider),
+                    Some(resolved.provider_name),
+                    Some(resolved.model_name),
+                )
+            }
+            Ok(None) => {
+                // No provider resolved - will use server default
+                debug!("Using server default LLM provider (non-streaming)");
+                (None, None, None)
+            }
+            Err(e) => {
+                // Explicit provider request failed - return error to user
+                // OODA-234: Unified error conversion via From<ProviderResolutionError>
+                error!(error = %e, "Failed to resolve LLM provider (non-streaming)");
+                return Err(ApiError::from(e));
+            }
+        };
+
+    // OODA-228: Get workspace-specific embedding provider and vector storage
+    // This ensures query embeddings match the dimension of stored vectors
+    let workspace_id_str = workspace_id.as_ref().map(|id| id.to_string());
+    let (ws_embedding_provider, ws_vector_storage) = if let Some(ref ws_id_str) = workspace_id_str {
+        let embedding_result = get_workspace_embedding_provider(&state, ws_id_str).await;
+        let vector_result = get_workspace_vector_storage(&state, ws_id_str).await;
+
+        match (embedding_result, vector_result) {
+            (Ok(Some(embed)), Ok(Some(vector))) => {
+                debug!(
+                    workspace_id = %ws_id_str,
+                    "Using workspace-specific embedding provider AND vector storage for chat query"
+                );
+                (Some(embed), Some(vector))
+            }
+            (Ok(Some(embed)), Ok(None)) => {
+                // Embedding provider exists but no vector storage (shouldn't happen in normal use)
+                debug!(
+                    workspace_id = %ws_id_str,
+                    "Using workspace-specific embedding provider only for chat query"
+                );
+                (Some(embed), None)
+            }
+            (Ok(Some(_embed)), Err(e)) => {
+                // OODA-228: Vector storage failed - return error, don't silently ignore
+                error!(
+                    workspace_id = %ws_id_str,
+                    error = %e,
+                    "Cannot get workspace vector storage - storage error"
+                );
+                return Err(ApiError::Internal(format!(
+                    "Cannot query workspace: {}. Vector storage error: {}",
+                    ws_id_str, e
+                )));
+            }
+            (Ok(None), _) => {
+                debug!(
+                    workspace_id = %ws_id_str,
+                    "No workspace-specific embedding config, using defaults"
+                );
+                (None, None)
+            }
+            (Err(e), _) => {
+                // OODA-228/OODA-229: Return clear error for configuration issues
+                // WHY: Silent fallback to default causes dimension mismatch because:
+                // 1. Workspace was configured with provider X (e.g., OpenAI 3072 dims)
+                // 2. Documents were embedded with dimension X
+                // 3. Now provider X fails (e.g., missing OPENAI_API_KEY)
+                // 4. If we fall back to provider Y (e.g., Ollama 768 dims), query will fail
+                //    with "different vector dimensions" error from PostgreSQL
+                error!(
+                    workspace_id = %ws_id_str,
+                    error = %e,
+                    "Cannot create workspace embedding provider - configuration error"
+                );
+
+                // Return the error directly (it already has a good message from query.rs)
+                return Err(e);
+            }
+        }
+    } else {
+        (None, None)
+    };
+
+    // Execute query with workspace-specific providers if available
+    let result = match (&ws_embedding_provider, &ws_vector_storage) {
+        (Some(embed), Some(vector)) => {
+            // Full workspace isolation with optional LLM override
+            state
+                .sota_engine
+                .query_with_full_config(
+                    engine_request,
+                    embed.clone(),
+                    vector.clone(),
+                    llm_override.clone(),
+                )
+                .await
+                .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+        }
+        (Some(embed), None) => {
+            // Workspace embedding only (uses default vector storage)
+            // This should not happen in normal operation but handle gracefully
+            warn!("Workspace embedding available but no vector storage - using embedding provider only");
+            state
+                .sota_engine
+                .query_with_embedding_provider(engine_request, embed.clone())
+                .await
+                .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+        }
+        _ => {
+            // No workspace-specific config, use default or LLM override only
+            if let Some(ref llm) = llm_override {
+                state
+                    .sota_engine
+                    .query_with_llm_provider(engine_request, llm.clone())
+                    .await
+                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+            } else {
+                state
+                    .sota_engine
+                    .query(engine_request)
+                    .await
+                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+            }
+        }
+    };
 
     // 4. Build sources and context
     let sources = build_sources(&result.context);
@@ -412,6 +565,17 @@ pub async fn chat_completion(
         "Chat completion successful"
     );
 
+    // SPEC-032 Item 18: Calculate tokens per second
+    let tokens_per_second =
+        if result.stats.generation_time_ms > 0 && result.stats.generated_tokens > 0 {
+            Some(
+                (result.stats.generated_tokens as f32) / (result.stats.generation_time_ms as f32)
+                    * 1000.0,
+            )
+        } else {
+            None
+        };
+
     Ok(Json(ChatCompletionResponse {
         conversation_id,
         user_message_id: user_message.message_id,
@@ -428,9 +592,18 @@ pub async fn chat_completion(
                 + result.context.entities.len()
                 + result.context.relationships.len(),
             rerank_time_ms: None,
+            // SPEC-032 Item 18, 22: Token metrics and model lineage
+            tokens_used: Some(result.stats.generated_tokens),
+            tokens_per_second,
+            // Clone the already-Option values (don't double-wrap)
+            llm_provider: used_provider.clone(),
+            llm_model: used_model.clone(),
         },
         tokens_used: result.stats.generated_tokens as u32,
         duration_ms: result.stats.total_time_ms,
+        // SPEC-032: Provider lineage tracking
+        llm_provider: used_provider,
+        llm_model: used_model,
     }))
 }
 
@@ -510,20 +683,21 @@ pub async fn chat_completion_stream(
     }
 
     // Validate workspace_id exists in database (may be stale from localStorage)
-    let workspace_id = if let Some(ws_id) = workspace_id {
+    // Also store workspace for LLM provider fallback (SPEC-032)
+    let (workspace_id, workspace) = if let Some(ws_id) = workspace_id {
         match state.workspace_service.get_workspace(ws_id).await {
-            Ok(Some(_)) => Some(ws_id),
+            Ok(Some(ws)) => (Some(ws_id), Some(ws)),
             Ok(None) => {
                 warn!(workspace_id = %ws_id, "Workspace not found in streaming handler, ignoring stale workspace_id");
-                None
+                (None, None)
             }
             Err(e) => {
                 warn!(workspace_id = %ws_id, error = %e, "Failed to validate workspace in streaming handler, ignoring");
-                None
+                (None, None)
             }
         }
     } else {
-        None
+        (None, None)
     };
 
     let mode = parse_mode(&request.mode);
@@ -586,6 +760,10 @@ pub async fn chat_completion_stream(
     let state_clone = state.clone();
     let message_content = request.message.clone();
     let user_message_id = user_message.message_id;
+    // SPEC-032: Clone provider, model, and workspace for async task
+    let request_provider = request.provider.clone();
+    let request_model = request.model.clone();
+    let workspace_clone = workspace.clone();
 
     // 5. Send initial conversation event
     let initial_event = ChatStreamEvent::Conversation {
@@ -608,18 +786,181 @@ pub async fn chat_completion_stream(
         let mut saved_message_context: Option<MessageContext> = None;
 
         // Build query request
+        // OODA-231: Use workspace's tenant_id for graph queries, not header tenant_id.
+        // WHY: Header tenant_id is for authentication (random UUID from frontend).
+        // But the graph data was ingested with the workspace's actual tenant_id.
+        // Using header tenant_id causes 0 results because of tenant_id mismatch.
         let mut engine_request = EngineQueryRequest::new(&message_content).with_mode(query_mode);
-        engine_request = engine_request.with_tenant_id(tenant_id.to_string());
+        let data_tenant_id = workspace_clone
+            .as_ref()
+            .map(|ws| ws.tenant_id.to_string())
+            .unwrap_or_else(|| tenant_id.to_string());
+        engine_request = engine_request.with_tenant_id(data_tenant_id);
         if let Some(ref ws_id) = workspace_id {
             engine_request = engine_request.with_workspace_id(ws_id.to_string());
         }
 
-        // Execute streaming query with context using SOTA engine (LightRAG-style)
-        match state_clone
-            .sota_engine
-            .query_stream_with_context(engine_request)
-            .await
+        // SPEC-032 + OODA-227: Unified provider resolution with safety limits (streaming)
+        // Priority order:
+        //   1. Request-specified provider/model (explicit user selection)
+        //   2. Workspace-configured provider/model (workspace settings)
+        //   3. Server default (sota_engine's default provider)
+        // Supports both formats:
+        //   - Legacy format: provider="provider/model" (e.g., "ollama/gemma3:12b")
+        //   - New format: provider="provider", model="model_name"
+        let resolver = WorkspaceProviderResolver::new(state_clone.workspace_service.clone());
+        let llm_request = LlmResolutionRequest::from_provider_string(
+            request_provider.clone(),
+            request_model.clone(),
+        );
+
+        let (llm_override, used_provider, used_model) = match resolver
+            .resolve_llm_provider_with_workspace(workspace_clone.as_ref(), &llm_request)
         {
+            Ok(Some(resolved)) => {
+                debug!(
+                    provider = %resolved.provider_name,
+                    model = %resolved.model_name,
+                    source = ?resolved.source,
+                    "Resolved LLM provider (streaming)"
+                );
+                (
+                    Some(resolved.provider),
+                    Some(resolved.provider_name),
+                    Some(resolved.model_name),
+                )
+            }
+            Ok(None) => {
+                // No provider resolved - will use server default
+                debug!("Using server default LLM provider (streaming)");
+                (None, None, None)
+            }
+            Err(e) => {
+                // Explicit provider request failed - send error to client via SSE
+                error!(error = %e, "Failed to resolve LLM provider (streaming)");
+                let error_msg = e.to_string();
+                let _ = tx
+                    .send(ChatStreamEvent::Error {
+                        message: error_msg,
+                        code: "PROVIDER_CONFIG_ERROR".to_string(),
+                    })
+                    .await;
+                return; // Exit task early with error sent
+            }
+        };
+
+        // Execute streaming query with context using SOTA engine (LightRAG-style)
+        // OODA-228: Get workspace embedding provider and vector storage for proper isolation
+        let workspace_id_str = workspace_id.as_ref().map(|id| id.to_string());
+        let (ws_embedding_provider, ws_vector_storage) = if let Some(ref ws_id_str) =
+            workspace_id_str
+        {
+            // Get workspace embedding provider
+            let embed_provider = match get_workspace_embedding_provider(&state_clone, ws_id_str)
+                .await
+            {
+                Ok(Some(p)) => Some(p),
+                Ok(None) => {
+                    debug!(workspace_id = %ws_id_str, "Workspace using default embedding provider for streaming");
+                    None
+                }
+                Err(e) => {
+                    // OODA-228/OODA-229: Send error event with clear message
+                    error!(workspace_id = %ws_id_str, error = ?e, "Cannot create workspace embedding provider for streaming");
+                    let err_msg = e.to_string();
+                    let _ = tx
+                        .send(ChatStreamEvent::Error {
+                            message: err_msg,
+                            code: "EMBEDDING_PROVIDER_CONFIG_ERROR".to_string(),
+                        })
+                        .await;
+                    return; // Exit task early with error sent
+                }
+            };
+
+            // Get workspace vector storage
+            let vector_storage = match get_workspace_vector_storage(&state_clone, ws_id_str).await {
+                Ok(Some(s)) => Some(s),
+                Ok(None) => {
+                    debug!(workspace_id = %ws_id_str, "Workspace using default vector storage for streaming");
+                    None
+                }
+                Err(e) => {
+                    // OODA-228: Send error event for vector storage failures too
+                    error!(workspace_id = %ws_id_str, error = ?e, "Cannot get workspace vector storage for streaming");
+                    let err_msg = format!(
+                        "Cannot stream query for workspace: {}. Vector storage error: {:?}",
+                        ws_id_str, e
+                    );
+                    let _ = tx
+                        .send(ChatStreamEvent::Error {
+                            message: err_msg,
+                            code: "VECTOR_STORAGE_ERROR".to_string(),
+                        })
+                        .await;
+                    return; // Exit task early with error sent
+                }
+            };
+
+            (embed_provider, vector_storage)
+        } else {
+            (None, None)
+        };
+
+        // SPEC-032: Use query_stream_with_full_config if we have workspace config, otherwise fall back
+        let stream_result = match (&ws_embedding_provider, &ws_vector_storage) {
+            (Some(embed), Some(vector)) => {
+                // OODA-228: Use workspace embedding + storage + optional LLM override
+                debug!("Using full config for streaming (workspace embedding + vector storage + LLM override)");
+                state_clone
+                    .sota_engine
+                    .query_stream_with_full_config(
+                        engine_request,
+                        embed.clone(),
+                        vector.clone(),
+                        llm_override.clone(),
+                    )
+                    .await
+            }
+            (Some(_embed), None) => {
+                // Have embedding provider but not vector storage - use embedding override only
+                // WHY: _embed is unused because query_stream_with_embedding_provider isn't implemented yet
+                debug!("Using embedding provider override for streaming (no vector storage)");
+                // For streaming, we need to use get_context with embedding and then stream
+                // Since we don't have query_stream_with_embedding_provider, use the LLM override approach
+                if let Some(ref llm) = llm_override {
+                    state_clone
+                        .sota_engine
+                        .query_stream_with_context_and_llm(engine_request, llm.clone())
+                        .await
+                } else {
+                    state_clone
+                        .sota_engine
+                        .query_stream_with_context(engine_request)
+                        .await
+                }
+            }
+            _ => {
+                // No workspace config - use LLM override only
+                if let Some(ref llm) = llm_override {
+                    debug!("Using LLM provider override for streaming (no workspace config)");
+                    state_clone
+                        .sota_engine
+                        .query_stream_with_context_and_llm(engine_request, llm.clone())
+                        .await
+                } else {
+                    debug!(
+                        "Using default configuration for streaming (no workspace or LLM override)"
+                    );
+                    state_clone
+                        .sota_engine
+                        .query_stream_with_context(engine_request)
+                        .await
+                }
+            }
+        };
+
+        match stream_result {
             Ok((context, _mode, mut stream)) => {
                 // Send context event BEFORE streaming tokens (for source citations)
                 let sources = build_sources(&context);
@@ -727,6 +1068,8 @@ pub async fn chat_completion_stream(
                     tokens_used = tokens_used,
                     duration_ms = duration_ms,
                     chunk_count = accumulator.chunk_count(),
+                    llm_provider = ?used_provider,
+                    llm_model = ?used_model,
                     "Streaming chat completion successful"
                 );
 
@@ -735,6 +1078,9 @@ pub async fn chat_completion_stream(
                         assistant_message_id: assistant_message.message_id,
                         tokens_used,
                         duration_ms,
+                        // SPEC-032: Provider lineage tracking
+                        llm_provider: used_provider.clone(),
+                        llm_model: used_model.clone(),
                     })
                     .await;
             }
@@ -820,6 +1166,8 @@ mod tests {
             assistant_message_id: Uuid::nil(),
             tokens_used: 100,
             duration_ms: 500,
+            llm_provider: None,
+            llm_model: None,
         };
         let json = serde_json::to_string(&event).unwrap();
         assert!(json.contains("\"type\":\"done\""));

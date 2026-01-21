@@ -115,4 +115,28 @@ pub trait VectorStorage: Send + Sync {
 
     /// Clear all vectors.
     async fn clear(&self) -> Result<()>;
+
+    /// Clear vectors for a specific workspace.
+    ///
+    /// This is used when rebuilding embeddings for a single workspace
+    /// without affecting other workspaces.
+    ///
+    /// # Arguments
+    ///
+    /// * `workspace_id` - The UUID of the workspace to clear vectors for
+    ///
+    /// # Returns
+    ///
+    /// Number of vectors deleted.
+    ///
+    /// # Default Implementation
+    ///
+    /// Returns 0 by default. Implementations should override this for
+    /// workspace-scoped clearing.
+    async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
+        // Default implementation does nothing - clear() clears all
+        // Implementations should override this for workspace-scoped clearing
+        let _ = workspace_id;
+        Ok(0)
+    }
 }

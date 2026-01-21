@@ -157,6 +157,8 @@ pub struct SourceReference {
 }
 
 /// Query statistics.
+///
+/// @implements SPEC-032 Item 18, 22: Token metrics and model lineage
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct QueryStats {
     /// Embedding time in ms.
@@ -177,6 +179,25 @@ pub struct QueryStats {
     /// Rerank time in ms (if reranking was applied).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rerank_time_ms: Option<u64>,
+
+    // ========================================================================
+    // SPEC-032: Token metrics and model lineage (Items 18, 22)
+    // ========================================================================
+    /// Number of tokens generated in the response.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tokens_used: Option<usize>,
+
+    /// Tokens per second generation speed (calculated as tokens_used / generation_time_ms * 1000).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tokens_per_second: Option<f32>,
+
+    /// LLM provider used for generation (e.g., "ollama", "openai", "lmstudio").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub llm_provider: Option<String>,
+
+    /// LLM model name used for generation (e.g., "gemma3:12b", "gpt-4o-mini").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub llm_model: Option<String>,
 }
 
 // ============================================================================
@@ -288,11 +309,21 @@ mod tests {
             total_time_ms: 650,
             sources_retrieved: 5,
             rerank_time_ms: Some(25),
+            // SPEC-032 Item 18, 22: Token metrics and model lineage
+            tokens_used: Some(124),
+            tokens_per_second: Some(248.0),
+            llm_provider: Some("ollama".to_string()),
+            llm_model: Some("gemma3:12b".to_string()),
         };
         let json = serde_json::to_value(&stats).unwrap();
         assert_eq!(json["total_time_ms"], 650);
         assert_eq!(json["sources_retrieved"], 5);
         assert_eq!(json["rerank_time_ms"], 25);
+        // SPEC-032: Verify new fields
+        assert_eq!(json["tokens_used"], 124);
+        assert_eq!(json["tokens_per_second"], 248.0);
+        assert_eq!(json["llm_provider"], "ollama");
+        assert_eq!(json["llm_model"], "gemma3:12b");
     }
 
     #[test]
@@ -308,6 +339,11 @@ mod tests {
                 total_time_ms: 130,
                 sources_retrieved: 0,
                 rerank_time_ms: None,
+                // SPEC-032 Item 18, 22: Token metrics and model lineage (optional in test)
+                tokens_used: None,
+                tokens_per_second: None,
+                llm_provider: None,
+                llm_model: None,
             },
             conversation_id: None,
             reranked: false,

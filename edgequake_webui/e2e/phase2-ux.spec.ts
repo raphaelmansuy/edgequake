@@ -12,10 +12,11 @@ test.describe("Phase 2 UX Improvements - Graph & Query", () => {
       await page.goto("/graph");
       await page.waitForLoadState("networkidle");
 
-      // Look for the export button (download icon)
+      // Look for the export button by aria-label or download icon
+      // Note: Button itself has aria-label, not a child element
       const exportButton = page
         .locator(
-          'button[title*="Export" i], button:has([aria-label*="Export" i])'
+          'button[aria-label*="Export" i], button[aria-label*="export" i], button:has(svg.lucide-download)'
         )
         .first();
       await expect(exportButton).toBeVisible({ timeout: 10000 });

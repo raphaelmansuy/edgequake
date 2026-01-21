@@ -143,6 +143,240 @@ impl PgVectorStorage {
             .filter_map(|s| s.trim().parse::<f32>().ok())
             .collect()
     }
+
+    /// Get the dimension of the vector column in the database table.
+    ///
+    /// This queries the pg_attribute system catalog to get the vector column's
+    /// dimension from atttypmod, which persists even when the table is empty.
+    /// This is essential for detecting dimension mismatches after provider changes.
+    ///
+    /// @implements BR0320: Dimension consistency validation
+    /// @implements OODA-228: Fix dimension detection for empty tables
+    ///
+    /// Returns `None` if the table doesn't exist or has no embedding column.
+    pub async fn get_stored_dimension(&self) -> Result<Option<usize>> {
+        let pool = match self.pool.get().await {
+            Ok(p) => p,
+            Err(_) => return Ok(None), // Pool not initialized yet
+        };
+
+        // Parse table name to extract schema and table
+        let (schema, table) = if self.table_name.contains('.') {
+            let parts: Vec<&str> = self.table_name.split('.').collect();
+            (parts[0], parts[1])
+        } else {
+            ("public", self.table_name.as_str())
+        };
+
+        // Query the column's atttypmod from pg_attribute.
+        // For pgvector, atttypmod stores the dimension directly.
+        // This works even when the table is EMPTY, unlike querying stored vectors.
+        //
+        // WHY pg_attribute.atttypmod?
+        // - pgvector stores dimension in atttypmod (type modifier)
+        // - This is set when CREATE TABLE defines vector(N)
+        // - Persists regardless of table contents
+        let sql = r#"
+            SELECT a.atttypmod
+            FROM pg_attribute a
+            JOIN pg_class c ON a.attrelid = c.oid
+            JOIN pg_namespace n ON c.relnamespace = n.oid
+            WHERE n.nspname = $1
+              AND c.relname = $2
+              AND a.attname = 'embedding'
+              AND a.atttypmod > 0
+        "#;
+
+        let result: Option<(i32,)> = sqlx::query_as(sql)
+            .bind(schema)
+            .bind(table)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| {
+                StorageError::Database(format!("Failed to get column dimension: {}", e))
+            })?;
+
+        match result {
+            Some((dim,)) if dim > 0 => {
+                tracing::debug!(
+                    table = %self.table_name,
+                    dimension = dim,
+                    "Got column dimension from pg_attribute.atttypmod"
+                );
+                Ok(Some(dim as usize))
+            }
+            _ => {
+                // Fallback: try to query stored vectors (works if table has data)
+                // This covers cases where atttypmod might not be set correctly
+                let fallback_sql = format!(
+                    "SELECT vector_dims(embedding) as dim FROM {} LIMIT 1",
+                    self.table_name
+                );
+
+                let fallback_result: Option<(i32,)> = sqlx::query_as(&fallback_sql)
+                    .fetch_optional(&pool)
+                    .await
+                    .ok()
+                    .flatten();
+
+                match fallback_result {
+                    Some((dim,)) if dim > 0 => {
+                        tracing::debug!(
+                            table = %self.table_name,
+                            dimension = dim,
+                            "Got dimension from stored vector (fallback)"
+                        );
+                        Ok(Some(dim as usize))
+                    }
+                    _ => Ok(None),
+                }
+            }
+        }
+    }
+
+    /// Drop the vectors table if it exists.
+    ///
+    /// @implements OODA-228: Support dimension changes after provider switch
+    ///
+    /// # Warning
+    ///
+    /// This permanently deletes all vectors stored in this table.
+    /// Use with caution and only when dimension migration is required.
+    pub async fn drop_table(&self) -> Result<()> {
+        let pool = self.pool.get().await?;
+
+        let sql = format!("DROP TABLE IF EXISTS {} CASCADE", self.table_name);
+
+        sqlx::query(&sql)
+            .execute(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("Failed to drop vectors table: {}", e)))?;
+
+        tracing::info!(
+            table = %self.table_name,
+            "Dropped vector table for dimension migration"
+        );
+
+        Ok(())
+    }
+
+    /// Ensure the table has the correct dimension, recreating if necessary.
+    ///
+    /// @implements OODA-228: Fix vector dimension mismatch after provider switch
+    ///
+    /// When an embedding provider is changed (e.g., OpenAI 1536 → Ollama 768),
+    /// the PostgreSQL table's vector column dimension must be updated.
+    /// Since PostgreSQL does not support ALTER COLUMN TYPE for vector columns,
+    /// we must DROP and recreate the table.
+    ///
+    /// # Algorithm
+    ///
+    /// 1. Initialize pool connection if not already done
+    /// 2. Check if table exists and get stored dimension
+    /// 3. If table doesn't exist → create with required dimension (normal init)
+    /// 4. If dimension matches → no-op (table is compatible)
+    /// 5. If dimension differs → DROP TABLE and recreate with new dimension
+    ///
+    /// # Warning
+    ///
+    /// This may permanently delete stored vectors if dimension change is detected.
+    /// The caller should ensure documents are re-embedded before calling queries.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(true)` if table was recreated due to dimension change
+    /// - `Ok(false)` if no recreation was needed
+    /// - `Err(_)` on database errors
+    pub async fn ensure_dimension(&self, required_dimension: usize) -> Result<bool> {
+        // Initialize pool connection first (required for database operations)
+        // WHY: This method may be called before initialize(), so we need to
+        // ensure the pool is ready before querying the database.
+        self.pool.initialize().await?;
+
+        // Now check if table exists by querying stored dimension
+        let stored_dim = self.get_stored_dimension().await?;
+
+        match stored_dim {
+            Some(dim) if dim == required_dimension => {
+                // Dimension matches, no action needed
+                tracing::debug!(
+                    table = %self.table_name,
+                    dimension = required_dimension,
+                    "Vector table dimension matches, no recreation needed"
+                );
+                Ok(false)
+            }
+            Some(dim) => {
+                // Dimension mismatch - need to recreate table
+                tracing::warn!(
+                    table = %self.table_name,
+                    old_dimension = dim,
+                    new_dimension = required_dimension,
+                    "Vector dimension mismatch detected, recreating table"
+                );
+
+                // Drop existing table
+                self.drop_table().await?;
+
+                // Recreate with new dimension
+                self.create_table().await?;
+
+                tracing::info!(
+                    table = %self.table_name,
+                    dimension = required_dimension,
+                    "Vector table recreated with new dimension"
+                );
+
+                Ok(true)
+            }
+            None => {
+                // Table is empty or doesn't exist - create_table handles this
+                // (CREATE TABLE IF NOT EXISTS is idempotent for empty tables)
+                tracing::debug!(
+                    table = %self.table_name,
+                    dimension = required_dimension,
+                    "Vector table empty or not exists, will create on initialize"
+                );
+                Ok(false)
+            }
+        }
+    }
+
+    /// Check if the table exists in the database.
+    ///
+    /// @implements OODA-228: Dimension validation helper
+    pub async fn table_exists(&self) -> Result<bool> {
+        let pool = match self.pool.get().await {
+            Ok(p) => p,
+            Err(_) => return Ok(false), // Pool not initialized yet
+        };
+
+        // Parse table name to extract schema and table
+        let (schema, table) = if self.table_name.contains('.') {
+            let parts: Vec<&str> = self.table_name.split('.').collect();
+            (parts[0], parts[1])
+        } else {
+            ("public", self.table_name.as_str())
+        };
+
+        let sql = r#"
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_schema = $1 AND table_name = $2
+            )
+        "#;
+
+        let exists: (bool,) = sqlx::query_as(sql)
+            .bind(schema)
+            .bind(table)
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| {
+                StorageError::Database(format!("Failed to check table existence: {}", e))
+            })?;
+
+        Ok(exists.0)
+    }
 }
 
 #[async_trait]
@@ -404,6 +638,27 @@ impl VectorStorage for PgVectorStorage {
             .map_err(|e| StorageError::Database(format!("Clear failed: {}", e)))?;
 
         Ok(())
+    }
+
+    /// Clear vectors for a specific workspace.
+    ///
+    /// Uses JSONB query on metadata to filter by workspace_id.
+    async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
+        let pool = self.pool.get().await?;
+
+        // Query vectors where metadata->>'workspace_id' matches
+        let sql = format!(
+            "DELETE FROM {} WHERE metadata->>'workspace_id' = $1",
+            self.table_name
+        );
+
+        let result = sqlx::query(&sql)
+            .bind(workspace_id.to_string())
+            .execute(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("Clear workspace failed: {}", e)))?;
+
+        Ok(result.rows_affected() as usize)
     }
 }
 

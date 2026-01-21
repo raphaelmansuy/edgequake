@@ -18,7 +18,7 @@
     "dropdowns": 0
   },
   "/query": {
-    "buttons": 23,
+    "buttons": 24,
     "cards": 0,
     "inputs": 2,
     "badges": 0,
@@ -36,7 +36,7 @@
     "dropdowns": 0
   },
   "/settings": {
-    "buttons": 18,
+    "buttons": 26,
     "cards": 0,
     "inputs": 1,
     "badges": 0,
@@ -45,7 +45,7 @@
     "dropdowns": 0
   },
   "/api-explorer": {
-    "buttons": 34,
+    "buttons": 47,
     "cards": 0,
     "inputs": 0,
     "badges": 0,

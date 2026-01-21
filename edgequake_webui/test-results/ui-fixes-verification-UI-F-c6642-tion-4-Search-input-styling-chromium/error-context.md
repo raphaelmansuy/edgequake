@@ -31,227 +31,158 @@
             - /url: /query
             - img [ref=e44]
             - generic [ref=e46]: Query
-          - link "Costs" [ref=e47] [cursor=pointer]:
-            - /url: /costs
+          - link "Workspace" [ref=e47] [cursor=pointer]:
+            - /url: /workspace
             - img [ref=e48]
-            - generic [ref=e50]: Costs
-          - link "API Explorer" [ref=e51] [cursor=pointer]:
-            - /url: /api-explorer
+            - generic [ref=e50]: Workspace
+          - link "Costs" [ref=e51] [cursor=pointer]:
+            - /url: /costs
             - img [ref=e52]
-            - generic [ref=e54]: API Explorer
-          - link "Settings" [ref=e55] [cursor=pointer]:
-            - /url: /settings
+            - generic [ref=e54]: Costs
+          - link "API Explorer" [ref=e55] [cursor=pointer]:
+            - /url: /api-explorer
             - img [ref=e56]
-            - generic [ref=e59]: Settings
-        - generic [ref=e60]:
-          - button "Collapse sidebar" [ref=e61]:
+            - generic [ref=e58]: API Explorer
+          - link "Settings" [ref=e59] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e60]
+            - generic [ref=e63]: Settings
+        - generic [ref=e64]:
+          - button "Collapse sidebar" [ref=e65]:
             - img
-            - generic [ref=e62]: Collapse
-          - generic [ref=e63]:
-            - img [ref=e65]
-            - generic [ref=e70]:
-              - generic [ref=e71]: EdgeQuake
-              - generic [ref=e72]: v0.1.0
-    - generic [ref=e73]:
-      - banner [ref=e74]:
-        - button "Default Workspac..." [ref=e77]:
+            - generic [ref=e66]: Collapse
+          - generic [ref=e67]:
+            - img [ref=e69]
+            - generic [ref=e74]:
+              - generic [ref=e75]: EdgeQuake
+              - generic [ref=e76]: v0.1.0
+    - generic [ref=e77]:
+      - banner [ref=e78]:
+        - button "test-invalid-176..." [ref=e81]:
           - img
-          - generic [ref=e78]: Default Workspac...
+          - generic [ref=e82]: test-invalid-176...
           - img
-        - generic [ref=e79]:
-          - generic [ref=e80]:
-            - img [ref=e81]
-            - generic [ref=e83]: v0.1.0
-          - button "Change language" [ref=e84]:
+        - generic [ref=e83]:
+          - generic [ref=e84]:
+            - img [ref=e85]
+            - generic [ref=e87]: v0.1.0
+          - button "Change language" [ref=e88]:
             - img
-            - generic [ref=e85]: Change language
-          - button "Toggle theme" [ref=e86]:
+            - generic [ref=e89]: Change language
+          - button "Toggle theme" [ref=e90]:
             - img
-            - generic [ref=e87]: Toggle theme
-          - button "User menu" [ref=e88]:
+            - generic [ref=e91]: Toggle theme
+          - button "User menu" [ref=e92]:
             - img
-            - generic [ref=e89]: User menu
-      - navigation "breadcrumb" [ref=e91]:
-        - list [ref=e92]:
-          - listitem [ref=e93]:
-            - link "EdgeQuake" [ref=e94] [cursor=pointer]:
+            - generic [ref=e93]: User menu
+      - navigation "breadcrumb" [ref=e95]:
+        - list [ref=e96]:
+          - listitem [ref=e97]:
+            - link "EdgeQuake" [ref=e98] [cursor=pointer]:
               - /url: /
-              - img [ref=e95]
-              - generic [ref=e98]: EdgeQuake
-          - listitem [ref=e99]:
-            - img [ref=e100]
-          - listitem [ref=e102]:
-            - link "Knowledge Graph" [disabled] [ref=e103]:
-              - img [ref=e104]
-              - generic [ref=e109]: Knowledge Graph
-      - main [ref=e110]:
-        - generic [ref=e112]:
-          - complementary "Entity browser" [ref=e113]:
-            - generic [ref=e114]:
-              - generic [ref=e115]:
-                - img [ref=e116]
-                - heading "Entities" [level=2] [ref=e121]
-                - generic [ref=e122]: "3"
-              - button "Collapse entity browser" [ref=e123]:
+              - img [ref=e99]
+              - generic [ref=e102]: EdgeQuake
+          - listitem [ref=e103]:
+            - img [ref=e104]
+          - listitem [ref=e106]:
+            - link "Knowledge Graph" [disabled] [ref=e107]:
+              - img [ref=e108]
+              - generic [ref=e113]: Knowledge Graph
+      - main [ref=e114]:
+        - generic [ref=e116]:
+          - complementary "Entity browser" [ref=e117]:
+            - generic [ref=e118]:
+              - generic [ref=e119]:
+                - img [ref=e120]
+                - heading "Entities" [level=2] [ref=e125]
+                - generic [ref=e126]: "0"
+              - button "Collapse entity browser" [ref=e127]:
                 - img
-            - generic [ref=e125]:
-              - img [ref=e126]
-              - textbox "Search entities by name, type, or description" [active] [ref=e129]:
+            - generic [ref=e129]:
+              - img [ref=e130]
+              - textbox "Search entities by name, type, or description" [active] [ref=e133]:
                 - /placeholder: Search entities...
-              - generic [ref=e130]: Type to filter the list of entities. Results update automatically.
-            - group "Sort controls" [ref=e131]:
-              - generic [ref=e132]: "Sort:"
-              - button "Name" [pressed] [ref=e133]
-              - button "Degree" [ref=e134]
-              - button "Sort ascending, click to sort descending" [ref=e135]:
+              - generic [ref=e134]: Type to filter the list of entities. Results update automatically.
+            - group "Sort controls" [ref=e135]:
+              - generic [ref=e136]: "Sort:"
+              - button "Name" [pressed] [ref=e137]
+              - button "Degree" [ref=e138]
+              - button "Sort ascending, click to sort descending" [ref=e139]:
                 - img
-            - tablist "View mode" [ref=e136]:
-              - tab "Grouped" [selected] [ref=e137]
-              - tab "List" [ref=e138]
-            - tabpanel [ref=e139]:
-              - generic [ref=e143]:
-                - generic [ref=e144]:
-                  - button "PERSON 1 entities" [expanded] [ref=e145]:
-                    - generic [ref=e148]: PERSON
-                    - generic [ref=e149]:
-                      - generic "1 entities" [ref=e150]: "1"
-                      - img
-                  - group "PERSON entities" [ref=e152]:
-                    - option "DR_MARTINEZ PERSON · 2" [ref=e153]:
-                      - generic [ref=e155]:
-                        - paragraph [ref=e156]: DR_MARTINEZ
-                        - generic [ref=e157]:
-                          - generic [ref=e158]: PERSON
-                          - generic [ref=e159]: ·
-                          - generic [ref=e163]: "2"
-                - generic [ref=e164]:
-                  - button "PRODUCT 1 entities" [expanded] [ref=e165]:
-                    - generic [ref=e168]: PRODUCT
-                    - generic [ref=e169]:
-                      - generic "1 entities" [ref=e170]: "1"
-                      - img
-                  - group "PRODUCT entities" [ref=e172]:
-                    - option "EdgeQuake PRODUCT · 2" [ref=e173]:
-                      - generic [ref=e175]:
-                        - paragraph [ref=e176]: EdgeQuake
-                        - generic [ref=e177]:
-                          - generic [ref=e178]: PRODUCT
-                          - generic [ref=e179]: ·
-                          - generic [ref=e183]: "2"
-                - generic [ref=e184]:
-                  - button "EVENT 1 entities" [expanded] [ref=e185]:
-                    - generic [ref=e188]: EVENT
-                    - generic [ref=e189]:
-                      - generic "1 entities" [ref=e190]: "1"
-                      - img
-                  - group "EVENT entities" [ref=e192]:
-                    - option "PROJECT_ALPHA EVENT · 2" [ref=e193]:
-                      - generic [ref=e195]:
-                        - paragraph [ref=e196]: PROJECT_ALPHA
-                        - generic [ref=e197]:
-                          - generic [ref=e198]: EVENT
-                          - generic [ref=e199]: ·
-                          - generic [ref=e203]: "2"
-            - generic [ref=e205]:
-              - generic [ref=e207]: 3 types
-              - generic [ref=e208]:
-                - img [ref=e209]
-                - generic [ref=e212]: "3"
-                - generic [ref=e213]: connections
-          - generic [ref=e214]:
-            - generic [ref=e215]:
-              - heading "Knowledge Graph" [level=2] [ref=e217]
-              - generic [ref=e218]:
-                - button "Search nodes..." [ref=e220]:
+            - tablist "View mode" [ref=e140]:
+              - tab "Grouped" [selected] [ref=e141]
+              - tab "List" [ref=e142]
+            - tabpanel [ref=e143]:
+              - status [ref=e144]:
+                - img [ref=e145]
+                - paragraph [ref=e150]: No entities yet
+            - generic [ref=e152]:
+              - generic [ref=e154]: 0 types
+              - generic [ref=e155]:
+                - img [ref=e156]
+                - generic [ref=e159]: "0"
+                - generic [ref=e160]: connections
+          - generic [ref=e161]:
+            - generic [ref=e162]:
+              - heading "Knowledge Graph" [level=2] [ref=e164]
+              - generic [ref=e165]:
+                - button "Search nodes..." [ref=e167]:
                   - img
-                  - generic [ref=e221]: Search nodes...
-                  - generic [ref=e222]:
-                    - generic [ref=e223]: ⌘
+                  - generic [ref=e168]: Search nodes...
+                  - generic [ref=e169]:
+                    - generic [ref=e170]: ⌘
                     - text: K
-                - generic [ref=e224]:
-                  - img [ref=e225]
-                  - generic [ref=e229]: 3 / 3
-                  - generic [ref=e230]: (100%)
-                - button "Layout" [ref=e232]:
+                - button "Layout" [ref=e172]:
                   - img
-                - generic [ref=e233]:
-                  - button "Start Animation" [ref=e234]:
-                    - img
-                  - button "Apply Layout" [ref=e235]:
-                    - img
-                - button "Export graph" [ref=e236]:
+                - button "Export graph" [disabled]:
                   - img
-                  - generic [ref=e237]: Export graph
-                - button "Graph Settings" [ref=e238]:
+                  - generic: Export graph
+                - button "Graph Settings" [ref=e173]:
                   - img
-                - button "Keyboard shortcuts" [ref=e240]:
+                - button "Keyboard shortcuts" [ref=e175]:
                   - img
-                - button "Start guided tour" [ref=e241]:
+                - button "Start guided tour" [ref=e176]:
                   - img
-                - button "Refresh" [ref=e243]:
+                - button "Refresh" [ref=e178]:
                   - img
-                - button "Zoom In" [ref=e244]:
+                - button "Zoom In" [ref=e179]:
                   - img
-                - button "Zoom Out" [ref=e245]:
+                - button "Zoom Out" [ref=e180]:
                   - img
-                - button "Reset View" [ref=e246]:
+                - button "Reset View" [ref=e181]:
                   - img
-            - generic [ref=e247]:
-              - generic [ref=e257]:
-                - img [ref=e258]
-                - generic [ref=e260]:
-                  - generic [ref=e261]: "3"
-                  - generic [ref=e262]: of
-                  - generic [ref=e263]: "3"
-                  - generic [ref=e264]: nodes
-                  - generic [ref=e265]: (100%)
-              - button [ref=e267]:
+            - generic [ref=e182]:
+              - generic [ref=e184]:
+                - img [ref=e186]
+                - heading "No knowledge graph yet" [level=3] [ref=e214]
+                - paragraph [ref=e215]: Your knowledge graph is empty. Upload documents to automatically extract entities and relationships.
+                - button "Upload Documents" [ref=e216]:
+                  - img
+                  - text: Upload Documents
+              - button [ref=e218]:
                 - img
-              - generic "Click to navigate" [ref=e270]
-              - button "Show bookmarks" [ref=e272]:
-                - img
-              - toolbar "Graph controls" [ref=e274]:
-                - button "Zoom In" [ref=e275]:
+              - toolbar "Graph controls" [ref=e220]:
+                - button "Zoom In" [ref=e221]:
                   - img
-                - button "Zoom Out" [ref=e276]:
+                - button "Zoom Out" [ref=e222]:
                   - img
-                - button "Rotate Clockwise" [ref=e277]:
+                - button "Rotate Clockwise" [ref=e223]:
                   - img
-                - button "Rotate Counter-Clockwise" [ref=e278]:
+                - button "Rotate Counter-Clockwise" [ref=e224]:
                   - img
-                - button "Reset View" [ref=e279]:
+                - button "Reset View" [ref=e225]:
                   - img
-                - button "Fullscreen" [ref=e280]:
+                - button "Fullscreen" [ref=e226]:
                   - img
-              - region "Legend" [ref=e282]:
-                - generic [ref=e284]:
-                  - generic [ref=e285]:
-                    - img [ref=e286]
-                    - text: Legend
-                  - button "Collapse legend" [ref=e292]:
-                    - img
-                - list "Entity type visibility controls" [ref=e297]:
-                  - 'listitem "Person: 1 entities. Click to hide" [ref=e298]':
-                    - generic [ref=e300]: Person
-                    - generic [ref=e301]: "1"
-                    - img [ref=e302]
-                  - 'listitem "Product: 1 entities. Click to hide" [ref=e305]':
-                    - generic [ref=e307]: Product
-                    - generic [ref=e308]: "1"
-                    - img [ref=e309]
-                  - 'listitem "Event: 1 entities. Click to hide" [ref=e312]':
-                    - generic [ref=e314]: Event
-                    - generic [ref=e315]: "1"
-                    - img [ref=e316]
-          - generic [ref=e319]:
-            - separator "Resize details panel" [ref=e320]
-            - generic [ref=e324]:
-              - generic [ref=e325]:
-                - heading "Details & Filters" [level=3] [ref=e326]
-                - button "Collapse details panel" [ref=e327]:
+          - generic [ref=e227]:
+            - separator "Resize details panel" [ref=e228]
+            - generic [ref=e232]:
+              - generic [ref=e233]:
+                - heading "Details & Filters" [level=3] [ref=e234]
+                - button "Collapse details panel" [ref=e235]:
                   - img
-              - generic [ref=e332]:
-                - img [ref=e334]
-                - paragraph [ref=e339]: Click on a node to view details
+              - generic [ref=e240]:
+                - img [ref=e242]
+                - paragraph [ref=e247]: Click on a node to view details
   - region "Notifications alt+T"
 ```

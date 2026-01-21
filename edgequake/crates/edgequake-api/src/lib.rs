@@ -88,6 +88,7 @@
 //! - **streaming**: Real-time streaming response management
 //! - **cache_manager**: LRU cache with TTL for hot data
 //! - **processor**: Async document processing pipeline
+//! - **providers**: Unified provider resolution (OODA-226)
 //! - **validation**: Input validation helpers
 //! - **error**: API error types and HTTP status mapping
 
@@ -97,7 +98,10 @@ pub mod file_validation;
 pub mod handlers;
 pub mod middleware;
 pub mod openapi;
+pub mod path_validation;
 pub mod processor;
+pub mod provider_types;
+pub mod providers;
 pub mod routes;
 pub mod server;
 pub mod state;

@@ -80,6 +80,7 @@ import { toast } from 'sonner';
 import { ChatMessage } from './chat-message';
 import { ConversationHistoryPanelV2 } from './conversation-history-panel-v2';
 import { MobileHistoryPanel } from './mobile-history-panel';
+import { ProviderModelSelector } from './provider-model-selector';
 import { QueryModeSelector } from './query-mode-selector';
 import { parseCOTContent } from './thinking-display';
 
@@ -102,6 +103,10 @@ interface Message {
   isError?: boolean;
   isStreaming?: boolean;
   timestamp?: number;
+  /** LLM provider used (lineage tracking). @implements SPEC-032 */
+  llmProvider?: string;
+  /** LLM model used (lineage tracking). @implements SPEC-032 */
+  llmModel?: string;
 }
 
 // ============================================================================
@@ -487,6 +492,9 @@ export function QueryInterface() {
       isError: msg.is_error,
       isStreaming: false,
       timestamp: new Date(msg.created_at).getTime(),
+      // SPEC-032: LLM provider/model lineage tracking
+      llmProvider: msg.llm_provider ?? undefined,
+      llmModel: msg.llm_model ?? undefined,
     };
   }, []);
 
@@ -591,8 +599,12 @@ export function QueryInterface() {
       let thinkingTimeMs: number | undefined;
       let newConversationId = conversationId;
       let assistantMessageId: string | undefined;
+      // SPEC-032: Track LLM provider/model for lineage display
+      let llmProvider: string | undefined;
+      let llmModel: string | undefined;
 
       // Use the unified chat API - server handles message persistence
+      // SPEC-032: Pass selected provider and model for query
       for await (const chunk of chatCompletionStream({
         conversation_id: conversationId || undefined,
         message: queryText,
@@ -601,6 +613,8 @@ export function QueryInterface() {
         temperature: querySettings.temperature,
         top_k: querySettings.topK,
         stream: true,
+        provider: querySettings.provider,
+        model: querySettings.model,
       })) {
         if (abortControllerRef.current?.signal.aborted) {
           break;
@@ -654,7 +668,10 @@ export function QueryInterface() {
             assistantMessageId = chunk.assistant_message_id;
             tokensUsed = chunk.tokens_used || 0;
             durationMs = chunk.duration_ms || 0;
-            console.log('✓ Message saved on server:', assistantMessageId, {tokensUsed, durationMs});
+            // SPEC-032: Capture LLM provider/model for lineage tracking
+            llmProvider = chunk.llm_provider;
+            llmModel = chunk.llm_model;
+            console.log('✓ Message saved on server:', assistantMessageId, {tokensUsed, durationMs, llmProvider, llmModel});
             break;
 
           case 'error':
@@ -764,6 +781,7 @@ export function QueryInterface() {
     } else {
       // Non-streaming: use the unified chat API
       // Server handles conversation creation and message persistence
+      // SPEC-032: Pass selected provider for query
       setStreamingState('generating');
       try {
         const response = await chatCompletion({
@@ -774,6 +792,8 @@ export function QueryInterface() {
           temperature: querySettings.temperature,
           top_k: querySettings.topK,
           stream: false,
+          provider: querySettings.provider,
+          model: querySettings.model,
         });
 
         // Update active conversation if a new one was created
@@ -898,6 +918,26 @@ export function QueryInterface() {
               <Plus className="h-4 w-4" />
               {t('query.newConversation', 'New')}
             </Button>
+
+            {/* Provider & Model Selector (SPEC-032) */}
+            <ProviderModelSelector
+              value={querySettings.provider && querySettings.model 
+                ? `${querySettings.provider}/${querySettings.model}` 
+                : ''}
+              onChange={(fullModelId) => {
+                // Parse "provider/model" format from selector
+                if (!fullModelId) {
+                  // Server default - clear both
+                  setQuerySettings({ provider: undefined, model: undefined });
+                } else {
+                  const parts = fullModelId.split('/');
+                  const provider = parts[0];
+                  const model = parts.slice(1).join('/'); // Handle model names with slashes
+                  setQuerySettings({ provider, model });
+                }
+              }}
+              disabled={isLoading}
+            />
 
             {/* Mode Selector */}
             <QueryModeSelector

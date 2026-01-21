@@ -6,6 +6,7 @@
  * @implements UC0901 - Developer tests API endpoints
  * @implements FEAT0639 - Interactive API testing
  * @implements FEAT0640 - Request/response visualization
+ * @implements SPEC-032 - Provider integration endpoints
  * 
  * @enforces BR0625 - API responses formatted for readability
  * 
@@ -27,6 +28,7 @@ import {
     Check,
     ChevronDown,
     ChevronRight,
+    Clock,
     Copy,
     Loader2,
     Play,
@@ -49,6 +51,12 @@ const endpoints: Endpoint[] = [
   // Auth
   { method: 'POST', path: '/auth/login', description: 'Authenticate user', category: 'Auth', body: '{\n  "username": "admin",\n  "password": "password"\n}' },
   { method: 'GET', path: '/auth/me', description: 'Get current user', category: 'Auth' },
+  
+  // Models (SPEC-032)
+  { method: 'GET', path: '/models', description: 'List all available models grouped by provider', category: 'Models' },
+  { method: 'GET', path: '/models/check/{provider}', description: 'Check provider availability', category: 'Models' },
+  { method: 'GET', path: '/models/{provider}/models', description: 'List models for a specific provider', category: 'Models' },
+  { method: 'GET', path: '/models/status', description: 'Get status of all configured providers', category: 'Models' },
   
   // Documents
   { method: 'GET', path: '/documents', description: 'List all documents', category: 'Documents' },
@@ -77,6 +85,16 @@ const endpoints: Endpoint[] = [
   
   // Pipeline
   { method: 'GET', path: '/pipeline/status', description: 'Get pipeline status', category: 'Pipeline' },
+  
+  // Tenants
+  { method: 'GET', path: '/tenants', description: 'List all tenants', category: 'Tenants' },
+  { method: 'POST', path: '/tenants', description: 'Create a new tenant', category: 'Tenants', body: '{\n  "name": "My Tenant",\n  "description": "Tenant description",\n  "default_llm_provider": "ollama",\n  "default_llm_model": "gemma3:12b"\n}' },
+  { method: 'GET', path: '/tenants/{id}', description: 'Get tenant by ID', category: 'Tenants' },
+  { method: 'DELETE', path: '/tenants/{id}', description: 'Delete tenant', category: 'Tenants' },
+  
+  // Workspaces
+  { method: 'GET', path: '/tenants/{tenant_id}/workspaces', description: 'List workspaces in tenant', category: 'Workspaces' },
+  { method: 'POST', path: '/tenants/{tenant_id}/workspaces', description: 'Create workspace', category: 'Workspaces', body: '{\n  "name": "My Workspace",\n  "llm_provider": "ollama",\n  "llm_model": "gemma3:12b",\n  "embedding_provider": "ollama",\n  "embedding_model": "embeddinggemma",\n  "embedding_dimension": 768\n}' },
 ];
 
 const methodColors = {
@@ -93,6 +111,7 @@ export function ApiExplorer() {
   const [response, setResponse] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [responseTime, setResponseTime] = useState<number | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
     new Set(endpoints.map((e) => e.category))
   );
@@ -113,6 +132,7 @@ export function ApiExplorer() {
     setSelectedEndpoint(endpoint);
     setRequestBody(endpoint.body || '');
     setResponse('');
+    setResponseTime(null);
   };
 
   const executeRequest = async () => {
@@ -120,6 +140,8 @@ export function ApiExplorer() {
 
     setIsLoading(true);
     setResponse('');
+    setResponseTime(null);
+    const startTime = performance.now();
 
     try {
       let result: unknown;
@@ -144,8 +166,12 @@ export function ApiExplorer() {
           break;
       }
 
+      const endTime = performance.now();
+      setResponseTime(endTime - startTime);
       setResponse(JSON.stringify(result, null, 2));
     } catch (error) {
+      const endTime = performance.now();
+      setResponseTime(endTime - startTime);
       if (error instanceof SyntaxError) {
         setResponse(JSON.stringify({ error: 'Invalid JSON in request body' }, null, 2));
       } else if (error instanceof Error) {
@@ -256,7 +282,18 @@ export function ApiExplorer() {
             {/* Response */}
             <div className="flex-1 flex flex-col min-h-0">
               <div className="flex items-center justify-between px-4 py-2 border-b">
-                <h3 className="text-sm font-medium">Response</h3>
+                <div className="flex items-center gap-3">
+                  <h3 className="text-sm font-medium">Response</h3>
+                  {responseTime !== null && (
+                    <Badge variant="outline" className="text-xs flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {responseTime < 1000 
+                        ? `${Math.round(responseTime)}ms`
+                        : `${(responseTime / 1000).toFixed(2)}s`
+                      }
+                    </Badge>
+                  )}
+                </div>
                 {response && (
                   <Button variant="ghost" size="sm" onClick={copyResponse}>
                     {copied ? (

@@ -1,0 +1,229 @@
+name: Test Quality Gates
+
+on:
+    push:
+        branches: [main, edgequake-main]
+    pull_request:
+        branches: [main, edgequake-main]
+
+env:
+    CARGO_TERM_COLOR: always
+    RUST_BACKTRACE: 1
+    # Test timing thresholds (in seconds)
+    UNIT_TEST_TIMEOUT: 30
+    INTEGRATION_TEST_TIMEOUT: 120
+    E2E_TEST_TIMEOUT: 300
+
+jobs:
+    # Fast feedback loop - unit tests with timing gates
+    unit-tests:
+        name: Unit Tests (Target: <30s)
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install Rust
+              uses: dtolnay/rust-action@stable
+
+            - name: Cache cargo
+              uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: edgequake
+
+            - name: Run unit tests with timing
+              working-directory: edgequake
+              run: |
+                  START_TIME=$(date +%s)
+                  cargo test --lib --all --no-fail-fast 2>&1 | tee test_output.txt
+                  END_TIME=$(date +%s)
+                  DURATION=$((END_TIME - START_TIME))
+                  echo "::notice::Unit tests completed in ${DURATION}s"
+                  
+                  # Count passed tests
+                  PASSED=$(grep -c "test result: ok" test_output.txt || echo "0")
+                  echo "::notice::Tests passed: ${PASSED}"
+                  
+                  # Timing gate check
+                  if [ $DURATION -gt $UNIT_TEST_TIMEOUT ]; then
+                    echo "::warning::Unit tests exceeded ${UNIT_TEST_TIMEOUT}s threshold (actual: ${DURATION}s)"
+                  fi
+
+    # Invariant tests - critical reliability checks
+    invariant-tests:
+        name: Invariant Tests (INV-001 to INV-010)
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install Rust
+              uses: dtolnay/rust-action@stable
+
+            - name: Cache cargo
+              uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: edgequake
+
+            - name: Run invariant tests
+              working-directory: edgequake
+              run: |
+                  echo "Running critical invariant tests..."
+                  
+                  # Core invariants (must pass 100%)
+                  cargo test --package edgequake-core --test inviolable_invariants 2>&1 | tee invariant_output.txt
+                  
+                  # Edge case invariants
+                  cargo test --package edgequake-core --test edge_case_invariants 2>&1 | tee -a invariant_output.txt
+                  
+                  # Integration invariants
+                  cargo test --package edgequake-api --test integration_invariants 2>&1 | tee -a invariant_output.txt
+                  
+                  # Verify all passed
+                  if grep -q "FAILED" invariant_output.txt; then
+                    echo "::error::CRITICAL: Invariant tests failed! This is a reliability violation."
+                    exit 1
+                  fi
+                  echo "::notice::All invariant tests passed - reliability verified"
+
+    # API tests with timing
+    api-tests:
+        name: API Tests (Target: <30s)
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install Rust
+              uses: dtolnay/rust-action@stable
+
+            - name: Cache cargo
+              uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: edgequake
+
+            - name: Run API tests with timing
+              working-directory: edgequake
+              run: |
+                  START_TIME=$(date +%s)
+                  cargo test --package edgequake-api --no-fail-fast 2>&1 | tee api_output.txt
+                  END_TIME=$(date +%s)
+                  DURATION=$((END_TIME - START_TIME))
+                  echo "::notice::API tests completed in ${DURATION}s"
+                  
+                  # Extract test count
+                  PASSED=$(grep "test result:" api_output.txt | grep -o "[0-9]* passed" | head -1 || echo "unknown")
+                  echo "::notice::API tests: ${PASSED}"
+
+    # Rate limiter and LLM tests - previously slow, now optimized
+    optimized-tests:
+        name: Optimized Tests (Previously Slow)
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install Rust
+              uses: dtolnay/rust-action@stable
+
+            - name: Cache cargo
+              uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: edgequake
+
+            - name: Run LLM crate tests with timing check
+              working-directory: edgequake
+              run: |
+                  START_TIME=$(date +%s)
+                  cargo test --package edgequake-llm --no-fail-fast 2>&1 | tee llm_output.txt
+                  END_TIME=$(date +%s)
+                  DURATION=$((END_TIME - START_TIME))
+                  
+                  echo "::notice::LLM crate tests completed in ${DURATION}s"
+                  
+                  # Check optimization maintained (should be <5s, was 4.69s before optimization)
+                  if [ $DURATION -gt 10 ]; then
+                    echo "::warning::LLM tests regression detected - exceeded 10s (actual: ${DURATION}s)"
+                  fi
+
+            - name: Run Rate Limiter tests with timing check
+              working-directory: edgequake
+              run: |
+                  START_TIME=$(date +%s)
+                  cargo test --package edgequake-rate-limiter --no-fail-fast 2>&1 | tee rl_output.txt
+                  END_TIME=$(date +%s)
+                  DURATION=$((END_TIME - START_TIME))
+                  
+                  echo "::notice::Rate limiter tests completed in ${DURATION}s"
+                  
+                  # Token bucket was optimized from 2s to 50ms
+                  if [ $DURATION -gt 5 ]; then
+                    echo "::warning::Rate limiter tests regression - exceeded 5s (actual: ${DURATION}s)"
+                  fi
+
+    # Test count verification
+    test-count-gate:
+        name: Test Count Gate
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install Rust
+              uses: dtolnay/rust-action@stable
+
+            - name: Cache cargo
+              uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: edgequake
+
+            - name: Verify minimum test count
+              working-directory: edgequake
+              run: |
+                  # Run all tests and count
+                  cargo test --all 2>&1 | tee all_tests.txt
+                  
+                  # Extract total passed tests
+                  TOTAL_PASSED=$(grep "test result:" all_tests.txt | grep -oE "[0-9]+ passed" | awk '{sum += $1} END {print sum}')
+                  
+                  echo "::notice::Total tests passed: ${TOTAL_PASSED}"
+                  
+                  # Minimum threshold: 2,600 tests (baseline from OODA-286)
+                  MIN_TESTS=2600
+                  if [ "$TOTAL_PASSED" -lt "$MIN_TESTS" ]; then
+                    echo "::error::Test count below threshold! Expected >= ${MIN_TESTS}, got ${TOTAL_PASSED}"
+                    exit 1
+                  fi
+                  
+                  echo "✅ Test count gate passed: ${TOTAL_PASSED} >= ${MIN_TESTS}"
+
+    # Summary job
+    quality-summary:
+        name: Quality Gate Summary
+        needs: [unit-tests, invariant-tests, api-tests, optimized-tests, test-count-gate]
+        runs-on: ubuntu-latest
+        if: always()
+        steps:
+            - name: Check quality gates
+              run: |
+                  echo "## Quality Gate Results" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "| Gate | Status |" >> $GITHUB_STEP_SUMMARY
+                  echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+                  echo "| Unit Tests (<30s) | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Invariant Tests | ${{ needs.invariant-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "| API Tests (<30s) | ${{ needs.api-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Optimized Tests | ${{ needs.optimized-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Test Count (>2600) | ${{ needs.test-count-gate.result }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "### Timing Targets" >> $GITHUB_STEP_SUMMARY
+                  echo "- Unit tests: <30s" >> $GITHUB_STEP_SUMMARY
+                  echo "- API tests: <30s" >> $GITHUB_STEP_SUMMARY
+                  echo "- LLM tests: <10s (optimized from 4.69s)" >> $GITHUB_STEP_SUMMARY
+                  echo "- Rate limiter: <5s (optimized from 2.6s)" >> $GITHUB_STEP_SUMMARY
+                  
+                  # Fail if any required job failed
+                  if [ "${{ needs.invariant-tests.result }}" == "failure" ]; then
+                    echo "::error::CRITICAL: Invariant tests failed - reliability violation!"
+                    exit 1
+                  fi

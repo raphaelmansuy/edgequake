@@ -82,7 +82,7 @@ export interface Document {
   title?: string | null;
   content?: string;
   source_type?: "file" | "text" | "url";
-  status?: "pending" | "processing" | "completed" | "failed" | "indexed";
+  status?: "pending" | "processing" | "completed" | "failed" | "indexed" | "cancelled";
   error_message?: string;
   file_name?: string;
   file_size?: number;
@@ -142,6 +142,14 @@ export interface DocumentLineage {
   avg_chunk_size?: number;
   /** Processing duration in milliseconds. */
   processing_duration_ms?: number;
+  /** Entity extraction duration in milliseconds. */
+  entity_extraction_ms?: number;
+  /** Relationship extraction duration in milliseconds. */
+  relationship_extraction_ms?: number;
+  /** Graph indexing duration in milliseconds. */
+  graph_indexing_ms?: number;
+  /** Vector embedding duration in milliseconds. */
+  vector_embedding_ms?: number;
 }
 
 /** Status counts for document filtering. */
@@ -150,6 +158,7 @@ export interface DocumentStatusCounts {
   processing: number;
   completed: number;
   failed: number;
+  cancelled: number;
 }
 
 /** Response from list documents API. */
@@ -315,6 +324,10 @@ export interface QueryStreamChunk {
   error?: string;
   tokens_used?: number;
   duration_ms?: number;
+  /** LLM provider used for this query (lineage tracking). @implements SPEC-032 */
+  llm_provider?: string;
+  /** LLM model used for this query (lineage tracking). @implements SPEC-032 */
+  llm_model?: string;
 }
 
 // Auth types
@@ -360,6 +373,48 @@ export interface Tenant {
   is_active?: boolean;
   /** Maximum workspaces allowed for this tenant. */
   max_workspaces?: number;
+
+  // === Default LLM Configuration (SPEC-032) ===
+
+  /**
+   * Default LLM model for new workspaces (e.g., "gemma3:12b", "gpt-4o-mini").
+   * @implements SPEC-032: Tenant-level LLM configuration defaults
+   */
+  default_llm_model?: string;
+  /**
+   * Default LLM provider for new workspaces (e.g., "ollama", "openai", "lmstudio").
+   * @implements SPEC-032: Tenant-level LLM configuration defaults
+   */
+  default_llm_provider?: string;
+  /**
+   * Fully qualified default LLM model ID (provider/model format).
+   * @implements SPEC-032: Combined model ID format
+   */
+  default_llm_full_id?: string;
+
+  // === Default Embedding Configuration (SPEC-032) ===
+
+  /**
+   * Default embedding model for new workspaces (e.g., "text-embedding-3-small").
+   * @implements SPEC-032: Tenant-level embedding configuration defaults
+   */
+  default_embedding_model?: string;
+  /**
+   * Default embedding provider for new workspaces (e.g., "openai", "ollama", "lmstudio").
+   * @implements SPEC-032: Tenant-level embedding configuration defaults
+   */
+  default_embedding_provider?: string;
+  /**
+   * Default embedding dimension for new workspaces (e.g., 1536 for OpenAI, 768 for Ollama).
+   * @implements SPEC-032: Tenant-level embedding configuration defaults
+   */
+  default_embedding_dimension?: number;
+  /**
+   * Fully qualified default embedding model ID (provider/model format).
+   * @implements SPEC-032: Combined model ID format
+   */
+  default_embedding_full_id?: string;
+
   /** Creation timestamp. */
   created_at: string;
   /** Last update timestamp. */
@@ -385,10 +440,110 @@ export interface Workspace {
   document_count?: number;
   /** Number of entities (from stats, may not be returned inline). */
   entity_count?: number;
+  /**
+   * LLM model name for knowledge graph generation and summarization.
+   * @implements SPEC-032: Workspace-level LLM configuration
+   */
+  llm_model?: string;
+  /**
+   * LLM provider ID (e.g., "openai", "ollama", "lmstudio").
+   * @implements SPEC-032: Workspace-level LLM configuration
+   */
+  llm_provider?: string;
+  /**
+   * Fully qualified LLM model ID (provider/model format).
+   * @implements SPEC-032: Combined model ID format
+   */
+  llm_full_id?: string;
+  /**
+   * Embedding model name (e.g., "text-embedding-3-small").
+   * @implements SPEC-032: Workspace-level embedding configuration
+   */
+  embedding_model?: string;
+  /**
+   * Embedding provider ID (e.g., "openai", "ollama", "lmstudio").
+   * @implements SPEC-032: Workspace-level embedding configuration
+   */
+  embedding_provider?: string;
+  /**
+   * Embedding dimension (e.g., 1536 for OpenAI, 768 for Ollama).
+   * @implements SPEC-032: Workspace-level embedding configuration
+   */
+  embedding_dimension?: number;
+  /**
+   * Fully qualified embedding model ID (provider/model format).
+   * @implements SPEC-032: Combined model ID format
+   */
+  embedding_full_id?: string;
   /** Creation timestamp. */
   created_at: string;
   /** Last update timestamp. */
   updated_at?: string;
+}
+
+/**
+ * Request to create a new workspace.
+ * @implements SPEC-032: Workspace LLM and embedding configuration on creation
+ */
+export interface CreateWorkspaceRequest {
+  /** Workspace display name. */
+  name: string;
+  /** URL-friendly slug (optional, auto-generated from name). */
+  slug?: string;
+  /** Optional description. */
+  description?: string;
+  /** Maximum documents allowed (optional). */
+  max_documents?: number;
+  /**
+   * LLM model name for knowledge graph generation and summarization.
+   * If not provided, uses server default (e.g., "gemma3:12b").
+   * Can be a full ID like "ollama/gemma3:12b" for explicit provider.
+   * @implements SPEC-032: Workspace-level LLM configuration
+   */
+  llm_model?: string;
+  /**
+   * LLM provider ID (e.g., "openai", "ollama", "lmstudio").
+   * If not provided, auto-detected from llm_model.
+   * @implements SPEC-032: Workspace-level LLM configuration
+   */
+  llm_provider?: string;
+  /**
+   * Embedding model name (e.g., "text-embedding-3-small", "embeddinggemma:latest").
+   * If not provided, uses server default.
+   * Can be a full ID like "openai/text-embedding-3-small" for explicit provider.
+   */
+  embedding_model?: string;
+  /**
+   * Embedding provider ID (e.g., "openai", "ollama", "lmstudio").
+   * If not provided, auto-detected from embedding_model.
+   */
+  embedding_provider?: string;
+  /**
+   * Embedding dimension override.
+   * If not provided, auto-detected from embedding_model.
+   */
+  embedding_dimension?: number;
+}
+
+/**
+ * Workspace statistics response.
+ * @implements SPEC-032: Workspace stats for detail page
+ */
+export interface WorkspaceStats {
+  /** Total number of documents in workspace */
+  document_count: number;
+  /** Total number of entities extracted */
+  entity_count: number;
+  /** Total number of relationships */
+  relationship_count: number;
+  /** Total number of text chunks */
+  chunk_count: number;
+  /** Total number of vectors stored */
+  vector_count?: number;
+  /** Total characters processed */
+  total_characters?: number;
+  /** Total tokens used */
+  total_tokens?: number;
 }
 
 // Task/Pipeline types
@@ -581,6 +736,17 @@ export interface QuerySettings {
   enableRerank: boolean;
   /** Top K results to keep after reranking */
   rerankTopK: number;
+  /**
+   * LLM provider ID to use for queries (e.g., "openai", "ollama", "lmstudio").
+   * @implements SPEC-032: Provider selection in query interface
+   */
+  provider?: string;
+  /**
+   * Specific model name within the provider (e.g., "gpt-4o-mini", "gemma3:12b").
+   * Combined with provider to form full model ID: "ollama/gemma3:12b"
+   * @implements SPEC-032: Full model selection in query interface
+   */
+  model?: string;
 }
 
 export interface IngestionSettings {
@@ -678,6 +844,10 @@ export interface ServerMessage {
   is_error: boolean;
   created_at: string;
   updated_at: string;
+  /** LLM provider used (lineage tracking). @implements SPEC-032 */
+  llm_provider?: string | null;
+  /** LLM model used (lineage tracking). @implements SPEC-032 */
+  llm_model?: string | null;
 }
 
 export interface ServerMessageContext {

@@ -15,10 +15,11 @@
 
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import type { DocumentLineage } from '@/types';
 import { Brain, Database, FileSearch, Network, Upload } from 'lucide-react';
 
 interface LineageTreeProps {
-  lineage: unknown; // DocumentLineage type - using unknown for safety
+  lineage: DocumentLineage | null | undefined;
 }
 
 export function LineageTree({ lineage }: LineageTreeProps) {

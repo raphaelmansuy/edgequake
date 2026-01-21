@@ -40,6 +40,8 @@
     "graph": "Graphe de connaissances",
     "documents": "Documents",
     "query": "Requête",
+    "workspace": "Espace de travail",
+    "costs": "Coûts",
     "apiExplorer": "Explorateur API",
     "settings": "Paramètres"
   },
@@ -126,14 +128,22 @@
       "view": "Voir les détails",
       "reprocess": "Retraiter",
       "delete": "Supprimer",
-      "viewInGraph": "Voir dans le graphe"
+      "viewInGraph": "Voir dans le graphe",
+      "cancel": "Annuler l'extraction"
+    },
+    "cancel": {
+      "success": "Traitement du document annulé",
+      "successDesc": "L'extraction a été arrêtée.",
+      "failed": "Échec de l'annulation",
+      "failedDesc": "Impossible d'annuler le traitement. Il est peut-être déjà terminé."
     },
     "status": {
       "all": "Tous les statuts",
       "pending": "En attente",
       "processing": "En cours",
       "completed": "Terminé",
-      "failed": "Échoué"
+      "failed": "Échoué",
+      "cancelled": "Annulé"
     },
     "pagination": {
       "rowsPerPage": "Lignes par page :",

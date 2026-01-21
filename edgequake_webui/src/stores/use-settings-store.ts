@@ -47,6 +47,8 @@ const defaultQuerySettings: QuerySettings = {
   stream: true, // Enable streaming by default for better UX
   enableRerank: true, // Enable reranking by default for SOTA quality
   rerankTopK: 10,
+  provider: undefined, // Use server default provider (SPEC-032)
+  model: undefined, // Use server default model (SPEC-032)
 };
 
 const defaultIngestionSettings: IngestionSettings = {

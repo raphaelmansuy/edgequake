@@ -2,54 +2,56 @@
 
 import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuGroup,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { EmbeddingModelSelector, type EmbeddingSelection } from '@/components/workspace/embedding-model-selector';
+import { LLMModelSelector, type LLMSelection } from '@/components/workspace/llm-model-selector';
 import {
-  createTenant,
-  createWorkspace,
-  getTenants,
-  getWorkspaces,
+    createTenant,
+    createWorkspace,
+    getTenants,
+    getWorkspaces,
 } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { Tenant, Workspace } from '@/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Building2,
-  Check,
-  FolderKanban,
-  Loader2,
-  Plus,
-  RefreshCw
+    Building2,
+    Check,
+    FolderKanban,
+    Loader2,
+    Plus,
+    RefreshCw
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -98,6 +100,12 @@ export function TenantWorkspaceSelector({
   const [newTenantDescription, setNewTenantDescription] = useState('');
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [newWorkspaceDescription, setNewWorkspaceDescription] = useState('');
+  // Workspace model selection (for workspace creation)
+  const [selectedLLM, setSelectedLLM] = useState<LLMSelection | undefined>(undefined);
+  const [selectedEmbedding, setSelectedEmbedding] = useState<EmbeddingSelection | undefined>(undefined);
+  // Tenant default model selection (SPEC-032: for tenant creation)
+  const [tenantDefaultLLM, setTenantDefaultLLM] = useState<LLMSelection | undefined>(undefined);
+  const [tenantDefaultEmbedding, setTenantDefaultEmbedding] = useState<EmbeddingSelection | undefined>(undefined);
 
   // Initialize from storage on mount
   useEffect(() => {
@@ -150,9 +158,17 @@ export function TenantWorkspaceSelector({
     }
   }, [workspacesData, setWorkspaces, selectedWorkspaceId, selectWorkspace]);
 
-  // Create tenant mutation
+  // Create tenant mutation (SPEC-032: with default model configuration)
   const createTenantMutation = useMutation({
-    mutationFn: (data: { name: string; description?: string }) =>
+    mutationFn: (data: { 
+      name: string; 
+      description?: string;
+      default_llm_model?: string;
+      default_llm_provider?: string;
+      default_embedding_model?: string;
+      default_embedding_provider?: string;
+      default_embedding_dimension?: number;
+    }) =>
       createTenant(data),
     onSuccess: (newTenant) => {
       toast.success(t('tenant.createSuccess', 'Tenant created successfully'));
@@ -161,6 +177,8 @@ export function TenantWorkspaceSelector({
       setShowCreateTenant(false);
       setNewTenantName('');
       setNewTenantDescription('');
+      setTenantDefaultLLM(undefined);
+      setTenantDefaultEmbedding(undefined);
     },
     onError: (error) => {
       toast.error(
@@ -175,7 +193,15 @@ export function TenantWorkspaceSelector({
 
   // Create workspace mutation
   const createWorkspaceMutation = useMutation({
-    mutationFn: (data: { name: string; description?: string }) =>
+    mutationFn: (data: { 
+      name: string; 
+      description?: string;
+      llm_model?: string;
+      llm_provider?: string;
+      embedding_model?: string;
+      embedding_provider?: string;
+      embedding_dimension?: number;
+    }) =>
       selectedTenantId
         ? createWorkspace(selectedTenantId, data)
         : Promise.reject(new Error('No tenant selected')),
@@ -190,6 +216,8 @@ export function TenantWorkspaceSelector({
       setShowCreateWorkspace(false);
       setNewWorkspaceName('');
       setNewWorkspaceDescription('');
+      setSelectedLLM(undefined);
+      setSelectedEmbedding(undefined);
     },
     onError: (error) => {
       toast.error(
@@ -443,9 +471,9 @@ export function TenantWorkspaceSelector({
         </div>
       </div>
 
-      {/* Create Tenant Dialog */}
+      {/* Create Tenant Dialog (SPEC-032: with default model configuration) */}
       <Dialog open={showCreateTenant} onOpenChange={setShowCreateTenant}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {t('tenant.createNew', 'Create New Tenant')}
@@ -483,6 +511,35 @@ export function TenantWorkspaceSelector({
                 )}
               />
             </div>
+
+            {/* Default LLM Model Selection - SPEC-032 */}
+            <div className="space-y-2">
+              <Label>
+                {t('tenant.defaultLlmModel', 'Default LLM Model')} ({t('common.optional', 'Optional')})
+              </Label>
+              <LLMModelSelector
+                value={tenantDefaultLLM}
+                onChange={setTenantDefaultLLM}
+                showUsageHint
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('tenant.defaultLlmHint', 'New workspaces will inherit this default')}
+              </p>
+            </div>
+
+            {/* Default Embedding Model Selection - SPEC-032 */}
+            <div className="space-y-2">
+              <Label>
+                {t('tenant.defaultEmbeddingModel', 'Default Embedding Model')} ({t('common.optional', 'Optional')})
+              </Label>
+              <EmbeddingModelSelector
+                value={tenantDefaultEmbedding}
+                onChange={setTenantDefaultEmbedding}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('tenant.defaultEmbeddingHint', 'New workspaces will inherit this default')}
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -496,6 +553,11 @@ export function TenantWorkspaceSelector({
                 createTenantMutation.mutate({
                   name: newTenantName,
                   description: newTenantDescription || undefined,
+                  default_llm_model: tenantDefaultLLM?.model,
+                  default_llm_provider: tenantDefaultLLM?.provider,
+                  default_embedding_model: tenantDefaultEmbedding?.model,
+                  default_embedding_provider: tenantDefaultEmbedding?.provider,
+                  default_embedding_dimension: tenantDefaultEmbedding?.dimension,
                 })
               }
               disabled={!newTenantName.trim() || createTenantMutation.isPending}
@@ -511,7 +573,7 @@ export function TenantWorkspaceSelector({
 
       {/* Create Workspace Dialog */}
       <Dialog open={showCreateWorkspace} onOpenChange={setShowCreateWorkspace}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {t('workspace.createNew', 'Create New Workspace')}
@@ -549,6 +611,29 @@ export function TenantWorkspaceSelector({
                 )}
               />
             </div>
+
+            {/* LLM Model Selection - SPEC-032 */}
+            <div className="space-y-2">
+              <Label>
+                {t('workspace.llmModel', 'LLM Model')} ({t('common.optional', 'Optional')})
+              </Label>
+              <LLMModelSelector
+                value={selectedLLM}
+                onChange={setSelectedLLM}
+                showUsageHint
+              />
+            </div>
+
+            {/* Embedding Model Selection - SPEC-032 */}
+            <div className="space-y-2">
+              <Label>
+                {t('workspace.embeddingModel', 'Embedding Model')} ({t('common.optional', 'Optional')})
+              </Label>
+              <EmbeddingModelSelector
+                value={selectedEmbedding}
+                onChange={setSelectedEmbedding}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -562,6 +647,11 @@ export function TenantWorkspaceSelector({
                 createWorkspaceMutation.mutate({
                   name: newWorkspaceName,
                   description: newWorkspaceDescription || undefined,
+                  llm_model: selectedLLM?.model,
+                  llm_provider: selectedLLM?.provider,
+                  embedding_model: selectedEmbedding?.model,
+                  embedding_provider: selectedEmbedding?.provider,
+                  embedding_dimension: selectedEmbedding?.dimension,
                 })
               }
               disabled={

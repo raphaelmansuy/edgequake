@@ -435,8 +435,8 @@ export function EntityBrowserPanel({ className }: EntityBrowserPanelProps) {
 
   // Toggle sort direction
   const toggleSortDirection = useCallback(() => {
-    setSortDirection(prev => prev === "asc" ? "desc" : "asc");
-  }, [setSortDirection]);
+    setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+  }, [sortDirection, setSortDirection]);
 
   // Keyboard navigation for list view
   const handleListKeyDown = useCallback(

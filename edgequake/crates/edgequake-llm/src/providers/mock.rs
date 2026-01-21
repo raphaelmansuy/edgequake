@@ -14,6 +14,14 @@ pub struct MockProvider {
     embeddings: Arc<Mutex<Vec<Vec<f32>>>>,
 }
 
+/// Mock LLM provider that does NOT support streaming.
+///
+/// Used to test the `stream_with_fallback()` fallback path.
+#[derive(Debug, Clone)]
+pub struct NonStreamingMockProvider {
+    response: String,
+}
+
 impl MockProvider {
     /// Create a new mock provider with default responses.
     pub fn new() -> Self {
@@ -92,6 +100,10 @@ impl LLMProvider for MockProvider {
         let stream = futures::stream::iter(vec![Ok(response.content)]);
         Ok(stream.boxed())
     }
+
+    fn supports_streaming(&self) -> bool {
+        true
+    }
 }
 
 #[async_trait]
@@ -127,6 +139,63 @@ impl EmbeddingProvider for MockProvider {
     }
 }
 
+// ============================================================================
+// NonStreamingMockProvider - for testing streaming fallback
+// ============================================================================
+
+impl NonStreamingMockProvider {
+    /// Create a new non-streaming mock provider with a fixed response.
+    pub fn new(response: impl Into<String>) -> Self {
+        Self {
+            response: response.into(),
+        }
+    }
+}
+
+#[async_trait]
+impl LLMProvider for NonStreamingMockProvider {
+    fn name(&self) -> &str {
+        "non-streaming-mock"
+    }
+
+    fn model(&self) -> &str {
+        "non-streaming-mock-model"
+    }
+
+    fn max_context_length(&self) -> usize {
+        4096
+    }
+
+    async fn complete(&self, _prompt: &str) -> Result<LLMResponse> {
+        Ok(LLMResponse::new(
+            self.response.clone(),
+            "non-streaming-mock-model",
+        ))
+    }
+
+    async fn complete_with_options(
+        &self,
+        prompt: &str,
+        _options: &crate::traits::CompletionOptions,
+    ) -> Result<LLMResponse> {
+        self.complete(prompt).await
+    }
+
+    async fn chat(
+        &self,
+        _messages: &[crate::traits::ChatMessage],
+        _options: Option<&crate::traits::CompletionOptions>,
+    ) -> Result<LLMResponse> {
+        self.complete("").await
+    }
+
+    // Note: We don't implement stream() - it uses the default NotSupported error
+
+    fn supports_streaming(&self) -> bool {
+        false // Explicitly does not support streaming
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -152,5 +221,63 @@ mod tests {
 
         let response = provider.complete("test").await.unwrap();
         assert_eq!(response.content, "Custom response");
+    }
+
+    #[tokio::test]
+    async fn test_stream_with_fallback_uses_stream_when_supported() {
+        use crate::traits::StreamOrComplete;
+        use futures::StreamExt;
+
+        let provider = MockProvider::new();
+        provider.add_response("Streamed response").await;
+
+        // MockProvider supports streaming, so we should get a stream
+        let result = provider.stream_with_fallback("test").await.unwrap();
+
+        match result {
+            StreamOrComplete::Stream(mut stream) => {
+                let first_chunk = stream.next().await;
+                assert!(first_chunk.is_some());
+                let content = first_chunk.unwrap().unwrap();
+                assert_eq!(content, "Streamed response");
+            }
+            StreamOrComplete::Complete(_) => {
+                panic!("Expected stream but got complete response");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_stream_with_fallback_falls_back_when_not_supported() {
+        use crate::traits::StreamOrComplete;
+
+        let provider = NonStreamingMockProvider::new("Fallback response");
+
+        // NonStreamingMockProvider does NOT support streaming
+        assert!(!provider.supports_streaming());
+
+        // stream_with_fallback should use complete() instead
+        let result = provider.stream_with_fallback("test").await.unwrap();
+
+        match result {
+            StreamOrComplete::Complete(response) => {
+                assert_eq!(response.content, "Fallback response");
+                assert_eq!(response.model, "non-streaming-mock-model");
+            }
+            StreamOrComplete::Stream(_) => {
+                panic!("Expected complete response but got stream");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_non_streaming_mock_provider() {
+        let provider = NonStreamingMockProvider::new("Fixed response");
+
+        assert_eq!(provider.name(), "non-streaming-mock");
+        assert!(!provider.supports_streaming());
+
+        let response = provider.complete("test").await.unwrap();
+        assert_eq!(response.content, "Fixed response");
     }
 }

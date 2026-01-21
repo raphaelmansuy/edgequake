@@ -1,0 +1,1280 @@
+# EdgeQuake Models Configuration
+# ================================
+# This file defines LLM and embedding providers and their model cards.
+# Model cards describe capabilities, costs, and metadata for each model.
+#
+# Configuration priority (first found wins):
+#   1. EDGEQUAKE_MODELS_CONFIG environment variable (path to config file)
+#   2. ./models.toml (current working directory)
+#   3. ~/.edgequake/models.toml (user home directory)
+#   4. Built-in defaults (bundled in the binary)
+#
+# Environment variable overrides:
+#   - OPENAI_API_KEY: Required for OpenAI provider
+#   - OLLAMA_BASE_URL: Override Ollama API endpoint (default: http://localhost:11434)
+#   - LM_STUDIO_BASE_URL: Override LM Studio endpoint (default: http://localhost:1234)
+
+# =============================================================================
+# DEFAULT SELECTIONS
+# =============================================================================
+# Define which provider and model to use by default for LLM and embedding tasks.
+# These are used when no explicit provider/model is specified in API calls.
+#
+# Supported default configurations:
+#   - OpenAI: gpt-4o-mini (LLM), text-embedding-3-small (embedding)
+#   - Ollama: gemma3:12b (LLM), embeddinggemma (embedding)
+#   - LM Studio: gemma-3n-e4b-it (LLM), text-embedding-nomic-embed-text-v1.5 (embedding)
+
+[defaults]
+llm_provider = "ollama"              # Default LLM provider
+llm_model = "gemma3:12b"             # Default LLM model (128K context, vision support)
+embedding_provider = "ollama"        # Default embedding provider
+embedding_model = "embeddinggemma"   # Default embedding model (768 dimensions, 2K context)
+
+# =============================================================================
+# OPENAI PROVIDER
+# =============================================================================
+# Production-grade OpenAI API integration
+# Requires: OPENAI_API_KEY environment variable
+
+[[providers]]
+name = "openai"
+display_name = "OpenAI"
+type = "openai"
+api_base = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+enabled = true
+priority = 10
+description = "OpenAI GPT models - Production-grade LLMs with excellent instruction following"
+
+# --- OpenAI LLM Models ---
+
+[[providers.models]]
+name = "gpt-4o"
+display_name = "GPT-4o"
+model_type = "llm"
+description = "Most capable multimodal model, excellent for complex reasoning and vision tasks"
+deprecated = false
+tags = ["recommended", "multimodal", "reasoning"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 16384
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0025
+output_per_1k = 0.01
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gpt-4o-mini"
+display_name = "GPT-4o Mini"
+model_type = "llm"
+description = "Cost-effective model with excellent performance, ideal for high-volume tasks"
+deprecated = false
+tags = ["recommended", "cost-effective", "fast"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 16384
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.00015
+output_per_1k = 0.0006
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# --- GPT-4.1 Series (Latest Available Models) ---
+# Note: GPT-4.1 series is OpenAI's latest stable model as of 2025
+
+[[providers.models]]
+name = "gpt-4.1"
+display_name = "GPT-4.1"
+model_type = "llm"
+description = "Latest flagship model with enhanced reasoning and coding capabilities"
+deprecated = false
+tags = ["latest", "flagship", "reasoning"]
+
+[providers.models.capabilities]
+context_length = 1047576
+max_output_tokens = 32768
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.002
+output_per_1k = 0.008
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gpt-4.1-mini"
+display_name = "GPT-4.1 Mini"
+model_type = "llm"
+description = "Cost-effective latest model, ideal for high-volume tasks"
+deprecated = false
+tags = ["recommended", "cost-effective", "fast"]
+
+[providers.models.capabilities]
+context_length = 1047576
+max_output_tokens = 32768
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0004
+output_per_1k = 0.0016
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gpt-4.1-nano"
+display_name = "GPT-4.1 Nano"
+model_type = "llm"
+description = "Ultra-efficient model for simple tasks at lowest cost"
+deprecated = false
+tags = ["ultra-efficient", "fast", "lowest-cost"]
+
+[providers.models.capabilities]
+context_length = 1047576
+max_output_tokens = 32768
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0001
+output_per_1k = 0.0004
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gpt-4-turbo"
+display_name = "GPT-4 Turbo"
+model_type = "llm"
+description = "High-capability model with vision, good for complex reasoning"
+deprecated = false
+tags = ["vision", "reasoning"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 4096
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.01
+output_per_1k = 0.03
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gpt-3.5-turbo"
+display_name = "GPT-3.5 Turbo"
+model_type = "llm"
+description = "Fast and efficient model for simpler tasks"
+deprecated = false
+tags = ["fast", "legacy"]
+
+[providers.models.capabilities]
+context_length = 16385
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0005
+output_per_1k = 0.0015
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# --- OpenAI Embedding Models ---
+
+[[providers.models]]
+name = "text-embedding-3-small"
+display_name = "Text Embedding 3 Small"
+model_type = "embedding"
+description = "Cost-effective embedding model with 1536 dimensions"
+deprecated = false
+tags = ["recommended", "cost-effective"]
+
+[providers.models.capabilities]
+context_length = 8191
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 1536
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.00002
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "text-embedding-3-large"
+display_name = "Text Embedding 3 Large"
+model_type = "embedding"
+description = "High-quality embedding model with 3072 dimensions for best accuracy"
+deprecated = false
+tags = ["high-quality", "accuracy"]
+
+[providers.models.capabilities]
+context_length = 8191
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 3072
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.00013
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "text-embedding-ada-002"
+display_name = "Text Embedding Ada 002"
+model_type = "embedding"
+description = "Legacy embedding model, use text-embedding-3-small instead"
+deprecated = true
+tags = ["legacy"]
+
+[providers.models.capabilities]
+context_length = 8191
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 1536
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0001
+image_per_unit = 0.0
+
+# =============================================================================
+# OLLAMA PROVIDER
+# =============================================================================
+# Local open-source models via Ollama
+# No API key required, runs on your machine
+# Override endpoint: OLLAMA_BASE_URL (default: http://localhost:11434)
+
+[[providers]]
+name = "ollama"
+display_name = "Ollama"
+type = "ollama"
+api_base = "http://localhost:11434"
+api_key_env = ""
+enabled = true
+priority = 20
+description = "Local open-source models via Ollama - Free, private, no API key needed"
+
+# --- Ollama LLM Models ---
+
+[[providers.models]]
+name = "llama3.2:latest"
+display_name = "Llama 3.2"
+model_type = "llm"
+description = "Meta's latest Llama model, excellent general-purpose performance"
+deprecated = false
+tags = ["recommended", "free", "local"]
+
+[providers.models.capabilities]
+context_length = 131072
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "llama3.1:latest"
+display_name = "Llama 3.1"
+model_type = "llm"
+description = "Meta's Llama 3.1 with 128K context window"
+deprecated = false
+tags = ["free", "local", "long-context"]
+
+[providers.models.capabilities]
+context_length = 131072
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "llama3.2-vision:latest"
+display_name = "Llama 3.2 Vision"
+model_type = "multimodal"
+description = "Meta's vision-enabled Llama model for image understanding"
+deprecated = false
+tags = ["vision", "multimodal", "free", "local"]
+
+[providers.models.capabilities]
+context_length = 131072
+max_output_tokens = 4096
+supports_vision = true
+supports_function_calling = false
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "mistral:latest"
+display_name = "Mistral 7B"
+model_type = "llm"
+description = "Mistral AI's efficient 7B model"
+deprecated = false
+tags = ["free", "local", "efficient"]
+
+[providers.models.capabilities]
+context_length = 32768
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "mixtral:latest"
+display_name = "Mixtral 8x7B"
+model_type = "llm"
+description = "Mistral AI's MoE model with excellent performance"
+deprecated = false
+tags = ["free", "local", "moe"]
+
+[providers.models.capabilities]
+context_length = 32768
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "qwen2.5:latest"
+display_name = "Qwen 2.5"
+model_type = "llm"
+description = "Alibaba's Qwen 2.5 model with excellent multilingual support"
+deprecated = false
+tags = ["free", "local", "multilingual"]
+
+[providers.models.capabilities]
+context_length = 131072
+max_output_tokens = 8192
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "codellama:latest"
+display_name = "Code Llama"
+model_type = "llm"
+description = "Meta's code-specialized Llama model"
+deprecated = false
+tags = ["free", "local", "code"]
+
+[providers.models.capabilities]
+context_length = 16384
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "deepseek-coder-v2:latest"
+display_name = "DeepSeek Coder V2"
+model_type = "llm"
+description = "DeepSeek's powerful coding model"
+deprecated = false
+tags = ["free", "local", "code"]
+
+[providers.models.capabilities]
+context_length = 131072
+max_output_tokens = 8192
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# --- Mistral Nemo (Mistral AI) ---
+# Verified from: https://ollama.com/library/mistral-nemo
+
+[[providers.models]]
+name = "mistral-nemo:latest"
+display_name = "Mistral Nemo 12B"
+model_type = "llm"
+description = "Mistral AI's Nemo 12B model - excellent multilingual and code capabilities"
+deprecated = false
+tags = ["free", "local", "multilingual", "code"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# --- GPT-OSS (Open Source GPT-style) ---
+
+[[providers.models]]
+name = "gpt-oss:20b"
+display_name = "GPT-OSS 20B"
+model_type = "llm"
+description = "Open-source GPT-style 20B parameter model"
+deprecated = false
+tags = ["free", "local", "large"]
+
+[providers.models.capabilities]
+context_length = 16384
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# --- Gemma 3 Models (Google) ---
+# Verified from: https://ollama.com/library/gemma3
+
+[[providers.models]]
+name = "gemma3:latest"
+display_name = "Gemma 3 (Latest)"
+model_type = "multimodal"
+description = "Google's multimodal Gemma 3 (alias for gemma3:12b)"
+deprecated = false
+tags = ["recommended", "multimodal", "vision", "local", "free"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 8192
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gemma3:12b"
+display_name = "Gemma 3 12B"
+model_type = "multimodal"
+description = "Google's multimodal Gemma 3 (12B params, 128K context, vision support)"
+deprecated = false
+tags = ["recommended", "multimodal", "vision", "local", "free"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 8192
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gemma3:4b"
+display_name = "Gemma 3 4B"
+model_type = "multimodal"
+description = "Google's lightweight multimodal Gemma 3 (4B params, 128K context)"
+deprecated = false
+tags = ["multimodal", "vision", "local", "free", "lightweight"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 8192
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gemma3:27b"
+display_name = "Gemma 3 27B"
+model_type = "multimodal"
+description = "Google's largest multimodal Gemma 3 (27B params, 128K context)"
+deprecated = false
+tags = ["multimodal", "vision", "local", "free", "large"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 8192
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# --- Ollama Embedding Models ---
+
+[[providers.models]]
+name = "nomic-embed-text"
+display_name = "Nomic Embed Text"
+model_type = "embedding"
+description = "High-quality 768-dim embeddings, surpasses OpenAI ada-002"
+deprecated = false
+tags = ["free", "local"]
+
+[providers.models.capabilities]
+context_length = 2048
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 768
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# Verified from: https://huggingface.co/google/embeddinggemma-300m
+[[providers.models]]
+name = "embeddinggemma"
+display_name = "EmbeddingGemma"
+model_type = "embedding"
+description = "Google's 300M param embedding model (768 dims, 100+ languages, MRL support)"
+deprecated = false
+tags = ["recommended", "free", "local", "multilingual"]
+
+[providers.models.capabilities]
+context_length = 2048
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 768
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "mxbai-embed-large"
+display_name = "MxBAI Embed Large"
+model_type = "embedding"
+description = "Large embedding model with 1024 dimensions"
+deprecated = false
+tags = ["free", "local", "high-dim"]
+
+[providers.models.capabilities]
+context_length = 512
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 1024
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "all-minilm"
+display_name = "All-MiniLM"
+model_type = "embedding"
+description = "Compact 384-dim embeddings, fast and efficient"
+deprecated = false
+tags = ["free", "local", "fast", "compact"]
+
+[providers.models.capabilities]
+context_length = 256
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 384
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "snowflake-arctic-embed"
+display_name = "Snowflake Arctic Embed"
+model_type = "embedding"
+description = "Snowflake's Arctic embedding model"
+deprecated = false
+tags = ["free", "local"]
+
+[providers.models.capabilities]
+context_length = 512
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 1024
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# =============================================================================
+# LM STUDIO PROVIDER
+# =============================================================================
+# Local models via LM Studio with OpenAI-compatible API
+# No API key required
+# Override endpoint: LM_STUDIO_BASE_URL (default: http://localhost:1234)
+
+[[providers]]
+name = "lmstudio"
+display_name = "LM Studio"
+type = "lmstudio"
+api_base = "http://localhost:1234/v1"
+api_key_env = ""
+enabled = true
+priority = 25
+description = "Local models via LM Studio - GUI-based model management with OpenAI-compatible API"
+
+# --- LM Studio Models ---
+# Note: LM Studio dynamically loads models. These are common defaults.
+# The actual available models depend on what you have loaded in LM Studio.
+# LM Studio supports GGUF (llama.cpp) and MLX models on Apple Silicon.
+
+# Verified from: https://huggingface.co/google/gemma-3n-E4B-it
+[[providers.models]]
+name = "gemma-3n-e4b-it"
+display_name = "Gemma 3n E4B"
+model_type = "multimodal"
+description = "Google's efficient Gemma 3n (8B total, 4B effective, vision+audio support)"
+deprecated = false
+tags = ["recommended", "local", "multimodal", "vision", "audio", "efficient"]
+
+[providers.models.capabilities]
+context_length = 32000
+max_output_tokens = 32000
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gemma-3n-e2b-it"
+display_name = "Gemma 3n E2B"
+model_type = "multimodal"
+description = "Google's compact Gemma 3n (2B effective, vision+audio support)"
+deprecated = false
+tags = ["local", "multimodal", "vision", "audio", "compact"]
+
+[providers.models.capabilities]
+context_length = 32000
+max_output_tokens = 32000
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "default"
+display_name = "Currently Loaded Model"
+model_type = "llm"
+description = "The currently loaded model in LM Studio"
+deprecated = false
+tags = ["local", "dynamic"]
+
+[providers.models.capabilities]
+context_length = 8192
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "text-embedding-nomic-embed-text-v1.5"
+display_name = "Nomic Embed (LM Studio)"
+model_type = "embedding"
+description = "Nomic embedding model loaded in LM Studio"
+deprecated = false
+tags = ["local", "embedding"]
+
+[providers.models.capabilities]
+context_length = 2048
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 768
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "text-embedding-ada-002"
+display_name = "Text Embedding Ada 002 (LM Studio)"
+model_type = "embedding"
+description = "OpenAI-compatible embedding model in LM Studio (1536 dimensions)"
+deprecated = false
+tags = ["local", "embedding", "openai-compatible"]
+
+[providers.models.capabilities]
+context_length = 8191
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 1536
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# --- Additional LM Studio LLM Models ---
+# MLX-optimized models for Apple Silicon
+
+[[providers.models]]
+name = "lfm2.5-1.2b-instruct-mlx"
+display_name = "LFM 2.5 1.2B Instruct (MLX)"
+model_type = "llm"
+description = "Liquid Foundation Model 2.5 - 1.2B param instruction-tuned, MLX optimized"
+deprecated = false
+tags = ["local", "mlx", "fast", "compact"]
+
+[providers.models.capabilities]
+context_length = 32000
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "granite-4.0-h-tiny-dwq"
+display_name = "IBM Granite 4.0 Tiny (DWQ)"
+model_type = "llm"
+description = "IBM Granite 4.0 Tiny with dynamic weight quantization"
+deprecated = false
+tags = ["local", "compact", "efficient"]
+
+[providers.models.capabilities]
+context_length = 8192
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "zai-org/glm-4.6v-flash"
+display_name = "GLM 4.6V Flash"
+model_type = "multimodal"
+description = "Zhipu GLM 4.6 Vision Flash - fast multimodal model"
+deprecated = false
+tags = ["local", "vision", "multimodal", "fast"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 8192
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "mlx-community/GLM-4.7-REAP-50-mxfp4"
+display_name = "GLM 4.7 REAP 50 (MLX)"
+model_type = "llm"
+description = "GLM 4.7 with REAP 50 quantization, MLX optimized"
+deprecated = false
+tags = ["local", "mlx", "quantized"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 8192
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# =============================================================================
+# ANTHROPIC PROVIDER
+# =============================================================================
+# Claude models from Anthropic
+# Requires: ANTHROPIC_API_KEY environment variable
+
+[[providers]]
+name = "anthropic"
+display_name = "Anthropic"
+type = "anthropic"
+api_base = "https://api.anthropic.com"
+api_key_env = "ANTHROPIC_API_KEY"
+enabled = false
+priority = 15
+description = "Anthropic Claude models - Excellent for analysis and long-form content"
+
+[[providers.models]]
+name = "claude-sonnet-4-20250514"
+display_name = "Claude Sonnet 4"
+model_type = "llm"
+description = "Anthropic's latest Claude Sonnet 4 with excellent reasoning"
+deprecated = false
+tags = ["recommended", "reasoning", "latest"]
+
+[providers.models.capabilities]
+context_length = 200000
+max_output_tokens = 8192
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.003
+output_per_1k = 0.015
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "claude-3-5-sonnet-20241022"
+display_name = "Claude 3.5 Sonnet"
+model_type = "llm"
+description = "Balanced performance and cost, great for coding"
+deprecated = false
+tags = ["balanced", "code"]
+
+[providers.models.capabilities]
+context_length = 200000
+max_output_tokens = 8192
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.003
+output_per_1k = 0.015
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "claude-3-5-haiku-20241022"
+display_name = "Claude 3.5 Haiku"
+model_type = "llm"
+description = "Fast and cost-effective Claude model"
+deprecated = false
+tags = ["fast", "cost-effective"]
+
+[providers.models.capabilities]
+context_length = 200000
+max_output_tokens = 8192
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.001
+output_per_1k = 0.005
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# =============================================================================
+# AZURE OPENAI PROVIDER
+# =============================================================================
+# Azure-hosted OpenAI models for enterprise deployments
+# Requires: AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT environment variables
+# Note: Model deployment names are configured per Azure deployment
+
+[[providers]]
+name = "azure"
+display_name = "Azure OpenAI"
+type = "azure"
+api_base = ""  # Set via AZURE_OPENAI_ENDPOINT
+api_key_env = "AZURE_OPENAI_API_KEY"
+enabled = false
+priority = 5
+description = "Azure-hosted OpenAI models - Enterprise-grade with SLAs and compliance"
+
+[[providers.models]]
+name = "gpt-4o"
+display_name = "GPT-4o (Azure)"
+model_type = "llm"
+description = "Azure-hosted GPT-4o deployment"
+deprecated = false
+tags = ["enterprise", "compliant"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 16384
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0025
+output_per_1k = 0.01
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "text-embedding-3-small"
+display_name = "Text Embedding 3 Small (Azure)"
+model_type = "embedding"
+description = "Azure-hosted embedding model"
+deprecated = false
+tags = ["enterprise"]
+
+[providers.models.capabilities]
+context_length = 8191
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 1536
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.00002
+image_per_unit = 0.0
+
+# =============================================================================
+# MOCK PROVIDER
+# =============================================================================
+# For testing and development without external API calls
+# No API key required
+
+[[providers]]
+name = "mock"
+display_name = "Mock Provider"
+type = "mock"
+api_base = ""
+api_key_env = ""
+enabled = true
+priority = 100
+description = "Mock provider for testing - Fast, free, deterministic responses"
+
+[[providers.models]]
+name = "mock-llm"
+display_name = "Mock LLM"
+model_type = "llm"
+description = "Mock LLM for testing"
+deprecated = false
+tags = ["testing", "development"]
+
+[providers.models.capabilities]
+context_length = 4096
+max_output_tokens = 1024
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "mock-embedding"
+display_name = "Mock Embedding"
+model_type = "embedding"
+description = "Mock embedding model for testing"
+deprecated = false
+tags = ["testing", "development"]
+
+[providers.models.capabilities]
+context_length = 512
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 768
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# =============================================================================
+# CUSTOM OPENAI-COMPATIBLE PROVIDERS
+# =============================================================================
+# Example template for adding custom OpenAI-compatible providers
+# Uncomment and modify to add providers like vLLM, Text Generation Inference, etc.
+
+# [[providers]]
+# name = "vllm-local"
+# display_name = "vLLM Local"
+# type = "openaicompatible"
+# api_base = "http://localhost:8000/v1"
+# api_key_env = ""
+# enabled = false
+# priority = 30
+# description = "Local vLLM deployment"
+#
+# [[providers.models]]
+# name = "mistral-7b"
+# display_name = "Mistral 7B (vLLM)"
+# model_type = "llm"
+# description = "Mistral 7B served via vLLM"
+# deprecated = false
+# tags = ["local", "vllm"]
+#
+# [providers.models.capabilities]
+# context_length = 32768
+# max_output_tokens = 4096
+# supports_vision = false
+# supports_function_calling = false
+# supports_json_mode = true
+# supports_streaming = true
+# supports_system_message = true
+# embedding_dimension = 0
+#
+# [providers.models.cost]
+# input_per_1k = 0.0
+# output_per_1k = 0.0
+# embedding_per_1k = 0.0
+# image_per_unit = 0.0

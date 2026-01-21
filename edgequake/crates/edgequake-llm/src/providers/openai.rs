@@ -243,6 +243,19 @@ impl LLMProvider for OpenAIProvider {
         &self,
         prompt: &str,
     ) -> Result<futures::stream::BoxStream<'static, Result<String>>> {
+        // Delegate to stream_with_options with default options
+        self.stream_with_options(prompt, &CompletionOptions::default())
+            .await
+    }
+
+    /// Stream with options including stop sequences.
+    ///
+    /// @implements SPEC-032: OpenAI stop token handling (OODA 63)
+    async fn stream_with_options(
+        &self,
+        prompt: &str,
+        options: &CompletionOptions,
+    ) -> Result<futures::stream::BoxStream<'static, Result<String>>> {
         use futures::StreamExt;
 
         let request = ChatCompletionRequestUserMessageArgs::default()
@@ -251,10 +264,24 @@ impl LLMProvider for OpenAIProvider {
             .map(Into::into)
             .map_err(|e| LlmError::InvalidRequest(e.to_string()))?;
 
-        let request = CreateChatCompletionRequestArgs::default()
+        let mut builder = CreateChatCompletionRequestArgs::default();
+        builder
             .model(&self.model)
             .messages(vec![request])
-            .stream(true)
+            .stream(true);
+
+        // Apply optional parameters
+        if let Some(temp) = options.temperature {
+            builder.temperature(temp);
+        }
+        if let Some(max_tokens) = options.max_tokens {
+            builder.max_tokens(max_tokens as u32);
+        }
+        if let Some(ref stop) = options.stop {
+            builder.stop(stop.clone());
+        }
+
+        let request = builder
             .build()
             .map_err(|e| LlmError::InvalidRequest(e.to_string()))?;
 

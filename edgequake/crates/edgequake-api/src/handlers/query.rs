@@ -2,6 +2,7 @@
 //!
 //! @implements FEAT0403
 //! @implements FEAT0404
+//! @implements SPEC-032: Workspace-specific embedding in query process
 //!
 //! # Implements
 //!
@@ -19,6 +20,12 @@
 //! - **BR0103**: Query mode must be valid enum value
 //! - **BR0105**: Empty queries are rejected
 //! - **BR0201**: Tenant isolation (queries scoped to workspace)
+//!
+//! # Workspace-Specific Embedding (SPEC-032)
+//!
+//! Queries use the embedding model configured for the workspace. This allows:
+//! - Different workspaces to use different embedding providers (OpenAI, Ollama, LM Studio)
+//! - Dimension-specific vector search per workspace
 //!
 //! # Endpoints
 //!
@@ -38,16 +45,19 @@
 //!        ↓
 //!   Add tenant context (BR0201)
 //!        ↓
-//!   Execute via SOTA engine
+//!   Load workspace embedding config (SPEC-032)
+//!        ↓
+//!   Execute via SOTA engine with workspace embedding
 //!        ↓
 //!   Format response + sources
 //! ```
 
 use axum::{extract::State, Json};
-use tracing::debug;
+use tracing::{debug, error, warn};
 
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
+use crate::providers::WorkspaceProviderResolver;
 use crate::state::AppState;
 use crate::validation::validate_query;
 use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
@@ -116,8 +126,23 @@ pub async fn execute_query(
     // Build engine query request with conversation history and tenant context
     let mut engine_request = EngineQueryRequest::new(&request.query).with_mode(mode);
 
-    // Add tenant context for filtering
-    if let Some(ref tenant_id) = tenant_ctx.tenant_id {
+    // OODA-231.1: Fetch workspace to get correct tenant_id for data queries
+    // WHY: Header tenant_id is for authentication (random UUID from frontend).
+    // But the graph data was ingested with the workspace's actual tenant_id.
+    // Using header tenant_id causes 0 results because of tenant_id mismatch.
+    let workspace = if let Some(ref workspace_id) = tenant_ctx.workspace_id {
+        get_workspace(&state, workspace_id).await.ok().flatten()
+    } else {
+        None
+    };
+
+    // Use workspace's tenant_id for data queries, fall back to header tenant_id
+    let data_tenant_id = workspace
+        .as_ref()
+        .map(|ws| ws.tenant_id.to_string())
+        .or_else(|| tenant_ctx.tenant_id.clone());
+
+    if let Some(ref tenant_id) = data_tenant_id {
         engine_request = engine_request.with_tenant_id(tenant_id.clone());
     }
     if let Some(ref workspace_id) = tenant_ctx.workspace_id {
@@ -150,12 +175,85 @@ pub async fn execute_query(
         engine_request = engine_request.with_conversation_history(engine_history);
     }
 
-    // Execute query using the SOTA query engine (LightRAG-style)
-    let result = state
-        .sota_engine
-        .query(engine_request)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?;
+    // SPEC-032 & SPEC-033: Get workspace-specific embedding provider AND vector storage
+    // If workspace has custom embedding config, use workspace-specific resources
+    let result = if let Some(ref workspace_id) = tenant_ctx.workspace_id {
+        // Try to get workspace embedding and vector storage configuration
+        let embedding_result = get_workspace_embedding_provider(&state, workspace_id).await;
+        let vector_result = get_workspace_vector_storage(&state, workspace_id).await;
+
+        match (embedding_result, vector_result) {
+            (Ok(Some(embedding_provider)), Ok(Some(vector_storage))) => {
+                // Full workspace isolation: use both workspace-specific embedding and vector storage
+                debug!(
+                    workspace_id = %workspace_id,
+                    "Using workspace-specific embedding provider AND vector storage for query"
+                );
+                state
+                    .sota_engine
+                    .query_with_workspace_config(engine_request, embedding_provider, vector_storage)
+                    .await
+                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+            }
+            (Ok(Some(embedding_provider)), _) => {
+                // Workspace-specific embedding only
+                debug!(
+                    workspace_id = %workspace_id,
+                    "Using workspace-specific embedding provider for query"
+                );
+                state
+                    .sota_engine
+                    .query_with_embedding_provider(engine_request, embedding_provider)
+                    .await
+                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+            }
+            (Ok(None), _) => {
+                // No workspace-specific config, use default engine embedding
+                debug!(
+                    workspace_id = %workspace_id,
+                    "Using default embedding provider for query"
+                );
+                state
+                    .sota_engine
+                    .query(engine_request)
+                    .await
+                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+            }
+            (Err(e), _) => {
+                // OODA-229: Return configuration errors to the user instead of silent fallback
+                // WHY: If workspace is configured for OpenAI but API key is missing, using
+                // the default provider would return wrong results (different embeddings).
+                // Better to fail fast with a clear error message.
+                if matches!(&e, ApiError::ConfigError(_)) {
+                    error!(
+                        workspace_id = %workspace_id,
+                        error = %e,
+                        "Workspace embedding configuration error - returning to user"
+                    );
+                    return Err(e);
+                }
+
+                // For other errors, fallback to default with warning
+                warn!(
+                    workspace_id = %workspace_id,
+                    error = %e,
+                    "Failed to get workspace embedding config, using default"
+                );
+                state
+                    .sota_engine
+                    .query(engine_request)
+                    .await
+                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+            }
+        }
+    } else {
+        // No workspace context, use default engine embedding
+        state
+            .sota_engine
+            .query(engine_request)
+            .await
+            .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
+    };
 
     // Convert sources from context
     let mut sources = Vec::new();
@@ -268,6 +366,27 @@ pub async fn execute_query(
         None
     };
 
+    // SPEC-032 Item 18, 22: Get LLM provider/model info for lineage tracking
+    let (llm_provider, llm_model) =
+        get_workspace_llm_info(&state, tenant_ctx.workspace_id.as_deref()).await;
+
+    // SPEC-032 Item 18: Calculate tokens per second
+    let tokens_used = if result.stats.generated_tokens > 0 {
+        Some(result.stats.generated_tokens)
+    } else {
+        None
+    };
+
+    let tokens_per_second =
+        if result.stats.generation_time_ms > 0 && result.stats.generated_tokens > 0 {
+            Some(
+                (result.stats.generated_tokens as f32) / (result.stats.generation_time_ms as f32)
+                    * 1000.0,
+            )
+        } else {
+            None
+        };
+
     let response = QueryResponse {
         answer: result.answer,
         mode: result.mode.to_string(),
@@ -281,6 +400,11 @@ pub async fn execute_query(
                 + result.context.entities.len()
                 + result.context.relationships.len(),
             rerank_time_ms,
+            // SPEC-032 Item 18, 22: Token metrics and model lineage
+            tokens_used,
+            tokens_per_second,
+            llm_provider,
+            llm_model,
         },
         conversation_id,
         reranked,
@@ -327,8 +451,22 @@ pub async fn stream_query(
     // Build engine query request with tenant context
     let mut engine_request = EngineQueryRequest::new(&request.query).with_mode(mode);
 
-    // Add tenant context for filtering
-    if let Some(ref tenant_id) = tenant_ctx.tenant_id {
+    // OODA-231.1: Fetch workspace to get correct tenant_id for data queries
+    // WHY: Header tenant_id is for authentication (random UUID from frontend).
+    // But the graph data was ingested with the workspace's actual tenant_id.
+    let workspace = if let Some(ref workspace_id) = tenant_ctx.workspace_id {
+        get_workspace(&state, workspace_id).await.ok().flatten()
+    } else {
+        None
+    };
+
+    // Use workspace's tenant_id for data queries, fall back to header tenant_id
+    let data_tenant_id = workspace
+        .as_ref()
+        .map(|ws| ws.tenant_id.to_string())
+        .or_else(|| tenant_ctx.tenant_id.clone());
+
+    if let Some(ref tenant_id) = data_tenant_id {
         engine_request = engine_request.with_tenant_id(tenant_id.clone());
     }
     if let Some(ref workspace_id) = tenant_ctx.workspace_id {
@@ -348,6 +486,210 @@ pub async fn stream_query(
     });
 
     Ok(Sse::new(sse_stream))
+}
+
+/// Get workspace by ID for tenant isolation.
+///
+/// @implements OODA-231.1: Correct tenant_id for data queries
+async fn get_workspace(
+    state: &AppState,
+    workspace_id: &str,
+) -> Result<Option<edgequake_core::Workspace>, ApiError> {
+    use uuid::Uuid;
+
+    let workspace_uuid = Uuid::parse_str(workspace_id)
+        .map_err(|e| ApiError::BadRequest(format!("Invalid workspace ID: {}", e)))?;
+
+    state
+        .workspace_service
+        .get_workspace(workspace_uuid)
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to get workspace: {}", e)))
+}
+
+/// Get workspace-specific embedding provider for query execution.
+///
+/// @implements SPEC-032: Workspace-specific embedding in query process
+/// @implements OODA-259: Delegates to WorkspaceProviderResolver to eliminate duplication
+///
+/// This function delegates to [`WorkspaceProviderResolver::resolve_embedding_provider_optional`]
+/// which provides the canonical implementation for workspace-aware embedding provider creation.
+///
+/// # Arguments
+///
+/// * `state` - Application state containing workspace service
+/// * `workspace_id` - ID of the workspace to get embedding config for
+///
+/// # Returns
+///
+/// - `Ok(Some(provider))` - Workspace-specific embedding provider
+/// - `Ok(None)` - Workspace uses default embedding, no override needed
+/// - `Err(_)` - Error looking up workspace or creating provider
+pub async fn get_workspace_embedding_provider(
+    state: &AppState,
+    workspace_id: &str,
+) -> Result<Option<std::sync::Arc<dyn edgequake_query::EmbeddingProvider>>, ApiError> {
+    // OODA-259: Delegate to resolver to eliminate code duplication
+    // The resolver now provides `resolve_embedding_provider_optional` which returns
+    // Ok(None) for fallback semantics (workspace has no embedding config)
+    let resolver = WorkspaceProviderResolver::new(state.workspace_service.clone());
+    let result = resolver
+        .resolve_embedding_provider_optional(workspace_id)
+        .await
+        .map_err(ApiError::from)?;
+
+    // Extract just the Arc<dyn EmbeddingProvider> from ResolvedEmbeddingProvider
+    Ok(result.map(|resolved| resolved.provider))
+}
+
+/// Get workspace-specific vector storage for query execution.
+///
+/// SPEC-033: Workspace vector isolation.
+///
+/// This function looks up the workspace's embedding dimension and gets or creates
+/// a workspace-specific vector storage instance. If the workspace uses the default
+/// dimension, returns None to indicate the default should be used.
+///
+/// @implements OODA-228: Fix dimension mismatch in chat handler
+///
+/// # Arguments
+///
+/// * `state` - Application state containing workspace service and vector registry
+/// * `workspace_id` - ID of the workspace to get vector storage for
+///
+/// # Returns
+///
+/// - `Ok(Some(storage))` - Workspace-specific vector storage
+/// - `Ok(None)` - Workspace uses default storage, no override needed
+/// - `Err(_)` - Error looking up workspace or creating storage
+pub async fn get_workspace_vector_storage(
+    state: &AppState,
+    workspace_id: &str,
+) -> Result<Option<std::sync::Arc<dyn edgequake_storage::traits::VectorStorage>>, ApiError> {
+    use edgequake_storage::traits::WorkspaceVectorConfig;
+    use uuid::Uuid;
+
+    // Parse workspace ID
+    let workspace_uuid = Uuid::parse_str(workspace_id)
+        .map_err(|e| ApiError::BadRequest(format!("Invalid workspace ID: {}", e)))?;
+
+    // Get workspace from service
+    let workspace = state
+        .workspace_service
+        .get_workspace(workspace_uuid)
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to get workspace: {}", e)))?
+        .ok_or_else(|| ApiError::NotFound(format!("Workspace not found: {}", workspace_id)))?;
+
+    // Create workspace-specific vector storage config
+    let config = WorkspaceVectorConfig {
+        workspace_id: workspace_uuid,
+        dimension: workspace.embedding_dimension,
+        namespace: "default".to_string(),
+    };
+
+    debug!(
+        workspace_id = %workspace_id,
+        dimension = workspace.embedding_dimension,
+        "Getting workspace-specific vector storage"
+    );
+
+    // Get or create workspace vector storage
+    // OODA-225: Auto-evict and retry on dimension mismatch
+    // WHY: When embedding provider changes (e.g., Ollama 768 → OpenAI 1536), the cached
+    // vector storage instance may hold the old dimension. If get_or_create fails due to
+    // dimension mismatch, we evict the cache and retry with the new dimension.
+    let storage = match state.vector_registry.get_or_create(config.clone()).await {
+        Ok(s) => s,
+        Err(e) => {
+            let error_msg = e.to_string();
+            if error_msg.contains("Dimension mismatch") || error_msg.contains("cached=") {
+                // Dimension mismatch detected - evict cache and retry
+                tracing::warn!(
+                    workspace_id = %workspace_id,
+                    error = %error_msg,
+                    "Dimension mismatch detected, evicting cache and retrying"
+                );
+                state.vector_registry.evict(&workspace_uuid).await;
+
+                // Retry after eviction
+                state
+                    .vector_registry
+                    .get_or_create(config)
+                    .await
+                    .map_err(|e2| {
+                        ApiError::Internal(format!(
+                            "Failed to create vector storage for workspace {} after cache eviction: {}",
+                            workspace_id, e2
+                        ))
+                    })?
+            } else {
+                return Err(ApiError::Internal(format!(
+                    "Failed to create vector storage for workspace {}: {}",
+                    workspace_id, e
+                )));
+            }
+        }
+    };
+
+    Ok(Some(storage))
+}
+
+/// Get workspace LLM provider and model info for lineage tracking.
+///
+/// @implements SPEC-032 Item 22: Display model used after tokens/second
+///
+/// # Returns
+///
+/// Tuple of (Option<provider>, Option<model>) from workspace config or defaults.
+async fn get_workspace_llm_info(
+    state: &AppState,
+    workspace_id: Option<&str>,
+) -> (Option<String>, Option<String>) {
+    use edgequake_core::types::{DEFAULT_LLM_MODEL, DEFAULT_LLM_PROVIDER};
+    use uuid::Uuid;
+
+    // If no workspace, return defaults
+    let workspace_id = match workspace_id {
+        Some(id) => id,
+        None => {
+            return (
+                Some(DEFAULT_LLM_PROVIDER.to_string()),
+                Some(DEFAULT_LLM_MODEL.to_string()),
+            );
+        }
+    };
+
+    // Try to get workspace config
+    let workspace_uuid = match Uuid::parse_str(workspace_id) {
+        Ok(uuid) => uuid,
+        Err(_) => {
+            return (
+                Some(DEFAULT_LLM_PROVIDER.to_string()),
+                Some(DEFAULT_LLM_MODEL.to_string()),
+            );
+        }
+    };
+
+    match state.workspace_service.get_workspace(workspace_uuid).await {
+        Ok(Some(workspace)) => {
+            let provider = if workspace.llm_provider.is_empty() {
+                Some(DEFAULT_LLM_PROVIDER.to_string())
+            } else {
+                Some(workspace.llm_provider)
+            };
+            let model = if workspace.llm_model.is_empty() {
+                Some(DEFAULT_LLM_MODEL.to_string())
+            } else {
+                Some(workspace.llm_model)
+            };
+            (provider, model)
+        }
+        _ => (
+            Some(DEFAULT_LLM_PROVIDER.to_string()),
+            Some(DEFAULT_LLM_MODEL.to_string()),
+        ),
+    }
 }
 
 #[cfg(test)]

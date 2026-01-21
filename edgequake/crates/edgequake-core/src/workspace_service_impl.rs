@@ -346,6 +346,39 @@ impl WorkspaceService for WorkspaceServiceImpl {
             workspace = workspace.with_max_documents(max_docs);
         }
 
+        // SPEC-032: Apply LLM configuration from request
+        // Uses auto-detection for provider if not specified
+        if let Some(model) = request.llm_model {
+            workspace = workspace.with_llm_model(&model);
+            // Explicit provider overrides auto-detection
+            if let Some(provider) = request.llm_provider {
+                workspace = workspace.with_llm_provider(&provider);
+            }
+        } else if let Some(provider) = request.llm_provider {
+            // Provider specified without model - use default model for provider
+            workspace = workspace.with_llm_provider(&provider);
+        }
+
+        // SPEC-032: Apply embedding configuration from request
+        // Uses auto-detection for provider/dimension if not specified
+        if let Some(model) = request.embedding_model {
+            workspace = workspace.with_embedding_model(&model);
+            // Auto-detect provider if not specified
+            if let Some(provider) = request.embedding_provider {
+                workspace = workspace.with_embedding_provider(&provider);
+            } else {
+                let detected = Workspace::detect_provider_from_model(&model);
+                workspace = workspace.with_embedding_provider(detected);
+            }
+            // Auto-detect dimension if not specified
+            if let Some(dim) = request.embedding_dimension {
+                workspace = workspace.with_embedding_dimension(dim);
+            } else {
+                let detected = Workspace::detect_dimension_from_model(&model);
+                workspace = workspace.with_embedding_dimension(detected);
+            }
+        }
+
         sqlx::query(
             r#"
             INSERT INTO workspaces (workspace_id, tenant_id, name, slug, description, is_active, metadata, settings, created_at, updated_at)
@@ -358,7 +391,18 @@ impl WorkspaceService for WorkspaceServiceImpl {
         .bind(&workspace.slug)
         .bind(&workspace.description)
         .bind(workspace.is_active)
-        .bind(serde_json::json!(workspace.metadata))
+        // SPEC-032: Store LLM and embedding config in metadata until migration adds dedicated columns
+        .bind({
+            let mut metadata = workspace.metadata.clone();
+            // LLM configuration
+            metadata.insert("llm_model".to_string(), serde_json::Value::String(workspace.llm_model.clone()));
+            metadata.insert("llm_provider".to_string(), serde_json::Value::String(workspace.llm_provider.clone()));
+            // Embedding configuration
+            metadata.insert("embedding_model".to_string(), serde_json::Value::String(workspace.embedding_model.clone()));
+            metadata.insert("embedding_provider".to_string(), serde_json::Value::String(workspace.embedding_provider.clone()));
+            metadata.insert("embedding_dimension".to_string(), serde_json::Value::Number(workspace.embedding_dimension.into()));
+            serde_json::json!(metadata)
+        })
         .bind(workspace.created_at)
         .bind(workspace.updated_at)
         .execute(&self.pool)
@@ -369,6 +413,8 @@ impl WorkspaceService for WorkspaceServiceImpl {
             workspace_id = %workspace.workspace_id,
             tenant_id = %tenant_id,
             slug = %slug,
+            llm_model = %workspace.llm_full_id(),
+            embedding_model = %workspace.embedding_full_id(),
             "Created workspace in PostgreSQL"
         );
 
@@ -481,12 +527,51 @@ impl WorkspaceService for WorkspaceServiceImpl {
                 .metadata
                 .insert("max_documents".to_string(), serde_json::json!(max_docs));
         }
+        // SPEC-032: LLM model configuration updates
+        // Store in metadata JSON for compatibility with database schema
+        if let Some(llm_model) = request.llm_model {
+            workspace.llm_model = llm_model.clone();
+            workspace
+                .metadata
+                .insert("llm_model".to_string(), serde_json::json!(llm_model));
+        }
+        if let Some(llm_provider) = request.llm_provider {
+            workspace.llm_provider = llm_provider.clone();
+            workspace
+                .metadata
+                .insert("llm_provider".to_string(), serde_json::json!(llm_provider));
+        }
+        // SPEC-032: Embedding model configuration updates
+        // WARNING: Changing embedding model requires vector rebuild
+        if let Some(embedding_model) = request.embedding_model {
+            workspace.embedding_model = embedding_model.clone();
+            workspace.metadata.insert(
+                "embedding_model".to_string(),
+                serde_json::json!(embedding_model),
+            );
+        }
+        if let Some(embedding_provider) = request.embedding_provider {
+            workspace.embedding_provider = embedding_provider.clone();
+            workspace.metadata.insert(
+                "embedding_provider".to_string(),
+                serde_json::json!(embedding_provider),
+            );
+        }
+        if let Some(embedding_dimension) = request.embedding_dimension {
+            workspace.embedding_dimension = embedding_dimension;
+            workspace.metadata.insert(
+                "embedding_dimension".to_string(),
+                serde_json::json!(embedding_dimension),
+            );
+        }
         workspace.updated_at = chrono::Utc::now();
 
+        // Store all config in metadata JSONB column (database schema uses metadata, not separate columns)
         sqlx::query(
             r#"
             UPDATE workspaces 
-            SET name = $2, description = $3, is_active = $4, metadata = $5, updated_at = NOW()
+            SET name = $2, description = $3, is_active = $4, metadata = $5,
+                updated_at = NOW()
             WHERE workspace_id = $1
             "#,
         )
@@ -767,6 +852,39 @@ impl TenantRow {
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
+        // SPEC-032: Extract default LLM config from metadata
+        let default_llm_model = self
+            .metadata
+            .get("default_llm_model")
+            .and_then(|v| v.as_str())
+            .unwrap_or(crate::types::DEFAULT_LLM_MODEL)
+            .to_string();
+        let default_llm_provider = self
+            .metadata
+            .get("default_llm_provider")
+            .and_then(|v| v.as_str())
+            .unwrap_or(crate::types::DEFAULT_LLM_PROVIDER)
+            .to_string();
+
+        // SPEC-032: Extract default embedding config from metadata
+        let default_embedding_model = self
+            .metadata
+            .get("default_embedding_model")
+            .and_then(|v| v.as_str())
+            .unwrap_or(crate::types::DEFAULT_EMBEDDING_MODEL)
+            .to_string();
+        let default_embedding_provider = self
+            .metadata
+            .get("default_embedding_provider")
+            .and_then(|v| v.as_str())
+            .unwrap_or(crate::types::DEFAULT_EMBEDDING_PROVIDER)
+            .to_string();
+        let default_embedding_dimension =
+            self.metadata
+                .get("default_embedding_dimension")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(crate::types::DEFAULT_EMBEDDING_DIMENSION as u64) as usize;
+
         Tenant {
             tenant_id: self.tenant_id,
             name: self.name,
@@ -779,6 +897,11 @@ impl TenantRow {
             created_at: self.created_at,
             updated_at: self.updated_at,
             metadata: HashMap::new(),
+            default_llm_model,
+            default_llm_provider,
+            default_embedding_model,
+            default_embedding_provider,
+            default_embedding_dimension,
         }
     }
 }
@@ -809,6 +932,35 @@ impl WorkspaceRow {
                 HashMap::new()
             };
 
+        // SPEC-032: Extract LLM config from metadata
+        let llm_model = metadata
+            .get("llm_model")
+            .and_then(|v| v.as_str())
+            .unwrap_or(crate::types::DEFAULT_LLM_MODEL)
+            .to_string();
+        let llm_provider = metadata
+            .get("llm_provider")
+            .and_then(|v| v.as_str())
+            .unwrap_or(crate::types::DEFAULT_LLM_PROVIDER)
+            .to_string();
+
+        // SPEC-032: Extract embedding config from metadata
+        let embedding_model = metadata
+            .get("embedding_model")
+            .and_then(|v| v.as_str())
+            .unwrap_or(crate::types::DEFAULT_EMBEDDING_MODEL)
+            .to_string();
+        let embedding_provider = metadata
+            .get("embedding_provider")
+            .and_then(|v| v.as_str())
+            .unwrap_or(crate::types::DEFAULT_EMBEDDING_PROVIDER)
+            .to_string();
+        let embedding_dimension = metadata
+            .get("embedding_dimension")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(crate::types::DEFAULT_EMBEDDING_DIMENSION as u64)
+            as usize;
+
         Workspace {
             workspace_id: self.workspace_id,
             tenant_id: self.tenant_id,
@@ -819,6 +971,11 @@ impl WorkspaceRow {
             created_at: self.created_at,
             updated_at: self.updated_at,
             metadata,
+            llm_model,
+            llm_provider,
+            embedding_model,
+            embedding_provider,
+            embedding_dimension,
         }
     }
 }

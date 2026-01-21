@@ -49,11 +49,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Starting EdgeQuake v{}", env!("CARGO_PKG_VERSION"));
 
-    // Get API key from environment
-    let api_key = std::env::var("OPENAI_API_KEY").unwrap_or_else(|_| {
-        tracing::warn!("OPENAI_API_KEY not set, using placeholder");
-        "placeholder-key".to_string()
-    });
+    // Get API key from environment (optional - Ollama doesn't need it)
+    let api_key = std::env::var("OPENAI_API_KEY").unwrap_or_default();
 
     // Create application state - use PostgreSQL if DATABASE_URL is set
     let state = if let Ok(database_url) = std::env::var("DATABASE_URL") {
@@ -63,7 +60,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .expect("Failed to initialize PostgreSQL storage")
     } else {
         info!("💾 No DATABASE_URL set - using in-memory storage (data will not persist)");
-        AppState::new_memory(&api_key)
+        AppState::new_memory(if api_key.is_empty() {
+            None
+        } else {
+            Some(api_key)
+        })
     };
 
     // Initialize default tenant and workspace for non-authenticated mode
@@ -71,14 +72,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing::warn!("Failed to initialize defaults: {}", e);
     }
 
-    // Create document task processor
-    let processor = Arc::new(DocumentTaskProcessor::new(
-        Arc::clone(&state.pipeline),
-        Arc::clone(&state.kv_storage),
-        Arc::clone(&state.vector_storage),
-        Arc::clone(&state.graph_storage),
-        state.pipeline_state.clone(),
-    ));
+    // Create document task processor with workspace-specific pipeline support (SPEC-032)
+    // This ensures that rebuild/reprocess operations use the workspace's configured
+    // LLM and embedding providers, not the server's default providers.
+    //
+    // OODA-223: Use strict mode for PostgreSQL (production) to enforce workspace isolation.
+    // Memory mode (development) uses non-strict mode for test compatibility.
+    let processor = if state.storage_mode.is_postgresql() {
+        info!("🔒 Using STRICT workspace isolation mode (PostgreSQL storage)");
+        Arc::new(DocumentTaskProcessor::with_workspace_support_strict(
+            Arc::clone(&state.pipeline),
+            Arc::clone(&state.kv_storage),
+            Arc::clone(&state.vector_storage),
+            Arc::clone(&state.vector_registry),
+            Arc::clone(&state.graph_storage),
+            state.pipeline_state.clone(),
+            Arc::clone(&state.workspace_service),
+            Arc::clone(&state.models_config),
+        ))
+    } else {
+        info!("⚠️ Using non-strict workspace mode (in-memory storage)");
+        Arc::new(DocumentTaskProcessor::with_workspace_support(
+            Arc::clone(&state.pipeline),
+            Arc::clone(&state.kv_storage),
+            Arc::clone(&state.vector_storage),
+            Arc::clone(&state.vector_registry),
+            Arc::clone(&state.graph_storage),
+            state.pipeline_state.clone(),
+            Arc::clone(&state.workspace_service),
+            Arc::clone(&state.models_config),
+        ))
+    };
 
     // Configure worker pool
     let worker_config = WorkerPoolConfig {

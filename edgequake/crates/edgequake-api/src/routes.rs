@@ -170,6 +170,21 @@ fn api_v1_routes() -> Router<AppState> {
             "/workspaces/{workspace_id}/stats",
             get(handlers::get_workspace_stats),
         )
+        // SPEC-032: Rebuild embeddings for workspace
+        .route(
+            "/workspaces/{workspace_id}/rebuild-embeddings",
+            post(handlers::rebuild_embeddings),
+        )
+        // Rebuild knowledge graph (LLM model change)
+        .route(
+            "/workspaces/{workspace_id}/rebuild-knowledge-graph",
+            post(handlers::rebuild_knowledge_graph),
+        )
+        // SPEC-032: Reprocess all documents for workspace (Focus Area 5)
+        .route(
+            "/workspaces/{workspace_id}/reprocess-documents",
+            post(handlers::reprocess_all_documents),
+        )
         // Documents
         .route("/documents", post(handlers::upload_document))
         .route("/documents", get(handlers::list_documents))
@@ -331,6 +346,23 @@ fn api_v1_routes() -> Router<AppState> {
             "/entities/{entity_id}/provenance",
             get(handlers::get_entity_provenance),
         )
+        // Settings (Provider Status) (SPEC-032 Phase 5E)
+        .route(
+            "/settings/provider/status",
+            get(handlers::get_provider_status),
+        )
+        // List available providers (SPEC-032 OODA 12)
+        .route(
+            "/settings/providers",
+            get(handlers::list_available_providers),
+        )
+        // Models Configuration API (SPEC-032 OODA 66-70)
+        .route("/models", get(handlers::list_models))
+        .route("/models/llm", get(handlers::list_llm_models))
+        .route("/models/embedding", get(handlers::list_embedding_models))
+        .route("/models/health", get(handlers::check_providers_health))
+        .route("/models/{provider}", get(handlers::get_provider))
+        .route("/models/{provider}/{model}", get(handlers::get_model))
 }
 
 #[cfg(test)]

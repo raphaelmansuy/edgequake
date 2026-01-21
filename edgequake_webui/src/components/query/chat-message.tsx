@@ -33,6 +33,7 @@ import {
     ChevronRight,
     Clock,
     Copy,
+    Gauge,
     RefreshCw,
     Sparkles,
     User,
@@ -56,6 +57,10 @@ export interface ChatMessageData {
   durationMs?: number;
   thinkingTimeMs?: number;
   context?: QueryContext;
+  /** LLM provider used (lineage tracking). @implements SPEC-032 */
+  llmProvider?: string;
+  /** LLM model used (lineage tracking). @implements SPEC-032 */
+  llmModel?: string;
 }
 
 interface ChatMessageProps {
@@ -185,6 +190,8 @@ const MetadataBar = memo(function MetadataBar({
   mode,
   tokensUsed,
   durationMs,
+  llmProvider,
+  llmModel,
   copied,
   onCopy,
   onRegenerate,
@@ -194,6 +201,8 @@ const MetadataBar = memo(function MetadataBar({
   mode?: string;
   tokensUsed?: number;
   durationMs?: number;
+  llmProvider?: string;
+  llmModel?: string;
   copied: boolean;
   onCopy: () => void;
   onRegenerate?: () => void;
@@ -210,7 +219,7 @@ const MetadataBar = memo(function MetadataBar({
       )}
     >
       {/* Stats */}
-      <div className="flex items-center gap-2.5 text-xs text-muted-foreground">
+      <div className="flex items-center gap-2.5 text-xs text-muted-foreground flex-wrap">
         {mode && (
           <Badge 
             variant="outline" 
@@ -222,17 +231,74 @@ const MetadataBar = memo(function MetadataBar({
             {mode}
           </Badge>
         )}
+        {/* SPEC-032: Display LLM provider/model as lineage badge */}
+        {(llmProvider || llmModel) && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge 
+                  variant="secondary" 
+                  className={cn(
+                    'text-xs font-normal px-2 py-0.5',
+                    'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+                    'border-blue-200 dark:border-blue-800'
+                  )}
+                >
+                  <Brain className="h-3 w-3 mr-1" />
+                  {llmProvider || 'default'}
+                  {llmModel && `: ${llmModel.split(':')[0]}`}
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">
+                  {t('query.llmLineage', 'LLM Provider')}: {llmProvider || 'server default'}
+                  {llmModel && <><br />{t('query.llmModel', 'Model')}: {llmModel}</>}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
         {tokensUsed && (
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1" title={t('query.tokensUsed', 'Tokens used')}>
             <Zap className="h-3 w-3" />
             {tokensUsed.toLocaleString()}
           </span>
         )}
         {durationMs && (
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1" title={t('query.duration', 'Generation time')}>
             <Clock className="h-3 w-3" />
             {(durationMs / 1000).toFixed(1)}s
           </span>
+        )}
+        {/* SPEC-032: Show tokens per second with model name for performance insight */}
+        {tokensUsed && durationMs && durationMs > 0 && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400" title={t('query.tokensPerSecond', 'Tokens per second')}>
+                  <Gauge className="h-3 w-3" />
+                  {((tokensUsed / durationMs) * 1000).toFixed(1)}/s
+                  {/* REQ-22: Display model after tokens/second */}
+                  {(llmProvider || llmModel) && (
+                    <span className="text-muted-foreground">
+                      • {llmProvider && llmModel ? `${llmProvider}/${llmModel}` : llmProvider || llmModel}
+                    </span>
+                  )}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">
+                  {t('query.tokensPerSecondDesc', 'Generation speed')}: {((tokensUsed / durationMs) * 1000).toFixed(1)} {t('query.tokensPerSecondUnit', 'tokens/second')}
+                  {(llmProvider || llmModel) && (
+                    <>
+                      <br />
+                      {t('query.modelUsed', 'Model')}: {llmProvider && llmModel ? `${llmProvider}/${llmModel}` : llmProvider || llmModel}
+                    </>
+                  )}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
       </div>
 
@@ -431,6 +497,8 @@ const AssistantMessage = memo(function AssistantMessage({
               mode={message.mode}
               tokensUsed={message.tokensUsed}
               durationMs={message.durationMs}
+              llmProvider={message.llmProvider}
+              llmModel={message.llmModel}
               copied={copied}
               onCopy={handleCopy}
               onRegenerate={onRegenerate}

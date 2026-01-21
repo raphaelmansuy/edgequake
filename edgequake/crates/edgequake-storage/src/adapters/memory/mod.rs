@@ -10,6 +10,7 @@
 //! @implements FEAT0210 (Graph storage for entity relationships)
 //! @implements FEAT0211 (Vector storage for similarity search)
 //! @implements FEAT0212 (KV storage for document metadata)
+//! @implements FEAT0350 (Per-workspace vector storage)
 //!
 //! ## Use Cases
 //!
@@ -25,7 +26,9 @@
 mod graph;
 mod kv;
 mod vector;
+mod workspace_vector;
 
 pub use graph::MemoryGraphStorage;
 pub use kv::MemoryKVStorage;
 pub use vector::MemoryVectorStorage;
+pub use workspace_vector::MemoryWorkspaceVectorRegistry;

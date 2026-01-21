@@ -539,4 +539,18 @@ pub trait GraphStorage: Send + Sync {
 
     /// Clear all nodes and edges.
     async fn clear(&self) -> Result<()>;
+
+    /// Clear nodes and edges for a specific workspace.
+    ///
+    /// This method removes only data belonging to the specified workspace,
+    /// allowing multi-tenant environments to rebuild one workspace without
+    /// affecting others.
+    ///
+    /// Returns a tuple of (nodes_deleted, edges_deleted).
+    ///
+    /// Default implementation returns (0, 0) - implementations should override.
+    async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<(usize, usize)> {
+        let _ = workspace_id;
+        Ok((0, 0))
+    }
 }

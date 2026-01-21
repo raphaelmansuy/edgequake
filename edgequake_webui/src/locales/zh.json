@@ -40,6 +40,8 @@
     "graph": "知识图谱",
     "documents": "文档",
     "query": "查询",
+    "workspace": "工作区",
+    "costs": "成本",
     "apiExplorer": "API浏览器",
     "settings": "设置"
   },
@@ -126,14 +128,22 @@
       "view": "查看详情",
       "reprocess": "重新处理",
       "delete": "删除",
-      "viewInGraph": "在图谱中查看"
+      "viewInGraph": "在图谱中查看",
+      "cancel": "取消提取"
+    },
+    "cancel": {
+      "success": "文档处理已取消",
+      "successDesc": "提取已停止。",
+      "failed": "取消失败",
+      "failedDesc": "无法取消处理。可能已经完成。"
     },
     "status": {
       "all": "所有状态",
       "pending": "待处理",
       "processing": "处理中",
       "completed": "已完成",
-      "failed": "失败"
+      "failed": "失败",
+      "cancelled": "已取消"
     },
     "pagination": {
       "rowsPerPage": "每页行数：",
