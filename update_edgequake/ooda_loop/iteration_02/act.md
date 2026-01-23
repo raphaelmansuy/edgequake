@@ -10,6 +10,7 @@ test workspace_crud_tests::test_workspace_limit_enforcement ... ok
 ```
 
 The test `test_workspace_limit_enforcement` in [e2e_workspace_service.rs](edgequake/crates/edgequake-core/tests/e2e_workspace_service.rs) verifies:
+
 - Pro plan allows 500 workspaces
 - Workspace creation fails at limit
 
@@ -21,6 +22,7 @@ test state::tests::test_app_config_default ... ok
 ```
 
 The test verifies:
+
 - `config.max_document_size == 50 * 1024 * 1024` (50MB)
 
 ### 3. Verified Cascade Delete ✅
@@ -31,6 +33,7 @@ test workspace_crud_tests::test_delete_workspace ... ok
 ```
 
 The implementation in [workspaces.rs](edgequake/crates/edgequake-api/src/handlers/workspaces.rs) performs cascade:
+
 1. Vector storage → `clear_workspace(workspace_id)`
 2. Graph storage → `clear_workspace(workspace_id)`
 3. KV storage → delete all documents
@@ -59,16 +62,17 @@ Total: 1,425 tests passed
 
 All SPEC-028 requirements verified:
 
-| Requirement | Status | Evidence |
-|-------------|--------|----------|
-| 500 workspaces/tenant | ✅ | test_workspace_limit_enforcement passes |
-| 50MB document upload | ✅ | test_app_config_default verifies 50MB |
-| Workspace delete works | ✅ | test_delete_workspace passes |
-| Document delete cascades | ✅ | Existing implementation verified |
+| Requirement              | Status | Evidence                                |
+| ------------------------ | ------ | --------------------------------------- |
+| 500 workspaces/tenant    | ✅     | test_workspace_limit_enforcement passes |
+| 50MB document upload     | ✅     | test_app_config_default verifies 50MB   |
+| Workspace delete works   | ✅     | test_delete_workspace passes            |
+| Document delete cascades | ✅     | Existing implementation verified        |
 
 ## Next Iteration Focus
 
 The basic requirements are now implemented and tested. Consider:
+
 1. E2E integration test with actual file upload at 50MB boundary
 2. Load test for 500 workspace creation
 3. Verify document deletion cascade in isolation test

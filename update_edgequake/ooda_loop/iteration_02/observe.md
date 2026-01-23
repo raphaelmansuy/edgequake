@@ -1,6 +1,7 @@
 # OODA Loop Iteration 02 - Observe
 
 ## Mission Re-read
+
 - Ensure 500 workspace by tenant by default ✅ Implemented in Iteration 01
 - Ensure up to 50mb by document uploaded - **Ensure it works** ← Need verification
 - Ensure I can delete a workspace ✅ Implemented in Iteration 01
@@ -11,38 +12,45 @@
 ### 1. 500 Workspaces Limit - ✅ Verified via Unit Tests
 
 **Evidence**:
+
 ```
 cargo test --package edgequake-auth --lib --features multi-tenant -- tenant::tests
     5 tests passed
-    
+
 cargo test --package edgequake-core --lib -- types::multitenancy::tests
     4 tests passed
 ```
 
 **Code Path**:
+
 - `TenantPlan::Pro.default_max_workspaces()` → 500
 - `TenantPlan::Enterprise.default_max_workspaces()` → 500
 
 ### 2. 50MB Document Upload - Needs E2E Verification
 
 **Implementation Done**:
+
 - `AppConfig::max_document_size` = 50MB
 - `ApiConfig::body_limit` = 50MB
 
 **Needs Verification**:
+
 - End-to-end upload of a large file (>10MB, <50MB)
 - Ensure validation doesn't reject valid files
 - Ensure rejection of files >50MB
 
 **Current Tests**:
+
 - Looking for existing upload tests...
 
 ### 3. Workspace Deletion Cascade - Needs E2E Verification
 
 **Implementation Done**:
+
 - Handler clears: vectors → graph → KV → DB record
 
 **Needs Verification**:
+
 - E2E test that creates workspace with data and deletes it
 - Verify no orphaned data remains
 
@@ -51,6 +59,7 @@ cargo test --package edgequake-core --lib -- types::multitenancy::tests
 **Implementation**: `orchestrator.rs:delete_document()`
 
 **Already Tests**:
+
 - Need to verify test coverage exists
 
 ## Existing E2E Test Discovery

@@ -6,21 +6,22 @@ Implementation complete, basic tests pass. Need to verify "it works" per user re
 
 ## Gap Analysis
 
-| Test Type | Exists | Verifies Full Behavior |
-|-----------|--------|------------------------|
-| Unit: TenantPlan 500 limit | ✅ | ✅ |
-| Unit: 50MB config default | ✅ | ✅ |
-| E2E: Workspace service delete | ✅ | ❌ (only DB row) |
-| E2E: API handler cascade delete | ❌ | N/A |
-| E2E: 50MB upload acceptance | ❌ | N/A |
+| Test Type                       | Exists | Verifies Full Behavior |
+| ------------------------------- | ------ | ---------------------- |
+| Unit: TenantPlan 500 limit      | ✅     | ✅                     |
+| Unit: 50MB config default       | ✅     | ✅                     |
+| E2E: Workspace service delete   | ✅     | ❌ (only DB row)       |
+| E2E: API handler cascade delete | ❌     | N/A                    |
+| E2E: 50MB upload acceptance     | ❌     | N/A                    |
 
 ## Missing Coverage
 
 ### 1. Workspace Cascade Delete E2E Test
 
 The API handler at [workspaces.rs#L750](edgequake/crates/edgequake-api/src/handlers/workspaces.rs#L750) performs:
+
 1. Vector storage clear
-2. Graph storage clear  
+2. Graph storage clear
 3. KV storage document cleanup
 4. Vector registry eviction
 5. Workspace record delete

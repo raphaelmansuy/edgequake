@@ -1,8 +1,9 @@
 # OODA Loop Iteration 01 - Observe
 
 ## Mission Re-read
+
 - Ensure 500 workspaces by tenant by default
-- Ensure up to 50MB by document uploaded - Ensure it works  
+- Ensure up to 50MB by document uploaded - Ensure it works
 - Ensure I can delete a workspace
 - Ensure when a document is deleted from a workspace, all associated embeddings and knowledge graph data are also removed
 
@@ -34,6 +35,7 @@ impl TenantPlan {
 **Locations**:
 
 1. `edgequake/crates/edgequake-api/src/state.rs:252,262`
+
 ```rust
 pub struct AppConfig {
     pub max_document_size: usize,
@@ -49,6 +51,7 @@ impl Default for AppConfig {
 ```
 
 2. `edgequake/crates/edgequake-core/src/config.rs:225,239`
+
 ```rust
 pub struct ApiConfig {
     pub body_limit: usize,
@@ -64,6 +67,7 @@ impl Default for ApiConfig {
 ```
 
 **Observation**: Two places need updating for 50MB support:
+
 - `max_document_size` for content validation
 - `body_limit` for HTTP request body limit
 
@@ -86,12 +90,14 @@ async fn delete_workspace(&self, workspace_id: Uuid) -> Result<()> {
 
 **CRITICAL ISSUE**: Workspace deletion ONLY deletes the workspace row.
 It does NOT cascade to:
+
 - Documents in KV storage
 - Embeddings in vector storage
 - Entities/relationships in graph storage
 - Tasks associated with the workspace
 
 **API Handler**: `edgequake/crates/edgequake-api/src/handlers/workspaces.rs:726-737`
+
 - Just calls `workspace_service.delete_workspace()` without any cleanup
 
 ### 4. Document Deletion
@@ -103,6 +109,7 @@ pub async fn delete_document(&self, document_id: &str) -> Result<DocumentDeletio
 ```
 
 **Observation**: Document deletion properly cascades to:
+
 - ✅ Chunks (KV storage)
 - ✅ Entities (graph storage + vector storage)
 - ✅ Relationships (graph storage)
@@ -122,12 +129,12 @@ This is used in rebuild_embeddings but NOT in delete_workspace.
 
 ## Summary of Gaps
 
-| Requirement | Current State | Gap |
-|-------------|--------------|-----|
-| 500 workspaces/tenant | Max 100 (Enterprise) | Update default_max_workspaces() |
-| 50MB document upload | 10MB limit | Update max_document_size + body_limit |
-| Delete workspace cascade | Only deletes row | Need cascade to KV/Vector/Graph |
-| Delete document cascade | ✅ Implemented | Working correctly |
+| Requirement              | Current State        | Gap                                   |
+| ------------------------ | -------------------- | ------------------------------------- |
+| 500 workspaces/tenant    | Max 100 (Enterprise) | Update default_max_workspaces()       |
+| 50MB document upload     | 10MB limit           | Update max_document_size + body_limit |
+| Delete workspace cascade | Only deletes row     | Need cascade to KV/Vector/Graph       |
+| Delete document cascade  | ✅ Implemented       | Working correctly                     |
 
 ## Files to Modify
 

@@ -5,10 +5,12 @@
 ### 1. Updated TenantPlan::default_max_workspaces() - SPEC-028
 
 **Files Modified**:
+
 - `edgequake/crates/edgequake-core/src/types/multitenancy.rs:193-202`
 - `edgequake/crates/edgequake-auth/src/tenant.rs:62-75`
 
 **Change**:
+
 ```rust
 // Before:
 TenantPlan::Free => 2
@@ -28,10 +30,12 @@ TenantPlan::Enterprise => 500
 ### 2. Updated max_document_size to 50MB - SPEC-028
 
 **Files Modified**:
+
 - `edgequake/crates/edgequake-api/src/state.rs:263`
 - `edgequake/crates/edgequake-core/src/config.rs:240`
 
 **Change**:
+
 ```rust
 // Before:
 max_document_size: 10 * 1024 * 1024, // 10 MB
@@ -49,6 +53,7 @@ body_limit: 50 * 1024 * 1024, // 50MB
 **File Modified**: `edgequake/crates/edgequake-api/src/handlers/workspaces.rs:712-855`
 
 **Cascade Order**:
+
 1. Clear vector storage (embeddings)
 2. Clear graph storage (entities/relationships)
 3. Delete document metadata and content from KV storage
@@ -56,6 +61,7 @@ body_limit: 50 * 1024 * 1024, // 50MB
 5. Delete workspace record from database
 
 **Key Functions Used**:
+
 - `vector_storage.clear_workspace(&workspace_id)` - Returns count of vectors cleared
 - `graph_storage.clear_workspace(&workspace_id)` - Returns (nodes, edges) cleared
 - `kv_storage.delete(&keys)` - Bulk delete KV entries
@@ -64,12 +70,14 @@ body_limit: 50 * 1024 * 1024, // 50MB
 ### 4. Updated Tests
 
 **Files Modified**:
+
 - `edgequake/crates/edgequake-auth/src/tenant.rs:337-370,402-415`
 - `edgequake/crates/edgequake-core/src/types/multitenancy.rs:1088-1100`
 - `edgequake/crates/edgequake-api/src/handlers/workspaces_types.rs:626-649`
 - `edgequake/crates/edgequake-api/src/state.rs:1102-1108`
 
 **Tests Updated**:
+
 - `test_tenant_plan_limits()` - Updated assertions for new limits
 - `test_workspace_limit()` - Updated to test 500 workspace limit
 - `test_tenant_creation()` - Updated to expect 500 workspaces for Pro
@@ -97,6 +105,7 @@ cargo test --package edgequake-api --lib -- handlers::workspaces_types
 **Location**: `edgequake/crates/edgequake-core/src/orchestrator.rs:795-880`
 
 The existing `delete_document()` implementation already properly cascades to:
+
 - ✅ Chunks in KV storage
 - ✅ Entities in graph storage (with source tracking)
 - ✅ Relationships in graph storage (with source tracking)
@@ -106,12 +115,12 @@ The existing `delete_document()` implementation already properly cascades to:
 
 ## Summary
 
-| Requirement | Status | Implementation |
-|-------------|--------|----------------|
-| 500 workspaces/tenant | ✅ Done | Pro/Enterprise = 500, Basic = 100, Free = 10 |
-| 50MB document upload | ✅ Done | max_document_size + body_limit = 50MB |
-| Delete workspace cascade | ✅ Done | Full cascade to vector/graph/kv storage |
-| Delete document cascade | ✅ Verified | Already implemented in orchestrator |
+| Requirement              | Status      | Implementation                               |
+| ------------------------ | ----------- | -------------------------------------------- |
+| 500 workspaces/tenant    | ✅ Done     | Pro/Enterprise = 500, Basic = 100, Free = 10 |
+| 50MB document upload     | ✅ Done     | max_document_size + body_limit = 50MB        |
+| Delete workspace cascade | ✅ Done     | Full cascade to vector/graph/kv storage      |
+| Delete document cascade  | ✅ Verified | Already implemented in orchestrator          |
 
 ## Commit
 

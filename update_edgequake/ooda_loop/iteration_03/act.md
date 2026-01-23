@@ -32,12 +32,12 @@ test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured
 
 ## Verification Status
 
-| Requirement | Test | Status |
-|-------------|------|--------|
-| 500 workspaces | test_workspace_limit_enforcement | ✅ |
-| 50MB upload | test_app_config_default | ✅ |
-| Workspace delete | test_delete_workspace | ✅ |
-| Cascade clears vectors | test_workspace_cascade_delete_clears_vectors | ✅ |
+| Requirement            | Test                                         | Status |
+| ---------------------- | -------------------------------------------- | ------ |
+| 500 workspaces         | test_workspace_limit_enforcement             | ✅     |
+| 50MB upload            | test_app_config_default                      | ✅     |
+| Workspace delete       | test_delete_workspace                        | ✅     |
+| Cascade clears vectors | test_workspace_cascade_delete_clears_vectors | ✅     |
 
 ## Next Steps
 
