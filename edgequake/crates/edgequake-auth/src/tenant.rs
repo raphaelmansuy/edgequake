@@ -61,12 +61,15 @@ pub enum TenantPlan {
 
 impl TenantPlan {
     /// Get default workspace limit for this plan.
+    ///
+    /// SPEC-028: Updated to support 500 workspaces by default for Pro/Enterprise.
+    /// WHY: Enable large-scale knowledge base organization without artificial limits.
     pub fn default_max_workspaces(&self) -> u32 {
         match self {
-            Self::Free => 1,
-            Self::Basic => 5,
-            Self::Pro => 25,
-            Self::Enterprise => u32::MAX,
+            Self::Free => 10,         // Reasonable for trials
+            Self::Basic => 100,       // Small teams
+            Self::Pro => 500,         // SPEC-028: 500 workspaces target
+            Self::Enterprise => 500,  // SPEC-028: 500 workspaces target (can be customized)
         }
     }
 
@@ -337,7 +340,7 @@ mod tests {
             slug: "test-tenant".to_string(),
             is_active: true,
             plan: TenantPlan::Pro,
-            max_workspaces: 25,
+            max_workspaces: 500, // SPEC-028: Updated to 500
             max_users: 50,
             settings: None,
             created_at: Utc::now(),
@@ -360,9 +363,12 @@ mod tests {
 
     #[test]
     fn test_tenant_plan_limits() {
-        assert_eq!(TenantPlan::Free.default_max_workspaces(), 1);
+        // SPEC-028: Updated workspace limits
+        assert_eq!(TenantPlan::Free.default_max_workspaces(), 10);
         assert_eq!(TenantPlan::Free.default_max_users(), 3);
-        assert_eq!(TenantPlan::Enterprise.default_max_workspaces(), u32::MAX);
+        assert_eq!(TenantPlan::Basic.default_max_workspaces(), 100);
+        assert_eq!(TenantPlan::Pro.default_max_workspaces(), 500);
+        assert_eq!(TenantPlan::Enterprise.default_max_workspaces(), 500);
     }
 
     #[test]
@@ -397,14 +403,15 @@ mod tests {
         let tenant = test_tenant();
         let service = TenantService::new();
 
+        // SPEC-028: Pro plan now has 500 workspaces limit
         // Under limit
-        assert!(service.check_workspace_limit(&tenant, 24).is_ok());
+        assert!(service.check_workspace_limit(&tenant, 499).is_ok());
 
-        // At limit
-        assert!(service.check_workspace_limit(&tenant, 25).is_err());
+        // At limit (500 workspaces = max_workspaces for Pro)
+        assert!(service.check_workspace_limit(&tenant, 500).is_err());
 
         // Over limit
-        assert!(service.check_workspace_limit(&tenant, 30).is_err());
+        assert!(service.check_workspace_limit(&tenant, 600).is_err());
     }
 
     #[test]

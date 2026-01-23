@@ -236,7 +236,9 @@ impl Default for ApiConfig {
             cors_origins: vec!["*".to_string()],
             auth_enabled: false,
             api_keys: Vec::new(),
-            body_limit: 10 * 1024 * 1024, // 10MB
+            // SPEC-028: 50MB body limit to support larger document uploads
+            // WHY: Must match max_document_size for consistent upload handling
+            body_limit: 50 * 1024 * 1024, // 50MB
             timeout_secs: 300,
         }
     }
