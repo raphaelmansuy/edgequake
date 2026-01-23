@@ -28,13 +28,13 @@ test result: ok. 35 passed; 0 failed; 0 ignored
 
 ## Verification Status
 
-| Requirement | Test | Status |
-|-------------|------|--------|
-| 500 workspaces | test_workspace_limit_enforcement | ✅ |
-| 50MB upload | test_app_config_default | ✅ |
-| Workspace delete | test_delete_workspace | ✅ |
-| Cascade clears vectors | test_workspace_cascade_delete_clears_vectors | ✅ |
-| Cascade clears graph | test_clear_workspace_graph_cascade_spec028 | ✅ |
+| Requirement            | Test                                         | Status |
+| ---------------------- | -------------------------------------------- | ------ |
+| 500 workspaces         | test_workspace_limit_enforcement             | ✅     |
+| 50MB upload            | test_app_config_default                      | ✅     |
+| Workspace delete       | test_delete_workspace                        | ✅     |
+| Cascade clears vectors | test_workspace_cascade_delete_clears_vectors | ✅     |
+| Cascade clears graph   | test_clear_workspace_graph_cascade_spec028   | ✅     |
 
 ## Cumulative Commits
 

@@ -66,10 +66,10 @@ impl TenantPlan {
     /// WHY: Enable large-scale knowledge base organization without artificial limits.
     pub fn default_max_workspaces(&self) -> u32 {
         match self {
-            Self::Free => 10,         // Reasonable for trials
-            Self::Basic => 100,       // Small teams
-            Self::Pro => 500,         // SPEC-028: 500 workspaces target
-            Self::Enterprise => 500,  // SPEC-028: 500 workspaces target (can be customized)
+            Self::Free => 10,        // Reasonable for trials
+            Self::Basic => 100,      // Small teams
+            Self::Pro => 500,        // SPEC-028: 500 workspaces target
+            Self::Enterprise => 500, // SPEC-028: 500 workspaces target (can be customized)
         }
     }
 

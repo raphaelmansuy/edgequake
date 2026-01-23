@@ -748,9 +748,9 @@ pub async fn delete_workspace(
     Path(workspace_id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
     tracing::info!(workspace_id = %workspace_id, "Starting workspace cascade delete");
-    
+
     let workspace_id_str = workspace_id.to_string();
-    
+
     // 1. Clear vector storage for this workspace
     // WHY: Remove all embeddings (chunks + entities) before deleting workspace
     let vectors_cleared = match state.vector_storage.clear_workspace(&workspace_id).await {
@@ -763,15 +763,19 @@ pub async fn delete_workspace(
             0
         }
     };
-    
+
     // 2. Clear graph storage for this workspace (entities and relationships)
     // WHY: Remove all knowledge graph nodes and edges
-    let (nodes_cleared, edges_cleared) = match state.graph_storage.clear_workspace(&workspace_id).await {
+    let (nodes_cleared, edges_cleared) = match state
+        .graph_storage
+        .clear_workspace(&workspace_id)
+        .await
+    {
         Ok((nodes, edges)) => {
             tracing::info!(
-                workspace_id = %workspace_id, 
-                nodes_cleared = nodes, 
-                edges_cleared = edges, 
+                workspace_id = %workspace_id,
+                nodes_cleared = nodes,
+                edges_cleared = edges,
                 "Cleared graph storage"
             );
             (nodes, edges)
@@ -781,12 +785,12 @@ pub async fn delete_workspace(
             (0, 0)
         }
     };
-    
+
     // 3. Delete all documents belonging to this workspace from KV storage
     // WHY: Remove document metadata, content, and chunk data
     let mut documents_deleted = 0;
     let mut chunks_deleted = 0;
-    
+
     if let Ok(all_keys) = state.kv_storage.keys().await {
         // Find metadata keys and check workspace membership
         let metadata_keys: Vec<String> = all_keys
@@ -794,9 +798,9 @@ pub async fn delete_workspace(
             .filter(|k| k.ends_with("-metadata"))
             .cloned()
             .collect();
-        
+
         let mut keys_to_delete: Vec<String> = Vec::new();
-        
+
         for key in metadata_keys {
             if let Ok(Some(metadata)) = state.kv_storage.get_by_id(&key).await {
                 // Check if document belongs to this workspace
@@ -804,40 +808,40 @@ pub async fn delete_workspace(
                     .get("workspace_id")
                     .and_then(|v| v.as_str())
                     .unwrap_or("default");
-                
+
                 if doc_workspace == workspace_id_str {
                     let doc_id = key.trim_end_matches("-metadata");
-                    
+
                     // Queue metadata key for deletion
                     keys_to_delete.push(key.clone());
-                    
+
                     // Queue content key for deletion
                     keys_to_delete.push(format!("{}-content", doc_id));
-                    
+
                     // Find and queue all chunk keys for this document
                     let chunk_prefix = format!("{}-chunk-", doc_id);
                     for chunk_key in all_keys.iter().filter(|k| k.starts_with(&chunk_prefix)) {
                         keys_to_delete.push(chunk_key.clone());
                         chunks_deleted += 1;
                     }
-                    
+
                     documents_deleted += 1;
                 }
             }
         }
-        
+
         // Delete all queued keys
         if !keys_to_delete.is_empty() {
             if let Err(e) = state.kv_storage.delete(&keys_to_delete).await {
                 tracing::warn!(
-                    workspace_id = %workspace_id, 
-                    error = %e, 
+                    workspace_id = %workspace_id,
+                    error = %e,
                     keys_count = keys_to_delete.len(),
                     "Failed to delete some KV storage keys"
                 );
             }
         }
-        
+
         tracing::info!(
             workspace_id = %workspace_id,
             documents_deleted = documents_deleted,
@@ -845,18 +849,18 @@ pub async fn delete_workspace(
             "Cleared KV storage"
         );
     }
-    
+
     // 4. Evict workspace from vector registry cache
     // WHY: Ensure cached storage instances are cleaned up
     state.vector_registry.evict(&workspace_id).await;
-    
+
     // 5. Finally delete the workspace record from database
     state
         .workspace_service
         .delete_workspace(workspace_id)
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
-    
+
     tracing::info!(
         workspace_id = %workspace_id,
         vectors_cleared = vectors_cleared,

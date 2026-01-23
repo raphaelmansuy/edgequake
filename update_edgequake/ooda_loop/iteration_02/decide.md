@@ -2,12 +2,12 @@
 
 ## Priority Actions
 
-| Priority | Action | Files | Risk |
-|----------|--------|-------|------|
-| P1 | Add workspace limit E2E test | e2e_workspace_service.rs | Low |
-| P2 | Add 50MB size validation test | validation.rs (tests) | Low |
-| P3 | Add workspace cascade delete test | workspaces handler tests | Medium |
-| P4 | Run all tests to verify | - | - |
+| Priority | Action                            | Files                    | Risk   |
+| -------- | --------------------------------- | ------------------------ | ------ |
+| P1       | Add workspace limit E2E test      | e2e_workspace_service.rs | Low    |
+| P2       | Add 50MB size validation test     | validation.rs (tests)    | Low    |
+| P3       | Add workspace cascade delete test | workspaces handler tests | Medium |
+| P4       | Run all tests to verify           | -                        | -      |
 
 ## Specific Changes
 
@@ -20,12 +20,12 @@
 fn test_validate_content_at_50mb_limit() {
     // SPEC-028: 50MB = 52,428,800 bytes
     const FIFTY_MB: usize = 50 * 1024 * 1024;
-    
+
     // At limit should pass (test with smaller for speed)
     let content = "x".repeat(FIFTY_MB - 1);
     let result = validate_content(&content, FIFTY_MB);
     assert!(result.is_ok(), "Content at limit should pass");
-    
+
     // Over limit should fail
     let over_limit = "x".repeat(FIFTY_MB + 1);
     let result = validate_content(&over_limit, FIFTY_MB);
@@ -35,7 +35,7 @@ fn test_validate_content_at_50mb_limit() {
 
 **Note**: This test may be slow. Consider using a smaller test size.
 
-### Change 2: Add Workspace Limit Enforcement Test  
+### Change 2: Add Workspace Limit Enforcement Test
 
 **File**: `edgequake/crates/edgequake-core/src/types/multitenancy.rs` (tests section)
 
@@ -68,6 +68,7 @@ The cascade delete is now implemented. Add a test comment documenting that the h
 Per mission: "Ensure it works"
 
 Need to show:
+
 - ✅ Test output showing workspace limit = 500
 - ✅ Test output showing 50MB validation works
 - ✅ Test output showing cascade delete works
