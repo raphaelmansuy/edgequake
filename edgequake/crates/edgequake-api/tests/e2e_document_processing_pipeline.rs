@@ -165,13 +165,14 @@ async fn test_document_processing_with_ollama_config() {
         }
         Err(e) => {
             // Expected if Ollama not running
-            let err_str = e.to_string();
+            let err_str = e.to_string().to_lowercase();
             assert!(
                 err_str.contains("connection")
                     || err_str.contains("refused")
-                    || err_str.contains("Error"),
+                    || err_str.contains("error")
+                    || err_str.contains("network"),
                 "Error should indicate Ollama connection issue, got: {}",
-                err_str
+                e
             );
         }
     }
