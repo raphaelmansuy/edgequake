@@ -191,12 +191,15 @@ pub enum TenantPlan {
 
 impl TenantPlan {
     /// Get the default max workspaces for this plan.
+    ///
+    /// SPEC-028: Updated to support 500 workspaces by default for Pro/Enterprise.
+    /// WHY: Enable large-scale knowledge base organization without artificial limits.
     pub fn default_max_workspaces(&self) -> usize {
         match self {
-            TenantPlan::Free => 2,
-            TenantPlan::Basic => 5,
-            TenantPlan::Pro => 20,
-            TenantPlan::Enterprise => 100,
+            TenantPlan::Free => 10,        // Reasonable for trials
+            TenantPlan::Basic => 100,      // Small teams
+            TenantPlan::Pro => 500,        // SPEC-028: 500 workspaces target
+            TenantPlan::Enterprise => 500, // SPEC-028: 500 workspaces target
         }
     }
 
@@ -1091,7 +1094,8 @@ mod tests {
         assert_eq!(tenant.name, "Acme Corp");
         assert_eq!(tenant.slug, "acme-corp");
         assert_eq!(tenant.plan, TenantPlan::Pro);
-        assert_eq!(tenant.max_workspaces, 20);
+        // SPEC-028: Pro plan now allows 500 workspaces
+        assert_eq!(tenant.max_workspaces, 500);
         assert!(tenant.is_active);
     }
 

@@ -630,7 +630,7 @@ mod tests {
             slug: "test".to_string(),
             plan: "free".to_string(),
             is_active: true,
-            max_workspaces: 5,
+            max_workspaces: 10, // SPEC-028: Updated to reflect new Free tier limit
             default_llm_model: "gemma3:12b".to_string(),
             default_llm_provider: "ollama".to_string(),
             default_llm_full_id: "ollama/gemma3:12b".to_string(),
@@ -644,7 +644,7 @@ mod tests {
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("Test Tenant"));
-        assert!(json.contains("\"max_workspaces\":5"));
+        assert!(json.contains("\"max_workspaces\":10")); // SPEC-028
         assert!(json.contains("\"default_llm_model\":\"gemma3:12b\""));
         assert!(json.contains("\"default_embedding_dimension\":1536"));
     }

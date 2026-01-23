@@ -249,6 +249,7 @@ pub struct AppConfig {
     pub workspace_id: String,
 
     /// Maximum document size in bytes.
+    /// SPEC-028: Updated to 50MB to support larger documents.
     pub max_document_size: usize,
 
     /// Maximum query length.
@@ -259,7 +260,9 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             workspace_id: "default".to_string(),
-            max_document_size: 10 * 1024 * 1024, // 10 MB
+            // SPEC-028: 50MB document upload limit (was 10MB)
+            // WHY: Support larger documents like research papers and reports
+            max_document_size: 50 * 1024 * 1024, // 50 MB
             max_query_length: 10000,
         }
     }
@@ -1099,7 +1102,8 @@ mod tests {
     fn test_app_config_default() {
         let config = AppConfig::default();
         assert_eq!(config.workspace_id, "default");
-        assert_eq!(config.max_document_size, 10 * 1024 * 1024); // 10 MB
+        // SPEC-028: 50MB document size limit
+        assert_eq!(config.max_document_size, 50 * 1024 * 1024); // 50 MB
         assert_eq!(config.max_query_length, 10000);
     }
 
