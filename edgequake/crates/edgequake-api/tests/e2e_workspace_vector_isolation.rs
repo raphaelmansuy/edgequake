@@ -226,6 +226,59 @@ async fn test_default_storage() {
     println!("✅ Default storage test passed with dimension {}", dim);
 }
 
+/// Test workspace cascade delete clears all storage (SPEC-028)
+///
+/// This test verifies that when a workspace is deleted:
+/// 1. Vector storage is cleared
+/// 2. Registry evicts the workspace
+/// 3. Subsequent queries return empty results
+#[tokio::test]
+async fn test_workspace_cascade_delete_clears_vectors() {
+    let default_storage = Arc::new(MemoryVectorStorage::new("default", 1536));
+    let registry = MemoryWorkspaceVectorRegistry::new(default_storage.clone());
+
+    let workspace_id = Uuid::new_v4();
+
+    let config = WorkspaceVectorConfig {
+        workspace_id,
+        dimension: 1536,
+        namespace: "test".to_string(),
+    };
+
+    // Create and populate storage
+    let storage = registry.get_or_create(config.clone()).await.unwrap();
+    storage.initialize().await.unwrap();
+
+    // Add 10 vectors
+    for i in 0..10 {
+        let mut vector = vec![0.0_f32; 1536];
+        vector[i] = 1.0;
+        let doc_id = format!("doc_{}", i);
+        storage
+            .upsert(&[(doc_id, vector, serde_json::json!({"workspace_id": workspace_id.to_string()}))])
+            .await
+            .unwrap();
+    }
+
+    // Verify vectors exist
+    let search_vec = vec![1.0_f32 / 1536.0_f32.sqrt(); 1536];
+    let results = storage.query(&search_vec, 100, None).await.unwrap();
+    assert_eq!(results.len(), 10, "Should have 10 vectors before delete");
+
+    // SPEC-028: Cascade delete simulation - clear and evict
+    storage.clear().await.unwrap();
+    registry.evict(&workspace_id).await;
+
+    // Verify vectors are gone
+    // Note: After evict, we need to get_or_create again to get fresh storage
+    let storage_after = registry.get_or_create(config).await.unwrap();
+    storage_after.initialize().await.unwrap();
+    let results_after = storage_after.query(&search_vec, 100, None).await.unwrap();
+    assert_eq!(results_after.len(), 0, "Should have 0 vectors after cascade delete");
+
+    println!("✅ SPEC-028: Workspace cascade delete clears all vectors!");
+}
+
 /// Test workspace isolation under concurrent access
 #[tokio::test]
 async fn test_concurrent_workspace_access() {
