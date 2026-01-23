@@ -1394,6 +1394,10 @@ pub async fn delete_document(
         "default".to_string()
     };
 
+    // SPEC-028: Collect chunk IDs for vector storage deletion
+    // Clone chunk_ids before workspace_vector_storage operations
+    let keys_to_delete_for_vectors: Vec<String> = chunk_ids.clone();
+
     // SPEC-033: Get workspace-specific vector storage for deletion
     // WHY-OODA223: STRICT mode - fail loudly if workspace storage unavailable
     // to ensure we delete from the correct workspace table, not a fallback
@@ -1405,84 +1409,133 @@ pub async fn delete_document(
     let mut entities_updated = 0usize;
     let mut relationships_removed = 0usize;
     let mut relationships_updated = 0usize;
+    let mut embeddings_deleted = 0usize;
+
+    // SPEC-028: Delete chunk embeddings from vector storage first
+    // WHY: Chunks are stored with IDs like "doc-xxx-chunk-0", delete them
+    let chunk_embedding_ids: Vec<String> = keys_to_delete_for_vectors.clone();
+    if !chunk_embedding_ids.is_empty() {
+        if let Err(e) = workspace_vector_storage.delete(&chunk_embedding_ids).await {
+            tracing::warn!(
+                document_id = %document_id,
+                error = %e,
+                "Failed to delete chunk embeddings, continuing with graph cleanup"
+            );
+        } else {
+            embeddings_deleted += chunk_embedding_ids.len();
+            tracing::debug!(
+                document_id = %document_id,
+                count = chunk_embedding_ids.len(),
+                "Deleted chunk embeddings"
+            );
+        }
+    }
+
+    // Helper function to extract source documents from node/edge properties
+    // Handles both `source_ids` (JSON array) and `source_id` (pipe-separated string)
+    fn extract_source_docs(properties: &std::collections::HashMap<String, serde_json::Value>) -> Vec<String> {
+        // Try source_ids (JSON array) first - this is the current format
+        if let Some(source_ids) = properties.get("source_ids") {
+            if let Some(arr) = source_ids.as_array() {
+                return arr.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect();
+            }
+        }
+        // Fall back to source_id (pipe-separated string) for backward compatibility
+        if let Some(source_id) = properties.get("source_id").and_then(|v| v.as_str()) {
+            return source_id.split('|').map(|s| s.to_string()).collect();
+        }
+        Vec::new()
+    }
 
     // Cascade delete: Process graph entities - remove document sources
     let all_nodes = state.graph_storage.get_all_nodes().await?;
     for node in all_nodes {
-        if let Some(source_id) = node.properties.get("source_id").and_then(|v| v.as_str()) {
-            let sources: Vec<&str> = source_id.split('|').collect();
-            let remaining_sources: Vec<&str> = sources
-                .into_iter()
-                .filter(|s| !s.starts_with(&chunk_prefix) && !s.starts_with(&document_id))
-                .collect();
+        let sources = extract_source_docs(&node.properties);
+        if sources.is_empty() {
+            continue;
+        }
 
-            if remaining_sources.is_empty() {
-                // No sources left - delete the entity entirely
-                // First delete all connected edges
-                let edges = state.graph_storage.get_node_edges(&node.id).await?;
-                for edge in edges {
-                    state
-                        .graph_storage
-                        .delete_edge(&edge.source, &edge.target)
-                        .await?;
-                    relationships_removed += 1;
-                }
-                // Then delete the node
-                state.graph_storage.delete_node(&node.id).await?;
-                // SPEC-033: Use workspace-specific vector storage for entity deletion
-                let _ = workspace_vector_storage.delete_entity(&node.id).await;
-                entities_removed += 1;
-            } else if remaining_sources.len() < source_id.split('|').count() {
-                // Some sources were removed - update the entity
-                let mut updated_props = node.properties.clone();
-                updated_props.insert(
-                    "source_id".to_string(),
-                    serde_json::json!(remaining_sources.join("|")),
-                );
+        // Filter out sources that belong to this document
+        let remaining_sources: Vec<String> = sources
+            .iter()
+            .filter(|s| !s.starts_with(&chunk_prefix) && *s != &document_id && !s.starts_with(&document_id))
+            .cloned()
+            .collect();
+
+        if remaining_sources.is_empty() {
+            // No sources left - delete the entity entirely
+            // First delete all connected edges
+            let edges = state.graph_storage.get_node_edges(&node.id).await?;
+            for edge in edges {
                 state
                     .graph_storage
-                    .upsert_node(&node.id, updated_props)
+                    .delete_edge(&edge.source, &edge.target)
                     .await?;
-                entities_updated += 1;
+                relationships_removed += 1;
             }
+            // Then delete the node
+            state.graph_storage.delete_node(&node.id).await?;
+            // SPEC-033: Use workspace-specific vector storage for entity deletion
+            let _ = workspace_vector_storage.delete_entity(&node.id).await;
+            entities_removed += 1;
+        } else if remaining_sources.len() < sources.len() {
+            // Some sources were removed - update the entity
+            let mut updated_props = node.properties.clone();
+            // Use source_ids (JSON array) format for updates
+            updated_props.insert(
+                "source_ids".to_string(),
+                serde_json::json!(remaining_sources),
+            );
+            state
+                .graph_storage
+                .upsert_node(&node.id, updated_props)
+                .await?;
+            entities_updated += 1;
         }
     }
 
     // Process graph edges - remove document sources
     let all_edges = state.graph_storage.get_all_edges().await?;
     for edge in all_edges {
-        if let Some(source_id) = edge.properties.get("source_id").and_then(|v| v.as_str()) {
-            let sources: Vec<&str> = source_id.split('|').collect();
-            let remaining_sources: Vec<&str> = sources
-                .into_iter()
-                .filter(|s| !s.starts_with(&chunk_prefix) && !s.starts_with(&document_id))
-                .collect();
+        let sources = extract_source_docs(&edge.properties);
+        if sources.is_empty() {
+            continue;
+        }
 
-            if remaining_sources.is_empty() {
-                // No sources left - delete the relationship
-                state
-                    .graph_storage
-                    .delete_edge(&edge.source, &edge.target)
-                    .await?;
-                relationships_removed += 1;
-            } else if remaining_sources.len() < source_id.split('|').count() {
-                // Some sources were removed - update the relationship
-                let mut updated_props = edge.properties.clone();
-                updated_props.insert(
-                    "source_id".to_string(),
-                    serde_json::json!(remaining_sources.join("|")),
-                );
-                state
-                    .graph_storage
-                    .upsert_edge(&edge.source, &edge.target, updated_props)
-                    .await?;
-                relationships_updated += 1;
-            }
+        // Filter out sources that belong to this document
+        let remaining_sources: Vec<String> = sources
+            .iter()
+            .filter(|s| !s.starts_with(&chunk_prefix) && *s != &document_id && !s.starts_with(&document_id))
+            .cloned()
+            .collect();
+
+        if remaining_sources.is_empty() {
+            // No sources left - delete the relationship
+            state
+                .graph_storage
+                .delete_edge(&edge.source, &edge.target)
+                .await?;
+            relationships_removed += 1;
+        } else if remaining_sources.len() < sources.len() {
+            // Some sources were removed - update the relationship
+            let mut updated_props = edge.properties.clone();
+            // Use source_ids (JSON array) format for updates
+            updated_props.insert(
+                "source_ids".to_string(),
+                serde_json::json!(remaining_sources),
+            );
+            state
+                .graph_storage
+                .upsert_edge(&edge.source, &edge.target, updated_props)
+                .await?;
+            relationships_updated += 1;
         }
     }
 
-    // Collect all keys to delete
-    let mut keys_to_delete = chunk_ids;
+    // Collect all keys to delete from KV storage
+    let mut keys_to_delete = keys_to_delete_for_vectors;
     if has_metadata {
         keys_to_delete.push(metadata_key);
     }
@@ -1496,11 +1549,12 @@ pub async fn delete_document(
     tracing::info!(
         document_id = %document_id,
         chunks = chunks_deleted,
+        embeddings_deleted = embeddings_deleted,
         entities_removed = entities_removed,
         entities_updated = entities_updated,
         relationships_removed = relationships_removed,
         relationships_updated = relationships_updated,
-        "Document suppression complete"
+        "Document cascade delete complete"
     );
 
     Ok(Json(DeleteDocumentResponse {
