@@ -9,6 +9,7 @@
 ## Mission Re-Read ✅
 
 From mission file:
+
 > "You must ensure and prove perfect safety when deleting documents that are partially processed, in the middle of processing, or failed processing. No dangling data must remain. No shared data must be deleted."
 
 ---
@@ -22,9 +23,11 @@ From mission file:
 **Solution**: Rewrote `e2e_document_deletion.rs` to use HTTP router pattern
 
 **Files Modified**:
+
 - `edgequake/crates/edgequake-api/tests/e2e_document_deletion.rs`
 
 **Before**:
+
 ```rust
 // BROKEN: Direct handler calls
 let result = edgequake_api::handlers::documents::upload_document(
@@ -34,6 +37,7 @@ let result = edgequake_api::handlers::documents::upload_document(
 ```
 
 **After**:
+
 ```rust
 // WORKING: HTTP router pattern
 let app = Server::new(config, state).build_router();
@@ -58,9 +62,11 @@ let response = app
 **Solution**: Added status check at start of `delete_document` handler
 
 **Files Modified**:
+
 - `edgequake/crates/edgequake-api/src/handlers/documents.rs`
 
 **Implementation** (lines ~1382-1450):
+
 ```rust
 // OODA-02: Safety check - prevent deletion of documents still being processed
 // WHY: Deleting a document while it's being processed can cause:
@@ -89,7 +95,8 @@ match document_status.as_str() {
 }
 ```
 
-**Result**: 
+**Result**:
+
 - 409 Conflict returned for "pending" documents
 - 409 Conflict returned for "processing" documents
 - 200 OK for "completed", "failed" documents
@@ -99,17 +106,19 @@ match document_status.as_str() {
 ### CHANGE-IT02-03: Add Safety Test Cases ✅ COMPLETE
 
 **Files Modified**:
+
 - `edgequake/crates/edgequake-api/tests/e2e_document_deletion.rs`
 
 **New Tests Added**:
 
-| Test Name                                 | Status | Description                                    |
-|-------------------------------------------|--------|------------------------------------------------|
-| `test_delete_pending_document_rejected`   | ✅ PASS | Verifies 409 returned for pending documents   |
-| `test_delete_processing_document_rejected`| ✅ PASS | Verifies 409 returned for processing documents|
-| `test_delete_failed_document_allowed`     | ✅ PASS | Verifies failed documents can be deleted      |
+| Test Name                                  | Status  | Description                                    |
+| ------------------------------------------ | ------- | ---------------------------------------------- |
+| `test_delete_pending_document_rejected`    | ✅ PASS | Verifies 409 returned for pending documents    |
+| `test_delete_processing_document_rejected` | ✅ PASS | Verifies 409 returned for processing documents |
+| `test_delete_failed_document_allowed`      | ✅ PASS | Verifies failed documents can be deleted       |
 
 **Test Execution**:
+
 ```bash
 cargo test --package edgequake-api --test e2e_document_deletion
 
@@ -132,9 +141,11 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ### CHANGE-IT02-04: Document Status Lifecycle ✅ COMPLETE
 
 **Files Created**:
+
 - `specs/033-study-delete-document/docs/status-lifecycle.md`
 
 **Contents**:
+
 - ASCII diagram of status state machine
 - Status definitions table
 - Deletion safety rules
@@ -146,21 +157,21 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
 ## Test Results Summary
 
-| Test Suite | Tests | Passed | Failed |
-|------------|-------|--------|--------|
-| e2e_document_deletion | 9 | 9 | 0 |
-| e2e_documents | 30 | 30 | 0 |
-| Total | 39 | 39 | 0 |
+| Test Suite            | Tests | Passed | Failed |
+| --------------------- | ----- | ------ | ------ |
+| e2e_document_deletion | 9     | 9      | 0      |
+| e2e_documents         | 30    | 30     | 0      |
+| Total                 | 39    | 39     | 0      |
 
 ---
 
 ## Code Changes Summary
 
-| File | Lines Added | Lines Modified | Description |
-|------|-------------|----------------|-------------|
-| documents.rs | +65 | - | Status validation logic |
-| e2e_document_deletion.rs | +400 | -364 | Complete rewrite with HTTP pattern |
-| status-lifecycle.md | +200 | - | New documentation |
+| File                     | Lines Added | Lines Modified | Description                        |
+| ------------------------ | ----------- | -------------- | ---------------------------------- |
+| documents.rs             | +65         | -              | Status validation logic            |
+| e2e_document_deletion.rs | +400        | -364           | Complete rewrite with HTTP pattern |
+| status-lifecycle.md      | +200        | -              | New documentation                  |
 
 ---
 
@@ -183,7 +194,8 @@ A  specs/033-study-delete-document/ooda_loop/iteration_02/act.md
 
 ### Mission Requirement: "perfect safety when deleting documents that are partially processed"
 
-**Evidence**: 
+**Evidence**:
+
 - Test `test_delete_pending_document_rejected` proves pending documents cannot be deleted
 - Test `test_delete_processing_document_rejected` proves processing documents cannot be deleted
 - 409 Conflict response with clear error message guides user
@@ -191,18 +203,21 @@ A  specs/033-study-delete-document/ooda_loop/iteration_02/act.md
 ### Mission Requirement: "in the middle of processing"
 
 **Evidence**:
+
 - Status check prevents deletion during processing
 - Error message: "Cannot delete document with status 'processing'. Wait for processing to complete."
 
 ### Mission Requirement: "failed processing"
 
 **Evidence**:
+
 - Test `test_delete_failed_document_allowed` proves failed documents CAN be deleted
 - Cascade logic cleans up any partial data from failed processing
 
 ### Mission Requirement: "No dangling data must remain"
 
 **Evidence**:
+
 - Reference counting (ITERATION 01) prevents shared entity deletion
 - Orphan cleanup removes edges to deleted nodes
 - All tests pass verifying complete cleanup
@@ -210,6 +225,7 @@ A  specs/033-study-delete-document/ooda_loop/iteration_02/act.md
 ### Mission Requirement: "No shared data must be deleted"
 
 **Evidence**:
+
 - Test `test_multi_document_shared_entity_deletion` verifies:
   - Document A deletion doesn't affect Document B data
   - Shared entities have sources updated, not deleted

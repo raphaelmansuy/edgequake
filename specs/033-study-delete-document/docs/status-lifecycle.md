@@ -51,14 +51,14 @@
 
 ## Status Definitions
 
-| Status      | Description                          | Delete Allowed? |
-|-------------|--------------------------------------|-----------------|
-| `pending`   | Queued for async processing          | ❌ NO (409)     |
-| `processing`| Currently being processed            | ❌ NO (409)     |
-| `completed` | Processing finished successfully     | ✅ YES          |
-| `processed` | Legacy status (same as completed)    | ✅ YES          |
-| `failed`    | Processing failed with error         | ✅ YES          |
-| `unknown`   | Status not set (legacy documents)    | ✅ YES          |
+| Status       | Description                       | Delete Allowed? |
+| ------------ | --------------------------------- | --------------- |
+| `pending`    | Queued for async processing       | ❌ NO (409)     |
+| `processing` | Currently being processed         | ❌ NO (409)     |
+| `completed`  | Processing finished successfully  | ✅ YES          |
+| `processed`  | Legacy status (same as completed) | ✅ YES          |
+| `failed`     | Processing failed with error      | ✅ YES          |
+| `unknown`    | Status not set (legacy documents) | ✅ YES          |
 
 ---
 
@@ -111,11 +111,13 @@ match document_status.as_str() {
 **Scenario**: User uploaded document with `async_processing: true`, task queued but not started.
 
 **User Options**:
+
 1. Wait for processing to start and complete
 2. Cancel the pending task (future: via task API)
 3. Force delete (future: admin override)
 
 **Error Response**:
+
 ```json
 {
   "status": 409,
@@ -129,11 +131,13 @@ match document_status.as_str() {
 **Scenario**: Background task actively extracting entities and relationships.
 
 **User Options**:
+
 1. Wait for processing to complete
 2. Cancel the processing task (future: via task API)
 3. Check task status via `/api/v1/tasks/:task_id`
 
 **Error Response**:
+
 ```json
 {
   "status": 409,
@@ -147,12 +151,14 @@ match document_status.as_str() {
 **Scenario**: Processing failed, partial data may exist.
 
 **Behavior**:
+
 - Deletion proceeds normally
 - Cascade logic cleans up any partial entities/edges
 - Reference counting protects shared data
 - All orphaned data removed
 
 **Response**:
+
 ```json
 {
   "status": 200,
@@ -167,14 +173,14 @@ match document_status.as_str() {
 
 ## Test Coverage
 
-| Test Case                                   | Status     | File                          |
-|---------------------------------------------|------------|-------------------------------|
-| Delete pending document rejected            | ✅ PASS    | e2e_document_deletion.rs      |
-| Delete processing document rejected         | ✅ PASS    | e2e_document_deletion.rs      |
-| Delete completed document allowed           | ✅ PASS    | e2e_document_deletion.rs      |
-| Delete failed document allowed              | ✅ PASS    | e2e_document_deletion.rs      |
-| Multi-document shared entity preserved      | ✅ PASS    | e2e_document_deletion.rs      |
-| Orphaned edge cleanup                       | ✅ PASS    | e2e_document_deletion.rs      |
+| Test Case                              | Status  | File                     |
+| -------------------------------------- | ------- | ------------------------ |
+| Delete pending document rejected       | ✅ PASS | e2e_document_deletion.rs |
+| Delete processing document rejected    | ✅ PASS | e2e_document_deletion.rs |
+| Delete completed document allowed      | ✅ PASS | e2e_document_deletion.rs |
+| Delete failed document allowed         | ✅ PASS | e2e_document_deletion.rs |
+| Multi-document shared entity preserved | ✅ PASS | e2e_document_deletion.rs |
+| Orphaned edge cleanup                  | ✅ PASS | e2e_document_deletion.rs |
 
 ---
 
@@ -187,6 +193,7 @@ POST /api/v1/tasks/:task_id/cancel
 ```
 
 This would:
+
 1. Set task status to "cancelling"
 2. Background processor checks for cancellation
 3. Abort processing and clean up partial data
@@ -200,6 +207,7 @@ DELETE /api/v1/admin/documents/:id?force=true
 ```
 
 This would:
+
 1. Skip status check
 2. Cancel any running background task
 3. Clean up all data

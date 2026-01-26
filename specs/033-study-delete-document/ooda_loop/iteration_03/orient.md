@@ -9,6 +9,7 @@
 ## Mission Re-Read ✅
 
 From mission file:
+
 > "Ensure it working with postgres provider and memory provider for all storage layers (KV, Vector, Graph)."
 > "Ensure there is reprocessing mechanism for failed documents."
 > "Ensure deleting a failed document cleans up all partial data."
@@ -23,6 +24,7 @@ From mission file:
 When `reprocess_failed` is called, it requeues the document for processing WITHOUT cleaning up partial data from the failed attempt.
 
 **Risk**:
+
 ```
 Failed Processing → Creates entities A, B (partial)
 Reprocess → Creates entities A, B, C (new attempt)
@@ -30,11 +32,13 @@ Result → Duplicate entities OR inconsistent source_ids
 ```
 
 **First Principles Analysis**:
+
 - Reprocessing SHOULD be idempotent
 - Each processing attempt should start with a clean slate
 - Entity deduplication is LLM-dependent (names may vary between attempts)
 
 **Root Cause**:
+
 - `reprocess_failed` doesn't invoke any cleanup logic
 - Just updates status and creates new task
 - Assumes processing will handle duplicates (it might not)
@@ -67,11 +71,13 @@ Result → Duplicate entities OR inconsistent source_ids
 Current test `test_delete_failed_document_allowed` only verifies deletion returns 200 OK. It doesn't verify partial entities/edges are actually cleaned up.
 
 **Risk**:
+
 - Deletion might succeed but leave orphaned data
 - Can't prove mission requirement: "deleting a failed document cleans up all partial data"
 
 **Solution**:
 Add comprehensive test that:
+
 1. Manually creates partial entities/edges (simulating failed processing)
 2. Creates document with "failed" status
 3. Links entities to document via source_ids
@@ -84,11 +90,13 @@ Add comprehensive test that:
 ### GAP-C: PostgreSQL Provider Verification
 
 **Current State**:
+
 - All tests use Memory provider (via `AppState::test_state()`)
 - PostgreSQL implementation looks correct (DETACH DELETE)
 - But not verified with actual PostgreSQL
 
 **Risk**:
+
 - Memory and PostgreSQL may have subtle behavioral differences
 - Status check works with Memory, might fail with PostgreSQL
 
@@ -125,7 +133,7 @@ async fn reprocess_failed(/* ... */) -> ApiResult<Json<ReprocessFailedResponse>>
     for (doc_id, _doc_key) in &failed_docs {
         // NEW: Clean up partial data before requeueing
         cleanup_partial_processing_data(&state, &doc_id, &workspace_id_for_storage).await?;
-        
+
         // ... existing requeue logic ...
     }
 }
@@ -141,7 +149,7 @@ async fn cleanup_partial_processing_data(
     // 3. If source_ids becomes empty: delete entity
     // 4. Clean up orphaned edges
     // 5. Delete entity embeddings if entity was deleted
-    
+
     // This is essentially the cascade logic from delete_document,
     // but without deleting the document metadata/content
 }
@@ -163,9 +171,9 @@ async fn test_delete_failed_document_cleans_partial_data() {
     let state = AppState::test_state();
     let server = Server::new(create_test_config(), state.clone());
     let app = server.build_router();
-    
+
     let doc_id = "test-partial-failed-doc";
-    
+
     // 1. Manually create partial entities that reference this document
     let entity_a = GraphNode {
         id: "ENTITY_A".to_string(),
@@ -175,7 +183,7 @@ async fn test_delete_failed_document_cleans_partial_data() {
         },
     };
     state.graph_storage.upsert_node("ENTITY_A", entity_a.properties).await?;
-    
+
     // 2. Create document with "failed" status
     let metadata = json!({
         "id": doc_id,
@@ -183,15 +191,15 @@ async fn test_delete_failed_document_cleans_partial_data() {
         "workspace_id": "default"
     });
     state.kv_storage.upsert(&[(format!("{}-metadata", doc_id), metadata)]).await?;
-    
+
     // 3. Verify entity exists before deletion
     let nodes_before = state.graph_storage.get_all_nodes().await?;
     assert!(nodes_before.iter().any(|n| n.id == "ENTITY_A"));
-    
+
     // 4. Delete the failed document
     let (status, _) = delete_document_http(&app, doc_id).await;
     assert_eq!(status, StatusCode::OK);
-    
+
     // 5. Verify entity was cleaned up
     let nodes_after = state.graph_storage.get_all_nodes().await?;
     assert!(!nodes_after.iter().any(|n| n.id == "ENTITY_A"),
@@ -207,12 +215,12 @@ async fn test_delete_failed_document_cleans_partial_data() {
 
 ## Priority Matrix
 
-| Solution | Impact | Effort | Risk | Priority |
-|----------|--------|--------|------|----------|
-| Partial data test | HIGH | LOW | NONE | P0 |
-| Cleanup in reprocess | HIGH | MEDIUM | LOW | P1 |
-| PostgreSQL test setup | MEDIUM | HIGH | LOW | P2 (future) |
-| Provider documentation | MEDIUM | LOW | NONE | P1 |
+| Solution               | Impact | Effort | Risk | Priority    |
+| ---------------------- | ------ | ------ | ---- | ----------- |
+| Partial data test      | HIGH   | LOW    | NONE | P0          |
+| Cleanup in reprocess   | HIGH   | MEDIUM | LOW  | P1          |
+| PostgreSQL test setup  | MEDIUM | HIGH   | LOW  | P2 (future) |
+| Provider documentation | MEDIUM | LOW    | NONE | P1          |
 
 ---
 
@@ -228,7 +236,8 @@ async fn test_delete_failed_document_cleans_partial_data() {
 
 **Issue**: If cleanup fails, document might be left in inconsistent state.
 
-**Mitigation**: 
+**Mitigation**:
+
 - Log cleanup failures but continue to requeue
 - Document status helps identify issues
 - Can always manually delete and re-upload

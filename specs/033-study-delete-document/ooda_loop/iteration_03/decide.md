@@ -9,6 +9,7 @@
 ## Mission Re-Read ✅
 
 From mission file:
+
 > "Ensure there is reprocessing mechanism for failed documents."  
 > "Ensure deleting a failed document cleans up all partial data."
 
@@ -25,6 +26,7 @@ Current test only verifies deletion returns 200 OK, not that partial data is act
 
 **Solution**:
 Add test that:
+
 1. Creates partial entities/edges manually
 2. Links them to a document via source_ids
 3. Creates document with "failed" status
@@ -33,15 +35,18 @@ Add test that:
 6. Verifies entities with multiple sources are preserved (reference counting)
 
 **Implementation Plan**:
+
 1. Add new test `test_delete_failed_document_cleans_partial_data`
 2. Create graph entities with source_ids pointing to test document
 3. Delete document via HTTP API
 4. Assert entities were cleaned up
 
 **Files to Modify**:
+
 - `edgequake/crates/edgequake-api/tests/e2e_document_deletion.rs`
 
 **Acceptance Criteria**:
+
 - ✅ Test creates partial entities linked to document
 - ✅ Test verifies entities are removed after deletion
 - ✅ Test passes, proving mission requirement
@@ -59,11 +64,13 @@ Add test that:
 `reprocess_failed` requeues documents without cleaning up partial data from failed attempt.
 
 **Solution**:
+
 1. Extract cascade cleanup logic into reusable helper function
 2. Call cleanup before requeueing in `reprocess_failed`
 3. Same for `recover_stuck`
 
 **Implementation Plan**:
+
 1. Create `cleanup_document_graph_data()` helper function
    - Takes document_id as input
    - Removes document from entity source_ids
@@ -75,9 +82,11 @@ Add test that:
 3. Log cleanup metrics
 
 **Files to Modify**:
+
 - `edgequake/crates/edgequake-api/src/handlers/documents.rs`
 
 **Acceptance Criteria**:
+
 - ✅ Helper function extracts common logic
 - ✅ reprocess_failed cleans up before requeueing
 - ✅ recover_stuck cleans up before requeueing
@@ -94,12 +103,14 @@ Add test that:
 
 **Solution**:
 Update summary.md with:
+
 1. ITERATION 03 findings
 2. Reprocessing mechanism documentation
 3. Provider behavior differences
 4. Complete safety verification status
 
 **Files to Modify**:
+
 - `specs/033-study-delete-document/docs/summary.md`
 
 **Estimated Effort**: 30 minutes
@@ -111,7 +122,8 @@ Update summary.md with:
 
 ### ⏸️ DEFERRED: PostgreSQL Integration Tests
 
-**Reason**: 
+**Reason**:
+
 - Requires PostgreSQL with AGE extension in CI
 - Current Memory provider tests are sufficient for logic verification
 - PostgreSQL behavior verified via code review
@@ -121,6 +133,7 @@ Update summary.md with:
 ### ⏸️ DEFERRED: Query-by-Property API
 
 **Reason**:
+
 - Performance optimization, not correctness fix
 - Current O(N) scan works for moderate graph sizes
 - Can address when performance becomes an issue

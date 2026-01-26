@@ -11,6 +11,7 @@
 Mission file: `specs/033-study-delete-document/003-study-document.md`
 
 **Key Requirements**:
+
 1. "perfect safety when deleting documents that are partially processed"
 2. "in the middle of processing"
 3. "failed processing"
@@ -26,6 +27,7 @@ Mission file: `specs/033-study-delete-document/003-study-document.md`
 ### GAP-A: Broken Test Environment (Critical for Verification)
 
 **Root Cause**:
+
 ```rust
 // BROKEN: Direct handler calls bypass pipeline
 let result = edgequake_api::handlers::documents::upload_document(
@@ -36,6 +38,7 @@ let result = edgequake_api::handlers::documents::upload_document(
 ```
 
 **Working Pattern (from e2e_documents.rs)**:
+
 ```rust
 // WORKING: HTTP router initializes full stack
 let app = Server::new(config, state).build_router();
@@ -44,6 +47,7 @@ let response = app.oneshot(Request::builder()...).await;
 ```
 
 **Analysis**:
+
 - `Server::new().build_router()` creates layers that properly configure:
   1. Pipeline with mock LLM provider
   2. Entity extraction middleware
@@ -51,6 +55,7 @@ let response = app.oneshot(Request::builder()...).await;
 - Direct handler calls skip these layers → entities never extracted
 
 **First Principles Solution**:
+
 - Fix tests to use HTTP router pattern (like e2e_documents.rs)
 - This is the correct approach because tests should exercise the full stack
 - Direct handler calls are unit tests, not integration tests
@@ -60,6 +65,7 @@ let response = app.oneshot(Request::builder()...).await;
 ### GAP-B: Race Condition Between Processing and Deletion
 
 **Problem from OBSERVE**:
+
 ```
 T0: Document uploaded (async)
 T1: Background processing ACTIVELY running
@@ -72,6 +78,7 @@ T3: Background processor continues
 ```
 
 **Current State Analysis**:
+
 - `delete_document` does NOT check document status before deletion
 - No locking mechanism between processing and deletion
 - Background tasks continue even after deletion starts
@@ -95,6 +102,7 @@ T3: Background processor continues
    - ✅ Safe, ✅ Good UX, ⚠️ Most complex
 
 **Recommended**: Option 1 (Status-Based Blocking) for initial implementation:
+
 - Simple to implement and verify
 - Can enhance to Option 3 later if needed
 - Meets mission requirement: "perfect safety"
@@ -105,26 +113,26 @@ T3: Background processor continues
 
 **Required Test Scenarios (from mission)**:
 
-| Scenario | Current Coverage | Priority |
-|----------|------------------|----------|
-| Delete document with status="pending" | ❌ Not tested | HIGH |
-| Delete document with status="processing" | ❌ Not tested | CRITICAL |
-| Delete document with status="failed" | ❌ Not tested | HIGH |
-| Concurrent processing + deletion | ❌ Not tested | CRITICAL |
-| Partial entity cleanup on failed delete | ❌ Not tested | MEDIUM |
+| Scenario                                  | Current Coverage      | Priority      |
+| ----------------------------------------- | --------------------- | ------------- |
+| Delete document with status="pending"     | ❌ Not tested         | HIGH          |
+| Delete document with status="processing"  | ❌ Not tested         | CRITICAL      |
+| Delete document with status="failed"      | ❌ Not tested         | HIGH          |
+| Concurrent processing + deletion          | ❌ Not tested         | CRITICAL      |
+| Partial entity cleanup on failed delete   | ❌ Not tested         | MEDIUM        |
 | Multi-document shared entity (GAP-03 fix) | ⚠️ Failing (test env) | FIXED IN IT01 |
 
 ---
 
 ## Solution Design Matrix
 
-| Solution | Impact | Effort | Risk | Priority |
-|----------|--------|--------|------|----------|
-| Fix test environment (HTTP pattern) | HIGH | LOW (2h) | LOW | P0 |
-| Add status check before deletion | HIGH | MEDIUM (4h) | LOW | P1 |
-| Add "deleting" status with atomic transition | MEDIUM | HIGH (8h) | MEDIUM | P2 (future) |
-| Add cancellation token for background tasks | MEDIUM | HIGH (6h) | MEDIUM | P3 (future) |
-| Add tests for pending/processing/failed scenarios | HIGH | MEDIUM (4h) | LOW | P1 |
+| Solution                                          | Impact | Effort      | Risk   | Priority    |
+| ------------------------------------------------- | ------ | ----------- | ------ | ----------- |
+| Fix test environment (HTTP pattern)               | HIGH   | LOW (2h)    | LOW    | P0          |
+| Add status check before deletion                  | HIGH   | MEDIUM (4h) | LOW    | P1          |
+| Add "deleting" status with atomic transition      | MEDIUM | HIGH (8h)   | MEDIUM | P2 (future) |
+| Add cancellation token for background tasks       | MEDIUM | HIGH (6h)   | MEDIUM | P3 (future) |
+| Add tests for pending/processing/failed scenarios | HIGH   | MEDIUM (4h) | LOW    | P1          |
 
 ---
 
@@ -146,7 +154,8 @@ T3: Background processor continues
 
 **Probability**: LOW
 **Impact**: MEDIUM (UX degradation)
-**Mitigation**: 
+**Mitigation**:
+
 - Clear error message explaining why deletion blocked
 - Document how to wait for processing completion
 - Future: Add cancel endpoint to stop processing
@@ -162,6 +171,7 @@ T3: Background processor continues
 **Decision**: Use HTTP router pattern (`Server::new().build_router()`) for all integration tests that need to verify pipeline behavior.
 
 **Consequences**:
+
 - Tests execute full stack including middleware
 - Entity extraction runs with mock LLM
 - Tests are more realistic but slightly slower
@@ -172,11 +182,13 @@ T3: Background processor continues
 **Context**: Need to prevent race condition between processing and deletion.
 
 **Decision**: Add status validation in `delete_document`:
+
 - Reject deletion if status is "pending" (not yet started)
 - Reject deletion if status is "processing" (actively running)
 - Allow deletion if status is "completed", "failed", or "deleting"
 
 **Consequences**:
+
 - Prevents data corruption from concurrent operations
 - User must wait for processing to complete before deleting
 - Clear error messages guide user behavior

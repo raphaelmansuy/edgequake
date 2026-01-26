@@ -53,6 +53,7 @@ if let Some(existing) = state.graph_storage.get_node(&entity.name).await? {
 ### CHANGE-IT05-03: Re-run Test to Verify Fix
 
 After implementing the fix, re-run the test:
+
 - **Expected Result:** Test PASSES
 
 ### Acceptance Criteria
@@ -64,11 +65,11 @@ After implementing the fix, re-run the test:
 
 ## Risk Assessment
 
-| Risk | Mitigation |
-|------|------------|
+| Risk                                | Mitigation                             |
+| ----------------------------------- | -------------------------------------- |
 | Performance regression (extra read) | Accept for correctness; optimize later |
-| Breaking existing tests | Run full test suite after change |
-| Edge case: concurrent uploads | Test concurrent scenario |
+| Breaking existing tests             | Run full test suite after change       |
+| Edge case: concurrent uploads       | Test concurrent scenario               |
 
 ## Files to Modify
 

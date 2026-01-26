@@ -57,6 +57,7 @@ The test `test_delete_preserves_shared_entities` proves that:
 ### Cascade Deletion is Complete
 
 The `cascade_delete_document` helper function in `documents.rs` already handles:
+
 - Finding all chunks for a document
 - Finding all entities that reference those chunks
 - Updating `source_ids` to remove the deleted document's chunks
@@ -75,6 +76,7 @@ After analyzing the reprocessing endpoints (`reprocess_failed`, `recover_stuck`)
   - Graph updates are additive/corrective
 
 **Decision:** The current behavior is acceptable because:
+
 1. Reprocessing is additive - new data merges with old
 2. Deleting partial data first could cause loss of valid relationships
 3. The `upsert_node` call handles duplicates correctly
@@ -91,6 +93,7 @@ This is NOT a gap that needs fixing. The system is designed correctly.
 ## Next Iteration Focus
 
 For iteration 04, I will examine:
+
 - Concurrent deletion operations (race conditions)
 - Bulk deletion performance
 - Error recovery during deletion cascade

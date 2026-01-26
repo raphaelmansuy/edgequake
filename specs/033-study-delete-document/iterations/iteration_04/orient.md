@@ -5,24 +5,26 @@
 
 ## Risk Assessment Matrix
 
-| Race Condition | Likelihood | Impact | Priority |
-|---------------|------------|--------|----------|
-| RACE-01: Same doc concurrent delete | Low | Low | P2 |
-| RACE-02: Delete during processing | Low | Medium | P3 (mitigated) |
-| RACE-03: Status check race | Very Low | Medium | P3 |
-| RACE-04: Graph lost update | Medium | High | **P0** |
-| GAP-06: Partial deletion | Low | High | **P1** |
+| Race Condition                      | Likelihood | Impact | Priority       |
+| ----------------------------------- | ---------- | ------ | -------------- |
+| RACE-01: Same doc concurrent delete | Low        | Low    | P2             |
+| RACE-02: Delete during processing   | Low        | Medium | P3 (mitigated) |
+| RACE-03: Status check race          | Very Low   | Medium | P3             |
+| RACE-04: Graph lost update          | Medium     | High   | **P0**         |
+| GAP-06: Partial deletion            | Low        | High   | **P1**         |
 
 ## Risk Analysis
 
 ### RACE-01: Same Document Concurrent Delete (Low Priority)
 
 **Why Low Priority:**
+
 - Unlikely in practice (users rarely delete same doc twice simultaneously)
 - Result is idempotent (doc gets deleted either way)
 - Second request may get 404 or redundant success
 
 **Mitigation Options:**
+
 1. Add deletion lock (mutex per document_id)
 2. Use optimistic concurrency (version check)
 3. Accept as-is (document gets deleted)
@@ -32,12 +34,14 @@
 ### RACE-04: Graph Lost Update (HIGH Priority)
 
 **Why High Priority:**
+
 - Common in multi-document workspaces
 - Entities shared across many documents
 - Concurrent deletions could corrupt source_ids
 - Data integrity at risk
 
 **Example Scenario:**
+
 ```
 Initial State: ALICE entity → source_ids = ["doc-a-chunk-0", "doc-b-chunk-0"]
 
@@ -51,6 +55,7 @@ Expected: source_ids = [] (entity should be deleted)
 ```
 
 **Mitigation Options:**
+
 1. **Test first** - Prove the race condition exists
 2. Atomic compare-and-swap on source_ids
 3. Deletion queue with sequential processing
@@ -61,11 +66,13 @@ Expected: source_ids = [] (entity should be deleted)
 ### GAP-06: Partial Deletion (HIGH Priority)
 
 **Why High Priority:**
+
 - If deletion fails mid-cascade, data is inconsistent
 - No rollback mechanism
 - Recovery requires manual intervention
 
 **Mitigation Options:**
+
 1. Wrap cascade in database transaction (PostgreSQL)
 2. Two-phase delete: mark-then-sweep
 3. Deletion queue with retry mechanism
@@ -113,6 +120,7 @@ async fn test_delete_already_deleted_document() {
 ## Conclusion
 
 RACE-04 is the most critical risk. We need to:
+
 1. Add a test that attempts concurrent deletion
 2. Observe behavior
 3. If race is confirmed, implement fix in subsequent iteration

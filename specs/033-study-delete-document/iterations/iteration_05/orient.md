@@ -16,6 +16,7 @@ When uploading multiple documents that contain the same entity:
 ### Evidence
 
 #### Memory Implementation (graph.rs line 96-113)
+
 ```rust
 async fn upsert_node(
     &self,
@@ -29,6 +30,7 @@ async fn upsert_node(
 ```
 
 #### PostgreSQL Implementation (graph.rs line 750-780)
+
 ```rust
 let cypher = format!(
     "MERGE (n:Node {{node_id: '{}'}}) SET n = {}",  // SET = replaces ALL props!
@@ -38,11 +40,11 @@ let cypher = format!(
 
 ### Impact Analysis
 
-| Scenario | Expected | Actual | Impact |
-|----------|----------|--------|--------|
-| Two docs share entity | source_ids = [a, b] | source_ids = [b] | HIGH - Data loss |
-| Delete doc A | Entity preserved | Entity preserved | OK (accidentally) |
-| Delete doc B | Entity has source_ids = [a] | Entity has source_ids = [] → DELETED | CRITICAL - Entity wrongly deleted |
+| Scenario              | Expected                    | Actual                               | Impact                            |
+| --------------------- | --------------------------- | ------------------------------------ | --------------------------------- |
+| Two docs share entity | source_ids = [a, b]         | source_ids = [b]                     | HIGH - Data loss                  |
+| Delete doc A          | Entity preserved            | Entity preserved                     | OK (accidentally)                 |
+| Delete doc B          | Entity has source_ids = [a] | Entity has source_ids = [] → DELETED | CRITICAL - Entity wrongly deleted |
 
 ### Why This Wasn't Caught Before
 
@@ -53,6 +55,7 @@ let cypher = format!(
 ### Severity Assessment
 
 **CRITICAL** - This breaks the core assumption of the reference counting system:
+
 - Entities can be prematurely deleted when only one of multiple documents is deleted
 - The deletion fix in OODA-01 is undermined by this gap
 - Data integrity at risk
@@ -68,16 +71,19 @@ The `upsert_node` method is designed for simple key-value replacement, not for p
 ## Options for Fix
 
 ### Option A: Fix in upsert_node (Storage Layer)
+
 - Modify `upsert_node` to merge specific properties (source_ids)
 - Pro: Centralized fix, all callers benefit
 - Con: Complex change, may affect other properties
 
 ### Option B: Fix in upload handler (API Layer)
+
 - Before upserting, fetch existing entity and merge source_ids
 - Pro: Targeted fix, doesn't affect storage abstraction
 - Con: Performance hit (extra read per entity)
 
 ### Option C: Create new method upsert_node_merge
+
 - Add new storage method specifically for entity upsert with merge semantics
 - Pro: Clean separation of concerns
 - Con: More API surface
@@ -85,6 +91,7 @@ The `upsert_node` method is designed for simple key-value replacement, not for p
 ## Recommendation
 
 **Option B** is recommended for immediate fix:
+
 - Low risk of regression
 - Clear intent
 - Can be optimized later
