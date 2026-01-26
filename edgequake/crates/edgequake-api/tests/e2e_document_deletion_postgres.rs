@@ -31,14 +31,16 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 use edgequake_api::{AppState, Server, ServerConfig};
-use edgequake_storage::{
-    PostgresAGEGraphStorage, PostgresConfig, PostgresKVStorage, PgVectorStorage,
-    MemoryWorkspaceVectorRegistry, KVStorage, VectorStorage, GraphStorage,
+use edgequake_core::{
+    ConversationService, InMemoryConversationService, InMemoryWorkspaceService, WorkspaceService,
 };
 use edgequake_llm::MockProvider;
-use edgequake_core::{InMemoryWorkspaceService, InMemoryConversationService, WorkspaceService, ConversationService};
-use edgequake_query::{QueryEngine, QueryEngineConfig, SOTAQueryConfig, SOTAQueryEngine};
 use edgequake_pipeline::Pipeline;
+use edgequake_query::{QueryEngine, QueryEngineConfig, SOTAQueryConfig, SOTAQueryEngine};
+use edgequake_storage::{
+    GraphStorage, KVStorage, MemoryWorkspaceVectorRegistry, PgVectorStorage,
+    PostgresAGEGraphStorage, PostgresConfig, PostgresKVStorage, VectorStorage,
+};
 
 // ============================================================================
 // Test Infrastructure
@@ -106,29 +108,41 @@ fn create_pg_config(namespace: &str) -> PostgresConfig {
 ///
 /// Uses a unique namespace for test isolation.
 async fn create_postgres_test_state(pool: &PgPool) -> AppState {
-    use edgequake_auth::{AuthConfig, JwtService, PasswordService, RbacService};
-    use edgequake_api::handlers::websocket_types::ProgressBroadcaster;
     use edgequake_api::cache_manager::CacheManager;
-    use edgequake_rate_limiter::{RateLimitConfig as TokenBucketConfig, RateLimiter};
+    use edgequake_api::handlers::websocket_types::ProgressBroadcaster;
     use edgequake_api::state::StorageMode;
-    use edgequake_tasks::PipelineState;
+    use edgequake_auth::{AuthConfig, JwtService, PasswordService, RbacService};
     use edgequake_llm::ModelsConfig;
+    use edgequake_rate_limiter::{RateLimitConfig as TokenBucketConfig, RateLimiter};
+    use edgequake_tasks::PipelineState;
 
     // Generate unique namespace for this test run
-    let namespace = format!("test_{}", Uuid::new_v4().to_string().replace('-', "")[..12].to_string());
+    let namespace = format!(
+        "test_{}",
+        Uuid::new_v4().to_string().replace('-', "")[..12].to_string()
+    );
     let pg_config = create_pg_config(&namespace);
 
     // Create PostgreSQL-backed storages
     let kv_storage = Arc::new(PostgresKVStorage::new(pg_config.clone()));
-    kv_storage.initialize().await.expect("Failed to initialize KV storage");
+    kv_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize KV storage");
 
     // Vector storage with 1536 dimensions (matches MockProvider)
     let vector_storage = Arc::new(PgVectorStorage::new(pg_config.clone()));
-    vector_storage.initialize().await.expect("Failed to initialize vector storage");
+    vector_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize vector storage");
 
     // Graph storage with AGE
     let graph_storage = Arc::new(PostgresAGEGraphStorage::new(pg_config.clone()));
-    graph_storage.initialize().await.expect("Failed to initialize graph storage");
+    graph_storage
+        .initialize()
+        .await
+        .expect("Failed to initialize graph storage");
 
     // Mock LLM provider (same as memory tests)
     let mock_provider = Arc::new(MockProvider::new());
@@ -137,9 +151,8 @@ async fn create_postgres_test_state(pool: &PgPool) -> AppState {
     let pipeline = Arc::new(Pipeline::default_pipeline());
 
     // Services (use in-memory for simplicity)
-    let workspace_service: Arc<dyn WorkspaceService> = 
-        Arc::new(InMemoryWorkspaceService::new());
-    let conversation_service: Arc<dyn ConversationService> = 
+    let workspace_service: Arc<dyn WorkspaceService> = Arc::new(InMemoryWorkspaceService::new());
+    let conversation_service: Arc<dyn ConversationService> =
         Arc::new(InMemoryConversationService::new());
 
     // Task infrastructure
@@ -178,11 +191,14 @@ async fn create_postgres_test_state(pool: &PgPool) -> AppState {
 
     AppState {
         kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
-        vector_storage: Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
+        vector_storage: Arc::clone(&vector_storage)
+            as Arc<dyn edgequake_storage::traits::VectorStorage>,
         vector_registry,
-        graph_storage: Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
+        graph_storage: Arc::clone(&graph_storage)
+            as Arc<dyn edgequake_storage::traits::GraphStorage>,
         llm_provider: Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
-        embedding_provider: Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+        embedding_provider: Arc::clone(&mock_provider)
+            as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
         query_engine,
         sota_engine,
         pipeline,
@@ -329,7 +345,12 @@ async fn test_single_document_deletion_pg() {
     if status != StatusCode::CREATED {
         eprintln!("Upload failed with status {}: {:?}", status, upload_resp);
     }
-    assert_eq!(status, StatusCode::CREATED, "Upload should succeed, got: {:?}", upload_resp);
+    assert_eq!(
+        status,
+        StatusCode::CREATED,
+        "Upload should succeed, got: {:?}",
+        upload_resp
+    );
     let doc_id = upload_resp
         .get("document_id")
         .and_then(|v| v.as_str())
@@ -339,13 +360,21 @@ async fn test_single_document_deletion_pg() {
     let (delete_status, delete_resp) = delete_document_http(&app, doc_id).await;
 
     if delete_status != StatusCode::OK {
-        eprintln!("Delete failed: status={}, body={:?}", delete_status, delete_resp);
+        eprintln!(
+            "Delete failed: status={}, body={:?}",
+            delete_status, delete_resp
+        );
     }
-    assert_eq!(delete_status, StatusCode::OK, "Delete should succeed, got: {:?}", delete_resp);
-    
+    assert_eq!(
+        delete_status,
+        StatusCode::OK,
+        "Delete should succeed, got: {:?}",
+        delete_resp
+    );
+
     // Log the response for debugging
     eprintln!("Delete response: {:?}", delete_resp);
-    
+
     assert_eq!(
         delete_resp.get("deleted").and_then(|v| v.as_bool()),
         Some(true),
@@ -358,7 +387,7 @@ async fn test_single_document_deletion_pg() {
         .and_then(|v| v.as_u64())
         .unwrap_or(0);
     assert!(chunks_deleted >= 0, "chunks_deleted should be non-negative");
-    
+
     println!("✅ Single document deletion with PostgreSQL: PASSED");
 }
 
@@ -403,10 +432,7 @@ async fn test_delete_preserves_shared_entities_pg() {
         .unwrap_or(0);
 
     // Log for debugging
-    println!(
-        "Entities affected: {}",
-        entities_affected
-    );
+    println!("Entities affected: {}", entities_affected);
 
     // Delete second document to clean up
     let (cleanup_status, _) = delete_document_http(&app, doc2_id).await;
@@ -433,7 +459,10 @@ async fn test_query_after_deletion_pg() {
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
-    let doc_id = upload_resp.get("document_id").and_then(|v| v.as_str()).unwrap();
+    let doc_id = upload_resp
+        .get("document_id")
+        .and_then(|v| v.as_str())
+        .unwrap();
 
     // Query should work
     let (query_status1, _) = query_rag_http(&app, "What is EdgeQuake?").await;
@@ -491,7 +520,7 @@ async fn test_delete_failed_document_cleans_partial_entities_pg() {
     entity_props.insert("entity_type".to_string(), json!("PERSON"));
     entity_props.insert("source_ids".to_string(), json!([&doc_id]));
     entity_props.insert("source_chunk_ids".to_string(), json!([]));
-    
+
     state
         .graph_storage
         .upsert_node("PARTIAL_ENTITY_PG", entity_props)
@@ -500,8 +529,12 @@ async fn test_delete_failed_document_cleans_partial_entities_pg() {
 
     // Delete the failed document - should clean up partial data
     let (delete_status, delete_resp) = delete_document_http(&app, &doc_id).await;
-    
-    assert_eq!(delete_status, StatusCode::OK, "Should delete failed document");
+
+    assert_eq!(
+        delete_status,
+        StatusCode::OK,
+        "Should delete failed document"
+    );
     assert_eq!(
         delete_resp.get("deleted").and_then(|v| v.as_bool()),
         Some(true)
@@ -513,11 +546,8 @@ async fn test_delete_failed_document_cleans_partial_entities_pg() {
         .get_node("PARTIAL_ENTITY_PG")
         .await
         .expect("Should query");
-    
-    assert!(
-        entity_after.is_none(),
-        "Partial entity should be deleted"
-    );
+
+    assert!(entity_after.is_none(), "Partial entity should be deleted");
 
     println!("✅ Failed document cleanup with PostgreSQL: PASSED");
 }
@@ -543,13 +573,18 @@ async fn test_accumulated_source_ids_deletion_pg() {
     for (title, content) in docs {
         let (status, resp) = upload_document_http(&app, title, content).await;
         assert_eq!(status, StatusCode::CREATED);
-        doc_ids.push(resp.get("document_id").and_then(|v| v.as_str()).unwrap().to_string());
+        doc_ids.push(
+            resp.get("document_id")
+                .and_then(|v| v.as_str())
+                .unwrap()
+                .to_string(),
+        );
     }
 
     // Delete first document
     let (status1, resp1) = delete_document_http(&app, &doc_ids[0]).await;
     assert_eq!(status1, StatusCode::OK);
-    
+
     let entities_affected_1 = resp1
         .get("entities_affected")
         .and_then(|v| v.as_u64())
