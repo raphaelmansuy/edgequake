@@ -32,6 +32,7 @@ Spec: `specs/033-study-delete-document/003-study-document.md`
 | 32 | Response verification tests | ✅ Complete | a1a8493c |
 | 33 | Test count synchronization | ✅ Complete | fe0078ae |
 | 34 | Content edge case tests | ✅ Complete | 7dc8b86b |
+| 35 | Advanced concurrency tests | ✅ Complete | e62a20d2 |
 
 ## Key Accomplishments
 

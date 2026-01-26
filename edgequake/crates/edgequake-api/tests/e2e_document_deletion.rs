@@ -3496,3 +3496,120 @@ async fn test_rapid_create_delete_cycles() {
     println!("✅ OODA-35 TEST PASSED: Rapid create-delete cycles leave no orphans");
 }
 
+// ============================================================================
+// OODA-36: Error Boundary Condition Tests
+// ============================================================================
+
+/// OODA-36: Test that empty document ID returns appropriate error.
+#[tokio::test]
+async fn test_delete_empty_document_id() {
+    let app = create_test_app();
+    
+    // Attempt to delete with empty ID - this goes to a different route
+    // The actual route is DELETE /api/v1/documents/{id}
+    // An empty ID would match a different path or return 404
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri("/api/v1/documents/")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    
+    // Empty path segment should either be 404 (no route match) or 400 (bad request)
+    let status = response.status();
+    assert!(
+        status == StatusCode::NOT_FOUND || status == StatusCode::METHOD_NOT_ALLOWED,
+        "Empty ID should return NOT_FOUND or METHOD_NOT_ALLOWED, got {}",
+        status
+    );
+    
+    println!("✅ OODA-36 TEST PASSED: Empty document ID handled correctly ({})", status);
+}
+
+/// OODA-36: Test that extremely long document ID is rejected.
+///
+/// Defense against potential DoS via large input.
+#[tokio::test]
+async fn test_delete_extremely_long_id() {
+    let app = create_test_app();
+    
+    // Create a 10KB document ID (well beyond UUID length)
+    let long_id = "x".repeat(10_000);
+    
+    let (status, _) = delete_document_http(&app, &long_id).await;
+    
+    // Should return NOT_FOUND (not a valid document) or 414 URI TOO LONG
+    // or 400 BAD REQUEST - any error response is acceptable
+    assert_ne!(
+        status,
+        StatusCode::OK,
+        "Should not return OK for extremely long ID"
+    );
+    assert_ne!(
+        status,
+        StatusCode::CREATED,
+        "Should not return CREATED for DELETE request"
+    );
+    assert_ne!(
+        status,
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "Should not crash with 500 error"
+    );
+    
+    println!("✅ OODA-36 TEST PASSED: Long document ID handled safely ({})", status);
+}
+
+/// OODA-36: Test SQL injection-like patterns in document ID are safe.
+#[tokio::test]
+async fn test_delete_sql_injection_pattern() {
+    let app = create_test_app();
+    
+    // SQL injection-like patterns (safe because we use parameterized queries)
+    let injection_ids = vec![
+        "'; DROP TABLE documents; --",
+        "1 OR 1=1",
+        "1; SELECT * FROM users",
+        "\" OR \"\"=\"",
+    ];
+    
+    for injection_id in injection_ids {
+        // URL-encode the pattern for safety
+        let encoded_id = urlencoding::encode(injection_id);
+        
+        let response = app.clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/api/v1/documents/{}", encoded_id))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        
+        let status = response.status();
+        
+        // Should get NOT_FOUND (document doesn't exist) - not a server error
+        assert_ne!(
+            status,
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "SQL injection pattern '{}' caused server error",
+            injection_id
+        );
+        
+        // Typically returns 404 since it's not a real UUID
+        assert!(
+            status == StatusCode::NOT_FOUND || status == StatusCode::BAD_REQUEST,
+            "Expected NOT_FOUND or BAD_REQUEST for '{}', got {}",
+            injection_id,
+            status
+        );
+    }
+    
+    println!("✅ OODA-36 TEST PASSED: SQL injection patterns are safe");
+}
+
