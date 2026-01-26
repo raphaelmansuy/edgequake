@@ -2494,3 +2494,229 @@ async fn test_deletion_with_cycle_preserves_shared() {
     // Cyclic structure did not cause infinite loop
     println!("✅ OODA-15 CYCLE TEST PASSED: Cyclic deletion completed safely");
 }
+
+// ============================================================================
+// OODA-18: Reprocessing Edge Case Tests
+// ============================================================================
+// WHY: Mission requires "Impact of reprocessing a document must be fully studied"
+// These tests verify reprocessing safety for various document states.
+
+/// Test that PROCESSING documents are excluded from reprocess batch.
+///
+/// @tests OODA-18: Reprocessing safety for in-progress documents
+///
+/// Scenario:
+/// 1. Create a document with status "processing"
+/// 2. Call reprocess endpoint
+/// 3. Verify document is NOT included in reprocess batch
+/// 4. Verify document entities are not cleaned up (still processing)
+#[tokio::test]
+async fn test_reprocess_excludes_processing_documents() {
+    let state = AppState::test_state();
+    let server = Server::new(create_test_config(), state.clone());
+    let app = server.build_router();
+
+    let doc_id = "processing-doc-reprocess-test";
+    let chunk_id = format!("{}-chunk-0", doc_id);
+
+    // 1. Create a PROCESSING document (simulating active processing)
+    let metadata = serde_json::json!({
+        "id": doc_id,
+        "title": "Processing Document Test",
+        "status": "processing",  // KEY: Document is actively processing
+        "workspace_id": "default",
+        "updated_at": chrono::Utc::now().to_rfc3339()  // Recent timestamp
+    });
+    state
+        .kv_storage
+        .upsert(&[(format!("{}-metadata", doc_id), metadata)])
+        .await
+        .unwrap();
+    state
+        .kv_storage
+        .upsert(&[(
+            format!("{}-content", doc_id),
+            json!({"content": "Test content for processing document"}),
+        )])
+        .await
+        .unwrap();
+
+    // 2. Create an entity that belongs to this document (as if 50% processed)
+    let mut entity_props = std::collections::HashMap::new();
+    entity_props.insert("entity_type".to_string(), json!("PERSON"));
+    entity_props.insert("description".to_string(), json!("Entity from active processing"));
+    entity_props.insert("source_ids".to_string(), json!([chunk_id.clone()]));
+
+    state
+        .graph_storage
+        .upsert_node("ACTIVE_PROCESSING_ENTITY", entity_props)
+        .await
+        .expect("Should create entity");
+
+    // Verify entity exists before reprocess call
+    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
+    assert!(
+        nodes_before.iter().any(|n| n.id == "ACTIVE_PROCESSING_ENTITY"),
+        "Entity should exist before reprocess call"
+    );
+
+    // 3. Call reprocess endpoint (should NOT affect processing documents)
+    let request = json!({
+        "max_documents": 10
+    });
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents/reprocess")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let status = response.status();
+    let body = extract_json(response).await;
+
+    assert_eq!(status, StatusCode::OK, "Reprocess endpoint should succeed");
+
+    // 4. Verify processing document was NOT requeued
+    let requeued_count = body
+        .get("requeued_count")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+
+    assert_eq!(
+        requeued_count, 0,
+        "PROCESSING document should NOT be requeued. Response: {:?}",
+        body
+    );
+
+    // 5. Verify entity was NOT cleaned up (document still processing)
+    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
+    assert!(
+        nodes_after.iter().any(|n| n.id == "ACTIVE_PROCESSING_ENTITY"),
+        "Entity should still exist - PROCESSING document should not be touched. Found: {:?}",
+        nodes_after.iter().map(|n| &n.id).collect::<Vec<_>>()
+    );
+
+    println!("✅ OODA-18 TEST PASSED: PROCESSING documents excluded from reprocess batch");
+}
+
+/// Test that reprocess correctly handles FAILED document with multiple entities.
+///
+/// @tests OODA-18: Full cleanup of multi-entity failed documents
+///
+/// Scenario:
+/// 1. Create failed document with 3 entities and 2 relationships
+/// 2. Call reprocess endpoint
+/// 3. Verify ALL entities and relationships are cleaned up
+#[tokio::test]
+async fn test_reprocess_cleans_all_entities_and_relationships() {
+    let state = AppState::test_state();
+    let server = Server::new(create_test_config(), state.clone());
+    let app = server.build_router();
+
+    let doc_id = "multi-entity-reprocess-test";
+    let chunk_id = format!("{}-chunk-0", doc_id);
+
+    // 1. Create a FAILED document
+    let metadata = serde_json::json!({
+        "id": doc_id,
+        "title": "Multi Entity Reprocess Test",
+        "status": "failed",
+        "workspace_id": "default",
+        "error_message": "Simulated processing failure"
+    });
+    state
+        .kv_storage
+        .upsert(&[(format!("{}-metadata", doc_id), metadata)])
+        .await
+        .unwrap();
+    state
+        .kv_storage
+        .upsert(&[(
+            format!("{}-content", doc_id),
+            json!({"content": "Test content with multiple entities"}),
+        )])
+        .await
+        .unwrap();
+
+    // 2. Create multiple entities
+    for entity_name in ["FAILED_ENTITY_A", "FAILED_ENTITY_B", "FAILED_ENTITY_C"] {
+        let mut props = std::collections::HashMap::new();
+        props.insert("entity_type".to_string(), json!("CONCEPT"));
+        props.insert("description".to_string(), json!("Entity from failed processing"));
+        props.insert("source_ids".to_string(), json!([chunk_id.clone()]));
+
+        state
+            .graph_storage
+            .upsert_node(entity_name, props)
+            .await
+            .expect("Should create entity");
+    }
+
+    // 3. Create relationships between entities
+    let mut rel_props = std::collections::HashMap::new();
+    rel_props.insert("relationship_type".to_string(), json!("RELATED_TO"));
+    rel_props.insert("source_ids".to_string(), json!([chunk_id.clone()]));
+
+    state
+        .graph_storage
+        .upsert_edge("FAILED_ENTITY_A", "FAILED_ENTITY_B", rel_props.clone())
+        .await
+        .expect("Should create relationship");
+
+    state
+        .graph_storage
+        .upsert_edge("FAILED_ENTITY_B", "FAILED_ENTITY_C", rel_props)
+        .await
+        .expect("Should create relationship");
+
+    // Verify state before reprocess
+    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
+    let edges_before = state.graph_storage.get_all_edges().await.unwrap();
+
+    assert_eq!(nodes_before.len(), 3, "Should have 3 entities before reprocess");
+    assert_eq!(edges_before.len(), 2, "Should have 2 relationships before reprocess");
+
+    // 4. Call reprocess endpoint
+    let request = json!({
+        "max_documents": 10
+    });
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents/reprocess")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // 5. Verify ALL entities and relationships were cleaned up
+    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
+    let edges_after = state.graph_storage.get_all_edges().await.unwrap();
+
+    assert!(
+        nodes_after.is_empty(),
+        "All entities should be deleted during reprocess. Remaining: {:?}",
+        nodes_after.iter().map(|n| &n.id).collect::<Vec<_>>()
+    );
+    assert!(
+        edges_after.is_empty(),
+        "All relationships should be deleted during reprocess. Remaining: {:?}",
+        edges_after.iter().map(|e| format!("{}->{}", e.source, e.target)).collect::<Vec<_>>()
+    );
+
+    println!("✅ OODA-18 TEST PASSED: All entities and relationships cleaned during reprocess");
+}
