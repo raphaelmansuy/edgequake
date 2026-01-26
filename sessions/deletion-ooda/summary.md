@@ -42,6 +42,7 @@ Spec: `specs/033-study-delete-document/003-study-document.md`
 | 42 | Processing mode tests | ✅ Complete | 8ab159a0 |
 | 43 | Sequential stress tests | ✅ Complete | ea974c5c |
 | 44 | Title edge case tests | ✅ Complete | b83455c5 |
+| 45 | Tenant context tests | ✅ Complete | b9d70070 |
 
 ## Key Accomplishments
 
