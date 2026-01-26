@@ -47,7 +47,7 @@ test.describe("OODA-228: Critical Path Validation", () => {
     let workspaces: any[] = [];
     try {
       const workspacesResponse = await page.request.get(
-        `${apiBaseUrl}/workspaces`
+        `${apiBaseUrl}/workspaces`,
       );
       if (workspacesResponse.ok()) {
         workspaces = await workspacesResponse.json();
@@ -58,8 +58,8 @@ test.describe("OODA-228: Critical Path Validation", () => {
           console.log(
             `    - First workspace: ${JSON.stringify(first).substring(
               0,
-              80
-            )}...`
+              80,
+            )}...`,
           );
         }
       }
@@ -92,7 +92,7 @@ test.describe("OODA-228: Critical Path Validation", () => {
             Accept: "application/json",
           },
           data: chatPayload,
-        }
+        },
       );
 
       console.log(`\n  📊 Response Status: ${chatResponse.status()}`);
@@ -112,7 +112,7 @@ test.describe("OODA-228: Critical Path Validation", () => {
         // Check for dimension mismatch keywords
         const dimensionError = responseText.match(/dimension.*(\d+).*(\d+)/i);
         const vectorError = responseText.match(
-          /vector.*(mismatch|dimension|conflict)/i
+          /vector.*(mismatch|dimension|conflict)/i,
         );
         const pgError = responseText.match(/pgvector/i);
 
@@ -120,25 +120,25 @@ test.describe("OODA-228: Critical Path Validation", () => {
           console.log(`\n  ❌ OODA-228 BUG DETECTED!`);
           if (dimensionError)
             console.log(
-              `     Dimension Error: ${dimensionError[0].substring(0, 100)}`
+              `     Dimension Error: ${dimensionError[0].substring(0, 100)}`,
             );
           if (vectorError)
             console.log(
-              `     Vector Error: ${vectorError[0].substring(0, 100)}`
+              `     Vector Error: ${vectorError[0].substring(0, 100)}`,
             );
           if (pgError)
             console.log(
-              `     PostgreSQL Error: ${pgError[0].substring(0, 100)}`
+              `     PostgreSQL Error: ${pgError[0].substring(0, 100)}`,
             );
 
           throw new Error(
             `OODA-228 Bug Signature Found: ${
               dimensionError || vectorError || pgError
-            }`
+            }`,
           );
         } else {
           console.log(
-            "  ✅ No dimension mismatch error detected - OODA-228 FIX WORKING!"
+            "  ✅ No dimension mismatch error detected - OODA-228 FIX WORKING!",
           );
         }
       } else if (chatResponse.status() >= 400) {
@@ -150,7 +150,7 @@ test.describe("OODA-228: Critical Path Validation", () => {
           responseText.includes("vector")
         ) {
           console.log(
-            `  ❌ OODA-228 BUG: Response contains dimension/vector error`
+            `  ❌ OODA-228 BUG: Response contains dimension/vector error`,
           );
           console.log(`     Error: ${responseText.substring(0, 200)}`);
           throw new Error(`OODA-228 dimension mismatch in error response`);
@@ -168,7 +168,7 @@ test.describe("OODA-228: Critical Path Validation", () => {
     } catch (err) {
       if (err instanceof Error && err.message.includes("ECONNREFUSED")) {
         console.log(
-          "\n⚠️  Backend not running - test infrastructure issue, not code bug"
+          "\n⚠️  Backend not running - test infrastructure issue, not code bug",
         );
         console.log("ℹ  Start backend with: make backend-memory\n");
         // Don't fail the test if backend isn't running
@@ -208,7 +208,7 @@ test.describe("OODA-228: Critical Path Validation", () => {
             Accept: "text/event-stream",
           },
           data: chatPayload,
-        }
+        },
       );
 
       console.log(`Response Status: ${chatResponse.status()}`);
@@ -256,7 +256,7 @@ test.describe("OODA-228: Critical Path Validation", () => {
       const health = await page.request.get("http://localhost:8080/health");
       checks.apiRunning = health.ok();
       console.log(
-        `[${checks.apiRunning ? "✓" : "✗"}] API Health: ${health.status()}`
+        `[${checks.apiRunning ? "✓" : "✗"}] API Health: ${health.status()}`,
       );
     } catch {
       console.log("[✗] API not responding");
@@ -271,13 +271,13 @@ test.describe("OODA-228: Critical Path Validation", () => {
           data: {
             messages: [{ role: "user", content: "test" }],
           },
-        }
+        },
       );
       checks.chatEndpointResponds = response.status() < 500;
       console.log(
         `[${
           checks.chatEndpointResponds ? "✓" : "✗"
-        }] Chat Endpoint: ${response.status()}`
+        }] Chat Endpoint: ${response.status()}`,
       );
     } catch {
       console.log("[✗] Chat endpoint unreachable");
@@ -285,7 +285,7 @@ test.describe("OODA-228: Critical Path Validation", () => {
 
     // Check 3: No dimension mismatch in responses
     console.log(
-      "\n[ ] No 'dimension mismatch' error (768 vs 1536 vector size)"
+      "\n[ ] No 'dimension mismatch' error (768 vs 1536 vector size)",
     );
     try {
       const response = await page.request.post(
@@ -294,14 +294,14 @@ test.describe("OODA-228: Critical Path Validation", () => {
           data: {
             messages: [{ role: "user", content: "validation test" }],
           },
-        }
+        },
       );
       const text = await response.text();
       checks.noMismatchError = !(
         text.includes("dimension") && text.match(/(\d+).*(\d+)/)
       );
       console.log(
-        `[${checks.noMismatchError ? "✓" : "✗"}] No dimension error detected`
+        `[${checks.noMismatchError ? "✓" : "✗"}] No dimension error detected`,
       );
     } catch {
       console.log("[✗] Could not test for dimension error");
@@ -317,11 +317,11 @@ test.describe("OODA-228: Critical Path Validation", () => {
             messages: [{ role: "user", content: "stream test" }],
             stream: true,
           },
-        }
+        },
       );
       checks.streamingWorks = response.status() < 500;
       console.log(
-        `[${checks.streamingWorks ? "✓" : "✗"}] Streaming: ${response.status()}`
+        `[${checks.streamingWorks ? "✓" : "✗"}] Streaming: ${response.status()}`,
       );
     } catch {
       console.log("[✗] Streaming endpoint unreachable");
@@ -337,7 +337,7 @@ test.describe("OODA-228: Critical Path Validation", () => {
 
     if (passed >= 2) {
       console.log(
-        "\n✅ OODA-228 FIX VALIDATED: Chat endpoint working without dimension mismatch"
+        "\n✅ OODA-228 FIX VALIDATED: Chat endpoint working without dimension mismatch",
       );
     }
   });

@@ -13,6 +13,7 @@ Your mission is to fix five critical issues in the EdgeQuake WebUI:
 ## Amendment: CPU Crash Issue (2026-01-26)
 
 During iteration 01, a critical build issue was identified:
+
 - **Problem**: `next build` or `npm run build` can cause 100% CPU usage, freezing VS Code
 - **Solution**: Use the safe build script: `npm run build:safe` or `./scripts/safe-build.sh`
 - **Details**: The safe-build script includes:
@@ -79,9 +80,9 @@ mission_workspace_dashboard_fixes/ooda_loop/
 
 ## Success Criteria
 
-- [ ] Workspace name fully visible in dropdown (no truncation)
-- [ ] Dashboard shows correct counts per workspace
-- [ ] KG rebuild works with model changes
-- [ ] Document reprocessing actually triggers backend processing
-- [ ] All tests pass
-- [ ] No regressions introduced
+- [x] Workspace name fully visible in dropdown (no truncation) ✅ 30-char limit + 200px max-width
+- [x] Dashboard shows correct counts per workspace ✅ useQuery + StatsCard implementation
+- [x] KG rebuild works with model changes ✅ Cache eviction + config update before reprocess
+- [x] Document reprocessing actually triggers backend processing ✅ With feedback UI
+- [x] All tests pass ✅ TypeScript + 423 Rust tests + 13 unit tests
+- [x] No regressions introduced ✅ Verified

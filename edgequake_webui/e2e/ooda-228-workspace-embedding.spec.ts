@@ -32,7 +32,7 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
 
     // Look for workspace selection or creation UI
     const workspaceButton = page.locator(
-      "button:has-text('Workspace'), [data-testid='workspace-selector']"
+      "button:has-text('Workspace'), [data-testid='workspace-selector']",
     );
 
     if (await workspaceButton.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -52,7 +52,7 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
 
     // Look for upload section
     const uploadButton = page.locator(
-      "button:has-text('Upload'), [data-testid='upload-button']"
+      "button:has-text('Upload'), [data-testid='upload-button']",
     );
 
     if (await uploadButton.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -82,7 +82,7 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
 
     // Find the chat input field
     const chatInput = page.locator(
-      "[data-testid='chat-input'], textarea[placeholder*='Ask'], input[placeholder*='Ask']"
+      "[data-testid='chat-input'], textarea[placeholder*='Ask'], input[placeholder*='Ask']",
     );
 
     // Check if chat input exists or look for it dynamically
@@ -100,7 +100,7 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
       const testId = await input.getAttribute("data-testid").catch(() => "");
 
       console.log(
-        `  Input ${i}: testId="${testId}", placeholder="${placeholder}"`
+        `  Input ${i}: testId="${testId}", placeholder="${placeholder}"`,
       );
 
       // If we find a likely chat/query input
@@ -120,7 +120,7 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
 
         // Look for send button
         const sendButton = page.locator(
-          "button[type='submit'], button:has-text('Send'), [data-testid='send-button']"
+          "button[type='submit'], button:has-text('Send'), [data-testid='send-button']",
         );
 
         if (await sendButton.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -133,7 +133,7 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
               (response) =>
                 response.url().includes("/chat/completions") ||
                 response.url().includes("/query"),
-              { timeout: 30000 }
+              { timeout: 30000 },
             );
 
             console.log("✓ Chat API request completed");
@@ -143,7 +143,7 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
 
             // Check for any error messages related to dimension mismatch
             const errorIndicator = page.locator(
-              "[data-testid='error'], .error-message, .text-red-500"
+              "[data-testid='error'], .error-message, .text-red-500",
             );
 
             const errorCount = await errorIndicator.count();
@@ -160,7 +160,7 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
               ) {
                 console.error(
                   "❌ DIMENSION MISMATCH ERROR DETECTED:",
-                  errorText
+                  errorText,
                 );
                 throw new Error(`Dimension mismatch error: ${errorText}`);
               }
@@ -170,7 +170,7 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
           } catch (err) {
             if (err instanceof Error && err.message.includes("timeout")) {
               console.log(
-                "⏱ No response received yet (might be processing in background)"
+                "⏱ No response received yet (might be processing in background)",
               );
             } else {
               throw err;
@@ -203,7 +203,7 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
       }
     } catch (err) {
       console.log(
-        "⚠ Could not reach API health endpoint (might be starting up)"
+        "⚠ Could not reach API health endpoint (might be starting up)",
       );
     }
 
@@ -215,7 +215,7 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
           headers: {
             "Content-Type": "application/json",
           },
-        }
+        },
       );
 
       if (workspacesResponse.ok()) {
@@ -223,11 +223,11 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
         console.log(
           `✓ Retrieved ${
             Array.isArray(workspaces) ? workspaces.length : 0
-          } workspaces from API`
+          } workspaces from API`,
         );
       } else {
         console.log(
-          `⚠ Workspaces endpoint returned ${workspacesResponse.status()}`
+          `⚠ Workspaces endpoint returned ${workspacesResponse.status()}`,
         );
       }
     } catch (err) {
@@ -261,11 +261,11 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
             "Content-Type": "application/json",
           },
           data: chatRequest,
-        }
+        },
       );
 
       console.log(
-        `📨 Chat completions endpoint returned: ${response.status()}`
+        `📨 Chat completions endpoint returned: ${response.status()}`,
       );
 
       // Check for any error in response headers or status
@@ -288,7 +288,7 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
         console.log("⏱ Streaming request timeout (expected if no backend)");
       } else if (err instanceof Error && err.message.includes("ECONNREFUSED")) {
         console.log(
-          "⚠ Backend not running (expected in some test environments)"
+          "⚠ Backend not running (expected in some test environments)",
         );
       } else {
         throw err;
@@ -304,7 +304,7 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
     console.log("\n📋 === OODA-228 Test Diagnostics ===");
     console.log(`  Base URL: ${baseURL}`);
     console.log(
-      `  User Agent: ${await page.evaluate(() => navigator.userAgent)}`
+      `  User Agent: ${await page.evaluate(() => navigator.userAgent)}`,
     );
 
     // Check local storage for workspace info
