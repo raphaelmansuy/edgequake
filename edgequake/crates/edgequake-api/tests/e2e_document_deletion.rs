@@ -1645,3 +1645,144 @@ async fn test_reprocess_preserves_shared_entities() {
     
     println!("✅ GAP-08 SHARED ENTITY FIX VERIFIED: reprocess cleaned B's reference while preserving A's");
 }
+// ============================================================================
+// OODA-09: Query After Deletion Tests
+// ============================================================================
+
+/// Helper to query the RAG system via HTTP
+async fn query_rag_http(app: &axum::Router, query_text: &str) -> (StatusCode, Value) {
+    let request = json!({
+        "query": query_text
+    });
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/query")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let status = response.status();
+    let body = extract_json(response).await;
+    (status, body)
+}
+
+/// Test that querying after document deletion does NOT error.
+///
+/// @tests OODA-09: Query process must work after deletion
+///
+/// This test verifies the safety invariant that queries never fail
+/// due to deleted document references. The vector storage gracefully
+/// handles missing chunks by simply not returning them.
+#[tokio::test]
+async fn test_query_after_deletion_does_not_error() {
+    let app = create_test_app();
+
+    // 1. Upload a document with some content
+    let (status, upload_resp) = upload_document_http(
+        &app,
+        "Query Test Doc",
+        "Alice is a software engineer who works on machine learning projects. \
+         She collaborates with Bob on data science initiatives.",
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::CREATED);
+    let doc_id = upload_resp["document_id"].as_str().unwrap();
+    
+    // 2. Verify query works before deletion
+    let (query_status_before, _query_resp_before) = query_rag_http(&app, "Who is Alice?").await;
+    assert_eq!(
+        query_status_before, 
+        StatusCode::OK, 
+        "Query should work before deletion"
+    );
+    
+    // 3. Delete the document
+    let (delete_status, _) = delete_document_http(&app, doc_id).await;
+    assert_eq!(delete_status, StatusCode::OK);
+    
+    // 4. Query again AFTER deletion - this should NOT error
+    let (query_status_after, query_resp_after) = query_rag_http(&app, "Who is Alice?").await;
+    assert_eq!(
+        query_status_after, 
+        StatusCode::OK, 
+        "Query should still work after deletion (just with less context)"
+    );
+    
+    // 5. The response should be valid JSON with expected structure
+    assert!(
+        query_resp_after.get("response").is_some() || query_resp_after.get("answer").is_some(),
+        "Query response should have response or answer field: {:?}",
+        query_resp_after
+    );
+    
+    println!("✅ OODA-09 VERIFIED: Query works correctly after document deletion");
+}
+
+/// Test that querying with partially deleted shared context still works.
+///
+/// @tests OODA-09: Query with shared entities after partial deletion
+///
+/// Scenario:
+/// 1. Two documents share an entity
+/// 2. Delete one document
+/// 3. Query should work using context from remaining document
+#[tokio::test]
+async fn test_query_with_partial_shared_context() {
+    let state = AppState::test_state();
+    let server = Server::new(create_test_config(), state.clone());
+    let app = server.build_router();
+    
+    // 1. Upload two documents that will share entities (mock LLM generates consistent entities)
+    let (status_a, resp_a) = upload_document_http(
+        &app,
+        "Shared Context Doc A",
+        "The research team at TechCorp developed advanced AI systems. \
+         Dr. Smith leads the machine learning division.",
+    )
+    .await;
+    assert_eq!(status_a, StatusCode::CREATED);
+    let doc_a_id = resp_a["document_id"].as_str().unwrap();
+    
+    let (status_b, resp_b) = upload_document_http(
+        &app,
+        "Shared Context Doc B",
+        "TechCorp's AI research has been recognized globally. \
+         The team published groundbreaking papers on neural networks.",
+    )
+    .await;
+    assert_eq!(status_b, StatusCode::CREATED);
+    let _doc_b_id = resp_b["document_id"].as_str().unwrap();
+    
+    // 2. Query before any deletion
+    let (status_before, _) = query_rag_http(&app, "What is TechCorp?").await;
+    assert_eq!(status_before, StatusCode::OK, "Query should work with both docs");
+    
+    // 3. Delete document A
+    let (delete_status, _) = delete_document_http(&app, doc_a_id).await;
+    assert_eq!(delete_status, StatusCode::OK);
+    
+    // 4. Query again - should work with remaining context from doc B
+    let (status_after, query_resp) = query_rag_http(&app, "What is TechCorp?").await;
+    assert_eq!(
+        status_after, 
+        StatusCode::OK, 
+        "Query should work after partial deletion"
+    );
+    
+    // Response should be valid
+    assert!(
+        query_resp.get("response").is_some() || query_resp.get("answer").is_some(),
+        "Should have response: {:?}",
+        query_resp
+    );
+    
+    println!("✅ OODA-09 PARTIAL CONTEXT VERIFIED: Query works with shared context after partial deletion");
+}
