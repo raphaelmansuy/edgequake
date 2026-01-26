@@ -1,11 +1,10 @@
 'use client';
 
-import { QuickActions, RecentActivity, StatsCard, SystemStatus } from '@/components/dashboard';
+import { QuickActions, RecentActivity, SystemStatus } from '@/components/dashboard';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { getDocuments, getWorkspaceStats } from '@/lib/api/edgequake';
+import { getDocuments } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useQuery } from '@tanstack/react-query';
-import { FileText, GitMerge, Network, Users } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -54,17 +53,6 @@ export default function DashboardPage() {
   // NOTE: Auto-select logic removed - handled by WorkspaceUrlUpdater component
   // to avoid duplicate selection logic and race conditions
 
-  // Fetch workspace stats (includes document count, entity count, relationship count)
-  const { data: statsData, isLoading: isLoadingStats } = useQuery({
-    queryKey: ['workspaceStats', selectedTenantId, selectedWorkspaceId],
-    queryFn: () =>
-      selectedWorkspaceId
-        ? getWorkspaceStats(selectedWorkspaceId)
-        : Promise.reject(new Error('No workspace selected')),
-    enabled: !!selectedWorkspaceId,
-    staleTime: 30000,
-  });
-
   // Fetch recent documents for activity feed
   const { data: documentsData, isLoading: isLoadingDocs } = useQuery({
     queryKey: ['documents', selectedTenantId, selectedWorkspaceId, 1, 10],
@@ -72,14 +60,7 @@ export default function DashboardPage() {
     staleTime: 30000,
   });
 
-  const documentCount = statsData?.document_count || 0;
-  const entityCount = statsData?.entity_count || 0;
-  const relationshipCount = statsData?.relationship_count || 0;
   const recentDocuments = documentsData?.items || [];
-
-  // For entity types, we'll keep this simple for now
-  // TODO: Get actual unique entity types from backend
-  const entityTypes = entityCount > 0 ? 1 : 0;
 
   return (
     <ScrollArea className="h-full">
@@ -88,20 +69,8 @@ export default function DashboardPage() {
         <WorkspaceUrlUpdater />
       </Suspense>
       <div className="p-page space-y-6">
-        {/* Header Section - Compact with Context */}
+        {/* Header Section - Compact */}
         <header className="space-y-1">
-          {/* Tenant / Workspace Breadcrumb */}
-          {selectedWorkspaceId && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="font-medium">
-                {useTenantStore.getState().tenants.find(t => t.id === selectedTenantId)?.name || 'Tenant'}
-              </span>
-              <span>/</span>
-              <span>
-                {useTenantStore.getState().workspaces.find(w => w.id === selectedWorkspaceId)?.name || 'Workspace'}
-              </span>
-            </div>
-          )}
           <h1 className="text-2xl font-bold tracking-tight">
             {t('dashboard.title', 'Dashboard')}
           </h1>
@@ -128,42 +97,6 @@ export default function DashboardPage() {
             isLoading={isLoadingStats}
             variant="entities"
           />
-          <StatsCard
-            title={t('dashboard.stats.relationships', 'Relationships')}
-            value={relationshipCount}
-            description={t('dashboard.stats.relationshipsDesc', 'Entity connections')}
-            icon={GitMerge}
-            isLoading={isLoadingStats}
-            variant="relationships"
-          />
-          <StatsCard
-            title={t('dashboard.stats.entityTypes', 'Entity Types')}
-            value={entityTypes}
-            description={t('dashboard.stats.entityTypesDesc', 'Unique categories')}
-            icon={Network}
-            isLoading={isLoadingStats}
-            variant="types"
-          />
-        </section>
-
-        {/* Quick Actions */}
-        <section aria-label="Quick Actions">
-          <QuickActions />
-        </section>
-
-        {/* Recent Activity and System Status */}
-        <section aria-label="Activity and Status" className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <RecentActivity 
-              documents={recentDocuments} 
-              isLoading={isLoadingDocs}
-            />
-          </div>
-          <div>
-            <SystemStatus />
-          </div>
-        </section>
-      </div>
-    </ScrollArea>
+          <SArea>
   );
 }
