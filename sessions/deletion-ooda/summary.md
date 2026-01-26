@@ -25,6 +25,7 @@ Spec: `specs/033-study-delete-document/003-study-document.md`
 | 25 | Metrics infrastructure documentation | ✅ Complete | 0852b92d |
 | 26 | Manual metrics snapshot trigger | ✅ Complete | cdf992c6 |
 | 27 | Metrics docs update (manual trigger) | ✅ Complete | c7739532 |
+| 28 | Edge case tests (unicode, idempotent) | ✅ Complete | 753a9057 |
 
 ## Key Accomplishments
 
