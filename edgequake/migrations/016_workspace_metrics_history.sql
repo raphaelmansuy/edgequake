@@ -14,8 +14,8 @@ CREATE TABLE IF NOT EXISTS workspace_metrics_history (
     -- Primary key
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     
-    -- Foreign key to workspace
-    workspace_id TEXT NOT NULL,
+    -- Foreign key to workspace (UUID to match workspaces.workspace_id type)
+    workspace_id UUID NOT NULL,
     
     -- Timestamp when metrics were recorded
     recorded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
