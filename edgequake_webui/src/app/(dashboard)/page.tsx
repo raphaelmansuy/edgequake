@@ -22,6 +22,7 @@ import { FileText, GitBranch, Tags, Users } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useWorkspaceTenantValidator } from '@/hooks/use-workspace-tenant-validator';
 
 // Component to handle URL updates with Suspense boundary
 function WorkspaceUrlUpdater() {
@@ -63,6 +64,13 @@ export default function DashboardPage() {
 
   // Get tenant context for query keys
   const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
+
+  // Auto-validate workspace-tenant consistency and fix mismatches
+  useWorkspaceTenantValidator({
+    onValidationFailed: (result) => {
+      console.error('[Dashboard] Workspace-tenant mismatch detected:', result.reason);
+    },
+  });
 
   // NOTE: Auto-select logic removed - handled by WorkspaceUrlUpdater component
   // to avoid duplicate selection logic and race conditions
