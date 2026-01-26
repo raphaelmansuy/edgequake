@@ -34,6 +34,7 @@ Spec: `specs/033-study-delete-document/003-study-document.md`
 | 34 | Content edge case tests | ✅ Complete | 7dc8b86b |
 | 35 | Advanced concurrency tests | ✅ Complete | e62a20d2 |
 | 36 | Error boundary condition tests | ✅ Complete | 3f8876b0 |
+| 37 | Workspace isolation tests | ✅ Complete | 1056afb9 |
 
 ## Key Accomplishments
 
