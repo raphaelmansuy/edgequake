@@ -16,6 +16,7 @@ User reported: "Failed to rebuild knowledge graph: Internal error: Failed to get
 ### Issue Discovery
 
 The error occurred in two endpoints:
+
 1. `GET /api/v1/workspaces/{id}/stats` - Failed with 500 error
 2. `POST /api/v1/workspaces/{id}/rebuild-knowledge-graph` - Failed when calling get_workspace_stats
 
@@ -23,12 +24,12 @@ The error occurred in two endpoints:
 
 **Key Finding**: PostgreSQL aggregate functions change return types to prevent overflow!
 
-| Function | Input Column Type | Return Type | Reason |
-|----------|------------------|-------------|---------|
-| `SUM(bigint_col)` | BIGINT | **NUMERIC** | Prevent overflow for large sums |
-| `AVG(int_col)` | INTEGER | **NUMERIC** | Allow decimal results |
-| `COUNT(*)` | Any | BIGINT | No overflow risk |
-| `MAX()/MIN()` | Any | Same as input | No type change needed |
+| Function          | Input Column Type | Return Type   | Reason                          |
+| ----------------- | ----------------- | ------------- | ------------------------------- |
+| `SUM(bigint_col)` | BIGINT            | **NUMERIC**   | Prevent overflow for large sums |
+| `AVG(int_col)`    | INTEGER           | **NUMERIC**   | Allow decimal results           |
+| `COUNT(*)`        | Any               | BIGINT        | No overflow risk                |
+| `MAX()/MIN()`     | Any               | Same as input | No type change needed           |
 
 ### Affected Code
 
@@ -37,17 +38,19 @@ The error occurred in two endpoints:
 **Line**: 646
 
 **Broken Query**:
+
 ```rust
 let stats: StatsRow = sqlx::query_as(
     r#"
-    SELECT 
+    SELECT
         ...
         (SELECT COALESCE(SUM(file_size_bytes), 0) FROM documents WHERE workspace_id = $1) as storage_bytes
     "#,
 )
 ```
 
-**Problem**: 
+**Problem**:
+
 - `SUM(file_size_bytes)` where `file_size_bytes` is BIGINT
 - PostgreSQL returns **NUMERIC** (not BIGINT)
 - Rust expects `i64` (which maps to PostgreSQL BIGINT/INT8)
@@ -56,13 +59,14 @@ let stats: StatsRow = sqlx::query_as(
 ### Verification
 
 Checked actual database schema:
+
 ```sql
 \d workspace_metrics_history
 -- storage_bytes | bigint | ✅ Correct type in table
 
-SELECT column_name, data_type 
-FROM information_schema.columns 
-WHERE table_name = 'workspace_metrics_history' 
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'workspace_metrics_history'
 AND column_name = 'storage_bytes';
 -- Returns: bigint ✅
 
@@ -92,6 +96,7 @@ SELECT pg_typeof(COALESCE(SUM(file_size_bytes), 0)) FROM documents;
 **File**: `docs/migration-safety-guide.md`
 
 Added new section **2.5 PostgreSQL Type Gotchas**:
+
 - Table showing aggregate function type changes
 - Real example from EdgeQuake codebase with before/after
 - Explanation of why PostgreSQL changes types (overflow prevention)
@@ -103,6 +108,7 @@ Added new section **2.5 PostgreSQL Type Gotchas**:
 **File**: `docs/migration-template-safe.sql`
 
 Added comment block after type validation section:
+
 ```sql
 -- IMPORTANT: PostgreSQL Type Casting for Aggregate Functions
 -- SUM() returns NUMERIC, not BIGINT - always cast: SUM(bigint_col)::BIGINT
@@ -115,12 +121,14 @@ Added comment block after type validation section:
 ## Validation & Testing
 
 ### Test 1: Build Verification
+
 ```bash
 cargo build --release
 # Result: ✅ Success in 1m 13s
 ```
 
 ### Test 2: Backend Startup
+
 ```bash
 make backend-dev
 # Result: ✅ Server started on port 8080
@@ -128,11 +136,13 @@ make backend-dev
 ```
 
 ### Test 3: Workspace Stats Endpoint
+
 ```bash
 curl http://localhost:8080/api/v1/workspaces/23d89fe3-e822-4c06-8f8c-82752436f7f3/stats
 ```
 
 **Result**: ✅ Success
+
 ```json
 {
   "workspace_id": "23d89fe3-e822-4c06-8f8c-82752436f7f3",
@@ -149,6 +159,7 @@ curl http://localhost:8080/api/v1/workspaces/23d89fe3-e822-4c06-8f8c-82752436f7f
 **Status**: 200 OK
 
 ### Test 4: Rebuild Knowledge Graph Endpoint
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/workspaces/23d89fe3-e822-4c06-8f8c-82752436f7f3/rebuild-knowledge-graph \
   -H "Content-Type: application/json" \
@@ -156,6 +167,7 @@ curl -X POST http://localhost:8080/api/v1/workspaces/23d89fe3-e822-4c06-8f8c-827
 ```
 
 **Result**: ✅ Success
+
 ```json
 {
   "workspace_id": "23d89fe3-e822-4c06-8f8c-82752436f7f3",
@@ -175,6 +187,7 @@ curl -X POST http://localhost:8080/api/v1/workspaces/23d89fe3-e822-4c06-8f8c-827
 **Status**: 200 OK
 
 ### Test 5: Type Verification Query
+
 ```sql
 -- Verify cast works correctly
 SELECT pg_typeof(COALESCE(SUM(file_size_bytes), 0)::BIGINT) FROM documents;
@@ -184,12 +197,14 @@ SELECT pg_typeof(COALESCE(SUM(file_size_bytes), 0)::BIGINT) FROM documents;
 ## Impact Assessment
 
 ### Before Fix
+
 - ❌ Workspace stats endpoint returned 500 Internal Server Error
 - ❌ Rebuild knowledge graph failed immediately
 - ❌ Changing embedding type blocked (couldn't rebuild)
 - ❌ No documentation about PostgreSQL aggregate type behavior
 
 ### After Fix
+
 - ✅ Workspace stats endpoint returns 200 OK
 - ✅ Rebuild knowledge graph works correctly
 - ✅ Embedding type changes can trigger full rebuild
@@ -197,9 +212,11 @@ SELECT pg_typeof(COALESCE(SUM(file_size_bytes), 0)::BIGINT) FROM documents;
 - ✅ Migration template updated with safety checks
 
 ### User Requirement Met
+
 ✅ **"Ensure when I change the embedding type → I always can rebuild the embedding and the KG"**
 
 Now users can:
+
 1. Change LLM model or provider
 2. Call rebuild-knowledge-graph endpoint
 3. System clears old graph (7 nodes, 14 edges deleted)
@@ -242,7 +259,7 @@ BEGIN
     -- Verify the aggregate query returns expected type
     SELECT pg_typeof(COALESCE(SUM(file_size_bytes), 0)::BIGINT)::TEXT INTO test_type
     FROM documents LIMIT 1;
-    
+
     IF test_type != 'bigint' THEN
         RAISE EXCEPTION 'SUM() cast failed - expected bigint, got %', test_type;
     END IF;
@@ -259,14 +276,14 @@ END $$;
 
 **Best Practice**: Always verify PostgreSQL return types match Rust expectations:
 
-| Rust Type | PostgreSQL Type | Notes |
-|-----------|----------------|-------|
-| `i32` | INTEGER | ✅ Direct mapping |
-| `i64` | BIGINT/INT8 | ✅ Direct mapping |
-| `i64` | NUMERIC | ❌ **Must cast to BIGINT** |
-| `f64` | NUMERIC | ✅ Direct mapping |
-| `Uuid` | UUID | ✅ Direct mapping |
-| `String` | TEXT | ✅ Direct mapping |
+| Rust Type | PostgreSQL Type | Notes                      |
+| --------- | --------------- | -------------------------- |
+| `i32`     | INTEGER         | ✅ Direct mapping          |
+| `i64`     | BIGINT/INT8     | ✅ Direct mapping          |
+| `i64`     | NUMERIC         | ❌ **Must cast to BIGINT** |
+| `f64`     | NUMERIC         | ✅ Direct mapping          |
+| `Uuid`    | UUID            | ✅ Direct mapping          |
+| `String`  | TEXT            | ✅ Direct mapping          |
 
 ## Commit Details
 
@@ -274,6 +291,7 @@ END $$;
 **Message**: `fix: cast SUM() aggregate to BIGINT to fix type mismatch`
 
 **Files Changed**:
+
 1. `edgequake/crates/edgequake-core/src/workspace_service_impl.rs` (+1 char)
 2. `docs/migration-safety-guide.md` (+85 lines)
 3. `docs/migration-template-safe.sql` (+7 lines)
@@ -334,6 +352,7 @@ END $$;
 ### Code Review Guidelines
 
 When reviewing Rust/PostgreSQL code:
+
 1. Search for `SUM(` or `AVG(` in SQL strings
 2. Verify explicit type casts are present: `::BIGINT`, `::INTEGER`, etc.
 3. Check Rust struct field types match casted SQL types
@@ -342,6 +361,7 @@ When reviewing Rust/PostgreSQL code:
 ## Related Work
 
 **Previous Migration Issues**:
+
 - Migration 016: FK column mismatch (id vs workspace_id)
 - Migration 016: Type mismatch (TEXT vs UUID)
 - **This Issue**: Aggregate function return type mismatch
@@ -353,6 +373,7 @@ When reviewing Rust/PostgreSQL code:
 ## Metrics
 
 ### Time Investment
+
 - **Diagnosis**: 5 minutes (error → root cause)
 - **Fix Implementation**: 3 minutes (code change + documentation)
 - **Testing**: 5 minutes (build + endpoint tests)
@@ -360,12 +381,14 @@ When reviewing Rust/PostgreSQL code:
 - **Total**: ~23 minutes
 
 ### Impact
+
 - **Endpoints Fixed**: 2 (stats, rebuild-kg)
 - **User Workflows Unblocked**: 1 (change embedding type)
 - **Future Issues Prevented**: High (documentation + template updated)
 - **Developer Time Saved**: ~2 hours per occurrence avoided
 
 ### ROI
+
 - **Investment**: 23 minutes
 - **Expected Occurrences Without Fix**: 3-5 times per year
 - **Time Saved Per Occurrence**: 2 hours (diagnosis + fix + deployment)
@@ -374,7 +397,7 @@ When reviewing Rust/PostgreSQL code:
 
 ## Conclusion
 
-Successfully fixed PostgreSQL type mismatch caused by aggregate function return type change (SUM returns NUMERIC, not BIGINT). 
+Successfully fixed PostgreSQL type mismatch caused by aggregate function return type change (SUM returns NUMERIC, not BIGINT).
 
 ✅ **User Requirement Met**: Embedding type changes can now rebuild knowledge graph without errors
 

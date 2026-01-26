@@ -895,20 +895,114 @@ pub async fn get_workspace_stats(
     State(state): State<AppState>,
     Path(workspace_id): Path<Uuid>,
 ) -> Result<Json<WorkspaceStatsResponse>, ApiError> {
-    let stats = state
-        .workspace_service
-        .get_workspace_stats(workspace_id)
+    // WHY: Query actual storage instead of empty PostgreSQL tables
+    // Root cause: entities/relationships stored in Apache AGE graph, not PostgreSQL tables
+    // Documents stored in KV storage with accurate entity/relationship counts in metadata
+    // See: logs/2026-01-26-08-57-dashboard-stats-investigation.md
+    
+    // Get all keys from KV storage
+    let all_keys = state
+        .kv_storage
+        .keys()
         .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to get KV storage keys: {}", e)))?;
+    
+    // Filter metadata keys and chunk keys
+    let metadata_keys: Vec<String> = all_keys
+        .iter()
+        .filter(|k| k.ends_with("-metadata"))
+        .cloned()
+        .collect();
+    
+    // Get all metadata values
+    let metadata_values = state
+        .kv_storage
+        .get_by_ids(&metadata_keys)
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to get document metadata: {}", e)))?;
+    
+    // Aggregate stats from documents belonging to this workspace
+    let mut document_count = 0;
+    let mut entity_count: u64 = 0;
+    let mut relationship_count: u64 = 0;
+    let mut storage_bytes: u64 = 0;
+    let mut workspace_doc_ids = Vec::new();
+    
+    for value in metadata_values {
+        if let Some(obj) = value.as_object() {
+            // Check if document belongs to this workspace
+            let doc_workspace_id = obj
+                .get("workspace_id")
+                .and_then(|v| v.as_str())
+                .and_then(|s| Uuid::parse_str(s).ok());
+            
+            if doc_workspace_id == Some(workspace_id) {
+                document_count += 1;
+                
+                // Collect document ID for chunk counting
+                if let Some(id) = obj.get("id").and_then(|v| v.as_str()) {
+                    workspace_doc_ids.push(id.to_string());
+                }
+                
+                // Sum entity counts
+                if let Some(count) = obj.get("entity_count").and_then(|v| v.as_u64()) {
+                    entity_count += count;
+                }
+                
+                // Sum relationship counts
+                if let Some(count) = obj.get("relationship_count").and_then(|v| v.as_u64()) {
+                    relationship_count += count;
+                }
+                
+                // Sum storage bytes
+                if let Some(bytes) = obj.get("file_size_bytes").and_then(|v| v.as_u64()) {
+                    storage_bytes += bytes;
+                }
+            }
+        }
+    }
+    
+    // Count chunks and embeddings for this workspace's documents
+    let mut chunk_count = 0;
+    let mut embedding_count = 0;
+    
+    for doc_id in &workspace_doc_ids {
+        // Count chunk keys for this document
+        let doc_chunk_keys: Vec<String> = all_keys
+            .iter()
+            .filter(|k| k.starts_with(&format!("{}-chunk-", doc_id)))
+            .cloned()
+            .collect();
+        
+        chunk_count += doc_chunk_keys.len();
+        
+        // Get chunk data to check for embeddings
+        if !doc_chunk_keys.is_empty() {
+            let chunk_values = state
+                .kv_storage
+                .get_by_ids(&doc_chunk_keys)
+                .await
+                .map_err(|e| ApiError::Internal(format!("Failed to get chunk data: {}", e)))?;
+            
+            // Count chunks that have embeddings
+            for chunk_value in chunk_values {
+                if let Some(obj) = chunk_value.as_object() {
+                    if obj.get("embedding").is_some() {
+                        embedding_count += 1;
+                    }
+                }
+            }
+        }
+    }
 
     let response = WorkspaceStatsResponse {
-        workspace_id: stats.workspace_id,
-        document_count: stats.document_count,
-        entity_count: stats.entity_count,
-        relationship_count: stats.relationship_count,
-        chunk_count: stats.chunk_count,
-        embedding_count: stats.embedding_count,
-        storage_bytes: stats.storage_bytes as u64,
+        workspace_id,
+        document_count,
+        entity_count: entity_count as usize,
+        relationship_count: relationship_count as usize,
+        chunk_count,
+        embedding_count,
+        storage_bytes,
     };
 
     Ok(Json(response))
