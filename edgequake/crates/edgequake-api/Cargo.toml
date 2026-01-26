@@ -46,6 +46,7 @@ chrono = { version = "0.4", features = ["serde"] }
 async-trait.workspace = true
 sqlx = { workspace = true, optional = true }
 url = "2.5"
+lazy_static = "1.5"
 
 # File handling
 sha2 = "0.10"
