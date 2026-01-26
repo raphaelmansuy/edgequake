@@ -334,7 +334,7 @@ pub fn workspaces_default_limit() -> usize {
 /// Workspace statistics response.
 ///
 /// WHY embedding_count: Mission requirement to track embeddings per workspace.
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct WorkspaceStatsResponse {
     /// Workspace ID.
     pub workspace_id: Uuid,
