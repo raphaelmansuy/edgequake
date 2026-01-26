@@ -537,6 +537,30 @@ pub trait GraphStorage: Send + Sync {
     /// Get edge count.
     async fn edge_count(&self) -> Result<usize>;
 
+    /// Get node count for a specific workspace.
+    ///
+    /// WHY: Dashboard and workspace pages need accurate per-workspace statistics.
+    /// This enables multi-tenant environments to show isolated entity counts.
+    ///
+    /// Default implementation falls back to global count (not workspace-scoped).
+    /// Implementations should override for accurate workspace statistics.
+    async fn node_count_by_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
+        let _ = workspace_id;
+        self.node_count().await
+    }
+
+    /// Get edge count for a specific workspace.
+    ///
+    /// WHY: Dashboard needs accurate relationship counts per workspace.
+    /// This complements node_count_by_workspace for complete statistics.
+    ///
+    /// Default implementation falls back to global count (not workspace-scoped).
+    /// Implementations should override for accurate workspace statistics.
+    async fn edge_count_by_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
+        let _ = workspace_id;
+        self.edge_count().await
+    }
+
     /// Clear all nodes and edges.
     async fn clear(&self) -> Result<()>;
 

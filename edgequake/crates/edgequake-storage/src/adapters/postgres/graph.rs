@@ -1529,6 +1529,40 @@ impl GraphStorage for PostgresAGEGraphStorage {
         Ok(count as usize)
     }
 
+    /// Get node count for a specific workspace (OODA-03: Fix dashboard stats).
+    ///
+    /// WHY: Dashboard was showing 0 entities because it only checked PostgreSQL
+    /// tables (empty) and KV metadata (no entity_count field). The actual data
+    /// is in Apache AGE graph storage.
+    ///
+    /// This method uses the same property-based filtering pattern as clear_workspace()
+    /// for consistency with existing workspace isolation logic.
+    async fn node_count_by_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
+        let workspace_id_str = workspace_id.to_string();
+        let escaped_wid = Self::escape_sql_string(&workspace_id_str);
+        let cypher = format!(
+            "MATCH (n:Node) WHERE n.workspace_id = '{}' RETURN count(n)",
+            escaped_wid
+        );
+        let count = self.cypher_query_count(&cypher).await?;
+        Ok(count as usize)
+    }
+
+    /// Get edge count for a specific workspace (OODA-03: Fix dashboard stats).
+    ///
+    /// WHY: Counts edges where either endpoint belongs to the workspace.
+    /// This matches the deletion logic in clear_workspace() for consistency.
+    async fn edge_count_by_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
+        let workspace_id_str = workspace_id.to_string();
+        let escaped_wid = Self::escape_sql_string(&workspace_id_str);
+        let cypher = format!(
+            "MATCH (n:Node)-[r:EDGE]->(m:Node) WHERE n.workspace_id = '{}' OR m.workspace_id = '{}' RETURN count(r)",
+            escaped_wid, escaped_wid
+        );
+        let count = self.cypher_query_count(&cypher).await?;
+        Ok(count as usize)
+    }
+
     async fn clear(&self) -> Result<()> {
         // Delete all nodes (edges will be deleted automatically with DETACH)
         let cypher = "MATCH (n:Node) DETACH DELETE n";

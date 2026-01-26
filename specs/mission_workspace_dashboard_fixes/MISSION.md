@@ -10,7 +10,7 @@ Your mission is to fix five critical issues in the EdgeQuake WebUI:
 4. **Document Reprocessing**: The "Reprocess Documents" feature must actually reprocess documents when triggered from the UI
 5. **Build CPU Crash Prevention**: Frontend builds must not cause 100% CPU usage or VS Code crashes
 
-## Amendment: CPU Crash Issue (2026-01-26)
+## Amendment: CPU Crash Issue (2026-01-26 22:30)
 
 During iteration 01, a critical build issue was identified:
 
@@ -22,6 +22,17 @@ During iteration 01, a critical build issue was identified:
   - CPU priority throttling (`nice -n 10`)
   - Timeout protection (300s default)
   - TypeScript check before build
+
+## Amendment: Statistics Inaccuracy Bug (2026-01-26 22:35)
+
+**CRITICAL BUG DISCOVERED**: Dashboard and Workspace pages show incorrect statistics:
+
+- **Observed**: Dashboard shows 0 Entities, 0 Relationships, 0 Chunks (despite document having 13 entities)
+- **Expected**: Dashboard should show accurate counts matching the knowledge graph data
+- **Root Cause**: To be investigated - likely backend stats API or database query issue
+- **Impact**: Users cannot see their knowledge graph extraction results
+- **Status**: Issue 2 (Dashboard Statistics Accuracy) was INCORRECTLY marked as resolved
+- **Action**: Reopen Issue 2, investigate backend stats endpoint, fix query logic
 
 ## Context
 
@@ -81,8 +92,8 @@ mission_workspace_dashboard_fixes/ooda_loop/
 ## Success Criteria
 
 - [x] Workspace name fully visible in dropdown (no truncation) ✅ 30-char limit + 200px max-width
-- [x] Dashboard shows correct counts per workspace ✅ useQuery + StatsCard implementation
+- [ ] Dashboard shows correct counts per workspace ❌ SHOWING 0 ENTITIES/RELATIONSHIPS/CHUNKS (BUG)
 - [x] KG rebuild works with model changes ✅ Cache eviction + config update before reprocess
 - [x] Document reprocessing actually triggers backend processing ✅ With feedback UI
 - [x] All tests pass ✅ TypeScript + 423 Rust tests + 13 unit tests
-- [x] No regressions introduced ✅ Verified
+- [ ] No regressions introduced ⚠️ Statistics display broken
