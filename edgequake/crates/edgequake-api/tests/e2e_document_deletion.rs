@@ -4196,3 +4196,60 @@ async fn test_batch_cleanup_verification() {
     println!("✅ OODA-43 TEST PASSED: Batch cleanup verification");
 }
 
+// ============================================================================
+// OODA-44: Title Edge Case Tests
+// ============================================================================
+
+/// OODA-44: Test document with unicode/emoji title.
+#[tokio::test]
+async fn test_document_with_unicode_title() {
+    let app = create_test_app();
+    
+    let unicode_titles = vec![
+        "日本語ドキュメント",
+        "Документ на русском",
+        "📚 Book with Emoji 🎉",
+        "中文文档标题",
+        "مستند عربي",
+    ];
+    
+    for title in unicode_titles {
+        let (status, body) = upload_document_http(
+            &app,
+            title,
+            "Content for unicode title testing."
+        ).await;
+        
+        assert_eq!(status, StatusCode::CREATED, "Unicode title '{}' should work", title);
+        
+        let doc_id = body["document_id"].as_str().unwrap();
+        let (delete_status, _) = delete_document_http(&app, doc_id).await;
+        assert_eq!(delete_status, StatusCode::OK, "Unicode title doc deletion failed");
+    }
+    
+    println!("✅ OODA-44 TEST PASSED: Unicode/emoji titles work");
+}
+
+/// OODA-44: Test document with very long title.
+#[tokio::test]
+async fn test_document_with_long_title() {
+    let app = create_test_app();
+    
+    // Create a 1000 character title
+    let long_title = "A".repeat(1000);
+    
+    let (status, body) = upload_document_http(
+        &app,
+        &long_title,
+        "Content for long title testing."
+    ).await;
+    
+    assert_eq!(status, StatusCode::CREATED, "Long title should be accepted");
+    
+    let doc_id = body["document_id"].as_str().unwrap();
+    let (delete_status, _) = delete_document_http(&app, doc_id).await;
+    assert_eq!(delete_status, StatusCode::OK);
+    
+    println!("✅ OODA-44 TEST PASSED: Long title (1000 chars) works");
+}
+
