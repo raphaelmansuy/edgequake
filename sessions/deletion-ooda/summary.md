@@ -24,6 +24,7 @@ Spec: `specs/033-study-delete-document/003-study-document.md`
 | 24 | Edge case tests (no-entity, rapid ops) | ✅ Complete | c47f213e |
 | 25 | Metrics infrastructure documentation | ✅ Complete | 0852b92d |
 | 26 | Manual metrics snapshot trigger | ✅ Complete | cdf992c6 |
+| 27 | Metrics docs update (manual trigger) | ✅ Complete | c7739532 |
 
 ## Key Accomplishments
 

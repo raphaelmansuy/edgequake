@@ -2835,3 +2835,115 @@ async fn test_deletion_preserves_unrelated_data() {
     println!("✅ OODA-24 TEST PASSED: Deletion preserves unrelated data");
 }
 
+// ============================================================================
+// OODA-28: Additional Edge Case Tests
+// ============================================================================
+
+/// OODA-28: Test deletion of document with unicode characters in name.
+///
+/// Ensures the system correctly handles international characters in document
+/// titles without encoding issues in storage or deletion.
+#[tokio::test]
+async fn test_delete_document_unicode_name() {
+    let app = create_test_app();
+    
+    // Upload document with various unicode characters
+    let (upload_status, body) = upload_document_http(
+        &app,
+        "日本語ドキュメント 📄 über café",
+        "This document has a unicode title with Japanese, emoji, and accented characters."
+    ).await;
+    assert_eq!(upload_status, StatusCode::CREATED);
+    
+    let doc_id = body["document_id"].as_str().unwrap();
+    
+    // Delete should work normally
+    let (delete_status, delete_body) = delete_document_http(&app, doc_id).await;
+    assert_eq!(delete_status, StatusCode::OK);
+    
+    // Verify deletion
+    assert!(delete_body["deleted"].as_bool().unwrap_or(false));
+    
+    // Verify document is gone by trying to delete again
+    let (second_delete_status, _) = delete_document_http(&app, doc_id).await;
+    assert_eq!(second_delete_status, StatusCode::NOT_FOUND);
+    
+    println!("✅ OODA-28 TEST PASSED: Unicode document name deletion works");
+}
+
+/// OODA-28: Test double-delete (idempotency check).
+///
+/// Deleting a document twice should:
+/// - First delete: 200 OK
+/// - Second delete: 404 NOT_FOUND (document already gone)
+#[tokio::test]
+async fn test_delete_document_double_delete() {
+    let app = create_test_app();
+    
+    // Upload a document
+    let (upload_status, body) = upload_document_http(
+        &app,
+        "Double Delete Test",
+        "This document will be deleted twice to test idempotency."
+    ).await;
+    assert_eq!(upload_status, StatusCode::CREATED);
+    
+    let doc_id = body["document_id"].as_str().unwrap();
+    
+    // First delete - should succeed
+    let (delete1_status, _) = delete_document_http(&app, doc_id).await;
+    assert_eq!(delete1_status, StatusCode::OK);
+    
+    // Second delete - should return NOT_FOUND
+    let (delete2_status, _) = delete_document_http(&app, doc_id).await;
+    assert_eq!(delete2_status, StatusCode::NOT_FOUND);
+    
+    println!("✅ OODA-28 TEST PASSED: Double-delete returns 404 on second attempt");
+}
+
+/// OODA-28: Test delete-then-reupload with same document name.
+///
+/// After deleting a document, uploading a new document with the same name
+/// should create a fresh document with a new ID.
+#[tokio::test]
+async fn test_delete_then_reupload_same_name() {
+    let app = create_test_app();
+    
+    let doc_name = "Reupload Test Document";
+    
+    // Upload version 1
+    let (upload1_status, body1) = upload_document_http(
+        &app,
+        doc_name,
+        "Alice works at CompanyAlpha. Bob is her colleague."
+    ).await;
+    assert_eq!(upload1_status, StatusCode::CREATED);
+    let doc1_id = body1["document_id"].as_str().unwrap().to_string();
+    
+    // Delete version 1
+    let (delete_status, _) = delete_document_http(&app, &doc1_id).await;
+    assert_eq!(delete_status, StatusCode::OK);
+    
+    // Upload version 2 with SAME name but DIFFERENT content
+    let (upload2_status, body2) = upload_document_http(
+        &app,
+        doc_name,
+        "Charlie founded CompanyBeta. Diana is the CTO."
+    ).await;
+    assert_eq!(upload2_status, StatusCode::CREATED);
+    let doc2_id = body2["document_id"].as_str().unwrap().to_string();
+    
+    // Verify we got a NEW document ID
+    assert_ne!(doc1_id, doc2_id, "Reupload should create new document ID");
+    
+    // Verify old document is gone
+    let (get_old_status, _) = delete_document_http(&app, &doc1_id).await;
+    assert_eq!(get_old_status, StatusCode::NOT_FOUND);
+    
+    // Verify new document exists (can be deleted)
+    let (delete_new_status, _) = delete_document_http(&app, &doc2_id).await;
+    assert_eq!(delete_new_status, StatusCode::OK);
+    
+    println!("✅ OODA-28 TEST PASSED: Delete-then-reupload creates fresh state");
+}
+
