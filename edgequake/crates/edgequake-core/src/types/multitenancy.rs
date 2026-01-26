@@ -1086,6 +1086,75 @@ pub struct WorkspaceStats {
     pub storage_bytes: usize,
 }
 
+/// Trigger type for metrics recording.
+///
+/// WHY enum: Type-safe representation of when metrics were recorded.
+/// OODA-20: Aligns with migration 016 trigger_type column.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MetricsTriggerType {
+    /// Recorded automatically after document add/delete events.
+    Event,
+    /// Recorded by background scheduled task (hourly).
+    Scheduled,
+    /// Recorded by admin request.
+    Manual,
+}
+
+impl MetricsTriggerType {
+    /// Convert to database string representation.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Event => "event",
+            Self::Scheduled => "scheduled",
+            Self::Manual => "manual",
+        }
+    }
+
+    /// Parse from database string representation.
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "event" => Some(Self::Event),
+            "scheduled" => Some(Self::Scheduled),
+            "manual" => Some(Self::Manual),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for MetricsTriggerType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+/// A recorded metrics snapshot for time-series analysis.
+///
+/// WHY snapshot: Enables trend analysis, debugging, and historical reporting.
+/// OODA-20: Corresponds to workspace_metrics_history table from migration 016.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MetricsSnapshot {
+    /// Unique snapshot ID.
+    pub id: Uuid,
+    /// Workspace this snapshot belongs to.
+    pub workspace_id: Uuid,
+    /// When the snapshot was recorded.
+    pub recorded_at: chrono::DateTime<chrono::Utc>,
+    /// What triggered the recording.
+    pub trigger_type: MetricsTriggerType,
+    /// Number of documents at recording time.
+    pub document_count: i64,
+    /// Number of chunks at recording time.
+    pub chunk_count: i64,
+    /// Number of entities at recording time.
+    pub entity_count: i64,
+    /// Number of relationships at recording time.
+    pub relationship_count: i64,
+    /// Number of embeddings at recording time.
+    pub embedding_count: i64,
+    /// Storage bytes at recording time.
+    pub storage_bytes: i64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

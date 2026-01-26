@@ -31,8 +31,8 @@ use uuid::Uuid;
 
 use crate::error::{Error, Result};
 use crate::types::{
-    CreateWorkspaceRequest, Membership, MembershipRole, Tenant, TenantContext, TenantPlan,
-    UpdateWorkspaceRequest, Workspace, WorkspaceStats,
+    CreateWorkspaceRequest, Membership, MembershipRole, MetricsSnapshot, MetricsTriggerType,
+    Tenant, TenantContext, TenantPlan, UpdateWorkspaceRequest, Workspace, WorkspaceStats,
 };
 
 /// Service trait for workspace management.
@@ -92,6 +92,20 @@ pub trait WorkspaceService: Send + Sync {
 
     /// Get workspace statistics.
     async fn get_workspace_stats(&self, workspace_id: Uuid) -> Result<WorkspaceStats>;
+
+    // ============ Metrics Operations ============
+
+    /// Record a metrics snapshot for time-series analysis.
+    ///
+    /// This captures the current workspace stats and stores them in
+    /// workspace_metrics_history for trend analysis and debugging.
+    ///
+    /// OODA-20: Implements metrics recording per mission requirement.
+    async fn record_metrics_snapshot(
+        &self,
+        workspace_id: Uuid,
+        trigger_type: MetricsTriggerType,
+    ) -> Result<MetricsSnapshot>;
 
     // ============ Membership Operations ============
 
@@ -481,6 +495,28 @@ impl WorkspaceService for InMemoryWorkspaceService {
             entity_count: 0,
             relationship_count: 0,
             chunk_count: 0,
+            embedding_count: 0,
+            storage_bytes: 0,
+        })
+    }
+
+    async fn record_metrics_snapshot(
+        &self,
+        workspace_id: Uuid,
+        trigger_type: MetricsTriggerType,
+    ) -> Result<MetricsSnapshot> {
+        // WHY stub: In-memory implementation doesn't persist history.
+        // Returns a snapshot with current (zero) stats for testing compatibility.
+        // OODA-20: Real implementation is in PostgresWorkspaceService.
+        Ok(MetricsSnapshot {
+            id: Uuid::new_v4(),
+            workspace_id,
+            recorded_at: chrono::Utc::now(),
+            trigger_type,
+            document_count: 0,
+            chunk_count: 0,
+            entity_count: 0,
+            relationship_count: 0,
             embedding_count: 0,
             storage_bytes: 0,
         })

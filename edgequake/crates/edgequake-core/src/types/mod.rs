@@ -26,6 +26,8 @@ pub use multitenancy::{
     CreateWorkspaceRequest,
     Membership,
     MembershipRole,
+    MetricsSnapshot,
+    MetricsTriggerType,
     Tenant,
     TenantContext,
     TenantPlan,
