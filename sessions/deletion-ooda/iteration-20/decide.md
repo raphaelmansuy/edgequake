@@ -3,6 +3,7 @@
 ## Decision
 
 Implement the `record_metrics_snapshot()` function with:
+
 1. New types in multitenancy.rs
 2. Trait extension in workspace_service.rs
 3. PostgreSQL implementation in workspace_service_impl.rs

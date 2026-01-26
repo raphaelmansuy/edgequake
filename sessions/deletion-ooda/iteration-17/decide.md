@@ -11,6 +11,7 @@ Create PostgreSQL migration for workspace metrics history table.
 Location: `edgequake/crates/edgequake-storage/migrations/016_workspace_metrics_history.sql`
 
 Contents:
+
 - Create `workspace_metrics_history` table
 - Create indexes for efficient queries
 - Add trigger_type column to distinguish event vs scheduled samples
@@ -18,6 +19,7 @@ Contents:
 ### Step 2: Add Metrics Recording Function
 
 In `workspace_service_impl.rs`:
+
 ```rust
 async fn record_metrics_snapshot(
     &self,
@@ -29,6 +31,7 @@ async fn record_metrics_snapshot(
 ### Step 3: Integrate with Document Handlers
 
 In document add/delete handlers:
+
 - After successful operation, call record_metrics_snapshot
 - Pass trigger_type = "event"
 

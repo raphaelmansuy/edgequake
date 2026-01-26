@@ -27,6 +27,7 @@ Cons: Requires deployment config, doesn't work standalone
 ## Option 3: Add Manual Trigger Endpoint First
 
 Create `POST /api/v1/workspaces/{id}/metrics-snapshot` that can be:
+
 - Called manually by users
 - Called by external cron
 - Called by internal scheduler later
@@ -37,6 +38,7 @@ Cons: No automatic scheduling yet
 ## Decision: Option 3 (Manual Trigger Endpoint)
 
 This provides:
+
 1. Immediate debugging value
 2. Test coverage foundation
 3. Building block for future scheduler

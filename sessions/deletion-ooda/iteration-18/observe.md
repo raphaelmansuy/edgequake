@@ -3,6 +3,7 @@
 ## Mission Requirement
 
 From specs/033-study-delete-document/003-study-document.md:
+
 > "Impact of reprocessing a document must be fully studied, and handled correctly."
 > "What happens when reprocessing a document that was partially processed, failed processing, or is in the middle of processing?"
 > "Ensure no dangling data remains, no shared data is deleted."
@@ -56,6 +57,7 @@ From specs/033-study-delete-document/003-study-document.md:
 ### Location: handlers/documents.rs
 
 The reprocess endpoint likely:
+
 1. Checks document status
 2. Cleans up old chunks/entities/embeddings
 3. Re-runs pipeline

@@ -18,6 +18,7 @@ We have functional tests but no performance benchmarks. Need to measure:
 ## Approach
 
 Use simple timing tests to establish baseline:
+
 1. Small document (10 entities)
 2. Medium document (100 entities)
 3. Document with many relationships

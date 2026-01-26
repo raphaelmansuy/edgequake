@@ -21,6 +21,7 @@ pub struct SchemaHealth {
 **Lines**: 34-39
 
 Added optional `schema` field to HealthResponse:
+
 ```rust
 #[serde(skip_serializing_if = "Option::is_none")]
 pub schema: Option<SchemaHealth>,
@@ -34,7 +35,7 @@ pub schema: Option<SchemaHealth>,
 Added `get_schema_health()` function that queries `_sqlx_migrations` table:
 
 ```rust
-SELECT 
+SELECT
     COUNT(*) FILTER (WHERE success = true) as applied_count,
     MAX(version) FILTER (WHERE success = true) as latest_version,
     MAX(installed_on) FILTER (WHERE success = true) as last_applied_at

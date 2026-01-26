@@ -47,10 +47,7 @@ async fn is_ollama_available() -> bool {
         .unwrap();
 
     // Check if Ollama is reachable
-    let response = client
-        .get(format!("{}/api/tags", OLLAMA_HOST))
-        .send()
-        .await;
+    let response = client.get(format!("{}/api/tags", OLLAMA_HOST)).send().await;
 
     match response {
         Ok(resp) if resp.status().is_success() => {
@@ -127,11 +124,7 @@ async fn extract_json(response: axum::response::Response) -> Value {
 }
 
 /// Upload a document via HTTP with extended timeout for Ollama.
-async fn upload_document(
-    app: &axum::Router,
-    title: &str,
-    content: &str,
-) -> (StatusCode, Value) {
+async fn upload_document(app: &axum::Router, title: &str, content: &str) -> (StatusCode, Value) {
     let request = json!({
         "content": content,
         "title": title,
@@ -176,11 +169,7 @@ async fn delete_document(app: &axum::Router, document_id: &str) -> (StatusCode, 
 }
 
 /// Query the knowledge graph via HTTP.
-async fn query_kg(
-    app: &axum::Router,
-    query: &str,
-    mode: &str,
-) -> (StatusCode, Value) {
+async fn query_kg(app: &axum::Router, query: &str, mode: &str) -> (StatusCode, Value) {
     let request = json!({
         "query": query,
         "mode": mode,
@@ -344,12 +333,8 @@ async fn test_mock_query_modes() {
     assert_eq!(query_status, StatusCode::OK);
 
     // Test hybrid mode
-    let (query_status, query_resp) = query_kg(
-        &app,
-        "Explain transformer architecture",
-        "hybrid",
-    )
-    .await;
+    let (query_status, query_resp) =
+        query_kg(&app, "Explain transformer architecture", "hybrid").await;
 
     println!("Hybrid query response: {:?}", query_resp);
     assert_eq!(query_status, StatusCode::OK);
@@ -456,12 +441,8 @@ async fn test_mock_query_after_deletion() {
     assert_eq!(delete_status, StatusCode::OK);
 
     // Query should not error even with empty knowledge graph
-    let (query_status, query_resp) = query_kg(
-        &app,
-        "Tell me about quantum computing",
-        "hybrid",
-    )
-    .await;
+    let (query_status, query_resp) =
+        query_kg(&app, "Tell me about quantum computing", "hybrid").await;
 
     println!("Query after deletion response: {:?}", query_resp);
 
@@ -481,9 +462,18 @@ async fn test_mock_multi_document_stress() {
     let (app, state) = create_test_app_with_state();
 
     let documents = vec![
-        ("Doc 1", "Apple Inc was founded by Steve Jobs. Tim Cook is the current CEO."),
-        ("Doc 2", "Google was founded by Larry Page and Sergey Brin. Sundar Pichai is CEO."),
-        ("Doc 3", "Microsoft was founded by Bill Gates. Satya Nadella is the current CEO."),
+        (
+            "Doc 1",
+            "Apple Inc was founded by Steve Jobs. Tim Cook is the current CEO.",
+        ),
+        (
+            "Doc 2",
+            "Google was founded by Larry Page and Sergey Brin. Sundar Pichai is CEO.",
+        ),
+        (
+            "Doc 3",
+            "Microsoft was founded by Bill Gates. Satya Nadella is the current CEO.",
+        ),
     ];
 
     let mut doc_ids = Vec::new();

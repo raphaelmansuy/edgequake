@@ -3,12 +3,15 @@
 ## Implementation
 
 ### Created Test File
+
 Location: `edgequake/crates/edgequake-api/tests/e2e_ollama_integration.rs`
 
 ### Test Structure
 
 #### Always-Run Tests (6)
+
 These use the mock provider and run in CI:
+
 1. `test_mock_document_upload_baseline` - Basic upload/delete
 2. `test_mock_entity_extraction` - Entity extraction verification
 3. `test_mock_query_modes` - LLM-only and hybrid modes
@@ -17,10 +20,13 @@ These use the mock provider and run in CI:
 6. `test_mock_multi_document_stress` - Multiple documents
 
 #### Ignored Tests (1)
+
 Requires Ollama running locally:
+
 1. `test_ollama_availability` - Checks Ollama + required models
 
 ### Helper Functions
+
 - `is_ollama_available()` - Checks Ollama reachability and model availability
 - `create_test_app()` - Creates app with mock provider
 - `create_test_app_with_state()` - Creates app and returns state for inspection
@@ -42,6 +48,7 @@ test result: ok. 6 passed; 0 failed; 1 ignored
 ```
 
 ### Ollama Availability Test (when run with --ignored)
+
 ```
 ✅ Ollama is available with required models
 test test_ollama_availability ... ok
@@ -66,6 +73,7 @@ Additional Ollama-specific tests can be added as needed with `#[ignore]` attribu
 ## Next Iteration
 
 OODA-17: Consider adding:
+
 - Historical metrics tracking (time series for monitoring)
 - PostgreSQL E2E tests with Ollama
 - Large document performance tests

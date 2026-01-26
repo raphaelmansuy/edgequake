@@ -4,15 +4,16 @@
 
 ### Existing Tests (VERIFIED)
 
-| Test | Coverage | Status |
-|------|----------|--------|
-| `test_reprocess_cleans_partial_graph_data` | Failed doc cleanup | ✅ Covered |
-| `test_reprocess_preserves_shared_entities` | Shared entity safety | ✅ Covered |
-| `test_recover_stuck_cleans_partial_graph_data` | Stuck doc cleanup | ✅ Covered |
+| Test                                           | Coverage             | Status     |
+| ---------------------------------------------- | -------------------- | ---------- |
+| `test_reprocess_cleans_partial_graph_data`     | Failed doc cleanup   | ✅ Covered |
+| `test_reprocess_preserves_shared_entities`     | Shared entity safety | ✅ Covered |
+| `test_recover_stuck_cleans_partial_graph_data` | Stuck doc cleanup    | ✅ Covered |
 
 ### Implementation Analysis
 
 The `reprocess_failed` handler (documents.rs:3095):
+
 1. Finds documents with `status: "failed"`
 2. Calls `cleanup_document_graph_data()` BEFORE requeueing
 3. Updates status to "pending"
@@ -23,19 +24,27 @@ This is correct behavior per GAP-08 requirements.
 ## Identified Gaps
 
 ### Gap A: Idempotent Reprocess Test
+
 No test verifies that reprocessing identical content produces same result.
+
 - WHY MATTERS: Ensures deterministic behavior
 
 ### Gap B: Concurrent Reprocess Test
+
 No test for two simultaneous reprocess requests.
+
 - WHY MATTERS: Race conditions could corrupt source_ids
 
 ### Gap C: Reprocess with Changed Content
+
 No test for reprocessing after content update.
+
 - WHY MATTERS: Old entities must be removed, new ones created
 
 ### Gap D: PROCESSING → Reprocess Rejection
+
 No test verifying reprocess request is rejected for PROCESSING documents.
+
 - WHY MATTERS: Could cause data corruption
 
 ## First Principles Assessment

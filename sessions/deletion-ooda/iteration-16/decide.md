@@ -11,6 +11,7 @@ Create comprehensive E2E tests for document lifecycle with Ollama provider.
 Location: `edgequake/crates/edgequake-api/tests/ollama_test_helpers.rs`
 
 Functions:
+
 - `is_ollama_available() -> bool` - Check if Ollama is reachable
 - `create_ollama_app_state() -> AppState` - Create state with real Ollama
 - `upload_document_ollama(app, title, content) -> (StatusCode, Value)` - Upload with timeout

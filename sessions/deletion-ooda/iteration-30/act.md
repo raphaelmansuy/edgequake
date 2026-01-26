@@ -4,10 +4,10 @@
 
 ### Added 2 Performance Tests
 
-| Test | Description |
-|------|-------------|
-| `test_deletion_performance_baseline` | Single document deletion timing |
-| `test_deletion_performance_sequential` | 5 sequential deletions timing |
+| Test                                   | Description                     |
+| -------------------------------------- | ------------------------------- |
+| `test_deletion_performance_baseline`   | Single document deletion timing |
+| `test_deletion_performance_sequential` | 5 sequential deletions timing   |
 
 ### Performance Assertions
 

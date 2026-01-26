@@ -5,6 +5,7 @@
 ### Implementation Plan
 
 1. **Create StatsRow struct for query result**
+
    ```rust
    #[derive(sqlx::FromRow)]
    struct StatsRow {
@@ -28,11 +29,11 @@
 ### Acceptance Criteria
 
 - [ ] PostgreSQL implementation returns real counts
-- [ ] document_count matches COUNT(*) FROM documents
-- [ ] entity_count matches COUNT(*) FROM entities
-- [ ] relationship_count matches COUNT(*) FROM relationships
-- [ ] chunk_count matches COUNT(*) FROM chunks
-- [ ] embedding_count matches COUNT(*) FROM chunks WHERE embedding IS NOT NULL
+- [ ] document_count matches COUNT(\*) FROM documents
+- [ ] entity_count matches COUNT(\*) FROM entities
+- [ ] relationship_count matches COUNT(\*) FROM relationships
+- [ ] chunk_count matches COUNT(\*) FROM chunks
+- [ ] embedding_count matches COUNT(\*) FROM chunks WHERE embedding IS NOT NULL
 - [ ] storage_bytes matches SUM(file_size_bytes)
 - [ ] All existing tests still pass
 - [ ] In-memory implementation unchanged (still returns zeros)

@@ -5,6 +5,7 @@
 ## Focus Area: Real-time Workspace Stats Implementation
 
 The mission requires:
+
 > "Ensure metric likes number of Entities, Relationships, Embeddings per document, Relations, Entity Types are tracked"
 
 Current state: WorkspaceStats returns all zeros (stub implementation from OODA-12).
@@ -13,11 +14,11 @@ Current state: WorkspaceStats returns all zeros (stub implementation from OODA-1
 
 ### Tables for Counting
 
-| Table | Column | Purpose |
-|-------|--------|---------|
-| `documents` | `workspace_id` | Count documents per workspace |
-| `chunks` | `workspace_id` | Count chunks per workspace |
-| `entities` | `workspace_id` | Count entities per workspace |
+| Table           | Column         | Purpose                           |
+| --------------- | -------------- | --------------------------------- |
+| `documents`     | `workspace_id` | Count documents per workspace     |
+| `chunks`        | `workspace_id` | Count chunks per workspace        |
+| `entities`      | `workspace_id` | Count entities per workspace      |
 | `relationships` | `workspace_id` | Count relationships per workspace |
 
 ### SQL Queries for Stats
@@ -26,7 +27,7 @@ Current state: WorkspaceStats returns all zeros (stub implementation from OODA-1
 -- Document count
 SELECT COUNT(*) FROM documents WHERE workspace_id = $1;
 
--- Chunk count  
+-- Chunk count
 SELECT COUNT(*) FROM chunks WHERE workspace_id = $1;
 
 -- Entity count
@@ -51,7 +52,7 @@ SELECT COALESCE(SUM(file_size_bytes), 0) FROM documents WHERE workspace_id = $1;
 async fn get_workspace_stats(&self, workspace_id: Uuid) -> Result<WorkspaceStats> {
     // Verify workspace exists
     let _ = self.get_workspace(workspace_id).await?...;
-    
+
     // STUB: All zeros
     Ok(WorkspaceStats {
         workspace_id,

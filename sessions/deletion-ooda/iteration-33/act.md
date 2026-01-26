@@ -14,6 +14,7 @@
 ### Updated Conclusion Section
 
 Added iterations 29-32 to summary:
+
 - 29: Study summary update
 - 30: Performance baseline tests
 - 31: Bulk deletion tests
@@ -21,11 +22,11 @@ Added iterations 29-32 to summary:
 
 ### Current Test Breakdown
 
-| Test File | Passing | Ignored |
-|-----------|---------|---------|
-| e2e_document_deletion.rs | 40 | 0 |
-| e2e_metrics_history.rs | 8 | 0 |
-| e2e_ollama_integration.rs | 6 | 1 |
-| **Total** | **54** | 1 |
+| Test File                 | Passing | Ignored |
+| ------------------------- | ------- | ------- |
+| e2e_document_deletion.rs  | 40      | 0       |
+| e2e_metrics_history.rs    | 8       | 0       |
+| e2e_ollama_integration.rs | 6       | 1       |
+| **Total**                 | **54**  | 1       |
 
 ## Commit: docs(summary): update test counts to iteration 32

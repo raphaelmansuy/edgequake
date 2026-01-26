@@ -3,6 +3,7 @@
 ## Implementation
 
 ### Created Migration File
+
 Location: `edgequake/migrations/016_workspace_metrics_history.sql`
 
 ### Table Schema
@@ -19,20 +20,20 @@ CREATE TABLE workspace_metrics_history (
     relationship_count BIGINT NOT NULL DEFAULT 0,
     embedding_count BIGINT NOT NULL DEFAULT 0,
     storage_bytes BIGINT NOT NULL DEFAULT 0,
-    CONSTRAINT fk_metrics_workspace 
-        FOREIGN KEY (workspace_id) 
-        REFERENCES workspaces(id) 
+    CONSTRAINT fk_metrics_workspace
+        FOREIGN KEY (workspace_id)
+        REFERENCES workspaces(id)
         ON DELETE CASCADE
 );
 ```
 
 ### Indexes Created
 
-| Index | Purpose |
-|-------|---------|
+| Index                        | Purpose                                      |
+| ---------------------------- | -------------------------------------------- |
 | `idx_metrics_workspace_time` | Time-series queries (workspace + time range) |
-| `idx_metrics_recorded_at` | Retention policy cleanup |
-| `idx_metrics_trigger_type` | Filter by sample type |
+| `idx_metrics_recorded_at`    | Retention policy cleanup                     |
+| `idx_metrics_trigger_type`   | Filter by sample type                        |
 
 ### Design Decisions
 

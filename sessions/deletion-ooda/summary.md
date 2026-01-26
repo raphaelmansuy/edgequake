@@ -1,57 +1,59 @@
 # OODA Deletion Study - Summary
 
 ## Mission Reference
+
 Spec: `specs/033-study-delete-document/003-study-document.md`
 
 ## Progress Tracker
 
-| Iteration | Focus | Status | Commit |
-|-----------|-------|--------|--------|
-| 01-08 | Foundation (pre-session) | ✅ Complete | Various |
-| 09-11 | Document deletion tests | ✅ Complete | Various |
-| 12 | embedding_count in WorkspaceStats | ✅ Complete | abd984ea |
-| 13 | Real-time PostgreSQL stats | ✅ Complete | 85942c1a |
-| 14 | Schema version in health endpoint | ✅ Complete | e09ef8c6 |
-| 15 | Circular reference safety tests | ✅ Complete | 083470e3 |
-| 16 | Ollama E2E test infrastructure | ✅ Complete | 6531e418 |
-| 17 | Historical metrics schema | ✅ Complete | 0ff99852 |
-| 18 | Reprocessing edge case tests | ✅ Complete | cf283cfb |
-| 19 | Documentation consolidation | ✅ Complete | af58b045 |
-| 20 | record_metrics_snapshot function | ✅ Complete | fa76e426 |
-| 21 | Metrics integration in handlers | ✅ Complete | 9175b13c |
-| 22 | Metrics history API endpoint | ✅ Complete | 5b4d8370 |
-| 23 | Metrics history E2E tests | ✅ Complete | 6d136760 |
-| 24 | Edge case tests (no-entity, rapid ops) | ✅ Complete | c47f213e |
-| 25 | Metrics infrastructure documentation | ✅ Complete | 0852b92d |
-| 26 | Manual metrics snapshot trigger | ✅ Complete | cdf992c6 |
-| 27 | Metrics docs update (manual trigger) | ✅ Complete | c7739532 |
-| 28 | Edge case tests (unicode, idempotent) | ✅ Complete | 753a9057 |
-| 29 | Study summary update (to iteration 28) | ✅ Complete | c42e354a |
-| 30 | Performance baseline tests | ✅ Complete | 3b73c29b |
-| 31 | Bulk deletion tests | ✅ Complete | 9ec950cc |
-| 32 | Response verification tests | ✅ Complete | a1a8493c |
-| 33 | Test count synchronization | ✅ Complete | fe0078ae |
-| 34 | Content edge case tests | ✅ Complete | 7dc8b86b |
-| 35 | Advanced concurrency tests | ✅ Complete | e62a20d2 |
-| 36 | Error boundary condition tests | ✅ Complete | 3f8876b0 |
-| 37 | Workspace isolation tests | ✅ Complete | 1056afb9 |
-| 38 | Study summary update (iteration 37) | ✅ Complete | 90ecae78 |
-| 39 | Lifecycle status tests | ✅ Complete | 3d13142f |
-| 40 | Content hash deduplication tests | ✅ Complete | 58e0d963 |
-| 41 | Metadata handling tests | ✅ Complete | 41612810 |
-| 42 | Processing mode tests | ✅ Complete | 8ab159a0 |
-| 43 | Sequential stress tests | ✅ Complete | ea974c5c |
-| 44 | Title edge case tests | ✅ Complete | b83455c5 |
-| 45 | Tenant context tests | ✅ Complete | b9d70070 |
-| 46 | Track ID tests | ✅ Complete | 8da17ac8 |
-| 47 | HTTP method verification tests | ✅ Complete | f78b144e |
-| 48 | Response Content-Type tests | ✅ Complete | f78b144e |
-| 49 | Edge timing tests | ✅ Complete | f78b144e |
-| 50 | Final comprehensive cycle test | ✅ Complete | f78b144e |
+| Iteration | Focus                                  | Status      | Commit   |
+| --------- | -------------------------------------- | ----------- | -------- |
+| 01-08     | Foundation (pre-session)               | ✅ Complete | Various  |
+| 09-11     | Document deletion tests                | ✅ Complete | Various  |
+| 12        | embedding_count in WorkspaceStats      | ✅ Complete | abd984ea |
+| 13        | Real-time PostgreSQL stats             | ✅ Complete | 85942c1a |
+| 14        | Schema version in health endpoint      | ✅ Complete | e09ef8c6 |
+| 15        | Circular reference safety tests        | ✅ Complete | 083470e3 |
+| 16        | Ollama E2E test infrastructure         | ✅ Complete | 6531e418 |
+| 17        | Historical metrics schema              | ✅ Complete | 0ff99852 |
+| 18        | Reprocessing edge case tests           | ✅ Complete | cf283cfb |
+| 19        | Documentation consolidation            | ✅ Complete | af58b045 |
+| 20        | record_metrics_snapshot function       | ✅ Complete | fa76e426 |
+| 21        | Metrics integration in handlers        | ✅ Complete | 9175b13c |
+| 22        | Metrics history API endpoint           | ✅ Complete | 5b4d8370 |
+| 23        | Metrics history E2E tests              | ✅ Complete | 6d136760 |
+| 24        | Edge case tests (no-entity, rapid ops) | ✅ Complete | c47f213e |
+| 25        | Metrics infrastructure documentation   | ✅ Complete | 0852b92d |
+| 26        | Manual metrics snapshot trigger        | ✅ Complete | cdf992c6 |
+| 27        | Metrics docs update (manual trigger)   | ✅ Complete | c7739532 |
+| 28        | Edge case tests (unicode, idempotent)  | ✅ Complete | 753a9057 |
+| 29        | Study summary update (to iteration 28) | ✅ Complete | c42e354a |
+| 30        | Performance baseline tests             | ✅ Complete | 3b73c29b |
+| 31        | Bulk deletion tests                    | ✅ Complete | 9ec950cc |
+| 32        | Response verification tests            | ✅ Complete | a1a8493c |
+| 33        | Test count synchronization             | ✅ Complete | fe0078ae |
+| 34        | Content edge case tests                | ✅ Complete | 7dc8b86b |
+| 35        | Advanced concurrency tests             | ✅ Complete | e62a20d2 |
+| 36        | Error boundary condition tests         | ✅ Complete | 3f8876b0 |
+| 37        | Workspace isolation tests              | ✅ Complete | 1056afb9 |
+| 38        | Study summary update (iteration 37)    | ✅ Complete | 90ecae78 |
+| 39        | Lifecycle status tests                 | ✅ Complete | 3d13142f |
+| 40        | Content hash deduplication tests       | ✅ Complete | 58e0d963 |
+| 41        | Metadata handling tests                | ✅ Complete | 41612810 |
+| 42        | Processing mode tests                  | ✅ Complete | 8ab159a0 |
+| 43        | Sequential stress tests                | ✅ Complete | ea974c5c |
+| 44        | Title edge case tests                  | ✅ Complete | b83455c5 |
+| 45        | Tenant context tests                   | ✅ Complete | b9d70070 |
+| 46        | Track ID tests                         | ✅ Complete | 8da17ac8 |
+| 47        | HTTP method verification tests         | ✅ Complete | f78b144e |
+| 48        | Response Content-Type tests            | ✅ Complete | f78b144e |
+| 49        | Edge timing tests                      | ✅ Complete | f78b144e |
+| 50        | Final comprehensive cycle test         | ✅ Complete | f78b144e |
 
 ## 🎉 MISSION COMPLETE: 50 OODA ITERATIONS ACHIEVED!
 
 **Final Test Counts:**
+
 - Document deletion tests: 73
 - Metrics history tests: 8
 - Ollama integration tests: 6 (1 ignored)
@@ -60,107 +62,121 @@ Spec: `specs/033-study-delete-document/003-study-document.md`
 ## Key Accomplishments
 
 ### Test Coverage (OODA-09 to OODA-16)
+
 - **25 document deletion tests** in `e2e_document_deletion.rs`
 - **7 Ollama integration tests** in `e2e_ollama_integration.rs`
 - All tests pass with mock provider
 
 ### Metrics Enhancements (OODA-12/13)
+
 - Added `embedding_count` to `WorkspaceStats`
 - Implemented real-time SQL counting for PostgreSQL:
   - document_count, chunk_count, entity_count
   - relationship_count, embedding_count, storage_bytes
 
 ### Schema Verification (OODA-14)
+
 - Added `SchemaHealth` to health endpoint
 - Queries `_sqlx_migrations` table for version info
 - Returns latest version, count, last applied timestamp
 
 ### Circular Safety (OODA-15)
+
 - Added bidirectional relationship test
 - Added self-referential entity test
 - Added cyclic graph preservation test
 - Verified no infinite loops in deletion
 
 ### Historical Metrics (OODA-17)
+
 - Created `016_workspace_metrics_history.sql` migration
 - Schema supports time-series metrics storage
 - Indexes optimized for trend analysis queries
 
 ## Mission Requirements Status
 
-| Requirement | Status |
-|-------------|--------|
-| Entity/Relationship/Embedding counts | ✅ Done (OODA-12/13) |
-| Schema version verification | ✅ Done (OODA-14) |
-| Circular reference safety | ✅ Done (OODA-15) |
-| Ollama E2E tests | ✅ Done (OODA-16) |
-| Historical metrics tracking | ✅ Schema ready (OODA-17) |
-| PostgreSQL E2E testing | ✅ Infrastructure ready |
-| 50 iterations minimum | ✅ **50/50 complete** |
+| Requirement                          | Status                    |
+| ------------------------------------ | ------------------------- |
+| Entity/Relationship/Embedding counts | ✅ Done (OODA-12/13)      |
+| Schema version verification          | ✅ Done (OODA-14)         |
+| Circular reference safety            | ✅ Done (OODA-15)         |
+| Ollama E2E tests                     | ✅ Done (OODA-16)         |
+| Historical metrics tracking          | ✅ Schema ready (OODA-17) |
+| PostgreSQL E2E testing               | ✅ Infrastructure ready   |
+| 50 iterations minimum                | ✅ **50/50 complete**     |
 
 ## Test Categories Covered
 
-| Category | Tests | OODA Iterations |
-|----------|-------|-----------------|
-| Basic CRUD | 12 | 01-08 |
-| Cascade deletion | 8 | 09-11 |
-| Circular references | 3 | 15 |
-| Metrics infrastructure | 8 | 17-27 |
-| Edge cases (content) | 6 | 28, 34 |
-| Performance/stress | 8 | 30-31, 43 |
-| Concurrency | 5 | 35 |
-| Error boundaries | 4 | 36 |
-| Workspace isolation | 3 | 37 |
-| Lifecycle status | 2 | 39 |
-| Hash deduplication | 2 | 40 |
-| Metadata handling | 2 | 41 |
-| Processing modes | 2 | 42 |
-| Title edge cases | 2 | 44 |
-| Tenant context | 2 | 45 |
-| Track ID | 2 | 46 |
-| HTTP methods | 2 | 47 |
-| Response types | 2 | 48 |
-| Timing tests | 2 | 49 |
-| Comprehensive cycle | 1 | 50 |
+| Category               | Tests | OODA Iterations |
+| ---------------------- | ----- | --------------- |
+| Basic CRUD             | 12    | 01-08           |
+| Cascade deletion       | 8     | 09-11           |
+| Circular references    | 3     | 15              |
+| Metrics infrastructure | 8     | 17-27           |
+| Edge cases (content)   | 6     | 28, 34          |
+| Performance/stress     | 8     | 30-31, 43       |
+| Concurrency            | 5     | 35              |
+| Error boundaries       | 4     | 36              |
+| Workspace isolation    | 3     | 37              |
+| Lifecycle status       | 2     | 39              |
+| Hash deduplication     | 2     | 40              |
+| Metadata handling      | 2     | 41              |
+| Processing modes       | 2     | 42              |
+| Title edge cases       | 2     | 44              |
+| Tenant context         | 2     | 45              |
+| Track ID               | 2     | 46              |
+| HTTP methods           | 2     | 47              |
+| Response types         | 2     | 48              |
+| Timing tests           | 2     | 49              |
+| Comprehensive cycle    | 1     | 50              |
 
 ## Files Modified
 
 ### Tests
+
 - `edgequake/crates/edgequake-api/tests/e2e_document_deletion.rs` (25 tests)
 - `edgequake/crates/edgequake-api/tests/e2e_ollama_integration.rs` (7 tests)
 
 ### Core Types
+
 - `edgequake/crates/edgequake-core/src/types/multitenancy.rs` (WorkspaceStats)
 - `edgequake/crates/edgequake-api/src/handlers/workspaces_types.rs` (API DTOs)
 
 ### Services
+
 - `edgequake/crates/edgequake-core/src/workspace_service_impl.rs` (PostgreSQL stats)
 - `edgequake/crates/edgequake-api/src/handlers/health.rs` (schema health)
 
 ### Migrations
+
 - `edgequake/migrations/016_workspace_metrics_history.sql` (historical metrics)
 
 ## Next Iterations (18-50+)
 
 ### Phase 1: Metrics Recording (OODA-18/19)
+
 - [ ] Add `record_metrics_snapshot()` to WorkspaceService
 - [ ] Integrate with document add/delete handlers
 - [ ] Add background hourly snapshot task
 
 ### Phase 2: API & UI (OODA-20+)
+
 - [ ] Add `/workspaces/{id}/metrics/history` endpoint
 - [ ] Add WebUI metrics dashboard component
 
 ### Phase 3: PostgreSQL E2E (OODA-25+)
+
 - [ ] Create PostgreSQL-specific deletion tests
 - [ ] Test with real database connections
 
 ### Phase 4: Performance (OODA-30+)
+
 - [ ] Large document tests (100+ entities)
 - [ ] Concurrent deletion stress tests
 - [ ] Query performance benchmarks
 
 ### Phase 5: Documentation (OODA-40+)
+
 - [ ] Update specs/033-study-delete-document/docs/
 - [ ] Create architecture diagrams
 - [ ] Document deletion algorithm in detail

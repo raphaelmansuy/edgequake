@@ -36,10 +36,10 @@ fn create_test_server() -> (Router, String) {
     let state = AppState::test_state();
     let server = Server::new(create_test_config(), state);
     let router = server.build_router();
-    
+
     // Create a test workspace ID (default workspace)
     let workspace_id = Uuid::nil().to_string();
-    
+
     (router, workspace_id)
 }
 
@@ -47,12 +47,15 @@ fn create_test_server() -> (Router, String) {
 #[tokio::test]
 async fn test_metrics_history_empty_for_new_workspace() {
     let (router, workspace_id) = create_test_server();
-    
+
     let response = router
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!("/api/v1/workspaces/{}/metrics-history", workspace_id))
+                .uri(format!(
+                    "/api/v1/workspaces/{}/metrics-history",
+                    workspace_id
+                ))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -60,19 +63,19 @@ async fn test_metrics_history_empty_for_new_workspace() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let body: Value = serde_json::from_slice(&body_bytes).unwrap();
-    
+
     // Verify response structure
     assert!(body.get("workspace_id").is_some());
     assert!(body.get("snapshots").is_some());
     assert!(body.get("count").is_some());
     assert!(body.get("limit").is_some());
     assert!(body.get("offset").is_some());
-    
+
     // In-memory storage returns empty history
     let snapshots = body["snapshots"].as_array().unwrap();
     assert_eq!(snapshots.len(), 0);
@@ -83,7 +86,7 @@ async fn test_metrics_history_empty_for_new_workspace() {
 #[tokio::test]
 async fn test_metrics_history_limit_parameter() {
     let (router, workspace_id) = create_test_server();
-    
+
     let response = router
         .oneshot(
             Request::builder()
@@ -99,12 +102,12 @@ async fn test_metrics_history_limit_parameter() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let body: Value = serde_json::from_slice(&body_bytes).unwrap();
-    
+
     // Verify limit is applied
     assert_eq!(body["limit"].as_u64().unwrap(), 50);
 }
@@ -113,7 +116,7 @@ async fn test_metrics_history_limit_parameter() {
 #[tokio::test]
 async fn test_metrics_history_offset_parameter() {
     let (router, workspace_id) = create_test_server();
-    
+
     let response = router
         .oneshot(
             Request::builder()
@@ -129,12 +132,12 @@ async fn test_metrics_history_offset_parameter() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let body: Value = serde_json::from_slice(&body_bytes).unwrap();
-    
+
     // Verify offset is applied
     assert_eq!(body["offset"].as_u64().unwrap(), 10);
 }
@@ -143,7 +146,7 @@ async fn test_metrics_history_offset_parameter() {
 #[tokio::test]
 async fn test_metrics_history_max_limit_enforced() {
     let (router, workspace_id) = create_test_server();
-    
+
     let response = router
         .oneshot(
             Request::builder()
@@ -159,12 +162,12 @@ async fn test_metrics_history_max_limit_enforced() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let body: Value = serde_json::from_slice(&body_bytes).unwrap();
-    
+
     // Verify limit is capped at 1000
     assert_eq!(body["limit"].as_u64().unwrap(), 1000);
 }
@@ -173,7 +176,7 @@ async fn test_metrics_history_max_limit_enforced() {
 #[tokio::test]
 async fn test_metrics_history_pagination_combined() {
     let (router, workspace_id) = create_test_server();
-    
+
     let response = router
         .oneshot(
             Request::builder()
@@ -189,12 +192,12 @@ async fn test_metrics_history_pagination_combined() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let body: Value = serde_json::from_slice(&body_bytes).unwrap();
-    
+
     // Verify both params applied
     assert_eq!(body["limit"].as_u64().unwrap(), 25);
     assert_eq!(body["offset"].as_u64().unwrap(), 50);
@@ -208,7 +211,7 @@ async fn test_metrics_history_pagination_combined() {
 #[tokio::test]
 async fn test_trigger_metrics_snapshot_creates_snapshot() {
     let (router, workspace_id) = create_test_server();
-    
+
     let response = router
         .oneshot(
             Request::builder()
@@ -227,7 +230,7 @@ async fn test_trigger_metrics_snapshot_creates_snapshot() {
     // but the route is registered and reachable
     // In production with PostgreSQL, this would return 201 CREATED
     let status = response.status();
-    
+
     // Accept either CREATED (PostgreSQL) or INTERNAL_SERVER_ERROR (in-memory stub)
     assert!(
         status == StatusCode::CREATED || status == StatusCode::INTERNAL_SERVER_ERROR,
@@ -240,9 +243,9 @@ async fn test_trigger_metrics_snapshot_creates_snapshot() {
 async fn test_trigger_metrics_snapshot_response_structure() {
     // This test documents expected response format for PostgreSQL
     // With in-memory, it returns an error since the stub isn't fully implemented
-    
+
     let (router, workspace_id) = create_test_server();
-    
+
     let response = router
         .oneshot(
             Request::builder()
@@ -263,14 +266,26 @@ async fn test_trigger_metrics_snapshot_response_structure() {
             .await
             .unwrap();
         let body: Value = serde_json::from_slice(&body_bytes).unwrap();
-        
+
         // Verify response contains expected fields
         assert!(body.get("id").is_some(), "Missing id field");
-        assert!(body.get("recorded_at").is_some(), "Missing recorded_at field");
-        assert!(body.get("trigger_type").is_some(), "Missing trigger_type field");
-        assert!(body.get("document_count").is_some(), "Missing document_count field");
-        assert!(body.get("entity_count").is_some(), "Missing entity_count field");
-        
+        assert!(
+            body.get("recorded_at").is_some(),
+            "Missing recorded_at field"
+        );
+        assert!(
+            body.get("trigger_type").is_some(),
+            "Missing trigger_type field"
+        );
+        assert!(
+            body.get("document_count").is_some(),
+            "Missing document_count field"
+        );
+        assert!(
+            body.get("entity_count").is_some(),
+            "Missing entity_count field"
+        );
+
         // Verify trigger type is "manual"
         assert_eq!(body["trigger_type"].as_str().unwrap(), "manual");
     }
@@ -280,7 +295,7 @@ async fn test_trigger_metrics_snapshot_response_structure() {
 #[tokio::test]
 async fn test_trigger_metrics_snapshot_method_not_allowed() {
     let (router, workspace_id) = create_test_server();
-    
+
     // Try GET method (should fail)
     let response = router
         .oneshot(

@@ -5,6 +5,7 @@
 ### 1. Added Types to multitenancy.rs
 
 **MetricsTriggerType enum**:
+
 ```rust
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MetricsTriggerType {
@@ -15,6 +16,7 @@ pub enum MetricsTriggerType {
 ```
 
 **MetricsSnapshot struct**:
+
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetricsSnapshot {
@@ -42,6 +44,7 @@ Added `MetricsSnapshot` and `MetricsTriggerType` to public exports.
 ### 4. Extended WorkspaceService Trait
 
 Added trait method:
+
 ```rust
 async fn record_metrics_snapshot(
     &self,
@@ -78,5 +81,6 @@ Pending: "feat(metrics): add record_metrics_snapshot function (OODA-20)"
 ## Next Steps
 
 OODA-21: Integrate snapshot recording into document handlers
+
 - Call record_metrics_snapshot after document upload
 - Call record_metrics_snapshot after document deletion

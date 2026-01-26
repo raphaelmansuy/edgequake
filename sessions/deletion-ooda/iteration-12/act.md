@@ -51,7 +51,8 @@ Added `embedding_count: 0` and TODO for OODA-13 to implement real-time counting.
 
 ### 6. Updated Unit Tests
 
-**Files**: 
+**Files**:
+
 - `workspaces.rs` line ~1985-2000
 - `workspaces_types.rs` line ~725-740
 
@@ -69,14 +70,15 @@ cargo test --package edgequake-api
 
 ## Gap Status
 
-| Gap | Status | Note |
-|-----|--------|------|
-| GAP-12 | PARTIAL | Schema updated, implementation returns zeros |
+| Gap          | Status  | Note                                         |
+| ------------ | ------- | -------------------------------------------- |
+| GAP-12       | PARTIAL | Schema updated, implementation returns zeros |
 | TODO-OODA-13 | Created | Implement real-time counting via SQL queries |
 
 ## Next Iteration
 
 OODA-13: Implement real-time counting in PostgreSQL WorkspaceService using direct SQL queries against:
+
 - `edgequake_nodes` table for entity count
 - `edgequake_edges` table for relationship count
 - `document_vectors` table for embedding count

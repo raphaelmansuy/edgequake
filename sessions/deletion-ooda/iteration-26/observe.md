@@ -3,6 +3,7 @@
 ## Gap Identified
 
 The metrics infrastructure supports three trigger types:
+
 - **Event**: ✅ Implemented (upload/delete triggers)
 - **Scheduled**: ❌ Not implemented (hourly background task)
 - **Manual**: ❌ Not implemented (user-triggered endpoint)

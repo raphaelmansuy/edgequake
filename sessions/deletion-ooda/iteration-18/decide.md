@@ -11,6 +11,7 @@ Add test to verify that PROCESSING documents are not included in reprocess batch
 Location: `edgequake/crates/edgequake-api/tests/e2e_document_deletion.rs`
 
 The test will verify:
+
 1. Create a document with `status: "processing"`
 2. Call `/api/v1/documents/reprocess`
 3. Verify document is NOT requeued

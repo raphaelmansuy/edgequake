@@ -3,13 +3,17 @@
 ## Actions Taken
 
 ### 1. Added Import
+
 Added `MetricsTriggerType` import to documents.rs:
+
 ```rust
 use edgequake_core::MetricsTriggerType;
 ```
 
 ### 2. Added Metrics Recording in delete_document
+
 After deletion completes (line ~1920):
+
 ```rust
 // OODA-21: Record metrics snapshot for trend analysis after deletion
 if let Ok(workspace_uuid) = Uuid::parse_str(&workspace_id_for_storage) {
@@ -24,7 +28,9 @@ if let Ok(workspace_uuid) = Uuid::parse_str(&workspace_id_for_storage) {
 ```
 
 ### 3. Added Metrics Recording in upload_document (sync path)
+
 After sync processing completes:
+
 ```rust
 // OODA-21: Record metrics snapshot for trend analysis after upload
 if let Ok(workspace_uuid) = Uuid::parse_str(&workspace_id_for_storage) {

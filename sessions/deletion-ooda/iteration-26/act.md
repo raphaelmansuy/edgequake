@@ -22,11 +22,11 @@ POST /api/v1/workspaces/{workspace_id}/metrics-snapshot
 
 ### 3. Added E2E Tests (e2e_metrics_history.rs)
 
-| Test | Description |
-|------|-------------|
-| `test_trigger_metrics_snapshot_creates_snapshot` | Endpoint reachable |
-| `test_trigger_metrics_snapshot_response_structure` | Response format |
-| `test_trigger_metrics_snapshot_method_not_allowed` | Only POST allowed |
+| Test                                               | Description        |
+| -------------------------------------------------- | ------------------ |
+| `test_trigger_metrics_snapshot_creates_snapshot`   | Endpoint reachable |
+| `test_trigger_metrics_snapshot_response_structure` | Response format    |
+| `test_trigger_metrics_snapshot_method_not_allowed` | Only POST allowed  |
 
 ### 4. Test Results
 

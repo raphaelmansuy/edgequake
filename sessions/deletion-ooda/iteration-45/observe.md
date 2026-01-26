@@ -3,6 +3,7 @@
 ## Observation
 
 EdgeQuake supports multi-tenancy via X-Tenant-ID header:
+
 1. Documents scoped to tenant
 2. Deletion should respect tenant context
 

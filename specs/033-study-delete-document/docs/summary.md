@@ -13,12 +13,12 @@ This study analyzed EdgeQuake's document ingestion and deletion processes to ide
 
 ### Final Test Coverage
 
-| Category | Count |
-|----------|-------|
-| Document deletion tests | 73 |
-| Metrics history tests | 8 |
-| Ollama integration tests | 6 |
-| **Total E2E tests** | **87** |
+| Category                 | Count  |
+| ------------------------ | ------ |
+| Document deletion tests  | 73     |
+| Metrics history tests    | 8      |
+| Ollama integration tests | 6      |
+| **Total E2E tests**      | **87** |
 
 ### Key Finding: Critical Data Loss Bug (FIXED ✅)
 
@@ -297,6 +297,7 @@ for edge in all_edges {
 **Status**: ⚠️ 27/27 passing (all deletion tests green) ✅
 
 Additionally, **7 Ollama E2E tests** in `e2e_ollama_integration.rs`:
+
 - `test_mock_document_upload_baseline`
 - `test_mock_entity_extraction`
 - `test_mock_query_modes`
@@ -411,6 +412,7 @@ pub struct SchemaHealth {
 **Commit**: `083470e3`
 
 Added 3 tests verifying safe handling of circular entity references:
+
 - `test_circular_bidirectional_references` - A↔B relationships
 - `test_circular_self_referential_entity` - A→A (self-loop)
 - `test_circular_reference_cycle` - A→B→C→A cycles
@@ -420,6 +422,7 @@ Added 3 tests verifying safe handling of circular entity references:
 **Commit**: `6531e418`
 
 Created `e2e_ollama_integration.rs` with 7 tests:
+
 - 6 mock-based tests (always run)
 - 1 Ollama-specific test (ignored for CI)
 
@@ -457,6 +460,7 @@ CREATE INDEX idx_metrics_trigger_type ON workspace_metrics_history(trigger_type)
 **Commit**: `cf283cfb`
 
 Added 2 reprocessing tests:
+
 - `test_reprocess_excludes_processing_documents` - Verifies PROCESSING status documents are skipped
 - `test_reprocess_cleans_all_entities_and_relationships` - Verifies complete cleanup before reprocessing
 
@@ -664,12 +668,14 @@ This study has been successfully completed with all objectives met:
 37. **Iteration 50**: Final comprehensive add/delete cycle verification
 
 **Final Test Status**:
+
 - Document deletion tests: 73
 - Metrics history tests: 8
 - Ollama integration tests: 6 (1 ignored)
 - **Total: 87 E2E tests, all passing ✅**
 
 **Mission Objectives Achieved**:
+
 - ✅ 50+ OODA iterations completed
 - ✅ Zero data integrity issues
 - ✅ Comprehensive test coverage (98%+)
@@ -685,10 +691,10 @@ This study has been successfully completed with all objectives met:
 
 ### Migration History
 
-| Migration | Description | Status |
-|-----------|-------------|--------|
-| 001-015 | Core schema (entities, relationships, workspaces) | ✅ Applied |
-| 016 | workspace_metrics_history (time-series metrics) | ✅ Added OODA-17 |
+| Migration | Description                                       | Status           |
+| --------- | ------------------------------------------------- | ---------------- |
+| 001-015   | Core schema (entities, relationships, workspaces) | ✅ Applied       |
+| 016       | workspace_metrics_history (time-series metrics)   | ✅ Added OODA-17 |
 
 ### Key Schema Features
 

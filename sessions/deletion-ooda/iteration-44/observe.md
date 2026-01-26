@@ -3,6 +3,7 @@
 ## Observation
 
 Document titles are user-provided and can have various formats:
+
 1. Unicode titles
 2. Very long titles
 3. Special characters in titles

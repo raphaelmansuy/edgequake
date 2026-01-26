@@ -8,6 +8,7 @@ Current tests focus on single or sequential deletes.
 ## Need
 
 Test that simulates bulk cleanup scenarios:
+
 1. Upload N documents
 2. Delete all N in quick succession
 3. Verify all cleaned up correctly
@@ -15,7 +16,7 @@ Test that simulates bulk cleanup scenarios:
 ## Current Coverage
 
 - Single deletion: ✅
-- Sequential (5 docs): ✅ 
+- Sequential (5 docs): ✅
 - Bulk (10+ docs): ❌ Not tested
 
 ## Action: Add bulk deletion test

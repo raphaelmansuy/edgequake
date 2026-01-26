@@ -12,12 +12,12 @@ Looking at the cascade deletion in `handlers/documents.rs`:
 
 ### Risk Assessment
 
-| Risk | Likelihood | Mitigation in Current Code |
-|------|------------|---------------------------|
-| Infinite Loop | LOW | No recursive traversal, linear iteration |
-| Double Deletion | LOW | HashSet of entity IDs could prevent |
-| Orphan Edge | MEDIUM | Edge cleanup phase at end |
-| Reference Count Bug | LOW | source_ids is document-based, not entity-based |
+| Risk                | Likelihood | Mitigation in Current Code                     |
+| ------------------- | ---------- | ---------------------------------------------- |
+| Infinite Loop       | LOW        | No recursive traversal, linear iteration       |
+| Double Deletion     | LOW        | HashSet of entity IDs could prevent            |
+| Orphan Edge         | MEDIUM     | Edge cleanup phase at end                      |
+| Reference Count Bug | LOW        | source_ids is document-based, not entity-based |
 
 ### Why Current Design is Safe
 
@@ -39,6 +39,7 @@ Entity-Centric (RISKY - NOT USED):
 ### Conclusion
 
 The current implementation is **inherently safe** from circular reference issues because:
+
 1. It doesn't traverse the graph structure
 2. It only looks at source_ids arrays
 3. Bidirectional relationships don't affect the deletion logic
@@ -46,6 +47,7 @@ The current implementation is **inherently safe** from circular reference issues
 ### Test Value
 
 Adding circular reference tests:
+
 - **Documents safety** with explicit test cases
 - **Increases confidence** for production
 - **Regression protection** if algorithm changes
@@ -53,6 +55,7 @@ Adding circular reference tests:
 ## Recommendation
 
 Add 3 test cases to explicitly verify circular reference safety:
+
 1. Bidirectional relationships
 2. Self-referential entities
 3. Multi-node cycles

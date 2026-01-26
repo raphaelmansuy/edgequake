@@ -3,6 +3,7 @@
 ## Gap Identified
 
 Limited testing of concurrent operations:
+
 - Delete while another delete in progress
 - Upload and delete racing
 - Multiple clients accessing same document

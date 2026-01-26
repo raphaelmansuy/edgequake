@@ -7,11 +7,13 @@
 Add schema version info to existing `/health` endpoint.
 
 **Pros**:
+
 - Single endpoint for all health info
 - No new routes needed
 - Immediate visibility
 
 **Cons**:
+
 - Mixes concerns (runtime health vs schema state)
 - PostgreSQL-only (memory mode has no schema)
 
@@ -20,11 +22,13 @@ Add schema version info to existing `/health` endpoint.
 Dedicated endpoint for schema verification.
 
 **Pros**:
+
 - Clean separation of concerns
 - Can include detailed migration list
 - Better for CI/CD integration
 
 **Cons**:
+
 - New route to maintain
 - Separate call needed
 
@@ -33,11 +37,13 @@ Dedicated endpoint for schema verification.
 Check schema on server startup, panic if incompatible.
 
 **Pros**:
+
 - Fail-fast behavior
 - Clear error messages
 - Prevents running with wrong schema
 
 **Cons**:
+
 - No runtime visibility
 - Harder to debug
 

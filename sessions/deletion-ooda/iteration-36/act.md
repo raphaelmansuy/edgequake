@@ -5,14 +5,17 @@
 Added 3 error boundary condition tests to `e2e_document_deletion.rs`:
 
 ### 1. `test_delete_empty_document_id`
+
 - Sends DELETE to `/api/v1/documents/` (empty path segment)
 - Verifies returns 404 or 405 (not 500)
 
 ### 2. `test_delete_extremely_long_id`
+
 - Creates 10KB document ID ("x".repeat(10_000))
 - Verifies no crash, returns 404 (not valid document)
 
 ### 3. `test_delete_sql_injection_pattern`
+
 - Tests SQL injection-like patterns:
   - `'; DROP TABLE documents; --`
   - `1 OR 1=1`

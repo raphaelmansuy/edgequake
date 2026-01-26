@@ -26,7 +26,7 @@ async fn get_workspace_stats(&self, workspace_id: Uuid) -> Result<WorkspaceStats
 
     let stats: StatsRow = sqlx::query_as(
         r#"
-        SELECT 
+        SELECT
             (SELECT COUNT(*) FROM documents WHERE workspace_id = $1) as document_count,
             (SELECT COUNT(*) FROM chunks WHERE workspace_id = $1) as chunk_count,
             (SELECT COUNT(*) FROM entities WHERE workspace_id = $1) as entity_count,
@@ -63,10 +63,10 @@ cargo test --package edgequake-api --test e2e_document_deletion
 
 ## Gap Status
 
-| Gap | Status | Note |
-|-----|--------|------|
-| GAP-12 | FIXED | PostgreSQL now returns real counts |
-| In-memory stats | Open | Still returns zeros (by design) |
+| Gap             | Status | Note                               |
+| --------------- | ------ | ---------------------------------- |
+| GAP-12          | FIXED  | PostgreSQL now returns real counts |
+| In-memory stats | Open   | Still returns zeros (by design)    |
 
 ## Commit
 

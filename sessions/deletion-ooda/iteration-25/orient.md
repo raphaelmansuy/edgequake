@@ -3,9 +3,11 @@
 ## Priority: User-Facing Documentation
 
 ### 1. Primary Document: docs/metrics-infrastructure.md
+
 Location: specs/033-study-delete-document/docs/metrics-infrastructure.md
 
 ### 2. Structure
+
 ```
 1. Overview - Why metrics matter
 2. Architecture - Database schema, types
@@ -16,6 +18,7 @@ Location: specs/033-study-delete-document/docs/metrics-infrastructure.md
 ```
 
 ### 3. Secondary: Update summary.md
+
 Add metrics section to main study summary.
 
 ## Decision: Create comprehensive docs/metrics-infrastructure.md

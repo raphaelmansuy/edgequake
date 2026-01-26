@@ -13,6 +13,7 @@ Created `e2e_metrics_history.rs` with 5 tests:
 ## Response Structure Verification
 
 Tests verify the response contains:
+
 - workspace_id
 - snapshots (array)
 - count
