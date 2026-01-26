@@ -55,11 +55,13 @@ This study analyzed EdgeQuake's document ingestion and deletion processes to ide
 ```
 
 **Storage Layers**:
+
 - **KV Storage**: Document metadata, content, chunks
 - **Graph Storage**: Entities (nodes) and relationships (edges)
 - **Vector Storage**: Embeddings for similarity search
 
 **Key Features**:
+
 - ✅ Workspace isolation (SPEC-033)
 - ✅ Tenant scoping (BR0201)
 - ✅ SHA-256 deduplication (BR0001)
@@ -107,6 +109,7 @@ This study analyzed EdgeQuake's document ingestion and deletion processes to ide
 ```
 
 **Reference Tracking**:
+
 - Entities/relationships track sources via `source_ids: ["doc-1", "doc-2", ...]`
 - Only deleted when NO sources remain
 - **Prevents data loss** when shared across documents
@@ -123,6 +126,7 @@ This study analyzed EdgeQuake's document ingestion and deletion processes to ide
 When deleting a document, the system deleted ALL edges connected to an entity if that entity's sources became empty, **without checking if those edges had their own sources from other documents**.
 
 **Example Scenario**:
+
 ```
 Document A: "Alice works at Google"
 Document B: "Alice graduated from MIT"
@@ -150,6 +154,7 @@ DELETE Document A:
 ```
 
 **Root Cause**:
+
 ```rust
 // OLD BUGGY CODE (documents.rs ~line 1474)
 if remaining_sources.is_empty() {
@@ -163,6 +168,7 @@ if remaining_sources.is_empty() {
 ```
 
 **Solution (IMPLEMENTED ✅)**:
+
 1. **Removed premature edge deletion** - Don't delete edges when deleting nodes
 2. **Added orphan detection** - Explicitly check if edges connect to deleted nodes
 3. **Independent edge processing** - Edges check their own source_ids
@@ -173,7 +179,7 @@ if remaining_sources.is_empty() {
     // WHY-OODA01: DO NOT delete edges here!
     // Edges have their own source_ids tracking and will be processed
     // independently in the edge processing loop below.
-    
+
     // Delete the node only
     state.graph_storage.delete_node(&node.id).await?;
     let _ = workspace_vector_storage.delete_entity(&node.id).await;
@@ -181,20 +187,20 @@ if remaining_sources.is_empty() {
 }
 
 // Later: Process edges independently with orphan detection
-let existing_node_ids: HashSet<String> = 
+let existing_node_ids: HashSet<String> =
     existing_nodes.iter().map(|n| n.id.clone()).collect();
 
 for edge in all_edges {
     // Check if orphaned (connects to deleted node)
-    let is_orphaned = !existing_node_ids.contains(&edge.source) 
+    let is_orphaned = !existing_node_ids.contains(&edge.source)
                    || !existing_node_ids.contains(&edge.target);
-    
+
     if is_orphaned {
         // Delete orphaned edge
         state.graph_storage.delete_edge(&edge.source, &edge.target).await?;
         continue;
     }
-    
+
     // Check edge's own sources
     let sources = extract_source_docs(&edge.properties);
     if sources.is_empty() {
@@ -204,10 +210,12 @@ for edge in all_edges {
 ```
 
 **Commits**:
+
 - `3a04da76`: OODA-01: Fix edge deletion race condition
 - `6371e609`: OODA-01: Add integration tests and documentation
 
 **Files Changed**:
+
 - `edgequake/crates/edgequake-api/src/handlers/documents.rs` (+44, -10 lines)
 
 ---
@@ -227,6 +235,7 @@ for edge in all_edges {
 | 1M nodes | ~50s+ |
 
 **Solution** (ITERATION 02):
+
 - Add `get_nodes_by_array_contains()` to GraphStorage trait
 - Use PostgreSQL GIN index: `WHERE properties @> '{"source_ids": ["doc-123"]}'`
 - Expected improvement: 100x faster for large graphs
@@ -240,6 +249,7 @@ for edge in all_edges {
 **Risk**: Partial deletion leaves inconsistent state (e.g., embeddings deleted but entities remain).
 
 **Solution** (ITERATION 02):
+
 - Implement Saga pattern with compensating transactions
 - Log each stage's actions for rollback
 - Guarantee eventual consistency
@@ -271,6 +281,7 @@ for edge in all_edges {
 **Status**: ⚠️ 2/5 passing (3 tests fail due to test environment setup, not code bugs)
 
 **Next Steps**:
+
 - Fix `AppState::test_state()` pipeline configuration
 - Re-run tests to verify all pass
 - Add manual verification using HTTP API
@@ -280,15 +291,18 @@ for edge in all_edges {
 ## Performance Impact
 
 ### Before Fix
+
 - **Risk**: Data loss bug (edges incorrectly deleted)
 - **Deletion Time**: ~100ms (1K nodes), ~500ms (10K nodes)
 
 ### After Fix
+
 - **Data Integrity**: ✅ ZERO data loss risk
 - **Deletion Time**: ~90ms (1K nodes), ~550ms (10K nodes)
 - **Net Change**: +50ms for large graphs (orphan detection scan)
 
 **Optimization Plan** (ITERATION 02):
+
 - Implement query-by-property API (GAP-02)
 - Expected: <100ms for 100K nodes
 
@@ -415,33 +429,33 @@ for edge in all_edges {
 
 ### Code Changes
 
-| Metric | Value |
-|--------|-------|
-| Files Modified | 1 |
-| Files Created | 6 |
-| Lines Added | +2,230 |
-| Lines Modified | +44, -10 |
-| Commits | 2 |
-| Bugs Fixed | 1 (CRITICAL) |
+| Metric         | Value        |
+| -------------- | ------------ |
+| Files Modified | 1            |
+| Files Created  | 6            |
+| Lines Added    | +2,230       |
+| Lines Modified | +44, -10     |
+| Commits        | 2            |
+| Bugs Fixed     | 1 (CRITICAL) |
 
 ### Documentation
 
-| Metric | Value |
-|--------|-------|
-| OODA Documents | 4 |
-| Total Lines | ~3,000 |
-| ASCII Diagrams | 3 |
-| WHY Comments | 2 |
-| Test Cases | 5 |
+| Metric         | Value  |
+| -------------- | ------ |
+| OODA Documents | 4      |
+| Total Lines    | ~3,000 |
+| ASCII Diagrams | 3      |
+| WHY Comments   | 2      |
+| Test Cases     | 5      |
 
 ### Impact
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Data Loss Risk | HIGH | ZERO ✅ |
-| Edge Cases Covered | 0 | 5 ✅ |
-| Test Coverage | 0% | TBD |
-| Deletion Time (10K nodes) | 500ms | 550ms (+10%) |
+| Metric                    | Before | After        |
+| ------------------------- | ------ | ------------ |
+| Data Loss Risk            | HIGH   | ZERO ✅      |
+| Edge Cases Covered        | 0      | 5 ✅         |
+| Test Coverage             | 0%     | TBD          |
+| Deletion Time (10K nodes) | 500ms  | 550ms (+10%) |
 
 ---
 
@@ -468,6 +482,7 @@ for edge in all_edges {
 **ITERATION 01 COMPLETE ✅**
 
 This study successfully:
+
 1. Mapped the complete document add/delete flow
 2. Identified and FIXED a critical data loss bug
 3. Created comprehensive documentation (3,000+ lines)

@@ -36,5 +36,3 @@ def parse_existing_features(content: str) -> Dict[str, str]:
         features[current_feat] = "\n".join(current_lines)
 
     return features
-
-

@@ -512,6 +512,30 @@ pub async fn upload_document(
         // Store entities and relationships in graph storage
         for extraction in &result.extractions {
             for entity in &extraction.entities {
+                // OODA-06 FIX (GAP-07): Merge source_ids with existing entity sources
+                // WHY: When the same entity appears in multiple documents, we must
+                // accumulate source_ids from ALL documents, not replace with just the current one.
+                // Without this, deleting one document could orphan an entity that's still
+                // referenced by other documents.
+                let merged_source_ids = match state.graph_storage.get_node(&entity.name).await {
+                    Ok(Some(existing)) => {
+                        let mut existing_sources: std::collections::HashSet<String> = existing
+                            .properties
+                            .get("source_ids")
+                            .and_then(|v| v.as_array())
+                            .map(|arr| {
+                                arr.iter()
+                                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        // Add new document reference (HashSet deduplicates)
+                        existing_sources.insert(document_id.clone());
+                        existing_sources.into_iter().collect::<Vec<_>>()
+                    }
+                    _ => vec![document_id.clone()],
+                };
+
                 let mut properties = std::collections::HashMap::new();
                 properties.insert(
                     "entity_type".to_string(),
@@ -527,7 +551,7 @@ pub async fn upload_document(
                 );
                 properties.insert(
                     "source_ids".to_string(),
-                    serde_json::json!(vec![&document_id]),
+                    serde_json::json!(merged_source_ids),
                 );
                 // CRITICAL: Store source_chunk_ids for Local/Global query mode chunk retrieval
                 properties.insert(
@@ -567,6 +591,31 @@ pub async fn upload_document(
             }
 
             for relationship in &extraction.relationships {
+                // OODA-06 FIX (GAP-07): Merge source_ids with existing edge sources
+                // WHY: Same as entities - when the same relationship appears in multiple
+                // documents, we must accumulate source_ids from ALL documents.
+                let merged_source_ids = match state
+                    .graph_storage
+                    .get_edge(&relationship.source, &relationship.target)
+                    .await
+                {
+                    Ok(Some(existing)) => {
+                        let mut existing_sources: std::collections::HashSet<String> = existing
+                            .properties
+                            .get("source_ids")
+                            .and_then(|v| v.as_array())
+                            .map(|arr| {
+                                arr.iter()
+                                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        existing_sources.insert(document_id.clone());
+                        existing_sources.into_iter().collect::<Vec<_>>()
+                    }
+                    _ => vec![document_id.clone()],
+                };
+
                 let mut properties = std::collections::HashMap::new();
                 properties.insert(
                     "relation_type".to_string(),
@@ -583,7 +632,7 @@ pub async fn upload_document(
                 );
                 properties.insert(
                     "source_ids".to_string(),
-                    serde_json::json!(vec![&document_id]),
+                    serde_json::json!(merged_source_ids),
                 );
                 // CRITICAL: Store source_chunk_id for relationship chunk linkage
                 if let Some(ref chunk_id) = relationship.source_chunk_id {
@@ -1380,19 +1429,84 @@ pub async fn delete_document(
     }
 
     // SPEC-033: Get workspace_id from document metadata for vector storage isolation
-    let workspace_id_for_storage = if has_metadata {
+    // OODA-02: Also check document status for safe deletion
+    let (workspace_id_for_storage, document_status) = if has_metadata {
         if let Ok(Some(metadata)) = state.kv_storage.get_by_id(&metadata_key).await {
-            metadata
+            let workspace = metadata
                 .get("workspace_id")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string())
-                .unwrap_or_else(|| "default".to_string())
+                .unwrap_or_else(|| "default".to_string());
+            let status = metadata
+                .get("status")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "unknown".to_string());
+            (workspace, status)
         } else {
-            "default".to_string()
+            ("default".to_string(), "unknown".to_string())
         }
     } else {
-        "default".to_string()
+        ("default".to_string(), "unknown".to_string())
     };
+
+    // OODA-02: Safety check - prevent deletion of documents that are still being processed
+    // WHY: Deleting a document while it's being processed can cause:
+    //   1. Race condition: Background task writes data while deletion removes it
+    //   2. Orphaned data: Entities/edges created AFTER deletion check starts
+    //   3. Partial deletion: Some entities exist, others don't
+    //
+    // Status lifecycle:
+    //   "pending"    → Cannot delete (queued for processing)
+    //   "processing" → Cannot delete (actively being processed)
+    //   "completed"  → Can delete (processing finished successfully)
+    //   "processed"  → Can delete (legacy status, same as completed)
+    //   "failed"     → Can delete (processing failed, cleanup partial data)
+    //   "unknown"    → Can delete (legacy documents without status)
+    match document_status.as_str() {
+        "pending" => {
+            tracing::warn!(
+                document_id = %document_id,
+                status = %document_status,
+                "Rejecting deletion of pending document"
+            );
+            return Err(ApiError::Conflict(format!(
+                "Cannot delete document '{}' with status 'pending'. \
+                 The document is queued for processing. \
+                 Please wait for processing to complete or cancel the task.",
+                document_id
+            )));
+        }
+        "processing" => {
+            tracing::warn!(
+                document_id = %document_id,
+                status = %document_status,
+                "Rejecting deletion of processing document"
+            );
+            return Err(ApiError::Conflict(format!(
+                "Cannot delete document '{}' with status 'processing'. \
+                 The document is currently being processed. \
+                 Please wait for processing to complete or cancel the task.",
+                document_id
+            )));
+        }
+        "completed" | "processed" | "failed" | "unknown" => {
+            // OK to delete
+            tracing::debug!(
+                document_id = %document_id,
+                status = %document_status,
+                "Document status allows deletion"
+            );
+        }
+        other => {
+            // Unknown status - allow deletion with warning
+            tracing::warn!(
+                document_id = %document_id,
+                status = %other,
+                "Unknown document status, allowing deletion"
+            );
+        }
+    }
 
     // SPEC-028: Collect chunk IDs for vector storage deletion
     // Clone chunk_ids before workspace_vector_storage operations
@@ -1433,11 +1547,14 @@ pub async fn delete_document(
 
     // Helper function to extract source documents from node/edge properties
     // Handles both `source_ids` (JSON array) and `source_id` (pipe-separated string)
-    fn extract_source_docs(properties: &std::collections::HashMap<String, serde_json::Value>) -> Vec<String> {
+    fn extract_source_docs(
+        properties: &std::collections::HashMap<String, serde_json::Value>,
+    ) -> Vec<String> {
         // Try source_ids (JSON array) first - this is the current format
         if let Some(source_ids) = properties.get("source_ids") {
             if let Some(arr) = source_ids.as_array() {
-                return arr.iter()
+                return arr
+                    .iter()
                     .filter_map(|v| v.as_str().map(|s| s.to_string()))
                     .collect();
             }
@@ -1460,13 +1577,15 @@ pub async fn delete_document(
         // Filter out sources that belong to this document
         let remaining_sources: Vec<String> = sources
             .iter()
-            .filter(|s| !s.starts_with(&chunk_prefix) && *s != &document_id && !s.starts_with(&document_id))
+            .filter(|s| {
+                !s.starts_with(&chunk_prefix) && *s != &document_id && !s.starts_with(&document_id)
+            })
             .cloned()
             .collect();
 
         if remaining_sources.is_empty() {
             // No sources left - delete the entity entirely
-            
+
             // WHY-OODA01: DO NOT delete edges here!
             // Edges have their own source_ids tracking and will be processed
             // independently in the edge processing loop below (line ~1500).
@@ -1481,7 +1600,7 @@ pub async fn delete_document(
             //     - GOOGLE entity sources: [doc_a] → [] (delete entity)
             //     - OLD BUG: Deleted ALL edges from GOOGLE, including MIT edge!
             //     - FIXED: Edges are processed separately based on their own sources
-            
+
             // Delete the node (backend may cascade edges, but we handle explicitly below)
             state.graph_storage.delete_node(&node.id).await?;
             // SPEC-033: Use workspace-specific vector storage for entity deletion
@@ -1507,17 +1626,17 @@ pub async fn delete_document(
     // WHY-OODA01: We must also check for orphaned edges (edges connecting to deleted nodes)
     // This handles the case where a node was deleted above but edges still reference it.
     let all_edges = state.graph_storage.get_all_edges().await?;
-    
+
     // Get current node IDs for orphan detection
     let existing_nodes = state.graph_storage.get_all_nodes().await?;
-    let existing_node_ids: std::collections::HashSet<String> = 
+    let existing_node_ids: std::collections::HashSet<String> =
         existing_nodes.iter().map(|n| n.id.clone()).collect();
-    
+
     for edge in all_edges {
         // Check if edge is orphaned (connects to deleted node)
-        let is_orphaned = !existing_node_ids.contains(&edge.source) 
-                       || !existing_node_ids.contains(&edge.target);
-        
+        let is_orphaned =
+            !existing_node_ids.contains(&edge.source) || !existing_node_ids.contains(&edge.target);
+
         if is_orphaned {
             // Edge connects to a deleted node - delete it
             state
@@ -1532,7 +1651,7 @@ pub async fn delete_document(
             );
             continue;
         }
-        
+
         let sources = extract_source_docs(&edge.properties);
         if sources.is_empty() {
             continue;
@@ -1541,7 +1660,9 @@ pub async fn delete_document(
         // Filter out sources that belong to this document
         let remaining_sources: Vec<String> = sources
             .iter()
-            .filter(|s| !s.starts_with(&chunk_prefix) && *s != &document_id && !s.starts_with(&document_id))
+            .filter(|s| {
+                !s.starts_with(&chunk_prefix) && *s != &document_id && !s.starts_with(&document_id)
+            })
             .cloned()
             .collect();
 

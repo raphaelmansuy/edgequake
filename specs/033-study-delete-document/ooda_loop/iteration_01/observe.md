@@ -71,11 +71,11 @@
 
 ### Storage Layers Used
 
-| Layer | Purpose | Keys/IDs | Implementation |
-|-------|---------|----------|----------------|
-| **KV Storage** | Document metadata & chunks | `{doc_id}-metadata`<br>`{doc_id}-content`<br>`{doc_id}-chunk-{n}` | `edgequake-storage/traits/kv.rs` |
-| **Graph Storage** | Entities & Relationships | Node ID = entity_name<br>Edge = (source, target) | `edgequake-storage/traits/graph.rs` |
-| **Vector Storage** | Embeddings for similarity search | Chunk IDs<br>Entity names | `edgequake-storage/traits/vector.rs` |
+| Layer              | Purpose                          | Keys/IDs                                                          | Implementation                       |
+| ------------------ | -------------------------------- | ----------------------------------------------------------------- | ------------------------------------ |
+| **KV Storage**     | Document metadata & chunks       | `{doc_id}-metadata`<br>`{doc_id}-content`<br>`{doc_id}-chunk-{n}` | `edgequake-storage/traits/kv.rs`     |
+| **Graph Storage**  | Entities & Relationships         | Node ID = entity_name<br>Edge = (source, target)                  | `edgequake-storage/traits/graph.rs`  |
+| **Vector Storage** | Embeddings for similarity search | Chunk IDs<br>Entity names                                         | `edgequake-storage/traits/vector.rs` |
 
 ---
 
@@ -141,11 +141,13 @@
 ### Reference Tracking Mechanism
 
 **Current Implementation**:
+
 - **Source Format**: JSON array `source_ids: ["doc-123", "doc-456"]` (preferred)
 - **Legacy Format**: Pipe-separated string `source_id: "doc-123|doc-456"` (backward compatible)
 - **Extraction Logic**: `extract_source_docs()` helper function (line 1433)
 
 **Pruning Strategy**:
+
 - Entities/Relationships are **NOT immediately deleted** when a document is removed
 - Instead, document ID is removed from `source_ids` array
 - Entity/Relationship is only deleted when `source_ids` becomes empty
@@ -153,14 +155,14 @@
 
 ### Metrics Tracked During Deletion
 
-| Metric | Description | Logged |
-|--------|-------------|--------|
-| `chunks_deleted` | Number of chunks removed | ✅ |
-| `embeddings_deleted` | Chunk embeddings removed from vector storage | ✅ |
-| `entities_removed` | Entities with no remaining sources | ✅ |
-| `entities_updated` | Entities with sources pruned | ✅ |
-| `relationships_removed` | Edges with no remaining sources | ✅ |
-| `relationships_updated` | Edges with sources pruned | ✅ |
+| Metric                  | Description                                  | Logged |
+| ----------------------- | -------------------------------------------- | ------ |
+| `chunks_deleted`        | Number of chunks removed                     | ✅     |
+| `embeddings_deleted`    | Chunk embeddings removed from vector storage | ✅     |
+| `entities_removed`      | Entities with no remaining sources           | ✅     |
+| `entities_updated`      | Entities with sources pruned                 | ✅     |
+| `relationships_removed` | Edges with no remaining sources              | ✅     |
+| `relationships_updated` | Edges with sources pruned                    | ✅     |
 
 ---
 
@@ -188,6 +190,7 @@
 ### 🔍 Reference Tracking Analysis
 
 **Entity/Relationship Level**:
+
 - ✅ Tracks document sources via `source_ids` array
 - ✅ Updates references when document removed
 - ✅ Deletes entity/relationship when no sources remain
@@ -195,11 +198,13 @@
 - ❌ No reference counting for **shared chunks** (chunks are document-specific by design)
 
 **Chunk Level**:
+
 - Chunks are **document-specific** (ID format: `{doc_id}-chunk-{index}`)
 - No sharing across documents → No reference tracking needed
 - Deletion is straightforward: remove all chunks with prefix
 
 **Embedding Level**:
+
 - Chunk embeddings: Deleted with chunks (no sharing)
 - Entity embeddings: Deleted only when entity has no remaining sources
 - ❌ **Gap**: If entity deletion fails, embedding may remain orphaned
@@ -213,6 +218,7 @@
 **File**: [edgequake/crates/edgequake-storage/src/traits/graph.rs](../../../edgequake/crates/edgequake-storage/src/traits/graph.rs)
 
 **Key Methods**:
+
 ```rust
 async fn upsert_node(&self, node_id: &str, properties: HashMap<...>) -> Result<()>;
 async fn delete_node(&self, node_id: &str) -> Result<()>;
@@ -224,6 +230,7 @@ async fn get_node_edges(&self, node_id: &str) -> Result<Vec<GraphEdge>>;
 ```
 
 **Observations**:
+
 - ✅ Supports property-based filtering (used for source tracking)
 - ❌ No **batch operations** (must iterate over all nodes/edges)
 - ❌ No **transaction support** (each delete is independent)
@@ -234,6 +241,7 @@ async fn get_node_edges(&self, node_id: &str) -> Result<Vec<GraphEdge>>;
 **File**: [edgequake/crates/edgequake-storage/src/traits/vector.rs](../../../edgequake/crates/edgequake-storage/src/traits/vector.rs)
 
 **Key Methods**:
+
 ```rust
 async fn upsert(&self, data: &[(String, Vec<f32>, serde_json::Value)]) -> Result<()>;
 async fn delete(&self, ids: &[String]) -> Result<()>;
@@ -243,6 +251,7 @@ async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize>;
 ```
 
 **Observations**:
+
 - ✅ Supports batch deletion via `delete(&[ids])`
 - ✅ Has entity-specific deletion methods
 - ✅ Workspace-scoped clearing (SPEC-033)
@@ -273,11 +282,11 @@ O(N + M) where:
 
 ## Related Business Rules
 
-| ID | Rule | Enforced During Delete? |
-|----|------|------------------------|
-| BR0001 | Documents must be unique (SHA-256 hash) | ✅ Hash stored in metadata |
-| BR0008 | Entity names normalized | ✅ Used in node lookups |
-| BR0201 | Tenant isolation (workspace scoping) | ✅ STRICT mode workspace storage |
+| ID     | Rule                                        | Enforced During Delete?                  |
+| ------ | ------------------------------------------- | ---------------------------------------- |
+| BR0001 | Documents must be unique (SHA-256 hash)     | ✅ Hash stored in metadata               |
+| BR0008 | Entity names normalized                     | ✅ Used in node lookups                  |
+| BR0201 | Tenant isolation (workspace scoping)        | ✅ STRICT mode workspace storage         |
 | BR0353 | Workspace vector isolation MUST NOT degrade | ✅ Fails loudly if workspace unavailable |
 
 ---
@@ -287,12 +296,14 @@ O(N + M) where:
 ### Existing Tests
 
 Searched for test coverage:
+
 ```bash
 # Found test in documents.rs
 test_delete_document_response_serialization (line 3230)
 ```
 
 **Gap**: No integration tests for:
+
 - Cascade delete with multiple documents sharing entities
 - Partial failure scenarios
 - Workspace isolation during deletion
