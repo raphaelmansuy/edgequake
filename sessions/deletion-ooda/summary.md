@@ -33,6 +33,7 @@ Spec: `specs/033-study-delete-document/003-study-document.md`
 | 33 | Test count synchronization | ✅ Complete | fe0078ae |
 | 34 | Content edge case tests | ✅ Complete | 7dc8b86b |
 | 35 | Advanced concurrency tests | ✅ Complete | e62a20d2 |
+| 36 | Error boundary condition tests | ✅ Complete | 3f8876b0 |
 
 ## Key Accomplishments
 

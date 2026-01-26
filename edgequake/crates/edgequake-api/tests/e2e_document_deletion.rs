@@ -3613,3 +3613,133 @@ async fn test_delete_sql_injection_pattern() {
     println!("✅ OODA-36 TEST PASSED: SQL injection patterns are safe");
 }
 
+// ============================================================================
+// OODA-37: Workspace Isolation Tests for Deletion
+// ============================================================================
+
+/// Helper to upload a document with workspace context
+async fn upload_document_with_workspace(
+    app: &axum::Router,
+    title: &str,
+    content: &str,
+    workspace_id: &str,
+) -> (StatusCode, Value) {
+    let request = json!({
+        "content": content,
+        "title": title,
+        "workspace_id": workspace_id,
+        "async_processing": false
+    });
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents")
+                .header("Content-Type", "application/json")
+                .header("X-Workspace-ID", workspace_id)
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let status = response.status();
+    let body = extract_json(response).await;
+    (status, body)
+}
+
+/// OODA-37: Test that deleting in one workspace doesn't affect other workspaces.
+#[tokio::test]
+async fn test_delete_isolation_between_workspaces() {
+    let app = create_test_app();
+    
+    // Upload document to workspace A
+    let (upload_a_status, body_a) = upload_document_with_workspace(
+        &app,
+        "Doc in Workspace A",
+        "Content for workspace A testing isolation during deletion.",
+        "workspace-a"
+    ).await;
+    assert_eq!(upload_a_status, StatusCode::CREATED);
+    let doc_a_id = body_a["document_id"].as_str().unwrap().to_string();
+    
+    // Upload document to workspace B
+    let (upload_b_status, body_b) = upload_document_with_workspace(
+        &app,
+        "Doc in Workspace B",
+        "Content for workspace B testing isolation during deletion.",
+        "workspace-b"
+    ).await;
+    assert_eq!(upload_b_status, StatusCode::CREATED);
+    let doc_b_id = body_b["document_id"].as_str().unwrap().to_string();
+    
+    // Delete document in workspace A
+    let (delete_status, _) = delete_document_http(&app, &doc_a_id).await;
+    assert_eq!(delete_status, StatusCode::OK);
+    
+    // Verify document A is gone (returns 404)
+    let (check_a_status, _) = delete_document_http(&app, &doc_a_id).await;
+    assert_eq!(check_a_status, StatusCode::NOT_FOUND);
+    
+    // Verify document B still exists (first delete succeeds)
+    let (check_b_status, _) = delete_document_http(&app, &doc_b_id).await;
+    assert_eq!(
+        check_b_status,
+        StatusCode::OK,
+        "Document in workspace B should still exist and be deletable"
+    );
+    
+    println!("✅ OODA-37 TEST PASSED: Delete isolation between workspaces");
+}
+
+/// OODA-37: Test same-named documents in different workspaces.
+#[tokio::test]
+async fn test_delete_same_name_different_workspaces() {
+    let app = create_test_app();
+    
+    let common_title = "Shared Document Title";
+    let common_content = "This document has the same name in multiple workspaces.";
+    
+    // Upload same-named doc to workspace A
+    let (upload_a_status, body_a) = upload_document_with_workspace(
+        &app,
+        common_title,
+        common_content,
+        "workspace-alpha"
+    ).await;
+    assert_eq!(upload_a_status, StatusCode::CREATED);
+    let doc_a_id = body_a["document_id"].as_str().unwrap().to_string();
+    
+    // Upload same-named doc to workspace B
+    let (upload_b_status, body_b) = upload_document_with_workspace(
+        &app,
+        common_title,
+        common_content,
+        "workspace-beta"
+    ).await;
+    assert_eq!(upload_b_status, StatusCode::CREATED);
+    let doc_b_id = body_b["document_id"].as_str().unwrap().to_string();
+    
+    // Document IDs should be different (UUID-based)
+    assert_ne!(
+        doc_a_id, doc_b_id,
+        "Same-named docs in different workspaces should have different IDs"
+    );
+    
+    // Delete doc in workspace A
+    let (delete_status, _) = delete_document_http(&app, &doc_a_id).await;
+    assert_eq!(delete_status, StatusCode::OK);
+    
+    // Doc B should still be deletable
+    let (check_b_status, _) = delete_document_http(&app, &doc_b_id).await;
+    assert_eq!(
+        check_b_status,
+        StatusCode::OK,
+        "Same-named doc in other workspace should still exist"
+    );
+    
+    println!("✅ OODA-37 TEST PASSED: Same-named docs in different workspaces");
+}
+
