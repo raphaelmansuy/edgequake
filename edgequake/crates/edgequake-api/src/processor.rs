@@ -954,6 +954,17 @@ impl DocumentTaskProcessor {
         self.update_document_status_with_stats(&document_id, "completed", &stats_with_lineage)
             .await?;
 
+        // OODA-ITERATION-03-FIX: Invalidate workspace stats cache after async document processing
+        // WHY: The cache contains stale entity/relationship counts. Without this, Dashboard
+        // shows 0 entities while Workspace page shows correct counts because both pages use
+        // the same cached stats, but cache was populated before the document was processed.
+        // This ensures the next stats request fetches fresh data.
+        if let Some(workspace_id_str) = workspace_id {
+            if let Ok(workspace_uuid) = uuid::Uuid::parse_str(workspace_id_str) {
+                crate::handlers::workspaces::invalidate_workspace_stats_cache(workspace_uuid).await;
+            }
+        }
+
         // Log success
         self.pipeline_state
             .document_processed(&document_id, result.stats.entity_count)

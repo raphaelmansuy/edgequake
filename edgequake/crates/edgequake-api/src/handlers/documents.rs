@@ -925,6 +925,13 @@ pub async fn upload_document(
                     "Recorded post-upload metrics snapshot"
                 );
             }
+
+            // OODA-ITERATION-03-FIX: Invalidate workspace stats cache after document processing
+            // WHY: The cache contains stale entity/relationship counts (0 before fix, or old counts)
+            // Without this, Dashboard shows 0 entities while Workspace page shows correct counts
+            // because both pages use the same cached stats, but cache was populated before
+            // the document was processed. This ensures the next stats request fetches fresh data.
+            crate::handlers::workspaces::invalidate_workspace_stats_cache(workspace_uuid).await;
         }
 
         Ok((

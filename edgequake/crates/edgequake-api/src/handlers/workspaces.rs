@@ -93,6 +93,21 @@ use edgequake_core::{MetricsTriggerType, Workspace};
 
 // ============ Helper Functions ============
 
+/// Invalidate workspace stats cache entry.
+///
+/// WHY: After document upload/processing completes, the cached stats become stale.
+/// Without invalidation, the dashboard will show old entity/relationship counts
+/// until the 60-second TTL expires. This fixes the Dashboard showing 0 entities
+/// while the Workspace page shows correct counts after processing.
+pub async fn invalidate_workspace_stats_cache(workspace_id: Uuid) {
+    let mut cache = WORKSPACE_STATS_CACHE.write().await;
+    cache.remove(&workspace_id);
+    tracing::debug!(
+        workspace_id = %workspace_id,
+        "Invalidated workspace stats cache after document processing"
+    );
+}
+
 /// Convert a Workspace domain object to WorkspaceResponse DTO.
 ///
 /// WHY: Centralized conversion ensures all model config fields are always included.

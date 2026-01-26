@@ -29,10 +29,32 @@ During iteration 01, a critical build issue was identified:
 
 - **Observed**: Dashboard shows 0 Entities, 0 Relationships, 0 Chunks (despite document having 13 entities)
 - **Expected**: Dashboard should show accurate counts matching the knowledge graph data
-- **Root Cause**: To be investigated - likely backend stats API or database query issue
+- **Root Cause #1** (FIXED Iteration 03): Backend was querying KV storage metadata instead of Apache AGE graph
+  - KV storage metadata doesn't have entity_count/relationship_count fields
+  - The actual entity/relationship data is stored in the graph storage
+  - **Fix**: Modified `try_kv_storage_stats()` to call `graph_storage.node_count_by_workspace()` and `edge_count_by_workspace()`
+- **Root Cause #2** (FIXED Iteration 03-CACHE-FIX): Workspace stats cache not invalidated after document processing
+  - Backend has 60-second TTL cache on workspace stats (WORKSPACE_STATS_CACHE)
+  - Dashboard loaded first with 0 entities (before fix), cache populated with stale data
+  - Workspace page used the same stale cached data, causing discrepancy
+  - **Fix**: Added `invalidate_workspace_stats_cache()` helper function
+  - Called after document upload (sync processing) in [documents.rs](../../edgequake/crates/edgequake-api/src/handlers/documents.rs)
+  - Called after task completion (async processing) in [processor.rs](../../edgequake/crates/edgequake-api/src/processor.rs)
 - **Impact**: Users cannot see their knowledge graph extraction results
-- **Status**: Issue 2 (Dashboard Statistics Accuracy) was INCORRECTLY marked as resolved
-- **Action**: Reopen Issue 2, investigate backend stats endpoint, fix query logic
+- **Status**: RESOLVED - Both backend query logic and cache invalidation implemented
+
+## Amendment: Statistics Inaccuracy Bug (2026-01-26 22:35) - DEPRECATED
+
+**NOTE**: This section is kept for historical context. See above for the complete fix.
+
+~~**CRITICAL BUG DISCOVERED**: Dashboard and Workspace pages show incorrect statistics:~~
+
+~~- **Observed**: Dashboard shows 0 Entities, 0 Relationships, 0 Chunks (despite document having 13 entities)~~
+~~- **Expected**: Dashboard should show accurate counts matching the knowledge graph data~~
+~~- **Root Cause**: To be investigated - likely backend stats API or database query issue~~
+~~- **Impact**: Users cannot see their knowledge graph extraction results~~
+~~- **Status**: Issue 2 (Dashboard Statistics Accuracy) was INCORRECTLY marked as resolved~~
+~~- **Action**: Reopen Issue 2, investigate backend stats endpoint, fix query logic~~
 
 ## Context
 
