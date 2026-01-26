@@ -643,7 +643,7 @@ impl WorkspaceService for WorkspaceServiceImpl {
                 (SELECT COUNT(*) FROM entities WHERE workspace_id = $1) as entity_count,
                 (SELECT COUNT(*) FROM relationships WHERE workspace_id = $1) as relationship_count,
                 (SELECT COUNT(*) FROM chunks WHERE workspace_id = $1 AND embedding IS NOT NULL) as embedding_count,
-                (SELECT COALESCE(SUM(file_size_bytes), 0) FROM documents WHERE workspace_id = $1) as storage_bytes
+                (SELECT COALESCE(SUM(file_size_bytes), 0)::BIGINT FROM documents WHERE workspace_id = $1) as storage_bytes
             "#,
         )
         .bind(workspace_id)

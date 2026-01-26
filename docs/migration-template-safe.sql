@@ -35,6 +35,13 @@ BEGIN
     RAISE NOTICE '✓ parent_table.parent_id type validated: %', actual_type;
 END $$;
 
+-- IMPORTANT: PostgreSQL Type Casting for Aggregate Functions
+-- SUM() returns NUMERIC, not BIGINT - always cast: SUM(bigint_col)::BIGINT
+-- AVG() returns NUMERIC - cast as needed
+-- COUNT() returns BIGINT - no cast needed
+-- MAX()/MIN() return same type as column - no cast needed unless mixing types
+-- Example: SELECT COALESCE(SUM(file_size_bytes), 0)::BIGINT as storage_bytes
+
 -- Check 3: Verify no naming conflicts
 DO $$
 BEGIN
