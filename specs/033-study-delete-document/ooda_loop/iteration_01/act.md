@@ -68,7 +68,7 @@ if remaining_sources.is_empty() {
 }
 ```
 
-**Commit**: `OODA-01-01: Fix edge deletion race condition in document delete`
+**Commit**: `3a04da76` - OODA-01: Fix edge deletion race condition
 
 ---
 
@@ -114,7 +114,7 @@ for edge in all_edges {
 }
 ```
 
-**Commit**: `OODA-01-02: Add orphaned edge cleanup after node deletion`
+**Commit**: `3a04da76` - OODA-01: Fix edge deletion race condition (orphaned edge cleanup included)
 
 ---
 
@@ -303,9 +303,11 @@ Files:
 
 ### Commit 2: Add integration tests for document deletion
 
+**Commit SHA**: `6371e609`
+
 ```bash
-git add crates/edgequake-api/tests/e2e_document_deletion.rs
-git commit -m "OODA-01: Add integration tests for document deletion cascade
+git log --oneline -1 6371e609
+```
 
 Added comprehensive test suite for document deletion scenarios:
 
