@@ -16,6 +16,8 @@ export default function DashboardPage() {
   const { selectedTenantId, selectedWorkspaceId, workspaces, selectWorkspace } = useTenantStore();
 
   // Auto-select first workspace if none selected (e.g., direct navigation to /)
+  // WHY: This effect must run when workspaces array changes (not just on mount)
+  // because workspaces are loaded asynchronously by TenantGuard
   useEffect(() => {
     if (!selectedWorkspaceId && workspaces.length > 0) {
       selectWorkspace(workspaces[0].id);
