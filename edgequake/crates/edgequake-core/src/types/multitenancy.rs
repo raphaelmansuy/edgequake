@@ -1065,18 +1065,23 @@ pub struct UpdateWorkspaceRequest {
 }
 
 /// Statistics for a workspace.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// WHY embedding_count: Mission requirement - "Ensure metric likes number of
+/// Entities, Relationships, Embeddings per document" are tracked.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WorkspaceStats {
     /// Workspace ID.
     pub workspace_id: Uuid,
     /// Total documents.
     pub document_count: usize,
-    /// Total entities.
+    /// Total entities (graph nodes).
     pub entity_count: usize,
-    /// Total relationships.
+    /// Total relationships (graph edges).
     pub relationship_count: usize,
-    /// Total chunks.
+    /// Total chunks (text segments).
     pub chunk_count: usize,
+    /// Total embeddings (vector representations).
+    pub embedding_count: usize,
     /// Storage used in bytes.
     pub storage_bytes: usize,
 }

@@ -622,12 +622,17 @@ impl WorkspaceService for WorkspaceServiceImpl {
             .await?
             .ok_or_else(|| Error::not_found(format!("Workspace {} not found", workspace_id)))?;
 
+        // WHY stub: Real-time stats require access to storage adapters.
+        // Current architecture separates WorkspaceService from storage layer.
+        // TODO OODA-13: Implement real-time counting via direct SQL queries
+        // against edgequake_nodes, edgequake_edges, document_vectors tables.
         Ok(WorkspaceStats {
             workspace_id,
             document_count: 0,
             entity_count: 0,
             relationship_count: 0,
             chunk_count: 0,
+            embedding_count: 0,
             storage_bytes: 0,
         })
     }

@@ -905,6 +905,7 @@ pub async fn get_workspace_stats(
         entity_count: stats.entity_count,
         relationship_count: stats.relationship_count,
         chunk_count: stats.chunk_count,
+        embedding_count: stats.embedding_count,
         storage_bytes: stats.storage_bytes as u64,
     };
 
@@ -1986,10 +1987,13 @@ mod tests {
             entity_count: 500,
             relationship_count: 200,
             chunk_count: 1000,
+            embedding_count: 800,
             storage_bytes: 1024 * 1024,
         };
         let json = serde_json::to_string(&response);
         assert!(json.is_ok());
-        assert!(json.unwrap().contains("\"document_count\":100"));
+        let json_str = json.unwrap();
+        assert!(json_str.contains("\"document_count\":100"));
+        assert!(json_str.contains("\"embedding_count\":800"));
     }
 }

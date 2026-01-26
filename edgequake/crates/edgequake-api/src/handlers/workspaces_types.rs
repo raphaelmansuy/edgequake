@@ -332,18 +332,22 @@ pub fn workspaces_default_limit() -> usize {
 }
 
 /// Workspace statistics response.
+///
+/// WHY embedding_count: Mission requirement to track embeddings per workspace.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct WorkspaceStatsResponse {
     /// Workspace ID.
     pub workspace_id: Uuid,
     /// Number of documents.
     pub document_count: usize,
-    /// Number of entities.
+    /// Number of entities (graph nodes).
     pub entity_count: usize,
-    /// Number of relationships.
+    /// Number of relationships (graph edges).
     pub relationship_count: usize,
-    /// Number of chunks.
+    /// Number of chunks (text segments).
     pub chunk_count: usize,
+    /// Number of embeddings (vector representations).
+    pub embedding_count: usize,
     /// Storage used in bytes.
     pub storage_bytes: u64,
 }
@@ -725,12 +729,14 @@ mod tests {
             entity_count: 50,
             relationship_count: 25,
             chunk_count: 100,
+            embedding_count: 80,
             storage_bytes: 1024 * 1024,
         };
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"document_count\":10"));
         assert!(json.contains("\"entity_count\":50"));
+        assert!(json.contains("\"embedding_count\":80"));
         assert!(json.contains("\"storage_bytes\":1048576"));
     }
 }
