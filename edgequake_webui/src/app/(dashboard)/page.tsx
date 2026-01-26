@@ -17,11 +17,12 @@ import { QuickActions, RecentActivity, StatsCard, SystemStatus } from '@/compone
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useWorkspaceTenantValidator } from '@/hooks/use-workspace-tenant-validator';
 import { getDocuments, getWorkspaceStats } from '@/lib/api/edgequake';
+import { validateAndClearCache } from '@/lib/cache-manager';
 import { useTenantStore } from '@/stores/use-tenant-store';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileText, GitBranch, Tags, Users } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 // Component to handle URL updates with Suspense boundary
@@ -64,6 +65,12 @@ export default function DashboardPage() {
 
   // Get tenant context for query keys
   const { selectedTenantId, selectedWorkspaceId, _hasHydrated } = useTenantStore();
+  
+  // Get query client for cache management
+  const queryClient = useQueryClient();
+  
+  // Track if cache has been validated
+  const hasValidatedCache = useRef(false);
 
   // Debug logging
   console.log('[Dashboard] Render:', { 
@@ -72,6 +79,40 @@ export default function DashboardPage() {
     _hasHydrated,
     queryEnabled: _hasHydrated && !!selectedWorkspaceId
   });
+
+  // WHY: Validate and clear cache on mount if stale
+  // This ensures fresh data is fetched when workspace/tenant changes
+  // or after code updates (version change)
+  useEffect(() => {
+    if (!_hasHydrated) return; // Wait for Zustand to hydrate
+    if (hasValidatedCache.current) return; // Only validate once
+
+    hasValidatedCache.current = true;
+
+    // Validate cache and clear if stale
+    validateAndClearCache(queryClient, selectedTenantId, selectedWorkspaceId);
+
+    console.info('[Dashboard] Cache validation complete', {
+      tenantId: selectedTenantId,
+      workspaceId: selectedWorkspaceId,
+    });
+  }, [_hasHydrated, selectedTenantId, selectedWorkspaceId, queryClient]);
+
+  // WHY: Force refetch stats when workspace changes
+  // This ensures UI always shows current workspace data
+  useEffect(() => {
+    if (!_hasHydrated || !selectedWorkspaceId) return;
+
+    console.info('[Dashboard] Workspace changed, forcing stats refetch:', selectedWorkspaceId);
+    
+    // Invalidate and refetch stats for the new workspace
+    queryClient.invalidateQueries({
+      queryKey: ['workspaceStats', selectedWorkspaceId],
+    });
+    queryClient.refetchQueries({
+      queryKey: ['workspaceStats', selectedWorkspaceId],
+    });
+  }, [selectedWorkspaceId, _hasHydrated, queryClient]);
 
   // Auto-validate workspace-tenant consistency and fix mismatches
   useWorkspaceTenantValidator({
