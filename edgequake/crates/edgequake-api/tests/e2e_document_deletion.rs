@@ -4347,3 +4347,103 @@ async fn test_deletion_with_tenant_context() {
     println!("✅ OODA-45 TEST PASSED: Deletion respects tenant context");
 }
 
+// ============================================================================
+// OODA-46: Track ID Tests
+// ============================================================================
+
+/// Helper to upload a document with track_id
+async fn upload_document_with_track_id(
+    app: &axum::Router,
+    title: &str,
+    content: &str,
+    track_id: &str,
+) -> (StatusCode, Value) {
+    let request = json!({
+        "content": content,
+        "title": title,
+        "track_id": track_id,
+        "async_processing": false
+    });
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let status = response.status();
+    let body = extract_json(response).await;
+    (status, body)
+}
+
+/// OODA-46: Test document upload with track_id.
+#[tokio::test]
+async fn test_document_with_track_id() {
+    let app = create_test_app();
+    
+    let (status, body) = upload_document_with_track_id(
+        &app,
+        "Tracked Document",
+        "Content for track ID testing.",
+        "project-alpha-001"
+    ).await;
+    
+    assert_eq!(status, StatusCode::CREATED);
+    assert!(body.get("document_id").is_some());
+    
+    // Cleanup
+    let doc_id = body["document_id"].as_str().unwrap();
+    let (delete_status, _) = delete_document_http(&app, doc_id).await;
+    assert_eq!(delete_status, StatusCode::OK);
+    
+    println!("✅ OODA-46 TEST PASSED: Document with track_id");
+}
+
+/// OODA-46: Test deleting one doc doesn't affect same track_id docs.
+#[tokio::test]
+async fn test_same_track_id_deletion() {
+    let app = create_test_app();
+    
+    let track_id = "shared-track-id";
+    
+    // Create two documents with same track_id
+    let (status_a, body_a) = upload_document_with_track_id(
+        &app,
+        "Track Doc A",
+        "Content for track A.",
+        track_id
+    ).await;
+    assert_eq!(status_a, StatusCode::CREATED);
+    let doc_a_id = body_a["document_id"].as_str().unwrap().to_string();
+    
+    let (status_b, body_b) = upload_document_with_track_id(
+        &app,
+        "Track Doc B",
+        "Content for track B.",
+        track_id
+    ).await;
+    assert_eq!(status_b, StatusCode::CREATED);
+    let doc_b_id = body_b["document_id"].as_str().unwrap().to_string();
+    
+    // Delete doc A
+    let (delete_a_status, _) = delete_document_http(&app, &doc_a_id).await;
+    assert_eq!(delete_a_status, StatusCode::OK);
+    
+    // Doc B (same track_id) should still be deletable
+    let (delete_b_status, _) = delete_document_http(&app, &doc_b_id).await;
+    assert_eq!(
+        delete_b_status,
+        StatusCode::OK,
+        "Same track_id doc should still exist"
+    );
+    
+    println!("✅ OODA-46 TEST PASSED: Same track_id deletion");
+}
+
