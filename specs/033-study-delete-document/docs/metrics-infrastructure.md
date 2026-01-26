@@ -1,7 +1,7 @@
 # Metrics Infrastructure
 
-> **ITERATION**: 25  
-> **STATUS**: Documentation Complete  
+> **ITERATION**: 27  
+> **STATUS**: Manual Trigger Complete  
 > **DATE**: 2025-01-27
 
 ## Overview
@@ -49,7 +49,7 @@ CREATE INDEX idx_workspace_metrics_history_recorded
 pub enum MetricsTriggerType {
     Event,     // Triggered by upload/delete operations
     Scheduled, // Background task (future)
-    Manual,    // User-initiated (future)
+    Manual,    // User-initiated via POST endpoint
 }
 ```
 
@@ -129,6 +129,38 @@ async fn get_metrics_history(
 ```bash
 curl -X GET \
   "http://localhost:3000/api/v1/workspaces/550e8400-e29b-41d4-a716-446655440001/metrics-history?limit=10" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+### Trigger Metrics Snapshot (Manual)
+
+**Endpoint**: `POST /api/v1/workspaces/{workspace_id}/metrics-snapshot`
+
+**Authentication**: Required (API key or session)
+
+**Request Body**: None required
+
+**Response**: `201 Created`
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "recorded_at": "2025-01-27T10:30:00Z",
+  "trigger_type": "manual",
+  "document_count": 10,
+  "chunk_count": 50,
+  "entity_count": 150,
+  "relationship_count": 75,
+  "embedding_count": 300,
+  "storage_bytes": 1048576
+}
+```
+
+### Example Request (Manual Trigger)
+
+```bash
+curl -X POST \
+  "http://localhost:3000/api/v1/workspaces/550e8400-e29b-41d4-a716-446655440001/metrics-snapshot" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -218,10 +250,15 @@ WHERE entity_count < prev_count * 0.5;
 | Test | Description |
 |------|-------------|
 | `test_metrics_history_empty_for_new_workspace` | Returns empty array for new workspace |
-| `test_metrics_history_respects_limit` | Limit parameter works correctly |
-| `test_metrics_history_respects_offset` | Offset parameter works correctly |
+| `test_metrics_history_limit_parameter` | Limit parameter works correctly |
+| `test_metrics_history_offset_parameter` | Offset parameter works correctly |
 | `test_metrics_history_max_limit_enforced` | Limits capped at 1000 |
 | `test_metrics_history_pagination_combined` | Limit + offset work together |
+| `test_trigger_metrics_snapshot_creates_snapshot` | Manual trigger endpoint works |
+| `test_trigger_metrics_snapshot_response_structure` | Response format validation |
+| `test_trigger_metrics_snapshot_method_not_allowed` | Only POST allowed |
+
+**Total: 8 tests**
 
 ## Future Roadmap
 
@@ -237,13 +274,14 @@ pub trait MetricsScheduler {
 }
 ```
 
-### Manual Trigger Endpoint (Planned)
+### ~~Manual Trigger Endpoint~~ ✅ IMPLEMENTED (OODA-26)
 
 ```
-POST /api/v1/workspaces/{id}/metrics-history
+POST /api/v1/workspaces/{id}/metrics-snapshot
 ```
 
-Allow users to manually trigger a snapshot for debugging.
+Allows users to manually trigger a snapshot for debugging or
+external scheduler integration.
 
 ### Alerting Integration (Planned)
 
