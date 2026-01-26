@@ -17,7 +17,10 @@ export default function DashboardPage() {
   // Fetch workspace stats (includes document count, entity count, relationship count)
   const { data: statsData, isLoading: isLoadingStats } = useQuery({
     queryKey: ['workspaceStats', selectedTenantId, selectedWorkspaceId],
-    queryFn: () => getWorkspaceStats(selectedWorkspaceId || ''),
+    queryFn: () =>
+      selectedWorkspaceId
+        ? getWorkspaceStats(selectedWorkspaceId)
+        : Promise.reject(new Error('No workspace selected')),
     enabled: !!selectedWorkspaceId,
     staleTime: 30000,
   });
