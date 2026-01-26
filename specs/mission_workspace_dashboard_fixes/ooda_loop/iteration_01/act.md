@@ -15,14 +15,17 @@
 **File**: [header-tenant-selector.tsx](edgequake_webui/src/components/layout/header-tenant-selector.tsx#L244-L262)
 
 **Evidence** (Lines 244-247):
+
 ```tsx
 // WHY: Display full workspace name for better identification
 // Previous: 16 chars was too aggressive, users couldn't identify workspaces
 // Now: 30 chars with wider max-width (200px) for better visibility
-const truncatedName = displayName.length > 30 ? displayName.slice(0, 30) + '...' : displayName;
+const truncatedName =
+  displayName.length > 30 ? displayName.slice(0, 30) + "..." : displayName;
 ```
 
 **Evidence** (Line 262):
+
 ```tsx
 <span className="max-w-[200px] truncate hidden sm:inline">
 ```
@@ -35,21 +38,23 @@ const truncatedName = displayName.length > 30 ? displayName.slice(0, 30) + '...'
 
 **Status**: Found already implemented in codebase
 
-**File**: [page.tsx](edgequake_webui/src/app/(dashboard)/page.tsx#L68-L143)
+**File**: [page.tsx](<edgequake_webui/src/app/(dashboard)/page.tsx#L68-L143>)
 
 **Implementation Summary**:
+
 1. Uses `useQuery` with `getWorkspaceStats(selectedWorkspaceId)` - Lines 68-77
 2. Four `StatsCard` components for Documents, Entities, Relationships, Chunks - Lines 112-140
 3. Proper dependency on `selectedWorkspaceId` for reactivity - Line 69
 
 **Evidence** (Lines 68-77):
+
 ```tsx
 const { data: stats, isLoading: isLoadingStats } = useQuery({
-  queryKey: ['workspaceStats', selectedWorkspaceId],
+  queryKey: ["workspaceStats", selectedWorkspaceId],
   queryFn: () =>
     selectedWorkspaceId
       ? getWorkspaceStats(selectedWorkspaceId)
-      : Promise.reject(new Error('No workspace selected')),
+      : Promise.reject(new Error("No workspace selected")),
   enabled: !!selectedWorkspaceId,
   staleTime: 30000,
 });
@@ -66,12 +71,14 @@ const { data: stats, isLoading: isLoadingStats } = useQuery({
 **File**: [workspaces.rs](edgequake/crates/edgequake-api/src/handlers/workspaces.rs#L1707-L1850)
 
 **Key Implementation Points**:
+
 1. Workspace config is updated BEFORE reprocessing (Line 1812-1823)
 2. Vector cache is evicted when rebuilding embeddings (Line 1784-1791)
 3. Track ID generated for batch reprocessing (Line 1798-1802)
 4. Documents queued with new workspace_id for fresh LLM config lookup (Line 1847)
 
 **Evidence** (Lines 1784-1791):
+
 ```rust
 // OODA-225: Evict cached workspace vector storage when clearing vectors
 // WHY: If rebuild_embeddings is requested, the embedding model/dimension may change.
@@ -92,21 +99,24 @@ state.vector_registry.evict(&workspace_id).await;
 **File**: [rebuild-knowledge-graph-button.tsx](edgequake_webui/src/components/workspace/rebuild-knowledge-graph-button.tsx#L86-125)
 
 **Key Implementation Points**:
+
 1. Backend scans all documents with detailed skip reason tracking (Lines 2073-2140)
 2. Returns `documents_queued`, `documents_skipped`, `documents_found` (Lines 2176-2181)
 3. Frontend shows skipped count in toast message (Lines 104-120)
 4. Pipeline status dialog opens to show progress (Line 119)
 
 **Evidence** (Frontend Lines 104-115):
+
 ```tsx
-const skippedInfo = response.documents_skipped > 0
-  ? ` (${response.documents_skipped} skipped)`
-  : '';
+const skippedInfo =
+  response.documents_skipped > 0
+    ? ` (${response.documents_skipped} skipped)`
+    : "";
 toast.info(
   t(
-    'workspace.rebuild.reprocessing',
-    `Queued ${response.documents_queued} documents for reprocessing${skippedInfo}`
-  )
+    "workspace.rebuild.reprocessing",
+    `Queued ${response.documents_queued} documents for reprocessing${skippedInfo}`,
+  ),
 );
 ```
 
@@ -121,6 +131,7 @@ toast.info(
 **File**: [safe-build.sh](edgequake_webui/scripts/safe-build.sh)
 
 **Solution**:
+
 - Use `npm run build:safe` instead of `npm run build`
 - Script includes: cache cleanup, memory limits (4GB), CPU throttling (nice -n 10), timeout (300s)
 
@@ -133,6 +144,7 @@ toast.info(
 **Status**: Fixed 5 TypeScript errors in e2e tests
 
 **Files Modified**:
+
 - [ooda-228-critical-path.spec.ts](edgequake_webui/e2e/ooda-228-critical-path.spec.ts) - Lines 35, 52, 257
 - [ooda-228-workspace-embedding.spec.ts](edgequake_webui/e2e/ooda-228-workspace-embedding.spec.ts) - Lines 199, 221
 
@@ -146,14 +158,14 @@ toast.info(
 
 ## Summary of Changes
 
-| Issue | Status | Action Taken |
-|-------|--------|--------------|
-| 1. Name visibility | ✅ Already fixed | Verified 30-char limit + 200px max-width |
-| 2. Dashboard stats | ✅ Already fixed | Verified useQuery + StatsCard implementation |
-| 3. KG rebuild | ✅ Verified | Confirmed workspace config update + cache eviction |
-| 4. Reprocessing | ✅ Verified | Confirmed feedback UI + backend logic |
-| 5. CPU crash | ✅ Documented | Mission amended, safe-build.sh available |
-| TS errors | ✅ Fixed | Playwright .ok() method calls corrected |
+| Issue              | Status           | Action Taken                                       |
+| ------------------ | ---------------- | -------------------------------------------------- |
+| 1. Name visibility | ✅ Already fixed | Verified 30-char limit + 200px max-width           |
+| 2. Dashboard stats | ✅ Already fixed | Verified useQuery + StatsCard implementation       |
+| 3. KG rebuild      | ✅ Verified      | Confirmed workspace config update + cache eviction |
+| 4. Reprocessing    | ✅ Verified      | Confirmed feedback UI + backend logic              |
+| 5. CPU crash       | ✅ Documented    | Mission amended, safe-build.sh available           |
+| TS errors          | ✅ Fixed         | Playwright .ok() method calls corrected            |
 
 ---
 
