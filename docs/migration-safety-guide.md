@@ -126,16 +126,17 @@ END $$;
 
 #### Common Type Mismatches
 
-| Function | Input Type | Output Type | Fix |
-|----------|-----------|-------------|-----|
-| `SUM(bigint_col)` | `BIGINT` | `NUMERIC` | Cast: `SUM(col)::BIGINT` |
-| `AVG(int_col)` | `INTEGER` | `NUMERIC` | Cast: `AVG(col)::INTEGER` |
-| `COUNT(*)` | Any | `BIGINT` | ✅ No cast needed |
-| `MAX()/MIN()` | Any | Same as input | ✅ No cast needed |
+| Function          | Input Type | Output Type   | Fix                       |
+| ----------------- | ---------- | ------------- | ------------------------- |
+| `SUM(bigint_col)` | `BIGINT`   | `NUMERIC`     | Cast: `SUM(col)::BIGINT`  |
+| `AVG(int_col)`    | `INTEGER`  | `NUMERIC`     | Cast: `AVG(col)::INTEGER` |
+| `COUNT(*)`        | Any        | `BIGINT`      | ✅ No cast needed         |
+| `MAX()/MIN()`     | Any        | Same as input | ✅ No cast needed         |
 
 #### Real Example (from EdgeQuake codebase)
 
 **❌ BROKEN CODE:**
+
 ```rust
 // Rust expects i64
 struct StatsRow {
@@ -145,20 +146,22 @@ struct StatsRow {
 // Query returns NUMERIC (not BIGINT!)
 let stats: StatsRow = sqlx::query_as(
     r#"
-    SELECT 
-        (SELECT COALESCE(SUM(file_size_bytes), 0) FROM documents 
+    SELECT
+        (SELECT COALESCE(SUM(file_size_bytes), 0) FROM documents
          WHERE workspace_id = $1) as storage_bytes
     "#,
 )
 ```
 
 **Error:**
+
 ```
-Failed to get workspace stats: error occurred while decoding column "storage_bytes": 
+Failed to get workspace stats: error occurred while decoding column "storage_bytes":
 mismatched types; Rust type `i64` (as SQL type `INT8`) is not compatible with SQL type `NUMERIC`
 ```
 
 **✅ FIXED CODE:**
+
 ```rust
 // Same Rust type
 struct StatsRow {
@@ -168,8 +171,8 @@ struct StatsRow {
 // Query explicitly casts to BIGINT
 let stats: StatsRow = sqlx::query_as(
     r#"
-    SELECT 
-        (SELECT COALESCE(SUM(file_size_bytes), 0)::BIGINT FROM documents 
+    SELECT
+        (SELECT COALESCE(SUM(file_size_bytes), 0)::BIGINT FROM documents
          WHERE workspace_id = $1) as storage_bytes
     "#,
 )
@@ -178,6 +181,7 @@ let stats: StatsRow = sqlx::query_as(
 #### Why This Happens
 
 PostgreSQL changes return types to prevent overflow:
+
 - `SUM(BIGINT)` → `NUMERIC` (can hold larger values than BIGINT)
 - `AVG(INTEGER)` → `NUMERIC` (can hold decimal results)
 
@@ -198,7 +202,7 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'file_size_bytes must be BIGINT for SUM() compatibility';
     END IF;
-    
+
     RAISE NOTICE '✓ Type compatibility verified for aggregate functions';
 END $$;
 ```
@@ -213,9 +217,9 @@ DECLARE
 BEGIN
     -- This should work without error
     SELECT COALESCE(SUM(file_size_bytes), 0)::BIGINT INTO test_sum
-    FROM documents 
+    FROM documents
     WHERE workspace_id = '00000000-0000-0000-0000-000000000003';
-    
+
     RAISE NOTICE 'Test SUM query returned: % (type: BIGINT)', test_sum;
 END $$;
 ```
