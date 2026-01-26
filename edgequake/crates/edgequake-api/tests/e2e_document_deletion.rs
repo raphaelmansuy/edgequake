@@ -3814,3 +3814,90 @@ async fn test_deletion_response_status_info() {
     println!("✅ OODA-39 TEST PASSED: Deletion response status info");
 }
 
+// ============================================================================
+// OODA-40: Content Hash and Deduplication Tests
+// ============================================================================
+
+/// OODA-40: Test that same content produces consistent hash.
+#[tokio::test]
+async fn test_content_hash_consistency() {
+    let app = create_test_app();
+    
+    let content = "This is the exact same content for hash testing.";
+    
+    // Upload first document
+    let (status1, body1) = upload_document_http(
+        &app,
+        "Hash Test Doc 1",
+        content
+    ).await;
+    assert_eq!(status1, StatusCode::CREATED);
+    
+    // Upload second document with same content
+    let (status2, body2) = upload_document_http(
+        &app,
+        "Hash Test Doc 2",
+        content
+    ).await;
+    assert_eq!(status2, StatusCode::CREATED);
+    
+    // If content_hash is in response, verify they match
+    if let (Some(hash1), Some(hash2)) = (
+        body1.get("content_hash").and_then(|v| v.as_str()),
+        body2.get("content_hash").and_then(|v| v.as_str())
+    ) {
+        assert_eq!(hash1, hash2, "Same content should produce same hash");
+        println!("📊 Hash verified: {}", hash1);
+    }
+    
+    // Document IDs should be different (each upload creates new doc)
+    let doc_id1 = body1["document_id"].as_str().unwrap();
+    let doc_id2 = body2["document_id"].as_str().unwrap();
+    assert_ne!(doc_id1, doc_id2, "Different uploads should have different IDs");
+    
+    // Cleanup
+    delete_document_http(&app, doc_id1).await;
+    delete_document_http(&app, doc_id2).await;
+    
+    println!("✅ OODA-40 TEST PASSED: Content hash consistency");
+}
+
+/// OODA-40: Test that deleting one doc doesn't affect duplicate content doc.
+#[tokio::test]
+async fn test_delete_one_of_duplicate_content_docs() {
+    let app = create_test_app();
+    
+    let duplicate_content = "Duplicate content for testing deletion independence.";
+    
+    // Upload two documents with same content
+    let (status1, body1) = upload_document_http(
+        &app,
+        "Duplicate Content A",
+        duplicate_content
+    ).await;
+    assert_eq!(status1, StatusCode::CREATED);
+    let doc_a_id = body1["document_id"].as_str().unwrap().to_string();
+    
+    let (status2, body2) = upload_document_http(
+        &app,
+        "Duplicate Content B",
+        duplicate_content
+    ).await;
+    assert_eq!(status2, StatusCode::CREATED);
+    let doc_b_id = body2["document_id"].as_str().unwrap().to_string();
+    
+    // Delete doc A
+    let (delete_status, _) = delete_document_http(&app, &doc_a_id).await;
+    assert_eq!(delete_status, StatusCode::OK);
+    
+    // Doc B should still be deletable (exists independently)
+    let (delete_b_status, _) = delete_document_http(&app, &doc_b_id).await;
+    assert_eq!(
+        delete_b_status,
+        StatusCode::OK,
+        "Duplicate content doc should still exist after other deleted"
+    );
+    
+    println!("✅ OODA-40 TEST PASSED: Delete one of duplicate content docs");
+}
+
