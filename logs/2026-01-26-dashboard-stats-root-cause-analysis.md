@@ -7,12 +7,13 @@ Dashboard shows 0 entities/0 relationships while Workspace page shows 13 entitie
 ## Investigation Summary
 
 ### 1. Backend API Working Correctly ✅
+
 ```bash
 # Workspace 676b8da6 (TennantZZ tenant)
 GET /api/v1/workspaces/676b8da6-d203-4530-89a5-8c9100c78b47/stats
 → {entity_count: 13, relationship_count: 9, document_count: 1}
 
-# Workspace 00000003 (Default tenant)  
+# Workspace 00000003 (Default tenant)
 GET /api/v1/workspaces/00000000-0000-0000-0000-000000000003/stats
 → {entity_count: 5, relationship_count: 0, document_count: 2}
 
@@ -22,6 +23,7 @@ GET /api/v1/workspaces/23d89fe3-e822-4c06-8f8c-82752436f7f3/stats
 ```
 
 ### 2. React Query Configuration - NOT THE ROOT CAUSE ❌
+
 Previously suspected staleTime: 30000 was causing caching issues. However, even with staleTime: 0, problem persists. React Query is working correctly - it's fetching data exactly as requested.
 
 ### 3. TRUE ROOT CAUSE: Tenant/Workspace Context Mismatch ✅
@@ -30,10 +32,12 @@ Previously suspected staleTime: 30000 was causing caching issues. However, even 
 Both Dashboard and Workspace pages display "Default Workspace" in the dropdown, but they're loading data from DIFFERENT tenants due to corrupted or mismatched localStorage state.
 
 **What's Happening:**
+
 - **Dashboard**: Uses tenant 00000002 ("Default") → workspace 00000003 ("Default Workspace") → 5 entities, 0 relationships
-- **Workspace**: Uses tenant badc48ee ("TennantZZ") → workspace 676b8da6 ("Default Workspace") → 13 entities, 9 relationships  
+- **Workspace**: Uses tenant badc48ee ("TennantZZ") → workspace 676b8da6 ("Default Workspace") → 13 entities, 9 relationships
 
 **Why It Happens:**
+
 1. User has multiple tenants with workspaces named "Default Workspace"
 2. localStorage (`edgequake-tenant-store` or `zustand-tenant-store`) persists tenant/workspace IDs
 3. When page mounts, the persisted tenant context doesn't match the UI selector state
@@ -43,7 +47,9 @@ Both Dashboard and Workspace pages display "Default Workspace" in the dropdown, 
 ## Solution Strategy
 
 ### Option 1: Clear localStorage and Force Re-selection (Quick Fix)
+
 User needs to:
+
 1. Open browser DevTools (F12)
 2. Go to Application → Local Storage → `http://localhost:3000`
 3. Delete keys: `edgequake-tenant-store`, `zustand-tenant-store`, `edgequake-workspace-initialized`
@@ -51,7 +57,9 @@ User needs to:
 5. Re-select desired tenant/workspace from dropdown
 
 ### Option 2: Add Tenant Display to Workspace Selector (UX Fix)
+
 Modify the workspace dropdown to show both tenant AND workspace name:
+
 ```
 TennantZZ / Default Workspace (13 entities)
 Default / Default Workspace (5 entities)
@@ -60,19 +68,22 @@ Default / Default Workspace (5 entities)
 This prevents confusion when multiple tenants have identically-named workspaces.
 
 ### Option 3: Fix Tenant Context Persistence (Code Fix)
+
 Add tenant context validation on page mount:
 
 ```typescript
 // In Dashboard page.tsx and Workspace page.tsx
 useEffect(() => {
   const { selectedTenantId, selectedWorkspaceId } = useTenantStore.getState();
-  
+
   // Verify the workspace actually belongs to the selected tenant
   if (selectedTenantId && selectedWorkspaceId) {
-    getWorkspace(selectedWorkspaceId).then(workspace => {
+    getWorkspace(selectedWorkspaceId).then((workspace) => {
       if (workspace.tenant_id !== selectedTenantId) {
         // Mismatch detected! Clear and force re-selection
-        console.error(`Workspace ${selectedWorkspaceId} belongs to tenant ${workspace.tenant_id}, not ${selectedTenantId}`);
+        console.error(
+          `Workspace ${selectedWorkspaceId} belongs to tenant ${workspace.tenant_id}, not ${selectedTenantId}`,
+        );
         useTenantStore.getState().reset();
         window.location.reload();
       }
@@ -82,6 +93,7 @@ useEffect(() => {
 ```
 
 ### Option 4: Add Workspace ID Display (Debug Fix)
+
 Show workspace ID in the selector to make it obvious which workspace is selected:
 
 ```
@@ -92,17 +104,20 @@ Default Workspace (00000003) - 5 entities
 ## Recommended Action Plan
 
 **Immediate (for user):**
+
 1. Clear browser localStorage
-2. Refresh page  
+2. Refresh page
 3. Manually select correct tenant "TennantZZ"
 4. Then select workspace "Default Workspace" (should show 13 entities)
 
 **Short-term (for developer):**
+
 1. Add tenant name to workspace selector: `[Tenant] / Workspace Name`
 2. Add workspace ID tooltip for disambiguation
 3. Add tenant-workspace validation on page mount
 
 **Long-term (architecture):**
+
 1. Implement tenant-workspace foreign key validation in frontend
 2. Add workspace switcher that shows all metadata (tenant, stats, etc.)
 3. Consider workspace slugs instead of IDs for better UX
@@ -148,7 +163,7 @@ Tested:
    - Add tenant name prefix to workspace display
    - Add workspace ID tooltip
 
-2. `edgequake_webui/src/stores/use-tenant-store.ts`  
+2. `edgequake_webui/src/stores/use-tenant-store.ts`
    - Add tenant-workspace validation method
    - Add migration for corrupted state
 
@@ -165,6 +180,7 @@ Tested:
 ## Conclusion
 
 The React Query caching fix (staleTime: 0) was a red herring. The actual problem is tenant/workspace context mismatch caused by:
+
 1. Multiple tenants with same-named workspaces ("Default Workspace")
 2. localStorage persistence creating ambiguity
 3. No validation that workspace belongs to selected tenant

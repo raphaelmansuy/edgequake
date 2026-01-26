@@ -15,6 +15,7 @@
 
 import { QuickActions, RecentActivity, StatsCard, SystemStatus } from '@/components/dashboard';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useWorkspaceTenantValidator } from '@/hooks/use-workspace-tenant-validator';
 import { getDocuments, getWorkspaceStats } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useQuery } from '@tanstack/react-query';
@@ -22,7 +23,6 @@ import { FileText, GitBranch, Tags, Users } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useWorkspaceTenantValidator } from '@/hooks/use-workspace-tenant-validator';
 
 // Component to handle URL updates with Suspense boundary
 function WorkspaceUrlUpdater() {
@@ -63,7 +63,15 @@ export default function DashboardPage() {
   const { t } = useTranslation();
 
   // Get tenant context for query keys
-  const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
+  const { selectedTenantId, selectedWorkspaceId, _hasHydrated } = useTenantStore();
+
+  // Debug logging
+  console.log('[Dashboard] Render:', { 
+    selectedTenantId, 
+    selectedWorkspaceId, 
+    _hasHydrated,
+    queryEnabled: _hasHydrated && !!selectedWorkspaceId
+  });
 
   // Auto-validate workspace-tenant consistency and fix mismatches
   useWorkspaceTenantValidator({
@@ -80,13 +88,15 @@ export default function DashboardPage() {
   // @implements BR1001 - Stats must reflect selected workspace data
   // OODA-ITERATION-03-CACHE-FIX: Reduced staleTime from 30s to 0 to force fresh fetches
   // This ensures stats are always current, especially after document uploads
+  // OODA-ITERATION-04-HYDRATION-FIX: Query now waits for Zustand hydration
+  // This prevents racing condition where query runs before workspace ID is loaded from localStorage
   const { data: stats, isLoading: isLoadingStats } = useQuery({
     queryKey: ['workspaceStats', selectedWorkspaceId],
     queryFn: () =>
       selectedWorkspaceId
         ? getWorkspaceStats(selectedWorkspaceId)
         : Promise.reject(new Error('No workspace selected')),
-    enabled: !!selectedWorkspaceId,
+    enabled: _hasHydrated && !!selectedWorkspaceId, // Wait for hydration!
     staleTime: 0, // Always fetch fresh stats to reflect latest document processing
     refetchOnMount: 'always', // Always refetch when component mounts
   });
@@ -95,6 +105,7 @@ export default function DashboardPage() {
   const { data: documentsData, isLoading: isLoadingDocs } = useQuery({
     queryKey: ['documents', selectedTenantId, selectedWorkspaceId, 1, 10],
     queryFn: () => getDocuments({ page: 1, page_size: 10 }),
+    enabled: _hasHydrated && !!selectedWorkspaceId, // Wait for hydration
     staleTime: 30000,
   });
 

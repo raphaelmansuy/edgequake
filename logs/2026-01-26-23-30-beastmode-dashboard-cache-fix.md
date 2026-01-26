@@ -13,6 +13,7 @@ User reported that the Dashboard was showing **0 entities and 0 relationships** 
 ### Investigation Steps
 
 1. **Backend Analysis**: Checked backend logs and confirmed the stats API (`/api/v1/workspaces/{id}/stats`) was correctly returning data:
+
    ```json
    {
      "entity_count": 13,
@@ -33,7 +34,7 @@ The Dashboard and Workspace pages both use React Query with a **30-second staleT
 
 ```tsx
 const { data: stats } = useQuery({
-  queryKey: ['workspaceStats', selectedWorkspaceId],
+  queryKey: ["workspaceStats", selectedWorkspaceId],
   queryFn: () => getWorkspaceStats(selectedWorkspaceId),
   enabled: !!selectedWorkspaceId,
   staleTime: 30000, // 30 seconds - TOO LONG!
@@ -41,6 +42,7 @@ const { data: stats } = useQuery({
 ```
 
 **Why this caused 0s to show**:
+
 - React Query was caching the stats response for 30 seconds
 - If the Dashboard loaded before a workspace was fully selected, it might cache `undefined` or stale data
 - Even after switching workspaces or uploading documents, the cached data persisted for 30 seconds
@@ -56,14 +58,14 @@ Modified two files to eliminate frontend caching:
 
 ```tsx
 const { data: stats, isLoading: isLoadingStats } = useQuery({
-  queryKey: ['workspaceStats', selectedWorkspaceId],
+  queryKey: ["workspaceStats", selectedWorkspaceId],
   queryFn: () =>
     selectedWorkspaceId
       ? getWorkspaceStats(selectedWorkspaceId)
-      : Promise.reject(new Error('No workspace selected')),
+      : Promise.reject(new Error("No workspace selected")),
   enabled: !!selectedWorkspaceId,
   staleTime: 0, // ← CHANGED: Always fetch fresh stats
-  refetchOnMount: 'always', // ← NEW: Always refetch when component mounts
+  refetchOnMount: "always", // ← NEW: Always refetch when component mounts
 });
 ```
 
@@ -83,6 +85,7 @@ Same changes as Dashboard page.
 **Won't this make it slower?**
 
 No, because:
+
 - Backend has a 60-second TTL cache that serves requests in <1ms
 - Backend cache is invalidated after document processing, so stats are always accurate
 - Network requests are fast (<10ms for cached backend responses)
@@ -132,7 +135,7 @@ Backend (Axum API)
 │  ├─ Hit: Return cached (<1ms)
 │  └─ Miss: Query graph storage
 ├─→ Apache AGE Graph Queries
-│   ├─ node_count_by_workspace() 
+│   ├─ node_count_by_workspace()
 │   └─ edge_count_by_workspace()
 └─ Cache result (60s TTL)
 
@@ -153,12 +156,14 @@ Document Processing
 ### Best Practices
 
 ✅ **DO**:
+
 - Set `staleTime: 0` for data that updates frequently (documents, stats, real-time data)
 - Use backend caching for performance (60s TTL is good for stats)
 - Invalidate caches explicitly after mutations (uploads, deletes, updates)
 - Test with fresh browser sessions to catch caching bugs
 
 ❌ **DON'T**:
+
 - Use long staleTime (>30s) for frequently changing data
 - Rely on default values to hide missing data
 - Assume React Query's smart caching will handle all cases
@@ -209,21 +214,25 @@ open -na "Google Chrome" --args --incognito http://localhost:3000
 ---
 
 **Actions**:
+
 1. Modified Dashboard page React Query: `staleTime: 0`, `refetchOnMount: 'always'`
 2. Modified Workspace page React Query: Same changes
 3. Verified backend graph queries and cache invalidation still working
 
 **Decisions**:
+
 - Use `staleTime: 0` for stats queries (always fresh)
 - Keep backend 60s TTL cache for performance
 - Always refetch stats on page mount
 
 **Next Steps**:
+
 1. User validates fix in browser
 2. Monitor backend logs for cache invalidation debug messages
 3. Consider adding E2E test for cache consistency
 
 **Lessons**:
+
 - Multi-layer caching (frontend + backend) requires careful coordination
 - React Query staleTime can hide cache invalidation bugs
 - Always test with fresh browser sessions to catch caching issues

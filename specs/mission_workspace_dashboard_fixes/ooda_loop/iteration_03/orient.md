@@ -130,29 +130,30 @@ let relationship_count = state
 
 ## Implementation Priority
 
-| Step | Task | Impact |
-|------|------|--------|
-| 1 | Add trait methods to `GraphStorage` trait | Foundation |
-| 2 | Implement in `PostgresAGEGraphStorage` | Core fix |
-| 3 | Provide default impl for `MemoryGraphStorage` | Testing |
-| 4 | Update `try_kv_storage_stats` to query graph | Integration |
-| 5 | Test with real document | Validation |
+| Step | Task                                          | Impact      |
+| ---- | --------------------------------------------- | ----------- |
+| 1    | Add trait methods to `GraphStorage` trait     | Foundation  |
+| 2    | Implement in `PostgresAGEGraphStorage`        | Core fix    |
+| 3    | Provide default impl for `MemoryGraphStorage` | Testing     |
+| 4    | Update `try_kv_storage_stats` to query graph  | Integration |
+| 5    | Test with real document                       | Validation  |
 
 ---
 
 ## Risk Assessment
 
-| Risk | Likelihood | Mitigation |
-|------|------------|------------|
-| Performance impact of Cypher queries | Medium | Use same pattern as `clear_workspace` (proven) |
-| Breaking existing tests | Low | Default implementation maintains compatibility |
-| Multi-workspace edge counting logic | Medium | Count edge if either endpoint belongs to workspace |
+| Risk                                 | Likelihood | Mitigation                                         |
+| ------------------------------------ | ---------- | -------------------------------------------------- |
+| Performance impact of Cypher queries | Medium     | Use same pattern as `clear_workspace` (proven)     |
+| Breaking existing tests              | Low        | Default implementation maintains compatibility     |
+| Multi-workspace edge counting logic  | Medium     | Count edge if either endpoint belongs to workspace |
 
 ---
 
 ## Expected Outcome
 
 After fix:
+
 - Dashboard shows: 13 Entities, ~N Relationships (actual graph data)
 - Workspace page shows: accurate counts
 - Stats update immediately after document processing
