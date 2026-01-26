@@ -2947,3 +2947,110 @@ async fn test_delete_then_reupload_same_name() {
     println!("✅ OODA-28 TEST PASSED: Delete-then-reupload creates fresh state");
 }
 
+// ============================================================================
+// OODA-30: Performance Baseline Tests
+// ============================================================================
+
+/// OODA-30: Performance baseline test for document deletion.
+///
+/// Measures deletion time and cascade metrics for benchmarking.
+/// With in-memory storage and mock LLM, this establishes the baseline
+/// for future performance testing with real providers.
+#[tokio::test]
+async fn test_deletion_performance_baseline() {
+    use std::time::Instant;
+    
+    let app = create_test_app();
+    
+    // Upload a document with multiple sentences (more entity extraction opportunities)
+    let content = r#"
+    Dr. Sarah Chen is the CEO of TechCorp, a leading technology company.
+    She works with Michael Johnson, the CTO, to develop innovative products.
+    TechCorp is headquartered in San Francisco, California.
+    The company was founded in 2010 and has grown to 500 employees.
+    Sarah Chen previously worked at Google and Microsoft before joining TechCorp.
+    Michael Johnson studied computer science at Stanford University.
+    "#;
+    
+    let (upload_status, body) = upload_document_http(
+        &app,
+        "Performance Test Document",
+        content
+    ).await;
+    assert_eq!(upload_status, StatusCode::CREATED);
+    
+    let doc_id = body["document_id"].as_str().unwrap();
+    
+    // Time the deletion
+    let start = Instant::now();
+    let (delete_status, delete_body) = delete_document_http(&app, doc_id).await;
+    let duration = start.elapsed();
+    
+    assert_eq!(delete_status, StatusCode::OK);
+    assert!(delete_body["deleted"].as_bool().unwrap_or(false));
+    
+    // Extract metrics from response
+    let entities = delete_body["entities_removed"].as_i64().unwrap_or(0);
+    let relationships = delete_body["relationships_removed"].as_i64().unwrap_or(0);
+    
+    // Performance assertion: should complete in <100ms for in-memory
+    assert!(
+        duration.as_millis() < 100,
+        "Deletion took {}ms, expected <100ms",
+        duration.as_millis()
+    );
+    
+    println!("📊 OODA-30 PERFORMANCE BASELINE:");
+    println!("   Duration: {:?}", duration);
+    println!("   Entities removed: {}", entities);
+    println!("   Relationships removed: {}", relationships);
+    println!("   Throughput: {:.2} entities/ms", entities as f64 / duration.as_millis() as f64);
+    println!("✅ OODA-30 TEST PASSED: Deletion performance within baseline");
+}
+
+/// OODA-30: Performance test for multiple sequential deletions.
+///
+/// Tests that performance remains stable across multiple delete operations.
+#[tokio::test]
+async fn test_deletion_performance_sequential() {
+    use std::time::Instant;
+    
+    let app = create_test_app();
+    
+    let mut doc_ids = Vec::new();
+    
+    // Upload 5 documents
+    for i in 0..5 {
+        let (status, body) = upload_document_http(
+            &app,
+            &format!("Seq Perf Doc {}", i),
+            &format!("Person{} works at Company{}. They collaborate with Team{}.", i, i, i)
+        ).await;
+        assert_eq!(status, StatusCode::CREATED);
+        doc_ids.push(body["document_id"].as_str().unwrap().to_string());
+    }
+    
+    // Time sequential deletions
+    let start = Instant::now();
+    for doc_id in &doc_ids {
+        let (status, _) = delete_document_http(&app, doc_id).await;
+        assert_eq!(status, StatusCode::OK);
+    }
+    let total_duration = start.elapsed();
+    
+    let avg_ms = total_duration.as_millis() as f64 / doc_ids.len() as f64;
+    
+    // Average should be <50ms per document
+    assert!(
+        avg_ms < 50.0,
+        "Average deletion time {:.2}ms, expected <50ms",
+        avg_ms
+    );
+    
+    println!("📊 OODA-30 SEQUENTIAL PERFORMANCE:");
+    println!("   Documents: {}", doc_ids.len());
+    println!("   Total time: {:?}", total_duration);
+    println!("   Average per doc: {:.2}ms", avg_ms);
+    println!("✅ OODA-30 TEST PASSED: Sequential deletion performance stable");
+}
+
