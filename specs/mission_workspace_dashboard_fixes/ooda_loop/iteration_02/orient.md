@@ -10,13 +10,13 @@
 
 ### All Issues Resolved
 
-| Issue | Original Gap | Current State | Analysis |
-|-------|--------------|---------------|----------|
-| 1. Name truncation | 16 chars, 120px | 30 chars, 200px | ✅ User can identify workspaces |
-| 2. Dashboard stats | Missing | Implemented | ✅ Shows real-time workspace data |
-| 3. KG rebuild | Unknown | Verified | ✅ Model changes propagate correctly |
-| 4. Reprocessing | Unknown | Verified | ✅ Backend processing with feedback |
-| 5. CPU crash | Undocumented | Documented | ✅ Safe build script available |
+| Issue              | Original Gap    | Current State   | Analysis                             |
+| ------------------ | --------------- | --------------- | ------------------------------------ |
+| 1. Name truncation | 16 chars, 120px | 30 chars, 200px | ✅ User can identify workspaces      |
+| 2. Dashboard stats | Missing         | Implemented     | ✅ Shows real-time workspace data    |
+| 3. KG rebuild      | Unknown         | Verified        | ✅ Model changes propagate correctly |
+| 4. Reprocessing    | Unknown         | Verified        | ✅ Backend processing with feedback  |
+| 5. CPU crash       | Undocumented    | Documented      | ✅ Safe build script available       |
 
 ---
 
@@ -91,13 +91,13 @@
 
 ## Risk Assessment: Complete
 
-| Risk | Status | Mitigation Applied |
-|------|--------|-------------------|
-| Layout breakage | ✅ Resolved | Tested in browser |
-| Stats API wrong data | ✅ Verified | Backend logic confirmed |
-| Model change not reflected | ✅ Resolved | Cache eviction added |
-| Reprocess queue overload | ✅ Mitigated | Max documents limit (10000) |
-| Build CPU crash | ✅ Documented | Safe build script available |
+| Risk                       | Status        | Mitigation Applied          |
+| -------------------------- | ------------- | --------------------------- |
+| Layout breakage            | ✅ Resolved   | Tested in browser           |
+| Stats API wrong data       | ✅ Verified   | Backend logic confirmed     |
+| Model change not reflected | ✅ Resolved   | Cache eviction added        |
+| Reprocess queue overload   | ✅ Mitigated  | Max documents limit (10000) |
+| Build CPU crash            | ✅ Documented | Safe build script available |
 
 ---
 

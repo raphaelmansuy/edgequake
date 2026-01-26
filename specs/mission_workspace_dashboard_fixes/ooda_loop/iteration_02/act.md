@@ -13,22 +13,25 @@
 **File**: `MISSION.md`
 
 Changed from:
+
 ```markdown
 - [ ] Workspace name fully visible in dropdown (no truncation)
 - [ ] Dashboard shows correct counts per workspace
-...
+      ...
 ```
 
 To:
+
 ```markdown
 - [x] Workspace name fully visible in dropdown (no truncation) ✅ 30-char limit + 200px max-width
 - [x] Dashboard shows correct counts per workspace ✅ useQuery + StatsCard implementation
-...
+      ...
 ```
 
 ### 2. Created Iteration 02 Documentation
 
 Files created:
+
 - `iteration_02/observe.md` - Test results and code state
 - `iteration_02/orient.md` - Architecture verification and risk analysis
 - `iteration_02/decide.md` - Final decision and recommendations
@@ -38,12 +41,12 @@ Files created:
 
 ## Test Evidence Summary
 
-| Test Suite | Result |
-|------------|--------|
-| TypeScript (`tsc --noEmit`) | ✅ No errors |
-| Vitest Unit Tests | ✅ 13 passed |
-| Rust API Tests | ✅ 423 passed |
-| Clippy Warnings | ⚠️ 2 minor (non-blocking) |
+| Test Suite                  | Result                    |
+| --------------------------- | ------------------------- |
+| TypeScript (`tsc --noEmit`) | ✅ No errors              |
+| Vitest Unit Tests           | ✅ 13 passed              |
+| Rust API Tests              | ✅ 423 passed             |
+| Clippy Warnings             | ⚠️ 2 minor (non-blocking) |
 
 ---
 
@@ -64,6 +67,7 @@ git commit -m "OODA-02: Complete mission - all success criteria met
 ## Mission Status: ✅ COMPLETE
 
 All 5 issues resolved:
+
 1. Workspace name visibility: 30-char + 200px
 2. Dashboard statistics: useQuery + StatsCard
 3. KG rebuild resilience: Cache eviction + config update

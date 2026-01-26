@@ -1064,8 +1064,6 @@ async fn try_kv_storage_stats(
     
     // Aggregate stats from documents belonging to this workspace
     let mut document_count = 0;
-    let mut entity_count: u64 = 0;
-    let mut relationship_count: u64 = 0;
     let mut storage_bytes: u64 = 0;
     let mut workspace_doc_ids = Vec::new();
     
@@ -1085,16 +1083,6 @@ async fn try_kv_storage_stats(
                     workspace_doc_ids.push(id.to_string());
                 }
                 
-                // Sum entity counts
-                if let Some(count) = obj.get("entity_count").and_then(|v| v.as_u64()) {
-                    entity_count += count;
-                }
-                
-                // Sum relationship counts
-                if let Some(count) = obj.get("relationship_count").and_then(|v| v.as_u64()) {
-                    relationship_count += count;
-                }
-                
                 // Sum storage bytes
                 if let Some(bytes) = obj.get("file_size_bytes").and_then(|v| v.as_u64()) {
                     storage_bytes += bytes;
@@ -1102,6 +1090,22 @@ async fn try_kv_storage_stats(
             }
         }
     }
+    
+    // OODA-03: Get entity/relationship counts from Apache AGE graph storage
+    // WHY: KV metadata doesn't have entity_count/relationship_count fields.
+    // The actual entity/relationship data is stored in the graph, not metadata.
+    // This fixes dashboard showing 0 entities despite successful extraction.
+    let entity_count = state
+        .graph_storage
+        .node_count_by_workspace(&workspace_id)
+        .await
+        .unwrap_or(0);
+
+    let relationship_count = state
+        .graph_storage
+        .edge_count_by_workspace(&workspace_id)
+        .await
+        .unwrap_or(0);
     
     // Count chunks and embeddings for this workspace's documents
     let mut chunk_count = 0;
@@ -1139,8 +1143,8 @@ async fn try_kv_storage_stats(
     Ok(WorkspaceStatsResponse {
         workspace_id,
         document_count,
-        entity_count: entity_count as usize,
-        relationship_count: relationship_count as usize,
+        entity_count,
+        relationship_count,
         chunk_count,
         embedding_count,
         storage_bytes,

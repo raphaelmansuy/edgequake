@@ -10,13 +10,13 @@
 
 All 5 issues from the mission have been addressed:
 
-| Issue | Decision | Status |
-|-------|----------|--------|
-| 1. Name visibility | No further action | ✅ Complete |
-| 2. Dashboard stats | No further action | ✅ Complete |
-| 3. KG rebuild | No further action | ✅ Complete |
-| 4. Reprocessing | No further action | ✅ Complete |
-| 5. CPU crash | No further action | ✅ Documented |
+| Issue              | Decision          | Status        |
+| ------------------ | ----------------- | ------------- |
+| 1. Name visibility | No further action | ✅ Complete   |
+| 2. Dashboard stats | No further action | ✅ Complete   |
+| 3. KG rebuild      | No further action | ✅ Complete   |
+| 4. Reprocessing    | No further action | ✅ Complete   |
+| 5. CPU crash       | No further action | ✅ Documented |
 
 ---
 
@@ -31,6 +31,7 @@ All 5 issues from the mission have been addressed:
 ## No Code Changes Required
 
 All issues were either:
+
 - Already implemented correctly (Issues 1-4)
 - Fixed with minimal TypeScript corrections (Playwright .ok() method)
 - Documented for user awareness (Issue 5 - CPU crash prevention)
