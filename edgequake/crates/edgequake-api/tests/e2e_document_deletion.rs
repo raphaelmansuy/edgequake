@@ -3054,3 +3054,134 @@ async fn test_deletion_performance_sequential() {
     println!("✅ OODA-30 TEST PASSED: Sequential deletion performance stable");
 }
 
+// ============================================================================
+// OODA-31: Bulk Deletion Test
+// ============================================================================
+
+/// OODA-31: Test bulk deletion of many documents.
+///
+/// Simulates cleanup scenarios where many documents are deleted.
+/// Verifies:
+/// - All documents successfully deleted
+/// - No data leakage between deletions
+/// - Final state is clean
+#[tokio::test]
+async fn test_bulk_deletion_cleanup() {
+    let state = AppState::test_state();
+    let app = create_test_server_with_state(state.clone());
+    
+    let doc_count = 10;
+    let mut doc_ids = Vec::new();
+    
+    // Upload many documents
+    for i in 0..doc_count {
+        let (status, body) = upload_document_http(
+            &app,
+            &format!("Bulk Doc {}", i),
+            &format!("Entity{} relates to Topic{}. This is document number {}.", i, i, i)
+        ).await;
+        assert_eq!(status, StatusCode::CREATED);
+        doc_ids.push(body["document_id"].as_str().unwrap().to_string());
+    }
+    
+    // Count entities before bulk delete
+    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
+    let edges_before = state.graph_storage.get_all_edges().await.unwrap();
+    
+    println!("📊 Before bulk delete:");
+    println!("   Documents: {}", doc_count);
+    println!("   Nodes: {}", nodes_before.len());
+    println!("   Edges: {}", edges_before.len());
+    
+    // Delete all documents
+    let mut success_count = 0;
+    for doc_id in &doc_ids {
+        let (status, body) = delete_document_http(&app, doc_id).await;
+        if status == StatusCode::OK && body["deleted"].as_bool().unwrap_or(false) {
+            success_count += 1;
+        }
+    }
+    
+    // All should succeed
+    assert_eq!(success_count, doc_count, "All documents should be deleted");
+    
+    // Count entities after bulk delete
+    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
+    let edges_after = state.graph_storage.get_all_edges().await.unwrap();
+    
+    println!("📊 After bulk delete:");
+    println!("   Nodes remaining: {}", nodes_after.len());
+    println!("   Edges remaining: {}", edges_after.len());
+    
+    // With mock LLM, we may have no entities, but if we do, they should be cleaned
+    // The key assertion: no orphaned entities from our documents
+    for doc_id in &doc_ids {
+        let orphaned = nodes_after.iter().any(|n| {
+            n.properties.get("source_ids")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().any(|s| s.as_str() == Some(doc_id)))
+                .unwrap_or(false)
+        });
+        assert!(!orphaned, "Found orphaned entity for deleted doc {}", doc_id);
+    }
+    
+    println!("✅ OODA-31 TEST PASSED: Bulk deletion cleaned all data");
+}
+
+/// OODA-31: Test that documents can be re-created after bulk deletion.
+///
+/// Ensures the workspace is in a clean state after bulk deletion
+/// and can accept new documents.
+#[tokio::test]
+async fn test_bulk_deletion_allows_reupload() {
+    let app = create_test_app();
+    
+    let doc_count = 5;
+    let mut doc_ids = Vec::new();
+    
+    // Upload batch 1
+    for i in 0..doc_count {
+        let (status, body) = upload_document_http(
+            &app,
+            &format!("Batch1 Doc {}", i),
+            &format!("Content for batch 1 document {}.", i)
+        ).await;
+        assert_eq!(status, StatusCode::CREATED);
+        doc_ids.push(body["document_id"].as_str().unwrap().to_string());
+    }
+    
+    // Delete all batch 1
+    for doc_id in &doc_ids {
+        let (status, _) = delete_document_http(&app, doc_id).await;
+        assert_eq!(status, StatusCode::OK);
+    }
+    
+    // Upload batch 2 with same names
+    let mut batch2_ids = Vec::new();
+    for i in 0..doc_count {
+        let (status, body) = upload_document_http(
+            &app,
+            &format!("Batch1 Doc {}", i), // Same names as batch 1
+            &format!("NEW content for batch 2 document {}.", i)
+        ).await;
+        assert_eq!(status, StatusCode::CREATED);
+        batch2_ids.push(body["document_id"].as_str().unwrap().to_string());
+    }
+    
+    // Verify batch 2 IDs are all new
+    for (i, id) in batch2_ids.iter().enumerate() {
+        assert!(
+            !doc_ids.contains(id),
+            "Batch 2 doc {} should have new ID", i
+        );
+    }
+    
+    // Cleanup batch 2
+    for doc_id in &batch2_ids {
+        let (status, _) = delete_document_http(&app, doc_id).await;
+        assert_eq!(status, StatusCode::OK);
+    }
+    
+    println!("✅ OODA-31 TEST PASSED: Workspace clean after bulk operations");
+}
+
