@@ -749,33 +749,38 @@ impl DocumentTaskProcessor {
             .flat_map(|e| e.entities.iter().map(|ent| ent.name.clone()))
             .collect();
 
-        let existing_entity_source_ids: std::collections::HashMap<String, std::collections::HashSet<String>> =
-            if !entity_names.is_empty() {
-                match self.graph_storage.get_nodes_by_ids(&entity_names).await {
-                    Ok(nodes) => nodes
-                        .into_iter()
-                        .map(|node| {
-                            let sources: std::collections::HashSet<String> = node
-                                .properties
-                                .get("source_ids")
-                                .and_then(|v| v.as_array())
-                                .map(|arr| {
-                                    arr.iter()
-                                        .filter_map(|v| v.as_str().map(String::from))
-                                        .collect()
-                                })
-                                .unwrap_or_default();
-                            (node.id, sources)
-                        })
-                        .collect(),
-                    Err(e) => {
-                        warn!("Failed to fetch existing entities for source_ids merge: {}", e);
-                        std::collections::HashMap::new()
-                    }
+        let existing_entity_source_ids: std::collections::HashMap<
+            String,
+            std::collections::HashSet<String>,
+        > = if !entity_names.is_empty() {
+            match self.graph_storage.get_nodes_by_ids(&entity_names).await {
+                Ok(nodes) => nodes
+                    .into_iter()
+                    .map(|node| {
+                        let sources: std::collections::HashSet<String> = node
+                            .properties
+                            .get("source_ids")
+                            .and_then(|v| v.as_array())
+                            .map(|arr| {
+                                arr.iter()
+                                    .filter_map(|v| v.as_str().map(String::from))
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        (node.id, sources)
+                    })
+                    .collect(),
+                Err(e) => {
+                    warn!(
+                        "Failed to fetch existing entities for source_ids merge: {}",
+                        e
+                    );
+                    std::collections::HashMap::new()
                 }
-            } else {
-                std::collections::HashMap::new()
-            };
+            }
+        } else {
+            std::collections::HashMap::new()
+        };
 
         // OODA-07: Pre-fetch existing edges to merge source_ids
         // WHY: Same issue as entities - edges need reference counting for correct deletion
@@ -789,8 +794,10 @@ impl DocumentTaskProcessor {
             })
             .collect();
 
-        let mut existing_edge_source_ids: std::collections::HashMap<(String, String), std::collections::HashSet<String>> =
-            std::collections::HashMap::new();
+        let mut existing_edge_source_ids: std::collections::HashMap<
+            (String, String),
+            std::collections::HashSet<String>,
+        > = std::collections::HashMap::new();
         for (source, target) in &edge_keys {
             if let Ok(Some(edge)) = self.graph_storage.get_edge(source, target).await {
                 let sources: std::collections::HashSet<String> = edge
@@ -815,10 +822,11 @@ impl DocumentTaskProcessor {
                 properties.insert("importance".to_string(), json!(entity.importance));
 
                 // OODA-07: Merge source_ids with existing entity (GAP-07 fix)
-                let mut merged_sources: std::collections::HashSet<String> = existing_entity_source_ids
-                    .get(&entity.name)
-                    .cloned()
-                    .unwrap_or_default();
+                let mut merged_sources: std::collections::HashSet<String> =
+                    existing_entity_source_ids
+                        .get(&entity.name)
+                        .cloned()
+                        .unwrap_or_default();
                 merged_sources.insert(document_id.clone());
                 let source_ids_vec: Vec<String> = merged_sources.into_iter().collect();
                 properties.insert("source_ids".to_string(), json!(source_ids_vec));
@@ -849,10 +857,11 @@ impl DocumentTaskProcessor {
 
                 // OODA-07: Merge source_ids with existing edge (GAP-07 fix)
                 let edge_key = (relationship.source.clone(), relationship.target.clone());
-                let mut merged_sources: std::collections::HashSet<String> = existing_edge_source_ids
-                    .get(&edge_key)
-                    .cloned()
-                    .unwrap_or_default();
+                let mut merged_sources: std::collections::HashSet<String> =
+                    existing_edge_source_ids
+                        .get(&edge_key)
+                        .cloned()
+                        .unwrap_or_default();
                 merged_sources.insert(document_id.clone());
                 let source_ids_vec: Vec<String> = merged_sources.into_iter().collect();
                 properties.insert("source_ids".to_string(), json!(source_ids_vec));

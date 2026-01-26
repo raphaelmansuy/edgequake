@@ -50,6 +50,7 @@ use crate::error::{ApiError, ApiResult};
 use crate::file_validation::validate_file;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
+use edgequake_core::MetricsTriggerType;
 use edgequake_storage::traits::VectorStorage;
 
 // Re-export DTOs from documents_types module
@@ -393,7 +394,9 @@ async fn cleanup_document_graph_data(
 
         if is_orphaned {
             // Edge connects to a deleted node - delete it
-            graph_storage.delete_edge(&edge.source, &edge.target).await?;
+            graph_storage
+                .delete_edge(&edge.source, &edge.target)
+                .await?;
             stats.relationships_removed += 1;
             tracing::debug!(
                 source = %edge.source,
@@ -419,7 +422,9 @@ async fn cleanup_document_graph_data(
 
         if remaining_sources.is_empty() {
             // No sources left - delete the relationship
-            graph_storage.delete_edge(&edge.source, &edge.target).await?;
+            graph_storage
+                .delete_edge(&edge.source, &edge.target)
+                .await?;
             stats.relationships_removed += 1;
         } else if remaining_sources.len() < sources.len() {
             // Some sources were removed - update the relationship
@@ -900,6 +905,27 @@ pub async fn upload_document(
             llm_model: result.stats.llm_model.clone(),
             embedding_model: result.stats.embedding_model.clone(),
         });
+
+        // OODA-21: Record metrics snapshot for trend analysis after upload
+        // Best-effort: log error but don't fail the upload
+        if let Ok(workspace_uuid) = Uuid::parse_str(&workspace_id_for_storage) {
+            if let Err(e) = state
+                .workspace_service
+                .record_metrics_snapshot(workspace_uuid, MetricsTriggerType::Event)
+                .await
+            {
+                tracing::warn!(
+                    workspace_id = %workspace_id_for_storage,
+                    error = %e,
+                    "Failed to record post-upload metrics snapshot"
+                );
+            } else {
+                tracing::debug!(
+                    workspace_id = %workspace_id_for_storage,
+                    "Recorded post-upload metrics snapshot"
+                );
+            }
+        }
 
         Ok((
             StatusCode::CREATED,
@@ -1911,6 +1937,27 @@ pub async fn delete_document(
         relationships_updated = relationships_updated,
         "Document cascade delete complete"
     );
+
+    // OODA-21: Record metrics snapshot for trend analysis after deletion
+    // Best-effort: log error but don't fail the deletion
+    if let Ok(workspace_uuid) = Uuid::parse_str(&workspace_id_for_storage) {
+        if let Err(e) = state
+            .workspace_service
+            .record_metrics_snapshot(workspace_uuid, MetricsTriggerType::Event)
+            .await
+        {
+            tracing::warn!(
+                workspace_id = %workspace_id_for_storage,
+                error = %e,
+                "Failed to record post-deletion metrics snapshot"
+            );
+        } else {
+            tracing::debug!(
+                workspace_id = %workspace_id_for_storage,
+                "Recorded post-deletion metrics snapshot"
+            );
+        }
+    }
 
     Ok(Json(DeleteDocumentResponse {
         document_id,
