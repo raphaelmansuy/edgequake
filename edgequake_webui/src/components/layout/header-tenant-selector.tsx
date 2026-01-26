@@ -377,8 +377,6 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
                             )}
                           </DropdownMenuItem>
                         ))
-                          </DropdownMenuItem>
-                        ))
                       )}
                       <DropdownMenuItem onClick={() => setShowCreateWorkspace(true)} className="py-2">
                         <Plus className="mr-2 h-4 w-4 text-muted-foreground" />
