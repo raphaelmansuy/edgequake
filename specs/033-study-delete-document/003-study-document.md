@@ -35,6 +35,15 @@ Impact of reprocessing a document must be fully studied, and handled correctly. 
 
 Ensure e2e test are conducted also with ollama provider with real llm such as gemma3:latest  and embeddinggemma:latest for embeddings. Ensure the create/update/delete and query document process is fully reliable with ollama provider. Ensure all mode of query works as expected: LLM-only, embedding-only, hybrid.
 
+
+Additions:
+
+Ensure we monitor the sizeof the workspace. Size of the Knowledge Graph, size of the embeddings storage, size of the KV storage per workspace over time. By Workspace, by Tenant.
+
+Ensure we have a reprocessing mechanism for failed documents. Ensure deleting a failed document cleans up all partial data.
+
+Ensure deleting a document being processed cleans up all partial data and does not interfere with ongoing processing.
+
 ## Context
 
 - **Location**:  edgequake/

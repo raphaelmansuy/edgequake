@@ -59,7 +59,7 @@ pub use crate::handlers::workspaces_types::{
     WorkspaceStatsResponse,
 };
 
-use edgequake_core::Workspace;
+use edgequake_core::{MetricsTriggerType, Workspace};
 
 // ============ Helper Functions ============
 
@@ -993,6 +993,61 @@ pub struct MetricsHistoryParams {
     pub limit: Option<usize>,
     /// Number of snapshots to skip.
     pub offset: Option<usize>,
+}
+
+/// Manually trigger a metrics snapshot for a workspace.
+///
+/// # Implements
+///
+/// - **FEAT1701**: Workspace Metrics Tracking
+///
+/// # WHY: Manual Trigger
+///
+/// Users may want to capture a metrics snapshot at a specific point in time
+/// for debugging, auditing, or comparison purposes. This endpoint allows
+/// manual triggering without waiting for automatic event-based recording.
+///
+/// # Use Cases
+///
+/// - Debug workspace state at a specific moment
+/// - Capture baseline before bulk operations
+/// - External scheduler integration (cron jobs)
+#[utoipa::path(
+    post,
+    path = "/api/v1/workspaces/{workspace_id}/metrics-snapshot",
+    params(
+        ("workspace_id" = Uuid, Path, description = "Workspace ID")
+    ),
+    responses(
+        (status = 201, description = "Snapshot created", body = MetricsSnapshotDTO),
+        (status = 404, description = "Workspace not found"),
+    ),
+    tags = ["workspaces"]
+)]
+pub async fn trigger_metrics_snapshot(
+    State(state): State<AppState>,
+    Path(workspace_id): Path<Uuid>,
+) -> Result<(StatusCode, Json<MetricsSnapshotDTO>), ApiError> {
+    // Record a manual-triggered snapshot
+    let snapshot = state
+        .workspace_service
+        .record_metrics_snapshot(workspace_id, MetricsTriggerType::Manual)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    let dto = MetricsSnapshotDTO {
+        id: snapshot.id,
+        recorded_at: snapshot.recorded_at.to_rfc3339(),
+        trigger_type: snapshot.trigger_type.to_string(),
+        document_count: snapshot.document_count,
+        chunk_count: snapshot.chunk_count,
+        entity_count: snapshot.entity_count,
+        relationship_count: snapshot.relationship_count,
+        embedding_count: snapshot.embedding_count,
+        storage_bytes: snapshot.storage_bytes,
+    };
+
+    Ok((StatusCode::CREATED, Json(dto)))
 }
 
 // ============================================================================

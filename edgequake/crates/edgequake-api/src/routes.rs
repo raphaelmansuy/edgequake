@@ -175,6 +175,11 @@ fn api_v1_routes() -> Router<AppState> {
             "/workspaces/{workspace_id}/metrics-history",
             get(handlers::get_metrics_history),
         )
+        // OODA-26: Manual metrics snapshot trigger
+        .route(
+            "/workspaces/{workspace_id}/metrics-snapshot",
+            post(handlers::trigger_metrics_snapshot),
+        )
         // SPEC-032: Rebuild embeddings for workspace
         .route(
             "/workspaces/{workspace_id}/rebuild-embeddings",
