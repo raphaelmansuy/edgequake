@@ -244,6 +244,8 @@ export function TenantWorkspaceSelector({
   const handleWorkspaceSelect = useCallback(
     (workspaceId: string) => {
       selectWorkspace(workspaceId);
+      // Invalidate workspace stats query to force refetch with new workspace
+      queryClient.invalidateQueries({ queryKey: ['workspaceStats'] });
       const workspace = workspaces.find((w) => w.id === workspaceId);
       if (workspace) {
         onWorkspaceChange?.(workspace);
@@ -374,7 +376,7 @@ export function TenantWorkspaceSelector({
                 value={selectedTenantId || ''}
                 onValueChange={handleTenantSelect}
               >
-                <SelectTrigger data-testid="tenant-select" className="h-8 text-xs flex-1 min-w-0 max-w-[160px]">
+                <SelectTrigger data-testid="tenant-select" className="h-8 text-xs flex-1 min-w-[200px] max-w-full">
                   <SelectValue
                     placeholder={t('tenant.selectTenant', 'Select tenant...')}
                   />
@@ -426,7 +428,7 @@ export function TenantWorkspaceSelector({
                 onValueChange={handleWorkspaceSelect}
                 disabled={!selectedTenantId}
               >
-                <SelectTrigger data-testid="workspace-select" className="h-8 text-xs flex-1 min-w-0 max-w-[160px]">
+                <SelectTrigger data-testid="workspace-select" className="h-8 text-xs flex-1 min-w-[200px] max-w-full">
                   <SelectValue
                     placeholder={
                       selectedTenantId

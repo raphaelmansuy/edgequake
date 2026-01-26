@@ -7,35 +7,52 @@ import { useTenantStore } from '@/stores/use-tenant-store';
 import { useQuery } from '@tanstack/react-query';
 import { FileText, GitMerge, Network, Users } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
-export default function DashboardPage() {
-  const { t } = useTranslation();
+// Component to handle URL updates with Suspense boundary
+function WorkspaceUrlUpdater() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { selectedWorkspaceId, workspaces, selectWorkspace } = useTenantStore();
 
-  // Get tenant context for query keys
-  const { selectedTenantId, selectedWorkspaceId, workspaces, selectWorkspace } = useTenantStore();
-
-  // Auto-select first workspace if none selected (e.g., direct navigation to /)
-  // WHY: This effect must run when workspaces array changes (not just on mount)
-  // because workspaces are loaded asynchronously by TenantGuard
   useEffect(() => {
-    if (!selectedWorkspaceId && workspaces.length > 0) {
-      const firstWorkspace = workspaces[0];
-      selectWorkspace(firstWorkspace.id);
+    const hasWorkspaceParam = searchParams.get('workspace');
+
+    // If no workspace in URL but we have workspaces available
+    if (!hasWorkspaceParam && workspaces.length > 0) {
+      // Determine which workspace to use
+      let targetWorkspace;
       
-      // Update URL to include workspace parameter
-      // WHY: Ensures URL reflects selected workspace for sharing and browser history
-      const hasWorkspaceParam = searchParams.get('workspace');
-      if (!hasWorkspaceParam && firstWorkspace.slug) {
+      if (selectedWorkspaceId) {
+        // Use currently selected workspace
+        targetWorkspace = workspaces.find(w => w.id === selectedWorkspaceId);
+      } else {
+        // Auto-select first workspace
+        targetWorkspace = workspaces[0];
+        selectWorkspace(targetWorkspace.id);
+      }
+      
+      // Update URL with workspace slug
+      if (targetWorkspace?.slug) {
         const params = new URLSearchParams(searchParams.toString());
-        params.set('workspace', firstWorkspace.slug);
+        params.set('workspace', targetWorkspace.slug);
         router.replace(`/?${params.toString()}`, { scroll: false });
       }
     }
   }, [selectedWorkspaceId, workspaces, selectWorkspace, searchParams, router]);
+
+  return null;
+}
+
+export default function DashboardPage() {
+  const { t } = useTranslation();
+
+  // Get tenant context for query keys
+  const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
+
+  // NOTE: Auto-select logic removed - handled by WorkspaceUrlUpdater component
+  // to avoid duplicate selection logic and race conditions
 
   // Fetch workspace stats (includes document count, entity count, relationship count)
   const { data: statsData, isLoading: isLoadingStats } = useQuery({
@@ -66,9 +83,25 @@ export default function DashboardPage() {
 
   return (
     <ScrollArea className="h-full">
+      {/* URL updater with Suspense boundary for useSearchParams */}
+      <Suspense fallback={null}>
+        <WorkspaceUrlUpdater />
+      </Suspense>
       <div className="p-page space-y-6">
-        {/* Header Section - Compact */}
+        {/* Header Section - Compact with Context */}
         <header className="space-y-1">
+          {/* Tenant / Workspace Breadcrumb */}
+          {selectedWorkspaceId && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="font-medium">
+                {useTenantStore.getState().tenants.find(t => t.id === selectedTenantId)?.name || 'Tenant'}
+              </span>
+              <span>/</span>
+              <span>
+                {useTenantStore.getState().workspaces.find(w => w.id === selectedWorkspaceId)?.name || 'Workspace'}
+              </span>
+            </div>
+          )}
           <h1 className="text-2xl font-bold tracking-tight">
             {t('dashboard.title', 'Dashboard')}
           </h1>
