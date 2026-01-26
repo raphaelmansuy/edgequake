@@ -94,3 +94,20 @@ Check the codebase, do not make assumptions. Make deep code analysis. Search on 
 
 
 - You must ensure and prove perfect safety when deleting documents that are partially processed, in the middle of processing, or failed processing. No dangling data must remain. No shared data must be deleted. Reference counting/tracking must be implemented where applicable. You must ensure perfect safety and reliability when deleting documents under all circumstances.
+
+Ensure it working with postgres provider and memory provider for all storage layers (KV, Vector, Graph).
+
+Ensure there is reprocessing mechanism for failed documents. Ensure deleting a failed document cleans up all partial data.
+
+Ensure deleting a document being processed cleans up all partial data and does not interfere with ongoing processing.
+
+You must also test in depth the query process after document deletion to ensure no dangling references or errors occur.
+
+You must deliver evidence that all tests are passing after your changes.
+
+
+You must deeply study the consequence of deleting documents with shared concepts and relationships in the KG. You must implement reference tracking/counting to avoid deleting shared nodes/edges/relationships. You must implement reference tracking/counting to avoid deleting shared embeddings if applicable. You must implement reference tracking/counting to avoid deleting shared chunks if applicable.
+
+Commit once you believe  you have a stable and reliable implementation of the decided changes.
+
+Amend the mission if you think is necessary: if you have suggestion to improve the create/update /delete document process, do it. But always re-read the mission every iteration to avoid alignment drift.
