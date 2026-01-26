@@ -70,6 +70,8 @@ export default function DashboardPage() {
   // WHY: Fetch workspace statistics for the selected workspace
   // This enables the dashboard to show accurate counts that update when workspace changes
   // @implements BR1001 - Stats must reflect selected workspace data
+  // OODA-ITERATION-03-CACHE-FIX: Reduced staleTime from 30s to 0 to force fresh fetches
+  // This ensures stats are always current, especially after document uploads
   const { data: stats, isLoading: isLoadingStats } = useQuery({
     queryKey: ['workspaceStats', selectedWorkspaceId],
     queryFn: () =>
@@ -77,7 +79,8 @@ export default function DashboardPage() {
         ? getWorkspaceStats(selectedWorkspaceId)
         : Promise.reject(new Error('No workspace selected')),
     enabled: !!selectedWorkspaceId,
-    staleTime: 30000,
+    staleTime: 0, // Always fetch fresh stats to reflect latest document processing
+    refetchOnMount: 'always', // Always refetch when component mounts
   });
 
   // Fetch recent documents for activity feed
