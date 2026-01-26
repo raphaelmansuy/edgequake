@@ -251,7 +251,7 @@ export function TenantWorkspaceSelector({
         onWorkspaceChange?.(workspace);
       }
     },
-    [selectWorkspace, workspaces, onWorkspaceChange]
+    [selectWorkspace, workspaces, onWorkspaceChange, queryClient]
   );
 
   const selectedTenant = tenants.find((t) => t.id === selectedTenantId);
@@ -376,12 +376,12 @@ export function TenantWorkspaceSelector({
                 value={selectedTenantId || ''}
                 onValueChange={handleTenantSelect}
               >
-                <SelectTrigger data-testid="tenant-select" className="h-8 text-xs flex-1 min-w-[200px] max-w-full">
+                <SelectTrigger data-testid="tenant-select" className="h-8 text-xs flex-1 min-w-50 max-w-full">
                   <SelectValue
                     placeholder={t('tenant.selectTenant', 'Select tenant...')}
                   />
                 </SelectTrigger>
-                <SelectContent className="max-w-[220px]">
+                <SelectContent className="max-w-55">
                   {tenants.map((tenant) => (
                     <SelectItem key={tenant.id} value={tenant.id}>
                       <div className="flex items-center gap-2 min-w-0">
@@ -428,7 +428,7 @@ export function TenantWorkspaceSelector({
                 onValueChange={handleWorkspaceSelect}
                 disabled={!selectedTenantId}
               >
-                <SelectTrigger data-testid="workspace-select" className="h-8 text-xs flex-1 min-w-[200px] max-w-full">
+                <SelectTrigger data-testid="workspace-select" className="h-8 text-xs flex-1 min-w-50 max-w-full">
                   <SelectValue
                     placeholder={
                       selectedTenantId
@@ -437,7 +437,7 @@ export function TenantWorkspaceSelector({
                     }
                   />
                 </SelectTrigger>
-                <SelectContent className="max-w-[220px]">
+                <SelectContent className="max-w-55">
                   {workspaces.map((workspace) => (
                     <SelectItem key={workspace.id} value={workspace.id}>
                       <div className="flex items-center gap-2 min-w-0">

@@ -105,14 +105,34 @@ export function RebuildKnowledgeGraphButton({
     onSuccess: (response) => {
       setReprocessResult(response);
       if (response.documents_queued > 0) {
+        // WHY: Show both queued and skipped counts for transparency
+        // Users need to know if some documents were skipped (e.g., missing content)
+        // @implements BR0401 - Clear feedback on rebuild operations
+        const skippedInfo = response.documents_skipped > 0
+          ? ` (${response.documents_skipped} skipped)`
+          : '';
         toast.info(
           t(
             'workspace.rebuild.reprocessing',
-            `Queued ${response.documents_queued} documents for reprocessing`
+            `Queued ${response.documents_queued} documents for reprocessing${skippedInfo}`
           )
         );
         // Open pipeline status dialog to show progress
         setIsPipelineOpen(true);
+      } else if (response.documents_found > 0 && response.documents_skipped > 0) {
+        // All documents were skipped - show warning with reason
+        toast.warning(
+          t(
+            'workspace.rebuild.allSkipped',
+            `Found ${response.documents_found} documents but all were skipped (${response.documents_skipped})`
+          ),
+          {
+            description: t(
+              'workspace.rebuild.skippedReason',
+              'Documents may be missing content or already processing'
+            ),
+          }
+        );
       } else {
         toast.info(
           t(

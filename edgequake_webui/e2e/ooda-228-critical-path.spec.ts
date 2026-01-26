@@ -32,7 +32,7 @@ test.describe("OODA-228: Critical Path Validation", () => {
     let healthOk = false;
     try {
       const healthResponse = await page.request.get(`${apiBaseUrl}/health`);
-      healthOk = healthResponse.ok;
+      healthOk = healthResponse.ok();
       console.log(`  ✓ API Health: ${healthResponse.status()}`);
     } catch (err) {
       console.log(`  ⚠ API not responding (may be starting): ${err}`);
@@ -49,7 +49,7 @@ test.describe("OODA-228: Critical Path Validation", () => {
       const workspacesResponse = await page.request.get(
         `${apiBaseUrl}/workspaces`
       );
-      if (workspacesResponse.ok) {
+      if (workspacesResponse.ok()) {
         workspaces = await workspacesResponse.json();
         console.log(`  ✓ Found ${workspaces.length} workspace(s)`);
 
@@ -254,7 +254,7 @@ test.describe("OODA-228: Critical Path Validation", () => {
     console.log("[ ] API is running and healthy");
     try {
       const health = await page.request.get("http://localhost:8080/health");
-      checks.apiRunning = health.ok;
+      checks.apiRunning = health.ok();
       console.log(
         `[${checks.apiRunning ? "✓" : "✗"}] API Health: ${health.status()}`
       );
