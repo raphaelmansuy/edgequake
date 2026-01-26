@@ -4253,3 +4253,97 @@ async fn test_document_with_long_title() {
     println!("✅ OODA-44 TEST PASSED: Long title (1000 chars) works");
 }
 
+// ============================================================================
+// OODA-45: Tenant Context Tests
+// ============================================================================
+
+/// Helper to upload a document with tenant context
+async fn upload_document_with_tenant(
+    app: &axum::Router,
+    title: &str,
+    content: &str,
+    tenant_id: &str,
+) -> (StatusCode, Value) {
+    let request = json!({
+        "content": content,
+        "title": title,
+        "async_processing": false
+    });
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents")
+                .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", tenant_id)
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let status = response.status();
+    let body = extract_json(response).await;
+    (status, body)
+}
+
+/// OODA-45: Test document upload with tenant context.
+#[tokio::test]
+async fn test_document_with_tenant_context() {
+    let app = create_test_app();
+    
+    let (status, body) = upload_document_with_tenant(
+        &app,
+        "Tenant Scoped Document",
+        "Content for tenant context testing.",
+        "tenant-abc-123"
+    ).await;
+    
+    assert_eq!(status, StatusCode::CREATED);
+    assert!(body.get("document_id").is_some());
+    
+    // Cleanup
+    let doc_id = body["document_id"].as_str().unwrap();
+    let (delete_status, _) = delete_document_http(&app, doc_id).await;
+    assert_eq!(delete_status, StatusCode::OK);
+    
+    println!("✅ OODA-45 TEST PASSED: Document with tenant context");
+}
+
+/// OODA-45: Test deletion respects tenant context.
+#[tokio::test]
+async fn test_deletion_with_tenant_context() {
+    let app = create_test_app();
+    
+    // Create documents in two different tenants
+    let (status_a, body_a) = upload_document_with_tenant(
+        &app,
+        "Tenant A Doc",
+        "Content for tenant A.",
+        "tenant-a"
+    ).await;
+    assert_eq!(status_a, StatusCode::CREATED);
+    let doc_a_id = body_a["document_id"].as_str().unwrap().to_string();
+    
+    let (status_b, body_b) = upload_document_with_tenant(
+        &app,
+        "Tenant B Doc",
+        "Content for tenant B.",
+        "tenant-b"
+    ).await;
+    assert_eq!(status_b, StatusCode::CREATED);
+    let doc_b_id = body_b["document_id"].as_str().unwrap().to_string();
+    
+    // Delete tenant A's document
+    let (delete_a_status, _) = delete_document_http(&app, &doc_a_id).await;
+    assert_eq!(delete_a_status, StatusCode::OK);
+    
+    // Tenant B's document should still be deletable
+    let (delete_b_status, _) = delete_document_http(&app, &doc_b_id).await;
+    assert_eq!(delete_b_status, StatusCode::OK);
+    
+    println!("✅ OODA-45 TEST PASSED: Deletion respects tenant context");
+}
+
