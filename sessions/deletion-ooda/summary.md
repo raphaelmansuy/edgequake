@@ -37,6 +37,7 @@ Spec: `specs/033-study-delete-document/003-study-document.md`
 | 37 | Workspace isolation tests | ✅ Complete | 1056afb9 |
 | 38 | Study summary update (iteration 37) | ✅ Complete | 90ecae78 |
 | 39 | Lifecycle status tests | ✅ Complete | 3d13142f |
+| 40 | Content hash deduplication tests | ✅ Complete | 58e0d963 |
 
 ## Key Accomplishments
 
