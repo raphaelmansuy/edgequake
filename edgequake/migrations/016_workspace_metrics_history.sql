@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS workspace_metrics_history (
     -- WHY: When a workspace is deleted, its history should be cleaned up too
     CONSTRAINT fk_metrics_workspace 
         FOREIGN KEY (workspace_id) 
-        REFERENCES workspaces(id) 
+        REFERENCES workspaces(workspace_id) 
         ON DELETE CASCADE
 );
 
