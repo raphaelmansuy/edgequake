@@ -3313,3 +3313,83 @@ async fn test_invalid_document_id_format() {
     println!("✅ OODA-32 TEST PASSED: Invalid IDs handled gracefully");
 }
 
+// ============================================================================
+// OODA-34: Content Edge Case Tests
+// ============================================================================
+
+/// OODA-34: Test deletion of document with minimal content.
+///
+/// Documents with very short content should still delete properly.
+#[tokio::test]
+async fn test_delete_document_minimal_content() {
+    let app = create_test_app();
+    
+    // Upload document with minimal content
+    let (upload_status, body) = upload_document_http(
+        &app,
+        "Minimal Content",
+        "A"
+    ).await;
+    assert_eq!(upload_status, StatusCode::CREATED);
+    
+    let doc_id = body["document_id"].as_str().unwrap();
+    
+    // Delete should work
+    let (delete_status, delete_body) = delete_document_http(&app, doc_id).await;
+    assert_eq!(delete_status, StatusCode::OK);
+    assert!(delete_body["deleted"].as_bool().unwrap_or(false));
+    
+    println!("✅ OODA-34 TEST PASSED: Minimal content deletion works");
+}
+
+/// OODA-34: Test that whitespace-only content is rejected at upload.
+///
+/// Tests edge case where content is just whitespace - should be rejected.
+#[tokio::test]
+async fn test_upload_rejects_whitespace_content() {
+    let app = create_test_app();
+    
+    // Try to upload document with whitespace content
+    let (upload_status, _) = upload_document_http(
+        &app,
+        "Whitespace Content",
+        "   \n\t\n   "
+    ).await;
+    
+    // Should be rejected with 422 Unprocessable Entity
+    assert_eq!(
+        upload_status, 
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "Whitespace-only content should be rejected"
+    );
+    
+    println!("✅ OODA-34 TEST PASSED: Whitespace content rejected correctly");
+}
+
+/// OODA-34: Test deletion of document with repeated content.
+///
+/// Tests documents with repetitive patterns that might cause
+/// deduplication or hash collisions.
+#[tokio::test]
+async fn test_delete_document_repeated_content() {
+    let app = create_test_app();
+    
+    // Upload document with repeated content
+    let repeated = "This is a test. ".repeat(100);
+    let (upload_status, body) = upload_document_http(
+        &app,
+        "Repeated Content",
+        &repeated
+    ).await;
+    assert_eq!(upload_status, StatusCode::CREATED);
+    
+    let doc_id = body["document_id"].as_str().unwrap();
+    
+    // Delete should work
+    let (delete_status, delete_body) = delete_document_http(&app, doc_id).await;
+    assert_eq!(delete_status, StatusCode::OK);
+    assert!(delete_body["deleted"].as_bool().unwrap_or(false));
+    
+    println!("✅ OODA-34 TEST PASSED: Repeated content deletion works");
+}
+
