@@ -472,13 +472,16 @@ impl WorkspaceService for InMemoryWorkspaceService {
     }
 
     async fn get_workspace_stats(&self, workspace_id: Uuid) -> Result<WorkspaceStats> {
-        // In-memory implementation returns zeros
+        // WHY zeros: In-memory implementation is a stub for single-tenant mode.
+        // Real metrics require storage adapters which are not available here.
+        // TODO: Accept storage adapters in constructor for real-time counting.
         Ok(WorkspaceStats {
             workspace_id,
             document_count: 0,
             entity_count: 0,
             relationship_count: 0,
             chunk_count: 0,
+            embedding_count: 0,
             storage_bytes: 0,
         })
     }
