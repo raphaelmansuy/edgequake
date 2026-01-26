@@ -895,11 +895,80 @@ pub async fn get_workspace_stats(
     State(state): State<AppState>,
     Path(workspace_id): Path<Uuid>,
 ) -> Result<Json<WorkspaceStatsResponse>, ApiError> {
-    // WHY: Query actual storage instead of empty PostgreSQL tables
-    // Root cause: entities/relationships stored in Apache AGE graph, not PostgreSQL tables
-    // Documents stored in KV storage with accurate entity/relationship counts in metadata
-    // See: logs/2026-01-26-08-57-dashboard-stats-investigation.md
+    // HYBRID APPROACH: Try fastest storage first, fallback to slower methods
+    // See: logs/2026-01-26-18-00-storage-architecture-analysis.md
+    //
+    // Performance tiers:
+    // 1. PostgreSQL documents table (1-5ms) - FASTEST but currently empty
+    // 2. KV storage aggregation (20-100ms) - MODERATE, current data source
+    // 3. AGE graph queries (50-200ms) - SLOWEST, last resort
     
+    use std::time::Instant;
+    let start = Instant::now();
+    
+    // Try Method 1: PostgreSQL documents table (fastest if populated)
+    if let Ok(stats) = try_postgres_stats(&state, workspace_id).await {
+        if stats.document_count > 0 {
+            let elapsed = start.elapsed();
+            tracing::info!(
+                workspace_id = %workspace_id,
+                duration_ms = elapsed.as_millis(),
+                method = "postgresql",
+                "Workspace stats retrieved from PostgreSQL (fastest path)"
+            );
+            return Ok(Json(stats));
+        }
+    }
+    
+    // Method 2: KV storage aggregation (moderate speed, reliable)
+    // This is the current source of truth since PostgreSQL tables are empty
+    let stats = try_kv_storage_stats(&state, workspace_id).await?;
+    let elapsed = start.elapsed();
+    tracing::info!(
+        workspace_id = %workspace_id,
+        duration_ms = elapsed.as_millis(),
+        method = "kv_storage",
+        "Workspace stats retrieved from KV storage"
+    );
+    Ok(Json(stats))
+}
+
+/// Try to get stats from PostgreSQL documents table (fastest path).
+///
+/// This will fail if the documents table is empty (current state) but provides
+/// the fastest query path once the pipeline is updated to populate it.
+async fn try_postgres_stats(
+    state: &AppState,
+    workspace_id: Uuid,
+) -> Result<WorkspaceStatsResponse, ApiError> {
+    // WHY: Call workspace_service which has access to PgPool
+    // This uses the existing service layer with optimized SQL queries
+    let stats = state
+        .workspace_service
+        .get_workspace_stats(workspace_id)
+        .await
+        .map_err(|e| ApiError::Internal(format!("PostgreSQL stats query failed: {}", e)))?;
+    
+    Ok(WorkspaceStatsResponse {
+        workspace_id: stats.workspace_id,
+        document_count: stats.document_count,
+        entity_count: stats.entity_count,
+        relationship_count: stats.relationship_count,
+        chunk_count: stats.chunk_count,
+        embedding_count: stats.embedding_count,
+        storage_bytes: stats.storage_bytes as u64,
+    })
+}
+
+/// Get stats from KV storage (moderate speed, current source of truth).
+///
+/// This aggregates document metadata from KV storage and counts chunks.
+/// Reliable but slower than PostgreSQL as it requires fetching all metadata
+/// and filtering in memory.
+async fn try_kv_storage_stats(
+    state: &AppState,
+    workspace_id: Uuid,
+) -> Result<WorkspaceStatsResponse, ApiError> {
     // Get all keys from KV storage
     let all_keys = state
         .kv_storage
@@ -907,7 +976,7 @@ pub async fn get_workspace_stats(
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to get KV storage keys: {}", e)))?;
     
-    // Filter metadata keys and chunk keys
+    // Filter metadata keys
     let metadata_keys: Vec<String> = all_keys
         .iter()
         .filter(|k| k.ends_with("-metadata"))
@@ -995,7 +1064,7 @@ pub async fn get_workspace_stats(
         }
     }
 
-    let response = WorkspaceStatsResponse {
+    Ok(WorkspaceStatsResponse {
         workspace_id,
         document_count,
         entity_count: entity_count as usize,
@@ -1003,9 +1072,7 @@ pub async fn get_workspace_stats(
         chunk_count,
         embedding_count,
         storage_bytes,
-    };
-
-    Ok(Json(response))
+    })
 }
 
 // ============================================================================
