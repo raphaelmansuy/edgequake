@@ -28,6 +28,7 @@ Spec: `specs/033-study-delete-document/003-study-document.md`
 | 28 | Edge case tests (unicode, idempotent) | ✅ Complete | 753a9057 |
 | 29 | Study summary update (to iteration 28) | ✅ Complete | c42e354a |
 | 30 | Performance baseline tests | ✅ Complete | 3b73c29b |
+| 31 | Bulk deletion tests | ✅ Complete | 9ec950cc |
 
 ## Key Accomplishments
 
