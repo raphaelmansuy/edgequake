@@ -80,12 +80,12 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'workspaces') THEN
         RAISE EXCEPTION 'Migration requires workspaces table';
     END IF;
-    
+
     -- Verify parent columns have correct type
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'workspaces' 
-        AND column_name = 'workspace_id' 
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'workspaces'
+        AND column_name = 'workspace_id'
         AND udt_name = 'uuid'
     ) THEN
         RAISE EXCEPTION 'workspace_id must be UUID type';
@@ -105,11 +105,11 @@ DO $$
 DECLARE
     orphan_count INT;
 BEGIN
-    SELECT COUNT(*) INTO orphan_count 
+    SELECT COUNT(*) INTO orphan_count
     FROM child_table c
     LEFT JOIN parent_table p ON c.parent_id = p.id
     WHERE p.id IS NULL;
-    
+
     IF orphan_count > 0 THEN
         RAISE EXCEPTION 'Found % orphaned records - fix before migration', orphan_count;
     END IF;
@@ -132,12 +132,12 @@ use tracing::{error, warn, info, debug};
 #[derive(Debug, thiserror::Error)]
 pub enum MigrationError {
     #[error("Pre-flight check failed: {reason}")]
-    PreFlightFailed { 
-        migration: i64, 
+    PreFlightFailed {
+        migration: i64,
         reason: String,
-        details: serde_json::Value 
+        details: serde_json::Value
     },
-    
+
     #[error("Migration execution failed: {sql_error}")]
     ExecutionFailed {
         migration: i64,
@@ -146,7 +146,7 @@ pub enum MigrationError {
         hint: Option<String>,
         context: HashMap<String, String>,
     },
-    
+
     #[error("Post-migration validation failed: {reason}")]
     ValidationFailed {
         migration: i64,
@@ -158,9 +158,9 @@ pub enum MigrationError {
 pub async fn run_migrations_safe(pool: &PgPool) -> Result<(), MigrationError> {
     let span = tracing::info_span!("database_migrations", pid = std::process::id());
     let _guard = span.enter();
-    
+
     info!("🔍 Starting migration safety checks");
-    
+
     // 1. Pre-flight: Check database connectivity
     match sqlx::query("SELECT 1").fetch_one(pool).await {
         Ok(_) => info!("✓ Database connectivity verified"),
@@ -173,7 +173,7 @@ pub async fn run_migrations_safe(pool: &PgPool) -> Result<(), MigrationError> {
             });
         }
     }
-    
+
     // 2. Pre-flight: Check extensions
     let required_extensions = vec!["uuid-ossp", "pgvector"];
     for ext in required_extensions {
@@ -193,7 +193,7 @@ pub async fn run_migrations_safe(pool: &PgPool) -> Result<(), MigrationError> {
             }
         }
     }
-    
+
     // 3. Pre-flight: Lock migrations table
     info!("🔒 Acquiring migration lock");
     match sqlx::query("SELECT pg_advisory_lock(1234567890)")
@@ -209,10 +209,10 @@ pub async fn run_migrations_safe(pool: &PgPool) -> Result<(), MigrationError> {
             });
         }
     }
-    
+
     // 4. Run migrations with detailed logging
     let migrations = sqlx::migrate!("./migrations");
-    
+
     for migration in migrations.iter() {
         let start = std::time::Instant::now();
         let migration_span = tracing::info_span!(
@@ -221,13 +221,13 @@ pub async fn run_migrations_safe(pool: &PgPool) -> Result<(), MigrationError> {
             description = migration.description,
         );
         let _guard = migration_span.enter();
-        
+
         info!(
             version = migration.version,
             description = migration.description,
             "▶ Starting migration"
         );
-        
+
         // Execute with detailed error context
         match run_single_migration_safe(pool, migration).await {
             Ok(()) => {
@@ -246,30 +246,30 @@ pub async fn run_migrations_safe(pool: &PgPool) -> Result<(), MigrationError> {
                     error = %e,
                     "❌ Migration failed"
                 );
-                
+
                 // Enhanced error context
                 log_migration_failure_context(pool, migration, &e).await;
-                
+
                 // Release lock before returning
                 let _ = sqlx::query("SELECT pg_advisory_unlock(1234567890)")
                     .execute(pool)
                     .await;
-                
+
                 return Err(e);
             }
         }
     }
-    
+
     // 5. Post-migration validation
     info!("🔍 Running post-migration validation");
     validate_schema_integrity(pool).await?;
-    
+
     // 6. Release lock
     sqlx::query("SELECT pg_advisory_unlock(1234567890)")
         .execute(pool)
         .await
         .ok();
-    
+
     info!("✅ All migrations completed successfully");
     Ok(())
 }
@@ -288,21 +288,21 @@ async fn run_single_migration_safe(
             context: HashMap::new(),
         }
     })?;
-    
+
     // Execute migration SQL
     for (idx, statement) in migration.sql.split(';').enumerate() {
         let statement = statement.trim();
         if statement.is_empty() {
             continue;
         }
-        
+
         debug!(
             version = migration.version,
             statement_idx = idx,
             statement = %statement,
             "Executing SQL statement"
         );
-        
+
         if let Err(e) = sqlx::query(statement).execute(&mut *tx).await {
             error!(
                 version = migration.version,
@@ -311,10 +311,10 @@ async fn run_single_migration_safe(
                 error = %e,
                 "Statement execution failed"
             );
-            
+
             // Extract PostgreSQL error details
             let (hint, context) = extract_postgres_error_context(&e);
-            
+
             return Err(MigrationError::ExecutionFailed {
                 migration: migration.version,
                 statement: statement.to_string(),
@@ -324,7 +324,7 @@ async fn run_single_migration_safe(
             });
         }
     }
-    
+
     // Commit transaction
     tx.commit().await.map_err(|e| {
         MigrationError::ExecutionFailed {
@@ -335,7 +335,7 @@ async fn run_single_migration_safe(
             context: HashMap::new(),
         }
     })?;
-    
+
     Ok(())
 }
 
@@ -347,7 +347,7 @@ async fn log_migration_failure_context(
     error!("=== MIGRATION FAILURE CONTEXT ===");
     error!("Migration: {} - {}", migration.version, migration.description);
     error!("Error: {}", error);
-    
+
     // Log current schema state
     if let Ok(tables) = sqlx::query_scalar::<_, String>(
         "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename"
@@ -356,7 +356,7 @@ async fn log_migration_failure_context(
     .await {
         error!("Current tables: {:?}", tables);
     }
-    
+
     // Log migration history
     if let Ok(applied) = sqlx::query_scalar::<_, i64>(
         "SELECT version FROM _sqlx_migrations ORDER BY version"
@@ -365,7 +365,7 @@ async fn log_migration_failure_context(
     .await {
         error!("Applied migrations: {:?}", applied);
     }
-    
+
     // Log disk space
     if let Ok(disk_space) = sqlx::query_scalar::<_, String>(
         "SELECT pg_size_pretty(pg_database_size(current_database()))"
@@ -374,24 +374,24 @@ async fn log_migration_failure_context(
     .await {
         error!("Database size: {}", disk_space);
     }
-    
+
     error!("=== END CONTEXT ===");
 }
 
 fn extract_postgres_error_context(err: &sqlx::Error) -> (Option<String>, HashMap<String, String>) {
     let mut context = HashMap::new();
     let mut hint = None;
-    
+
     if let sqlx::Error::Database(db_err) = err {
         context.insert("code".into(), db_err.code().unwrap_or_default().to_string());
         context.insert("message".into(), db_err.message().to_string());
-        
+
         if let Some(detail) = db_err.details() {
             context.insert("detail".into(), detail.to_string());
         }
-        
+
         hint = db_err.hint().map(|s| s.to_string());
-        
+
         // Add helpful hints based on error code
         if let Some(code) = db_err.code() {
             hint = Some(match code.as_ref() {
@@ -404,13 +404,13 @@ fn extract_postgres_error_context(err: &sqlx::Error) -> (Option<String>, HashMap
             });
         }
     }
-    
+
     (hint, context)
 }
 
 async fn validate_schema_integrity(pool: &PgPool) -> Result<(), MigrationError> {
     info!("Validating schema integrity");
-    
+
     // Check for orphaned foreign keys
     let orphan_check = sqlx::query_scalar::<_, i64>(
         r#"
@@ -418,7 +418,7 @@ async fn validate_schema_integrity(pool: &PgPool) -> Result<(), MigrationError> 
         FROM information_schema.table_constraints tc
         WHERE tc.constraint_type = 'FOREIGN KEY'
         AND NOT EXISTS (
-            SELECT 1 
+            SELECT 1
             FROM information_schema.tables t
             WHERE t.table_name = tc.table_name
         )
@@ -427,17 +427,17 @@ async fn validate_schema_integrity(pool: &PgPool) -> Result<(), MigrationError> 
     .fetch_one(pool)
     .await
     .unwrap_or(0);
-    
+
     if orphan_check > 0 {
         warn!("Found {} orphaned foreign key constraints", orphan_check);
     }
-    
+
     // Check for missing indexes on foreign keys
     let missing_indexes = sqlx::query_scalar::<_, i64>(
         r#"
         SELECT COUNT(*)
         FROM information_schema.table_constraints tc
-        JOIN information_schema.key_column_usage kcu 
+        JOIN information_schema.key_column_usage kcu
             ON tc.constraint_name = kcu.constraint_name
         WHERE tc.constraint_type = 'FOREIGN KEY'
         AND NOT EXISTS (
@@ -450,11 +450,11 @@ async fn validate_schema_integrity(pool: &PgPool) -> Result<(), MigrationError> 
     .fetch_one(pool)
     .await
     .unwrap_or(0);
-    
+
     if missing_indexes > 0 {
         warn!("Found {} foreign keys without indexes - performance impact!", missing_indexes);
     }
-    
+
     info!("✓ Schema integrity validation passed");
     Ok(())
 }
@@ -527,31 +527,31 @@ echo "✅ Rollback complete"
 #[cfg(test)]
 mod migration_safety_tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_migration_016_with_existing_data() {
         // 1. Setup: Create database with data
         let pool = create_test_database().await;
         apply_migrations_up_to(15, &pool).await;
         seed_test_data(&pool).await;
-        
+
         // 2. Take snapshot
         let snapshot_before = capture_database_snapshot(&pool).await;
-        
+
         // 3. Apply migration 016
         let result = apply_migration(16, &pool).await;
-        
+
         // 4. Verify success
         assert!(result.is_ok(), "Migration 016 should succeed");
-        
+
         // 5. Verify data integrity
         let snapshot_after = capture_database_snapshot(&pool).await;
         assert_eq!(
-            snapshot_before.row_counts, 
+            snapshot_before.row_counts,
             snapshot_after.row_counts,
             "Row counts should be preserved"
         );
-        
+
         // 6. Verify new table exists
         let table_exists: bool = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name = 'workspace_metrics_history')"
@@ -559,29 +559,29 @@ mod migration_safety_tests {
         .fetch_one(&pool)
         .await
         .unwrap();
-        
+
         assert!(table_exists, "New table should be created");
-        
+
         // 7. Verify foreign keys work
         let fk_works = sqlx::query(
-            "INSERT INTO workspace_metrics_history (workspace_id, document_count) 
+            "INSERT INTO workspace_metrics_history (workspace_id, document_count)
              SELECT workspace_id, 0 FROM workspaces LIMIT 1"
         )
         .execute(&pool)
         .await;
-        
+
         assert!(fk_works.is_ok(), "Foreign key constraint should work");
     }
-    
+
     #[tokio::test]
     async fn test_migration_016_rollback() {
         let pool = create_test_database().await;
         apply_migrations_up_to(16, &pool).await;
-        
+
         // Execute down migration
         let result = execute_sql_file(&pool, "migrations/016_*.down.sql").await;
         assert!(result.is_ok(), "Rollback should succeed");
-        
+
         // Verify table is gone
         let table_exists: bool = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name = 'workspace_metrics_history')"
@@ -589,19 +589,19 @@ mod migration_safety_tests {
         .fetch_one(&pool)
         .await
         .unwrap();
-        
+
         assert!(!table_exists, "Table should be removed after rollback");
     }
-    
+
     #[tokio::test]
     async fn test_migration_016_idempotency() {
         let pool = create_test_database().await;
         apply_migrations_up_to(15, &pool).await;
-        
+
         // Apply migration 016 twice
         let result1 = apply_migration(16, &pool).await;
         let result2 = apply_migration(16, &pool).await;
-        
+
         assert!(result1.is_ok(), "First application should succeed");
         assert!(result2.is_ok(), "Second application should be safe (no-op)");
     }
@@ -694,12 +694,12 @@ lazy_static! {
         "migration_success_total",
         "Total successful migrations"
     ).unwrap();
-    
+
     static ref MIGRATION_FAILURE: IntCounter = register_int_counter!(
         "migration_failure_total",
         "Total failed migrations"
     ).unwrap();
-    
+
     static ref MIGRATION_DURATION: Histogram = register_histogram!(
         "migration_duration_seconds",
         "Migration execution time"
@@ -724,15 +724,15 @@ match run_migrations(pool).await {
 
 ## 8. Common Pitfalls & Solutions
 
-| Pitfall | Solution |
-|---------|----------|
-| Type mismatch (TEXT vs UUID) | Always check parent table schema first |
-| Missing parent table | Add explicit dependency check in migration |
-| Large table lock timeout | Use `CONCURRENTLY` for indexes, batch operations |
-| Orphaned records | Run integrity check before migration |
-| Failed rollback | Test down migrations as thoroughly as up |
-| No-op on re-run causes failure | Use `IF NOT EXISTS` / `IF EXISTS` |
-| Foreign key cascade surprise | Explicitly document cascade behavior |
+| Pitfall                        | Solution                                         |
+| ------------------------------ | ------------------------------------------------ |
+| Type mismatch (TEXT vs UUID)   | Always check parent table schema first           |
+| Missing parent table           | Add explicit dependency check in migration       |
+| Large table lock timeout       | Use `CONCURRENTLY` for indexes, batch operations |
+| Orphaned records               | Run integrity check before migration             |
+| Failed rollback                | Test down migrations as thoroughly as up         |
+| No-op on re-run causes failure | Use `IF NOT EXISTS` / `IF EXISTS`                |
+| Foreign key cascade surprise   | Explicitly document cascade behavior             |
 
 ---
 
