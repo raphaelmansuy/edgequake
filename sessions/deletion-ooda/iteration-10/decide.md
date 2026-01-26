@@ -19,6 +19,7 @@ edgequake/crates/edgequake-api/tests/e2e_document_deletion_postgres.rs
 ```
 
 Structure:
+
 1. Feature guard: `#![cfg(feature = "postgres")]`
 2. Environment helpers: `get_database_url()`, `create_postgres_state()`
 3. `require_postgres!` macro
@@ -27,6 +28,7 @@ Structure:
 ### Step 2: Implement `create_postgres_state()`
 
 Factory function that:
+
 1. Creates PostgreSQL config with unique namespace
 2. Initializes KV, Vector, Graph storages
 3. Creates mock LLM provider
@@ -35,13 +37,13 @@ Factory function that:
 
 ### Step 3: Implement Tests
 
-| # | Test Name | Original Line |
-|---|-----------|---------------|
-| 1 | `test_single_document_deletion_pg` | From line 152 |
-| 2 | `test_delete_preserves_shared_entities_pg` | From line 437 |
-| 3 | `test_source_ids_accumulates_pg` | From line 761 |
-| 4 | `test_delete_with_accumulated_source_ids_pg` | From line 890 |
-| 5 | `test_query_after_deletion_pg` | From line 1610 |
+| #   | Test Name                                    | Original Line  |
+| --- | -------------------------------------------- | -------------- |
+| 1   | `test_single_document_deletion_pg`           | From line 152  |
+| 2   | `test_delete_preserves_shared_entities_pg`   | From line 437  |
+| 3   | `test_source_ids_accumulates_pg`             | From line 761  |
+| 4   | `test_delete_with_accumulated_source_ids_pg` | From line 890  |
+| 5   | `test_query_after_deletion_pg`               | From line 1610 |
 
 ### Step 4: Add Cleanup Helper
 
@@ -61,8 +63,8 @@ Run: `cargo test --package edgequake-api --test e2e_document_deletion_postgres -
 
 ## Files to Create/Modify
 
-| File | Action |
-|------|--------|
+| File                                      | Action |
+| ----------------------------------------- | ------ |
 | `tests/e2e_document_deletion_postgres.rs` | CREATE |
 
 ---

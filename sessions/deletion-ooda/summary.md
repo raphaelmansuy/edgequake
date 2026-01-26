@@ -15,6 +15,11 @@ Spec: `specs/033-study-delete-document/003-study-document.md`
 | 15 | Circular reference safety tests | ✅ Complete | 083470e3 |
 | 16 | Ollama E2E test infrastructure | ✅ Complete | 6531e418 |
 | 17 | Historical metrics schema | ✅ Complete | 0ff99852 |
+| 18 | Reprocessing edge case tests | ✅ Complete | cf283cfb |
+| 19 | Documentation consolidation | ✅ Complete | af58b045 |
+| 20 | record_metrics_snapshot function | ✅ Complete | fa76e426 |
+| 21 | Metrics integration in handlers | ✅ Complete | 9175b13c |
+| 22 | Metrics history API endpoint | ✅ Complete | 5b4d8370 |
 
 ## Key Accomplishments
 

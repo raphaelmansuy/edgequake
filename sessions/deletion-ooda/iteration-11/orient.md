@@ -16,7 +16,7 @@ Existing `test_multiple_concurrent_deletions` uses 5 documents with 3 shared ent
 - 10 concurrent deletions
 - Verify no race conditions or data corruption
 
-### Test 2: Deletion Under Load 
+### Test 2: Deletion Under Load
 
 - Upload documents rapidly
 - Start deleting before all uploads complete
@@ -31,6 +31,7 @@ Existing `test_multiple_concurrent_deletions` uses 5 documents with 3 shared ent
 ## Implementation Approach
 
 Add new test `test_high_volume_concurrent_deletions` that:
+
 1. Creates 20 documents with 10 shared entities
 2. Deletes 15 documents concurrently using `tokio::join!`
 3. Verifies remaining entities have correct source_ids

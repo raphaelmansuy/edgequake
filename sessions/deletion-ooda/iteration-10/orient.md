@@ -9,6 +9,7 @@
 ### 1. Test State Factory
 
 Add `test_state_postgres()` to `AppState` that:
+
 - Reads DATABASE_URL from environment
 - Creates PostgreSQL-backed storage with unique namespace
 - Uses Mock LLM provider (same as memory tests)
@@ -17,6 +18,7 @@ Add `test_state_postgres()` to `AppState` that:
 ### 2. PostgreSQL Test File
 
 Create `e2e_document_deletion_postgres.rs`:
+
 - Feature-gated with `#[cfg(feature = "postgres")]`
 - Uses `require_postgres!` macro pattern
 - Runs subset of critical deletion tests
@@ -24,13 +26,13 @@ Create `e2e_document_deletion_postgres.rs`:
 
 ### 3. Test Selection Rationale
 
-| Test | Why Critical |
-|------|--------------|
-| Single deletion | Verifies cascade delete works with PG constraints |
-| Shared entities | Tests source_ids merge with real transactions |
-| Accumulated source_ids | Tests entity update with real UPSERT |
-| Partial cleanup | Tests selective deletion with FK constraints |
-| Query after deletion | Verifies query engine works with PG storage |
+| Test                   | Why Critical                                      |
+| ---------------------- | ------------------------------------------------- |
+| Single deletion        | Verifies cascade delete works with PG constraints |
+| Shared entities        | Tests source_ids merge with real transactions     |
+| Accumulated source_ids | Tests entity update with real UPSERT              |
+| Partial cleanup        | Tests selective deletion with FK constraints      |
+| Query after deletion   | Verifies query engine works with PG storage       |
 
 ### 4. Implementation Approach
 
@@ -70,6 +72,7 @@ async fn create_postgres_test_state() -> Option<AppState> {
 ```
 
 This approach:
+
 - Avoids touching production code
 - Keeps test infrastructure isolated
 - Still verifies the same deletion logic

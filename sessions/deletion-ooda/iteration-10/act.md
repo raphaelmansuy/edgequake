@@ -12,8 +12,8 @@ Created `e2e_document_deletion_postgres.rs` with 5 PostgreSQL-specific deletion 
 
 ### Files Created
 
-| File | Purpose |
-|------|---------|
+| File                                      | Purpose                                   |
+| ----------------------------------------- | ----------------------------------------- |
 | `tests/e2e_document_deletion_postgres.rs` | PostgreSQL integration tests for deletion |
 
 ### Tests Added

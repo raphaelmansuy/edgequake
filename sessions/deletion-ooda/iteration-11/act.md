@@ -9,6 +9,7 @@
 ### Implementation Summary
 
 Added `test_high_volume_concurrent_deletions_stress` which:
+
 1. Creates 15 documents with 5 overlapping entity groups
 2. Deletes 10 documents concurrently in 2 batches
 3. Verifies correct entity preservation (entities 3-5 should survive)
@@ -17,12 +18,12 @@ Added `test_high_volume_concurrent_deletions_stress` which:
 
 ### Entity Distribution
 
-| Entity | Documents | After Deleting 1-10 |
-|--------|-----------|---------------------|
-| Entity 1 | Docs 1-5 | DELETED |
-| Entity 2 | Docs 3-8 | DELETED |
-| Entity 3 | Docs 6-11 | PRESERVED (doc 11) |
-| Entity 4 | Docs 9-13 | PRESERVED (docs 11-13) |
+| Entity   | Documents  | After Deleting 1-10    |
+| -------- | ---------- | ---------------------- |
+| Entity 1 | Docs 1-5   | DELETED                |
+| Entity 2 | Docs 3-8   | DELETED                |
+| Entity 3 | Docs 6-11  | PRESERVED (doc 11)     |
+| Entity 4 | Docs 9-13  | PRESERVED (docs 11-13) |
 | Entity 5 | Docs 11-15 | PRESERVED (docs 11-15) |
 
 ---
