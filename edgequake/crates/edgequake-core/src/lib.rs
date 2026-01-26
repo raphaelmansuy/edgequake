@@ -94,8 +94,8 @@ pub use types::{
     CreateMessageRequest, CreateWorkspaceRequest, Document, DocumentInfo, DocumentStatus,
     Embedding, EmbeddingConfig, Folder, GraphEntity, GraphRelationship, GraphStats, ImportError,
     ImportResult, InsertResult, Membership, MembershipRole, Message, MessageContext, MessageRole,
-    MessageSource, PaginatedConversations, PaginatedMessages, PaginationMeta, QueryContext,
-    QueryMode, QueryParams, QueryResult, QueryStats, Tenant, TenantContext, TenantPlan,
-    UpdateConversationRequest, UpdateFolderRequest, UpdateMessageRequest, UpdateWorkspaceRequest,
-    Workspace, WorkspaceStats,
+    MessageSource, MetricsSnapshot, MetricsTriggerType, PaginatedConversations, PaginatedMessages,
+    PaginationMeta, QueryContext, QueryMode, QueryParams, QueryResult, QueryStats, Tenant,
+    TenantContext, TenantPlan, UpdateConversationRequest, UpdateFolderRequest,
+    UpdateMessageRequest, UpdateWorkspaceRequest, Workspace, WorkspaceStats,
 };
