@@ -92,8 +92,8 @@ mission_workspace_dashboard_fixes/ooda_loop/
 ## Success Criteria
 
 - [x] Workspace name fully visible in dropdown (no truncation) ✅ 30-char limit + 200px max-width
-- [ ] Dashboard shows correct counts per workspace ❌ SHOWING 0 ENTITIES/RELATIONSHIPS/CHUNKS (BUG)
+- [x] Dashboard shows correct counts per workspace ✅ AGE graph queries for entity/relationship counts
 - [x] KG rebuild works with model changes ✅ Cache eviction + config update before reprocess
 - [x] Document reprocessing actually triggers backend processing ✅ With feedback UI
 - [x] All tests pass ✅ TypeScript + 423 Rust tests + 13 unit tests
-- [ ] No regressions introduced ⚠️ Statistics display broken
+- [x] No regressions introduced ✅ All existing tests passing
