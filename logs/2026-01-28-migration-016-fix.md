@@ -3,6 +3,7 @@
 ## Issues Found and Fixed
 
 ### Issue 1: Incorrect Foreign Key Column Reference
+
 **Error**: `column "id" referenced in foreign key constraint does not exist`
 
 **Problem**: Migration 016 was referencing `workspaces(id)` but the actual column name is `workspaces(workspace_id)`.
@@ -22,6 +23,7 @@ FOREIGN KEY (workspace_id) REFERENCES workspaces(workspace_id)
 ---
 
 ### Issue 2: Type Mismatch in Foreign Key
+
 **Error**: `Key columns "workspace_id" and "workspace_id" are of incompatible types: text and uuid`
 
 **Problem**: Migration 016 defined `workspace_id` as `TEXT` but `workspaces.workspace_id` is `UUID`.

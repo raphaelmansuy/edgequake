@@ -56,21 +56,24 @@ This framework ensures bulletproof PostgreSQL migrations using first principles 
      - Database connectivity test
      - Automatic backup (pg_dump + gzip)
      - Optional S3 upload
-     - Migration execution with 10-minute timeout
+     - Migration execution with timeout protection
      - Smoke tests
      - Comprehensive logging
    - **Usage**:
      ```bash
      # Test environment
-     scripts/deploy_migration.sh "postgresql://localhost/test_db"
+     export DATABASE_URL="postgresql://localhost/test_db"
+     scripts/deploy_migration.sh test 016
      
-     # Production (requires confirmation)
-     scripts/deploy_migration.sh "postgresql://prod_host/db"
+     # Production (requires PROCEED confirmation)
+     export DATABASE_URL="postgresql://prod_host/prod_db"
+     scripts/deploy_migration.sh production 016
      
      # With S3 backup
      export S3_BACKUP_BUCKET="my-backups"
      export AWS_PROFILE="production"
-     scripts/deploy_migration.sh "postgresql://prod_host/db"
+     export DATABASE_URL="postgresql://prod_host/prod_db"
+     scripts/deploy_migration.sh production 017
      ```
 
 ## Quick Start: Creating a New Migration
@@ -182,11 +185,14 @@ EOF
 
 ### Step 7: Deploy to Production
 ```bash
-# Create backup
-scripts/deploy_migration.sh "postgresql://prod_host/db"
+# Set database URL
+export DATABASE_URL="postgresql://prod_host/prod_db"
+
+# Deploy migration 017
+scripts/deploy_migration.sh production 017
 
 # Type "PROCEED" when prompted
-# Monitor logs at /tmp/migration-deploy-YYYYMMDD-HHMMSS.log
+# Monitor logs at migration_017_YYYYMMDD_HHMMSS.log
 ```
 
 ## Emergency Rollback Procedure
@@ -195,11 +201,11 @@ If a migration fails in production:
 
 ```bash
 # 1. Check the error logs
-tail -100 /tmp/migration-deploy-*.log
+tail -100 migration_*_YYYYMMDD_HHMMSS.log
 
 # 2. Restore from backup (if needed)
-DATABASE_URL="postgresql://prod_host/db"
-BACKUP_FILE="/tmp/edgequake-backup-before-migration-YYYYMMDD-HHMMSS.sql.gz"
+export DATABASE_URL="postgresql://prod_host/prod_db"
+BACKUP_FILE="backups/pre_migration_017_YYYYMMDD_HHMMSS.sql.gz"
 gunzip -c $BACKUP_FILE | psql "$DATABASE_URL"
 
 # 3. Or run targeted rollback
