@@ -83,8 +83,17 @@ export function useWorkspaceTenantValidator(options?: {
               const firstWorkspace = workspaces.find(w => w.tenant_id === selectedTenantId);
               if (firstWorkspace) {
                 console.info('[WorkspaceTenantValidator] Auto-correcting to workspace:', firstWorkspace.id);
+                
+                // Invalidate queries for OLD workspace before switching
+                queryClient.invalidateQueries({ queryKey: ['workspaceStats', selectedWorkspaceId] });
+                queryClient.invalidateQueries({ queryKey: ['documents'] });
+                queryClient.invalidateQueries({ queryKey: ['graph'] });
+                
+                // Switch to new workspace
                 selectWorkspace(firstWorkspace.id);
-                queryClient.invalidateQueries({ queryKey: ['workspaceStats'] });
+                
+                // Invalidate queries for NEW workspace to trigger fresh fetch
+                queryClient.invalidateQueries({ queryKey: ['workspaceStats', firstWorkspace.id] });
                 return;
               } else {
                 // No valid workspace found, reset context
@@ -99,7 +108,7 @@ export function useWorkspaceTenantValidator(options?: {
         }
 
         // Step 2: Workspace not in list, fetch from API to verify
-        const workspace = await getWorkspace(selectedWorkspaceId);
+        const workspace = await getWorkspace(selectedTenantId, selectedWorkspaceId);
         
         if (workspace.tenant_id !== selectedTenantId) {
           const result: ValidationResult = {
@@ -115,8 +124,17 @@ export function useWorkspaceTenantValidator(options?: {
             const validWorkspace = workspaces.find(w => w.tenant_id === selectedTenantId);
             if (validWorkspace) {
               console.info('[WorkspaceTenantValidator] Auto-correcting to valid workspace:', validWorkspace.id);
+              
+              // Invalidate queries for OLD workspace before switching
+              queryClient.invalidateQueries({ queryKey: ['workspaceStats', selectedWorkspaceId] });
+              queryClient.invalidateQueries({ queryKey: ['documents'] });
+              queryClient.invalidateQueries({ queryKey: ['graph'] });
+              
+              // Switch to new workspace
               selectWorkspace(validWorkspace.id);
-              queryClient.invalidateQueries({ queryKey: ['workspaceStats'] });
+              
+              // Invalidate queries for NEW workspace to trigger fresh fetch
+              queryClient.invalidateQueries({ queryKey: ['workspaceStats', validWorkspace.id] });
             } else {
               console.warn('[WorkspaceTenantValidator] No valid workspace found, resetting');
               reset();
@@ -132,8 +150,17 @@ export function useWorkspaceTenantValidator(options?: {
           const firstWorkspace = workspaces.find(w => w.tenant_id === selectedTenantId);
           if (firstWorkspace) {
             console.info('[WorkspaceTenantValidator] Auto-correcting after error to:', firstWorkspace.id);
+            
+            // Invalidate queries for OLD workspace before switching
+            queryClient.invalidateQueries({ queryKey: ['workspaceStats', selectedWorkspaceId] });
+            queryClient.invalidateQueries({ queryKey: ['documents'] });
+            queryClient.invalidateQueries({ queryKey: ['graph'] });
+            
+            // Switch to new workspace
             selectWorkspace(firstWorkspace.id);
-            queryClient.invalidateQueries({ queryKey: ['workspaceStats'] });
+            
+            // Invalidate queries for NEW workspace to trigger fresh fetch
+            queryClient.invalidateQueries({ queryKey: ['workspaceStats', firstWorkspace.id] });
           } else {
             console.warn('[WorkspaceTenantValidator] No valid workspace available, resetting');
             reset();
@@ -144,8 +171,4 @@ export function useWorkspaceTenantValidator(options?: {
 
     validateAndCorrect();
   }, [selectedTenantId, selectedWorkspaceId, workspaces, selectWorkspace, reset, queryClient, autoCorrect, options]);
-
-  return {
-    isValidating: !hasValidated.current && !!selectedTenantId && !!selectedWorkspaceId,
-  };
 }
