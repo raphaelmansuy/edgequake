@@ -4105,3 +4105,94 @@ async fn test_async_processing_mode() {
     println!("✅ OODA-42 TEST PASSED: Async processing mode (delete status: {})", delete_status);
 }
 
+// ============================================================================
+// OODA-43: Sequential Stress Tests
+// ============================================================================
+
+/// OODA-43: Test sequential upload and delete of 20 documents.
+#[tokio::test]
+async fn test_sequential_upload_delete_20_docs() {
+    let app = create_test_app();
+    
+    let start = std::time::Instant::now();
+    let mut doc_ids = Vec::new();
+    
+    // Upload 20 documents sequentially
+    for i in 0..20 {
+        let (status, body) = upload_document_http(
+            &app,
+            &format!("Stress Test Doc {}", i),
+            &format!("Sequential stress test content for document {}. Testing performance.", i)
+        ).await;
+        assert_eq!(status, StatusCode::CREATED, "Doc {} upload failed", i);
+        doc_ids.push(body["document_id"].as_str().unwrap().to_string());
+    }
+    
+    let upload_time = start.elapsed();
+    println!("📊 20 uploads took {:?}", upload_time);
+    
+    // Delete all 20 documents sequentially
+    let delete_start = std::time::Instant::now();
+    for (i, doc_id) in doc_ids.iter().enumerate() {
+        let (status, _) = delete_document_http(&app, doc_id).await;
+        assert_eq!(status, StatusCode::OK, "Doc {} deletion failed", i);
+    }
+    
+    let delete_time = delete_start.elapsed();
+    println!("📊 20 deletions took {:?}", delete_time);
+    
+    // Verify all deleted (second delete returns 404)
+    for doc_id in &doc_ids {
+        let (status, _) = delete_document_http(&app, doc_id).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+    
+    println!("✅ OODA-43 TEST PASSED: 20 docs upload/delete in {:?}", start.elapsed());
+}
+
+/// OODA-43: Test batch cleanup leaves clean state.
+#[tokio::test]
+async fn test_batch_cleanup_verification() {
+    let state = AppState::test_state();
+    let app = create_test_server_with_state(state.clone());
+    
+    // Record initial state
+    let initial_nodes = state.graph_storage.get_all_nodes().await.unwrap().len();
+    let initial_edges = state.graph_storage.get_all_edges().await.unwrap().len();
+    
+    // Upload 5 documents
+    let mut doc_ids = Vec::new();
+    for i in 0..5 {
+        let (status, body) = upload_document_http(
+            &app,
+            &format!("Cleanup Test Doc {}", i),
+            &format!("Content for cleanup verification test document {}.", i)
+        ).await;
+        assert_eq!(status, StatusCode::CREATED);
+        doc_ids.push(body["document_id"].as_str().unwrap().to_string());
+    }
+    
+    // Delete all documents
+    for doc_id in &doc_ids {
+        let (status, _) = delete_document_http(&app, doc_id).await;
+        assert_eq!(status, StatusCode::OK);
+    }
+    
+    // Verify state is back to initial (no orphans)
+    let final_nodes = state.graph_storage.get_all_nodes().await.unwrap().len();
+    let final_edges = state.graph_storage.get_all_edges().await.unwrap().len();
+    
+    assert_eq!(
+        initial_nodes, final_nodes,
+        "Node count should return to initial: {} vs {}",
+        initial_nodes, final_nodes
+    );
+    assert_eq!(
+        initial_edges, final_edges,
+        "Edge count should return to initial: {} vs {}",
+        initial_edges, final_edges
+    );
+    
+    println!("✅ OODA-43 TEST PASSED: Batch cleanup verification");
+}
+
