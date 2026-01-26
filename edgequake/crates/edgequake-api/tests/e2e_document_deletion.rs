@@ -3185,3 +3185,131 @@ async fn test_bulk_deletion_allows_reupload() {
     println!("✅ OODA-31 TEST PASSED: Workspace clean after bulk operations");
 }
 
+// ============================================================================
+// OODA-32: Response Verification Tests
+// ============================================================================
+
+/// OODA-32: Verify deletion response contains all expected fields.
+///
+/// The deletion response should include metrics that allow callers
+/// to verify the deletion was complete.
+#[tokio::test]
+async fn test_deletion_response_contains_all_fields() {
+    let app = create_test_app();
+    
+    // Upload a document
+    let (upload_status, body) = upload_document_http(
+        &app,
+        "Response Fields Test",
+        "This document tests that deletion response has all required fields."
+    ).await;
+    assert_eq!(upload_status, StatusCode::CREATED);
+    
+    let doc_id = body["document_id"].as_str().unwrap();
+    
+    // Delete and verify response structure
+    let (delete_status, response) = delete_document_http(&app, doc_id).await;
+    assert_eq!(delete_status, StatusCode::OK);
+    
+    // Verify required fields exist (use actual field names from DeleteDocumentResponse)
+    assert!(
+        response.get("deleted").is_some(),
+        "Response should have 'deleted' field"
+    );
+    assert!(
+        response.get("document_id").is_some(),
+        "Response should have 'document_id' field"
+    );
+    assert!(
+        response.get("entities_affected").is_some(),
+        "Response should have 'entities_affected' field"
+    );
+    assert!(
+        response.get("relationships_affected").is_some(),
+        "Response should have 'relationships_affected' field"
+    );
+    assert!(
+        response.get("chunks_deleted").is_some(),
+        "Response should have 'chunks_deleted' field"
+    );
+    
+    // Verify values are valid
+    assert!(response["deleted"].as_bool().unwrap_or(false));
+    assert_eq!(response["document_id"].as_str().unwrap(), doc_id);
+    assert!(response["entities_affected"].as_i64().unwrap_or(-1) >= 0);
+    assert!(response["relationships_affected"].as_i64().unwrap_or(-1) >= 0);
+    assert!(response["chunks_deleted"].as_i64().unwrap_or(-1) >= 0);
+    
+    println!("✅ OODA-32 TEST PASSED: Deletion response contains all fields");
+}
+
+/// OODA-32: Verify 404 response structure for non-existent document.
+///
+/// Even error responses should be well-structured.
+#[tokio::test]
+async fn test_not_found_response_structure() {
+    let app = create_test_app();
+    
+    // Try to delete a non-existent document
+    let fake_id = "00000000-0000-0000-0000-000000000000";
+    let (status, response) = delete_document_http(&app, fake_id).await;
+    
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    
+    // Error response should have structured format
+    // (actual format depends on API error handling)
+    let is_structured = response.get("error").is_some()
+        || response.get("message").is_some()
+        || response.get("code").is_some();
+    
+    assert!(
+        is_structured || response.is_object(),
+        "Error response should be structured JSON"
+    );
+    
+    println!("✅ OODA-32 TEST PASSED: 404 response is structured");
+}
+
+/// OODA-32: Verify deletion handles invalid document IDs gracefully.
+///
+/// Invalid UUIDs should return 400 or 404, not 500.
+#[tokio::test]
+async fn test_invalid_document_id_format() {
+    let app = create_test_app();
+    
+    // Try invalid UUID formats (URI-safe only)
+    let invalid_ids = [
+        "not-a-uuid",
+        "12345",
+        "zzzzzzzz-zzzz-zzzz-zzzz-zzzzzzzzzzzz",
+        "too-short",
+        "00000000-0000-0000-0000-00000000000g", // invalid hex char
+    ];
+    
+    for invalid_id in &invalid_ids {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/api/v1/documents/{}", invalid_id))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        
+        // Should get 400 Bad Request or 404 Not Found, not 500
+        assert!(
+            response.status() == StatusCode::BAD_REQUEST
+                || response.status() == StatusCode::NOT_FOUND
+                || response.status() == StatusCode::UNPROCESSABLE_ENTITY,
+            "Invalid ID '{}' should not cause 500: got {}",
+            invalid_id,
+            response.status()
+        );
+    }
+    
+    println!("✅ OODA-32 TEST PASSED: Invalid IDs handled gracefully");
+}
+
