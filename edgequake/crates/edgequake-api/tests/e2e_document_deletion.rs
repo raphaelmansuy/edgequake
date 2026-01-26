@@ -3743,3 +3743,74 @@ async fn test_delete_same_name_different_workspaces() {
     println!("✅ OODA-37 TEST PASSED: Same-named docs in different workspaces");
 }
 
+// ============================================================================
+// OODA-39: Document Lifecycle Status Tests
+// ============================================================================
+
+/// OODA-39: Test that document has correct status after creation.
+#[tokio::test]
+async fn test_document_status_on_creation() {
+    let app = create_test_app();
+    
+    let (status, body) = upload_document_http(
+        &app,
+        "Status Test Document",
+        "Content to verify document status after creation."
+    ).await;
+    
+    assert_eq!(status, StatusCode::CREATED);
+    
+    // Verify response contains expected fields
+    assert!(body.get("document_id").is_some(), "Should have document_id");
+    
+    // Check if status is present and indicates completion
+    if let Some(doc_status) = body.get("status").and_then(|v| v.as_str()) {
+        assert!(
+            doc_status == "completed" || doc_status == "processed" || doc_status == "ready",
+            "Status should indicate successful processing, got: {}",
+            doc_status
+        );
+    }
+    
+    // Verify processing was sync (async_processing: false)
+    if let Some(processing_mode) = body.get("async").and_then(|v| v.as_bool()) {
+        assert!(!processing_mode, "Should be sync processing");
+    }
+    
+    println!("✅ OODA-39 TEST PASSED: Document status on creation");
+}
+
+/// OODA-39: Test that deletion response contains useful status information.
+#[tokio::test]
+async fn test_deletion_response_status_info() {
+    let app = create_test_app();
+    
+    // Create document
+    let (upload_status, body) = upload_document_http(
+        &app,
+        "Deletion Status Test",
+        "Content for testing deletion response status."
+    ).await;
+    assert_eq!(upload_status, StatusCode::CREATED);
+    
+    let doc_id = body["document_id"].as_str().unwrap();
+    
+    // Delete and check response
+    let (delete_status, delete_body) = delete_document_http(&app, doc_id).await;
+    assert_eq!(delete_status, StatusCode::OK);
+    
+    // Response should contain deletion confirmation
+    assert_eq!(
+        delete_body.get("deleted").and_then(|v| v.as_bool()),
+        Some(true),
+        "Should confirm deletion"
+    );
+    
+    // Should have document_id in response
+    if let Some(resp_doc_id) = delete_body.get("document_id").and_then(|v| v.as_str()) {
+        assert_eq!(resp_doc_id, doc_id, "Response should echo document_id");
+    }
+    
+    println!("✅ OODA-39 TEST PASSED: Deletion response status info");
+}
+
