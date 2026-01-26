@@ -21,9 +21,9 @@ import { EmbeddingModelSelector, type EmbeddingSelection } from '@/components/wo
 import { LLMModelSelector, type LLMSelection } from '@/components/workspace/llm-model-selector';
 import { RebuildEmbeddingsButton } from '@/components/workspace/rebuild-embeddings-button';
 import { RebuildKnowledgeGraphButton } from '@/components/workspace/rebuild-knowledge-graph-button';
+import { useWorkspaceTenantValidator } from '@/hooks/use-workspace-tenant-validator';
 import { getWorkspace, getWorkspaceStats, updateWorkspace } from '@/lib/api/edgequake';
 import { fetchProvidersHealth } from '@/lib/api/models';
-import { useWorkspaceTenantValidator } from '@/hooks/use-workspace-tenant-validator';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {

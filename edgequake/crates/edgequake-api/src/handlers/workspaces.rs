@@ -44,11 +44,11 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use uuid::Uuid;
-use std::collections::HashMap;
 
 use crate::error::ApiError;
 use crate::state::AppState;
@@ -63,7 +63,7 @@ struct CachedStats {
 }
 
 /// Thread-safe cache for workspace stats with TTL
-/// 
+///
 /// WHY: Workspace stats queries can be expensive (15ms for KV storage, 1-5ms for PostgreSQL)
 /// Dashboard frequently polls stats (every 30s), so caching provides:
 /// - 100x faster response for cache hits (<1ms)
@@ -948,10 +948,10 @@ pub async fn get_workspace_stats(
     // 1. PostgreSQL documents table (1-5ms) - Fast but currently empty
     // 2. KV storage aggregation (15ms) - Moderate, current data source
     // 3. AGE graph queries (50-200ms) - Slowest, last resort
-    
+
     use std::time::Instant;
     let start = Instant::now();
-    
+
     // Tier 0: Check cache first (fastest path - <1ms)
     {
         let cache = WORKSPACE_STATS_CACHE.read().await;
@@ -969,24 +969,27 @@ pub async fn get_workspace_stats(
             }
         }
     }
-    
+
     // Cache miss - fetch from storage
     let stats = fetch_workspace_stats_uncached(&state, workspace_id, start).await?;
-    
+
     // Update cache for next request
     {
         let mut cache = WORKSPACE_STATS_CACHE.write().await;
-        cache.insert(workspace_id, CachedStats {
-            stats: stats.clone(),
-            cached_at: Instant::now(),
-        });
+        cache.insert(
+            workspace_id,
+            CachedStats {
+                stats: stats.clone(),
+                cached_at: Instant::now(),
+            },
+        );
     }
-    
+
     Ok(Json(stats))
 }
 
 /// Fetch workspace stats from storage backends (uncached).
-/// 
+///
 /// This implements the hybrid fallback strategy across storage tiers.
 async fn fetch_workspace_stats_uncached(
     state: &AppState,
@@ -1006,7 +1009,7 @@ async fn fetch_workspace_stats_uncached(
             return Ok(stats);
         }
     }
-    
+
     // Method 2: KV storage aggregation (moderate speed, reliable)
     // This is the current source of truth since PostgreSQL tables are empty
     let stats = try_kv_storage_stats(state, workspace_id).await?;
@@ -1035,7 +1038,7 @@ async fn try_postgres_stats(
         .get_workspace_stats(workspace_id)
         .await
         .map_err(|e| ApiError::Internal(format!("PostgreSQL stats query failed: {}", e)))?;
-    
+
     Ok(WorkspaceStatsResponse {
         workspace_id: stats.workspace_id,
         document_count: stats.document_count,
@@ -1062,26 +1065,26 @@ async fn try_kv_storage_stats(
         .keys()
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to get KV storage keys: {}", e)))?;
-    
+
     // Filter metadata keys
     let metadata_keys: Vec<String> = all_keys
         .iter()
         .filter(|k| k.ends_with("-metadata"))
         .cloned()
         .collect();
-    
+
     // Get all metadata values
     let metadata_values = state
         .kv_storage
         .get_by_ids(&metadata_keys)
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to get document metadata: {}", e)))?;
-    
+
     // Aggregate stats from documents belonging to this workspace
     let mut document_count = 0;
     let mut storage_bytes: u64 = 0;
     let mut workspace_doc_ids = Vec::new();
-    
+
     for value in metadata_values {
         if let Some(obj) = value.as_object() {
             // Check if document belongs to this workspace
@@ -1089,15 +1092,15 @@ async fn try_kv_storage_stats(
                 .get("workspace_id")
                 .and_then(|v| v.as_str())
                 .and_then(|s| Uuid::parse_str(s).ok());
-            
+
             if doc_workspace_id == Some(workspace_id) {
                 document_count += 1;
-                
+
                 // Collect document ID for chunk counting
                 if let Some(id) = obj.get("id").and_then(|v| v.as_str()) {
                     workspace_doc_ids.push(id.to_string());
                 }
-                
+
                 // Sum storage bytes
                 if let Some(bytes) = obj.get("file_size_bytes").and_then(|v| v.as_u64()) {
                     storage_bytes += bytes;
@@ -1105,7 +1108,7 @@ async fn try_kv_storage_stats(
             }
         }
     }
-    
+
     // OODA-03: Get entity/relationship counts from Apache AGE graph storage
     // WHY: KV metadata doesn't have entity_count/relationship_count fields.
     // The actual entity/relationship data is stored in the graph, not metadata.
@@ -1121,11 +1124,11 @@ async fn try_kv_storage_stats(
         .edge_count_by_workspace(&workspace_id)
         .await
         .unwrap_or(0);
-    
+
     // Count chunks and embeddings for this workspace's documents
     let mut chunk_count = 0;
     let mut embedding_count = 0;
-    
+
     for doc_id in &workspace_doc_ids {
         // Count chunk keys for this document
         let doc_chunk_keys: Vec<String> = all_keys
@@ -1133,9 +1136,9 @@ async fn try_kv_storage_stats(
             .filter(|k| k.starts_with(&format!("{}-chunk-", doc_id)))
             .cloned()
             .collect();
-        
+
         chunk_count += doc_chunk_keys.len();
-        
+
         // Get chunk data to check for embeddings
         if !doc_chunk_keys.is_empty() {
             let chunk_values = state
@@ -1143,7 +1146,7 @@ async fn try_kv_storage_stats(
                 .get_by_ids(&doc_chunk_keys)
                 .await
                 .map_err(|e| ApiError::Internal(format!("Failed to get chunk data: {}", e)))?;
-            
+
             // Count chunks that have embeddings
             for chunk_value in chunk_values {
                 if let Some(obj) = chunk_value.as_object() {

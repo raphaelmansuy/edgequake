@@ -22,7 +22,7 @@
 
 ```rust
 /// Get node count for a specific workspace.
-/// 
+///
 /// Default implementation falls back to global count (not workspace-scoped).
 /// Implementations should override for accurate workspace statistics.
 async fn node_count_by_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {

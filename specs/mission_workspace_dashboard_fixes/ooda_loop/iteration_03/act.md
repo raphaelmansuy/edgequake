@@ -75,6 +75,7 @@ async fn edge_count_by_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usi
 **Change**: Replaced KV metadata aggregation with AGE graph queries:
 
 **Before** (Lines 1068-1083):
+
 ```rust
 // Sum entity counts from metadata
 if let Some(count) = obj.get("entity_count").and_then(|v| v.as_u64()) {
@@ -87,6 +88,7 @@ if let Some(count) = obj.get("relationship_count").and_then(|v| v.as_u64()) {
 ```
 
 **After** (Lines 1095-1107):
+
 ```rust
 // OODA-03: Get entity/relationship counts from Apache AGE graph storage
 // WHY: KV metadata doesn't have entity_count/relationship_count fields.
@@ -119,7 +121,7 @@ Old Flow:
 3. Return 0 ❌
 
 New Flow:
-1. Try PostgreSQL tables → 0 (empty)  
+1. Try PostgreSQL tables → 0 (empty)
 2. Try KV metadata for document_count → ✓
 3. Query AGE graph for entity_count → 13 ✅
 4. Query AGE graph for relationship_count → N ✅
@@ -130,11 +132,11 @@ New Flow:
 
 ## Files Modified
 
-| File | Lines Changed | Purpose |
-|------|---------------|---------|
-| `traits/graph.rs` | +28 | Add workspace-scoped count trait methods |
-| `postgres/graph.rs` | +41 | Implement Cypher queries for workspace counts |
-| `workspaces.rs` | -15, +18 | Replace metadata aggregation with graph queries |
+| File                | Lines Changed | Purpose                                         |
+| ------------------- | ------------- | ----------------------------------------------- |
+| `traits/graph.rs`   | +28           | Add workspace-scoped count trait methods        |
+| `postgres/graph.rs` | +41           | Implement Cypher queries for workspace counts   |
+| `workspaces.rs`     | -15, +18      | Replace metadata aggregation with graph queries |
 
 ---
 
@@ -165,6 +167,7 @@ git commit -m "OODA-03: Fix dashboard stats showing 0 entities/relationships
 ## Expected Result
 
 After fix:
+
 - Dashboard: 13 Entities, N Relationships (actual graph data)
 - Workspace page: Matching counts
 - Stats cache: Updates on next query

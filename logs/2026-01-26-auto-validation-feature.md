@@ -26,6 +26,7 @@ Implemented a comprehensive **auto-validation and auto-correction** system that 
 ### Components Created/Modified
 
 #### 1. **Auto-Validation Hook** (New)
+
 **File:** `edgequake_webui/src/hooks/use-workspace-tenant-validator.ts`
 
 ```typescript
@@ -33,13 +34,14 @@ Implemented a comprehensive **auto-validation and auto-correction** system that 
 // Corrects mismatches by selecting valid workspace for current tenant
 useWorkspaceTenantValidator({
   onValidationFailed: (result) => {
-    console.error('Mismatch detected:', result.reason);
+    console.error("Mismatch detected:", result.reason);
   },
   autoCorrect: true, // Default: automatically fix mismatches
 });
 ```
 
 **Features:**
+
 - ✅ Validates workspace belongs to selected tenant
 - ✅ Auto-corrects by selecting first valid workspace for tenant
 - ✅ Invalidates React Query cache after correction
@@ -47,6 +49,7 @@ useWorkspaceTenantValidator({
 - ✅ Optional callbacks for monitoring validation events
 
 **Implementation Details:**
+
 - Checks workspace list first (fast path)
 - Falls back to API fetch if workspace not in list
 - Handles API errors gracefully (selects first available workspace)
@@ -54,53 +57,61 @@ useWorkspaceTenantValidator({
 - Uses `useRef` to prevent repeated validations
 
 #### 2. **Dashboard Page** (Modified)
+
 **File:** `edgequake_webui/src/app/(dashboard)/page.tsx`
 
 ```typescript
 // Added auto-validation hook
 useWorkspaceTenantValidator({
   onValidationFailed: (result) => {
-    console.error('[Dashboard] Workspace-tenant mismatch:', result.reason);
+    console.error("[Dashboard] Workspace-tenant mismatch:", result.reason);
   },
 });
 ```
 
 **Changes:**
+
 - ✅ Imports and calls validation hook on mount
 - ✅ Logs validation failures to console
 - ✅ No user-facing error messages (auto-correction is silent)
 
 #### 3. **Workspace Page** (Modified)
+
 **File:** `edgequake_webui/src/app/(dashboard)/workspace/page.tsx`
 
 ```typescript
 // Added auto-validation with user notification
 useWorkspaceTenantValidator({
   onValidationFailed: (result) => {
-    console.error('[Workspace] Mismatch detected:', result.reason);
-    toast.error('Workspace context corrected', {
-      description: 'Your workspace selection was updated to match the current tenant.',
+    console.error("[Workspace] Mismatch detected:", result.reason);
+    toast.error("Workspace context corrected", {
+      description:
+        "Your workspace selection was updated to match the current tenant.",
     });
   },
 });
 ```
 
 **Changes:**
+
 - ✅ Imports and calls validation hook
 - ✅ Shows toast notification when correction occurs
 - ✅ User knows their selection was adjusted
 
 #### 4. **Workspace Selector UI** (Enhanced)
+
 **File:** `edgequake_webui/src/components/layout/header-tenant-selector.tsx`
 
 **Display Format Change:**
 
 Before:
+
 ```
 [Workspace Icon] Default Workspace ▼
 ```
 
 After:
+
 ```
 [Workspace Icon] TennantZZ / Default Workspace ▼
 ```
@@ -108,24 +119,28 @@ After:
 **Dropdown Items Enhanced:**
 
 Before:
+
 ```
 □ Default Workspace                    ✓
   5 docs
 ```
 
 After:
+
 ```
 □ Default Workspace                    ✓
   TennantZZ • 13 docs
 ```
 
 **Changes:**
+
 - ✅ Shows "Tenant / Workspace" in selector button
 - ✅ Shows tenant name under workspace in dropdown
 - ✅ Prevents confusion between same-named workspaces
 - ✅ Truncates long names intelligently (15 chars tenant, 20 chars workspace)
 
 #### 5. **Tenant Store** (Enhanced)
+
 **File:** `edgequake_webui/src/stores/use-tenant-store.ts`
 
 ```typescript
@@ -133,11 +148,11 @@ After:
 onRehydrateStorage: () => {
   return (state, error) => {
     // ... existing code ...
-    
+
     // Validate workspace-tenant consistency after hydration
     if (state?.selectedTenantId && state?.selectedWorkspaceId) {
       const workspace = state.workspaces.find(w => w.id === state.selectedWorkspaceId);
-      
+
       if (workspace && workspace.tenant_id !== state.selectedTenantId) {
         console.warn(
           "[TenantStore] Hydration detected mismatch - will be auto-corrected"
@@ -149,6 +164,7 @@ onRehydrateStorage: () => {
 ```
 
 **Changes:**
+
 - ✅ Logs hydration validation warnings
 - ✅ Informs developer that validation hook will fix mismatches
 - ✅ Doesn't fix in store (delegated to validation hook with fresh data)
@@ -229,9 +245,9 @@ test('detects workspace from wrong tenant', async () => {
   const store = useTenantStore.getState();
   store.selectTenant('tenant-a');
   store.selectWorkspace('workspace-from-tenant-b'); // Mismatch
-  
+
   render(<Dashboard />);
-  
+
   await waitFor(() => {
     expect(console.error).toHaveBeenCalledWith(
       expect.stringContaining('Mismatch detected')
@@ -242,9 +258,9 @@ test('detects workspace from wrong tenant', async () => {
 // Test: Auto-correction selects valid workspace
 test('auto-corrects to valid workspace', async () => {
   // ... setup mismatch ...
-  
+
   render(<Dashboard />);
-  
+
   await waitFor(() => {
     const newWorkspaceId = useTenantStore.getState().selectedWorkspaceId;
     expect(newWorkspaceId).toBe('valid-workspace-for-tenant-a');
@@ -289,21 +305,25 @@ test('auto-corrects to valid workspace', async () => {
 ## Error Handling
 
 ### Case 1: Workspace API Returns 404
+
 **Scenario:** Selected workspace was deleted  
 **Behavior:** Auto-select first available workspace for tenant  
 **Log:** `[WorkspaceTenantValidator] Validation error: 404`
 
 ### Case 2: No Workspaces Available
+
 **Scenario:** Tenant has zero workspaces  
 **Behavior:** Reset context (deselect tenant/workspace)  
 **Log:** `[WorkspaceTenantValidator] No valid workspace found, resetting`
 
 ### Case 3: Network Failure
+
 **Scenario:** API unreachable during validation  
 **Behavior:** Try workspace list fallback, if fails reset context  
 **Log:** `[WorkspaceTenantValidator] Validation error: Network error`
 
 ### Case 4: Race Condition (Multiple Pages Open)
+
 **Scenario:** User has Dashboard and Workspace page open simultaneously  
 **Behavior:** Each page validates independently, last to load wins  
 **Log:** Both pages log validation results
@@ -313,15 +333,18 @@ test('auto-corrects to valid workspace', async () => {
 ## Performance Impact
 
 ### Before (With Bug)
+
 - Dashboard query: 15ms (KV storage)
 - User sees wrong stats until manual localStorage clear
 
 ### After (With Fix)
+
 - **First load (validation):** +20ms (one-time API call to verify workspace)
 - **Subsequent loads:** 0ms overhead (validation passes immediately)
 - **Mismatch correction:** +50ms (fetch valid workspace + invalidate cache)
 
 ### React Query Cache Behavior
+
 - Validation does NOT invalidate cache if workspace is valid
 - Only invalidates when correction occurs (rare case)
 - Cache keys remain stable across page navigations
@@ -333,12 +356,14 @@ test('auto-corrects to valid workspace', async () => {
 ### Console Logs to Watch
 
 #### Normal Operation (Valid Context)
+
 ```
 [TenantStore] Hydrated: tenant=TennantZZ, workspace=676b8da6
 [WorkspaceTenantValidator] Validation: ✓ Valid
 ```
 
 #### Mismatch Detected & Corrected
+
 ```
 [TenantStore] Hydration detected mismatch - will be auto-corrected
 [WorkspaceTenantValidator] Mismatch detected: Workspace 00000003 belongs to Default, not TennantZZ
@@ -346,6 +371,7 @@ test('auto-corrects to valid workspace', async () => {
 ```
 
 #### Error Recovery
+
 ```
 [WorkspaceTenantValidator] Validation error: Workspace not found
 [WorkspaceTenantValidator] Auto-correcting after error to: 676b8da6
@@ -360,7 +386,7 @@ WHERE message LIKE '%[WorkspaceTenantValidator] Mismatch detected%'
   AND timestamp > NOW() - INTERVAL '24 hours';
 
 // Most common mismatch scenarios
-SELECT 
+SELECT
   JSON_EXTRACT(metadata, '$.expected_tenant') AS expected,
   JSON_EXTRACT(metadata, '$.actual_tenant') AS actual,
   COUNT(*) AS occurrences
@@ -377,6 +403,7 @@ ORDER BY occurrences DESC;
 If this feature causes issues, rollback steps:
 
 ### 1. Remove Validation Hook Calls
+
 ```bash
 # Revert Dashboard page
 git diff HEAD~1 edgequake_webui/src/app/(dashboard)/page.tsx
@@ -387,17 +414,20 @@ git checkout HEAD~1 -- edgequake_webui/src/app/(dashboard)/workspace/page.tsx
 ```
 
 ### 2. Revert UI Changes (Optional)
+
 ```bash
 # Keep tenant name in selector or revert to workspace-only
 git checkout HEAD~1 -- edgequake_webui/src/components/layout/header-tenant-selector.tsx
 ```
 
 ### 3. Remove Hook File
+
 ```bash
 rm edgequake_webui/src/hooks/use-workspace-tenant-validator.ts
 ```
 
 ### 4. Rebuild Frontend
+
 ```bash
 cd edgequake_webui && npm run build
 ```
@@ -409,21 +439,25 @@ cd edgequake_webui && npm run build
 ## Future Enhancements
 
 ### Phase 2: Backend Validation
+
 - Add `/api/v1/validate-context` endpoint
 - Validate tenant/workspace on every request
 - Return HTTP 409 if context invalid
 
 ### Phase 3: Automated Testing
+
 - E2E tests with Playwright
 - Simulate localStorage corruption scenarios
 - Verify auto-correction in CI/CD
 
 ### Phase 4: Metrics & Alerting
+
 - Track validation failure rate
 - Alert if >1% of requests trigger correction
 - Dashboard widget showing context health
 
 ### Phase 5: Migration Tool
+
 - Batch validate all users' localStorage
 - Auto-fix corrupted state on backend
 - Background job to clean up orphaned workspaces

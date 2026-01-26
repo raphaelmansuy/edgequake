@@ -134,10 +134,10 @@ export const useTenantStore = create<TenantStore>()(
           // Migrate from legacy keys if they exist
           if (typeof window !== "undefined") {
             const legacyTenantId = localStorage.getItem(
-              LEGACY_STORAGE_KEYS.TENANT_ID
+              LEGACY_STORAGE_KEYS.TENANT_ID,
             );
             const legacyWorkspaceId = localStorage.getItem(
-              LEGACY_STORAGE_KEYS.WORKSPACE_ID
+              LEGACY_STORAGE_KEYS.WORKSPACE_ID,
             );
 
             if (legacyTenantId && !state.selectedTenantId) {
@@ -158,9 +158,9 @@ export const useTenantStore = create<TenantStore>()(
       /**
        * Callback when hydration starts/finishes
        * Used to track hydration state for SSR safety
-       * 
+       *
        * @implements FEAT0862 - Auto-validation on localStorage hydration
-       * 
+       *
        * WHY: Validate workspace-tenant consistency on hydration.
        * If localStorage has corrupted data (workspace from wrong tenant),
        * the validation hook will detect and fix it on first page render.
@@ -177,14 +177,16 @@ export const useTenantStore = create<TenantStore>()(
           // Validate workspace-tenant consistency after hydration
           if (state?.selectedTenantId && state?.selectedWorkspaceId) {
             // Check if selected workspace belongs to selected tenant
-            const workspace = state.workspaces.find(w => w.id === state.selectedWorkspaceId);
-            
+            const workspace = state.workspaces.find(
+              (w) => w.id === state.selectedWorkspaceId,
+            );
+
             if (workspace && workspace.tenant_id !== state.selectedTenantId) {
               console.warn(
                 "[TenantStore] Hydration detected workspace-tenant mismatch:",
                 `Workspace ${state.selectedWorkspaceId} belongs to tenant ${workspace.tenant_id},`,
                 `but selected tenant is ${state.selectedTenantId}.`,
-                "This will be auto-corrected by useWorkspaceTenantValidator hook."
+                "This will be auto-corrected by useWorkspaceTenantValidator hook.",
               );
               // Note: We don't fix it here because workspaces list might be stale.
               // The useWorkspaceTenantValidator hook will fetch fresh data and fix it.
@@ -195,13 +197,13 @@ export const useTenantStore = create<TenantStore>()(
           if (state?.selectedTenantId) {
             setTenantContext(
               state.selectedTenantId,
-              state.selectedWorkspaceId ?? undefined
+              state.selectedWorkspaceId ?? undefined,
             );
           }
         };
       },
-    }
-  )
+    },
+  ),
 );
 
 // Selectors
