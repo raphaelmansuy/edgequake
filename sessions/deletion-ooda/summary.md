@@ -38,6 +38,7 @@ Spec: `specs/033-study-delete-document/003-study-document.md`
 | 38 | Study summary update (iteration 37) | ✅ Complete | 90ecae78 |
 | 39 | Lifecycle status tests | ✅ Complete | 3d13142f |
 | 40 | Content hash deduplication tests | ✅ Complete | 58e0d963 |
+| 41 | Metadata handling tests | ✅ Complete | 41612810 |
 
 ## Key Accomplishments
 

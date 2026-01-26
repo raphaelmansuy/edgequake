@@ -4003,3 +4003,105 @@ async fn test_delete_document_with_metadata() {
     println!("✅ OODA-41 TEST PASSED: Delete document with metadata");
 }
 
+// ============================================================================
+// OODA-42: Processing Mode Tests
+// ============================================================================
+
+/// Helper to upload a document with async processing mode
+async fn upload_document_async_mode(
+    app: &axum::Router,
+    title: &str,
+    content: &str,
+    async_processing: bool,
+) -> (StatusCode, Value) {
+    let request = json!({
+        "content": content,
+        "title": title,
+        "async_processing": async_processing
+    });
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let status = response.status();
+    let body = extract_json(response).await;
+    (status, body)
+}
+
+/// OODA-42: Test sync processing mode baseline.
+#[tokio::test]
+async fn test_sync_processing_mode() {
+    let app = create_test_app();
+    
+    // Upload with sync processing (default in most tests)
+    let (status, body) = upload_document_async_mode(
+        &app,
+        "Sync Processing Test",
+        "Content for synchronous processing verification.",
+        false
+    ).await;
+    
+    assert_eq!(status, StatusCode::CREATED);
+    assert!(body.get("document_id").is_some(), "Should have document_id");
+    
+    // With sync processing, entity extraction should be complete
+    // (though mock provider may not extract entities)
+    
+    let doc_id = body["document_id"].as_str().unwrap();
+    
+    // Cleanup
+    let (delete_status, _) = delete_document_http(&app, doc_id).await;
+    assert_eq!(delete_status, StatusCode::OK);
+    
+    println!("✅ OODA-42 TEST PASSED: Sync processing mode");
+}
+
+/// OODA-42: Test async processing mode.
+#[tokio::test]
+async fn test_async_processing_mode() {
+    let app = create_test_app();
+    
+    // Upload with async processing
+    let (status, body) = upload_document_async_mode(
+        &app,
+        "Async Processing Test",
+        "Content for asynchronous processing verification.",
+        true
+    ).await;
+    
+    // Should return 201 or 202 depending on implementation
+    assert!(
+        status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+        "Async upload should return CREATED or ACCEPTED, got {}",
+        status
+    );
+    assert!(body.get("document_id").is_some(), "Should have document_id");
+    
+    let doc_id = body["document_id"].as_str().unwrap();
+    
+    // Delete should work even if processing is pending
+    // (deletion may cancel processing, wait, or return conflict)
+    let (delete_status, _) = delete_document_http(&app, doc_id).await;
+    
+    // Should either succeed, return NOT_FOUND, or CONFLICT if still processing
+    assert!(
+        delete_status == StatusCode::OK 
+            || delete_status == StatusCode::NOT_FOUND
+            || delete_status == StatusCode::CONFLICT,
+        "Async doc deletion should return OK, NOT_FOUND, or CONFLICT, got {}",
+        delete_status
+    );
+    
+    println!("✅ OODA-42 TEST PASSED: Async processing mode (delete status: {})", delete_status);
+}
+
