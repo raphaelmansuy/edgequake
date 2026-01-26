@@ -27,7 +27,7 @@ pub async fn trigger_metrics_snapshot(
         .workspace_service
         .record_metrics_snapshot(workspace_id, MetricsTriggerType::Manual)
         .await?;
-    
+
     Ok(Json(MetricsSnapshotDTO::from(snapshot)))
 }
 ```

@@ -2544,7 +2544,10 @@ async fn test_reprocess_excludes_processing_documents() {
     // 2. Create an entity that belongs to this document (as if 50% processed)
     let mut entity_props = std::collections::HashMap::new();
     entity_props.insert("entity_type".to_string(), json!("PERSON"));
-    entity_props.insert("description".to_string(), json!("Entity from active processing"));
+    entity_props.insert(
+        "description".to_string(),
+        json!("Entity from active processing"),
+    );
     entity_props.insert("source_ids".to_string(), json!([chunk_id.clone()]));
 
     state
@@ -2556,7 +2559,9 @@ async fn test_reprocess_excludes_processing_documents() {
     // Verify entity exists before reprocess call
     let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
     assert!(
-        nodes_before.iter().any(|n| n.id == "ACTIVE_PROCESSING_ENTITY"),
+        nodes_before
+            .iter()
+            .any(|n| n.id == "ACTIVE_PROCESSING_ENTITY"),
         "Entity should exist before reprocess call"
     );
 
@@ -2598,7 +2603,9 @@ async fn test_reprocess_excludes_processing_documents() {
     // 5. Verify entity was NOT cleaned up (document still processing)
     let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
     assert!(
-        nodes_after.iter().any(|n| n.id == "ACTIVE_PROCESSING_ENTITY"),
+        nodes_after
+            .iter()
+            .any(|n| n.id == "ACTIVE_PROCESSING_ENTITY"),
         "Entity should still exist - PROCESSING document should not be touched. Found: {:?}",
         nodes_after.iter().map(|n| &n.id).collect::<Vec<_>>()
     );
@@ -2649,7 +2656,10 @@ async fn test_reprocess_cleans_all_entities_and_relationships() {
     for entity_name in ["FAILED_ENTITY_A", "FAILED_ENTITY_B", "FAILED_ENTITY_C"] {
         let mut props = std::collections::HashMap::new();
         props.insert("entity_type".to_string(), json!("CONCEPT"));
-        props.insert("description".to_string(), json!("Entity from failed processing"));
+        props.insert(
+            "description".to_string(),
+            json!("Entity from failed processing"),
+        );
         props.insert("source_ids".to_string(), json!([chunk_id.clone()]));
 
         state
@@ -2680,8 +2690,16 @@ async fn test_reprocess_cleans_all_entities_and_relationships() {
     let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
     let edges_before = state.graph_storage.get_all_edges().await.unwrap();
 
-    assert_eq!(nodes_before.len(), 3, "Should have 3 entities before reprocess");
-    assert_eq!(edges_before.len(), 2, "Should have 2 relationships before reprocess");
+    assert_eq!(
+        nodes_before.len(),
+        3,
+        "Should have 3 entities before reprocess"
+    );
+    assert_eq!(
+        edges_before.len(),
+        2,
+        "Should have 2 relationships before reprocess"
+    );
 
     // 4. Call reprocess endpoint
     let request = json!({
@@ -2715,7 +2733,10 @@ async fn test_reprocess_cleans_all_entities_and_relationships() {
     assert!(
         edges_after.is_empty(),
         "All relationships should be deleted during reprocess. Remaining: {:?}",
-        edges_after.iter().map(|e| format!("{}->{}", e.source, e.target)).collect::<Vec<_>>()
+        edges_after
+            .iter()
+            .map(|e| format!("{}->{}", e.source, e.target))
+            .collect::<Vec<_>>()
     );
 
     println!("✅ OODA-18 TEST PASSED: All entities and relationships cleaned during reprocess");
@@ -2730,24 +2751,25 @@ async fn test_reprocess_cleans_all_entities_and_relationships() {
 #[tokio::test]
 async fn test_delete_document_with_no_entities() {
     let app = create_test_app();
-    
+
     // Upload a document that won't produce entities (too short)
     let (status, body) = upload_document_http(
         &app,
         "Empty Doc",
-        "x"  // Single character - won't produce entities
-    ).await;
-    
+        "x", // Single character - won't produce entities
+    )
+    .await;
+
     // Upload might still succeed (mock LLM may produce entities)
     // or fail silently - either way, check deletion
     if status == StatusCode::CREATED {
         let document_id = body["document_id"].as_str().unwrap();
-        
+
         // Delete should succeed
         let (delete_status, _) = delete_document_http(&app, document_id).await;
         assert_eq!(delete_status, StatusCode::OK);
     }
-    
+
     println!("✅ OODA-24 TEST PASSED: Delete document with no entities");
 }
 
@@ -2756,23 +2778,27 @@ async fn test_delete_document_with_no_entities() {
 #[tokio::test]
 async fn test_rapid_sequential_operations() {
     let app = create_test_app();
-    
+
     // Upload and delete 5 documents rapidly
     for i in 0..5 {
         let (status, body) = upload_document_http(
             &app,
             &format!("Rapid Doc {}", i),
-            &format!("Person {} works at Company {}. The relationship is professional.", i, i)
-        ).await;
-        
+            &format!(
+                "Person {} works at Company {}. The relationship is professional.",
+                i, i
+            ),
+        )
+        .await;
+
         assert_eq!(status, StatusCode::CREATED, "Upload {} should succeed", i);
         let document_id = body["document_id"].as_str().unwrap();
-        
+
         // Immediately delete
         let (delete_status, _) = delete_document_http(&app, document_id).await;
         assert_eq!(delete_status, StatusCode::OK, "Delete {} should succeed", i);
     }
-    
+
     println!("✅ OODA-24 TEST PASSED: Rapid sequential operations handled");
 }
 
@@ -2782,56 +2808,60 @@ async fn test_rapid_sequential_operations() {
 async fn test_deletion_preserves_unrelated_data() {
     let state = AppState::test_state();
     let app = create_test_server_with_state(state.clone());
-    
+
     // Upload two completely unrelated documents
     let (_, body1) = upload_document_http(
         &app,
         "Science Doc",
-        "Albert Einstein developed the theory of relativity. Physics is fascinating."
-    ).await;
+        "Albert Einstein developed the theory of relativity. Physics is fascinating.",
+    )
+    .await;
     let doc1_id = body1["document_id"].as_str().unwrap().to_string();
-    
+
     let (_, body2) = upload_document_http(
         &app,
         "Sports Doc",
-        "Michael Jordan played basketball. He won many championships with the Bulls."
-    ).await;
+        "Michael Jordan played basketball. He won many championships with the Bulls.",
+    )
+    .await;
     let doc2_id = body2["document_id"].as_str().unwrap().to_string();
-    
+
     // Count entities before deletion
     let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
     let doc2_entities_before: Vec<_> = nodes_before
         .iter()
         .filter(|n| {
-            n.properties.get("source_ids")
+            n.properties
+                .get("source_ids")
                 .and_then(|v| v.as_array())
                 .map(|arr| arr.iter().any(|s| s.as_str() == Some(&doc2_id)))
                 .unwrap_or(false)
         })
         .collect();
-    
+
     // Delete doc1
     let (delete_status, _) = delete_document_http(&app, &doc1_id).await;
     assert_eq!(delete_status, StatusCode::OK);
-    
+
     // Doc2's entities should still exist
     let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
     let doc2_entities_after: Vec<_> = nodes_after
         .iter()
         .filter(|n| {
-            n.properties.get("source_ids")
+            n.properties
+                .get("source_ids")
                 .and_then(|v| v.as_array())
                 .map(|arr| arr.iter().any(|s| s.as_str() == Some(&doc2_id)))
                 .unwrap_or(false)
         })
         .collect();
-    
+
     assert_eq!(
         doc2_entities_before.len(),
         doc2_entities_after.len(),
         "Doc2's entities should be preserved after deleting Doc1"
     );
-    
+
     println!("✅ OODA-24 TEST PASSED: Deletion preserves unrelated data");
 }
 
@@ -2846,28 +2876,29 @@ async fn test_deletion_preserves_unrelated_data() {
 #[tokio::test]
 async fn test_delete_document_unicode_name() {
     let app = create_test_app();
-    
+
     // Upload document with various unicode characters
     let (upload_status, body) = upload_document_http(
         &app,
         "日本語ドキュメント 📄 über café",
-        "This document has a unicode title with Japanese, emoji, and accented characters."
-    ).await;
+        "This document has a unicode title with Japanese, emoji, and accented characters.",
+    )
+    .await;
     assert_eq!(upload_status, StatusCode::CREATED);
-    
+
     let doc_id = body["document_id"].as_str().unwrap();
-    
+
     // Delete should work normally
     let (delete_status, delete_body) = delete_document_http(&app, doc_id).await;
     assert_eq!(delete_status, StatusCode::OK);
-    
+
     // Verify deletion
     assert!(delete_body["deleted"].as_bool().unwrap_or(false));
-    
+
     // Verify document is gone by trying to delete again
     let (second_delete_status, _) = delete_document_http(&app, doc_id).await;
     assert_eq!(second_delete_status, StatusCode::NOT_FOUND);
-    
+
     println!("✅ OODA-28 TEST PASSED: Unicode document name deletion works");
 }
 
@@ -2879,25 +2910,26 @@ async fn test_delete_document_unicode_name() {
 #[tokio::test]
 async fn test_delete_document_double_delete() {
     let app = create_test_app();
-    
+
     // Upload a document
     let (upload_status, body) = upload_document_http(
         &app,
         "Double Delete Test",
-        "This document will be deleted twice to test idempotency."
-    ).await;
+        "This document will be deleted twice to test idempotency.",
+    )
+    .await;
     assert_eq!(upload_status, StatusCode::CREATED);
-    
+
     let doc_id = body["document_id"].as_str().unwrap();
-    
+
     // First delete - should succeed
     let (delete1_status, _) = delete_document_http(&app, doc_id).await;
     assert_eq!(delete1_status, StatusCode::OK);
-    
+
     // Second delete - should return NOT_FOUND
     let (delete2_status, _) = delete_document_http(&app, doc_id).await;
     assert_eq!(delete2_status, StatusCode::NOT_FOUND);
-    
+
     println!("✅ OODA-28 TEST PASSED: Double-delete returns 404 on second attempt");
 }
 
@@ -2908,42 +2940,44 @@ async fn test_delete_document_double_delete() {
 #[tokio::test]
 async fn test_delete_then_reupload_same_name() {
     let app = create_test_app();
-    
+
     let doc_name = "Reupload Test Document";
-    
+
     // Upload version 1
     let (upload1_status, body1) = upload_document_http(
         &app,
         doc_name,
-        "Alice works at CompanyAlpha. Bob is her colleague."
-    ).await;
+        "Alice works at CompanyAlpha. Bob is her colleague.",
+    )
+    .await;
     assert_eq!(upload1_status, StatusCode::CREATED);
     let doc1_id = body1["document_id"].as_str().unwrap().to_string();
-    
+
     // Delete version 1
     let (delete_status, _) = delete_document_http(&app, &doc1_id).await;
     assert_eq!(delete_status, StatusCode::OK);
-    
+
     // Upload version 2 with SAME name but DIFFERENT content
     let (upload2_status, body2) = upload_document_http(
         &app,
         doc_name,
-        "Charlie founded CompanyBeta. Diana is the CTO."
-    ).await;
+        "Charlie founded CompanyBeta. Diana is the CTO.",
+    )
+    .await;
     assert_eq!(upload2_status, StatusCode::CREATED);
     let doc2_id = body2["document_id"].as_str().unwrap().to_string();
-    
+
     // Verify we got a NEW document ID
     assert_ne!(doc1_id, doc2_id, "Reupload should create new document ID");
-    
+
     // Verify old document is gone
     let (get_old_status, _) = delete_document_http(&app, &doc1_id).await;
     assert_eq!(get_old_status, StatusCode::NOT_FOUND);
-    
+
     // Verify new document exists (can be deleted)
     let (delete_new_status, _) = delete_document_http(&app, &doc2_id).await;
     assert_eq!(delete_new_status, StatusCode::OK);
-    
+
     println!("✅ OODA-28 TEST PASSED: Delete-then-reupload creates fresh state");
 }
 
@@ -2959,9 +2993,9 @@ async fn test_delete_then_reupload_same_name() {
 #[tokio::test]
 async fn test_deletion_performance_baseline() {
     use std::time::Instant;
-    
+
     let app = create_test_app();
-    
+
     // Upload a document with multiple sentences (more entity extraction opportunities)
     let content = r#"
     Dr. Sarah Chen is the CEO of TechCorp, a leading technology company.
@@ -2971,40 +3005,40 @@ async fn test_deletion_performance_baseline() {
     Sarah Chen previously worked at Google and Microsoft before joining TechCorp.
     Michael Johnson studied computer science at Stanford University.
     "#;
-    
-    let (upload_status, body) = upload_document_http(
-        &app,
-        "Performance Test Document",
-        content
-    ).await;
+
+    let (upload_status, body) =
+        upload_document_http(&app, "Performance Test Document", content).await;
     assert_eq!(upload_status, StatusCode::CREATED);
-    
+
     let doc_id = body["document_id"].as_str().unwrap();
-    
+
     // Time the deletion
     let start = Instant::now();
     let (delete_status, delete_body) = delete_document_http(&app, doc_id).await;
     let duration = start.elapsed();
-    
+
     assert_eq!(delete_status, StatusCode::OK);
     assert!(delete_body["deleted"].as_bool().unwrap_or(false));
-    
+
     // Extract metrics from response
     let entities = delete_body["entities_removed"].as_i64().unwrap_or(0);
     let relationships = delete_body["relationships_removed"].as_i64().unwrap_or(0);
-    
+
     // Performance assertion: should complete in <100ms for in-memory
     assert!(
         duration.as_millis() < 100,
         "Deletion took {}ms, expected <100ms",
         duration.as_millis()
     );
-    
+
     println!("📊 OODA-30 PERFORMANCE BASELINE:");
     println!("   Duration: {:?}", duration);
     println!("   Entities removed: {}", entities);
     println!("   Relationships removed: {}", relationships);
-    println!("   Throughput: {:.2} entities/ms", entities as f64 / duration.as_millis() as f64);
+    println!(
+        "   Throughput: {:.2} entities/ms",
+        entities as f64 / duration.as_millis() as f64
+    );
     println!("✅ OODA-30 TEST PASSED: Deletion performance within baseline");
 }
 
@@ -3014,22 +3048,26 @@ async fn test_deletion_performance_baseline() {
 #[tokio::test]
 async fn test_deletion_performance_sequential() {
     use std::time::Instant;
-    
+
     let app = create_test_app();
-    
+
     let mut doc_ids = Vec::new();
-    
+
     // Upload 5 documents
     for i in 0..5 {
         let (status, body) = upload_document_http(
             &app,
             &format!("Seq Perf Doc {}", i),
-            &format!("Person{} works at Company{}. They collaborate with Team{}.", i, i, i)
-        ).await;
+            &format!(
+                "Person{} works at Company{}. They collaborate with Team{}.",
+                i, i, i
+            ),
+        )
+        .await;
         assert_eq!(status, StatusCode::CREATED);
         doc_ids.push(body["document_id"].as_str().unwrap().to_string());
     }
-    
+
     // Time sequential deletions
     let start = Instant::now();
     for doc_id in &doc_ids {
@@ -3037,16 +3075,16 @@ async fn test_deletion_performance_sequential() {
         assert_eq!(status, StatusCode::OK);
     }
     let total_duration = start.elapsed();
-    
+
     let avg_ms = total_duration.as_millis() as f64 / doc_ids.len() as f64;
-    
+
     // Average should be <50ms per document
     assert!(
         avg_ms < 50.0,
         "Average deletion time {:.2}ms, expected <50ms",
         avg_ms
     );
-    
+
     println!("📊 OODA-30 SEQUENTIAL PERFORMANCE:");
     println!("   Documents: {}", doc_ids.len());
     println!("   Total time: {:?}", total_duration);
@@ -3069,30 +3107,34 @@ async fn test_deletion_performance_sequential() {
 async fn test_bulk_deletion_cleanup() {
     let state = AppState::test_state();
     let app = create_test_server_with_state(state.clone());
-    
+
     let doc_count = 10;
     let mut doc_ids = Vec::new();
-    
+
     // Upload many documents
     for i in 0..doc_count {
         let (status, body) = upload_document_http(
             &app,
             &format!("Bulk Doc {}", i),
-            &format!("Entity{} relates to Topic{}. This is document number {}.", i, i, i)
-        ).await;
+            &format!(
+                "Entity{} relates to Topic{}. This is document number {}.",
+                i, i, i
+            ),
+        )
+        .await;
         assert_eq!(status, StatusCode::CREATED);
         doc_ids.push(body["document_id"].as_str().unwrap().to_string());
     }
-    
+
     // Count entities before bulk delete
     let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
     let edges_before = state.graph_storage.get_all_edges().await.unwrap();
-    
+
     println!("📊 Before bulk delete:");
     println!("   Documents: {}", doc_count);
     println!("   Nodes: {}", nodes_before.len());
     println!("   Edges: {}", edges_before.len());
-    
+
     // Delete all documents
     let mut success_count = 0;
     for doc_id in &doc_ids {
@@ -3101,30 +3143,35 @@ async fn test_bulk_deletion_cleanup() {
             success_count += 1;
         }
     }
-    
+
     // All should succeed
     assert_eq!(success_count, doc_count, "All documents should be deleted");
-    
+
     // Count entities after bulk delete
     let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
     let edges_after = state.graph_storage.get_all_edges().await.unwrap();
-    
+
     println!("📊 After bulk delete:");
     println!("   Nodes remaining: {}", nodes_after.len());
     println!("   Edges remaining: {}", edges_after.len());
-    
+
     // With mock LLM, we may have no entities, but if we do, they should be cleaned
     // The key assertion: no orphaned entities from our documents
     for doc_id in &doc_ids {
         let orphaned = nodes_after.iter().any(|n| {
-            n.properties.get("source_ids")
+            n.properties
+                .get("source_ids")
                 .and_then(|v| v.as_array())
                 .map(|arr| arr.iter().any(|s| s.as_str() == Some(doc_id)))
                 .unwrap_or(false)
         });
-        assert!(!orphaned, "Found orphaned entity for deleted doc {}", doc_id);
+        assert!(
+            !orphaned,
+            "Found orphaned entity for deleted doc {}",
+            doc_id
+        );
     }
-    
+
     println!("✅ OODA-31 TEST PASSED: Bulk deletion cleaned all data");
 }
 
@@ -3135,53 +3182,56 @@ async fn test_bulk_deletion_cleanup() {
 #[tokio::test]
 async fn test_bulk_deletion_allows_reupload() {
     let app = create_test_app();
-    
+
     let doc_count = 5;
     let mut doc_ids = Vec::new();
-    
+
     // Upload batch 1
     for i in 0..doc_count {
         let (status, body) = upload_document_http(
             &app,
             &format!("Batch1 Doc {}", i),
-            &format!("Content for batch 1 document {}.", i)
-        ).await;
+            &format!("Content for batch 1 document {}.", i),
+        )
+        .await;
         assert_eq!(status, StatusCode::CREATED);
         doc_ids.push(body["document_id"].as_str().unwrap().to_string());
     }
-    
+
     // Delete all batch 1
     for doc_id in &doc_ids {
         let (status, _) = delete_document_http(&app, doc_id).await;
         assert_eq!(status, StatusCode::OK);
     }
-    
+
     // Upload batch 2 with same names
     let mut batch2_ids = Vec::new();
     for i in 0..doc_count {
         let (status, body) = upload_document_http(
             &app,
             &format!("Batch1 Doc {}", i), // Same names as batch 1
-            &format!("NEW content for batch 2 document {}.", i)
-        ).await;
+            &format!("NEW content for batch 2 document {}.", i),
+        )
+        .await;
         assert_eq!(status, StatusCode::CREATED);
         batch2_ids.push(body["document_id"].as_str().unwrap().to_string());
     }
-    
+
     // Verify batch 2 IDs are all new
     for (i, id) in batch2_ids.iter().enumerate() {
         assert!(
             !doc_ids.contains(id),
-            "Batch 2 doc {} should have new ID", i
+            "Batch 2 doc {} should have new ID",
+            i
         );
     }
-    
+
     // Cleanup batch 2
     for doc_id in &batch2_ids {
         let (status, _) = delete_document_http(&app, doc_id).await;
         assert_eq!(status, StatusCode::OK);
     }
-    
+
     println!("✅ OODA-31 TEST PASSED: Workspace clean after bulk operations");
 }
 
@@ -3196,21 +3246,22 @@ async fn test_bulk_deletion_allows_reupload() {
 #[tokio::test]
 async fn test_deletion_response_contains_all_fields() {
     let app = create_test_app();
-    
+
     // Upload a document
     let (upload_status, body) = upload_document_http(
         &app,
         "Response Fields Test",
-        "This document tests that deletion response has all required fields."
-    ).await;
+        "This document tests that deletion response has all required fields.",
+    )
+    .await;
     assert_eq!(upload_status, StatusCode::CREATED);
-    
+
     let doc_id = body["document_id"].as_str().unwrap();
-    
+
     // Delete and verify response structure
     let (delete_status, response) = delete_document_http(&app, doc_id).await;
     assert_eq!(delete_status, StatusCode::OK);
-    
+
     // Verify required fields exist (use actual field names from DeleteDocumentResponse)
     assert!(
         response.get("deleted").is_some(),
@@ -3232,14 +3283,14 @@ async fn test_deletion_response_contains_all_fields() {
         response.get("chunks_deleted").is_some(),
         "Response should have 'chunks_deleted' field"
     );
-    
+
     // Verify values are valid
     assert!(response["deleted"].as_bool().unwrap_or(false));
     assert_eq!(response["document_id"].as_str().unwrap(), doc_id);
     assert!(response["entities_affected"].as_i64().unwrap_or(-1) >= 0);
     assert!(response["relationships_affected"].as_i64().unwrap_or(-1) >= 0);
     assert!(response["chunks_deleted"].as_i64().unwrap_or(-1) >= 0);
-    
+
     println!("✅ OODA-32 TEST PASSED: Deletion response contains all fields");
 }
 
@@ -3249,24 +3300,24 @@ async fn test_deletion_response_contains_all_fields() {
 #[tokio::test]
 async fn test_not_found_response_structure() {
     let app = create_test_app();
-    
+
     // Try to delete a non-existent document
     let fake_id = "00000000-0000-0000-0000-000000000000";
     let (status, response) = delete_document_http(&app, fake_id).await;
-    
+
     assert_eq!(status, StatusCode::NOT_FOUND);
-    
+
     // Error response should have structured format
     // (actual format depends on API error handling)
     let is_structured = response.get("error").is_some()
         || response.get("message").is_some()
         || response.get("code").is_some();
-    
+
     assert!(
         is_structured || response.is_object(),
         "Error response should be structured JSON"
     );
-    
+
     println!("✅ OODA-32 TEST PASSED: 404 response is structured");
 }
 
@@ -3276,7 +3327,7 @@ async fn test_not_found_response_structure() {
 #[tokio::test]
 async fn test_invalid_document_id_format() {
     let app = create_test_app();
-    
+
     // Try invalid UUID formats (URI-safe only)
     let invalid_ids = [
         "not-a-uuid",
@@ -3285,7 +3336,7 @@ async fn test_invalid_document_id_format() {
         "too-short",
         "00000000-0000-0000-0000-00000000000g", // invalid hex char
     ];
-    
+
     for invalid_id in &invalid_ids {
         let response = app
             .clone()
@@ -3298,7 +3349,7 @@ async fn test_invalid_document_id_format() {
             )
             .await
             .unwrap();
-        
+
         // Should get 400 Bad Request or 404 Not Found, not 500
         assert!(
             response.status() == StatusCode::BAD_REQUEST
@@ -3309,7 +3360,7 @@ async fn test_invalid_document_id_format() {
             response.status()
         );
     }
-    
+
     println!("✅ OODA-32 TEST PASSED: Invalid IDs handled gracefully");
 }
 
@@ -3323,22 +3374,18 @@ async fn test_invalid_document_id_format() {
 #[tokio::test]
 async fn test_delete_document_minimal_content() {
     let app = create_test_app();
-    
+
     // Upload document with minimal content
-    let (upload_status, body) = upload_document_http(
-        &app,
-        "Minimal Content",
-        "A"
-    ).await;
+    let (upload_status, body) = upload_document_http(&app, "Minimal Content", "A").await;
     assert_eq!(upload_status, StatusCode::CREATED);
-    
+
     let doc_id = body["document_id"].as_str().unwrap();
-    
+
     // Delete should work
     let (delete_status, delete_body) = delete_document_http(&app, doc_id).await;
     assert_eq!(delete_status, StatusCode::OK);
     assert!(delete_body["deleted"].as_bool().unwrap_or(false));
-    
+
     println!("✅ OODA-34 TEST PASSED: Minimal content deletion works");
 }
 
@@ -3348,21 +3395,17 @@ async fn test_delete_document_minimal_content() {
 #[tokio::test]
 async fn test_upload_rejects_whitespace_content() {
     let app = create_test_app();
-    
+
     // Try to upload document with whitespace content
-    let (upload_status, _) = upload_document_http(
-        &app,
-        "Whitespace Content",
-        "   \n\t\n   "
-    ).await;
-    
+    let (upload_status, _) = upload_document_http(&app, "Whitespace Content", "   \n\t\n   ").await;
+
     // Should be rejected with 422 Unprocessable Entity
     assert_eq!(
-        upload_status, 
+        upload_status,
         StatusCode::UNPROCESSABLE_ENTITY,
         "Whitespace-only content should be rejected"
     );
-    
+
     println!("✅ OODA-34 TEST PASSED: Whitespace content rejected correctly");
 }
 
@@ -3373,23 +3416,19 @@ async fn test_upload_rejects_whitespace_content() {
 #[tokio::test]
 async fn test_delete_document_repeated_content() {
     let app = create_test_app();
-    
+
     // Upload document with repeated content
     let repeated = "This is a test. ".repeat(100);
-    let (upload_status, body) = upload_document_http(
-        &app,
-        "Repeated Content",
-        &repeated
-    ).await;
+    let (upload_status, body) = upload_document_http(&app, "Repeated Content", &repeated).await;
     assert_eq!(upload_status, StatusCode::CREATED);
-    
+
     let doc_id = body["document_id"].as_str().unwrap();
-    
+
     // Delete should work
     let (delete_status, delete_body) = delete_document_http(&app, doc_id).await;
     assert_eq!(delete_status, StatusCode::OK);
     assert!(delete_body["deleted"].as_bool().unwrap_or(false));
-    
+
     println!("✅ OODA-34 TEST PASSED: Repeated content deletion works");
 }
 
@@ -3403,17 +3442,18 @@ async fn test_delete_document_repeated_content() {
 #[tokio::test]
 async fn test_parallel_delete_same_document() {
     let app = create_test_app();
-    
+
     // Upload a document
     let (upload_status, body) = upload_document_http(
         &app,
         "Parallel Delete Target",
-        "This document will be deleted by multiple concurrent requests."
-    ).await;
+        "This document will be deleted by multiple concurrent requests.",
+    )
+    .await;
     assert_eq!(upload_status, StatusCode::CREATED);
-    
+
     let doc_id = body["document_id"].as_str().unwrap().to_string();
-    
+
     // Create 5 concurrent delete tasks
     let mut tasks = Vec::new();
     for _ in 0..5 {
@@ -3433,18 +3473,21 @@ async fn test_parallel_delete_same_document() {
             response.status()
         }));
     }
-    
+
     // Wait for all tasks
     let results: Vec<StatusCode> = futures::future::join_all(tasks)
         .await
         .into_iter()
         .map(|r| r.unwrap())
         .collect();
-    
+
     // Count successes and not founds
     let ok_count = results.iter().filter(|&s| *s == StatusCode::OK).count();
-    let not_found_count = results.iter().filter(|&s| *s == StatusCode::NOT_FOUND).count();
-    
+    let not_found_count = results
+        .iter()
+        .filter(|&s| *s == StatusCode::NOT_FOUND)
+        .count();
+
     // Exactly one should succeed, others should get NOT_FOUND
     assert!(
         ok_count >= 1,
@@ -3456,8 +3499,11 @@ async fn test_parallel_delete_same_document() {
         5,
         "All results should be OK or NOT_FOUND"
     );
-    
-    println!("📊 Parallel delete results: {} OK, {} NOT_FOUND", ok_count, not_found_count);
+
+    println!(
+        "📊 Parallel delete results: {} OK, {} NOT_FOUND",
+        ok_count, not_found_count
+    );
     println!("✅ OODA-35 TEST PASSED: Parallel delete of same doc is safe");
 }
 
@@ -3468,31 +3514,36 @@ async fn test_parallel_delete_same_document() {
 async fn test_rapid_create_delete_cycles() {
     let state = AppState::test_state();
     let app = create_test_server_with_state(state.clone());
-    
+
     // Perform 10 rapid create-delete cycles
     for i in 0..10 {
         // Create
         let (upload_status, body) = upload_document_http(
             &app,
             &format!("Cycle Doc {}", i),
-            &format!("Content for cycle {}. This is test data.", i)
-        ).await;
+            &format!("Content for cycle {}. This is test data.", i),
+        )
+        .await;
         assert_eq!(upload_status, StatusCode::CREATED);
-        
+
         let doc_id = body["document_id"].as_str().unwrap();
-        
+
         // Delete
         let (delete_status, _) = delete_document_http(&app, doc_id).await;
         assert_eq!(delete_status, StatusCode::OK);
     }
-    
+
     // After all cycles, verify clean state
     let nodes = state.graph_storage.get_all_nodes().await.unwrap();
     let edges = state.graph_storage.get_all_edges().await.unwrap();
-    
+
     // With mock LLM, we may have no entities, which is fine
     // Key assertion: no orphaned data from our documents
-    println!("📊 After 10 cycles: {} nodes, {} edges", nodes.len(), edges.len());
+    println!(
+        "📊 After 10 cycles: {} nodes, {} edges",
+        nodes.len(),
+        edges.len()
+    );
     println!("✅ OODA-35 TEST PASSED: Rapid create-delete cycles leave no orphans");
 }
 
@@ -3504,7 +3555,7 @@ async fn test_rapid_create_delete_cycles() {
 #[tokio::test]
 async fn test_delete_empty_document_id() {
     let app = create_test_app();
-    
+
     // Attempt to delete with empty ID - this goes to a different route
     // The actual route is DELETE /api/v1/documents/{id}
     // An empty ID would match a different path or return 404
@@ -3518,7 +3569,7 @@ async fn test_delete_empty_document_id() {
         )
         .await
         .unwrap();
-    
+
     // Empty path segment should either be 404 (no route match) or 400 (bad request)
     let status = response.status();
     assert!(
@@ -3526,8 +3577,11 @@ async fn test_delete_empty_document_id() {
         "Empty ID should return NOT_FOUND or METHOD_NOT_ALLOWED, got {}",
         status
     );
-    
-    println!("✅ OODA-36 TEST PASSED: Empty document ID handled correctly ({})", status);
+
+    println!(
+        "✅ OODA-36 TEST PASSED: Empty document ID handled correctly ({})",
+        status
+    );
 }
 
 /// OODA-36: Test that extremely long document ID is rejected.
@@ -3536,12 +3590,12 @@ async fn test_delete_empty_document_id() {
 #[tokio::test]
 async fn test_delete_extremely_long_id() {
     let app = create_test_app();
-    
+
     // Create a 10KB document ID (well beyond UUID length)
     let long_id = "x".repeat(10_000);
-    
+
     let (status, _) = delete_document_http(&app, &long_id).await;
-    
+
     // Should return NOT_FOUND (not a valid document) or 414 URI TOO LONG
     // or 400 BAD REQUEST - any error response is acceptable
     assert_ne!(
@@ -3559,15 +3613,18 @@ async fn test_delete_extremely_long_id() {
         StatusCode::INTERNAL_SERVER_ERROR,
         "Should not crash with 500 error"
     );
-    
-    println!("✅ OODA-36 TEST PASSED: Long document ID handled safely ({})", status);
+
+    println!(
+        "✅ OODA-36 TEST PASSED: Long document ID handled safely ({})",
+        status
+    );
 }
 
 /// OODA-36: Test SQL injection-like patterns in document ID are safe.
 #[tokio::test]
 async fn test_delete_sql_injection_pattern() {
     let app = create_test_app();
-    
+
     // SQL injection-like patterns (safe because we use parameterized queries)
     let injection_ids = vec![
         "'; DROP TABLE documents; --",
@@ -3575,12 +3632,13 @@ async fn test_delete_sql_injection_pattern() {
         "1; SELECT * FROM users",
         "\" OR \"\"=\"",
     ];
-    
+
     for injection_id in injection_ids {
         // URL-encode the pattern for safety
         let encoded_id = urlencoding::encode(injection_id);
-        
-        let response = app.clone()
+
+        let response = app
+            .clone()
             .oneshot(
                 Request::builder()
                     .method("DELETE")
@@ -3590,9 +3648,9 @@ async fn test_delete_sql_injection_pattern() {
             )
             .await
             .unwrap();
-        
+
         let status = response.status();
-        
+
         // Should get NOT_FOUND (document doesn't exist) - not a server error
         assert_ne!(
             status,
@@ -3600,7 +3658,7 @@ async fn test_delete_sql_injection_pattern() {
             "SQL injection pattern '{}' caused server error",
             injection_id
         );
-        
+
         // Typically returns 404 since it's not a real UUID
         assert!(
             status == StatusCode::NOT_FOUND || status == StatusCode::BAD_REQUEST,
@@ -3609,7 +3667,7 @@ async fn test_delete_sql_injection_pattern() {
             status
         );
     }
-    
+
     println!("✅ OODA-36 TEST PASSED: SQL injection patterns are safe");
 }
 
@@ -3654,35 +3712,37 @@ async fn upload_document_with_workspace(
 #[tokio::test]
 async fn test_delete_isolation_between_workspaces() {
     let app = create_test_app();
-    
+
     // Upload document to workspace A
     let (upload_a_status, body_a) = upload_document_with_workspace(
         &app,
         "Doc in Workspace A",
         "Content for workspace A testing isolation during deletion.",
-        "workspace-a"
-    ).await;
+        "workspace-a",
+    )
+    .await;
     assert_eq!(upload_a_status, StatusCode::CREATED);
     let doc_a_id = body_a["document_id"].as_str().unwrap().to_string();
-    
+
     // Upload document to workspace B
     let (upload_b_status, body_b) = upload_document_with_workspace(
         &app,
         "Doc in Workspace B",
         "Content for workspace B testing isolation during deletion.",
-        "workspace-b"
-    ).await;
+        "workspace-b",
+    )
+    .await;
     assert_eq!(upload_b_status, StatusCode::CREATED);
     let doc_b_id = body_b["document_id"].as_str().unwrap().to_string();
-    
+
     // Delete document in workspace A
     let (delete_status, _) = delete_document_http(&app, &doc_a_id).await;
     assert_eq!(delete_status, StatusCode::OK);
-    
+
     // Verify document A is gone (returns 404)
     let (check_a_status, _) = delete_document_http(&app, &doc_a_id).await;
     assert_eq!(check_a_status, StatusCode::NOT_FOUND);
-    
+
     // Verify document B still exists (first delete succeeds)
     let (check_b_status, _) = delete_document_http(&app, &doc_b_id).await;
     assert_eq!(
@@ -3690,7 +3750,7 @@ async fn test_delete_isolation_between_workspaces() {
         StatusCode::OK,
         "Document in workspace B should still exist and be deletable"
     );
-    
+
     println!("✅ OODA-37 TEST PASSED: Delete isolation between workspaces");
 }
 
@@ -3698,40 +3758,32 @@ async fn test_delete_isolation_between_workspaces() {
 #[tokio::test]
 async fn test_delete_same_name_different_workspaces() {
     let app = create_test_app();
-    
+
     let common_title = "Shared Document Title";
     let common_content = "This document has the same name in multiple workspaces.";
-    
+
     // Upload same-named doc to workspace A
-    let (upload_a_status, body_a) = upload_document_with_workspace(
-        &app,
-        common_title,
-        common_content,
-        "workspace-alpha"
-    ).await;
+    let (upload_a_status, body_a) =
+        upload_document_with_workspace(&app, common_title, common_content, "workspace-alpha").await;
     assert_eq!(upload_a_status, StatusCode::CREATED);
     let doc_a_id = body_a["document_id"].as_str().unwrap().to_string();
-    
+
     // Upload same-named doc to workspace B
-    let (upload_b_status, body_b) = upload_document_with_workspace(
-        &app,
-        common_title,
-        common_content,
-        "workspace-beta"
-    ).await;
+    let (upload_b_status, body_b) =
+        upload_document_with_workspace(&app, common_title, common_content, "workspace-beta").await;
     assert_eq!(upload_b_status, StatusCode::CREATED);
     let doc_b_id = body_b["document_id"].as_str().unwrap().to_string();
-    
+
     // Document IDs should be different (UUID-based)
     assert_ne!(
         doc_a_id, doc_b_id,
         "Same-named docs in different workspaces should have different IDs"
     );
-    
+
     // Delete doc in workspace A
     let (delete_status, _) = delete_document_http(&app, &doc_a_id).await;
     assert_eq!(delete_status, StatusCode::OK);
-    
+
     // Doc B should still be deletable
     let (check_b_status, _) = delete_document_http(&app, &doc_b_id).await;
     assert_eq!(
@@ -3739,7 +3791,7 @@ async fn test_delete_same_name_different_workspaces() {
         StatusCode::OK,
         "Same-named doc in other workspace should still exist"
     );
-    
+
     println!("✅ OODA-37 TEST PASSED: Same-named docs in different workspaces");
 }
 
@@ -3751,18 +3803,19 @@ async fn test_delete_same_name_different_workspaces() {
 #[tokio::test]
 async fn test_document_status_on_creation() {
     let app = create_test_app();
-    
+
     let (status, body) = upload_document_http(
         &app,
         "Status Test Document",
-        "Content to verify document status after creation."
-    ).await;
-    
+        "Content to verify document status after creation.",
+    )
+    .await;
+
     assert_eq!(status, StatusCode::CREATED);
-    
+
     // Verify response contains expected fields
     assert!(body.get("document_id").is_some(), "Should have document_id");
-    
+
     // Check if status is present and indicates completion
     if let Some(doc_status) = body.get("status").and_then(|v| v.as_str()) {
         assert!(
@@ -3771,12 +3824,12 @@ async fn test_document_status_on_creation() {
             doc_status
         );
     }
-    
+
     // Verify processing was sync (async_processing: false)
     if let Some(processing_mode) = body.get("async").and_then(|v| v.as_bool()) {
         assert!(!processing_mode, "Should be sync processing");
     }
-    
+
     println!("✅ OODA-39 TEST PASSED: Document status on creation");
 }
 
@@ -3784,33 +3837,34 @@ async fn test_document_status_on_creation() {
 #[tokio::test]
 async fn test_deletion_response_status_info() {
     let app = create_test_app();
-    
+
     // Create document
     let (upload_status, body) = upload_document_http(
         &app,
         "Deletion Status Test",
-        "Content for testing deletion response status."
-    ).await;
+        "Content for testing deletion response status.",
+    )
+    .await;
     assert_eq!(upload_status, StatusCode::CREATED);
-    
+
     let doc_id = body["document_id"].as_str().unwrap();
-    
+
     // Delete and check response
     let (delete_status, delete_body) = delete_document_http(&app, doc_id).await;
     assert_eq!(delete_status, StatusCode::OK);
-    
+
     // Response should contain deletion confirmation
     assert_eq!(
         delete_body.get("deleted").and_then(|v| v.as_bool()),
         Some(true),
         "Should confirm deletion"
     );
-    
+
     // Should have document_id in response
     if let Some(resp_doc_id) = delete_body.get("document_id").and_then(|v| v.as_str()) {
         assert_eq!(resp_doc_id, doc_id, "Response should echo document_id");
     }
-    
+
     println!("✅ OODA-39 TEST PASSED: Deletion response status info");
 }
 
@@ -3822,43 +3876,38 @@ async fn test_deletion_response_status_info() {
 #[tokio::test]
 async fn test_content_hash_consistency() {
     let app = create_test_app();
-    
+
     let content = "This is the exact same content for hash testing.";
-    
+
     // Upload first document
-    let (status1, body1) = upload_document_http(
-        &app,
-        "Hash Test Doc 1",
-        content
-    ).await;
+    let (status1, body1) = upload_document_http(&app, "Hash Test Doc 1", content).await;
     assert_eq!(status1, StatusCode::CREATED);
-    
+
     // Upload second document with same content
-    let (status2, body2) = upload_document_http(
-        &app,
-        "Hash Test Doc 2",
-        content
-    ).await;
+    let (status2, body2) = upload_document_http(&app, "Hash Test Doc 2", content).await;
     assert_eq!(status2, StatusCode::CREATED);
-    
+
     // If content_hash is in response, verify they match
     if let (Some(hash1), Some(hash2)) = (
         body1.get("content_hash").and_then(|v| v.as_str()),
-        body2.get("content_hash").and_then(|v| v.as_str())
+        body2.get("content_hash").and_then(|v| v.as_str()),
     ) {
         assert_eq!(hash1, hash2, "Same content should produce same hash");
         println!("📊 Hash verified: {}", hash1);
     }
-    
+
     // Document IDs should be different (each upload creates new doc)
     let doc_id1 = body1["document_id"].as_str().unwrap();
     let doc_id2 = body2["document_id"].as_str().unwrap();
-    assert_ne!(doc_id1, doc_id2, "Different uploads should have different IDs");
-    
+    assert_ne!(
+        doc_id1, doc_id2,
+        "Different uploads should have different IDs"
+    );
+
     // Cleanup
     delete_document_http(&app, doc_id1).await;
     delete_document_http(&app, doc_id2).await;
-    
+
     println!("✅ OODA-40 TEST PASSED: Content hash consistency");
 }
 
@@ -3866,30 +3915,24 @@ async fn test_content_hash_consistency() {
 #[tokio::test]
 async fn test_delete_one_of_duplicate_content_docs() {
     let app = create_test_app();
-    
+
     let duplicate_content = "Duplicate content for testing deletion independence.";
-    
+
     // Upload two documents with same content
-    let (status1, body1) = upload_document_http(
-        &app,
-        "Duplicate Content A",
-        duplicate_content
-    ).await;
+    let (status1, body1) =
+        upload_document_http(&app, "Duplicate Content A", duplicate_content).await;
     assert_eq!(status1, StatusCode::CREATED);
     let doc_a_id = body1["document_id"].as_str().unwrap().to_string();
-    
-    let (status2, body2) = upload_document_http(
-        &app,
-        "Duplicate Content B",
-        duplicate_content
-    ).await;
+
+    let (status2, body2) =
+        upload_document_http(&app, "Duplicate Content B", duplicate_content).await;
     assert_eq!(status2, StatusCode::CREATED);
     let doc_b_id = body2["document_id"].as_str().unwrap().to_string();
-    
+
     // Delete doc A
     let (delete_status, _) = delete_document_http(&app, &doc_a_id).await;
     assert_eq!(delete_status, StatusCode::OK);
-    
+
     // Doc B should still be deletable (exists independently)
     let (delete_b_status, _) = delete_document_http(&app, &doc_b_id).await;
     assert_eq!(
@@ -3897,7 +3940,7 @@ async fn test_delete_one_of_duplicate_content_docs() {
         StatusCode::OK,
         "Duplicate content doc should still exist after other deleted"
     );
-    
+
     println!("✅ OODA-40 TEST PASSED: Delete one of duplicate content docs");
 }
 
@@ -3941,7 +3984,7 @@ async fn upload_document_with_metadata(
 #[tokio::test]
 async fn test_upload_with_metadata() {
     let app = create_test_app();
-    
+
     let metadata = json!({
         "author": "Test Author",
         "version": "1.0",
@@ -3950,21 +3993,22 @@ async fn test_upload_with_metadata() {
             "key": "value"
         }
     });
-    
+
     let (status, body) = upload_document_with_metadata(
         &app,
         "Metadata Test Document",
         "Content for testing metadata handling.",
-        metadata
-    ).await;
-    
+        metadata,
+    )
+    .await;
+
     assert_eq!(status, StatusCode::CREATED);
     assert!(body.get("document_id").is_some(), "Should have document_id");
-    
+
     // Cleanup
     let doc_id = body["document_id"].as_str().unwrap();
     delete_document_http(&app, doc_id).await;
-    
+
     println!("✅ OODA-41 TEST PASSED: Upload with metadata");
 }
 
@@ -3972,34 +4016,35 @@ async fn test_upload_with_metadata() {
 #[tokio::test]
 async fn test_delete_document_with_metadata() {
     let app = create_test_app();
-    
+
     let metadata = json!({
         "confidential": true,
         "department": "Engineering",
         "priority": 5,
         "unicode_field": "日本語テスト"
     });
-    
+
     let (status, body) = upload_document_with_metadata(
         &app,
         "Metadata Delete Test",
         "Document with complex metadata for deletion test.",
-        metadata
-    ).await;
+        metadata,
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
-    
+
     let doc_id = body["document_id"].as_str().unwrap();
-    
+
     // Delete document with metadata
     let (delete_status, delete_body) = delete_document_http(&app, doc_id).await;
-    
+
     assert_eq!(delete_status, StatusCode::OK);
     assert_eq!(
         delete_body.get("deleted").and_then(|v| v.as_bool()),
         Some(true),
         "Document with metadata should delete successfully"
     );
-    
+
     println!("✅ OODA-41 TEST PASSED: Delete document with metadata");
 }
 
@@ -4042,27 +4087,28 @@ async fn upload_document_async_mode(
 #[tokio::test]
 async fn test_sync_processing_mode() {
     let app = create_test_app();
-    
+
     // Upload with sync processing (default in most tests)
     let (status, body) = upload_document_async_mode(
         &app,
         "Sync Processing Test",
         "Content for synchronous processing verification.",
-        false
-    ).await;
-    
+        false,
+    )
+    .await;
+
     assert_eq!(status, StatusCode::CREATED);
     assert!(body.get("document_id").is_some(), "Should have document_id");
-    
+
     // With sync processing, entity extraction should be complete
     // (though mock provider may not extract entities)
-    
+
     let doc_id = body["document_id"].as_str().unwrap();
-    
+
     // Cleanup
     let (delete_status, _) = delete_document_http(&app, doc_id).await;
     assert_eq!(delete_status, StatusCode::OK);
-    
+
     println!("✅ OODA-42 TEST PASSED: Sync processing mode");
 }
 
@@ -4070,15 +4116,16 @@ async fn test_sync_processing_mode() {
 #[tokio::test]
 async fn test_async_processing_mode() {
     let app = create_test_app();
-    
+
     // Upload with async processing
     let (status, body) = upload_document_async_mode(
         &app,
         "Async Processing Test",
         "Content for asynchronous processing verification.",
-        true
-    ).await;
-    
+        true,
+    )
+    .await;
+
     // Should return 201 or 202 depending on implementation
     assert!(
         status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
@@ -4086,23 +4133,26 @@ async fn test_async_processing_mode() {
         status
     );
     assert!(body.get("document_id").is_some(), "Should have document_id");
-    
+
     let doc_id = body["document_id"].as_str().unwrap();
-    
+
     // Delete should work even if processing is pending
     // (deletion may cancel processing, wait, or return conflict)
     let (delete_status, _) = delete_document_http(&app, doc_id).await;
-    
+
     // Should either succeed, return NOT_FOUND, or CONFLICT if still processing
     assert!(
-        delete_status == StatusCode::OK 
+        delete_status == StatusCode::OK
             || delete_status == StatusCode::NOT_FOUND
             || delete_status == StatusCode::CONFLICT,
         "Async doc deletion should return OK, NOT_FOUND, or CONFLICT, got {}",
         delete_status
     );
-    
-    println!("✅ OODA-42 TEST PASSED: Async processing mode (delete status: {})", delete_status);
+
+    println!(
+        "✅ OODA-42 TEST PASSED: Async processing mode (delete status: {})",
+        delete_status
+    );
 }
 
 // ============================================================================
@@ -4113,41 +4163,48 @@ async fn test_async_processing_mode() {
 #[tokio::test]
 async fn test_sequential_upload_delete_20_docs() {
     let app = create_test_app();
-    
+
     let start = std::time::Instant::now();
     let mut doc_ids = Vec::new();
-    
+
     // Upload 20 documents sequentially
     for i in 0..20 {
         let (status, body) = upload_document_http(
             &app,
             &format!("Stress Test Doc {}", i),
-            &format!("Sequential stress test content for document {}. Testing performance.", i)
-        ).await;
+            &format!(
+                "Sequential stress test content for document {}. Testing performance.",
+                i
+            ),
+        )
+        .await;
         assert_eq!(status, StatusCode::CREATED, "Doc {} upload failed", i);
         doc_ids.push(body["document_id"].as_str().unwrap().to_string());
     }
-    
+
     let upload_time = start.elapsed();
     println!("📊 20 uploads took {:?}", upload_time);
-    
+
     // Delete all 20 documents sequentially
     let delete_start = std::time::Instant::now();
     for (i, doc_id) in doc_ids.iter().enumerate() {
         let (status, _) = delete_document_http(&app, doc_id).await;
         assert_eq!(status, StatusCode::OK, "Doc {} deletion failed", i);
     }
-    
+
     let delete_time = delete_start.elapsed();
     println!("📊 20 deletions took {:?}", delete_time);
-    
+
     // Verify all deleted (second delete returns 404)
     for doc_id in &doc_ids {
         let (status, _) = delete_document_http(&app, doc_id).await;
         assert_eq!(status, StatusCode::NOT_FOUND);
     }
-    
-    println!("✅ OODA-43 TEST PASSED: 20 docs upload/delete in {:?}", start.elapsed());
+
+    println!(
+        "✅ OODA-43 TEST PASSED: 20 docs upload/delete in {:?}",
+        start.elapsed()
+    );
 }
 
 /// OODA-43: Test batch cleanup leaves clean state.
@@ -4155,33 +4212,34 @@ async fn test_sequential_upload_delete_20_docs() {
 async fn test_batch_cleanup_verification() {
     let state = AppState::test_state();
     let app = create_test_server_with_state(state.clone());
-    
+
     // Record initial state
     let initial_nodes = state.graph_storage.get_all_nodes().await.unwrap().len();
     let initial_edges = state.graph_storage.get_all_edges().await.unwrap().len();
-    
+
     // Upload 5 documents
     let mut doc_ids = Vec::new();
     for i in 0..5 {
         let (status, body) = upload_document_http(
             &app,
             &format!("Cleanup Test Doc {}", i),
-            &format!("Content for cleanup verification test document {}.", i)
-        ).await;
+            &format!("Content for cleanup verification test document {}.", i),
+        )
+        .await;
         assert_eq!(status, StatusCode::CREATED);
         doc_ids.push(body["document_id"].as_str().unwrap().to_string());
     }
-    
+
     // Delete all documents
     for doc_id in &doc_ids {
         let (status, _) = delete_document_http(&app, doc_id).await;
         assert_eq!(status, StatusCode::OK);
     }
-    
+
     // Verify state is back to initial (no orphans)
     let final_nodes = state.graph_storage.get_all_nodes().await.unwrap().len();
     let final_edges = state.graph_storage.get_all_edges().await.unwrap().len();
-    
+
     assert_eq!(
         initial_nodes, final_nodes,
         "Node count should return to initial: {} vs {}",
@@ -4192,7 +4250,7 @@ async fn test_batch_cleanup_verification() {
         "Edge count should return to initial: {} vs {}",
         initial_edges, final_edges
     );
-    
+
     println!("✅ OODA-43 TEST PASSED: Batch cleanup verification");
 }
 
@@ -4204,7 +4262,7 @@ async fn test_batch_cleanup_verification() {
 #[tokio::test]
 async fn test_document_with_unicode_title() {
     let app = create_test_app();
-    
+
     let unicode_titles = vec![
         "日本語ドキュメント",
         "Документ на русском",
@@ -4212,21 +4270,27 @@ async fn test_document_with_unicode_title() {
         "中文文档标题",
         "مستند عربي",
     ];
-    
+
     for title in unicode_titles {
-        let (status, body) = upload_document_http(
-            &app,
-            title,
-            "Content for unicode title testing."
-        ).await;
-        
-        assert_eq!(status, StatusCode::CREATED, "Unicode title '{}' should work", title);
-        
+        let (status, body) =
+            upload_document_http(&app, title, "Content for unicode title testing.").await;
+
+        assert_eq!(
+            status,
+            StatusCode::CREATED,
+            "Unicode title '{}' should work",
+            title
+        );
+
         let doc_id = body["document_id"].as_str().unwrap();
         let (delete_status, _) = delete_document_http(&app, doc_id).await;
-        assert_eq!(delete_status, StatusCode::OK, "Unicode title doc deletion failed");
+        assert_eq!(
+            delete_status,
+            StatusCode::OK,
+            "Unicode title doc deletion failed"
+        );
     }
-    
+
     println!("✅ OODA-44 TEST PASSED: Unicode/emoji titles work");
 }
 
@@ -4234,22 +4298,19 @@ async fn test_document_with_unicode_title() {
 #[tokio::test]
 async fn test_document_with_long_title() {
     let app = create_test_app();
-    
+
     // Create a 1000 character title
     let long_title = "A".repeat(1000);
-    
-    let (status, body) = upload_document_http(
-        &app,
-        &long_title,
-        "Content for long title testing."
-    ).await;
-    
+
+    let (status, body) =
+        upload_document_http(&app, &long_title, "Content for long title testing.").await;
+
     assert_eq!(status, StatusCode::CREATED, "Long title should be accepted");
-    
+
     let doc_id = body["document_id"].as_str().unwrap();
     let (delete_status, _) = delete_document_http(&app, doc_id).await;
     assert_eq!(delete_status, StatusCode::OK);
-    
+
     println!("✅ OODA-44 TEST PASSED: Long title (1000 chars) works");
 }
 
@@ -4293,22 +4354,23 @@ async fn upload_document_with_tenant(
 #[tokio::test]
 async fn test_document_with_tenant_context() {
     let app = create_test_app();
-    
+
     let (status, body) = upload_document_with_tenant(
         &app,
         "Tenant Scoped Document",
         "Content for tenant context testing.",
-        "tenant-abc-123"
-    ).await;
-    
+        "tenant-abc-123",
+    )
+    .await;
+
     assert_eq!(status, StatusCode::CREATED);
     assert!(body.get("document_id").is_some());
-    
+
     // Cleanup
     let doc_id = body["document_id"].as_str().unwrap();
     let (delete_status, _) = delete_document_http(&app, doc_id).await;
     assert_eq!(delete_status, StatusCode::OK);
-    
+
     println!("✅ OODA-45 TEST PASSED: Document with tenant context");
 }
 
@@ -4316,34 +4378,28 @@ async fn test_document_with_tenant_context() {
 #[tokio::test]
 async fn test_deletion_with_tenant_context() {
     let app = create_test_app();
-    
+
     // Create documents in two different tenants
-    let (status_a, body_a) = upload_document_with_tenant(
-        &app,
-        "Tenant A Doc",
-        "Content for tenant A.",
-        "tenant-a"
-    ).await;
+    let (status_a, body_a) =
+        upload_document_with_tenant(&app, "Tenant A Doc", "Content for tenant A.", "tenant-a")
+            .await;
     assert_eq!(status_a, StatusCode::CREATED);
     let doc_a_id = body_a["document_id"].as_str().unwrap().to_string();
-    
-    let (status_b, body_b) = upload_document_with_tenant(
-        &app,
-        "Tenant B Doc",
-        "Content for tenant B.",
-        "tenant-b"
-    ).await;
+
+    let (status_b, body_b) =
+        upload_document_with_tenant(&app, "Tenant B Doc", "Content for tenant B.", "tenant-b")
+            .await;
     assert_eq!(status_b, StatusCode::CREATED);
     let doc_b_id = body_b["document_id"].as_str().unwrap().to_string();
-    
+
     // Delete tenant A's document
     let (delete_a_status, _) = delete_document_http(&app, &doc_a_id).await;
     assert_eq!(delete_a_status, StatusCode::OK);
-    
+
     // Tenant B's document should still be deletable
     let (delete_b_status, _) = delete_document_http(&app, &doc_b_id).await;
     assert_eq!(delete_b_status, StatusCode::OK);
-    
+
     println!("✅ OODA-45 TEST PASSED: Deletion respects tenant context");
 }
 
@@ -4387,22 +4443,23 @@ async fn upload_document_with_track_id(
 #[tokio::test]
 async fn test_document_with_track_id() {
     let app = create_test_app();
-    
+
     let (status, body) = upload_document_with_track_id(
         &app,
         "Tracked Document",
         "Content for track ID testing.",
-        "project-alpha-001"
-    ).await;
-    
+        "project-alpha-001",
+    )
+    .await;
+
     assert_eq!(status, StatusCode::CREATED);
     assert!(body.get("document_id").is_some());
-    
+
     // Cleanup
     let doc_id = body["document_id"].as_str().unwrap();
     let (delete_status, _) = delete_document_http(&app, doc_id).await;
     assert_eq!(delete_status, StatusCode::OK);
-    
+
     println!("✅ OODA-46 TEST PASSED: Document with track_id");
 }
 
@@ -4410,32 +4467,24 @@ async fn test_document_with_track_id() {
 #[tokio::test]
 async fn test_same_track_id_deletion() {
     let app = create_test_app();
-    
+
     let track_id = "shared-track-id";
-    
+
     // Create two documents with same track_id
-    let (status_a, body_a) = upload_document_with_track_id(
-        &app,
-        "Track Doc A",
-        "Content for track A.",
-        track_id
-    ).await;
+    let (status_a, body_a) =
+        upload_document_with_track_id(&app, "Track Doc A", "Content for track A.", track_id).await;
     assert_eq!(status_a, StatusCode::CREATED);
     let doc_a_id = body_a["document_id"].as_str().unwrap().to_string();
-    
-    let (status_b, body_b) = upload_document_with_track_id(
-        &app,
-        "Track Doc B",
-        "Content for track B.",
-        track_id
-    ).await;
+
+    let (status_b, body_b) =
+        upload_document_with_track_id(&app, "Track Doc B", "Content for track B.", track_id).await;
     assert_eq!(status_b, StatusCode::CREATED);
     let doc_b_id = body_b["document_id"].as_str().unwrap().to_string();
-    
+
     // Delete doc A
     let (delete_a_status, _) = delete_document_http(&app, &doc_a_id).await;
     assert_eq!(delete_a_status, StatusCode::OK);
-    
+
     // Doc B (same track_id) should still be deletable
     let (delete_b_status, _) = delete_document_http(&app, &doc_b_id).await;
     assert_eq!(
@@ -4443,7 +4492,7 @@ async fn test_same_track_id_deletion() {
         StatusCode::OK,
         "Same track_id doc should still exist"
     );
-    
+
     println!("✅ OODA-46 TEST PASSED: Same track_id deletion");
 }
 
@@ -4455,13 +4504,14 @@ async fn test_same_track_id_deletion() {
 #[tokio::test]
 async fn test_post_to_delete_endpoint_returns_405() {
     let app = create_test_app();
-    
+
     // First create a document
     let (_, body) = upload_document_http(&app, "Method Test", "Content.").await;
     let doc_id = body["document_id"].as_str().unwrap();
-    
+
     // Try POST to delete endpoint (should be 405 Method Not Allowed)
-    let response = app.clone()
+    let response = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("POST")
@@ -4471,16 +4521,16 @@ async fn test_post_to_delete_endpoint_returns_405() {
         )
         .await
         .unwrap();
-    
+
     assert_eq!(
         response.status(),
         StatusCode::METHOD_NOT_ALLOWED,
         "POST to delete endpoint should return 405"
     );
-    
+
     // Cleanup with proper DELETE
     delete_document_http(&app, doc_id).await;
-    
+
     println!("✅ OODA-47 TEST PASSED: POST to delete endpoint returns 405");
 }
 
@@ -4488,13 +4538,14 @@ async fn test_post_to_delete_endpoint_returns_405() {
 #[tokio::test]
 async fn test_put_to_delete_endpoint_returns_405() {
     let app = create_test_app();
-    
+
     // Create a document
     let (_, body) = upload_document_http(&app, "PUT Method Test", "Content.").await;
     let doc_id = body["document_id"].as_str().unwrap();
-    
+
     // Try PUT to delete endpoint
-    let response = app.clone()
+    let response = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("PUT")
@@ -4504,16 +4555,16 @@ async fn test_put_to_delete_endpoint_returns_405() {
         )
         .await
         .unwrap();
-    
+
     assert_eq!(
         response.status(),
         StatusCode::METHOD_NOT_ALLOWED,
         "PUT to delete endpoint should return 405"
     );
-    
+
     // Cleanup
     delete_document_http(&app, doc_id).await;
-    
+
     println!("✅ OODA-47 TEST PASSED: PUT to delete endpoint returns 405");
 }
 
@@ -4525,11 +4576,12 @@ async fn test_put_to_delete_endpoint_returns_405() {
 #[tokio::test]
 async fn test_deletion_response_is_json() {
     let app = create_test_app();
-    
+
     let (_, body) = upload_document_http(&app, "JSON Test", "Content.").await;
     let doc_id = body["document_id"].as_str().unwrap();
-    
-    let response = app.clone()
+
+    let response = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("DELETE")
@@ -4539,23 +4591,23 @@ async fn test_deletion_response_is_json() {
         )
         .await
         .unwrap();
-    
+
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     // Check Content-Type header
     let content_type = response.headers().get("content-type");
     assert!(
         content_type.is_some(),
         "Response should have Content-Type header"
     );
-    
+
     let ct_value = content_type.unwrap().to_str().unwrap();
     assert!(
         ct_value.contains("application/json"),
         "Content-Type should be JSON, got: {}",
         ct_value
     );
-    
+
     println!("✅ OODA-48 TEST PASSED: Deletion response is JSON");
 }
 
@@ -4563,7 +4615,7 @@ async fn test_deletion_response_is_json() {
 #[tokio::test]
 async fn test_not_found_response_is_json() {
     let app = create_test_app();
-    
+
     let response = app
         .oneshot(
             Request::builder()
@@ -4574,19 +4626,19 @@ async fn test_not_found_response_is_json() {
         )
         .await
         .unwrap();
-    
+
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    
+
     let content_type = response.headers().get("content-type");
     assert!(content_type.is_some(), "404 should have Content-Type");
-    
+
     let ct_value = content_type.unwrap().to_str().unwrap();
     assert!(
         ct_value.contains("application/json"),
         "404 Content-Type should be JSON, got: {}",
         ct_value
     );
-    
+
     println!("✅ OODA-48 TEST PASSED: NOT_FOUND response is JSON");
 }
 
@@ -4598,21 +4650,22 @@ async fn test_not_found_response_is_json() {
 #[tokio::test]
 async fn test_immediate_deletion_after_creation() {
     let app = create_test_app();
-    
+
     // Create and immediately delete (no delay)
     let (status, body) = upload_document_http(
         &app,
         "Immediate Delete",
-        "This doc is deleted immediately after creation."
-    ).await;
+        "This doc is deleted immediately after creation.",
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
-    
+
     let doc_id = body["document_id"].as_str().unwrap();
-    
+
     // Delete immediately (no tokio::sleep)
     let (delete_status, _) = delete_document_http(&app, doc_id).await;
     assert_eq!(delete_status, StatusCode::OK);
-    
+
     println!("✅ OODA-49 TEST PASSED: Immediate deletion after creation");
 }
 
@@ -4620,20 +4673,20 @@ async fn test_immediate_deletion_after_creation() {
 #[tokio::test]
 async fn test_deletion_timing_consistency() {
     let app = create_test_app();
-    
+
     let mut timings = Vec::new();
-    
+
     // Create and delete 5 times, measure timing
     for _ in 0..5 {
         let start = std::time::Instant::now();
-        
+
         let (_, body) = upload_document_http(&app, "Timing Test", "Content.").await;
         let doc_id = body["document_id"].as_str().unwrap();
         delete_document_http(&app, doc_id).await;
-        
+
         timings.push(start.elapsed());
     }
-    
+
     // All operations should be reasonably fast (< 100ms each)
     for (i, timing) in timings.iter().enumerate() {
         assert!(
@@ -4643,7 +4696,7 @@ async fn test_deletion_timing_consistency() {
             timing
         );
     }
-    
+
     println!("📊 Timings: {:?}", timings);
     println!("✅ OODA-49 TEST PASSED: Deletion timing consistency");
 }
@@ -4657,10 +4710,10 @@ async fn test_deletion_timing_consistency() {
 async fn test_complete_add_delete_cycle() {
     let state = AppState::test_state();
     let app = create_test_server_with_state(state.clone());
-    
+
     // Record initial state
     let initial_nodes = state.graph_storage.get_all_nodes().await.unwrap().len();
-    
+
     // Upload document with all options
     let request = json!({
         "content": "Comprehensive test content with multiple sentences. Testing the full cycle. This includes entity extraction and deletion cascade.",
@@ -4673,8 +4726,9 @@ async fn test_complete_add_delete_cycle() {
         },
         "async_processing": false
     });
-    
-    let response = app.clone()
+
+    let response = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("POST")
@@ -4686,26 +4740,31 @@ async fn test_complete_add_delete_cycle() {
         )
         .await
         .unwrap();
-    
+
     assert_eq!(response.status(), StatusCode::CREATED);
-    
+
     let body = extract_json(response).await;
     let doc_id = body["document_id"].as_str().unwrap();
-    
+
     // Delete document
     let (delete_status, delete_body) = delete_document_http(&app, doc_id).await;
     assert_eq!(delete_status, StatusCode::OK);
-    assert_eq!(delete_body.get("deleted").and_then(|v| v.as_bool()), Some(true));
-    
+    assert_eq!(
+        delete_body.get("deleted").and_then(|v| v.as_bool()),
+        Some(true)
+    );
+
     // Verify clean state
     let final_nodes = state.graph_storage.get_all_nodes().await.unwrap().len();
-    assert_eq!(initial_nodes, final_nodes, "Should return to initial node count");
-    
+    assert_eq!(
+        initial_nodes, final_nodes,
+        "Should return to initial node count"
+    );
+
     // Verify document is gone
     let (check_status, _) = delete_document_http(&app, doc_id).await;
     assert_eq!(check_status, StatusCode::NOT_FOUND);
-    
+
     println!("✅ OODA-50 TEST PASSED: Complete add/delete cycle verified");
     println!("🎉 50 OODA ITERATIONS COMPLETE!");
 }
-

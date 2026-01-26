@@ -18,13 +18,13 @@ Location: `specs/033-study-delete-document/docs/metrics-infrastructure.md`
 
 ### 3. Key Details Documented
 
-| Section | Content |
-|---------|---------|
-| Database | workspace_metrics_history table schema |
-| Types | MetricsTriggerType, MetricsSnapshot |
-| API | GET /metrics-history with pagination |
-| Triggers | Document upload/delete events |
-| Best-effort | Failures logged, don't block main ops |
+| Section     | Content                                |
+| ----------- | -------------------------------------- |
+| Database    | workspace_metrics_history table schema |
+| Types       | MetricsTriggerType, MetricsSnapshot    |
+| API         | GET /metrics-history with pagination   |
+| Triggers    | Document upload/delete events          |
+| Best-effort | Failures logged, don't block main ops  |
 
 ## Outcome
 

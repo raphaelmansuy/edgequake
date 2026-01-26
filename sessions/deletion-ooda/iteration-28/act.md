@@ -4,11 +4,11 @@
 
 ### Added 3 New Tests
 
-| Test | Description |
-|------|-------------|
-| `test_delete_document_unicode_name` | Unicode characters in document title |
-| `test_delete_document_double_delete` | Idempotency check (second delete → 404) |
-| `test_delete_then_reupload_same_name` | Fresh state after delete + reupload |
+| Test                                  | Description                             |
+| ------------------------------------- | --------------------------------------- |
+| `test_delete_document_unicode_name`   | Unicode characters in document title    |
+| `test_delete_document_double_delete`  | Idempotency check (second delete → 404) |
+| `test_delete_then_reupload_same_name` | Fresh state after delete + reupload     |
 
 ### Test Results
 

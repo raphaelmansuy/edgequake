@@ -5,6 +5,7 @@
 ## Focus Area: Schema Version Verification
 
 The mission requires:
+
 > "Ensure to have function that verify the integrity of schema against the version of edgequake running."
 
 ## Current State
@@ -12,6 +13,7 @@ The mission requires:
 ### 1. SQLx Migrations Table
 
 SQLx automatically manages `_sqlx_migrations` table with:
+
 - `version` - Migration version number
 - `description` - Migration name
 - `installed_on` - Timestamp
@@ -23,6 +25,7 @@ SQLx automatically manages `_sqlx_migrations` table with:
 **File**: `edgequake/crates/edgequake-api/src/handlers/health.rs`
 
 Current health response:
+
 ```rust
 HealthResponse {
     status: "healthy",
@@ -39,18 +42,19 @@ HealthResponse {
 ### 3. No Schema Validation
 
 Current implementation does not verify:
+
 - Expected migrations are applied
 - Schema is compatible with current version
 - Core tables exist
 
 ## Gap Analysis
 
-| Requirement | Current State | Gap |
-|-------------|---------------|-----|
-| Schema version tracking | SQLx migrations exist | ✅ |
-| Version in health response | Not included | ❌ GAP-14 |
-| Schema validation function | Not implemented | ❌ GAP-14 |
-| Integrity check | Not implemented | ❌ GAP-14 |
+| Requirement                | Current State         | Gap       |
+| -------------------------- | --------------------- | --------- |
+| Schema version tracking    | SQLx migrations exist | ✅        |
+| Version in health response | Not included          | ❌ GAP-14 |
+| Schema validation function | Not implemented       | ❌ GAP-14 |
+| Integrity check            | Not implemented       | ❌ GAP-14 |
 
 ## Architecture Consideration
 
@@ -63,7 +67,7 @@ Current implementation does not verify:
 ### PostgreSQL Query for Migration Count
 
 ```sql
-SELECT 
+SELECT
     COUNT(*) as applied_count,
     MAX(version) as latest_version,
     MAX(installed_on) as last_applied_at

@@ -5,6 +5,7 @@
 ### 1. Updated metrics-infrastructure.md
 
 Changes:
+
 - Updated iteration number from 25 to 27
 - Updated status to "Manual Trigger Complete"
 - Changed Manual comment from "future" to "via POST endpoint"
@@ -15,11 +16,11 @@ Changes:
 
 ### 2. Documentation Now Reflects Reality
 
-| Trigger Type | Status | Details |
-|--------------|--------|---------|
-| Event | ✅ Implemented | Upload/delete auto-recording |
-| Manual | ✅ Implemented | POST endpoint (OODA-26) |
-| Scheduled | ⏳ Planned | Background hourly task |
+| Trigger Type | Status         | Details                      |
+| ------------ | -------------- | ---------------------------- |
+| Event        | ✅ Implemented | Upload/delete auto-recording |
+| Manual       | ✅ Implemented | POST endpoint (OODA-26)      |
+| Scheduled    | ⏳ Planned     | Background hourly task       |
 
 ## Outcome
 

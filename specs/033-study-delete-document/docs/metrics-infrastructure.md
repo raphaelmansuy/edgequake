@@ -35,9 +35,9 @@ CREATE TABLE workspace_metrics_history (
     document_count BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE INDEX idx_workspace_metrics_history_workspace 
+CREATE INDEX idx_workspace_metrics_history_workspace
     ON workspace_metrics_history(workspace_id);
-CREATE INDEX idx_workspace_metrics_history_recorded 
+CREATE INDEX idx_workspace_metrics_history_recorded
     ON workspace_metrics_history(workspace_id, recorded_at DESC);
 ```
 
@@ -97,10 +97,10 @@ async fn get_metrics_history(
 
 **Query Parameters**:
 
-| Parameter | Type | Default | Max | Description |
-|-----------|------|---------|-----|-------------|
-| `limit` | i32 | 100 | 1000 | Number of snapshots to return |
-| `offset` | i32 | 0 | - | Offset for pagination |
+| Parameter | Type | Default | Max  | Description                   |
+| --------- | ---- | ------- | ---- | ----------------------------- |
+| `limit`   | i32  | 100     | 1000 | Number of snapshots to return |
+| `offset`  | i32  | 0       | -    | Offset for pagination         |
 
 **Response**: `200 OK`
 
@@ -195,6 +195,7 @@ if let Err(e) = workspace_service
 ```
 
 This ensures that:
+
 - Metrics failures never fail document operations
 - Issues are logged for debugging
 - The system remains resilient
@@ -247,16 +248,16 @@ WHERE entity_count < prev_count * 0.5;
 
 ### E2E Tests (e2e_metrics_history.rs)
 
-| Test | Description |
-|------|-------------|
-| `test_metrics_history_empty_for_new_workspace` | Returns empty array for new workspace |
-| `test_metrics_history_limit_parameter` | Limit parameter works correctly |
-| `test_metrics_history_offset_parameter` | Offset parameter works correctly |
-| `test_metrics_history_max_limit_enforced` | Limits capped at 1000 |
-| `test_metrics_history_pagination_combined` | Limit + offset work together |
-| `test_trigger_metrics_snapshot_creates_snapshot` | Manual trigger endpoint works |
-| `test_trigger_metrics_snapshot_response_structure` | Response format validation |
-| `test_trigger_metrics_snapshot_method_not_allowed` | Only POST allowed |
+| Test                                               | Description                           |
+| -------------------------------------------------- | ------------------------------------- |
+| `test_metrics_history_empty_for_new_workspace`     | Returns empty array for new workspace |
+| `test_metrics_history_limit_parameter`             | Limit parameter works correctly       |
+| `test_metrics_history_offset_parameter`            | Offset parameter works correctly      |
+| `test_metrics_history_max_limit_enforced`          | Limits capped at 1000                 |
+| `test_metrics_history_pagination_combined`         | Limit + offset work together          |
+| `test_trigger_metrics_snapshot_creates_snapshot`   | Manual trigger endpoint works         |
+| `test_trigger_metrics_snapshot_response_structure` | Response format validation            |
+| `test_trigger_metrics_snapshot_method_not_allowed` | Only POST allowed                     |
 
 **Total: 8 tests**
 

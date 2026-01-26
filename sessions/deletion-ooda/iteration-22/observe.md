@@ -11,6 +11,7 @@ Now we need an API endpoint to query the history.
 ## Requirements
 
 ### 1. New Trait Method
+
 ```rust
 async fn get_metrics_history(
     &self,
@@ -21,6 +22,7 @@ async fn get_metrics_history(
 ```
 
 ### 2. New API Endpoint
+
 ```
 GET /api/v1/workspaces/{workspace_id}/metrics-history
 Query params:
@@ -30,6 +32,7 @@ Query params:
 ```
 
 ### 3. Response DTO
+
 ```rust
 #[derive(Serialize)]
 pub struct MetricsHistoryResponse {

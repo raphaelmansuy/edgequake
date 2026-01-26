@@ -5,6 +5,7 @@
 ## Focus Area: Edge Case Testing - Circular References
 
 The mission requires:
+
 > "Comprehensive Edge cases must implemented in tests to ensure reliability"
 
 ## What are Circular References?
@@ -19,6 +20,7 @@ In a knowledge graph, entities can have bidirectional relationships:
 ```
 
 Or self-references:
+
 ```
 ┌─────────┐
 │  ALICE  │ ──> KNOWS_SELF
@@ -36,6 +38,7 @@ Or self-references:
 ## Current Deletion Flow
 
 From previous iterations, cascade delete:
+
 1. List all entities with source_ids containing deleted document
 2. For each entity:
    - If source_ids becomes empty → delete entity

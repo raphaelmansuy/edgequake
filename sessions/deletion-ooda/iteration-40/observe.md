@@ -4,6 +4,7 @@
 
 EdgeQuake uses SHA-256 hash for content deduplication (BR0001).
 Need to verify:
+
 1. Same content → same hash
 2. Different content → different hash
 3. Hash is returned in upload response

@@ -5,7 +5,7 @@
 ### Option A: Single Query with JOINs
 
 ```sql
-SELECT 
+SELECT
     (SELECT COUNT(*) FROM documents WHERE workspace_id = $1) as document_count,
     (SELECT COUNT(*) FROM chunks WHERE workspace_id = $1) as chunk_count,
     (SELECT COUNT(*) FROM entities WHERE workspace_id = $1) as entity_count,
@@ -27,14 +27,14 @@ Run 6 separate COUNT queries in parallel using tokio::join!
 ### Option C: Subquery Approach
 
 ```sql
-SELECT 
+SELECT
     d.document_count,
     c.chunk_count,
     e.entity_count,
     r.relationship_count,
     em.embedding_count,
     s.storage_bytes
-FROM 
+FROM
     (SELECT COUNT(*) as document_count FROM documents WHERE workspace_id = $1) d,
     (SELECT COUNT(*) as chunk_count FROM chunks WHERE workspace_id = $1) c,
     (SELECT COUNT(*) as entity_count FROM entities WHERE workspace_id = $1) e,
@@ -55,15 +55,16 @@ FROM
 
 ## Risk Assessment
 
-| Risk | Mitigation |
-|------|------------|
-| Query error | Use proper error handling |
-| Large tables | COUNT(*) on indexed workspace_id is O(log n) |
-| Missing workspace | Already verified in existing code |
+| Risk              | Mitigation                                    |
+| ----------------- | --------------------------------------------- |
+| Query error       | Use proper error handling                     |
+| Large tables      | COUNT(\*) on indexed workspace_id is O(log n) |
+| Missing workspace | Already verified in existing code             |
 
 ## Recommendation
 
 **Use Option A** - Single query with scalar subqueries.
+
 - Simplest Rust code (single sqlx::query_as call)
 - Single database round-trip
 - Clear and readable SQL

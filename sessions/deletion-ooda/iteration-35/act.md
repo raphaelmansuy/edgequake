@@ -5,12 +5,14 @@
 Added 2 advanced concurrency tests to `e2e_document_deletion.rs`:
 
 ### 1. `test_parallel_delete_same_document`
+
 - Uploads a document
 - Spawns 5 concurrent delete tasks using `tokio::spawn`
 - Uses `futures::future::join_all` to await all
 - Asserts: at least 1 OK, all results are OK or NOT_FOUND
 
 ### 2. `test_rapid_create_delete_cycles`
+
 - Performs 10 rapid create/delete cycles
 - After all cycles, verifies graph state is clean (no orphans)
 - Uses shared AppState to check nodes/edges

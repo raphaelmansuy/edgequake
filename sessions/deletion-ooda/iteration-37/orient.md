@@ -13,6 +13,7 @@
 ## Missing Coverage
 
 Specific deletion isolation scenarios:
+
 1. Deleting document only removes it from its workspace
 2. Same-named document in different workspaces: delete one, other remains
 

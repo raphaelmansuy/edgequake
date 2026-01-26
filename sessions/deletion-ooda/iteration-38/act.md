@@ -21,6 +21,7 @@ Updated study summary documentation to reflect current state:
 ## Results
 
 Documentation now accurately reflects:
+
 - 37 completed iterations
 - 64 passing tests
 - 50 deletion tests (milestone achieved)

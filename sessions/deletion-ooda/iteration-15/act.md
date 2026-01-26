@@ -3,6 +3,7 @@
 ## Implementation
 
 ### Added Helper Function
+
 - `create_test_server_with_state(state: AppState)` - allows tests to retain state reference for inspection
 
 ### Added 3 Circular Reference Tests
@@ -43,6 +44,7 @@ test result: ok. 25 passed; 0 failed; 0 ignored
 ## Next Iteration
 
 OODA-16: Consider additional edge cases:
+
 - Very large documents (100+ entities)
 - Rapid sequential deletions
 - Database connection failures during deletion

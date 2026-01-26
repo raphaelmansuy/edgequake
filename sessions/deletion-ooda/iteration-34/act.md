@@ -4,11 +4,11 @@
 
 ### Added 3 Content Edge Case Tests
 
-| Test | Description |
-|------|-------------|
-| `test_delete_document_minimal_content` | Single character content |
+| Test                                     | Description                    |
+| ---------------------------------------- | ------------------------------ |
+| `test_delete_document_minimal_content`   | Single character content       |
 | `test_upload_rejects_whitespace_content` | Whitespace-only rejected (422) |
-| `test_delete_document_repeated_content` | 1600 char repeated content |
+| `test_delete_document_repeated_content`  | 1600 char repeated content     |
 
 ### Key Finding
 

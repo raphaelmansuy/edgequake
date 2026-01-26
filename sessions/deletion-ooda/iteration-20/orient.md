@@ -3,9 +3,11 @@
 ## Pattern Analysis
 
 ### 1. Current Stats Pattern
+
 `get_workspace_stats()` returns a point-in-time snapshot. This should be the data source for recording.
 
 ### 2. Database Schema (migration 016)
+
 ```sql
 workspace_metrics_history (
     id, workspace_id, recorded_at, trigger_type,
@@ -15,6 +17,7 @@ workspace_metrics_history (
 ```
 
 ### 3. Trigger Types
+
 - `event`: After document add/delete
 - `scheduled`: Hourly background task
 - `manual`: Admin request
@@ -22,6 +25,7 @@ workspace_metrics_history (
 ## Design Decisions
 
 ### A. Add New Type: TriggerType Enum
+
 ```rust
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum MetricsTriggerType {
@@ -32,6 +36,7 @@ pub enum MetricsTriggerType {
 ```
 
 ### B. Add New Type: MetricsSnapshot
+
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetricsSnapshot {
@@ -49,6 +54,7 @@ pub struct MetricsSnapshot {
 ```
 
 ### C. Add Trait Method
+
 ```rust
 async fn record_metrics_snapshot(
     &self,
@@ -58,6 +64,7 @@ async fn record_metrics_snapshot(
 ```
 
 ### D. Integration Points
+
 1. After document upload: Record with trigger_type=Event
 2. After document deletion: Record with trigger_type=Event
 3. Future: Scheduled task records hourly

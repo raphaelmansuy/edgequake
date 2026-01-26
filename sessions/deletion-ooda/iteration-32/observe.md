@@ -3,6 +3,7 @@
 ## Gap Identified
 
 No tests for partial failure scenarios:
+
 - What if graph deletion fails after KV deletion?
 - What if vector deletion fails?
 - Is state left consistent?

@@ -12,6 +12,7 @@ OODA-20 created the `record_metrics_snapshot` function. Now we need to call it a
 ### 1. delete_document Handler (line ~1920)
 
 After successful deletion, before returning:
+
 ```rust
 // Record metrics snapshot for trend analysis
 // OODA-21: Best-effort - log error but don't fail deletion

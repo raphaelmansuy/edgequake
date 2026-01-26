@@ -4,10 +4,10 @@
 
 ### Added 2 Bulk Deletion Tests
 
-| Test | Description |
-|------|-------------|
-| `test_bulk_deletion_cleanup` | Delete 10 docs, verify clean state |
-| `test_bulk_deletion_allows_reupload` | Re-upload after bulk delete works |
+| Test                                 | Description                        |
+| ------------------------------------ | ---------------------------------- |
+| `test_bulk_deletion_cleanup`         | Delete 10 docs, verify clean state |
+| `test_bulk_deletion_allows_reupload` | Re-upload after bulk delete works  |
 
 ### Test Behaviors Verified
 

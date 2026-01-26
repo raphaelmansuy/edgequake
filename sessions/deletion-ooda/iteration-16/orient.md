@@ -3,15 +3,17 @@
 ## Available Resources
 
 ### Ollama Status: ✅ RUNNING
+
 Endpoint: http://localhost:11434
 
 ### Available Models (from local Ollama)
-| Model | Type | Size | Notes |
-|-------|------|------|-------|
-| `gemma3:latest` | LLM | 4.3B Q4_K_M | Recommended for testing |
-| `gemma3:12b` | LLM | 12.2B Q4_K_M | Higher quality, slower |
-| `nomic-embed-text:latest` | Embedding | 137M F16 | 768 dimensions |
-| `embeddinggemma:latest` | Embedding | 307M BF16 | Alternative |
+
+| Model                     | Type      | Size         | Notes                   |
+| ------------------------- | --------- | ------------ | ----------------------- |
+| `gemma3:latest`           | LLM       | 4.3B Q4_K_M  | Recommended for testing |
+| `gemma3:12b`              | LLM       | 12.2B Q4_K_M | Higher quality, slower  |
+| `nomic-embed-text:latest` | Embedding | 137M F16     | 768 dimensions          |
+| `embeddinggemma:latest`   | Embedding | 307M BF16    | Alternative             |
 
 ## Architecture Analysis
 
@@ -43,6 +45,7 @@ impl AppState {
 ### Required: Ollama Test State
 
 Need a function like:
+
 ```rust
 pub async fn ollama_test_state() -> Result<Self, Error> {
     // 1. Check Ollama availability
@@ -55,6 +58,7 @@ pub async fn ollama_test_state() -> Result<Self, Error> {
 ## Test Strategy
 
 ### Option A: Conditional Test Execution (RECOMMENDED)
+
 ```rust
 #[tokio::test]
 #[ignore = "Requires Ollama running locally"]
@@ -68,6 +72,7 @@ async fn test_ollama_document_lifecycle() {
 ```
 
 ### Option B: Feature Flag
+
 ```rust
 #[cfg(feature = "ollama-e2e")]
 #[tokio::test]
@@ -77,6 +82,7 @@ async fn test_ollama_document_lifecycle() {
 ```
 
 ### Preference: Option A
+
 - More flexible for local development
 - Can run with `cargo test -- --ignored`
 - No Cargo.toml changes needed
@@ -91,15 +97,16 @@ Upload → Wait for processing → Query → Delete → Verify cleanup
 
 ### 2. Query Mode Verification
 
-| Mode | Description |
-|------|-------------|
-| `llm_only` | Pure LLM response, no embeddings |
-| `embedding_only` | Vector similarity, no LLM |
-| `hybrid` | Combined vector + graph + LLM |
+| Mode             | Description                      |
+| ---------------- | -------------------------------- |
+| `llm_only`       | Pure LLM response, no embeddings |
+| `embedding_only` | Vector similarity, no LLM        |
+| `hybrid`         | Combined vector + graph + LLM    |
 
 ### 3. Entity Extraction Quality
 
 Mock provider returns simple entities. Ollama should extract:
+
 - Named entities (people, organizations)
 - Relationships between entities
 - Entity types
@@ -119,9 +126,9 @@ Mock provider returns simple entities. Ollama should extract:
 
 ## Risk Analysis
 
-| Risk | Mitigation |
-|------|------------|
-| Ollama slow response | Set generous timeouts (30s) |
-| Model not pulled | Check model availability before tests |
-| Port conflict | Use configurable OLLAMA_HOST |
-| CI failures | Mark tests with #[ignore] |
+| Risk                 | Mitigation                            |
+| -------------------- | ------------------------------------- |
+| Ollama slow response | Set generous timeouts (30s)           |
+| Model not pulled     | Check model availability before tests |
+| Port conflict        | Use configurable OLLAMA_HOST          |
+| CI failures          | Mark tests with #[ignore]             |

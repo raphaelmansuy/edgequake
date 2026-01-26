@@ -4,11 +4,11 @@
 
 ### Added 3 Response Verification Tests
 
-| Test | Description |
-|------|-------------|
-| `test_deletion_response_contains_all_fields` | Verify all expected response fields |
-| `test_not_found_response_structure` | Verify 404 response is structured |
-| `test_invalid_document_id_format` | Verify invalid IDs handled gracefully |
+| Test                                         | Description                           |
+| -------------------------------------------- | ------------------------------------- |
+| `test_deletion_response_contains_all_fields` | Verify all expected response fields   |
+| `test_not_found_response_structure`          | Verify 404 response is structured     |
+| `test_invalid_document_id_format`            | Verify invalid IDs handled gracefully |
 
 ### Fields Verified in Response
 

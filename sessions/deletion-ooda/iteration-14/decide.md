@@ -5,6 +5,7 @@
 ### Implementation Plan
 
 1. **Add SchemaHealth struct to health_types.rs**
+
    ```rust
    pub struct SchemaHealth {
        pub latest_version: Option<i64>,
@@ -14,6 +15,7 @@
    ```
 
 2. **Add schema field to HealthResponse**
+
    ```rust
    pub struct HealthResponse {
        // existing fields...
@@ -21,7 +23,7 @@
    }
    ```
 
-3. **Query _sqlx_migrations in health_check handler**
+3. **Query \_sqlx_migrations in health_check handler**
    - Only when storage_mode is PostgreSQL
    - Memory mode returns None
 
@@ -38,7 +40,7 @@
 ### SQL Query
 
 ```sql
-SELECT 
+SELECT
     COUNT(*) FILTER (WHERE success = true) as applied_count,
     MAX(version) FILTER (WHERE success = true) as latest_version,
     MAX(installed_on) FILTER (WHERE success = true) as last_applied_at

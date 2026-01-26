@@ -19,13 +19,13 @@
 
 ## Key Progress Summary
 
-| Phase | Iterations | Focus |
-|-------|------------|-------|
-| Foundation | 01-11 | Bug fix, test infrastructure |
-| Metrics | 12-17 | Stats, schema, historical |
-| Reprocessing | 18 | Edge case tests |
-| Consolidation | 19 | Documentation |
-| Metrics API | 20-27 | Full metrics infrastructure |
-| Edge Cases | 24, 28 | Unicode, idempotency |
+| Phase         | Iterations | Focus                        |
+| ------------- | ---------- | ---------------------------- |
+| Foundation    | 01-11      | Bug fix, test infrastructure |
+| Metrics       | 12-17      | Stats, schema, historical    |
+| Reprocessing  | 18         | Edge case tests              |
+| Consolidation | 19         | Documentation                |
+| Metrics API   | 20-27      | Full metrics infrastructure  |
+| Edge Cases    | 24, 28     | Unicode, idempotency         |
 
 ## Commit: docs(summary): update study summary to iteration 28

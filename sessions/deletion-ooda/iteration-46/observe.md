@@ -3,6 +3,7 @@
 ## Observation
 
 EdgeQuake supports track_id for document lineage:
+
 1. Optional field for organizing documents
 2. May affect how documents are grouped/queried
 
