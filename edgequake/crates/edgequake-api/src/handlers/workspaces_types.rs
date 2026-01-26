@@ -352,6 +352,48 @@ pub struct WorkspaceStatsResponse {
     pub storage_bytes: u64,
 }
 
+/// Single metrics snapshot for historical data.
+///
+/// OODA-22: Individual snapshot in metrics history response.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct MetricsSnapshotDTO {
+    /// Unique snapshot ID.
+    pub id: Uuid,
+    /// When the snapshot was recorded.
+    pub recorded_at: String,
+    /// What triggered the recording (event, scheduled, manual).
+    pub trigger_type: String,
+    /// Number of documents.
+    pub document_count: i64,
+    /// Number of chunks.
+    pub chunk_count: i64,
+    /// Number of entities.
+    pub entity_count: i64,
+    /// Number of relationships.
+    pub relationship_count: i64,
+    /// Number of embeddings.
+    pub embedding_count: i64,
+    /// Storage bytes.
+    pub storage_bytes: i64,
+}
+
+/// Metrics history response with pagination.
+///
+/// OODA-22: Response for GET /workspaces/{id}/metrics-history endpoint.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct MetricsHistoryResponse {
+    /// Workspace ID.
+    pub workspace_id: Uuid,
+    /// List of metrics snapshots (newest first).
+    pub snapshots: Vec<MetricsSnapshotDTO>,
+    /// Number of snapshots returned.
+    pub count: usize,
+    /// Offset used for pagination.
+    pub offset: usize,
+    /// Limit used for pagination.
+    pub limit: usize,
+}
+
 // ============================================================================
 // Rebuild Embeddings DTOs (SPEC-032)
 // ============================================================================
