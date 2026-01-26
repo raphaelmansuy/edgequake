@@ -43,6 +43,7 @@ Spec: `specs/033-study-delete-document/003-study-document.md`
 | 43 | Sequential stress tests | ✅ Complete | ea974c5c |
 | 44 | Title edge case tests | ✅ Complete | b83455c5 |
 | 45 | Tenant context tests | ✅ Complete | b9d70070 |
+| 46 | Track ID tests | ✅ Complete | 8da17ac8 |
 
 ## Key Accomplishments
 

@@ -4447,3 +4447,265 @@ async fn test_same_track_id_deletion() {
     println!("✅ OODA-46 TEST PASSED: Same track_id deletion");
 }
 
+// ============================================================================
+// OODA-47: HTTP Method Verification Tests
+// ============================================================================
+
+/// OODA-47: Test that POST to delete endpoint returns 405.
+#[tokio::test]
+async fn test_post_to_delete_endpoint_returns_405() {
+    let app = create_test_app();
+    
+    // First create a document
+    let (_, body) = upload_document_http(&app, "Method Test", "Content.").await;
+    let doc_id = body["document_id"].as_str().unwrap();
+    
+    // Try POST to delete endpoint (should be 405 Method Not Allowed)
+    let response = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/v1/documents/{}", doc_id))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    
+    assert_eq!(
+        response.status(),
+        StatusCode::METHOD_NOT_ALLOWED,
+        "POST to delete endpoint should return 405"
+    );
+    
+    // Cleanup with proper DELETE
+    delete_document_http(&app, doc_id).await;
+    
+    println!("✅ OODA-47 TEST PASSED: POST to delete endpoint returns 405");
+}
+
+/// OODA-47: Test that PUT to delete endpoint returns 405.
+#[tokio::test]
+async fn test_put_to_delete_endpoint_returns_405() {
+    let app = create_test_app();
+    
+    // Create a document
+    let (_, body) = upload_document_http(&app, "PUT Method Test", "Content.").await;
+    let doc_id = body["document_id"].as_str().unwrap();
+    
+    // Try PUT to delete endpoint
+    let response = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(format!("/api/v1/documents/{}", doc_id))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    
+    assert_eq!(
+        response.status(),
+        StatusCode::METHOD_NOT_ALLOWED,
+        "PUT to delete endpoint should return 405"
+    );
+    
+    // Cleanup
+    delete_document_http(&app, doc_id).await;
+    
+    println!("✅ OODA-47 TEST PASSED: PUT to delete endpoint returns 405");
+}
+
+// ============================================================================
+// OODA-48: Response Content-Type Tests
+// ============================================================================
+
+/// OODA-48: Test that deletion response is JSON.
+#[tokio::test]
+async fn test_deletion_response_is_json() {
+    let app = create_test_app();
+    
+    let (_, body) = upload_document_http(&app, "JSON Test", "Content.").await;
+    let doc_id = body["document_id"].as_str().unwrap();
+    
+    let response = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/api/v1/documents/{}", doc_id))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    
+    assert_eq!(response.status(), StatusCode::OK);
+    
+    // Check Content-Type header
+    let content_type = response.headers().get("content-type");
+    assert!(
+        content_type.is_some(),
+        "Response should have Content-Type header"
+    );
+    
+    let ct_value = content_type.unwrap().to_str().unwrap();
+    assert!(
+        ct_value.contains("application/json"),
+        "Content-Type should be JSON, got: {}",
+        ct_value
+    );
+    
+    println!("✅ OODA-48 TEST PASSED: Deletion response is JSON");
+}
+
+/// OODA-48: Test that NOT_FOUND response is also JSON.
+#[tokio::test]
+async fn test_not_found_response_is_json() {
+    let app = create_test_app();
+    
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri("/api/v1/documents/nonexistent-uuid-1234")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    
+    let content_type = response.headers().get("content-type");
+    assert!(content_type.is_some(), "404 should have Content-Type");
+    
+    let ct_value = content_type.unwrap().to_str().unwrap();
+    assert!(
+        ct_value.contains("application/json"),
+        "404 Content-Type should be JSON, got: {}",
+        ct_value
+    );
+    
+    println!("✅ OODA-48 TEST PASSED: NOT_FOUND response is JSON");
+}
+
+// ============================================================================
+// OODA-49: Edge Timing Tests
+// ============================================================================
+
+/// OODA-49: Test immediate deletion after creation.
+#[tokio::test]
+async fn test_immediate_deletion_after_creation() {
+    let app = create_test_app();
+    
+    // Create and immediately delete (no delay)
+    let (status, body) = upload_document_http(
+        &app,
+        "Immediate Delete",
+        "This doc is deleted immediately after creation."
+    ).await;
+    assert_eq!(status, StatusCode::CREATED);
+    
+    let doc_id = body["document_id"].as_str().unwrap();
+    
+    // Delete immediately (no tokio::sleep)
+    let (delete_status, _) = delete_document_http(&app, doc_id).await;
+    assert_eq!(delete_status, StatusCode::OK);
+    
+    println!("✅ OODA-49 TEST PASSED: Immediate deletion after creation");
+}
+
+/// OODA-49: Test deletion of very recently created document.
+#[tokio::test]
+async fn test_deletion_timing_consistency() {
+    let app = create_test_app();
+    
+    let mut timings = Vec::new();
+    
+    // Create and delete 5 times, measure timing
+    for _ in 0..5 {
+        let start = std::time::Instant::now();
+        
+        let (_, body) = upload_document_http(&app, "Timing Test", "Content.").await;
+        let doc_id = body["document_id"].as_str().unwrap();
+        delete_document_http(&app, doc_id).await;
+        
+        timings.push(start.elapsed());
+    }
+    
+    // All operations should be reasonably fast (< 100ms each)
+    for (i, timing) in timings.iter().enumerate() {
+        assert!(
+            timing.as_millis() < 100,
+            "Cycle {} took too long: {:?}",
+            i,
+            timing
+        );
+    }
+    
+    println!("📊 Timings: {:?}", timings);
+    println!("✅ OODA-49 TEST PASSED: Deletion timing consistency");
+}
+
+// ============================================================================
+// OODA-50: Final Comprehensive Tests
+// ============================================================================
+
+/// OODA-50: Final comprehensive test of the complete add/delete cycle.
+#[tokio::test]
+async fn test_complete_add_delete_cycle() {
+    let state = AppState::test_state();
+    let app = create_test_server_with_state(state.clone());
+    
+    // Record initial state
+    let initial_nodes = state.graph_storage.get_all_nodes().await.unwrap().len();
+    
+    // Upload document with all options
+    let request = json!({
+        "content": "Comprehensive test content with multiple sentences. Testing the full cycle. This includes entity extraction and deletion cascade.",
+        "title": "Comprehensive Test",
+        "workspace_id": "test-workspace",
+        "track_id": "final-test",
+        "metadata": {
+            "test": true,
+            "iteration": 50
+        },
+        "async_processing": false
+    });
+    
+    let response = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents")
+                .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", "final-test-tenant")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    
+    assert_eq!(response.status(), StatusCode::CREATED);
+    
+    let body = extract_json(response).await;
+    let doc_id = body["document_id"].as_str().unwrap();
+    
+    // Delete document
+    let (delete_status, delete_body) = delete_document_http(&app, doc_id).await;
+    assert_eq!(delete_status, StatusCode::OK);
+    assert_eq!(delete_body.get("deleted").and_then(|v| v.as_bool()), Some(true));
+    
+    // Verify clean state
+    let final_nodes = state.graph_storage.get_all_nodes().await.unwrap().len();
+    assert_eq!(initial_nodes, final_nodes, "Should return to initial node count");
+    
+    // Verify document is gone
+    let (check_status, _) = delete_document_http(&app, doc_id).await;
+    assert_eq!(check_status, StatusCode::NOT_FOUND);
+    
+    println!("✅ OODA-50 TEST PASSED: Complete add/delete cycle verified");
+    println!("🎉 50 OODA ITERATIONS COMPLETE!");
+}
+
