@@ -43,6 +43,7 @@ async fn test_high_volume_concurrent_deletions_stress() {
 - Entity 5: Docs 11-15 (5 refs)
 
 After deleting docs 1-10:
+
 - Entity 1: Should be deleted (all refs gone)
 - Entity 2: Should be deleted (all refs gone)
 - Entity 3: Doc 11 remains (1 ref)
@@ -53,8 +54,8 @@ After deleting docs 1-10:
 
 ## Files to Modify
 
-| File | Action |
-|------|--------|
+| File                             | Action   |
+| -------------------------------- | -------- |
 | `tests/e2e_document_deletion.rs` | ADD test |
 
 ---

@@ -20,6 +20,7 @@ These are basic concurrency tests but don't stress the system.
 **GAP-11: No high-volume stress testing**
 
 Current tests use 2-3 documents. Production systems may have:
+
 - 100+ documents being deleted concurrently
 - Documents with 1000+ entities each
 - Race conditions that only appear under load
@@ -44,6 +45,7 @@ async fn test_multiple_concurrent_deletions() {
 ### Approach
 
 Add stress tests that:
+
 1. Upload 20+ documents with shared entities
 2. Delete 10+ concurrently
 3. Verify all data is correctly cleaned up
@@ -53,10 +55,10 @@ Add stress tests that:
 
 ## Files to Examine
 
-| File | Purpose |
-|------|---------|
-| `e2e_document_deletion.rs` | Existing concurrent tests |
-| `handlers/documents.rs` | Delete handler with locking |
+| File                       | Purpose                     |
+| -------------------------- | --------------------------- |
+| `e2e_document_deletion.rs` | Existing concurrent tests   |
+| `handlers/documents.rs`    | Delete handler with locking |
 
 ---
 

@@ -10,7 +10,7 @@
 
 1. **Memory Tests**: All 21 deletion tests in `e2e_document_deletion.rs` use `AppState::test_state()` which creates in-memory storage.
 
-2. **Existing PostgreSQL Tests**: 
+2. **Existing PostgreSQL Tests**:
    - `e2e_postgres_workspace.rs` - Tests workspace service with PostgreSQL
    - `edgequake-storage/tests/postgres_integration.rs` - Tests storage layer directly
    - Both use `#[cfg(feature = "postgres")]` and `require_postgres!` macro
@@ -25,8 +25,9 @@
 **GAP-10: No E2E deletion tests run with PostgreSQL**
 
 Current deletion tests only verify memory storage. PostgreSQL has different:
+
 - Transaction semantics (ACID)
-- Cascading delete behavior 
+- Cascading delete behavior
 - Constraint enforcement
 - Connection pooling issues
 
@@ -55,6 +56,7 @@ This gap violates the mission requirement: "Ensure it working with postgres prov
 Option 4: Create `test_state_postgres()` and add a PostgreSQL-specific test file `e2e_document_deletion_postgres.rs` with the most critical deletion tests (5-7 tests instead of all 21).
 
 Critical tests to port:
+
 1. `test_single_document_deletion` - Basic cascade delete
 2. `test_delete_preserves_shared_entities` - source_ids tracking
 3. `test_source_ids_accumulates_across_documents` - Multi-document entities
@@ -65,11 +67,11 @@ Critical tests to port:
 
 ## Files to Examine
 
-| File | Purpose |
-|------|---------|
-| `state.rs:625-720` | `new_postgres()` - real PostgreSQL state creation |
-| `e2e_postgres_workspace.rs` | Pattern for PostgreSQL tests |
-| `postgres_integration.rs` | Storage-level PostgreSQL tests |
+| File                        | Purpose                                           |
+| --------------------------- | ------------------------------------------------- |
+| `state.rs:625-720`          | `new_postgres()` - real PostgreSQL state creation |
+| `e2e_postgres_workspace.rs` | Pattern for PostgreSQL tests                      |
+| `postgres_integration.rs`   | Storage-level PostgreSQL tests                    |
 
 ---
 

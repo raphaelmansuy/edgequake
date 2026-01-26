@@ -11,7 +11,8 @@
 **Finding:** The query engine in `sota_engine.rs` already handles missing chunks gracefully via `filter_ids` parameter to vector storage. This is a non-issue for functional correctness but may leave stale `source_chunk_ids` in entity metadata.
 
 **Decision:** Add integration tests to verify query safety rather than fix the cosmetic staleness issue. The staleness has no functional impact because:
-1. Vector storage's `query()` method accepts optional `filter_ids` 
+
+1. Vector storage's `query()` method accepts optional `filter_ids`
 2. Missing chunks simply aren't returned (no errors)
 3. Query results remain semantically correct
 
@@ -38,12 +39,12 @@ test result: ok. 21 passed; 0 failed; 0 ignored
 
 ## Verification
 
-| Check | Status |
-|-------|--------|
-| Query after single doc deletion works | ✅ |
-| Query with partial shared context works | ✅ |
-| No panics or errors on missing chunks | ✅ |
-| All 21 deletion tests pass | ✅ |
+| Check                                   | Status |
+| --------------------------------------- | ------ |
+| Query after single doc deletion works   | ✅     |
+| Query with partial shared context works | ✅     |
+| No panics or errors on missing chunks   | ✅     |
+| All 21 deletion tests pass              | ✅     |
 
 ---
 
@@ -60,6 +61,7 @@ test result: ok. 21 passed; 0 failed; 0 ignored
 ## Commit
 
 Ready for commit with message:
+
 ```
 test(query): add query-after-deletion integration tests (OODA-09)
 
