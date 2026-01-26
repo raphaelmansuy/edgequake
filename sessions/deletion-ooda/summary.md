@@ -20,6 +20,8 @@ Spec: `specs/033-study-delete-document/003-study-document.md`
 | 20 | record_metrics_snapshot function | ✅ Complete | fa76e426 |
 | 21 | Metrics integration in handlers | ✅ Complete | 9175b13c |
 | 22 | Metrics history API endpoint | ✅ Complete | 5b4d8370 |
+| 23 | Metrics history E2E tests | ✅ Complete | 6d136760 |
+| 24 | Edge case tests (no-entity, rapid ops) | ✅ Complete | c47f213e |
 
 ## Key Accomplishments
 

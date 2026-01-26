@@ -1,9 +1,11 @@
 # Iteration 08: ACT - Implemented Cleanup Helper for Reprocess Endpoints
 
 ## Date
+
 2025-01-28
 
 ## Summary
+
 Implemented GAP-08 fix: Added `cleanup_document_graph_data` helper function and integrated it into `reprocess_failed` and `recover_stuck` endpoints.
 
 ## Changes Made
@@ -24,6 +26,7 @@ pub struct CleanupStats {
 ### 2. Added cleanup_document_graph_data Function (documents.rs:269-396)
 
 Extracted reusable cleanup logic from `delete_document`:
+
 - Process all nodes - remove document_id from source_ids
 - Delete nodes with empty source_ids
 - Process all edges - remove document_id from source_ids
@@ -34,6 +37,7 @@ Extracted reusable cleanup logic from `delete_document`:
 ### 3. Modified reprocess_failed (documents.rs:3142-3177)
 
 Added cleanup call before requeueing:
+
 ```rust
 // OODA-08: Clean up partial graph data from failed attempt BEFORE requeueing
 match cleanup_document_graph_data(doc_id, &state.graph_storage, None).await {
@@ -60,18 +64,18 @@ Same cleanup pattern applied.
 
 ### 5. Added Tests (e2e_document_deletion.rs:1377-1645)
 
-| Test | Description | Status |
-|------|-------------|--------|
-| `test_reprocess_cleans_partial_graph_data` | Verifies partial entities are cleaned before requeueing failed docs | ✅ PASS |
-| `test_recover_stuck_cleans_partial_graph_data` | Verifies partial entities are cleaned before recovering stuck docs | ✅ PASS |
-| `test_reprocess_preserves_shared_entities` | Verifies shared entities (with other completed docs) are preserved | ✅ PASS |
+| Test                                           | Description                                                         | Status  |
+| ---------------------------------------------- | ------------------------------------------------------------------- | ------- |
+| `test_reprocess_cleans_partial_graph_data`     | Verifies partial entities are cleaned before requeueing failed docs | ✅ PASS |
+| `test_recover_stuck_cleans_partial_graph_data` | Verifies partial entities are cleaned before recovering stuck docs  | ✅ PASS |
+| `test_reprocess_preserves_shared_entities`     | Verifies shared entities (with other completed docs) are preserved  | ✅ PASS |
 
 ## Testing Results
 
-| Test Suite | Result |
-|------------|--------|
-| `cargo build --package edgequake-api` | ✅ Success |
-| `cargo test --package edgequake-api --lib` | ✅ 421 passed |
+| Test Suite                                                        | Result                        |
+| ----------------------------------------------------------------- | ----------------------------- |
+| `cargo build --package edgequake-api`                             | ✅ Success                    |
+| `cargo test --package edgequake-api --lib`                        | ✅ 421 passed                 |
 | `cargo test --package edgequake-api --test e2e_document_deletion` | ✅ 19 passed (was 16, +3 new) |
 
 ## WHY Comments Added
@@ -99,6 +103,7 @@ Same cleanup pattern applied.
 ## Impact Analysis
 
 ### Before (GAP-08)
+
 ```
 Document fails → Partial entities remain
 Reprocess → Duplicate entities created
@@ -107,6 +112,7 @@ Delete document → Entities still exist
 ```
 
 ### After (Fixed)
+
 ```
 Document fails → Partial entities remain
 Reprocess → Cleanup runs first

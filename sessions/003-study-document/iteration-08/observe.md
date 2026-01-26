@@ -1,12 +1,15 @@
 # Iteration 08: OBSERVE - Reprocess Endpoints Missing Cleanup Logic
 
 ## Date
+
 2025-01-28
 
 ## Focus Area
+
 Verify that `reprocess_failed` and `recover_stuck` endpoints clean up partial data before requeueing.
 
 ## Observation Method
+
 Code analysis of reprocessing endpoints in `documents.rs`.
 
 ## Key Findings
@@ -92,19 +95,21 @@ No `cleanup_document_graph_data` or similar helper function exists. The cleanup 
 
 ## Risk Assessment
 
-| Severity | Impact | Scenario |
-|----------|--------|----------|
-| **HIGH** | Data duplication | Reprocessed documents create duplicate entities |
-| **HIGH** | Incorrect deletion | Delete after reprocess may leave orphaned data |
-| **MEDIUM** | Storage bloat | Partial data accumulates from failed attempts |
+| Severity   | Impact             | Scenario                                        |
+| ---------- | ------------------ | ----------------------------------------------- |
+| **HIGH**   | Data duplication   | Reprocessed documents create duplicate entities |
+| **HIGH**   | Incorrect deletion | Delete after reprocess may leave orphaned data  |
+| **MEDIUM** | Storage bloat      | Partial data accumulates from failed attempts   |
 
 ## Evidence
 
 **File**: `documents.rs:2891-3032` - `reprocess_failed` function
+
 - No call to any cleanup function
 - Only updates status and requeues
 
 **File**: `documents.rs:3034-3200` - `recover_stuck` function
+
 - Same pattern - no cleanup
 
 ## Conclusion
@@ -114,6 +119,7 @@ No `cleanup_document_graph_data` or similar helper function exists. The cleanup 
 > "Ensure there is reprocessing mechanism for failed documents. Ensure deleting a failed document cleans up all partial data."
 
 We need to:
+
 1. Extract cleanup logic from `delete_document` into reusable helper
 2. Call cleanup before requeueing in `reprocess_failed`
 3. Call cleanup before requeueing in `recover_stuck`

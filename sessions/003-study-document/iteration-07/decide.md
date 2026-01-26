@@ -1,9 +1,11 @@
 # Iteration 07: DECIDE - Fix source_ids Merge in Async Path
 
 ## Date
+
 2025-01-28
 
 ## Decision
+
 Implement pre-fetch merge pattern in `processor.rs` to match the sync path fix from OODA-06.
 
 ## Implementation Plan
@@ -11,6 +13,7 @@ Implement pre-fetch merge pattern in `processor.rs` to match the sync path fix f
 ### Step 1: Collect Entity Names Before Batch Construction
 
 Before building `nodes_batch`, collect all entity names:
+
 ```rust
 let entity_names: Vec<String> = result.extractions
     .iter()
@@ -21,6 +24,7 @@ let entity_names: Vec<String> = result.extractions
 ### Step 2: Batch Fetch Existing Nodes
 
 Use `get_nodes_by_ids` to fetch all existing entities in one query:
+
 ```rust
 let existing_nodes = self.graph_storage
     .get_nodes_by_ids(&entity_names)
@@ -42,6 +46,7 @@ let existing_source_ids: HashMap<String, HashSet<String>> = existing_nodes
 ### Step 3: Merge source_ids When Building Properties
 
 When constructing entity properties:
+
 ```rust
 // Merge with existing source_ids
 let mut merged_sources: HashSet<String> = existing_source_ids
