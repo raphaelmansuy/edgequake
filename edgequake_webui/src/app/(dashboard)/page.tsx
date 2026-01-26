@@ -6,11 +6,14 @@ import { getDocuments, getWorkspaceStats } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useQuery } from '@tanstack/react-query';
 import { FileText, GitMerge, Network, Users } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 export default function DashboardPage() {
   const { t } = useTranslation();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   // Get tenant context for query keys
   const { selectedTenantId, selectedWorkspaceId, workspaces, selectWorkspace } = useTenantStore();
@@ -20,9 +23,19 @@ export default function DashboardPage() {
   // because workspaces are loaded asynchronously by TenantGuard
   useEffect(() => {
     if (!selectedWorkspaceId && workspaces.length > 0) {
-      selectWorkspace(workspaces[0].id);
+      const firstWorkspace = workspaces[0];
+      selectWorkspace(firstWorkspace.id);
+      
+      // Update URL to include workspace parameter
+      // WHY: Ensures URL reflects selected workspace for sharing and browser history
+      const hasWorkspaceParam = searchParams.get('workspace');
+      if (!hasWorkspaceParam && firstWorkspace.slug) {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('workspace', firstWorkspace.slug);
+        router.replace(`/?${params.toString()}`, { scroll: false });
+      }
     }
-  }, [selectedWorkspaceId, workspaces, selectWorkspace]);
+  }, [selectedWorkspaceId, workspaces, selectWorkspace, searchParams, router]);
 
   // Fetch workspace stats (includes document count, entity count, relationship count)
   const { data: statsData, isLoading: isLoadingStats } = useQuery({
