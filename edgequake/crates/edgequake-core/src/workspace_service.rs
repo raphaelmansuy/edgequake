@@ -107,6 +107,18 @@ pub trait WorkspaceService: Send + Sync {
         trigger_type: MetricsTriggerType,
     ) -> Result<MetricsSnapshot>;
 
+    /// Get metrics history for a workspace.
+    ///
+    /// Returns snapshots in reverse chronological order (newest first).
+    ///
+    /// OODA-22: Implements metrics history query per mission requirement.
+    async fn get_metrics_history(
+        &self,
+        workspace_id: Uuid,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<MetricsSnapshot>>;
+
     // ============ Membership Operations ============
 
     /// Add a membership (user access to tenant/workspace).
@@ -520,6 +532,17 @@ impl WorkspaceService for InMemoryWorkspaceService {
             embedding_count: 0,
             storage_bytes: 0,
         })
+    }
+
+    async fn get_metrics_history(
+        &self,
+        _workspace_id: Uuid,
+        _limit: usize,
+        _offset: usize,
+    ) -> Result<Vec<MetricsSnapshot>> {
+        // WHY empty: In-memory implementation doesn't persist history.
+        // OODA-22: Real implementation is in PostgresWorkspaceService.
+        Ok(Vec::new())
     }
 
     async fn add_membership(&self, membership: Membership) -> Result<Membership> {

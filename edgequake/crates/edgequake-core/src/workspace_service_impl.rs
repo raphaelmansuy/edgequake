@@ -729,6 +729,65 @@ impl WorkspaceService for WorkspaceServiceImpl {
         })
     }
 
+    async fn get_metrics_history(
+        &self,
+        workspace_id: Uuid,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<MetricsSnapshot>> {
+        // WHY ORDER BY DESC: Most recent snapshots first for trend analysis.
+        // OODA-22: Query from workspace_metrics_history table.
+        #[derive(sqlx::FromRow)]
+        struct HistoryRow {
+            id: Uuid,
+            #[allow(dead_code)]
+            workspace_id: String,
+            recorded_at: chrono::DateTime<chrono::Utc>,
+            trigger_type: String,
+            document_count: i64,
+            chunk_count: i64,
+            entity_count: i64,
+            relationship_count: i64,
+            embedding_count: i64,
+            storage_bytes: i64,
+        }
+
+        let rows: Vec<HistoryRow> = sqlx::query_as(
+            r#"
+            SELECT id, workspace_id, recorded_at, trigger_type,
+                   document_count, chunk_count, entity_count, relationship_count,
+                   embedding_count, storage_bytes
+            FROM workspace_metrics_history
+            WHERE workspace_id = $1
+            ORDER BY recorded_at DESC
+            LIMIT $2 OFFSET $3
+            "#,
+        )
+        .bind(workspace_id.to_string())
+        .bind(limit as i64)
+        .bind(offset as i64)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| Error::internal(format!("Failed to get metrics history: {}", e)))?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| MetricsSnapshot {
+                id: row.id,
+                workspace_id,
+                recorded_at: row.recorded_at,
+                trigger_type: MetricsTriggerType::from_str(&row.trigger_type)
+                    .unwrap_or(MetricsTriggerType::Event),
+                document_count: row.document_count,
+                chunk_count: row.chunk_count,
+                entity_count: row.entity_count,
+                relationship_count: row.relationship_count,
+                embedding_count: row.embedding_count,
+                storage_bytes: row.storage_bytes,
+            })
+            .collect())
+    }
+
     // ============ Membership Operations ============
 
     async fn add_membership(&self, membership: Membership) -> Result<Membership> {

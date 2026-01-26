@@ -43,6 +43,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::error::ApiError;
@@ -50,11 +51,12 @@ use crate::state::AppState;
 
 // Re-export DTOs for backward compatibility
 pub use crate::handlers::workspaces_types::{
-    workspaces_default_limit, CreateTenantRequest, CreateWorkspaceApiRequest, PaginationParams,
-    RebuildEmbeddingsRequest, RebuildEmbeddingsResponse, RebuildKnowledgeGraphRequest,
-    RebuildKnowledgeGraphResponse, ReprocessAllRequest, ReprocessAllResponse, TenantListResponse,
-    TenantResponse, UpdateTenantRequest, UpdateWorkspaceApiRequest, WorkspaceListResponse,
-    WorkspaceResponse, WorkspaceStatsResponse,
+    workspaces_default_limit, CreateTenantRequest, CreateWorkspaceApiRequest,
+    MetricsHistoryResponse, MetricsSnapshotDTO, PaginationParams, RebuildEmbeddingsRequest,
+    RebuildEmbeddingsResponse, RebuildKnowledgeGraphRequest, RebuildKnowledgeGraphResponse,
+    ReprocessAllRequest, ReprocessAllResponse, TenantListResponse, TenantResponse,
+    UpdateTenantRequest, UpdateWorkspaceApiRequest, WorkspaceListResponse, WorkspaceResponse,
+    WorkspaceStatsResponse,
 };
 
 use edgequake_core::Workspace;
@@ -910,6 +912,87 @@ pub async fn get_workspace_stats(
     };
 
     Ok(Json(response))
+}
+
+// ============================================================================
+// OODA-22: Metrics History Endpoint
+// ============================================================================
+
+/// Get metrics history for a workspace.
+///
+/// Returns time-series metrics snapshots in reverse chronological order (newest first).
+/// Useful for trend analysis, debugging, and monitoring workspace growth.
+///
+/// ## Query Parameters
+///
+/// - `limit`: Maximum number of snapshots to return (default: 100, max: 1000)
+/// - `offset`: Number of snapshots to skip (default: 0)
+///
+/// ## Trigger Types
+///
+/// - `event`: Recorded after document add/delete operations
+/// - `scheduled`: Recorded by background hourly task
+/// - `manual`: Recorded by admin request
+#[utoipa::path(
+    get,
+    path = "/api/v1/workspaces/{workspace_id}/metrics-history",
+    params(
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+        ("limit" = Option<usize>, Query, description = "Maximum snapshots to return (default: 100)"),
+        ("offset" = Option<usize>, Query, description = "Number of snapshots to skip (default: 0)")
+    ),
+    responses(
+        (status = 200, description = "Metrics history", body = MetricsHistoryResponse),
+        (status = 404, description = "Workspace not found"),
+    ),
+    tags = ["workspaces"]
+)]
+pub async fn get_metrics_history(
+    State(state): State<AppState>,
+    Path(workspace_id): Path<Uuid>,
+    Query(params): Query<MetricsHistoryParams>,
+) -> Result<Json<MetricsHistoryResponse>, ApiError> {
+    // Apply defaults and limits
+    let limit = params.limit.unwrap_or(100).min(1000);
+    let offset = params.offset.unwrap_or(0);
+
+    let snapshots = state
+        .workspace_service
+        .get_metrics_history(workspace_id, limit, offset)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    let response = MetricsHistoryResponse {
+        workspace_id,
+        count: snapshots.len(),
+        offset,
+        limit,
+        snapshots: snapshots
+            .into_iter()
+            .map(|s| MetricsSnapshotDTO {
+                id: s.id,
+                recorded_at: s.recorded_at.to_rfc3339(),
+                trigger_type: s.trigger_type.to_string(),
+                document_count: s.document_count,
+                chunk_count: s.chunk_count,
+                entity_count: s.entity_count,
+                relationship_count: s.relationship_count,
+                embedding_count: s.embedding_count,
+                storage_bytes: s.storage_bytes,
+            })
+            .collect(),
+    };
+
+    Ok(Json(response))
+}
+
+/// Query parameters for metrics history endpoint.
+#[derive(Debug, Deserialize)]
+pub struct MetricsHistoryParams {
+    /// Maximum number of snapshots to return.
+    pub limit: Option<usize>,
+    /// Number of snapshots to skip.
+    pub offset: Option<usize>,
 }
 
 // ============================================================================
