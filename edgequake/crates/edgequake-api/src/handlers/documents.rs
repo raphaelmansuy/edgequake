@@ -248,6 +248,206 @@ async fn get_workspace_vector_storage_with_fallback(
     }
 }
 
+// ============================================
+// OODA-08: Reusable Document Graph Cleanup
+// ============================================
+
+/// Statistics from document graph data cleanup.
+///
+/// @implements GAP-08: Reprocess endpoints must clean partial data
+///
+/// WHY: This struct is used to track cleanup operations and provide
+/// visibility into what was removed during reprocessing or deletion.
+#[derive(Debug, Default, Clone)]
+pub struct CleanupStats {
+    /// Number of entities completely removed (source_ids became empty)
+    pub entities_removed: usize,
+    /// Number of entities updated (document removed from source_ids)
+    pub entities_updated: usize,
+    /// Number of relationships completely removed
+    pub relationships_removed: usize,
+    /// Number of relationships updated
+    pub relationships_updated: usize,
+    /// Number of embeddings deleted from vector storage
+    pub embeddings_deleted: usize,
+}
+
+/// Clean up graph data for a document without deleting KV entries.
+///
+/// @implements GAP-08: Cleanup before reprocessing
+/// @implements SPEC-033: Per-workspace vector storage isolation
+///
+/// This function removes the document from entity/edge source_ids and
+/// deletes entities/edges that have no remaining sources.
+///
+/// # When to Use
+///
+/// - **reprocess_failed**: Clean partial data from failed attempt before requeueing
+/// - **recover_stuck**: Clean partial data from interrupted processing before requeueing
+/// - **delete_document**: Clean graph data as part of full deletion
+///
+/// # What It Does
+///
+/// 1. Process all nodes - remove document_id from source_ids
+/// 2. Delete nodes with empty source_ids
+/// 3. Process all edges - remove document_id from source_ids
+/// 4. Delete edges with empty source_ids OR orphaned (connects to deleted node)
+/// 5. Delete entity embeddings for removed entities
+///
+/// # What It Does NOT Do
+///
+/// - Delete KV entries (metadata, content, chunks) - these are needed for reprocessing
+/// - Delete chunk embeddings - handled separately in delete_document
+///
+/// # Arguments
+///
+/// * `document_id` - The document ID to clean up
+/// * `graph_storage` - Graph storage adapter
+/// * `vector_storage` - Optional vector storage for entity embedding cleanup
+///
+/// # Returns
+///
+/// * `Ok(CleanupStats)` - Cleanup statistics
+/// * `Err(ApiError)` - If cleanup fails
+async fn cleanup_document_graph_data(
+    document_id: &str,
+    graph_storage: &Arc<dyn edgequake_storage::traits::GraphStorage>,
+    vector_storage: Option<&Arc<dyn VectorStorage>>,
+) -> Result<CleanupStats, ApiError> {
+    let mut stats = CleanupStats::default();
+
+    // Helper function to extract source documents from node/edge properties
+    // Handles both `source_ids` (JSON array) and `source_id` (pipe-separated string)
+    fn extract_source_docs(
+        properties: &std::collections::HashMap<String, serde_json::Value>,
+    ) -> Vec<String> {
+        // Try source_ids (JSON array) first - this is the current format
+        if let Some(source_ids) = properties.get("source_ids") {
+            if let Some(arr) = source_ids.as_array() {
+                return arr
+                    .iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect();
+            }
+        }
+        // Fall back to source_id (pipe-separated string) for backward compatibility
+        if let Some(source_id) = properties.get("source_id").and_then(|v| v.as_str()) {
+            return source_id.split('|').map(|s| s.to_string()).collect();
+        }
+        Vec::new()
+    }
+
+    // Build chunk prefix for source matching
+    let chunk_prefix = format!("{}-chunk-", document_id);
+
+    // Process graph entities - remove document sources
+    let all_nodes = graph_storage.get_all_nodes().await?;
+    for node in all_nodes {
+        let sources = extract_source_docs(&node.properties);
+        if sources.is_empty() {
+            continue;
+        }
+
+        // Filter out sources that belong to this document
+        let remaining_sources: Vec<String> = sources
+            .iter()
+            .filter(|s| {
+                !s.starts_with(&chunk_prefix) && *s != document_id && !s.starts_with(document_id)
+            })
+            .cloned()
+            .collect();
+
+        if remaining_sources.is_empty() {
+            // No sources left - delete the entity entirely
+            graph_storage.delete_node(&node.id).await?;
+            // Delete entity embedding if vector storage provided
+            if let Some(vs) = vector_storage {
+                let _ = vs.delete_entity(&node.id).await;
+                stats.embeddings_deleted += 1;
+            }
+            stats.entities_removed += 1;
+        } else if remaining_sources.len() < sources.len() {
+            // Some sources were removed - update the entity
+            let mut updated_props = node.properties.clone();
+            updated_props.insert(
+                "source_ids".to_string(),
+                serde_json::json!(remaining_sources),
+            );
+            graph_storage.upsert_node(&node.id, updated_props).await?;
+            stats.entities_updated += 1;
+        }
+    }
+
+    // Process graph edges - remove document sources and orphaned edges
+    let all_edges = graph_storage.get_all_edges().await?;
+
+    // Get current node IDs for orphan detection
+    let existing_nodes = graph_storage.get_all_nodes().await?;
+    let existing_node_ids: std::collections::HashSet<String> =
+        existing_nodes.iter().map(|n| n.id.clone()).collect();
+
+    for edge in all_edges {
+        // Check if edge is orphaned (connects to deleted node)
+        let is_orphaned =
+            !existing_node_ids.contains(&edge.source) || !existing_node_ids.contains(&edge.target);
+
+        if is_orphaned {
+            // Edge connects to a deleted node - delete it
+            graph_storage.delete_edge(&edge.source, &edge.target).await?;
+            stats.relationships_removed += 1;
+            tracing::debug!(
+                source = %edge.source,
+                target = %edge.target,
+                "Deleted orphaned edge (connects to deleted node)"
+            );
+            continue;
+        }
+
+        let sources = extract_source_docs(&edge.properties);
+        if sources.is_empty() {
+            continue;
+        }
+
+        // Filter out sources that belong to this document
+        let remaining_sources: Vec<String> = sources
+            .iter()
+            .filter(|s| {
+                !s.starts_with(&chunk_prefix) && *s != document_id && !s.starts_with(document_id)
+            })
+            .cloned()
+            .collect();
+
+        if remaining_sources.is_empty() {
+            // No sources left - delete the relationship
+            graph_storage.delete_edge(&edge.source, &edge.target).await?;
+            stats.relationships_removed += 1;
+        } else if remaining_sources.len() < sources.len() {
+            // Some sources were removed - update the relationship
+            let mut updated_props = edge.properties.clone();
+            updated_props.insert(
+                "source_ids".to_string(),
+                serde_json::json!(remaining_sources),
+            );
+            graph_storage
+                .upsert_edge(&edge.source, &edge.target, updated_props)
+                .await?;
+            stats.relationships_updated += 1;
+        }
+    }
+
+    tracing::info!(
+        document_id = %document_id,
+        entities_removed = stats.entities_removed,
+        entities_updated = stats.entities_updated,
+        relationships_removed = stats.relationships_removed,
+        relationships_updated = stats.relationships_updated,
+        embeddings_deleted = stats.embeddings_deleted,
+        "Document graph data cleanup completed"
+    );
+
+    Ok(stats)
+}
+
 /// Upload a document for processing.
 ///
 /// # Implements
@@ -2941,6 +3141,42 @@ pub async fn reprocess_failed(
 
     // Requeue failed documents
     for (doc_id, _doc_key) in &failed_docs {
+        // OODA-08: Clean up partial graph data from failed attempt BEFORE requeueing
+        // WHY: Without cleanup, reprocessing creates duplicate entities and corrupts source_ids
+        //
+        // Scenario without cleanup:
+        //   T1: Document processed 60% → entities A, B created with source_ids = [doc]
+        //   T2: Processing fails
+        //   T3: reprocess_failed called
+        //   T4: Document reprocessed → entities A, B upserted with source_ids = [doc]
+        //   T5: Now entities have inflated source_ids (double reference)
+        //   T6: Delete document → entities still exist (incorrect)
+        //
+        // With cleanup:
+        //   T1-T2: Same as above
+        //   T3: reprocess_failed cleans up A, B (deletes them since source_ids = [doc])
+        //   T4: Document reprocessed → entities A, B created fresh
+        //   T5: source_ids correctly = [doc]
+        //   T6: Delete document → entities properly deleted
+        match cleanup_document_graph_data(doc_id, &state.graph_storage, None).await {
+            Ok(stats) => {
+                tracing::info!(
+                    document_id = %doc_id,
+                    entities_removed = stats.entities_removed,
+                    entities_updated = stats.entities_updated,
+                    relationships_removed = stats.relationships_removed,
+                    "Cleaned up partial data before reprocessing"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    document_id = %doc_id,
+                    error = %e,
+                    "Failed to cleanup partial data before reprocessing, continuing anyway"
+                );
+            }
+        }
+
         // Get document content
         let content_key = format!("{}-content", doc_id);
         if let Some(content_value) = state.kv_storage.get_by_id(&content_key).await? {
@@ -3109,6 +3345,30 @@ pub async fn recover_stuck(
 
     // Requeue stuck documents
     for (doc_id, doc_title) in &stuck_docs {
+        // OODA-08: Clean up partial graph data from interrupted processing BEFORE requeueing
+        // WHY: Same as reprocess_failed - prevents duplicate entities and corrupted source_ids
+        //
+        // A "stuck" document may have partially created entities before the process
+        // died or timed out. Without cleanup, reprocessing would create duplicates.
+        match cleanup_document_graph_data(doc_id, &state.graph_storage, None).await {
+            Ok(stats) => {
+                tracing::info!(
+                    document_id = %doc_id,
+                    entities_removed = stats.entities_removed,
+                    entities_updated = stats.entities_updated,
+                    relationships_removed = stats.relationships_removed,
+                    "Cleaned up partial data before recovery"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    document_id = %doc_id,
+                    error = %e,
+                    "Failed to cleanup partial data before recovery, continuing anyway"
+                );
+            }
+        }
+
         // Get document content
         let content_key = format!("{}-content", doc_id);
         if let Some(content_value) = state.kv_storage.get_by_id(&content_key).await? {
