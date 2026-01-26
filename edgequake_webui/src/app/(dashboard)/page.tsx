@@ -6,13 +6,21 @@ import { getDocuments, getWorkspaceStats } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useQuery } from '@tanstack/react-query';
 import { FileText, GitMerge, Network, Users } from 'lucide-react';
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 export default function DashboardPage() {
   const { t } = useTranslation();
 
   // Get tenant context for query keys
-  const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
+  const { selectedTenantId, selectedWorkspaceId, workspaces, selectWorkspace } = useTenantStore();
+
+  // Auto-select first workspace if none selected (e.g., direct navigation to /)
+  useEffect(() => {
+    if (!selectedWorkspaceId && workspaces.length > 0) {
+      selectWorkspace(workspaces[0].id);
+    }
+  }, [selectedWorkspaceId, workspaces, selectWorkspace]);
 
   // Fetch workspace stats (includes document count, entity count, relationship count)
   const { data: statsData, isLoading: isLoadingStats } = useQuery({
