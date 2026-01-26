@@ -1466,16 +1466,23 @@ pub async fn delete_document(
 
         if remaining_sources.is_empty() {
             // No sources left - delete the entity entirely
-            // First delete all connected edges
-            let edges = state.graph_storage.get_node_edges(&node.id).await?;
-            for edge in edges {
-                state
-                    .graph_storage
-                    .delete_edge(&edge.source, &edge.target)
-                    .await?;
-                relationships_removed += 1;
-            }
-            // Then delete the node
+            
+            // WHY-OODA01: DO NOT delete edges here!
+            // Edges have their own source_ids tracking and will be processed
+            // independently in the edge processing loop below (line ~1500).
+            // Deleting them here would cause data loss if the edge has other
+            // source documents that are not being deleted.
+            //
+            // Example bug scenario (fixed):
+            //   Document A: "Alice works at Google"
+            //   Document B: "Alice graduated from MIT"
+            //   DELETE Document A:
+            //     - ALICE entity sources: [doc_a, doc_b] → [doc_b] (update)
+            //     - GOOGLE entity sources: [doc_a] → [] (delete entity)
+            //     - OLD BUG: Deleted ALL edges from GOOGLE, including MIT edge!
+            //     - FIXED: Edges are processed separately based on their own sources
+            
+            // Delete the node (backend may cascade edges, but we handle explicitly below)
             state.graph_storage.delete_node(&node.id).await?;
             // SPEC-033: Use workspace-specific vector storage for entity deletion
             let _ = workspace_vector_storage.delete_entity(&node.id).await;
@@ -1497,8 +1504,35 @@ pub async fn delete_document(
     }
 
     // Process graph edges - remove document sources
+    // WHY-OODA01: We must also check for orphaned edges (edges connecting to deleted nodes)
+    // This handles the case where a node was deleted above but edges still reference it.
     let all_edges = state.graph_storage.get_all_edges().await?;
+    
+    // Get current node IDs for orphan detection
+    let existing_nodes = state.graph_storage.get_all_nodes().await?;
+    let existing_node_ids: std::collections::HashSet<String> = 
+        existing_nodes.iter().map(|n| n.id.clone()).collect();
+    
     for edge in all_edges {
+        // Check if edge is orphaned (connects to deleted node)
+        let is_orphaned = !existing_node_ids.contains(&edge.source) 
+                       || !existing_node_ids.contains(&edge.target);
+        
+        if is_orphaned {
+            // Edge connects to a deleted node - delete it
+            state
+                .graph_storage
+                .delete_edge(&edge.source, &edge.target)
+                .await?;
+            relationships_removed += 1;
+            tracing::debug!(
+                source = %edge.source,
+                target = %edge.target,
+                "Deleted orphaned edge (connects to deleted node)"
+            );
+            continue;
+        }
+        
         let sources = extract_source_docs(&edge.properties);
         if sources.is_empty() {
             continue;
