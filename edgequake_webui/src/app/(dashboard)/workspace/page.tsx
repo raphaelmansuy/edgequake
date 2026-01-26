@@ -89,6 +89,8 @@ export default function WorkspacePage() {
   });
 
   // Fetch workspace stats
+  // OODA-ITERATION-03-CACHE-FIX: Reduced staleTime from 30s to 0 to force fresh fetches
+  // This ensures stats are always current, especially after document uploads
   const {
     data: stats,
     isLoading: isLoadingStats,
@@ -99,7 +101,8 @@ export default function WorkspacePage() {
         ? getWorkspaceStats(selectedWorkspaceId)
         : Promise.reject(new Error('No workspace selected')),
     enabled: !!selectedWorkspaceId,
-    staleTime: 30000,
+    staleTime: 0, // Always fetch fresh stats to reflect latest document processing
+    refetchOnMount: 'always', // Always refetch when component mounts
   });
 
   // Fetch provider health status (SPEC-032: OODA 201-210)
