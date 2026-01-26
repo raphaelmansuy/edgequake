@@ -1786,3 +1786,180 @@ async fn test_query_with_partial_shared_context() {
     
     println!("✅ OODA-09 PARTIAL CONTEXT VERIFIED: Query works with shared context after partial deletion");
 }
+
+// ============================================================================
+// Stress Tests (OODA-11)
+// ============================================================================
+
+#[tokio::test]
+async fn test_high_volume_concurrent_deletions_stress() {
+    // OODA-11: Stress test with high volume concurrent deletions.
+    // Creates 15 documents with 5 overlapping entity groups.
+    // Deletes 10 documents concurrently, verifies correct entity preservation.
+    
+    let state = AppState::test_state();
+    let server = Server::new(create_test_config(), state.clone());
+    let app = server.build_router();
+    
+    // Create 15 documents
+    let doc_ids: Vec<String> = (1..=15).map(|i| format!("stress-doc-{:02}", i)).collect();
+    
+    // Entity distribution:
+    // Entity 1: Docs 1-5 (5 refs)
+    // Entity 2: Docs 3-8 (6 refs)
+    // Entity 3: Docs 6-11 (6 refs)
+    // Entity 4: Docs 9-13 (5 refs)
+    // Entity 5: Docs 11-15 (5 refs)
+    
+    let entity_ranges = vec![
+        ("STRESS_ENTITY_1", 1..=5),
+        ("STRESS_ENTITY_2", 3..=8),
+        ("STRESS_ENTITY_3", 6..=11),
+        ("STRESS_ENTITY_4", 9..=13),
+        ("STRESS_ENTITY_5", 11..=15),
+    ];
+    
+    // Create entities with proper source_ids
+    for (entity_id, range) in &entity_ranges {
+        let source_ids: Vec<String> = range.clone()
+            .map(|i| format!("stress-doc-{:02}-chunk-0", i))
+            .collect();
+        
+        let mut props = std::collections::HashMap::new();
+        props.insert("entity_type".to_string(), json!("CONCEPT"));
+        props.insert("description".to_string(), json!(format!("Stress test entity {}", entity_id)));
+        props.insert("source_ids".to_string(), json!(source_ids));
+        
+        state.graph_storage.upsert_node(entity_id, props).await
+            .expect("Failed to create entity");
+    }
+    
+    // Create all documents
+    for doc_id in &doc_ids {
+        let metadata = serde_json::json!({
+            "id": doc_id,
+            "title": format!("Stress Test {}", doc_id),
+            "status": "completed",
+            "workspace_id": "default"
+        });
+        state.kv_storage.upsert(&[(format!("{}-metadata", doc_id), metadata)]).await.unwrap();
+        state.kv_storage.upsert(&[(format!("{}-content", doc_id), json!({"content": "Stress test content"}))]).await.unwrap();
+        state.kv_storage.upsert(&[(format!("{}-chunk-0", doc_id), json!({"content": "Stress chunk"}))]).await.unwrap();
+    }
+    
+    // Verify initial state: 5 entities
+    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
+    assert_eq!(nodes_before.len(), 5, "Should have 5 entities before deletion");
+    
+    // Phase 1: Delete docs 1-10 concurrently (using chunks of join!)
+    println!("Phase 1: Deleting docs 1-10 concurrently...");
+    
+    // Split into two batches of 5 to avoid tokio::join! limitations
+    // Pre-clone apps to avoid borrow issues
+    let app1 = app.clone();
+    let app2 = app.clone();
+    let app3 = app.clone();
+    let app4 = app.clone();
+    let app5 = app.clone();
+    
+    let (r1, r2, r3, r4, r5) = tokio::join!(
+        delete_document_http(&app1, &doc_ids[0]),
+        delete_document_http(&app2, &doc_ids[1]),
+        delete_document_http(&app3, &doc_ids[2]),
+        delete_document_http(&app4, &doc_ids[3]),
+        delete_document_http(&app5, &doc_ids[4])
+    );
+    
+    let batch1 = vec![r1, r2, r3, r4, r5];
+    for (i, (status, _)) in batch1.iter().enumerate() {
+        assert_eq!(*status, StatusCode::OK, "Delete batch1[{}] failed", i);
+    }
+    
+    let app6 = app.clone();
+    let app7 = app.clone();
+    let app8 = app.clone();
+    let app9 = app.clone();
+    let app10 = app.clone();
+    
+    let (r6, r7, r8, r9, r10) = tokio::join!(
+        delete_document_http(&app6, &doc_ids[5]),
+        delete_document_http(&app7, &doc_ids[6]),
+        delete_document_http(&app8, &doc_ids[7]),
+        delete_document_http(&app9, &doc_ids[8]),
+        delete_document_http(&app10, &doc_ids[9])
+    );
+    
+    let batch2 = vec![r6, r7, r8, r9, r10];
+    for (i, (status, _)) in batch2.iter().enumerate() {
+        assert_eq!(*status, StatusCode::OK, "Delete batch2[{}] failed", i);
+    }
+    
+    // Verify state after phase 1
+    // After deleting docs 1-10:
+    // - Entity 1 (docs 1-5): DELETED (all refs gone)
+    // - Entity 2 (docs 3-8): DELETED (all refs gone)
+    // - Entity 3 (docs 6-11): PRESERVED (doc 11 remains)
+    // - Entity 4 (docs 9-13): PRESERVED (docs 11-13 remain)
+    // - Entity 5 (docs 11-15): PRESERVED (docs 11-15 remain)
+    
+    let nodes_after_phase1 = state.graph_storage.get_all_nodes().await.unwrap();
+    
+    // Entity 1 and 2 should be deleted
+    assert!(
+        nodes_after_phase1.iter().find(|n| n.id == "STRESS_ENTITY_1").is_none(),
+        "Entity 1 should be deleted (all refs in docs 1-5 gone)"
+    );
+    assert!(
+        nodes_after_phase1.iter().find(|n| n.id == "STRESS_ENTITY_2").is_none(),
+        "Entity 2 should be deleted (all refs in docs 3-8 gone)"
+    );
+    
+    // Entities 3, 4, 5 should be preserved
+    assert!(
+        nodes_after_phase1.iter().find(|n| n.id == "STRESS_ENTITY_3").is_some(),
+        "Entity 3 should be preserved (doc 11 remains)"
+    );
+    assert!(
+        nodes_after_phase1.iter().find(|n| n.id == "STRESS_ENTITY_4").is_some(),
+        "Entity 4 should be preserved (docs 11-13 remain)"
+    );
+    assert!(
+        nodes_after_phase1.iter().find(|n| n.id == "STRESS_ENTITY_5").is_some(),
+        "Entity 5 should be preserved (docs 11-15 remain)"
+    );
+    
+    println!("Phase 1 complete: {} entities remaining", nodes_after_phase1.len());
+    
+    // Phase 2: Delete remaining docs 11-15
+    println!("Phase 2: Deleting docs 11-15...");
+    
+    let app11 = app.clone();
+    let app12 = app.clone();
+    let app13 = app.clone();
+    let app14 = app.clone();
+    let app15 = app.clone();
+    
+    let (r11, r12, r13, r14, r15) = tokio::join!(
+        delete_document_http(&app11, &doc_ids[10]),
+        delete_document_http(&app12, &doc_ids[11]),
+        delete_document_http(&app13, &doc_ids[12]),
+        delete_document_http(&app14, &doc_ids[13]),
+        delete_document_http(&app15, &doc_ids[14])
+    );
+    
+    let batch3 = vec![r11, r12, r13, r14, r15];
+    for (i, (status, _)) in batch3.iter().enumerate() {
+        assert_eq!(*status, StatusCode::OK, "Delete batch3[{}] failed", i);
+    }
+    
+    // Verify final state: all entities should be deleted
+    let nodes_final = state.graph_storage.get_all_nodes().await.unwrap();
+    assert!(
+        nodes_final.is_empty(),
+        "All entities should be deleted, but {} remain: {:?}",
+        nodes_final.len(),
+        nodes_final.iter().map(|n| &n.id).collect::<Vec<_>>()
+    );
+    
+    println!("✅ OODA-11 STRESS TEST PASSED: 15 docs, 5 entities, 15 concurrent deletions");
+}
