@@ -622,18 +622,43 @@ impl WorkspaceService for WorkspaceServiceImpl {
             .await?
             .ok_or_else(|| Error::not_found(format!("Workspace {} not found", workspace_id)))?;
 
-        // WHY stub: Real-time stats require access to storage adapters.
-        // Current architecture separates WorkspaceService from storage layer.
-        // TODO OODA-13: Implement real-time counting via direct SQL queries
-        // against edgequake_nodes, edgequake_edges, document_vectors tables.
+        // WHY scalar subqueries: Single round-trip to database, efficient counting.
+        // Each subquery uses indexed workspace_id for O(log n) performance.
+        // OODA-13: Implements real-time metrics per mission requirement.
+        #[derive(sqlx::FromRow)]
+        struct StatsRow {
+            document_count: i64,
+            chunk_count: i64,
+            entity_count: i64,
+            relationship_count: i64,
+            embedding_count: i64,
+            storage_bytes: i64,
+        }
+
+        let stats: StatsRow = sqlx::query_as(
+            r#"
+            SELECT 
+                (SELECT COUNT(*) FROM documents WHERE workspace_id = $1) as document_count,
+                (SELECT COUNT(*) FROM chunks WHERE workspace_id = $1) as chunk_count,
+                (SELECT COUNT(*) FROM entities WHERE workspace_id = $1) as entity_count,
+                (SELECT COUNT(*) FROM relationships WHERE workspace_id = $1) as relationship_count,
+                (SELECT COUNT(*) FROM chunks WHERE workspace_id = $1 AND embedding IS NOT NULL) as embedding_count,
+                (SELECT COALESCE(SUM(file_size_bytes), 0) FROM documents WHERE workspace_id = $1) as storage_bytes
+            "#,
+        )
+        .bind(workspace_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| Error::internal(format!("Failed to get workspace stats: {}", e)))?;
+
         Ok(WorkspaceStats {
             workspace_id,
-            document_count: 0,
-            entity_count: 0,
-            relationship_count: 0,
-            chunk_count: 0,
-            embedding_count: 0,
-            storage_bytes: 0,
+            document_count: stats.document_count as usize,
+            entity_count: stats.entity_count as usize,
+            relationship_count: stats.relationship_count as usize,
+            chunk_count: stats.chunk_count as usize,
+            embedding_count: stats.embedding_count as usize,
+            storage_bytes: stats.storage_bytes as usize,
         })
     }
 
