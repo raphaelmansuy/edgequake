@@ -3901,3 +3901,105 @@ async fn test_delete_one_of_duplicate_content_docs() {
     println!("✅ OODA-40 TEST PASSED: Delete one of duplicate content docs");
 }
 
+// ============================================================================
+// OODA-41: Metadata Handling Tests
+// ============================================================================
+
+/// Helper to upload a document with metadata
+async fn upload_document_with_metadata(
+    app: &axum::Router,
+    title: &str,
+    content: &str,
+    metadata: Value,
+) -> (StatusCode, Value) {
+    let request = json!({
+        "content": content,
+        "title": title,
+        "metadata": metadata,
+        "async_processing": false
+    });
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let status = response.status();
+    let body = extract_json(response).await;
+    (status, body)
+}
+
+/// OODA-41: Test that document with metadata uploads correctly.
+#[tokio::test]
+async fn test_upload_with_metadata() {
+    let app = create_test_app();
+    
+    let metadata = json!({
+        "author": "Test Author",
+        "version": "1.0",
+        "tags": ["test", "metadata"],
+        "nested": {
+            "key": "value"
+        }
+    });
+    
+    let (status, body) = upload_document_with_metadata(
+        &app,
+        "Metadata Test Document",
+        "Content for testing metadata handling.",
+        metadata
+    ).await;
+    
+    assert_eq!(status, StatusCode::CREATED);
+    assert!(body.get("document_id").is_some(), "Should have document_id");
+    
+    // Cleanup
+    let doc_id = body["document_id"].as_str().unwrap();
+    delete_document_http(&app, doc_id).await;
+    
+    println!("✅ OODA-41 TEST PASSED: Upload with metadata");
+}
+
+/// OODA-41: Test that document with metadata deletes normally.
+#[tokio::test]
+async fn test_delete_document_with_metadata() {
+    let app = create_test_app();
+    
+    let metadata = json!({
+        "confidential": true,
+        "department": "Engineering",
+        "priority": 5,
+        "unicode_field": "日本語テスト"
+    });
+    
+    let (status, body) = upload_document_with_metadata(
+        &app,
+        "Metadata Delete Test",
+        "Document with complex metadata for deletion test.",
+        metadata
+    ).await;
+    assert_eq!(status, StatusCode::CREATED);
+    
+    let doc_id = body["document_id"].as_str().unwrap();
+    
+    // Delete document with metadata
+    let (delete_status, delete_body) = delete_document_http(&app, doc_id).await;
+    
+    assert_eq!(delete_status, StatusCode::OK);
+    assert_eq!(
+        delete_body.get("deleted").and_then(|v| v.as_bool()),
+        Some(true),
+        "Document with metadata should delete successfully"
+    );
+    
+    println!("✅ OODA-41 TEST PASSED: Delete document with metadata");
+}
+
