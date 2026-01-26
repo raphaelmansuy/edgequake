@@ -1,10 +1,24 @@
 'use client';
 
-import { QuickActions, RecentActivity, SystemStatus } from '@/components/dashboard';
+/**
+ * @fileoverview Dashboard page with workspace statistics display
+ *
+ * @implements FEAT1001 - Dashboard statistics visualization
+ * @implements FEAT1002 - Workspace-scoped statistics display
+ *
+ * @see UC1101 - User views knowledge base statistics
+ * @see UC1102 - User monitors entity/document counts per workspace
+ *
+ * @enforces BR1001 - Stats must reflect selected workspace data
+ * @enforces BR1002 - Stats update when workspace changes
+ */
+
+import { QuickActions, RecentActivity, StatsCard, SystemStatus } from '@/components/dashboard';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { getDocuments } from '@/lib/api/edgequake';
+import { getDocuments, getWorkspaceStats } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useQuery } from '@tanstack/react-query';
+import { FileText, GitBranch, Tags, Users } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -53,6 +67,19 @@ export default function DashboardPage() {
   // NOTE: Auto-select logic removed - handled by WorkspaceUrlUpdater component
   // to avoid duplicate selection logic and race conditions
 
+  // WHY: Fetch workspace statistics for the selected workspace
+  // This enables the dashboard to show accurate counts that update when workspace changes
+  // @implements BR1001 - Stats must reflect selected workspace data
+  const { data: stats, isLoading: isLoadingStats } = useQuery({
+    queryKey: ['workspaceStats', selectedWorkspaceId],
+    queryFn: () =>
+      selectedWorkspaceId
+        ? getWorkspaceStats(selectedWorkspaceId)
+        : Promise.reject(new Error('No workspace selected')),
+    enabled: !!selectedWorkspaceId,
+    staleTime: 30000,
+  });
+
   // Fetch recent documents for activity feed
   const { data: documentsData, isLoading: isLoadingDocs } = useQuery({
     queryKey: ['documents', selectedTenantId, selectedWorkspaceId, 1, 10],
@@ -79,24 +106,61 @@ export default function DashboardPage() {
           </p>
         </header>
 
-        {/* Stats Cards Grid - Responsive gaps */}
-        <section aria-label="Statistics" className="grid gap-4 sm:gap-5 lg:gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Statistics Section - Shows workspace-specific counts */}
+        {/* @implements FEAT1001 - Dashboard statistics visualization */}
+        <section aria-label="Statistics" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatsCard
             title={t('dashboard.stats.documents', 'Documents')}
-            value={documentCount}
+            value={stats?.document_count ?? 0}
             description={t('dashboard.stats.documentsDesc', 'Uploaded documents')}
             icon={FileText}
-            isLoading={isLoadingStats}
             variant="documents"
+            isLoading={isLoadingStats || !selectedWorkspaceId}
           />
           <StatsCard
             title={t('dashboard.stats.entities', 'Entities')}
-            value={entityCount}
+            value={stats?.entity_count ?? 0}
             description={t('dashboard.stats.entitiesDesc', 'Extracted entities')}
             icon={Users}
-            isLoading={isLoadingStats}
             variant="entities"
+            isLoading={isLoadingStats || !selectedWorkspaceId}
           />
-          <SArea>
+          <StatsCard
+            title={t('dashboard.stats.relationships', 'Relationships')}
+            value={stats?.relationship_count ?? 0}
+            description={t('dashboard.stats.relationshipsDesc', 'Entity connections')}
+            icon={GitBranch}
+            variant="relationships"
+            isLoading={isLoadingStats || !selectedWorkspaceId}
+          />
+          <StatsCard
+            title={t('dashboard.stats.chunks', 'Chunks')}
+            value={stats?.chunk_count ?? 0}
+            description={t('dashboard.stats.chunksDesc', 'Text segments')}
+            icon={Tags}
+            variant="types"
+            isLoading={isLoadingStats || !selectedWorkspaceId}
+          />
+        </section>
+
+        {/* Quick Actions */}
+        <section aria-label="Quick Actions">
+          <QuickActions />
+        </section>
+
+        {/* Recent Activity and System Status */}
+        <section aria-label="Activity and Status" className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <RecentActivity 
+              documents={recentDocuments} 
+              isLoading={isLoadingDocs}
+            />
+          </div>
+          <div>
+            <SystemStatus />
+          </div>
+        </section>
+      </div>
+    </ScrollArea>
   );
 }

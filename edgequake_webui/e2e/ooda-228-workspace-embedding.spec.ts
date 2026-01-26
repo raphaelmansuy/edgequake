@@ -196,7 +196,7 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
     try {
       const healthResponse = await page.request.get(`${apiBaseUrl}/health`);
 
-      if (healthResponse.ok) {
+      if (healthResponse.ok()) {
         console.log("✓ API health check passed");
       } else {
         console.log(`⚠ API health check returned ${healthResponse.status()}`);
@@ -218,7 +218,7 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
         }
       );
 
-      if (workspacesResponse.ok) {
+      if (workspacesResponse.ok()) {
         const workspaces = await workspacesResponse.json();
         console.log(
           `✓ Retrieved ${

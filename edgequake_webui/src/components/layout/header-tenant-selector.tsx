@@ -243,8 +243,13 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
   const selectedWorkspace = workspaces.find((w) => w.id === selectedWorkspaceId);
   const isLoading = isLoadingTenants || isLoadingWorkspaces;
 
+  // WHY: Display full workspace name for better identification
+  // Previous: 16 chars was too aggressive, users couldn't identify workspaces
+  // Now: 30 chars with wider max-width (200px) for better visibility
+  // Tooltip still shows full name on hover for very long names
+  // @implements BR0506 - Workspace name must be identifiable
   const displayName = selectedWorkspace?.name || selectedTenant?.name || t('tenant.selectContext', 'Select workspace');
-  const truncatedName = displayName.length > 16 ? displayName.slice(0, 16) + '...' : displayName;
+  const truncatedName = displayName.length > 30 ? displayName.slice(0, 30) + '...' : displayName;
 
   return (
     <>
@@ -269,7 +274,7 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
                   ) : (
                     <FolderKanban className="h-3.5 w-3.5 text-muted-foreground" />
                   )}
-                  <span className="max-w-[120px] truncate hidden sm:inline">
+                  <span className="max-w-[200px] truncate hidden sm:inline">
                     {truncatedName}
                   </span>
                   <ChevronDown className="h-3 w-3 text-muted-foreground" />
