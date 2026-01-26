@@ -40,6 +40,7 @@ Spec: `specs/033-study-delete-document/003-study-document.md`
 | 40 | Content hash deduplication tests | ✅ Complete | 58e0d963 |
 | 41 | Metadata handling tests | ✅ Complete | 41612810 |
 | 42 | Processing mode tests | ✅ Complete | 8ab159a0 |
+| 43 | Sequential stress tests | ✅ Complete | ea974c5c |
 
 ## Key Accomplishments
 
