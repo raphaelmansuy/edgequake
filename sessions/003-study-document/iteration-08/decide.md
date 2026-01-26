@@ -1,6 +1,7 @@
 # Iteration 08: DECIDE - Implement Cleanup Helper Function
 
 ## Date
+
 2025-01-28
 
 ## Decision
@@ -28,6 +29,7 @@ pub struct CleanupStats {
 Location: `documents.rs` near the top of the file (after imports, before handlers)
 
 The function will:
+
 1. Accept document_id, graph_storage, and optional vector_storage
 2. Process all nodes - remove document from source_ids
 3. Delete nodes with empty source_ids
@@ -39,6 +41,7 @@ The function will:
 ### Step 3: Modify reprocess_failed
 
 Before requeueing, call:
+
 ```rust
 let cleanup_stats = cleanup_document_graph_data(
     &doc_id,
@@ -55,6 +58,7 @@ Same pattern as reprocess_failed.
 ### Step 5: Add Test
 
 New test: `test_reprocess_cleans_partial_data`
+
 1. Upload document, let it partially process
 2. Simulate failure (manually set status to "failed")
 3. Add some test entities with document's source_id
@@ -64,12 +68,12 @@ New test: `test_reprocess_cleans_partial_data`
 
 ## Files to Modify
 
-| File | Changes |
-|------|---------|
-| `documents.rs` | Add `CleanupStats`, `cleanup_document_graph_data` function |
-| `documents.rs` | Modify `reprocess_failed` to call cleanup |
-| `documents.rs` | Modify `recover_stuck` to call cleanup |
-| `e2e_document_deletion.rs` | Add test for reprocess cleanup |
+| File                       | Changes                                                    |
+| -------------------------- | ---------------------------------------------------------- |
+| `documents.rs`             | Add `CleanupStats`, `cleanup_document_graph_data` function |
+| `documents.rs`             | Modify `reprocess_failed` to call cleanup                  |
+| `documents.rs`             | Modify `recover_stuck` to call cleanup                     |
+| `e2e_document_deletion.rs` | Add test for reprocess cleanup                             |
 
 ## Success Criteria
 
