@@ -247,9 +247,23 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
   // Previous: 16 chars was too aggressive, users couldn't identify workspaces
   // Now: 30 chars with wider max-width (200px) for better visibility
   // Tooltip still shows full name on hover for very long names
+  // @implements FEAT0861 - Display tenant+workspace context to prevent confusion
   // @implements BR0506 - Workspace name must be identifiable
-  const displayName = selectedWorkspace?.name || selectedTenant?.name || t('tenant.selectContext', 'Select workspace');
-  const truncatedName = displayName.length > 30 ? displayName.slice(0, 30) + '...' : displayName;
+  // WHY: Multiple tenants can have identically-named workspaces.
+  // Show "Tenant / Workspace" format to make context unambiguous.
+  const displayName = (() => {
+    if (selectedWorkspace && selectedTenant) {
+      const tenantPart = selectedTenant.name.length > 15 
+        ? selectedTenant.name.slice(0, 15) + '...' 
+        : selectedTenant.name;
+      const workspacePart = selectedWorkspace.name.length > 20 
+        ? selectedWorkspace.name.slice(0, 20) + '...' 
+        : selectedWorkspace.name;
+      return `${tenantPart} / ${workspacePart}`;
+    }
+    return selectedTenant?.name || t('tenant.selectContext', 'Select workspace');
+  })();
+  const truncatedName = displayName.length > 40 ? displayName.slice(0, 40) + '...' : displayName;
 
   return (
     <>
@@ -349,15 +363,20 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
                             className="py-2"
                           >
                             <FolderKanban className="mr-2 h-4 w-4 text-muted-foreground" />
-                            <span className="flex-1 truncate">{workspace.name}</span>
-                            {workspace.document_count !== undefined && (
-                              <span className="text-[10px] text-muted-foreground ml-1">
-                                {workspace.document_count} docs
-                              </span>
-                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="truncate font-medium">{workspace.name}</div>
+                              {selectedTenant && (
+                                <div className="text-[10px] text-muted-foreground truncate mt-0.5">
+                                  {selectedTenant.name}
+                                  {workspace.document_count !== undefined && ` • ${workspace.document_count} docs`}
+                                </div>
+                              )}
+                            </div>
                             {workspace.id === selectedWorkspaceId && (
                               <Check className="ml-2 h-4 w-4 text-primary" />
                             )}
+                          </DropdownMenuItem>
+                        ))
                           </DropdownMenuItem>
                         ))
                       )}

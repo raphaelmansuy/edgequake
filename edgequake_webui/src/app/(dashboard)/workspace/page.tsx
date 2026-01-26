@@ -23,6 +23,7 @@ import { RebuildEmbeddingsButton } from '@/components/workspace/rebuild-embeddin
 import { RebuildKnowledgeGraphButton } from '@/components/workspace/rebuild-knowledge-graph-button';
 import { getWorkspace, getWorkspaceStats, updateWorkspace } from '@/lib/api/edgequake';
 import { fetchProvidersHealth } from '@/lib/api/models';
+import { useWorkspaceTenantValidator } from '@/hooks/use-workspace-tenant-validator';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -67,6 +68,16 @@ export default function WorkspacePage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
+
+  // Auto-validate workspace-tenant consistency and fix mismatches
+  useWorkspaceTenantValidator({
+    onValidationFailed: (result) => {
+      console.error('[Workspace] Workspace-tenant mismatch detected:', result.reason);
+      toast.error('Workspace context corrected', {
+        description: 'Your workspace selection was updated to match the current tenant.',
+      });
+    },
+  });
 
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false);

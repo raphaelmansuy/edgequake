@@ -158,6 +158,13 @@ export const useTenantStore = create<TenantStore>()(
       /**
        * Callback when hydration starts/finishes
        * Used to track hydration state for SSR safety
+       * 
+       * @implements FEAT0862 - Auto-validation on localStorage hydration
+       * 
+       * WHY: Validate workspace-tenant consistency on hydration.
+       * If localStorage has corrupted data (workspace from wrong tenant),
+       * the validation hook will detect and fix it on first page render.
+       * This prevents the dashboard showing wrong stats issue from persisting.
        */
       onRehydrateStorage: () => {
         return (state, error) => {
@@ -166,6 +173,23 @@ export const useTenantStore = create<TenantStore>()(
           }
           // Mark as hydrated even on error (to prevent infinite loading)
           state?.setHasHydrated(true);
+
+          // Validate workspace-tenant consistency after hydration
+          if (state?.selectedTenantId && state?.selectedWorkspaceId) {
+            // Check if selected workspace belongs to selected tenant
+            const workspace = state.workspaces.find(w => w.id === state.selectedWorkspaceId);
+            
+            if (workspace && workspace.tenant_id !== state.selectedTenantId) {
+              console.warn(
+                "[TenantStore] Hydration detected workspace-tenant mismatch:",
+                `Workspace ${state.selectedWorkspaceId} belongs to tenant ${workspace.tenant_id},`,
+                `but selected tenant is ${state.selectedTenantId}.`,
+                "This will be auto-corrected by useWorkspaceTenantValidator hook."
+              );
+              // Note: We don't fix it here because workspaces list might be stale.
+              // The useWorkspaceTenantValidator hook will fetch fresh data and fix it.
+            }
+          }
 
           // Sync to API client after hydration
           if (state?.selectedTenantId) {
